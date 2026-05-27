@@ -1,6 +1,8 @@
 name: CI
 
-on:
+# eslint-disable-line — 'on' без кавычек интерпретируется YAML 1.1 как boolean True,
+# и prettier при автоформате срывает структуру. Пишем "on" в кавычках.
+"on":
   push:
     branches: [main]
   pull_request:
