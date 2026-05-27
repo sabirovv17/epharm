@@ -164,6 +164,106 @@ npx tsc --noEmit                                      # type-check без эми
   - **Gotcha #2 — Vite 8 не вернул favicon.svg** (удалил при cleanup'е) — пока неважно, в Этапе 1 будет наш свой.
   - **Gotcha #3 — Gradle deprecation warning** «incompatible with Gradle 9.0» — Spring Boot 3.3 + Kotlin 2.0 пока не на 9.0. Запустим `--warning-mode all` при апгрейде до Gradle 9.x в Этапе 7.
 
+## Git Workflow (настроен 2026-05-26)
+
+**Репо:** https://github.com/sabirovv17/epharm (private, owner = sabirovv17)
+
+**Стиль:** Trunk-based, squash-only, Conventional Commits. Подробно — `../CONTRIBUTING.md`.
+
+### Что включено
+
+- ✅ **Squash-only merge** на уровне репо (gh PATCH /repos): `allow_squash_merge=true, allow_merge_commit=false, allow_rebase_merge=false, delete_branch_on_merge=true, squash_merge_commit_title=PR_TITLE, squash_merge_commit_message=PR_BODY`.
+- ✅ **Husky pre-commit hook** (`.husky/pre-commit`) → `lint-staged` → `prettier --write` на JSON/MD/YAML + TS/TSX в admin-panel/web.
+- ✅ **Husky commit-msg hook** (`.husky/commit-msg`) → `commitlint` → проверка Conventional Commits + scope из {admin, backend, mobile, posm, infra, repo, deps}.
+- ✅ **CI на каждый PR**: 7 required чеков — `admin/lint`, `admin/typecheck`, `admin/build`, `backend/build`, `backend/test`, `commitlint` (валидация заголовка PR), `dependency-review` (CVE-сканирование). + `mobile/analyze`, `mobile/test` если затронут `lib/`.
+- ✅ **PR template** в `.github/pull_request_template.md` (что/зачем/как проверить/checklist).
+- ✅ **CODEOWNERS** — пока всё на @sabirovv17.
+
+### Что НЕ включено — нужен GitHub Pro
+
+- ❌ **Branch protection / rulesets** на private repo требуют GitHub Pro ($4/мес) или Student Pack. У владельца Student Pack уже израсходован.
+- Без protection main защищён **дисциплиной**: не пушим прямо в main, всегда через PR, не мержим с красным CI.
+
+### Включение branch protection после получения Pro/Student Pack
+
+Один раз выполнить (gh CLI должен быть авторизован):
+
+```bash
+cat > /tmp/ruleset.json <<'EOF'
+{
+  "name": "main-protection",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {"include": ["~DEFAULT_BRANCH"], "exclude": []}
+  },
+  "rules": [
+    {"type": "deletion"},
+    {"type": "non_fast_forward"},
+    {"type": "required_linear_history"},
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": true,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": true,
+        "allowed_merge_methods": ["squash"]
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "required_status_checks": [
+          {"context": "admin / lint"},
+          {"context": "admin / typecheck"},
+          {"context": "admin / build"},
+          {"context": "backend / build"},
+          {"context": "backend / test"},
+          {"context": "commitlint"},
+          {"context": "dependency-review"}
+        ]
+      }
+    }
+  ]
+}
+EOF
+gh api --method POST /repos/sabirovv17/epharm/rulesets --input /tmp/ruleset.json
+```
+
+### Daily-команды git
+
+```bash
+# Свежий main
+git checkout main && git pull
+
+# Новая ветка
+git checkout -b feat/<slug>      # feat | fix | chore | refactor | docs | test | ci
+                                  # slug — kebab-case, до 50 символов
+
+# Коммитим (commit-msg hook валидирует через commitlint)
+git commit -m "feat(admin): add Rules Engine page skeleton"
+
+# Пуш + PR
+git push -u origin feat/<slug>
+gh pr create --fill              # подхватит .github/pull_request_template.md
+
+# Локальный CI-чек перед push'ем (опционально)
+cd admin-panel/web && npm run lint && npx tsc --noEmit && npm run build
+cd backend && ./gradlew build test
+
+# Дожидаешься зелёного CI на PR → Squash and merge в UI GitHub
+# Ветка автоудалится. Локально:
+git checkout main && git pull && git branch -d feat/<slug>
+```
+
+### Gotcha с git-setup'ом
+
+- **lint-staged + eslint на macOS**: BSD `realpath` не имеет `--relative-to`, GNU имеет. Изначальный hack `bash -c '... realpath --relative-to=. $0'` падал. Решение: на pre-commit hook'е оставили только `prettier --write` на TS/TSX, ESLint прогоняется в CI (`admin / lint` job). Не блокирует локальный commit.
+- **Husky v9** — `prepare` script ставит `core.hooksPath = .husky/_`. После `git clone` + `npm install` в корне репо хуки автоматически подключатся.
+
 ## Следующее действие
 
 **Этап 1 — Admin Layout + UI-kit** (3-5 дней):
