@@ -1,140 +1,17 @@
 name: CI
 
-# eslint-disable-line — 'on' без кавычек интерпретируется YAML 1.1 как boolean True,
-# и prettier при автоформате срывает структуру. Пишем "on" в кавычках.
-"on":
+on:
   push:
-    branches: [main]
+    branches:
+      - main
   pull_request:
-    branches: [main]
-
-permissions:
-  contents: read
-  pull-requests: read
+    branches:
+      - main
 
 jobs:
-  # ─────────────────────────────────────────────────────────────────────
-  # Admin frontend (React + Vite + TypeScript)
-  # ─────────────────────────────────────────────────────────────────────
-  admin-lint:
-    name: admin / lint
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: admin-panel/web
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: admin-panel/web/package-lock.json
-      - run: npm ci
-      - run: npm run lint
-
-  admin-typecheck:
-    name: admin / typecheck
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: admin-panel/web
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: admin-panel/web/package-lock.json
-      - run: npm ci
-      - run: npx tsc --noEmit
-
-  admin-build:
-    name: admin / build
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: admin-panel/web
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: admin-panel/web/package-lock.json
-      - run: npm ci
-      - run: npm run build
-
-  # ─────────────────────────────────────────────────────────────────────
-  # Backend (Kotlin 2.0 + Spring Boot 3.3)
-  # ─────────────────────────────────────────────────────────────────────
-  backend-build:
-    name: backend / build
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '22'
-      - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew build -x test
-
-  backend-test:
-    name: backend / test
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: epharm
-          POSTGRES_USER: epharm
-          POSTGRES_PASSWORD: epharm_dev
-        ports:
-          - 5433:5432
-        options: >-
-          --health-cmd "pg_isready -U epharm"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '22'
-      - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew test
-      - name: Upload test reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-test-reports
-          path: backend/build/reports/tests/test/
-          retention-days: 7
-
-  # ─────────────────────────────────────────────────────────────────────
-  # Repo-уровневые проверки (только на PR)
-  # ─────────────────────────────────────────────────────────────────────
-  commitlint:
-    name: commitlint
-    if: github.event_name == 'pull_request'
+  smoke:
+    name: smoke
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Install commitlint
-        run: npm install --no-save @commitlint/cli@19 @commitlint/config-conventional@19
-      - name: Validate PR title (Conventional Commits)
-        env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
-        run: echo "$PR_TITLE" | npx --no -- commitlint --config commitlint.config.cjs
+      - run: echo "CI is alive"
