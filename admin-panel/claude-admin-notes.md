@@ -184,6 +184,27 @@ npx tsc --noEmit                                      # type-check без эми
 - ❌ **Branch protection / rulesets** на private repo требуют GitHub Pro ($4/мес) или Student Pack. У владельца Student Pack уже израсходован.
 - Без protection main защищён **дисциплиной**: не пушим прямо в main, всегда через PR, не мержим с красным CI.
 
+### GitHub Actions — заблокированы на аккаунте (2026-05-27)
+
+При первой попытке прогнать CI workflow на PR #1 **все runs падают с `startup_failure` + `path: "BuildFailed"`** даже на минимальном 8-строчном smoke-workflow (`echo "CI is alive"`). Логи недоступны (`gh run view --log` → `log not found`).
+
+Диагностика:
+
+- ✅ Workflow зарегистрирован (`gh api /actions/workflows` показывает `state: active`).
+- ✅ Actions enabled на репо (`/actions/permissions` → `{"enabled":true, "allowed_actions":"all"}`).
+- ✅ YAML парсится корректно (после quote'инга `"on":` чтобы избежать YAML 1.1 boolean quirk).
+- ❌ Runs не доходят до runner'а — `path: "BuildFailed"`, нет jobs, нет логов.
+
+**Гипотеза:** проблема на уровне account billing / verification у `@sabirovv17`. Для новых GitHub-аккаунтов с 2024 года Actions для private repos иногда требуют:
+
+1. Установленный spending limit (даже на free 2000 мин/мес).
+2. Верифицированный email + телефон.
+3. Подтверждённый payment method (без списания).
+
+**Workaround на сейчас:** мержим PR'ы вручную через `gh pr merge --squash`, не дожидаясь CI. Локально husky хуки + `npm run lint` + `./gradlew test` ловят основное.
+
+**Что делать:** открыть https://github.com/settings/billing → раздел Actions, проверить состояние. Когда фиксанётся — `gh workflow run ci.yml` или просто новый push в feature-ветку запустит уже валидный workflow (он лежит в `.github/workflows/ci.yml`, готов к использованию).
+
 ### Включение branch protection после получения Pro/Student Pack
 
 Один раз выполнить (gh CLI должен быть авторизован):
