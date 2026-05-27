@@ -1,0 +1,49 @@
+name: 🐛 Bug report
+description: Что-то работает не так, как должно
+title: 'bug: '
+labels: ['bug']
+body:
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Где
+      options:
+        - admin (React админка)
+        - backend (Spring Boot)
+        - mobile (Flutter)
+        - posm (Electron sidecar)
+        - infra (docker/CI)
+        - неясно
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Что произошло
+      placeholder: 'Зашёл в Rules Engine, нажал Save — drawer не закрывается, и в консоли ошибка.'
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Что должно было произойти
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Шаги воспроизведения
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment (версия / браузер / OS)
+  - type: textarea
+    id: logs
+    attributes:
+      label: Логи / скриншоты

@@ -1,0 +1,15 @@
+# CODEOWNERS — кто получает запрос на ревью при изменении файлов.
+# Формат: <path>  <github-user>
+# Документация: https://docs.github.com/en/repositories/managing-your-repositories-settings-and-customizations/customizing-your-repository/about-code-owners
+
+# Дефолтный owner всего репо
+*                                @sabirovv17
+
+# Зоны (раздадим членам команды, когда они появятся)
+/lib/                            @sabirovv17  # Flutter mobile app
+/backend/                        @sabirovv17  # Kotlin + Spring Boot backend
+/admin-panel/web/                @sabirovv17  # React admin console
+/posm-sidecar/                   @sabirovv17  # Electron POSM client (Этап 5)
+/.github/                        @sabirovv17  # CI / repo metadata
+/admin-panel/design-tokens-admin.md @sabirovv17
+/_reference/design-tokens.md     @sabirovv17

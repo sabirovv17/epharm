@@ -1,0 +1,39 @@
+name: ✨ Feature request
+description: Новая фича или улучшение существующей
+title: 'feat: '
+labels: ['enhancement']
+body:
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Где
+      options:
+        - admin (React админка)
+        - backend (Spring Boot)
+        - mobile (Flutter)
+        - posm (Electron sidecar)
+        - кросс-модульное
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Проблема / задача
+      placeholder: 'Сейчас X — приходится делать Y вручную, занимает 5 минут на каждую сделку.'
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Предлагаемое решение
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Альтернативы (опц.)
+  - type: input
+    id: tz-ref
+    attributes:
+      label: Ссылка на ТЗ / PLAN.md (если есть)
+      placeholder: 'PLAN.md → Этап 5'

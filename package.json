@@ -1,0 +1,26 @@
+{
+  "name": "epharm-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Epharm — pharmacist motivation app + HQ admin console + POSM sidecar. Monorepo root holds shared dev tooling (git hooks, commitlint).",
+  "scripts": {
+    "prepare": "husky",
+    "lint:staged": "lint-staged",
+    "commit:check": "commitlint --edit"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.6.0",
+    "@commitlint/config-conventional": "^19.6.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.10",
+    "prettier": "^3.4.2"
+  },
+  "lint-staged": {
+    "*.{json,md,yaml,yml,html,css}": [
+      "prettier --write"
+    ],
+    "admin-panel/web/src/**/*.{ts,tsx,js,jsx}": [
+      "prettier --write"
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Background для adaptive icon — вертикальный gradient #21D17A → #16A65C,
+     соответствует grad/header из design-tokens §8. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:type="linear"
+        android:angle="270"
+        android:startColor="#21D17A"
+        android:endColor="#16A65C" />
+</shape>

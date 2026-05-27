@@ -1,0 +1,19 @@
+# Auto-generated / build artifacts
+node_modules/
+admin-panel/web/dist/
+admin-panel/web/coverage/
+backend/build/
+backend/.gradle/
+build/
+build.nosync/
+.dart_tool/
+
+# Reference HTML / JSX (не наш код — это эталон, не форматируем)
+admin-panel/references/
+_reference/
+
+# Lock-файлы
+package-lock.json
+admin-panel/web/package-lock.json
+pubspec.lock
+backend/gradle/wrapper/gradle-wrapper.jar

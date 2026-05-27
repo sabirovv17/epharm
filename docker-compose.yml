@@ -1,0 +1,74 @@
+# Локальная инфраструктура для разработки Epharm.
+# Поднимает Postgres + Redis + MinIO. Backend подключается из ./backend, фронт — через MSW (фаза 1) или прямой URL (фаза 2+).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: epharm-postgres
+    environment:
+      POSTGRES_DB: epharm
+      POSTGRES_USER: epharm
+      POSTGRES_PASSWORD: epharm_dev
+    ports:
+      # 5432 на хосте часто занят системным Postgres — мапим на 5433 наружу.
+      - '5433:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U epharm -d epharm']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: epharm-redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    command: ['redis-server', '--appendonly', 'yes']
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: epharm-minio
+    environment:
+      MINIO_ROOT_USER: epharm
+      MINIO_ROOT_PASSWORD: epharm_dev_minio
+    ports:
+      - '9000:9000' # S3 API
+      - '9001:9001' # Web console
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Один-раз создаёт bucket `epharm-receipts` после первого старта MinIO.
+  minio-init:
+    image: minio/mc:latest
+    container_name: epharm-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 epharm epharm_dev_minio &&
+      mc mb --ignore-existing local/epharm-receipts &&
+      mc anonymous set download local/epharm-receipts &&
+      echo 'MinIO bucket epharm-receipts ready'
+      "
+    restart: 'no'
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:

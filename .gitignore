@@ -1,0 +1,139 @@
+# ─────────────────────────────────────────────────────────────────────
+# Epharm — корневой .gitignore (Flutter app + Kotlin backend + React admin)
+# ─────────────────────────────────────────────────────────────────────
+
+# ── OS / Editors ──────────────────────────────────────────────────────
+.DS_Store
+*.swp
+.history
+.atom/
+.svn/
+.swiftpm/
+.vscode/
+.fleet/
+
+# ── Claude Code (локальные сессии, не для репо) ───────────────────────
+.claude/
+
+# ── Случайные symlink'и из старых build-копий ─────────────────────────
+build 2
+
+# ── IntelliJ / Android Studio ─────────────────────────────────────────
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# ── Logs / temp ───────────────────────────────────────────────────────
+*.class
+*.log
+*.pyc
+*.tmp
+.tmp/
+
+# ─────────────────────────────────────────────────────────────────────
+# Flutter / Dart (мобильное приложение, lib/)
+# ─────────────────────────────────────────────────────────────────────
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+.metadata
+/build/
+build/
+build.nosync/
+/build 2/
+.atom/
+.buildlog/
+migrate_working_dir/
+
+# Symbolication / obfuscation
+app.*.symbols
+app.*.map.json
+
+# Android артефакты
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Android signing — СЕКРЕТЫ, не коммитим
+android/keystore.jks
+android/key.properties
+android/local.properties
+
+# iOS Pods
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/ephemeral
+ios/Flutter/flutter_export_environment.sh
+ios/Runner/GeneratedPluginRegistrant.*
+
+# Распакованные сборки для ревью — артефакты не коммитим, см. builds/README.md
+builds/*.apk
+builds/*.ipa
+builds/*.app.zip
+
+# ─────────────────────────────────────────────────────────────────────
+# Kotlin / Spring Boot backend (backend/)
+# ─────────────────────────────────────────────────────────────────────
+backend/.gradle/
+backend/build/
+backend/out/
+backend/.kotlin/
+backend/!gradle/wrapper/gradle-wrapper.jar
+backend/bin/
+
+# Spring Boot local overrides
+backend/src/main/resources/application-local.yml
+backend/src/main/resources/application-secret.yml
+
+# ─────────────────────────────────────────────────────────────────────
+# Admin frontend (admin-panel/web/)
+# ─────────────────────────────────────────────────────────────────────
+admin-panel/web/node_modules/
+admin-panel/web/dist/
+admin-panel/web/.vite/
+admin-panel/web/coverage/
+admin-panel/web/.turbo/
+admin-panel/web/playwright-report/
+admin-panel/web/test-results/
+admin-panel/web/.eslintcache
+
+# ─────────────────────────────────────────────────────────────────────
+# POSM sidecar (posm-sidecar/, появится в Этапе 5)
+# ─────────────────────────────────────────────────────────────────────
+posm-sidecar/node_modules/
+posm-sidecar/dist/
+posm-sidecar/out/
+posm-sidecar/.electron-builder/
+
+# ─────────────────────────────────────────────────────────────────────
+# Корневой Node (husky, commitlint, lint-staged)
+# ─────────────────────────────────────────────────────────────────────
+node_modules/
+.npm/
+
+# ─────────────────────────────────────────────────────────────────────
+# Секреты / environment — НИКОГДА не коммитим
+# ─────────────────────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.p12
+*.jks
+secrets/
+.secret
+
+# ─────────────────────────────────────────────────────────────────────
+# Локальные ассеты / временные файлы
+# ─────────────────────────────────────────────────────────────────────
+*.local
+tools/build_icons/

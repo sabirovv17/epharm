@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📋 PLAN.md (план разработки)
+    url: https://github.com/sabirovv17/epharm/blob/main/admin-panel/PLAN.md
+    about: Прочитай план разработки экосистемы перед заведением issue
+  - name: 📝 claude-admin-notes.md (рабочие заметки)
+    url: https://github.com/sabirovv17/epharm/blob/main/admin-panel/claude-admin-notes.md
+    about: Описание текущего состояния, gotcha-моменты, команды
