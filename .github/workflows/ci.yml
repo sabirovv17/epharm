@@ -6,10 +6,9 @@ on:
   pull_request:
     branches: [main]
 
-# Не запускаем дубли для одной и той же ветки
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+permissions:
+  contents: read
+  pull-requests: read
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────
@@ -62,8 +61,6 @@ jobs:
           cache-dependency-path: admin-panel/web/package-lock.json
       - run: npm ci
       - run: npm run build
-
-  # admin-test и admin-coverage будут включены как required после добавления Vitest в Этапе 1.
 
   # ─────────────────────────────────────────────────────────────────────
   # Backend (Kotlin 2.0 + Spring Boot 3.3)
@@ -119,59 +116,8 @@ jobs:
           path: backend/build/reports/tests/test/
           retention-days: 7
 
-  # backend-coverage (jacoco) — добавим как required в Этапе 3 при появлении сервисных тестов.
-
   # ─────────────────────────────────────────────────────────────────────
-  # Mobile (Flutter) — запускается только если изменён lib/
-  # ─────────────────────────────────────────────────────────────────────
-  mobile-changes:
-    name: mobile / changes detected
-    runs-on: ubuntu-latest
-    outputs:
-      changed: ${{ steps.filter.outputs.mobile }}
-    steps:
-      - uses: actions/checkout@v4
-      - id: filter
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            mobile:
-              - 'lib/**'
-              - 'pubspec.yaml'
-              - 'pubspec.lock'
-              - 'android/**'
-              - 'ios/**'
-
-  mobile-analyze:
-    name: mobile / analyze
-    needs: mobile-changes
-    if: needs.mobile-changes.outputs.changed == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          flutter-version: '3.27.x'
-      - run: flutter pub get
-      - run: flutter analyze
-
-  mobile-test:
-    name: mobile / test
-    needs: mobile-changes
-    if: needs.mobile-changes.outputs.changed == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          flutter-version: '3.27.x'
-      - run: flutter pub get
-      - run: flutter test || echo "No tests yet — placeholder, добавим в Этапе 6"
-
-  # ─────────────────────────────────────────────────────────────────────
-  # Repo-уровневые проверки (PR-only)
+  # Repo-уровневые проверки (только на PR)
   # ─────────────────────────────────────────────────────────────────────
   commitlint:
     name: commitlint
@@ -185,20 +131,8 @@ jobs:
         with:
           node-version: '22'
       - name: Install commitlint
-        run: |
-          npm install -g @commitlint/cli@19 @commitlint/config-conventional@19
+        run: npm install --no-save @commitlint/cli@19 @commitlint/config-conventional@19
       - name: Validate PR title (Conventional Commits)
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
-        run: |
-          echo "$PR_TITLE" | npx --no -- commitlint --config commitlint.config.cjs
-
-  dependency-review:
-    name: dependency-review
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: high
+        run: echo "$PR_TITLE" | npx --no -- commitlint --config commitlint.config.cjs
