@@ -2,6 +2,79 @@
 
 > **Читать этот файл первым в каждой новой сессии.** Содержит сжатое описание проекта, статус и план — чтобы не тратить токены на повторное изучение HTML-прототипа и ТЗ.
 
+## 🎓 РОЛЬ: ОПЫТНЫЙ SENIOR-РАЗРАБОТЧИК (закреплено 2026-05-29)
+
+**Подход к КАЖДОЙ задаче в этом проекте — без исключений, без сокращений.**
+
+Применяется и к Flutter mobile, и к admin-panel React, и к Kotlin backend, и к POSM Electron — везде где пишу код.
+
+### 1. Reproduction-first
+
+- На bug или новую фичу — сначала **failing test**, потом код.
+- Тест должен падать по той причине, которую ты диагностировал. Если падает по другой — гипотеза неверна.
+- Sanity-control: рядом тест что корректное поведение продолжает работать (защита от over-shoot фикса).
+
+### 2. Root cause через факты
+
+- `grep`, `find`, чтение файлов, stack-trace, логи — **факты**, не интуиция.
+- Не «попробую так, может сработает». Сначала гипотеза → reproduction-тест → подтверждение.
+- Никаких «слепых правок». Каждое изменение отвечает на вопрос «какой симптом оно лечит и почему».
+
+### 3. Минимальные изменения
+
+- Один баг = один сфокусированный фикс. Без попутного рефакторинга «раз уж тут».
+- Composition: один валидатор переиспользуется во всех точках входа, не дрейфит.
+
+### 4. Тестирование — ВСЕГО что пишу
+
+- **3 типа тестов** обязательно: unit (pure logic), integration (с реальным репозиторием/Riverpod-контейнером/Spring-контекстом), smoke (рендер без падений).
+- Каждый новый виджет / провайдер / репозиторий / контроллер / endpoint = тест в том же commit'е.
+- Каждый bug-fix = regression test, чтобы баг не вернулся.
+- `flutter test` / `npm test` / `./gradlew test` после **каждого** touch'а — не «в конце», не «когда вспомнил».
+- Если красное — не двигаюсь дальше. Чиним. Не `skip:`, не `it.skip`.
+
+### 5. Машинно-читаемые ошибки
+
+- Backend бросает `AppException(ErrorCode.XXX, ...)`. Frontend switch'ит по коду.
+- Сообщения с конкретикой (`"recommend=$id"`, `"phone format invalid"`) — чтобы дебаг был очевидным.
+
+### 6. Документировать на ходу
+
+- После каждого нетривиального решения — запись в `claude-notes.md` (mobile) или `admin-panel/claude-admin-notes.md` (admin): gotcha, fix, regression test.
+- Pattern «домен → бэкенд → фронт» (Этап 3.2 admin) занял 1.5 дня в первый раз; Promo (3.3) по тому же checklist'у — 3 часа. **Notes — экономия времени, не накладные расходы.**
+
+### 7. Контракт-консистентность
+
+- Frontend type строго зеркалит backend DTO. Любое расхождение — баг.
+- API endpoints per ТЗ: REST, kebab-case, plural resources.
+- Status enum — strict через CHECK constraint в БД + Kotlin/Dart enum + frontend type union.
+
+### 8. Защита API через service layer
+
+- DTO-валидация ловит синтаксис. Бизнес-правила — в service: shape validation, self-reference, status transitions, FK existence.
+- PATCH-эндпоинты не должны позволять то, для чего есть dedicated endpoint (silent state changes — потеря audit-event'ов).
+
+### 9. Архитектурные anti-patterns которых НЕ делаю
+
+- Async hydration sync state: токены из localStorage в useEffect → редирект на /login срабатывает раньше. **Правильно:** synchronous initial-state factory.
+- `.filter(Boolean)` на лету в controlled textarea: юзер вводит, видит другое. **Правильно:** raw input, sanitize только в save.
+- `role="switch"` на `<span>` — не focusable. **Правильно:** button.
+- В Flutter: `setState` в `build()`, mutable global state без Riverpod scope, await'ы без `mounted` guard.
+
+### 10. Что считается «готово»
+
+- ✅ Failing test был → теперь passes.
+- ✅ Sanity tests не сломались.
+- ✅ Full suite зелёный (`flutter test`, `npm test`, `./gradlew test`).
+- ✅ Build clean (`flutter build`, `npm run build`, `./gradlew build`).
+- ✅ Notes обновлены.
+
+Без всех 5 пунктов — не «готово».
+
+**Этот подход — закреплённое правило, не предложение. Применяется ко всему коду в проекте: новым фичам, багфиксам, рефакторингу, миграциям БД, инфраструктуре, UI-полировке.**
+
+---
+
 ## Что строим
 
 Кроссплатформенное (iOS-first) приложение для фармацевтов на Flutter.

@@ -1,0 +1,54 @@
+<Window x:Class="CustomerDisplay.CdpForm"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Карта клиента"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        Topmost="True"
+        ShowInTaskbar="False"
+        AllowsTransparency="True"
+        Background="Transparent"
+        SizeToContent="Height"
+        Width="420"
+        WindowStartupLocation="Manual">
+
+    <Border CornerRadius="16" Background="White" Margin="14"
+            BorderBrush="#16C97A" BorderThickness="2">
+        <Border.Effect>
+            <DropShadowEffect Color="#000000" Opacity="0.28" BlurRadius="28" ShadowDepth="6"/>
+        </Border.Effect>
+
+        <StackPanel Margin="22,18,22,18">
+            <TextBlock Text="Карта клиента" FontSize="20" FontWeight="Bold" Foreground="#0B1F17"/>
+            <TextBlock Text="Программа лояльности Epharm" FontSize="12" Foreground="#6B7280" Margin="0,2,0,0"/>
+
+            <TextBlock Text="Телефон клиента" FontSize="12" FontWeight="Bold" Foreground="#374151" Margin="0,16,0,4"/>
+            <TextBox x:Name="TbPhone" FontSize="18" Padding="10,8" BorderBrush="#D1D5DB" BorderThickness="1"
+                     TextChanged="OnPhoneChanged"/>
+
+            <Border x:Name="StatusBox" Background="#F4F6FA" CornerRadius="10" Padding="12" Margin="0,12,0,0">
+                <TextBlock x:Name="TbStatus" Text="Введите номер телефона" FontSize="14"
+                           Foreground="#1F2937" TextWrapping="Wrap"/>
+            </Border>
+
+            <TextBlock Text="Имя (для нового клиента)" FontSize="12" FontWeight="Bold" Foreground="#374151" Margin="0,12,0,4"/>
+            <TextBox x:Name="TbName" FontSize="15" Padding="8,6" BorderBrush="#D1D5DB" BorderThickness="1"/>
+
+            <Grid Margin="0,18,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Button x:Name="BtnClose" Grid.Column="0" Content="Закрыть (Esc)"
+                        Height="44" FontSize="14" Foreground="#374151" Background="#EEF1F5"
+                        BorderThickness="0" Cursor="Hand" Click="OnCloseClick"/>
+
+                <Button x:Name="BtnRegister" Grid.Column="2" Content="Зарегистрировать"
+                        Height="44" FontSize="14" FontWeight="Bold" Foreground="White"
+                        Background="#16C97A" BorderThickness="0" Cursor="Hand" Click="OnRegisterClick"/>
+            </Grid>
+        </StackPanel>
+    </Border>
+</Window>

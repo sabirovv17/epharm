@@ -1,0 +1,95 @@
+using System.Collections.Generic;
+
+namespace CustomerDisplay.Models.Posm
+{
+    // DTO для обмена с backend POSM Rules Engine (/api/posm/*).
+    // Имена полей зеркалят kz.epharm.posm.dto.* (Kotlin). Сериализация — camelCase
+    // (настроена в EpharmApiClient через JsonSerializerOptions).
+
+    /// <summary>Позиция корзины. Sku — наш productId или код кассы (backend сам резолвит).</summary>
+    public sealed class CartItem
+    {
+        public string Sku { get; set; } = "";
+        public double Qty { get; set; } = 1.0;
+    }
+
+    /// <summary>Запрос рекомендаций: вся текущая корзина чека + (опц.) отсканированный товар.</summary>
+    public sealed class RecommendRequest
+    {
+        public string PharmacistId { get; set; } = "";
+        public string PharmacyId { get; set; } = "";
+        public string SessionId { get; set; } = "";
+        public string? ScannedSku { get; set; }
+        public List<CartItem> Cart { get; set; } = new();
+    }
+
+    /// <summary>Строка таблицы «Сравнение» (триггер-товар vs рекомендованный).</summary>
+    public sealed class ComparisonRow
+    {
+        public string Label { get; set; } = "";            // «Состав», «Объём», ...
+        public string TriggerValue { get; set; } = "";     // значение у исходного товара
+        public string RecommendValue { get; set; } = "";   // значение у рекомендованного (можно с «✓ »)
+        public bool RecommendHighlight { get; set; }       // выделить зелёным (преимущество)
+    }
+
+    /// <summary>
+    /// Одна рекомендация для popup фармацевта. Зеркалит backend RecommendResponse — ВСЕ поля
+    /// карточки задаются в админке (Rules Engine) и пуллятся сюда, без расхождений. Опциональные
+    /// поля (вендор, сравнение, цель) при пустом значении в карточке скрываются — шаблон
+    /// один, наполнение зависит от правила.
+    /// </summary>
+    public sealed class Recommendation
+    {
+        public string EventId { get; set; } = "";
+        public string RuleId { get; set; } = "";
+        public string Kind { get; set; } = "";             // substitution | crosssell
+
+        // Что попросил покупатель (исходный товар)
+        public string? TriggerSku { get; set; }
+        public string? TriggerName { get; set; }
+        public string? TriggerVolume { get; set; }         // «150 мл»
+        public int? TriggerPrice { get; set; }             // 2390
+
+        // Что предложить вместо / в дополнение
+        public string RecommendSku { get; set; } = "";
+        public string RecommendName { get; set; } = "";
+        public string? RecommendVendor { get; set; }       // «Jadran Galenski»
+        public string? RecommendVolume { get; set; }       // «150 мл»
+        public string? RecommendStock { get; set; }        // «в наличии 14 уп.»
+        public int RecommendPrice { get; set; }
+        public string? PartnerLabel { get; set; }          // «ПАРТНЁР EPHARM»
+
+        // Доказательная база
+        public string Script { get; set; } = "";
+        public List<string> Advantages { get; set; } = new();         // запасной список (без сравнения)
+        public List<ComparisonRow> Comparison { get; set; } = new();  // таблица сравнения
+
+        // Мотивация фармацевта
+        public int Bonus { get; set; }                     // «+520 ₸ вам»
+        public string? GoalText { get; set; }              // «цель «7/10 замен Аквамарис в мае»»
+        public int? GoalBonus { get; set; }                // «+2 000 ₸ за выполнение цели»
+
+        public bool IsSubstitution => Kind == "substitution";
+    }
+
+    /// <summary>Ответ Rules Engine: до 2 рекомендаций (замены раньше cross-sell, по бонусу DESC).</summary>
+    public sealed class RecommendResponse
+    {
+        public string SessionId { get; set; } = "";
+        public List<Recommendation> Recommendations { get; set; } = new();
+    }
+
+    /// <summary>Результат рекомендации: accepted (принял) | rejected (пропустил).</summary>
+    public sealed class OutcomeRequest
+    {
+        public string Outcome { get; set; } = "";
+        public string? FinalSku { get; set; }
+    }
+
+    public sealed class OutcomeResponse
+    {
+        public string EventId { get; set; } = "";
+        public string Outcome { get; set; } = "";
+        public string? PendingBonusId { get; set; }
+    }
+}

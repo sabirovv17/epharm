@@ -1,0 +1,356 @@
+package kz.epharm.receipts.service
+
+import kz.epharm.pharmacists.repository.PharmacistRepository
+import kz.epharm.receipts.dto.ExcelRowInput
+import kz.epharm.receipts.dto.LogSaleInput
+import kz.epharm.receipts.dto.ReceiptDto
+import kz.epharm.receipts.dto.ReconcileSummaryDto
+import kz.epharm.receipts.entity.PendingBonusEntity
+import kz.epharm.receipts.entity.PendingBonusStatus
+import kz.epharm.receipts.entity.ReceiptEntity
+import kz.epharm.receipts.entity.ReceiptSource
+import kz.epharm.receipts.entity.ReceiptStatus
+import kz.epharm.receipts.repository.PendingBonusRepository
+import kz.epharm.receipts.repository.ReceiptRepository
+import kz.epharm.shared.error.AppException
+import kz.epharm.shared.error.ErrorCode
+import kz.epharm.shared.storage.MediaStorage
+import org.slf4j.LoggerFactory
+import org.springframework.http.HttpStatus
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+import java.math.BigDecimal
+import java.time.Duration
+import java.time.Instant
+import java.util.UUID
+import kotlin.math.abs
+
+/**
+ * Сверка чеков (ТЗ §3.5). Решает ветку загруженного чека:
+ *  - auto-approve (~80%): OCR-score высок, сумма ±2%, аптека совпала, время в окне 0–30 мин
+ *    от POSM-события → бонус сразу credited.
+ *  - manual (~15%): что-то не сошлось → status=pending, ждёт решения модератора.
+ *  - anti-fraud (~5%): дубль фискального чека / чек из другой аптеки → status=flagged.
+ * Начисление: бонус из связанного pending_bonus идёт на pharmacist.balance + earned30d.
+ */
+@Service
+class ReconcileService(
+    private val receiptRepository: ReceiptRepository,
+    private val pendingBonusRepository: PendingBonusRepository,
+    private val pharmacistRepository: PharmacistRepository,
+    private val ocrService: OcrService,
+    private val mediaStorage: MediaStorage,
+) {
+
+    private val log = LoggerFactory.getLogger(ReconcileService::class.java)
+
+    companion object {
+        private const val AUTO_SCORE_MIN = 0.90
+        private const val AMOUNT_TOLERANCE_PCT = 2 // ±2%
+        private val MATCH_WINDOW: Duration = Duration.ofMinutes(30)
+    }
+
+    // ── Чтение ────────────────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    fun list(status: ReceiptStatus? = null): List<ReceiptDto> {
+        val rows = if (status != null) {
+            receiptRepository.findAllByStatusRawOrderByCreatedAtDesc(status.name)
+        } else {
+            receiptRepository.findAllByOrderByCreatedAtDesc()
+        }
+        return rows.map { toDto(it) }
+    }
+
+    @Transactional(readOnly = true)
+    fun get(id: String): ReceiptDto = toDto(loadOrThrow(id))
+
+    @Transactional(readOnly = true)
+    fun summary(): ReconcileSummaryDto = ReconcileSummaryDto(
+        queue = receiptRepository.countByStatusRaw(ReceiptStatus.pending.name),
+        moderationRequired = receiptRepository.countByStatusRaw(ReceiptStatus.moderation_required.name),
+        flagged = receiptRepository.countByStatusRaw(ReceiptStatus.flagged.name),
+        approved = receiptRepository.countByStatusRaw(ReceiptStatus.approved.name),
+        rejected = receiptRepository.countByStatusRaw(ReceiptStatus.rejected.name),
+        autoApproved = receiptRepository.findAllByStatusRawOrderByCreatedAtDesc(ReceiptStatus.approved.name)
+            .count { it.autoApproved }
+            .toLong(),
+    )
+
+    // ── Загрузка чека (Pharmacist App; на MVP — dev/seed/тест) ──────────────
+
+    /**
+     * Фармацевт загрузил чек: фото → MinIO, OCR парсит, матчим с pending_bonus,
+     * определяем ветку. Возвращает созданный чек.
+     */
+    @Transactional
+    fun submitReceipt(
+        pharmacistId: String,
+        photoBytes: ByteArray?,
+        photoContentType: String?,
+        photoName: String?,
+        qrRaw: String?,
+    ): ReceiptDto {
+        val pharmacist = pharmacistRepository.findById(pharmacistId).orElseThrow {
+            AppException(ErrorCode.VALIDATION_FAILED, "Фармацевт $pharmacistId не найден", HttpStatus.BAD_REQUEST)
+        }
+        if (photoBytes == null && qrRaw.isNullOrBlank()) {
+            throw AppException(ErrorCode.VALIDATION_FAILED, "Нужно фото чека или QR", HttpStatus.BAD_REQUEST)
+        }
+
+        // Кандидат на матч — свежий открытый pending-бонус фармацевта.
+        val candidate = latestAwaitingFor(pharmacistId)
+
+        val parsed = ocrService.parse(
+            photoBytes = photoBytes,
+            qrRaw = qrRaw,
+            hintSku = candidate?.sku,
+            hintAmount = candidate?.expectedAmount,
+        )
+
+        val photoUrl = if (photoBytes != null) {
+            mediaStorage.upload(photoBytes, photoContentType ?: "image/jpeg", photoName ?: "receipt.jpg")
+        } else null
+
+        val receipt = ReceiptEntity(
+            id = "rcp_${UUID.randomUUID().toString().substring(0, 8)}",
+            pharmacistId = pharmacist.id,
+            pharmacistName = pharmacist.name,
+            pharmacyId = pharmacist.pharmacyId,
+            pharmacyName = pharmacist.pharmacyName,
+            photoUrl = photoUrl,
+            qrRaw = qrRaw,
+            fiscalId = parsed.fiscalId,
+            parsedSku = parsed.sku,
+            parsedAmount = parsed.amount,
+            parsedCashier = parsed.cashier,
+            parsedAt = parsed.parsedAt,
+            ocrScore = BigDecimal.valueOf(parsed.score),
+            pendingBonusId = candidate?.id,
+        )
+
+        decideBranch(receipt, candidate, parsed.score)
+        val saved = receiptRepository.save(receipt)
+        return toDto(saved, candidate)
+    }
+
+    // ── Ручные действия модератора ──────────────────────────────────────────
+
+    @Transactional
+    fun approve(id: String, reviewer: String): ReceiptDto {
+        val receipt = loadOrThrow(id)
+        if (receipt.status == ReceiptStatus.approved) return toDto(receipt)
+        creditFor(receipt)
+        receipt.status = ReceiptStatus.approved
+        receipt.autoApproved = false
+        receipt.reviewer = reviewer
+        receipt.reviewedAt = Instant.now()
+        return toDto(receiptRepository.save(receipt))
+    }
+
+    @Transactional
+    fun reject(id: String, reviewer: String, reason: String): ReceiptDto {
+        val receipt = loadOrThrow(id)
+        receipt.status = ReceiptStatus.rejected
+        receipt.flagReason = reason
+        receipt.reviewer = reviewer
+        receipt.reviewedAt = Instant.now()
+        return toDto(receiptRepository.save(receipt))
+    }
+
+    // ── Сверка по 3 источникам (Stage 2: лог кассы + Excel + ручная модерация) ──
+
+    /**
+     * Источник №1 — завершённый чек из лога кассы (POSM-клиент → /api/posm/sales).
+     * Матчим позиции с открытыми pending-бонусами фармацевта; подтверждаем чек логом.
+     */
+    @Transactional
+    fun ingestLogSale(input: LogSaleInput) {
+        for (item in input.items) {
+            val pending = pendingBonusRepository
+                .findAllByPharmacistIdAndSkuAndStatusRawOrderByCreatedAtDesc(
+                    input.pharmacistId, item.sku, PendingBonusStatus.awaiting_receipt.name,
+                )
+                .firstOrNull { withinTimeWindow(input.soldAt, it.createdAt) }
+                ?: continue
+
+            val receipt = receiptRepository.findFirstByPendingBonusId(pending.id)
+                ?: newReceiptForPending(pending, input.fiscalId, input.cashier, input.soldAt, item.total)
+
+            receipt.source = ReceiptSource.posm
+            receipt.confirmedByLog = true
+            if (receipt.fiscalId.isNullOrBlank()) receipt.fiscalId = input.fiscalId
+            if (receipt.parsedCashier.isBlank()) receipt.parsedCashier = input.cashier ?: ""
+            if (receipt.parsedAt == null) receipt.parsedAt = input.soldAt
+            if (receipt.parsedAmount == 0L) receipt.parsedAmount = item.total
+
+            decideFromSources(receipt)
+            receiptRepository.save(receipt)
+        }
+    }
+
+    /**
+     * Источник №2 — Excel-выгрузка. Возвращает число сматченных строк.
+     * Приоритет матчинга: (1) по fiscal_id к уже существующему чеку (лог его создал);
+     * (2) Excel пришёл раньше лога → однозначный матч по SKU+сумме к открытому pending без чека.
+     */
+    @Transactional
+    fun ingestExcelRows(rows: List<ExcelRowInput>): Int = rows.count { ingestExcelRow(it) }
+
+    /** Сверка одной строки Excel. true если сматчили с pending-бонусом/чеком. */
+    @Transactional
+    fun ingestExcelRow(row: ExcelRowInput): Boolean {
+        // (1) сильный матч по фискальному номеру
+        if (!row.fiscalId.isNullOrBlank()) {
+            val existing = receiptRepository.findAllByFiscalId(row.fiscalId)
+                .firstOrNull { it.pendingBonusId != null }
+            if (existing != null) {
+                applyExcelToReceipt(existing, row)
+                return true
+            }
+        }
+        // (2) Excel раньше лога — матч по SKU + сумме к единственному подходящему pending
+        val sku = row.sku ?: return false
+        val amount = row.amount ?: return false
+        val pending = pendingBonusRepository
+            .findAllBySkuAndStatusRaw(sku, PendingBonusStatus.awaiting_receipt.name)
+            .filter {
+                amountWithinTolerance(amount, it.expectedAmount) &&
+                    receiptRepository.findFirstByPendingBonusId(it.id) == null
+            }
+            .singleOrNull() ?: return false // только однозначный матч — иначе ждём лог
+
+        val receipt = newReceiptForPending(pending, row.fiscalId, row.cashier, row.soldAt ?: Instant.now(), amount)
+        applyExcelToReceipt(receipt, row)
+        return true
+    }
+
+    private fun applyExcelToReceipt(receipt: ReceiptEntity, row: ExcelRowInput) {
+        receipt.source = ReceiptSource.posm
+        receipt.confirmedByExcel = true
+        if (receipt.fiscalId.isNullOrBlank()) receipt.fiscalId = row.fiscalId
+        if (receipt.parsedAmount == 0L) row.amount?.let { receipt.parsedAmount = it }
+
+        // Cross-check суммы лог vs Excel — расхождение помечаем на ручную проверку.
+        val excelAmount = row.amount
+        if (receipt.confirmedByLog && excelAmount != null && receipt.parsedAmount > 0 &&
+            !amountWithinTolerance(excelAmount, receipt.parsedAmount)
+        ) {
+            receipt.flagReason = "amount_mismatch"
+        }
+        decideFromSources(receipt)
+        receiptRepository.save(receipt)
+    }
+
+    /** Решение по чеку на основе подтверждённых источников. */
+    private fun decideFromSources(receipt: ReceiptEntity) {
+        val both = receipt.confirmedByLog && receipt.confirmedByExcel
+        when {
+            both && receipt.flagReason == "amount_mismatch" -> receipt.status = ReceiptStatus.flagged
+            both -> {
+                creditFor(receipt)
+                receipt.status = ReceiptStatus.approved
+                receipt.autoApproved = true
+                receipt.reviewer = "auto"
+                receipt.reviewedAt = Instant.now()
+            }
+            // подтверждён только одним источником → ручная модерация (источник №3)
+            receipt.confirmedByLog || receipt.confirmedByExcel -> receipt.status = ReceiptStatus.moderation_required
+            else -> receipt.status = ReceiptStatus.pending
+        }
+    }
+
+    private fun newReceiptForPending(
+        pending: PendingBonusEntity,
+        fiscalId: String?,
+        cashier: String?,
+        soldAt: Instant,
+        amount: Long,
+    ): ReceiptEntity = ReceiptEntity(
+        id = "rcp_${UUID.randomUUID().toString().substring(0, 8)}",
+        pharmacistId = pending.pharmacistId,
+        pharmacistName = pending.pharmacistName,
+        pharmacyId = pending.pharmacyId,
+        pharmacyName = pending.pharmacyName,
+        fiscalId = fiscalId,
+        parsedSku = pending.sku,
+        parsedAmount = amount,
+        parsedCashier = cashier ?: "",
+        parsedAt = soldAt,
+        pendingBonusId = pending.id,
+    ).also { it.source = ReceiptSource.posm }
+
+    // ── Логика ветвления ────────────────────────────────────────────────────
+
+    private fun decideBranch(receipt: ReceiptEntity, candidate: PendingBonusEntity?, score: Double) {
+        // 1. Анти-фрод: дубль фискального чека.
+        if (!receipt.fiscalId.isNullOrBlank() && receiptRepository.existsByFiscalId(receipt.fiscalId!!)) {
+            receipt.status = ReceiptStatus.flagged
+            receipt.flagReason = "duplicate_receipt"
+            return
+        }
+        // 2. Анти-фрод: чек из аптеки, отличной от POSM-записи.
+        if (candidate != null && receipt.pharmacyId != candidate.pharmacyId) {
+            receipt.status = ReceiptStatus.flagged
+            receipt.flagReason = "wrong_pharmacy"
+            return
+        }
+        // 3. Авто-одобрение, если все условия совпали.
+        if (candidate != null && score >= AUTO_SCORE_MIN &&
+            amountWithinTolerance(receipt.parsedAmount, candidate.expectedAmount) &&
+            withinTimeWindow(receipt.parsedAt, candidate.createdAt)
+        ) {
+            creditFor(receipt, candidate)
+            receipt.status = ReceiptStatus.approved
+            receipt.autoApproved = true
+            receipt.reviewer = "auto"
+            receipt.reviewedAt = Instant.now()
+            return
+        }
+        // 4. Иначе — ручная модерация.
+        receipt.status = ReceiptStatus.pending
+    }
+
+    /** Начисление бонуса фармацевту: balance += bonus, earned30d += bonus, pending → matched. */
+    private fun creditFor(receipt: ReceiptEntity, knownCandidate: PendingBonusEntity? = null) {
+        if (receipt.bonusCredited > 0) return // идемпотентность — уже начислено
+        val pending = knownCandidate
+            ?: receipt.pendingBonusId?.let { pendingBonusRepository.findById(it).orElse(null) }
+            ?: return
+        val pharmacist = pharmacistRepository.findById(receipt.pharmacistId).orElse(null) ?: return
+        pharmacist.balance += pending.bonus
+        pharmacist.earned30d += pending.bonus
+        pharmacistRepository.save(pharmacist)
+        pending.status = PendingBonusStatus.matched
+        pendingBonusRepository.save(pending)
+        receipt.bonusCredited = pending.bonus
+        log.info("Бонус {}₸ начислен фармацевту {} по чеку {}", pending.bonus, pharmacist.id, receipt.id)
+    }
+
+    private fun amountWithinTolerance(actual: Long, expected: Long): Boolean {
+        if (expected <= 0) return false
+        return abs(actual - expected) * 100 <= expected * AMOUNT_TOLERANCE_PCT
+    }
+
+    private fun withinTimeWindow(parsedAt: Instant?, posmAt: Instant): Boolean {
+        val at = parsedAt ?: return false
+        // Чек после события POSM и в пределах окна (учитываем небольшой дрейф назад).
+        val delta = Duration.between(posmAt, at)
+        return delta >= Duration.ofMinutes(-5) && delta <= MATCH_WINDOW
+    }
+
+    private fun latestAwaitingFor(pharmacistId: String): PendingBonusEntity? =
+        pendingBonusRepository.findAll()
+            .filter { it.pharmacistId == pharmacistId && it.status == PendingBonusStatus.awaiting_receipt }
+            .maxByOrNull { it.createdAt }
+
+    private fun loadOrThrow(id: String): ReceiptEntity =
+        receiptRepository.findById(id).orElseThrow {
+            AppException(ErrorCode.NOT_FOUND, "Receipt $id not found", HttpStatus.NOT_FOUND)
+        }
+
+    private fun toDto(e: ReceiptEntity, known: PendingBonusEntity? = null): ReceiptDto {
+        val pb = known ?: e.pendingBonusId?.let { pendingBonusRepository.findById(it).orElse(null) }
+        return ReceiptDto.of(e, pb)
+    }
+}

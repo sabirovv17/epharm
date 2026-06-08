@@ -90,7 +90,7 @@ Slug — `kebab-case`, без пробелов, до 50 символов.
 
 При `git commit` локально запускаются:
 
-1. **`lint-staged`** — `prettier --write` на JSON/MD/YAML/CSS/HTML и на TS/TSX в `admin-panel/web/`. Авто-форматирование.
+1. **`lint-staged`** — `prettier --write` на JSON/MD/YAML/CSS/HTML и на TS/TSX в `admin-panel/frontend/`. Авто-форматирование.
 2. **`commitlint`** — валидация сообщения коммита.
 
 Если что-то сломалось — коммит не пройдёт. Поправь и попробуй снова.

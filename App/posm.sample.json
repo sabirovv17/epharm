@@ -1,0 +1,11 @@
+{
+  "_comment": "Скопировать в C:\\Epharm\\posm.json на кассе и заполнить реальными значениями. Любое поле можно переопределить переменной окружения (EPHARM_BACKEND_URL / EPHARM_POSM_KEY / EPHARM_PHARMACIST_ID / EPHARM_PHARMACY_ID / EPHARM_POSM_ENABLED).",
+  "enabled": true,
+  "backendBaseUrl": "https://api.epharm.kz",
+  "deviceKey": "ВЫДАЁТСЯ-ПРИ-ОНБОРДИНГЕ-АПТЕКИ",
+  "pharmacistId": "u_xxx",
+  "pharmacyId": "ph_xxx",
+  "recommendTimeoutMs": 700,
+  "debounceMs": 400,
+  "popupAutoCloseSec": 30
+}

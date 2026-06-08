@@ -1,9 +1,9 @@
 # Auto-generated / build artifacts
 node_modules/
-admin-panel/web/dist/
-admin-panel/web/coverage/
-backend/build/
-backend/.gradle/
+admin-panel/frontend/dist/
+admin-panel/frontend/coverage/
+admin-panel/backend/build/
+admin-panel/backend/.gradle/
 build/
 build.nosync/
 .dart_tool/
@@ -14,9 +14,9 @@ _reference/
 
 # Lock-файлы
 package-lock.json
-admin-panel/web/package-lock.json
+admin-panel/frontend/package-lock.json
 pubspec.lock
-backend/gradle/wrapper/gradle-wrapper.jar
+admin-panel/backend/gradle/wrapper/gradle-wrapper.jar
 
 # GitHub Actions workflows — prettier ломает 'on:' key (YAML 1.1 boolean quirk)
 .github/workflows/

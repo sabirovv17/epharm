@@ -19,7 +19,7 @@
     "*.{json,md,yaml,yml,html,css}": [
       "prettier --write"
     ],
-    "admin-panel/web/src/**/*.{ts,tsx,js,jsx}": [
+    "admin-panel/frontend/src/**/*.{ts,tsx,js,jsx}": [
       "prettier --write"
     ]
   }

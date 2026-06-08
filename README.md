@@ -8,7 +8,7 @@
 | Модуль                                     | Что                                                                                                                                                | Стек                                                           | Статус                                                 |
 | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------ |
 | **Mobile app** (`lib/`)                    | iOS + Android приложение фармацевта: баланс, промо, обучение, AI-экзамен, загрузка чеков                                                           | Flutter 3.27 + Riverpod + go_router                            | Golden path работает на mock-репозиториях              |
-| **Admin Console** (`admin-panel/web/`)     | HQ web для категорийной команды Inkar и бренд-менеджеров: 12 разделов (правила замен, кампании, сверка чеков, выплаты, экраны, LMS, AI-экзамен, …) | React 18 + Vite + TS + Tailwind 3 + TanStack Query + Zustand   | Этап 0 — скелет; UX-эталон в `admin-panel/references/` |
+| **Admin Console** (`frontend/`)            | HQ web для категорийной команды Inkar и бренд-менеджеров: 12 разделов (правила замен, кампании, сверка чеков, выплаты, экраны, LMS, AI-экзамен, …) | React 18 + Vite + TS + Tailwind 3 + TanStack Query + Zustand   | Этап 0 — скелет; UX-эталон в `admin-panel/references/` |
 | **Backend** (`backend/`)                   | Spring Boot монолит — REST для mobile + admin + POSM, JWT, Flyway, S3, OCR                                                                         | Kotlin 2.0 + Spring Boot 3.3 + PostgreSQL 16 + Redis 7 + MinIO | Этап 0 — `/api/health` + миграция V001                 |
 | **POSM Sidecar** (`posm-sidecar/`, Этап 5) | Electron-клиент на POS-моноблоке аптеки: popup-рекомендации замен + второй монитор клиента                                                         | Electron 30 + React                                            | Не начат                                               |
 
@@ -32,12 +32,12 @@
 docker compose up -d
 
 # 2. Backend (требует JAVA_HOME=Temurin 22)
-cd backend
+cd admin-panel/backend
 export JAVA_HOME=/Users/<user>/Library/Java/JavaVirtualMachines/temurin-22.0.2/Contents/Home
 ./gradlew bootRun                # → http://localhost:8080/api/health
 
-# 3. Admin console
-cd admin-panel/web
+# 3. Admin console (frontend)
+cd admin-panel/frontend
 npm install                      # один раз
 npm run dev                      # → http://localhost:5173
 
@@ -51,24 +51,33 @@ flutter run                      # iOS-симулятор
 
 ```
 PharmaPayV2/
-├── lib/                           # Flutter mobile app
-├── ios/ android/ macos/ assets/   # Платформы + ассеты
-├── admin-panel/
-│   ├── web/                       # React admin console (Vite + TS)
+├── admin-panel/                   # ⭐ Админ-консоль (backend + frontend + docs в одном проекте)
+│   ├── backend/                   # Kotlin 2.0 + Spring Boot 3.3 (Gradle wrapper, JVM 22)
+│   │   ├── src/main/kotlin/kz/epharm/  # auth/ shared/ ... (домены)
+│   │   ├── src/test/kotlin/        # JUnit5 unit + Testcontainers integration
+│   │   └── build.gradle.kts, gradle/
+│   ├── frontend/                  # React 19 + Vite + TS + Tailwind 3
+│   │   ├── src/{app, layout, ui, features, lib, mocks}/
+│   │   ├── src/**/*.test.{ts,tsx} # Vitest: unit + Testing Library + smoke
+│   │   └── package.json, vite.config.ts
+│   ├── PLAN.md                    # план развития экосистемы (Этапы 0-7)
+│   ├── claude-admin-notes.md      # живые заметки admin / backend / POSM
 │   ├── design-tokens-admin.md     # дизайн-система админки
-│   ├── references/                # JSX-эталон 12 секций (~3300 строк, source-of-truth UX)
-│   ├── PLAN.md                    # верхнеуровневый план разработки
-│   └── claude-admin-notes.md      # живые заметки admin / backend / POSM
-├── backend/                       # Kotlin 2.0 + Spring Boot 3.3 (Gradle wrapper)
-├── posm-sidecar/                  # Electron client (Этап 5+)
+│   └── references/                # JSX-эталон 12 секций — source-of-truth UX
+├── lib/                           # Flutter mobile app
+├── ios/ android/ macos/ assets/   # Платформы + ассеты mobile
+├── posm-sidecar/                  # Electron client (Этап 5+, не начат)
 ├── _reference/                    # mobile design tokens + HTML/JSX прототипы
 ├── docker-compose.yml             # Postgres + Redis + MinIO для local dev
-├── .github/                       # CI workflows, CODEOWNERS, PR + issue templates
-├── .husky/                        # pre-commit (lint-staged) + commit-msg (commitlint)
+├── .github/                       # CI workflows + CODEOWNERS + PR template
+├── .husky/                        # pre-commit + commit-msg хуки
 ├── claude-notes.md                # живые заметки mobile-приложения
-├── package.json                   # корневой — husky/commitlint/prettier devDeps
-└── CONTRIBUTING.md                # git workflow + commit format
+├── package.json                   # корневой — husky/commitlint/prettier
+├── CONTRIBUTING.md                # git workflow + commit format
+└── README.md                      # этот файл
 ```
+
+**Принцип:** админка = один проект (`admin-panel/`), внутри 2 подпапки `backend/` (Kotlin) + `frontend/` (React). Mobile приложение фармацевта — отдельный модуль в корне (`lib/` + платформы). Mobile и admin делят общий backend через `POST /api/admin/...` / `POST /api/mobile/...` префиксы.
 
 ## Версии (зафиксированы)
 

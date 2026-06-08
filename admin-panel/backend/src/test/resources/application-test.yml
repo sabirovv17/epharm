@@ -1,0 +1,25 @@
+spring:
+  flyway:
+    enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+
+app:
+  jwt:
+    secret: test-secret-key-of-at-least-32-bytes-for-hs256-tests-only-please
+    access-ttl-minutes: 15
+    refresh-ttl-days: 30
+
+logging:
+  level:
+    kz.epharm: INFO
+    org.springframework.web: WARN
+    org.springframework.security: WARN

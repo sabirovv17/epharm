@@ -1,0 +1,267 @@
+@import '@fontsource/manrope/400.css';
+@import '@fontsource/manrope/500.css';
+@import '@fontsource/manrope/600.css';
+@import '@fontsource/manrope/700.css';
+@import '@fontsource/manrope/800.css';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
+@import '@fontsource/jetbrains-mono/600.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────────────────────────────────────────────────────────────
+   BASE
+   ───────────────────────────────────────────────────────────────── */
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-paper font-sans text-ink-900 antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+
+  /* Минимальная ширина для админ-консоли — design-tokens-admin §4. */
+  #root {
+    min-width: 1280px;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   COMPONENTS — admin utility classes
+   Source-of-truth: admin-panel/design-tokens-admin.md §8-11
+   Используются JSX-эталоном references/ui.jsx и портом в src/ui/.
+   ───────────────────────────────────────────────────────────────── */
+@layer components {
+  /* ── Buttons §8.1 ─────────────────────────────────────────────── */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md font-semibold whitespace-nowrap
+           transition-[background-color,color,border-color,box-shadow,transform]
+           duration-100 active:scale-[0.985] select-none;
+  }
+  .btn:disabled,
+  .btn[aria-disabled='true'] {
+    @apply opacity-50 pointer-events-none;
+  }
+
+  .btn-sm {
+    @apply h-8 px-3 text-[13px];
+  }
+  .btn-md {
+    @apply h-[38px] px-4 text-sm;
+  }
+  .btn-lg {
+    @apply h-11 px-5 text-[15px];
+  }
+  .btn-icon {
+    @apply w-9 h-9 p-0;
+  }
+
+  .btn-primary {
+    @apply bg-brand-green-600 text-white shadow-fab hover:bg-brand-green-700;
+  }
+  .btn-ink {
+    @apply bg-ink-900 text-white hover:bg-ink-800;
+  }
+  .btn-ghost {
+    @apply text-ink-600 hover:bg-ink-100 hover:text-ink-900;
+  }
+  .btn-outline {
+    @apply bg-paper-card text-ink-900 border border-ink-200 hover:bg-paper-hover hover:border-ink-300;
+  }
+  .btn-danger {
+    @apply bg-paper-card text-[#B91C1C] border border-[#FECACA] hover:bg-surface-danger;
+  }
+
+  /* ── Inputs §8.2 ──────────────────────────────────────────────── */
+  .inp {
+    @apply h-[38px] w-full rounded-md border border-ink-200 bg-paper-card px-3
+           text-sm text-ink-900 placeholder:text-ink-400
+           transition-[border-color,box-shadow] duration-100
+           focus:outline-none focus:border-brand-green-600
+           focus:ring-[3px] focus:ring-brand-green-600/20;
+  }
+  .inp-search {
+    @apply pl-9;
+  }
+  textarea.inp {
+    @apply h-auto py-2.5 resize-y min-h-[64px];
+  }
+
+  /* ── Card §5 + §6 ─────────────────────────────────────────────── */
+  .card {
+    @apply rounded-xl bg-paper-card shadow-card;
+  }
+  .card-soft {
+    @apply rounded-lg bg-paper-card shadow-card;
+  }
+
+  /* ── Hairline (1px тонкий разделитель ink-900 @ 6%) ──────────── */
+  .hairline {
+    border-color: rgba(15, 20, 36, 0.06);
+  }
+
+  /* ── Chips §9.2 ───────────────────────────────────────────────── */
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap;
+  }
+  .chip-dot {
+    @apply inline-block w-1.5 h-1.5 rounded-full;
+  }
+  .chip-green {
+    @apply bg-brand-green-100 text-brand-green-700;
+  }
+  .chip-blue {
+    @apply bg-brand-blue-100 text-brand-blue-600;
+  }
+  .chip-amber {
+    @apply bg-surface-warning text-surface-warning-strong;
+  }
+  .chip-red {
+    @apply bg-surface-danger text-surface-danger-strong;
+  }
+  .chip-ink {
+    @apply bg-ink-100 text-ink-600;
+  }
+
+  /* ── Toggle §8.4 (36×20 pill, off ink-200, on brand-green-600) ── */
+  .toggle {
+    @apply relative inline-block w-9 h-5 rounded-full bg-ink-200 cursor-pointer
+           transition-colors duration-150;
+  }
+  .toggle::after {
+    content: '';
+    @apply absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white
+           shadow-[0_1px_2px_rgba(0,0,0,0.15)]
+           transition-[left,background-color] duration-150;
+  }
+  .toggle.on {
+    @apply bg-brand-green-600;
+  }
+  .toggle.on::after {
+    left: 18px;
+  }
+
+  /* ── Tabs §8.5 (underline) ────────────────────────────────────── */
+  .tab {
+    @apply inline-flex items-center gap-2 h-10 px-1 text-sm font-semibold text-ink-500
+           border-b-2 border-transparent transition-colors duration-100
+           hover:text-ink-900;
+  }
+  .tab.active {
+    @apply text-brand-green-700 border-brand-green-600;
+  }
+
+  /* ── Modal backdrop §11.1 ─────────────────────────────────────── */
+  .scrim {
+    background: rgba(15, 20, 36, 0.45);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+
+  /* ── Slide-in animation §11.1 ─────────────────────────────────── */
+  .slide-in {
+    animation: slide-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  /* ── Tooltip (icon-button hover) ──────────────────────────────── */
+  .tip {
+    @apply relative;
+  }
+  .tip:hover .tip-body {
+    @apply opacity-100 translate-y-0;
+  }
+  .tip-body {
+    @apply absolute -bottom-9 left-1/2 -translate-x-1/2 translate-y-1
+           rounded-md bg-ink-900 px-2 py-1 text-[11px] font-semibold text-white
+           whitespace-nowrap opacity-0 pointer-events-none
+           transition-[opacity,transform] duration-100 z-50;
+  }
+
+  /* ── Sidebar / Topbar surfaces ────────────────────────────────── */
+  .sidebar-bg {
+    background: radial-gradient(120% 80% at 0% 0%, #15192a 0%, #0f1424 60%) #0f1424;
+  }
+  .topbar-bg {
+    @apply bg-paper-card;
+    border-bottom: 1px solid rgba(15, 20, 36, 0.06);
+  }
+  .sidebar-hover:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .sidebar-active {
+    background: linear-gradient(180deg, rgba(22, 201, 122, 0.18), rgba(22, 201, 122, 0.08));
+    box-shadow: inset 2px 0 0 #16c97a;
+  }
+
+  /* ── Key-cap (kbd) §3 ─────────────────────────────────────────── */
+  .kbd {
+    @apply inline-flex h-5 min-w-[20px] items-center justify-center rounded-sm
+           px-1 font-mono text-[11px] font-semibold text-ink-600 num;
+    background: #f7f8fb;
+    box-shadow:
+      0 1px 0 rgba(15, 20, 36, 0.12),
+      inset 0 -1px 0 rgba(15, 20, 36, 0.08);
+  }
+
+  /* ── divide-hairline (ul / list separator §6) ────────────────── */
+  .divide-hairline > * + * {
+    border-top: 1px solid rgba(15, 20, 36, 0.06);
+  }
+
+  /* ── Drag indication §12 ──────────────────────────────────────── */
+  .dragging {
+    opacity: 0.4;
+  }
+  .drop-over {
+    box-shadow: inset 0 2px 0 #16c97a;
+  }
+  .drag-handle {
+    cursor: grab;
+  }
+  .drag-handle:active {
+    cursor: grabbing;
+  }
+
+  /* ── Thin scrollbar (panes / lists) ───────────────────────────── */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(15, 20, 36, 0.18) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgba(15, 20, 36, 0.18);
+    border-radius: 999px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   UTILITIES — extension layer
+   ───────────────────────────────────────────────────────────────── */
+@layer utilities {
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

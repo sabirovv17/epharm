@@ -78,7 +78,7 @@ PharmaPayV2/
 │       ├── tailwind.config.ts
 │       ├── tsconfig.json
 │       └── package.json
-├── backend/                      # NEW — Kotlin + Spring Boot monolith
+├── admin-panel/backend/                      # NEW — Kotlin + Spring Boot monolith
 │   ├── build.gradle.kts
 │   ├── settings.gradle.kts
 │   └── src/
@@ -120,9 +120,9 @@ PharmaPayV2/
 
 Что делаем:
 
-1. `admin-panel/web/` — `npm create vite@latest web -- --template react-ts`, добавить Tailwind 3 с конфигом из `design-tokens-admin.md` (палитра brand/ink/paper, JetBrains Mono + Manrope через `@fontsource`), React Router v6, TanStack Query, Zustand.
+1. `admin-panel/frontend/` — `npm create vite@latest web -- --template react-ts`, добавить Tailwind 3 с конфигом из `design-tokens-admin.md` (палитра brand/ink/paper, JetBrains Mono + Manrope через `@fontsource`), React Router v6, TanStack Query, Zustand.
 2. Перенести `tailwind.config.ts` с полной палитрой из design-tokens (`brand.green.50–800`, `ink.50–900`, `paper.*`, `accent.*`), shadow-токены, font-family.
-3. `backend/` — `gradle init` (Kotlin DSL), Spring Boot 3.3, базовый `HealthController`, Flyway, PostgreSQL JDBC, тесты с Testcontainers.
+3. `admin-panel/backend/` — `gradle init` (Kotlin DSL), Spring Boot 3.3, базовый `HealthController`, Flyway, PostgreSQL JDBC, тесты с Testcontainers.
 4. Один `docker-compose.yml` в корне: `postgres`, `redis`, `minio`. Чтобы бэкендеру было что поднять локально.
 5. Если CI ещё не настроен — добавить минимальный `.github/workflows/ci.yml` (lint + unit tests).
 
@@ -130,7 +130,7 @@ PharmaPayV2/
 
 ### Этап 1 — Admin Layout + UI-kit (3–5 дней)
 
-**Цель:** перенести `layout.jsx` + `ui.jsx` + `icons.jsx` в `admin-panel/web/src/{layout,ui}/` как TS-компоненты. Все остальные секции пока показывают «In progress».
+**Цель:** перенести `layout.jsx` + `ui.jsx` + `icons.jsx` в `frontend/src/{layout,ui}/` как TS-компоненты. Все остальные секции пока показывают «In progress».
 
 Переносим в строгом порядке:
 
@@ -274,7 +274,7 @@ Electron sidecar (`posm-sidecar/`):
 
 ## Открытые вопросы — нужно решить перед стартом
 
-1. **Монорепо или отдельные репо?** По умолчанию идём в монорепо (`PharmaPayV2/admin-panel/web` + `PharmaPayV2/backend` + `PharmaPayV2/posm-sidecar`), но если бэкендеры предпочитают отдельный git — поднимем три репозитория и общий npm-пакет с TS-типами.
+1. **Монорепо или отдельные репо?** По умолчанию идём в монорепо (`PharmaPayV2/frontend` + `PharmaPayV2/backend` + `PharmaPayV2/posm-sidecar`), но если бэкендеры предпочитают отдельный git — поднимем три репозитория и общий npm-пакет с TS-типами.
 2. **CI**: GitHub Actions, GitLab CI или что-то локальное? Влияет на конфиги в Этапе 0.
 3. **БД на старте**: PostgreSQL 16 OK? ClickHouse и Redis из ТЗ §2 пока не нужны — Redis заведём в Этапе 5 (когда появятся очереди и event-стрим к sidecar), ClickHouse — параллельно с аналитикой lift (Этап 7+).
 4. **OCR-провайдер на проде**: Yandex Vision API, Google Document AI или открытый Tesseract в Docker? На MVP заглушка.
@@ -285,7 +285,7 @@ Electron sidecar (`posm-sidecar/`):
 
 ## Что делаем прямо сейчас (после approval плана)
 
-1. Cоздаём `admin-panel/web/` — Vite + TS + Tailwind с полной палитрой из `design-tokens-admin.md`.
+1. Cоздаём `admin-panel/frontend/` — Vite + TS + Tailwind с полной палитрой из `design-tokens-admin.md`.
 2. Поднимаем layout (Sidebar + Topbar + CommandPalette) — это Этап 1 целиком.
 3. После layout — берёмся за **Rules Engine** как первую секцию (самая жирная и самая важная по ТЗ).
 

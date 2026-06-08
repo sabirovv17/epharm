@@ -80,30 +80,30 @@ builds/*.ipa
 builds/*.app.zip
 
 # ─────────────────────────────────────────────────────────────────────
-# Kotlin / Spring Boot backend (backend/)
+# Kotlin / Spring Boot backend (admin-panel/backend/)
 # ─────────────────────────────────────────────────────────────────────
-backend/.gradle/
-backend/build/
-backend/out/
-backend/.kotlin/
-backend/!gradle/wrapper/gradle-wrapper.jar
-backend/bin/
+admin-panel/backend/.gradle/
+admin-panel/backend/build/
+admin-panel/backend/out/
+admin-panel/backend/.kotlin/
+admin-panel/backend/bin/
+!admin-panel/backend/gradle/wrapper/gradle-wrapper.jar
 
 # Spring Boot local overrides
-backend/src/main/resources/application-local.yml
-backend/src/main/resources/application-secret.yml
+admin-panel/backend/src/main/resources/application-local.yml
+admin-panel/backend/src/main/resources/application-secret.yml
 
 # ─────────────────────────────────────────────────────────────────────
-# Admin frontend (admin-panel/web/)
+# Admin frontend (admin-panel/frontend/)
 # ─────────────────────────────────────────────────────────────────────
-admin-panel/web/node_modules/
-admin-panel/web/dist/
-admin-panel/web/.vite/
-admin-panel/web/coverage/
-admin-panel/web/.turbo/
-admin-panel/web/playwright-report/
-admin-panel/web/test-results/
-admin-panel/web/.eslintcache
+admin-panel/frontend/node_modules/
+admin-panel/frontend/dist/
+admin-panel/frontend/.vite/
+admin-panel/frontend/coverage/
+admin-panel/frontend/.turbo/
+admin-panel/frontend/playwright-report/
+admin-panel/frontend/test-results/
+admin-panel/frontend/.eslintcache
 
 # ─────────────────────────────────────────────────────────────────────
 # POSM sidecar (posm-sidecar/, появится в Этапе 5)
@@ -137,3 +137,12 @@ secrets/
 # ─────────────────────────────────────────────────────────────────────
 *.local
 tools/build_icons/
+
+# ─────────────────────────────────────────────────────────────────────
+# POSM C#-клиент: локальные сборки/копии для Windows-VM + артефакты
+# ─────────────────────────────────────────────────────────────────────
+/epharm-posm/
+/epharm-posm.zip
+/test-results/
+App/bin/
+App/obj/

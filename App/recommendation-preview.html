@@ -1,0 +1,159 @@
+<!doctype html>
+<!--
+  Статичный превью popup рекомендации (RecommendationWindow.xaml) — чтобы увидеть дизайн
+  на Mac/в браузере без сборки WPF. Цвета/раскладка 1:1 с XAML. Это макет, не рабочий код.
+  Открыть: open App/recommendation-preview.html
+-->
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <title>Epharm — превью рекомендации</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+        /* фон = тёмный «второй монитор» кассы, popup всплывает в правом нижнем углу */
+        background: #0b0b0d;
+        display: flex;
+        align-items: flex-end;
+        justify-content: flex-end;
+        padding: 24px;
+      }
+      .hint {
+        position: fixed;
+        top: 20px;
+        left: 24px;
+        color: #8a8f98;
+        font-size: 13px;
+        max-width: 360px;
+      }
+      .hint b {
+        color: #16c97a;
+      }
+      /* ── карточка popup (Border CornerRadius=16, BorderBrush=#16C97A 2px, DropShadow) ── */
+      .card {
+        width: 432px;
+        background: #fff;
+        border: 2px solid #16c97a;
+        border-radius: 16px;
+        padding: 18px 22px;
+        box-shadow: 0 6px 28px rgba(0, 0, 0, 0.28);
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .badge-kind {
+        background: #e7fbf1;
+        color: #0e9f6e;
+        font-weight: 700;
+        font-size: 12px;
+        padding: 4px 10px;
+        border-radius: 8px;
+      }
+      .badge-bonus {
+        background: #16c97a;
+        color: #fff;
+        font-weight: 700;
+        font-size: 14px;
+        padding: 4px 10px;
+        border-radius: 8px;
+      }
+      .recommend {
+        font-size: 22px;
+        font-weight: 700;
+        color: #0b1f17;
+        margin: 14px 0 4px;
+      }
+      .trigger {
+        font-size: 13px;
+        color: #6b7280;
+      }
+      .script {
+        background: #f4f6fa;
+        border-radius: 10px;
+        padding: 12px;
+        margin-top: 14px;
+        font-size: 14px;
+        color: #1f2937;
+        line-height: 20px;
+      }
+      .adv {
+        margin-top: 12px;
+      }
+      .adv div {
+        display: flex;
+        align-items: center;
+        font-size: 13px;
+        color: #374151;
+        margin: 4px 0;
+      }
+      .adv .dot {
+        color: #16c97a;
+        font-weight: 700;
+        margin-right: 8px;
+      }
+      .btns {
+        display: grid;
+        grid-template-columns: 1fr 12px 1fr;
+        margin-top: 18px;
+      }
+      .btn {
+        height: 44px;
+        border: 0;
+        border-radius: 8px;
+        font-size: 14px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .btn-skip {
+        background: #eef1f5;
+        color: #374151;
+      }
+      .btn-accept {
+        background: #16c97a;
+        color: #fff;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="hint">
+      Это статичный макет popup-рекомендации (точно как <b>RecommendationWindow.xaml</b>).<br />
+      В самом C#-приложении на Windows: запусти и нажми клавишу <b>D</b> — увидишь живой popup.
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <span class="badge-kind">ЗАМЕНА</span>
+        <span class="badge-bonus">+650 ₸</span>
+      </div>
+
+      <div class="recommend">SelfieLab Zen</div>
+      <div class="trigger">вместо «Bioderma»</div>
+
+      <div class="script">
+        Аналог Bioderma из акции — мягкое очищение, выгодная замена. Бонус аптеке.
+      </div>
+
+      <div class="adv">
+        <div><span class="dot">•</span>Тот же класс средства</div>
+        <div><span class="dot">•</span>Активное промо Inkar</div>
+        <div><span class="dot">•</span>Бонус фармацевту 650 ₸</div>
+      </div>
+
+      <div class="btns">
+        <button class="btn btn-skip">Пропустить (Esc)</button>
+        <span></span>
+        <button class="btn btn-accept">Заменить (F9)</button>
+      </div>
+    </div>
+  </body>
+</html>

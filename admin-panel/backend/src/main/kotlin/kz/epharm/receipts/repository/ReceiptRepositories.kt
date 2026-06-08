@@ -1,0 +1,35 @@
+package kz.epharm.receipts.repository
+
+import kz.epharm.receipts.entity.PendingBonusEntity
+import kz.epharm.receipts.entity.ReceiptEntity
+import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.stereotype.Repository
+
+@Repository
+interface PendingBonusRepository : JpaRepository<PendingBonusEntity, String> {
+    /** Открытые pending-бонусы фармацевта по SKU — для матчинга чека (свежие первыми). */
+    fun findAllByPharmacistIdAndSkuAndStatusRawOrderByCreatedAtDesc(
+        pharmacistId: String,
+        sku: String,
+        statusRaw: String,
+    ): List<PendingBonusEntity>
+
+    /** Открытые pending-бонусы по SKU (любой фармацевт) — для матчинга Excel-строки без фармацевта. */
+    fun findAllBySkuAndStatusRaw(sku: String, statusRaw: String): List<PendingBonusEntity>
+
+    fun countByStatusRaw(statusRaw: String): Long
+}
+
+@Repository
+interface ReceiptRepository : JpaRepository<ReceiptEntity, String> {
+    fun findAllByOrderByCreatedAtDesc(): List<ReceiptEntity>
+    fun findAllByStatusRawOrderByCreatedAtDesc(statusRaw: String): List<ReceiptEntity>
+    fun countByStatusRaw(statusRaw: String): Long
+    /** Анти-фрод: дубль фискального чека. */
+    fun existsByFiscalIdAndIdNot(fiscalId: String, id: String): Boolean
+    fun existsByFiscalId(fiscalId: String): Boolean
+    /** Чек, связанный с pending-бонусом — для апдейта источниками сверки. */
+    fun findFirstByPendingBonusId(pendingBonusId: String): ReceiptEntity?
+    /** Чеки с данным фискальным номером — для cross-match Excel ↔ лог. */
+    fun findAllByFiscalId(fiscalId: String): List<ReceiptEntity>
+}

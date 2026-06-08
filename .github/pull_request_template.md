@@ -24,14 +24,14 @@ scope = admin | backend | mobile | posm | infra | repo
 
 <!-- Шаги для ревьюера или автотестов:
   1. `docker compose up -d`
-  2. `cd backend && ./gradlew bootRun`
+  2. `cd admin-panel/backend && ./gradlew bootRun`
   3. `curl localhost:8080/api/...` → ожидаем X
 -->
 
 ## Checklist
 
 - [ ] Тесты добавлены / обновлены (unit / integration / e2e)
-- [ ] `npm run lint && npx tsc --noEmit` зелёное (если затронут admin-panel/web)
+- [ ] `npm run lint && npx tsc --noEmit` зелёное (если затронут frontend)
 - [ ] `./gradlew build test` зелёное (если затронут backend)
 - [ ] `flutter analyze && flutter test` зелёное (если затронут lib/)
 - [ ] `claude-admin-notes.md` или `claude-notes.md` обновлён, если решение нетривиальное
