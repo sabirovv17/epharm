@@ -8,6 +8,8 @@ import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Pattern
 import jakarta.validation.constraints.Size
 import kz.epharm.rules.entity.RuleAbTest
+import kz.epharm.rules.entity.RuleCard
+import kz.epharm.rules.entity.RuleComparisonRow
 import kz.epharm.rules.entity.RuleEntity
 import kz.epharm.rules.entity.RuleStatus
 import kz.epharm.rules.entity.RuleTrigger
@@ -31,6 +33,8 @@ data class RuleDto(
     val script: String,
     val advantages: List<String>,
     val abTest: RuleAbTest?,
+    // Богатая карточка (Фаза 2): сравнение, партнёр, цель. null — нет богатой карточки.
+    val card: RuleCard?,
     val pharmacies: Int,
     val impressions: Int,
     val accepts: Int,
@@ -52,6 +56,7 @@ data class RuleDto(
             script = e.script,
             advantages = e.advantages,
             abTest = e.abTest,
+            card = e.card,
             pharmacies = e.pharmacies,
             impressions = e.impressions,
             accepts = e.accepts,
@@ -87,6 +92,42 @@ data class AbTestDto(
     fun toEntity(): RuleAbTest = RuleAbTest(variant = variant, share = share)
 }
 
+// ── Карточка DTO (Фаза 2) — наполнение карточки фармацевта из админки ─────────
+
+data class ComparisonRowDto(
+    @field:NotBlank
+    @field:Size(max = 120)
+    val label: String,
+    @field:Size(max = 200)
+    val triggerValue: String = "",
+    @field:Size(max = 200)
+    val recommendValue: String = "",
+    val recommendHighlight: Boolean = false,
+) {
+    fun toEntity() = RuleComparisonRow(label, triggerValue, recommendValue, recommendHighlight)
+}
+
+data class CardDto(
+    @field:Size(max = 64)
+    val partnerLabel: String? = null,
+    @field:Valid
+    val comparison: List<ComparisonRowDto> = emptyList(),
+    @field:Size(max = 120)
+    val goalLabel: String? = null,
+    @field:Min(0)
+    val goalTarget: Int? = null,
+    @field:Min(0)
+    val goalBonus: Int? = null,
+) {
+    fun toEntity() = RuleCard(
+        partnerLabel = partnerLabel?.takeIf { it.isNotBlank() },
+        comparison = comparison.map { it.toEntity() },
+        goalLabel = goalLabel?.takeIf { it.isNotBlank() },
+        goalTarget = goalTarget,
+        goalBonus = goalBonus,
+    )
+}
+
 /**
  * Create-запрос. ID присваивается сервером.
  */
@@ -106,6 +147,8 @@ data class CreateRuleRequest(
     val advantages: List<String> = emptyList(),
     @field:Valid
     val abTest: AbTestDto? = null,
+    @field:Valid
+    val card: CardDto? = null,
 )
 
 /**
@@ -127,4 +170,8 @@ data class UpdateRuleRequest(
     val abTest: AbTestDto? = null,
     // Явный флаг «снять AB-тест», т.к. null означает «не трогать».
     val clearAbTest: Boolean = false,
+    @field:Valid
+    val card: CardDto? = null,
+    // Явный флаг «убрать богатую карточку», т.к. null означает «не трогать».
+    val clearCard: Boolean = false,
 )

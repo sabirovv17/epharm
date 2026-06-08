@@ -50,6 +50,7 @@ class RuleService(
             script = req.script,
             advantages = req.advantages,
             abTest = req.abTest?.toEntity(),
+            card = req.card?.toEntity(),
             trigger = req.trigger.toEntity(),
             createdBy = createdBy,
         ).also {
@@ -101,6 +102,10 @@ class RuleService(
             req.clearAbTest -> entity.abTest = null
             req.abTest != null -> entity.abTest = req.abTest.toEntity()
         }
+        when {
+            req.clearCard -> entity.card = null
+            req.card != null -> entity.card = req.card.toEntity()
+        }
         return RuleDto.of(ruleRepository.save(entity))
     }
 
@@ -122,6 +127,7 @@ class RuleService(
             script = src.script,
             advantages = src.advantages.toList(),
             abTest = src.abTest,
+            card = src.card,
             trigger = src.trigger.copy(),
             createdBy = createdBy,
         ).also {

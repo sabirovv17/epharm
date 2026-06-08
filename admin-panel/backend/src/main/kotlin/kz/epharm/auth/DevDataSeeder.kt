@@ -42,6 +42,8 @@ import kz.epharm.receipts.entity.ReceiptStatus
 import kz.epharm.receipts.repository.PendingBonusRepository
 import kz.epharm.receipts.repository.ReceiptRepository
 import kz.epharm.rules.entity.RuleAbTest
+import kz.epharm.rules.entity.RuleCard
+import kz.epharm.rules.entity.RuleComparisonRow
 import kz.epharm.rules.entity.RuleEntity
 import kz.epharm.rules.entity.RuleStatus
 import kz.epharm.rules.entity.RuleTrigger
@@ -380,6 +382,10 @@ class DevDataSeeder {
                 created++
             }
         }
+        // Объёмы для демо богатой карточки (Фаза 2) — показываются в строке «покупатель попросил».
+        productRepository.findById("p_aql_norm_s").ifPresent { it.volume = "50 мл"; productRepository.save(it) }
+        productRepository.findById("p_aqm_norm_s").ifPresent { it.volume = "30 мл"; productRepository.save(it) }
+
         if (created > 0) log.info("Seeded {} products", created)
         else log.info("Dev products already present — skipping seed")
     }
@@ -473,6 +479,23 @@ class DevDataSeeder {
         }
         if (created > 0) log.info("Seeded {} rules", created)
         else log.info("Dev rules already present — skipping seed")
+
+        // Демо богатой карточки (Фаза 2): card на r_001 — чтобы live /recommend по p_aql_norm_s
+        // показал полную карточку (сравнение, партнёр, цель). Идемпотентно по boot.
+        ruleRepository.findById("r_001").ifPresent {
+            it.card = RuleCard(
+                partnerLabel = "ПАРТНЁР EPHARM",
+                comparison = listOf(
+                    RuleComparisonRow("Состав", "изотонический раствор", "✓ морская вода + микроэлементы", true),
+                    RuleComparisonRow("Объём", "50 мл", "30 мл", false),
+                    RuleComparisonRow("Применение", "гигиена носа", "✓ гигиена + увлажнение", true),
+                ),
+                goalLabel = "замен Аквамарис в мае",
+                goalTarget = 10,
+                goalBonus = 2000,
+            )
+            ruleRepository.save(it)
+        }
     }
 
     private fun seedPromosImpl(promoRepository: PromoRepository) {

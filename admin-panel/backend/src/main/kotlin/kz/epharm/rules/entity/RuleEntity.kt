@@ -50,6 +50,31 @@ data class RuleAbTest(
     val share: Int,
 )
 
+/** Одна строка таблицы «Сравнение» в карточке (товар-триггер vs рекомендованный). */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+data class RuleComparisonRow(
+    val label: String,
+    val triggerValue: String,
+    val recommendValue: String,
+    val recommendHighlight: Boolean = false,
+)
+
+/**
+ * Презентационные поля правила для богатой карточки фармацевта (Фаза 2). Задаются в админке.
+ * null/пусто → касса покажет базовые поля (название/цена/бонус/скрипт/advantages).
+ *  - partnerLabel — бейдж «ПАРТНЁР EPHARM»;
+ *  - comparison — таблица сравнения;
+ *  - goalLabel/goalTarget/goalBonus — цель «N/target замен <label>», прогресс считается динамически.
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+data class RuleCard(
+    val partnerLabel: String? = null,
+    val comparison: List<RuleComparisonRow> = emptyList(),
+    val goalLabel: String? = null,
+    val goalTarget: Int? = null,
+    val goalBonus: Int? = null,
+)
+
 @Entity
 @Table(name = "rules")
 class RuleEntity(
@@ -83,6 +108,11 @@ class RuleEntity(
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "ab_test", columnDefinition = "jsonb")
     var abTest: RuleAbTest? = null,
+
+    // Богатая карточка (Фаза 2): сравнение, партнёр, цель. null = только базовые поля.
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "card", columnDefinition = "jsonb")
+    var card: RuleCard? = null,
 
     @Column(name = "pharmacies", nullable = false)
     var pharmacies: Int = 0,

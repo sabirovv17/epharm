@@ -32,6 +32,7 @@ const initialDraft = (): Rule => ({
   script: '',
   advantages: [],
   abTest: null,
+  card: null,
   createdBy: '',
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
@@ -51,6 +52,26 @@ function buildRequest(draft: Rule): CreateRuleRequest {
     // комментарий про cursor jump.
     advantages: draft.advantages.map((a) => a.trim()).filter((a) => a.length > 0),
     abTest: draft.abTest,
+    card: buildCard(draft.card),
+  }
+}
+
+/** Богатая карточка (Фаза 2): чистим пустые строки сравнения; пустую карточку не шлём. */
+function buildCard(c: Rule['card']): CreateRuleRequest['card'] {
+  const cleanComparison = (c?.comparison ?? []).filter((r) => r.label.trim().length > 0)
+  const hasContent =
+    cleanComparison.length > 0 ||
+    !!c?.partnerLabel?.trim() ||
+    !!c?.goalLabel?.trim() ||
+    c?.goalTarget != null ||
+    c?.goalBonus != null
+  if (!hasContent) return undefined
+  return {
+    partnerLabel: c?.partnerLabel?.trim() || null,
+    comparison: cleanComparison,
+    goalLabel: c?.goalLabel?.trim() || null,
+    goalTarget: c?.goalTarget ?? null,
+    goalBonus: c?.goalBonus ?? null,
   }
 }
 

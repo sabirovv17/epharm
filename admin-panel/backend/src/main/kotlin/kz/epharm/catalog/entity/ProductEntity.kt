@@ -30,6 +30,10 @@ class ProductEntity(
     @Column(name = "price", nullable = false)
     var price: Int = 0,
 
+    // Объём/фасовка («150 мл») — показывается в карточке рекомендации (Фаза 2).
+    @Column(name = "volume", nullable = false, length = 64)
+    var volume: String = "",
+
     @Column(name = "created_at", nullable = false)
     var createdAt: Instant = Instant.now(),
 

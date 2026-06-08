@@ -1,10 +1,12 @@
 package kz.epharm.posm.service
 
+import kz.epharm.posm.dto.ComparisonRowDto
 import kz.epharm.posm.dto.OutcomeRequest
 import kz.epharm.posm.dto.OutcomeResponse
 import kz.epharm.posm.dto.RecommendRequest
 import kz.epharm.posm.dto.RecommendResponse
 import kz.epharm.posm.dto.RecommendationDto
+import kz.epharm.rules.entity.RuleCard
 import kz.epharm.posm.entity.RecommendationEventEntity
 import kz.epharm.posm.entity.RecommendationKind
 import kz.epharm.posm.entity.RecommendationOutcome
@@ -51,23 +53,51 @@ class RecommendationService(
             .filter { it.recommend.id !in rejectedSkus }
             .take(MAX_RECOMMENDATIONS)
 
+        // Начало текущего месяца — период для счётчика цели «N/target».
+        val periodStart = java.time.YearMonth.now()
+            .atDay(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant()
+
         val dtos = ranked.map { m ->
             val event = upsertShownEvent(req, m)
+            val card = m.rule.card
+            val (goalText, goalBonus) = buildGoal(card, req.pharmacistId, m.rule.id, periodStart)
             RecommendationDto(
                 eventId = event.id,
                 ruleId = m.rule.id,
                 kind = m.rule.type.name,
                 triggerSku = m.triggerSku,
                 triggerName = m.triggerName,
+                triggerVolume = m.triggerProduct?.volume?.ifBlank { null },
+                triggerPrice = m.triggerProduct?.price,
                 recommendSku = m.recommend.id,
                 recommendName = m.recommend.name,
                 recommendPrice = m.recommend.price,
+                partnerLabel = card?.partnerLabel?.ifBlank { null },
                 bonus = m.rule.bonus,
                 script = m.rule.script,
                 advantages = m.rule.advantages,
+                comparison = card?.comparison.orEmpty().map {
+                    ComparisonRowDto(it.label, it.triggerValue, it.recommendValue, it.recommendHighlight)
+                },
+                goalText = goalText,
+                goalBonus = goalBonus,
             )
         }
         return RecommendResponse(sessionId = req.sessionId, recommendations = dtos)
+    }
+
+    /**
+     * Динамическая цель «N/target замен <label>»: считает принятые этим фармацевтом события по
+     * этому правилу с начала периода. Нет goalTarget в правиле → блок цели не показываем.
+     */
+    private fun buildGoal(card: RuleCard?, pharmacistId: String, ruleId: String, since: Instant): Pair<String?, Int?> {
+        val target = card?.goalTarget ?: return null to null
+        val current = eventRepository.countByPharmacistIdAndRuleIdAndOutcomeRawAndDecidedAtAfter(
+            pharmacistId, ruleId, RecommendationOutcome.accepted.name, since,
+        )
+        val label = card.goalLabel?.takeIf { it.isNotBlank() }
+        val text = if (label != null) "цель «$current/$target $label»" else "цель «$current/$target»"
+        return text to card.goalBonus
     }
 
     @Transactional

@@ -40,6 +40,7 @@ function mkRule(over: Partial<RuleDto> = {}): RuleDto {
     script: '',
     advantages: [],
     abTest: null,
+    card: null,
     pharmacies: 0,
     impressions: 0,
     accepts: 0,
@@ -107,6 +108,56 @@ describe('BuilderForm — advantages textarea', () => {
       .closest('label')!
       .querySelector('textarea') as HTMLTextAreaElement
     expect(textarea.value).toBe('Один\nДва\nТри')
+  })
+})
+
+describe('BuilderForm — карточка (Фаза 2)', () => {
+  function expandCard() {
+    // FormBlock «Карточка фармацевта» свёрнут по умолчанию — раскрываем по collapse-кнопке.
+    const block = screen.getByText('Карточка фармацевта').closest('.card-soft') as HTMLElement
+    fireEvent.click(block.querySelector('button')!)
+  }
+
+  it('добавление строки сравнения зовёт onChange с card.comparison', () => {
+    const onChange = vi.fn()
+    render(<BuilderForm value={mkRule()} onChange={onChange} />)
+    expandCard()
+    fireEvent.click(screen.getByTestId('cmp-add-row'))
+    const last = onChange.mock.calls.at(-1)?.[0]
+    expect(last.card.comparison).toHaveLength(1)
+    expect(last.card.comparison[0]).toMatchObject({ label: '', recommendHighlight: false })
+  })
+
+  it('партнёр-бейдж пишется в card.partnerLabel', () => {
+    const onChange = vi.fn()
+    render(<BuilderForm value={mkRule()} onChange={onChange} />)
+    expandCard()
+    const input = screen.getByPlaceholderText('ПАРТНЁР EPHARM') as HTMLInputElement
+    fireEvent.change(input, { target: { value: 'ПАРТНЁР X' } })
+    const last = onChange.mock.calls.at(-1)?.[0]
+    expect(last.card.partnerLabel).toBe('ПАРТНЁР X')
+  })
+
+  it('существующие строки сравнения показываются', () => {
+    const rule = mkRule({
+      card: {
+        partnerLabel: null,
+        comparison: [
+          { label: 'Состав', triggerValue: 'A', recommendValue: 'B', recommendHighlight: true },
+        ],
+        goalLabel: null,
+        goalTarget: null,
+        goalBonus: null,
+      },
+    })
+    render(<BuilderForm value={rule} onChange={vi.fn()} />)
+    // строка уже в DOM (FormBlock раскрывается, если есть контент? нет — свёрнут; раскроем)
+    const block = screen.getByText('Карточка фармацевта').closest('.card-soft') as HTMLElement
+    fireEvent.click(block.querySelector('button')!)
+    expect(screen.getByTestId('cmp-row-0')).toBeInTheDocument()
+    expect((screen.getByTestId('cmp-row-0').querySelector('input') as HTMLInputElement).value).toBe(
+      'Состав',
+    )
   })
 })
 

@@ -19,6 +19,7 @@ data class RuleMatch(
     val rule: RuleEntity,
     val triggerSku: String?,
     val triggerName: String?,
+    val triggerProduct: ProductEntity?, // товар-триггер из каталога (для объёма/цены в карточке)
     val recommend: ProductEntity,
 )
 
@@ -61,6 +62,7 @@ class RulesEngineService(
                 rule = rule,
                 triggerSku = triggerSku,
                 triggerName = cartProducts[triggerSku]?.name,
+                triggerProduct = cartProducts[triggerSku],
                 recommend = recProduct,
             )
         }

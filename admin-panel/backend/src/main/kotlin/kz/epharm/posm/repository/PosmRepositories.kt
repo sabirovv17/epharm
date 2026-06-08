@@ -22,4 +22,15 @@ interface RecommendationEventRepository : JpaRepository<RecommendationEventEntit
         sessionId: String,
         ruleId: String,
     ): RecommendationEventEntity?
+
+    /**
+     * Прогресс цели (Фаза 2): сколько раз фармацевт ПРИНЯЛ это правило с начала периода —
+     * для динамического счётчика «N/target» на карточке.
+     */
+    fun countByPharmacistIdAndRuleIdAndOutcomeRawAndDecidedAtAfter(
+        pharmacistId: String,
+        ruleId: String,
+        outcomeRaw: String,
+        decidedAt: java.time.Instant,
+    ): Long
 }

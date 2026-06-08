@@ -126,6 +126,22 @@ export interface RuleAbTestDto {
   share: number
 }
 
+// ─── Богатая карточка рекомендации (Фаза 2) — зеркало kz.epharm.rules.entity.RuleCard ───
+export interface RuleComparisonRowDto {
+  label: string
+  triggerValue: string
+  recommendValue: string
+  recommendHighlight: boolean
+}
+
+export interface RuleCardDto {
+  partnerLabel: string | null
+  comparison: RuleComparisonRowDto[]
+  goalLabel: string | null
+  goalTarget: number | null
+  goalBonus: number | null
+}
+
 export interface RuleDto {
   id: string
   type: RuleType
@@ -136,6 +152,8 @@ export interface RuleDto {
   script: string
   advantages: string[]
   abTest: RuleAbTestDto | null
+  /** Богатая карточка (Фаза 2): сравнение, партнёр, цель. null — нет богатой карточки. */
+  card: RuleCardDto | null
   pharmacies: number
   impressions: number
   accepts: number
@@ -156,6 +174,7 @@ export interface CreateRuleRequest {
   script?: string
   advantages?: string[]
   abTest?: RuleAbTestDto | null
+  card?: RuleCardDto | null
 }
 
 // ─── Finance / Payouts (Этап 3.5) ────────────────────────────────────────
@@ -352,6 +371,9 @@ export interface UpdateRuleRequest {
   abTest?: RuleAbTestDto | null
   /** Поставить true чтобы явно снять abTest (т.к. undefined = «не трогать»). */
   clearAbTest?: boolean
+  card?: RuleCardDto | null
+  /** Поставить true чтобы явно убрать богатую карточку. */
+  clearCard?: boolean
 }
 
 // ─── Dashboard (Этап 3.6) — read-only сводка KPI ───

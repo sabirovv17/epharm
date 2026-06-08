@@ -2280,7 +2280,28 @@ substitution|crosssell`) — контракт «всё из админки» с�
 этого фармацевта по этому правилу за текущий месяц (`recommendation_events`), формирует готовую строку
 `goalText="цель «7/10 замен …»"`. **C# модель/карточку трогать НЕ нужно** — показывает goalText как есть.
 
-Статус: НЕ начато. Самый трудоёмкий кусок — admin-форма редактора сравнения.
+### ✅ ФАЗА 2 РЕАЛИЗОВАНА (2026-06-08)
+
+- **V018**: `rules.card` jsonb (`RuleCard{partnerLabel, comparison[], goalLabel/Target/Bonus}` +
+  `RuleComparisonRow`), `products.volume`. Маппинг через `@JdbcTypeCode(SqlTypes.JSON)`.
+- **RecommendationDto** расширен (triggerVolume/price из каталога, partnerLabel, comparison[],
+  goalText/goalBonus). `RuleMatch.triggerProduct`. `RecommendationService.buildGoal` считает динамику
+  через `countByPharmacistIdAndRuleIdAndOutcomeRawAndDecidedAtAfter` (с начала месяца).
+- **Rule CRUD**: `RuleDto.card`, `CardDto`/`ComparisonRowDto` (валидация), create/update/duplicate
+  сохраняют card (`clearCard` как у abTest).
+- **Admin rule-builder**: FormBlock step 4 «Карточка фармацевта» — редактор таблицы сравнения
+  (добавить/удалить строку, тумблер highlight), партнёр-бейдж, цель. i18n ru+kk (`rules.fbCard`/…).
+  `RulesPage.handleSave` + `CreateRuleModal.buildRequest` чистят пустые строки, пустую карточку → clear.
+- **C# НЕ менялся** — карточка уже умела (Фаза 1), теперь приходят реальные данные. Вендор-строку
+  C# не показывает (убрана при компактизации) → в DTO не добавляли.
+- **Seed**: r_001 (Аквалор→Аквамарис) += демо-card + объёмы → live `/recommend` показывает полную карточку.
+- **Тесты**: backend `PosmRecommendIntegrationTest` +1 (богатая карточка + динамика цели 0/10→1/10);
+  frontend `BuilderForm.test` +3 → фронт 303/303, tsc чист, полный backend-сьют зелёный.
+  ⚠️ Gotcha повторился: новый тест упал на MockMvc-кириллице («150 мл»→кракозябра) — helper
+  `recommend()` читал `response.contentAsString` (ISO-8859-1). Фикс: `getContentAsString(Charsets.UTF_8)`.
+- **✅ LIVE E2E (2026-06-08):** `curl /api/posm/recommend` по `p_aql_norm_s` → полная карточка из
+  r_001+каталога: triggerVolume/price (каталог), partnerLabel + comparison[3] + goalBonus (правило),
+  goalText «цель «0/10 замен Аквамарис в мае»» (динамика). Контракт «что в админке — то на кассе» ✅.
 
 ## POSM Stage 3 — экраны от админки (в процессе, начат 2026-06-05)
 

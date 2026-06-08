@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import { formatKzt, formatNum, PHARMACY_LIST, type Rule } from '@/mocks/fixtures'
+import type { RuleCardDto, RuleComparisonRowDto } from '@/lib/api-types'
 import { useProducts, useProductLookup } from '@/lib/queries/catalog'
 import {
   Button,
@@ -177,6 +178,25 @@ export function BuilderForm({ value, onChange }: BuilderFormProps) {
 
   const productAnyValues = Array.isArray(v.trigger.value) ? v.trigger.value : []
 
+  // Богатая карточка (Фаза 2): сравнение, партнёр, цель. v.card может быть null → дефолт.
+  const card: RuleCardDto = v.card ?? {
+    partnerLabel: null,
+    comparison: [],
+    goalLabel: null,
+    goalTarget: null,
+    goalBonus: null,
+  }
+  const setCard = (patch: Partial<RuleCardDto>) => set({ card: { ...card, ...patch } })
+  const setRows = (rows: RuleComparisonRowDto[]) => setCard({ comparison: rows })
+  const addRow = () =>
+    setRows([
+      ...card.comparison,
+      { label: '', triggerValue: '', recommendValue: '', recommendHighlight: false },
+    ])
+  const updateRow = (i: number, patch: Partial<RuleComparisonRowDto>) =>
+    setRows(card.comparison.map((r, idx) => (idx === i ? { ...r, ...patch } : r)))
+  const removeRow = (i: number) => setRows(card.comparison.filter((_, idx) => idx !== i))
+
   return (
     <div className="flex flex-col gap-5">
       {/* TRIGGER */}
@@ -318,9 +338,107 @@ export function BuilderForm({ value, onChange }: BuilderFormProps) {
         </div>
       </FormBlock>
 
-      {/* META — A/B test + dates */}
+      {/* CARD — богатая карточка фармацевта (Фаза 2): сравнение, партнёр, цель */}
       <FormBlock
         step={4}
+        title={t('rules.fbCard')}
+        subtitle={t('rules.fbCardSub')}
+        color="green"
+        collapsible
+        defaultCollapsed
+      >
+        <Field label={t('rules.cardPartner')} hint={t('rules.cardPartnerHint')}>
+          <Input
+            value={card.partnerLabel ?? ''}
+            onChange={(e) => setCard({ partnerLabel: e.target.value || null })}
+            placeholder="ПАРТНЁР EPHARM"
+          />
+        </Field>
+
+        <Field label={t('rules.cardComparison')} hint={t('rules.cardComparisonHint')}>
+          <div className="flex flex-col gap-2">
+            {card.comparison.map((row, i) => (
+              <div
+                key={i}
+                className="hairline grid grid-cols-[1fr_1fr_1fr_auto] items-center gap-2 rounded-lg border bg-paper-input p-2"
+                data-testid={`cmp-row-${i}`}
+              >
+                <Input
+                  value={row.label}
+                  onChange={(e) => updateRow(i, { label: e.target.value })}
+                  placeholder={t('rules.cardColLabel')}
+                />
+                <Input
+                  value={row.triggerValue}
+                  onChange={(e) => updateRow(i, { triggerValue: e.target.value })}
+                  placeholder={t('rules.cardColWas')}
+                />
+                <Input
+                  value={row.recommendValue}
+                  onChange={(e) => updateRow(i, { recommendValue: e.target.value })}
+                  placeholder={t('rules.cardColNow')}
+                />
+                <div className="flex items-center gap-1.5">
+                  <Toggle
+                    on={row.recommendHighlight}
+                    onChange={(on) => updateRow(i, { recommendHighlight: on })}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeRow(i)}
+                    aria-label={t('rules.cardRemoveRow')}
+                    data-testid={`cmp-remove-${i}`}
+                    className="text-ink-400 transition-colors hover:text-accent-danger"
+                  >
+                    <IconClose size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={addRow}
+              leading={<IconStack size={14} />}
+              data-testid="cmp-add-row"
+            >
+              {t('rules.cardAddRow')}
+            </Button>
+          </div>
+        </Field>
+
+        <div className="grid grid-cols-3 gap-3">
+          <Field label={t('rules.cardGoalLabel')}>
+            <Input
+              value={card.goalLabel ?? ''}
+              onChange={(e) => setCard({ goalLabel: e.target.value || null })}
+              placeholder={t('rules.cardGoalLabelPh')}
+            />
+          </Field>
+          <Field label={t('rules.cardGoalTarget')}>
+            <Input
+              type="number"
+              value={card.goalTarget ?? ''}
+              onChange={(e) =>
+                setCard({ goalTarget: e.target.value === '' ? null : Number(e.target.value) })
+              }
+            />
+          </Field>
+          <Field label={t('rules.cardGoalBonus')}>
+            <Input
+              type="number"
+              value={card.goalBonus ?? ''}
+              onChange={(e) =>
+                setCard({ goalBonus: e.target.value === '' ? null : Number(e.target.value) })
+              }
+            />
+          </Field>
+        </div>
+      </FormBlock>
+
+      {/* META — A/B test + dates */}
+      <FormBlock
+        step={5}
         title={t('rules.fbMeta')}
         subtitle={t('rules.fbMetaSub')}
         color="purple"

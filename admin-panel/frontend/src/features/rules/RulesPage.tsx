@@ -111,6 +111,25 @@ export default function RulesPage() {
     // advantages: чистим пустые строки и trim — пока юзер набирает в textarea они
     // могут быть (см. BuilderForm), но на сервер всё-таки шлём санитизированный массив.
     const cleanAdvantages = patch.advantages?.map((a) => a.trim()).filter((a) => a.length > 0)
+    // Богатая карточка (Фаза 2): чистим пустые строки сравнения; если карточка пустая —
+    // явно убираем (clearCard), иначе пушим card. null = «не трогать» на бэке.
+    const c = patch.card
+    const cleanComparison = (c?.comparison ?? []).filter((r) => r.label.trim().length > 0)
+    const cardHasContent =
+      cleanComparison.length > 0 ||
+      !!c?.partnerLabel?.trim() ||
+      !!c?.goalLabel?.trim() ||
+      c?.goalTarget != null ||
+      c?.goalBonus != null
+    const cleanCard = cardHasContent
+      ? {
+          partnerLabel: c?.partnerLabel?.trim() || null,
+          comparison: cleanComparison,
+          goalLabel: c?.goalLabel?.trim() || null,
+          goalTarget: c?.goalTarget ?? null,
+          goalBonus: c?.goalBonus ?? null,
+        }
+      : null
     updateRule.mutate(
       {
         id,
@@ -122,6 +141,8 @@ export default function RulesPage() {
           script: patch.script,
           advantages: cleanAdvantages,
           abTest: patch.abTest,
+          card: cardHasContent ? cleanCard : undefined,
+          clearCard: !cardHasContent,
         },
       },
       {

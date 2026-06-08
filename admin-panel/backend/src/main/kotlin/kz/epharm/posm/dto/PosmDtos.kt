@@ -29,19 +29,36 @@ data class RecommendRequest(
     val cart: List<CartItemDto> = emptyList(),
 )
 
-/** Одна рекомендация для popup фармацевта. */
+/** Строка таблицы «Сравнение» в карточке. Зеркалит C# ComparisonRow. */
+data class ComparisonRowDto(
+    val label: String,
+    val triggerValue: String,
+    val recommendValue: String,
+    val recommendHighlight: Boolean,
+)
+
+/**
+ * Одна рекомендация для popup фармацевта. Зеркалит C# Recommendation — богатые поля (Фаза 2)
+ * приходят из правила (card) + каталога; null/пусто карточка скрывает.
+ */
 data class RecommendationDto(
     val eventId: String,
     val ruleId: String,
     val kind: String,
     val triggerSku: String?,
     val triggerName: String?,
+    val triggerVolume: String?,
+    val triggerPrice: Int?,
     val recommendSku: String,
     val recommendName: String,
     val recommendPrice: Int,
+    val partnerLabel: String?,
     val bonus: Int,
     val script: String,
     val advantages: List<String>,
+    val comparison: List<ComparisonRowDto>,
+    val goalText: String?,
+    val goalBonus: Int?,
 )
 
 /** Ответ Rules Engine: до 2 рекомендаций (substitution раньше crosssell, по бонусу DESC). */

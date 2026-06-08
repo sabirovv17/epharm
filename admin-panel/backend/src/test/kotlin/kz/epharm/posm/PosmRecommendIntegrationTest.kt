@@ -18,6 +18,8 @@ import kz.epharm.posm.entity.ProductPosCodeEntity
 import kz.epharm.posm.repository.ProductPosCodeRepository
 import kz.epharm.posm.repository.RecommendationEventRepository
 import kz.epharm.receipts.repository.PendingBonusRepository
+import kz.epharm.rules.entity.RuleCard
+import kz.epharm.rules.entity.RuleComparisonRow
 import kz.epharm.rules.entity.RuleEntity
 import kz.epharm.rules.entity.RuleStatus
 import kz.epharm.rules.entity.RuleTrigger
@@ -160,6 +162,51 @@ class PosmRecommendIntegrationTest {
     }
 
     @Test
+    fun `богатая карточка из правила приходит на кассу (сравнение, партнёр, цель)`() {
+        // У товара-триггера задан объём (строка «покупатель попросил»).
+        productRepository.save(productRepository.findById("p_bio").get().also { it.volume = "150 мл" })
+        // Базовое правило на p_zen убираем, чтобы выиграло наше card-правило.
+        ruleRepository.deleteById("r_s_1")
+        // Правило с богатой карточкой (как задал бы менеджер в админке).
+        ruleRepository.save(
+            rule("r_card", RuleType.substitution, trigger("p_bio"), "p_zen", 650).also {
+                it.card = RuleCard(
+                    partnerLabel = "ПАРТНЁР EPHARM",
+                    comparison = listOf(
+                        RuleComparisonRow("Состав", "раствор", "✓ вода Адриатики", true),
+                        RuleComparisonRow("Объём", "150 мл", "150 мл", false),
+                    ),
+                    goalLabel = "замен в мае",
+                    goalTarget = 10,
+                    goalBonus = 2000,
+                )
+            },
+        )
+
+        val r = recommend("sc", listOf("p_bio")).recommendations[0]
+        assertEquals("p_zen", r.recommendSku)
+        assertEquals("150 мл", r.triggerVolume)           // из каталога (product.volume)
+        assertEquals(4200, r.triggerPrice)                // из каталога (product.price)
+        assertEquals("ПАРТНЁР EPHARM", r.partnerLabel)    // из правила (card)
+        assertEquals(2, r.comparison.size)
+        assertEquals("Состав", r.comparison[0].label)
+        assertTrue(r.comparison[0].recommendHighlight)
+        assertEquals("цель «0/10 замен в мае»", r.goalText) // динамика: пока 0 принятых
+        assertEquals(2000, r.goalBonus)
+
+        // Принимаем рекомендацию → счётчик цели должен стать 1/10 (динамический).
+        mockMvc.perform(
+            post("/api/posm/recommendations/${r.eventId}/outcome")
+                .header("X-Posm-Key", POSM_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(OutcomeRequest(outcome = "accepted"))),
+        ).andExpect(status().isOk)
+
+        val r2 = recommend("sc2", listOf("p_bio")).recommendations[0]
+        assertEquals("цель «1/10 замен в мае»", r2.goalText)
+    }
+
+    @Test
     fun `принятая рекомендация создаёт pending_bonus, баланс ещё не начислен`() {
         val resp = recommend("s3", listOf("p_bio"))
         val eventId = resp.recommendations[0].eventId
@@ -226,7 +273,7 @@ class PosmRecommendIntegrationTest {
                 .content(objectMapper.writeValueAsString(req(session, skus))),
         )
             .andExpect(status().isOk)
-            .andReturn().response.contentAsString
+            .andReturn().response.getContentAsString(Charsets.UTF_8) // кириллица в карточке → UTF-8
         return objectMapper.readValue(body, RecommendResponse::class.java)
     }
 
