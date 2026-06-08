@@ -16,6 +16,7 @@ import '../../../core/widgets/glass_pill.dart';
 import '../../../core/widgets/pharma_logo.dart';
 import '../../../core/widgets/search_input.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../profile/application/profile_controller.dart';
 import '../../receipts/presentation/receipts_list_screen.dart';
 import '../application/home_controller.dart';
 import '../data/home_repository.dart';
@@ -42,6 +43,19 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _tab = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // При входе на Home подтягиваем свежий баланс из backend (в API-режиме).
+    // В mock-режиме refreshMe — no-op, баланс остаётся из login-ответа.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (ref.read(currentUserProvider) != null) {
+        ref.read(profileActionsProvider).refreshMe();
+      }
+    });
+  }
 
   void _goToAuth() => context.go('/auth/phone');
 

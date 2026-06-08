@@ -1,5 +1,6 @@
 package kz.epharm.auth
 
+import kz.epharm.shared.PhoneUtil
 import kz.epharm.auth.domain.AdminRole
 import kz.epharm.auth.domain.AdminUserStatus
 import kz.epharm.auth.entity.AdminUserEntity
@@ -211,7 +212,7 @@ class DevDataSeeder {
                 PendingBonusEntity(
                     id = "pb_demo_$i",
                     pharmacistId = ph.id, pharmacistName = ph.name,
-                    pharmacyId = ph.pharmacyId, pharmacyName = ph.pharmacyName,
+                    pharmacyId = ph.pharmacyId ?: "", pharmacyName = ph.pharmacyName ?: "",
                     sku = d.sku, productName = d.product,
                     expectedAmount = d.expected, bonus = d.bonus,
                     ruleId = "r_demo_$i", createdAt = posmAt,
@@ -222,7 +223,7 @@ class DevDataSeeder {
                 ReceiptEntity(
                     id = "rcp_demo_$i",
                     pharmacistId = ph.id, pharmacistName = ph.name,
-                    pharmacyId = ph.pharmacyId, pharmacyName = ph.pharmacyName,
+                    pharmacyId = ph.pharmacyId ?: "", pharmacyName = ph.pharmacyName ?: "",
                     photoUrl = null,
                     fiscalId = "fp-demo-$i",
                     parsedSku = d.sku,
@@ -631,9 +632,18 @@ class DevDataSeeder {
             val balance = earned - ((i * 1700L) % earned)
             // IIN should be 12 digits; build deterministic from index
             val iin = String.format("%012d", 950101000000L + i * 1000L)
-            // Phone with proper Kazakh format
-            val phone = "+7 (7${10 + (i % 89)}) ${(100 + (i % 900)).toString().padStart(3, '0')}-${(10 + i % 89).toString().padStart(2, '0')}-${(20 + i % 79).toString().padStart(2, '0')}"
+            // Телефоны храним в канонич. E.164 (PhoneUtil) — чтобы мобильный вход по номеру
+            // (findByPhone после нормализации) находил seeded-записи независимо от форматирования.
+            // i==0 — зарезервированный активный фармацевт для mobile-входа: phone +7 700 000 0001.
+            val phone = if (i == 0) {
+                "+77000000001"
+            } else {
+                PhoneUtil.normalize(
+                    "+7 (7${10 + (i % 89)}) ${(100 + (i % 900)).toString().padStart(3, '0')}-${(10 + i % 89).toString().padStart(2, '0')}-${(20 + i % 79).toString().padStart(2, '0')}",
+                )
+            }
             val status = when {
+                i == 0 -> PharmacistStatus.active // стабильный тестовый mobile-аккаунт
                 i % 17 == 0 -> PharmacistStatus.blocked
                 i % 11 == 0 -> PharmacistStatus.pending
                 else -> PharmacistStatus.active
@@ -713,7 +723,7 @@ class DevDataSeeder {
                 batchId = firstBatch.id,
                 pharmacistId = ph.id,
                 pharmacistName = ph.name,
-                pharmacy = ph.pharmacyName,
+                pharmacy = ph.pharmacyName ?: "",
                 city = ph.city,
                 receipts = 22 + (i * 7) % 240,
                 rules = 4 + (i * 3) % 60,

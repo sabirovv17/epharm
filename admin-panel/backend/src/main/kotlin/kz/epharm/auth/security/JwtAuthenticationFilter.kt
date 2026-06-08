@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import kz.epharm.auth.service.JwtService
+import kz.epharm.mobile.auth.security.PharmacistPrincipal
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.context.SecurityContextHolder
@@ -33,19 +34,34 @@ class JwtAuthenticationFilter(
             val token = header.substring(7).trim()
             val claims = jwtService.parseAccessToken(token)
             if (claims != null && SecurityContextHolder.getContext().authentication == null) {
-                val role = jwtService.roleOf(claims)
-                val principal = AdminPrincipal(
-                    userId = jwtService.userIdOf(claims),
-                    email = claims["email"] as String,
-                    name = claims["name"] as String,
-                    role = role,
-                    company = claims["company"] as String,
-                )
-                val auth = UsernamePasswordAuthenticationToken(
-                    principal,
-                    null,
-                    listOf(SimpleGrantedAuthority("ROLE_${role.name}")),
-                )
+                val auth = if (jwtService.isPharmacistToken(claims)) {
+                    // Токен фармацевта (мобильное приложение) — PharmacistPrincipal + ROLE_PHARMACIST.
+                    val principal = PharmacistPrincipal(
+                        pharmacistId = jwtService.pharmacistIdOf(claims),
+                        name = claims["name"] as String,
+                        phone = claims["phone"] as String,
+                    )
+                    UsernamePasswordAuthenticationToken(
+                        principal,
+                        null,
+                        listOf(SimpleGrantedAuthority("ROLE_PHARMACIST")),
+                    )
+                } else {
+                    // Токен админа HQ-консоли — AdminPrincipal + ROLE_<AdminRole>.
+                    val role = jwtService.roleOf(claims)
+                    val principal = AdminPrincipal(
+                        userId = jwtService.userIdOf(claims),
+                        email = claims["email"] as String,
+                        name = claims["name"] as String,
+                        role = role,
+                        company = claims["company"] as String,
+                    )
+                    UsernamePasswordAuthenticationToken(
+                        principal,
+                        null,
+                        listOf(SimpleGrantedAuthority("ROLE_${role.name}")),
+                    )
+                }
                 auth.details = WebAuthenticationDetailsSource().buildDetails(request)
                 SecurityContextHolder.getContext().authentication = auth
             }

@@ -28,11 +28,13 @@ class PharmacistEntity(
     @Column(name = "phone", nullable = false, length = 32)
     var phone: String = "",
 
-    @Column(name = "pharmacy_id", nullable = false, length = 64)
-    var pharmacyId: String = "",
+    // Nullable: саморегистрированный pending-фармацевт ещё не привязан к аптеке (V019).
+    // Активный фармацевт всегда имеет аптеку — её назначает админ при активации.
+    @Column(name = "pharmacy_id", nullable = true, length = 64)
+    var pharmacyId: String? = null,
 
-    @Column(name = "pharmacy_name", nullable = false)
-    var pharmacyName: String = "",
+    @Column(name = "pharmacy_name", nullable = true)
+    var pharmacyName: String? = null,
 
     @Column(name = "city", nullable = false)
     var city: String = "",

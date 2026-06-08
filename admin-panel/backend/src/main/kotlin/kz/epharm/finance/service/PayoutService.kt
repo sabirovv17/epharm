@@ -56,7 +56,7 @@ class PayoutService(
                     batchId = batchId,
                     pharmacistId = ph.id,
                     pharmacistName = ph.name,
-                    pharmacy = ph.pharmacyName,
+                    pharmacy = ph.pharmacyName ?: "",
                     city = ph.city,
                     receipts = ph.receipts30d,
                     rules = ph.rulesAccepted30d,

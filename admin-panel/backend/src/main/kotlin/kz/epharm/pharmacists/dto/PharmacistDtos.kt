@@ -34,7 +34,8 @@ data class PharmacistDto(
     companion object {
         fun of(e: PharmacistEntity): PharmacistDto = PharmacistDto(
             id = e.id, name = e.name, iin = e.iin, phone = e.phone,
-            pharmacyId = e.pharmacyId, pharmacyName = e.pharmacyName, city = e.city,
+            // Admin-контракт ждёт String — для pending-фармацевта без аптеки отдаём "".
+            pharmacyId = e.pharmacyId ?: "", pharmacyName = e.pharmacyName ?: "", city = e.city,
             tier = e.tier,
             receipts30d = e.receipts30d, rulesAccepted30d = e.rulesAccepted30d,
             earned30d = e.earned30d, balance = e.balance,

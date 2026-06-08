@@ -2529,6 +2529,109 @@ sha256,mandatory,notes}`. current=false → обновляться не нужн
 заливом закрыть п.1–4 (prod-readiness), п.5–6 — операционная зрелость. Реальные данные вносит
 HQ через админку, транзакции копятся сами.
 
+## 📱 МОБИЛЬНЫЙ БЭКЕНД — Фаза A: аутентификация фармацевта (✅ 2026-06-09)
+
+**Контекст:** пользователь решил «перейти на мобилку полностью и написать нормальный бэк». До этого
+у приложения фармацевта (Flutter) НЕ было ни одного API-эндпоинта — всё на in-memory моках. Бэк имел
+только `/api/admin/**` (под JWT админов) и `/api/posm/**` (под device-key). Решения пользователя:
+
+1. **Онбординг:** саморегистрация → `pending` → админ активирует/привязывает к аптеке (совпадает с
+   текущим UX мобилки phone→OTP→ФИО+ИИН).
+2. **Home:** промо/каталог пока остаются моками во Flutter; на бэк выводим только баланс + чеки.
+
+Разбивка: **Фаза A** (auth, фундамент) → **Фаза B** (профиль/баланс `/me`) → **Фаза C** (чеки).
+Обучение/AI-экзамен — **OFF-LIMITS**, не трогаем.
+
+### Что сделано (Фаза A) — backend `/api/mobile/auth/**`
+
+Новый модуль **`kz.epharm.mobile.auth`** (entity/repository/security/service/dto/controller):
+
+- **V019 миграция:** `mobile_otps` (OTP-стор) + `mobile_refresh_tokens` (FK→pharmacists) +
+  `pharmacists.pharmacy_id/pharmacy_name` стали **NULLABLE** (pending-фармацевт без аптеки).
+- **Эндпоинты:** `POST /sms/request` · `/sms/verify` · `/register` · `/refresh` (все permitAll) +
+  `POST /logout` · `GET /me` (под JWT). Флоу: request→verify (номер фармацевта → сразу токены;
+  новый → `registered=false`) → register (ФИО+ИИН → pharmacist `status=pending`, `balance=0`).
+- **OtpService (БД, НЕ Redis):** дев-режим — фикс. код `544544` (совпадает с моком Flutter) +
+  `devCode` в ответе для curl/E2E; прод — random 6-значный + `SmsSender` (заглушка-лог, под Mobizon).
+  TTL 5 мин, max 5 попыток, окно регистрации 15 мин. **Gotcha:** `verify()` инкрементирует attempts
+  И бросает на неверном коде → нужен `@Transactional(noRollbackFor=[AppException::class])`, иначе
+  откат отменял бы инкремент и анти-брутфорс не работал бы (баг и в проде, не только в тестах).
+- **JWT фармацевта:** `JwtService.issuePharmacistToken(id,name,phone)` с claim `typ=pharmacist`,
+  subject=pharmacist.id (String, не UUID). `JwtAuthenticationFilter` ветвится по `typ` →
+  `PharmacistPrincipal` + `ROLE_PHARMACIST` (vs `AdminPrincipal`). Refresh — отдельная таблица
+  (admin `refresh_tokens` FK-завязан на UUID admin_users), rotation как у админа.
+- **PhoneUtil:** нормализация телефонов в E.164 `+7XXXXXXXXXX` (маска/8/10-цифр → один вид), чтобы
+  `findByPhone` находил запись вне зависимости от форматирования. DevDataSeeder теперь пишет E.164;
+  `u_0` зарезервирован как стабильный активный mobile-аккаунт (`+77000000001`).
+
+**Почему OTP в БД, а не Redis (PLAN говорил Redis):** Redis в коде нигде не используется, тесты идут
+на Postgres-Testcontainers. БД-стор durable + тестируется существующей инфрой без нового контейнера.
+
+**Ripple от nullable-аптеки:** `pharmacyId/Name` в entity стали `String?`; коалесценция `?: ""` в
+6 потребителях (admin `PharmacistDto.of`, `ReconcileService`, `PendingBonusService`, `PayoutService`,
+`DevDataSeeder` ×2). Admin-контракт (`pharmacyId: String`) сохранён через `?: ""`. `receipts`/
+`pending_bonuses` НЕ имеют FK на pharmacies — "" безопасно.
+
+**Новые ErrorCode** (фронт-мобилка switch'ит): `OTP_NOT_REQUESTED/EXPIRED/INVALID/TOO_MANY_ATTEMPTS/
+NOT_VERIFIED`, `PHARMACIST_BLOCKED`.
+
+**Тесты: 215 зелёных (0 fail/err/skip), +27 новых** — `PhoneUtilTest` (7, unit), `OtpServiceTest`
+(10, Testcontainers, контроль времени через `now`-параметр), `MobileAuthIntegrationTest` (10, MockMvc
+E2E: register→pending→me, повторный вход, refresh-ротация, blocked→403, дубль ИИН→409, ошибки кода).
+
+### Flutter-сторона Фазы A — ✅ (2026-06-09, live verified)
+
+Переведён auth-флоу приложения на реальный backend, моки сохранены за флагом:
+
+- **HTTP-клиент = `http` (не dio):** dio не было в кэше, сеть рискованна; `http` 1.6.0 транзитивен +
+  `MockClient` из `package:http/testing.dart` даёт тесты без доп. пакетов. `flutter pub get --offline`.
+- **`core/config/api_config.dart`:** `USE_API` (default false → моки) + `API_BASE`
+  (default `http://localhost:8080`) через `--dart-define`. 10.0.2.2 для Android-эмулятора.
+- **`core/network/`:** `TokenStore` (in-memory access+refresh) + `ApiClient` (обёртка http.Client с
+  Bearer + **JWT-refresh interceptor**: на 401 рефрешит пару через `/refresh` и повторяет запрос 1×;
+  при неудаче чистит токены) + `ApiException` (несёт `code`/`message`/`statusCode`).
+- **Auth-репозиторий → интерфейс** `AuthRepository` + `MockAuthRepository` (как было) +
+  `ApiAuthRepository`. Контракт изменён: `verifyOtp` возвращает `AuthVerifyResult{registered,user}`
+  (а не bool) и бросает `ApiException` на ошибке; `register` (бывш. `completeRegistration`) сохраняет
+  токены. Провайдер выбирает реализацию по `ApiConfig.useApi`.
+- **OTP-экран:** `verifyOtp` → `OtpOutcome.loggedIn` (существующий → сразу `/home`) /
+  `needsRegistration` (новый → `/auth/profile`); `ApiException` → показ сообщения.
+- **Тесты: 13 зелёных, analyze чист** — `api_client_test` (4: 200/ошибка-с-кодом/401→refresh→retry/
+  refresh-fail→clear), `mock_auth_repository_test` (3), `api_auth_repository_test` (5, MockClient).
+
+**Live E2E (dev backend :8080, новая сборка с V019):** request→`devCode:544544` → verify(new)→
+`registered:false` → register→JWT(`typ=pharmacist`)+pharmacist `pending`/`pharmacyId:null`/phone
+`+77771002030` → `/me` ok → неверный код→`OTP_INVALID 400`. ✅
+
+### Фаза B — профиль/баланс из админки в Home (✅ 2026-06-09)
+
+Цель: BalanceCard показывает баланс из таблицы pharmacists (golden rule), с возможностью обновления.
+
+- **Backend:** `GET /api/mobile/me` (`MobileProfileController`, под JWT ROLE_PHARMACIST, переиспользует
+  `MobileAuthService.me`). Семантический адрес профиля (дублирует `/auth/me`). +2 интеграционных теста
+  (баланс 42000/Gold/active с токеном; 401 без токена) → `MobileAuthIntegrationTest` = 12 тестов.
+- **Flutter:** баланс УЖЕ течёт из API (currentUser ставится из login-ответа verify/register). Добавлен
+  **refresh**: `MeRepository`/`ApiMeRepository` (`User.fromMeJson`) + `profileActionsProvider.refreshMe()`
+  (no-op в mock-режиме; глотает ApiException). Вызывается в `HomeScreen.initState` (postFrame) — баланс
+  подтягивается при входе на Home (понадобится после одобрения чека в Фазе C). +1 тест (me_repository).
+- Маппинг `MeDto→User` вынесен в фабрику `User.fromMeJson` (используют auth + profile).
+- **Flutter: 14 тестов зелёные, analyze чист.**
+
+**Дальше:** Фаза C — чеки `/api/mobile/receipts` (upload multipart→S3, история свои) + nearby-аптеки +
+`ReceiptApiRepository` во Flutter. Самая объёмная фаза (модели чека Flutter ↔ backend различаются).
+
+**Curl-проверка (dev, профиль dev):**
+
+```bash
+curl -s localhost:8080/api/mobile/auth/sms/request -H 'Content-Type: application/json' \
+  -d '{"phone":"+7 (777) 100-20-30"}'                    # → {sent,phoneMasked,ttlSeconds,devCode:"544544"}
+curl -s localhost:8080/api/mobile/auth/sms/verify  -H 'Content-Type: application/json' \
+  -d '{"phone":"+77771002030","code":"544544"}'          # → {registered:false} (новый номер)
+curl -s localhost:8080/api/mobile/auth/register    -H 'Content-Type: application/json' \
+  -d '{"phone":"+77771002030","fio":"Тест Тестов","iin":"990101777777"}'  # → {tokens,pharmacist:pending}
+# Вход существующего seeded (u_0): phone +77000000001 → verify → registered:true + tokens
+```
+
 ## Следующее действие
 
 **ЗАВЕРШЕНО и верифицировано (POSM Этап 5):**

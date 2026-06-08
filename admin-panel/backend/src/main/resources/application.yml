@@ -56,9 +56,16 @@ app:
     secret-key: ${S3_SECRET_KEY:epharm_dev_minio}
     bucket-receipts: epharm-receipts
   otp:
+    # dev-mode=true: код входа фармацевта всегда фиксированный (dev-fixed) и возвращается
+    # в ответе /sms/request (devCode) для curl/E2E. В prod профиле переопределяется в false
+    # → случайный 6-значный код + реальная отправка SMS (SmsSender).
+    dev-mode: ${OTP_DEV_MODE:true}
     # dev-fixed OTP, совпадает с моком в lib/features/auth/data/auth_repository.dart.
-    # В prod профиле этот ключ не используется — SMS приходит реально.
     dev-fixed: '544544'
+    # TTL кода и анти-брутфорс. register-window — окно на /register после verify.
+    ttl-seconds: 300
+    max-attempts: 5
+    register-window-seconds: 900
   posm:
     # Ключ устройства кассы (Module 2). POSM-клиент шлёт его в заголовке X-Posm-Key.
     # На MVP — общий ключ; в prod каждой кассе выдаётся свой (Stage 4).

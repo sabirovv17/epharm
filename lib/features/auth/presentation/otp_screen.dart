@@ -12,6 +12,7 @@ import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/network/api_exception.dart';
 import '../../../core/widgets/brand_icons.dart';
 import '../../../core/widgets/pharma_logo.dart';
 import '../application/auth_controller.dart';
@@ -63,15 +64,23 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
 
   Future<void> _submit() async {
     if (!_canSubmit) return;
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
     try {
-      final ok = await ref.read(authActionsProvider).verifyOtp(_code);
+      final outcome = await ref.read(authActionsProvider).verifyOtp(_code);
       if (!mounted) return;
-      if (ok) {
-        context.go('/auth/profile');
+      // Существующий фармацевт → сразу домой; новый номер → экран ФИО+ИИН.
+      if (outcome == OtpOutcome.loggedIn) {
+        context.go('/home');
       } else {
-        setState(() => _error = 'Неверный код');
+        context.go('/auth/profile');
       }
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Ошибка сети. Попробуйте ещё раз.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }

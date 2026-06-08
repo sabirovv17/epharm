@@ -1,29 +1,28 @@
 import '../domain/user.dart';
 
-/// Mock-репозиторий аутентификации.
-/// Эмулирует сетевые задержки. Принимает дефолтный 6-значный OTP `544544`.
-class AuthRepository {
-  /// Дефолтный mock-код подтверждения для авторизации по телефону.
+/// Контракт аутентификации фармацевта. Реализации: [MockAuthRepository] (офлайн-демо) и
+/// ApiAuthRepository (реальный backend `/api/mobile/auth/**`). Выбор — по ApiConfig.useApi.
+abstract interface class AuthRepository {
+  /// Дефолтный dev-OTP. Совпадает с `app.otp.dev-fixed` на бэке (профиль dev/test).
+  /// Используется для авто-подстановки в demo-режиме.
   static const String defaultOtpCode = '544544';
 
-  /// «Отправить SMS» — задержка 800 мс.
-  Future<void> requestOtp({required String phone}) async {
-    await Future<void>.delayed(const Duration(milliseconds: 800));
-  }
+  /// Запросить SMS-код на номер.
+  Future<void> requestOtp({required String phone});
 
-  /// «Проверить OTP» — 500 мс. Принимаем только `defaultOtpCode`.
-  Future<bool> verifyOtp({required String phone, required String code}) async {
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    return code == defaultOtpCode;
-  }
+  /// Подтвердить код. Результат говорит, нужна ли регистрация или вход уже выполнен.
+  Future<AuthVerifyResult> verifyOtp({required String phone, required String code});
 
-  /// «Завершить регистрацию» — создать пользователя.
-  Future<User> completeRegistration({
-    required String phone,
-    required String fio,
-    required String iin,
-  }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 600));
-    return User(fio: fio, phone: phone, iin: iin);
-  }
+  /// Завершить регистрацию нового фармацевта (ФИО + ИИН) → создаётся pending-аккаунт.
+  Future<User> register({required String phone, required String fio, required String iin});
+}
+
+/// Итог подтверждения кода.
+///  - registered=true  → номер уже привязан к фармацевту: [user] заполнен, сессия началась.
+///  - registered=false → новый номер: вести на экран ФИО+ИИН (register).
+class AuthVerifyResult {
+  const AuthVerifyResult({required this.registered, this.user});
+
+  final bool registered;
+  final User? user;
 }

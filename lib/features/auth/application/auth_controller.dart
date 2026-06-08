@@ -1,9 +1,23 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/config/api_config.dart';
+import '../../../core/network/api_client.dart';
+import '../../../core/network/token_store.dart';
+import '../data/api_auth_repository.dart';
 import '../data/auth_repository.dart';
+import '../data/mock_auth_repository.dart';
 import '../domain/user.dart';
 
-final authRepositoryProvider = Provider<AuthRepository>((ref) => AuthRepository());
+/// Выбор реализации: реальный backend при USE_API=true, иначе mock (офлайн-демо).
+final authRepositoryProvider = Provider<AuthRepository>((ref) {
+  if (ApiConfig.useApi) {
+    return ApiAuthRepository(ref.read(apiClientProvider), ref.read(tokenStoreProvider));
+  }
+  return MockAuthRepository();
+});
+
+/// Итог шага OTP для навигации.
+enum OtpOutcome { loggedIn, needsRegistration }
 
 /// Состояние шагов регистрации (нужно, чтобы помнить номер между экранами).
 class AuthDraft {
@@ -56,16 +70,24 @@ class AuthActions {
     await _repo.requestOtp(phone: phone);
   }
 
-  Future<bool> verifyOtp(String code) async {
+  /// Подтверждает код. Если номер уже фармацевта — выполняет вход (ставит currentUser) и
+  /// возвращает [OtpOutcome.loggedIn]; иначе — [OtpOutcome.needsRegistration] (на экран ФИО+ИИН).
+  /// Бросает ApiException на неверном/истёкшем коде — экран показывает сообщение.
+  Future<OtpOutcome> verifyOtp(String code) async {
     final phone = _ref.read(authDraftProvider).phone ?? '';
-    return _repo.verifyOtp(phone: phone, code: code);
+    final result = await _repo.verifyOtp(phone: phone, code: code);
+    if (result.registered && result.user != null) {
+      _ref.read(currentUserProvider.notifier).setUser(result.user!);
+      return OtpOutcome.loggedIn;
+    }
+    return OtpOutcome.needsRegistration;
   }
 
   Future<User> completeRegistration({required String fio, required String iin}) async {
     final phone = _ref.read(authDraftProvider).phone ?? '';
     _ref.read(authDraftProvider.notifier).setFio(fio);
     _ref.read(authDraftProvider.notifier).setIin(iin);
-    final user = await _repo.completeRegistration(phone: phone, fio: fio, iin: iin);
+    final user = await _repo.register(phone: phone, fio: fio, iin: iin);
     _ref.read(currentUserProvider.notifier).setUser(user);
     return user;
   }

@@ -50,6 +50,12 @@ class SecurityConfig(
                         "/swagger-ui.html",
                         "/api/admin/auth/login",
                         "/api/admin/auth/refresh",
+                        // Мобильное приложение фармацевта: вход по OTP до выдачи JWT.
+                        // /logout и /me требуют токен → НЕ в permitAll.
+                        "/api/mobile/auth/sms/request",
+                        "/api/mobile/auth/sms/verify",
+                        "/api/mobile/auth/register",
+                        "/api/mobile/auth/refresh",
                         // dev-only reset (DevController существует только в profile=dev;
                         // в prod бина нет → путь отдаёт 404, permitAll безвреден).
                         "/api/admin/dev/**",

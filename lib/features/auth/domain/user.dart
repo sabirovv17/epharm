@@ -22,6 +22,15 @@ class User {
   /// Текущий бонусный баланс в тенге. После регистрации = 0.
   final int balanceKzt;
 
+  /// Маппинг MeDto бэкенда (`/api/mobile/me`, `/auth/verify`, `/auth/register`) → доменный User.
+  /// name→fio, balance→balanceKzt. Источник истины — таблица pharmacists.
+  factory User.fromMeJson(Map<String, dynamic> me) => User(
+        fio: me['name'] as String,
+        phone: me['phone'] as String,
+        iin: me['iin'] as String,
+        balanceKzt: (me['balance'] as num?)?.toInt() ?? 0,
+      );
+
   User copyWith({
     String? fio,
     String? phone,

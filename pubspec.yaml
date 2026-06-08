@@ -24,6 +24,10 @@ dependencies:
   mask_text_input_formatter: ^2.9.0
   pinput: ^5.0.1
 
+  # HTTP-клиент для реального backend (Фаза A+: /api/mobile/**). Выбран http (а не dio):
+  # уже в кэше/транзитивен, MockClient из package:http/testing.dart даёт тесты без доп. пакетов.
+  http: ^1.2.0
+
   # Открытие внешних ссылок (YouTube video-инструкция, WhatsApp поддержка).
   url_launcher: ^6.3.1
 

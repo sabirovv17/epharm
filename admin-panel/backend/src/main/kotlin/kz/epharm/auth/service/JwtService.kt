@@ -52,6 +52,30 @@ class JwtService(
             .compact()
     }
 
+    /**
+     * Access-токен фармацевта (мобильное приложение). Отличается claim'ом typ=pharmacist —
+     * по нему JwtAuthenticationFilter строит PharmacistPrincipal с ролью ROLE_PHARMACIST,
+     * а не AdminPrincipal. subject — строковый pharmacist.id (VARCHAR(64), не UUID).
+     */
+    fun issuePharmacistToken(
+        pharmacistId: String,
+        name: String,
+        phone: String,
+        now: Instant = Instant.now(),
+    ): String {
+        val exp = now.plus(accessTtl)
+        return Jwts.builder()
+            .id(UUID.randomUUID().toString())
+            .subject(pharmacistId)
+            .claim("typ", TYP_PHARMACIST)
+            .claim("name", name)
+            .claim("phone", phone)
+            .issuedAt(Date.from(now))
+            .expiration(Date.from(exp))
+            .signWith(key, Jwts.SIG.HS256)
+            .compact()
+    }
+
     fun parseAccessToken(token: String): Claims? = try {
         Jwts.parser()
             .verifyWith(key)
@@ -71,4 +95,13 @@ class JwtService(
     fun userIdOf(claims: Claims): UUID = UUID.fromString(claims.subject)
 
     fun roleOf(claims: Claims): AdminRole = AdminRole.valueOf(claims["role"] as String)
+
+    /** true — если токен принадлежит фармацевту (claim typ=pharmacist), а не админу. */
+    fun isPharmacistToken(claims: Claims): Boolean = claims["typ"] == TYP_PHARMACIST
+
+    fun pharmacistIdOf(claims: Claims): String = claims.subject
+
+    companion object {
+        const val TYP_PHARMACIST = "pharmacist"
+    }
 }

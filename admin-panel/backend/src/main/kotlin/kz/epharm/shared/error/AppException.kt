@@ -27,4 +27,12 @@ enum class ErrorCode {
     NOT_FOUND,
     CONFLICT,
     INTERNAL,
+
+    // Мобильная аутентификация (OTP-флоу). Фронт-мобилка switch'ит по ним для UX.
+    OTP_NOT_REQUESTED,
+    OTP_EXPIRED,
+    OTP_INVALID,
+    OTP_TOO_MANY_ATTEMPTS,
+    OTP_NOT_VERIFIED,
+    PHARMACIST_BLOCKED,
 }
