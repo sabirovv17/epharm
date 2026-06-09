@@ -230,7 +230,6 @@ class DevDataSeeder {
                     parsedAmount = d.expected + d.parsedDelta,
                     parsedCashier = "Кассир №${1 + i % 3}",
                     parsedAt = posmAt.plusSeconds(600),
-                    ocrScore = BigDecimal.valueOf(d.score),
                     pendingBonusId = pb.id,
                     bonusCredited = credited,
                     reviewer = if (d.status == ReceiptStatus.approved && d.auto) "auto" else null,

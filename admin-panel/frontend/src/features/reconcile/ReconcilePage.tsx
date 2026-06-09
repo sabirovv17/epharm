@@ -168,7 +168,6 @@ export default function ReconcilePage() {
                   <th className="px-5 py-2.5">{t('rec.thReceipt')}</th>
                   <th className="px-3 py-2.5">{t('rec.thPharmacist')}</th>
                   <th className="px-3 py-2.5 text-right">{t('rec.thAmount')}</th>
-                  <th className="px-3 py-2.5 text-right">{t('rec.thScore')}</th>
                   <th className="px-3 py-2.5">{t('rec.thStatus')}</th>
                   <th className="px-3 py-2.5">{t('rec.thSources')}</th>
                   <th className="px-5 py-2.5" />
@@ -338,7 +337,6 @@ function ReceiptRow({
           </div>
         )}
       </td>
-      <td className="num px-3 py-2.5 text-right">{(r.ocrScore * 100).toFixed(0)}%</td>
       <td className="px-3 py-2.5">
         <StatusCell r={r} />
       </td>
@@ -485,7 +483,6 @@ function ReceiptDetailDrawer({
               <div>{productOf(r.parsedSku)?.name ?? r.parsedSku ?? '—'}</div>
               {r.parsedSku && <div className="num text-[11px] text-ink-400">{r.parsedSku}</div>}
             </Field>
-            <Field label={t('rec.dScore')}>{(r.ocrScore * 100).toFixed(0)}%</Field>
             <Field label={t('rec.dParsedAmount')}>
               <span className="num">{formatKzt(r.parsedAmount)}</span>
             </Field>

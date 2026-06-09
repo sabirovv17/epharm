@@ -118,8 +118,7 @@ class ReconcileIntegrationTest {
     }
 
     @Test
-    fun `submit QR → авто-одобрение + начисление бонуса`() {
-        // QR → score 0.97, сумма совпала (mock берёт hint=expected), окно ок → auto-approve.
+    fun `submit QR → pending (OCR убран, авто-одобрения нет, ждём лог + Excel)`() {
         mockMvc.perform(
             multipart("/api/admin/reconcile/submit")
                 .param("pharmacistId", "u_t")
@@ -127,17 +126,16 @@ class ReconcileIntegrationTest {
                 .header("Authorization", bearer),
         )
             .andExpect(status().isCreated)
-            .andExpect(jsonPath("$.status").value("approved"))
-            .andExpect(jsonPath("$.autoApproved").value(true))
-            .andExpect(jsonPath("$.bonusCredited").value(300))
+            .andExpect(jsonPath("$.status").value("pending"))
+            .andExpect(jsonPath("$.autoApproved").value(false))
+            .andExpect(jsonPath("$.bonusCredited").value(0))
 
-        // Баланс фармацевта вырос на бонус.
-        val ph = pharmacistRepository.findById("u_t").get()
-        assert(ph.balance == 300L) { "balance=${ph.balance}, ожидали 300" }
+        // Бонус НЕ начислен на загрузке — подтверждение даёт только сверка по источникам.
+        assert(pharmacistRepository.findById("u_t").get().balance == 0L)
     }
 
     @Test
-    fun `submit фото (низкий score) → ручная модерация (pending)`() {
+    fun `submit фото → pending (ждёт подтверждения источниками)`() {
         val file = MockMultipartFile("file", "r.jpg", "image/jpeg", byteArrayOf(1, 2, 3))
         mockMvc.perform(
             multipart("/api/admin/reconcile/submit")
@@ -150,20 +148,6 @@ class ReconcileIntegrationTest {
             .andExpect(jsonPath("$.autoApproved").value(false))
         // Бонус НЕ начислен до ручного одобрения.
         assert(pharmacistRepository.findById("u_t").get().balance == 0L)
-    }
-
-    @Test
-    fun `дубль фискального чека → flagged (анти-фрод)`() {
-        // Первый сабмит QR — проходит. Второй с тем же QR → тот же fiscalId → дубль.
-        repeat(2) {
-            mockMvc.perform(
-                multipart("/api/admin/reconcile/submit")
-                    .param("pharmacistId", "u_t").param("qr", "DUP-QR")
-                    .header("Authorization", bearer),
-            ).andExpect(status().isCreated)
-        }
-        val flagged = receiptRepository.findAll().filter { it.status.name == "flagged" }
-        assert(flagged.any { it.flagReason == "duplicate_receipt" }) { "ожидали flagged duplicate" }
     }
 
     @Test

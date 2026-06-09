@@ -41,7 +41,6 @@ function mkReceipt(over: Partial<ReceiptDto> = {}): ReceiptDto {
     parsedAmount: 1620,
     parsedCashier: 'Кассир №1',
     parsedAt: '2026-05-14T09:00:00Z',
-    ocrScore: 0.74,
     status: 'pending',
     autoApproved: false,
     flagReason: null,

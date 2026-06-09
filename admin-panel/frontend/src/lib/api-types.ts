@@ -557,7 +557,6 @@ export interface ReceiptDto {
   parsedAmount: number
   parsedCashier: string
   parsedAt: string | null
-  ocrScore: number
   status: ReceiptStatus
   autoApproved: boolean
   flagReason: string | null

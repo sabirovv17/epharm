@@ -19,18 +19,19 @@ import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.math.BigDecimal
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 import kotlin.math.abs
 
 /**
- * Сверка чеков (ТЗ §3.5). Решает ветку загруженного чека:
- *  - auto-approve (~80%): OCR-score высок, сумма ±2%, аптека совпала, время в окне 0–30 мин
- *    от POSM-события → бонус сразу credited.
- *  - manual (~15%): что-то не сошлось → status=pending, ждёт решения модератора.
- *  - anti-fraud (~5%): дубль фискального чека / чек из другой аптеки → status=flagged.
+ * Сверка чеков (ТЗ §3.5). OCR УБРАН — источники истины: лог Стандарт-Н + Excel-выгрузка.
+ *  - auto-approve (~80%): чек подтверждён ОБОИМИ источниками (лог + Excel), суммы сошлись
+ *    (decideFromSources) → бонус сразу credited.
+ *  - manual (~15%): подтверждён только одним источником / расхождение → moderation_required,
+ *    решает модератор в админке (approve/reject).
+ *  - anti-fraud (~5%): дубль фискального чека / чек из другой аптеки → flagged.
+ * Загруженное фото/QR — доказательство для модератора (не валидируется автоматически; QR — под ОФД).
  * Начисление: бонус из связанного pending_bonus идёт на pharmacist.balance + earned30d.
  */
 @Service
@@ -38,14 +39,12 @@ class ReconcileService(
     private val receiptRepository: ReceiptRepository,
     private val pendingBonusRepository: PendingBonusRepository,
     private val pharmacistRepository: PharmacistRepository,
-    private val ocrService: OcrService,
     private val mediaStorage: MediaStorage,
 ) {
 
     private val log = LoggerFactory.getLogger(ReconcileService::class.java)
 
     companion object {
-        private const val AUTO_SCORE_MIN = 0.90
         private const val AMOUNT_TOLERANCE_PCT = 2 // ±2%
         private val MATCH_WINDOW: Duration = Duration.ofMinutes(30)
     }
@@ -106,17 +105,13 @@ class ReconcileService(
         // Кандидат на матч — свежий открытый pending-бонус фармацевта.
         val candidate = latestAwaitingFor(pharmacistId)
 
-        val parsed = ocrService.parse(
-            photoBytes = photoBytes,
-            qrRaw = qrRaw,
-            hintSku = candidate?.sku,
-            hintAmount = candidate?.expectedAmount,
-        )
-
         val photoUrl = if (photoBytes != null) {
             mediaStorage.upload(photoBytes, photoContentType ?: "image/jpeg", photoName ?: "receipt.jpg")
         } else null
 
+        // OCR убран: фото/QR — только доказательство для модератора. SKU берём из связанной
+        // POSM-брони; фактическую сумму/фискальный id/кассира заполнит сверка по источникам
+        // (лог Стандарт-Н → ingestLogSale, Excel → ingestExcelRows). qrRaw сохраняем под ОФД.
         val receipt = ReceiptEntity(
             id = "rcp_${UUID.randomUUID().toString().substring(0, 8)}",
             pharmacistId = pharmacist.id,
@@ -125,16 +120,11 @@ class ReconcileService(
             pharmacyName = pharmacist.pharmacyName ?: "",
             photoUrl = photoUrl,
             qrRaw = qrRaw,
-            fiscalId = parsed.fiscalId,
-            parsedSku = parsed.sku,
-            parsedAmount = parsed.amount,
-            parsedCashier = parsed.cashier,
-            parsedAt = parsed.parsedAt,
-            ocrScore = BigDecimal.valueOf(parsed.score),
+            parsedSku = candidate?.sku ?: "",
             pendingBonusId = candidate?.id,
         )
 
-        decideBranch(receipt, candidate, parsed.score)
+        decideBranch(receipt, candidate)
         val saved = receiptRepository.save(receipt)
         return toDto(saved, candidate)
     }
@@ -287,32 +277,25 @@ class ReconcileService(
 
     // ── Логика ветвления ────────────────────────────────────────────────────
 
-    private fun decideBranch(receipt: ReceiptEntity, candidate: PendingBonusEntity?, score: Double) {
-        // 1. Анти-фрод: дубль фискального чека.
+    /**
+     * Ветка чека ПРИ ЗАГРУЗКЕ из приложения. Авто-одобрения здесь НЕ бывает — подтверждение
+     * даёт только сверка по источникам (лог Стандарт-Н + Excel → decideFromSources).
+     * На загрузке проверяем лишь анти-фрод; иначе чек ждёт подтверждения (pending).
+     */
+    private fun decideBranch(receipt: ReceiptEntity, candidate: PendingBonusEntity?) {
+        // Анти-фрод: дубль фискального чека (если фискальный id уже известен, напр. из QR/ОФД).
         if (!receipt.fiscalId.isNullOrBlank() && receiptRepository.existsByFiscalId(receipt.fiscalId!!)) {
             receipt.status = ReceiptStatus.flagged
             receipt.flagReason = "duplicate_receipt"
             return
         }
-        // 2. Анти-фрод: чек из аптеки, отличной от POSM-записи.
+        // Анти-фрод: чек из аптеки, отличной от POSM-записи.
         if (candidate != null && receipt.pharmacyId != candidate.pharmacyId) {
             receipt.status = ReceiptStatus.flagged
             receipt.flagReason = "wrong_pharmacy"
             return
         }
-        // 3. Авто-одобрение, если все условия совпали.
-        if (candidate != null && score >= AUTO_SCORE_MIN &&
-            amountWithinTolerance(receipt.parsedAmount, candidate.expectedAmount) &&
-            withinTimeWindow(receipt.parsedAt, candidate.createdAt)
-        ) {
-            creditFor(receipt, candidate)
-            receipt.status = ReceiptStatus.approved
-            receipt.autoApproved = true
-            receipt.reviewer = "auto"
-            receipt.reviewedAt = Instant.now()
-            return
-        }
-        // 4. Иначе — ручная модерация.
+        // Иначе — ждёт подтверждения источниками (лог/Excel); до того — pending.
         receipt.status = ReceiptStatus.pending
     }
 

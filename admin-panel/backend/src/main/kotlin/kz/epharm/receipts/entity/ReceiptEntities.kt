@@ -6,7 +6,6 @@ import jakarta.persistence.Id
 import jakarta.persistence.PrePersist
 import jakarta.persistence.PreUpdate
 import jakarta.persistence.Table
-import java.math.BigDecimal
 import java.time.Instant
 
 /** Статус pending-бонуса от POSM. */
@@ -121,9 +120,6 @@ class ReceiptEntity(
 
     @Column(name = "parsed_at")
     var parsedAt: Instant? = null,
-
-    @Column(name = "ocr_score", nullable = false, precision = 5, scale = 2)
-    var ocrScore: BigDecimal = BigDecimal.ZERO,
 
     @Column(name = "status", nullable = false, length = 32)
     var statusRaw: String = ReceiptStatus.pending.name,
