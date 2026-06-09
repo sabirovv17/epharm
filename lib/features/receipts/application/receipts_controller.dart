@@ -1,14 +1,20 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/config/api_config.dart';
+import '../../../core/network/api_client.dart';
 import '../../home/data/home_repository.dart';
+import '../data/api_receipt_repository.dart';
+import '../data/mock_receipt_repository.dart';
 import '../data/nearby_pharmacies.dart';
 import '../data/receipt_repository.dart';
 
-/// Repository держится singleton'ом — внутри он stateful (in-memory список).
+/// Выбор реализации: реальный backend при USE_API=true, иначе mock (офлайн-демо).
+/// Singleton per-container — у обеих реализаций stateful changes-стрим.
 final receiptRepositoryProvider = Provider<ReceiptRepository>((ref) {
-  final repo = ReceiptRepository();
-  ref.onDispose(() => repo);
-  return repo;
+  if (ApiConfig.useApi) {
+    return ApiReceiptRepository(ref.read(apiClientProvider));
+  }
+  return MockReceiptRepository();
 });
 
 /// Список чеков фармацевта. Использует `StreamProvider` чтобы автоматически

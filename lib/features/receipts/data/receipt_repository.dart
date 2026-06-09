@@ -16,9 +16,6 @@
 ///         [ReceiptStatus.rejected].
 library;
 
-import 'dart:async';
-import 'dart:math' as math;
-
 enum ReceiptStatus {
   /// POSM создал pending-bonus, но чек ещё не загружен.
   awaitingReceipt,
@@ -65,7 +62,8 @@ class Receipt {
   final ReceiptStatus status;
   final String? rejectedReason;
 
-  /// Локальный путь к фото чека (для только что загруженных).
+  /// Локальный путь к фото чека (для только что загруженных; у API-чеков null —
+  /// фото лежит в S3 и в истории не превью-рендерится).
   final String? photoPath;
 
   /// Парсенные дополнительные поля (mock OCR / ОФД).
@@ -74,79 +72,21 @@ class Receipt {
   final String? sku;
 }
 
-/// Stateful mock-репозиторий чеков. Хранит in-memory список который можно
-/// расширять методом [addReceipt]. После реал-API заменим на HTTP-репозиторий
-/// с тем же интерфейсом.
-class ReceiptRepository {
-  final List<Receipt> _state = List<Receipt>.from(_initialMock);
-  final _changes = StreamController<void>.broadcast();
+/// Контракт репозитория чеков. Реализации: [MockReceiptRepository] (офлайн-демо) и
+/// ApiReceiptRepository (backend `/api/mobile/receipts`). Выбор — по ApiConfig.useApi.
+abstract interface class ReceiptRepository {
+  /// Поток-сигнал к перезагрузке наблюдателей (после submit).
+  Stream<void> get changes;
 
-  /// Поток нотификаций — сигнал к перезагрузке наблюдателей.
-  Stream<void> get changes => _changes.stream;
+  /// История чеков фармацевта (свежие первыми).
+  Future<List<Receipt>> loadReceipts();
 
-  Future<List<Receipt>> loadReceipts() async {
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    return List.unmodifiable(_state);
-  }
-
-  /// Добавить новый чек в начало списка. Используется после успешной отправки
-  /// в Receipt Review.
-  Future<void> addReceipt(Receipt r) async {
-    await Future<void>.delayed(const Duration(milliseconds: 200));
-    _state.insert(0, r);
-    _changes.add(null);
-  }
-
-  /// Сгенерировать ID для нового чека.
-  String newId() {
-    final ts = DateTime.now().millisecondsSinceEpoch;
-    final rnd = math.Random().nextInt(0xFFFF).toRadixString(16);
-    return 'r$ts$rnd';
-  }
-
-  static const List<Receipt> _initialMock = [
-    Receipt(
-      id: 'r1',
-      title: 'Larimide Lifting',
-      amountKzt: 25000,
-      dateLabel: '14.05 · 14:23',
-      status: ReceiptStatus.confirmed,
-    ),
-    Receipt(
-      id: 'r2',
-      title: 'SelfieLab AHA',
-      amountKzt: 3835,
-      dateLabel: '14.05 · 12:15',
-      status: ReceiptStatus.inReview,
-    ),
-    Receipt(
-      id: 'r3',
-      title: 'Ivatherm крем',
-      amountKzt: 7500,
-      dateLabel: '14.05 · 09:42',
-      status: ReceiptStatus.awaitingReceipt,
-    ),
-    Receipt(
-      id: 'r4',
-      title: 'Deo 2-7',
-      amountKzt: 18000,
-      dateLabel: '13.05 · 17:42',
-      status: ReceiptStatus.rejected,
-      rejectedReason: 'Чек уже использован',
-    ),
-    Receipt(
-      id: 'r5',
-      title: 'АкваДетрим Форте',
-      amountKzt: 4200,
-      dateLabel: '12.05 · 18:11',
-      status: ReceiptStatus.confirmed,
-    ),
-    Receipt(
-      id: 'r6',
-      title: 'Эссенциале форте Н',
-      amountKzt: 12340,
-      dateLabel: '11.05 · 11:08',
-      status: ReceiptStatus.confirmed,
-    ),
-  ];
+  /// Отправить чек на проверку (фото + контекст). Возвращает созданный чек.
+  /// Mock кладёт его локально; API делает multipart-upload, backend создаёт запись
+  /// и прогоняет её через ReconcileService (логи Стандарт-Н + Excel + ручная модерация).
+  Future<Receipt> submitReceipt({
+    required String title,
+    String? photoPath,
+    String? pharmacyName,
+  });
 }

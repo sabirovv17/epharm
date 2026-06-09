@@ -37,6 +37,15 @@ class ApiClient {
     return _decode(res);
   }
 
+  /// GET, где тело — JSON-массив (например история чеков).
+  Future<List<dynamic>> getJsonList(String path, {bool auth = true}) async {
+    final res = await _sendWithRefresh(
+      () => _client.get(_uri(path), headers: _headers(auth: auth)),
+      auth: auth,
+    );
+    return _decodeList(res);
+  }
+
   Future<Map<String, dynamic>> postJson(
     String path,
     Object body, {
@@ -142,6 +151,22 @@ class ApiClient {
       return parsed is Map<String, dynamic> ? parsed : <String, dynamic>{};
     }
     // Ошибка — пытаемся достать машинный код и сообщение бэкенда.
+    if (parsed is Map<String, dynamic>) {
+      throw ApiException(
+        message: (parsed['message'] as String?) ?? 'Ошибка сервера',
+        code: parsed['code'] as String?,
+        statusCode: res.statusCode,
+      );
+    }
+    throw ApiException(message: 'Ошибка сервера', statusCode: res.statusCode);
+  }
+
+  List<dynamic> _decodeList(http.Response res) {
+    final ok = res.statusCode >= 200 && res.statusCode < 300;
+    final bodyText = utf8.decode(res.bodyBytes);
+    final dynamic parsed = bodyText.isEmpty ? <dynamic>[] : jsonDecode(bodyText);
+    if (ok) return parsed is List ? parsed : <dynamic>[];
+    // Ошибка приходит объектом {code,message}.
     if (parsed is Map<String, dynamic>) {
       throw ApiException(
         message: (parsed['message'] as String?) ?? 'Ошибка сервера',

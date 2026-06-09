@@ -2617,8 +2617,52 @@ E2E: register→pending→me, повторный вход, refresh-ротаци�
 - Маппинг `MeDto→User` вынесен в фабрику `User.fromMeJson` (используют auth + profile).
 - **Flutter: 14 тестов зелёные, analyze чист.**
 
-**Дальше:** Фаза C — чеки `/api/mobile/receipts` (upload multipart→S3, история свои) + nearby-аптеки +
-`ReceiptApiRepository` во Flutter. Самая объёмная фаза (модели чека Flutter ↔ backend различаются).
+### Фаза C — чеки фармацевта (✅ 2026-06-09, live verified)
+
+Решение пользователя по валидации: чек проверяется по ЕГО критериям — (1) логи Стандарт-Н +
+Excel-выгрузки, (2) не прошёл автоматику → ручная модерация в админке; OCR/ОФД — пока заглушка,
+архитектурно расширяемо. Это РОВНО существующий `ReconcileService` → мобилка НЕ вводит новый путь
+доверия, переиспользует проверенный 3-источниковый пайплайн.
+
+- **Backend (`/api/mobile/receipts`, под JWT ROLE_PHARMACIST):**
+  - `POST` (multipart `file`/`qr`) → `MobileReceiptService.submit` → `ReconcileService.submitReceipt`
+    (OCR-score → матч pending-бонуса → авто-approve | moderation_required | анти-фрод). pharmacistId
+    берётся ИЗ ТОКЕНА (нельзя загрузить за другого).
+  - `GET` → история своих чеков (`ReconcileService.listForPharmacist` + новый repo-метод
+    `findAllByPharmacistIdOrderByCreatedAtDesc`).
+  - `MobileReceiptDto` — лёгкая проекция: статусы → inReview/confirmed/rejected; productName из
+    каталога по SKU (golden rule). `MobileReceiptService` — ТОНКАЯ обёртка (вся валидация в Reconcile).
+  - **OCR/ОФД расширяемость:** путь идёт через интерфейс `OcrService` (сейчас `MockOcrService`-score).
+    Реальный OCR/ОФД-сервис подменит бин без правок контроллера; `qrRaw` уже захватывается для будущей
+    ОФД-верификации по QR. Документировано в KDoc `MobileReceiptService`.
+  - +5 интеграционных тестов (`MobileReceiptIntegrationTest`): submit→201 inReview + в истории;
+    история только своя; без фото/QR→400; без токена→401 (POST и GET).
+- **Flutter:** `ReceiptRepository` → интерфейс + `MockReceiptRepository`/`ApiReceiptRepository`
+  (multipart-upload фото из `photoPath` через `ApiClient.postMultipart`; `getJsonList` для истории;
+  маппинг dto→Receipt). `receipt_review_screen._submit` упрощён до `repo.submitReceipt(...)`.
+  +5 тестов (mock 2 + api 3, MockClient).
+- **Backend 222 теста (0 fail), Flutter 19 (0 fail), analyze clean.**
+- **Live E2E:** register→token→POST фото→`rcp_… inReview` + photoUrl в MinIO→GET история→свой чек;
+  POST без фото/QR→400. ✅
+
+**Gotcha (dev):** DevDataSeeder не пересоздаёт фармацевтов при наличии данных → в уже заполненной
+dev-БД нет нового `u_0`(+77000000001). Для входа seeded-фармацевта по E.164 — `POST /api/admin/dev/reset`
+(wipe+reseed) ИЛИ регистрировать нового через мобильный флоу.
+
+---
+
+### 🎯 ИТОГ: мобильный бэкенд A+B+C (auth + профиль + чеки)
+
+Приложение фармацевта переведено с моков на реальный backend (флаг `USE_API`, моки сохранены):
+**A** — phone→OTP→register/login, JWT, refresh. **B** — профиль/баланс из таблицы pharmacists.
+**C** — отправка чека (multipart→S3→ReconcileService) + история.
+
+Тесты: backend **222**, Flutter **19**, всё green + analyze clean. A и C live-verified.
+Коммит: A+B = `fef7c02` (ветка `feat/mobile-backend`). Фаза C — пока НЕ закоммичена.
+
+**Осталось по мобилке (опционально):** Home-промо/каталог из админки (решено оставить моки);
+`GET /api/mobile/pharmacies` для AddressSheet; QR-сканер ОФД + реальный OCR/ОФД-сервис;
+persist токенов (flutter_secure_storage) вместо in-memory TokenStore.
 
 **Curl-проверка (dev, профиль dev):**
 

@@ -65,6 +65,11 @@ class ReconcileService(
     @Transactional(readOnly = true)
     fun get(id: String): ReceiptDto = toDto(loadOrThrow(id))
 
+    /** История чеков конкретного фармацевта (мобильное приложение). */
+    @Transactional(readOnly = true)
+    fun listForPharmacist(pharmacistId: String): List<ReceiptDto> =
+        receiptRepository.findAllByPharmacistIdOrderByCreatedAtDesc(pharmacistId).map { toDto(it) }
+
     @Transactional(readOnly = true)
     fun summary(): ReconcileSummaryDto = ReconcileSummaryDto(
         queue = receiptRepository.countByStatusRaw(ReceiptStatus.pending.name),

@@ -24,6 +24,8 @@ interface PendingBonusRepository : JpaRepository<PendingBonusEntity, String> {
 interface ReceiptRepository : JpaRepository<ReceiptEntity, String> {
     fun findAllByOrderByCreatedAtDesc(): List<ReceiptEntity>
     fun findAllByStatusRawOrderByCreatedAtDesc(statusRaw: String): List<ReceiptEntity>
+    /** История чеков конкретного фармацевта (для мобильного приложения). */
+    fun findAllByPharmacistIdOrderByCreatedAtDesc(pharmacistId: String): List<ReceiptEntity>
     fun countByStatusRaw(statusRaw: String): Long
     /** Анти-фрод: дубль фискального чека. */
     fun existsByFiscalIdAndIdNot(fiscalId: String, id: String): Boolean

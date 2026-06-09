@@ -10,7 +10,6 @@ import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_theme.dart';
 import '../application/receipts_controller.dart';
-import '../data/receipt_repository.dart';
 import 'address_sheet.dart';
 import 'card_sheet.dart';
 import 'promo_picker_screen.dart';
@@ -33,27 +32,13 @@ class ReceiptReviewScreen extends ConsumerWidget {
     if (!draft.isComplete) return;
 
     final repo = ref.read(receiptRepositoryProvider);
-    final now = DateTime.now();
-    final dd = now.day.toString().padLeft(2, '0');
-    final mm = now.month.toString().padLeft(2, '0');
-    final hh = now.hour.toString().padLeft(2, '0');
-    final mi = now.minute.toString().padLeft(2, '0');
-
     final firstPromo = draft.promos.first;
-    // Сумма не запрашивается на этом экране (OCR сделает на сервере) —
-    // отправляем 0 как плейсхолдер; для UI receipts_list_screen статуса.
-    await repo.addReceipt(
-      Receipt(
-        id: repo.newId(),
-        title: firstPromo.name,
-        amountKzt: 0,
-        dateLabel: '$dd.$mm · $hh:$mi',
-        status: ReceiptStatus.inReview,
-        photoPath: draft.photoPath,
-        pharmacy: draft.pharmacy?.name,
-        cashier: null,
-        sku: null,
-      ),
+    // Репозиторий сам строит чек (mock) либо делает multipart-upload фото (api),
+    // прогоняя его на бэке через ReconcileService. Сумму/OCR считает сервер.
+    await repo.submitReceipt(
+      title: firstPromo.name,
+      photoPath: draft.photoPath,
+      pharmacyName: draft.pharmacy?.name,
     );
 
     // После submit обнуляем promos/pharmacy/photoPath, но card сохраняем
