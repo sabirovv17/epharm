@@ -40,13 +40,17 @@ test.describe('Promo — фильтр и поиск', () => {
   // Детерминированно после globalSetup-reset (seed-промо со стабильными статусами).
   // Этот тест объявлен ДО create/archive в этом же файле + workers:1 → состояние = seed.
   test('фильтр по «Активные» скрывает draft/paused', async ({ loggedInPage }) => {
-    const allCount = await loggedInPage.locator('[data-testid^="promo-card-"]').count()
+    const cards = loggedInPage.locator('[data-testid^="promo-card-"]')
+    // Дожидаемся загрузки списка ПЕРЕД подсчётом (иначе в полном прогоне count=0 — флейк).
+    await expect(cards.first()).toBeVisible()
+    const allCount = await cards.count()
+
     await loggedInPage.locator('select').first().selectOption('active')
-    const activeCount = await loggedInPage.locator('[data-testid^="promo-card-"]').count()
+    // Web-first ожидание применения фильтра: черновики должны пропасть (retry до таймаута).
+    await expect(loggedInPage.locator('.chip', { hasText: /Черновик/ })).toHaveCount(0)
+
+    const activeCount = await cards.count()
     expect(activeCount).toBeLessThanOrEqual(allCount)
-    // Среди видимых карточек нет черновиков
-    const chips = await loggedInPage.locator('.chip').allTextContents()
-    expect(chips.filter((c) => /Черновик/.test(c)).length).toBe(0)
   })
 
   test('поиск по title фильтрует список', async ({ loggedInPage }) => {
