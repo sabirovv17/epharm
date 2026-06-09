@@ -50,7 +50,11 @@ app:
     access-ttl-minutes: 15
     refresh-ttl-days: 30
   s3:
+    # Внутренний адрес для SDK (PUT/DELETE). В docker — http://minio:9000.
     endpoint: ${S3_ENDPOINT:http://localhost:9000}
+    # Внешний адрес для ссылок в браузере (фото чеков/слайды). За reverse-proxy —
+    # https://s3.epharm.kz. По умолчанию = endpoint (dev: один localhost:9000).
+    public-url: ${S3_PUBLIC_URL:${S3_ENDPOINT:http://localhost:9000}}
     region: ${S3_REGION:us-east-1}
     access-key: ${S3_ACCESS_KEY:epharm}
     secret-key: ${S3_SECRET_KEY:epharm_dev_minio}

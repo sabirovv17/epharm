@@ -49,9 +49,10 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-epharm}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env.prod}
     command: server /data --console-address ":9001"
+    expose:
+      - '9000' # S3 API — наружу не публикуем, отдаётся через Caddy (s3-домен, TLS)
     ports:
-      # Публикуем S3 наружу — фото чеков отдаются браузеру/приложению напрямую по S3_ENDPOINT.
-      - '${MINIO_API_PORT:-9000}:9000'
+      # Только консоль администрирования MinIO (закрыть файрволом / VPN — не для публики).
       - '${MINIO_CONSOLE_PORT:-9001}:9001'
     volumes:
       - minio_data:/data
@@ -98,17 +99,19 @@ services:
       SPRING_DATA_REDIS_PORT: '6379'
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET (min 256-bit) in .env.prod}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8088}
-      # Фото чеков отдаются клиенту по этому адресу — должен быть ДОСТУПЕН снаружи
-      # (публичный URL MinIO/прокси), не http://minio:9000 (это только внутри сети).
-      S3_ENDPOINT: ${S3_ENDPOINT}
+      # SDK ходит на MinIO внутри сети…
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      # …а ссылки на фото для браузера строятся по внешнему адресу (через Caddy, https).
+      S3_PUBLIC_URL: ${S3_PUBLIC_URL:?set S3_PUBLIC_URL=https://<S3_DOMAIN> in .env.prod}
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_ACCESS_KEY: ${MINIO_ROOT_USER:-epharm}
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       # ВАЖНО для прода: выключить dev-OTP (иначе код входа всегда 544544).
       OTP_DEV_MODE: ${OTP_DEV_MODE:-false}
       POSM_DEVICE_KEY: ${POSM_DEVICE_KEY:?set POSM_DEVICE_KEY in .env.prod}
-    ports:
-      - '${BACKEND_PORT:-8080}:8080'
+    # Наружу не публикуем — доступ только через Caddy (TLS). Внутри сети backend:8080.
+    expose:
+      - '8080'
 
   frontend:
     build:
@@ -121,10 +124,36 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    # Наружу не публикуем — доступ только через Caddy (TLS). Внутри сети frontend:80.
+    expose:
+      - '80'
+
+  # Reverse-proxy + автоматический TLS (Let's Encrypt). Единственная точка входа из интернета.
+  caddy:
+    image: caddy:2-alpine
+    container_name: epharm-caddy
+    restart: always
+    depends_on:
+      - backend
+      - frontend
+      - minio
     ports:
-      - '${ADMIN_PORT:-8088}:80'
+      - '80:80'
+      - '443:443'
+      - '443:443/udp' # HTTP/3
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env.prod}
+      API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN (напр. api.epharm.kz) in .env.prod}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN:?set ADMIN_DOMAIN (напр. admin.epharm.kz) in .env.prod}
+      S3_DOMAIN: ${S3_DOMAIN:?set S3_DOMAIN (напр. s3.epharm.kz) in .env.prod}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # сертификаты Let's Encrypt (переживают рестарт)
+      - caddy_config:/config
 
 volumes:
   postgres_data:
   redis_data:
   minio_data:
+  caddy_data:
+  caddy_config:

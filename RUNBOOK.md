@@ -245,35 +245,44 @@ npx playwright show-report          # HTML-отчёт последнего пр�
 ## Прод-стек «всё одной командой» (always-on)
 
 Для боевого сервера есть **`docker-compose.prod.yml`** — он поднимает и держит ВСЁ ядро на одной
-машине: Postgres + Redis + MinIO + backend (Spring) + admin-frontend (nginx). У всех сервисов
-`restart: always` + healthcheck + `depends_on (service_healthy)`, поэтому стек сам переживает
-краш контейнера и **перезагрузку сервера** (нужен docker с автозапуском: `sudo systemctl enable docker`).
+машине: Postgres + Redis + MinIO + backend (Spring) + admin-frontend (nginx) + **Caddy (TLS)**.
+У всех сервисов `restart: always` + healthcheck + `depends_on (service_healthy)`, поэтому стек сам
+переживает краш контейнера и **перезагрузку сервера** (нужен docker с автозапуском:
+`sudo systemctl enable docker`).
 
 В отличие от dev (`bootRun` + `npm run dev`), backend и фронт собираются в контейнеры
 (`admin-panel/backend/Dockerfile`, `admin-panel/frontend/Dockerfile` + `nginx.conf`).
 
+**Предусловия (DNS + порты):** три A-записи указывают на IP сервера —
+`api.epharm.kz`, `admin.epharm.kz`, `s3.epharm.kz`; на сервере открыты **80 и 443**
+(Caddy сам получит сертификаты Let's Encrypt).
+
 **Запуск на сервере:**
 
 ```bash
-cp .env.prod.example .env.prod        # заполнить пароли/секреты (см. комментарии внутри)
+cp .env.prod.example .env.prod        # заполнить домены, email, пароли/секреты (комментарии внутри)
 docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
 docker compose -f docker-compose.prod.yml ps      # все healthy
 ```
 
-- **Админка:** `http://<SERVER>:8088` · **Backend API:** `http://<SERVER>:8080` (сюда бьют кассы
-  `/api/posm/*` и телефоны `/api/mobile/*`) · **MinIO:** `:9000` (фото чеков).
-- Фронт проксирует `/api/*` на backend (один origin, без CORS).
+- **Caddy** — единственная точка входа из интернета (80/443), автоматический TLS:
+  - `https://api.epharm.kz` → backend (сюда бьют кассы `/api/posm/*` и телефоны `/api/mobile/*`);
+  - `https://admin.epharm.kz` → веб-админка (её nginx проксирует `/api` на backend);
+  - `https://s3.epharm.kz` → MinIO (публичные фото чеков/слайды).
+- backend/frontend/S3-API **наружу не публикуются** — только через Caddy по TLS. Снаружи открыта
+  лишь консоль MinIO (`:9001`) — её закрыть файрволом/VPN.
+- **S3 двойной адрес:** backend грузит фото внутрь (`S3_ENDPOINT=http://minio:9000`), а ссылку в
+  браузере строит по `S3_PUBLIC_URL=https://s3.epharm.kz` — иначе фото не откроются.
 - **Секреты только в `.env.prod`** (в gitignore): `JWT_SECRET` (`openssl rand -base64 48`),
   `POSM_DEVICE_KEY` (`openssl rand -hex 24`), пароли БД/MinIO, `OTP_DEV_MODE=false`.
 
 **Как это «работает всегда»:** контейнер упал → docker поднимает (`restart: always`); сервер
 ребутнулся → docker-демон стартует и поднимает весь стек; backend ждёт готовности БД/Redis/MinIO
-(`service_healthy`). Кассы держатся отдельно своим watchdog (см. `App/POSM_DEPLOY.md`).
+(`service_healthy`); Caddy переиспользует сертификаты из volume `caddy_data` и продлевает их сам.
+Кассы держатся отдельно своим watchdog (см. `App/POSM_DEPLOY.md`).
 
 **Что ещё нужно для полноценного прода (не входит в этот стек, отдельные шаги):**
 
-- **TLS/домен** `api.epharm.kz` — reverse-proxy Caddy/nginx с Let's Encrypt поверх (кассы/телефоны
-  ждут `https://`). `S3_ENDPOINT` в `.env.prod` → публичный адрес MinIO (не `minio:9000`).
 - **Планировщик выплат** (`PayoutScheduler`) — при масштабировании в >1 инстанс нужен
   distributed-lock, иначе выплаты задвоятся. Сейчас безопасно при **одном** backend-контейнере.
 - **Бэкап Postgres** (cron `pg_dump` → S3) и мониторинг живости касс — отдельно.

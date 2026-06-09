@@ -1,0 +1,26 @@
+# Reverse-proxy + автоматический TLS (Let's Encrypt) поверх прод-стека Epharm.
+# Домены и email берутся из .env.prod (через environment контейнера caddy).
+# Caddy сам получает и продлевает сертификаты; данные сертификатов — в volume caddy_data.
+
+{
+	email {$ACME_EMAIL}
+}
+
+# API для касс (/api/posm) и телефонов (/api/mobile) + сама админка тоже бьёт сюда при желании.
+{$API_DOMAIN} {
+	reverse_proxy backend:8080
+	request_body {
+		max_size 64MB
+	}
+}
+
+# Веб-админка (статика + проксирование /api на backend делает её nginx).
+{$ADMIN_DOMAIN} {
+	reverse_proxy frontend:80
+}
+
+# Публичный S3: фото чеков и слайды (анонимный download из bucket epharm-receipts,
+# path-style → https://s3.epharm.kz/epharm-receipts/<key>).
+{$S3_DOMAIN} {
+	reverse_proxy minio:9000
+}

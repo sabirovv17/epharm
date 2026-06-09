@@ -2851,3 +2851,24 @@ curl -s localhost:8080/api/mobile/auth/register    -H 'Content-Type: application
   (сейчас в админке формы ввода ИИН нет, только список — backend всё равно отвергнет невалидный).
 - **Не сделано (отмечено):** проверка ФАКТИЧЕСКОГО существования ИИН в гос-реестре (внешний гос-API) —
   это отдельная интеграция; здесь только математическая проверка от опечаток.
+
+## TLS/reverse-proxy Caddy (api.epharm.kz) — 2026-06-09
+
+Добавлен TLS поверх прод-стека (по запросу). Caddy — единственная точка входа (80/443),
+автоматический Let's Encrypt.
+
+- **`Caddyfile`** (корень): `{$API_DOMAIN}`→backend:8080, `{$ADMIN_DOMAIN}`→frontend:80,
+  `{$S3_DOMAIN}`→minio:9000. Домены/email из env. Сертификаты в volume `caddy_data` (переживают рестарт).
+- **`docker-compose.prod.yml`:** добавлен сервис `caddy` (ports 80/443 + 443/udp). backend/frontend
+  больше НЕ публикуют порты (`expose` вместо `ports`) — вход только через Caddy. MinIO S3-API тоже
+  за Caddy (`expose 9000`), наружу — только консоль `:9001` (закрыть файрволом).
+- **S3 двойной адрес (важно!):** `S3MediaStorage` теперь имеет ДВА свойства — `app.s3.endpoint`
+  (внутренний, SDK PUT/DELETE → `http://minio:9000`) и `app.s3.public-url` (внешний, для ссылки в
+  браузере → `https://s3.epharm.kz`). application.yml: `public-url: ${S3_PUBLIC_URL:${S3_ENDPOINT:...}}`
+  (default = endpoint, dev не меняется). URL фото строится по publicUrl. `delete()` ищет `/$bucket/`
+  — устойчив к смене хоста. path-style уже включён (нужно для MinIO за прокси).
+- **`.env.prod.example`:** добавлены API_DOMAIN/ADMIN_DOMAIN/S3_DOMAIN/ACME_EMAIL,
+  S3_ENDPOINT=http://minio:9000, S3_PUBLIC_URL=https://s3.epharm.kz, CORS=https://admin.epharm.kz.
+- **Предусловия:** 3 A-записи на IP сервера + порты 80/443 открыты. RUNBOOK §«Прод-стек» обновлён.
+- Проверено: `compose config -q` + `caddy validate` (Valid configuration) + backend compileKotlin ок.
+- Кассы/телефоны уже ждут `https://api.epharm.kz` (posm.sample.json / ApiConfig) — совпадает.

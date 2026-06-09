@@ -18,8 +18,12 @@ import java.util.UUID
 /**
  * Реальное S3-совместимое хранилище (MinIO в dev, Yandex Object Storage в prod).
  * Bucket `epharm-receipts` создаётся docker-compose minio-init и помечен
- * anonymous download (public-read) → URL вида `$endpoint/$bucket/screens/<uuid>.<ext>`
- * проигрывается прямо в браузере (<video src>), без presigned-URL.
+ * anonymous download (public-read) → URL вида `$publicUrl/$bucket/screens/<uuid>.<ext>`
+ * проигрывается прямо в браузере (<img>/<video src>), без presigned-URL.
+ *
+ * ВАЖНО (прод за reverse-proxy): [endpoint] — внутренний адрес для SDK PUT/DELETE
+ * (напр. http://minio:9000), а [publicUrl] — ВНЕШНИЙ адрес для ссылки в браузере
+ * (напр. https://s3.epharm.kz). По умолчанию publicUrl = endpoint (dev: один localhost).
  *
  * Path-style доступ (pathStyleAccessEnabled) обязателен для MinIO.
  * Активен во всех профилях, КРОМЕ test (там InMemoryMediaStorage).
@@ -28,6 +32,7 @@ import java.util.UUID
 @Profile("!test")
 class S3MediaStorage(
     @Value("\${app.s3.endpoint}") private val endpoint: String,
+    @Value("\${app.s3.public-url}") private val publicUrl: String,
     @Value("\${app.s3.region}") private val region: String,
     @Value("\${app.s3.access-key}") private val accessKey: String,
     @Value("\${app.s3.secret-key}") private val secretKey: String,
@@ -54,7 +59,8 @@ class S3MediaStorage(
                 .build(),
             RequestBody.fromBytes(bytes),
         )
-        val url = "${endpoint.trimEnd('/')}/$bucket/$key"
+        // Ссылка для браузера строится по ВНЕШНЕМУ publicUrl (а PUT шёл на внутренний endpoint).
+        val url = "${publicUrl.trimEnd('/')}/$bucket/$key"
         log.info("Загружен медиа-объект: {}", url)
         return url
     }
