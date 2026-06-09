@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_gradients.dart';
+import '../../../core/network/api_exception.dart';
 import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -68,7 +69,12 @@ class ReceiptsListScreen extends ConsumerWidget {
                     displacement: 32,
                     child: receiptsAsync.when(
                       loading: () => const _LoadingList(),
-                      error: (e, _) => _ErrorList(message: '$e'),
+                      error: (e, _) => _ErrorList(
+                        message: e is ApiException
+                            ? e.message
+                            : 'Не удалось загрузить чеки. Проверьте соединение.',
+                        onRetry: () => ref.invalidate(receiptListProvider),
+                      ),
                       data: (list) {
                         if (list.isEmpty) {
                           return const _EmptyStateScrollable();
@@ -159,15 +165,55 @@ class _LoadingList extends StatelessWidget {
 }
 
 class _ErrorList extends StatelessWidget {
-  const _ErrorList({required this.message});
+  const _ErrorList({required this.message, this.onRetry});
   final String message;
+  final VoidCallback? onRetry;
   @override
   Widget build(BuildContext context) {
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
-        const SizedBox(height: 120),
-        Center(child: Text('Ошибка: $message')),
+        const SizedBox(height: 100),
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.cloud_off_rounded, size: 48, color: AppColors.ink400),
+                const SizedBox(height: 12),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: 'Manrope',
+                    fontFamilyFallback: ['Roboto', 'sans-serif'],
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.ink500,
+                    height: 1.4,
+                  ),
+                ),
+                if (onRetry != null) ...[
+                  const SizedBox(height: 16),
+                  TextButton(
+                    onPressed: onRetry,
+                    child: const Text(
+                      'Повторить',
+                      style: TextStyle(
+                        fontFamily: 'Manrope',
+                        fontFamilyFallback: ['Roboto', 'sans-serif'],
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.brandGreen600,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }

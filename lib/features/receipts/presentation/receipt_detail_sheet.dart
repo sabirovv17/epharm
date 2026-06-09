@@ -182,7 +182,15 @@ class _ReceiptPhoto extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget? img;
     if (receipt.photoUrl != null && receipt.photoUrl!.isNotEmpty) {
-      img = Image.network(receipt.photoUrl!, fit: BoxFit.cover);
+      img = Image.network(
+        receipt.photoUrl!,
+        fit: BoxFit.cover,
+        // Пока грузится — спиннер по центру (а не пустая плашка).
+        loadingBuilder: (context, child, progress) =>
+            progress == null ? child : const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        // Битый/недоступный URL (403/404) не должен показывать красный error-box.
+        errorBuilder: (_, __, ___) => const _PhotoFallback(),
+      );
     } else if (receipt.photoPath != null && receipt.photoPath!.isNotEmpty) {
       final f = File(receipt.photoPath!);
       if (f.existsSync()) img = Image.file(f, fit: BoxFit.cover);
@@ -196,27 +204,34 @@ class _ReceiptPhoto extends StatelessWidget {
         boxShadow: AppShadows.card,
       ),
       clipBehavior: Clip.antiAlias,
-      child: img ??
-          const Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.receipt_long_outlined,
-                    size: 40, color: AppColors.ink400),
-                SizedBox(height: 8),
-                Text(
-                  'Фото чека недоступно',
-                  style: TextStyle(
-                    fontFamily: 'Manrope',
-                    fontFamilyFallback: ['Roboto', 'sans-serif'],
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.ink400,
-                  ),
-                ),
-              ],
+      child: img ?? const _PhotoFallback(),
+    );
+  }
+}
+
+/// Заглушка вместо фото: нет URL/локального файла или картинка не загрузилась.
+class _PhotoFallback extends StatelessWidget {
+  const _PhotoFallback();
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.receipt_long_outlined, size: 40, color: AppColors.ink400),
+          SizedBox(height: 8),
+          Text(
+            'Фото чека недоступно',
+            style: TextStyle(
+              fontFamily: 'Manrope',
+              fontFamilyFallback: ['Roboto', 'sans-serif'],
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.ink400,
             ),
           ),
+        ],
+      ),
     );
   }
 }
@@ -267,6 +282,8 @@ class _DetailRow extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   value,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: 'Manrope',
                     fontFamilyFallback: const ['Roboto', 'sans-serif'],

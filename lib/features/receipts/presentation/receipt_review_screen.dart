@@ -23,24 +23,43 @@ import 'success_screen.dart';
 /// (а) какие акции в нём, (б) где купил, (в) на какую карту начислить бонус.
 /// Это закрывает основные проверки бизнеса до отправки в HQ; фактическую сумму
 /// и подтверждение даёт сверка на сервере (лог кассы + Excel).
+/// Флаг «идёт отправка чека» — защита от двойной отправки + блокировка CTA.
+final _receiptSubmittingProvider = StateProvider.autoDispose<bool>((ref) => false);
+
 class ReceiptReviewScreen extends ConsumerWidget {
   const ReceiptReviewScreen({super.key});
 
   Future<void> _submit(BuildContext context, WidgetRef ref) async {
     final draft = ref.read(receiptDraftProvider);
     if (!draft.isComplete) return;
+    // Guard от двойного тапа: если отправка уже идёт — игнорируем.
+    if (ref.read(_receiptSubmittingProvider)) return;
+    ref.read(_receiptSubmittingProvider.notifier).state = true;
 
     final repo = ref.read(receiptRepositoryProvider);
     final firstPromo = draft.promos.first;
-    // Репозиторий сам строит чек (mock) либо делает multipart-upload фото (api),
-    // прогоняя его на бэке через ReconcileService. Сумму подтверждает сверка на сервере.
-    // Выбранную аптеку передаём явно — она сохранится в чеке и будет видна в детали.
-    await repo.submitReceipt(
-      title: firstPromo.name,
-      photoPath: draft.photoPath,
-      pharmacyId: draft.pharmacy?.id,
-      pharmacyName: draft.pharmacy?.name,
-    );
+    try {
+      // Репозиторий сам строит чек (mock) либо делает multipart-upload фото (api),
+      // прогоняя его на бэке через ReconcileService. Сумму подтверждает сверка на сервере.
+      // Выбранную аптеку передаём явно — она сохранится в чеке и будет видна в детали.
+      await repo.submitReceipt(
+        title: firstPromo.name,
+        photoPath: draft.photoPath,
+        pharmacyId: draft.pharmacy?.id,
+        pharmacyName: draft.pharmacy?.name,
+      );
+    } catch (_) {
+      // Сеть/сервер недоступны — показываем ошибку, draft не теряем (можно повторить).
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Не удалось отправить чек. Проверьте соединение и попробуйте снова.')),
+        );
+      }
+      return;
+    } finally {
+      // finally выполняется до навигации — виджет ещё на экране, ref валиден.
+      ref.read(_receiptSubmittingProvider.notifier).state = false;
+    }
 
     // После submit обнуляем promos/pharmacy/photoPath, но card сохраняем
     // (см. ReceiptDraftNotifier.reset).
@@ -69,6 +88,7 @@ class ReceiptReviewScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final draft = ref.watch(receiptDraftProvider);
+    final submitting = ref.watch(_receiptSubmittingProvider);
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: systemUiOverlayStyleDark,
       child: Scaffold(
@@ -187,7 +207,8 @@ class ReceiptReviewScreen extends ConsumerWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _ContinueCta(
-                      ready: draft.isComplete,
+                      ready: draft.isComplete && !submitting,
+                      busy: submitting,
                       onTap: () => _submit(context, ref),
                     ),
                     if (!draft.isComplete) ...[
@@ -541,8 +562,9 @@ class _PrivacyNote extends StatelessWidget {
 }
 
 class _ContinueCta extends StatelessWidget {
-  const _ContinueCta({required this.ready, required this.onTap});
+  const _ContinueCta({required this.ready, required this.onTap, this.busy = false});
   final bool ready;
+  final bool busy;
   final VoidCallback onTap;
 
   @override
@@ -562,16 +584,22 @@ class _ContinueCta extends StatelessWidget {
               borderRadius: AppRadii.brFull,
               boxShadow: ready ? AppShadows.fab : null,
             ),
-            child: const Text(
-              'Продолжить',
-              style: TextStyle(
-                fontFamily: 'Manrope',
-                fontFamilyFallback: ['Roboto', 'sans-serif'],
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-              ),
-            ),
+            child: busy
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                  )
+                : const Text(
+                    'Продолжить',
+                    style: TextStyle(
+                      fontFamily: 'Manrope',
+                      fontFamilyFallback: ['Roboto', 'sans-serif'],
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
           ),
         ),
       ),

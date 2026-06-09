@@ -12,6 +12,7 @@ import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/config/api_config.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/widgets/brand_icons.dart';
 import '../../../core/widgets/pharma_logo.dart';
@@ -43,12 +44,15 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       if (_seconds <= 0) return;
       setState(() => _seconds -= 1);
     });
-    // Demo: auto-fill дефолтным кодом через 600ms
-    _autoFillTimer = Timer(const Duration(milliseconds: 600), () {
-      if (!mounted) return;
-      _controller.text = AuthRepository.defaultOtpCode;
-      setState(() => _code = AuthRepository.defaultOtpCode);
-    });
+    // Demo: auto-fill дефолтным кодом через 600ms — ТОЛЬКО в mock-режиме.
+    // В боевом режиме (USE_API=true) реальный код приходит по SMS, автозаполнять нельзя.
+    if (!ApiConfig.useApi) {
+      _autoFillTimer = Timer(const Duration(milliseconds: 600), () {
+        if (!mounted) return;
+        _controller.text = AuthRepository.defaultOtpCode;
+        setState(() => _code = AuthRepository.defaultOtpCode);
+      });
+    }
   }
 
   @override
@@ -184,6 +188,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                         controller: _controller,
                         focusNode: _focus,
                         length: 6,
+                        enabled: !_busy, // блокируем ввод, пока проверяется код
                         defaultPinTheme: defaultPinTheme,
                         focusedPinTheme: focusedPinTheme,
                         separatorBuilder: (_) => const SizedBox(width: 8),
