@@ -169,7 +169,8 @@ export default function ReconcilePage() {
                   <th className="px-3 py-2.5">{t('rec.thPharmacist')}</th>
                   <th className="px-3 py-2.5 text-right">{t('rec.thAmount')}</th>
                   <th className="px-3 py-2.5">{t('rec.thStatus')}</th>
-                  <th className="px-3 py-2.5">{t('rec.thSources')}</th>
+                  <th className="px-3 py-2.5 text-center">{t('rec.thLog')}</th>
+                  <th className="px-3 py-2.5 text-center">{t('rec.thExcel')}</th>
                   <th className="px-5 py-2.5" />
                 </tr>
               </thead>
@@ -256,15 +257,27 @@ function StatusCell({ r }: { r: ReceiptDto }) {
   )
 }
 
-function SourcesCell({ r }: { r: ReceiptDto }) {
-  const t = useT()
-  if (!r.confirmedByLog && !r.confirmedByExcel) {
-    return <span className="text-[11px] text-ink-400">—</span>
-  }
+/**
+ * Ячейка-галочка для столбцов «Логи» / «Эксель». ✓ — источник подтвердил чек,
+ * прочерк — нет. Две галочки → авто-одобрение; одна/ноль → ручная модерация.
+ */
+function CheckCell({ ok, testid }: { ok: boolean; testid?: string }) {
   return (
-    <div className="flex flex-wrap gap-1">
-      {r.confirmedByLog && <span className="chip chip-blue w-fit">{t('rec.srcLog')}</span>}
-      {r.confirmedByExcel && <span className="chip chip-green w-fit">{t('rec.srcExcel')}</span>}
+    <div className="flex items-center justify-center" data-testid={testid}>
+      {ok ? (
+        <span
+          className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-green-100 text-brand-green-700"
+          data-checked="true"
+          aria-label="подтверждён"
+          title="подтверждён"
+        >
+          <IconCheck size={14} />
+        </span>
+      ) : (
+        <span className="text-ink-300" data-checked="false" aria-label="нет" title="нет">
+          —
+        </span>
+      )}
     </div>
   )
 }
@@ -341,7 +354,10 @@ function ReceiptRow({
         <StatusCell r={r} />
       </td>
       <td className="px-3 py-2.5">
-        <SourcesCell r={r} />
+        <CheckCell ok={r.confirmedByLog} testid={`check-log-${r.id}`} />
+      </td>
+      <td className="px-3 py-2.5">
+        <CheckCell ok={r.confirmedByExcel} testid={`check-excel-${r.id}`} />
       </td>
       <td className="px-5 py-2.5">
         {actionable && (

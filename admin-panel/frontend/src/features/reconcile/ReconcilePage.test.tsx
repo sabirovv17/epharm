@@ -160,15 +160,22 @@ describe('ReconcilePage', () => {
     expect(importMutate).toHaveBeenCalled()
   })
 
-  it('чек на ручной проверке (moderation_required) можно одобрить', () => {
+  it('одна галочка (только Лог) → moderation_required можно одобрить', () => {
     setReceipts([mkReceipt({ id: 'rcp_m', status: 'moderation_required', confirmedByLog: true })])
     renderPage()
     expect(screen.getByTestId('receipt-approve-rcp_m')).toBeInTheDocument()
-    // источник «Лог» виден
-    expect(screen.getByText('Лог')).toBeInTheDocument()
+    // столбец «Логи» — галочка стоит, «Эксель» — нет
+    expect(screen.getByTestId('check-log-rcp_m').querySelector('[data-checked]')).toHaveAttribute(
+      'data-checked',
+      'true',
+    )
+    expect(screen.getByTestId('check-excel-rcp_m').querySelector('[data-checked]')).toHaveAttribute(
+      'data-checked',
+      'false',
+    )
   })
 
-  it('оба источника подтвердили → чипы Лог + Excel', () => {
+  it('две галочки (Лог + Эксель) → обе колонки отмечены', () => {
     setReceipts([
       mkReceipt({
         id: 'rcp_both',
@@ -178,8 +185,23 @@ describe('ReconcilePage', () => {
       }),
     ])
     renderPage()
-    expect(screen.getByText('Лог')).toBeInTheDocument()
-    expect(screen.getByText('Excel')).toBeInTheDocument()
+    expect(
+      screen.getByTestId('check-log-rcp_both').querySelector('[data-checked]'),
+    ).toHaveAttribute('data-checked', 'true')
+    expect(
+      screen.getByTestId('check-excel-rcp_both').querySelector('[data-checked]'),
+    ).toHaveAttribute('data-checked', 'true')
+  })
+
+  it('ноль галочек → обе колонки без отметки', () => {
+    setReceipts([mkReceipt({ id: 'rcp_zero', status: 'pending' })])
+    renderPage()
+    expect(
+      screen.getByTestId('check-log-rcp_zero').querySelector('[data-checked]'),
+    ).toHaveAttribute('data-checked', 'false')
+    expect(
+      screen.getByTestId('check-excel-rcp_zero').querySelector('[data-checked]'),
+    ).toHaveAttribute('data-checked', 'false')
   })
 
   it('error state + Повторить', async () => {

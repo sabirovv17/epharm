@@ -70,15 +70,15 @@ Hex-коды те же, что в mobile spec. В админке использ�
 
 ### 2.5 Accent / status
 
-| Token            | Hex                   | Где                                    |
-| ---------------- | --------------------- | -------------------------------------- |
-| `accent/success` | `#16C97A`             | Совпадает с brand/green/600            |
-| `accent/warning` | `#F1B416`             | Toggle/Pause, warning chip             |
-| `accent/amber`   | `#F4B73A`             | Coin glyph, Platinum-tier, OCR-medium  |
-| `accent/danger`  | `#E5484D`             | Danger-кнопка, error-chip              |
-| `accent/purple`  | `#8B5CF6`             | Третичный акцент (цвета сетей, курсов) |
-| Red surfaces     | `#FEE2E2` / `#B91C1C` | Danger-кнопка фон / нажатый текст      |
-| Amber surfaces   | `#FEF3C7` / `#B45309` | Warning-chip фон / текст               |
+| Token            | Hex                   | Где                                         |
+| ---------------- | --------------------- | ------------------------------------------- |
+| `accent/success` | `#16C97A`             | Совпадает с brand/green/600                 |
+| `accent/warning` | `#F1B416`             | Toggle/Pause, warning chip                  |
+| `accent/amber`   | `#F4B73A`             | Coin glyph, Platinum-tier, ручная модерация |
+| `accent/danger`  | `#E5484D`             | Danger-кнопка, error-chip                   |
+| `accent/purple`  | `#8B5CF6`             | Третичный акцент (цвета сетей, курсов)      |
+| Red surfaces     | `#FEE2E2` / `#B91C1C` | Danger-кнопка фон / нажатый текст           |
+| Amber surfaces   | `#FEF3C7` / `#B45309` | Warning-chip фон / текст                    |
 
 ---
 
