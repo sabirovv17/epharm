@@ -398,11 +398,16 @@ End-to-end: CTA → UploadPromptSheet → CameraScreen / Gallery → ReceiptRevi
 - **ReceiptsListScreen — stat-pills в стиле GlassPill**: 3 пилюли (Подтверждено / На проверке / Ожидает) приведены к рецепту GlassPill (`brandGreen500 @ 55%` + 1 px white-40 border, radius 16, height 64). Счётчик 22/800 (раньше 18/800), label 12/800. Это унифицирует визуальный язык — те же green-pills что в `_AuthedHeader` (Profile) и BalanceCard.
 - **Pull-to-refresh** на ReceiptsListScreen: `RefreshIndicator(color: brandGreen600)` оборачивает список, при ослиг-pull-down — `HapticFeedback.mediumImpact()` + `ref.invalidate(receiptListProvider)` + `await ref.read(receiptListProvider.future)` чтобы spinner отыграл visual feedback полностью. Empty/loading/error состояния обёрнуты в ListView с `AlwaysScrollableScrollPhysics()` — без этого pull-to-refresh не реагирует когда контента нет (нечего тянуть).
 
-### Этап 5 — QR-сканер фискального чека
+### QR-сканер / ОФД — ОТМЕНЕНО (2026-06-09)
 
-- Добавить `mobile_scanner: ^5.x` в pubspec.
-- В UploadPromptSheet опция «Сканировать QR» → QRScanScreen с реальным детектором.
-- Парсинг ОФД-URL вида `https://consumer.oofd.kz/?i=...&f=...&s=...&t=...` → попытка дёрнуть API ОФД (или фолбэк на mock-парсинг). Поля заполняются автоматически → Receipt Review (можно сразу заполнить `pharmacy` и `promos` из payload'а).
+ОФД-верификации по QR не будет ни сейчас, ни в будущем (решение заказчика). Сверка чека идёт
+ТОЛЬКО по логу кассы Стандарт-Н (программа на C#) + Excel-выгрузке + ручной модерации. Из приложения
+убраны: опция «Сканировать QR», `qrRaw`, упоминания ОФД в FAQ. Загрузка чека = фото + выбранная аптека.
+
+> **Баг-фикс (2026-06-09):** выбранная фармацевтом аптека теперь реально доходит до бэка —
+> `submitReceipt(pharmacyId, pharmacyName)` шлёт её в multipart-полях (раньше терялась → в детали
+> чека аптека была пустой). Добавлен экран детали чека (`receipt_detail_sheet.dart`) по тапу на строку
+> истории: фото, акция, **аптека**, сумма, бонус, статус, причина отклонения.
 
 ### Этап 6 — Рефакторинг (cleanup без новых фич)
 

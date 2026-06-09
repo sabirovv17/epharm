@@ -22,6 +22,7 @@ class MockReceiptRepository implements ReceiptRepository {
   Future<Receipt> submitReceipt({
     required String title,
     String? photoPath,
+    String? pharmacyId,
     String? pharmacyName,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 200));
@@ -29,7 +30,7 @@ class MockReceiptRepository implements ReceiptRepository {
     final receipt = Receipt(
       id: _newId(),
       title: title,
-      amountKzt: 0, // сумму на mock не считаем — на сервере OCR
+      amountKzt: 0, // фактическую сумму подтвердит сверка по логам/Excel на сервере
       dateLabel: _formatNow(now),
       status: ReceiptStatus.inReview,
       photoPath: photoPath,
@@ -55,9 +56,9 @@ class MockReceiptRepository implements ReceiptRepository {
   }
 
   static const List<Receipt> _initialMock = [
-    Receipt(id: 'r1', title: 'Larimide Lifting', amountKzt: 25000, dateLabel: '14.05 · 14:23', status: ReceiptStatus.confirmed),
-    Receipt(id: 'r2', title: 'SelfieLab AHA', amountKzt: 3835, dateLabel: '14.05 · 12:15', status: ReceiptStatus.inReview),
-    Receipt(id: 'r3', title: 'Ivatherm крем', amountKzt: 7500, dateLabel: '14.05 · 09:42', status: ReceiptStatus.awaitingReceipt),
+    Receipt(id: 'r1', title: 'Larimide Lifting', amountKzt: 25000, dateLabel: '14.05 · 14:23', status: ReceiptStatus.confirmed, pharmacy: 'Аптека «Зеленая» · пр. Абая 10', bonus: 520, bonusCredited: 520),
+    Receipt(id: 'r2', title: 'SelfieLab AHA', amountKzt: 3835, dateLabel: '14.05 · 12:15', status: ReceiptStatus.inReview, pharmacy: 'Аптека 36,6 · ул. Сатпаева 5', bonus: 380),
+    Receipt(id: 'r3', title: 'Ivatherm крем', amountKzt: 7500, dateLabel: '14.05 · 09:42', status: ReceiptStatus.awaitingReceipt, pharmacy: 'Биосфера · мкр. Самал 2', bonus: 450),
     Receipt(
       id: 'r4',
       title: 'Deo 2-7',
@@ -65,8 +66,9 @@ class MockReceiptRepository implements ReceiptRepository {
       dateLabel: '13.05 · 17:42',
       status: ReceiptStatus.rejected,
       rejectedReason: 'Чек уже использован',
+      pharmacy: 'Аптека «Зеленая» · пр. Абая 10',
     ),
-    Receipt(id: 'r5', title: 'АкваДетрим Форте', amountKzt: 4200, dateLabel: '12.05 · 18:11', status: ReceiptStatus.confirmed),
-    Receipt(id: 'r6', title: 'Эссенциале форте Н', amountKzt: 12340, dateLabel: '11.05 · 11:08', status: ReceiptStatus.confirmed),
+    Receipt(id: 'r5', title: 'АкваДетрим Форте', amountKzt: 4200, dateLabel: '12.05 · 18:11', status: ReceiptStatus.confirmed, pharmacy: 'Аптека Плюс · ул. Жандосова 58', bonus: 300, bonusCredited: 300),
+    Receipt(id: 'r6', title: 'Эссенциале форте Н', amountKzt: 12340, dateLabel: '11.05 · 11:08', status: ReceiptStatus.confirmed, pharmacy: 'Аптека 36,6 · ул. Сатпаева 5', bonus: 610, bonusCredited: 610),
   ];
 }

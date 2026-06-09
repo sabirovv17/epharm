@@ -43,28 +43,39 @@ void main() {
     expect(list[2].status, ReceiptStatus.inReview);
   });
 
-  test('submitReceipt с фото шлёт multipart и маппит ответ', () async {
+  test('submitReceipt шлёт multipart с фото + выбранной аптекой и маппит ответ', () async {
     final tmp = await File('${Directory.systemTemp.path}/epharm_r_test.jpg').writeAsBytes([1, 2, 3, 4]);
     final repo = _repo(MockClient((req) async {
       expect(req.method, 'POST');
       expect(req.url.path, '/api/mobile/receipts');
       expect(req.headers['content-type'], contains('multipart/form-data'));
+      // Выбранная аптека уходит в multipart-полях — это и есть баг-фикс.
+      expect(req.body, contains('pharmacyId'));
+      expect(req.body, contains('ph_chosen'));
+      expect(req.body, contains('Аптека на Абая'));
       return http.Response(
-        jsonEncode({'id': 'rcp_1', 'status': 'inReview', 'productName': 'Аквамарис', 'sku': 'p_a', 'amount': 0, 'createdAt': '2026-06-09T10:00:00Z', 'pharmacyName': 'Аптека'}),
+        jsonEncode({'id': 'rcp_1', 'status': 'inReview', 'productName': 'Аквамарис', 'sku': 'p_a', 'amount': 0, 'bonus': 380, 'bonusCredited': 0, 'photoUrl': 'http://t/p.jpg', 'createdAt': '2026-06-09T10:00:00Z', 'pharmacyName': 'Аптека на Абая 10'}),
         201,
         headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }));
-    final r = await repo.submitReceipt(title: 'Аквамарис', photoPath: tmp.path, pharmacyName: 'Аптека');
+    final r = await repo.submitReceipt(
+      title: 'Аквамарис',
+      photoPath: tmp.path,
+      pharmacyId: 'ph_chosen',
+      pharmacyName: 'Аптека на Абая 10',
+    );
     expect(r.id, 'rcp_1');
     expect(r.status, ReceiptStatus.inReview);
-    expect(r.title, 'Аквамарис');
+    expect(r.pharmacy, 'Аптека на Абая 10');
+    expect(r.bonus, 380);
+    expect(r.photoUrl, 'http://t/p.jpg');
     await tmp.delete();
   });
 
   test('ошибка сервера → ApiException пробрасывается', () async {
     final repo = _repo(MockClient((req) async => http.Response(
-          jsonEncode({'code': 'VALIDATION_FAILED', 'message': 'Нужно фото чека или QR'}),
+          jsonEncode({'code': 'VALIDATION_FAILED', 'message': 'Нужно фото чека'}),
           400,
           headers: {'content-type': 'application/json; charset=utf-8'},
         )));

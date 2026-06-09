@@ -5,8 +5,8 @@ import '../../../core/network/api_client.dart';
 import 'receipt_repository.dart';
 
 /// Реализация поверх backend `/api/mobile/receipts`.
-/// submit → multipart-upload фото; backend создаёт чек и прогоняет его через
-/// ReconcileService (логи Стандарт-Н + Excel + ручная модерация). История — GET.
+/// submit → multipart-upload фото + выбранная аптека; backend создаёт чек и прогоняет
+/// его через ReconcileService (логи Стандарт-Н + Excel + ручная модерация). История — GET.
 class ApiReceiptRepository implements ReceiptRepository {
   ApiReceiptRepository(this._client);
 
@@ -26,6 +26,7 @@ class ApiReceiptRepository implements ReceiptRepository {
   Future<Receipt> submitReceipt({
     required String title,
     String? photoPath,
+    String? pharmacyId,
     String? pharmacyName,
   }) async {
     List<int>? bytes;
@@ -33,8 +34,14 @@ class ApiReceiptRepository implements ReceiptRepository {
       final file = File(photoPath);
       if (await file.exists()) bytes = await file.readAsBytes();
     }
+    // Выбранную аптеку отправляем как multipart-поля — backend сохранит её в чеке.
+    final fields = <String, String>{
+      if (pharmacyId != null && pharmacyId.isNotEmpty) 'pharmacyId': pharmacyId,
+      if (pharmacyName != null && pharmacyName.isNotEmpty) 'pharmacyName': pharmacyName,
+    };
     final json = await _client.postMultipart(
       '/api/mobile/receipts',
+      fields: fields,
       fileBytes: bytes,
       fileField: bytes != null ? 'file' : null,
       fileName: 'receipt.jpg',
@@ -53,10 +60,14 @@ class ApiReceiptRepository implements ReceiptRepository {
         dateLabel: _formatDate(j['createdAt'] as String?),
         status: _mapStatus(j['status'] as String?),
         rejectedReason: j['rejectedReason'] as String?,
-        // Фото у API-чеков в S3 — в истории превью не рендерим (там status-иконка).
+        // Фото у API-чеков в S3 — в истории превью не рендерим (там status-иконка),
+        // но в детали чека показываем по photoUrl.
         photoPath: null,
+        photoUrl: j['photoUrl'] as String?,
         pharmacy: j['pharmacyName'] as String?,
         sku: j['sku'] as String?,
+        bonus: (j['bonus'] as num?)?.toInt(),
+        bonusCredited: (j['bonusCredited'] as num?)?.toInt() ?? 0,
       );
 
   ReceiptStatus _mapStatus(String? s) => switch (s) {

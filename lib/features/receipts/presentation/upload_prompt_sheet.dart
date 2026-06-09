@@ -12,10 +12,9 @@ import 'receipt_review_screen.dart';
 /// Bottom-sheet выбора способа загрузки чека. Открывается из CTA «Загрузить чек»
 /// (в ReceiptsListScreen и в Product Detail).
 ///
-/// 3 опции:
+/// 2 опции:
 ///   • Сделать фото → реальная CameraScreen.
 ///   • Из галереи → системный image_picker.
-///   • Сканировать QR → пока заглушка (будет в следующем шаге через mobile_scanner).
 Future<void> showUploadPromptSheet(BuildContext context) {
   return showModalBottomSheet(
     context: context,
@@ -61,15 +60,6 @@ class _UploadPromptSheet extends ConsumerWidget {
     notifier.setPhoto(file.path);
     await nav.push(
       MaterialPageRoute(builder: (_) => const ReceiptReviewScreen()),
-    );
-  }
-
-  void _scanQr(BuildContext context) {
-    Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('QR-сканер чека — будет в следующем шаге'),
-      ),
     );
   }
 
@@ -138,13 +128,6 @@ class _UploadPromptSheet extends ConsumerWidget {
                   title: 'Выбрать из галереи',
                   subtitle: 'Готовое фото или скриншот',
                   onTap: () => _pickFromGallery(context, ref),
-                ),
-                const SizedBox(height: 10),
-                _OptionTile(
-                  icon: Icons.qr_code_2_rounded,
-                  title: 'Сканировать QR',
-                  subtitle: 'Фискальный QR на чеке',
-                  onTap: () => _scanQr(context),
                 ),
                 const SizedBox(height: 12),
                 Center(

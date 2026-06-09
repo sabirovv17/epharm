@@ -19,11 +19,10 @@ import 'success_screen.dart';
 /// и жмём «Продолжить». Полностью переработан по
 /// `_reference/recipe/review.jsx` → `ReceiptReviewScreen`.
 ///
-/// Раньше это был OCR-форма с TextField'ами для title/pharmacy/cashier/sku/
-/// amount. Сейчас более явный UX: чек уже принят (banner «Чек загружен»),
-/// фармацевт явно выбирает (а) какие акции в нём, (б) где купил, (в) на
-/// какую карту начислить бонус. Это закрывает основные проверки бизнеса до
-/// отправки в HQ, а парсинг OCR оставляем на сервер (постфактум).
+/// Явный UX: чек уже принят (banner «Чек загружен»), фармацевт явно выбирает
+/// (а) какие акции в нём, (б) где купил, (в) на какую карту начислить бонус.
+/// Это закрывает основные проверки бизнеса до отправки в HQ; фактическую сумму
+/// и подтверждение даёт сверка на сервере (лог кассы + Excel).
 class ReceiptReviewScreen extends ConsumerWidget {
   const ReceiptReviewScreen({super.key});
 
@@ -34,10 +33,12 @@ class ReceiptReviewScreen extends ConsumerWidget {
     final repo = ref.read(receiptRepositoryProvider);
     final firstPromo = draft.promos.first;
     // Репозиторий сам строит чек (mock) либо делает multipart-upload фото (api),
-    // прогоняя его на бэке через ReconcileService. Сумму/OCR считает сервер.
+    // прогоняя его на бэке через ReconcileService. Сумму подтверждает сверка на сервере.
+    // Выбранную аптеку передаём явно — она сохранится в чеке и будет видна в детали.
     await repo.submitReceipt(
       title: firstPromo.name,
       photoPath: draft.photoPath,
+      pharmacyId: draft.pharmacy?.id,
       pharmacyName: draft.pharmacy?.name,
     );
 

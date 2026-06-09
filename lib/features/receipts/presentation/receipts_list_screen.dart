@@ -10,6 +10,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/pharma_logo.dart';
 import '../application/receipts_controller.dart';
 import '../data/receipt_repository.dart';
+import 'receipt_detail_sheet.dart';
 import 'upload_prompt_sheet.dart';
 import 'widgets/receipt_row.dart';
 
@@ -109,9 +110,13 @@ class ReceiptsListScreen extends ConsumerWidget {
                                 ),
                               );
                             }
+                            final r = list[i - 1];
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 12),
-                              child: ReceiptRow(receipt: list[i - 1]),
+                              child: ReceiptRow(
+                                receipt: r,
+                                onTap: () => showReceiptDetailSheet(context, r),
+                              ),
                             );
                           },
                         );
@@ -412,7 +417,7 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Загрузите фото фискального чека или отсканируйте QR — '
+              'Сфотографируйте фискальный чек — '
               'после проверки бонус зачислится на ваш баланс.',
               textAlign: TextAlign.center,
               style: TextStyle(
