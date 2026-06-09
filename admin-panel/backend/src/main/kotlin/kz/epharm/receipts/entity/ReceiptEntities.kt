@@ -20,7 +20,7 @@ enum class PendingBonusStatus { awaiting_receipt, matched, expired }
  */
 enum class ReceiptStatus { pending, moderation_required, flagged, approved, rejected }
 
-/** Откуда пришёл чек: фото фармацевта (OCR) или POSM-клиент кассы (лог + Excel). */
+/** Откуда пришёл чек: фото от фармацевта или POSM-клиент кассы (лог + Excel). */
 enum class ReceiptSource { photo, posm }
 
 @Entity
@@ -102,9 +102,6 @@ class ReceiptEntity(
 
     @Column(name = "photo_url", length = 512)
     var photoUrl: String? = null,
-
-    @Column(name = "qr_raw", length = 512)
-    var qrRaw: String? = null,
 
     @Column(name = "fiscal_id", length = 128)
     var fiscalId: String? = null,

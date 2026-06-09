@@ -170,26 +170,29 @@ npm run dev
 
 - **Метрики** сверху: в очереди / авто-одобрено / на модерации / анти-фрод.
 - **Табы:** В очереди (ручная модерация) · На модерации (анти-фрод) · Одобрены · Отклонены.
-- По каждому чеку: SKU, ссылка на фото, фармацевт+аптека, распознанная сумма vs ожидаемая,
-  OCR-score, статус. Для pending/flagged — кнопки **«Одобрить»** (→ бонус начисляется на
-  баланс фармацевта) и **«Отклонить»** (спросит причину).
+- По каждому чеку: SKU, ссылка на фото, фармацевт+аптека, сумма vs ожидаемая,
+  столбцы **«Логи»**/**«Эксель»** (галочки источников), статус. Две галочки → авто-одобрение;
+  одна/ноль → ручная проверка. Для pending/moderation/flagged — кнопки **«Одобрить»**
+  (→ бонус начисляется на баланс фармацевта) и **«Отклонить»** (спросит причину).
 
 Проверить flow через API (dev):
 
 ```bash
 TOKEN=$(curl -s -X POST localhost:8080/api/admin/auth/login -H 'Content-Type: application/json' \
   -d '{"email":"damir@jadran.com","password":"damir2026"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["tokens"]["accessToken"])')
-# Загрузить чек (фото или QR) от имени фармацевта u_2:
+# Загрузить чек (фото) от имени фармацевта u_2 с выбранной аптекой:
 curl -X POST localhost:8080/api/admin/reconcile/submit -H "Authorization: Bearer $TOKEN" \
-  -F "pharmacistId=u_2" -F "qr=FISCAL-QR-001"
+  -F "pharmacistId=u_2" -F "file=@receipt.jpg" \
+  -F "pharmacyId=ph_2" -F "pharmacyName=Аптека на Абая 10"
 # Очередь + сводка:
 curl -s "localhost:8080/api/admin/reconcile?status=pending" -H "Authorization: Bearer $TOKEN"
 curl -s localhost:8080/api/admin/reconcile/summary -H "Authorization: Bearer $TOKEN"
 ```
 
-> OCR/ОФД — заглушка `MockOcrService` (реальный Yandex Vision — позже). pending_bonus сейчас
-> из seed (вживую создаёт POSM, Этап 5). Загрузка чека из приложения фармацевта — Этап 6
-> (тот же `submitReceipt`).
+> OCR/ОФД нет (и не будет): источники сверки — ТОЛЬКО лог Стандарт-Н (программа на C#) +
+> Excel-выгрузка + ручная модерация. Фото — доказательство для модератора, автоматически
+> не распознаётся. pending_bonus сейчас из seed (вживую создаёт POSM, Этап 5). Загрузка
+> чека из приложения фармацевта — `/api/mobile/receipts` (тот же `submitReceipt`).
 
 ## 5. E2E (Playwright)
 

@@ -25,13 +25,14 @@ import java.util.UUID
 import kotlin.math.abs
 
 /**
- * Сверка чеков (ТЗ §3.5). OCR УБРАН — источники истины: лог Стандарт-Н + Excel-выгрузка.
- *  - auto-approve (~80%): чек подтверждён ОБОИМИ источниками (лог + Excel), суммы сошлись
+ * Сверка чеков (ТЗ §3.5). Источники истины — ТОЛЬКО лог Стандарт-Н (программа на C#) +
+ * Excel-выгрузка. Никаких OCR/ОФД: то, что написано в чеке, сверяется с логом кассы и Excel.
+ *  - авто-одобрение: чек подтверждён ОБОИМИ источниками (✓ лог + ✓ Excel), суммы сошлись
  *    (decideFromSources) → бонус сразу credited.
- *  - manual (~15%): подтверждён только одним источником / расхождение → moderation_required,
- *    решает модератор в админке (approve/reject).
- *  - anti-fraud (~5%): дубль фискального чека / чек из другой аптеки → flagged.
- * Загруженное фото/QR — доказательство для модератора (не валидируется автоматически; QR — под ОФД).
+ *  - ручная модерация: подтверждён только одним источником (одна галочка) или ни одним
+ *    (ноль галочек, самый редкий случай) → решает менеджер в админке (approve/reject).
+ *  - anti-fraud: дубль фискального чека / чек из другой аптеки / расхождение сумм → flagged.
+ * Загруженное фото — доказательство для модератора (автоматически не валидируется).
  * Начисление: бонус из связанного pending_bonus идёт на pharmacist.balance + earned30d.
  */
 @Service
@@ -84,8 +85,13 @@ class ReconcileService(
     // ── Загрузка чека (Pharmacist App; на MVP — dev/seed/тест) ──────────────
 
     /**
-     * Фармацевт загрузил чек: фото → MinIO, OCR парсит, матчим с pending_bonus,
-     * определяем ветку. Возвращает созданный чек.
+     * Фармацевт загрузил чек: фото → MinIO, матчим с pending_bonus, определяем ветку.
+     * Возвращает созданный чек.
+     *
+     * Аптека: фармацевт ЯВНО выбирает её в приложении при загрузке (AddressSheet) —
+     * [pharmacyId]/[pharmacyName] приходят с клиента и имеют приоритет над аптекой из
+     * профиля (важно: при саморегистрации профиль аптеки может быть пуст). Так выбранная
+     * аптека корректно сохраняется и видна в детали чека и в админ-очереди.
      */
     @Transactional
     fun submitReceipt(
@@ -93,33 +99,33 @@ class ReconcileService(
         photoBytes: ByteArray?,
         photoContentType: String?,
         photoName: String?,
-        qrRaw: String?,
+        pharmacyId: String? = null,
+        pharmacyName: String? = null,
     ): ReceiptDto {
         val pharmacist = pharmacistRepository.findById(pharmacistId).orElseThrow {
             AppException(ErrorCode.VALIDATION_FAILED, "Фармацевт $pharmacistId не найден", HttpStatus.BAD_REQUEST)
         }
-        if (photoBytes == null && qrRaw.isNullOrBlank()) {
-            throw AppException(ErrorCode.VALIDATION_FAILED, "Нужно фото чека или QR", HttpStatus.BAD_REQUEST)
+        if (photoBytes == null) {
+            throw AppException(ErrorCode.VALIDATION_FAILED, "Нужно фото чека", HttpStatus.BAD_REQUEST)
         }
 
         // Кандидат на матч — свежий открытый pending-бонус фармацевта.
         val candidate = latestAwaitingFor(pharmacistId)
 
-        val photoUrl = if (photoBytes != null) {
+        val photoUrl =
             mediaStorage.upload(photoBytes, photoContentType ?: "image/jpeg", photoName ?: "receipt.jpg")
-        } else null
 
-        // OCR убран: фото/QR — только доказательство для модератора. SKU берём из связанной
-        // POSM-брони; фактическую сумму/фискальный id/кассира заполнит сверка по источникам
-        // (лог Стандарт-Н → ingestLogSale, Excel → ingestExcelRows). qrRaw сохраняем под ОФД.
+        // Фото — только доказательство для модератора. SKU берём из связанной POSM-брони;
+        // фактическую сумму/фискальный id/кассира заполнит сверка по источникам
+        // (лог Стандарт-Н → ingestLogSale, Excel → ingestExcelRows).
+        // Аптека: приоритет выбранной в приложении, иначе — из профиля фармацевта.
         val receipt = ReceiptEntity(
             id = "rcp_${UUID.randomUUID().toString().substring(0, 8)}",
             pharmacistId = pharmacist.id,
             pharmacistName = pharmacist.name,
-            pharmacyId = pharmacist.pharmacyId ?: "",
-            pharmacyName = pharmacist.pharmacyName ?: "",
+            pharmacyId = pharmacyId?.takeIf { it.isNotBlank() } ?: pharmacist.pharmacyId ?: "",
+            pharmacyName = pharmacyName?.takeIf { it.isNotBlank() } ?: pharmacist.pharmacyName ?: "",
             photoUrl = photoUrl,
-            qrRaw = qrRaw,
             parsedSku = candidate?.sku ?: "",
             pendingBonusId = candidate?.id,
         )
@@ -283,7 +289,7 @@ class ReconcileService(
      * На загрузке проверяем лишь анти-фрод; иначе чек ждёт подтверждения (pending).
      */
     private fun decideBranch(receipt: ReceiptEntity, candidate: PendingBonusEntity?) {
-        // Анти-фрод: дубль фискального чека (если фискальный id уже известен, напр. из QR/ОФД).
+        // Анти-фрод: дубль фискального чека (если фискальный id уже известен).
         if (!receipt.fiscalId.isNullOrBlank() && receiptRepository.existsByFiscalId(receipt.fiscalId!!)) {
             receipt.status = ReceiptStatus.flagged
             receipt.flagReason = "duplicate_receipt"

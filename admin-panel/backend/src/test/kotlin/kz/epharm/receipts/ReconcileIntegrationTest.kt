@@ -72,6 +72,7 @@ class ReconcileIntegrationTest {
     @Autowired private lateinit var chainRepository: ChainRepository
     @Autowired private lateinit var adminUserRepository: AdminUserRepository
     @Autowired private lateinit var passwordEncoder: PasswordEncoder
+    @Autowired private lateinit var reconcileService: kz.epharm.receipts.service.ReconcileService
 
     private lateinit var bearer: String
 
@@ -118,20 +119,13 @@ class ReconcileIntegrationTest {
     }
 
     @Test
-    fun `submit QR → pending (OCR убран, авто-одобрения нет, ждём лог + Excel)`() {
+    fun `submit без фото → 400 (фото обязательно, QR-ОФД убран)`() {
         mockMvc.perform(
             multipart("/api/admin/reconcile/submit")
                 .param("pharmacistId", "u_t")
-                .param("qr", "FISCAL-QR-001")
                 .header("Authorization", bearer),
         )
-            .andExpect(status().isCreated)
-            .andExpect(jsonPath("$.status").value("pending"))
-            .andExpect(jsonPath("$.autoApproved").value(false))
-            .andExpect(jsonPath("$.bonusCredited").value(0))
-
-        // Бонус НЕ начислен на загрузке — подтверждение даёт только сверка по источникам.
-        assert(pharmacistRepository.findById("u_t").get().balance == 0L)
+            .andExpect(status().isBadRequest)
     }
 
     @Test
@@ -148,6 +142,56 @@ class ReconcileIntegrationTest {
             .andExpect(jsonPath("$.autoApproved").value(false))
         // Бонус НЕ начислен до ручного одобрения.
         assert(pharmacistRepository.findById("u_t").get().balance == 0L)
+    }
+
+    @Test
+    fun `submit с выбранной аптекой → она сохранена в чеке (а не из профиля)`() {
+        // Баг-фикс: фармацевт явно выбирает аптеку в приложении — она должна
+        // сохраниться и показываться в детали чека, не подменяясь профилем.
+        val file = MockMultipartFile("file", "r.jpg", "image/jpeg", byteArrayOf(1, 2, 3))
+        mockMvc.perform(
+            multipart("/api/admin/reconcile/submit")
+                .file(file)
+                .param("pharmacistId", "u_t")
+                .param("pharmacyId", "ph_chosen")
+                .param("pharmacyName", "Аптека на Абая 10")
+                .header("Authorization", bearer),
+        )
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.pharmacyId").value("ph_chosen"))
+            .andExpect(jsonPath("$.pharmacyName").value("Аптека на Абая 10"))
+    }
+
+    @Test
+    fun `две галочки (лог + Excel) → авто-одобрение и начисление бонуса`() {
+        // Источник №1 — лог Стандарт-Н: подтверждаем чек первой галочкой.
+        reconcileService.ingestLogSale(
+            kz.epharm.receipts.dto.LogSaleInput(
+                pharmacistId = "u_t",
+                pharmacyId = "ph_t",
+                fiscalId = "fp-1",
+                cashier = "Кассир №1",
+                soldAt = Instant.now(),
+                items = listOf(
+                    kz.epharm.receipts.dto.LogSaleItem(sku = "p_x", qty = 1.0, price = 1_000, total = 1_000),
+                ),
+            ),
+        )
+        // Одна галочка → moderation_required, бонус ещё не начислен.
+        assert(pharmacistRepository.findById("u_t").get().balance == 0L)
+
+        // Источник №2 — Excel: вторая галочка по тому же фискальному номеру → авто-approve.
+        reconcileService.ingestExcelRows(
+            listOf(
+                kz.epharm.receipts.dto.ExcelRowInput(
+                    fiscalId = "fp-1", pharmacyCode = null, cashier = "Кассир №1",
+                    sku = "p_x", productName = "Товар X", qty = null,
+                    amount = 1_000, soldAt = Instant.now(),
+                ),
+            ),
+        )
+        // Обе галочки → бонус 300 начислен автоматически.
+        assert(pharmacistRepository.findById("u_t").get().balance == 300L)
     }
 
     @Test

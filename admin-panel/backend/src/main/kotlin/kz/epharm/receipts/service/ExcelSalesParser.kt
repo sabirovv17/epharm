@@ -15,7 +15,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 
 /**
- * Парсер Excel-выгрузки Стандарт-Н (источник №2). За интерфейсом — как OcrService/MediaStorage:
+ * Парсер Excel-выгрузки Стандарт-Н (источник №2). За интерфейсом (как MediaStorage):
  * реальную схему колонок на проде уточнит пилот, маппинг — по названиям заголовков (RU),
  * подмена реализации не трогает сверку.
  */
@@ -75,7 +75,7 @@ class PoiExcelSalesParser : ExcelSalesParser {
                 if (input.fiscalId == null && input.sku == null && input.amount == null) continue
                 rows.add(input)
             }
-            log.info("Excel: распознано {} строк (колонки: {})", rows.size, col.keys)
+            log.info("Excel: прочитано {} строк (колонки: {})", rows.size, col.keys)
             return rows
         }
     }

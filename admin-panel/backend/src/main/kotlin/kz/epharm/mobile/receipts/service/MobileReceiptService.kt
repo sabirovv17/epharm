@@ -10,12 +10,11 @@ import org.springframework.transaction.annotation.Transactional
  * Чеки со стороны мобильного приложения. Намеренно ТОНКАЯ обёртка над ReconcileService —
  * валидация чека идёт через ЕДИНЫЙ проверенный пайплайн, как требовал заказчик:
  *
- *  1. Отправленное фото → OcrService (сейчас заглушка-score; интерфейс `OcrService` —
- *     точка расширения под реальный OCR / ОФД-верификацию по QR, когда сервис появится).
+ *  1. Отправленное фото → сохраняется в MinIO как доказательство для модератора.
  *  2. Матчинг с открытым pending-бонусом фармацевта (бонус «забронирован» POSM-заменой на кассе).
- *  3. Подтверждение двумя источниками сверки: №1 — лог Стандарт-Н (POSM-клиент → /api/posm/sales),
- *     №2 — Excel-выгрузка. Совпало + score высокий → авто-approve + начисление.
- *  4. Не прошло автоматику (низкий score / нет матча / анти-фрод) → moderation_required →
+ *  3. Подтверждение ДВУМЯ источниками сверки: №1 — лог Стандарт-Н (программа на C# → /api/posm/sales),
+ *     №2 — Excel-выгрузка. То, что в чеке, сверяется с логом и Excel. Обе галочки → авто-approve + начисление.
+ *  4. Не прошло автоматику (одна или ноль галочек / анти-фрод) → moderation_required →
  *     ручная модерация менеджером в админ-панели (/api/admin/reconcile).
  *
  * Таким образом мобилка НЕ вводит новый путь доверия — переиспользует тот же ReconcileService,
@@ -32,14 +31,16 @@ class MobileReceiptService(
         photoBytes: ByteArray?,
         photoContentType: String?,
         photoName: String?,
-        qrRaw: String?,
+        pharmacyId: String?,
+        pharmacyName: String?,
     ): MobileReceiptDto {
         val dto = reconcileService.submitReceipt(
             pharmacistId = pharmacistId,
             photoBytes = photoBytes,
             photoContentType = photoContentType,
             photoName = photoName,
-            qrRaw = qrRaw,
+            pharmacyId = pharmacyId,
+            pharmacyName = pharmacyName,
         )
         return MobileReceiptDto.from(dto, productNameOf(dto.parsedSku))
     }

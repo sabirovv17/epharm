@@ -110,7 +110,22 @@ class MobileReceiptIntegrationTest {
     }
 
     @Test
-    fun `POST без фото и без QR → 400`() {
+    fun `POST чек с выбранной аптекой → аптека сохранена и видна в DTO`() {
+        // Баг-фикс: выбранная в приложении аптека должна попасть в чек, а не теряться
+        // (профиль u_rx без аптеки — раньше pharmacyName приходил пустым).
+        val file = MockMultipartFile("file", "receipt.jpg", "image/jpeg", "bytes".toByteArray())
+        mockMvc.perform(
+            multipart("/api/mobile/receipts").file(file)
+                .param("pharmacyId", "ph_abc")
+                .param("pharmacyName", "Аптека на Сатпаева 5")
+                .header("Authorization", "Bearer $token"),
+        )
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.pharmacyName").value("Аптека на Сатпаева 5"))
+    }
+
+    @Test
+    fun `POST без фото → 400`() {
         mockMvc.perform(
             multipart("/api/mobile/receipts").header("Authorization", "Bearer $token"),
         ).andExpect(status().isBadRequest)

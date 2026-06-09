@@ -191,17 +191,24 @@ class DevDataSeeder {
 
         data class Demo(
             val sku: String, val product: String, val expected: Long, val bonus: Long,
-            val status: ReceiptStatus, val auto: Boolean, val flag: String?, val parsedDelta: Long, val score: Double,
+            val status: ReceiptStatus, val auto: Boolean, val flag: String?, val parsedDelta: Long,
+            val byLog: Boolean, val byExcel: Boolean,
         )
-        // parsedDelta — отклонение распознанной суммы от ожидаемой (для демонстрации ±2%).
+        // parsedDelta — отклонение суммы из источника от ожидаемой (для демонстрации ±2%).
+        // byLog/byExcel — подтверждение источниками сверки (две галочки → авто-одобрение,
+        // одна → ручная модерация, ноль → очередь/ждёт). Это и есть столбцы «Логи»/«Эксель».
         val demos = listOf(
-            Demo("p_aql_norm_s", "Аквалор Норм спрей", 1_620, 520, ReceiptStatus.approved, true, null, 0, 0.97),
-            Demo("p_pinos", "Пиносол спрей", 1_820, 450, ReceiptStatus.approved, true, null, 10, 0.95),
-            Demo("p_aqm_norm_s", "Аквамарис Норм", 1_480, 380, ReceiptStatus.pending, false, null, 220, 0.74),
-            Demo("p_pinos", "Пиносол спрей", 1_820, 450, ReceiptStatus.pending, false, null, 0, 0.69),
-            Demo("p_aql_norm_s", "Аквалор Норм спрей", 1_620, 520, ReceiptStatus.flagged, false, "duplicate_receipt", 0, 0.93),
-            Demo("p_aqm_norm_s", "Аквамарис Норм", 1_480, 380, ReceiptStatus.flagged, false, "wrong_pharmacy", 0, 0.91),
-            Demo("p_pinos", "Пиносол спрей", 1_820, 450, ReceiptStatus.rejected, false, "forged", 900, 0.41),
+            // Две галочки (лог + Excel) → авто-одобрение.
+            Demo("p_aql_norm_s", "Аквалор Норм спрей", 1_620, 520, ReceiptStatus.approved, true, null, 0, byLog = true, byExcel = true),
+            Demo("p_pinos", "Пиносол спрей", 1_820, 450, ReceiptStatus.approved, true, null, 10, byLog = true, byExcel = true),
+            // Одна галочка (только лог) → ручная модерация менеджером.
+            Demo("p_aqm_norm_s", "Аквамарис Норм", 1_480, 380, ReceiptStatus.moderation_required, false, null, 60, byLog = true, byExcel = false),
+            // Ноль галочек → очередь, ждём источники / ручная проверка (самый редкий случай).
+            Demo("p_pinos", "Пиносол спрей", 1_820, 450, ReceiptStatus.pending, false, null, 0, byLog = false, byExcel = false),
+            // Анти-фрод.
+            Demo("p_aql_norm_s", "Аквалор Норм спрей", 1_620, 520, ReceiptStatus.flagged, false, "duplicate_receipt", 0, byLog = true, byExcel = false),
+            Demo("p_aqm_norm_s", "Аквамарис Норм", 1_480, 380, ReceiptStatus.flagged, false, "wrong_pharmacy", 0, byLog = false, byExcel = true),
+            Demo("p_pinos", "Пиносол спрей", 1_820, 450, ReceiptStatus.rejected, false, "forged", 900, byLog = false, byExcel = false),
         )
 
         var n = 0
@@ -234,6 +241,8 @@ class DevDataSeeder {
                     bonusCredited = credited,
                     reviewer = if (d.status == ReceiptStatus.approved && d.auto) "auto" else null,
                     reviewedAt = if (d.status == ReceiptStatus.approved) posmAt.plusSeconds(620) else null,
+                    confirmedByLog = d.byLog,
+                    confirmedByExcel = d.byExcel,
                 ).also { it.status = d.status; it.autoApproved = d.auto; it.flagReason = d.flag },
             )
             n++

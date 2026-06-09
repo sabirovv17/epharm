@@ -27,13 +27,17 @@ class MobileReceiptController(
     private val mobileReceiptService: MobileReceiptService,
 ) {
 
-    /** Отправка чека: фото (multipart `file`) и/или QR ОФД (`qr`). */
+    /**
+     * Отправка чека: фото (multipart `file`) + выбранная фармацевтом аптека
+     * (`pharmacyId`/`pharmacyName` — где совершена покупка).
+     */
     @PostMapping(consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     @ResponseStatus(HttpStatus.CREATED)
     fun submit(
         @AuthenticationPrincipal principal: PharmacistPrincipal?,
         @RequestParam(name = "file", required = false) file: MultipartFile?,
-        @RequestParam(name = "qr", required = false) qr: String?,
+        @RequestParam(name = "pharmacyId", required = false) pharmacyId: String?,
+        @RequestParam(name = "pharmacyName", required = false) pharmacyName: String?,
     ): MobileReceiptDto {
         val p = principal ?: throw AppException(ErrorCode.UNAUTHORIZED, "Не авторизован", HttpStatus.UNAUTHORIZED)
         return mobileReceiptService.submit(
@@ -41,7 +45,8 @@ class MobileReceiptController(
             photoBytes = file?.takeIf { !it.isEmpty }?.bytes,
             photoContentType = file?.contentType,
             photoName = file?.originalFilename,
-            qrRaw = qr,
+            pharmacyId = pharmacyId,
+            pharmacyName = pharmacyName,
         )
     }
 

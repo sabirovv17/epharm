@@ -27,7 +27,7 @@ data class MobileReceiptDto(
             status = mapStatus(dto.status),
             productName = productName,
             sku = dto.parsedSku,
-            // Распознанная сумма; если ещё не распознана — ожидаемая из pending-бонуса.
+            // Сумма из лога/Excel; пока не подтверждена источником — ожидаемая из pending-бонуса.
             amount = if (dto.parsedAmount > 0) dto.parsedAmount else (dto.expectedAmount ?: 0),
             bonus = dto.bonus,
             bonusCredited = dto.bonusCredited,
