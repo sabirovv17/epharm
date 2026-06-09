@@ -9,6 +9,7 @@ import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/validation/iin.dart';
 import '../../../core/widgets/brand_icons.dart';
 import '../../../core/widgets/pharma_logo.dart';
 import '../application/auth_controller.dart';
@@ -34,8 +35,10 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
 
   bool get _fioValid =>
       _fioCtrl.text.trim().split(RegExp(r'\s+')).where((s) => s.isNotEmpty).length >= 2;
-  bool get _iinValid =>
-      _iinCtrl.text.length == 12 && int.tryParse(_iinCtrl.text) != null;
+  // Полная проверка: формат + дата рождения + контрольная сумма (как на бэке @Iin).
+  bool get _iinValid => isValidIin(_iinCtrl.text);
+  // Показываем ошибку только когда уже ввели 12 цифр, но контроль не сошёлся.
+  bool get _iinError => _iinCtrl.text.length == 12 && !_iinValid;
   bool get _canSubmit => _fioValid && _iinValid && !_busy;
 
   Future<void> _submit() async {
@@ -143,6 +146,19 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
                             ),
                             onChanged: (_) => setState(() {}),
                           ),
+                          if (_iinError) ...[
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Проверьте ИИН: 12 цифр, корректная дата рождения и контрольная цифра',
+                              style: TextStyle(
+                                fontFamily: 'Manrope',
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFFFFD2D2),
+                                height: 1.3,
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 12),
                           Row(
                             children: [
