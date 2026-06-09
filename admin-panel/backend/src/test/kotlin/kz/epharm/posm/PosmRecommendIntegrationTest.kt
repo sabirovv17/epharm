@@ -104,7 +104,7 @@ class PosmRecommendIntegrationTest {
         )
         pharmacistRepository.save(
             PharmacistEntity(
-                id = "u_t", name = "Тест Фарм", iin = "990101300123", phone = "+77001234567",
+                id = "u_t", name = "Тест Фарм", iin = "900115300013", phone = "+77001234567",
                 pharmacyId = "ph_t", pharmacyName = "Аптека Т", city = "Алматы",
                 balance = 0, earned30d = 0,
             ),

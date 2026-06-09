@@ -3,8 +3,8 @@ package kz.epharm.pharmacists.dto
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
-import jakarta.validation.constraints.Pattern
 import jakarta.validation.constraints.Size
+import kz.epharm.shared.validation.Iin
 import kz.epharm.pharmacists.entity.PharmacistEntity
 import kz.epharm.pharmacists.entity.PharmacistStatus
 import kz.epharm.pharmacists.entity.PharmacistTier
@@ -49,7 +49,7 @@ data class PharmacistDto(
 data class CreatePharmacistRequest(
     @field:NotBlank @field:Size(max = 255)
     val name: String,
-    @field:NotBlank @field:Pattern(regexp = "\\d{12}", message = "IIN must be 12 digits")
+    @field:NotBlank @field:Iin
     val iin: String,
     @field:NotBlank @field:Size(max = 32)
     val phone: String,

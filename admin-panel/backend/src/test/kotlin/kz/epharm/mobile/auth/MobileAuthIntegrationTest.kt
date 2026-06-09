@@ -67,7 +67,7 @@ class MobileAuthIntegrationTest {
 
     private val activePhone = "+77002223344"
     private val blockedPhone = "+77003334455"
-    private val takenIin = "990101000999"
+    private val takenIin = "880404400014"
 
     @BeforeEach
     fun seed() {
@@ -76,11 +76,11 @@ class MobileAuthIntegrationTest {
         pharmacistRepository.deleteAll()
 
         pharmacistRepository.save(
-            PharmacistEntity(id = "u_active", name = "Иван Существующий", iin = "990101000111", phone = activePhone)
+            PharmacistEntity(id = "u_active", name = "Иван Существующий", iin = "951212500015", phone = activePhone)
                 .also { it.status = PharmacistStatus.active; it.tier = PharmacistTier.Gold; it.balance = 42_000 },
         )
         pharmacistRepository.save(
-            PharmacistEntity(id = "u_blocked", name = "Пётр Блокированный", iin = "990101000222", phone = blockedPhone)
+            PharmacistEntity(id = "u_blocked", name = "Пётр Блокированный", iin = "781122300017", phone = blockedPhone)
                 .also { it.status = PharmacistStatus.blocked },
         )
         pharmacistRepository.save(
@@ -107,7 +107,7 @@ class MobileAuthIntegrationTest {
         val result = mockMvc.perform(
             post("/api/mobile/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"phone":"+7 (777) 100-20-30","fio":"Тест Тестов","iin":"990101777777"}"""),
+                .content("""{"phone":"+7 (777) 100-20-30","fio":"Тест Тестов","iin":"990303500014"}"""),
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.pharmacist.status").value("pending"))
@@ -131,11 +131,25 @@ class MobileAuthIntegrationTest {
     }
 
     @Test
+    fun `register с невалидным ИИН (неверная контрольная сумма) отклоняется 400`() {
+        requestOtp("+7 (777) 100-20-31")
+        verify("+7 (777) 100-20-31", "544544")
+        // 12 цифр, но контрольная сумма не сходится → @Iin отвергает до бизнес-логики.
+        mockMvc.perform(
+            post("/api/mobile/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"phone":"+7 (777) 100-20-31","fio":"Плохой ИИН","iin":"990303500010"}"""),
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+    }
+
+    @Test
     fun `register без verify отклоняется OTP_NOT_VERIFIED`() {
         mockMvc.perform(
             post("/api/mobile/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"phone":"+77770001122","fio":"Без Верификации","iin":"990101888888"}"""),
+                .content("""{"phone":"+77770001122","fio":"Без Верификации","iin":"910228400016"}"""),
         )
             .andExpect(status().isBadRequest)
             .andExpect(jsonPath("$.code").value("OTP_NOT_VERIFIED"))

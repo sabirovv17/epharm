@@ -281,7 +281,7 @@ class PharmaciesIntegrationTest {
     fun `DELETE pharmacy with pharmacists → 409`() {
         pharmacistRepository.save(
             PharmacistEntity(
-                id = "phc_test01", name = "Тест Фармацевт", iin = "990101300123",
+                id = "phc_test01", name = "Тест Фармацевт", iin = "900115300013",
                 phone = "+77001234567", pharmacyId = "europharma_0",
                 pharmacyName = "Europharma №100", city = "Алматы",
             ),

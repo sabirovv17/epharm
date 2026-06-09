@@ -83,7 +83,7 @@ class ReceiptBonusFlowIntegrationTest {
 
         // Активный фармацевт без аптеки (pharmacyId=null → в чеке "" — совпадёт с pending "").
         val rx = pharmacistRepository.save(
-            PharmacistEntity(id = pharmacistId, name = "Бонус Тестов", iin = "990101000444", phone = "+77006667788")
+            PharmacistEntity(id = pharmacistId, name = "Бонус Тестов", iin = "920707300015", phone = "+77006667788")
                 .also { it.status = PharmacistStatus.active },
         )
         // Бронь бонуса от POSM-замены (источник №1) — её закроет загруженный чек.

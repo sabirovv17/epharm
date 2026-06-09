@@ -94,7 +94,7 @@ class PharmacistsIntegrationTest {
         pharmacistRepository.save(
             PharmacistEntity(
                 id = "u_active", name = "Айгерим Касенова",
-                iin = "950101000001", phone = "+7 (701) 100-10-20",
+                iin = "830909300014", phone = "+7 (701) 100-10-20",
                 pharmacyId = "europharma_0", pharmacyName = "Europharma №100",
                 city = "Алматы", balance = 50_000, joinedAt = LocalDate.of(2026, 1, 15),
             ).also { it.tier = PharmacistTier.Gold; it.status = PharmacistStatus.active },
@@ -102,7 +102,7 @@ class PharmacistsIntegrationTest {
         pharmacistRepository.save(
             PharmacistEntity(
                 id = "u_pending", name = "Алмас Бекенов",
-                iin = "950101000002", phone = "+7 (701) 100-10-21",
+                iin = "960501600011", phone = "+7 (701) 100-10-21",
                 pharmacyId = "europharma_0", pharmacyName = "Europharma №100",
                 city = "Алматы", joinedAt = LocalDate.of(2026, 2, 1),
             ).also { it.tier = PharmacistTier.Silver; it.status = PharmacistStatus.pending },
@@ -151,7 +151,7 @@ class PharmacistsIntegrationTest {
     @Test
     fun `POST create — успешный`() {
         val payload = """
-            {"name":"Бауыржан Тлеуов","iin":"950101000099","phone":"+7 (701) 100-10-99","pharmacyId":"europharma_0"}
+            {"name":"Бауыржан Тлеуов","iin":"900115300023","phone":"+7 (701) 100-10-99","pharmacyId":"europharma_0"}
         """.trimIndent()
         mockMvc.perform(
             post("/api/admin/pharmacists")
@@ -169,7 +169,7 @@ class PharmacistsIntegrationTest {
     @Test
     fun `POST create с дубликатом IIN → 409 CONFLICT`() {
         val payload = """
-            {"name":"X","iin":"950101000001","phone":"+7 (701) 999-99-99","pharmacyId":"europharma_0"}
+            {"name":"X","iin":"830909300014","phone":"+7 (701) 999-99-99","pharmacyId":"europharma_0"}
         """.trimIndent()
         mockMvc.perform(
             post("/api/admin/pharmacists")
@@ -184,7 +184,7 @@ class PharmacistsIntegrationTest {
     @Test
     fun `POST create с дубликатом phone → 409 CONFLICT`() {
         val payload = """
-            {"name":"X","iin":"950101009999","phone":"+7 (701) 100-10-20","pharmacyId":"europharma_0"}
+            {"name":"X","iin":"850615400026","phone":"+7 (701) 100-10-20","pharmacyId":"europharma_0"}
         """.trimIndent()
         mockMvc.perform(
             post("/api/admin/pharmacists")

@@ -99,7 +99,7 @@ class FinanceIntegrationTest {
         )
         pharmacistRepository.save(
             PharmacistEntity(
-                id = "u_1", name = "Айгерим", iin = "950101000001", phone = "+7 (701) 100-10-20",
+                id = "u_1", name = "Айгерим", iin = "830909300014", phone = "+7 (701) 100-10-20",
                 pharmacyId = "ph_1", pharmacyName = "Europharma №100", city = "Алматы",
                 joinedAt = LocalDate.of(2026, 1, 15),
             ).also { it.tier = PharmacistTier.Gold; it.status = kz.epharm.pharmacists.entity.PharmacistStatus.active },

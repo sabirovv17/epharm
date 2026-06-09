@@ -69,7 +69,7 @@ class MobileReceiptIntegrationTest {
         receiptRepository.deleteAll()
         pharmacistRepository.deleteAll()
         val rx = pharmacistRepository.save(
-            PharmacistEntity(id = "u_rx", name = "Фарм Тестов", iin = "990101000333", phone = "+77005556677")
+            PharmacistEntity(id = "u_rx", name = "Фарм Тестов", iin = "850615400016", phone = "+77005556677")
                 .also { it.status = PharmacistStatus.active },
         )
         token = jwtService.issuePharmacistToken(rx.id, rx.name, rx.phone)

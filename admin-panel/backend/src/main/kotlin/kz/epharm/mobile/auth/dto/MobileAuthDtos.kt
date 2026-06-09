@@ -3,6 +3,7 @@ package kz.epharm.mobile.auth.dto
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Pattern
 import jakarta.validation.constraints.Size
+import kz.epharm.shared.validation.Iin
 import kz.epharm.auth.dto.AuthTokens
 import kz.epharm.pharmacists.entity.PharmacistEntity
 import kz.epharm.pharmacists.entity.PharmacistStatus
@@ -38,7 +39,7 @@ data class RegisterRequest(
     @field:Size(min = 3, max = 255)
     val fio: String,
     @field:NotBlank
-    @field:Pattern(regexp = "\\d{12}", message = "ИИН состоит из 12 цифр")
+    @field:Iin
     val iin: String,
 )
 

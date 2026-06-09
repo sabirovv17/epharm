@@ -1,5 +1,6 @@
 package kz.epharm.auth
 
+import kz.epharm.shared.IinUtil
 import kz.epharm.shared.PhoneUtil
 import kz.epharm.auth.domain.AdminRole
 import kz.epharm.auth.domain.AdminUserStatus
@@ -638,8 +639,9 @@ class DevDataSeeder {
             val ph = pharmacies[i % pharmacies.size]
             val earned = 28_000L + ((i * 4271L) % 230_000L)
             val balance = earned - ((i * 1700L) % earned)
-            // IIN should be 12 digits; build deterministic from index
-            val iin = String.format("%012d", 950101000000L + i * 1000L)
+            // ИИН — детерминированный из индекса И валидный (формат + дата + контрольная сумма),
+            // чтобы demo-данные проходили ту же проверку, что и реальный ввод (IinUtil).
+            val iin = validSeedIin(i)
             // Телефоны храним в канонич. E.164 (PhoneUtil) — чтобы мобильный вход по номеру
             // (findByPhone после нормализации) находил seeded-записи независимо от форматирования.
             // i==0 — зарезервированный активный фармацевт для mobile-входа: phone +7 700 000 0001.
@@ -810,4 +812,20 @@ class DevDataSeeder {
         val revenue: Long = 0,
         val payout: Long = 0,
     )
+}
+
+/**
+ * Детерминированный ВАЛИДНЫЙ ИИН для seed по индексу: дата 1995-01-01, век/пол=3 (XX, муж),
+ * порядковый = индекс, контрольная цифра подбирается так, чтобы пройти [IinUtil].
+ */
+private fun validSeedIin(index: Int): String {
+    var seq = index
+    while (true) {
+        val base = "9501013" + String.format("%04d", seq % 10000) // 11 цифр (дата+пол+порядковый)
+        for (d in 0..9) {
+            val candidate = base + d
+            if (IinUtil.isValid(candidate)) return candidate
+        }
+        seq++ // редкий случай контрольной=10 — берём следующий порядковый
+    }
 }
