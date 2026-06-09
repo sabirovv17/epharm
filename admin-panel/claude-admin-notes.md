@@ -2657,10 +2657,24 @@ dev-БД нет нового `u_0`(+77000000001). Для входа seeded-фа�
 **A** — phone→OTP→register/login, JWT, refresh. **B** — профиль/баланс из таблицы pharmacists.
 **C** — отправка чека (multipart→S3→ReconcileService) + история.
 
-Тесты: backend **222**, Flutter **19**, всё green + analyze clean. A и C live-verified.
-Коммит: A+B = `fef7c02` (ветка `feat/mobile-backend`). Фаза C — пока НЕ закоммичена.
+Тесты: backend **224**, Flutter **19**, всё green + analyze clean. A и C live-verified.
+Коммиты в `feat/mobile-backend`: A+B = `fef7c02`, Фаза C = `56e8830` (запушено). #137 — НЕ закоммичен.
+
+### ✅ #137 — цикл «чек→бонус» end-to-end (КТ-4, 2026-06-09)
+
+Доказано тестом `ReceiptBonusFlowIntegrationTest` (2 теста): mobile POST /receipts → менеджер
+`ReconcileService.approve` → `creditFor` начисляет `pending.bonus` на balance + earned_30d →
+`/me` отдаёт новый баланс → история `confirmed`/`bonusCredited`. + идемпотентность (повторный
+approve не задваивает). Бэкенд-цикл уже был готов (creditFor), задача = доказать + покрыть тестом.
+
+**Пересборка iPhone НЕ нужна** — цикл целиком backend + админка, а установленная мобильная
+сборка УЖЕ отражает результат: баланс обновляется при входе на Home (`refreshMe` в initState),
+история — pull-to-refresh. Чтобы увидеть новый баланс на телефоне: переоткрыть приложение
+(cold-start → refreshMe) ИЛИ потянуть историю. Единственный мелкий UX-зазор: на Home нет
+pull-to-refresh (баланс не обновляется, пока висишь на Home) — опц. доработка, потребует 1 пересборку.
 
 **Осталось по мобилке (опционально):** Home-промо/каталог из админки (решено оставить моки);
+pull-to-refresh баланса на Home;
 `GET /api/mobile/pharmacies` для AddressSheet; QR-сканер ОФД + реальный OCR/ОФД-сервис;
 persist токенов (flutter_secure_storage) вместо in-memory TokenStore.
 

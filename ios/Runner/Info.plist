@@ -55,5 +55,12 @@
 	<string>Epharm сохраняет копию отправленного чека в галерею.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Микрофон используется при видеосъёмке чеков (опционально).</string>
+	<!-- DEV ONLY: разрешает plain-HTTP к локальному dev-бэку (USE_API против http://…:8080).
+	     В прод-сборке УБРАТЬ — бэк будет за HTTPS (см. todo #139 prod-readiness). -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

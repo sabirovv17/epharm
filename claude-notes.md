@@ -248,6 +248,42 @@ flutter analyze                 # должен быть чистым
 flutter clean && flutter run    # при странных багах
 ```
 
+## 🌐 Запуск против реального backend (API-режим, 2026-06-09)
+
+Приложение умеет ходить в backend по флагу `USE_API` (по умолчанию false → моки сохранены).
+Полный стек поднимается так:
+
+```bash
+# 1) инфра
+cd /Users/amir/Desktop/work/pharma/PharmaPayV2 && docker compose up -d     # postgres:5433 + minio + redis
+# 2) backend (отдельное окно; сначала docker healthy!)
+cd admin-panel/backend && export JAVA_HOME=/Users/amir/Library/Java/JavaVirtualMachines/temurin-22.0.2/Contents/Home && ./gradlew bootRun
+# 3) приложение в API-режиме:
+export PATH="/tmp/codesign_shim:$HOME/development/flutter/bin:$PATH"
+flutter run -d <iphone-id> --dart-define=USE_API=true --dart-define=API_BASE=http://<MAC-LAN-IP>:8080   # физ. iPhone
+#   iOS-сим:    API_BASE=http://localhost:8080
+#   Android-эм: API_BASE=http://10.0.2.2:8080
+# seeded-фармацевт с балансом: curl -X POST localhost:8080/api/admin/dev/reset → логин +7 700 000 0001 (OTP 544544)
+```
+
+**🚨 Gotcha — НЕ собирать Flutter кнопкой Run в Xcode напрямую.** Xcode не запускает Flutter-пайплайн
+(генерацию артефактов + сборку CocoaPods) → сыплет десятками ошибок «module map ... not found»,
+«Unable to resolve module dependency: Flutter/UIKit/Foundation». Правильно: **`flutter run`** (он сам
+зовёт xcodebuild с `Runner.xcworkspace`). Если уж через Xcode — открывать **`ios/Runner.xcworkspace`**
+(НЕ `.xcodeproj`) и хотя бы раз сделать `flutter run`/`flutter build` до этого. При мусоре в DerivedData:
+`rm -rf ~/Library/Developer/Xcode/DerivedData/Runner-* && flutter clean && flutter pub get`.
+
+**Физический iPhone:** `localhost` = сам телефон → `API_BASE` обязан быть LAN-IP Mac'а
+(`ipconfig getifaddr en0`), телефон + Mac на одном Wi-Fi, backend слушает `*:8080` (ок).
+
+**🔓 DEV-флаги plain-HTTP (добавлены для теста против http-бэка, в ПРОД убрать — будет HTTPS):**
+iOS `Info.plist` → `NSAppTransportSecurity/NSAllowsArbitraryLoads=true`; Android manifest →
+`android:usesCleartextTraffic="true"`. Без них iOS/Android молча блокируют http-запросы. Записано в
+prod-readiness todo.
+
+**iCloud codesign-shim** (`/tmp/codesign_shim`) слетает после ребута Mac — пересоздать (см. раздел
+«iOS codesign fix») перед сборкой на устройство.
+
 ## Build артефакты для review
 
 Папка `builds/` хранит готовые APK / IPA / .app.zip для отправки на ревью.
