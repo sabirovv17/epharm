@@ -2872,3 +2872,35 @@ curl -s localhost:8080/api/mobile/auth/register    -H 'Content-Type: application
 - **Предусловия:** 3 A-записи на IP сервера + порты 80/443 открыты. RUNBOOK §«Прод-стек» обновлён.
 - Проверено: `compose config -q` + `caddy validate` (Valid configuration) + backend compileKotlin ок.
 - Кассы/телефоны уже ждут `https://api.epharm.kz` (posm.sample.json / ApiConfig) — совпадает.
+
+## Массовая кампания тестирования (unit/integration/e2e/ui-ux) — 2026-06-09
+
+По запросу «массовое тестирование всего проекта». 4 агента-аудитора → карта пробелов → фиксы + тесты.
+
+**Baseline (всё было зелёное):** backend 156+ тестов, frontend 314, flutter 28, e2e 104/106.
+
+**Реальные UX-баги найдены и исправлены (пользователь бы наткнулся):**
+
+- Mobile (`fix(mobile)`): OTP auto-fill `544544` отключён в боевом USE_API (раньше подставлялся
+  всегда); список чеков — понятная ошибка + «Повторить» вместо `Exception:`; деталь чека —
+  `Image.network` errorBuilder/loadingBuilder (битое фото больше не красный box) + защита overflow;
+  отправка чека — guard от двойного тапа + обработка сети + спиннер на CTA.
+- Admin (`fix(admin)`): неизвестный URL → NotFoundPage (раньше тихий redirect на /rules);
+  Settings logout требует подтверждения.
+
+**Тесты добавлены:** backend анти-фрод `wrong_pharmacy` + POSM device-key 401; frontend SettingsPage(4)
+
+- NotFoundPage; e2e `reconcile.spec.ts` (drawer/approve/reject/tabs против живого стека).
+
+**Флейк стабилизирован:** e2e promo «фильтр Активные» падал в полном прогоне (allCount читался ДО
+загрузки карточек → count=0 → ложный `3<=0`). Web-first ожидания. **Не баг фильтра — timing.**
+
+**Уточнение аудита:** агенты переоценили пробелы — `amount_mismatch` и POSM-идемпотентность УЖЕ
+покрыты в ReconcileSourcesIntegrationTest. Добавлял только реально непокрытое.
+
+**Финал:** backend BUILD SUCCESSFUL, frontend 319, flutter 28+ (analyze чист), **e2e 109 passed /
+1 skipped / 0 failed (110)** против живого docker+backend+frontend.
+
+> Осталось как backlog (не P0, отмечено в аудите): widget-тесты ~20 Flutter-экранов, e2e finance/
+> pharmacist-create/screens-upload журналы, RBAC-тесты (когда добавят @PreAuthorize). Текущее
+> состояние — без известных багов, которые увидит пользователь.
