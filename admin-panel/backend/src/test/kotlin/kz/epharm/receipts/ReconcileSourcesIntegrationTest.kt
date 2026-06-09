@@ -171,6 +171,27 @@ class ReconcileSourcesIntegrationTest {
     }
 
     @Test
+    fun `pos_sales без ключа устройства → 401`() {
+        mockMvc.perform(
+            post("/api/posm/sales")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(saleReq("sale_x", "FX", 1_000))),
+        ).andExpect(status().isUnauthorized)
+        // Ничего не записано — фейковый «лог» отклонён.
+        assertEquals(0, posSaleRepository.count().toInt())
+    }
+
+    @Test
+    fun `pos_sales с неверным ключом устройства → 401`() {
+        mockMvc.perform(
+            post("/api/posm/sales").header("X-Posm-Key", "wrong-key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(saleReq("sale_y", "FY", 1_000))),
+        ).andExpect(status().isUnauthorized)
+        assertEquals(0, posSaleRepository.count().toInt())
+    }
+
+    @Test
     fun `import-excel без авторизации → 401`() {
         mockMvc.perform(
             multipart("/api/admin/reconcile/import-excel")

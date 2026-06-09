@@ -163,6 +163,25 @@ class ReconcileIntegrationTest {
     }
 
     @Test
+    fun `submit чека из чужой аптеки (не совпадает с POSM-бронью) → flagged wrong_pharmacy`() {
+        // pending pb_t забронирован в ph_t; фармацевт грузит чек с другой аптекой → анти-фрод.
+        val file = MockMultipartFile("file", "r.jpg", "image/jpeg", byteArrayOf(1, 2, 3))
+        mockMvc.perform(
+            multipart("/api/admin/reconcile/submit")
+                .file(file)
+                .param("pharmacistId", "u_t")
+                .param("pharmacyId", "ph_other")
+                .param("pharmacyName", "Чужая аптека")
+                .header("Authorization", bearer),
+        )
+            .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.status").value("flagged"))
+            .andExpect(jsonPath("$.flagReason").value("wrong_pharmacy"))
+        // Бонус не начислен.
+        assert(pharmacistRepository.findById("u_t").get().balance == 0L)
+    }
+
+    @Test
     fun `две галочки (лог + Excel) → авто-одобрение и начисление бонуса`() {
         // Источник №1 — лог Стандарт-Н: подтверждаем чек первой галочкой.
         reconcileService.ingestLogSale(
