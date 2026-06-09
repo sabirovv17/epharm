@@ -5,6 +5,7 @@ import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './AppShell'
 import { RequireAuth } from './RequireAuth'
+import NotFoundPage from './NotFoundPage'
 import type { SectionId } from '@/mocks/fixtures'
 
 const LoginPage = lazy(() => import('@/features/auth/LoginPage'))
@@ -73,7 +74,7 @@ export function AppRouter() {
           <Route path="/lms" element={withSuspense(<LMS />)} />
           <Route path="/settings" element={withSuspense(<Settings />)} />
           <Route path="/" element={<Navigate to="/rules" replace />} />
-          <Route path="*" element={<Navigate to="/rules" replace />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Route>
     </Routes>

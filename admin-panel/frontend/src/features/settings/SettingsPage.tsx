@@ -44,6 +44,7 @@ export default function SettingsPage() {
   const [autoApproveThreshold, setAutoApproveThreshold] = useState('0.95')
 
   const handleLogout = () => {
+    if (!confirm(t('settings.logoutConfirm'))) return
     logout()
     navigate('/login', { replace: true })
   }
