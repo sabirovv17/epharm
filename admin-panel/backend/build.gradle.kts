@@ -61,3 +61,12 @@ dependencies {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+// Стабильное имя исполняемого jar — чтобы Dockerfile копировал build/libs/app.jar
+// без зависимости от версии. Plain-jar не нужен в runtime-образе.
+tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
+    archiveFileName.set("app.jar")
+}
+tasks.named<Jar>("jar") {
+    enabled = false
+}

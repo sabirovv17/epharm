@@ -146,3 +146,6 @@ tools/build_icons/
 /test-results/
 App/bin/
 App/obj/
+
+# Прод-секреты (compose --env-file) — НЕ коммитить
+.env.prod

@@ -2802,3 +2802,30 @@ curl -s localhost:8080/api/mobile/auth/register    -H 'Content-Type: application
   плейлиста (подхват смены без перезапуска кассы).
 - **OFF-LIMITS (по требованию пользователя):** LMS и AI-экзамен полным стеком не трогаем
   (AI-exam только MVP keyword-match в рамках Этапа 4, если возьмём).
+
+## Прод-стек «всё одной командой» (always-on) — 2026-06-09
+
+По запросу «сделать чтобы всё работало всегда и совместно» добавлен прод-деплой ядра системы.
+Выбрано пользователем: только «прод-стек one-command» (TLS/секреты-профиль/lock — отдельно).
+
+- **`docker-compose.prod.yml`** (корень): postgres + redis + minio + minio-init + **backend** +
+  **frontend**. У всех `restart: always` + healthcheck + `depends_on(service_healthy)`. Переживает
+  краш контейнера и ребут сервера (docker enable). Запуск:
+  `docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build`.
+- **`admin-panel/backend/Dockerfile`** — multi-stage (temurin-22-jdk build bootJar → 22-jre run +
+  curl для healthcheck `/api/health`). `build.gradle.kts`: bootJar `archiveFileName=app.jar`,
+  plain `jar` disabled → Dockerfile копирует `build/libs/app.jar`. Проверено: `./gradlew bootJar` ок.
+- **`admin-panel/frontend/Dockerfile`** + **`nginx.conf`** — Vite build → nginx; отдаёт SPA и
+  **проксирует `/api/*` на backend:8080** (один origin, без CORS). Build-arg `VITE_API_BASE_URL=''`
+  → фронт делает относительные запросы.
+- **`.env.prod.example`** (шаблон, коммитится) → `.env.prod` (в gitignore). Backend в prod читает
+  всё из env: `SPRING_PROFILES_ACTIVE=prod` (без application-prod.yml — base application.yml уже
+  параметризован `${...}`, env-переменные переопределяют), `SPRING_DATASOURCE_URL=...postgres:5432`,
+  `OTP_DEV_MODE=false`, `JWT_SECRET`/`POSM_DEVICE_KEY`/пароли — обязательны (`:?` в compose падает
+  без них). RUNBOOK §«Прод-стек» — инструкция.
+- `compose config -q` валиден. **Совместность:** все контейнеры в одной сети, ходят по именам
+  сервисов; один backend + одна БД = согласованность для касс/телефонов/админки.
+- **НЕ входит (отдельные шаги, не выбраны):** TLS/Caddy (api.epharm.kz), distributed-lock на
+  PayoutScheduler (сейчас безопасно при ОДНОМ backend-контейнере), бэкап Postgres, «касса молчит».
+  ⚠️ `S3_ENDPOINT` в `.env.prod` должен быть ПУБЛИЧНЫМ адресом MinIO (не `minio:9000`), иначе фото
+  чеков не откроются в браузере.
