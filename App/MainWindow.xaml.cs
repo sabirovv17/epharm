@@ -63,9 +63,15 @@ private static void Log(string msg)
 {
     File.AppendAllText(LogPath, $"{DateTime.Now:HH:mm:ss} {msg}\r\n");
 }
+private CustomerDisplay.Services.Heartbeat? _heartbeat;
+
 private void MainWindow_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
 {
-    if (e.Key == Key.Q)
+    // Выход ТОЛЬКО по защищённой комбинации Ctrl+Shift+Q — чтобы кассир случайным нажатием Q
+    // не закрыл кассу и не остановил прослушку логов. Обычная Q больше не завершает приложение.
+    if (e.Key == Key.Q &&
+        Keyboard.Modifiers.HasFlag(ModifierKeys.Control) &&
+        Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
     {
         System.Windows.Application.Current.Shutdown();
     }
@@ -99,6 +105,18 @@ this.Focus();
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            // Уровень 2 живучести: heartbeat живости UI-потока для внешнего watchdog
+            // (scripts/watchdog.ps1). Пишется ВСЕГДА, даже если POSM-интеграция выключена —
+            // watchdog перезапустит кассу при падении ИЛИ зависании (устаревший heartbeat).
+            try
+            {
+                var hbPath = _posmConfig?.HeartbeatPath ?? @"C:\Epharm\heartbeat.txt";
+                var hbSec = _posmConfig?.HeartbeatSec ?? 15;
+                _heartbeat = new CustomerDisplay.Services.Heartbeat(hbPath, hbSec, Log);
+                _heartbeat.Start();
+            }
+            catch (Exception ex) { Log($"heartbeat start error: {ex.Message}"); }
+
 //PositionWindowToTopRightQuarter();
 
             // Режим «только экран фармацевта» (EPHARM_PHARMACIST_PREVIEW=true) — для скринов поверх

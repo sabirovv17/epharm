@@ -40,6 +40,15 @@ namespace CustomerDisplay.Config
         /// <summary>Проигрывать ли видео. false (env EPHARM_NO_VIDEO=true) — для VM без GPU.</summary>
         public bool VideoEnabled { get; set; } = true;
         /// <summary>
+        /// Heartbeat-файл живости процесса. Главный UI-поток периодически пишет в него метку
+        /// времени; ВНЕШНИЙ watchdog (scripts/watchdog.ps1, задача планировщика) проверяет
+        /// свежесть и перезапускает кассу, если процесс упал ИЛИ завис (heartbeat устарел).
+        /// Так прослушка логов Стандарт-Н держится «всегда». env EPHARM_HEARTBEAT_PATH.
+        /// </summary>
+        public string HeartbeatPath { get; set; } = @"C:\Epharm\heartbeat.txt";
+        /// <summary>Период записи heartbeat (сек). env EPHARM_HEARTBEAT_SEC.</summary>
+        public int HeartbeatSec { get; set; } = 15;
+        /// <summary>
         /// Аргументы инициализации LibVLC (env EPHARM_VLC_ARGS, через пробел). По умолчанию
         /// софт-декод. Для VM можно перебирать вывод: «--avcodec-hw=none --vout=direct3d9»,
         /// «… --vout=gl», «… --vout=gles2».
@@ -90,6 +99,9 @@ namespace CustomerDisplay.Config
             // Авто-обновление клиента.
             if (Env("EPHARM_UPDATE_ENABLED", "true") == "false") cfg.UpdateEnabled = false;
             if (int.TryParse(Env("EPHARM_UPDATE_POLL_SEC", ""), out var updSec)) cfg.UpdatePollSec = updSec;
+            // Heartbeat (для внешнего watchdog).
+            cfg.HeartbeatPath = Env("EPHARM_HEARTBEAT_PATH", cfg.HeartbeatPath);
+            if (int.TryParse(Env("EPHARM_HEARTBEAT_SEC", ""), out var hbSec) && hbSec > 0) cfg.HeartbeatSec = hbSec;
 
             return cfg;
         }

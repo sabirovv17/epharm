@@ -7,5 +7,7 @@
   "pharmacyId": "ph_xxx",
   "recommendTimeoutMs": 700,
   "debounceMs": 400,
-  "popupAutoCloseSec": 30
+  "popupAutoCloseSec": 30,
+  "heartbeatPath": "C:\\Epharm\\heartbeat.txt",
+  "heartbeatSec": 15
 }

@@ -2509,6 +2509,29 @@ sha256,mandatory,notes}`. current=false → обновляться не нужн
 - ⚠️ C# собирается только на Windows-стороне (на Mac не компилируется) — пользователь пересобирает
   на VM. Код написан fail-safe, ничего не ломает в существующем демо (D/C/видео).
 
+> **2026-06-09 — Always-on: watchdog + restart-on-failure (прослушка логов «всегда»).**
+> Лог Стандарт-Н читает САМ C#-клиент (`MainWindow.TailLogLoop` по `zkassa.log`) и при печати чека
+> шлёт `/api/posm/sales` (через OfflineOutbox). Значит прослушка жива, пока жив процесс. Сделали
+> двухуровневую живучесть:
+>
+> - **Уровень 1 (внутри процесса):** `App/Services/ProcessSentinel.cs` → `CrashGuard` —
+>   глобальные обработчики (`DispatcherUnhandledException` гасит UI-ошибки `Handled=true`,
+>   `UnobservedTaskException` SetObserved, `AppDomain.UnhandledException` лог). Мягкая ошибка
+>   больше НЕ роняет кассу. Подключён в `App.xaml.cs OnStartup`.
+> - **Уровень 2 (внешний):** UI-поток пишет `Heartbeat` (тот же файл) каждые 15с (`HeartbeatPath`/
+>   `HeartbeatSec` в config, старт в `MainWindow.OnLoaded`). `App/scripts/watchdog.ps1` (задача
+>   `EpharmPOSM-Watchdog`, раз в минуту) перезапускает клиента, если процесс упал ИЛИ завис
+>   (heartbeat старше 90с — ловит deadlock, который RestartOnFailure не видит).
+> - **Установка:** `App/scripts/install-tasks.ps1` (идемпотентно) создаёт обе задачи: `EpharmPOSM`
+>   (ONLOGON + RestartOnFailure 1 мин ×999, ExecutionTimeLimit 0) и `EpharmPOSM-Watchdog`.
+>   `uninstall-tasks.ps1` — снять. Заменяет ручные `schtasks` в гайде.
+> - **Защита от случайного выхода:** обычная `Q` больше не закрывает — только **Ctrl+Shift+Q**.
+> - **Старт без человека:** ONLOGON требует входа в Windows → в `POSM_DEPLOY.md` добавлен раздел про
+>   **автологин Windows** (AutoAdminLogon), иначе после ребута касса ждёт логин.
+> - **Проверено:** `dotnet build -p:EnableWindowsTargeting=true` → Build succeeded, 0 errors
+>   (warnings — предсуществующие дубли using/nullable в MainWindow). На macOS только targeting-pack.
+> - Осталось опционально: backend-индикатор «касса молчит» (last `/sales` per pharmacy) — НЕ делали.
+
 ### Admin frontend — селектор «Все экраны / конкретный экран» ✅ verified
 
 - Колонка «Экран» в таблице плейлистов (`ScreensPage`): `<Select>` «Все экраны» (sentinel

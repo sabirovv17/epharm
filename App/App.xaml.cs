@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Windows;
+using CustomerDisplay.Services;
 
 namespace CustomerDisplay;
 
@@ -24,6 +25,10 @@ public partial class App : Application
             return;
         }
         base.OnStartup(e);
+
+        // Уровень 1 живучести: мягкие исключения (UI/фоновые Task) не должны ронять кассу —
+        // прослушка лога Стандарт-Н обязана работать «всегда». Фатальные поднимет watchdog/scheduler.
+        CrashGuard.Install(@"C:\Epharm\crash.log");
     }
 
     protected override void OnExit(ExitEventArgs e)
