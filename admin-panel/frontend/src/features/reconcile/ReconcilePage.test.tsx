@@ -18,6 +18,14 @@ const hooks = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/queries/reconcile', () => hooks)
 
+// Каталог — чтобы resolve SKU→имя не ходил в сеть.
+vi.mock('@/lib/queries/catalog', () => ({
+  useProducts: () => ({ data: [{ id: 'p_aql_norm_s', name: 'Аквалор Норм спрей' }] }),
+  buildProductIndex:
+    (list: Array<{ id: string; name: string }> | undefined) => (id: string | undefined) =>
+      list?.find((p) => p.id === id),
+}))
+
 const approveMutate = vi.fn()
 const rejectMutate = vi.fn()
 
@@ -183,5 +191,50 @@ describe('ReconcilePage', () => {
     expect(screen.getByText(/Не удалось загрузить очередь/i)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /Повторить/ }))
     expect(refetch).toHaveBeenCalled()
+  })
+
+  it('клик по строке открывает drawer с фото и именем товара из каталога', async () => {
+    setReceipts([
+      mkReceipt({ id: 'rcp_d', photoUrl: 'http://localhost:9000/epharm-receipts/x.jpg' }),
+    ])
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(screen.getByTestId('receipt-rcp_d'))
+    expect(screen.getByTestId('receipt-detail')).toBeInTheDocument()
+    expect(screen.getByTestId('receipt-photo')).toHaveAttribute(
+      'src',
+      'http://localhost:9000/epharm-receipts/x.jpg',
+    )
+    // имя товара резолвится из каталога (p_aql_norm_s → Аквалор Норм спрей)
+    expect(screen.getAllByText('Аквалор Норм спрей').length).toBeGreaterThan(0)
+  })
+
+  it('drawer без фото показывает заглушку', async () => {
+    setReceipts([mkReceipt({ id: 'rcp_np', photoUrl: null })])
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(screen.getByTestId('receipt-rcp_np'))
+    expect(screen.getByTestId('receipt-nophoto')).toBeInTheDocument()
+    expect(screen.queryByTestId('receipt-photo')).not.toBeInTheDocument()
+  })
+
+  it('approve из drawer вызывает useApproveReceipt', async () => {
+    setReceipts([mkReceipt({ id: 'rcp_da' })])
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(screen.getByTestId('receipt-rcp_da'))
+    await user.click(screen.getByTestId('drawer-approve'))
+    expect(approveMutate).toHaveBeenCalledWith('rcp_da', expect.anything())
+  })
+
+  it('клик по inline-кнопке approve не открывает drawer (stopPropagation)', async () => {
+    setReceipts([mkReceipt({ id: 'rcp_inl' })])
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(screen.getByTestId('receipt-approve-rcp_inl'))
+    expect(approveMutate).toHaveBeenCalledWith('rcp_inl', expect.anything())
+    expect(screen.queryByTestId('receipt-detail')).not.toBeInTheDocument()
   })
 })

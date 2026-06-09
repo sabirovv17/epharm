@@ -1,11 +1,21 @@
 // Reconcile — сверка чеков (ТЗ §3.5). Очередь чеков с реального backend +
 // ручные действия модератора (одобрить → начисление бонуса / отклонить).
-// 3 ветки потока (auto ~80% / ручная ~15% / анти-фрод ~5%) — описаны внизу.
+// Клик по строке → drawer проверки: фото чека + позиция/акция + суммы + источники.
 
-import { useRef, useState, type ChangeEvent } from 'react'
-import { Button, Empty, Metric, PageHeader, SectionCard, Tabs, useToast, type TabItem } from '@/ui'
+import { useRef, useState, type ChangeEvent, type ReactNode } from 'react'
+import {
+  Button,
+  Drawer,
+  Empty,
+  Metric,
+  PageHeader,
+  SectionCard,
+  Tabs,
+  useToast,
+  type TabItem,
+} from '@/ui'
 import { IconAlert, IconCheck, IconClock, IconReceipt, IconShield } from '@/ui/icons'
-import type { ReceiptDto, ReceiptStatus } from '@/lib/api-types'
+import type { ProductDto, ReceiptDto, ReceiptStatus } from '@/lib/api-types'
 import {
   useApproveReceipt,
   useImportExcel,
@@ -13,22 +23,41 @@ import {
   useReconcileSummary,
   useRejectReceipt,
 } from '@/lib/queries/reconcile'
+import { buildProductIndex, useProducts } from '@/lib/queries/catalog'
 import { describeError } from '@/lib/describeError'
 import { formatKzt } from '@/mocks/fixtures'
 import { useT } from '@/i18n'
 
 type RecTab = ReceiptStatus
+type ProductLookup = (id: string | undefined) => ProductDto | undefined
+
+function fmtDate(iso?: string | null): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime())
+    ? '—'
+    : d.toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+}
 
 export default function ReconcilePage() {
   const t = useT()
   const toast = useToast()
   const [tab, setTab] = useState<RecTab>('pending')
+  const [selected, setSelected] = useState<ReceiptDto | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const importExcel = useImportExcel()
 
   const summaryQ = useReconcileSummary()
   const s = summaryQ.data
   const { data: receipts = [], isLoading, isError, error, refetch } = useReceipts(tab)
+  const productsQ = useProducts()
+  const productOf: ProductLookup = buildProductIndex(productsQ.data)
 
   const TABS: TabItem<RecTab>[] = [
     { value: 'pending', label: t('rec.tab.pending'), count: s?.queue ?? 0 },
@@ -147,7 +176,7 @@ export default function ReconcilePage() {
               </thead>
               <tbody className="divide-y divide-ink-100">
                 {receipts.map((r) => (
-                  <ReceiptRow key={r.id} r={r} />
+                  <ReceiptRow key={r.id} r={r} productOf={productOf} onOpen={setSelected} />
                 ))}
               </tbody>
             </table>
@@ -180,6 +209,12 @@ export default function ReconcilePage() {
           </div>
         </div>
       </SectionCard>
+
+      <ReceiptDetailDrawer
+        receipt={selected}
+        productOf={productOf}
+        onClose={() => setSelected(null)}
+      />
     </div>
   )
 }
@@ -235,7 +270,15 @@ function SourcesCell({ r }: { r: ReceiptDto }) {
   )
 }
 
-function ReceiptRow({ r }: { r: ReceiptDto }) {
+function ReceiptRow({
+  r,
+  productOf,
+  onOpen,
+}: {
+  r: ReceiptDto
+  productOf: ProductLookup
+  onOpen: (r: ReceiptDto) => void
+}) {
   const t = useT()
   const toast = useToast()
   const approve = useApproveReceipt()
@@ -243,6 +286,7 @@ function ReceiptRow({ r }: { r: ReceiptDto }) {
   const pending = approve.isPending || reject.isPending
   const actionable =
     r.status === 'pending' || r.status === 'flagged' || r.status === 'moderation_required'
+  const productName = productOf(r.parsedSku)?.name ?? r.parsedSku
 
   const onApprove = () => {
     if (!confirm(t('rec.confirmApprove', { name: r.pharmacistName }))) return
@@ -265,22 +309,15 @@ function ReceiptRow({ r }: { r: ReceiptDto }) {
   }
 
   return (
-    <tr data-testid={`receipt-${r.id}`}>
+    <tr
+      data-testid={`receipt-${r.id}`}
+      className="cursor-pointer hover:bg-paper-hover"
+      onClick={() => onOpen(r)}
+    >
       <td className="px-5 py-2.5">
-        <div className="font-extrabold text-ink-900">{r.parsedSku || '—'}</div>
+        <div className="font-extrabold text-ink-900">{productName || '—'}</div>
         <div className="text-[11px] text-ink-500">
-          {r.photoUrl ? (
-            <a
-              href={r.photoUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-brand-green-700 underline"
-            >
-              {t('rec.viewPhoto')}
-            </a>
-          ) : (
-            t('rec.noPhoto')
-          )}
+          {r.photoUrl ? t('rec.hasPhoto') : t('rec.noPhoto')}
           {r.parsedCashier ? ` · ${t('rec.cashier', { v: r.parsedCashier })}` : ''}
         </div>
       </td>
@@ -315,7 +352,10 @@ function ReceiptRow({ r }: { r: ReceiptDto }) {
               variant="primary"
               size="sm"
               disabled={pending}
-              onClick={onApprove}
+              onClick={(e) => {
+                e.stopPropagation()
+                onApprove()
+              }}
               data-testid={`receipt-approve-${r.id}`}
             >
               {t('rec.approve')}
@@ -324,7 +364,10 @@ function ReceiptRow({ r }: { r: ReceiptDto }) {
               variant="danger"
               size="sm"
               disabled={pending}
-              onClick={onReject}
+              onClick={(e) => {
+                e.stopPropagation()
+                onReject()
+              }}
               data-testid={`receipt-reject-${r.id}`}
             >
               {t('rec.reject')}
@@ -333,5 +376,169 @@ function ReceiptRow({ r }: { r: ReceiptDto }) {
         )}
       </td>
     </tr>
+  )
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-ink-500">{label}</div>
+      <div className="text-[13px] text-ink-900">{children}</div>
+    </div>
+  )
+}
+
+/** Панель проверки чека: фото + позиция/акция + суммы + источники + действия модератора. */
+function ReceiptDetailDrawer({
+  receipt: r,
+  productOf,
+  onClose,
+}: {
+  receipt: ReceiptDto | null
+  productOf: ProductLookup
+  onClose: () => void
+}) {
+  const t = useT()
+  const toast = useToast()
+  const approve = useApproveReceipt()
+  const reject = useRejectReceipt()
+  const busy = approve.isPending || reject.isPending
+  const actionable =
+    !!r && (r.status === 'pending' || r.status === 'flagged' || r.status === 'moderation_required')
+
+  const onApprove = () => {
+    if (!r) return
+    if (!confirm(t('rec.confirmApprove', { name: r.pharmacistName }))) return
+    approve.mutate(r.id, {
+      onSuccess: () => {
+        toast.push(t('rec.approvedToast'))
+        onClose()
+      },
+      onError: () => toast.push(t('rec.actionErr')),
+    })
+  }
+
+  const onReject = () => {
+    if (!r) return
+    const reason = window.prompt(t('rec.rejectPrompt'))
+    if (!reason || !reason.trim()) return
+    reject.mutate(
+      { id: r.id, reason: reason.trim() },
+      {
+        onSuccess: () => {
+          toast.push(t('rec.rejectedToast'))
+          onClose()
+        },
+        onError: () => toast.push(t('rec.actionErr')),
+      },
+    )
+  }
+
+  return (
+    <Drawer
+      open={!!r}
+      onClose={onClose}
+      title={t('rec.detailTitle')}
+      subtitle={r ? (productOf(r.parsedSku)?.name ?? r.parsedSku) : undefined}
+      footer={
+        actionable ? (
+          <div className="flex gap-2">
+            <Button
+              variant="primary"
+              disabled={busy}
+              onClick={onApprove}
+              data-testid="drawer-approve"
+            >
+              {t('rec.approve')}
+            </Button>
+            <Button variant="danger" disabled={busy} onClick={onReject} data-testid="drawer-reject">
+              {t('rec.reject')}
+            </Button>
+          </div>
+        ) : undefined
+      }
+    >
+      {r && (
+        <div className="flex flex-col gap-4" data-testid="receipt-detail">
+          <div>
+            <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.06em] text-ink-500">
+              {t('rec.dPhoto')}
+            </div>
+            {r.photoUrl ? (
+              <a href={r.photoUrl} target="_blank" rel="noreferrer">
+                <img
+                  src={r.photoUrl}
+                  alt={t('rec.dPhoto')}
+                  className="max-h-[360px] w-full rounded-lg border border-ink-100 bg-paper object-contain"
+                  data-testid="receipt-photo"
+                />
+              </a>
+            ) : (
+              <div className="card-soft p-4 text-[13px] text-ink-500" data-testid="receipt-nophoto">
+                {t('rec.dNoPhoto')}
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={t('rec.dProduct')}>
+              <div>{productOf(r.parsedSku)?.name ?? r.parsedSku ?? '—'}</div>
+              {r.parsedSku && <div className="num text-[11px] text-ink-400">{r.parsedSku}</div>}
+            </Field>
+            <Field label={t('rec.dScore')}>{(r.ocrScore * 100).toFixed(0)}%</Field>
+            <Field label={t('rec.dParsedAmount')}>
+              <span className="num">{formatKzt(r.parsedAmount)}</span>
+            </Field>
+            {r.expectedAmount != null && (
+              <Field label={t('rec.dExpected')}>
+                <span className="num">{formatKzt(r.expectedAmount)}</span>
+              </Field>
+            )}
+            {r.bonus != null && (
+              <Field label={t('rec.dBonus')}>
+                <span className="num">{formatKzt(r.bonus)}</span>
+              </Field>
+            )}
+            {r.bonusCredited > 0 && (
+              <Field label={t('rec.dCredited')}>
+                <span className="num font-bold text-brand-green-700">
+                  {formatKzt(r.bonusCredited)}
+                </span>
+              </Field>
+            )}
+            <Field label={t('rec.dCashier')}>{r.parsedCashier || '—'}</Field>
+            <Field label={t('rec.dDate')}>{fmtDate(r.parsedAt ?? r.createdAt)}</Field>
+            <Field label={t('rec.dPharmacist')}>{r.pharmacistName}</Field>
+            <Field label={t('rec.dPharmacy')}>{r.pharmacyName || '—'}</Field>
+          </div>
+
+          <Field label={t('rec.dConfirmed')}>
+            {r.confirmedByLog || r.confirmedByExcel ? (
+              <span className="flex flex-wrap gap-1">
+                {r.confirmedByLog && (
+                  <span className="chip chip-blue w-fit">{t('rec.srcLog')}</span>
+                )}
+                {r.confirmedByExcel && (
+                  <span className="chip chip-green w-fit">{t('rec.srcExcel')}</span>
+                )}
+              </span>
+            ) : (
+              '—'
+            )}
+          </Field>
+
+          <Field label={t('rec.dStatus')}>
+            <StatusCell r={r} />
+          </Field>
+
+          {r.reviewer && (
+            <Field label={t('rec.dReviewer')}>
+              {r.reviewer}
+              {r.reviewedAt ? ` · ${fmtDate(r.reviewedAt)}` : ''}
+            </Field>
+          )}
+        </div>
+      )}
+    </Drawer>
   )
 }
