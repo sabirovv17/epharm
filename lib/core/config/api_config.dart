@@ -7,8 +7,10 @@
 class ApiConfig {
   ApiConfig._();
 
-  /// Переключатель mock ↔ реальный HTTP backend.
-  static const bool useApi = bool.fromEnvironment('USE_API', defaultValue: false);
+  /// Переключатель mock ↔ реальный HTTP backend. По умолчанию **true** — приложение
+  /// работает на реальных данных. Для офлайн-демо/разработки без бэкенда собирать с
+  /// `--dart-define=USE_API=false`.
+  static const bool useApi = bool.fromEnvironment('USE_API', defaultValue: true);
 
   /// База API без trailing slash. Пути добавляются как `/api/mobile/...`.
   static const String baseUrl =

@@ -52,7 +52,12 @@ class CurrentUserNotifier extends Notifier<User?> {
   User? build() => null;
 
   void setUser(User user) => state = user;
-  void logout() => state = null;
+
+  void logout() {
+    // Чистим персистнутые токены — иначе на следующем старте сессия восстановится.
+    ref.read(tokenStoreProvider).clear();
+    state = null;
+  }
 }
 
 final currentUserProvider =
