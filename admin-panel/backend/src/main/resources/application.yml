@@ -74,3 +74,21 @@ app:
     # Ключ устройства кассы (Module 2). POSM-клиент шлёт его в заголовке X-Posm-Key.
     # На MVP — общий ключ; в prod каждой кассе выдаётся свой (Stage 4).
     device-key: ${POSM_DEVICE_KEY:dev-posm-key}
+  medusa:
+    # Внешняя витрина inkar.kz на Medusa v2 (Module 3) — источник реального каталога.
+    # Бэкенд ходит туда server-to-server и проксирует товары в мобильное приложение
+    # (/api/mobile/catalog/*), чтобы publishable-ключ не попадал в бинарь телефона, а
+    # телефон общался только с нашим HTTPS (Medusa пока на голом HTTP).
+    #
+    # base-url / sales-channel / region / publishable-key — клиентские (не секретные)
+    # идентификаторы витрины: ключ Medusa по дизайну публикуемый (как в любом storefront).
+    # В prod переопределяются env'ом (см. .env.prod.example). Реальные секреты (SSH/admin)
+    # из STOREFRONT-CREDENTIALS.md в код НЕ попадают.
+    enabled: ${MEDUSA_ENABLED:true}
+    base-url: ${MEDUSA_BASE_URL:http://78.140.246.238:9000}
+    publishable-key: ${MEDUSA_PUBLISHABLE_KEY:pk_ed9c35a59066b45de7d9e12510468ca27af16b6d0170b0910c03746545da4525}
+    sales-channel-id: ${MEDUSA_SALES_CHANNEL_ID:sc_01KRXGQFYXMJN3FD1WJ7S83WME}
+    region-id: ${MEDUSA_REGION_ID:reg_01KSBNEH2D4GVJN8EATK79WNSH}
+    timeout-ms: ${MEDUSA_TIMEOUT_MS:6000}
+    # TTL кэша смаппленного каталога (сек). 0 — выключить кэш.
+    cache-ttl-seconds: ${MEDUSA_CACHE_TTL:300}

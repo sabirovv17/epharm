@@ -17,6 +17,13 @@ app:
     secret: test-secret-key-of-at-least-32-bytes-for-hs256-tests-only-please
     access-ttl-minutes: 15
     refresh-ttl-days: 30
+  medusa:
+    # В тестах внешний Medusa выключен: MedusaClient.active=false, list-методы отдают
+    # пустоту, никаких сетевых вызовов. Маппинг проверяем юнит-тестом со стаб-клиентом.
+    enabled: false
+    base-url: ''
+    publishable-key: ''
+    cache-ttl-seconds: 0
 
 logging:
   level:

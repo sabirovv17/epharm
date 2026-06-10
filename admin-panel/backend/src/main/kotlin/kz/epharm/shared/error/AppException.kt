@@ -28,6 +28,10 @@ enum class ErrorCode {
     CONFLICT,
     INTERNAL,
 
+    // Внешний сервис (Medusa-витрина Module 3) недоступен/ответил ошибкой.
+    // Мобилка switch'ит по нему → показывает «каталог временно недоступен» + кнопку «Повторить».
+    UPSTREAM_UNAVAILABLE,
+
     // Мобильная аутентификация (OTP-флоу). Фронт-мобилка switch'ит по ним для UX.
     OTP_NOT_REQUESTED,
     OTP_EXPIRED,
