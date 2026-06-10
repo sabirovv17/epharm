@@ -149,3 +149,8 @@ App/obj/
 
 # Прод-секреты (compose --env-file) — НЕ коммитить
 .env.prod
+
+# Доступы к витрине inkar.kz (Module 3): содержат ЖИВЫЕ секреты — SSH root-пароль,
+# admin-пароли Medusa/PIM. В репозиторий НЕ коммитить (ротировать — см. claude-admin-notes.md).
+STOREFRONT-CREDENTIALS.md
+STOREFRONT.md
