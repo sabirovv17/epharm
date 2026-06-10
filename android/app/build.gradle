@@ -28,7 +28,9 @@ android {
 
     defaultConfig {
         applicationId = "kz.pharmacy.app"
-        minSdk = flutter.minSdkVersion
+        // flutter_secure_storage (persist токенов) требует Android 6.0+ (API 23).
+        // Дефолтный flutter.minSdkVersion (21) ронял release-сборку APK.
+        minSdk = 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
