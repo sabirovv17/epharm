@@ -28,6 +28,7 @@ import kz.epharm.ai_exam.repository.ExamQuestionRepository
 import kz.epharm.pharmacies.entity.ChainEntity
 import kz.epharm.pharmacies.entity.PharmacyEntity
 import kz.epharm.pharmacies.entity.PharmacyGroup
+import kz.epharm.pharmacies.RealPharmacySeeder
 import kz.epharm.pharmacies.repository.ChainRepository
 import kz.epharm.pharmacies.repository.PharmacyRepository
 import kz.epharm.pharmacists.entity.PharmacistEntity
@@ -102,8 +103,9 @@ class DevDataSeeder {
         seedProductsImpl(productRepository)
         seedRulesImpl(ruleRepository)
         seedPromosImpl(promoRepository)
-        seedChainsImpl(chainRepository)
-        seedPharmaciesImpl(pharmacyRepository, chainRepository)
+        // Реальный реестр аптек (≈523 из витрины inkar.kz, см. RealPharmacySeeder) вместо
+        // демо-генерации. Идемпотентно. seedChainsImpl/seedPharmaciesImpl больше не вызываются.
+        RealPharmacySeeder.seed(chainRepository, pharmacyRepository)
         seedPharmacistsImpl(pharmacistRepository, pharmacyRepository)
         seedPayoutsImpl(payoutBatchRepository, payoutItemRepository, pharmacistRepository)
         seedCoursesImpl(courseRepository)
@@ -161,8 +163,9 @@ class DevDataSeeder {
         seedProductsImpl(productRepository)
         seedRulesImpl(ruleRepository)
         seedPromosImpl(promoRepository)
-        seedChainsImpl(chainRepository)
-        seedPharmaciesImpl(pharmacyRepository, chainRepository)
+        // Реальный реестр аптек (≈523 из витрины inkar.kz, см. RealPharmacySeeder) вместо
+        // демо-генерации. Идемпотентно. seedChainsImpl/seedPharmaciesImpl больше не вызываются.
+        RealPharmacySeeder.seed(chainRepository, pharmacyRepository)
         seedPharmacistsImpl(pharmacistRepository, pharmacyRepository)
         seedPayoutsImpl(payoutBatchRepository, payoutItemRepository, pharmacistRepository)
         seedCoursesImpl(courseRepository)
