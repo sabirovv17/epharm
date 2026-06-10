@@ -96,7 +96,7 @@ lsof -ti tcp:8080 | xargs kill -9
 
 ```bash
 curl -X POST http://localhost:8080/api/admin/dev/reset
-# → {"status":"reseeded","products":13,"rules":6,"promos":5,"pharmacies":64}
+# → {"status":"reseeded","products":13,"rules":6,"promos":5,"pharmacies":522}
 ```
 
 Возвращает БД к чистой фикстуре (админы сохраняются). Используется E2E

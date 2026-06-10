@@ -125,7 +125,7 @@ powershell -ExecutionPolicy Bypass -File install-tasks.ps1 -InstallDir C:\epharm
    ```bash
    curl -X POST https://api.epharm.kz/api/admin/app-releases \
      -H "Authorization: Bearer <admin-jwt>" -H "Content-Type: application/json" \
-     -d '{"version":"1.1.0","url":"https://minio.epharm.kz/app/epharm-1.1.0.zip",
+     -d '{"version":"1.1.0","url":"https://s3.epharm.kz/app/epharm-1.1.0.zip",
           "sha256":"<хеш>","platform":"win-x64","mandatory":false,"notes":"plus poll"}'
    ```
 4. Все кассы обновятся в течение `UpdatePollSec`. Откат = зарегистрировать предыдущую версию заново.
