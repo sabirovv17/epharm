@@ -109,6 +109,17 @@ services:
       # ВАЖНО для прода: выключить dev-OTP (иначе код входа всегда 544544).
       OTP_DEV_MODE: ${OTP_DEV_MODE:-false}
       POSM_DEVICE_KEY: ${POSM_DEVICE_KEY:?set POSM_DEVICE_KEY in .env.prod}
+      # Внешняя витрина inkar.kz (Medusa, Module 3) — источник реального каталога.
+      # Бэкенд проксирует /store/* в /api/mobile/catalog/*. Значения по умолчанию заданы
+      # в application.yml; здесь только переопределяем под прод (если витрина переедет на
+      # https://api.inkar.kz). MEDUSA_ENABLED=false полностью выключает каталог в мобилке.
+      # Дефолты = публичные идентификаторы витрины (как в application.yml). НЕ пустые:
+      # пустая строка из env перекрыла бы дефолт Spring и выключила каталог.
+      MEDUSA_ENABLED: ${MEDUSA_ENABLED:-true}
+      MEDUSA_BASE_URL: ${MEDUSA_BASE_URL:-http://78.140.246.238:9000}
+      MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-pk_ed9c35a59066b45de7d9e12510468ca27af16b6d0170b0910c03746545da4525}
+      MEDUSA_SALES_CHANNEL_ID: ${MEDUSA_SALES_CHANNEL_ID:-sc_01KRXGQFYXMJN3FD1WJ7S83WME}
+      MEDUSA_REGION_ID: ${MEDUSA_REGION_ID:-reg_01KSBNEH2D4GVJN8EATK79WNSH}
     # Наружу не публикуем — доступ только через Caddy (TLS). Внутри сети backend:8080.
     expose:
       - '8080'
