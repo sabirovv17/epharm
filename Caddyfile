@@ -24,10 +24,13 @@
 # маршрутизирует 10.10/16 → админ на VPN открывает админку БЕЗ публичного DNS.
 # Plain HTTP: трафик уже в зашифрованном VPN-туннеле, а Let's Encrypt для непубличного
 # имени не выдаётся. Отдаёт ту же админку (frontend nginx сам проксирует /api на backend).
-# Имя переопределяется env INTERNAL_DOMAIN. Плюс прямой IP-адрес сервера — на случай,
-# когда клиент (напр. macOS + Check Point VPN) не резолвит inkar.kz через getaddrinfo:
-# по IP админка открывается без DNS, напрямую по VPN-маршруту.
-http://{$INTERNAL_DOMAIN:inkpim.inkar.kz}, http://10.10.1.76 {
+# Имя переопределяется env INTERNAL_DOMAIN; пусто → блок не матчит запросы.
+# NB: доступ ТОЛЬКО по имени. Прямой IP (http://10.10.1.76) тут НЕ работает: Caddy для
+# bare-IP принудительно включает TLS (self-signed) и редиректит 80→443, где валидного
+# сертификата под IP нет → тупик. Клиент обязан резолвить inkpim.inkar.kz: на корп.
+# Windows это делает корп. DNS (10.10.1.119/120) сам; на macOS + Check Point VPN, где
+# getaddrinfo не видит inkar.kz, нужна строка в /etc/hosts: «10.10.1.76 inkpim.inkar.kz».
+http://{$INTERNAL_DOMAIN:inkpim.inkar.kz} {
 	reverse_proxy frontend:80
 }
 
