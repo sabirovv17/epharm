@@ -23,6 +23,7 @@ const Finance = lazy(() => import('@/features/finance/FinancePage'))
 const Lift = lazy(() => import('@/features/lift/LiftPage'))
 const LMS = lazy(() => import('@/features/lms/LMSPage'))
 const Settings = lazy(() => import('@/features/settings/SettingsPage'))
+const Storefront = lazy(() => import('@/features/storefront/StorefrontPage'))
 
 // path ↔ SectionId mapping. Используется и Sidebar (highlight) и router (path).
 export const SECTION_ROUTES: Record<SectionId, string> = {
@@ -38,6 +39,7 @@ export const SECTION_ROUTES: Record<SectionId, string> = {
   lift: '/lift',
   lms: '/lms',
   settings: '/settings',
+  storefront: '/storefront',
 }
 
 function PageFallback() {
@@ -73,6 +75,7 @@ export function AppRouter() {
           <Route path="/lift" element={withSuspense(<Lift />)} />
           <Route path="/lms" element={withSuspense(<LMS />)} />
           <Route path="/settings" element={withSuspense(<Settings />)} />
+          <Route path="/storefront" element={withSuspense(<Storefront />)} />
           <Route path="/" element={<Navigate to="/rules" replace />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>

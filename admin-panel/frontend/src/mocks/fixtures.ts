@@ -9,6 +9,7 @@
 
 import type { ReactNode } from 'react'
 import {
+  IconBox,
   IconDashboard,
   IconPromo,
   IconPharmacy,
@@ -41,6 +42,7 @@ export type SectionId =
   | 'lift'
   | 'lms'
   | 'settings'
+  | 'storefront'
 
 export interface Section {
   id: SectionId
@@ -57,6 +59,7 @@ export const SECTIONS: Section[] = [
   { id: 'screens', label: 'Управление экранами', group: 'Кампании', Icon: IconScreens },
   { id: 'pharmacies', label: 'Сеть аптек', group: 'Сеть', Icon: IconPharmacy },
   { id: 'pharmacists', label: 'Фармацевты', group: 'Сеть', Icon: IconPharmacist },
+  { id: 'storefront', label: 'Витрина / Каталог', group: 'Сеть', Icon: IconBox },
   { id: 'reconcile', label: 'Сверка чеков', group: 'Операции', Icon: IconReconcile },
   { id: 'ai_exam', label: 'AI-Экзаменация', group: 'Операции', Icon: IconAIExam },
   { id: 'finance', label: 'Финансы / выплаты', group: 'Операции', Icon: IconFinance },

@@ -587,3 +587,26 @@ export interface ExcelImportResultDto {
   rowsTotal: number
   rowsMatched: number
 }
+
+// ── Витрина каталога (Medusa, read-only в админке) ──────────────────────────
+// Зеркало backend MobileCatalogProductDto/MobileCatalogPageDto. Цена/бренд/фото
+// nullable — реальный каталог наполняется постепенно.
+export interface StorefrontProductDto {
+  id: string
+  name: string
+  brand: string | null
+  mnn: string | null
+  rxOtc: string | null
+  price: number | null
+  currency: string
+  imageUrl: string | null
+  barcode: string | null
+  category: string | null
+}
+
+export interface StorefrontPageDto {
+  items: StorefrontProductDto[]
+  total: number
+  limit: number
+  offset: number
+}
