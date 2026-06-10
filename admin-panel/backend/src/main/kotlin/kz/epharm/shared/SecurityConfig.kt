@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
 import org.springframework.http.HttpStatus
 import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
@@ -15,17 +16,22 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 
-// SecurityFilterChain для HQ-консоли (Этап 3.1).
+// SecurityFilterChain для HQ-консоли + мобильного API + POSM.
 //
 // Публичные эндпоинты:
-//   GET /api/health + actuator (health/info) + Swagger
-//   POST /api/admin/auth/login, /refresh — выдача и обновление токенов
+//   GET /api/health + actuator (health/info) + Swagger (в prod Swagger выключается профилем)
+//   POST /api/admin/auth/{login,refresh} — выдача/обновление admin-токенов
+//   POST /api/mobile/auth/{sms/request,sms/verify,register,refresh} — вход фармацевта
+//   /api/posm/** — касса (Module 2) аутентифицируется device-key, не JWT
 //
-// Защищённые JWT-токеном:
-//   всё остальное (admin / mobile-me / posm).
-//   Роли HQ_HEAD / CATEGORY_LEAD / BRAND_MANAGER / FINANCE_REVIEWER проверяются
-//   per-endpoint через @PreAuthorize (Этапы 3.2+).
+// Разграничение по authority (КРИТИЧНО — закрывает эскалацию pharmacist→admin):
+//   /api/admin/**  → только админ-роли (HQ_HEAD/CATEGORY_LEAD/BRAND_MANAGER/FINANCE_REVIEWER)
+//   /api/mobile/** → только ROLE_PHARMACIST
+//   /actuator/**   → только админ-роли (метрики/prometheus не наружу)
+// Тонкая сегрегация (напр. финансовый approve → FINANCE_REVIEWER) — через @PreAuthorize
+// (@EnableMethodSecurity включён ниже).
 @Configuration
+@EnableMethodSecurity
 class SecurityConfig(
     private val jwtAuthenticationFilter: JwtAuthenticationFilter,
     @Value("\${app.cors.allowed-origins:http://localhost:5173}") private val allowedOriginsRaw: String,
@@ -63,6 +69,12 @@ class SecurityConfig(
                         // (заголовок X-Posm-Key), проверяется в PosmController. JWT-фильтр пропускает.
                         "/api/posm/**",
                     ).permitAll()
+                    // Метрики/prometheus — только для админ-консоли, не наружу.
+                    .requestMatchers("/actuator/**").hasAnyRole(*ADMIN_ROLES)
+                    // HQ-консоль — строго админ-роли. Мобильный pharmacist-токен → 403.
+                    .requestMatchers("/api/admin/**").hasAnyRole(*ADMIN_ROLES)
+                    // Мобильное приложение — строго роль фармацевта. Admin-токен сюда → 403.
+                    .requestMatchers("/api/mobile/**").hasRole("PHARMACIST")
                     .anyRequest().authenticated()
             }
             // Неаутентифицированный запрос (нет/истёк/невалиден токен) → 401, НЕ 403.
@@ -91,5 +103,11 @@ class SecurityConfig(
         val source = UrlBasedCorsConfigurationSource()
         source.registerCorsConfiguration("/**", cfg)
         return source
+    }
+
+    companion object {
+        // Роли HQ-консоли (без префикса ROLE_ — Spring добавляет его сам в hasAnyRole).
+        // Должны соответствовать enum AdminRole и CHECK-constraint в V002__auth.sql.
+        private val ADMIN_ROLES = arrayOf("HQ_HEAD", "CATEGORY_LEAD", "BRAND_MANAGER", "FINANCE_REVIEWER")
     }
 }

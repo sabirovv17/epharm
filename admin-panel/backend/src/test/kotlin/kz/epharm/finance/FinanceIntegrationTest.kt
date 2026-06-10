@@ -140,7 +140,9 @@ class FinanceIntegrationTest {
                 email = "damir@jadran.com",
                 passwordHash = passwordEncoder.encode("damir2026"),
                 name = "Дамир", company = "Jadran",
-            ).also { it.role = AdminRole.BRAND_MANAGER; it.status = AdminUserStatus.ACTIVE },
+            // Выплаты теперь утверждает только финансовая роль (segregation of duties),
+            // поэтому тестовый админ — FINANCE_REVIEWER.
+            ).also { it.role = AdminRole.FINANCE_REVIEWER; it.status = AdminUserStatus.ACTIVE },
         )
         bearer = "Bearer " + login().tokens.accessToken
     }

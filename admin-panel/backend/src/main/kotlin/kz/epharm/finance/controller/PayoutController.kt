@@ -8,6 +8,7 @@ import kz.epharm.finance.service.PayoutService
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import org.springframework.http.HttpStatus
+import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -30,6 +31,9 @@ class PayoutController(private val payoutService: PayoutService) {
     @GetMapping("/{id}/items")
     fun items(@PathVariable id: String): List<PayoutItemDto> = payoutService.listItems(id)
 
+    // Сегрегация обязанностей: выплаты утверждает только финансовый ревьюер
+    // (или HQ-руководитель). Brand/Category-роли деньги двигать не могут.
+    @PreAuthorize("hasAnyRole('FINANCE_REVIEWER','HQ_HEAD')")
     @PostMapping("/{id}/approve")
     fun approve(
         @PathVariable id: String,
@@ -44,6 +48,7 @@ class PayoutController(private val payoutService: PayoutService) {
      * Сформировать батч выплат вручную: собрать накопленные бонусы фармацевтов в payout_batch.
      * Тот же механизм, что и cron 1-го числа. period опционален (по умолчанию — текущий месяц).
      */
+    @PreAuthorize("hasAnyRole('FINANCE_REVIEWER','HQ_HEAD')")
     @PostMapping("/generate")
     fun generate(
         @RequestParam(required = false) period: String?,

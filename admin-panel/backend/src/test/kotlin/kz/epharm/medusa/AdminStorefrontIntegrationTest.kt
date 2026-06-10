@@ -96,8 +96,10 @@ class AdminStorefrontIntegrationTest {
     }
 
     @Test
-    fun `витрина по токену фармацевта → 401 (admin-only)`() {
+    fun `витрина по токену фармацевта → 403 (admin-only)`() {
+        // Аутентифицирован, но роль PHARMACIST не имеет доступа к /api/admin/** →
+        // 403 Forbidden (а не 401 — это не «не залогинен»). Закрывает эскалацию привилегий.
         mockMvc.perform(get("/api/admin/storefront/products").header("Authorization", pharmacistToken))
-            .andExpect(status().isUnauthorized)
+            .andExpect(status().isForbidden)
     }
 }
