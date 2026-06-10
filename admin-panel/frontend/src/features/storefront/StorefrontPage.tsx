@@ -127,7 +127,7 @@ export default function StorefrontPage() {
         {(canPrev || canNext) && (
           <div className="hairline flex items-center justify-between border-t px-5 py-3 text-[12px]">
             <Button
-              variant="secondary"
+              variant="outline"
               disabled={!canPrev || isFetching}
               onClick={() => setPage((p) => Math.max(0, p - 1))}
             >
@@ -135,7 +135,7 @@ export default function StorefrontPage() {
             </Button>
             <span className="font-semibold text-ink-500">{t('sf.page', { n: page + 1 })}</span>
             <Button
-              variant="secondary"
+              variant="outline"
               disabled={!canNext || isFetching}
               onClick={() => setPage((p) => p + 1)}
             >

@@ -26,5 +26,15 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Прод-сборка (`tsc -b && vite build`) НЕ тайпчекит тесты — их типы и запуск
+  // на vitest (esbuild). Иначе тип-ошибка в тест-фикстуре блокирует прод-образ.
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/**/*.spec.ts",
+    "src/**/*.spec.tsx",
+    "src/test/**",
+    "e2e/**"
+  ]
 }

@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { BrowserRouter } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { AppRouter } from './router'
+import { ErrorBoundary } from './ErrorBoundary'
 import { useUiStore } from './store'
 import { queryClient } from './queryClient'
 
@@ -22,7 +23,9 @@ export function App() {
           v7_relativeSplatPath: true,
         }}
       >
-        <AppRouter />
+        <ErrorBoundary>
+          <AppRouter />
+        </ErrorBoundary>
       </BrowserRouter>
     </QueryClientProvider>
   )
