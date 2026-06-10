@@ -179,6 +179,90 @@ class _HomeTab extends ConsumerWidget {
           ),
         ),
 
+        // 3.5) Вход в реальный каталог товаров (витрина inkar.kz через
+        // бэкенд-прокси Medusa). Отдельно от промо-акций выше — это полный
+        // каталог аптечных товаров с поиском.
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenEdge,
+              0,
+              AppSpacing.screenEdge,
+              AppSpacing.s16,
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: AppRadii.brXl,
+                boxShadow: AppShadows.card,
+              ),
+              child: Material(
+                color: Colors.transparent,
+                borderRadius: AppRadii.brXl,
+                child: InkWell(
+                  borderRadius: AppRadii.brXl,
+                  onTap: () => context.push('/catalog'),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: AppColors.brandGreen600,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.storefront_outlined,
+                            size: 22,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Каталог товаров',
+                                style: TextStyle(
+                                  fontFamily: 'Manrope',
+                                  fontFamilyFallback: ['Roboto', 'sans-serif'],
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.ink900,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Поиск по реальному каталогу аптек',
+                                style: TextStyle(
+                                  fontFamily: 'Manrope',
+                                  fontFamilyFallback: ['Roboto', 'sans-serif'],
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.ink500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          color: AppColors.ink400,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+
         // 4) Filter row.
         SliverToBoxAdapter(
           child: SizedBox(

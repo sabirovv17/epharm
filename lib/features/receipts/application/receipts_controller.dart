@@ -2,10 +2,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/api_config.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/validation/card.dart';
 import '../../home/data/home_repository.dart';
+import '../data/api_pharmacy_repository.dart';
 import '../data/api_receipt_repository.dart';
+import '../data/mock_pharmacy_repository.dart';
 import '../data/mock_receipt_repository.dart';
 import '../data/nearby_pharmacies.dart';
+import '../data/pharmacy_repository.dart';
 import '../data/receipt_repository.dart';
 
 /// Выбор реализации: реальный backend при USE_API=true, иначе mock (офлайн-демо).
@@ -16,6 +20,19 @@ final receiptRepositoryProvider = Provider<ReceiptRepository>((ref) {
   }
   return MockReceiptRepository();
 });
+
+/// Источник аптек для AddressSheet: реальный реестр при USE_API=true, иначе mock.
+final pharmacyRepositoryProvider = Provider<PharmacyRepository>((ref) {
+  if (ApiConfig.useApi) {
+    return ApiPharmacyRepository(ref.read(apiClientProvider));
+  }
+  return MockPharmacyRepository();
+});
+
+/// Список аптек (загружается один раз; поиск в AddressSheet — client-side по нему).
+final pharmacyListProvider = FutureProvider<List<NearbyPharmacy>>(
+  (ref) => ref.read(pharmacyRepositoryProvider).list(),
+);
 
 /// Список чеков фармацевта. Использует `StreamProvider` чтобы автоматически
 /// перезаливать список при `repository.addReceipt(...)`.
@@ -55,8 +72,9 @@ class ReceiptDraft {
 
   bool get hasPromos => promos.isNotEmpty;
   bool get hasPharmacy => pharmacy != null;
-  bool get hasCard =>
-      card != null && card!.replaceAll(' ', '').length == 16;
+
+  /// Карта привязана И проходит алгоритм Луна (та же проверка, что в CardSheet).
+  bool get hasCard => isValidCardNumber(card);
 
   /// Все три пункта чек-листа заполнены — кнопка «Продолжить» активна.
   bool get isComplete => hasPromos && hasPharmacy && hasCard;

@@ -41,18 +41,19 @@ class _AddressSheetState extends ConsumerState<_AddressSheet> {
     super.dispose();
   }
 
-  List<NearbyPharmacy> get _filtered {
-    if (_q.isEmpty) return nearbyPharmacies;
+  List<NearbyPharmacy> _applyFilter(List<NearbyPharmacy> source) {
+    if (_q.isEmpty) return source;
     final lower = _q.toLowerCase();
-    return nearbyPharmacies
+    return source
         .where((p) =>
-            (p.name + p.addr).toLowerCase().contains(lower))
+            (p.name + p.addr + p.chain).toLowerCase().contains(lower))
         .toList();
   }
 
   @override
   Widget build(BuildContext context) {
     final current = ref.watch(receiptDraftProvider).pharmacy;
+    final pharmaciesAsync = ref.watch(pharmacyListProvider);
     return DraggableScrollableSheet(
       initialChildSize: 0.78,
       maxChildSize: 0.95,
@@ -122,35 +123,140 @@ class _AddressSheetState extends ConsumerState<_AddressSheet> {
             Padding(
               padding: const EdgeInsets.symmetric(
                   horizontal: AppSpacing.screenEdge),
-              child: _GeolocationBanner(count: nearbyPharmacies.length),
+              child: _GeolocationBanner(
+                count: pharmaciesAsync.valueOrNull?.length ?? 0,
+              ),
             ),
             const SizedBox(height: 12),
             Expanded(
-              child: ListView.separated(
-                controller: scrollCtrl,
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.screenEdge,
-                  0,
-                  AppSpacing.screenEdge,
-                  AppSpacing.s24,
+              child: pharmaciesAsync.when(
+                loading: () => ListView(
+                  controller: scrollCtrl,
+                  children: const [
+                    SizedBox(height: 80),
+                    Center(child: CircularProgressIndicator()),
+                  ],
                 ),
-                itemCount: _filtered.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (_, i) => _PharmacyRow(
-                  pharmacy: _filtered[i],
-                  selected: current?.id == _filtered[i].id,
-                  onTap: () {
-                    ref
-                        .read(receiptDraftProvider.notifier)
-                        .setPharmacy(_filtered[i]);
-                    Navigator.of(context).pop();
-                  },
+                error: (_, __) => ListView(
+                  controller: scrollCtrl,
+                  padding: const EdgeInsets.all(AppSpacing.screenEdge),
+                  children: [
+                    const SizedBox(height: 40),
+                    _AddressHint(
+                      icon: Icons.wifi_off_rounded,
+                      title: 'Не удалось загрузить аптеки',
+                      subtitle: 'Проверьте соединение и попробуйте ещё раз',
+                      onRetry: () => ref.invalidate(pharmacyListProvider),
+                    ),
+                  ],
                 ),
+                data: (all) {
+                  final items = _applyFilter(all);
+                  if (items.isEmpty) {
+                    return ListView(
+                      controller: scrollCtrl,
+                      padding: const EdgeInsets.all(AppSpacing.screenEdge),
+                      children: const [
+                        SizedBox(height: 40),
+                        _AddressHint(
+                          icon: Icons.search_off_rounded,
+                          title: 'Аптеки не найдены',
+                          subtitle: 'Измените запрос поиска',
+                        ),
+                      ],
+                    );
+                  }
+                  return ListView.separated(
+                    controller: scrollCtrl,
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.screenEdge,
+                      0,
+                      AppSpacing.screenEdge,
+                      AppSpacing.s24,
+                    ),
+                    itemCount: items.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (_, i) => _PharmacyRow(
+                      pharmacy: items[i],
+                      selected: current?.id == items[i].id,
+                      onTap: () {
+                        ref
+                            .read(receiptDraftProvider.notifier)
+                            .setPharmacy(items[i]);
+                        Navigator.of(context).pop();
+                      },
+                    ),
+                  );
+                },
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Заглушка для пустого/ошибочного состояния списка аптек.
+class _AddressHint extends StatelessWidget {
+  const _AddressHint({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.onRetry,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Icon(icon, size: 40, color: AppColors.ink300),
+        const SizedBox(height: 12),
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontFamily: 'Manrope',
+            fontFamilyFallback: ['Roboto', 'sans-serif'],
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            color: AppColors.ink900,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontFamily: 'Manrope',
+            fontFamilyFallback: ['Roboto', 'sans-serif'],
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: AppColors.ink500,
+          ),
+        ),
+        if (onRetry != null) ...[
+          const SizedBox(height: 16),
+          TextButton(
+            onPressed: onRetry,
+            child: const Text(
+              'Повторить',
+              style: TextStyle(
+                fontFamily: 'Manrope',
+                fontFamilyFallback: ['Roboto', 'sans-serif'],
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: AppColors.brandGreen700,
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -204,7 +310,7 @@ class _GeolocationBanner extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Алматы · найдено $count аптек поблизости',
+                  'Найдено аптек в реестре: $count',
                   style: TextStyle(
                     fontFamily: 'Manrope',
                     fontFamilyFallback: const ['Roboto', 'sans-serif'],

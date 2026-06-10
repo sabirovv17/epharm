@@ -5,6 +5,7 @@ import '../../features/auth/application/auth_controller.dart';
 import '../../features/auth/presentation/otp_screen.dart';
 import '../../features/auth/presentation/phone_screen.dart';
 import '../../features/auth/presentation/profile_form_screen.dart';
+import '../../features/catalog/presentation/catalog_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/profile_pages/presentation/cooperation_screen.dart';
 import '../../features/profile_pages/presentation/faq_screen.dart';
@@ -46,6 +47,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/home',
         builder: (_, __) => const HomeScreen(),
+      ),
+      // Реальный каталог товаров (витрина inkar.kz через бэкенд-прокси Medusa).
+      GoRoute(
+        path: '/catalog',
+        builder: (_, __) => const CatalogScreen(),
       ),
       // Profile sub-pages (помощь / о приложении).
       GoRoute(

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 /// Аптека «поблизости» — для AddressSheet (pharmacy picker).
-/// Источник: `_reference/recipe/review.jsx` → `NEARBY_PHARMACIES`.
+/// Источник дизайна: `_reference/recipe/review.jsx` → `NEARBY_PHARMACIES`.
 ///
-/// В реале будет геолокация + запрос `GET /pharmacies/nearby?lat=&lng=`. Сейчас
-/// возвращаем фиксированный список из 8 аптек Алматы.
+/// При USE_API=true список приходит из нашего реестра аптек
+/// (`GET /api/mobile/pharmacies`) — реальные адреса. В офлайн-режиме (mock) —
+/// фиксированный список аптек Алматы ниже. Геолокации/дистанции в реестре нет:
+/// для API-аптек в слот [distance] кладём район (или город), а не «120 м».
 class NearbyPharmacy {
   const NearbyPharmacy({
     required this.id,
@@ -16,6 +18,22 @@ class NearbyPharmacy {
     required this.color,
   });
 
+  /// Маппинг из MobilePharmacyDto бэкенда (id,name,chain,chainColor,city,district,addr).
+  factory NearbyPharmacy.fromApi(Map<String, dynamic> json) {
+    final district = (json['district'] as String?)?.trim() ?? '';
+    final city = (json['city'] as String?) ?? '';
+    return NearbyPharmacy(
+      id: (json['id'] as String?) ?? '',
+      chain: (json['chain'] as String?) ?? '',
+      name: (json['name'] as String?) ?? '',
+      addr: (json['addr'] as String?) ?? '',
+      city: city,
+      // GPS-дистанции нет → показываем район, иначе город.
+      distance: district.isNotEmpty ? district : city,
+      color: _parseHexColor(json['chainColor'] as String?),
+    );
+  }
+
   final String id;
   final String chain;
   final String name;
@@ -23,6 +41,16 @@ class NearbyPharmacy {
   final String city;
   final String distance;
   final Color color;
+}
+
+/// «#16C97A» → Color. Пустое/битое значение → фирменный зелёный.
+Color _parseHexColor(String? hex) {
+  const fallback = Color(0xFF16C97A);
+  if (hex == null) return fallback;
+  final cleaned = hex.replaceAll('#', '').trim();
+  if (cleaned.length != 6) return fallback;
+  final value = int.tryParse('FF$cleaned', radix: 16);
+  return value == null ? fallback : Color(value);
 }
 
 /// Mock-данные для AddressSheet. Цвета — для leading-tile chain-маркера в

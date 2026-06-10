@@ -5,6 +5,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/validation/card.dart';
 import '../application/receipts_controller.dart';
 
 /// Bonus-card capture sheet. Превью карты + 3×4 цифровая клавиатура.
@@ -58,10 +59,17 @@ class _CardSheetState extends ConsumerState<_CardSheet> {
     return buf.toString();
   }
 
+  /// Все 16 слотов заполнены (для счётчика n/16).
   bool get _ready => _digits.length == 16;
 
+  /// Заполнено И проходит алгоритм Луна — только тогда разрешаем привязку.
+  bool get _valid => _ready && isValidCardNumber(_digits);
+
+  /// 16 цифр набрано, но контрольная сумма не сошлась → подсветить ошибку.
+  bool get _showError => _ready && !_valid;
+
   void _submit() {
-    if (!_ready) return;
+    if (!_valid) return;
     ref.read(receiptDraftProvider.notifier).setCard(_formatted);
     Navigator.of(context).pop();
   }
@@ -132,13 +140,20 @@ class _CardSheetState extends ConsumerState<_CardSheet> {
                 Padding(
                   padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.screenEdge),
-                  child: _CardPreview(digits: _digits),
+                  child: _CardPreview(
+                    digits: _digits,
+                    brand: detectCardBrand(_digits),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 Padding(
                   padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.screenEdge),
-                  child: _NumberField(digits: _digits, formatted: _formatted),
+                  child: _NumberField(
+                    digits: _digits,
+                    formatted: _formatted,
+                    error: _showError,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 Padding(
@@ -153,7 +168,7 @@ class _CardSheetState extends ConsumerState<_CardSheet> {
                 Padding(
                   padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.screenEdge),
-                  child: _BindCta(ready: _ready, onTap: _submit),
+                  child: _BindCta(ready: _valid, onTap: _submit),
                 ),
                 const SizedBox(height: 24),
               ],
@@ -166,13 +181,17 @@ class _CardSheetState extends ConsumerState<_CardSheet> {
 }
 
 class _CardPreview extends StatelessWidget {
-  const _CardPreview({required this.digits});
+  const _CardPreview({required this.digits, required this.brand});
   final String digits;
+  final CardBrand brand;
 
   @override
   Widget build(BuildContext context) {
     // 16 placeholders «•», заменяем введёнными цифрами
     final padded = (digits + '•' * 16).substring(0, 16);
+    // Определённый бренд показываем явно, иначе — общий список поддерживаемых.
+    final brandLabel =
+        brand == CardBrand.unknown ? 'VISA · KASPI · HALYK' : cardBrandLabel(brand);
     final g1 = padded.substring(0, 4);
     final g2 = padded.substring(4, 8);
     final g3 = padded.substring(8, 12);
@@ -286,7 +305,7 @@ class _CardPreview extends StatelessWidget {
                 ),
               ),
               Text(
-                'VISA / KASPIGOLD / HALYK',
+                brandLabel,
                 style: TextStyle(
                   fontFamily: 'Manrope',
                   fontFamilyFallback: const ['Roboto', 'sans-serif'],
@@ -327,9 +346,16 @@ class _CardDigitGroup extends StatelessWidget {
 }
 
 class _NumberField extends StatelessWidget {
-  const _NumberField({required this.digits, required this.formatted});
+  const _NumberField({
+    required this.digits,
+    required this.formatted,
+    required this.error,
+  });
   final String digits;
   final String formatted;
+  final bool error;
+
+  static const Color _danger = Color(0xFFE5484D);
 
   @override
   Widget build(BuildContext context) {
@@ -338,11 +364,13 @@ class _NumberField extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.paperInput,
         borderRadius: AppRadii.brXl,
+        border: error ? Border.all(color: _danger, width: 1.5) : null,
       ),
       child: Row(
         children: [
-          const Icon(Icons.credit_card_outlined,
-              size: 22, color: AppColors.brandGreen700),
+          Icon(Icons.credit_card_outlined,
+              size: 22,
+              color: error ? _danger : AppColors.brandGreen700),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -389,18 +417,31 @@ class _NumberField extends StatelessWidget {
                           ),
                         ),
                 ),
+                if (error) ...[
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Проверьте номер карты',
+                    style: TextStyle(
+                      fontFamily: 'Manrope',
+                      fontFamilyFallback: ['Roboto', 'sans-serif'],
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: _danger,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
           Text(
             '${digits.length}/16',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: 'Manrope',
-              fontFamilyFallback: ['Roboto', 'sans-serif'],
+              fontFamilyFallback: const ['Roboto', 'sans-serif'],
               fontSize: 12,
               fontWeight: FontWeight.w800,
-              color: AppColors.ink400,
-              fontFeatures: [FontFeature.tabularFigures()],
+              color: error ? _danger : AppColors.ink400,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
         ],
