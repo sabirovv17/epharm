@@ -55,10 +55,6 @@
 	<!-- Photo library — для загрузки чеков из галереи. -->
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Epharm использует доступ к фото для загрузки изображений чеков из вашей галереи.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Epharm сохраняет копию отправленного чека в галерею.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Микрофон используется при видеосъёмке чеков (опционально).</string>
 	<!-- Прод-безопасно: HTTPS по умолчанию (https://api.epharm.kz). Исключение —
 	     http только к localhost (iOS-симулятор против локального dev-бэка). Произвольный
 	     plain-HTTP запрещён. -->

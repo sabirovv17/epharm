@@ -8,7 +8,11 @@ export PATH="$HOME/development/flutter/bin:$PATH"
 cd "$(dirname "$0")/.."
 
 VERSION=$(grep "^version:" pubspec.yaml | awk '{print $2}' | sed 's/+.*//')
-echo "▶ Building Epharm v${VERSION}"
+
+# Прод-таргет по умолчанию. Переопредели для стейджа: API_BASE=https://stage.api.epharm.kz ./build_all.sh
+API_BASE="${API_BASE:-https://api.epharm.kz}"
+DART_DEFINES="--dart-define=USE_API=true --dart-define=API_BASE=${API_BASE}"
+echo "▶ Building Epharm v${VERSION}  (API_BASE=${API_BASE})"
 
 # Воссоздать codesign shim (после reboot Mac /tmp обнуляется → shim пропадает,
 # и Flutter не может подписать Flutter.framework для simulator/iCloud-папки).
@@ -25,7 +29,7 @@ flutter pub get
 
 # ─── Android APK release (универсальный, все архитектуры) ──────────────────
 echo "▶ flutter build apk --release"
-flutter build apk --release
+flutter build apk --release $DART_DEFINES
 cp build/app/outputs/flutter-apk/app-release.apk \
    "builds/Epharm-v${VERSION}-release.apk"
 
@@ -33,7 +37,7 @@ cp build/app/outputs/flutter-apk/app-release.apk \
 # Для подписанной IPA нужен платный Apple Developer аккаунт + provisioning
 # profile; если он есть — запусти `flutter build ipa --release` вручную.
 echo "▶ flutter build ios --release --no-codesign"
-flutter build ios --release --no-codesign
+flutter build ios --release --no-codesign $DART_DEFINES
 ( cd build/ios/iphoneos && zip -qr \
     "../../../builds/Epharm-v${VERSION}-Runner.app.zip" Runner.app )
 

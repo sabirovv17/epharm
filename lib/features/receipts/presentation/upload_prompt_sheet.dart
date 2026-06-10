@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_gradients.dart';
 import '../../../core/theme/app_shadows.dart';
+import '../../../core/widgets/error_snackbar.dart';
 import '../application/receipts_controller.dart';
 import 'camera_screen.dart';
 import 'receipt_review_screen.dart';
@@ -28,39 +29,55 @@ class _UploadPromptSheet extends ConsumerWidget {
   const _UploadPromptSheet();
 
   Future<void> _takePhoto(BuildContext context, WidgetRef ref) async {
-    // Захватываем Navigator и notifier ДО попа — после закрытия шита
-    // и context, и ref становятся невалидными (виджет размонтируется).
+    // Захватываем Navigator/Messenger/notifier ДО попа — после закрытия шита
+    // context и ref становятся невалидными (виджет размонтируется).
     final nav = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
     final notifier = ref.read(receiptDraftProvider.notifier);
     nav.pop();
-    final path = await nav.push<String?>(
-      MaterialPageRoute(builder: (_) => const CameraScreen()),
-    );
-    if (path == null) return;
-    notifier.setPhoto(path);
-    await nav.push(
-      MaterialPageRoute(builder: (_) => const ReceiptReviewScreen()),
-    );
+    try {
+      final path = await nav.push<String?>(
+        MaterialPageRoute(builder: (_) => const CameraScreen()),
+      );
+      if (path == null) return;
+      notifier.setPhoto(path);
+      await nav.push(
+        MaterialPageRoute(builder: (_) => const ReceiptReviewScreen()),
+      );
+    } catch (e) {
+      // Камера недоступна / отказ в доступе — показываем ошибку, а не молчим.
+      messenger
+        ..clearSnackBars()
+        ..showSnackBar(buildErrorSnackBar(e));
+    }
   }
 
   Future<void> _pickFromGallery(BuildContext context, WidgetRef ref) async {
-    // Захватываем Navigator и notifier ДО попа — после закрытия шита
-    // и context, и ref становятся невалидными (виджет размонтируется,
+    // Захватываем Navigator/Messenger/notifier ДО попа — после закрытия шита
+    // context и ref становятся невалидными (виджет размонтируется,
     // пока пользователь выбирает фото в системной галерее).
     final nav = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
     final notifier = ref.read(receiptDraftProvider.notifier);
     nav.pop();
-    final picker = ImagePicker();
-    final file = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 2000,
-      imageQuality: 85,
-    );
-    if (file == null) return;
-    notifier.setPhoto(file.path);
-    await nav.push(
-      MaterialPageRoute(builder: (_) => const ReceiptReviewScreen()),
-    );
+    try {
+      final picker = ImagePicker();
+      final file = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 2000,
+        imageQuality: 85,
+      );
+      if (file == null) return;
+      notifier.setPhoto(file.path);
+      await nav.push(
+        MaterialPageRoute(builder: (_) => const ReceiptReviewScreen()),
+      );
+    } catch (e) {
+      // Галерея недоступна / отказ в доступе — показываем ошибку.
+      messenger
+        ..clearSnackBars()
+        ..showSnackBar(buildErrorSnackBar(e));
+    }
   }
 
   @override

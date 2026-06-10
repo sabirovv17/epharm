@@ -24,10 +24,24 @@ class VideoInstructionCard extends StatelessWidget {
   final String bonusBadge;
   final String bonusValue;
 
-  Future<void> _open() async {
-    final uri = Uri.parse(youtubeUrl);
-    // externalApplication → пытается открыть YouTube-app, потом браузер.
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  Future<void> _open(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final uri = Uri.parse(youtubeUrl);
+      // externalApplication → пытается открыть YouTube-app, потом браузер.
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok) throw Exception('launchUrl returned false');
+    } catch (_) {
+      // Нет приложения/браузера или битый URL — не падаем молча.
+      messenger
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Не удалось открыть видео. Попробуйте позже.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    }
   }
 
   @override
@@ -54,7 +68,7 @@ class VideoInstructionCard extends StatelessWidget {
           color: Colors.transparent,
           borderRadius: BorderRadius.circular(20),
           child: InkWell(
-            onTap: _open,
+            onTap: () => _open(context),
             borderRadius: BorderRadius.circular(20),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(20),
