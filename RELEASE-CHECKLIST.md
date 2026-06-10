@@ -6,6 +6,21 @@
 > Обновлено: 2026-06-10. Источник правды по решениям — `admin-panel/claude-admin-notes.md`,
 > `claude-notes.md`, `RUNBOOK.md`.
 
+### ✅ Закрыто в проходе release-hardening (2026-06-10)
+
+- **Реальные аптеки** — реестр заполнен 522 реальными аптеками витрины inkar.kz (Medusa
+  `stock_locations`, выгружены в `seed/pharmacies.json`, грузит `RealPharmacySeeder` в dev+prod).
+  Видны и в админке («Сеть аптек»), и в мобилке (выбор аптеки при чеке). Демо-генерация убрана.
+- **Мобилка по умолчанию на реальных данных** — `ApiConfig.useApi=true` (моки только под
+  `--dart-define=USE_API=false`).
+- **P0-2 cleartext** — закрыт: Android `network_security_config` (cleartext только для dev-хостов),
+  iOS ATS без `NSAllowsArbitraryLoads` (исключение только localhost). Прод — строго HTTPS.
+- **P0-3 persist токенов** — закрыт: `flutter_secure_storage` + восстановление сессии на старте;
+  logout чистит токены.
+- **P0-1 SMS** — осознанно ОТЛОЖЕН (решение пользователя): оставлен dev-OTP `544544`
+  (`OTP_DEV_MODE=true`). Сделать `MobizonSmsSender` позже.
+- Осталось из P0: ротация секретов (#4), прод-секреты `.env.prod` (#5).
+
 ---
 
 ## 0. Что входит в релиз (определить scope!)

@@ -457,3 +457,18 @@ End-to-end: CTA → UploadPromptSheet → CameraScreen / Gallery → ReceiptRevi
   «Привязать карту» только при валидном номере, инлайн-ошибка контрольной суммы, лейбл бренда на превью.
   `ReceiptDraft.hasCard` тоже через `isValidCardNumber`.
 - Тесты: `card_test`, `catalog_test`, `pharmacy_repository_test`. `flutter analyze` чист, 46 тестов зелёные.
+
+## 2026-06-10 — Release-hardening: реальные данные по умолчанию
+
+- **`ApiConfig.useApi` теперь `true` по умолчанию** — приложение работает на реальном бэкенде.
+  Офлайн-моки только под `--dart-define=USE_API=false`. Каталог/аптеки/чеки/профиль — реальные.
+- **Persist токенов**: `flutter_secure_storage` (Keychain/EncryptedSharedPreferences). `TokenStore` —
+  in-memory кэш (синхронный для ApiClient) + write-through на диск; `load()` на старте; ошибки
+  секьюр-хранилища (unit-тесты без плагина) безопасно глотаются. `main()` восстанавливает сессию:
+  load токенов → `refreshMe()` (/me) → пользователь сразу на Home. `logout()` чистит токены.
+- **Cleartext/ATS — прод-безопасно**: Android `res/xml/network_security_config.xml` (http только для
+  10.0.2.2/localhost/127.0.0.1, иначе HTTPS); iOS Info.plist — без `NSAllowsArbitraryLoads`, http-
+  исключение только для localhost. Релизная сборка идёт на `https://api.epharm.kz`.
+- **Реальные аптеки**: список приходит из бэкенда (`/api/mobile/pharmacies`) — 522 реальных аптеки
+  витрины inkar.kz. Хардкод 8 аптек остался только как mock-фолбэк (USE_API=false).
+- Тесты: 46 зелёные, analyze чист (после flutter pub add flutter_secure_storage).

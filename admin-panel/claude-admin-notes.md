@@ -2955,3 +2955,17 @@ root-пароль сервера → SSH-ключи; сменить admin-пар
 - **Готовность к релизу — `RELEASE-CHECKLIST.md`** (корень): P0-блокеры (SMS-провайдер вместо
   `LoggingSmsSender`; cleartext-флаги мобилки; persist токенов; ротация секретов), P1/P2, и рекомендация
   по scope (бонусы требуют POSM-касс — иначе ручная модерация). Локальный запуск всего — `RUNBOOK.md` §8–9.
+
+### Реальный реестр аптек (523 → 522) из Medusa (2026-06-10, release-hardening)
+
+- Аптеки в Medusa лежат как `stock_locations` (kind=pharmacy) — БЕЗ структурированного адреса:
+  всё в `name` («JNK-фарм г.Алматы Толе Би 40»). Через **admin API** (store-ключ их не отдаёт).
+- Однократно выгрузил все pharmacy-локации (Medusa Admin API, с разрешения пользователя) в
+  `backend/src/main/resources/seed/pharmacies.json` (522 после фильтра мусора). Парсинг: город —
+  regex по «г.», сеть — префикс (иначе «Inkar»), адрес — остаток.
+- `RealPharmacySeeder.seed()` (идемпотентно, count>0→skip) грузит JSON: зонтичная сеть `inkar` +
+  522 аптеки (реальный chainName, city, addr; group=rolled). Вызывается из `PharmacyImporter`
+  (`@Profile("!test")`, prod+dev), `DevDataSeeder` (демо-генерация аптек/сетей убрана) и dev-reset.
+  Тесты не задеты (test-профиль не сидит). Live: reset → `pharmacies: 523`→522, видны в админке/мобилке.
+- ⚠️ Medusa admin-креды НЕ хранятся в коде (one-time выгрузка → JSON). Анти-фрод `wrong_pharmacy`
+  теперь сверяет с реальными ph-id (sloc\_…).
