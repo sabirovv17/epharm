@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -15,7 +16,13 @@ import '../../features/profile_pages/presentation/terms_screen.dart';
 import '../../features/welcome/presentation/welcome_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
+  // Перерисовка роутера при смене пользователя: восстановление сессии идёт в фоне
+  // (см. main.dart) — когда currentUser появится, redirect перебросит welcome → home.
+  final authRefresh = ValueNotifier<int>(0);
+  ref.listen(currentUserProvider, (_, __) => authRefresh.value++);
+  ref.onDispose(authRefresh.dispose);
   return GoRouter(
+    refreshListenable: authRefresh,
     initialLocation: '/welcome',
     redirect: (context, state) {
       // /home доступен всем — авторизация добровольная.

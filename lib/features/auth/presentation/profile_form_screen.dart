@@ -11,6 +11,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/validation/iin.dart';
 import '../../../core/widgets/brand_icons.dart';
+import '../../../core/widgets/error_snackbar.dart';
 import '../../../core/widgets/pharma_logo.dart';
 import '../application/auth_controller.dart';
 
@@ -50,6 +51,9 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
             iin: _iinCtrl.text,
           );
       if (mounted) context.go('/home');
+    } catch (e) {
+      // Сеть/бэкенд недоступны или ИИН отклонён бэком — показываем ошибку.
+      if (mounted) showErrorSnackBar(context, e);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

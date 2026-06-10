@@ -11,6 +11,7 @@ import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/brand_icons.dart';
+import '../../../core/widgets/error_snackbar.dart';
 import '../../../core/widgets/pharma_logo.dart';
 import '../application/auth_controller.dart';
 
@@ -52,6 +53,10 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
     try {
       await ref.read(authActionsProvider).sendOtp(full);
       if (mounted) context.go('/auth/otp');
+    } catch (e) {
+      // Сеть/бэкенд недоступны или номер отклонён — показываем понятную
+      // ошибку, а не «глотаем» её (иначе кнопка «Войти» молча ничего не делает).
+      if (mounted) showErrorSnackBar(context, e);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

@@ -43,6 +43,10 @@
 	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<!-- Белый экран на физическом iPhone (iOS 26): Impeller иногда отдаёт пустой кадр
+	     без ошибок. Принудительно используем Skia — стабильный рендер. -->
+	<key>FLTEnableImpeller</key>
+	<false/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<!-- Camera access — для съёмки чеков (Этап 3 Receipts). -->
@@ -60,6 +64,10 @@
 	     plain-HTTP запрещён. -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
+		<!-- DEV: http к бэкенду в локальной сети (физический iPhone → IP мака). Прод —
+		     публичный HTTPS (api.epharm.kz), его это не касается. -->
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
 		<key>NSExceptionDomains</key>
 		<dict>
 			<key>localhost</key>

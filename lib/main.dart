@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,26 +9,44 @@ import 'core/config/api_config.dart';
 import 'core/network/token_store.dart';
 import 'features/profile/application/profile_controller.dart';
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+void main() {
+  // Глобальный перехват необработанных ошибок (async/zone). Логируем —
+  // НЕ подменяя UI: отдельные экраны показывают свои ошибки сами (snackbar/inline).
+  // TODO(P1): отправлять в Sentry.
+  runZonedGuarded(_bootstrap, (error, stack) {
+    debugPrint('Необработанная ошибка: $error\n$stack');
+  });
+}
 
-  // Один контейнер на всё приложение — чтобы восстановить сессию ДО первого кадра
-  // (роутер синхронно читает currentUserProvider для редиректа).
+void _bootstrap() {
+  WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+
+  // Ошибки фреймворка (build/layout/paint) — в консоль (в release не валят приложение).
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    debugPrint('FlutterError: ${details.exceptionAsString()}');
+  };
+
   final container = ProviderContainer();
-  await _restoreSession(container);
+  unawaited(_restoreSession(container));
 
   runApp(UncontrolledProviderScope(container: container, child: const PharmacyApp()));
 }
 
-/// Восстановление сессии при запуске: если в защищённом хранилище есть токены —
-/// тянем профиль (`/api/mobile/me`) и логиним пользователя (он попадёт сразу на Home).
-/// Протухшие токены (refresh не прошёл) → fetchMe бросит ошибку → пользователь
-/// останется null (экран приветствия), токены очищены в ApiClient.
+/// Восстановление сессии в фоне: если в защищённом хранилище есть токены — тянем
+/// профиль (`/api/mobile/me`) и логиним пользователя. Ошибки/зависания не блокируют UI.
 Future<void> _restoreSession(ProviderContainer container) async {
   if (!ApiConfig.useApi) return;
-  final tokenStore = container.read(tokenStoreProvider);
-  await tokenStore.load();
-  if (!tokenStore.hasTokens) return;
-  await container.read(profileActionsProvider).refreshMe();
+  try {
+    final tokenStore = container.read(tokenStoreProvider);
+    await tokenStore.load().timeout(const Duration(seconds: 3));
+    if (!tokenStore.hasTokens) return;
+    await container
+        .read(profileActionsProvider)
+        .refreshMe()
+        .timeout(const Duration(seconds: 6));
+  } catch (_) {
+    // Хранилище/сеть недоступны — остаёмся на экране приветствия.
+  }
 }
