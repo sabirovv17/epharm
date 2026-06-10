@@ -109,6 +109,12 @@ services:
       # ВАЖНО для прода: выключить dev-OTP (иначе код входа всегда 544544).
       OTP_DEV_MODE: ${OTP_DEV_MODE:-false}
       POSM_DEVICE_KEY: ${POSM_DEVICE_KEY:?set POSM_DEVICE_KEY in .env.prod}
+      # Bootstrap первого admin-аккаунта HQ-консоли (ProdBootstrap, profile=prod).
+      # Без них admin_users пуста → в консоль не войти.
+      ADMIN_BOOTSTRAP_EMAIL: ${ADMIN_BOOTSTRAP_EMAIL:?set ADMIN_BOOTSTRAP_EMAIL in .env.prod}
+      ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:?set ADMIN_BOOTSTRAP_PASSWORD in .env.prod}
+      ADMIN_BOOTSTRAP_NAME: ${ADMIN_BOOTSTRAP_NAME:-HQ Admin}
+      ADMIN_BOOTSTRAP_COMPANY: ${ADMIN_BOOTSTRAP_COMPANY:-Inkar}
       # Внешняя витрина inkar.kz (Medusa, Module 3) — источник реального каталога.
       # Бэкенд проксирует /store/* в /api/mobile/catalog/*. Значения по умолчанию заданы
       # в application.yml; здесь только переопределяем под прод (если витрина переедет на
