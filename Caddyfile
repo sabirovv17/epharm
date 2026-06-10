@@ -24,8 +24,10 @@
 # маршрутизирует 10.10/16 → админ на VPN открывает админку БЕЗ публичного DNS.
 # Plain HTTP: трафик уже в зашифрованном VPN-туннеле, а Let's Encrypt для непубличного
 # имени не выдаётся. Отдаёт ту же админку (frontend nginx сам проксирует /api на backend).
-# Имя переопределяется env INTERNAL_DOMAIN; пусто → блок просто не матчит запросы.
-http://{$INTERNAL_DOMAIN:inkpim.inkar.kz} {
+# Имя переопределяется env INTERNAL_DOMAIN. Плюс прямой IP-адрес сервера — на случай,
+# когда клиент (напр. macOS + Check Point VPN) не резолвит inkar.kz через getaddrinfo:
+# по IP админка открывается без DNS, напрямую по VPN-маршруту.
+http://{$INTERNAL_DOMAIN:inkpim.inkar.kz}, http://10.10.1.76 {
 	reverse_proxy frontend:80
 }
 
