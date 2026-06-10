@@ -286,3 +286,54 @@ docker compose -f docker-compose.prod.yml ps      # все healthy
 - **Планировщик выплат** (`PayoutScheduler`) — при масштабировании в >1 инстанс нужен
   distributed-lock, иначе выплаты задвоятся. Сейчас безопасно при **одном** backend-контейнере.
 - **Бэкап Postgres** (cron `pg_dump` → S3) и мониторинг живости касс — отдельно.
+
+---
+
+## 8. Мобильное приложение фармацевта (Flutter) — локально
+
+Работает офлайн на моках (`USE_API=false`) ИЛИ против локального backend (нужен стек из п.1–2).
+
+```bash
+export PATH="$PATH:/Users/amir/development/flutter/bin"   # путь к Flutter SDK
+
+# Моки (без backend) — golden path на фейковых данных:
+flutter run
+
+# Против локального backend:
+#   Android-эмулятор (10.0.2.2 = localhost хоста):
+flutter run --dart-define=USE_API=true --dart-define=API_BASE=http://10.0.2.2:8080
+#   iOS-симулятор (localhost):
+flutter run --dart-define=USE_API=true --dart-define=API_BASE=http://localhost:8080
+```
+
+Dev-вход: телефон → OTP **544544**. После входа: баланс/тир из `/api/mobile/me`; **каталог товаров**
+(кнопка «Каталог товаров» на главной) из `/api/mobile/catalog` — реальная витрина Medusa; выбор аптеки
+при загрузке чека — реальные адреса из `/api/mobile/pharmacies`; привязка карты — Luhn-валидация.
+
+Тесты: `flutter test` (46) · `flutter analyze`.
+
+## 9. Проверка интеграции каталога/аптек (curl, dev)
+
+Backend проксирует витрину Medusa (`app.medusa.*`, включена по умолчанию в dev). HQ видит тот же
+каталог, что фармацевт — раздел **«Витрина / Каталог»** в админке.
+
+```bash
+# admin-токен
+TOKEN=$(curl -s -X POST localhost:8080/api/admin/auth/login -H 'Content-Type: application/json' \
+  -d '{"email":"damir@jadran.com","password":"damir2026"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["tokens"]["accessToken"])')
+
+# Витрина (реальный каталог Medusa) в админке:
+curl -s "localhost:8080/api/admin/storefront/products?q=капс&limit=3" -H "Authorization: Bearer $TOKEN" \
+  | python3 -c 'import sys,json;d=json.load(sys.stdin);print("total",d["total"]);[print(" •",p["name"]) for p in d["items"]]'
+# → реальные товары (имя/бренд/МНН; цена может быть null — каталог в наполнении PIM)
+
+# Адреса аптек в админке (раздел «Сеть аптек»):
+curl -s "localhost:8080/api/admin/pharmacies" -H "Authorization: Bearer $TOKEN" \
+  | python3 -c 'import sys,json;[print(" •",p["name"],"—",p["addr"],p["city"]) for p in json.load(sys.stdin)[:5]]'
+```
+
+Мобильные `/api/mobile/catalog` и `/api/mobile/pharmacies` — под JWT фармацевта (получается через
+OTP-флоу `/api/mobile/auth/sms/request` → `/verify` → `/register`).
+
+> Каталог пустой/недоступен → проверь `MEDUSA_ENABLED` и `curl http://78.140.246.238:9000/health`.
+> Прод-готовность и известные дыры — **`RELEASE-CHECKLIST.md`**.

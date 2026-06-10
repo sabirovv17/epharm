@@ -2940,3 +2940,18 @@ curl -s localhost:8080/api/mobile/auth/register    -H 'Content-Type: application
 Medusa/PIM). В код/коммиты они НЕ попадают (только публикуемые id витрины). НАДО до релиза: сменить
 root-пароль сервера → SSH-ключи; сменить admin-пароли Medusa/PIM; вынести секреты из .md в плейсхолдеры
 (они скомпрометированы через git-историю).
+
+### Витрина в админке + live-проверка (2026-06-10, добавлено)
+
+- **Раздел «Витрина / Каталог»** в админке (read-only): `AdminStorefrontController`
+  (`/api/admin/storefront/products`, admin-JWT → AdminPrincipal; pharmacist-токен → 401) делегирует в общий
+  `MobileCatalogService`. Фронт: `features/storefront/StorefrontPage.tsx` + `queries/storefront.ts` +
+  SECTIONS/router/dict(ru+kk) + тест. HQ видит тот же каталог, что фармацевт. **Адреса аптек уже были** в
+  разделе «Сеть аптек» (`PharmaciesPage`, колонка addr).
+- **Live-проверка (docker + bootRun, dev)** прошла полностью: admin-витрина `q=капс` → **23 реальных
+  товара Medusa**; `/api/admin/pharmacies` → **64 аптеки с адресами**; mobile-каталог → те же 23; mobile
+  `/pharmacies` → **48 активных** с адресами/цветом сети; guard'ы без токена → 401. `tsc` чист, **322** фронт-теста,
+  medusa backend-тесты зелёные.
+- **Готовность к релизу — `RELEASE-CHECKLIST.md`** (корень): P0-блокеры (SMS-провайдер вместо
+  `LoggingSmsSender`; cleartext-флаги мобилки; persist токенов; ротация секретов), P1/P2, и рекомендация
+  по scope (бонусы требуют POSM-касс — иначе ручная модерация). Локальный запуск всего — `RUNBOOK.md` §8–9.
