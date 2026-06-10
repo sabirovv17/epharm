@@ -52,8 +52,9 @@ services:
     expose:
       - '9000' # S3 API — наружу не публикуем, отдаётся через Caddy (s3-домен, TLS)
     ports:
-      # Только консоль администрирования MinIO (закрыть файрволом / VPN — не для публики).
-      - '${MINIO_CONSOLE_PORT:-9001}:9001'
+      # Консоль администрирования MinIO — ТОЛЬКО на localhost сервера (доступ через
+      # SSH-туннель / VPN). Не публикуем на 0.0.0.0, чтобы root-консоль не светилась в сеть.
+      - '127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001'
     volumes:
       - minio_data:/data
     healthcheck:
@@ -82,6 +83,9 @@ services:
       context: ./admin-panel/backend
     container_name: epharm-backend
     restart: always
+    # JVM в контейнере: ограничиваем память, чтобы backend не съел весь RAM сервера
+    # (7 ГБ на всех сервисах). MaxRAMPercentage=65 от mem_limit → heap ~1.3 ГБ.
+    mem_limit: 2g
     depends_on:
       postgres:
         condition: service_healthy
@@ -91,6 +95,8 @@ services:
         condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      # Heap relative к mem_limit контейнера (см. mem_limit: 2g выше).
+      JAVA_TOOL_OPTIONS: '-XX:MaxRAMPercentage=65.0'
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-epharm}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-epharm}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
