@@ -1,6 +1,7 @@
 package kz.epharm.posm.controller
 
 import jakarta.validation.Valid
+import java.security.MessageDigest
 import kz.epharm.cdp.dto.CdpLookupRequest
 import kz.epharm.cdp.dto.CdpLookupResponse
 import kz.epharm.cdp.dto.CdpProfileDto
@@ -123,7 +124,11 @@ class PosmController(
     }
 
     private fun requireDeviceKey(key: String?) {
-        if (key.isNullOrBlank() || key != deviceKey) {
+        // Сравнение в постоянное время (MessageDigest.isEqual) — не даёт подобрать ключ
+        // по таймингу. Длины могут различаться → сравниваем как байты, isEqual это терпит.
+        if (key.isNullOrBlank() ||
+            !MessageDigest.isEqual(key.toByteArray(Charsets.UTF_8), deviceKey.toByteArray(Charsets.UTF_8))
+        ) {
             throw AppException(ErrorCode.UNAUTHORIZED, "Invalid or missing POSM device key", HttpStatus.UNAUTHORIZED)
         }
     }

@@ -16,8 +16,10 @@ interface SmsSender {
 class LoggingSmsSender : SmsSender {
     private val log = LoggerFactory.getLogger(LoggingSmsSender::class.java)
 
+    @Suppress("UNUSED_PARAMETER")
     override fun sendOtp(phone: String, code: String) {
-        // В prod код НЕ логируем целиком; на MVP-заглушке это удобно для отладки.
-        log.info("[SMS-stub] OTP для {} → {}", phone, code)
+        // Код входа НЕ логируем: даже в dev он возвращается в ответе /sms/request
+        // (devCode), а логирование 6-значного OTP в prod = утечка фактора входа.
+        log.info("[SMS-stub] OTP для {} сгенерирован (код не логируется)", phone)
     }
 }

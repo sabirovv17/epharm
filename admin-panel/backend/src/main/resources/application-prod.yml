@@ -1,0 +1,29 @@
+# Прод-профиль (SPRING_PROFILES_ACTIVE=prod). Переопределяет небезопасные dev-дефолты
+# из application.yml. Активируется только в проде (docker-compose.prod.yml).
+server:
+  error:
+    # Не раскрываем тексты исключений/ошибок биндинга наружу (утечка деталей).
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
+
+# Swagger/OpenAPI — выключены в проде (иначе вся карта admin/finance/posm/mobile
+# эндпоинтов доступна анонимно через reverse-proxy).
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+app:
+  otp:
+    # Прод: dev-mode по умолчанию ВЫКЛЮЧЕН → случайный 6-значный код + реальная отправка
+    # (SmsSender). Можно временно включить пилот без SMS через env OTP_DEV_MODE=true.
+    dev-mode: ${OTP_DEV_MODE:false}
+  # Bootstrap первого админа HQ-консоли (см. ProdBootstrap). Без этих переменных
+  # admin_users остаётся пустой и в консоль не войти.
+  bootstrap:
+    admin-email: ${ADMIN_BOOTSTRAP_EMAIL:}
+    admin-password: ${ADMIN_BOOTSTRAP_PASSWORD:}
+    admin-name: ${ADMIN_BOOTSTRAP_NAME:HQ Admin}
+    admin-company: ${ADMIN_BOOTSTRAP_COMPANY:Inkar}
