@@ -31,8 +31,13 @@ namespace CustomerDisplay
     public partial class MainWindow : Window
     {
 private CancellationTokenSource? _logCts;
-private string _logPath = @"C:\Standart-N\Kassir\zkassa.log"; // <-- поменяй путь
-//private string _logPath = @"C:\Standart-N_DEMO\Apteka_KZ DEMO\Kassir\zkassa.log"; // <-- поменяй путь
+// Путь к логу кассы Стандарт-Н. На разных кассах он отличается, поэтому задаётся
+// через env EPHARM_LOG_PATH (иначе чек молча не читается → нет рекомендаций/CDP,
+// и чинится только пересборкой). Дефолт прежний.
+// Пример demo-пути: C:\Standart-N_DEMO\Apteka_KZ DEMO\Kassir\zkassa.log
+private string _logPath =
+    Environment.GetEnvironmentVariable("EPHARM_LOG_PATH")
+    ?? @"C:\Standart-N\Kassir\zkassa.log";
 
 
 public ObservableCollection<ReceiptItem> ReceiptItems { get; } = new();

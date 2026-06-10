@@ -77,12 +77,22 @@ namespace CustomerDisplay.Services
                 Directory.CreateDirectory(workDir);
                 var zipPath = Path.Combine(workDir, $"epharm-{remote}.zip");
 
-                if (!await DownloadAsync(RewriteHost(info.Url), zipPath, ct).ConfigureAwait(false))
+                var downloadUrl = RewriteHost(info.Url);
+                // Требуем https (http разрешён только локально для dev) — иначе zip можно
+                // подменить по пути (MITM), а ниже мы его распаковываем и выполняем.
+                if (!IsHttpsOrLocal(downloadUrl))
+                {
+                    _log($"update: небезопасный (не https) URL обновления отклонён: {downloadUrl}");
+                    return false;
+                }
+                if (!await DownloadAsync(downloadUrl, zipPath, ct).ConfigureAwait(false))
                     return false;
 
-                if (!string.IsNullOrWhiteSpace(info.Sha256) && !VerifySha256(zipPath, info.Sha256))
+                // sha256 ОБЯЗАТЕЛЕН: пустой ИЛИ несовпавший хеш → отказ. Без него подменённый
+                // или повреждённый zip распакуется и выполнится на кассе (RCE).
+                if (string.IsNullOrWhiteSpace(info.Sha256) || !VerifySha256(zipPath, info.Sha256))
                 {
-                    _log("update: sha256 не совпал — обновление отклонено (возможна порча/подмена)");
+                    _log("update: sha256 отсутствует или не совпал — обновление отклонено (возможна порча/подмена)");
                     SafeDelete(zipPath);
                     return false;
                 }
@@ -135,6 +145,21 @@ namespace CustomerDisplay.Services
             var hash = SHA256.HashData(fs);
             var hex = Convert.ToHexString(hash);
             return string.Equals(hex, expectedHex.Trim(), StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// https обязателен для скачивания обновления; http допускается только для
+        /// локального dev (localhost / 127.0.0.1). Защита от MITM-подмены пакета.
+        /// </summary>
+        private static bool IsHttpsOrLocal(string url)
+        {
+            try
+            {
+                var u = new Uri(url);
+                if (u.Scheme == Uri.UriSchemeHttps) return true;
+                return u.Host == "localhost" || u.Host == "127.0.0.1";
+            }
+            catch { return false; }
         }
 
         /// <summary>
