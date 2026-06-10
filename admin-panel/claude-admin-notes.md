@@ -2904,3 +2904,39 @@ curl -s localhost:8080/api/mobile/auth/register    -H 'Content-Type: application
 > Осталось как backlog (не P0, отмечено в аудите): widget-тесты ~20 Flutter-экранов, e2e finance/
 > pharmacist-create/screens-upload журналы, RBAC-тесты (когда добавят @PreAuthorize). Текущее
 > состояние — без известных багов, которые увидит пользователь.
+
+---
+
+## 2026-06-10 — Маркетплейсы: реальный каталог + адреса аптек в мобилке + Luhn (Module 3 ↔ Module 1)
+
+**Контекст:** прикрутили витрину inkar.kz (Medusa v2.15.2, Module 3) к приложению фармацевта.
+Архитектура — **бэкенд-прокси**: мобилка НЕ ходит в Medusa напрямую (там HTTP без TLS + publishable-ключ
+светился бы в бинаре). Телефон → наш HTTPS `/api/mobile/catalog/…` → бэкенд → Medusa Store API.
+
+**Backend (новое):**
+
+- `kz.epharm.medusa` — клиент Store API на `RestClient` (таймауты, заголовок `x-publishable-api-key`),
+  DTO с `@JsonIgnoreProperties(ignoreUnknown)`, in-memory TTL-кэш (`MedusaCatalogCache`). При
+  `enabled=false`/пустом ключе — `active=false`: каталог деградирует в пустую страницу, не 5xx.
+- `/api/mobile/catalog/{products, products/{id}, categories}` (`mobile/catalog`) — под JWT фармацевта.
+  Маппинг устойчив к РЕАЛЬНЫМ неполным данным: канал «Сайт» сейчас = **77 товаров без цены/фото/категорий**,
+  но с богатым `metadata` → бренд (`brand_name ?? brand_raw ?? corporation ?? manufacturer`), категория,
+  МНН/ATC/rx_otc/штрихкод/страна из metadata. Цена/фото nullable → «Цена в аптеке»/плитка-заглушка.
+- `/api/mobile/pharmacies` (`mobile/pharmacies`) — реальные адреса из НАШЕГО реестра (только active,
+  фильтры q/city, цвет сети из `chains`). GPS-координат в БД нет — отдаём город/район.
+- `CardNumberUtil` + `@CardNumber` (Luhn 13–19) — зеркало `IinUtil`/`@Iin`. `ErrorCode.UPSTREAM_UNAVAILABLE`.
+- Конфиг `app.medusa.*` (env-driven; publishable-ключ/канал/регион — клиентские id, по дизайну Medusa
+  публикуемые, поэтому dev-default в yml безопасен). В тест-профиле `enabled=false` (тесты не ходят в
+  живой Medusa). Проброшено в `docker-compose.prod.yml` + `.env.prod.example`.
+
+**Гоча (Kotlin):** `/*` ВНУТРИ KDoc (`/** … catalog/* … */`) открывает вложенный комментарий и съедает
+закрывающий `*/` → «Unclosed comment» в конце файла. Писать `catalog/…`, не `catalog/*`.
+
+**Тесты:** `MobileCatalogServiceTest` (маппинг, MockK, 7 кейсов), `CardNumberUtilTest`,
+`MobilePharmacyCatalogIntegrationTest` (Testcontainers: аптеки active/q/city + каталог-пустой + 401).
+Полный `./gradlew build` — **SUCCESSFUL** (вся Testcontainers-интеграция + bootJar).
+
+**⚠️ Безопасность STOREFRONT\*.md:** файлы содержат ЖИВЫЕ секреты витрины (SSH root-пароль, admin-пароли
+Medusa/PIM). В код/коммиты они НЕ попадают (только публикуемые id витрины). НАДО до релиза: сменить
+root-пароль сервера → SSH-ключи; сменить admin-пароли Medusa/PIM; вынести секреты из .md в плейсхолдеры
+(они скомпрометированы через git-историю).

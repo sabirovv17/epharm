@@ -440,3 +440,20 @@ End-to-end: CTA → UploadPromptSheet → CameraScreen / Gallery → ReceiptRevi
 - Реальный backend (REST/GraphQL, OpenAPI?) — не известно. Mock-репо async-ready.
 - Локализация: пока только ru-KZ; en/kk добавим через `flutter_localizations` + ARB при необходимости.
 - iCloud Drive: при переезде проекта в не-iCloud папку (`~/Developer/` например) shim больше не нужен. Это вариант на будущее.
+
+---
+
+## 2026-06-10 — Реальный каталог + адреса аптек + Luhn карты
+
+- **Каталог** (`lib/features/catalog/`): экран поиска (дебаунс 300 мс) + бесконечный скролл + detail-лист.
+  `CatalogRepository` mock/api по флагу `USE_API` → `/api/mobile/catalog/*` (бэкенд проксирует Medusa-витрину).
+  Цена/фото опциональны: плитка-заглушка (первая буква названия), «Цена в аптеке». Вход — карточка
+  «Каталог товаров» на главной + маршрут `/catalog`. Bonus-каталог (промо-акции) на главной оставлен
+  как есть — это РАЗНЫЕ сущности (бонусы — наша логика, каталог — реальный товарный справочник).
+- **Аптеки**: `PharmacyRepository` mock/api; `AddressSheet` грузит реестр через `/api/mobile/pharmacies`
+  (loading / error+«Повторить» / empty). `NearbyPharmacy.fromApi` — цвет сети из hex `chainColor`, в слот
+  `distance` кладём район (GPS-координат в реестре нет).
+- **Карта**: `lib/core/validation/card.dart` — Luhn + бренд по BIN + формат. `CardSheet` активирует
+  «Привязать карту» только при валидном номере, инлайн-ошибка контрольной суммы, лейбл бренда на превью.
+  `ReceiptDraft.hasCard` тоже через `isValidCardNumber`.
+- Тесты: `card_test`, `catalog_test`, `pharmacy_repository_test`. `flutter analyze` чист, 46 тестов зелёные.
