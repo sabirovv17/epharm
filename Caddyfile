@@ -19,6 +19,16 @@
 	reverse_proxy frontend:80
 }
 
+# ── Внутренний доступ к админке через корпоративный VPN / сеть INKAR ──────────
+# inkpim.inkar.kz УЖЕ резолвится корп. DNS (10.10.1.119/120) в 10.10.1.76, а VPN
+# маршрутизирует 10.10/16 → админ на VPN открывает админку БЕЗ публичного DNS.
+# Plain HTTP: трафик уже в зашифрованном VPN-туннеле, а Let's Encrypt для непубличного
+# имени не выдаётся. Отдаёт ту же админку (frontend nginx сам проксирует /api на backend).
+# Имя переопределяется env INTERNAL_DOMAIN; пусто → блок просто не матчит запросы.
+http://{$INTERNAL_DOMAIN:inkpim.inkar.kz} {
+	reverse_proxy frontend:80
+}
+
 # Публичный S3: фото чеков и слайды (анонимный download из bucket epharm-receipts,
 # path-style → https://s3.epharm.kz/epharm-receipts/<key>).
 {$S3_DOMAIN} {
