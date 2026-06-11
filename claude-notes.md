@@ -472,3 +472,43 @@ End-to-end: CTA → UploadPromptSheet → CameraScreen / Gallery → ReceiptRevi
 - **Реальные аптеки**: список приходит из бэкенда (`/api/mobile/pharmacies`) — 522 реальных аптеки
   витрины inkar.kz. Хардкод 8 аптек остался только как mock-фолбэк (USE_API=false).
 - Тесты: 46 зелёные, analyze чист (после flutter pub add flutter_secure_storage).
+
+## 2026-06-11 — Лента Home = реальный каталог (фильтры бренд/категория/сорт)
+
+**Что сделано:** главный экран переделан — отдельная плашка «Каталог товаров» (+ маршрут `/catalog`
+и экран `CatalogScreen`) **удалены**, лента под фильтрами теперь рендерит **реальный каталог витрины**
+(через `/api/mobile/catalog`), а не 9 mock-промо-товаров.
+
+**🔑 Факты по реальным данным канала «Сайт» (проверял live Medusa перед дизайном — senior-правило):**
+
+- Всего **77 товаров** (НЕ 28k — это весь Medusa; на канал «Сайт» опубликовано 77).
+- **Цены нет ни у одного** (`calculated_price = null` у всех 77) → карточки «Цена в аптеке».
+- Фото только у **7/77** → у остальных градиент-плитка с первой буквой.
+- `created_at` **одинаковый у всех** (bulk-импорт) → «Новинки»/бейдж NEW вычислить не из чего.
+- Брендов **~9** (через fallback brand_name→brand_raw→corporation→manufacturer), часть мусорная (`-`, дубли).
+- Категорий: привязано **11/77** товаров (БАДы(7), Косметика(4)…); 66 без категории; «Сайт» — структурная.
+- Medusa Store API: `order=-created_at`/`order=title` работают, но **фильтр по `metadata.brand_name` — 400**.
+
+**Архитектурное решение (под реальные данные, без фейков):**
+
+- 77 товаров **грузим целиком на клиент** (`homeCatalogProvider` — постранично, safety-cap 1000) и
+  фильтруем локально через чистую `applyCatalogFilters` (тот же паттерн, что был с mock — `applyHomeFilters`).
+  Если каталог вырастет в тысячи — фильтрацию переносим на сервер.
+- Фильтры: **Бренд** (реальные бренды из `homeBrandsProvider`, мусор `-`/null отброшен) + **Категории**
+  (новый sheet, `homeCategoriesProvider`, без «Сайт») + поиск (имя/бренд/МНН) + сортировка (А-Я/Я-А).
+- Чипы **«Новинки»/«Конкурсные» убраны** (под них в каталоге нет данных). По выбору заказчика их
+  заменил фильтр «Категории».
+- Карточка — переиспользуемая `CatalogCard` (вынес из удалённого `catalog_screen`), тап → существующий
+  `showCatalogProductSheet`. Промо-карусель (Huggies/Kotex/Info) на месте — это НАШИ бонус-акции.
+- **Backend:** в `MobileCatalogProductDto` добавлено `categories: List<String>` (все категории товара,
+  для клиентского фильтра); `MAX_LIMIT` 50→100 (все 77 за 1 запрос).
+- **promo_picker (выбор акций для чека)** по-прежнему использует `productListProvider` (mock-промо-товары) —
+  это отдельная сущность (бонус-акции), не каталог; модель `Product`/`home_repository` оставлены для него.
+
+**Удалено как мёртвое:** `catalog_screen.dart`, маршрут `/catalog`, `product_card.dart` (Big/SmallProductCard),
+`product_detail_sheet.dart`, `catalogProvider`/`CatalogState`/`CatalogNotifier` (пагинация старого экрана),
+chip-провайдер `homeChipProvider`, старый `SortOption`, хардкод `kKzPharmaBrands`.
+
+**Тесты:** `test/features/home/home_catalog_filter_test.dart` (9 тестов: `applyCatalogFilters` —
+бренд/категория/поиск/сорт/комбинации + деривация брендов/категорий через `ProviderContainer` с фейк-репо).
+`flutter analyze` чист, **55 тестов зелёные**. Backend: `MobileCatalogServiceTest` обновлён (categories + лимит).
