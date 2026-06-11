@@ -108,18 +108,6 @@ export default function LoginPage() {
             {submitting ? 'Входим…' : 'Войти'}
           </Button>
         </form>
-
-        {/* Dev-credentials hint — уберём когда появится self-service регистрация */}
-        <details className="mt-6 text-[12px] text-ink-500">
-          <summary className="cursor-pointer font-semibold hover:text-ink-700">
-            Demo-credentials (dev only)
-          </summary>
-          <div className="mt-3 flex flex-col gap-1.5 rounded-md bg-paper-card p-3 font-mono text-[11px] text-ink-600 shadow-card">
-            <div>damir@jadran.com / damir2026 (brand-manager)</div>
-            <div>aigerim@inkar.kz / aigerim2026 (category-lead)</div>
-            <div>bauyrzhan@inkar.kz / bauyrzhan2026 (HQ head)</div>
-          </div>
-        </details>
       </div>
     </div>
   )
