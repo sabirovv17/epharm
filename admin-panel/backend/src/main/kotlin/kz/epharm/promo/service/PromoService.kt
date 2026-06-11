@@ -41,10 +41,17 @@ class PromoService(
             budget = req.budget,
             kpi = req.kpi.trim(),
             cover = req.cover.trim(),
+            medusaProductId = req.medusaProductId?.trim()?.takeIf { it.isNotBlank() },
+            productName = req.productName.trim(),
+            productImage = req.productImage?.trim()?.takeIf { it.isNotBlank() },
+            dateStart = req.dateStart,
+            dateEnd = req.dateEnd,
+            tiers = req.tiers.map { it.toEntity() },
             createdBy = createdBy,
         ).also {
             it.status = req.status ?: PromoStatus.draft
         }
+        validatePromo(entity)
         return PromoDto.of(promoRepository.save(entity))
     }
 
@@ -74,6 +81,14 @@ class PromoService(
         req.budget?.let { entity.budget = it }
         req.kpi?.let { entity.kpi = it.trim() }
         req.cover?.let { entity.cover = it.trim() }
+        // Товарная акция (PATCH-семантика: null = не трогаем; для tiers [] = очистить).
+        req.medusaProductId?.let { entity.medusaProductId = it.trim().takeIf { s -> s.isNotBlank() } }
+        req.productName?.let { entity.productName = it.trim() }
+        req.productImage?.let { entity.productImage = it.trim().takeIf { s -> s.isNotBlank() } }
+        req.dateStart?.let { entity.dateStart = it }
+        req.dateEnd?.let { entity.dateEnd = it }
+        req.tiers?.let { entity.tiers = it.map { t -> t.toEntity() } }
+        validatePromo(entity)
         return PromoDto.of(promoRepository.save(entity))
     }
 
@@ -110,4 +125,30 @@ class PromoService(
         }
 
     private fun generateId(): String = "pr_${UUID.randomUUID().toString().substring(0, 8)}"
+
+    /**
+     * Бизнес-валидация товарной акции: даты согласованы, ценовые пороги строго
+     * по возрастанию количества (от 1 → от 10 → от 20). Поштучные Min-проверки
+     * (minQty>=1, price/bonus>=0) делает bean-validation на PromoTierDto.
+     */
+    private fun validatePromo(e: PromoEntity) {
+        val start = e.dateStart
+        val end = e.dateEnd
+        if (start != null && end != null && end.isBefore(start)) {
+            throw AppException(
+                ErrorCode.VALIDATION_FAILED,
+                "Дата окончания акции раньше даты начала",
+                HttpStatus.BAD_REQUEST,
+            )
+        }
+        for (i in 1 until e.tiers.size) {
+            if (e.tiers[i].minQty <= e.tiers[i - 1].minQty) {
+                throw AppException(
+                    ErrorCode.VALIDATION_FAILED,
+                    "Пороги акции должны идти по возрастанию количества (minQty)",
+                    HttpStatus.BAD_REQUEST,
+                )
+            }
+        }
+    }
 }

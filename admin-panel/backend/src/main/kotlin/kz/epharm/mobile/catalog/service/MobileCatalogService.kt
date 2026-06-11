@@ -56,6 +56,20 @@ class MobileCatalogService(
         }
     }
 
+    /**
+     * Карточки витрины по списку Medusa-id (для джойна промо-лента ↔ каталог).
+     * Возвращает map id→карточка; отсутствующие/недоступные id в map не попадают.
+     * Переиспользует [card] (включая фильтр плейсхолдеров «-») и кеш.
+     */
+    fun cardsByIds(ids: List<String>): Map<String, MobileCatalogProductDto> {
+        val clean = ids.mapNotNull { it.trim().takeIf { s -> s.isNotBlank() } }.distinct()
+        if (clean.isEmpty()) return emptyMap()
+        return cache.get("cards|" + clean.sorted().joinToString(",")) {
+            medusa.listProducts(ids = clean, limit = clean.size.coerceIn(1, MAX_LIMIT))
+                .products.associate { it.id to card(it) }
+        }
+    }
+
     // ── маппинг Medusa → mobile ───────────────────────────────────────────────
 
     private fun card(p: MedusaProduct) = MobileCatalogProductDto(

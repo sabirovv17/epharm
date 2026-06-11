@@ -3025,3 +3025,52 @@ ssh … tar -x` → sha256-сверка двух файлов (совпали) �
 поля → null, карточка просто скрывает бренд (`if (brand != null)`), а не рисует «-».
 Фикс единый: `AdminStorefrontController` делегирует в тот же сервис → чинится и «Витрина».
 Тест: `MobileCatalogServiceTest` «прочерк из 1С — плейсхолдер пустоты». Полный сьют зелёный.
+
+## 2026-06-12 — Промо-кампании = товарные акции (Medusa→админка→мобилка). Фаза 2: BACKEND
+
+Новая концепция (по ТЗ пользователя): админ в разделе «Промо» выбирает товар из
+витрины Medusa и сам заполняет акцию (даты + ценовые пороги с бонусом за порог).
+Эти промо едут в мобильную ленту фармацевта, к ним применяются фильтры/поиск, и из
+них же фармацевт выбирает при загрузке чека. Реализуем по фазам (understand→design→
+backend→admin→mobile→review); это запись по backend-фундаменту.
+
+**Дизайн-решение:** РАСШИРИЛ существующий промо-домен (а не плодил второй) — это и есть
+«промо-кампания» из ТЗ. Старые campaign-поля (brand/period/budget/spent/kpi/cover/
+pharmacies) оставлены для совместимости; brand теперь авто-заполняется брендом
+выбранного товара Medusa.
+
+**V022\_\_promo_products.sql** — ALTER promos ADD:
+
+- `medusa_product_id VARCHAR(64)` — линк на товар витрины (prod\_\*), NULL у старых кампаний;
+- `product_name VARCHAR(255)`, `product_image VARCHAR(1024)` — снимок товара (для админ-списка
+  и деградации, если Medusa недоступна);
+- `date_start DATE`, `date_end DATE` — структурный диапазон (заменяет free-text period для
+  фильтра активности);
+- `tiers JSONB` — массив `[{minQty:int, price:bigint, bonus:bigint}]` (бонус ВСТРОЕН в порог,
+  как на скриншоте: [{1,500,0},{10,600,900},{20,700,1900}]). Маппинг как rules.card —
+  `@JdbcTypeCode(SqlTypes.JSON)` на `List<PromoTier>`.
+- индексы ix_promos_product, ix_promos_active_window(status,date_end).
+
+**PromoEntity / PromoDtos** — добавлены поля + `PromoTier`/`PromoTierDto`. CreatePromoRequest:
+поля товара необязательны (кампанию без товара тоже можно создать — она просто не попадёт
+в мобильную ленту). PromoService.validatePromo: dateEnd≥dateStart, пороги строго по
+возрастанию minQty (иначе 400). Поштучные Min — bean-validation на PromoTierDto (+ `@Valid`
+на списке tiers).
+
+**Мобильная лента — НОВОЕ:** `GET /api/mobile/promotions` (ПУБЛИЧНЫЙ, permitAll как каталог).
+`MobilePromotionsService.activeFeed()`: берёт промо status=active + есть medusa_product_id +
+сегодня в окне дат → одним запросом тянет живые карточки витрины
+`MobileCatalogService.cardsByIds(ids)` (новый публичный метод, переиспользует `card()` с фиксом
+«-») → мёржит товар (живой / снимок при недоступности Medusa) + поля акции (tiers/даты).
+DTO `MobilePromotionDto{id(promo), productId(medusa), name, brand, mnn, rxOtc, imageUrl,
+barcode, category, categories, dateStart, dateEnd, tiers}`. id = promo id (его шлём с чеком).
+
+**Тесты:** MobilePromotionsServiceTest (мёрж + фильтр окна + деградация на снимок),
+MobilePromotionsIntegrationTest (публичная лента без токена: только active+товар+окно;
+admin create с товаром/датами/порогами; немонотонные пороги → 400).
+
+**TODO (следующие фазы):** Фаза 3 — админ-форма: пикер товара Medusa (переиспользовать
+useStorefront/AdminStorefront `GET /api/admin/storefront/products?q=`) + редактор порогов/дат.
+Фаза 4 — мобилка: лента из /promotions (1 колонка, rich-карточки), фильтры по промо-пулу,
+тот же пул в promo*picker чека (вместо мок-Product), баннеры −10%. Фаза 5 — seed демо-промо
+на прод (через admin API с реальными prod*\* id) + review + APK.
