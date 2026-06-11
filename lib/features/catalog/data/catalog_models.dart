@@ -15,6 +15,7 @@ class CatalogProduct {
     this.imageUrl,
     this.barcode,
     this.category,
+    this.categories = const [],
   });
 
   final String id;
@@ -27,6 +28,9 @@ class CatalogProduct {
   final String? imageUrl;
   final String? barcode;
   final String? category;
+
+  /// Все категории товара — для клиентского фильтра в ленте Home.
+  final List<String> categories;
 
   bool get isRx => (rxOtc ?? '').toLowerCase() == 'rx';
 
@@ -41,6 +45,8 @@ class CatalogProduct {
         imageUrl: j['imageUrl'] as String?,
         barcode: j['barcode'] as String?,
         category: j['category'] as String?,
+        categories:
+            ((j['categories'] as List?) ?? const []).whereType<String>().toList(),
       );
 }
 

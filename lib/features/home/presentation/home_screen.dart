@@ -10,26 +10,26 @@ import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_typography.dart';
-import '../../../core/widgets/brand_icons.dart';
 import '../../../core/widgets/filter_chip_row.dart';
 import '../../../core/widgets/glass_pill.dart';
 import '../../../core/widgets/pharma_logo.dart';
 import '../../../core/widgets/search_input.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../catalog/data/catalog_models.dart';
+import '../../catalog/presentation/catalog_card.dart';
+import '../../catalog/presentation/catalog_product_sheet.dart';
 import '../../profile/application/profile_controller.dart';
 import '../../receipts/presentation/receipts_list_screen.dart';
 import '../application/home_controller.dart';
-import '../data/home_repository.dart';
 import '../../receipts/presentation/upload_prompt_sheet.dart';
 import 'widgets/balance_card.dart';
 import 'widgets/bottom_navigation.dart';
 import 'widgets/brand_sheet.dart';
+import 'widgets/category_sheet.dart';
 import 'widgets/contests_stub_screen.dart';
 import 'widgets/home_welcome_gate.dart';
 import 'widgets/learning_stub_screen.dart';
 import 'widgets/login_invite_card.dart';
-import 'widgets/product_card.dart';
-import 'widgets/product_detail_sheet.dart';
 import 'widgets/profile_row.dart';
 import 'widgets/promo_carousel.dart';
 import 'widgets/sort_sheet.dart';
@@ -119,9 +119,9 @@ class _HomeTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final promoAsync = ref.watch(promoListProvider);
-    final productsAsync = ref.watch(productListProvider);
-    final chip = ref.watch(homeChipProvider);
+    final catalogAsync = ref.watch(homeCatalogProvider);
     final brands = ref.watch(selectedBrandsProvider);
+    final categories = ref.watch(selectedCategoriesProvider);
     final sort = ref.watch(homeSortProvider);
     final query = ref.watch(searchQueryProvider);
 
@@ -179,91 +179,9 @@ class _HomeTab extends ConsumerWidget {
           ),
         ),
 
-        // 3.5) Вход в реальный каталог товаров (витрина inkar.kz через
-        // бэкенд-прокси Medusa). Отдельно от промо-акций выше — это полный
-        // каталог аптечных товаров с поиском.
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.screenEdge,
-              0,
-              AppSpacing.screenEdge,
-              AppSpacing.s16,
-            ),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: AppRadii.brXl,
-                boxShadow: AppShadows.card,
-              ),
-              child: Material(
-                color: Colors.transparent,
-                borderRadius: AppRadii.brXl,
-                child: InkWell(
-                  borderRadius: AppRadii.brXl,
-                  onTap: () => context.push('/catalog'),
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: AppColors.brandGreen600,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.storefront_outlined,
-                            size: 22,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'Каталог товаров',
-                                style: TextStyle(
-                                  fontFamily: 'Manrope',
-                                  fontFamilyFallback: ['Roboto', 'sans-serif'],
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.ink900,
-                                ),
-                              ),
-                              SizedBox(height: 2),
-                              Text(
-                                'Поиск по реальному каталогу аптек',
-                                style: TextStyle(
-                                  fontFamily: 'Manrope',
-                                  fontFamilyFallback: ['Roboto', 'sans-serif'],
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.ink500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Icon(
-                          Icons.chevron_right_rounded,
-                          color: AppColors.ink400,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        // 4) Filter row.
+        // 4) Filter row: сортировка + Бренд + Категории (фильтры реального каталога).
+        //    Чипы «Новинки/Конкурсные» убраны — под них в каталоге нет данных
+        //    (даты новизны одинаковые у всех, конкурс — не атрибут каталога).
         SliverToBoxAdapter(
           child: SizedBox(
             height: 56,
@@ -276,7 +194,7 @@ class _HomeTab extends ConsumerWidget {
                 Center(
                   child: SortChipButton(
                     onTap: () => showSortSheet(context),
-                    active: sort != SortOption.newestFirst,
+                    active: sort != CatalogSort.nameAsc,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -297,32 +215,16 @@ class _HomeTab extends ConsumerWidget {
                 const SizedBox(width: 8),
                 Center(
                   child: PharmaFilterChip(
-                    label: 'Все',
-                    active: chip == HomeChip.all,
-                    onTap: () => ref
-                        .read(homeChipProvider.notifier)
-                        .set(HomeChip.all),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Center(
-                  child: PharmaFilterChip(
-                    label: 'Новинки',
-                    active: chip == HomeChip.isNew,
-                    onTap: () => ref
-                        .read(homeChipProvider.notifier)
-                        .set(HomeChip.isNew),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Center(
-                  child: PharmaFilterChip(
-                    label: 'Конкурсные',
-                    active: chip == HomeChip.contest,
-                    leading: const TrophyEmojiGlyph(size: 22),
-                    onTap: () => ref
-                        .read(homeChipProvider.notifier)
-                        .set(HomeChip.contest),
+                    label: categories.isEmpty
+                        ? 'Категории'
+                        : 'Категории · ${categories.length}',
+                    active: categories.isNotEmpty,
+                    trailing: const Icon(
+                      Icons.keyboard_arrow_down,
+                      size: 16,
+                      color: AppColors.ink900,
+                    ),
+                    onTap: () => showCategorySheet(context),
                   ),
                 ),
               ],
@@ -332,8 +234,10 @@ class _HomeTab extends ConsumerWidget {
 
         const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-        // 5) Products.
-        productsAsync.when(
+        // 5) Каталог — реальные товары витрины (через бэкенд-прокси Medusa).
+        //    Грузится целиком один раз; фильтры (бренд/категория/поиск/сорт)
+        //    применяются на клиенте мгновенно.
+        catalogAsync.when(
           loading: () => const SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.all(AppSpacing.s24),
@@ -342,29 +246,53 @@ class _HomeTab extends ConsumerWidget {
           ),
           error: (e, _) => SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.screenEdge,
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenEdge,
+                24,
+                AppSpacing.screenEdge,
+                24,
               ),
-              child: Text('Ошибка: $e'),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.wifi_off_rounded,
+                      size: 40,
+                      color: AppColors.ink300,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Каталог недоступен',
+                      style: AppTypography.body14(color: AppColors.ink500),
+                    ),
+                    TextButton(
+                      onPressed: () => ref.invalidate(homeCatalogProvider),
+                      child: const Text(
+                        'Повторить',
+                        style: TextStyle(
+                          fontFamily: 'Manrope',
+                          fontFamilyFallback: ['Roboto', 'sans-serif'],
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.brandGreen700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
           data: (products) {
-            final filtered = applyHomeFilters(
+            final filtered = applyCatalogFilters(
               products: products,
-              chip: chip,
               brands: brands,
+              categories: categories,
               query: query,
               sort: sort,
             );
-            final featured =
-                filtered.where((p) => p.featured).firstOrNull;
-            final rest =
-                filtered.where((p) => p != featured).toList();
-            return _ProductsSliver(
-              featured: featured,
-              rest: rest,
-              empty: filtered.isEmpty,
-            );
+            return _CatalogSliver(items: filtered);
           },
         ),
 
@@ -374,79 +302,48 @@ class _HomeTab extends ConsumerWidget {
   }
 }
 
-class _ProductsSliver extends StatelessWidget {
-  const _ProductsSliver({
-    required this.featured,
-    required this.rest,
-    required this.empty,
-  });
-
-  final Product? featured;
-  final List<Product> rest;
-  final bool empty;
+/// Лента-грид реального каталога: 2 колонки [CatalogCard], тап → detail-sheet.
+/// Lazy [SliverGrid] — строит только видимые карточки.
+class _CatalogSliver extends StatelessWidget {
+  const _CatalogSliver({required this.items});
+  final List<CatalogProduct> items;
 
   @override
   Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenEdge),
+        sliver: SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 32),
+            child: Text(
+              'Ничего не найдено по этому фильтру',
+              textAlign: TextAlign.center,
+              style: AppTypography.body14(color: AppColors.ink500),
+            ),
+          ),
+        ),
+      );
+    }
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenEdge),
-      sliver: SliverList(
-        delegate: SliverChildListDelegate.fixed([
-          if (empty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 32),
-              child: Text(
-                'Ничего не найдено по этому фильтру',
-                textAlign: TextAlign.center,
-                style: AppTypography.body14(color: AppColors.ink500),
-              ),
-            ),
-          if (featured != null) ...[
-            Builder(
-              builder: (ctx) => BigProductCard(
-                product: featured!,
-                onTap: () => showProductDetailSheet(ctx, featured!),
-              ),
-            ),
-            // Минимальный gap между featured-карточкой и 2-col сеткой:
-            // shadow/card у BigProductCard сам создаёт визуальный воздух,
-            // поэтому SizedBox можно держать совсем небольшим. Раньше 12 —
-            // в сочетании с «лишней» высотой mainAxisExtent давало большую
-            // пустоту между секциями.
-            const SizedBox(height: 4),
-          ],
-          if (rest.isNotEmpty) _SmallProductGrid(items: rest),
-        ]),
-      ),
-    );
-  }
-}
-
-class _SmallProductGrid extends StatelessWidget {
-  const _SmallProductGrid({required this.items});
-  final List<Product> items;
-
-  @override
-  Widget build(BuildContext context) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        // mainAxisExtent = 226: snug fit для карточек с restrictions
-        // (≈ 223 содержание: padding 24 + image 140 + gap 8 + name 32 (2-line) +
-        // gap 4 + restrictions 15 (1-line)) + 3px буфер.
-        // Раньше было 240 — оставляло ~36px пустого белого внизу карточек без
-        // restrictions, создавая визуальную «дыру» под featured-карточкой.
-        // Промежуточная попытка 218 переoверфлоулилась на карточках с
-        // restrictions (см. RenderFlex overflow 18 px). 226 — sweet spot.
-        mainAxisExtent: 226,
-      ),
-      itemCount: items.length,
-      itemBuilder: (ctx, i) => SmallProductCard(
-        product: items[i],
-        onTap: () => showProductDetailSheet(ctx, items[i]),
+      sliver: SliverGrid(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 0.62,
+        ),
+        delegate: SliverChildBuilderDelegate(
+          (ctx, i) {
+            final p = items[i];
+            return CatalogCard(
+              product: p,
+              onTap: () => showCatalogProductSheet(ctx, p.id),
+            );
+          },
+          childCount: items.length,
+        ),
       ),
     );
   }

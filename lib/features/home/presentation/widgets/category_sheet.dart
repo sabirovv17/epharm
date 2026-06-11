@@ -4,11 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../application/home_controller.dart';
 
-/// Bottom-sheet выбора брендов. Открывается из chip «Бренд».
+/// Bottom-sheet выбора категорий каталога. Открывается из chip «Категории».
 ///
-/// Множественный выбор: пользователь чек-боксит несколько брендов,
-/// потом нажимает «Применить». Кнопка «Сбросить» очищает выбор.
-Future<void> showBrandSheet(BuildContext context) {
+/// Список — РЕАЛЬНЫЕ категории загруженного каталога ([homeCategoriesProvider]),
+/// без структурной «Сайт». Множественный выбор + поиск + «Применить»/«Сбросить».
+/// Каталог наполняется постепенно — сейчас категорий мало, список растёт по мере
+/// проставления категорий в PIM.
+Future<void> showCategorySheet(BuildContext context) {
   return showModalBottomSheet(
     context: context,
     backgroundColor: Colors.white,
@@ -16,33 +18,32 @@ Future<void> showBrandSheet(BuildContext context) {
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
-    builder: (_) => const _BrandSheet(),
+    builder: (_) => const _CategorySheet(),
   );
 }
 
-class _BrandSheet extends ConsumerStatefulWidget {
-  const _BrandSheet();
+class _CategorySheet extends ConsumerStatefulWidget {
+  const _CategorySheet();
 
   @override
-  ConsumerState<_BrandSheet> createState() => _BrandSheetState();
+  ConsumerState<_CategorySheet> createState() => _CategorySheetState();
 }
 
-class _BrandSheetState extends ConsumerState<_BrandSheet> {
+class _CategorySheetState extends ConsumerState<_CategorySheet> {
   late Set<String> _localSelection;
   String _query = '';
 
   @override
   void initState() {
     super.initState();
-    _localSelection = {...ref.read(selectedBrandsProvider)};
+    _localSelection = {...ref.read(selectedCategoriesProvider)};
   }
 
   @override
   Widget build(BuildContext context) {
-    // Реальные бренды из загруженного каталога (а не хардкод-список).
-    final allBrands = ref.watch(homeBrandsProvider);
-    final visibleBrands = allBrands
-        .where((b) => b.toLowerCase().contains(_query.trim().toLowerCase()))
+    final all = ref.watch(homeCategoriesProvider);
+    final visible = all
+        .where((c) => c.toLowerCase().contains(_query.trim().toLowerCase()))
         .toList();
 
     return SafeArea(
@@ -67,7 +68,7 @@ class _BrandSheetState extends ConsumerState<_BrandSheet> {
                 children: [
                   const Expanded(
                     child: Text(
-                      'Бренды',
+                      'Категории',
                       style: TextStyle(
                         fontFamily: 'Manrope',
                         fontFamilyFallback: ['Roboto', 'sans-serif'],
@@ -96,7 +97,6 @@ class _BrandSheetState extends ConsumerState<_BrandSheet> {
               ),
             ),
             const SizedBox(height: 12),
-            // Search.
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Container(
@@ -124,7 +124,7 @@ class _BrandSheetState extends ConsumerState<_BrandSheet> {
                           enabledBorder: InputBorder.none,
                           focusedBorder: InputBorder.none,
                           contentPadding: EdgeInsets.zero,
-                          hintText: 'Поиск бренда',
+                          hintText: 'Поиск категории',
                           hintStyle: TextStyle(
                             fontFamily: 'Manrope',
                             fontFamilyFallback: ['Roboto', 'sans-serif'],
@@ -148,27 +148,42 @@ class _BrandSheetState extends ConsumerState<_BrandSheet> {
             ),
             const SizedBox(height: 8),
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.only(top: 4, bottom: 8),
-                itemCount: visibleBrands.length,
-                itemBuilder: (_, i) {
-                  final b = visibleBrands[i];
-                  final checked = _localSelection.contains(b);
-                  return _BrandRow(
-                    brand: b,
-                    checked: checked,
-                    onTap: () => setState(() {
-                      if (checked) {
-                        _localSelection.remove(b);
-                      } else {
-                        _localSelection.add(b);
-                      }
-                    }),
-                  );
-                },
-              ),
+              child: visible.isEmpty
+                  ? Center(
+                      child: Text(
+                        all.isEmpty
+                            ? 'Категории появятся по мере наполнения каталога'
+                            : 'Ничего не найдено',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontFamily: 'Manrope',
+                          fontFamilyFallback: ['Roboto', 'sans-serif'],
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.ink500,
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.only(top: 4, bottom: 8),
+                      itemCount: visible.length,
+                      itemBuilder: (_, i) {
+                        final c = visible[i];
+                        final checked = _localSelection.contains(c);
+                        return _CategoryRow(
+                          name: c,
+                          checked: checked,
+                          onTap: () => setState(() {
+                            if (checked) {
+                              _localSelection.remove(c);
+                            } else {
+                              _localSelection.add(c);
+                            }
+                          }),
+                        );
+                      },
+                    ),
             ),
-            // Apply button.
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
               child: Material(
@@ -177,7 +192,7 @@ class _BrandSheetState extends ConsumerState<_BrandSheet> {
                   borderRadius: BorderRadius.circular(99),
                   onTap: () {
                     ref
-                        .read(selectedBrandsProvider.notifier)
+                        .read(selectedCategoriesProvider.notifier)
                         .replace(_localSelection);
                     Navigator.of(context).pop();
                   },
@@ -211,14 +226,14 @@ class _BrandSheetState extends ConsumerState<_BrandSheet> {
   }
 }
 
-class _BrandRow extends StatelessWidget {
-  const _BrandRow({
-    required this.brand,
+class _CategoryRow extends StatelessWidget {
+  const _CategoryRow({
+    required this.name,
     required this.checked,
     required this.onTap,
   });
 
-  final String brand;
+  final String name;
   final bool checked;
   final VoidCallback onTap;
 
@@ -232,7 +247,7 @@ class _BrandRow extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                brand,
+                name,
                 style: TextStyle(
                   fontFamily: 'Manrope',
                   fontFamilyFallback: const ['Roboto', 'sans-serif'],

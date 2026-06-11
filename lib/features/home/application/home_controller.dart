@@ -1,124 +1,127 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../catalog/application/catalog_controller.dart';
+import '../../catalog/data/catalog_models.dart';
 import '../data/home_repository.dart';
 
 final homeRepositoryProvider = Provider<HomeRepository>((ref) => HomeRepository());
 
+/// Промо-карусель — НАШИ бонус-акции (отдельная сущность от реального каталога).
 final promoListProvider = FutureProvider<List<Promo>>(
   (ref) => ref.read(homeRepositoryProvider).loadPromos(),
 );
 
+/// Мок-промо-товары (бонус-акции) — используются ТОЛЬКО при выборе акций для
+/// чека ([promo_picker_screen]). В ленте Home их заменил реальный каталог.
 final productListProvider = FutureProvider<List<Product>>(
   (ref) => ref.read(homeRepositoryProvider).loadProducts(),
 );
 
-/// Активный chip-фильтр в строке фильтров.
-enum HomeChip { all, isNew, contest }
+// ─── Лента-каталог ───────────────────────────────────────────────────────────
+// Канал «Сайт» сейчас ~77 товаров → грузим ВЕСЬ каталог один раз и фильтруем на
+// клиенте (бренд / категория / поиск / сортировка) — мгновенно, без round-trip на
+// каждый фильтр. Тот же паттерн, что был с mock-продуктами (applyHomeFilters).
+// Если каталог вырастет в тысячи — фильтрацию переносим на сервер.
 
-class HomeChipNotifier extends Notifier<HomeChip> {
-  @override
-  HomeChip build() => HomeChip.all;
-  void set(HomeChip c) => state = c;
+/// Все товары каталога (постранично, до safety-cap). Источник ленты Home.
+final homeCatalogProvider = FutureProvider<List<CatalogProduct>>((ref) async {
+  final repo = ref.read(catalogRepositoryProvider);
+  const pageSize = 100;
+  const safetyCap = 1000; // защита, если канал внезапно разрастётся
+  final all = <CatalogProduct>[];
+  var offset = 0;
+  while (true) {
+    final page = await repo.search(q: null, limit: pageSize, offset: offset);
+    all.addAll(page.items);
+    offset += page.items.length;
+    final done = page.items.isEmpty ||
+        all.length >= page.total ||
+        all.length >= safetyCap;
+    if (done) break;
+  }
+  return all;
+});
+
+/// Структурные псевдо-категории Medusa, которые НЕ показываем в фильтре.
+const _hiddenCategories = {'сайт'};
+
+/// Значимое значение бренда/категории: пустые и плейсхолдеры 1С отбрасываем.
+bool _meaningful(String s) {
+  final t = s.trim();
+  return t.isNotEmpty &&
+      t != '-' &&
+      t != '—' &&
+      t != '_' &&
+      t.toLowerCase() != 'none';
 }
 
-final homeChipProvider = NotifierProvider<HomeChipNotifier, HomeChip>(
-  HomeChipNotifier.new,
-);
+/// Различные бренды из загруженного каталога (отсортированы, без мусора).
+final homeBrandsProvider = Provider<List<String>>((ref) {
+  final products = ref.watch(homeCatalogProvider).valueOrNull ?? const [];
+  final set = <String>{};
+  for (final p in products) {
+    final b = p.brand;
+    if (b != null && _meaningful(b)) set.add(b.trim());
+  }
+  return set.toList()
+    ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+});
 
-// ─── Сортировка ────────────────────────────────────────────────────────────
+/// Различные категории из загруженного каталога (без структурной «Сайт»).
+final homeCategoriesProvider = Provider<List<String>>((ref) {
+  final products = ref.watch(homeCatalogProvider).valueOrNull ?? const [];
+  final set = <String>{};
+  for (final p in products) {
+    for (final c in p.categories) {
+      if (_meaningful(c) &&
+          !_hiddenCategories.contains(c.trim().toLowerCase())) {
+        set.add(c.trim());
+      }
+    }
+  }
+  return set.toList()
+    ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+});
 
-/// Опции сортировки в Sort sheet. Дефолтное значение — `newestFirst`
-/// (товары с `isNew == true` поднимаются наверх).
-enum SortOption {
-  /// Сначала новые акции (`Product.isNew == true`).
-  newestFirst,
+// ─── Сортировка ──────────────────────────────────────────────────────────────
+// Только по названию: цены и дат новизны в реальном каталоге пока нет
+// (calculated_price=null у всех, created_at одинаковый) — сортировать не по чему.
 
-  /// По названию (алфавитно А-Я по `Product.name`).
-  alphabetical,
+enum CatalogSort { nameAsc, nameDesc }
 
-  /// По типу акции по возрастанию минимальной цены tier.
-  promoAsc,
-
-  /// По типу акции по убыванию минимальной цены tier.
-  promoDesc,
-}
-
-extension SortOptionLabel on SortOption {
+extension CatalogSortLabel on CatalogSort {
   String get label => switch (this) {
-        SortOption.newestFirst => 'Сначала новые акции',
-        SortOption.alphabetical => 'По названию (А-Я)',
-        SortOption.promoAsc => 'По типу акции (по возрастанию)',
-        SortOption.promoDesc => 'По типу акции (по убыванию)',
+        CatalogSort.nameAsc => 'По названию (А-Я)',
+        CatalogSort.nameDesc => 'По названию (Я-А)',
       };
 }
 
-class SortNotifier extends Notifier<SortOption> {
+class CatalogSortNotifier extends Notifier<CatalogSort> {
   @override
-  SortOption build() => SortOption.newestFirst;
-  void set(SortOption v) => state = v;
+  CatalogSort build() => CatalogSort.nameAsc;
+  void set(CatalogSort v) => state = v;
 }
 
-final homeSortProvider = NotifierProvider<SortNotifier, SortOption>(
-  SortNotifier.new,
+final homeSortProvider = NotifierProvider<CatalogSortNotifier, CatalogSort>(
+  CatalogSortNotifier.new,
 );
 
-// ─── Бренды (множественный выбор) ──────────────────────────────────────────
+// ─── Множественный выбор (бренды + категории) ────────────────────────────────
 
-/// Курированный список популярных pharma-брендов в Казахстане.
-///
-/// Используется в Brand bottom-sheet. Не все из них присутствуют в mock-данных
-/// `Product.brand` — это ОК, пользователь видит реалистичный каталог и может
-/// «применить фильтр», что вернёт ноль товаров (для UI-проверки empty-state).
-const kKzPharmaBrands = <String>[
-  'AIGP',
-  'Sopharma',
-  'Sandoz',
-  'Sanofi',
-  'Bayer',
-  'Berlin-Chemie',
-  'KRKA',
-  'Gedeon Richter',
-  'Nobel Pharma',
-  'Polpharma Santo',
-  'Santo',
-  'Egis',
-  'Sun Pharma',
-  'Teva',
-  'Zentiva',
-  'Glenmark',
-  'Natrol',
-  'Haleon',
-  'Alpen Pharma',
-  'Kimberly Clark',
-  'Adipharm',
-  'Romat',
-];
-
-class SelectedBrandsNotifier extends Notifier<Set<String>> {
+class StringSetNotifier extends Notifier<Set<String>> {
   @override
   Set<String> build() => <String>{};
-
-  void toggle(String brand) {
-    final next = {...state};
-    if (next.contains(brand)) {
-      next.remove(brand);
-    } else {
-      next.add(brand);
-    }
-    state = next;
-  }
-
   void clear() => state = <String>{};
-
-  void replace(Set<String> brands) => state = {...brands};
+  void replace(Set<String> v) => state = {...v};
 }
 
 final selectedBrandsProvider =
-    NotifierProvider<SelectedBrandsNotifier, Set<String>>(
-  SelectedBrandsNotifier.new,
-);
+    NotifierProvider<StringSetNotifier, Set<String>>(StringSetNotifier.new);
 
-// ─── Поиск ─────────────────────────────────────────────────────────────────
+final selectedCategoriesProvider =
+    NotifierProvider<StringSetNotifier, Set<String>>(StringSetNotifier.new);
+
+// ─── Поиск ───────────────────────────────────────────────────────────────────
 
 class SearchQueryNotifier extends Notifier<String> {
   @override
@@ -130,61 +133,49 @@ final searchQueryProvider = NotifierProvider<SearchQueryNotifier, String>(
   SearchQueryNotifier.new,
 );
 
-// ─── Итоговый фильтр ───────────────────────────────────────────────────────
+// ─── Итоговый клиентский фильтр ───────────────────────────────────────────────
 
-/// Применяет к списку продуктов все активные фильтры:
-///   • chip (all / new / contest)
-///   • selectedBrands (если непусто — оставляем только их)
-///   • searchQuery (case-insensitive по name + brand)
-///   • sort (порядок результата)
-List<Product> applyHomeFilters({
-  required List<Product> products,
-  required HomeChip chip,
+/// Применяет к каталогу все активные фильтры:
+///   • brands     — если непусто, оставляем только выбранные бренды
+///   • categories — если непусто, товар проходит если хотя бы одна его категория выбрана
+///   • query      — поиск по названию + бренду + МНН (case-insensitive)
+///   • sort       — по названию А-Я / Я-А
+List<CatalogProduct> applyCatalogFilters({
+  required List<CatalogProduct> products,
   required Set<String> brands,
+  required Set<String> categories,
   required String query,
-  required SortOption sort,
+  required CatalogSort sort,
 }) {
-  Iterable<Product> result = products;
+  Iterable<CatalogProduct> result = products;
 
-  // chip
-  result = switch (chip) {
-    HomeChip.all => result,
-    HomeChip.isNew => result.where((p) => p.isNew),
-    HomeChip.contest => result.where((p) => p.contest),
-  };
-
-  // brand filter
   if (brands.isNotEmpty) {
-    result = result.where((p) => brands.contains(p.brand));
+    result = result.where(
+      (p) => p.brand != null && brands.contains(p.brand!.trim()),
+    );
+  }
+  if (categories.isNotEmpty) {
+    result = result.where(
+      (p) => p.categories.any((c) => categories.contains(c.trim())),
+    );
   }
 
-  // search query
   final q = query.trim().toLowerCase();
   if (q.isNotEmpty) {
     result = result.where(
-      (p) => p.name.toLowerCase().contains(q) || p.brand.toLowerCase().contains(q),
+      (p) =>
+          p.name.toLowerCase().contains(q) ||
+          (p.brand ?? '').toLowerCase().contains(q) ||
+          (p.mnn ?? '').toLowerCase().contains(q),
     );
   }
 
   final list = result.toList();
-
-  int minTierPrice(Product p) {
-    if (p.tiers.isEmpty) return 0;
-    final prices = p.tiers
-        .map((t) => int.tryParse(t.price.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0)
-        .toList();
-    return prices.reduce((a, b) => a < b ? a : b);
-  }
-
   switch (sort) {
-    case SortOption.newestFirst:
-      list.sort((a, b) => (b.isNew ? 1 : 0).compareTo(a.isNew ? 1 : 0));
-    case SortOption.alphabetical:
+    case CatalogSort.nameAsc:
       list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-    case SortOption.promoAsc:
-      list.sort((a, b) => minTierPrice(a).compareTo(minTierPrice(b)));
-    case SortOption.promoDesc:
-      list.sort((a, b) => minTierPrice(b).compareTo(minTierPrice(a)));
+    case CatalogSort.nameDesc:
+      list.sort((a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase()));
   }
   return list;
 }

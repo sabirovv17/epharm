@@ -31,7 +31,7 @@ class _SortSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(homeSortProvider);
-    final options = SortOption.values;
+    final options = CatalogSort.values;
 
     return SafeArea(
       top: false,
@@ -104,7 +104,7 @@ class _SortRow extends StatelessWidget {
     required this.onTap,
   });
 
-  final SortOption option;
+  final CatalogSort option;
   final bool selected;
   final VoidCallback onTap;
 
