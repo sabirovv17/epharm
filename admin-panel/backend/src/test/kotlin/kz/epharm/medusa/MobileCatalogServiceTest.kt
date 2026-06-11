@@ -4,6 +4,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kz.epharm.medusa.client.MedusaClient
 import kz.epharm.medusa.dto.MedusaCalculatedPrice
+import kz.epharm.medusa.dto.MedusaCategory
 import kz.epharm.medusa.dto.MedusaImage
 import kz.epharm.medusa.dto.MedusaProduct
 import kz.epharm.medusa.dto.MedusaProductListResponse
@@ -90,6 +91,33 @@ class MobileCatalogServiceTest {
     }
 
     @Test
+    fun `categories маппит все категории товара (для фильтра ленты), category — первую`() {
+        stubList(
+            MedusaProduct(
+                id = "prod_cat",
+                title = "Товар с категориями",
+                categories = listOf(
+                    MedusaCategory(id = "c1", name = "БАДы"),
+                    MedusaCategory(id = "c2", name = "БАДы для пищеварения"),
+                    MedusaCategory(id = "c3", name = "БАДы"),       // дубль → схлопывается
+                    MedusaCategory(id = "c4", name = "  "),         // пустое → отбрасываем
+                ),
+            ),
+        )
+        val c = service.search(null, null, 24, 0).items[0]
+        assertEquals("БАДы", c.category) // первая непустая
+        assertEquals(listOf("БАДы", "БАДы для пищеварения"), c.categories) // distinct, без пустых
+    }
+
+    @Test
+    fun `товар без категорий → пустой список categories`() {
+        stubList(MedusaProduct(id = "p_nocat", title = "Без категорий"))
+        val c = service.search(null, null, 24, 0).items[0]
+        assertTrue(c.categories.isEmpty())
+        assertNull(c.category)
+    }
+
+    @Test
     fun `imageUrl исключает gallery=marketplace`() {
         stubList(
             MedusaProduct(
@@ -106,10 +134,10 @@ class MobileCatalogServiceTest {
     }
 
     @Test
-    fun `limit и offset нормализуются (диапазон 1-50, offset не меньше 0)`() {
+    fun `limit и offset нормализуются (диапазон 1-100, offset не меньше 0)`() {
         stubList(MedusaProduct(id = "p", title = "t"))
         val tooBig = service.search(null, null, limit = 999, offset = -10)
-        assertEquals(50, tooBig.limit)
+        assertEquals(100, tooBig.limit)
         assertEquals(0, tooBig.offset)
 
         val tooSmall = service.search(null, null, limit = 0, offset = 5)

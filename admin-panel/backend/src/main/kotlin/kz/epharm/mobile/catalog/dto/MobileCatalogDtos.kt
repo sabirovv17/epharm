@@ -17,7 +17,8 @@ data class MobileCatalogProductDto(
     val currency: String, // "KZT"
     val imageUrl: String?,
     val barcode: String?,
-    val category: String?,
+    val category: String?,            // первая категория (для краткого показа)
+    val categories: List<String>,    // все категории товара — для клиентского фильтра в ленте
 )
 
 data class MobileCatalogPageDto(

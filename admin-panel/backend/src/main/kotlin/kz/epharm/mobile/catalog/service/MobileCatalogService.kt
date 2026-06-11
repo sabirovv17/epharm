@@ -69,6 +69,7 @@ class MobileCatalogService(
         imageUrl = imageOf(p),
         barcode = barcodeOf(p),
         category = categoryOf(p),
+        categories = categoriesOf(p),
     )
 
     private fun detailOf(p: MedusaProduct) = MobileCatalogDetailDto(
@@ -107,6 +108,16 @@ class MobileCatalogService(
     private fun categoryOf(p: MedusaProduct): String? =
         p.categories.firstOrNull { it.name.isNotBlank() }?.name
             ?: metaStr(p, "category")
+
+    /**
+     * Все категории товара (имена) — для клиентского фильтра в ленте каталога.
+     * Возвращаем как есть (включая структурную «Сайт»); фильтрацию шумовых категорий
+     * делает UI. distinct — у товара бывают дубли-предки.
+     */
+    private fun categoriesOf(p: MedusaProduct): List<String> =
+        p.categories
+            .mapNotNull { it.name.trim().takeIf { n -> n.isNotBlank() } }
+            .distinct()
 
     private fun priceOf(p: MedusaProduct): Int? =
         p.variants.firstNotNullOfOrNull { it.calculatedPrice?.calculatedAmount }?.roundToInt()
@@ -153,6 +164,7 @@ class MobileCatalogService(
             ?: emptyList()
 
     companion object {
-        const val MAX_LIMIT = 50
+        // Канал «Сайт» сейчас ~77 товаров — лента грузит весь каталог за 1-2 запроса.
+        const val MAX_LIMIT = 100
     }
 }
