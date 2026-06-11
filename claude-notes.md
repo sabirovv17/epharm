@@ -529,3 +529,32 @@ chip-провайдер `homeChipProvider`, старый `SortOption`, хард�
   (штрихкод, «Без рецепта»), фильтр «Бренды» (поиск + чекбоксы всех брендов) работает.
 - 💡 На будущее (polish): различать в error-виджете 401/auth и реальную сеть — сейчас обе дают
   «нет сети». Плюс известный остаток: цена «-» (нужен `region_id` для Medusa calculated_price).
+
+## 2026-06-12 — Лента главной = промо-акции (Фаза 4 фичи Medusa→админка→мобилка)
+
+Главная фармацевта переключена с «весь каталог Medusa» на ПУЛ промо-акций из админки.
+Источник — `GET /api/mobile/promotions` (новый публичный backend-эндпоинт, Фаза 2): активные
+промо-кампании, смерженные с живыми данными товара Medusa.
+
+- Новая feature `lib/features/promotions/`:
+  - `data/promotion_models.dart` — `Promotion` (id промо + productId Medusa + товар + tiers + даты)
+    - `PromoTier{minQty,price,bonus}` + `dateLabel` («с 1 — 30 июня»).
+  - `data/promotions_repository.dart` — `GET /api/mobile/promotions` (getJsonList).
+  - `application/promotions_controller.dart` — `promotionsProvider` (FutureProvider),
+    `promoBrandsProvider`/`promoCategoriesProvider` (из пула промо), `applyPromotionFilters`.
+  - `presentation/promo_product_card.dart` — богатая карточка В НАШ СТИЛЬ (по синему макету,
+    но зелёная): фото, название/бренд, ряд ценовых порогов «от N шт → цена», строки бонусов,
+    бейдж дат. Тап → `showCatalogProductSheet(productId)` (переиспользуем детальную карточку).
+- `home_screen.dart`: `_CatalogSliver` (2 колонки) → `_PromoSliver` (ОДНА колонка, `SliverList.separated`),
+  watch `promotionsProvider` + `applyPromotionFilters`. brand_sheet/category_sheet → `promoBrands/Categories`.
+- Каталог Medusa (`homeCatalogProvider`/`applyCatalogFilters`/`CatalogCard`) и его тесты НЕ тронуты —
+  остаются для будущего обзора витрины.
+- Баннеры-заглушки −10% (260×200 → 234×180).
+- Тест `test/features/promotions/promotion_filter_test.dart` (фильтр/сорт/поиск + парсинг).
+
+**Демо:** на проде засижено 5 акций (Панкраген/Кардиоген/Eve Multi-Bayer/Ivatherm/NOW Бор) —
+все с фото, реальными брендами Medusa и порогами/бонусами. Лента непустая.
+
+**Осталось (следующие фазы):** Фаза 3 — админ-форма промо (пикер товара Medusa + редактор
+порогов/дат), чтобы админ заводил акции сам (сейчас засижено скриптом). Доп. — promo_picker чека
+переключить с мок-Product на promotionsProvider (выбор акции при загрузке чека из того же пула).
