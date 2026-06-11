@@ -3074,3 +3074,30 @@ useStorefront/AdminStorefront `GET /api/admin/storefront/products?q=`) + ред�
 Фаза 4 — мобилка: лента из /promotions (1 колонка, rich-карточки), фильтры по промо-пулу,
 тот же пул в promo*picker чека (вместо мок-Product), баннеры −10%. Фаза 5 — seed демо-промо
 на прод (через admin API с реальными prod*\* id) + review + APK.
+
+### Фаза 3 — админ-форма промо-акции (2026-06-12)
+
+Раздел «Промо» теперь создаёт/редактирует ТОВАРНЫЕ акции (не абстрактные кампании).
+
+- `PromoProductPicker.tsx` — поиск/выбор товара витрины Medusa (переиспользует
+  `useStorefront` → `GET /api/admin/storefront/products?q=`, дебаунс 300мс). При выборе
+  заполняет `medusaProductId` + снимок (имя/фото/бренд). Свёрнутый вид = карточка товара
+  с «Сменить».
+- `PromoTiersEditor.tsx` — строки `{minQty, price, bonus}` (add/remove), подсветка нарушения
+  монотонности по minQty.
+- `CreatePromoModal.tsx` — ПЕРЕПИСАН: товар (обязателен) + название (авто из товара) + даты +
+  пороги. Бренд из товара. Старые campaign-поля (cover/kpi/budget/period) из create убраны
+  (entity хранит дефолты). valid = товар + title + монотонные пороги + согласованные даты.
+- `PromoDetailPage.tsx` — добавлена карточка «Акция — товар, даты, пороги» (пикер + date-инпуты +
+  tiers editor); dirty/handleSave учитывают новые поля + валидируют пороги/даты перед PATCH.
+  Archived → товар read-only.
+- `api-types.ts` — `PromoTierDto` + новые поля Promo/Create/Update DTO.
+
+**Тесты:** PromoPage/PromoDetailPage переписаны под новый флоу — мок `useStorefront`, выбор
+товара из выдачи, проверка create-DTO с `medusaProductId`. Удалён устаревший блок «Bug O —
+cover live-preview» (в товарной форме cover-превью нет). `tsc` + `vite build` + весь admin-сьют
+(318 тестов) зелёные.
+
+**Полный поток теперь замкнут:** админ создаёт акцию (товар Medusa + пороги/даты) → она едет в
+мобильную ленту (`/api/mobile/promotions`) → фармацевт видит богатую карточку. Остаток: в
+мобильном promo_picker чека переключить мок-Product на тот же промо-пул.
