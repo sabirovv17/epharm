@@ -139,10 +139,10 @@ class MobileCatalogService(
             .filter { (it.metadata?.get("gallery") as? String) != "marketplace" }
             .mapNotNull { it.url?.trim()?.takeIf { u -> u.isNotBlank() } }
 
-    /** Строка из metadata, отбрасывая плейсхолдеры 1С ("_"/"none"/пусто). */
+    /** Строка из metadata, отбрасывая плейсхолдеры «поле не заполнено» (см. [META_PLACEHOLDERS]). */
     private fun metaStr(p: MedusaProduct, key: String): String? {
         val s = (p.metadata?.get(key) as? String)?.trim() ?: return null
-        return s.takeIf { it.isNotBlank() && it != "_" && !it.equals("none", ignoreCase = true) }
+        return s.takeUnless { it.isBlank() || it.lowercase() in META_PLACEHOLDERS }
     }
 
     private fun metaStrList(p: MedusaProduct, key: String): List<String> =
@@ -166,5 +166,10 @@ class MobileCatalogService(
     companion object {
         // Канал «Сайт» сейчас ~77 товаров — лента грузит весь каталог за 1-2 запроса.
         const val MAX_LIMIT = 100
+
+        // Плейсхолдеры «поле не заполнено» из 1С-выгрузки витрины (товар есть, значения нет):
+        // прочерки разных видов, "_", "none", "н/д". Сравнение по lowercase + trim.
+        // Без этого фильтра "-" утекал в бренд/АТС/категорию у ~62% товаров (≈470 полей).
+        private val META_PLACEHOLDERS = setOf("_", "-", "—", "–", "none", "n/a", "н/д")
     }
 }

@@ -68,6 +68,35 @@ class MobileCatalogServiceTest {
     }
 
     @Test
+    fun `прочерк «-» из 1С — плейсхолдер пустоты, не значение (бренд-rxOtc-категория-детали null)`() {
+        // В реальной выгрузке ~470 полей = "-" (бренд у 48 из 77 товаров). Не должны утекать.
+        val meta = mapOf(
+            "brand_name" to "-",
+            "brand_raw" to "-",
+            "corporation" to "-",
+            "manufacturer" to "-",
+            "rx_otc" to "-",
+            "category" to "—",                 // em-dash тоже плейсхолдер
+            "atc" to "-",
+            "country_official" to "-",
+            "manufacturer_official" to "-",
+        )
+        stubList(MedusaProduct(id = "prod_dash", title = "Товар с прочерками", metadata = meta))
+        every { medusa.getProduct("prod_dash") } returns
+            MedusaProduct(id = "prod_dash", title = "Товар с прочерками", metadata = meta)
+
+        val c = service.search(null, null, 24, 0).items[0]
+        assertNull(c.brand)     // вся цепочка brand = "-" → null (карточка не покажет "-")
+        assertNull(c.rxOtc)     // "-" → null (нет ложного Rx/OTC)
+        assertNull(c.category)  // нет реальных категорий + metadata "—" → null
+
+        val d = service.detail("prod_dash")
+        assertNull(d.atc)
+        assertNull(d.country)
+        assertNull(d.manufacturer)
+    }
+
+    @Test
     fun `brand_name приоритетнее corporation, цена и валюта берутся из варианта`() {
         stubList(
             MedusaProduct(
