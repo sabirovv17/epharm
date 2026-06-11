@@ -2969,3 +2969,40 @@ root-пароль сервера → SSH-ключи; сменить admin-пар
   Тесты не задеты (test-профиль не сидит). Live: reset → `pharmacies: 523`→522, видны в админке/мобилке.
 - ⚠️ Medusa admin-креды НЕ хранятся в коде (one-time выгрузка → JSON). Анти-фрод `wrong_pharmacy`
   теперь сверяет с реальными ph-id (sloc\_…).
+
+## 2026-06-11 — Каталог витрины ПУБЛИЧНЫЙ (лента на главной без логина) + диагностика 401
+
+Мобильная главная показывает реальный каталог Medusa **до** входа фармацевта (логин нужен
+только для бонусов/чеков). Симптом в приложении: «Каталог недоступен» + иконка «нет сети».
+Корень — `GET /api/mobile/catalog/products` без токена отдавал **401**. Фикс оказался
+ДВУХСЛОЙНЫМ — важный урок:
+
+1. **SecurityConfig** — путь ловился общим `.requestMatchers("/api/mobile/**").hasRole("PHARMACIST")`.
+   Добавил `"/api/mobile/catalog/**"` в `.permitAll()` блок **выше** этого правила
+   (порядок в `authorizeHttpRequests` = declaration-order, первое совпадение выигрывает; НЕ
+   сортируется по специфичности).
+2. **MobileCatalogController** — даже с permitAll возвращал 401, потому что КАЖДЫЙ метод имел
+   прикладной гейт `requireAuth(principal)`: `@AuthenticationPrincipal principal: PharmacistPrincipal?`
+   == null у анонима → бросал `AppException(UNAUTHORIZED)`. Убрал и гейт, и инъекцию principal —
+   каталог это прокси Medusa, личность фармацевта в выдаче не используется.
+
+**Диагностика (методика на будущее):** включил `logging.level.org.springframework.security.web.access=TRACE`
+
+- `…authorization=TRACE`. Лог форкнутого тест-JVM Gradle НЕ кладёт в консоль — он в
+  `build/test-results/test/TEST-*.xml` внутри `<system-out>`. Там увидел: запрос каталога
+  матчится менеджером `AuthorizeHttpRequestsConfigurer$$Lambda` (= permitAll, всегда grant),
+  а аптеки — `AuthorityAuthorizationManager[ROLE_PHARMACIST]`. Раз permitAll сматчился, а ответ
+  всё равно 401 — значит 401 не из security-слоя, а из контроллера. Так и нашёл `requireAuth`.
+
+**Тест:** `MobilePharmacyCatalogIntegrationTest` «каталог без токена → 401» заменён на
+«каталог ПУБЛИЧНЫЙ → 200». Полный backend-сьют зелёный (**259 тестов, 0 провалов**).
+Коммит `fix(backend): публичный каталог витрины — лента на главной без логина` (378ffed).
+
+**Деплой (демо-сервер 78.140.246.238, /root/epharm):** `git archive HEAD admin-panel/backend/src |
+ssh … tar -x` → sha256-сверка двух файлов (совпали) → `docker compose --env-file .env.prod
+-f docker-compose.prod.yml up -d --build backend`. Live-проверка: `curl …/api/mobile/catalog/products`
+без токена → **200, total=77**, реальные товары. Подтверждено визуально в iOS-симуляторе:
+лента карточек + фильтр «Бренды» (Alvogen/Bayer/Access Bioscience…) работают.
+
+- ⚠️ Известный остаток (НЕ этот баг): `calculated_price` Medusa требует `region_id` → в карточке
+  «Цена в аптеке» пока «-». Картинок у товаров нет → плейсхолдер с первой буквой. Отдельная задача.
