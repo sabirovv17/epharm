@@ -22,6 +22,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 //   GET /api/health + actuator (health/info) + Swagger (в prod Swagger выключается профилем)
 //   POST /api/admin/auth/{login,refresh} — выдача/обновление admin-токенов
 //   POST /api/mobile/auth/{sms/request,sms/verify,register,refresh} — вход фармацевта
+//   GET  /api/mobile/catalog/** — публичный каталог витрины (лента на главной без логина)
 //   /api/posm/** — касса (Module 2) аутентифицируется device-key, не JWT
 //
 // Разграничение по authority (КРИТИЧНО — закрывает эскалацию pharmacist→admin):
@@ -68,6 +69,10 @@ class SecurityConfig(
                         // POSM-клиент кассы (Module 2): аутентификация не JWT, а device-key
                         // (заголовок X-Posm-Key), проверяется в PosmController. JWT-фильтр пропускает.
                         "/api/posm/**",
+                        // Каталог товаров — ПУБЛИЧНЫЕ данные витрины (Medusa store API через
+                        // прокси). Лента на главной доступна БЕЗ логина: фармацевт смотрит
+                        // товары до входа. Логин нужен только для бонусов/чеков (/me, /receipts).
+                        "/api/mobile/catalog/**",
                     ).permitAll()
                     // Метрики/prometheus — только для админ-консоли, не наружу.
                     .requestMatchers("/actuator/**").hasAnyRole(*ADMIN_ROLES)

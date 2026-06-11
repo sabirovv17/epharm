@@ -145,7 +145,11 @@ class MobilePharmacyCatalogIntegrationTest {
     }
 
     @Test
-    fun `каталог без токена → 401`() {
-        mockMvc.perform(get("/api/mobile/catalog/products")).andExpect(status().isUnauthorized)
+    fun `каталог ПУБЛИЧНЫЙ — без токена тоже 200 (лента на главной до логина)`() {
+        // /api/mobile/catalog/** → permitAll: товары видны без входа (фармацевт смотрит
+        // каталог до логина). При выключенном Medusa — пустая страница, но именно 200.
+        mockMvc.perform(get("/api/mobile/catalog/products"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.total").value(0))
     }
 }
