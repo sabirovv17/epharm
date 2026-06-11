@@ -9,10 +9,12 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Button, Empty, Field, Input, PageHeader, ProgressBar, StatusChip, useToast } from '@/ui'
 import { IconArchive, IconArrowUp, IconPause, IconPlay, IconPromo, IconRefresh } from '@/ui/icons'
 import { formatKzt } from '@/mocks/fixtures'
-import type { PromoStatus, UpdatePromoRequest } from '@/lib/api-types'
+import type { PromoStatus, PromoTierDto, UpdatePromoRequest } from '@/lib/api-types'
 import { describeError } from '@/lib/describeError'
 import { useT } from '@/i18n'
 import { useArchivePromo, usePromo, useRestorePromo, useUpdatePromo } from '@/lib/queries/promo'
+import { PromoProductPicker, type SelectedProduct } from './PromoProductPicker'
+import { PromoTiersEditor } from './PromoTiersEditor'
 
 interface FormState {
   title: string
@@ -21,9 +23,37 @@ interface FormState {
   budget: string
   kpi: string
   cover: string
+  // Товарная акция:
+  product: SelectedProduct | null
+  dateStart: string
+  dateEnd: string
+  tiers: PromoTierDto[]
 }
 
-const EMPTY_FORM: FormState = { title: '', brand: '', period: '', budget: '', kpi: '', cover: '' }
+const EMPTY_FORM: FormState = {
+  title: '',
+  brand: '',
+  period: '',
+  budget: '',
+  kpi: '',
+  cover: '',
+  product: null,
+  dateStart: '',
+  dateEnd: '',
+  tiers: [],
+}
+
+function tiersOk(tiers: PromoTierDto[]): boolean {
+  for (let i = 1; i < tiers.length; i++) if (tiers[i].minQty <= tiers[i - 1].minQty) return false
+  return true
+}
+
+function sameTiers(a: PromoTierDto[], b: PromoTierDto[]): boolean {
+  if (a.length !== b.length) return false
+  return a.every(
+    (t, i) => t.minQty === b[i].minQty && t.price === b[i].price && t.bonus === b[i].bonus,
+  )
+}
 
 export default function PromoDetailPage() {
   const t = useT()
@@ -49,6 +79,17 @@ export default function PromoDetailPage() {
         budget: String(promo.budget),
         kpi: promo.kpi,
         cover: promo.cover,
+        product: promo.medusaProductId
+          ? {
+              medusaProductId: promo.medusaProductId,
+              productName: promo.productName,
+              productImage: promo.productImage,
+              brand: promo.brand,
+            }
+          : null,
+        dateStart: promo.dateStart ?? '',
+        dateEnd: promo.dateEnd ?? '',
+        tiers: promo.tiers,
       })
       setSaveErr(null)
     }
@@ -107,7 +148,11 @@ export default function PromoDetailPage() {
     form.period !== promo.period ||
     form.budget !== String(promo.budget) ||
     form.kpi !== promo.kpi ||
-    form.cover !== promo.cover
+    form.cover !== promo.cover ||
+    (form.product?.medusaProductId ?? null) !== promo.medusaProductId ||
+    form.dateStart !== (promo.dateStart ?? '') ||
+    form.dateEnd !== (promo.dateEnd ?? '') ||
+    !sameTiers(form.tiers, promo.tiers)
 
   const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -117,8 +162,12 @@ export default function PromoDetailPage() {
       setSaveErr(t('pd.errTitleReq'))
       return
     }
-    if (!form.brand.trim()) {
-      setSaveErr(t('pd.errBrandReq'))
+    if (!tiersOk(form.tiers)) {
+      setSaveErr('Пороги акции должны идти по возрастанию количества.')
+      return
+    }
+    if (form.dateStart && form.dateEnd && form.dateStart > form.dateEnd) {
+      setSaveErr('Дата окончания акции раньше даты начала.')
       return
     }
     const patch: UpdatePromoRequest = {
@@ -128,6 +177,12 @@ export default function PromoDetailPage() {
       budget: Number(form.budget) || 0,
       kpi: form.kpi.trim(),
       cover: form.cover.trim(),
+      medusaProductId: form.product?.medusaProductId ?? null,
+      productName: form.product?.productName ?? '',
+      productImage: form.product?.productImage ?? null,
+      dateStart: form.dateStart || null,
+      dateEnd: form.dateEnd || null,
+      tiers: form.tiers,
     }
     updatePromo.mutate(
       { id: promo.id, patch },
@@ -216,6 +271,51 @@ export default function PromoDetailPage() {
               {t('pd.archivedBanner')}
             </div>
           )}
+
+          {/* Товарная акция: товар Medusa + даты + ценовые пороги */}
+          <div className="card flex flex-col gap-4 p-5">
+            <div className="text-[13px] font-extrabold uppercase tracking-[0.06em] text-ink-500">
+              Акция — товар, даты, пороги
+            </div>
+            <Field label="Товар (из витрины Medusa)">
+              {isArchived ? (
+                <div className="rounded-xl border border-ink-100 bg-paper-card px-3 py-2 text-[14px] font-bold text-ink-700">
+                  {form.product?.productName || '— товар не привязан —'}
+                </div>
+              ) : (
+                <PromoProductPicker
+                  value={form.product}
+                  onChange={(p) =>
+                    setForm((f) => ({ ...f, product: p, brand: p.brand || f.brand }))
+                  }
+                />
+              )}
+            </Field>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Начало акции">
+                <Input
+                  type="date"
+                  value={form.dateStart}
+                  onChange={set('dateStart')}
+                  disabled={isArchived}
+                />
+              </Field>
+              <Field label="Окончание акции">
+                <Input
+                  type="date"
+                  value={form.dateEnd}
+                  onChange={set('dateEnd')}
+                  disabled={isArchived}
+                />
+              </Field>
+            </div>
+            <Field label="Ценовые пороги (цена и бонус по количеству)">
+              <PromoTiersEditor
+                value={form.tiers}
+                onChange={(tiers) => setForm((f) => ({ ...f, tiers }))}
+              />
+            </Field>
+          </div>
 
           <div className="card flex flex-col gap-4 p-5">
             <div className="text-[13px] font-extrabold uppercase tracking-[0.06em] text-ink-500">

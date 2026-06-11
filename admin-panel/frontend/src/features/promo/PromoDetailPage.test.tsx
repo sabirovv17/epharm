@@ -19,7 +19,13 @@ const promoHooks = vi.hoisted(() => ({
   usePromos: vi.fn(),
   useCreatePromo: vi.fn(),
 }))
+const storefrontHooks = vi.hoisted(() => ({ useStorefront: vi.fn() }))
+
 vi.mock('@/lib/queries/promo', () => promoHooks)
+vi.mock('@/lib/queries/storefront', () => ({
+  storefrontKeys: { all: ['storefront'], list: () => ['storefront', 'list'] },
+  useStorefront: storefrontHooks.useStorefront,
+}))
 
 function LocationProbe() {
   const loc = useLocation()
@@ -38,6 +44,12 @@ function mkPromo(over: Partial<PromoDto> = {}): PromoDto {
     spent: 250_000,
     kpi: '1000 рек.',
     cover: '#16C97A',
+    medusaProductId: null,
+    productName: '',
+    productImage: null,
+    dateStart: null,
+    dateEnd: null,
+    tiers: [],
     createdBy: 'u',
     createdAt: '2026-05-01T00:00:00Z',
     updatedAt: '2026-05-02T00:00:00Z',
@@ -62,6 +74,10 @@ beforeEach(() => {
   promoHooks.useUpdatePromo.mockReturnValue({ mutate: vi.fn(), isPending: false })
   promoHooks.useArchivePromo.mockReturnValue({ mutate: vi.fn(), isPending: false })
   promoHooks.useRestorePromo.mockReturnValue({ mutate: vi.fn(), isPending: false })
+  storefrontHooks.useStorefront.mockReturnValue({
+    data: { items: [], total: 0, limit: 20, offset: 0 },
+    isFetching: false,
+  })
 })
 
 function renderDetail(id = 'pr_1') {

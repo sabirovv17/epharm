@@ -1,11 +1,13 @@
-// CreatePromoModal — простое модальное окно создания. Один шаг (форма + кнопка).
-// На MVP минимум полей: title, brand, period, budget. KPI и cover добавятся позже.
+// CreatePromoModal — создание товарной акции: выбор товара из витрины Medusa +
+// диапазон дат + ценовые пороги с бонусом. Бренд берётся из выбранного товара.
 
 import { useEffect, useState } from 'react'
 import { Button, Field, Input, Modal } from '@/ui'
 import { IconCheck } from '@/ui/icons'
-import type { CreatePromoRequest } from '@/lib/api-types'
+import type { CreatePromoRequest, PromoTierDto } from '@/lib/api-types'
 import { useT } from '@/i18n'
+import { PromoProductPicker, type SelectedProduct } from './PromoProductPicker'
+import { PromoTiersEditor } from './PromoTiersEditor'
 
 interface CreatePromoModalProps {
   open: boolean
@@ -15,22 +17,25 @@ interface CreatePromoModalProps {
 }
 
 interface FormState {
+  product: SelectedProduct | null
   title: string
-  brand: string
-  period: string
-  budget: string
-  kpi: string
-  cover: string
+  dateStart: string
+  dateEnd: string
+  tiers: PromoTierDto[]
 }
 
 const initial = (): FormState => ({
+  product: null,
   title: '',
-  brand: '',
-  period: '',
-  budget: '',
-  kpi: '',
-  cover: '#16C97A',
+  dateStart: '',
+  dateEnd: '',
+  tiers: [{ minQty: 1, price: 0, bonus: 0 }],
 })
+
+function tiersOk(tiers: PromoTierDto[]): boolean {
+  for (let i = 1; i < tiers.length; i++) if (tiers[i].minQty <= tiers[i - 1].minQty) return false
+  return true
+}
 
 export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePromoModalProps) {
   const t = useT()
@@ -40,18 +45,22 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
     if (open) setForm(initial())
   }, [open])
 
-  const valid = form.title.trim().length > 0 && form.brand.trim().length > 0
+  const datesOk = !form.dateStart || !form.dateEnd || form.dateStart <= form.dateEnd
+  const valid =
+    form.product !== null && form.title.trim().length > 0 && tiersOk(form.tiers) && datesOk
 
   const submit = () => {
-    if (!valid) return
+    if (!valid || !form.product) return
     onCreate({
       title: form.title.trim(),
-      brand: form.brand.trim(),
       status: 'draft',
-      period: form.period.trim(),
-      budget: form.budget ? Number(form.budget) || 0 : 0,
-      kpi: form.kpi.trim(),
-      cover: form.cover.trim(),
+      medusaProductId: form.product.medusaProductId,
+      productName: form.product.productName,
+      productImage: form.product.productImage,
+      brand: form.product.brand,
+      dateStart: form.dateStart || null,
+      dateEnd: form.dateEnd || null,
+      tiers: form.tiers,
     })
   }
 
@@ -59,9 +68,9 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
     <Modal
       open={open}
       onClose={onClose}
-      title={t('pm.newCampaign')}
-      subtitle={t('pm.modalSub')}
-      width={560}
+      title="Новая акция"
+      subtitle="Выберите товар из витрины и задайте цены/бонусы по количеству"
+      width={580}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
@@ -79,100 +88,49 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
       }
     >
       <div className="flex flex-col gap-3">
-        {/* Live preview: показывает как будет выглядеть cover карточки.
-            Обновляется при наборе title / brand / cover hex. Это позволяет
-            юзеру сразу понять, что текст лендит внутрь цветного блока. */}
-        <PromoCoverPreview title={form.title} brand={form.brand} cover={form.cover} />
+        <Field label="Товар (из витрины Medusa)">
+          <PromoProductPicker
+            value={form.product}
+            onChange={(p) =>
+              setForm((f) => ({ ...f, product: p, title: f.title || p.productName }))
+            }
+          />
+        </Field>
 
-        <Field label={t('pm.fldTitle')}>
+        <Field label="Название акции">
           <Input
             value={form.title}
             onChange={(e) => setForm({ ...form, title: e.target.value })}
-            placeholder={t('pm.titlePh')}
-            autoFocus
+            placeholder="напр. Двойной бонус на Панкраген"
           />
         </Field>
-        <Field label={t('pm.fldBrand')}>
-          <Input
-            value={form.brand}
-            onChange={(e) => setForm({ ...form, brand: e.target.value })}
-            placeholder={t('pm.brandPh')}
-          />
-        </Field>
+
         <div className="grid grid-cols-2 gap-3">
-          <Field label={t('pm.fldPeriod')}>
+          <Field label="Начало">
             <Input
-              value={form.period}
-              onChange={(e) => setForm({ ...form, period: e.target.value })}
-              placeholder={t('pm.periodPh')}
+              type="date"
+              value={form.dateStart}
+              onChange={(e) => setForm({ ...form, dateStart: e.target.value })}
             />
           </Field>
-          <Field label={t('pm.fldBudget')}>
+          <Field label="Окончание">
             <Input
-              type="number"
-              value={form.budget}
-              onChange={(e) => setForm({ ...form, budget: e.target.value })}
-              placeholder={t('pm.budgetPh')}
+              type="date"
+              value={form.dateEnd}
+              onChange={(e) => setForm({ ...form, dateEnd: e.target.value })}
             />
           </Field>
         </div>
-        <Field label={t('pm.fldKpi')}>
-          <Input
-            value={form.kpi}
-            onChange={(e) => setForm({ ...form, kpi: e.target.value })}
-            placeholder={t('pm.kpiPh')}
-          />
-        </Field>
-        <Field label={t('pm.fldCover')} hint={t('pm.coverHint')}>
-          <Input
-            value={form.cover}
-            onChange={(e) => setForm({ ...form, cover: e.target.value })}
-            placeholder="#16C97A"
-          />
+        {!datesOk && (
+          <div className="-mt-1 text-[12px] font-semibold text-accent-danger">
+            Дата окончания раньше начала.
+          </div>
+        )}
+
+        <Field label="Ценовые пороги (цена и бонус по количеству)">
+          <PromoTiersEditor value={form.tiers} onChange={(tiers) => setForm({ ...form, tiers })} />
         </Field>
       </div>
     </Modal>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// PromoCoverPreview — live превью cover-блока. Sanitize'ит hex чтобы
-// CSS не сломался на полуготовом инпуте («#16» / «не hex»).
-// ─────────────────────────────────────────────────────────────────────────
-
-function sanitizeHex(raw: string): string {
-  const v = raw.trim()
-  // Принимаем #RGB / #RRGGBB. Иначе fallback на neutral grey.
-  if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v)) return v
-  return '#5A6173'
-}
-
-interface PromoCoverPreviewProps {
-  title: string
-  brand: string
-  cover: string
-}
-
-function PromoCoverPreview({ title, brand, cover }: PromoCoverPreviewProps) {
-  const t = useT()
-  const color = sanitizeHex(cover)
-  const displayTitle = title.trim() || t('pm.previewTitle')
-  const displayBrand = brand.trim() || t('pm.previewBrand')
-  return (
-    <div
-      data-testid="promo-create-preview"
-      className="relative h-28 overflow-hidden rounded-xl"
-      style={{ background: `linear-gradient(135deg, ${color}, ${color}cc)` }}
-    >
-      <div className="absolute bottom-4 left-5 right-5 text-white">
-        <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.08em] opacity-85">
-          {displayBrand}
-        </div>
-        <div className="text-[18px] font-extrabold leading-tight">{displayTitle}</div>
-      </div>
-      <div className="absolute right-3 top-3 rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-ink-700">
-        {t('pm.preview')}
-      </div>
-    </div>
   )
 }

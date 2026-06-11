@@ -325,6 +325,13 @@ export interface UpdatePharmacistRequest {
 
 export type PromoStatus = 'active' | 'draft' | 'paused' | 'archived'
 
+/** Ценовой порог акции: «от minQty шт → price ₸» (+ разовый bonus ₸ за порог). */
+export interface PromoTierDto {
+  minQty: number
+  price: number
+  bonus: number
+}
+
 export interface PromoDto {
   id: string
   title: string
@@ -336,6 +343,13 @@ export interface PromoDto {
   spent: number
   kpi: string
   cover: string
+  // Товарная акция (V022): линк на товар Medusa + снимок + даты + пороги.
+  medusaProductId: string | null
+  productName: string
+  productImage: string | null
+  dateStart: string | null
+  dateEnd: string | null
+  tiers: PromoTierDto[]
   createdBy: string
   createdAt: string
   updatedAt: string
@@ -344,11 +358,17 @@ export interface PromoDto {
 export interface CreatePromoRequest {
   title: string
   status?: PromoStatus
-  brand: string
+  brand?: string
   period?: string
   budget?: number
   kpi?: string
   cover?: string
+  medusaProductId?: string | null
+  productName?: string
+  productImage?: string | null
+  dateStart?: string | null
+  dateEnd?: string | null
+  tiers?: PromoTierDto[]
 }
 
 export interface UpdatePromoRequest {
@@ -359,6 +379,12 @@ export interface UpdatePromoRequest {
   budget?: number
   kpi?: string
   cover?: string
+  medusaProductId?: string | null
+  productName?: string
+  productImage?: string | null
+  dateStart?: string | null
+  dateEnd?: string | null
+  tiers?: PromoTierDto[]
 }
 
 export interface UpdateRuleRequest {

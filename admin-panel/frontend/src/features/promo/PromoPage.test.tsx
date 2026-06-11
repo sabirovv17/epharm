@@ -28,7 +28,14 @@ const promoHooks = vi.hoisted(() => ({
   useRestorePromo: vi.fn(),
 }))
 
+// PromoProductPicker дёргает useStorefront — мокаем, чтобы поиск товара отдавал фикстуру.
+const storefrontHooks = vi.hoisted(() => ({ useStorefront: vi.fn() }))
+
 vi.mock('@/lib/queries/promo', () => promoHooks)
+vi.mock('@/lib/queries/storefront', () => ({
+  storefrontKeys: { all: ['storefront'], list: () => ['storefront', 'list'] },
+  useStorefront: storefrontHooks.useStorefront,
+}))
 
 function mkPromo(over: Partial<PromoDto> = {}): PromoDto {
   return {
@@ -42,6 +49,12 @@ function mkPromo(over: Partial<PromoDto> = {}): PromoDto {
     spent: 250_000,
     kpi: '1000 рек.',
     cover: '#16C97A',
+    medusaProductId: null,
+    productName: '',
+    productImage: null,
+    dateStart: null,
+    dateEnd: null,
+    tiers: [],
     createdBy: 'u',
     createdAt: '2026-05-01T00:00:00Z',
     updatedAt: '2026-05-01T00:00:00Z',
@@ -65,6 +78,28 @@ beforeEach(() => {
   promoHooks.useUpdatePromo.mockReturnValue({ mutate: vi.fn(), isPending: false })
   promoHooks.useArchivePromo.mockReturnValue({ mutate: vi.fn(), isPending: false })
   promoHooks.useRestorePromo.mockReturnValue({ mutate: vi.fn(), isPending: false })
+  storefrontHooks.useStorefront.mockReturnValue({
+    data: {
+      items: [
+        {
+          id: 'prod_1',
+          name: 'Панкраген 0,2г капс. №60',
+          brand: 'Access Bioscience',
+          mnn: null,
+          rxOtc: null,
+          price: null,
+          currency: 'KZT',
+          imageUrl: null,
+          barcode: null,
+          category: null,
+        },
+      ],
+      total: 1,
+      limit: 20,
+      offset: 0,
+    },
+    isFetching: false,
+  })
 })
 
 function renderPromo() {
@@ -259,45 +294,8 @@ describe('Bug M regression — мёртвые кнопки удалены', () =
 // Cover-overlay + редактирование теперь на отдельной странице — см.
 // PromoDetailPage.test.tsx.
 
-describe('Bug O regression — live preview в Create modal', () => {
-  it('изначально preview показывает placeholder', async () => {
-    const user = userEvent.setup()
-    renderPromo()
-    await user.click(screen.getAllByRole('button', { name: /Новая кампания/ })[0])
-    const preview = screen.getByTestId('promo-create-preview')
-    expect(preview).toHaveTextContent(/Название кампании/i)
-  })
-
-  it('ввод title обновляет preview', async () => {
-    const user = userEvent.setup()
-    renderPromo()
-    await user.click(screen.getAllByRole('button', { name: /Новая кампания/ })[0])
-    await user.type(screen.getByPlaceholderText(/Майский марафон/), 'Летняя кампания')
-    const preview = screen.getByTestId('promo-create-preview')
-    expect(preview).toHaveTextContent('Летняя кампания')
-  })
-
-  it('ввод brand обновляет preview', async () => {
-    const user = userEvent.setup()
-    renderPromo()
-    await user.click(screen.getAllByRole('button', { name: /Новая кампания/ })[0])
-    await user.type(screen.getByPlaceholderText(/Jadran-Galenski/), 'Bayer')
-    const preview = screen.getByTestId('promo-create-preview')
-    expect(preview).toHaveTextContent('Bayer')
-  })
-
-  it('ввод hex cover обновляет background preview', async () => {
-    const user = userEvent.setup()
-    renderPromo()
-    await user.click(screen.getAllByRole('button', { name: /Новая кампания/ })[0])
-    const coverInput = screen.getByPlaceholderText(/#16C97A/) as HTMLInputElement
-    await user.clear(coverInput)
-    await user.type(coverInput, '#FF00AA')
-    const preview = screen.getByTestId('promo-create-preview')
-    // jsdom нормализует hex → rgb. #FF00AA = (255, 0, 170).
-    expect(preview.getAttribute('style')).toMatch(/rgb\(255,\s*0,\s*170\)/)
-  })
-})
+// (Удалён блок «Bug O — live preview cover»: новая форма создания — товарная
+//  акция с пикером товара и порогами, без cover-превью кампании.)
 
 describe('Клик по карточке → переход на /promo/:id (не модалка)', () => {
   it('клик по PromoCard навигирует на страницу кампании', async () => {
@@ -331,40 +329,37 @@ describe('Клик по карточке → переход на /promo/:id (н�
   })
 })
 
-describe('PromoPage — Create modal', () => {
-  it('клик «Новая кампания» открывает модалку', async () => {
+describe('PromoPage — Create modal (товарная акция)', () => {
+  it('клик «Новая кампания» открывает модалку с пикером товара', async () => {
     const user = userEvent.setup()
     renderPromo()
     const buttons = screen.getAllByRole('button', { name: /Новая кампания/ })
     await user.click(buttons[0])
-    expect(screen.getByText(/Сохраним черновик/i)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/Поиск товара/i)).toBeInTheDocument()
   })
 
-  it('кнопка «Создать черновик» disabled пока пустой title или brand', async () => {
+  it('«Создать черновик» disabled пока не выбран товар', async () => {
     const user = userEvent.setup()
     renderPromo()
     await user.click(screen.getAllByRole('button', { name: /Новая кампания/ })[0])
     expect(screen.getByRole('button', { name: /Создать черновик/ })).toBeDisabled()
-
-    await user.type(screen.getByPlaceholderText(/Майский марафон/), 'Тест')
-    expect(screen.getByRole('button', { name: /Создать черновик/ })).toBeDisabled()
-    await user.type(screen.getByPlaceholderText(/Jadran-Galenski/), 'Jadran')
+    // выбираем товар из выдачи витрины — title авто-заполнится названием
+    await user.click(screen.getByText('Панкраген 0,2г капс. №60'))
     expect(screen.getByRole('button', { name: /Создать черновик/ })).toBeEnabled()
   })
 
-  it('submit вызывает useCreatePromo.mutateAsync с правильным DTO', async () => {
+  it('submit вызывает useCreatePromo.mutateAsync с товаром и статусом draft', async () => {
     const mutateAsync = vi.fn().mockResolvedValue(mkPromo())
     promoHooks.useCreatePromo.mockReturnValue({ mutateAsync, isPending: false })
     const user = userEvent.setup()
     renderPromo()
     await user.click(screen.getAllByRole('button', { name: /Новая кампания/ })[0])
-    await user.type(screen.getByPlaceholderText(/Майский марафон/), 'Летняя кампания')
-    await user.type(screen.getByPlaceholderText(/Jadran-Galenski/), 'Jadran')
+    await user.click(screen.getByText('Панкраген 0,2г капс. №60'))
     await user.click(screen.getByRole('button', { name: /Создать черновик/ }))
     expect(mutateAsync).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: 'Летняя кампания',
-        brand: 'Jadran',
+        medusaProductId: 'prod_1',
+        title: 'Панкраген 0,2г капс. №60',
         status: 'draft',
       }),
     )
