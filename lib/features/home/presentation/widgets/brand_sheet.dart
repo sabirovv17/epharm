@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../promotions/application/promotions_controller.dart';
 import '../../application/home_controller.dart';
 
 /// Bottom-sheet выбора брендов. Открывается из chip «Бренд».
@@ -39,8 +40,8 @@ class _BrandSheetState extends ConsumerState<_BrandSheet> {
 
   @override
   Widget build(BuildContext context) {
-    // Реальные бренды из загруженного каталога (а не хардкод-список).
-    final allBrands = ref.watch(homeBrandsProvider);
+    // Бренды из пула промо-акций (лента главной = промо, не весь каталог).
+    final allBrands = ref.watch(promoBrandsProvider);
     final visibleBrands = allBrands
         .where((b) => b.toLowerCase().contains(_query.trim().toLowerCase()))
         .toList();

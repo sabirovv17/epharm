@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../promotions/application/promotions_controller.dart';
 import '../../application/home_controller.dart';
 
 /// Bottom-sheet выбора категорий каталога. Открывается из chip «Категории».
@@ -41,7 +42,7 @@ class _CategorySheetState extends ConsumerState<_CategorySheet> {
 
   @override
   Widget build(BuildContext context) {
-    final all = ref.watch(homeCategoriesProvider);
+    final all = ref.watch(promoCategoriesProvider);
     final visible = all
         .where((c) => c.toLowerCase().contains(_query.trim().toLowerCase()))
         .toList();

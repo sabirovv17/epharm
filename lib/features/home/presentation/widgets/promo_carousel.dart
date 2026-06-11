@@ -6,7 +6,7 @@ import '../../../../core/theme/app_shadows.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../data/home_repository.dart';
 
-/// Горизонтальная карусель баннеров. Высота 260, ширина карточки 200.
+/// Горизонтальная карусель баннеров. Высота 234, ширина карточки 180 (−10%).
 ///
 /// Реальных баннеров пока нет — каждый слот рисуется заглушкой: серая карточка
 /// с иконкой-картинкой и надписью «Баннер» по центру (макет под будущую
@@ -19,7 +19,7 @@ class PromoCarousel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 260,
+      height: 234,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenEdge),
@@ -31,15 +31,15 @@ class PromoCarousel extends StatelessWidget {
   }
 }
 
-/// Заглушка баннера: серый прямоугольник 200×260 + «Баннер» по центру.
+/// Заглушка баннера: серый прямоугольник 180×234 (−10%) + «Баннер» по центру.
 class _BannerPlaceholderCard extends StatelessWidget {
   const _BannerPlaceholderCard();
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 200,
-      height: 260,
+      width: 180,
+      height: 234,
       decoration: BoxDecoration(
         color: AppColors.ink300,
         borderRadius: AppRadii.brXl,

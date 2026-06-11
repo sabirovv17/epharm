@@ -15,9 +15,10 @@ import '../../../core/widgets/glass_pill.dart';
 import '../../../core/widgets/pharma_logo.dart';
 import '../../../core/widgets/search_input.dart';
 import '../../auth/application/auth_controller.dart';
-import '../../catalog/data/catalog_models.dart';
-import '../../catalog/presentation/catalog_card.dart';
 import '../../catalog/presentation/catalog_product_sheet.dart';
+import '../../promotions/application/promotions_controller.dart';
+import '../../promotions/data/promotion_models.dart';
+import '../../promotions/presentation/promo_product_card.dart';
 import '../../profile/application/profile_controller.dart';
 import '../../receipts/presentation/receipts_list_screen.dart';
 import '../application/home_controller.dart';
@@ -120,7 +121,7 @@ class _HomeTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final promoAsync = ref.watch(promoListProvider);
-    final catalogAsync = ref.watch(homeCatalogProvider);
+    final promotionsAsync = ref.watch(promotionsProvider);
     final brands = ref.watch(selectedBrandsProvider);
     final categories = ref.watch(selectedCategoriesProvider);
     final sort = ref.watch(homeSortProvider);
@@ -150,7 +151,7 @@ class _HomeTab extends ConsumerWidget {
             padding: const EdgeInsets.only(top: 16, bottom: 8),
             child: promoAsync.when(
               loading: () => const SizedBox(
-                height: 260,
+                height: 234,
                 child: Center(child: CircularProgressIndicator()),
               ),
               error: (e, _) => Padding(
@@ -243,10 +244,10 @@ class _HomeTab extends ConsumerWidget {
 
         const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-        // 5) Каталог — реальные товары витрины (через бэкенд-прокси Medusa).
-        //    Грузится целиком один раз; фильтры (бренд/категория/поиск/сорт)
-        //    применяются на клиенте мгновенно.
-        catalogAsync.when(
+        // 5) Лента акций — промо-кампании из админки (товар Medusa + ценовые
+        //    пороги/бонусы + даты). Грузится один раз; фильтры (бренд/категория/
+        //    поиск/сорт) применяются клиентски к пулу промо-товаров.
+        promotionsAsync.when(
           loading: () => const SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.all(AppSpacing.s24),
@@ -272,11 +273,11 @@ class _HomeTab extends ConsumerWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Каталог недоступен',
+                      'Акции недоступны',
                       style: AppTypography.body14(color: AppColors.ink500),
                     ),
                     TextButton(
-                      onPressed: () => ref.invalidate(homeCatalogProvider),
+                      onPressed: () => ref.invalidate(promotionsProvider),
                       child: const Text(
                         'Повторить',
                         style: TextStyle(
@@ -293,15 +294,15 @@ class _HomeTab extends ConsumerWidget {
               ),
             ),
           ),
-          data: (products) {
-            final filtered = applyCatalogFilters(
-              products: products,
+          data: (items) {
+            final filtered = applyPromotionFilters(
+              items: items,
               brands: brands,
               categories: categories,
               query: query,
               sort: sort,
             );
-            return _CatalogSliver(items: filtered);
+            return _PromoSliver(items: filtered);
           },
         ),
 
@@ -311,11 +312,11 @@ class _HomeTab extends ConsumerWidget {
   }
 }
 
-/// Лента-грид реального каталога: 2 колонки [CatalogCard], тап → detail-sheet.
-/// Lazy [SliverGrid] — строит только видимые карточки.
-class _CatalogSliver extends StatelessWidget {
-  const _CatalogSliver({required this.items});
-  final List<CatalogProduct> items;
+/// Лента акций: ОДНА колонка богатых [PromoProductCard], тап → detail-sheet
+/// товара (по medusa product id). Lazy [SliverList] — строит только видимые.
+class _PromoSliver extends StatelessWidget {
+  const _PromoSliver({required this.items});
+  final List<Promotion> items;
 
   @override
   Widget build(BuildContext context) {
@@ -326,7 +327,7 @@ class _CatalogSliver extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 32),
             child: Text(
-              'Ничего не найдено по этому фильтру',
+              'Акций не найдено',
               textAlign: TextAlign.center,
               style: AppTypography.body14(color: AppColors.ink500),
             ),
@@ -336,23 +337,16 @@ class _CatalogSliver extends StatelessWidget {
     }
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenEdge),
-      sliver: SliverGrid(
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 0.62,
-        ),
-        delegate: SliverChildBuilderDelegate(
-          (ctx, i) {
-            final p = items[i];
-            return CatalogCard(
-              product: p,
-              onTap: () => showCatalogProductSheet(ctx, p.id),
-            );
-          },
-          childCount: items.length,
-        ),
+      sliver: SliverList.separated(
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (ctx, i) {
+          final p = items[i];
+          return PromoProductCard(
+            promo: p,
+            onTap: () => showCatalogProductSheet(ctx, p.productId),
+          );
+        },
       ),
     );
   }

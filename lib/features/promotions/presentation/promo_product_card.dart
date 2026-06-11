@@ -1,0 +1,286 @@
+import 'package:flutter/material.dart';
+
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_radii.dart';
+import '../data/promotion_models.dart';
+
+/// Богатая карточка промо-акции на всю ширину (одна колонка): фото товара,
+/// название/бренд, ценовые пороги «от N шт → цена» и бонусы за достижение порога,
+/// диапазон дат. Тап → детальная карточка товара (по medusa product id).
+class PromoProductCard extends StatelessWidget {
+  const PromoProductCard({super.key, required this.promo, required this.onTap});
+
+  final Promotion promo;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final bonusTiers = <int>[]; // индексы порогов с бонусом (для строк ниже)
+    for (var i = 0; i < promo.tiers.length; i++) {
+      if (promo.tiers[i].bonus > 0) bonusTiers.add(i);
+    }
+
+    return Material(
+      color: Colors.white,
+      borderRadius: AppRadii.brXl,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (promo.dateLabel != null) ...[
+                _DateBadge(label: promo.dateLabel!),
+                const SizedBox(height: 10),
+              ],
+              // Шапка: фото + название/бренд/Rx.
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _Thumb(promo: promo),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          promo.name,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontFamily: 'Manrope',
+                            fontFamilyFallback: ['Roboto', 'sans-serif'],
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.ink900,
+                            height: 1.2,
+                          ),
+                        ),
+                        if (promo.brand != null) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            promo.brand!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontFamily: 'Manrope',
+                              fontFamilyFallback: ['Roboto', 'sans-serif'],
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.ink500,
+                            ),
+                          ),
+                        ],
+                        if (promo.isRx) ...[
+                          const SizedBox(height: 6),
+                          const _RxBadge(),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (promo.tiers.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    for (var i = 0; i < promo.tiers.length; i++) ...[
+                      Expanded(child: _TierPill(tier: promo.tiers[i])),
+                      if (i != promo.tiers.length - 1) const SizedBox(width: 8),
+                    ],
+                  ],
+                ),
+              ],
+              if (bonusTiers.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                for (final i in bonusTiers)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: _BonusLine(tierNumber: i + 1, bonus: promo.tiers[i].bonus),
+                  ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Thumb extends StatelessWidget {
+  const _Thumb({required this.promo});
+  final Promotion promo;
+
+  @override
+  Widget build(BuildContext context) {
+    const size = 88.0;
+    Widget placeholder() => Container(
+          width: size,
+          height: size,
+          alignment: Alignment.center,
+          color: AppColors.brandGreen100,
+          child: Text(
+            promo.name.isNotEmpty ? promo.name.characters.first.toUpperCase() : '?',
+            style: const TextStyle(
+              fontFamily: 'Manrope',
+              fontFamilyFallback: ['Roboto', 'sans-serif'],
+              fontSize: 30,
+              fontWeight: FontWeight.w800,
+              color: AppColors.brandGreen700,
+            ),
+          ),
+        );
+
+    final url = promo.imageUrl;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: (url == null || url.isEmpty)
+          ? placeholder()
+          : Image.network(
+              url,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              loadingBuilder: (_, child, p) => p == null ? child : placeholder(),
+              errorBuilder: (_, __, ___) => placeholder(),
+            ),
+    );
+  }
+}
+
+class _DateBadge extends StatelessWidget {
+  const _DateBadge({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.brandGreen100,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontFamily: 'Manrope',
+          fontFamilyFallback: ['Roboto', 'sans-serif'],
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: AppColors.brandGreen700,
+        ),
+      ),
+    );
+  }
+}
+
+/// Ценовой порог: пилюля «цена ₸» + подпись «от N шт».
+class _TierPill extends StatelessWidget {
+  const _TierPill({required this.tier});
+  final PromoTier tier;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 9),
+          decoration: BoxDecoration(
+            color: AppColors.brandGreen700,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            '${_money(tier.price)} ₸',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontFamily: 'Manrope',
+              fontFamilyFallback: ['Roboto', 'sans-serif'],
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'от ${tier.minQty} шт',
+          style: const TextStyle(
+            fontFamily: 'Manrope',
+            fontFamilyFallback: ['Roboto', 'sans-serif'],
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: AppColors.ink500,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BonusLine extends StatelessWidget {
+  const _BonusLine({required this.tierNumber, required this.bonus});
+  final int tierNumber;
+  final int bonus;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Text('🎁', style: TextStyle(fontSize: 14)),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            'Бонус при достижении $tierNumber порога: ${_money(bonus)} ₸',
+            style: const TextStyle(
+              fontFamily: 'Manrope',
+              fontFamilyFallback: ['Roboto', 'sans-serif'],
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: AppColors.ink700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RxBadge extends StatelessWidget {
+  const _RxBadge();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFDE7E9),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: const Text(
+        'Rx',
+        style: TextStyle(
+          fontFamily: 'Manrope',
+          fontFamilyFallback: ['Roboto', 'sans-serif'],
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          color: Color(0xFFE5484D),
+        ),
+      ),
+    );
+  }
+}
+
+/// «4 500» — разрядка пробелами.
+String _money(int v) {
+  final s = v.abs().toString();
+  final b = StringBuffer();
+  for (var i = 0; i < s.length; i++) {
+    if (i != 0 && (s.length - i) % 3 == 0) b.write(' ');
+    b.write(s[i]);
+  }
+  return b.toString();
+}
