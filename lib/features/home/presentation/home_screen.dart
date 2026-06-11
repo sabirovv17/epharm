@@ -27,6 +27,7 @@ import 'widgets/bottom_navigation.dart';
 import 'widgets/brand_sheet.dart';
 import 'widgets/category_sheet.dart';
 import 'widgets/contests_stub_screen.dart';
+import 'widgets/contests_stub_sheet.dart';
 import 'widgets/home_welcome_gate.dart';
 import 'widgets/learning_stub_screen.dart';
 import 'widgets/login_invite_card.dart';
@@ -179,9 +180,10 @@ class _HomeTab extends ConsumerWidget {
           ),
         ),
 
-        // 4) Filter row: сортировка + Бренд + Категории (фильтры реального каталога).
-        //    Чипы «Новинки/Конкурсные» убраны — под них в каталоге нет данных
-        //    (даты новизны одинаковые у всех, конкурс — не атрибут каталога).
+        // 4) Filter row: сортировка + Бренд + Категории + Конкурсные.
+        //    Бренд/Категории — реальные фильтры каталога. «Конкурсные» — атрибут
+        //    программы лояльности (не каталога Medusa), данных пока нет → chip
+        //    открывает заглушку «добавим позже» (showContestsStubSheet).
         SliverToBoxAdapter(
           child: SizedBox(
             height: 56,
@@ -225,6 +227,13 @@ class _HomeTab extends ConsumerWidget {
                       color: AppColors.ink900,
                     ),
                     onTap: () => showCategorySheet(context),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Center(
+                  child: PharmaFilterChip(
+                    label: 'Конкурсные',
+                    onTap: () => showContestsStubSheet(context),
                   ),
                 ),
               ],
