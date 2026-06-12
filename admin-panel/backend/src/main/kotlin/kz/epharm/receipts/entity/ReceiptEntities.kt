@@ -130,6 +130,10 @@ class ReceiptEntity(
     @Column(name = "pending_bonus_id", length = 64)
     var pendingBonusId: String? = null,
 
+    /** CSV id промо-кампаний (pr_*), которые фармацевт заявил при загрузке чека. */
+    @Column(name = "claimed_promo_ids", length = 512)
+    var claimedPromoIds: String? = null,
+
     @Column(name = "source", nullable = false, length = 16)
     var sourceRaw: String = ReceiptSource.photo.name,
 

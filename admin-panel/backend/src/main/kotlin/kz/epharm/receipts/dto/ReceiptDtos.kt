@@ -22,6 +22,8 @@ data class ReceiptDto(
     val autoApproved: Boolean,
     val flagReason: String?,
     val pendingBonusId: String?,
+    /** CSV id акций (pr_*), заявленных фармацевтом при загрузке чека (контекст для модератора). */
+    val claimedPromoIds: String?,
     val expectedAmount: Long?,
     val bonus: Long?,
     val bonusCredited: Long,
@@ -48,6 +50,7 @@ data class ReceiptDto(
             autoApproved = e.autoApproved,
             flagReason = e.flagReason,
             pendingBonusId = e.pendingBonusId,
+            claimedPromoIds = e.claimedPromoIds,
             expectedAmount = pb?.expectedAmount,
             bonus = pb?.bonus,
             bonusCredited = e.bonusCredited,

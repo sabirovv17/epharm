@@ -48,6 +48,12 @@ class ReconcileService(
     companion object {
         private const val AMOUNT_TOLERANCE_PCT = 2 // ±2%
         private val MATCH_WINDOW: Duration = Duration.ofMinutes(30)
+
+        /** Кап числа заявленных акций на чеке (реалистично — единицы; защита от мусора). */
+        private const val MAX_CLAIMED_PROMOS = 40
+
+        /** Длина колонки receipts.claimed_promo_ids (VARCHAR(512)). */
+        private const val CLAIMED_PROMOS_MAX_LEN = 512
     }
 
     // ── Чтение ────────────────────────────────────────────────────────────
@@ -101,6 +107,7 @@ class ReconcileService(
         photoName: String?,
         pharmacyId: String? = null,
         pharmacyName: String? = null,
+        claimedPromoIds: String? = null,
     ): ReceiptDto {
         val pharmacist = pharmacistRepository.findById(pharmacistId).orElseThrow {
             AppException(ErrorCode.VALIDATION_FAILED, "Фармацевт $pharmacistId не найден", HttpStatus.BAD_REQUEST)
@@ -128,11 +135,32 @@ class ReconcileService(
             photoUrl = photoUrl,
             parsedSku = candidate?.sku ?: "",
             pendingBonusId = candidate?.id,
+            // Заявленные фармацевтом акции (CSV pr_*) — нормализуем токен-безопасно.
+            claimedPromoIds = normalizeClaimedPromoIds(claimedPromoIds),
         )
 
         decideBranch(receipt, candidate)
         val saved = receiptRepository.save(receipt)
         return toDto(saved, candidate)
+    }
+
+    /**
+     * Нормализует CSV заявленных акций: trim каждого id, отбрасываем пустые, кап по числу
+     * ([MAX_CLAIMED_PROMOS]) и по длине колонки (512) — но всегда НА ГРАНИЦЕ токена, чтобы
+     * не оставить «обрубок» id вроде `pr_pa`. Это поле — только контекст для модератора,
+     * на матчинг бонуса не влияет.
+     */
+    private fun normalizeClaimedPromoIds(raw: String?): String? {
+        val ids = raw?.split(',')
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            ?.take(MAX_CLAIMED_PROMOS)
+            ?: return null
+        if (ids.isEmpty()) return null
+        val csv = ids.joinToString(",")
+        // Страховка по длине колонки: режем по запятой, без обрубков id.
+        return if (csv.length <= CLAIMED_PROMOS_MAX_LEN) csv
+        else csv.substring(0, CLAIMED_PROMOS_MAX_LEN).substringBeforeLast(',')
     }
 
     // ── Ручные действия модератора ──────────────────────────────────────────

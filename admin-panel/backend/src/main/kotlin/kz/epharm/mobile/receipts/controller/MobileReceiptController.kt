@@ -29,7 +29,8 @@ class MobileReceiptController(
 
     /**
      * Отправка чека: фото (multipart `file`) + выбранная фармацевтом аптека
-     * (`pharmacyId`/`pharmacyName` — где совершена покупка).
+     * (`pharmacyId`/`pharmacyName` — где совершена покупка) + заявленные акции
+     * (`promoIds` — CSV id промо-кампаний, выбранных в пикере: контекст для модератора).
      */
     @PostMapping(consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     @ResponseStatus(HttpStatus.CREATED)
@@ -38,6 +39,7 @@ class MobileReceiptController(
         @RequestParam(name = "file", required = false) file: MultipartFile?,
         @RequestParam(name = "pharmacyId", required = false) pharmacyId: String?,
         @RequestParam(name = "pharmacyName", required = false) pharmacyName: String?,
+        @RequestParam(name = "promoIds", required = false) promoIds: String?,
     ): MobileReceiptDto {
         val p = principal ?: throw AppException(ErrorCode.UNAUTHORIZED, "Не авторизован", HttpStatus.UNAUTHORIZED)
         return mobileReceiptService.submit(
@@ -47,6 +49,7 @@ class MobileReceiptController(
             photoName = file?.originalFilename,
             pharmacyId = pharmacyId,
             pharmacyName = pharmacyName,
+            claimedPromoIds = promoIds,
         )
     }
 

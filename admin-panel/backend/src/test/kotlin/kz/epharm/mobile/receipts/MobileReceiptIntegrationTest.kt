@@ -125,6 +125,23 @@ class MobileReceiptIntegrationTest {
     }
 
     @Test
+    fun `POST чек с promoIds → заявленные акции сохранены на чеке`() {
+        // Фармацевт выбрал акции в пикере мобилки — их CSV сохраняется как claim
+        // (контекст для модератора); на матчинг бонуса не влияет.
+        val file = MockMultipartFile("file", "receipt.jpg", "image/jpeg", "bytes".toByteArray())
+        val response = mockMvc.perform(
+            multipart("/api/mobile/receipts").file(file)
+                .param("promoIds", "pr_aqua,pr_pank")
+                .header("Authorization", "Bearer $token"),
+        )
+            .andExpect(status().isCreated)
+            .andReturn().response.contentAsString
+        val id = objectMapper.readTree(response).get("id").asText()
+        val saved = receiptRepository.findById(id).orElseThrow()
+        org.junit.jupiter.api.Assertions.assertEquals("pr_aqua,pr_pank", saved.claimedPromoIds)
+    }
+
+    @Test
     fun `POST без фото → 400`() {
         mockMvc.perform(
             multipart("/api/mobile/receipts").header("Authorization", "Bearer $token"),

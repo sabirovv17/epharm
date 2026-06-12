@@ -33,6 +33,7 @@ class MobileReceiptService(
         photoName: String?,
         pharmacyId: String?,
         pharmacyName: String?,
+        claimedPromoIds: String?,
     ): MobileReceiptDto {
         val dto = reconcileService.submitReceipt(
             pharmacistId = pharmacistId,
@@ -41,6 +42,7 @@ class MobileReceiptService(
             photoName = photoName,
             pharmacyId = pharmacyId,
             pharmacyName = pharmacyName,
+            claimedPromoIds = claimedPromoIds,
         )
         return MobileReceiptDto.from(dto, productNameOf(dto.parsedSku))
     }
