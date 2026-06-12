@@ -7,7 +7,7 @@ import { IconCheck } from '@/ui/icons'
 import type { CreatePromoRequest, PromoTierDto } from '@/lib/api-types'
 import { useT } from '@/i18n'
 import { PromoProductPicker, type SelectedProduct } from './PromoProductPicker'
-import { PromoTiersEditor } from './PromoTiersEditor'
+import { PromoTiersEditor, tiersValid } from './PromoTiersEditor'
 
 interface CreatePromoModalProps {
   open: boolean
@@ -19,6 +19,7 @@ interface CreatePromoModalProps {
 interface FormState {
   product: SelectedProduct | null
   title: string
+  titleTouched: boolean
   dateStart: string
   dateEnd: string
   tiers: PromoTierDto[]
@@ -27,15 +28,11 @@ interface FormState {
 const initial = (): FormState => ({
   product: null,
   title: '',
+  titleTouched: false,
   dateStart: '',
   dateEnd: '',
   tiers: [{ minQty: 1, price: 0, bonus: 0 }],
 })
-
-function tiersOk(tiers: PromoTierDto[]): boolean {
-  for (let i = 1; i < tiers.length; i++) if (tiers[i].minQty <= tiers[i - 1].minQty) return false
-  return true
-}
 
 export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePromoModalProps) {
   const t = useT()
@@ -47,7 +44,7 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
 
   const datesOk = !form.dateStart || !form.dateEnd || form.dateStart <= form.dateEnd
   const valid =
-    form.product !== null && form.title.trim().length > 0 && tiersOk(form.tiers) && datesOk
+    form.product !== null && form.title.trim().length > 0 && tiersValid(form.tiers) && datesOk
 
   const submit = () => {
     if (!valid || !form.product) return
@@ -92,7 +89,12 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
           <PromoProductPicker
             value={form.product}
             onChange={(p) =>
-              setForm((f) => ({ ...f, product: p, title: f.title || p.productName }))
+              setForm((f) => ({
+                ...f,
+                product: p,
+                // авто-название по товару, пока пользователь не правил title вручную
+                title: f.titleTouched ? f.title : p.productName,
+              }))
             }
           />
         </Field>
@@ -100,7 +102,7 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
         <Field label="Название акции">
           <Input
             value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
+            onChange={(e) => setForm({ ...form, title: e.target.value, titleTouched: true })}
             placeholder="напр. Двойной бонус на Панкраген"
           />
         </Field>

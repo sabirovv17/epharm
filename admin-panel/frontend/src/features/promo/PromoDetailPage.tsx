@@ -14,7 +14,7 @@ import { describeError } from '@/lib/describeError'
 import { useT } from '@/i18n'
 import { useArchivePromo, usePromo, useRestorePromo, useUpdatePromo } from '@/lib/queries/promo'
 import { PromoProductPicker, type SelectedProduct } from './PromoProductPicker'
-import { PromoTiersEditor } from './PromoTiersEditor'
+import { PromoTiersEditor, tiersValid } from './PromoTiersEditor'
 
 interface FormState {
   title: string
@@ -41,11 +41,6 @@ const EMPTY_FORM: FormState = {
   dateStart: '',
   dateEnd: '',
   tiers: [],
-}
-
-function tiersOk(tiers: PromoTierDto[]): boolean {
-  for (let i = 1; i < tiers.length; i++) if (tiers[i].minQty <= tiers[i - 1].minQty) return false
-  return true
 }
 
 function sameTiers(a: PromoTierDto[], b: PromoTierDto[]): boolean {
@@ -162,8 +157,10 @@ export default function PromoDetailPage() {
       setSaveErr(t('pd.errTitleReq'))
       return
     }
-    if (!tiersOk(form.tiers)) {
-      setSaveErr('Пороги акции должны идти по возрастанию количества.')
+    // Для товарной акции (привязан товар) — нужен хотя бы один валидный порог; для
+    // старой кампании без товара пороги не требуются.
+    if (form.product && !tiersValid(form.tiers)) {
+      setSaveErr('Пороги акции: нужен хотя бы один, количество возрастает (от 1 → от 10 → …).')
       return
     }
     if (form.dateStart && form.dateEnd && form.dateStart > form.dateEnd) {
@@ -313,6 +310,7 @@ export default function PromoDetailPage() {
               <PromoTiersEditor
                 value={form.tiers}
                 onChange={(tiers) => setForm((f) => ({ ...f, tiers }))}
+                disabled={isArchived}
               />
             </Field>
           </div>
