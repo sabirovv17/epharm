@@ -15,10 +15,10 @@ final catalogRepositoryProvider = Provider<CatalogRepository>((ref) {
   return MockCatalogRepository();
 });
 
-// NB: пагинированный catalogProvider/CatalogState/CatalogNotifier (для отдельного
-// экрана каталога) удалён — лента Home грузит весь каталог разом через
-// homeCatalogProvider и фильтрует на клиенте. Здесь остались только repository- и
-// detail-провайдеры, которые переиспользуют лента и detail-sheet.
+// NB: пагинированный catalogProvider/CatalogState/CatalogNotifier удалён. Лента Home
+// теперь = пул промо-акций (promotionsProvider), а не весь каталог. Здесь остались
+// только repository- и detail-провайдеры, которые переиспользует detail-sheet товара
+// (его открывают карточки промо по medusa product id).
 
 /// Детальная карточка товара по medusa-id.
 final catalogDetailProvider =

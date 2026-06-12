@@ -84,13 +84,22 @@ class PromoProductCard extends StatelessWidget {
               ),
               if (promo.tiers.isNotEmpty) ...[
                 const SizedBox(height: 14),
-                Row(
-                  children: [
-                    for (var i = 0; i < promo.tiers.length; i++) ...[
-                      Expanded(child: _TierPill(tier: promo.tiers[i])),
-                      if (i != promo.tiers.length - 1) const SizedBox(width: 8),
-                    ],
-                  ],
+                // До 3 порогов — в ряд; при 4+ переносятся на новую строку (Wrap),
+                // чтобы цена не ужималась в нечитаемое «4…» на узком экране.
+                LayoutBuilder(
+                  builder: (ctx, c) {
+                    const gap = 8.0;
+                    final perRow = promo.tiers.length <= 3 ? promo.tiers.length : 3;
+                    final w = (c.maxWidth - gap * (perRow - 1)) / perRow;
+                    return Wrap(
+                      spacing: gap,
+                      runSpacing: 10,
+                      children: [
+                        for (final t in promo.tiers)
+                          SizedBox(width: w, child: _TierPill(tier: t)),
+                      ],
+                    );
+                  },
                 ),
               ],
               if (bonusTiers.isNotEmpty) ...[
