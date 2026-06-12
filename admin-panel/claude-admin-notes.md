@@ -3101,3 +3101,25 @@ cover live-preview» (в товарной форме cover-превью нет).
 **Полный поток теперь замкнут:** админ создаёт акцию (товар Medusa + пороги/даты) → она едет в
 мобильную ленту (`/api/mobile/promotions`) → фармацевт видит богатую карточку. Остаток: в
 мобильном promo_picker чека переключить мок-Product на тот же промо-пул.
+
+## 2026-06-12 — Чек: заявленные акции (claimedPromoIds) + показ модератору
+
+Пикер чека в мобилке теперь шлёт выбранные акции; бэкенд их персистит и показывает модератору.
+
+- **V024** `receipts.claimed_promo_ids VARCHAR(512)` — nullable, CSV id кампаний (pr\_\*).
+- `ReceiptEntity.claimedPromoIds` + проброс `MobileReceiptController(@RequestParam promoIds)` →
+  `MobileReceiptService` → `ReconcileService.submitReceipt(claimedPromoIds=…)`. Админский
+  `ReconcileController` использует дефолт `= null` (там claim'а нет).
+- `ReconcileService.normalizeClaimedPromoIds()` — **токен-безопасная** нормализация: trim каждого
+  id, отбрасываем пустые, кап `MAX_CLAIMED_PROMOS=40` и по длине колонки (512) — но всегда на
+  границе запятой (`substringBeforeLast(',')`), без «обрубков» id. Это поле — ТОЛЬКО контекст
+  модератору, на матчинг pending-бонуса/начисление НЕ влияет (проверено: decideBranch/creditFor
+  его не читают).
+- `ReceiptDto.claimedPromoIds` (эхо) → admin `api-types.ts` (`string | null`).
+- `ReconcilePage.tsx` drawer: блок «Заявленные акции» (i18n `rec.dClaimedPromos` ru/kk) — чипы id,
+  рендерится только если поле непустое.
+- Тесты: `MobileReceiptIntegrationTest` (POST с `promoIds` → персист), `ReconcilePage.test.tsx`
+  (drawer показывает/скрывает claimed-promos), фикстура `mkReceipt` дополнена полем.
+
+**Качество:** вся фича (бэкенд+админ+мобилка) прогнана через ultracode adversarial-review —
+8 подтверждённых находок исправлено. Backend integration + admin (320) + Flutter (56) зелёные.

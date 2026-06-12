@@ -556,5 +556,29 @@ chip-провайдер `homeChipProvider`, старый `SortOption`, хард�
 все с фото, реальными брендами Medusa и порогами/бонусами. Лента непустая.
 
 **Осталось (следующие фазы):** Фаза 3 — админ-форма промо (пикер товара Medusa + редактор
-порогов/дат), чтобы админ заводил акции сам (сейчас засижено скриптом). Доп. — promo_picker чека
-переключить с мок-Product на promotionsProvider (выбор акции при загрузке чека из того же пула).
+порогов/дат), чтобы админ заводил акции сам (сейчас засижено скриптом).
+
+## 2026-06-12 — Пикер чека = пул промо-акций (Фаза 5)
+
+Пикер товаров при загрузке чека (`promo_picker_screen.dart`) переключён с мок-каталога
+(`productListProvider` → `Product`) на тот же пул промо-акций (`promotionsProvider` → `Promotion`),
+что и лента Home. Фармацевт выбирает из ПРЕДСТАВЛЕННЫХ акций те, что в его чеке.
+
+- `ReceiptDraft.promos: List<Promotion>` (было `List<Product>`); `setPromos`/`copyWith` обновлены.
+- Карточка пикера — фото товара (`Image.network` + плейсхолдер-буква, как в `PromoProductCard`),
+  бейдж дат (`dateLabel`), inline-toggle. **Ленивый `SliverGrid`** (CustomScrollView) — карточки и
+  их network-фото строятся только во вьюпорте (не «все разом»).
+- Выбор хранится как `Map<String,Promotion>` (id→объект) — сохраняется РОВНО выбор, счётчик CTA
+  не расходится с сохранённым, даже если пул обновился. Error-стейт с кнопкой «Повторить»
+  (`ref.invalidate`, паритет с Home). `Semantics(button/selected/label)` на карточках.
+- Выбранные `promoIds` уходят с чеком (`api_receipt_repository` → multipart-поле CSV) и **персистятся
+  на чеке** (`receipts.claimed_promo_ids`, V024) как заявление фармацевта — контекст модератору,
+  на матчинг бонуса НЕ влияет. Виден в админском drawer проверки чека («Заявленные акции»).
+- Мёртвый `productListProvider` удалён (мок-`Product`/`loadProducts` в `home_repository` пока живут —
+  вынесено в отдельную задачу-чип для чистки).
+- Тесты: `test/features/receipts/promo_picker_screen_test.dart` (рендер из пула, выбор→setPromos,
+  пустой пул) + `api_receipt_repository_test` (CSV `promoIds`). Flutter 56/56, analyze чистый.
+
+**Качество:** фича прогнана через ultracode adversarial-review (4 измерения), 8 подтверждённых
+находок исправлены (error-retry, ленивый грид, Map-выбор, токен-безопасная нормализация CSV на бэке,
+показ заявленных акций модератору, Semantics, фикстура теста).
