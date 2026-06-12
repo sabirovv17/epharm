@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Доступ в сеть (HTTPS к backend). ОБЯЗАТЕЛЬНО в main-манифесте: в debug/profile
+         Flutter добавляет INTERNET сам, но release-APK берёт только main — без этой строки
+         релизная сборка не может в сеть («нет подключения» на реальном устройстве). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Camera — для съёмки чеков (Этап 3 Receipts). Микрофон не нужен:
          видеозаписи нет (камера с enableAudio:false), RECORD_AUDIO убран. -->
     <uses-permission android:name="android.permission.CAMERA"/>
