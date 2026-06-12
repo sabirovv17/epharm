@@ -587,6 +587,8 @@ export interface ReceiptDto {
   autoApproved: boolean
   flagReason: string | null
   pendingBonusId: string | null
+  /** CSV id акций (pr_*), заявленных фармацевтом при загрузке чека (контекст для модератора). */
+  claimedPromoIds: string | null
   expectedAmount: number | null
   bonus: number | null
   bonusCredited: number

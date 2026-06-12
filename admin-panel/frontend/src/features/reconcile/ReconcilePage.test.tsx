@@ -45,6 +45,7 @@ function mkReceipt(over: Partial<ReceiptDto> = {}): ReceiptDto {
     autoApproved: false,
     flagReason: null,
     pendingBonusId: 'pb_1',
+    claimedPromoIds: null,
     expectedAmount: 1620,
     bonus: 520,
     bonusCredited: 0,
@@ -237,6 +238,24 @@ describe('ReconcilePage', () => {
     await user.click(screen.getByTestId('receipt-rcp_np'))
     expect(screen.getByTestId('receipt-nophoto')).toBeInTheDocument()
     expect(screen.queryByTestId('receipt-photo')).not.toBeInTheDocument()
+  })
+
+  it('drawer показывает заявленные фармацевтом акции (claimedPromoIds)', async () => {
+    setReceipts([mkReceipt({ id: 'rcp_cp', claimedPromoIds: 'pr_aqua,pr_pank' })])
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(screen.getByTestId('receipt-rcp_cp'))
+    expect(screen.getByText('Заявленные акции')).toBeInTheDocument()
+    expect(screen.getByText('pr_aqua')).toBeInTheDocument()
+    expect(screen.getByText('pr_pank')).toBeInTheDocument()
+  })
+
+  it('drawer без заявленных акций не показывает блок', async () => {
+    setReceipts([mkReceipt({ id: 'rcp_ncp', claimedPromoIds: null })])
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(screen.getByTestId('receipt-rcp_ncp'))
+    expect(screen.queryByText('Заявленные акции')).not.toBeInTheDocument()
   })
 
   it('approve из drawer вызывает useApproveReceipt', async () => {

@@ -525,6 +525,26 @@ function ReceiptDetailDrawer({
             <Field label={t('rec.dPharmacy')}>{r.pharmacyName || '—'}</Field>
           </div>
 
+          {/* Заявленные фармацевтом акции (выбор в пикере мобилки) — контекст модератору. */}
+          {r.claimedPromoIds && (
+            <Field label={t('rec.dClaimedPromos')}>
+              <div className="flex flex-wrap gap-1">
+                {r.claimedPromoIds
+                  .split(',')
+                  .map((id) => id.trim())
+                  .filter(Boolean)
+                  .map((id) => (
+                    <span
+                      key={id}
+                      className="num rounded bg-paper-input px-2 py-0.5 text-[11px] text-ink-600"
+                    >
+                      {id}
+                    </span>
+                  ))}
+              </div>
+            </Field>
+          )}
+
           <Field label={t('rec.dConfirmed')}>
             {r.confirmedByLog || r.confirmedByExcel ? (
               <span className="flex flex-wrap gap-1">
