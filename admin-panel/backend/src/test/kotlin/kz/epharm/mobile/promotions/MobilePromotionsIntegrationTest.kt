@@ -150,4 +150,16 @@ class MobilePromotionsIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON).content(body),
         ).andExpect(status().isBadRequest)
     }
+
+    @Test
+    fun `активная акция с товаром, но без ценовых порогов → 400`() {
+        val body = """
+            {"title":"Без порогов","status":"active","medusaProductId":"prod_a",
+             "productName":"Товар","tiers":[]}
+        """.trimIndent()
+        mockMvc.perform(
+            post("/api/admin/promo").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(body),
+        ).andExpect(status().isBadRequest)
+    }
 }

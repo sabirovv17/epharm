@@ -7,33 +7,44 @@ import kz.epharm.promo.dto.PromoTierDto
 import kz.epharm.promo.entity.PromoEntity
 import kz.epharm.promo.entity.PromoStatus
 import kz.epharm.promo.repository.PromoRepository
+import kz.epharm.shared.error.AppException
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDate
 
 /**
  * Лента промо-товаров для мобильного приложения. Источник — активные промо-кампании
- * из админки (status=active, привязан товар Medusa, дата в окне), смерженные с живыми
- * данными витрины Medusa (имя/бренд/фото/категории через [MobileCatalogService]).
+ * из админки (status=active, привязан товар Medusa, дата в окне, есть ценовые пороги),
+ * смерженные с живыми данными витрины Medusa (имя/бренд/фото/категории).
  *
- * Если Medusa недоступна или товар удалён — деградируем на снимок промо
- * (productName/productImage/brand), чтобы лента не падала.
+ * Устойчивость:
+ *  - HTTP к Medusa выполняется ВНЕ БД-транзакции (не держим соединение пула на внешний
+ *    round-trip; tiers — jsonb-колонка, грузится с сущностью, lazy-ассоциаций нет);
+ *  - если витрина недоступна/упала (timeout/5xx) или товар удалён — деградируем на снимок
+ *    промо (productName/productImage/brand), чтобы публичная лента на главной не падала 502.
  */
 @Service
 class MobilePromotionsService(
     private val promoRepository: PromoRepository,
     private val catalog: MobileCatalogService,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
 
-    @Transactional(readOnly = true)
     fun activeFeed(today: LocalDate = LocalDate.now()): List<MobilePromotionDto> {
+        // 1) Чтение промо из БД (repository открывает короткую транзакцию на один SELECT).
+        //    В ленту берём только активные товарные акции в окне дат и С ценовыми порогами.
         val promos = promoRepository
             .findAllByStatusRawAndMedusaProductIdIsNotNullOrderByUpdatedAtDesc(PromoStatus.active.name)
-            .filter { inWindow(it, today) }
+            .filter { inWindow(it, today) && it.tiers.isNotEmpty() }
         if (promos.isEmpty()) return emptyList()
 
-        // Живые карточки витрины пачкой по id (одним запросом в Medusa + кеш).
-        val cards = catalog.cardsByIds(promos.mapNotNull { it.medusaProductId })
+        // 2) Живые карточки витрины — ВНЕ транзакции. При сбое Medusa → пустая map → снимок.
+        val cards = try {
+            catalog.cardsByIds(promos.mapNotNull { it.medusaProductId })
+        } catch (e: AppException) {
+            log.warn("Medusa-мёрж ленты промо упал, деградируем на снимок: {}", e.message)
+            emptyMap()
+        }
         return promos.map { toDto(it, cards[it.medusaProductId]) }
     }
 

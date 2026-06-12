@@ -150,5 +150,14 @@ class PromoService(
                 )
             }
         }
+        // Активная товарная акция без порогов попала бы в ленту как товар без цены —
+        // запрещаем активировать такую (в ленте они тоже отфильтровываются как защита).
+        if (e.status == PromoStatus.active && e.medusaProductId != null && e.tiers.isEmpty()) {
+            throw AppException(
+                ErrorCode.VALIDATION_FAILED,
+                "Активная акция должна иметь хотя бы один ценовой порог",
+                HttpStatus.BAD_REQUEST,
+            )
+        }
     }
 }

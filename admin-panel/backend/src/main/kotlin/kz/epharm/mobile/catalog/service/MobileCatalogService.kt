@@ -65,8 +65,11 @@ class MobileCatalogService(
         val clean = ids.mapNotNull { it.trim().takeIf { s -> s.isNotBlank() } }.distinct()
         if (clean.isEmpty()) return emptyMap()
         return cache.get("cards|" + clean.sorted().joinToString(",")) {
-            medusa.listProducts(ids = clean, limit = clean.size.coerceIn(1, MAX_LIMIT))
-                .products.associate { it.id to card(it) }
+            // Medusa отдаёт максимум `limit` товаров — при >MAX_LIMIT id бьём на чанки и
+            // сливаем, иначе часть привязанных к промо товаров потерялась бы из выдачи.
+            clean.chunked(MAX_LIMIT)
+                .flatMap { chunk -> medusa.listProducts(ids = chunk, limit = chunk.size).products }
+                .associate { it.id to card(it) }
         }
     }
 

@@ -9,9 +9,12 @@ import kz.epharm.promo.entity.PromoEntity
 import kz.epharm.promo.entity.PromoStatus
 import kz.epharm.promo.entity.PromoTier
 import kz.epharm.promo.repository.PromoRepository
+import kz.epharm.shared.error.AppException
+import kz.epharm.shared.error.ErrorCode
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.springframework.http.HttpStatus
 import java.time.LocalDate
 
 /**
@@ -33,7 +36,7 @@ class MobilePromotionsServiceTest {
         productId: String?,
         start: LocalDate? = null,
         end: LocalDate? = null,
-        tiers: List<PromoTier> = emptyList(),
+        tiers: List<PromoTier> = listOf(PromoTier(1, 100, 0)),
         snapName: String = "Снимок",
         snapBrand: String = "BrandSnap",
     ) = PromoEntity(id = id, title = "Акция $id", brand = snapBrand, productName = snapName).also {
@@ -108,5 +111,26 @@ class MobilePromotionsServiceTest {
         every { repo.findAllByStatusRawAndMedusaProductIdIsNotNullOrderByUpdatedAtDesc(ACTIVE) } returns emptyList()
         assertTrue(service.activeFeed(today).isEmpty())
         // catalog.cardsByIds НЕ застаблен — если бы вызвался, mockk бросил бы
+    }
+
+    @Test
+    fun `сбой витрины Medusa (AppException) — лента деградирует на снимок, не падает`() {
+        val p = promo("pr_err", "prod_x", snapName = "Снимок-товар", snapBrand = "SnapBrand")
+        every { repo.findAllByStatusRawAndMedusaProductIdIsNotNullOrderByUpdatedAtDesc(ACTIVE) } returns listOf(p)
+        every { catalog.cardsByIds(any()) } throws
+            AppException(ErrorCode.UPSTREAM_UNAVAILABLE, "Каталог недоступен", HttpStatus.BAD_GATEWAY)
+
+        val feed = service.activeFeed(today) // не должно бросить
+        assertEquals(1, feed.size)
+        assertEquals("Снимок-товар", feed[0].name) // из снимка промо
+        assertEquals("SnapBrand", feed[0].brand)
+    }
+
+    @Test
+    fun `активная акция без ценовых порогов в ленту не попадает`() {
+        val p = promo("pr_notiers", "prod_y", tiers = emptyList())
+        every { repo.findAllByStatusRawAndMedusaProductIdIsNotNullOrderByUpdatedAtDesc(ACTIVE) } returns listOf(p)
+        // пустые tiers отфильтрованы ДО Medusa → cardsByIds не зовётся (не застаблен)
+        assertTrue(service.activeFeed(today).isEmpty())
     }
 }
