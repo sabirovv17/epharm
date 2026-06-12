@@ -28,16 +28,19 @@ class ApiReceiptRepository implements ReceiptRepository {
     String? photoPath,
     String? pharmacyId,
     String? pharmacyName,
+    List<String>? promoIds,
   }) async {
     List<int>? bytes;
     if (photoPath != null) {
       final file = File(photoPath);
       if (await file.exists()) bytes = await file.readAsBytes();
     }
-    // Выбранную аптеку отправляем как multipart-поля — backend сохранит её в чеке.
+    // Выбранную аптеку и заявленные акции отправляем как multipart-поля — backend
+    // сохранит их в чеке. promoIds → CSV (бэк нормализует и режет до длины колонки).
     final fields = <String, String>{
       if (pharmacyId != null && pharmacyId.isNotEmpty) 'pharmacyId': pharmacyId,
       if (pharmacyName != null && pharmacyName.isNotEmpty) 'pharmacyName': pharmacyName,
+      if (promoIds != null && promoIds.isNotEmpty) 'promoIds': promoIds.join(','),
     };
     final json = await _client.postMultipart(
       '/api/mobile/receipts',

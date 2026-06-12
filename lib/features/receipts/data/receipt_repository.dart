@@ -96,10 +96,13 @@ abstract interface class ReceiptRepository {
   /// и прогоняет её через ReconcileService (логи Стандарт-Н + Excel + ручная модерация).
   /// [pharmacyId]/[pharmacyName] — аптека, выбранная фармацевтом (где совершена покупка):
   /// передаётся на сервер и сохраняется в чеке (видна в детали и в админ-очереди).
+  /// [promoIds] — id выбранных в пикере промо-кампаний (pr_*): фармацевт заявляет, какие
+  /// акции в чеке. Сохраняются на чеке как контекст для модератора (на матчинг не влияют).
   Future<Receipt> submitReceipt({
     required String title,
     String? photoPath,
     String? pharmacyId,
     String? pharmacyName,
+    List<String>? promoIds,
   });
 }

@@ -6,34 +6,36 @@ import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/search_input.dart';
-import '../../home/application/home_controller.dart';
-import '../../home/data/home_repository.dart';
+import '../../promotions/application/promotions_controller.dart';
+import '../../promotions/data/promotion_models.dart';
 import '../application/receipts_controller.dart';
 
-/// Экран выбора акций (товаров) для чека.
+/// Экран выбора акций для чека.
 ///
-/// Источник: `_reference/recipe/review.jsx` → `PromoPickerScreen`.
-///
-/// Каталог идентичен Home (тот же `productListProvider`), но карточки имеют
-/// inline-toggle «Добавить / Добавлено». Снизу — sticky CTA «Добавить · N».
+/// Источник — тот же пул промо-кампаний, что и лента Home ([promotionsProvider]):
+/// фармацевт выбирает из ПРЕДСТАВЛЕННЫХ акций те, что есть в его чеке. Карточки
+/// имеют inline-toggle «Добавить / Добавлено». Снизу — sticky CTA «Добавить · N».
 class PromoPickerScreen extends ConsumerStatefulWidget {
   const PromoPickerScreen({super.key});
 
   @override
-  ConsumerState<PromoPickerScreen> createState() =>
-      _PromoPickerScreenState();
+  ConsumerState<PromoPickerScreen> createState() => _PromoPickerScreenState();
 }
 
 class _PromoPickerScreenState extends ConsumerState<PromoPickerScreen> {
   final _qCtrl = TextEditingController();
   String _q = '';
-  late Set<int> _picked;
+
+  // Выбранные акции: id → объект Promotion. Храним сам объект (а не только id),
+  // чтобы сохранить РОВНО выбор пользователя, не пересобирая его из текущего пула
+  // на момент подтверждения (иначе count CTA мог бы расходиться с сохранённым).
+  late Map<String, Promotion> _picked;
 
   @override
   void initState() {
     super.initState();
     // Pre-fill уже выбранными акциями (если возвращаемся в screen).
-    _picked = ref.read(receiptDraftProvider).promos.map((p) => p.id).toSet();
+    _picked = {for (final p in ref.read(receiptDraftProvider).promos) p.id: p};
   }
 
   @override
@@ -50,29 +52,32 @@ class _PromoPickerScreenState extends ConsumerState<PromoPickerScreen> {
     return 'акций';
   }
 
-  void _toggle(int id) {
+  void _toggle(Promotion p) {
     setState(() {
-      if (_picked.contains(id)) {
-        _picked.remove(id);
+      if (_picked.containsKey(p.id)) {
+        _picked.remove(p.id);
       } else {
-        _picked.add(id);
+        _picked[p.id] = p;
       }
     });
   }
 
-  void _submit(List<Product> filtered) {
-    // Берём ВСЕ выбранные (не только из текущего фильтра), фильтруя
-    // полный список по id чтобы выбор сохранился между фильтрами.
-    final all = ref.read(productListProvider).valueOrNull ?? [];
-    final picked =
-        all.where((p) => _picked.contains(p.id)).toList(growable: false);
-    ref.read(receiptDraftProvider.notifier).setPromos(picked);
+  void _submit() {
+    // Сохраняем ровно выбранные объекты — без зависимости от текущего пула.
+    ref.read(receiptDraftProvider.notifier).setPromos(_picked.values.toList());
     Navigator.of(context).pop();
+  }
+
+  bool _matches(Promotion p, String lower) {
+    if (lower.isEmpty) return true;
+    return p.name.toLowerCase().contains(lower) ||
+        (p.brand?.toLowerCase().contains(lower) ?? false) ||
+        (p.mnn?.toLowerCase().contains(lower) ?? false);
   }
 
   @override
   Widget build(BuildContext context) {
-    final productsAsync = ref.watch(productListProvider);
+    final promotionsAsync = ref.watch(promotionsProvider);
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -113,80 +118,94 @@ class _PromoPickerScreenState extends ConsumerState<PromoPickerScreen> {
               ),
             ),
             Expanded(
-              child: productsAsync.when(
+              child: promotionsAsync.when(
                 loading: () =>
                     const Center(child: CircularProgressIndicator()),
-                error: (e, _) => Center(child: Text('Ошибка: $e')),
-                data: (products) {
-                  final filtered = products.where((p) {
-                    if (_q.isEmpty) return true;
-                    final lower = _q.toLowerCase();
-                    return p.name.toLowerCase().contains(lower) ||
-                        p.brand.toLowerCase().contains(lower);
-                  }).toList();
+                // Ошибка — НЕ тупик: «Повторить» инвалидирует провайдер (как на Home).
+                error: (e, _) => _ErrorState(
+                  onRetry: () => ref.invalidate(promotionsProvider),
+                ),
+                data: (promos) {
+                  final lower = _q.trim().toLowerCase();
+                  final filtered =
+                      promos.where((p) => _matches(p, lower)).toList();
 
                   return Stack(
                     children: [
-                      ListView(
-                        padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.screenEdge,
-                          12,
-                          AppSpacing.screenEdge,
-                          140,
-                        ),
-                        children: [
-                          const Text(
-                            'Акции',
-                            style: TextStyle(
-                              fontFamily: 'Manrope',
-                              fontFamilyFallback: ['Roboto', 'sans-serif'],
-                              fontSize: 28,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.ink900,
-                              height: 1.15,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          SearchInput(
-                            controller: _qCtrl,
-                            hint: 'Поиск по названию или бренду',
-                            onChanged: (v) => setState(() => _q = v),
-                          ),
-                          const SizedBox(height: 16),
-                          GridView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              crossAxisSpacing: 12,
-                              mainAxisSpacing: 12,
-                              mainAxisExtent: 258,
-                            ),
-                            itemCount: filtered.length,
-                            itemBuilder: (_, i) => _PickerCard(
-                              product: filtered[i],
-                              selected:
-                                  _picked.contains(filtered[i].id),
-                              onToggle: () => _toggle(filtered[i].id),
+                      // Единый sliver-скролл: SliverGrid строит ТОЛЬКО видимые
+                      // карточки (ленивый Image.network вместо «все разом»).
+                      CustomScrollView(
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(
+                                AppSpacing.screenEdge, 12, AppSpacing.screenEdge, 0),
+                            sliver: SliverToBoxAdapter(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Акции',
+                                    style: TextStyle(
+                                      fontFamily: 'Manrope',
+                                      fontFamilyFallback: ['Roboto', 'sans-serif'],
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.ink900,
+                                      height: 1.15,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  SearchInput(
+                                    controller: _qCtrl,
+                                    hint: 'Поиск по названию, бренду или МНН',
+                                    onChanged: (v) => setState(() => _q = v),
+                                  ),
+                                  const SizedBox(height: 16),
+                                ],
+                              ),
                             ),
                           ),
                           if (filtered.isEmpty)
-                            const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 32),
-                              child: Center(
-                                child: Text(
-                                  'Ничего не найдено',
-                                  style: TextStyle(
-                                    fontFamily: 'Manrope',
-                                    fontFamilyFallback: [
-                                      'Roboto',
-                                      'sans-serif'
-                                    ],
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.ink400,
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 32),
+                                child: Center(
+                                  child: Text(
+                                    promos.isEmpty
+                                        ? 'Акции появятся, когда менеджер их добавит'
+                                        : 'Ничего не найдено',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontFamily: 'Manrope',
+                                      fontFamilyFallback: ['Roboto', 'sans-serif'],
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.ink400,
+                                    ),
                                   ),
+                                ),
+                              ),
+                            )
+                          else
+                            SliverPadding(
+                              padding: const EdgeInsets.fromLTRB(
+                                  AppSpacing.screenEdge, 0, AppSpacing.screenEdge, 140),
+                              sliver: SliverGrid(
+                                gridDelegate:
+                                    const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  crossAxisSpacing: 12,
+                                  mainAxisSpacing: 12,
+                                  mainAxisExtent: 258,
+                                ),
+                                delegate: SliverChildBuilderDelegate(
+                                  (_, i) => _PickerCard(
+                                    promo: filtered[i],
+                                    selected:
+                                        _picked.containsKey(filtered[i].id),
+                                    onToggle: () => _toggle(filtered[i]),
+                                  ),
+                                  childCount: filtered.length,
                                 ),
                               ),
                             ),
@@ -205,13 +224,10 @@ class _PromoPickerScreenState extends ConsumerState<PromoPickerScreen> {
                             ),
                           ),
                           padding: const EdgeInsets.fromLTRB(
-                              AppSpacing.screenEdge,
-                              16,
-                              AppSpacing.screenEdge,
-                              28),
+                              AppSpacing.screenEdge, 16, AppSpacing.screenEdge, 28),
                           child: _ConfirmCta(
                             count: _picked.length,
-                            onTap: () => _submit(filtered),
+                            onTap: _submit,
                             pluralLabel: _pluralPromo,
                           ),
                         ),
@@ -219,6 +235,53 @@ class _PromoPickerScreenState extends ConsumerState<PromoPickerScreen> {
                     ],
                   );
                 },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Экран ошибки загрузки пула акций с кнопкой повтора (паритет с Home-лентой).
+class _ErrorState extends StatelessWidget {
+  const _ErrorState({required this.onRetry});
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.wifi_off_rounded, size: 40, color: AppColors.ink400),
+            const SizedBox(height: 12),
+            const Text(
+              'Не удалось загрузить акции.\nПроверьте соединение и попробуйте снова.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Manrope',
+                fontFamilyFallback: ['Roboto', 'sans-serif'],
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: AppColors.ink500,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: onRetry,
+              child: const Text(
+                'Повторить',
+                style: TextStyle(
+                  fontFamily: 'Manrope',
+                  fontFamilyFallback: ['Roboto', 'sans-serif'],
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.brandGreen700,
+                ),
               ),
             ),
           ],
@@ -276,130 +339,162 @@ class _ConfirmCta extends StatelessWidget {
 
 class _PickerCard extends StatelessWidget {
   const _PickerCard({
-    required this.product,
+    required this.promo,
     required this.selected,
     required this.onToggle,
   });
 
-  final Product product;
+  final Promotion promo;
   final bool selected;
   final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color:
-            selected ? AppColors.brandGreen100 : Colors.white,
-        borderRadius: AppRadii.brXl,
-        boxShadow: AppShadows.card,
-        border: Border.all(
-          color: selected
-              ? AppColors.brandGreen600
-              : Colors.transparent,
-          width: 2,
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Image
-          SizedBox(
-            height: 140,
-            child: Stack(
-              children: [
-                Container(
-                  decoration: BoxDecoration(gradient: product.pkg.background),
-                  alignment: Alignment.center,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Text(
-                      product.pkg.label,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'Manrope',
-                        fontFamilyFallback: const ['Roboto', 'sans-serif'],
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: product.pkg.accent ?? Colors.white,
-                        height: 1.15,
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  bottom: 8,
-                  left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.brandGreen600,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      product.period,
-                      style: const TextStyle(
-                        fontFamily: 'Manrope',
-                        fontFamilyFallback: ['Roboto', 'sans-serif'],
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-                if (selected)
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      width: 28,
-                      height: 28,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: AppColors.brandGreen600,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                        boxShadow: AppShadows.fab,
-                      ),
-                      child: const Icon(Icons.check_rounded,
-                          size: 14, color: Colors.white),
-                    ),
-                  ),
-              ],
+    // Один семантический узел на карточку: кнопка-toggle с состоянием selected
+    // и названием акции (VoiceOver/TalkBack читают «Выбрано/Не выбрано»).
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: promo.name,
+      onTap: onToggle,
+      child: ExcludeSemantics(
+        child: Container(
+          decoration: BoxDecoration(
+            color: selected ? AppColors.brandGreen100 : Colors.white,
+            borderRadius: AppRadii.brXl,
+            boxShadow: AppShadows.card,
+            border: Border.all(
+              color: selected ? AppColors.brandGreen600 : Colors.transparent,
+              width: 2,
             ),
           ),
-          // Body
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    product.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontFamily: 'Manrope',
-                      fontFamilyFallback: ['Roboto', 'sans-serif'],
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.ink900,
-                      height: 1.15,
-                    ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Фото товара (network) с плейсхолдером-заглушкой при отсутствии/ошибке.
+              SizedBox(
+                height: 140,
+                child: Stack(
+                  children: [
+                    Positioned.fill(child: _PickerThumb(promo: promo)),
+                    if (promo.dateLabel != null)
+                      Positioned(
+                        bottom: 8,
+                        left: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.brandGreen600,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            promo.dateLabel!,
+                            style: const TextStyle(
+                              fontFamily: 'Manrope',
+                              fontFamilyFallback: ['Roboto', 'sans-serif'],
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (selected)
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: AppColors.brandGreen600,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                            boxShadow: AppShadows.fab,
+                          ),
+                          child: const Icon(Icons.check_rounded,
+                              size: 14, color: Colors.white),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              // Тело: название + toggle
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        promo.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: 'Manrope',
+                          fontFamilyFallback: ['Roboto', 'sans-serif'],
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.ink900,
+                          height: 1.15,
+                        ),
+                      ),
+                      const Spacer(),
+                      _ToggleButton(selected: selected, onTap: onToggle),
+                    ],
                   ),
-                  const Spacer(),
-                  _ToggleButton(selected: selected, onTap: onToggle),
-                ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Фото товара акции для карточки пикера. Network-image с плейсхолдером
+/// (буква названия на брендовом фоне) — тот же подход, что в PromoProductCard.
+class _PickerThumb extends StatelessWidget {
+  const _PickerThumb({required this.promo});
+  final Promotion promo;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget placeholder() => Container(
+          color: AppColors.brandGreen100,
+          alignment: Alignment.center,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Text(
+              promo.name.isNotEmpty
+                  ? promo.name.characters.first.toUpperCase()
+                  : '?',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'Manrope',
+                fontFamilyFallback: ['Roboto', 'sans-serif'],
+                fontSize: 34,
+                fontWeight: FontWeight.w800,
+                color: AppColors.brandGreen700,
               ),
             ),
           ),
-        ],
-      ),
+        );
+
+    final url = promo.imageUrl;
+    if (url == null || url.isEmpty) return placeholder();
+    return Image.network(
+      url,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      loadingBuilder: (_, child, p) => p == null ? child : placeholder(),
+      errorBuilder: (_, __, ___) => placeholder(),
     );
   }
 }

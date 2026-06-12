@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/config/api_config.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/validation/card.dart';
-import '../../home/data/home_repository.dart';
+import '../../promotions/data/promotion_models.dart';
 import '../data/api_pharmacy_repository.dart';
 import '../data/api_receipt_repository.dart';
 import '../data/mock_pharmacy_repository.dart';
@@ -48,7 +48,7 @@ final receiptListProvider = StreamProvider<List<Receipt>>((ref) async* {
 
 /// In-progress черновик чека. Состоит из:
 ///   • фото чека (snapshot из CameraScreen)
-///   • [promos] — выбранные акции из каталога (через PromoPickerScreen)
+///   • [promos] — выбранные акции из пула промо-кампаний (через PromoPickerScreen)
 ///   • [pharmacy] — аптека, где была покупка (через AddressSheet)
 ///   • [card] — отформатированный номер бонусной карты «1234 5678 9012 3456»
 ///     (через CardSheet); сохраняется между чеками в рамках сессии
@@ -63,7 +63,7 @@ class ReceiptDraft {
   });
 
   final String? photoPath;
-  final List<Product> promos;
+  final List<Promotion> promos;
   final NearbyPharmacy? pharmacy;
 
   /// Отформатированная маска «1234 5678 9012 3456» (с пробелами). Без пробелов
@@ -81,7 +81,7 @@ class ReceiptDraft {
 
   ReceiptDraft copyWith({
     String? photoPath,
-    List<Product>? promos,
+    List<Promotion>? promos,
     NearbyPharmacy? pharmacy,
     String? card,
     bool clearPhoto = false,
@@ -101,7 +101,7 @@ class ReceiptDraftNotifier extends Notifier<ReceiptDraft> {
 
   void setPhoto(String path) => state = state.copyWith(photoPath: path);
 
-  void setPromos(List<Product> picked) =>
+  void setPromos(List<Promotion> picked) =>
       state = state.copyWith(promos: List.unmodifiable(picked));
 
   void setPharmacy(NearbyPharmacy p) => state = state.copyWith(pharmacy: p);

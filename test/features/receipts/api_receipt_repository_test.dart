@@ -53,6 +53,9 @@ void main() {
       expect(req.body, contains('pharmacyId'));
       expect(req.body, contains('ph_chosen'));
       expect(req.body, contains('Аптека на Абая'));
+      // Заявленные акции уходят как CSV в поле promoIds.
+      expect(req.body, contains('promoIds'));
+      expect(req.body, contains('pr_aqua,pr_pank'));
       return http.Response(
         jsonEncode({'id': 'rcp_1', 'status': 'inReview', 'productName': 'Аквамарис', 'sku': 'p_a', 'amount': 0, 'bonus': 380, 'bonusCredited': 0, 'photoUrl': 'http://t/p.jpg', 'createdAt': '2026-06-09T10:00:00Z', 'pharmacyName': 'Аптека на Абая 10'}),
         201,
@@ -64,6 +67,7 @@ void main() {
       photoPath: tmp.path,
       pharmacyId: 'ph_chosen',
       pharmacyName: 'Аптека на Абая 10',
+      promoIds: const ['pr_aqua', 'pr_pank'],
     );
     expect(r.id, 'rcp_1');
     expect(r.status, ReceiptStatus.inReview);

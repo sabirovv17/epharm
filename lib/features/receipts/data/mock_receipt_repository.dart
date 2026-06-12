@@ -24,6 +24,7 @@ class MockReceiptRepository implements ReceiptRepository {
     String? photoPath,
     String? pharmacyId,
     String? pharmacyName,
+    List<String>? promoIds, // офлайн-демо: заявленные акции не хранит
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 200));
     final now = DateTime.now();

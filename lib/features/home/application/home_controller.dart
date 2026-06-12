@@ -9,11 +9,8 @@ final promoListProvider = FutureProvider<List<Promo>>(
   (ref) => ref.read(homeRepositoryProvider).loadPromos(),
 );
 
-/// Мок-промо-товары — используются ТОЛЬКО при выборе акций для чека
-/// ([promo_picker_screen]). Лента Home берёт реальные акции из promotionsProvider.
-final productListProvider = FutureProvider<List<Product>>(
-  (ref) => ref.read(homeRepositoryProvider).loadProducts(),
-);
+// NB: productListProvider (мок-каталог) удалён — и лента Home, и пикер чека
+// теперь берут реальный пул акций из promotionsProvider.
 
 // ─── Сортировка ленты ────────────────────────────────────────────────────────
 // По названию (А-Я / Я-А). Применяется к пулу промо-акций (applyPromotionFilters).

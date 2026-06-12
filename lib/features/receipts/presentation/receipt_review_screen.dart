@@ -47,6 +47,8 @@ class ReceiptReviewScreen extends ConsumerWidget {
         photoPath: draft.photoPath,
         pharmacyId: draft.pharmacy?.id,
         pharmacyName: draft.pharmacy?.name,
+        // Заявленные акции (id кампаний) — контекст для модератора на сервере.
+        promoIds: draft.promos.map((p) => p.id).toList(growable: false),
       );
     } catch (_) {
       // Сеть/сервер недоступны — показываем ошибку, draft не теряем (можно повторить).
