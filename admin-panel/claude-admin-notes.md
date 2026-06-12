@@ -3123,3 +3123,22 @@ cover live-preview» (в товарной форме cover-превью нет).
 
 **Качество:** вся фича (бэкенд+админ+мобилка) прогнана через ultracode adversarial-review —
 8 подтверждённых находок исправлено. Backend integration + admin (320) + Flutter (56) зелёные.
+
+### Деплой пикер-фичи на демо (78.140.246.238) — gotcha IPv6 nginx
+
+- Залито: backend (V024 применилась, колонка claimed_promo_ids varchar(512),
+  flyway success=true) + frontend + APK (epharm-demo.apk, 51368381 байт,
+  download HTTP/2 200, content-type application/vnd.android.package-archive) +
+  iOS .app bundle. APK против https://epharm.78-140-246-238.sslip.io.
+- **Gotcha:** при пересоздании контейнера epharm-frontend nginx крэш-лупил с
+  `[emerg] socket() [::]:80 failed (97: Address family not supported by protocol)`
+  — bridge-сеть контейнера без IPv6, а в admin-panel/frontend/nginx.conf был
+  `listen [::]:80`. Фикс: убрать IPv6-listen (фронт доступен только через Caddy
+  по IPv4). Коммит fix(infra). Если фронт после rebuild Restarting — смотри
+  `docker logs epharm-frontend`, ищи этот emerg.
+- APK в MinIO заливается ТОЛЬКО через mc (SNSD-режим): `docker run --rm
+--network epharm_default --env-file .env.prod --entrypoint /bin/sh
+-v <apk>:/apk.apk:ro minio/mc -c 'mc alias set local http://minio:9000
+"$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" && mc cp /apk.apk
+local/epharm-receipts/epharm-demo.apk'`. (`minio/mc` entrypoint = mc,
+  поэтому нужен `--entrypoint /bin/sh`.)
