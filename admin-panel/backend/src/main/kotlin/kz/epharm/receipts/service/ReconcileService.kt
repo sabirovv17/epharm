@@ -1,6 +1,8 @@
 package kz.epharm.receipts.service
 
+import kz.epharm.pharmacists.entity.PharmacistEntity
 import kz.epharm.pharmacists.repository.PharmacistRepository
+import kz.epharm.promo.repository.PromoRepository
 import kz.epharm.receipts.dto.ExcelRowInput
 import kz.epharm.receipts.dto.LogSaleInput
 import kz.epharm.receipts.dto.ReceiptDto
@@ -40,6 +42,7 @@ class ReconcileService(
     private val receiptRepository: ReceiptRepository,
     private val pendingBonusRepository: PendingBonusRepository,
     private val pharmacistRepository: PharmacistRepository,
+    private val promoRepository: PromoRepository,
     private val mediaStorage: MediaStorage,
 ) {
 
@@ -116,27 +119,34 @@ class ReconcileService(
             throw AppException(ErrorCode.VALIDATION_FAILED, "Нужно фото чека", HttpStatus.BAD_REQUEST)
         }
 
-        // Кандидат на матч — свежий открытый pending-бонус фармацевта.
+        // Аптека: приоритет выбранной в приложении, иначе — из профиля фармацевта.
+        val resolvedPharmacyId = pharmacyId?.takeIf { it.isNotBlank() } ?: pharmacist.pharmacyId ?: ""
+        val resolvedPharmacyName = pharmacyName?.takeIf { it.isNotBlank() } ?: pharmacist.pharmacyName ?: ""
+        val normalizedPromoIds = normalizeClaimedPromoIds(claimedPromoIds)
+
+        // Источник бонуса: сначала открытая POSM-бронь (замена на кассе). Если её нет, но
+        // фармацевт выбрал акции в пикере чека — создаём бронь из этих акций (app-flow без
+        // кассы). Реальное начисление всё равно гейтит модератор (approve в админке) — авто-
+        // кредита при загрузке нет.
         val candidate = latestAwaitingFor(pharmacistId)
+            ?: pendingFromClaimedPromos(pharmacist, resolvedPharmacyId, resolvedPharmacyName, normalizedPromoIds)
 
         val photoUrl =
             mediaStorage.upload(photoBytes, photoContentType ?: "image/jpeg", photoName ?: "receipt.jpg")
 
-        // Фото — только доказательство для модератора. SKU берём из связанной POSM-брони;
+        // Фото — только доказательство для модератора. SKU берём из связанной брони;
         // фактическую сумму/фискальный id/кассира заполнит сверка по источникам
         // (лог Стандарт-Н → ingestLogSale, Excel → ingestExcelRows).
-        // Аптека: приоритет выбранной в приложении, иначе — из профиля фармацевта.
         val receipt = ReceiptEntity(
             id = "rcp_${UUID.randomUUID().toString().substring(0, 8)}",
             pharmacistId = pharmacist.id,
             pharmacistName = pharmacist.name,
-            pharmacyId = pharmacyId?.takeIf { it.isNotBlank() } ?: pharmacist.pharmacyId ?: "",
-            pharmacyName = pharmacyName?.takeIf { it.isNotBlank() } ?: pharmacist.pharmacyName ?: "",
+            pharmacyId = resolvedPharmacyId,
+            pharmacyName = resolvedPharmacyName,
             photoUrl = photoUrl,
             parsedSku = candidate?.sku ?: "",
             pendingBonusId = candidate?.id,
-            // Заявленные фармацевтом акции (CSV pr_*) — нормализуем токен-безопасно.
-            claimedPromoIds = normalizeClaimedPromoIds(claimedPromoIds),
+            claimedPromoIds = normalizedPromoIds,
         )
 
         decideBranch(receipt, candidate)
@@ -364,7 +374,45 @@ class ReconcileService(
     private fun latestAwaitingFor(pharmacistId: String): PendingBonusEntity? =
         pendingBonusRepository.findAll()
             .filter { it.pharmacistId == pharmacistId && it.status == PendingBonusStatus.awaiting_receipt }
+            // Бронь, уже привязанную к чеку, повторно не цепляем (иначе следующий чек
+            // фармацевта «угнал» бы чужую бронь до её подтверждения модератором).
+            .filter { receiptRepository.findFirstByPendingBonusId(it.id) == null }
             .maxByOrNull { it.createdAt }
+
+    /**
+     * App-flow источник бонуса (без кассы Стандарт-Н): если у фармацевта нет открытой POSM-брони,
+     * но он выбрал акции в пикере чека — создаём из этих акций [PendingBonusEntity]. Сумма бонуса —
+     * сумма по выбранным акциям, где у каждой берём МАКСИМАЛЬНЫЙ бонус среди её ценовых порогов
+     * (полное достижение акции). Бронь — в той же аптеке, что и чек (иначе decideBranch пометил бы
+     * wrong_pharmacy). Реальное начисление произойдёт ТОЛЬКО после approve модератором в админке.
+     * Если бонуса нет (акции без бонусных порогов / не найдены) — возвращаем null (чек без бонуса).
+     */
+    private fun pendingFromClaimedPromos(
+        pharmacist: PharmacistEntity,
+        pharmacyId: String,
+        pharmacyName: String,
+        claimedPromoIdsCsv: String?,
+    ): PendingBonusEntity? {
+        val ids = claimedPromoIdsCsv?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }
+        if (ids.isNullOrEmpty()) return null
+        val promos = promoRepository.findAllById(ids)
+        if (promos.isEmpty()) return null
+        val totalBonus = promos.sumOf { p -> p.tiers.maxOfOrNull { it.bonus } ?: 0L }
+        if (totalBonus <= 0) return null
+        val lead = promos.first()
+        val pending = PendingBonusEntity(
+            id = "pb_${UUID.randomUUID().toString().substring(0, 8)}",
+            pharmacistId = pharmacist.id,
+            pharmacistName = pharmacist.name,
+            pharmacyId = pharmacyId,
+            pharmacyName = pharmacyName,
+            sku = lead.medusaProductId ?: lead.id,
+            productName = if (promos.size == 1) lead.productName else "${lead.productName} +${promos.size - 1}",
+            expectedAmount = promos.sumOf { p -> p.tiers.maxByOrNull { it.bonus }?.price ?: 0L },
+            bonus = totalBonus,
+        )
+        return pendingBonusRepository.save(pending)
+    }
 
     private fun loadOrThrow(id: String): ReceiptEntity =
         receiptRepository.findById(id).orElseThrow {
