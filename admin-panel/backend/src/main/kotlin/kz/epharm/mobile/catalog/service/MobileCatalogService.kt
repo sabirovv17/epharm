@@ -8,6 +8,7 @@ import kz.epharm.mobile.catalog.dto.MobileCatalogMarketplaceLinkDto
 import kz.epharm.mobile.catalog.dto.MobileCatalogPageDto
 import kz.epharm.mobile.catalog.dto.MobileCatalogProductDto
 import kz.epharm.mobile.catalog.dto.MobileCategoryDto
+import kz.epharm.promo.repository.PromoRepository
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import org.springframework.http.HttpStatus
@@ -27,6 +28,7 @@ import kotlin.math.roundToInt
 class MobileCatalogService(
     private val medusa: MedusaClient,
     private val cache: MedusaCatalogCache,
+    private val promoRepository: PromoRepository,
 ) {
 
     fun search(q: String?, category: String?, limit: Int, offset: Int): MobileCatalogPageDto {
@@ -46,8 +48,37 @@ class MobileCatalogService(
 
     fun detail(id: String): MobileCatalogDetailDto = cache.get("detail|$id") {
         val p = medusa.getProduct(id)
+        // Товар есть в Medusa → полная карточка. Нет (демо-акция без товара витрины) →
+        // деградируем на снимок промо, чтобы тап по карточке не падал «Товар не найден».
+        if (p != null) detailOf(p) else promoFallbackDetail(id)
             ?: throw AppException(ErrorCode.NOT_FOUND, "Товар не найден", HttpStatus.NOT_FOUND)
-        detailOf(p)
+    }
+
+    /** Деталь из снимка промо, если товара нет в Medusa (демо-акции вне витрины). */
+    private fun promoFallbackDetail(medusaProductId: String): MobileCatalogDetailDto? {
+        val promo = promoRepository.findAll()
+            .firstOrNull { it.medusaProductId == medusaProductId } ?: return null
+        val facts = promo.tiers.filter { it.bonus > 0 }
+            .map { "Бонус от ${it.minQty} шт — ${it.bonus} ₸" }
+        return MobileCatalogDetailDto(
+            id = medusaProductId,
+            name = promo.productName.ifBlank { promo.title },
+            brand = promo.brand.takeIf { it.isNotBlank() },
+            mnn = null,
+            atc = null,
+            rxOtc = null,
+            price = promo.tiers.firstOrNull()?.price?.toInt(),
+            currency = "KZT",
+            imageUrl = promo.productImage,
+            images = listOfNotNull(promo.productImage),
+            barcode = null,
+            category = null,
+            country = null,
+            manufacturer = null,
+            description = "Акция Epharm — бонус начисляется при покупке этого товара.",
+            keyFacts = facts,
+            marketplaceLinks = emptyList(),
+        )
     }
 
     fun categories(): List<MobileCategoryDto> = cache.get("categories") {
