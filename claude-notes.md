@@ -607,3 +607,32 @@ chip-провайдер `homeChipProvider`, старый `SortOption`, хард�
 verify-пасом как ложные (синхронный invalidate без async-gap, resume не пересекается с pull) — взяли
 только идиоматичный `mounted`-guard. APK пересобран с `API_BASE=https://epharm.78-140-246-238.sslip.io`
 (дефолт `api.epharm.kz` сейчас не резолвится — собирать ТОЛЬКО с явным base).
+
+---
+
+## 2026-06-14 — Лента в 2 колонки + фикс сброса фильтра + единый зелёный
+
+По фидбеку со скрина (`home_screen`):
+
+- **Сетка 2 колонки:** `_PromoSliver` → `SliverGrid` (crossAxisCount 2, `mainAxisExtent 238`) из
+  новой компактной `PromoGridCard` (фото 116 + название + бренд + бонус). Старая широкая
+  `PromoProductCard` осталась в файле, но в ленте больше не используется.
+- **Единый зелёный:** убрано «буйство оттенков» — тёмный `brandGreen700` (ценовые пилюли) в ленте
+  заменён на ОСНОВНОЙ `brandGreen600` (как шапка/навбар). Бонус-пилюля в grid-карточке — brandGreen600.
+- **Фикс сброса фильтра:** в `brand_sheet`/`category_sheet` кнопка «Сбросить» чистила только локальный
+  выбор — если закрыть лист свайпом (без «Применить»), провайдер оставался → чип не сбрасывался.
+  Теперь «Сбросить» сразу зовёт `ref.read(selected*Provider.notifier).clear()`. Регрессионный тест.
+- Тесты: `home_grid_filter_test` (рендер grid-карточки + сброс фильтра). Flutter 60/60, analyze чистый.
+
+## ⚠️ GOTCHA: iCloud Desktop ломает codesign iOS (`com.apple.FinderInfo`)
+
+Проект на `~/Desktop` под iCloud «Desktop & Documents». iCloud вешает на свежие build-артефакты
+xattr `com.apple.FinderInfo`/`fileprovider`, а `codesign` их отвергает:
+`App.framework/App: resource fork, Finder information ... not allowed`. Это НЕ про подпись/keychain
+(она валидна) — чисто iCloud-тег. `xattr -cr build` не помогает (сборка пересоздаёт файл, iCloud
+снова тегает).
+
+**Фикс (применён):** увести `build/` из iCloud симлинком на не-синхронизируемую папку:
+`rm -rf build && mkdir -p ~/.epharm-build-out && ln -s ~/.epharm-build-out build`. После этого
+`flutter build ios/apk` подписывает чисто. Симлинк оставлен — будущие сборки тоже не споткнутся.
+Установка на устройство: `xcrun devicectl device install app --device <udid> build/ios/iphoneos/Runner.app`.
