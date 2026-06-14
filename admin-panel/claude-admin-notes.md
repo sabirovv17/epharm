@@ -3160,3 +3160,67 @@ local/epharm-receipts/epharm-demo.apk'`. (`minio/mc` entrypoint = mc,
 - Засиженные демо-промо имеют бонусы 2000–3500₸ (NOW Бор 3500, Eve Multi 3000, Панкраген 2500,
   Ivatherm 2200, Кардиоген 2000) — любой выбор даёт ненулевую выплату.
 - Тесты: бронь из акции (макс тир-бонус 900) + акция без бонуса → брони нет.
+
+---
+
+## 2026-06-14 — Кампания как единый источник + правила из кампании + экраны + heartbeat (T1–T6)
+
+Большой заход «как положено» по 6 задачам. Миграция **V025\_\_campaign_product_rules.sql**:
+`promos.override_image/override_description`, `products.medusa_product_id`, `rules.promo_id` (+ индексы).
+
+**T1 — 1 кампания = 1 товар, цена read-only, бонус, override, ежедневный рефреш.**
+
+- Модель упрощена: цена и бонус живут в ЕДИНСТВЕННОМ пороге `tiers=[{minQty:1, price:<Medusa>, bonus:<админ>}]`.
+  В `PromoEntity` добавлены computed-геттеры `price`/`pharmacistBonus` (читают порог). Мульти-tier UI убран.
+- `CreatePromoRequest/UpdatePromoRequest`: **больше НЕ принимают `tiers`/`price`** (цена только из Medusa).
+  Принимают `pharmacistBonus`, `overrideImage`, `overrideDescription`. `PromoDto` отдаёт `price` (read-only),
+  `pharmacistBonus`, override-поля + (для совместимости) `tiers`.
+- `PromoService.syncTier()`: при create/смене товара тянет цену из `MedusaPriceService.priceOf()` и кладёт в порог.
+  Валидация: активная кампания **обязана** иметь товар; один товар не может быть в двух живых (не-archived) кампаниях (1:1).
+- `MedusaPriceService` (НОВЫЙ, пакет medusa) — резолвер цены БЕЗ кэша (variants.calculatedPrice), для рефреша/создания.
+- `PromoPriceScheduler` (НОВЫЙ) — `@Scheduled(cron app.promo.price-refresh-cron, по умолч. 03:00)`: раз в день
+  обновляет `promos.tiers[0].price` (бонус не трогает) и `products.price` (для блока рекомендаций POSM) из Medusa.
+  `refreshNow()` — ручной запуск/тест. Medusa off → пропуск (старую цену не обнуляем).
+- Override: мобильная лента (`MobilePromotionsService`) — `imageUrl = overrideImage ?? Medusa ?? снимок`,
+  деталь (`MobileCatalogService.applyPromoOverride`) — накладывает override-фото/описание поверх Medusa.
+
+**T2 — правила замены/кросс-селла ИЗ кампании + конфликты.**
+
+- `rules.promo_id` связывает правило с кампанией. `PromoRulesService` (НОВЫЙ):
+  - `GET /api/admin/promo/{id}/rules` → `PromoRulesViewDto{config, ruleCount, activeCount}`.
+  - `PUT /api/admin/promo/{id}/rules` (body `PromoRulesConfigDto`) — **replace-семантика**: удаляет старые
+    правила кампании и генерит новые. `replacements[]` → substitution (триггер=заменяемый, recommend=продвигаемый),
+    `crossSells[]` → crosssell (триггер=продвигаемый, recommend=компаньон). Текст (script/advantages/card) — общий.
+    Бонус правил = `promo.pharmacistBonus`. Статус правил = статус кампании.
+  - Под каждый выбранный товар витрины **апсертит локальный `ProductEntity`** (id = medusaProductId, цена из Medusa)
+    — чтобы FK `rules.recommend`→products и POSM-матчер работали, а планировщик рефрешил цену.
+- Конфликты в `RulesEngineService.match()` (теперь возвращает `RuleMatchResult{matches, conflicts}`):
+  - `ambiguous_substitution` — на один товар-триггер ≥2 РАЗНЫХ замены → подавляем обе, шлём конфликт.
+  - `contradiction` — одна пара (триггер→рекомендация) и как замена, и как кросс-селл.
+  - `RecommendResponse.conflicts: List<ConflictDto>` → касса (C#) показывает баннер «замена/кросс-селл невозможны».
+
+**T3 — экраны: упрощение + плейлист promo-lite из 2 видео.** Видео уже играют end-to-end (upload→MinIO→C# poll
+по сигнатуре→автоподмена). Фронт упрощён (убраны «Новый плейлист»/колонка «Аптеки»/пустое «Расписание»).
+2 лёгких видео сгенерированы (`builds/screens/promo-lite.mp4`, `pharmacy-care.mp4`) → загружаются через
+`POST /api/admin/screens/slides` + плейлист «Promo-lite» (active, global).
+
+**T4 — счётчик подключённых касс.** `DevicePresenceService` (НОВЫЙ, in-memory ConcurrentHashMap + TTL
+`app.posm.heartbeat-ttl-seconds`=90с — «хелсчек», не WebSocket; прод = 1 инстанс). `POST /api/posm/heartbeat?deviceId=&pharmacyId=`
+(X-Posm-Key) — касса шлёт каждые ~60с (C# таймер, deviceId=MachineName). `GET /api/admin/screens/connected` →
+`{total, devices[]}` — виджет «Подключено касс: N» в админке (refetch 30с).
+
+**T5 — убраны фейк-демо-товары.** Удалён `promoFallbackDetail` (деталь «из воздуха») — теперь `detail()` строго требует
+товар в Medusa (404 если нет). Из ПРОД-БД удалены 3 промо `pr_demo_*` + 2 правила `rule_demo_*` + 3 товара
+(`p_aqualor/p_aquamaris/p_humer`) + картинки MinIO `epharm-receipts/img/*.png`. Бэкап:
+`builds/demo-data-backup-2026-06-14.json` (row_to_json, для отката).
+
+**T6 — пагинация пикера.** Баг: `PromoProductPicker.tsx` хардкодил `useStorefront(q,0,20)`. Починено на server-side
+поиск с пагинацией/подгрузкой (как `StorefrontPage`, PAGE=50) — видны все ~20k товаров витрины.
+
+**Тесты:** `RulesEngineConflictTest` (ambiguous/contradiction/no-conflict), `DevicePresenceServiceTest` (TTL),
+`PromoPriceSchedulerTest` (рефреш цены, бонус сохраняется), `PromoRulesIntegrationTest` (PUT/GET генерация правил +
+апсерт товаров). Обновлены `PromoIntegrationTest`/`MobilePromotionsIntegrationTest` под новый контракт (активная
+кампания требует товар; bonus вместо tiers). Все зелёные.
+
+**Gotcha:** ffmpeg `drawtext` не инициализируется в песочнице Claude Code («Either text… must be provided» даже на
+минимальном примере) — рендерим текст через PIL в PNG, затем ffmpeg делает видео из картинки (`-loop 1 ... fade`).

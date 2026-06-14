@@ -11,7 +11,7 @@
 | Библиотека              | Версия  | Зачем                                     |
 | ----------------------- | ------- | ----------------------------------------- |
 | JJWT                    | 0.12.6  | подпись/проверка JWT (HMAC-256)           |
-| Flyway                  | 10.20.1 | миграции БД (21 шт.)                      |
+| Flyway                  | 10.20.1 | миграции БД (25 шт.)                      |
 | PostgreSQL driver       | —       | основная БД                               |
 | AWS SDK S3              | 2.29.9  | загрузка медиа в MinIO/S3 (+ presigner)   |
 | Apache POI              | 5.3.0   | парсинг Excel-выгрузки «Стандарт-Н»       |
@@ -90,6 +90,9 @@
 **Промо** — `PromoController` (`/api/admin/promo`)
 
 - `GET ?status=` · `GET /{id}` · `POST` · `PATCH /{id}` · `POST /{id}/archive` · `POST /{id}/restore`
+- `GET /{id}/rules` · `PUT /{id}/rules` — правила замены/кросс-селла из кампании (T2): генерит/читает
+  substitution+crosssell-правила (`rules.promo_id`), апсертит товары витрины в локальный каталог.
+  Кампания = 1 товар; цена read-only из Medusa; `pharmacistBonus` — бонус фармацевту; `override_image/description`.
 
 **Аптеки и сети** — `PharmacyController` (`/api/admin/pharmacies`)
 
@@ -112,6 +115,7 @@
 **Экраны** — `ScreenController` (`/api/admin/screens`)
 
 - `GET|POST /playlists` · `PATCH|DELETE /playlists/{id}` · `GET /slides` · `POST /slides` (multipart) · `DELETE /slides/{id}` · `POST /slides/{id}/assign`
+- `GET /connected` — сколько касс сейчас онлайн (T4): `{total, devices[]}` по пульсам heartbeat
 
 **AI-Exam** — `AiExamController` (`/api/admin/ai-exam/questions`)
 
@@ -147,6 +151,7 @@
 - `POST /recommendations/{eventId}/outcome` — исход (accepted/rejected)
 - `POST /sales` — лог завершённой продажи
 - `GET /playlists/active?pharmacyId=` — активный плейлист экрана
+- `POST /heartbeat?deviceId=&pharmacyId=` — пульс кассы (T4, каждые ~60с) для счётчика подключений
 - `GET /app/version?platform=` — текущая версия для авто-апдейта
 - `POST /cdp/lookup` · `POST /cdp/register` — лояльность по телефону
 
@@ -162,6 +167,10 @@
 | `RefreshTokenService` / `MobileRefreshTokenService` | ротация refresh (SHA-256 в БД), отдельно для admin и фармацевтов                          |
 | `OtpService`                                        | генерация/проверка OTP (`mobile_otps`, TTL + throttling). Dev-режим → `544544`            |
 | `MedusaClient` + `MedusaCatalogCache`               | REST к Medusa, кэш каталога в памяти                                                      |
+| `MedusaPriceService`                                | резолвер цены товара из Medusa БЕЗ кэша (для создания промо + ежедневного рефреша)        |
+| `PromoPriceScheduler`                               | `@Scheduled` ежедневный рефреш цен promos.tiers + products.price из Medusa (T1)           |
+| `PromoRulesService`                                 | генерация правил замены/кросс-селла из кампании, апсерт товаров витрины (T2)              |
+| `DevicePresenceService`                             | счётчик подключённых касс (in-memory heartbeat + TTL, T4)                                 |
 | `S3MediaStorage` (impl `MediaStorage`)              | загрузка фото/слайдов в MinIO (AWS SDK v2)                                                |
 | `ReconcileService`                                  | сверка чеков (лог + Excel + ручная) и начисление бонуса                                   |
 | `ExcelImportService`                                | парсинг Excel «Стандарт-Н», матчинг pending-бонусов                                       |
