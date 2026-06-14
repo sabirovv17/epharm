@@ -379,8 +379,8 @@ class _HomeTab extends ConsumerWidget {
   }
 }
 
-/// Лента акций: ОДНА колонка богатых [PromoProductCard], тап → detail-sheet
-/// товара (по medusa product id). Lazy [SliverList] — строит только видимые.
+/// Лента акций: сетка в 2 колонки компактных [PromoGridCard], тап → detail-sheet
+/// товара (по medusa product id). Lazy [SliverGrid] — строит только видимые.
 class _PromoSliver extends StatelessWidget {
   const _PromoSliver({required this.items});
   final List<Promotion> items;
@@ -404,16 +404,25 @@ class _PromoSliver extends StatelessWidget {
     }
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenEdge),
-      sliver: SliverList.separated(
-        itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemBuilder: (ctx, i) {
-          final p = items[i];
-          return PromoProductCard(
-            promo: p,
-            onTap: () => showCatalogProductSheet(ctx, p.productId),
-          );
-        },
+      sliver: SliverGrid(
+        // 2 колонки. mainAxisExtent — фикс-высота ячейки (фото 116 + текст/бонус),
+        // надёжнее childAspectRatio при разной длине названия.
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          mainAxisExtent: 238,
+        ),
+        delegate: SliverChildBuilderDelegate(
+          (ctx, i) {
+            final p = items[i];
+            return PromoGridCard(
+              promo: p,
+              onTap: () => showCatalogProductSheet(ctx, p.productId),
+            );
+          },
+          childCount: items.length,
+        ),
       ),
     );
   }

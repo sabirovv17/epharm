@@ -89,7 +89,8 @@ class PromoProductCard extends StatelessWidget {
                 LayoutBuilder(
                   builder: (ctx, c) {
                     const gap = 8.0;
-                    final perRow = promo.tiers.length <= 3 ? promo.tiers.length : 3;
+                    final perRow =
+                        promo.tiers.length <= 3 ? promo.tiers.length : 3;
                     final w = (c.maxWidth - gap * (perRow - 1)) / perRow;
                     return Wrap(
                       spacing: gap,
@@ -107,7 +108,8 @@ class PromoProductCard extends StatelessWidget {
                 for (final i in bonusTiers)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
-                    child: _BonusLine(tierNumber: i + 1, bonus: promo.tiers[i].bonus),
+                    child: _BonusLine(
+                        tierNumber: i + 1, bonus: promo.tiers[i].bonus),
                   ),
               ],
             ],
@@ -131,7 +133,9 @@ class _Thumb extends StatelessWidget {
           alignment: Alignment.center,
           color: AppColors.brandGreen100,
           child: Text(
-            promo.name.isNotEmpty ? promo.name.characters.first.toUpperCase() : '?',
+            promo.name.isNotEmpty
+                ? promo.name.characters.first.toUpperCase()
+                : '?',
             style: const TextStyle(
               fontFamily: 'Manrope',
               fontFamilyFallback: ['Roboto', 'sans-serif'],
@@ -152,7 +156,8 @@ class _Thumb extends StatelessWidget {
               width: size,
               height: size,
               fit: BoxFit.cover,
-              loadingBuilder: (_, child, p) => p == null ? child : placeholder(),
+              loadingBuilder: (_, child, p) =>
+                  p == null ? child : placeholder(),
               errorBuilder: (_, __, ___) => placeholder(),
             ),
     );
@@ -277,6 +282,163 @@ class _RxBadge extends StatelessWidget {
           fontSize: 10,
           fontWeight: FontWeight.w800,
           color: Color(0xFFE5484D),
+        ),
+      ),
+    );
+  }
+}
+
+/// Компактная карточка товара для сетки 2 колонки (лента главной): фото,
+/// название, бренд и бонус фармацевту. Тап → детальная карточка (там — полные
+/// пороги/даты/описание). Зелёный — ОДИН основной тон (brandGreen600), как шапка
+/// и нижняя навигация: без тёмных оттенков.
+class PromoGridCard extends StatelessWidget {
+  const PromoGridCard({super.key, required this.promo, required this.onTap});
+
+  final Promotion promo;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxBonus =
+        promo.tiers.fold<int>(0, (m, t) => t.bonus > m ? t.bonus : m);
+    final minPrice = promo.tiers.isEmpty
+        ? null
+        : promo.tiers.map((t) => t.price).reduce((a, b) => a < b ? a : b);
+
+    return Material(
+      color: Colors.white,
+      borderRadius: AppRadii.brXl,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _GridThumb(promo: promo),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      promo.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'Manrope',
+                        fontFamilyFallback: ['Roboto', 'sans-serif'],
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.ink900,
+                        height: 1.2,
+                      ),
+                    ),
+                    if (promo.brand != null) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        promo.brand!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: 'Manrope',
+                          fontFamilyFallback: ['Roboto', 'sans-serif'],
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.ink500,
+                        ),
+                      ),
+                    ],
+                    const Spacer(),
+                    if (maxBonus > 0)
+                      _GridBonusPill(bonus: maxBonus)
+                    else if (minPrice != null)
+                      Text(
+                        'от ${_money(minPrice)} ₸',
+                        style: const TextStyle(
+                          fontFamily: 'Manrope',
+                          fontFamilyFallback: ['Roboto', 'sans-serif'],
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.brandGreen600,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GridThumb extends StatelessWidget {
+  const _GridThumb({required this.promo});
+  final Promotion promo;
+
+  @override
+  Widget build(BuildContext context) {
+    const h = 116.0;
+    Widget placeholder() => Container(
+          height: h,
+          width: double.infinity,
+          alignment: Alignment.center,
+          color: AppColors.brandGreen100,
+          child: Text(
+            promo.name.isNotEmpty
+                ? promo.name.characters.first.toUpperCase()
+                : '?',
+            style: const TextStyle(
+              fontFamily: 'Manrope',
+              fontFamilyFallback: ['Roboto', 'sans-serif'],
+              fontSize: 34,
+              fontWeight: FontWeight.w800,
+              color: AppColors.brandGreen600,
+            ),
+          ),
+        );
+    final url = promo.imageUrl;
+    return (url == null || url.isEmpty)
+        ? placeholder()
+        : Image.network(
+            url,
+            height: h,
+            width: double.infinity,
+            fit: BoxFit.cover,
+            loadingBuilder: (_, child, p) => p == null ? child : placeholder(),
+            errorBuilder: (_, __, ___) => placeholder(),
+          );
+  }
+}
+
+/// Бонус фармацевту — заливка ОСНОВНЫМ зелёным (brandGreen600), как шапка/навбар.
+class _GridBonusPill extends StatelessWidget {
+  const _GridBonusPill({required this.bonus});
+  final int bonus;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 10),
+      decoration: BoxDecoration(
+        color: AppColors.brandGreen600,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        'Бонус ${_money(bonus)} ₸',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          fontFamily: 'Manrope',
+          fontFamilyFallback: ['Roboto', 'sans-serif'],
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
+          color: Colors.white,
         ),
       ),
     );

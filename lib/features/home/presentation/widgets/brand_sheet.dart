@@ -81,7 +81,13 @@ class _BrandSheetState extends ConsumerState<_BrandSheet> {
                   ),
                   if (_localSelection.isNotEmpty)
                     TextButton(
-                      onPressed: () => setState(_localSelection.clear),
+                      // Сброс сразу применяем к провайдеру: иначе при закрытии
+                      // листа свайпом (без «Применить») фильтр оставался — баг
+                      // «иногда не сбрасывается».
+                      onPressed: () {
+                        setState(_localSelection.clear);
+                        ref.read(selectedBrandsProvider.notifier).clear();
+                      },
                       child: const Text(
                         'Сбросить',
                         style: TextStyle(
