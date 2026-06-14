@@ -1,15 +1,18 @@
 // Screens — управление indoor-DOOH экранами в аптеках (ТЗ §3.3).
-// Загрузка медиа (видео/картинки) в MinIO, сборка плейлистов, активация ротации.
-// Назначение плейлистов на конкретные аптеки + расписание + рендер на 2-м мониторе
-// = Этап 5 (POSM). Расписание остаётся Empty до этого этапа.
+// Загрузка медиа (видео/картинки) в MinIO, сборка плейлистов, активация ротации,
+// назначение плейлистов на конкретную аптеку/экран. Рендер на 2-м мониторе = POSM.
+//
+// T3: страница упрощена — нет ручного создания плейлиста (собираются автоматически),
+//     убраны колонка «Аптек» и пустой блок «Расписание».
+// T4: виджет «Подключено касс: N» (heartbeat подключённых POSM-плееров, поллинг 30с).
 
 import { useEffect, useRef, useState } from 'react'
 import { Button, Empty, Field, Input, Modal, PageHeader, SectionCard, Select, useToast } from '@/ui'
-import { IconCalendar, IconPlus, IconScreens, IconStack, IconTrash, IconUpload } from '@/ui/icons'
-import type { CreatePlaylistRequest, PharmacyDto, PlaylistDto, SlideDto } from '@/lib/api-types'
+import { IconScreens, IconStack, IconTrash, IconUpload } from '@/ui/icons'
+import type { PharmacyDto, PlaylistDto, SlideDto } from '@/lib/api-types'
 import {
   useAssignSlide,
-  useCreatePlaylist,
+  useConnectedScreens,
   useDeletePlaylist,
   useDeleteSlide,
   usePlaylists,
@@ -25,7 +28,6 @@ import { useT } from '@/i18n'
 export default function ScreensPage() {
   const t = useT()
   const [uploadOpen, setUploadOpen] = useState(false)
-  const [createOpen, setCreateOpen] = useState(false)
 
   const playlistsQ = usePlaylists()
   const slidesQ = useSlides()
@@ -40,29 +42,20 @@ export default function ScreensPage() {
         title={t('page.screens.title')}
         subtitle={t('page.screens.subtitle')}
         actions={
-          <>
-            <Button
-              variant="outline"
-              leading={<IconPlus size={14} />}
-              onClick={() => setCreateOpen(true)}
-              data-testid="screens-new-playlist"
-            >
-              {t('scr.newPlaylist')}
-            </Button>
-            <Button
-              variant="primary"
-              leading={<IconUpload size={14} />}
-              onClick={() => setUploadOpen(true)}
-              data-testid="screens-upload-slide"
-            >
-              {t('scr.uploadSlide')}
-            </Button>
-          </>
+          <Button
+            variant="primary"
+            leading={<IconUpload size={14} />}
+            onClick={() => setUploadOpen(true)}
+            data-testid="screens-upload-slide"
+          >
+            {t('scr.uploadSlide')}
+          </Button>
         }
       />
 
       <UploadSlideModal open={uploadOpen} onClose={() => setUploadOpen(false)} />
-      <CreatePlaylistModal open={createOpen} onClose={() => setCreateOpen(false)} />
+
+      <ConnectedRegistersCard />
 
       <SectionCard title={t('scr.activeTitle')} subtitle={t('scr.activeSub')} padded={false}>
         {playlistsQ.isLoading && playlists.length === 0 ? (
@@ -83,11 +76,6 @@ export default function ScreensPage() {
             title={t('scr.noPlaylists')}
             body={t('scr.noPlaylistsBody')}
             icon={<IconScreens size={26} />}
-            action={
-              <Button leading={<IconPlus size={14} />} onClick={() => setCreateOpen(true)}>
-                {t('scr.newPlaylist')}
-              </Button>
-            }
           />
         ) : (
           <table className="w-full text-[13px]" data-testid="playlists-table">
@@ -96,7 +84,6 @@ export default function ScreensPage() {
                 <th className="px-5 py-2.5">{t('scr.thPlaylist')}</th>
                 <th className="px-3 py-2.5 text-right">{t('scr.thSlides')}</th>
                 <th className="px-3 py-2.5 text-right">{t('scr.thDur')}</th>
-                <th className="px-3 py-2.5 text-right">{t('scr.thPharm')}</th>
                 <th className="px-3 py-2.5">{t('scr.thTarget')}</th>
                 <th className="px-3 py-2.5">{t('scr.thStatus')}</th>
                 <th className="px-5 py-2.5" />
@@ -111,36 +98,65 @@ export default function ScreensPage() {
         )}
       </SectionCard>
 
-      <div className="grid grid-cols-2 gap-4">
-        <SectionCard title={t('scr.libTitle')} subtitle={t('scr.libSub')} padded={false}>
-          {slides.length === 0 ? (
-            <Empty
-              title={t('scr.libEmpty')}
-              body={t('scr.libEmptyBody')}
-              icon={<IconStack size={26} />}
-              action={
-                <Button leading={<IconUpload size={14} />} onClick={() => setUploadOpen(true)}>
-                  {t('scr.uploadSlide')}
-                </Button>
-              }
-            />
-          ) : (
-            <ul className="flex flex-col" data-testid="slides-list">
-              {slides.map((s) => (
-                <SlideRow key={s.id} s={s} playlists={playlists} />
-              ))}
-            </ul>
-          )}
-        </SectionCard>
-
-        <SectionCard title={t('scr.schedTitle')} subtitle={t('scr.schedSub')} padded={false}>
+      <SectionCard title={t('scr.libTitle')} subtitle={t('scr.libSub')} padded={false}>
+        {slides.length === 0 ? (
           <Empty
-            title={t('scr.schedEmpty')}
-            body={t('scr.schedEmptyBody')}
-            icon={<IconCalendar size={26} />}
+            title={t('scr.libEmpty')}
+            body={t('scr.libEmptyBody')}
+            icon={<IconStack size={26} />}
+            action={
+              <Button leading={<IconUpload size={14} />} onClick={() => setUploadOpen(true)}>
+                {t('scr.uploadSlide')}
+              </Button>
+            }
           />
-        </SectionCard>
+        ) : (
+          <ul className="flex flex-col" data-testid="slides-list">
+            {slides.map((s) => (
+              <SlideRow key={s.id} s={s} playlists={playlists} />
+            ))}
+          </ul>
+        )}
+      </SectionCard>
+    </div>
+  )
+}
+
+// ─── Подключённые кассы (T4) ─────────────────────────────────────────────────
+function ConnectedRegistersCard() {
+  const t = useT()
+  const { data, isLoading } = useConnectedScreens()
+  const total = data?.total ?? 0
+  const devices = data?.devices ?? []
+
+  return (
+    <div className="card flex flex-col gap-3 p-5" data-testid="connected-registers">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-[12px] font-bold uppercase tracking-[0.06em] text-ink-500">
+            {t('scr.connectedLabel')}
+          </div>
+          <div className="num mt-1 text-[28px] font-extrabold text-ink-900">
+            {isLoading && !data ? '…' : total}
+          </div>
+        </div>
+        <span className="chip chip-green">{t('scr.connectedLive')}</span>
       </div>
+      {devices.length > 0 && (
+        <ul className="hairline flex flex-col divide-y divide-ink-100 border-t pt-1">
+          {devices.map((d) => (
+            <li
+              key={d.deviceId}
+              data-testid={`connected-${d.deviceId}`}
+              className="flex items-center justify-between gap-3 py-1.5 text-[12px]"
+            >
+              <span className="num font-bold text-ink-900">{d.deviceId}</span>
+              <span className="text-ink-500">{d.pharmacyId ?? t('scr.connectedNoPharm')}</span>
+              <span className="num text-ink-400">{d.lastSeen.slice(0, 19).replace('T', ' ')}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
@@ -197,7 +213,6 @@ function PlaylistRow({ p, pharmacies }: { p: PlaylistDto; pharmacies: PharmacyDt
       <td className="px-5 py-2.5 font-extrabold text-ink-900">{p.name}</td>
       <td className="num px-3 py-2.5 text-right">{formatNum(p.slidesCount)}</td>
       <td className="num px-3 py-2.5 text-right">{fmtDuration(p.durationSec)}</td>
-      <td className="num px-3 py-2.5 text-right">{formatNum(p.pharmacies)}</td>
       <td className="px-3 py-2.5" data-testid={`playlist-target-${p.id}`}>
         <Select
           value={p.pharmacyId ?? ALL}
@@ -395,69 +410,6 @@ function UploadSlideModal({ open, onClose }: { open: boolean; onClose: () => voi
             min={1}
             value={durationSec}
             onChange={(e) => setDurationSec(e.target.value)}
-          />
-        </Field>
-      </div>
-    </Modal>
-  )
-}
-
-function CreatePlaylistModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const t = useT()
-  const toast = useToast()
-  const create = useCreatePlaylist()
-  const [name, setName] = useState('')
-  const [err, setErr] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (open) {
-      setName('')
-      setErr(null)
-    }
-  }, [open])
-
-  const submit = () => {
-    if (!name.trim()) return
-    const req: CreatePlaylistRequest = { name: name.trim() }
-    create.mutate(req, {
-      onSuccess: () => {
-        toast.push(t('scr.createdPlaylist'))
-        onClose()
-      },
-      onError: (e) => setErr(describeError(e)),
-    })
-  }
-
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={t('scr.plModalTitle')}
-      subtitle={t('scr.plModalSub')}
-      width={460}
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>
-            {t('common.cancel')}
-          </Button>
-          <Button variant="primary" disabled={!name.trim() || create.isPending} onClick={submit}>
-            {create.isPending ? t('scr.creating') : t('scr.create')}
-          </Button>
-        </>
-      }
-    >
-      <div className="flex flex-col gap-3">
-        {err && (
-          <div className="rounded-lg bg-surface-danger px-3 py-2 text-[12px] font-semibold text-accent-danger">
-            {err}
-          </div>
-        )}
-        <Field label={t('scr.fldName')}>
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={t('scr.plNamePh')}
-            autoFocus
           />
         </Field>
       </div>

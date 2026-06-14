@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type {
   AssignSlideRequest,
+  ConnectedScreensDto,
   CreatePlaylistRequest,
   PlaylistDto,
   PlaylistStatus,
@@ -22,6 +23,19 @@ export const screensKeys = {
   playlists: (filter?: PlaylistListFilter) =>
     [...screensKeys.all, 'playlists', filter ?? {}] as const,
   slides: () => [...screensKeys.all, 'slides'] as const,
+  connected: () => [...screensKeys.all, 'connected'] as const,
+}
+
+/**
+ * Подключённые кассы (T4) — heartbeat POSM-плееров. Поллинг каждые 30с, чтобы
+ * счётчик «вживую» отражал онлайн-устройства без ручного refetch.
+ */
+export function useConnectedScreens() {
+  return useQuery<ConnectedScreensDto>({
+    queryKey: screensKeys.connected(),
+    queryFn: () => api.get<ConnectedScreensDto>('/api/admin/screens/connected').then((r) => r.data),
+    refetchInterval: 30_000,
+  })
 }
 
 export function usePlaylists(filter: PlaylistListFilter = {}) {

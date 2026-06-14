@@ -52,6 +52,10 @@ function mkPromo(over: Partial<PromoDto> = {}): PromoDto {
     medusaProductId: null,
     productName: '',
     productImage: null,
+    overrideImage: null,
+    overrideDescription: null,
+    price: 0,
+    pharmacistBonus: 0,
     dateStart: null,
     dateEnd: null,
     tiers: [],
@@ -87,7 +91,7 @@ beforeEach(() => {
           brand: 'Access Bioscience',
           mnn: null,
           rxOtc: null,
-          price: null,
+          price: 4990,
           currency: 'KZT',
           imageUrl: null,
           barcode: null,
@@ -95,7 +99,7 @@ beforeEach(() => {
         },
       ],
       total: 1,
-      limit: 20,
+      limit: 50,
       offset: 0,
     },
     isFetching: false,
@@ -361,7 +365,22 @@ describe('PromoPage — Create modal (товарная акция)', () => {
         medusaProductId: 'prod_1',
         title: 'Панкраген 0,2г капс. №60',
         status: 'draft',
+        pharmacistBonus: 0,
       }),
     )
+    // T1: пороги (tiers) и цена (price) в запрос на создание не уходят
+    const req = mutateAsync.mock.calls[0][0]
+    expect(req).not.toHaveProperty('tiers')
+    expect(req).not.toHaveProperty('price')
+  })
+
+  it('T1: цена из Medusa показана read-only после выбора товара', async () => {
+    const user = userEvent.setup()
+    renderPromo()
+    await user.click(screen.getAllByRole('button', { name: /Новая кампания/ })[0])
+    await user.click(screen.getByText('Панкраген 0,2г капс. №60'))
+    const cell = screen.getByTestId('create-price-readonly')
+    expect(cell.tagName).not.toBe('INPUT')
+    expect(cell.textContent).toMatch(/4\s?990/)
   })
 })

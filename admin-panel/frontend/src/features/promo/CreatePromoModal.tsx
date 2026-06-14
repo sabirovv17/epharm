@@ -1,13 +1,15 @@
-// CreatePromoModal — создание товарной акции: выбор товара из витрины Medusa +
-// диапазон дат + ценовые пороги с бонусом. Бренд берётся из выбранного товара.
+// CreatePromoModal — создание товарной акции: выбор ОДНОГО товара из витрины
+// Medusa + диапазон дат + единый бонус фармацевту. Цена товара read-only из
+// Medusa (обновляется ежедневно). Опционально — override фото/описания (поверх PIM).
+// Бренд берётся из выбранного товара. Многоуровневые пороги убраны (T1).
 
 import { useEffect, useState } from 'react'
 import { Button, Field, Input, Modal } from '@/ui'
 import { IconCheck } from '@/ui/icons'
-import type { CreatePromoRequest, PromoTierDto } from '@/lib/api-types'
+import type { CreatePromoRequest } from '@/lib/api-types'
+import { formatKzt } from '@/mocks/fixtures'
 import { useT } from '@/i18n'
 import { PromoProductPicker, type SelectedProduct } from './PromoProductPicker'
-import { PromoTiersEditor, tiersValid } from './PromoTiersEditor'
 
 interface CreatePromoModalProps {
   open: boolean
@@ -22,7 +24,9 @@ interface FormState {
   titleTouched: boolean
   dateStart: string
   dateEnd: string
-  tiers: PromoTierDto[]
+  pharmacistBonus: string
+  overrideImage: string
+  overrideDescription: string
 }
 
 const initial = (): FormState => ({
@@ -31,7 +35,9 @@ const initial = (): FormState => ({
   titleTouched: false,
   dateStart: '',
   dateEnd: '',
-  tiers: [{ minQty: 1, price: 0, bonus: 0 }],
+  pharmacistBonus: '0',
+  overrideImage: '',
+  overrideDescription: '',
 })
 
 export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePromoModalProps) {
@@ -43,8 +49,7 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
   }, [open])
 
   const datesOk = !form.dateStart || !form.dateEnd || form.dateStart <= form.dateEnd
-  const valid =
-    form.product !== null && form.title.trim().length > 0 && tiersValid(form.tiers) && datesOk
+  const valid = form.product !== null && form.title.trim().length > 0 && datesOk
 
   const submit = () => {
     if (!valid || !form.product) return
@@ -55,9 +60,11 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
       productName: form.product.productName,
       productImage: form.product.productImage,
       brand: form.product.brand,
+      pharmacistBonus: Math.max(0, Math.trunc(Number(form.pharmacistBonus) || 0)),
+      overrideImage: form.overrideImage.trim() || null,
+      overrideDescription: form.overrideDescription.trim() || null,
       dateStart: form.dateStart || null,
       dateEnd: form.dateEnd || null,
-      tiers: form.tiers,
     })
   }
 
@@ -65,8 +72,8 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
     <Modal
       open={open}
       onClose={onClose}
-      title="Новая акция"
-      subtitle="Выберите товар из витрины и задайте цены/бонусы по количеству"
+      title={t('pm.newCampaign')}
+      subtitle={t('pm.modalProductSub')}
       width={580}
       footer={
         <>
@@ -85,7 +92,7 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
       }
     >
       <div className="flex flex-col gap-3">
-        <Field label="Товар (из витрины Medusa)">
+        <Field label={t('pm.fldProduct')}>
           <PromoProductPicker
             value={form.product}
             onChange={(p) =>
@@ -99,23 +106,44 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
           />
         </Field>
 
-        <Field label="Название акции">
+        {/* Цена из Medusa — read-only (обновляется ежедневно). */}
+        {form.product && (
+          <Field label={t('pm.fldPrice')} hint={t('pm.priceHint')}>
+            <div
+              className="inp flex items-center bg-paper-input font-bold text-ink-700"
+              data-testid="create-price-readonly"
+            >
+              {form.product.price == null ? t('sf.priceNa') : formatKzt(form.product.price)}
+            </div>
+          </Field>
+        )}
+
+        <Field label={t('pm.fldTitle')}>
           <Input
             value={form.title}
             onChange={(e) => setForm({ ...form, title: e.target.value, titleTouched: true })}
-            placeholder="напр. Двойной бонус на Панкраген"
+            placeholder={t('pm.titlePh')}
+          />
+        </Field>
+
+        <Field label={t('pm.fldBonus')} hint={t('pm.bonusHint')}>
+          <Input
+            type="number"
+            min={0}
+            value={form.pharmacistBonus}
+            onChange={(e) => setForm({ ...form, pharmacistBonus: e.target.value })}
           />
         </Field>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Начало">
+          <Field label={t('pm.fldDateStart')}>
             <Input
               type="date"
               value={form.dateStart}
               onChange={(e) => setForm({ ...form, dateStart: e.target.value })}
             />
           </Field>
-          <Field label="Окончание">
+          <Field label={t('pm.fldDateEnd')}>
             <Input
               type="date"
               value={form.dateEnd}
@@ -125,12 +153,24 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
         </div>
         {!datesOk && (
           <div className="-mt-1 text-[12px] font-semibold text-accent-danger">
-            Дата окончания раньше начала.
+            {t('pm.dateOrderErr')}
           </div>
         )}
 
-        <Field label="Ценовые пороги (цена и бонус по количеству)">
-          <PromoTiersEditor value={form.tiers} onChange={(tiers) => setForm({ ...form, tiers })} />
+        <Field label={t('pm.fldOverrideImage')} hint={t('pm.overrideHint')} optional>
+          <Input
+            value={form.overrideImage}
+            onChange={(e) => setForm({ ...form, overrideImage: e.target.value })}
+            placeholder="https://…"
+          />
+        </Field>
+        <Field label={t('pm.fldOverrideDesc')} hint={t('pm.overrideHint')} optional>
+          <textarea
+            className="inp"
+            rows={3}
+            value={form.overrideDescription}
+            onChange={(e) => setForm({ ...form, overrideDescription: e.target.value })}
+          />
         </Field>
       </div>
     </Modal>

@@ -821,6 +821,68 @@ export const ru: Dict = {
   'pd.confirmArchive': 'Архивировать «{title}»?',
   'pd.archivedToast': 'Кампания отправлена в архив',
   'pd.restoredToast': 'Кампания восстановлена — в черновиках, проверьте перед включением',
+
+  // ── Product picker (товар витрины Medusa) ──────────────────────────────
+  'pp.searchPh': 'Поиск товара в витрине Medusa…',
+  'pp.searching': 'Поиск…',
+  'pp.notFound': 'Ничего не найдено',
+  'pp.startTyping': 'Начните вводить название товара',
+  'pp.change': 'Сменить',
+  'pp.shownOf': 'Показано {shown} из {total}',
+  'pp.loadMore': 'Показать ещё',
+  'pp.loading': 'Загружаем…',
+
+  // ── Campaign product fields (T1) ───────────────────────────────────────
+  'pm.modalProductSub': 'Один товар из витрины + бонус фармацевту. Цена — из Medusa.',
+  'pm.fldProduct': 'Товар (из витрины Medusa)',
+  'pm.fldPrice': 'Цена из Medusa',
+  'pm.priceHint': 'Read-only, обновляется ежедневно из Medusa',
+  'pm.fldBonus': 'Бонус фармацевту за продажу, ₸',
+  'pm.bonusHint': 'Сколько получает фармацевт за каждую продажу товара',
+  'pm.fldDateStart': 'Начало акции',
+  'pm.fldDateEnd': 'Окончание акции',
+  'pm.dateOrderErr': 'Дата окончания раньше начала.',
+  'pm.fldOverrideImage': 'Своё фото (URL)',
+  'pm.fldOverrideDesc': 'Своё описание',
+  'pm.overrideHint': 'Ручное переопределение данных PIM/Medusa',
+
+  // ── PromoDetail (товарная секция T1) ───────────────────────────────────
+  'pd.productSection': 'Акция — товар, цена, бонус, даты',
+  'pd.noProduct': '— товар не привязан —',
+
+  // ── Campaign rules (замены / кросс-селл, T2) ───────────────────────────
+  'pr.section': 'Замены и кросс-селл',
+  'pr.counts': 'Активных: {active} / Всего: {total}',
+  'pr.loading': 'Загружаем правила…',
+  'pr.replacements': 'Замены',
+  'pr.replacementsHint': 'Товары, которые ЗАМЕНЯЕТ продвигаемый товар',
+  'pr.crossSells': 'Кросс-селл',
+  'pr.crossSellsHint': 'Товары, ВМЕСТЕ с которыми предлагается продвигаемый товар',
+  'pr.noneChosen': 'Пока ничего не выбрано',
+  'pr.script': 'Скрипт фармацевта',
+  'pr.scriptHint': 'Что сказать клиенту при рекомендации',
+  'pr.advantages': 'Преимущества',
+  'pr.advantagesHint': 'По одному на строку',
+  'pr.partnerLabel': 'Метка партнёра',
+  'pr.comparison': 'Сравнение',
+  'pr.comparisonHint': 'Строки: параметр / было / стало (+ выделение)',
+  'pr.colLabel': 'Параметр',
+  'pr.colWas': 'Было',
+  'pr.colNow': 'Стало',
+  'pr.addRow': 'Добавить строку',
+  'pr.removeRow': 'Удалить строку',
+  'pr.goalLabel': 'Цель (название)',
+  'pr.goalTarget': 'Цель (шт)',
+  'pr.goalBonus': 'Бонус за цель, ₸',
+  'pr.save': 'Сохранить правила',
+  'pr.savedToast': 'Правила кампании сохранены',
+  'pr.standaloneBanner':
+    'Правила теперь в основном задаются из кампаний (раздел «Промо-кампании» → «Замены и кросс-селл»). Эта страница — для просмотра и точечных правок.',
+
+  // ── Screens additions (T3/T4) ──────────────────────────────────────────
+  'scr.connectedLabel': 'Подключено касс',
+  'scr.connectedLive': 'live · обновляется',
+  'scr.connectedNoPharm': 'без аптеки',
 }
 
 export const kk: Dict = {
@@ -1635,6 +1697,68 @@ export const kk: Dict = {
   'pd.confirmArchive': '«{title}» архивтеу керек пе?',
   'pd.archivedToast': 'Науқан архивке жіберілді',
   'pd.restoredToast': 'Науқан қалпына келтірілді — черновиктерде, қоспас бұрын тексеріңіз',
+
+  // ── Product picker ─────────────────────────────────────────────────────
+  'pp.searchPh': 'Medusa витринасынан тауар іздеу…',
+  'pp.searching': 'Іздеу…',
+  'pp.notFound': 'Ештеңе табылмады',
+  'pp.startTyping': 'Тауар атауын тере бастаңыз',
+  'pp.change': 'Ауыстыру',
+  'pp.shownOf': '{total} ішінен {shown} көрсетілді',
+  'pp.loadMore': 'Тағы көрсету',
+  'pp.loading': 'Жүктелуде…',
+
+  // ── Campaign product fields (T1) ───────────────────────────────────────
+  'pm.modalProductSub': 'Витринадан бір тауар + фармацевтке бонус. Баға — Medusa-дан.',
+  'pm.fldProduct': 'Тауар (Medusa витринасынан)',
+  'pm.fldPrice': 'Medusa-дан баға',
+  'pm.priceHint': 'Тек оқуға, күн сайын Medusa-дан жаңарады',
+  'pm.fldBonus': 'Сатылым үшін фармацевт бонусы, ₸',
+  'pm.bonusHint': 'Тауардың әр сатылымы үшін фармацевт қанша алады',
+  'pm.fldDateStart': 'Науқан басталуы',
+  'pm.fldDateEnd': 'Науқан аяқталуы',
+  'pm.dateOrderErr': 'Аяқталу күні басталудан ерте.',
+  'pm.fldOverrideImage': 'Өз фотосы (URL)',
+  'pm.fldOverrideDesc': 'Өз сипаттамасы',
+  'pm.overrideHint': 'PIM/Medusa деректерін қолмен қайта анықтау',
+
+  // ── PromoDetail (товарная секция T1) ───────────────────────────────────
+  'pd.productSection': 'Науқан — тауар, баға, бонус, күндер',
+  'pd.noProduct': '— тауар байланбаған —',
+
+  // ── Campaign rules (T2) ────────────────────────────────────────────────
+  'pr.section': 'Алмастырулар және кросс-селл',
+  'pr.counts': 'Белсенді: {active} / Барлығы: {total}',
+  'pr.loading': 'Ережелер жүктелуде…',
+  'pr.replacements': 'Алмастырулар',
+  'pr.replacementsHint': 'Жарнамаланатын тауар АЛМАСТЫРАТЫН тауарлар',
+  'pr.crossSells': 'Кросс-селл',
+  'pr.crossSellsHint': 'Жарнамаланатын тауармен БІРГЕ ұсынылатын тауарлар',
+  'pr.noneChosen': 'Әзірге ештеңе таңдалмаған',
+  'pr.script': 'Фармацевт скрипті',
+  'pr.scriptHint': 'Ұсыныс кезінде клиентке не айту',
+  'pr.advantages': 'Артықшылықтар',
+  'pr.advantagesHint': 'Әр жолда біреуден',
+  'pr.partnerLabel': 'Серіктес белгісі',
+  'pr.comparison': 'Салыстыру',
+  'pr.comparisonHint': 'Жолдар: параметр / болды / болды (+ ерекшелеу)',
+  'pr.colLabel': 'Параметр',
+  'pr.colWas': 'Болды',
+  'pr.colNow': 'Болды',
+  'pr.addRow': 'Жол қосу',
+  'pr.removeRow': 'Жолды жою',
+  'pr.goalLabel': 'Мақсат (атауы)',
+  'pr.goalTarget': 'Мақсат (дана)',
+  'pr.goalBonus': 'Мақсат бонусы, ₸',
+  'pr.save': 'Ережелерді сақтау',
+  'pr.savedToast': 'Науқан ережелері сақталды',
+  'pr.standaloneBanner':
+    'Ережелер енді негізінен науқандардан беріледі («Промо-науқандар» → «Алмастырулар және кросс-селл»). Бұл бет — қарау мен нүктелік түзетулерге.',
+
+  // ── Screens additions (T3/T4) ──────────────────────────────────────────
+  'scr.connectedLabel': 'Қосылған кассалар',
+  'scr.connectedLive': 'live · жаңарып тұр',
+  'scr.connectedNoPharm': 'дәріханасыз',
 }
 
 export const dict: Record<Lang, Dict> = { ru, kk }

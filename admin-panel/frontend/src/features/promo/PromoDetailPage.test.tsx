@@ -20,11 +20,20 @@ const promoHooks = vi.hoisted(() => ({
   useCreatePromo: vi.fn(),
 }))
 const storefrontHooks = vi.hoisted(() => ({ useStorefront: vi.fn() }))
+const promoRulesHooks = vi.hoisted(() => ({
+  usePromoRules: vi.fn(),
+  useSavePromoRules: vi.fn(),
+}))
 
 vi.mock('@/lib/queries/promo', () => promoHooks)
 vi.mock('@/lib/queries/storefront', () => ({
   storefrontKeys: { all: ['storefront'], list: () => ['storefront', 'list'] },
   useStorefront: storefrontHooks.useStorefront,
+}))
+vi.mock('@/lib/queries/promoRules', () => ({
+  promoRulesKeys: { all: ['promo-rules'], detail: (id: string) => ['promo-rules', id] },
+  usePromoRules: promoRulesHooks.usePromoRules,
+  useSavePromoRules: promoRulesHooks.useSavePromoRules,
 }))
 
 function LocationProbe() {
@@ -47,6 +56,10 @@ function mkPromo(over: Partial<PromoDto> = {}): PromoDto {
     medusaProductId: null,
     productName: '',
     productImage: null,
+    overrideImage: null,
+    overrideDescription: null,
+    price: 0,
+    pharmacistBonus: 0,
     dateStart: null,
     dateEnd: null,
     tiers: [],
@@ -75,9 +88,32 @@ beforeEach(() => {
   promoHooks.useArchivePromo.mockReturnValue({ mutate: vi.fn(), isPending: false })
   promoHooks.useRestorePromo.mockReturnValue({ mutate: vi.fn(), isPending: false })
   storefrontHooks.useStorefront.mockReturnValue({
-    data: { items: [], total: 0, limit: 20, offset: 0 },
+    data: { items: [], total: 0, limit: 50, offset: 0 },
     isFetching: false,
   })
+  promoRulesHooks.usePromoRules.mockReturnValue({
+    data: {
+      promoId: 'pr_1',
+      config: {
+        replacements: [],
+        crossSells: [],
+        script: '',
+        advantages: [],
+        partnerLabel: null,
+        comparison: [],
+        goalLabel: null,
+        goalTarget: null,
+        goalBonus: null,
+      },
+      ruleCount: 0,
+      activeCount: 0,
+    },
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  })
+  promoRulesHooks.useSavePromoRules.mockReturnValue({ mutate: vi.fn(), isPending: false })
 })
 
 function renderDetail(id = 'pr_1') {
@@ -193,6 +229,79 @@ describe('PromoDetailPage — статус-действия', () => {
     renderDetail()
     await user.click(screen.getByRole('button', { name: /Восстановить из архива/ }))
     expect(mutate).toHaveBeenCalledWith('pr_1', expect.any(Object))
+  })
+})
+
+describe('PromoDetailPage — T1 (товар, цена read-only, бонус)', () => {
+  it('цена из Medusa показана read-only (нет input для price)', () => {
+    setPromo(mkPromo({ price: 4990 }))
+    renderDetail()
+    const cell = screen.getByTestId('detail-price-readonly')
+    expect(cell).toBeInTheDocument()
+    // read-only — это div, не input
+    expect(cell.tagName).not.toBe('INPUT')
+    expect(cell.textContent).toMatch(/4\s?990/)
+  })
+
+  it('бонус фармацевту редактируется и попадает в патч', async () => {
+    const mutate = vi.fn()
+    promoHooks.useUpdatePromo.mockReturnValue({ mutate, isPending: false })
+    setPromo(mkPromo({ pharmacistBonus: 100 }))
+    const user = userEvent.setup()
+    renderDetail()
+    const bonus = screen.getByDisplayValue('100')
+    await user.clear(bonus)
+    await user.type(bonus, '250')
+    await user.click(screen.getByRole('button', { name: /^Сохранить$/ }))
+    expect(mutate).toHaveBeenCalledWith(
+      { id: 'pr_1', patch: expect.objectContaining({ pharmacistBonus: 250 }) },
+      expect.any(Object),
+    )
+    // tiers/price НЕ должны отправляться
+    expect(mutate.mock.calls[0][0].patch).not.toHaveProperty('tiers')
+    expect(mutate.mock.calls[0][0].patch).not.toHaveProperty('price')
+  })
+})
+
+describe('PromoDetailPage — T2 (секция правил)', () => {
+  it('рендерит секцию «Замены и кросс-селл» со счётчиками', () => {
+    promoRulesHooks.usePromoRules.mockReturnValue({
+      data: {
+        promoId: 'pr_1',
+        config: {
+          replacements: [],
+          crossSells: [],
+          script: '',
+          advantages: [],
+          partnerLabel: null,
+          comparison: [],
+          goalLabel: null,
+          goalTarget: null,
+          goalBonus: null,
+        },
+        ruleCount: 3,
+        activeCount: 2,
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+    renderDetail()
+    expect(screen.getByTestId('promo-rules-editor')).toBeInTheDocument()
+    expect(screen.getByTestId('promo-rules-counts')).toHaveTextContent('Активных: 2 / Всего: 3')
+  })
+
+  it('«Сохранить правила» зовёт useSavePromoRules с config', async () => {
+    const mutate = vi.fn()
+    promoRulesHooks.useSavePromoRules.mockReturnValue({ mutate, isPending: false })
+    const user = userEvent.setup()
+    renderDetail()
+    await user.click(screen.getByTestId('promo-rules-save'))
+    expect(mutate).toHaveBeenCalledWith(
+      { promoId: 'pr_1', config: expect.objectContaining({ replacements: [], crossSells: [] }) },
+      expect.any(Object),
+    )
   })
 })
 

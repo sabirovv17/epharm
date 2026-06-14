@@ -1,20 +1,23 @@
 // PromoDetailPage — полная страница кампании /promo/:id.
-// Заменяет PromoDetailModal: открывается по клику на карточку, поддерживает
-// редактирование полей (PATCH /promo/:id) + статус-действия (пауза/возобновить/
-// архив/восстановить). Archived нельзя редактировать (backend → 409), поэтому
-// форма read-only + кнопка «Восстановить».
+// Открывается по клику на карточку, поддерживает редактирование полей
+// (PATCH /promo/:id) + статус-действия (пауза/возобновить/архив/восстановить).
+// Archived нельзя редактировать (backend → 409), поэтому форма read-only.
+//
+// T1: один товар Medusa, цена read-only (из Medusa, ежедневный рефреш), единый
+//     бонус фармацевту, опц. override фото/описания. Порогов больше нет.
+// T2: секция «Замены и кросс-селл» — авторинг правил из кампании (см. PromoRulesEditor).
 
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button, Empty, Field, Input, PageHeader, ProgressBar, StatusChip, useToast } from '@/ui'
 import { IconArchive, IconArrowUp, IconPause, IconPlay, IconPromo, IconRefresh } from '@/ui/icons'
 import { formatKzt } from '@/mocks/fixtures'
-import type { PromoStatus, PromoTierDto, UpdatePromoRequest } from '@/lib/api-types'
+import type { PromoStatus, UpdatePromoRequest } from '@/lib/api-types'
 import { describeError } from '@/lib/describeError'
 import { useT } from '@/i18n'
 import { useArchivePromo, usePromo, useRestorePromo, useUpdatePromo } from '@/lib/queries/promo'
 import { PromoProductPicker, type SelectedProduct } from './PromoProductPicker'
-import { PromoTiersEditor, tiersValid } from './PromoTiersEditor'
+import { PromoRulesEditor } from './PromoRulesEditor'
 
 interface FormState {
   title: string
@@ -27,7 +30,9 @@ interface FormState {
   product: SelectedProduct | null
   dateStart: string
   dateEnd: string
-  tiers: PromoTierDto[]
+  pharmacistBonus: string
+  overrideImage: string
+  overrideDescription: string
 }
 
 const EMPTY_FORM: FormState = {
@@ -40,14 +45,9 @@ const EMPTY_FORM: FormState = {
   product: null,
   dateStart: '',
   dateEnd: '',
-  tiers: [],
-}
-
-function sameTiers(a: PromoTierDto[], b: PromoTierDto[]): boolean {
-  if (a.length !== b.length) return false
-  return a.every(
-    (t, i) => t.minQty === b[i].minQty && t.price === b[i].price && t.bonus === b[i].bonus,
-  )
+  pharmacistBonus: '0',
+  overrideImage: '',
+  overrideDescription: '',
 }
 
 export default function PromoDetailPage() {
@@ -80,11 +80,14 @@ export default function PromoDetailPage() {
               productName: promo.productName,
               productImage: promo.productImage,
               brand: promo.brand,
+              price: promo.price,
             }
           : null,
         dateStart: promo.dateStart ?? '',
         dateEnd: promo.dateEnd ?? '',
-        tiers: promo.tiers,
+        pharmacistBonus: String(promo.pharmacistBonus),
+        overrideImage: promo.overrideImage ?? '',
+        overrideDescription: promo.overrideDescription ?? '',
       })
       setSaveErr(null)
     }
@@ -147,7 +150,9 @@ export default function PromoDetailPage() {
     (form.product?.medusaProductId ?? null) !== promo.medusaProductId ||
     form.dateStart !== (promo.dateStart ?? '') ||
     form.dateEnd !== (promo.dateEnd ?? '') ||
-    !sameTiers(form.tiers, promo.tiers)
+    form.pharmacistBonus !== String(promo.pharmacistBonus) ||
+    form.overrideImage !== (promo.overrideImage ?? '') ||
+    form.overrideDescription !== (promo.overrideDescription ?? '')
 
   const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -157,16 +162,11 @@ export default function PromoDetailPage() {
       setSaveErr(t('pd.errTitleReq'))
       return
     }
-    // Для товарной акции (привязан товар) — нужен хотя бы один валидный порог; для
-    // старой кампании без товара пороги не требуются.
-    if (form.product && !tiersValid(form.tiers)) {
-      setSaveErr('Пороги акции: нужен хотя бы один, количество возрастает (от 1 → от 10 → …).')
-      return
-    }
     if (form.dateStart && form.dateEnd && form.dateStart > form.dateEnd) {
-      setSaveErr('Дата окончания акции раньше даты начала.')
+      setSaveErr(t('pm.dateOrderErr'))
       return
     }
+    // price НЕ отправляем — read-only из Medusa. tiers тоже не шлём (T1).
     const patch: UpdatePromoRequest = {
       title: form.title.trim(),
       brand: form.brand.trim(),
@@ -177,9 +177,11 @@ export default function PromoDetailPage() {
       medusaProductId: form.product?.medusaProductId ?? null,
       productName: form.product?.productName ?? '',
       productImage: form.product?.productImage ?? null,
+      pharmacistBonus: Math.max(0, Math.trunc(Number(form.pharmacistBonus) || 0)),
+      overrideImage: form.overrideImage.trim() || null,
+      overrideDescription: form.overrideDescription.trim() || null,
       dateStart: form.dateStart || null,
       dateEnd: form.dateEnd || null,
-      tiers: form.tiers,
     }
     updatePromo.mutate(
       { id: promo.id, patch },
@@ -269,15 +271,15 @@ export default function PromoDetailPage() {
             </div>
           )}
 
-          {/* Товарная акция: товар Medusa + даты + ценовые пороги */}
+          {/* Товарная акция: товар Medusa + цена (read-only) + бонус + даты + override */}
           <div className="card flex flex-col gap-4 p-5">
             <div className="text-[13px] font-extrabold uppercase tracking-[0.06em] text-ink-500">
-              Акция — товар, даты, пороги
+              {t('pd.productSection')}
             </div>
-            <Field label="Товар (из витрины Medusa)">
+            <Field label={t('pm.fldProduct')}>
               {isArchived ? (
                 <div className="rounded-xl border border-ink-100 bg-paper-card px-3 py-2 text-[14px] font-bold text-ink-700">
-                  {form.product?.productName || '— товар не привязан —'}
+                  {form.product?.productName || t('pd.noProduct')}
                 </div>
               ) : (
                 <PromoProductPicker
@@ -288,8 +290,30 @@ export default function PromoDetailPage() {
                 />
               )}
             </Field>
+
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Начало акции">
+              {/* Цена из Medusa — read-only (обновляется ежедневно, не редактируется). */}
+              <Field label={t('pm.fldPrice')} hint={t('pm.priceHint')}>
+                <div
+                  className="inp flex items-center bg-paper-input font-bold text-ink-700"
+                  data-testid="detail-price-readonly"
+                >
+                  {promo.price ? formatKzt(promo.price) : t('sf.priceNa')}
+                </div>
+              </Field>
+              <Field label={t('pm.fldBonus')} hint={t('pm.bonusHint')}>
+                <Input
+                  type="number"
+                  min={0}
+                  value={form.pharmacistBonus}
+                  onChange={set('pharmacistBonus')}
+                  disabled={isArchived}
+                />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Field label={t('pm.fldDateStart')}>
                 <Input
                   type="date"
                   value={form.dateStart}
@@ -297,7 +321,7 @@ export default function PromoDetailPage() {
                   disabled={isArchived}
                 />
               </Field>
-              <Field label="Окончание акции">
+              <Field label={t('pm.fldDateEnd')}>
                 <Input
                   type="date"
                   value={form.dateEnd}
@@ -306,10 +330,21 @@ export default function PromoDetailPage() {
                 />
               </Field>
             </div>
-            <Field label="Ценовые пороги (цена и бонус по количеству)">
-              <PromoTiersEditor
-                value={form.tiers}
-                onChange={(tiers) => setForm((f) => ({ ...f, tiers }))}
+
+            <Field label={t('pm.fldOverrideImage')} hint={t('pm.overrideHint')} optional>
+              <Input
+                value={form.overrideImage}
+                onChange={set('overrideImage')}
+                placeholder="https://…"
+                disabled={isArchived}
+              />
+            </Field>
+            <Field label={t('pm.fldOverrideDesc')} hint={t('pm.overrideHint')} optional>
+              <textarea
+                className="inp"
+                rows={3}
+                value={form.overrideDescription}
+                onChange={(e) => setForm((f) => ({ ...f, overrideDescription: e.target.value }))}
                 disabled={isArchived}
               />
             </Field>
@@ -375,6 +410,9 @@ export default function PromoDetailPage() {
               </div>
             )}
           </div>
+
+          {/* T2 — Замены и кросс-селл (правила, авторинг из кампании) */}
+          <PromoRulesEditor promoId={promo.id} disabled={isArchived} />
         </div>
 
         {/* Правая колонка: превью + бюджет + мета */}

@@ -12,7 +12,7 @@ import ScreensPage from './ScreensPage'
 const screenHooks = vi.hoisted(() => ({
   usePlaylists: vi.fn(),
   useSlides: vi.fn(),
-  useCreatePlaylist: vi.fn(),
+  useConnectedScreens: vi.fn(),
   useUpdatePlaylist: vi.fn(),
   useDeletePlaylist: vi.fn(),
   useUploadSlide: vi.fn(),
@@ -26,7 +26,6 @@ vi.mock('@/lib/queries/pharmacies', () => pharmacyHooks)
 
 // Общие мок-мутации, чтобы можно было ассертить вызовы.
 const mut = {
-  createPlaylist: vi.fn(),
   updatePlaylist: vi.fn(),
   deletePlaylist: vi.fn(),
   uploadSlide: vi.fn(),
@@ -87,7 +86,10 @@ function setData(
 beforeEach(() => {
   vi.clearAllMocks()
   setData([], [])
-  screenHooks.useCreatePlaylist.mockReturnValue({ mutate: mut.createPlaylist, isPending: false })
+  screenHooks.useConnectedScreens.mockReturnValue({
+    data: { total: 0, devices: [] },
+    isLoading: false,
+  })
   screenHooks.useUpdatePlaylist.mockReturnValue({ mutate: mut.updatePlaylist, isPending: false })
   screenHooks.useDeletePlaylist.mockReturnValue({ mutate: mut.deletePlaylist, isPending: false })
   screenHooks.useUploadSlide.mockReturnValue({ mutate: mut.uploadSlide, isPending: false })
@@ -143,10 +145,42 @@ describe('ScreensPage — рендер', () => {
     expect(screen.getByTestId('slide-sl_lib')).toBeInTheDocument()
   })
 
-  it('Расписание всегда Empty (Этап 5)', () => {
+  it('T3: блок «Расписание» удалён', () => {
     setData([mkPlaylist()], [mkSlide()])
     renderPage()
-    expect(screen.getByText(/Расписаний пока нет/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Расписаний пока нет/i)).not.toBeInTheDocument()
+  })
+
+  it('T3: кнопка «Новый плейлист» удалена', () => {
+    renderPage()
+    expect(screen.queryByTestId('screens-new-playlist')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Новый плейлист/i)).not.toBeInTheDocument()
+  })
+
+  it('T3: колонка «Аптек» удалена из таблицы плейлистов', () => {
+    setData([mkPlaylist({ id: 'pl_a' })], [])
+    renderPage()
+    const table = screen.getByTestId('playlists-table')
+    expect(table.querySelector('thead')?.textContent).not.toMatch(/Аптек/)
+  })
+
+  it('T4: виджет «Подключено касс» показывает total и устройства', () => {
+    screenHooks.useConnectedScreens.mockReturnValue({
+      data: {
+        total: 2,
+        devices: [
+          { deviceId: 'dev-1', pharmacyId: 'ph_1', lastSeen: '2026-06-14T10:00:00Z' },
+          { deviceId: 'dev-2', pharmacyId: null, lastSeen: '2026-06-14T10:01:00Z' },
+        ],
+      },
+      isLoading: false,
+    })
+    renderPage()
+    const widget = screen.getByTestId('connected-registers')
+    expect(widget).toHaveTextContent('Подключено касс')
+    expect(widget).toHaveTextContent('2')
+    expect(screen.getByTestId('connected-dev-1')).toBeInTheDocument()
+    expect(screen.getByTestId('connected-dev-2')).toBeInTheDocument()
   })
 })
 
@@ -168,13 +202,6 @@ describe('ScreensPage — управление (ТЗ §3.3)', () => {
     renderPage()
     await user.click(screen.getByTestId('screens-upload-slide'))
     expect(screen.getByTestId('slide-file-input')).toBeInTheDocument()
-  })
-
-  it('кнопка «Новый плейлист» открывает модалку', async () => {
-    const user = userEvent.setup()
-    renderPage()
-    await user.click(screen.getByTestId('screens-new-playlist'))
-    expect(screen.getByRole('button', { name: /^Создать/ })).toBeInTheDocument()
   })
 
   it('активировать/в черновик зовёт useUpdatePlaylist', async () => {

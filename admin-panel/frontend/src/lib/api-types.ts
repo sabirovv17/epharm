@@ -343,12 +343,21 @@ export interface PromoDto {
   spent: number
   kpi: string
   cover: string
-  // Товарная акция (V022): линк на товар Medusa + снимок + даты + пороги.
+  // Товарная акция (V022): линк на товар Medusa + снимок + даты.
   medusaProductId: string | null
   productName: string
   productImage: string | null
+  /** Ручной override фото товара (поверх PIM/Medusa). null — берётся productImage. */
+  overrideImage: string | null
+  /** Ручной override описания товара (поверх PIM/Medusa). null — нет переопределения. */
+  overrideDescription: string | null
+  /** Цена товара из Medusa (read-only, обновляется ежедневно — НЕ редактируется в админке). */
+  price: number
+  /** Единый бонус фармацевту за продажу (заменил многоуровневые пороги). */
+  pharmacistBonus: number
   dateStart: string | null
   dateEnd: string | null
+  /** Всегда один авто-собранный порог (legacy-поле; редактора порогов в кампании нет). */
   tiers: PromoTierDto[]
   createdBy: string
   createdAt: string
@@ -366,9 +375,11 @@ export interface CreatePromoRequest {
   medusaProductId?: string | null
   productName?: string
   productImage?: string | null
+  overrideImage?: string | null
+  overrideDescription?: string | null
+  pharmacistBonus?: number
   dateStart?: string | null
   dateEnd?: string | null
-  tiers?: PromoTierDto[]
 }
 
 export interface UpdatePromoRequest {
@@ -382,9 +393,45 @@ export interface UpdatePromoRequest {
   medusaProductId?: string | null
   productName?: string
   productImage?: string | null
+  overrideImage?: string | null
+  overrideDescription?: string | null
+  pharmacistBonus?: number
   dateStart?: string | null
   dateEnd?: string | null
-  tiers?: PromoTierDto[]
+}
+
+// ─── Campaign rules (T2) — авторинг правил замены/кросс-селла из кампании ──────
+// Зеркало backend PromoRulesViewDto / PromoRulesConfigDto / PromoRuleProductRef.
+
+/** Ссылка на товар витрины внутри правила кампании (снимок имени/бренда/цены). */
+export interface PromoRuleProductRef {
+  medusaProductId: string
+  name: string
+  brand?: string | null
+  mnn?: string | null
+  volume?: string | null
+  price?: number | null
+}
+
+export interface PromoRulesConfigDto {
+  /** Товары, которые ЗАМЕНЯЕТ продвигаемый товар (substitution). */
+  replacements: PromoRuleProductRef[]
+  /** Товары, ВМЕСТЕ с которыми продаётся продвигаемый товар (cross-sell). */
+  crossSells: PromoRuleProductRef[]
+  script: string
+  advantages: string[]
+  partnerLabel: string | null
+  comparison: RuleComparisonRowDto[]
+  goalLabel: string | null
+  goalTarget: number | null
+  goalBonus: number | null
+}
+
+export interface PromoRulesViewDto {
+  promoId: string
+  config: PromoRulesConfigDto
+  ruleCount: number
+  activeCount: number
 }
 
 export interface UpdateRuleRequest {
@@ -536,6 +583,18 @@ export interface UpdatePlaylistRequest {
 export interface AssignSlideRequest {
   playlistId: string | null
   position?: number
+}
+
+// ─── Connected registers (T4) — heartbeat подключённых касс (POSM-плеер) ──────
+export interface ConnectedDeviceDto {
+  deviceId: string
+  pharmacyId: string | null
+  lastSeen: string
+}
+
+export interface ConnectedScreensDto {
+  total: number
+  devices: ConnectedDeviceDto[]
 }
 
 // ─── AI-Exam (Этап 3.6) — банк вопросов (результаты/сертификаты в Этапе 4) ───

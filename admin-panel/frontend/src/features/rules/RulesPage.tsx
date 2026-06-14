@@ -213,6 +213,13 @@ export default function RulesPage() {
         }
       />
 
+      <div
+        className="hairline rounded-xl border bg-brand-green-50 px-4 py-2.5 text-[12px] font-semibold text-ink-700"
+        data-testid="rules-from-campaigns-banner"
+      >
+        {t('pr.standaloneBanner')}
+      </div>
+
       <SummaryBar metrics={metrics} />
 
       {showWarningBanner && (
