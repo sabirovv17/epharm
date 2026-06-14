@@ -36,6 +36,36 @@ import 'widgets/profile_row.dart';
 import 'widgets/promo_carousel.dart';
 import 'widgets/sort_sheet.dart';
 
+/// Живая синхронизация с админкой: перетягивает данные главной из backend —
+/// ленту акций ([promotionsProvider], то что заведено в админке), карусель
+/// ([promoListProvider]) и баланс ([ProfileActions.refreshMe]).
+///
+/// [awaitData]=true — для pull-to-refresh: ЖДЁМ приход данных, чтобы спиннер
+/// RefreshIndicator держался до конца. [awaitData]=false — fire-and-forget
+/// (авто-рефреш при возврате в приложение): просто инвалидируем, UI обновится сам.
+///
+/// Ошибки глотаем — ошибочное состояние отрисует сам провайдер (error-ветка
+/// `.when`), а спиннер не должен «зависнуть» или уронить экран.
+Future<void> refreshHomeData(WidgetRef ref, {bool awaitData = true}) async {
+  final loggedIn = ref.read(currentUserProvider) != null;
+  if (!awaitData) {
+    ref.invalidate(promotionsProvider);
+    ref.invalidate(promoListProvider);
+    if (loggedIn) ref.read(profileActionsProvider).refreshMe();
+    return;
+  }
+  final futures = <Future<void>>[
+    ref.refresh(promotionsProvider.future).then((_) {}),
+    ref.refresh(promoListProvider.future).then((_) {}),
+    if (loggedIn) ref.read(profileActionsProvider).refreshMe(),
+  ];
+  try {
+    await Future.wait(futures);
+  } catch (_) {
+    // no-op: error-ветку покажут сами провайдеры; спиннер просто завершится.
+  }
+}
+
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -43,12 +73,17 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with WidgetsBindingObserver {
   int _tab = 0;
+
+  /// Последний авто-рефреш по возврату в приложение — для троттлинга (см. ниже).
+  DateTime? _lastResumeRefresh;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // При входе на Home подтягиваем свежий баланс из backend (в API-режиме).
     // В mock-режиме refreshMe — no-op, баланс остаётся из login-ответа.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -57,6 +92,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ref.read(profileActionsProvider).refreshMe();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Живая синхронизация с админкой: при возврате приложения на передний план
+  /// (foreground) перетягиваем ленту акций и баланс — чтобы заведённые/изменённые
+  /// в админке акции появлялись БЕЗ перезапуска приложения. Троттлинг 20с:
+  /// частые свёртывания/развёртывания не дёргают сеть и не мигают лоадером.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // mounted-guard: lifecycle-колбэк может прийти на грани dispose — не трогаем
+    // ref у размонтированного State (идиома для WidgetsBindingObserver).
+    if (state != AppLifecycleState.resumed || !mounted) return;
+    final now = DateTime.now();
+    final last = _lastResumeRefresh;
+    if (last != null && now.difference(last) < const Duration(seconds: 20)) {
+      return;
+    }
+    _lastResumeRefresh = now;
+    refreshHomeData(ref, awaitData: false);
   }
 
   void _goToAuth() => context.go('/auth/phone');
@@ -132,182 +191,190 @@ class _HomeTab extends ConsumerWidget {
     // «зафиксированной зелёной плашки», под которой контент уезжал — UX
     // путаный, особенно на short-screen Android'ах. Сейчас вся страница
     // прокручивается единым flow: зелёная шапка → промо → каталог.
-    return CustomScrollView(
-      // Чтобы overflow от тяжёлых теней (promo cards) не обрезался.
-      clipBehavior: Clip.none,
-      slivers: [
-        // 1) Зелёный header — часть скролла, не sticky.
-        SliverToBoxAdapter(
-          child: _Header(
-            user: user,
-            onLogin: onLogin,
-            onHistoryTap: onHistoryTap,
-          ),
-        ),
-
-        // 2) Промо-карусель.
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.only(top: 16, bottom: 8),
-            child: promoAsync.when(
-              loading: () => const SizedBox(
-                height: 234,
-                child: Center(child: CircularProgressIndicator()),
-              ),
-              error: (e, _) => Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.screenEdge,
-                ),
-                child: Text('Ошибка: $e'),
-              ),
-              data: (promos) => PromoCarousel(items: promos),
+    return RefreshIndicator(
+      // Pull-to-refresh: потянуть вниз → лента акций/карусель/баланс
+      // перезапрашиваются из backend (живая синхронизация с админкой). Спиннер
+      // держится до прихода данных — refreshHomeData ждёт futures.
+      onRefresh: () => refreshHomeData(ref),
+      color: AppColors.brandGreen700,
+      child: CustomScrollView(
+        // AlwaysScrollable — чтобы pull работал даже при коротком контенте
+        // (иначе нет «места» для overscroll и RefreshIndicator не срабатывает).
+        physics: const AlwaysScrollableScrollPhysics(),
+        // Чтобы overflow от тяжёлых теней (promo cards) не обрезался.
+        clipBehavior: Clip.none,
+        slivers: [
+          // 1) Зелёный header — часть скролла, не sticky.
+          SliverToBoxAdapter(
+            child: _Header(
+              user: user,
+              onLogin: onLogin,
+              onHistoryTap: onHistoryTap,
             ),
           ),
-        ),
 
-        // 3) Search.
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.screenEdge,
-              8,
-              AppSpacing.screenEdge,
-              AppSpacing.s16,
-            ),
-            child: SearchInput(
-              onChanged: (v) =>
-                  ref.read(searchQueryProvider.notifier).set(v),
-            ),
-          ),
-        ),
-
-        // 4) Filter row: сортировка + Бренд + Категории + Конкурсные.
-        //    Бренд/Категории — реальные фильтры каталога. «Конкурсные» — атрибут
-        //    программы лояльности (не каталога Medusa), данных пока нет → chip
-        //    открывает заглушку «добавим позже» (showContestsStubSheet).
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: 56,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.screenEdge,
-              ),
-              children: [
-                Center(
-                  child: SortChipButton(
-                    onTap: () => showSortSheet(context),
-                    active: sort != CatalogSort.nameAsc,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Center(
-                  child: PharmaFilterChip(
-                    label: brands.isEmpty
-                        ? 'Бренд'
-                        : 'Бренд · ${brands.length}',
-                    active: brands.isNotEmpty,
-                    trailing: const Icon(
-                      Icons.keyboard_arrow_down,
-                      size: 16,
-                      color: AppColors.ink900,
-                    ),
-                    onTap: () => showBrandSheet(context),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Center(
-                  child: PharmaFilterChip(
-                    label: categories.isEmpty
-                        ? 'Категории'
-                        : 'Категории · ${categories.length}',
-                    active: categories.isNotEmpty,
-                    trailing: const Icon(
-                      Icons.keyboard_arrow_down,
-                      size: 16,
-                      color: AppColors.ink900,
-                    ),
-                    onTap: () => showCategorySheet(context),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Center(
-                  child: PharmaFilterChip(
-                    label: 'Конкурсные',
-                    onTap: () => showContestsStubSheet(context),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-
-        const SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-        // 5) Лента акций — промо-кампании из админки (товар Medusa + ценовые
-        //    пороги/бонусы + даты). Грузится один раз; фильтры (бренд/категория/
-        //    поиск/сорт) применяются клиентски к пулу промо-товаров.
-        promotionsAsync.when(
-          loading: () => const SliverToBoxAdapter(
+          // 2) Промо-карусель.
+          SliverToBoxAdapter(
             child: Padding(
-              padding: EdgeInsets.all(AppSpacing.s24),
-              child: Center(child: CircularProgressIndicator()),
+              padding: const EdgeInsets.only(top: 16, bottom: 8),
+              child: promoAsync.when(
+                loading: () => const SizedBox(
+                  height: 234,
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                error: (e, _) => Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.screenEdge,
+                  ),
+                  child: Text('Ошибка: $e'),
+                ),
+                data: (promos) => PromoCarousel(items: promos),
+              ),
             ),
           ),
-          error: (e, _) => SliverToBoxAdapter(
+
+          // 3) Search.
+          SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.screenEdge,
-                24,
+                8,
                 AppSpacing.screenEdge,
-                24,
+                AppSpacing.s16,
               ),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.wifi_off_rounded,
-                      size: 40,
-                      color: AppColors.ink300,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Акции недоступны',
-                      style: AppTypography.body14(color: AppColors.ink500),
-                    ),
-                    TextButton(
-                      onPressed: () => ref.invalidate(promotionsProvider),
-                      child: const Text(
-                        'Повторить',
-                        style: TextStyle(
-                          fontFamily: 'Manrope',
-                          fontFamilyFallback: ['Roboto', 'sans-serif'],
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.brandGreen700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              child: SearchInput(
+                onChanged: (v) => ref.read(searchQueryProvider.notifier).set(v),
               ),
             ),
           ),
-          data: (items) {
-            final filtered = applyPromotionFilters(
-              items: items,
-              brands: brands,
-              categories: categories,
-              query: query,
-              sort: sort,
-            );
-            return _PromoSliver(items: filtered);
-          },
-        ),
 
-        const SliverToBoxAdapter(child: SizedBox(height: 32)),
-      ],
+          // 4) Filter row: сортировка + Бренд + Категории + Конкурсные.
+          //    Бренд/Категории — реальные фильтры каталога. «Конкурсные» — атрибут
+          //    программы лояльности (не каталога Medusa), данных пока нет → chip
+          //    открывает заглушку «добавим позже» (showContestsStubSheet).
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: 56,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.screenEdge,
+                ),
+                children: [
+                  Center(
+                    child: SortChipButton(
+                      onTap: () => showSortSheet(context),
+                      active: sort != CatalogSort.nameAsc,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Center(
+                    child: PharmaFilterChip(
+                      label:
+                          brands.isEmpty ? 'Бренд' : 'Бренд · ${brands.length}',
+                      active: brands.isNotEmpty,
+                      trailing: const Icon(
+                        Icons.keyboard_arrow_down,
+                        size: 16,
+                        color: AppColors.ink900,
+                      ),
+                      onTap: () => showBrandSheet(context),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Center(
+                    child: PharmaFilterChip(
+                      label: categories.isEmpty
+                          ? 'Категории'
+                          : 'Категории · ${categories.length}',
+                      active: categories.isNotEmpty,
+                      trailing: const Icon(
+                        Icons.keyboard_arrow_down,
+                        size: 16,
+                        color: AppColors.ink900,
+                      ),
+                      onTap: () => showCategorySheet(context),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Center(
+                    child: PharmaFilterChip(
+                      label: 'Конкурсные',
+                      onTap: () => showContestsStubSheet(context),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+          // 5) Лента акций — промо-кампании из админки (товар Medusa + ценовые
+          //    пороги/бонусы + даты). Грузится один раз; фильтры (бренд/категория/
+          //    поиск/сорт) применяются клиентски к пулу промо-товаров.
+          promotionsAsync.when(
+            loading: () => const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.all(AppSpacing.s24),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            ),
+            error: (e, _) => SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.screenEdge,
+                  24,
+                  AppSpacing.screenEdge,
+                  24,
+                ),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.wifi_off_rounded,
+                        size: 40,
+                        color: AppColors.ink300,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Акции недоступны',
+                        style: AppTypography.body14(color: AppColors.ink500),
+                      ),
+                      TextButton(
+                        onPressed: () => ref.invalidate(promotionsProvider),
+                        child: const Text(
+                          'Повторить',
+                          style: TextStyle(
+                            fontFamily: 'Manrope',
+                            fontFamilyFallback: ['Roboto', 'sans-serif'],
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.brandGreen700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            data: (items) {
+              final filtered = applyPromotionFilters(
+                items: items,
+                brands: brands,
+                categories: categories,
+                query: query,
+                sort: sort,
+              );
+              return _PromoSliver(items: filtered);
+            },
+          ),
+
+          const SliverToBoxAdapter(child: SizedBox(height: 32)),
+        ],
+      ),
     );
   }
 }

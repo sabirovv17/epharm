@@ -582,3 +582,28 @@ chip-провайдер `homeChipProvider`, старый `SortOption`, хард�
 **Качество:** фича прогнана через ultracode adversarial-review (4 измерения), 8 подтверждённых
 находок исправлены (error-retry, ленивый грид, Map-выбор, токен-безопасная нормализация CSV на бэке,
 показ заявленных акций модератору, Semantics, фикстура теста).
+
+---
+
+## 2026-06-14 — Live-sync: pull-to-refresh + авто-рефреш на главной
+
+**Зачем:** «изменил акцию в админке → должно появиться на телефоне без перезапуска». Данные и так
+живые (телефон читает `/api/mobile/promotions` напрямую из БД), но `promotionsProvider` —
+обычный `FutureProvider` (не autoDispose), грузит ленту ОДИН раз за сессию. Не хватало триггера refresh.
+
+**Что сделано** (`lib/features/home/presentation/home_screen.dart`):
+
+- `refreshHomeData(WidgetRef ref, {bool awaitData=true})` — инвалидирует/рефрешит `promotionsProvider`
+  (реальная лента из админки) + `promoListProvider` (карусель) + `refreshMe()` (баланс).
+  `awaitData=true` (pull) ждёт futures → спиннер держится; `awaitData=false` (resume) — fire-and-forget.
+- Лента (`_HomeTab`) обёрнута в `RefreshIndicator` + `AlwaysScrollableScrollPhysics` (pull работает и при
+  коротком контенте). Потянул вниз → свежие акции.
+- `_HomeScreenState with WidgetsBindingObserver`: на `AppLifecycleState.resumed` авто-рефреш с троттлингом
+  20с + `mounted`-guard. Возврат в приложение → лента актуализируется.
+
+**Качество:** `flutter analyze` чистый, тесты `test/features/home/home_refresh_test.dart` (refresh
+перезапрашивает ленту = видит новую акцию; на главной есть RefreshIndicator), полный прогон 58/58.
+Прогнано через ultracode adversarial-review (3 линзы × verify): все blocker/major **отбракованы**
+verify-пасом как ложные (синхронный invalidate без async-gap, resume не пересекается с pull) — взяли
+только идиоматичный `mounted`-guard. APK пересобран с `API_BASE=https://epharm.78-140-246-238.sslip.io`
+(дефолт `api.epharm.kz` сейчас не резолвится — собирать ТОЛЬКО с явным base).
