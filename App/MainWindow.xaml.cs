@@ -174,6 +174,10 @@ StartLogReader();
             // Авто-обновление клиента из админки (fail-safe, no-op без POSM/при выкл.).
             StartUpdateChecks();
 
+            // Heartbeat кассы (T4): отмечаемся «подключены» на backend сразу и каждые ~60с.
+            // Независим от видео (работает и при EPHARM_NO_VIDEO); no-op без POSM.
+            StartHeartbeatPolling();
+
         }
 
 private void NextVideo()

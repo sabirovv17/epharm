@@ -26,10 +26,15 @@ namespace CustomerDisplay
         private CheckoutSession _session = new();
         private CancellationTokenSource? _recoCts;
         private RecommendationWindow? _recoWindow;
+        private ConflictNotificationWindow? _conflictWindow;
 
         // Рекомендации, которые уже показаны в этом чеке — чтобы не всплывать повторно
         // на каждое добавление товара (backend возвращает тот же eventId — идемпотентно).
         private readonly HashSet<string> _shownEventIds = new();
+
+        // Конфликты, уже показанные в этом чеке (подпись = kind+триггер+ruleIds) — чтобы
+        // баннер «недоступно» не всплывал повторно на каждое изменение корзины.
+        private readonly HashSet<string> _shownConflictSigs = new();
 
         /// <summary>
         /// Монитор КЛИЕНТА (куда выведен киоск промо+чек). Заполняется в MoveToSecondScreenFullscreen.
@@ -95,13 +100,28 @@ namespace CustomerDisplay
                     if (token.IsCancellationRequested) return;
 
                     var resp = await _epharm.RecommendAsync(request, token).ConfigureAwait(false);
-                    if (resp == null || resp.Recommendations.Count == 0) return;
+                    if (resp == null) return;
+
+                    // Конфликты (T2): правило подошло, но применить нельзя (нет в наличии, кампания
+                    // на паузе, …). Показываем баннер с причиной — НЕ блокируя рекомендации ниже.
+                    // resp.Conflicts может быть null от старого backend — фильтруем безопасно.
+                    var conflicts = (resp.Conflicts ?? new List<Conflict>())
+                        .Where(c => c != null && !ConflictShown(c))
+                        .ToList();
 
                     // До 2 рекомендаций (замена + cross-sell). Если ВСЕ уже показаны в этом чеке — пропускаем.
-                    var recs = resp.Recommendations.Take(2).ToList();
-                    if (recs.All(r => _shownEventIds.Contains(r.EventId))) return;
+                    var recs = resp.Recommendations
+                        .Take(2)
+                        .Where(r => !_shownEventIds.Contains(r.EventId))
+                        .ToList();
 
-                    await Dispatcher.InvokeAsync(() => ShowRecommendations(recs));
+                    if (conflicts.Count == 0 && recs.Count == 0) return;
+
+                    await Dispatcher.InvokeAsync(() =>
+                    {
+                        if (conflicts.Count > 0) ShowConflicts(conflicts);
+                        if (recs.Count > 0) ShowRecommendations(recs);
+                    });
                 }
                 catch (OperationCanceledException) { /* новый товар отменил прошлый запрос */ }
                 catch (Exception ex) { Log($"POSM recommend error: {ex.Message}"); }
@@ -234,6 +254,29 @@ namespace CustomerDisplay
             win.Show();
         }
 
+        /// <summary>Подпись конфликта для дедупликации в рамках чека (kind + триггер + правила).</summary>
+        private static string ConflictSig(Conflict c) =>
+            (c.Kind ?? "") + "|" + (c.TriggerName ?? "") + "|" + string.Join(",", c.RuleIds ?? new List<string>());
+
+        /// <summary>Уже показывали этот конфликт в текущем чеке? (баннер не всплывает повторно).</summary>
+        private bool ConflictShown(Conflict c) => _shownConflictSigs.Contains(ConflictSig(c));
+
+        /// <summary>
+        /// Показать баннер конфликта(ов) (T2): backend нашёл правило, но применить нельзя — выводим
+        /// причину фармацевту. Не блокирует кассу, авто-закрывается; на экране ФАРМАЦЕВТА (не клиент).
+        /// </summary>
+        private void ShowConflicts(List<Conflict> conflicts)
+        {
+            if (conflicts == null || conflicts.Count == 0) return;
+            foreach (var c in conflicts) _shownConflictSigs.Add(ConflictSig(c));
+            _conflictWindow?.Close();
+
+            var win = new ConflictNotificationWindow(conflicts, _posmConfig?.PopupAutoCloseSec ?? 8, PharmacistScreen());
+            win.Closed += (_, _) => { if (ReferenceEquals(_conflictWindow, win)) _conflictWindow = null; };
+            _conflictWindow = win;
+            win.Show();
+        }
+
         private async Task RespondAsync(Recommendation rec, string outcome)
         {
             // Окно НЕ закрываем здесь — оно живёт, пока есть нерешённые рекомендации, и само
@@ -277,7 +320,10 @@ namespace CustomerDisplay
             _recoCts?.Cancel();
             _recoWindow?.Close();
             _recoWindow = null;
+            _conflictWindow?.Close();
+            _conflictWindow = null;
             _shownEventIds.Clear();
+            _shownConflictSigs.Clear();
             _session = new CheckoutSession();
         }
     }

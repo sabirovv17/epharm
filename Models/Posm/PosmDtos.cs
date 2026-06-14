@@ -72,11 +72,31 @@ namespace CustomerDisplay.Models.Posm
         public bool IsSubstitution => Kind == "substitution";
     }
 
+    /// <summary>
+    /// Конфликт правила кампании: backend нашёл подходящее правило замены/кросс-сейла, но применить
+    /// его НЕЛЬЗЯ (напр. рекомендованного товара нет в наличии, кампания приостановлена, есть
+    /// несовместимость). Фармацевту показываем причину (Reason) баннером — почему подмена/допродажа
+    /// сейчас невозможна. Зеркалит backend Conflict; сериализация camelCase (kind/triggerName/...).
+    /// </summary>
+    public sealed class Conflict
+    {
+        public string Kind { get; set; } = "";             // substitution | crosssell
+        public string? TriggerName { get; set; }           // товар, по которому сработало правило
+        public string Reason { get; set; } = "";           // человекочитаемая причина (показываем фармацевту)
+        public List<string> RuleIds { get; set; } = new();
+    }
+
     /// <summary>Ответ Rules Engine: до 2 рекомендаций (замены раньше cross-sell, по бонусу DESC).</summary>
     public sealed class RecommendResponse
     {
         public string SessionId { get; set; } = "";
         public List<Recommendation> Recommendations { get; set; } = new();
+
+        /// <summary>
+        /// Конфликты: правило подошло, но применить нельзя (товара нет, кампания на паузе, …).
+        /// Может прийти null от старого backend — обрабатывать как пустой список.
+        /// </summary>
+        public List<Conflict> Conflicts { get; set; } = new();
     }
 
     /// <summary>Результат рекомендации: accepted (принял) | rejected (пропустил).</summary>

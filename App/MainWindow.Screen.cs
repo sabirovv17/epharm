@@ -27,6 +27,11 @@ namespace CustomerDisplay
         private string? _currentPlaylistSig = null;
         private DispatcherTimer? _playlistPollTimer;
 
+        // Heartbeat кассы (T4): периодический «я жив» на backend, чтобы он считал подключённые
+        // кассы (Redis TTL). Отдельный таймер, ~60с, независим от видео/плейлиста.
+        private DispatcherTimer? _heartbeatTimer;
+        private const int HeartbeatSec = 60;
+
         /// <summary>
         /// Сторож зависания видео: если позиция воспроизведения «встала» (~6с без движения, а плеер
         /// должен играть) — перезапускаем ролик. Софт-декод в VM иногда виснет на сложном кадре;
@@ -108,6 +113,29 @@ namespace CustomerDisplay
             _playlistPollTimer.Tick += (_, __) => _ = LoadBackendPlaylistAsync();
             _playlistPollTimer.Start();
             Log($"Поллинг плейлиста запущен: каждые {sec}с");
+        }
+
+        /// <summary>
+        /// Heartbeat кассы (T4): шлёт «я жив» на backend сразу и далее каждые ~60с, чтобы админка
+        /// считала число подключённых касс (backend держит запись с Redis TTL). Транспорт — тот же
+        /// HTTP-поллинг, что и плейлист: каждый удар независим, устойчив к обрывам сети, fail-safe
+        /// (EpharmApiClient.HeartbeatAsync проглатывает ошибки). deviceId = Environment.MachineName
+        /// (стабилен на машине), pharmacyId — из конфига. Вызывается на старте рядом с поллингом
+        /// плейлиста; работает даже при EPHARM_NO_VIDEO (касса всё равно «подключена»).
+        /// </summary>
+        private void StartHeartbeatPolling()
+        {
+            if (_epharm == null || _posmConfig == null) return;
+            var deviceId = Environment.MachineName;
+            var pharmacyId = _posmConfig.PharmacyId;
+
+            // Первый удар сразу — касса появляется в счётчике без задержки.
+            _ = _epharm.HeartbeatAsync(deviceId, pharmacyId);
+
+            _heartbeatTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(HeartbeatSec) };
+            _heartbeatTimer.Tick += (_, __) => _ = _epharm.HeartbeatAsync(deviceId, pharmacyId);
+            _heartbeatTimer.Start();
+            Log($"Heartbeat кассы запущен: deviceId={deviceId}, каждые {HeartbeatSec}с");
         }
 
         /// <summary>
