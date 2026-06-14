@@ -20,6 +20,8 @@ data class MobilePromotionDto(
     val mnn: String?,
     val rxOtc: String?,
     val imageUrl: String?,
+    /** Ручное описание из кампании (приоритет над Medusa), если задано. */
+    val overrideDescription: String?,
     val barcode: String?,
     val category: String?,
     val categories: List<String>,

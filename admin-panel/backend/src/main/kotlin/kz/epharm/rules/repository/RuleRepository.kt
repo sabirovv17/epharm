@@ -10,4 +10,8 @@ interface RuleRepository : JpaRepository<RuleEntity, String> {
     fun findAllByTypeRawOrderByUpdatedAtDesc(typeRaw: String): List<RuleEntity>
     fun findAllByStatusRawOrderByUpdatedAtDesc(statusRaw: String): List<RuleEntity>
     fun countByStatusRaw(statusRaw: String): Long
+
+    /** Правила, сгенерированные из кампании (для редактирования/перегенерации из карточки промо). */
+    fun findAllByPromoIdOrderByUpdatedAtDesc(promoId: String): List<RuleEntity>
+    fun deleteByPromoId(promoId: String)
 }

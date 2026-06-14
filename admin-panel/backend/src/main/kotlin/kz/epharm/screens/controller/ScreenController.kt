@@ -1,9 +1,12 @@
 package kz.epharm.screens.controller
 
 import jakarta.validation.Valid
+import kz.epharm.posm.service.DevicePresenceService
 import kz.epharm.screens.dto.AssignSlideRequest
+import kz.epharm.screens.dto.ConnectedRegistersDto
 import kz.epharm.screens.dto.CreatePlaylistRequest
 import kz.epharm.screens.dto.PlaylistDto
+import kz.epharm.screens.dto.RegisterPresenceDto
 import kz.epharm.screens.dto.SlideDto
 import kz.epharm.screens.dto.UpdatePlaylistRequest
 import kz.epharm.screens.entity.PlaylistStatus
@@ -27,7 +30,20 @@ import org.springframework.web.multipart.MultipartFile
 // Назначение плейлистов на конкретные аптеки + расписание + рендер на экранах = Этап 5 (POSM).
 @RestController
 @RequestMapping("/api/admin/screens")
-class ScreenController(private val screenService: ScreenService) {
+class ScreenController(
+    private val screenService: ScreenService,
+    private val devicePresenceService: DevicePresenceService,
+) {
+
+    /** Сколько касс сейчас онлайн (T4) — пульсы за последний TTL. */
+    @GetMapping("/connected")
+    fun connected(): ConnectedRegistersDto {
+        val devices = devicePresenceService.connected()
+        return ConnectedRegistersDto(
+            total = devices.size,
+            devices = devices.map { RegisterPresenceDto(it.deviceId, it.pharmacyId, it.lastSeen) },
+        )
+    }
 
     // ── Плейлисты ─────────────────────────────────────────────────────────
 

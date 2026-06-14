@@ -1,6 +1,5 @@
 package kz.epharm.promo.dto
 
-import jakarta.validation.Valid
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
@@ -10,13 +9,14 @@ import kz.epharm.promo.entity.PromoTier
 import java.time.Instant
 import java.time.LocalDate
 
-/** Ценовой порог акции (зеркало [PromoTier]). */
+/**
+ * Ценовой порог акции (зеркало [PromoTier]). С T1 — один порог на кампанию
+ * (1 кампания = 1 товар): {minQty:1, price:<из Medusa>, bonus:<бонус фармацевту>}.
+ * Оставлен для совместимости мобильной ленты, которая рендерит tiers.
+ */
 data class PromoTierDto(
-    @field:Min(1)
     val minQty: Int,
-    @field:Min(0)
     val price: Long,
-    @field:Min(0)
     val bonus: Long = 0,
 ) {
     fun toEntity() = PromoTier(minQty = minQty, price = price, bonus = bonus)
@@ -27,9 +27,10 @@ data class PromoTierDto(
 }
 
 /**
- * Полный DTO промо-кампании. С V022 — товарная акция: линк на товар Medusa,
- * снимок товара, диапазон дат и ценовые пороги. Старые campaign-поля
- * (brand/period/budget/spent/kpi/cover/pharmacies) сохранены для совместимости.
+ * Полный DTO промо-кампании. С T1 модель упрощена: 1 кампания = 1 товар Medusa,
+ * цена read-only (из Medusa, обновляется планировщиком), бонус фармацевту задаётся в админке,
+ * фото/описание можно переопределить вручную (override-поля).
+ * Старые campaign-поля (brand/period/budget/spent/kpi/cover/pharmacies) — для совместимости.
  */
 data class PromoDto(
     val id: String,
@@ -46,6 +47,14 @@ data class PromoDto(
     val medusaProductId: String?,
     val productName: String,
     val productImage: String?,
+    /** Ручная замена фото (приоритет над Medusa). */
+    val overrideImage: String?,
+    /** Ручная замена описания (приоритет над Medusa). */
+    val overrideDescription: String?,
+    /** Цена товара (read-only, из Medusa). */
+    val price: Long,
+    /** Бонус фармацевту за продажу (задаётся в админке). */
+    val pharmacistBonus: Long,
     val dateStart: LocalDate?,
     val dateEnd: LocalDate?,
     val tiers: List<PromoTierDto>,
@@ -68,6 +77,10 @@ data class PromoDto(
             medusaProductId = e.medusaProductId,
             productName = e.productName,
             productImage = e.productImage,
+            overrideImage = e.overrideImage,
+            overrideDescription = e.overrideDescription,
+            price = e.price,
+            pharmacistBonus = e.pharmacistBonus,
             dateStart = e.dateStart,
             dateEnd = e.dateEnd,
             tiers = e.tiers.map(PromoTierDto::of),
@@ -79,10 +92,11 @@ data class PromoDto(
 }
 
 /**
- * Создание промо-кампании. Под товарную акцию админ передаёт выбранный товар
- * Medusa (medusaProductId + снимок name/image/brand из витрины) + даты + пороги.
- * Поля товара необязательны — кампанию без товара (старый сценарий) тоже можно
- * создать (она просто не попадёт в мобильную ленту).
+ * Создание промо-кампании (T1: 1 кампания = 1 товар).
+ *  - medusaProductId + productName/productImage — выбранный товар витрины (снимок для деградации);
+ *  - pharmacistBonus — сколько получит фармацевт за продажу (единственный задаваемый бонус);
+ *  - overrideImage/overrideDescription — ручная замена фото/описания (необязательно);
+ *  - ЦЕНА не принимается из запроса — берётся из Medusa (read-only), кладётся в порог сервисом.
  */
 data class CreatePromoRequest(
     @field:NotBlank
@@ -106,16 +120,18 @@ data class CreatePromoRequest(
     val productName: String = "",
     @field:Size(max = 1024)
     val productImage: String? = null,
+    @field:Size(max = 1024)
+    val overrideImage: String? = null,
+    val overrideDescription: String? = null,
+    @field:Min(0)
+    val pharmacistBonus: Long = 0,
     val dateStart: LocalDate? = null,
     val dateEnd: LocalDate? = null,
-    @field:Valid
-    val tiers: List<PromoTierDto> = emptyList(),
 )
 
 /**
- * Partial-update. Метрики (spent, pharmacies) не патчатся вручную — пишутся
- * из других доменов (Reconcile-flow, Pharmacy-link). tiers=null → не трогаем,
- * tiers=[] → очистить пороги.
+ * Partial-update. Метрики (spent, pharmacies) не патчатся вручную. Цена не патчится
+ * (read-only из Medusa). Для очистки override-полей: передать пустую строку.
  */
 data class UpdatePromoRequest(
     val status: PromoStatus? = null,
@@ -138,8 +154,11 @@ data class UpdatePromoRequest(
     val productName: String? = null,
     @field:Size(max = 1024)
     val productImage: String? = null,
+    @field:Size(max = 1024)
+    val overrideImage: String? = null,
+    val overrideDescription: String? = null,
+    @field:Min(0)
+    val pharmacistBonus: Long? = null,
     val dateStart: LocalDate? = null,
     val dateEnd: LocalDate? = null,
-    @field:Valid
-    val tiers: List<PromoTierDto>? = null,
 )

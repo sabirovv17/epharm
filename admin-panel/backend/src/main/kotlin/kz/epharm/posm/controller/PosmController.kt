@@ -9,12 +9,14 @@ import kz.epharm.cdp.dto.CdpRegisterRequest
 import kz.epharm.appupdate.dto.AppVersionDto
 import kz.epharm.appupdate.service.AppReleaseService
 import kz.epharm.cdp.service.CdpService
+import kz.epharm.posm.dto.HeartbeatResponse
 import kz.epharm.posm.dto.OutcomeRequest
 import kz.epharm.posm.dto.OutcomeResponse
 import kz.epharm.posm.dto.PosSaleRequest
 import kz.epharm.posm.dto.PosSaleResponse
 import kz.epharm.posm.dto.RecommendRequest
 import kz.epharm.posm.dto.RecommendResponse
+import kz.epharm.posm.service.DevicePresenceService
 import kz.epharm.posm.service.PosSaleService
 import kz.epharm.posm.service.RecommendationService
 import kz.epharm.screens.dto.ActivePlaylistDto
@@ -47,6 +49,7 @@ class PosmController(
     private val screenService: ScreenService,
     private val cdpService: CdpService,
     private val appReleaseService: AppReleaseService,
+    private val devicePresenceService: DevicePresenceService,
     @Value("\${app.posm.device-key:dev-posm-key}") private val deviceKey: String,
 ) {
 
@@ -101,6 +104,23 @@ class PosmController(
     ): AppVersionDto {
         requireDeviceKey(key)
         return appReleaseService.currentFor(platform)
+    }
+
+    /**
+     * Пульс кассы (T4): касса шлёт каждые ~60с. deviceId — стабильный id устройства
+     * (имя машины/GUID), pharmacyId — аптека. По пульсам считаем «подключено N касс».
+     */
+    @PostMapping("/heartbeat")
+    fun heartbeat(
+        @RequestHeader(name = "X-Posm-Key", required = false) key: String?,
+        @RequestParam(required = false) deviceId: String?,
+        @RequestParam(required = false) pharmacyId: String?,
+    ): HeartbeatResponse {
+        requireDeviceKey(key)
+        // deviceId необязателен — на MVP fallback на сам ключ (одно устройство).
+        val id = deviceId?.takeIf { it.isNotBlank() } ?: "posm"
+        devicePresenceService.heartbeat(id, pharmacyId)
+        return HeartbeatResponse(ok = true, deviceId = id)
     }
 
     /** CDP (§5.6): поиск клиента лояльности по телефону. */

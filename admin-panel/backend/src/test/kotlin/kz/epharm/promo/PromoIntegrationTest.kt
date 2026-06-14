@@ -86,6 +86,8 @@ class PromoIntegrationTest {
                 id = "pr_seed_b", title = "Черновик кампании",
                 brand = "Jadran-Galenski", period = "01.06 — 30.06",
                 budget = 500_000, createdBy = "seed",
+                // T1: товар нужен, чтобы черновик можно было активировать (1 кампания = 1 товар).
+                medusaProductId = "prod_seed_b", productName = "Товар черновика",
             ).also { it.status = PromoStatus.draft },
         )
 
@@ -140,6 +142,10 @@ class PromoIntegrationTest {
             budget = 2_000_000,
             kpi = "ожидаемо 3000 рек.",
             cover = "#3DCDA2",
+            // T1: активная кампания обязана быть привязана к товару.
+            medusaProductId = "prod_summer",
+            productName = "Летний товар",
+            pharmacistBonus = 300,
         )
         mockMvc.perform(
             post("/api/admin/promo")

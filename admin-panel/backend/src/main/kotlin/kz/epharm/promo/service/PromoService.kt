@@ -1,10 +1,12 @@
 package kz.epharm.promo.service
 
+import kz.epharm.medusa.service.MedusaPriceService
 import kz.epharm.promo.dto.CreatePromoRequest
 import kz.epharm.promo.dto.PromoDto
 import kz.epharm.promo.dto.UpdatePromoRequest
 import kz.epharm.promo.entity.PromoEntity
 import kz.epharm.promo.entity.PromoStatus
+import kz.epharm.promo.entity.PromoTier
 import kz.epharm.promo.repository.PromoRepository
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
@@ -13,9 +15,19 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
+/**
+ * Кампании-акции (ТЗ §3.2.3). T1: 1 кампания = 1 товар Medusa.
+ *
+ *  - цена товара берётся ТОЛЬКО из Medusa (read-only), кладётся в единственный ценовой порог
+ *    `{minQty:1, price:<Medusa>, bonus:<бонус фармацевту>}`. Пользователь цену не задаёт;
+ *  - бонус фармацевту за продажу задаётся в админке (поле `pharmacistBonus`);
+ *  - фото/описание можно переопределить вручную (override-поля), если PIM-данные не устраивают;
+ *  - один товар не может быть в двух живых (не-archived) кампаниях.
+ */
 @Service
 class PromoService(
     private val promoRepository: PromoRepository,
+    private val medusaPriceService: MedusaPriceService,
 ) {
 
     @Transactional(readOnly = true)
@@ -33,6 +45,7 @@ class PromoService(
 
     @Transactional
     fun create(req: CreatePromoRequest, createdBy: String): PromoDto {
+        val medusaProductId = req.medusaProductId?.trim()?.takeIf { it.isNotBlank() }
         val entity = PromoEntity(
             id = generateId(),
             title = req.title.trim(),
@@ -41,16 +54,19 @@ class PromoService(
             budget = req.budget,
             kpi = req.kpi.trim(),
             cover = req.cover.trim(),
-            medusaProductId = req.medusaProductId?.trim()?.takeIf { it.isNotBlank() },
+            medusaProductId = medusaProductId,
             productName = req.productName.trim(),
             productImage = req.productImage?.trim()?.takeIf { it.isNotBlank() },
+            overrideImage = req.overrideImage?.trim()?.takeIf { it.isNotBlank() },
+            overrideDescription = req.overrideDescription?.trim()?.takeIf { it.isNotBlank() },
             dateStart = req.dateStart,
             dateEnd = req.dateEnd,
-            tiers = req.tiers.map { it.toEntity() },
             createdBy = createdBy,
         ).also {
             it.status = req.status ?: PromoStatus.draft
         }
+        // Цена — из Medusa (read-only), бонус — из запроса; кладём в единственный порог.
+        syncTier(entity, desiredBonus = req.pharmacistBonus, refetchPrice = true)
         validatePromo(entity)
         return PromoDto.of(promoRepository.save(entity))
     }
@@ -65,8 +81,7 @@ class PromoService(
                 HttpStatus.CONFLICT,
             )
         }
-        // Применяем урок из Bug G в Rules: PATCH не должен ставить archived
-        // (только через POST /archive — для audit-event'а и toast'а).
+        // Урок Bug G (Rules): PATCH не должен ставить archived (только через POST /archive).
         if (req.status == PromoStatus.archived) {
             throw AppException(
                 ErrorCode.VALIDATION_FAILED,
@@ -81,13 +96,22 @@ class PromoService(
         req.budget?.let { entity.budget = it }
         req.kpi?.let { entity.kpi = it.trim() }
         req.cover?.let { entity.cover = it.trim() }
-        // Товарная акция (PATCH-семантика: null = не трогаем; для tiers [] = очистить).
+        // Товарная акция. Смена товара → надо перетянуть цену из Medusa.
+        val productChanged = req.medusaProductId != null
         req.medusaProductId?.let { entity.medusaProductId = it.trim().takeIf { s -> s.isNotBlank() } }
         req.productName?.let { entity.productName = it.trim() }
         req.productImage?.let { entity.productImage = it.trim().takeIf { s -> s.isNotBlank() } }
+        // Override: пустая строка = очистить, иначе установить.
+        req.overrideImage?.let { entity.overrideImage = it.trim().takeIf { s -> s.isNotBlank() } }
+        req.overrideDescription?.let { entity.overrideDescription = it.trim().takeIf { s -> s.isNotBlank() } }
         req.dateStart?.let { entity.dateStart = it }
         req.dateEnd?.let { entity.dateEnd = it }
-        req.tiers?.let { entity.tiers = it.map { t -> t.toEntity() } }
+
+        // Пересобираем порог: бонус — из запроса (или текущий), цена — из Medusa при смене товара
+        // или если ещё не проставлена.
+        val desiredBonus = req.pharmacistBonus ?: entity.pharmacistBonus
+        syncTier(entity, desiredBonus = desiredBonus, refetchPrice = productChanged || entity.price == 0L)
+
         validatePromo(entity)
         return PromoDto.of(promoRepository.save(entity))
     }
@@ -101,9 +125,8 @@ class PromoService(
     }
 
     /**
-     * Bug L fix: восстановление кампании из архива. Возвращает status=draft
-     * (а не active) — admin должен явно её включить после ревью.
-     * Идемпотентно: на не-archived promo — no-op (возвращает текущий status).
+     * Bug L fix: восстановление кампании из архива → status=draft (явно включит после ревью).
+     * Идемпотентно: на не-archived promo — no-op.
      */
     @Transactional
     fun restore(id: String): PromoDto {
@@ -115,21 +138,36 @@ class PromoService(
 
     // ── Internals ─────────────────────────────────────────────────────────
 
+    /**
+     * Синхронизирует единственный ценовой порог кампании:
+     *   - товар не привязан → пороги пусты;
+     *   - привязан → [{minQty:1, price, bonus:desiredBonus}], где price из Medusa
+     *     (при refetchPrice=true), иначе сохраняем текущую цену.
+     */
+    private fun syncTier(e: PromoEntity, desiredBonus: Long, refetchPrice: Boolean) {
+        val mpid = e.medusaProductId
+        if (mpid == null) {
+            e.tiers = emptyList()
+            return
+        }
+        val price = if (refetchPrice) {
+            medusaPriceService.priceOf(mpid) ?: e.price
+        } else {
+            e.price
+        }
+        e.tiers = listOf(PromoTier(minQty = 1, price = price, bonus = desiredBonus.coerceAtLeast(0)))
+    }
+
     private fun loadOrThrow(id: String): PromoEntity =
         promoRepository.findById(id).orElseThrow {
-            AppException(
-                ErrorCode.NOT_FOUND,
-                "Promo $id not found",
-                HttpStatus.NOT_FOUND,
-            )
+            AppException(ErrorCode.NOT_FOUND, "Promo $id not found", HttpStatus.NOT_FOUND)
         }
 
     private fun generateId(): String = "pr_${UUID.randomUUID().toString().substring(0, 8)}"
 
     /**
-     * Бизнес-валидация товарной акции: даты согласованы, ценовые пороги строго
-     * по возрастанию количества (от 1 → от 10 → от 20). Поштучные Min-проверки
-     * (minQty>=1, price/bonus>=0) делает bean-validation на PromoTierDto.
+     * Бизнес-валидация: даты согласованы; активная кампания обязана иметь товар (1:1);
+     * один товар Medusa не может быть в двух живых (не-archived) кампаниях.
      */
     private fun validatePromo(e: PromoEntity) {
         val start = e.dateStart
@@ -141,23 +179,26 @@ class PromoService(
                 HttpStatus.BAD_REQUEST,
             )
         }
-        for (i in 1 until e.tiers.size) {
-            if (e.tiers[i].minQty <= e.tiers[i - 1].minQty) {
-                throw AppException(
-                    ErrorCode.VALIDATION_FAILED,
-                    "Пороги акции должны идти по возрастанию количества (minQty)",
-                    HttpStatus.BAD_REQUEST,
-                )
-            }
-        }
-        // Активная товарная акция без порогов попала бы в ленту как товар без цены —
-        // запрещаем активировать такую (в ленте они тоже отфильтровываются как защита).
-        if (e.status == PromoStatus.active && e.medusaProductId != null && e.tiers.isEmpty()) {
+        // Активная акция обязана быть привязана к товару (1 кампания = 1 товар).
+        if (e.status == PromoStatus.active && e.medusaProductId == null) {
             throw AppException(
                 ErrorCode.VALIDATION_FAILED,
-                "Активная акция должна иметь хотя бы один ценовой порог",
+                "Активную кампанию нужно привязать к товару",
                 HttpStatus.BAD_REQUEST,
             )
+        }
+        // 1:1 — товар не должен быть в другой живой кампании.
+        val mpid = e.medusaProductId
+        if (mpid != null && e.status != PromoStatus.archived) {
+            val clash = promoRepository.findAllByMedusaProductId(mpid)
+                .any { it.id != e.id && it.status != PromoStatus.archived }
+            if (clash) {
+                throw AppException(
+                    ErrorCode.CONFLICT,
+                    "Этот товар уже привязан к другой активной кампании",
+                    HttpStatus.CONFLICT,
+                )
+            }
         }
     }
 }

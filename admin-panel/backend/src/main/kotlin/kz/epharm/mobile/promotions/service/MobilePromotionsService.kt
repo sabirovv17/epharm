@@ -64,7 +64,9 @@ class MobilePromotionsService(
             brand = card?.brand ?: p.brand.takeIf { it.isNotBlank() },
             mnn = card?.mnn,
             rxOtc = card?.rxOtc,
-            imageUrl = card?.imageUrl ?: p.productImage,
+            // Приоритет: ручной override → живое фото Medusa → снимок при привязке.
+            imageUrl = p.overrideImage ?: card?.imageUrl ?: p.productImage,
+            overrideDescription = p.overrideDescription,
             barcode = card?.barcode,
             category = card?.category,
             categories = card?.categories ?: emptyList(),

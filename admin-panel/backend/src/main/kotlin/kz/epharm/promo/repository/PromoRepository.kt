@@ -11,4 +11,10 @@ interface PromoRepository : JpaRepository<PromoEntity, String> {
 
     /** Активные товарные акции для мобильной ленты (только с привязанным товаром Medusa). */
     fun findAllByStatusRawAndMedusaProductIdIsNotNullOrderByUpdatedAtDesc(statusRaw: String): List<PromoEntity>
+
+    /** Кампании на тот же товар Medusa — для проверки 1:1 (товар не должен быть в двух живых акциях). */
+    fun findAllByMedusaProductId(medusaProductId: String): List<PromoEntity>
+
+    /** Все товарные акции (с привязкой к Medusa) — для ежедневного рефреша цены. */
+    fun findAllByMedusaProductIdIsNotNull(): List<PromoEntity>
 }

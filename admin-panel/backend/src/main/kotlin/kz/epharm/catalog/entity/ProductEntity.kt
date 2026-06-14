@@ -34,6 +34,14 @@ class ProductEntity(
     @Column(name = "volume", nullable = false, length = 64)
     var volume: String = "",
 
+    /**
+     * Id товара витрины Medusa, если этот товар каталога — позиция витрины.
+     * По нему [kz.epharm.promo.service.PromoPriceScheduler] обновляет [price] раз в день,
+     * чтобы блок рекомендаций фармацевта всегда показывал актуальную цену. NULL у ручных товаров.
+     */
+    @Column(name = "medusa_product_id", length = 64)
+    var medusaProductId: String? = null,
+
     @Column(name = "created_at", nullable = false)
     var createdAt: Instant = Instant.now(),
 

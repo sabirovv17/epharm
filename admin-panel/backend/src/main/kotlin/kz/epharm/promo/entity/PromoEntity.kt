@@ -80,6 +80,14 @@ class PromoEntity(
     @Column(name = "product_image", length = 1024)
     var productImage: String? = null,
 
+    /** Ручная замена фото (приоритет над Medusa/снимком). NULL = берём из Medusa. */
+    @Column(name = "override_image", length = 1024)
+    var overrideImage: String? = null,
+
+    /** Ручная замена описания (приоритет над Medusa). NULL = берём из Medusa. */
+    @Column(name = "override_description", columnDefinition = "text")
+    var overrideDescription: String? = null,
+
     @Column(name = "date_start")
     var dateStart: LocalDate? = null,
 
@@ -103,6 +111,17 @@ class PromoEntity(
     var status: PromoStatus
         get() = PromoStatus.valueOf(statusRaw)
         set(value) { statusRaw = value.name }
+
+    /**
+     * Цена товара (read-only, из Medusa). Хранится в первом ценовом пороге;
+     * обновляется планировщиком [kz.epharm.promo.service.PromoPriceScheduler] раз в день.
+     */
+    val price: Long
+        get() = tiers.firstOrNull()?.price ?: 0
+
+    /** Бонус фармацевту за продажу (задаётся в админке). Хранится в пороге. */
+    val pharmacistBonus: Long
+        get() = tiers.maxOfOrNull { it.bonus } ?: 0
 
     @PrePersist
     fun onCreate() {

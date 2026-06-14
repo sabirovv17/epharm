@@ -47,37 +47,25 @@ class MobileCatalogService(
     }
 
     fun detail(id: String): MobileCatalogDetailDto = cache.get("detail|$id") {
+        // Товар обязан существовать в Medusa — никаких карточек «из воздуха» (T5).
         val p = medusa.getProduct(id)
-        // Товар есть в Medusa → полная карточка. Нет (демо-акция без товара витрины) →
-        // деградируем на снимок промо, чтобы тап по карточке не падал «Товар не найден».
-        if (p != null) detailOf(p) else promoFallbackDetail(id)
             ?: throw AppException(ErrorCode.NOT_FOUND, "Товар не найден", HttpStatus.NOT_FOUND)
+        applyPromoOverride(id, detailOf(p))
     }
 
-    /** Деталь из снимка промо, если товара нет в Medusa (демо-акции вне витрины). */
-    private fun promoFallbackDetail(medusaProductId: String): MobileCatalogDetailDto? {
-        val promo = promoRepository.findAll()
-            .firstOrNull { it.medusaProductId == medusaProductId } ?: return null
-        val facts = promo.tiers.filter { it.bonus > 0 }
-            .map { "Бонус от ${it.minQty} шт — ${it.bonus} ₸" }
-        return MobileCatalogDetailDto(
-            id = medusaProductId,
-            name = promo.productName.ifBlank { promo.title },
-            brand = promo.brand.takeIf { it.isNotBlank() },
-            mnn = null,
-            atc = null,
-            rxOtc = null,
-            price = promo.tiers.firstOrNull()?.price?.toInt(),
-            currency = "KZT",
-            imageUrl = promo.productImage,
-            images = listOfNotNull(promo.productImage),
-            barcode = null,
-            category = null,
-            country = null,
-            manufacturer = null,
-            description = "Акция Epharm — бонус начисляется при покупке этого товара.",
-            keyFacts = facts,
-            marketplaceLinks = emptyList(),
+    /**
+     * Накладывает ручные override-поля кампании (T1): если на этот товар есть акция с
+     * override-фото/описанием — показываем их вместо данных Medusa. «Заменить на своё
+     * в крайнем случае», когда PIM-данные не устраивают.
+     */
+    private fun applyPromoOverride(medusaProductId: String, base: MobileCatalogDetailDto): MobileCatalogDetailDto {
+        val promo = promoRepository.findAllByMedusaProductId(medusaProductId)
+            .firstOrNull { it.overrideImage != null || it.overrideDescription != null }
+            ?: return base
+        return base.copy(
+            imageUrl = promo.overrideImage ?: base.imageUrl,
+            images = promo.overrideImage?.let { listOf(it) } ?: base.images,
+            description = promo.overrideDescription ?: base.description,
         )
     }
 

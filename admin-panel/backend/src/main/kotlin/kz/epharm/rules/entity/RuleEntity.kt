@@ -114,6 +114,13 @@ class RuleEntity(
     @Column(name = "card", columnDefinition = "jsonb")
     var card: RuleCard? = null,
 
+    /**
+     * Кампания (promos.id), из которой сгенерировано правило. NULL — ручное правило (legacy).
+     * Правила замены/кросс-селла создаются из карточки кампании (см. PromoRulesService).
+     */
+    @Column(name = "promo_id", length = 64)
+    var promoId: String? = null,
+
     @Column(name = "pharmacies", nullable = false)
     var pharmacies: Int = 0,
 

@@ -82,6 +82,18 @@ data class ActiveSlideDto(
     val title: String,
 )
 
+/** Подключённые кассы (T4): сколько устройств онлайн + детали (для админ-виджета на экранах). */
+data class ConnectedRegistersDto(
+    val total: Int,
+    val devices: List<RegisterPresenceDto>,
+)
+
+data class RegisterPresenceDto(
+    val deviceId: String,
+    val pharmacyId: String?,
+    val lastSeen: Instant,
+)
+
 data class SlideDto(
     val id: String,
     val title: String,

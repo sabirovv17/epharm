@@ -61,10 +61,25 @@ data class RecommendationDto(
     val goalBonus: Int?,
 )
 
-/** Ответ Rules Engine: до 2 рекомендаций (substitution раньше crosssell, по бонусу DESC). */
+/**
+ * Конфликт правил для кассы (T2): почему замену/кросс-селл показать нельзя.
+ * Зеркалит C# Conflict. Касса показывает баннер «невозможно» вместо рекомендации.
+ */
+data class ConflictDto(
+    val kind: String,           // "ambiguous_substitution" | "contradiction"
+    val triggerName: String?,
+    val reason: String,
+    val ruleIds: List<String>,
+)
+
+/**
+ * Ответ Rules Engine: до 2 рекомендаций (substitution раньше crosssell, по бонусу DESC)
+ * + список конфликтов (если есть — касса сообщает о невозможности замены/кросс-селла).
+ */
 data class RecommendResponse(
     val sessionId: String,
     val recommendations: List<RecommendationDto>,
+    val conflicts: List<ConflictDto> = emptyList(),
 )
 
 /** Результат рекомендации: фармацевт принял замену/cross-sell или пропустил. */
@@ -117,3 +132,6 @@ data class PosSaleRequest(
 )
 
 data class PosSaleResponse(val saleId: String, val accepted: Boolean)
+
+/** Пульс кассы (T4): подтверждение, что устройство учтено как онлайн. */
+data class HeartbeatResponse(val ok: Boolean, val deviceId: String)

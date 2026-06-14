@@ -122,11 +122,13 @@ class MobilePromotionsIntegrationTest {
     }
 
     @Test
-    fun `админ создаёт товарную акцию с товаром, датами и порогами`() {
+    fun `админ создаёт товарную акцию с товаром, датами и бонусом фармацевту`() {
+        // T1: цена не передаётся (read-only из Medusa), бонус — единственное задаваемое поле.
+        // Medusa в тесте выключена → цена 0, бонус кладётся в единственный порог.
         val body = """
             {"title":"Лифта июнь","medusaProductId":"prod_lifta","productName":"Лифта 10мг",
              "brand":"Abdi Ibrahim","status":"active","dateStart":"2026-06-01","dateEnd":"2026-06-30",
-             "tiers":[{"minQty":1,"price":500,"bonus":0},{"minQty":10,"price":600,"bonus":900}]}
+             "pharmacistBonus":900}
         """.trimIndent()
         mockMvc.perform(
             post("/api/admin/promo").header("Authorization", bearer)
@@ -135,28 +137,15 @@ class MobilePromotionsIntegrationTest {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.medusaProductId").value("prod_lifta"))
             .andExpect(jsonPath("$.dateStart").value("2026-06-01"))
-            .andExpect(jsonPath("$.tiers.length()").value(2))
-            .andExpect(jsonPath("$.tiers[1].bonus").value(900))
+            .andExpect(jsonPath("$.pharmacistBonus").value(900))
+            .andExpect(jsonPath("$.tiers.length()").value(1))
+            .andExpect(jsonPath("$.tiers[0].bonus").value(900))
     }
 
     @Test
-    fun `немонотонные пороги (по количеству) → 400`() {
-        val body = """
-            {"title":"Кривые пороги","medusaProductId":"prod_z",
-             "tiers":[{"minQty":10,"price":600},{"minQty":5,"price":500}]}
-        """.trimIndent()
-        mockMvc.perform(
-            post("/api/admin/promo").header("Authorization", bearer)
-                .contentType(MediaType.APPLICATION_JSON).content(body),
-        ).andExpect(status().isBadRequest)
-    }
-
-    @Test
-    fun `активная акция с товаром, но без ценовых порогов → 400`() {
-        val body = """
-            {"title":"Без порогов","status":"active","medusaProductId":"prod_a",
-             "productName":"Товар","tiers":[]}
-        """.trimIndent()
+    fun `активная акция без привязанного товара → 400`() {
+        // T1: 1 кампания = 1 товар — активировать без товара нельзя.
+        val body = """{"title":"Без товара","status":"active"}"""
         mockMvc.perform(
             post("/api/admin/promo").header("Authorization", bearer)
                 .contentType(MediaType.APPLICATION_JSON).content(body),

@@ -1,6 +1,7 @@
 package kz.epharm.posm.service
 
 import kz.epharm.posm.dto.ComparisonRowDto
+import kz.epharm.posm.dto.ConflictDto
 import kz.epharm.posm.dto.OutcomeRequest
 import kz.epharm.posm.dto.OutcomeResponse
 import kz.epharm.posm.dto.RecommendRequest
@@ -49,7 +50,8 @@ class RecommendationService(
             .map { it.recommendSku }
             .toSet()
 
-        val ranked = rulesEngine.match(req.cart)
+        val matchResult = rulesEngine.match(req.cart)
+        val ranked = matchResult.matches
             .filter { it.recommend.id !in rejectedSkus }
             .take(MAX_RECOMMENDATIONS)
 
@@ -83,7 +85,10 @@ class RecommendationService(
                 goalBonus = goalBonus,
             )
         }
-        return RecommendResponse(sessionId = req.sessionId, recommendations = dtos)
+        val conflicts = matchResult.conflicts.map {
+            ConflictDto(kind = it.kind, triggerName = it.triggerName, reason = it.reason, ruleIds = it.ruleIds)
+        }
+        return RecommendResponse(sessionId = req.sessionId, recommendations = dtos, conflicts = conflicts)
     }
 
     /**

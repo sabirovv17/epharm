@@ -10,6 +10,7 @@ import kz.epharm.medusa.dto.MedusaProduct
 import kz.epharm.medusa.dto.MedusaProductListResponse
 import kz.epharm.medusa.dto.MedusaVariant
 import kz.epharm.mobile.catalog.service.MobileCatalogService
+import kz.epharm.promo.repository.PromoRepository
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -26,7 +27,12 @@ import org.junit.jupiter.api.Test
 class MobileCatalogServiceTest {
 
     private val medusa = mockk<MedusaClient>()
-    private val service = MobileCatalogService(medusa, MedusaCatalogCache(0))
+    // Промо-репозиторий нужен для наложения override-полей на деталь (T1); в этих тестах
+    // override-акций нет → стабим пустой список.
+    private val promoRepo = mockk<PromoRepository>(relaxed = true).also {
+        every { it.findAllByMedusaProductId(any()) } returns emptyList()
+    }
+    private val service = MobileCatalogService(medusa, MedusaCatalogCache(0), promoRepo)
 
     private fun stubList(vararg products: MedusaProduct, count: Int = products.size) {
         every { medusa.listProducts(any(), any(), any(), any(), any()) } returns
