@@ -21,7 +21,8 @@ import org.springframework.transaction.annotation.Transactional
  * или у товара нет цены — оставляем прошлое значение (не обнуляем). Один инстанс бэка
  * в проде → без распределённой блокировки.
  *
- * Cron: `app.promo.price-refresh-cron` (по умолчанию 03:00 каждый день).
+ * Cron: `app.promo.price-refresh-cron` (по умолчанию 06:00 Asia/Almaty — перед
+ * открытием аптек, чтобы к началу рабочего дня цены и блок рекомендаций были свежими).
  */
 @Service
 class PromoPriceScheduler(
@@ -31,7 +32,9 @@ class PromoPriceScheduler(
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    @Scheduled(cron = "\${app.promo.price-refresh-cron:0 0 3 * * *}")
+    // Таймзона зафиксирована Asia/Almaty: иначе @Scheduled берёт TZ JVM/контейнера
+    // (в проде UTC) и рефреш «уезжает» на 5 ч. По умолчанию 06:00 — перед открытием аптек.
+    @Scheduled(cron = "\${app.promo.price-refresh-cron:0 0 6 * * *}", zone = "Asia/Almaty")
     fun scheduledRefresh() {
         val summary = refreshNow()
         log.info(

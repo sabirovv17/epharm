@@ -51,6 +51,27 @@ export function useUpdatePromo() {
   })
 }
 
+/** Сводка ручного рефреша цен из Medusa. */
+export interface RefreshPricesSummary {
+  promosTotal: number
+  promosUpdated: number
+  productsTotal: number
+  productsUpdated: number
+}
+
+/**
+ * Ручной запуск рефреша цен из Medusa (та же логика, что ежедневный шедулер 06:00).
+ * После успеха инвалидируем список — обновлённые цены сразу видны.
+ */
+export function useRefreshPrices() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      api.post<RefreshPricesSummary>('/api/admin/promo/refresh-prices').then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: promoKeys.all }),
+  })
+}
+
 export function useArchivePromo() {
   const qc = useQueryClient()
   return useMutation({

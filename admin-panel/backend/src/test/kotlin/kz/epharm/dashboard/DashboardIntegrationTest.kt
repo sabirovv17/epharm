@@ -17,6 +17,9 @@ import kz.epharm.pharmacies.entity.PharmacyEntity
 import kz.epharm.pharmacies.entity.PharmacyGroup
 import kz.epharm.pharmacies.repository.ChainRepository
 import kz.epharm.pharmacies.repository.PharmacyRepository
+import kz.epharm.posm.entity.RecommendationEventEntity
+import kz.epharm.posm.entity.RecommendationOutcome
+import kz.epharm.posm.repository.RecommendationEventRepository
 import kz.epharm.rules.entity.RuleEntity
 import kz.epharm.rules.entity.RuleStatus
 import kz.epharm.rules.entity.RuleTrigger
@@ -41,8 +44,12 @@ import org.springframework.transaction.annotation.Transactional
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
-import java.math.BigDecimal
 
+/**
+ * Dashboard на РЕАЛЬНЫХ данных: KPI/топы агрегируются из recommendation_events
+ * (а не из денормализованных полей правил/аптек), выплаты — из payout_batches,
+ * avgLiftPct — из конверсии pilot/control.
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -75,6 +82,7 @@ class DashboardIntegrationTest {
     @Autowired private lateinit var pharmacyRepository: PharmacyRepository
     @Autowired private lateinit var chainRepository: ChainRepository
     @Autowired private lateinit var batchRepository: PayoutBatchRepository
+    @Autowired private lateinit var eventRepository: RecommendationEventRepository
     @Autowired private lateinit var adminUserRepository: AdminUserRepository
     @Autowired private lateinit var passwordEncoder: PasswordEncoder
 
@@ -82,6 +90,7 @@ class DashboardIntegrationTest {
 
     @BeforeEach
     fun seed() {
+        eventRepository.deleteAll()
         ruleRepository.deleteAll()
         productRepository.deleteAll()
         pharmacyRepository.deleteAll()
@@ -92,35 +101,29 @@ class DashboardIntegrationTest {
         productRepository.save(ProductEntity(id = "p_aquamaris", name = "Аквамарис", brand = "Jadran", vendor = "Jadran", mnn = "Sea water", price = 1800))
         productRepository.save(ProductEntity(id = "p_other", name = "Линекс", brand = "Sandoz", vendor = "Sandoz", mnn = "Probiotic", price = 2400))
 
-        // 2 живых правила + 1 архивное (должно исключаться из агрегаций)
+        // 2 живых правила + 1 архивное (исключается из агрегаций KPI).
         ruleRepository.save(
-            RuleEntity(id = "r_active", recommend = "p_aquamaris", impressions = 1000, accepts = 400,
-                convRate = BigDecimal("40.00"), revenue = 500_000,
-                trigger = RuleTrigger(kind = "product", value = "p_x"))
+            RuleEntity(id = "r_active", recommend = "p_aquamaris", trigger = RuleTrigger(kind = "product", value = "p_x"))
                 .also { it.type = RuleType.substitution; it.status = RuleStatus.active },
         )
         ruleRepository.save(
-            RuleEntity(id = "r_paused", recommend = "p_other", impressions = 500, accepts = 100,
-                convRate = BigDecimal("20.00"), revenue = 200_000,
-                trigger = RuleTrigger(kind = "product", value = "p_y"))
+            RuleEntity(id = "r_paused", recommend = "p_other", trigger = RuleTrigger(kind = "product", value = "p_y"))
                 .also { it.type = RuleType.crosssell; it.status = RuleStatus.paused },
         )
         ruleRepository.save(
-            RuleEntity(id = "r_archived", recommend = "p_aquamaris", impressions = 9999, accepts = 9999,
-                convRate = BigDecimal("99.00"), revenue = 9_999_999,
-                trigger = RuleTrigger(kind = "product", value = "p_z"))
+            RuleEntity(id = "r_archived", recommend = "p_aquamaris", trigger = RuleTrigger(kind = "product", value = "p_z"))
                 .also { it.type = RuleType.substitution; it.status = RuleStatus.archived },
         )
 
         chainRepository.save(ChainEntity(id = "ch1", name = "Europharma", color = "#2A2BE2", points = 100).also { it.group = PharmacyGroup.pilot })
-        pharmacyRepository.save(
-            PharmacyEntity(id = "ph_hi", name = "Аптека Лидер", chainId = "ch1", chainName = "Europharma", city = "Алматы",
-                liftPct = BigDecimal("12.00"), rulesAccepted = 300).also { it.group = PharmacyGroup.pilot },
-        )
-        pharmacyRepository.save(
-            PharmacyEntity(id = "ph_lo", name = "Аптека Тихая", chainId = "ch1", chainName = "Europharma", city = "Астана",
-                liftPct = BigDecimal("4.00"), rulesAccepted = 50).also { it.group = PharmacyGroup.control },
-        )
+        pharmacyRepository.save(PharmacyEntity(id = "ph_hi", name = "Аптека Лидер", chainId = "ch1", chainName = "Europharma", city = "Алматы").also { it.group = PharmacyGroup.pilot })
+        pharmacyRepository.save(PharmacyEntity(id = "ph_lo", name = "Аптека Тихая", chainId = "ch1", chainName = "Europharma", city = "Астана").also { it.group = PharmacyGroup.control })
+
+        // Реальные события:
+        //  r_active (p_aquamaris) в ph_hi (pilot): 50 показов, 20 принятых, 1000₸ → conv 40%, revenue 20000
+        //  r_paused (p_other)     в ph_lo (control): 50 показов, 10 принятых, 500₸ → conv 20%, revenue 5000
+        events("r_active", "ph_hi", "p_aquamaris", shown = 50, accepted = 20, amount = 1000)
+        events("r_paused", "ph_lo", "p_other", shown = 50, accepted = 10, amount = 500)
 
         batchRepository.save(PayoutBatchEntity(id = "pb_appr", period = "апрель", pharmacists = 10, amount = 800_000, items = 10).also { it.status = PayoutBatchStatus.approved })
         batchRepository.save(PayoutBatchEntity(id = "pb_pend", period = "май", pharmacists = 12, amount = 300_000, items = 12).also { it.status = PayoutBatchStatus.pending })
@@ -132,15 +135,30 @@ class DashboardIntegrationTest {
         bearer = "Bearer " + login().tokens.accessToken
     }
 
+    private fun events(ruleId: String, pharmacyId: String, sku: String, shown: Int, accepted: Int, amount: Long) {
+        repeat(shown) { i ->
+            val e = RecommendationEventEntity(
+                id = "rec_${ruleId}_$i",
+                sessionId = "s_${ruleId}_$i",
+                pharmacistId = "ph_$pharmacyId",
+                pharmacyId = pharmacyId,
+                ruleId = ruleId,
+                recommendSku = sku,
+                recommendName = if (sku == "p_aquamaris") "Аквамарис" else "Линекс",
+                expectedAmount = amount,
+                bonus = 100,
+            ).also { if (i < accepted) it.outcome = RecommendationOutcome.accepted }
+            eventRepository.save(e)
+        }
+    }
+
     @Test
-    fun `summary KPI агрегируется только по живым правилам`() {
+    fun `summary KPI агрегируется только по живым правилам из событий`() {
         mockMvc.perform(get("/api/admin/dashboard/summary").header("Authorization", bearer))
             .andExpect(status().isOk)
-            // impressions = 1000 + 500 (archived 9999 исключён)
-            .andExpect(jsonPath("$.impressions").value(1500))
-            .andExpect(jsonPath("$.accepts").value(500))
-            // convRate = 500/1500*100 = 33.3
-            .andExpect(jsonPath("$.convRate").value(33.3))
+            .andExpect(jsonPath("$.impressions").value(100)) // 50 + 50
+            .andExpect(jsonPath("$.accepts").value(30)) // 20 + 10
+            .andExpect(jsonPath("$.convRate").value(30.0))
             .andExpect(jsonPath("$.activeRules").value(1))
             .andExpect(jsonPath("$.totalRules").value(2))
     }
@@ -154,39 +172,41 @@ class DashboardIntegrationTest {
     }
 
     @Test
-    fun `summary pilot-аптеки и средний lift`() {
+    fun `summary pilot-аптеки и реальный lift из событий`() {
         mockMvc.perform(get("/api/admin/dashboard/summary").header("Authorization", bearer))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.pilotPharmacies").value(1))
-            .andExpect(jsonPath("$.avgLiftPct").value(12.0))
+            // pilot ph_hi conv 0.4 vs control ph_lo conv 0.2 → lift 100%
+            .andExpect(jsonPath("$.avgLiftPct").value(100.0))
     }
 
     @Test
-    fun `summary топ-правила отсортированы по convRate с именем продукта`() {
+    fun `summary топ-правила по реальной convRate с именем продукта`() {
         mockMvc.perform(get("/api/admin/dashboard/summary").header("Authorization", bearer))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.topRules.length()").value(2))
             .andExpect(jsonPath("$.topRules[0].id").value("r_active"))
             .andExpect(jsonPath("$.topRules[0].label").value("Аквамарис"))
             .andExpect(jsonPath("$.topRules[0].convRate").value(40.0))
+            .andExpect(jsonPath("$.topRules[0].accepts").value(20))
     }
 
     @Test
-    fun `summary топ-аптеки по принятым правилам`() {
+    fun `summary топ-аптеки по реальным принятым рекомендациям`() {
         mockMvc.perform(get("/api/admin/dashboard/summary").header("Authorization", bearer))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.topPharmacies[0].id").value("ph_hi"))
-            .andExpect(jsonPath("$.topPharmacies[0].rulesAccepted").value(300))
+            .andExpect(jsonPath("$.topPharmacies[0].rulesAccepted").value(20))
     }
 
     @Test
-    fun `summary топ-товары по выручке от замен`() {
+    fun `summary топ-товары по реальной выручке от принятых рекомендаций`() {
         mockMvc.perform(get("/api/admin/dashboard/summary").header("Authorization", bearer))
             .andExpect(status().isOk)
-            // p_aquamaris только из r_active (500k), r_archived исключён
+            // p_aquamaris: 20 принятых × 1000 = 20000 (больше, чем p_other 10 × 500 = 5000)
             .andExpect(jsonPath("$.topProducts[0].id").value("p_aquamaris"))
             .andExpect(jsonPath("$.topProducts[0].name").value("Аквамарис"))
-            .andExpect(jsonPath("$.topProducts[0].revenue").value(500_000))
+            .andExpect(jsonPath("$.topProducts[0].revenue").value(20_000))
     }
 
     @Test

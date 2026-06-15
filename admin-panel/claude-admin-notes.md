@@ -3224,3 +3224,41 @@ local/epharm-receipts/epharm-demo.apk'`. (`minio/mc` entrypoint = mc,
 
 **Gotcha:** ffmpeg `drawtext` не инициализируется в песочнице Claude Code («Either text… must be provided» даже на
 минимальном примере) — рендерим текст через PIL в PNG, затем ffmpeg делает видео из картинки (`-loop 1 ... fade`).
+
+---
+
+## Реальная аналитика + ежедневный рефреш Medusa (15.06.2026)
+
+Контекст: Dashboard/Lift читали ДЕНОРМАЛИЗОВАННЫЕ поля (`rule.impressions/accepts/convRate/revenue`,
+`pharmacy.liftPct/receipts30d/rulesAccepted`), которые НИКТО не наполнял событиями → в проде нули,
+lift = среднее заранее записанного поля (не AB-тест), `pValue` всегда null. Переписано на реальные данные.
+
+**A1 — аналитика на реальных событиях.** Единый источник правды — таблица `recommendation_events`
+(показ/accepted/rejected с pharmacyId/ruleId/recommendSku/expectedAmount/decidedAt) + `pos_sales` (реальные чеки).
+
+- `RecommendationEventRepository`: native-агрегаты `aggregateByRuleSince/aggregateBySkuSince/aggregateByPharmacySince`
+  (PostgreSQL `COUNT(*) FILTER (WHERE outcome='accepted')`). Проекции — Kotlin `val`-интерфейсы (НЕ `fun getX()`:
+  Kotlin не синтезирует property-доступ из метода-геттера для своих интерфейсов). Алиасы в кавычках (`AS "ruleId"`)
+  чтобы Postgres сохранил camelCase и Spring сопоставил с геттером.
+- `DashboardService`: impressions/accepts/convRate/topRules/topProducts(revenue)/topPharmacies — из событий за окно
+  `app.analytics.window-days` (90д). Грузит названия товаров точечно (`findAllById`), не весь каталог. avgLiftPct → из LiftService.
+- `LiftService`: конверсия = accepted/shown; networkLift=(convPilot−convControl)/convControl×100; pValue — двусторонний
+  z-тест пропорций (`LiftStatistics`, erf-аппроксимация). Нет показов в pilot/control → `insufficientData=true`, pValue=null
+  (честно «недостаточно данных», не врём числом). receipts30d — из `pos_sales` за 30д.
+- `PharmacyMetricsScheduler` (НОВЫЙ, @Scheduled 06:30 Asia/Almaty): ежедневно пересчитывает витринные поля реестра
+  аптек (receipts30d из pos_sales, rulesAccepted из событий) — чтобы «Сеть аптек» тоже показывала живое.
+- V026 — индексы под аналитику (rule_id/pharmacy_id/recommend_sku/shown_at + составной goal + pos_sales(pharmacy_id,printed_at)).
+- **Gotcha (Jackson):** поле `pValue` Kotlin сериализуется как `"pvalue"` (заглавная после одной строчной) → фронт ждёт
+  camelCase. Фикс: `@param:JsonProperty("pValue") @get:JsonProperty("pValue")`.
+
+**A2 — ежедневный рефреш Medusa перед рабочим днём.** `PromoPriceScheduler` уже был; добавлена явная TZ
+`zone="Asia/Almaty"` (иначе @Scheduled берёт TZ JVM=UTC и рефреш «уезжает» на 5ч) + дефолт 06:00 (перед открытием
+аптек). Конфиг `app.promo.price-refresh-cron`. Обновляет и цену промо-ленты, и `products.price` (цена в блоке
+рекомендаций POSM). Ручная кнопка «Обновить цены» в админке → `POST /api/admin/promo/refresh-prices` → `refreshNow()`.
+
+**A3 — счётчик касс.** Проверено: работает end-to-end (heartbeat 60с от C# с deviceId=MachineName → presence TTL →
+`/connected` → виджет «Подключено касс: N», polling 30с). Реализовывать нечего. (Находка аудита про race в
+`ConcurrentHashMap.entries.removeIf` — ложная: views ConcurrentHashMap безопасны при итеративном удалении, CME нет.)
+
+**Тесты:** `LiftIntegrationTest`/`DashboardIntegrationTest` переписаны — сеют реальные `recommendation_events`+`pos_sales`,
+проверяют конверсию/z-тест/выручку/топы. Фронт: LiftPage (insufficientData/значимость), PromoPage (кнопка рефреша).

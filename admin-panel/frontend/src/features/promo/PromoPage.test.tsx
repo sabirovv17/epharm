@@ -26,6 +26,7 @@ const promoHooks = vi.hoisted(() => ({
   useUpdatePromo: vi.fn(),
   useArchivePromo: vi.fn(),
   useRestorePromo: vi.fn(),
+  useRefreshPrices: vi.fn(),
 }))
 
 // PromoProductPicker дёргает useStorefront — мокаем, чтобы поиск товара отдавал фикстуру.
@@ -82,6 +83,7 @@ beforeEach(() => {
   promoHooks.useUpdatePromo.mockReturnValue({ mutate: vi.fn(), isPending: false })
   promoHooks.useArchivePromo.mockReturnValue({ mutate: vi.fn(), isPending: false })
   promoHooks.useRestorePromo.mockReturnValue({ mutate: vi.fn(), isPending: false })
+  promoHooks.useRefreshPrices.mockReturnValue({ mutate: vi.fn(), isPending: false })
   storefrontHooks.useStorefront.mockReturnValue({
     data: {
       items: [
@@ -416,5 +418,16 @@ describe('PromoPage — Create modal (товарная акция)', () => {
     await user.click(screen.getByText('Панкраген 0,2г капс. №60'))
     await user.click(screen.getByRole('button', { name: /Создать черновик/ }))
     expect(await screen.findByText(/уже привязан к другой активной кампании/)).toBeInTheDocument()
+  })
+})
+
+describe('PromoPage — ручной рефреш цен Medusa (A2)', () => {
+  it('кнопка «Обновить цены» вызывает useRefreshPrices.mutate', async () => {
+    const mutate = vi.fn()
+    promoHooks.useRefreshPrices.mockReturnValue({ mutate, isPending: false })
+    const user = userEvent.setup()
+    renderPromo()
+    await user.click(screen.getByRole('button', { name: /Обновить цены/ }))
+    expect(mutate).toHaveBeenCalled()
   })
 })

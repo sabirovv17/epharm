@@ -74,6 +74,17 @@ app:
     # Ключ устройства кассы (Module 2). POSM-клиент шлёт его в заголовке X-Posm-Key.
     # На MVP — общий ключ; в prod каждой кассе выдаётся свой (Stage 4).
     device-key: ${POSM_DEVICE_KEY:dev-posm-key}
+    # Сколько секунд пульс кассы считается «живым» (T4, GET /screens/connected).
+    heartbeat-ttl-seconds: ${POSM_HEARTBEAT_TTL:90}
+  promo:
+    # Ежедневный рефреш цен из Medusa (T1). Cron в TZ Asia/Almaty (зафиксирована в коде):
+    # 06:00 — перед открытием аптек, чтобы к рабочему дню цены и блок рекомендаций были свежими.
+    price-refresh-cron: ${PROMO_PRICE_REFRESH_CRON:0 0 6 * * *}
+  analytics:
+    # Окно (дни) для агрегации Dashboard/Lift из recommendation_events.
+    window-days: ${ANALYTICS_WINDOW_DAYS:90}
+    # Ежедневный пересчёт витринных метрик реестра аптек (receipts30d/rulesAccepted).
+    metrics-refresh-cron: ${ANALYTICS_METRICS_REFRESH_CRON:0 30 6 * * *}
   medusa:
     # Внешняя витрина inkar.kz на Medusa v2 (Module 3) — источник реального каталога.
     # Бэкенд ходит туда server-to-server и проксирует товары в мобильное приложение

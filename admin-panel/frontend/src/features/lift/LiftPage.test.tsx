@@ -15,7 +15,8 @@ vi.mock('@/lib/queries/lift', () => liftHooks)
 function mkSummary(over: Partial<LiftSummaryDto> = {}): LiftSummaryDto {
   return {
     networkLiftPct: 20,
-    pValue: null,
+    pValue: 0.012,
+    insufficientData: false,
     pilotCount: 3,
     controlCount: 1,
     rolledCount: 1,
@@ -73,9 +74,18 @@ describe('LiftPage — рендер', () => {
     expect(screen.getByTestId('lift-segment-Europharma')).toBeInTheDocument()
   })
 
-  it('P-value показывает «—» когда null', () => {
+  it('P-value показывает реальное значение и «статистически значимо»', () => {
     renderPage()
-    expect(screen.getAllByText('—').length).toBeGreaterThan(0)
+    expect(screen.getByText('0.012')).toBeInTheDocument()
+    expect(screen.getByText(/статистически значимо/i)).toBeInTheDocument()
+  })
+
+  it('insufficientData → lift и p-value «—», «недостаточно данных»', () => {
+    setSummary(mkSummary({ insufficientData: true, networkLiftPct: 0, pValue: null }))
+    renderPage()
+    // networkLift и P-value показывают «—» (не врём числом)
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getAllByText(/недостаточно данных/i).length).toBeGreaterThan(0)
   })
 })
 

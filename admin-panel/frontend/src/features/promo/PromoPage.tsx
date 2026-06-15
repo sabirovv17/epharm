@@ -33,6 +33,7 @@ import {
   useArchivePromo,
   useCreatePromo,
   usePromos,
+  useRefreshPrices,
   useRestorePromo,
   useUpdatePromo,
 } from '@/lib/queries/promo'
@@ -64,6 +65,15 @@ export default function PromoPage() {
   const archivePromo = useArchivePromo()
   const restorePromo = useRestorePromo()
   const createPromo = useCreatePromo()
+  const refreshPrices = useRefreshPrices()
+
+  const handleRefreshPrices = () => {
+    refreshPrices.mutate(undefined, {
+      onSuccess: (r) =>
+        toast.push(t('pm.pricesRefreshed', { p: r.promosUpdated, n: r.productsUpdated })),
+      onError: (e) => toast.push(`${t('pm.refreshErr')}: ${describeError(e)}`),
+    })
+  }
 
   const [q, setQ] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
@@ -126,14 +136,25 @@ export default function PromoPage() {
         actions={
           // Bug M fix: убрал «Экспорт» — onClick не был подключён, кнопка выглядела
           // сломанной. Вернётся в Этапе 7 (Operational polish) с реальной CSV-выгрузкой.
-          <Button
-            variant="primary"
-            size="md"
-            leading={<IconPlus size={14} />}
-            onClick={() => setCreateOpen(true)}
-          >
-            {t('pm.newCampaign')}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="md"
+              leading={<IconRefresh size={14} />}
+              onClick={handleRefreshPrices}
+              disabled={refreshPrices.isPending}
+            >
+              {refreshPrices.isPending ? t('pm.refreshing') : t('pm.refreshPrices')}
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              leading={<IconPlus size={14} />}
+              onClick={() => setCreateOpen(true)}
+            >
+              {t('pm.newCampaign')}
+            </Button>
+          </div>
         }
       />
 

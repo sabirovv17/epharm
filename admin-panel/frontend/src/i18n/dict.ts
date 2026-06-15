@@ -195,6 +195,8 @@ export const ru: Dict = {
   'lift.mNetwork': 'Lift по сети',
   'lift.receiptsPilot': '{n} чеков pilot',
   'lift.notEnoughShort': 'недостаточно данных',
+  'lift.significant': 'статистически значимо',
+  'lift.notSignificant': 'не значимо (p ≥ 0.05)',
   'lift.mPilot': 'Pilot-аптек',
   'lift.mControl': 'Control-аптек',
   'lift.weeklyTitle': 'Динамика по неделям',
@@ -733,6 +735,10 @@ export const ru: Dict = {
 
   // ── Promo (список + create-модалка) ─────────────────────────────────────
   'pm.newCampaign': 'Новая кампания',
+  'pm.refreshPrices': 'Обновить цены',
+  'pm.refreshing': 'Обновляю…',
+  'pm.pricesRefreshed': 'Цены обновлены: акций {p}, товаров {n}',
+  'pm.refreshErr': 'Не удалось обновить цены',
   'pm.mActive': 'Активных кампаний',
   'pm.ofN': 'из {n}',
   'pm.mBudget': 'Бюджет в работе',
@@ -1068,6 +1074,8 @@ export const kk: Dict = {
   'lift.mNetwork': 'Желі бойынша lift',
   'lift.receiptsPilot': '{n} pilot чегі',
   'lift.notEnoughShort': 'дерек жеткіліксіз',
+  'lift.significant': 'статистикалық маңызды',
+  'lift.notSignificant': 'маңызды емес (p ≥ 0.05)',
   'lift.mPilot': 'Pilot-дәріханалар',
   'lift.mControl': 'Control-дәріханалар',
   'lift.weeklyTitle': 'Апталар бойынша динамика',
@@ -1608,6 +1616,10 @@ export const kk: Dict = {
 
   // ── Promo ──────────────────────────────────────────────────────────────
   'pm.newCampaign': 'Жаңа науқан',
+  'pm.refreshPrices': 'Бағаны жаңарту',
+  'pm.refreshing': 'Жаңартудамын…',
+  'pm.pricesRefreshed': 'Бағалар жаңартылды: науқан {p}, тауар {n}',
+  'pm.refreshErr': 'Бағаны жаңарту сәтсіз',
   'pm.mActive': 'Белсенді науқандар',
   'pm.ofN': '{n} ішінен',
   'pm.mBudget': 'Жұмыстағы бюджет',

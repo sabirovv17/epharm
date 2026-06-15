@@ -1,7 +1,7 @@
 // Lift — Pilot vs Control аналитика прироста продаж.
-// Этап 3.6: подключён backend через useLiftSummary (read-only агрегация по аптекам).
-// Понедельный график остаётся Empty — временных рядов чеков в БД пока нет.
-// Сегменты по сетям — реальные. P-value не считаем без выборки (честно «—»).
+// РЕАЛЬНЫЕ данные: конверсия принятых рекомендаций pilot vs control (backend
+// агрегирует recommendation_events), networkLift и P-value (z-тест) — настоящие.
+// insufficientData=true (нет показов в группах) → показываем «—»/«мало данных».
 
 import { Button, Empty, Metric, PageHeader, SectionCard } from '@/ui'
 import { IconArrowUp, IconLift, IconPharmacy, IconShield } from '@/ui/icons'
@@ -30,7 +30,7 @@ export default function LiftPage() {
       <div className="grid grid-cols-4 gap-4">
         <Metric
           label={t('lift.mNetwork')}
-          value={s ? `+${s.networkLiftPct}%` : '—'}
+          value={s && !s.insufficientData ? `+${s.networkLiftPct}%` : '—'}
           accent="green"
           icon={<IconArrowUp size={16} />}
           sub={s ? t('lift.receiptsPilot', { n: formatNum(s.pilotReceipts30d) }) : undefined}
@@ -39,7 +39,13 @@ export default function LiftPage() {
           label="P-value"
           value={s?.pValue != null ? String(s.pValue) : '—'}
           accent="blue"
-          sub={t('lift.notEnoughShort')}
+          sub={
+            !s || s.insufficientData
+              ? t('lift.notEnoughShort')
+              : s.pValue != null && s.pValue < 0.05
+                ? t('lift.significant')
+                : t('lift.notSignificant')
+          }
         />
         <Metric
           label={t('lift.mPilot')}

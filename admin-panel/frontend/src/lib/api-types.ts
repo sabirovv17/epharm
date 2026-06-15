@@ -495,6 +495,8 @@ export interface LiftSegmentDto {
 export interface LiftSummaryDto {
   networkLiftPct: number
   pValue: number | null
+  /** true → нет показов в pilot и/или control: lift/pValue недостоверны. */
+  insufficientData: boolean
   pilotCount: number
   controlCount: number
   rolledCount: number

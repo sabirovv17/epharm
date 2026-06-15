@@ -8,6 +8,7 @@ import kz.epharm.promo.dto.PromoRulesConfigDto
 import kz.epharm.promo.dto.PromoRulesViewDto
 import kz.epharm.promo.dto.UpdatePromoRequest
 import kz.epharm.promo.entity.PromoStatus
+import kz.epharm.promo.service.PromoPriceScheduler
 import kz.epharm.promo.service.PromoRulesService
 import kz.epharm.promo.service.PromoService
 import kz.epharm.shared.error.AppException
@@ -31,11 +32,19 @@ import org.springframework.web.bind.annotation.RestController
 class PromoController(
     private val promoService: PromoService,
     private val promoRulesService: PromoRulesService,
+    private val promoPriceScheduler: PromoPriceScheduler,
 ) {
 
     @GetMapping
     fun list(@RequestParam(required = false) status: PromoStatus?): List<PromoDto> =
         promoService.list(status = status)
+
+    /**
+     * Ручной запуск рефреша цен из Medusa (та же логика, что и ежедневный шедулер в 06:00).
+     * Кнопка в админке «Обновить цены сейчас» — на случай срочной смены цены без ожидания утра.
+     */
+    @PostMapping("/refresh-prices")
+    fun refreshPrices(): PromoPriceScheduler.RefreshSummary = promoPriceScheduler.refreshNow()
 
     @GetMapping("/{id}")
     fun get(@PathVariable id: String): PromoDto = promoService.get(id)

@@ -1,16 +1,22 @@
 package kz.epharm.lift.dto
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 /**
- * Lift-аналитика (ТЗ §3.2 — Pilot vs Control).
- * Read-only агрегация поверх таблицы pharmacies. Своих таблиц нет.
+ * Lift-аналитика (ТЗ §3.2 — Pilot vs Control). РЕАЛЬНЫЕ данные:
+ * конверсия = принятые рекомендации / показы (из recommendation_events),
+ * networkLiftPct = (convPilot − convControl) / convControl × 100,
+ * pValue — двусторонний z-тест пропорций (см. [kz.epharm.lift.service.LiftStatistics]).
  *
- * pValue == null — намеренно: настоящая статзначимость требует временных рядов
- * чеков (понедельная выборка pilot/control), которых в БД пока нет. Не выдаём
- * фейковое число — фронт показывает «недостаточно данных».
+ * insufficientData == true и pValue == null — когда нет показов в pilot и/или control
+ * (кассы ещё не размечены на группы / нет событий). Фронт показывает «недостаточно
+ * данных» вместо фейкового числа.
  */
 data class LiftSummaryDto(
     val networkLiftPct: Double,
-    val pValue: Double?,
+    // Иначе Jackson сериализует pValue → "pvalue"; фронт ждёт camelCase "pValue".
+    @param:JsonProperty("pValue") @get:JsonProperty("pValue") val pValue: Double?,
+    val insufficientData: Boolean,
     val pilotCount: Int,
     val controlCount: Int,
     val rolledCount: Int,
