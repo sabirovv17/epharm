@@ -10,12 +10,11 @@
 // Общая «богатая карточка» (преимущества/сравнение/цель/партнёр) — в сворачиваемом блоке.
 
 import { useEffect, useState } from 'react'
-import { Button, Field, Input, Modal, Toggle, useToast } from '@/ui'
-import { IconChevDown, IconClose, IconPlus } from '@/ui/icons'
+import { Button, Field, Modal, useToast } from '@/ui'
+import { IconClose, IconPlus } from '@/ui/icons'
 import type {
   PromoRuleProductRef,
   PromoRulesConfigDto,
-  RuleComparisonRowDto,
   StorefrontProductDto,
 } from '@/lib/api-types'
 import { describeError } from '@/lib/describeError'
@@ -61,18 +60,11 @@ export function PromoRulesEditor({
   const save = useSavePromoRules()
 
   const [cfg, setCfg] = useState<PromoRulesConfigDto>(EMPTY_CONFIG)
-  const [advancedOpen, setAdvancedOpen] = useState(false)
 
   // Populate from server config on load / promo change.
   useEffect(() => {
     if (data) setCfg(data.config)
   }, [data])
-
-  // Сбрасываем раскрытие advanced-блока при переходе на другую кампанию,
-  // чтобы он не оставался открытым с данными прошлой кампании.
-  useEffect(() => setAdvancedOpen(false), [promoId])
-
-  const patch = (p: Partial<PromoRulesConfigDto>) => setCfg((c) => ({ ...c, ...p }))
 
   // ── Замены / кросс-селл ───────────────────────────────────────────────────
   const toggleIn = (key: ListKey) => (p: StorefrontProductDto) => {
@@ -95,19 +87,6 @@ export function PromoRulesEditor({
       ...c,
       [key]: c[key].map((r) => (r.medusaProductId === medusaProductId ? { ...r, script } : r)),
     }))
-
-  // ── Сравнение (таблица) ────────────────────────────────────────────────────
-  const addRow = () =>
-    patch({
-      comparison: [
-        ...cfg.comparison,
-        { label: '', triggerValue: '', recommendValue: '', recommendHighlight: false },
-      ],
-    })
-  const updateRow = (i: number, p: Partial<RuleComparisonRowDto>) =>
-    patch({ comparison: cfg.comparison.map((r, idx) => (idx === i ? { ...r, ...p } : r)) })
-  const removeRow = (i: number) =>
-    patch({ comparison: cfg.comparison.filter((_, idx) => idx !== i) })
 
   // Дедуп по medusaProductId (UI и так не даёт дублей, но защищаемся от случайных
   // дублей перед отправкой — иначе backend молча схлопнул бы их distinctBy).
@@ -186,127 +165,6 @@ export function PromoRulesEditor({
             onRemove={(idp) => removeFrom('crossSells', idp)}
             onScript={(idp, s) => setPairScript('crossSells', idp, s)}
           />
-
-          {/* Расширенная карточка — общее для всей кампании (необязательно). */}
-          <div className="hairline rounded-xl border">
-            <button
-              type="button"
-              onClick={() => setAdvancedOpen((o) => !o)}
-              className="flex w-full items-center justify-between px-3 py-2.5 text-left"
-              data-testid="pr-advanced-toggle"
-            >
-              <span className="text-[13px] font-bold text-ink-700">{t('pr.advancedSection')}</span>
-              <IconChevDown
-                size={16}
-                className={`text-ink-400 transition-transform ${advancedOpen ? 'rotate-180' : ''}`}
-              />
-            </button>
-            {advancedOpen && (
-              <div className="hairline flex flex-col gap-4 border-t p-3">
-                <Field label={t('pr.advantages')} hint={t('pr.advantagesHint')}>
-                  <textarea
-                    className="inp"
-                    rows={3}
-                    value={cfg.advantages.join('\n')}
-                    disabled={disabled}
-                    onChange={(e) => patch({ advantages: e.target.value.split('\n') })}
-                  />
-                </Field>
-
-                <Field label={t('pr.partnerLabel')}>
-                  <Input
-                    value={cfg.partnerLabel ?? ''}
-                    disabled={disabled}
-                    onChange={(e) => patch({ partnerLabel: e.target.value || null })}
-                    placeholder="ПАРТНЁР EPHARM"
-                  />
-                </Field>
-
-                <Field label={t('pr.comparison')} hint={t('pr.comparisonHint')}>
-                  <div className="flex flex-col gap-2">
-                    {cfg.comparison.map((row, i) => (
-                      <div
-                        key={i}
-                        className="hairline grid grid-cols-[1fr_1fr_1fr_auto] items-center gap-2 rounded-lg border bg-paper-input p-2"
-                        data-testid={`pr-cmp-row-${i}`}
-                      >
-                        <Input
-                          value={row.label}
-                          disabled={disabled}
-                          onChange={(e) => updateRow(i, { label: e.target.value })}
-                          placeholder={t('pr.colLabel')}
-                        />
-                        <Input
-                          value={row.triggerValue}
-                          disabled={disabled}
-                          onChange={(e) => updateRow(i, { triggerValue: e.target.value })}
-                          placeholder={t('pr.colWas')}
-                        />
-                        <Input
-                          value={row.recommendValue}
-                          disabled={disabled}
-                          onChange={(e) => updateRow(i, { recommendValue: e.target.value })}
-                          placeholder={t('pr.colNow')}
-                        />
-                        <div className="flex items-center gap-1.5">
-                          <Toggle
-                            on={row.recommendHighlight}
-                            onChange={(on) => updateRow(i, { recommendHighlight: on })}
-                          />
-                          {!disabled && (
-                            <button
-                              type="button"
-                              onClick={() => removeRow(i)}
-                              aria-label={t('pr.removeRow')}
-                              data-testid={`pr-cmp-remove-${i}`}
-                              className="text-ink-400 transition-colors hover:text-accent-danger"
-                            >
-                              <IconClose size={14} />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    {!disabled && (
-                      <Button variant="outline" onClick={addRow} leading={<IconPlus size={14} />}>
-                        {t('pr.addRow')}
-                      </Button>
-                    )}
-                  </div>
-                </Field>
-
-                <div className="grid grid-cols-3 gap-3">
-                  <Field label={t('pr.goalLabel')}>
-                    <Input
-                      value={cfg.goalLabel ?? ''}
-                      disabled={disabled}
-                      onChange={(e) => patch({ goalLabel: e.target.value || null })}
-                    />
-                  </Field>
-                  <Field label={t('pr.goalTarget')}>
-                    <Input
-                      type="number"
-                      value={cfg.goalTarget ?? ''}
-                      disabled={disabled}
-                      onChange={(e) =>
-                        patch({ goalTarget: e.target.value === '' ? null : Number(e.target.value) })
-                      }
-                    />
-                  </Field>
-                  <Field label={t('pr.goalBonus')}>
-                    <Input
-                      type="number"
-                      value={cfg.goalBonus ?? ''}
-                      disabled={disabled}
-                      onChange={(e) =>
-                        patch({ goalBonus: e.target.value === '' ? null : Number(e.target.value) })
-                      }
-                    />
-                  </Field>
-                </div>
-              </div>
-            )}
-          </div>
 
           {!disabled && (
             <div className="hairline flex items-center justify-end border-t pt-3">
