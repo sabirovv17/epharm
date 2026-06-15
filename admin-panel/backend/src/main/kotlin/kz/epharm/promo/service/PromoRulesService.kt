@@ -54,17 +54,30 @@ class PromoRulesService(
         val subs = rules.filter { it.type == RuleType.substitution }
         val cross = rules.filter { it.type == RuleType.crosssell }
 
-        // Восстанавливаем ссылки на товары из локального каталога.
-        val replacements = subs.mapNotNull { r -> (r.trigger.value as? String)?.let { productRef(it) } }
-        val crossSells = cross.mapNotNull { r -> productRef(r.recommend) }
+        // Восстанавливаем ссылки на товары из каталога + per-pair скрипт правила.
+        // Если товар удалён из каталога — НЕ теряем правило: показываем минимальный ref
+        // (id + script), чтобы админ всё равно видел/мог отредактировать/убрать пару
+        // (правило живо в БД и работает на кассе). Иначе UI «прятал» бы существующее правило.
+        val replacements = subs.mapNotNull { r ->
+            (r.trigger.value as? String)?.let { id ->
+                (productRef(id) ?: PromoRuleProductRefDto(medusaProductId = id, name = id))
+                    .copy(script = r.script)
+            }
+        }
+        val crossSells = cross.map { r ->
+            (productRef(r.recommend) ?: PromoRuleProductRefDto(medusaProductId = r.recommend, name = r.recommend))
+                .copy(script = r.script)
+        }
 
-        // Текст — общий, берём с первого правила (генерим одинаковым для всех).
+        // Общая «богатая карточка» (advantages/comparison/цель/партнёр) одинакова для всех
+        // правил — берём с первого. Скрипт теперь per-pair (в каждой ссылке выше), поэтому
+        // общий config.script отдаём пустым: дефолт применяется только при сохранении.
         val sample = rules.firstOrNull()
         val card = sample?.card
         val config = PromoRulesConfigDto(
             replacements = replacements,
             crossSells = crossSells,
-            script = sample?.script ?: "",
+            script = "",
             advantages = sample?.advantages ?: emptyList(),
             partnerLabel = card?.partnerLabel,
             comparison = card?.comparison.orEmpty().map {
@@ -117,7 +130,8 @@ class PromoRulesService(
                     id = generateRuleId(RuleType.substitution),
                     recommend = promoted.id,
                     bonus = bonus,
-                    script = config.script,
+                    // Per-pair скрипт пары; пусто → общий дефолт.
+                    script = ref.script.ifBlank { config.script },
                     advantages = config.advantages,
                     card = card,
                     trigger = RuleTrigger(kind = "product", value = trig.id),
@@ -135,7 +149,8 @@ class PromoRulesService(
                     id = generateRuleId(RuleType.crosssell),
                     recommend = companion.id,
                     bonus = bonus,
-                    script = config.script,
+                    // Per-pair скрипт пары; пусто → общий дефолт.
+                    script = ref.script.ifBlank { config.script },
                     advantages = config.advantages,
                     card = card,
                     trigger = RuleTrigger(kind = "product", value = promoted.id),

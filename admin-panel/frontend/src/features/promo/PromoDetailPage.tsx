@@ -16,7 +16,7 @@ import type { PromoStatus, UpdatePromoRequest } from '@/lib/api-types'
 import { describeError } from '@/lib/describeError'
 import { useT } from '@/i18n'
 import { useArchivePromo, usePromo, useRestorePromo, useUpdatePromo } from '@/lib/queries/promo'
-import { PromoProductPicker, type SelectedProduct } from './PromoProductPicker'
+import type { SelectedProduct } from './PromoProductPicker'
 import { PromoRulesEditor } from './PromoRulesEditor'
 
 interface FormState {
@@ -147,7 +147,6 @@ export default function PromoDetailPage() {
     form.budget !== String(promo.budget) ||
     form.kpi !== promo.kpi ||
     form.cover !== promo.cover ||
-    (form.product?.medusaProductId ?? null) !== promo.medusaProductId ||
     form.dateStart !== (promo.dateStart ?? '') ||
     form.dateEnd !== (promo.dateEnd ?? '') ||
     form.pharmacistBonus !== String(promo.pharmacistBonus) ||
@@ -167,6 +166,8 @@ export default function PromoDetailPage() {
       return
     }
     // price НЕ отправляем — read-only из Medusa. tiers тоже не шлём (T1).
+    // Продвигаемый товар (medusaProductId/productName/productImage) выбирается ТОЛЬКО при
+    // создании (1 кампания = 1 товар) и здесь НЕ редактируется — в patch его не кладём.
     const patch: UpdatePromoRequest = {
       title: form.title.trim(),
       brand: form.brand.trim(),
@@ -174,9 +175,6 @@ export default function PromoDetailPage() {
       budget: Number(form.budget) || 0,
       kpi: form.kpi.trim(),
       cover: form.cover.trim(),
-      medusaProductId: form.product?.medusaProductId ?? null,
-      productName: form.product?.productName ?? '',
-      productImage: form.product?.productImage ?? null,
       pharmacistBonus: Math.max(0, Math.trunc(Number(form.pharmacistBonus) || 0)),
       overrideImage: form.overrideImage.trim() || null,
       overrideDescription: form.overrideDescription.trim() || null,
@@ -276,19 +274,20 @@ export default function PromoDetailPage() {
             <div className="text-[13px] font-extrabold uppercase tracking-[0.06em] text-ink-500">
               {t('pd.productSection')}
             </div>
-            <Field label={t('pm.fldProduct')}>
-              {isArchived ? (
-                <div className="rounded-xl border border-ink-100 bg-paper-card px-3 py-2 text-[14px] font-bold text-ink-700">
+            {/* Продвигаемый товар выбирается ТОЛЬКО при создании кампании (1:1) и здесь
+                не меняется — показываем read-only. Замены/кросс-селл к нему — ниже. */}
+            <Field label={t('pm.fldProduct')} hint={t('pd.productLocked')}>
+              <div
+                className="rounded-xl border border-ink-100 bg-paper-card px-3 py-2.5"
+                data-testid="detail-product-readonly"
+              >
+                <div className="text-[14px] font-extrabold text-ink-900">
                   {form.product?.productName || t('pd.noProduct')}
                 </div>
-              ) : (
-                <PromoProductPicker
-                  value={form.product}
-                  onChange={(p) =>
-                    setForm((f) => ({ ...f, product: p, brand: p.brand || f.brand }))
-                  }
-                />
-              )}
+                {form.product?.brand && (
+                  <div className="text-[12px] font-bold text-ink-500">{form.product.brand}</div>
+                )}
+              </div>
             </Field>
 
             <div className="grid grid-cols-2 gap-4">

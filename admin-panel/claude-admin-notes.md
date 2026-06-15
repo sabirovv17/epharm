@@ -3262,3 +3262,32 @@ lift = среднее заранее записанного поля (не AB-т
 
 **Тесты:** `LiftIntegrationTest`/`DashboardIntegrationTest` переписаны — сеют реальные `recommendation_events`+`pos_sales`,
 проверяют конверсию/z-тест/выручку/топы. Фронт: LiftPage (insufficientData/значимость), PromoPage (кнопка рефреша).
+
+---
+
+## UX-редизайн редактора правил кампании (15.06.2026)
+
+Жалобы пользователя (скриншоты): на странице кампании висели полные пикеры на 27975 товаров;
+основной товар предлагалось менять (хотя 1 кампания=1 товар); описания были общие, а не по парам.
+
+**1. Основной товар — read-only на странице кампании.** `PromoDetailPage` больше НЕ рендерит
+`PromoProductPicker` — показывает привязанный товар как read-only (`detail-product-readonly`) с
+подсказкой «выбран при создании, не меняется». Выбор товара — только в `CreatePromoModal`.
+
+**2. Замены/кросс-селл — кнопка «Добавить» вместо вечного списка.** `PromoRulesEditor` переписан:
+новый `RuleSection` показывает список выбранных пар-карточек + кнопку «Добавить» (`pr-add-<key>`),
+которая открывает `Modal` с `MultiProductPicker` (поиск витрины). Полный список товаров на странице
+больше не висит — только по клику.
+
+**3. Per-pair скрипт «что сказать и почему».** Раньше `script` был общий на всю кампанию — теперь
+у КАЖДОЙ пары своя textarea (`pr-script-<id>`).
+
+- DTO: `PromoRuleProductRefDto.script` (+ фронт `PromoRuleProductRef.script`).
+- `PromoRulesService.replace`: `rule.script = ref.script.ifBlank { config.script }` (per-pair, общий — дефолт).
+- `PromoRulesService.view`: `ref.script = rule.script`, общий `config.script=""` (текст ушёл в пары).
+- Доходит до кассы как и раньше: `RecommendationService` возвращает `m.rule.script` per-rule.
+- Общая «богатая карточка» (advantages/comparison/goal/partner) осталась — в сворачиваемом advanced-блоке.
+
+**Тесты:** backend `PromoRulesIntegrationTest` (+per-pair save/view, +общий-как-дефолт); фронт
+`PromoRulesEditor.test` (per-pair textarea, «Добавить» открывает модалку, список не виден до клика,
+сохранение шлёт per-pair script). i18n ключи pr.\* + pd.productLocked (ru+kk). Все зелёные (backend + 339 фронт).

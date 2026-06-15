@@ -139,7 +139,9 @@ class PromoRulesIntegrationTest {
     }
 
     @Test
-    fun `GET возвращает сохранённую конфигурацию правил`() {
+    fun `GET возвращает сохранённую конфигурацию правил (общий скрипт как дефолт пары)`() {
+        // Общий script задан, у пары своего нет → попадает в правило как дефолт,
+        // и в GET виден per-pair (config.script теперь пустой — текст ушёл в пары).
         val body = """
             {"replacements":[{"medusaProductId":"prod_comp1","name":"Аквалор Норм"}],
              "crossSells":[],"script":"Скрипт","advantages":["Плюс"]}
@@ -153,8 +155,37 @@ class PromoRulesIntegrationTest {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.config.replacements.length()").value(1))
             .andExpect(jsonPath("$.config.replacements[0].medusaProductId").value("prod_comp1"))
-            .andExpect(jsonPath("$.config.script").value("Скрипт"))
+            .andExpect(jsonPath("$.config.replacements[0].script").value("Скрипт"))
+            .andExpect(jsonPath("$.config.script").value(""))
             .andExpect(jsonPath("$.ruleCount").value(1))
+    }
+
+    @Test
+    fun `per-pair скрипт сохраняется в правило и возвращается по паре`() {
+        // У каждой пары — СВОЙ скрипт. Должен попасть в rules.script именно её правила
+        // (это поле уходит на кассу) и вернуться в GET по соответствующей паре.
+        val body = """
+            {"replacements":[{"medusaProductId":"prod_comp1","name":"Аквалор Норм","script":"Замени на наш — мягче"}],
+             "crossSells":[{"medusaProductId":"prod_cross1","name":"Платочки","script":"Допродай платочки — пригодятся"}],
+             "script":""}
+        """.trimIndent()
+        mockMvc.perform(
+            put("/api/admin/promo/pr_camp/rules").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(body),
+        ).andExpect(status().isOk)
+
+        // В БД скрипт записан в нужное правило.
+        val rules = ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc("pr_camp")
+        val sub = rules.first { it.type == RuleType.substitution }
+        val cross = rules.first { it.type == RuleType.crosssell }
+        assertThat(sub.script).isEqualTo("Замени на наш — мягче")
+        assertThat(cross.script).isEqualTo("Допродай платочки — пригодятся")
+
+        // GET отдаёт per-pair скрипты обратно.
+        mockMvc.perform(get("/api/admin/promo/pr_camp/rules").header("Authorization", bearer))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.config.replacements[0].script").value("Замени на наш — мягче"))
+            .andExpect(jsonPath("$.config.crossSells[0].script").value("Допродай платочки — пригодятся"))
     }
 
     @Test

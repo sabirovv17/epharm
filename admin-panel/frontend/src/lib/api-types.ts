@@ -411,6 +411,8 @@ export interface PromoRuleProductRef {
   mnn?: string | null
   volume?: string | null
   price?: number | null
+  /** Скрипт ЭТОЙ пары: что сказать фармацевту и почему (видно на кассе). */
+  script?: string
 }
 
 export interface PromoRulesConfigDto {

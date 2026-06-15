@@ -30,6 +30,13 @@ data class PromoRuleProductRefDto(
     @field:Size(max = 64)
     val volume: String? = null,
     val price: Int? = null,
+    /**
+     * Скрипт ЭТОЙ пары (продвигаемый ↔ данный товар): что сказать фармацевту и почему.
+     * Попадает в `rules.script` именно этого правила → видно на кассе в рекомендации.
+     * Пусто → берётся общий [PromoRulesConfigDto.script] как дефолт.
+     */
+    @field:Size(max = 2000)
+    val script: String = "",
 )
 
 /** Строка таблицы сравнения (зеркало rules CardDto, но в пакете промо). */
