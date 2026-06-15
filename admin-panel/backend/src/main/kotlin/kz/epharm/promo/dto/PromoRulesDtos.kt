@@ -11,33 +11,11 @@ import jakarta.validation.constraints.Size
  * Кампания продвигает один товар (promos.medusaProductId). В её карточке админ задаёт:
  *  - replacements — товары, которые ЗАМЕНЯЕМ на продвигаемый (substitution);
  *  - crossSells   — товары, С которыми ПРЕДЛАГАЕМ продвигаемый (crosssell);
- *  - весь текст фармацевту (script, advantages, карточка-сравнение, цель).
+ *  - для КАЖДОЙ пары — поля, которые видны в блоке рекомендации на кассе
+ *    (скрипт, преимущества, метка партнёра, таблица-сравнение, цель).
  *
  * По save генерим/перезаписываем правила, привязанные к кампании (rules.promo_id).
  */
-
-/** Ссылка на товар витрины (выбран в пикере). Из неё апсертим локальный товар каталога. */
-data class PromoRuleProductRefDto(
-    @field:NotBlank
-    @field:Size(max = 64)
-    val medusaProductId: String,
-    @field:Size(max = 255)
-    val name: String = "",
-    @field:Size(max = 128)
-    val brand: String? = null,
-    @field:Size(max = 128)
-    val mnn: String? = null,
-    @field:Size(max = 64)
-    val volume: String? = null,
-    val price: Int? = null,
-    /**
-     * Скрипт ЭТОЙ пары (продвигаемый ↔ данный товар): что сказать фармацевту и почему.
-     * Попадает в `rules.script` именно этого правила → видно на кассе в рекомендации.
-     * Пусто → берётся общий [PromoRulesConfigDto.script] как дефолт.
-     */
-    @field:Size(max = 2000)
-    val script: String = "",
-)
 
 /** Строка таблицы сравнения (зеркало rules CardDto, но в пакете промо). */
 data class PromoComparisonRowDto(
@@ -51,7 +29,49 @@ data class PromoComparisonRowDto(
     val recommendHighlight: Boolean = false,
 )
 
-/** Полная конфигурация правил кампании (request на PUT и тело ответа на GET). */
+/**
+ * Пара кампании (продвигаемый ↔ данный товар) = ОДНА рекомендация на кассе.
+ * Несёт всё, что показывается в блоке рекомендации именно для этой пары.
+ * Пустые поля → берётся общий дефолт из [PromoRulesConfigDto] (обратная совместимость).
+ */
+data class PromoRuleProductRefDto(
+    @field:NotBlank
+    @field:Size(max = 64)
+    val medusaProductId: String,
+    @field:Size(max = 255)
+    val name: String = "",
+    @field:Size(max = 128)
+    val brand: String? = null,
+    @field:Size(max = 128)
+    val mnn: String? = null,
+    @field:Size(max = 64)
+    val volume: String? = null,
+    val price: Int? = null,
+    /** Скрипт пары: что сказать фармацевту и почему. → rules.script (видно на кассе). */
+    @field:Size(max = 2000)
+    val script: String = "",
+    /** Преимущества (по строке) этой рекомендации. → rules.advantages. */
+    val advantages: List<String> = emptyList(),
+    /** Метка партнёра на карточке кассы. */
+    @field:Size(max = 64)
+    val partnerLabel: String? = null,
+    /** Таблица-сравнение «было/стало» для этой пары. */
+    @field:Valid
+    val comparison: List<PromoComparisonRowDto> = emptyList(),
+    /** Цель «N/target <label>» + бонус за цель — для этой пары. */
+    @field:Size(max = 120)
+    val goalLabel: String? = null,
+    @field:Min(0)
+    val goalTarget: Int? = null,
+    @field:Min(0)
+    val goalBonus: Int? = null,
+)
+
+/**
+ * Полная конфигурация правил кампании (request на PUT и тело ответа на GET).
+ * Поля карточки теперь per-pair (в [PromoRuleProductRefDto]). Одноимённые поля здесь —
+ * необязательный ОБЩИЙ дефолт (применяется к паре, если у неё своё поле пустое).
+ */
 data class PromoRulesConfigDto(
     @field:Valid
     val replacements: List<PromoRuleProductRefDto> = emptyList(),

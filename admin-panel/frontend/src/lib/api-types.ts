@@ -411,8 +411,19 @@ export interface PromoRuleProductRef {
   mnn?: string | null
   volume?: string | null
   price?: number | null
-  /** Скрипт ЭТОЙ пары: что сказать фармацевту и почему (видно на кассе). */
+  // ── Поля, которые видны в блоке рекомендации на кассе (per-pair) ──────────
+  /** Скрипт ЭТОЙ пары: что сказать фармацевту и почему. */
   script?: string
+  /** Преимущества (по строке). */
+  advantages?: string[]
+  /** Метка партнёра. */
+  partnerLabel?: string | null
+  /** Таблица-сравнение «было/стало». */
+  comparison?: RuleComparisonRowDto[]
+  /** Цель «N/target» + бонус за цель. */
+  goalLabel?: string | null
+  goalTarget?: number | null
+  goalBonus?: number | null
 }
 
 export interface PromoRulesConfigDto {

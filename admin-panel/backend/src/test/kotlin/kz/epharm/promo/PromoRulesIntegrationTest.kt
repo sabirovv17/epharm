@@ -189,6 +189,41 @@ class PromoRulesIntegrationTest {
     }
 
     @Test
+    fun `per-pair поля карточки (преимущества-сравнение-цель) сохраняются и возвращаются по паре`() {
+        // Поля «блока рекомендации» теперь у каждой пары свои → в её правило (rules.advantages/card).
+        val body = """
+            {"replacements":[{"medusaProductId":"prod_comp1","name":"Аквалор Норм",
+              "advantages":["Дешевле","Мягче"],
+              "partnerLabel":"ПАРТНЁР",
+              "comparison":[{"label":"Объём","triggerValue":"15мл","recommendValue":"30мл","recommendHighlight":true}],
+              "goalLabel":"замен","goalTarget":10,"goalBonus":500}],
+             "crossSells":[]}
+        """.trimIndent()
+        mockMvc.perform(
+            put("/api/admin/promo/pr_camp/rules").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(body),
+        ).andExpect(status().isOk)
+
+        // В БД: поля попали в правило именно этой пары.
+        val rule = ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc("pr_camp")
+            .first { it.type == RuleType.substitution }
+        assertThat(rule.advantages).containsExactly("Дешевле", "Мягче")
+        assertThat(rule.card?.partnerLabel).isEqualTo("ПАРТНЁР")
+        assertThat(rule.card?.comparison).hasSize(1)
+        assertThat(rule.card?.goalTarget).isEqualTo(10)
+        assertThat(rule.card?.goalBonus).isEqualTo(500)
+
+        // GET возвращает поля per-pair.
+        mockMvc.perform(get("/api/admin/promo/pr_camp/rules").header("Authorization", bearer))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.config.replacements[0].advantages[0]").value("Дешевле"))
+            .andExpect(jsonPath("$.config.replacements[0].partnerLabel").value("ПАРТНЁР"))
+            .andExpect(jsonPath("$.config.replacements[0].comparison[0].label").value("Объём"))
+            .andExpect(jsonPath("$.config.replacements[0].comparison[0].recommendHighlight").value(true))
+            .andExpect(jsonPath("$.config.replacements[0].goalTarget").value(10))
+    }
+
+    @Test
     fun `PUT для кампании без товара → 400`() {
         promoRepository.save(
             PromoEntity(id = "pr_noprod", title = "Без товара").also { it.status = PromoStatus.draft },

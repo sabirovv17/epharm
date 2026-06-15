@@ -54,39 +54,24 @@ class PromoRulesService(
         val subs = rules.filter { it.type == RuleType.substitution }
         val cross = rules.filter { it.type == RuleType.crosssell }
 
-        // Восстанавливаем ссылки на товары из каталога + per-pair скрипт правила.
+        // Восстанавливаем ссылки на товары из каталога + ВСЕ per-pair поля карточки
+        // (скрипт/преимущества/партнёр/сравнение/цель) из самого правила.
         // Если товар удалён из каталога — НЕ теряем правило: показываем минимальный ref
-        // (id + script), чтобы админ всё равно видел/мог отредактировать/убрать пару
-        // (правило живо в БД и работает на кассе). Иначе UI «прятал» бы существующее правило.
+        // (id + поля карточки), чтобы админ всё равно видел/мог отредактировать/убрать пару.
         val replacements = subs.mapNotNull { r ->
             (r.trigger.value as? String)?.let { id ->
-                (productRef(id) ?: PromoRuleProductRefDto(medusaProductId = id, name = id))
-                    .copy(script = r.script)
+                reconstructRef(productRef(id) ?: PromoRuleProductRefDto(medusaProductId = id, name = id), r)
             }
         }
         val crossSells = cross.map { r ->
-            (productRef(r.recommend) ?: PromoRuleProductRefDto(medusaProductId = r.recommend, name = r.recommend))
-                .copy(script = r.script)
+            reconstructRef(
+                productRef(r.recommend) ?: PromoRuleProductRefDto(medusaProductId = r.recommend, name = r.recommend),
+                r,
+            )
         }
 
-        // Общая «богатая карточка» (advantages/comparison/цель/партнёр) одинакова для всех
-        // правил — берём с первого. Скрипт теперь per-pair (в каждой ссылке выше), поэтому
-        // общий config.script отдаём пустым: дефолт применяется только при сохранении.
-        val sample = rules.firstOrNull()
-        val card = sample?.card
-        val config = PromoRulesConfigDto(
-            replacements = replacements,
-            crossSells = crossSells,
-            script = "",
-            advantages = sample?.advantages ?: emptyList(),
-            partnerLabel = card?.partnerLabel,
-            comparison = card?.comparison.orEmpty().map {
-                PromoComparisonRowDto(it.label, it.triggerValue, it.recommendValue, it.recommendHighlight)
-            },
-            goalLabel = card?.goalLabel,
-            goalTarget = card?.goalTarget,
-            goalBonus = card?.goalBonus,
-        )
+        // Верхний уровень config — нейтральный: все поля карточки теперь per-pair (в refs выше).
+        val config = PromoRulesConfigDto(replacements = replacements, crossSells = crossSells)
         return PromoRulesViewDto(
             promoId = promoId,
             config = config,
@@ -111,7 +96,6 @@ class PromoRulesService(
         // Локальный товар-продвигаемый (recommend для замен, trigger для кросс-селла).
         val promoted = upsertPromotedProduct(promo, promotedMedusaId)
 
-        val card = buildCard(config)
         val bonus = promo.pharmacistBonus.toInt()
         val status = if (promo.status == PromoStatus.active) RuleStatus.active else RuleStatus.draft
 
@@ -130,10 +114,10 @@ class PromoRulesService(
                     id = generateRuleId(RuleType.substitution),
                     recommend = promoted.id,
                     bonus = bonus,
-                    // Per-pair скрипт пары; пусто → общий дефолт.
+                    // Поля карточки кассы — per-pair; пусто → общий дефолт из config.
                     script = ref.script.ifBlank { config.script },
-                    advantages = config.advantages,
-                    card = card,
+                    advantages = ref.advantages.ifEmpty { config.advantages },
+                    card = cardFor(ref, config),
                     trigger = RuleTrigger(kind = "product", value = trig.id),
                     createdBy = createdBy,
                 ).also { it.type = RuleType.substitution; it.status = status; it.promoId = promoId }
@@ -149,10 +133,10 @@ class PromoRulesService(
                     id = generateRuleId(RuleType.crosssell),
                     recommend = companion.id,
                     bonus = bonus,
-                    // Per-pair скрипт пары; пусто → общий дефолт.
+                    // Поля карточки кассы — per-pair; пусто → общий дефолт из config.
                     script = ref.script.ifBlank { config.script },
-                    advantages = config.advantages,
-                    card = card,
+                    advantages = ref.advantages.ifEmpty { config.advantages },
+                    card = cardFor(ref, config),
                     trigger = RuleTrigger(kind = "product", value = promoted.id),
                     createdBy = createdBy,
                 ).also { it.type = RuleType.crosssell; it.status = status; it.promoId = promoId }
@@ -169,25 +153,48 @@ class PromoRulesService(
             AppException(ErrorCode.NOT_FOUND, "Promo $promoId not found", HttpStatus.NOT_FOUND)
         }
 
-    private fun buildCard(config: PromoRulesConfigDto): RuleCard? {
-        val partner = config.partnerLabel?.takeIf { it.isNotBlank() }
-        val comparison = config.comparison.map {
+    /**
+     * Карточка кассы для ПАРЫ: поля берутся из самой пары, пустые — из общего config-дефолта.
+     * Если в итоге нечего показывать (всё пусто) → null (карточки на кассе не будет).
+     */
+    private fun cardFor(ref: PromoRuleProductRefDto, config: PromoRulesConfigDto): RuleCard? {
+        val partner = (ref.partnerLabel ?: config.partnerLabel)?.takeIf { it.isNotBlank() }
+        val rows = ref.comparison.ifEmpty { config.comparison }
+        val comparison = rows.map {
             RuleComparisonRow(it.label, it.triggerValue, it.recommendValue, it.recommendHighlight)
         }
-        val goalLabel = config.goalLabel?.takeIf { it.isNotBlank() }
+        val goalLabel = (ref.goalLabel ?: config.goalLabel)?.takeIf { it.isNotBlank() }
+        val goalTarget = ref.goalTarget ?: config.goalTarget
+        val goalBonus = ref.goalBonus ?: config.goalBonus
         val hasAny = partner != null || comparison.isNotEmpty() || goalLabel != null ||
-            config.goalTarget != null || config.goalBonus != null
+            goalTarget != null || goalBonus != null
         return if (hasAny) {
             RuleCard(
                 partnerLabel = partner,
                 comparison = comparison,
                 goalLabel = goalLabel,
-                goalTarget = config.goalTarget,
-                goalBonus = config.goalBonus,
+                goalTarget = goalTarget,
+                goalBonus = goalBonus,
             )
         } else {
             null
         }
+    }
+
+    /** Восстанавливает все per-pair поля карточки в ref из правила (для view/GET). */
+    private fun reconstructRef(base: PromoRuleProductRefDto, rule: RuleEntity): PromoRuleProductRefDto {
+        val card = rule.card
+        return base.copy(
+            script = rule.script,
+            advantages = rule.advantages,
+            partnerLabel = card?.partnerLabel,
+            comparison = card?.comparison.orEmpty().map {
+                PromoComparisonRowDto(it.label, it.triggerValue, it.recommendValue, it.recommendHighlight)
+            },
+            goalLabel = card?.goalLabel,
+            goalTarget = card?.goalTarget,
+            goalBonus = card?.goalBonus,
+        )
     }
 
     /** Локальный товар под продвигаемый (id = medusaProductId; имя/цена из кампании/Medusa). */

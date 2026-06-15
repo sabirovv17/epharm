@@ -1,20 +1,17 @@
-// PromoRulesEditor (T2 + UX-редизайн) — секция «Замены и кросс-селл» на странице кампании.
+// PromoRulesEditor (T2 + per-pair карточка) — секция «Замены и кросс-селл».
 //
 // Модель: 1 кампания = 1 продвигаемый товар (выбран при создании, тут НЕ меняется).
-// Здесь админ настраивает по нему правила:
-//   • «Замены»     — товары, которые ЗАМЕНЯЕТ продвигаемый товар (substitution);
-//   • «Кросс-селл» — товары, ВМЕСТЕ с которыми он предлагается (cross-sell).
-// Для КАЖДОЙ пары — своё описание «что сказать фармацевту и почему» (per-pair script),
-// которое уходит в rules.script именно этого правила → видно на кассе.
-// Товары добавляются по кнопке «Добавить» (модалка с поиском), а не вечным списком.
-// Общая «богатая карточка» (преимущества/сравнение/цель/партнёр) — в сворачиваемом блоке.
+// Каждая пара (замена/кросс-селл) = ОДНА рекомендация на кассе и несёт СВОИ поля,
+// которые на ней показываются: скрипт «что сказать и почему», преимущества, метка
+// партнёра, таблица-сравнение, цель. Товары добавляются по кнопке «Добавить» (модалка).
 
 import { useEffect, useState } from 'react'
-import { Button, Field, Modal, useToast } from '@/ui'
-import { IconClose, IconPlus } from '@/ui/icons'
+import { Button, Field, Input, Modal, Toggle, useToast } from '@/ui'
+import { IconChevDown, IconClose, IconPlus } from '@/ui/icons'
 import type {
   PromoRuleProductRef,
   PromoRulesConfigDto,
+  RuleComparisonRowDto,
   StorefrontProductDto,
 } from '@/lib/api-types'
 import { describeError } from '@/lib/describeError'
@@ -44,6 +41,12 @@ function toRef(p: StorefrontProductDto): PromoRuleProductRef {
     mnn: p.mnn,
     price: p.price,
     script: '',
+    advantages: [],
+    partnerLabel: null,
+    comparison: [],
+    goalLabel: null,
+    goalTarget: null,
+    goalBonus: null,
   }
 }
 
@@ -82,32 +85,38 @@ export function PromoRulesEditor({
       ...c,
       [key]: c[key].filter((r) => r.medusaProductId !== medusaProductId),
     }))
-  const setPairScript = (key: ListKey, medusaProductId: string, script: string) =>
+  const updatePair = (key: ListKey, medusaProductId: string, patch: Partial<PromoRuleProductRef>) =>
     setCfg((c) => ({
       ...c,
-      [key]: c[key].map((r) => (r.medusaProductId === medusaProductId ? { ...r, script } : r)),
+      [key]: c[key].map((r) => (r.medusaProductId === medusaProductId ? { ...r, ...patch } : r)),
     }))
 
-  // Дедуп по medusaProductId (UI и так не даёт дублей, но защищаемся от случайных
-  // дублей перед отправкой — иначе backend молча схлопнул бы их distinctBy).
+  // Дедуп по medusaProductId + чистка per-pair полей перед отправкой.
   const dedupe = (list: PromoRuleProductRef[]) => [
     ...new Map(list.map((r) => [r.medusaProductId, r])).values(),
   ]
+  const cleanRef = (r: PromoRuleProductRef): PromoRuleProductRef => ({
+    ...r,
+    script: (r.script ?? '').trim(),
+    advantages: (r.advantages ?? []).map((a) => a.trim()).filter((a) => a.length > 0),
+    comparison: (r.comparison ?? []).filter((row) => row.label.trim().length > 0),
+    partnerLabel: r.partnerLabel?.trim() || null,
+    goalLabel: r.goalLabel?.trim() || null,
+  })
 
   const onSave = () => {
     const config: PromoRulesConfigDto = {
       ...cfg,
-      // Скрипт теперь per-pair; общий не используем.
+      // Все поля карточки теперь per-pair; общий уровень оставляем пустым.
       script: '',
-      replacements: dedupe(cfg.replacements).map((r) => ({
-        ...r,
-        script: (r.script ?? '').trim(),
-      })),
-      crossSells: dedupe(cfg.crossSells).map((r) => ({ ...r, script: (r.script ?? '').trim() })),
-      advantages: cfg.advantages.map((a) => a.trim()).filter((a) => a.length > 0),
-      comparison: cfg.comparison.filter((r) => r.label.trim().length > 0),
-      partnerLabel: cfg.partnerLabel?.trim() || null,
-      goalLabel: cfg.goalLabel?.trim() || null,
+      advantages: [],
+      partnerLabel: null,
+      comparison: [],
+      goalLabel: null,
+      goalTarget: null,
+      goalBonus: null,
+      replacements: dedupe(cfg.replacements).map(cleanRef),
+      crossSells: dedupe(cfg.crossSells).map(cleanRef),
     }
     save.mutate(
       { promoId, config },
@@ -151,7 +160,7 @@ export function PromoRulesEditor({
             disabled={disabled}
             onToggle={toggleIn('replacements')}
             onRemove={(idp) => removeFrom('replacements', idp)}
-            onScript={(idp, s) => setPairScript('replacements', idp, s)}
+            onPatch={(idp, p) => updatePair('replacements', idp, p)}
           />
 
           <RuleSection
@@ -163,7 +172,7 @@ export function PromoRulesEditor({
             disabled={disabled}
             onToggle={toggleIn('crossSells')}
             onRemove={(idp) => removeFrom('crossSells', idp)}
-            onScript={(idp, s) => setPairScript('crossSells', idp, s)}
+            onPatch={(idp, p) => updatePair('crossSells', idp, p)}
           />
 
           {!disabled && (
@@ -185,9 +194,8 @@ export function PromoRulesEditor({
 }
 
 /**
- * Секция правил (замены ИЛИ кросс-селл): список выбранных пар-карточек с per-pair
- * скриптом + кнопка «Добавить» (открывает модалку-поиск). Полный список товаров
- * больше НЕ висит на странице — только по кнопке.
+ * Секция правил (замены ИЛИ кросс-селл): список выбранных пар + кнопка «Добавить»
+ * (открывает модалку-поиск). Каждая пара = карточка [PairCard] со своими полями.
  */
 function RuleSection({
   sectionKey,
@@ -198,7 +206,7 @@ function RuleSection({
   disabled,
   onToggle,
   onRemove,
-  onScript,
+  onPatch,
 }: {
   sectionKey: ListKey
   titleKey: string
@@ -208,7 +216,7 @@ function RuleSection({
   disabled: boolean
   onToggle: (p: StorefrontProductDto) => void
   onRemove: (medusaProductId: string) => void
-  onScript: (medusaProductId: string, script: string) => void
+  onPatch: (medusaProductId: string, patch: Partial<PromoRuleProductRef>) => void
 }) {
   const t = useT()
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -220,41 +228,13 @@ function RuleSection({
       ) : (
         <ul className="flex flex-col gap-2" data-testid={`pr-list-${sectionKey}`}>
           {items.map((r) => (
-            <li
+            <PairCard
               key={r.medusaProductId}
-              data-testid={`pr-chosen-${r.medusaProductId}`}
-              className="hairline flex flex-col gap-2 rounded-xl border bg-paper-card p-3"
-            >
-              <div className="flex items-center gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px] font-bold text-ink-900">{r.name}</div>
-                  {r.brand && (
-                    <div className="truncate text-[11px] font-semibold text-ink-500">{r.brand}</div>
-                  )}
-                </div>
-                {!disabled && (
-                  <button
-                    type="button"
-                    onClick={() => onRemove(r.medusaProductId)}
-                    aria-label={t('pr.removePair')}
-                    data-testid={`pr-remove-${r.medusaProductId}`}
-                    className="text-ink-400 transition-colors hover:text-accent-danger"
-                  >
-                    <IconClose size={14} />
-                  </button>
-                )}
-              </div>
-              <textarea
-                className="inp text-[13px]"
-                rows={2}
-                value={r.script ?? ''}
-                disabled={disabled}
-                placeholder={t('pr.pairScriptPh')}
-                aria-label={t('pr.pairScript')}
-                data-testid={`pr-script-${r.medusaProductId}`}
-                onChange={(e) => onScript(r.medusaProductId, e.target.value)}
-              />
-            </li>
+              r={r}
+              disabled={disabled}
+              onRemove={() => onRemove(r.medusaProductId)}
+              onPatch={(p) => onPatch(r.medusaProductId, p)}
+            />
           ))}
         </ul>
       )}
@@ -287,5 +267,215 @@ function RuleSection({
         <MultiProductPicker selectedIds={items.map((r) => r.medusaProductId)} onPick={onToggle} />
       </Modal>
     </Field>
+  )
+}
+
+/**
+ * Карточка одной пары: товар + скрипт + сворачиваемые поля рекомендации
+ * (преимущества / метка партнёра / сравнение / цель) — всё, что видно на кассе.
+ */
+function PairCard({
+  r,
+  disabled,
+  onRemove,
+  onPatch,
+}: {
+  r: PromoRuleProductRef
+  disabled: boolean
+  onRemove: () => void
+  onPatch: (patch: Partial<PromoRuleProductRef>) => void
+}) {
+  const t = useT()
+  const [open, setOpen] = useState(false)
+  const cmp = r.comparison ?? []
+  const setComparison = (rows: RuleComparisonRowDto[]) => onPatch({ comparison: rows })
+
+  return (
+    <li
+      data-testid={`pr-chosen-${r.medusaProductId}`}
+      className="hairline flex flex-col gap-2 rounded-xl border bg-paper-card p-3"
+    >
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13px] font-bold text-ink-900">{r.name}</div>
+          {r.brand && (
+            <div className="truncate text-[11px] font-semibold text-ink-500">{r.brand}</div>
+          )}
+        </div>
+        {!disabled && (
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label={t('pr.removePair')}
+            data-testid={`pr-remove-${r.medusaProductId}`}
+            className="text-ink-400 transition-colors hover:text-accent-danger"
+          >
+            <IconClose size={14} />
+          </button>
+        )}
+      </div>
+
+      <textarea
+        className="inp text-[13px]"
+        rows={2}
+        value={r.script ?? ''}
+        disabled={disabled}
+        placeholder={t('pr.pairScriptPh')}
+        aria-label={t('pr.pairScript')}
+        data-testid={`pr-script-${r.medusaProductId}`}
+        onChange={(e) => onPatch({ script: e.target.value })}
+      />
+
+      {/* Поля, которые показываются в блоке рекомендации на кассе (per-pair). */}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1.5 self-start text-[12px] font-bold text-brand-green-700"
+        data-testid={`pr-card-toggle-${r.medusaProductId}`}
+      >
+        <IconChevDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+        {t('pr.cardFields')}
+      </button>
+
+      {open && (
+        <div className="hairline flex flex-col gap-3 rounded-lg border bg-paper-input p-3">
+          <Field label={t('pr.advantages')} hint={t('pr.advantagesHint')}>
+            <textarea
+              className="inp text-[13px]"
+              rows={2}
+              value={(r.advantages ?? []).join('\n')}
+              disabled={disabled}
+              data-testid={`pr-adv-${r.medusaProductId}`}
+              onChange={(e) => onPatch({ advantages: e.target.value.split('\n') })}
+            />
+          </Field>
+
+          <Field label={t('pr.partnerLabel')}>
+            <Input
+              value={r.partnerLabel ?? ''}
+              disabled={disabled}
+              onChange={(e) => onPatch({ partnerLabel: e.target.value || null })}
+              placeholder="ПАРТНЁР EPHARM"
+            />
+          </Field>
+
+          <Field label={t('pr.comparison')} hint={t('pr.comparisonHint')}>
+            <div className="flex flex-col gap-2">
+              {cmp.map((row, i) => (
+                <div
+                  key={i}
+                  className="grid grid-cols-[1fr_1fr_1fr_auto] items-center gap-2"
+                  data-testid={`pr-cmp-${r.medusaProductId}-${i}`}
+                >
+                  <Input
+                    value={row.label}
+                    disabled={disabled}
+                    onChange={(e) =>
+                      setComparison(
+                        cmp.map((x, idx) => (idx === i ? { ...x, label: e.target.value } : x)),
+                      )
+                    }
+                    placeholder={t('pr.colLabel')}
+                  />
+                  <Input
+                    value={row.triggerValue}
+                    disabled={disabled}
+                    onChange={(e) =>
+                      setComparison(
+                        cmp.map((x, idx) =>
+                          idx === i ? { ...x, triggerValue: e.target.value } : x,
+                        ),
+                      )
+                    }
+                    placeholder={t('pr.colWas')}
+                  />
+                  <Input
+                    value={row.recommendValue}
+                    disabled={disabled}
+                    onChange={(e) =>
+                      setComparison(
+                        cmp.map((x, idx) =>
+                          idx === i ? { ...x, recommendValue: e.target.value } : x,
+                        ),
+                      )
+                    }
+                    placeholder={t('pr.colNow')}
+                  />
+                  <div className="flex items-center gap-1.5">
+                    <Toggle
+                      on={row.recommendHighlight}
+                      onChange={(on) =>
+                        setComparison(
+                          cmp.map((x, idx) => (idx === i ? { ...x, recommendHighlight: on } : x)),
+                        )
+                      }
+                    />
+                    {!disabled && (
+                      <button
+                        type="button"
+                        onClick={() => setComparison(cmp.filter((_, idx) => idx !== i))}
+                        aria-label={t('pr.removeRow')}
+                        className="text-ink-400 transition-colors hover:text-accent-danger"
+                      >
+                        <IconClose size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {!disabled && (
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    setComparison([
+                      ...cmp,
+                      {
+                        label: '',
+                        triggerValue: '',
+                        recommendValue: '',
+                        recommendHighlight: false,
+                      },
+                    ])
+                  }
+                  leading={<IconPlus size={14} />}
+                >
+                  {t('pr.addRow')}
+                </Button>
+              )}
+            </div>
+          </Field>
+
+          <div className="grid grid-cols-3 gap-2">
+            <Field label={t('pr.goalLabel')}>
+              <Input
+                value={r.goalLabel ?? ''}
+                disabled={disabled}
+                onChange={(e) => onPatch({ goalLabel: e.target.value || null })}
+              />
+            </Field>
+            <Field label={t('pr.goalTarget')}>
+              <Input
+                type="number"
+                value={r.goalTarget ?? ''}
+                disabled={disabled}
+                onChange={(e) =>
+                  onPatch({ goalTarget: e.target.value === '' ? null : Number(e.target.value) })
+                }
+              />
+            </Field>
+            <Field label={t('pr.goalBonus')}>
+              <Input
+                type="number"
+                value={r.goalBonus ?? ''}
+                disabled={disabled}
+                onChange={(e) =>
+                  onPatch({ goalBonus: e.target.value === '' ? null : Number(e.target.value) })
+                }
+              />
+            </Field>
+          </div>
+        </div>
+      )}
+    </li>
   )
 }

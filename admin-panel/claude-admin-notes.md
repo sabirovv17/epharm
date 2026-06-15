@@ -3291,3 +3291,29 @@ lift = среднее заранее записанного поля (не AB-т
 **Тесты:** backend `PromoRulesIntegrationTest` (+per-pair save/view, +общий-как-дефолт); фронт
 `PromoRulesEditor.test` (per-pair textarea, «Добавить» открывает модалку, список не виден до клика,
 сохранение шлёт per-pair script). i18n ключи pr.\* + pd.productLocked (ru+kk). Все зелёные (backend + 339 фронт).
+
+---
+
+## Поля карточки рекомендации — per-pair (15.06.2026)
+
+После удаления общего блока «Расширенная карточка» пользователь уточнил: поля, которые
+показываются в блоке рекомендации на кассе, нужны У КАЖДОЙ ПАРЫ замены/кросс-селла свои
+(каждая пара = отдельная рекомендация). Перенёс с уровня кампании на уровень пары.
+
+**Бэк (без миграции — RuleEntity уже хранит advantages + card per-rule):**
+
+- `PromoRuleProductRefDto`: + advantages, partnerLabel, comparison, goalLabel/goalTarget/goalBonus
+  (script уже был). Общие одноимённые поля в `PromoRulesConfigDto` остались как fallback-дефолт.
+- `PromoRulesService.replace`: каждое правило получает `advantages = ref.advantages.ifEmpty{config}`,
+  `card = cardFor(ref, config)` (поля пары, пустые → общий дефолт), `script = ref.script.ifBlank{config}`.
+- `view`: `reconstructRef(base, rule)` восстанавливает все per-pair поля из правила; верхний
+  config — нейтральный (пустой), всё в refs.
+- Доходит до кассы как и раньше: RecommendationService отдаёт rule.script/advantages/card per-rule.
+
+**Фронт:** `PairCard` — на каждую пару карточка: товар + скрипт + сворачиваемый блок «Поля
+рекомендации на кассе» (преимущества/партнёр/сравнение-таблица/цель). Кнопка `pr-card-toggle-<id>`.
+onSave: per-pair поля чистятся (trim/empty→null), общий уровень пустой. i18n: pr.cardFields (ru+kk),
+переиспользованы pr.advantages/comparison/colLabel/goal\* и т.д.
+
+**Тесты:** PromoRulesIntegrationTest (+ per-pair card: advantages/comparison/goal в правило и обратно),
+фронт PromoRulesEditor.test (per-pair script + «Добавить»). Все зелёные (backend + 339 фронт).
