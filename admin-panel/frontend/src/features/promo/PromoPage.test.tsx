@@ -397,4 +397,24 @@ describe('PromoPage — Create modal (товарная акция)', () => {
     expect(cell.tagName).not.toBe('INPUT')
     expect(cell.textContent).toMatch(/4\s?990/)
   })
+
+  it('ошибка создания: тост показывает конкретную причину от backend (а не общую)', async () => {
+    // Регрессия: раньше catch {} глотал сообщение → пользователь видел только
+    // «Не удалось создать кампанию». Теперь сообщение backend (1:1-конфликт) видно.
+    const mutateAsync = vi.fn().mockRejectedValue({
+      isAxiosError: true,
+      message: 'Request failed with status code 409',
+      response: {
+        status: 409,
+        data: { code: 'CONFLICT', message: 'Этот товар уже привязан к другой активной кампании' },
+      },
+    })
+    promoHooks.useCreatePromo.mockReturnValue({ mutateAsync, isPending: false })
+    const user = userEvent.setup()
+    renderPromo()
+    await user.click(screen.getAllByRole('button', { name: /Новая кампания/ })[0])
+    await user.click(screen.getByText('Панкраген 0,2г капс. №60'))
+    await user.click(screen.getByRole('button', { name: /Создать черновик/ }))
+    expect(await screen.findByText(/уже привязан к другой активной кампании/)).toBeInTheDocument()
+  })
 })

@@ -96,7 +96,9 @@ export default function PromoPage() {
       { id: p.id, patch: { status: next } },
       {
         onSuccess: () => toast.push(next === 'active' ? t('pm.resumed') : t('pm.pausedToast')),
-        onError: () => toast.push(t('pm.toggleErr')),
+        // Включение draft→active может упасть на тех же бизнес-правилах
+        // (товар не привязан / занят другой кампанией) — показываем причину.
+        onError: (e) => toast.push(`${t('pm.toggleErr')}: ${describeError(e)}`),
       },
     )
   }
@@ -251,8 +253,11 @@ export default function PromoPage() {
             await createPromo.mutateAsync(req)
             toast.push(t('pm.createdToast'))
             setCreateOpen(false)
-          } catch {
-            toast.push(t('pm.createErr'))
+          } catch (e) {
+            // Раскрываем конкретную причину от backend (1:1-конфликт товара,
+            // несогласованные даты и т.п.) — иначе пользователь видит лишь
+            // бесполезное «Не удалось создать кампанию».
+            toast.push(`${t('pm.createErr')}: ${describeError(e)}`)
           }
         }}
         pending={createPromo.isPending}
