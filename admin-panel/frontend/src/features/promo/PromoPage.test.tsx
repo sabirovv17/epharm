@@ -352,6 +352,20 @@ describe('PromoPage — Create modal (товарная акция)', () => {
     expect(screen.getByRole('button', { name: /Создать черновик/ })).toBeEnabled()
   })
 
+  it('цвет обложки: палитра видна, выбранный цвет уходит в create', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue(mkPromo())
+    promoHooks.useCreatePromo.mockReturnValue({ mutateAsync, isPending: false })
+    const user = userEvent.setup()
+    renderPromo()
+    await user.click(screen.getAllByRole('button', { name: /Новая кампания/ })[0])
+    // палитра цвета обложки доступна сразу при создании (дефолт — основной зелёный)
+    expect(screen.getByRole('button', { name: '#16C97A' })).toBeInTheDocument()
+    await user.click(screen.getByText('Панкраген 0,2г капс. №60'))
+    await user.click(screen.getByRole('button', { name: '#2A2BE2' })) // выбрать синий
+    await user.click(screen.getByRole('button', { name: /Создать черновик/ }))
+    expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ cover: '#2A2BE2' }))
+  })
+
   it('submit вызывает useCreatePromo.mutateAsync с товаром и статусом draft', async () => {
     const mutateAsync = vi.fn().mockResolvedValue(mkPromo())
     promoHooks.useCreatePromo.mockReturnValue({ mutateAsync, isPending: false })

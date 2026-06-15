@@ -22,6 +22,7 @@ interface FormState {
   product: SelectedProduct | null
   title: string
   titleTouched: boolean
+  cover: string
   dateStart: string
   dateEnd: string
   pharmacistBonus: string
@@ -33,12 +34,64 @@ const initial = (): FormState => ({
   product: null,
   title: '',
   titleTouched: false,
+  // Дефолт — основной брендовый зелёный (как шапка/навбар), чтобы у новой
+  // кампании сразу была осмысленная обложка.
+  cover: '#16C97A',
   dateStart: '',
   dateEnd: '',
   pharmacistBonus: '0',
   overrideImage: '',
   overrideDescription: '',
 })
+
+/// Пресеты цвета обложки (палитра Epharm + акценты). Источник — design-tokens.
+const COVER_PRESETS = [
+  '#16C97A', // brand green 600 (основной)
+  '#0F8F55', // green 700
+  '#3DCDA2', // green 400
+  '#2A2BE2', // blue 600
+  '#3F47F0', // blue 500
+  '#F4B73A', // amber
+  '#E5484D', // red
+  '#5A6173', // ink 500
+]
+
+/// Выбор цвета обложки: пресеты-кружки + нативный пикер «свой цвет». Активный
+/// пресет — кольцо + галочка. Значение — hex (#RRGGBB), как ждёт backend (cover).
+function CoverColorPicker({ value, onChange }: { value: string; onChange: (c: string) => void }) {
+  const norm = value.trim().toLowerCase()
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {COVER_PRESETS.map((c) => {
+        const active = norm === c.toLowerCase()
+        return (
+          <button
+            key={c}
+            type="button"
+            aria-label={c}
+            aria-pressed={active}
+            onClick={() => onChange(c)}
+            className={`flex h-8 w-8 items-center justify-center rounded-full transition ${
+              active ? 'ring-2 ring-ink-900 ring-offset-2' : 'ring-1 ring-black/10'
+            }`}
+            style={{ backgroundColor: c }}
+          >
+            {active && <IconCheck size={14} className="text-white" />}
+          </button>
+        )
+      })}
+      {/* Свой цвет — нативный color-picker (swatch показывает текущее значение). */}
+      <input
+        type="color"
+        value={/^#[0-9a-fA-F]{6}$/.test(value) ? value : '#16C97A'}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-8 w-8 cursor-pointer rounded-full border border-black/10 bg-transparent p-0"
+        aria-label="Свой цвет обложки"
+        title="Свой цвет"
+      />
+    </div>
+  )
+}
 
 export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePromoModalProps) {
   const t = useT()
@@ -56,6 +109,7 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
     onCreate({
       title: form.title.trim(),
       status: 'draft',
+      cover: form.cover,
       medusaProductId: form.product.medusaProductId,
       productName: form.product.productName,
       productImage: form.product.productImage,
@@ -123,6 +177,13 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
             value={form.title}
             onChange={(e) => setForm({ ...form, title: e.target.value, titleTouched: true })}
             placeholder={t('pm.titlePh')}
+          />
+        </Field>
+
+        <Field label={t('pm.fldCover')}>
+          <CoverColorPicker
+            value={form.cover}
+            onChange={(c) => setForm((f) => ({ ...f, cover: c }))}
           />
         </Field>
 
