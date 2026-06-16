@@ -89,6 +89,19 @@ class CatalogMarketplaceLink {
       );
 }
 
+/// Вопрос-ответ из ПИМ (Medusa metadata.faq).
+class CatalogQaItem {
+  const CatalogQaItem({required this.q, required this.a});
+
+  final String q;
+  final String a;
+
+  factory CatalogQaItem.fromJson(Map<String, dynamic> j) => CatalogQaItem(
+        q: j['q'] as String? ?? '',
+        a: j['a'] as String? ?? '',
+      );
+}
+
 class CatalogProductDetail {
   const CatalogProductDetail({
     required this.id,
@@ -108,6 +121,7 @@ class CatalogProductDetail {
     this.description,
     this.keyFacts = const [],
     this.marketplaceLinks = const [],
+    this.qa = const [],
   });
 
   final String id;
@@ -127,6 +141,7 @@ class CatalogProductDetail {
   final String? description;
   final List<String> keyFacts;
   final List<CatalogMarketplaceLink> marketplaceLinks;
+  final List<CatalogQaItem> qa;
 
   bool get isRx => (rxOtc ?? '').toLowerCase() == 'rx';
 
@@ -153,6 +168,10 @@ class CatalogProductDetail {
         marketplaceLinks: ((j['marketplaceLinks'] as List?) ?? const [])
             .whereType<Map<String, dynamic>>()
             .map(CatalogMarketplaceLink.fromJson)
+            .toList(),
+        qa: ((j['qa'] as List?) ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(CatalogQaItem.fromJson)
             .toList(),
       );
 }

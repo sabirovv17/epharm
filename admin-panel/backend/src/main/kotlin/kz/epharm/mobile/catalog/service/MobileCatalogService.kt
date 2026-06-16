@@ -7,6 +7,7 @@ import kz.epharm.mobile.catalog.dto.MobileCatalogDetailDto
 import kz.epharm.mobile.catalog.dto.MobileCatalogMarketplaceLinkDto
 import kz.epharm.mobile.catalog.dto.MobileCatalogPageDto
 import kz.epharm.mobile.catalog.dto.MobileCatalogProductDto
+import kz.epharm.mobile.catalog.dto.MobileCatalogQaDto
 import kz.epharm.mobile.catalog.dto.MobileCategoryDto
 import kz.epharm.promo.repository.PromoRepository
 import kz.epharm.shared.error.AppException
@@ -136,6 +137,7 @@ class MobileCatalogService(
             ?: p.subtitle?.trim()?.takeIf { it.isNotBlank() },
         keyFacts = metaStrList(p, "key_facts"),
         marketplaceLinks = marketplaceLinks(p),
+        qa = faqList(p),
     )
 
     private fun nameOf(p: MedusaProduct): String =
@@ -205,6 +207,17 @@ class MobileCatalogService(
                     url = (m["url"] as? String)?.trim()?.takeIf { it.isNotBlank() },
                     price = (m["price"] as? Number)?.toInt(),
                 )
+            }
+            ?: emptyList()
+
+    /** Вопрос-ответ из metadata.faq: список объектов {q, a}; пустые/битые пропускаем. */
+    private fun faqList(p: MedusaProduct): List<MobileCatalogQaDto> =
+        (p.metadata?.get("faq") as? List<*>)
+            ?.mapNotNull { it as? Map<*, *> }
+            ?.mapNotNull { m ->
+                val q = (m["q"] as? String)?.trim()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val a = (m["a"] as? String)?.trim()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                MobileCatalogQaDto(q = q, a = a)
             }
             ?: emptyList()
 

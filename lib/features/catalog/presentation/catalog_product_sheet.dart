@@ -198,6 +198,12 @@ class _CatalogProductSheet extends ConsumerWidget {
           const SizedBox(height: 6),
           ...d.keyFacts.map(_bullet),
         ],
+        if (d.qa.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          const _SectionTitle('Вопросы и ответы'),
+          const SizedBox(height: 6),
+          ...d.qa.map(_qaItem),
+        ],
         if (d.marketplaceLinks.isNotEmpty) ...[
           const SizedBox(height: 14),
           const _SectionTitle('Цены на маркетплейсах'),
@@ -241,6 +247,40 @@ class _CatalogProductSheet extends ConsumerWidget {
                 color: AppColors.ink700,
                 height: 1.35,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _qaItem(CatalogQaItem item) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            item.q,
+            style: const TextStyle(
+              fontFamily: 'Manrope',
+              fontFamilyFallback: ['Roboto', 'sans-serif'],
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: AppColors.ink900,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            item.a,
+            style: const TextStyle(
+              fontFamily: 'Manrope',
+              fontFamilyFallback: ['Roboto', 'sans-serif'],
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppColors.ink700,
+              height: 1.35,
             ),
           ),
         ],

@@ -34,6 +34,12 @@ data class MobileCatalogMarketplaceLinkDto(
     val price: Int?,
 )
 
+/** Вопрос-ответ из ПИМ (Medusa metadata.faq) для карточки товара. */
+data class MobileCatalogQaDto(
+    val q: String,
+    val a: String,
+)
+
 data class MobileCatalogDetailDto(
     val id: String,
     val name: String,
@@ -52,6 +58,8 @@ data class MobileCatalogDetailDto(
     val description: String?,
     val keyFacts: List<String>,
     val marketplaceLinks: List<MobileCatalogMarketplaceLinkDto>,
+    /** Вопрос-ответ из ПИМ (Medusa metadata.faq). Пусто — секции Q&A нет. */
+    val qa: List<MobileCatalogQaDto>,
 )
 
 data class MobileCategoryDto(
