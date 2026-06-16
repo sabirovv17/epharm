@@ -246,6 +246,37 @@ class CatalogRecommendations {
       );
 }
 
+/// Глобальные пулы рекомендаций для пилюль ленты каталога:
+///  - alternatives — «Альтернативы» (всё, что продвигаем как замены);
+///  - crosssells   — «Дополнения» (всё, что продвигаем как кросс-селл).
+/// В отличие от [CatalogRecommendations] — не привязаны к товару карточки, а собирают
+/// весь ассортимент замен/допов из правил кампаний (для просмотра отдельным разделом).
+class CatalogRecommendationPools {
+  const CatalogRecommendationPools({
+    this.alternatives = const [],
+    this.crosssells = const [],
+  });
+
+  final List<CatalogProduct> alternatives;
+  final List<CatalogProduct> crosssells;
+
+  bool get isEmpty => alternatives.isEmpty && crosssells.isEmpty;
+
+  static const empty = CatalogRecommendationPools();
+
+  factory CatalogRecommendationPools.fromJson(Map<String, dynamic> j) =>
+      CatalogRecommendationPools(
+        alternatives: ((j['alternatives'] as List?) ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(CatalogProduct.fromJson)
+            .toList(),
+        crosssells: ((j['crosssells'] as List?) ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(CatalogProduct.fromJson)
+            .toList(),
+      );
+}
+
 /// «1 990 ₸» с разрядкой пробелами, либо «Цена в аптеке» если цена не задана.
 String catalogPriceLabel(int? price, {String currency = 'KZT'}) {
   if (price == null) return 'Цена в аптеке';

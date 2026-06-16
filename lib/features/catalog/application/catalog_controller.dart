@@ -38,3 +38,10 @@ final catalogRecommendationsProvider =
     FutureProvider.autoDispose.family<CatalogRecommendations, String>(
   (ref, id) => ref.read(catalogRepositoryProvider).recommendations(id),
 );
+
+/// Глобальные пулы рекомендаций для пилюль ленты («Альтернативы»/«Дополнения»).
+/// Кешируется (не autoDispose) — меняется редко (вслед за правилами кампаний).
+final catalogRecommendationPoolsProvider =
+    FutureProvider<CatalogRecommendationPools>(
+  (ref) => ref.read(catalogRepositoryProvider).recommendationPools(),
+);

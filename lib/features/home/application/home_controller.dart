@@ -49,6 +49,23 @@ final selectedBrandsProvider =
 final selectedCategoriesProvider =
     NotifierProvider<StringSetNotifier, Set<String>>(StringSetNotifier.new);
 
+// ─── Пилюли «Альтернативы»/«Дополнения» (пулы рекомендаций) ──────────────────
+// Режим ленты: обычные акции (none) ИЛИ пул замен (alternatives) ИЛИ пул допов
+// (crosssells). Пилюли — взаимоисключающие: активна максимум одна.
+
+enum RecoPool { none, alternatives, crosssells }
+
+class RecoPoolNotifier extends Notifier<RecoPool> {
+  @override
+  RecoPool build() => RecoPool.none;
+
+  /// Тап по пилюле: повторный тап по активной выключает её (назад к ленте акций).
+  void toggle(RecoPool p) => state = state == p ? RecoPool.none : p;
+}
+
+final homeRecoPoolProvider =
+    NotifierProvider<RecoPoolNotifier, RecoPool>(RecoPoolNotifier.new);
+
 // ─── Поиск ───────────────────────────────────────────────────────────────────
 
 class SearchQueryNotifier extends Notifier<String> {

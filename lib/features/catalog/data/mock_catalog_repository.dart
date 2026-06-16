@@ -149,4 +149,14 @@ class MockCatalogRepository implements CatalogRepository {
   @override
   Future<CatalogRecommendations> recommendations(String id) async =>
       CatalogRecommendations.empty;
+
+  @override
+  Future<CatalogRecommendationPools> recommendationPools() async {
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    // Демо-пулы для офлайн-режима: пара «замен» и «дополнений» из мок-каталога.
+    return CatalogRecommendationPools(
+      alternatives: _all.take(4).toList(),
+      crosssells: _all.skip(4).take(3).toList(),
+    );
+  }
 }

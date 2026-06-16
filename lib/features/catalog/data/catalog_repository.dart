@@ -12,4 +12,7 @@ abstract interface class CatalogRepository {
 
   /// Рекомендации к товару (ДОП.3b): «Альтернативы» (замены) + «Дополнения» (кросс-селл).
   Future<CatalogRecommendations> recommendations(String id);
+
+  /// Глобальные пулы для пилюль ленты: «Альтернативы» (замены) + «Дополнения» (кросс-селл).
+  Future<CatalogRecommendationPools> recommendationPools();
 }

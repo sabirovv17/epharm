@@ -44,4 +44,11 @@ class ApiCatalogRepository implements CatalogRepository {
     );
     return CatalogRecommendations.fromJson(json);
   }
+
+  @override
+  Future<CatalogRecommendationPools> recommendationPools() async {
+    final json =
+        await _client.getJson('/api/mobile/catalog/recommendation-pools');
+    return CatalogRecommendationPools.fromJson(json);
+  }
 }

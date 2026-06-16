@@ -15,6 +15,9 @@ import '../../../core/widgets/glass_pill.dart';
 import '../../../core/widgets/pharma_logo.dart';
 import '../../../core/widgets/search_input.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../catalog/application/catalog_controller.dart';
+import '../../catalog/data/catalog_models.dart';
+import '../../catalog/presentation/catalog_card.dart';
 import '../../catalog/presentation/catalog_product_sheet.dart';
 import '../../promotions/application/promotions_controller.dart';
 import '../../promotions/data/promotion_models.dart';
@@ -183,6 +186,7 @@ class _HomeTab extends ConsumerWidget {
     final categories = ref.watch(selectedCategoriesProvider);
     final sort = ref.watch(homeSortProvider);
     final query = ref.watch(searchQueryProvider);
+    final recoPool = ref.watch(homeRecoPoolProvider);
 
     // Header теперь — обычный sliver внутри CustomScrollView. Раньше он был
     // в Stack/Positioned поверх скролла (sticky), но это создавало впечатление
@@ -292,6 +296,42 @@ class _HomeTab extends ConsumerWidget {
                       onTap: () => showCategorySheet(context),
                     ),
                   ),
+                  // Пилюли-разделы: «Альтернативы» (замены) и «Дополнения» (кросс-селл) —
+                  // тумблеры, переключают ленту на пул продвигаемых товаров.
+                  const SizedBox(width: 8),
+                  Center(
+                    child: PharmaFilterChip(
+                      label: 'Альтернативы',
+                      active: recoPool == RecoPool.alternatives,
+                      leading: Icon(
+                        Icons.swap_horiz_rounded,
+                        size: 18,
+                        color: recoPool == RecoPool.alternatives
+                            ? Colors.white
+                            : AppColors.ink900,
+                      ),
+                      onTap: () => ref
+                          .read(homeRecoPoolProvider.notifier)
+                          .toggle(RecoPool.alternatives),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Center(
+                    child: PharmaFilterChip(
+                      label: 'Дополнения',
+                      active: recoPool == RecoPool.crosssells,
+                      leading: Icon(
+                        Icons.add_circle_outline_rounded,
+                        size: 18,
+                        color: recoPool == RecoPool.crosssells
+                            ? Colors.white
+                            : AppColors.ink900,
+                      ),
+                      onTap: () => ref
+                          .read(homeRecoPoolProvider.notifier)
+                          .toggle(RecoPool.crosssells),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -299,10 +339,42 @@ class _HomeTab extends ConsumerWidget {
 
           const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-          // 5) Лента акций — промо-кампании из админки (товар Medusa + ценовые
-          //    пороги/бонусы + даты). Грузится один раз; фильтры (бренд/категория/
-          //    поиск/сорт) применяются клиентски к пулу промо-товаров.
-          promotionsAsync.when(
+          // 5) Контент ленты: если активна пилюля «Альтернативы»/«Дополнения» —
+          //    показываем пул продвигаемых товаров (замены/допы из правил кампаний),
+          //    иначе обычную ленту акций. Поиск применяется к обоим режимам.
+          if (recoPool != RecoPool.none)
+            ref.watch(catalogRecommendationPoolsProvider).when(
+              loading: () => const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.all(AppSpacing.s24),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              ),
+              error: (e, _) => SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.s24),
+                  child: Center(
+                    child: Text(
+                      'Не удалось загрузить',
+                      style: AppTypography.body14(color: AppColors.ink500),
+                    ),
+                  ),
+                ),
+              ),
+              data: (pools) {
+                final items = recoPool == RecoPool.alternatives
+                    ? pools.alternatives
+                    : pools.crosssells;
+                return _CatalogPoolSliver(
+                  items: _filterCatalog(items, query),
+                  emptyLabel: recoPool == RecoPool.alternatives
+                      ? 'Альтернативы пока не заведены'
+                      : 'Дополнения пока не заведены',
+                );
+              },
+            )
+          else
+            promotionsAsync.when(
             loading: () => const SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.all(AppSpacing.s24),
@@ -409,6 +481,67 @@ class _PromoSliver extends StatelessWidget {
             return PromoGridCard(
               promo: p,
               onTap: () => showCatalogProductSheet(ctx, p.productId),
+            );
+          },
+          childCount: items.length,
+        ),
+      ),
+    );
+  }
+}
+
+/// Клиентский фильтр пула рекомендаций по строке поиска (имя/бренд/МНН).
+List<CatalogProduct> _filterCatalog(List<CatalogProduct> items, String query) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return items;
+  return items
+      .where((p) =>
+          p.name.toLowerCase().contains(q) ||
+          (p.brand ?? '').toLowerCase().contains(q) ||
+          (p.mnn ?? '').toLowerCase().contains(q))
+      .toList();
+}
+
+/// Сетка товаров пула «Альтернативы»/«Дополнения» (2 колонки [CatalogCard]).
+/// Тап → detail-sheet товара (по medusa id). Пусто → подсказка [emptyLabel].
+class _CatalogPoolSliver extends StatelessWidget {
+  const _CatalogPoolSliver({required this.items, required this.emptyLabel});
+  final List<CatalogProduct> items;
+  final String emptyLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenEdge),
+        sliver: SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 32),
+            child: Text(
+              emptyLabel,
+              textAlign: TextAlign.center,
+              style: AppTypography.body14(color: AppColors.ink500),
+            ),
+          ),
+        ),
+      );
+    }
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenEdge),
+      sliver: SliverGrid(
+        // Та же геометрия, что у ленты акций (фото 3:4 + название/бренд/цена).
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 0.46,
+        ),
+        delegate: SliverChildBuilderDelegate(
+          (ctx, i) {
+            final p = items[i];
+            return CatalogCard(
+              product: p,
+              onTap: () => showCatalogProductSheet(ctx, p.id),
             );
           },
           childCount: items.length,
