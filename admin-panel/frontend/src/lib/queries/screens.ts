@@ -20,6 +20,8 @@ export interface PlaylistListFilter {
 
 export const screensKeys = {
   all: ['screens'] as const,
+  /** Префикс всех плейлист-запросов (любой фильтр) — для точечной инвалидации. */
+  playlistsRoot: () => [...screensKeys.all, 'playlists'] as const,
   playlists: (filter?: PlaylistListFilter) =>
     [...screensKeys.all, 'playlists', filter ?? {}] as const,
   slides: () => [...screensKeys.all, 'slides'] as const,
@@ -62,7 +64,7 @@ export function useCreatePlaylist() {
   return useMutation({
     mutationFn: (req: CreatePlaylistRequest) =>
       api.post<PlaylistDto>('/api/admin/screens/playlists', req).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: screensKeys.all }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: screensKeys.playlistsRoot() }),
   })
 }
 
@@ -71,7 +73,7 @@ export function useUpdatePlaylist() {
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: UpdatePlaylistRequest }) =>
       api.patch<PlaylistDto>(`/api/admin/screens/playlists/${id}`, patch).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: screensKeys.all }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: screensKeys.playlistsRoot() }),
   })
 }
 
@@ -80,7 +82,7 @@ export function useDeletePlaylist() {
   return useMutation({
     mutationFn: (id: string) =>
       api.delete<void>(`/api/admin/screens/playlists/${id}`).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: screensKeys.all }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: screensKeys.playlistsRoot() }),
   })
 }
 
@@ -106,7 +108,10 @@ export function useUploadSlide() {
       form.append('durationSec', String(durationSec))
       return api.post<SlideDto>('/api/admin/screens/slides', form).then((r) => r.data)
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: screensKeys.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: screensKeys.slides() })
+      qc.invalidateQueries({ queryKey: screensKeys.playlistsRoot() })
+    },
   })
 }
 
@@ -115,7 +120,10 @@ export function useDeleteSlide() {
   return useMutation({
     mutationFn: (id: string) =>
       api.delete<void>(`/api/admin/screens/slides/${id}`).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: screensKeys.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: screensKeys.slides() })
+      qc.invalidateQueries({ queryKey: screensKeys.playlistsRoot() })
+    },
   })
 }
 
@@ -124,6 +132,9 @@ export function useAssignSlide() {
   return useMutation({
     mutationFn: ({ id, req }: { id: string; req: AssignSlideRequest }) =>
       api.post<SlideDto>(`/api/admin/screens/slides/${id}/assign`, req).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: screensKeys.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: screensKeys.slides() })
+      qc.invalidateQueries({ queryKey: screensKeys.playlistsRoot() })
+    },
   })
 }
