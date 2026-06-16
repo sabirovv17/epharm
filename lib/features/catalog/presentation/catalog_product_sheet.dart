@@ -111,8 +111,9 @@ class _CatalogProductSheet extends ConsumerWidget {
         const SizedBox(height: 12),
         ClipRRect(
           borderRadius: AppRadii.brXl,
+          // Фото 3×4 (портрет) — все фото в Medusa в этом формате, заполняет без полос.
           child: AspectRatio(
-            aspectRatio: 1.6,
+            aspectRatio: 3 / 4,
             child: _DetailImage(d: d),
           ),
         ),
