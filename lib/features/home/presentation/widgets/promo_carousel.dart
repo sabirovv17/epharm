@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_gradients.dart';
 import '../../../../core/theme/app_radii.dart';
 import '../../../../core/theme/app_shadows.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -48,22 +49,23 @@ class _BannerPlaceholderCard extends StatelessWidget {
     return Container(
       width: 180,
       height: 234,
-      // Тень — на внешнем контейнере (Material с clip её бы обрезал).
+      // Мягкая светлая подложка с лёгким градиентом + тень на внешнем контейнере.
+      // Контент (иконка/подпись) приглушён — спокойный плейсхолдер без резкого контраста.
       decoration: BoxDecoration(
+        gradient: AppGradients.bannerPlaceholder,
         borderRadius: AppRadii.brXl,
         boxShadow: AppShadows.card,
       ),
+      clipBehavior: Clip.antiAlias,
       child: Material(
-        color: AppColors.ink300,
-        borderRadius: AppRadii.brXl,
-        clipBehavior: Clip.antiAlias,
+        color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
           child: const Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.image_outlined, size: 40, color: AppColors.ink500),
+                Icon(Icons.image_outlined, size: 40, color: AppColors.ink300),
                 SizedBox(height: 10),
                 Text(
                   'Баннер',
@@ -72,7 +74,7 @@ class _BannerPlaceholderCard extends StatelessWidget {
                     fontFamilyFallback: ['Roboto', 'sans-serif'],
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
-                    color: AppColors.ink700,
+                    color: AppColors.ink400,
                   ),
                 ),
               ],

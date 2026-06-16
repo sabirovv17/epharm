@@ -15,12 +15,28 @@ abstract final class AppGradients {
   );
 
   /// Header authed/unauthed Home (`grad-blueHead`).
+  /// Смягчённый 3-stop: чуть менее «неоновый» верх + плавный спуск к более
+  /// мягкому низу — чтобы стык зелёной шапки со светлым канвасом не резал глаз.
   static const LinearGradient header = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
     colors: [
-      Color(0xFF21D17A),
-      Color(0xFF16A65C),
+      Color(0xFF2ECC86),
+      Color(0xFF1FBE74),
+      Color(0xFF1AAE66),
+    ],
+    stops: [0.0, 0.55, 1.0],
+  );
+
+  /// Плейсхолдер баннера (пока нет реальных): мягкая светлая подложка с лёгким
+  /// вертикальным градиентом — спокойный блок, не «тяжёлый серый» (ink300),
+  /// гармонично лежит на светлом канвасе.
+  static const LinearGradient bannerPlaceholder = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [
+      Color(0xFFEDF0F5),
+      Color(0xFFDFE5EE),
     ],
   );
 
