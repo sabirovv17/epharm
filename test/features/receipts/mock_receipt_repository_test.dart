@@ -7,10 +7,11 @@ void main() {
     final repo = MockReceiptRepository();
     final before = (await repo.loadReceipts()).length;
 
-    final r = await repo.submitReceipt(title: 'Аквамарис', pharmacyName: 'Аптека №1');
+    // ДОП.8: только фото/title — аптеку/акции определяет сервер.
+    final r = await repo.submitReceipt(title: 'Аквамарис');
     expect(r.status, ReceiptStatus.inReview);
     expect(r.title, 'Аквамарис');
-    expect(r.pharmacy, 'Аптека №1');
+    expect(r.pharmacy, isNull);
 
     final after = await repo.loadReceipts();
     expect(after.length, before + 1);

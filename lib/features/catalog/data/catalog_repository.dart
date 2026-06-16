@@ -9,4 +9,7 @@ abstract interface class CatalogRepository {
 
   /// Все категории каталога с иерархией (parentId) — для дерева фильтра.
   Future<List<MobileCategory>> categories();
+
+  /// Рекомендации к товару (ДОП.3b): «Альтернативы» (замены) + «Дополнения» (кросс-селл).
+  Future<CatalogRecommendations> recommendations(String id);
 }

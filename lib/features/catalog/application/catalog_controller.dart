@@ -31,3 +31,10 @@ final catalogDetailProvider =
 final catalogCategoriesProvider = FutureProvider<List<MobileCategory>>(
   (ref) => ref.read(catalogRepositoryProvider).categories(),
 );
+
+/// Рекомендации к товару (ДОП.3b): «Альтернативы» + «Дополнения». Грузятся отдельно
+/// от карточки (не тормозят detail-sheet). autoDispose — освобождаем при закрытии карточки.
+final catalogRecommendationsProvider =
+    FutureProvider.autoDispose.family<CatalogRecommendations, String>(
+  (ref, id) => ref.read(catalogRepositoryProvider).recommendations(id),
+);

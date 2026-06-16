@@ -145,4 +145,8 @@ class MockCatalogRepository implements CatalogRepository {
 
   @override
   Future<List<MobileCategory>> categories() async => const [];
+
+  @override
+  Future<CatalogRecommendations> recommendations(String id) async =>
+      CatalogRecommendations.empty;
 }

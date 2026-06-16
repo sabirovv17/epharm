@@ -10,19 +10,15 @@ import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_theme.dart';
 import '../application/receipts_controller.dart';
-import 'address_sheet.dart';
 import 'card_sheet.dart';
-import 'promo_picker_screen.dart';
 import 'success_screen.dart';
 
-/// Чек-лист после съёмки чека: 3 пункта (акции, аптека, карта) — заполняем
-/// и жмём «Продолжить». Полностью переработан по
-/// `_reference/recipe/review.jsx` → `ReceiptReviewScreen`.
+/// Экран после съёмки чека (ДОП.8): единственный пользовательский пункт — карта
+/// для зачисления бонусов. Акции и аптеку система определяет САМА (аптека из профиля,
+/// товары — POSM-замена на кассе / в будущем OCR). Ручного выбора акции/аптеки больше нет.
 ///
-/// Явный UX: чек уже принят (banner «Чек загружен»), фармацевт явно выбирает
-/// (а) какие акции в нём, (б) где купил, (в) на какую карту начислить бонус.
-/// Это закрывает основные проверки бизнеса до отправки в HQ; фактическую сумму
-/// и подтверждение даёт сверка на сервере (лог кассы + Excel).
+/// Явный UX: чек уже принят (banner «Чек загружен»), фармацевт указывает только карту
+/// (обычно уже сохранена — ДОП.7). Подтверждение и сумму даёт сверка на сервере (лог кассы + Excel).
 /// Флаг «идёт отправка чека» — защита от двойной отправки + блокировка CTA.
 final _receiptSubmittingProvider = StateProvider.autoDispose<bool>((ref) => false);
 
@@ -37,18 +33,12 @@ class ReceiptReviewScreen extends ConsumerWidget {
     ref.read(_receiptSubmittingProvider.notifier).state = true;
 
     final repo = ref.read(receiptRepositoryProvider);
-    final firstPromo = draft.promos.first;
     try {
-      // Репозиторий сам строит чек (mock) либо делает multipart-upload фото (api),
-      // прогоняя его на бэке через ReconcileService. Сумму подтверждает сверка на сервере.
-      // Выбранную аптеку передаём явно — она сохранится в чеке и будет видна в детали.
+      // Репозиторий делает multipart-upload только фото (ДОП.8). Аптеку backend берёт из
+      // профиля, товары/акции матчит сам; сумму подтверждает сверка на сервере.
       await repo.submitReceipt(
-        title: firstPromo.name,
+        title: 'Чек',
         photoPath: draft.photoPath,
-        pharmacyId: draft.pharmacy?.id,
-        pharmacyName: draft.pharmacy?.name,
-        // Заявленные акции (id кампаний) — контекст для модератора на сервере.
-        promoIds: draft.promos.map((p) => p.id).toList(growable: false),
       );
     } catch (_) {
       // Сеть/сервер недоступны — показываем ошибку, draft не теряем (можно повторить).
@@ -63,22 +53,13 @@ class ReceiptReviewScreen extends ConsumerWidget {
       ref.read(_receiptSubmittingProvider.notifier).state = false;
     }
 
-    // После submit обнуляем promos/pharmacy/photoPath, но card сохраняем
-    // (см. ReceiptDraftNotifier.reset).
+    // После submit обнуляем photoPath, но card сохраняем (см. ReceiptDraftNotifier.reset).
     ref.read(receiptDraftProvider.notifier).reset();
 
     if (!context.mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const ReceiptSuccessScreen()),
     );
-  }
-
-  String _pluralPromo(int n) {
-    final m = n % 10;
-    final h = n % 100;
-    if (m == 1 && h != 11) return 'акция';
-    if (m >= 2 && m <= 4 && (h < 10 || h >= 20)) return 'акции';
-    return 'акций';
   }
 
   String _maskCard(String card) {
@@ -153,37 +134,8 @@ class ReceiptReviewScreen extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    _ChecklistRow(
-                      filled: draft.hasPromos,
-                      iconEmpty: Icons.add_rounded,
-                      labelEmpty: 'Добавить акции',
-                      sublineEmpty:
-                          'Выберите товары из чека для начисления бонусов',
-                      labelFilled: draft.hasPromos
-                          ? '${draft.promos.length} ${_pluralPromo(draft.promos.length)} в чеке'
-                          : '',
-                      sublineFilled: draft.promos
-                          .take(2)
-                          .map((p) => p.name)
-                          .join(' · ') +
-                          (draft.promos.length > 2
-                              ? ' · ещё ${draft.promos.length - 2}'
-                              : ''),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                            builder: (_) => const PromoPickerScreen()),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _ChecklistRow(
-                      filled: draft.hasPharmacy,
-                      iconEmpty: Icons.edit_outlined,
-                      labelEmpty: 'Добавить адрес аптеки',
-                      sublineEmpty: 'Где была совершена покупка',
-                      labelFilled: draft.pharmacy?.name ?? '',
-                      sublineFilled: draft.pharmacy?.addr ?? '',
-                      onTap: () => showAddressSheet(context),
-                    ),
+                    // ДОП.8: акции и аптека определяются автоматически — без ручного выбора.
+                    const _AutoDetectNote(),
                     const SizedBox(height: 16),
                     _ChecklistRow(
                       filled: draft.hasCard,
@@ -216,7 +168,7 @@ class ReceiptReviewScreen extends ConsumerWidget {
                     if (!draft.isComplete) ...[
                       const SizedBox(height: 8),
                       const Text(
-                        'Заполните все пункты, чтобы продолжить',
+                        'Добавьте карту, чтобы продолжить',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontFamily: 'Manrope',
@@ -305,7 +257,7 @@ class _ReceiptUploadedBanner extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Укажите акции из вашего чека',
+                  'Акции и аптека определятся автоматически',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -519,6 +471,66 @@ class _ChecklistRow extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Пояснение (ДОП.8): акции и аптека больше не выбираются вручную — система определяет
+/// их сама из чека (POSM-замена на кассе / профиль фармацевта).
+class _AutoDetectNote extends StatelessWidget {
+  const _AutoDetectNote();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.brandGreen100,
+        borderRadius: AppRadii.brXl,
+        border: Border.all(color: const Color(0xFFA9EBC6), width: 1),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 1),
+            child: Icon(Icons.auto_awesome_rounded,
+                size: 18, color: AppColors.brandGreen700),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Акции и аптека — автоматически',
+                  style: TextStyle(
+                    fontFamily: 'Manrope',
+                    fontFamilyFallback: ['Roboto', 'sans-serif'],
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.brandGreen700,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Мы сами определим акции и аптеку по вашему чеку — выбирать вручную не нужно.',
+                  style: TextStyle(
+                    fontFamily: 'Manrope',
+                    fontFamilyFallback: const ['Roboto', 'sans-serif'],
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.brandGreen700.withValues(alpha: 0.75),
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

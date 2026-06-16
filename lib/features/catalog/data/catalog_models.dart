@@ -196,6 +196,56 @@ class CatalogProductDetail {
       );
 }
 
+/// Одна рекомендация в карточке товара (ДОП.3b): товар-рекомендация + подсказка + бонус.
+class CatalogRecommendation {
+  const CatalogRecommendation({required this.product, this.note, this.bonus});
+
+  final CatalogProduct product;
+
+  /// Короткий скрипт/подсказка фармацевту (из правила); null — нет текста.
+  final String? note;
+
+  /// Бонус фармацевту за рекомендацию, ₸; null — не показываем бейдж.
+  final int? bonus;
+
+  factory CatalogRecommendation.fromJson(Map<String, dynamic> j) =>
+      CatalogRecommendation(
+        product: CatalogProduct.fromJson(
+          ((j['product'] as Map?)?.cast<String, dynamic>()) ?? const {},
+        ),
+        note: j['note'] as String?,
+        bonus: (j['bonus'] as num?)?.toInt(),
+      );
+}
+
+/// Рекомендации к товару карточки (ДОП.3b): «Альтернативы» (замены) и «Дополнения» (кросс-селл).
+/// Пусто → секции в карточке не рисуются.
+class CatalogRecommendations {
+  const CatalogRecommendations({
+    this.alternatives = const [],
+    this.crosssells = const [],
+  });
+
+  final List<CatalogRecommendation> alternatives;
+  final List<CatalogRecommendation> crosssells;
+
+  bool get isEmpty => alternatives.isEmpty && crosssells.isEmpty;
+
+  static const empty = CatalogRecommendations();
+
+  factory CatalogRecommendations.fromJson(Map<String, dynamic> j) =>
+      CatalogRecommendations(
+        alternatives: ((j['alternatives'] as List?) ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(CatalogRecommendation.fromJson)
+            .toList(),
+        crosssells: ((j['crosssells'] as List?) ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(CatalogRecommendation.fromJson)
+            .toList(),
+      );
+}
+
 /// «1 990 ₸» с разрядкой пробелами, либо «Цена в аптеке» если цена не задана.
 String catalogPriceLabel(int? price, {String currency = 'KZT'}) {
   if (price == null) return 'Цена в аптеке';

@@ -91,18 +91,12 @@ abstract interface class ReceiptRepository {
   /// История чеков фармацевта (свежие первыми).
   Future<List<Receipt>> loadReceipts();
 
-  /// Отправить чек на проверку (фото + выбранная аптека). Возвращает созданный чек.
-  /// Mock кладёт его локально; API делает multipart-upload, backend создаёт запись
-  /// и прогоняет её через ReconcileService (логи Стандарт-Н + Excel + ручная модерация).
-  /// [pharmacyId]/[pharmacyName] — аптека, выбранная фармацевтом (где совершена покупка):
-  /// передаётся на сервер и сохраняется в чеке (видна в детали и в админ-очереди).
-  /// [promoIds] — id выбранных в пикере промо-кампаний (pr_*): фармацевт заявляет, какие
-  /// акции в чеке. Сохраняются на чеке как контекст для модератора (на матчинг не влияют).
+  /// Отправить чек на проверку (только фото). Возвращает созданный чек.
+  /// ДОП.8: аптеку и акции система определяет сама (аптека из профиля, товары —
+  /// POSM-бронь/OCR). Mock кладёт чек локально; API делает multipart-upload фото,
+  /// backend прогоняет его через ReconcileService (логи Стандарт-Н + Excel + модерация).
   Future<Receipt> submitReceipt({
     required String title,
     String? photoPath,
-    String? pharmacyId,
-    String? pharmacyName,
-    List<String>? promoIds,
   });
 }

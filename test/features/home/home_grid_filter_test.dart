@@ -12,10 +12,11 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
-          // фикс-высота как в сетке (mainAxisExtent), иначе Spacer без границ.
+          // Высота как у ячейки сетки: childAspectRatio 0.46 → height = width / 0.46
+          // (180 / 0.46 ≈ 391). Фото 3:4 при width 180 = 240px, content — остаток.
           body: SizedBox(
             width: 180,
-            height: 238,
+            height: 391,
             child: PromoGridCard(
               promo: Promotion(
                 id: 'p',

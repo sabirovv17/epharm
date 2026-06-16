@@ -222,6 +222,8 @@ class _CatalogProductSheet extends ConsumerWidget {
                 .toList(),
           ),
         ],
+        // Альтернативы / Дополнения (ДОП.3b) — грузятся отдельным запросом, пустые секции скрыты.
+        _RecommendationsSections(id: id),
       ],
     );
   }
@@ -299,6 +301,237 @@ class _CatalogProductSheet extends ConsumerWidget {
       default:
         return p;
     }
+  }
+}
+
+/// Блок рекомендаций (ДОП.3b): «Альтернативы» (замены) + «Дополнения» (кросс-селл).
+/// Грузится отдельным провайдером; пока нет данных / при ошибке — ничего не рисуем.
+class _RecommendationsSections extends ConsumerWidget {
+  const _RecommendationsSections({required this.id});
+  final String id;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final recs = ref.watch(catalogRecommendationsProvider(id)).valueOrNull ??
+        CatalogRecommendations.empty;
+    if (recs.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (recs.alternatives.isNotEmpty)
+          _RecoSection(
+            title: 'Альтернативы',
+            subtitle: 'Чем можно заменить',
+            icon: Icons.swap_horiz_rounded,
+            items: recs.alternatives,
+          ),
+        if (recs.crosssells.isNotEmpty)
+          _RecoSection(
+            title: 'Дополнения',
+            subtitle: 'Что предложить вместе',
+            icon: Icons.add_circle_outline_rounded,
+            items: recs.crosssells,
+          ),
+      ],
+    );
+  }
+}
+
+class _RecoSection extends StatelessWidget {
+  const _RecoSection({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.items,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final List<CatalogRecommendation> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 18),
+        Row(
+          children: [
+            Icon(icon, size: 18, color: AppColors.brandGreen700),
+            const SizedBox(width: 6),
+            _SectionTitle(title),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(
+          subtitle,
+          style: const TextStyle(
+            fontFamily: 'Manrope',
+            fontFamilyFallback: ['Roboto', 'sans-serif'],
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: AppColors.ink500,
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 290,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.zero,
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (_, i) => _RecoCard(item: items[i]),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RecoCard extends StatelessWidget {
+  const _RecoCard({required this.item});
+  final CatalogRecommendation item;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = item.product;
+    return SizedBox(
+      width: 132,
+      child: Material(
+        color: Colors.white,
+        borderRadius: AppRadii.brXl,
+        child: InkWell(
+          borderRadius: AppRadii.brXl,
+          // Тап по рекомендации открывает её карточку поверх текущей. Guard на пустой
+          // id (битый JSON) — иначе открылась бы карточка с пустым medusa-id и ошибкой.
+          onTap: p.id.isEmpty ? null : () => showCatalogProductSheet(context, p.id),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: AppRadii.brXl,
+              border: Border.all(color: AppColors.paperInput, width: 1),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AspectRatio(
+                  aspectRatio: 3 / 4,
+                  child: _RecoThumb(url: p.imageUrl, name: p.name),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        p.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: 'Manrope',
+                          fontFamilyFallback: ['Roboto', 'sans-serif'],
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.ink900,
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        catalogPriceLabel(p.price, currency: p.currency),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Manrope',
+                          fontFamilyFallback: const ['Roboto', 'sans-serif'],
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: p.price == null
+                              ? AppColors.ink500
+                              : AppColors.brandGreen700,
+                        ),
+                      ),
+                      if (item.bonus != null) ...[
+                        const SizedBox(height: 6),
+                        _BonusBadge(bonus: item.bonus!),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Бонус-бейдж «+520 ₸» в карточке рекомендации (мотивация фармацевта).
+class _BonusBadge extends StatelessWidget {
+  const _BonusBadge({required this.bonus});
+  final int bonus;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.brandGreen100,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        '+${catalogPriceLabel(bonus)}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          fontFamily: 'Manrope',
+          fontFamilyFallback: ['Roboto', 'sans-serif'],
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: AppColors.brandGreen700,
+        ),
+      ),
+    );
+  }
+}
+
+class _RecoThumb extends StatelessWidget {
+  const _RecoThumb({required this.url, required this.name});
+  final String? url;
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final u = url;
+    if (u == null || u.isEmpty) return _placeholder();
+    return Image.network(
+      u,
+      fit: BoxFit.cover,
+      loadingBuilder: (ctx, child, progress) =>
+          progress == null ? child : _placeholder(),
+      errorBuilder: (_, __, ___) => _placeholder(),
+    );
+  }
+
+  Widget _placeholder() {
+    final letter = name.isNotEmpty ? name.characters.first : '?';
+    return Container(
+      color: AppColors.brandGreen100,
+      alignment: Alignment.center,
+      child: Text(
+        letter.toUpperCase(),
+        style: const TextStyle(
+          fontFamily: 'Manrope',
+          fontFamilyFallback: ['Roboto', 'sans-serif'],
+          fontSize: 28,
+          fontWeight: FontWeight.w800,
+          color: AppColors.brandGreen700,
+        ),
+      ),
+    );
   }
 }
 

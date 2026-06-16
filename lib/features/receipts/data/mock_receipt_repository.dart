@@ -22,12 +22,10 @@ class MockReceiptRepository implements ReceiptRepository {
   Future<Receipt> submitReceipt({
     required String title,
     String? photoPath,
-    String? pharmacyId,
-    String? pharmacyName,
-    List<String>? promoIds, // офлайн-демо: заявленные акции не хранит
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 200));
     final now = DateTime.now();
+    // ДОП.8: офлайн-демо не знает аптеку/акции (их определяет сервер) — pharmacy=null.
     final receipt = Receipt(
       id: _newId(),
       title: title,
@@ -35,7 +33,6 @@ class MockReceiptRepository implements ReceiptRepository {
       dateLabel: _formatNow(now),
       status: ReceiptStatus.inReview,
       photoPath: photoPath,
-      pharmacy: pharmacyName,
     );
     _state.insert(0, receipt);
     _changes.add(null);

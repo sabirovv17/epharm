@@ -636,3 +636,18 @@ xattr `com.apple.FinderInfo`/`fileprovider`, а `codesign` их отвергае
 `rm -rf build && mkdir -p ~/.epharm-build-out && ln -s ~/.epharm-build-out build`. После этого
 `flutter build ios/apk` подписывает чисто. Симлинк оставлен — будущие сборки тоже не споткнутся.
 Установка на устройство: `xcrun devicectl device install app --device <udid> build/ios/iphoneos/Runner.app`.
+
+## Батч D/E (2026-06-16) — ДОП.3b + ДОП.8
+
+- **ДОП.3b Альтернативы/Дополнения** (`catalog_product_sheet`): новый `catalogRecommendationsProvider`
+  (`/api/mobile/catalog/products/{id}/recommendations`) — отдельный fetch, не тормозит карточку. Две
+  горизонтальные секции `_RecoSection` (3:4 карточки `_RecoCard` + бонус-бейдж `+520 ₸`), тап → карточка
+  товара (стек bottom-sheet). Пустые секции скрыты. mock возвращает `CatalogRecommendations.empty`.
+  Модели `CatalogRecommendation`/`CatalogRecommendations` в `catalog_models.dart`.
+- **ДОП.8 авто-чек** — убран ручной выбор акции/аптеки. Удалены `promo_picker_screen.dart`,
+  `address_sheet.dart` + вся инфра аптек-пикера (`pharmacy_repository`/`api`/`mock`/`nearby_pharmacies` +
+  `pharmacyRepositoryProvider`/`pharmacyListProvider`). `ReceiptDraft` упрощён до `photoPath`+`card`
+  (убраны promos/pharmacy/setPromos/setPharmacy/hasPromos/hasPharmacy). Экран обзора: 1 пункт (карта) +
+  инфо-баннер `_AutoDetectNote` «Акции и аптека — автоматически». `submitReceipt(title, photoPath)` —
+  multipart только с фото. Backend сам берёт аптеку из профиля и матчит акции (POSM-бронь).
+- Тесты: catalog 7/7, receipts (api/mock/detail) зелёные; `flutter analyze` 0 issues.

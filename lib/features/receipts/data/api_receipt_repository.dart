@@ -5,8 +5,8 @@ import '../../../core/network/api_client.dart';
 import 'receipt_repository.dart';
 
 /// Реализация поверх backend `/api/mobile/receipts`.
-/// submit → multipart-upload фото + выбранная аптека; backend создаёт чек и прогоняет
-/// его через ReconcileService (логи Стандарт-Н + Excel + ручная модерация). История — GET.
+/// submit → multipart-upload только фото (ДОП.8: аптека из профиля, акции — авто-матчинг);
+/// backend создаёт чек и прогоняет его через ReconcileService. История — GET.
 class ApiReceiptRepository implements ReceiptRepository {
   ApiReceiptRepository(this._client);
 
@@ -26,25 +26,16 @@ class ApiReceiptRepository implements ReceiptRepository {
   Future<Receipt> submitReceipt({
     required String title,
     String? photoPath,
-    String? pharmacyId,
-    String? pharmacyName,
-    List<String>? promoIds,
   }) async {
     List<int>? bytes;
     if (photoPath != null) {
       final file = File(photoPath);
       if (await file.exists()) bytes = await file.readAsBytes();
     }
-    // Выбранную аптеку и заявленные акции отправляем как multipart-поля — backend
-    // сохранит их в чеке. promoIds → CSV (бэк нормализует и режет до длины колонки).
-    final fields = <String, String>{
-      if (pharmacyId != null && pharmacyId.isNotEmpty) 'pharmacyId': pharmacyId,
-      if (pharmacyName != null && pharmacyName.isNotEmpty) 'pharmacyName': pharmacyName,
-      if (promoIds != null && promoIds.isNotEmpty) 'promoIds': promoIds.join(','),
-    };
+    // ДОП.8: только фото. Аптеку backend берёт из профиля, акции матчит сам.
     final json = await _client.postMultipart(
       '/api/mobile/receipts',
-      fields: fields,
+      fields: const <String, String>{},
       fileBytes: bytes,
       fileField: bytes != null ? 'file' : null,
       fileName: 'receipt.jpg',

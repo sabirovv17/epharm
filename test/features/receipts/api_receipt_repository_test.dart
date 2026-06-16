@@ -43,34 +43,26 @@ void main() {
     expect(list[2].status, ReceiptStatus.inReview);
   });
 
-  test('submitReceipt шлёт multipart с фото + выбранной аптекой и маппит ответ', () async {
+  test('submitReceipt шлёт multipart только с фото и маппит ответ (ДОП.8)', () async {
     final tmp = await File('${Directory.systemTemp.path}/epharm_r_test.jpg').writeAsBytes([1, 2, 3, 4]);
     final repo = _repo(MockClient((req) async {
       expect(req.method, 'POST');
       expect(req.url.path, '/api/mobile/receipts');
       expect(req.headers['content-type'], contains('multipart/form-data'));
-      // Выбранная аптека уходит в multipart-полях — это и есть баг-фикс.
-      expect(req.body, contains('pharmacyId'));
-      expect(req.body, contains('ph_chosen'));
-      expect(req.body, contains('Аптека на Абая'));
-      // Заявленные акции уходят как CSV в поле promoIds.
-      expect(req.body, contains('promoIds'));
-      expect(req.body, contains('pr_aqua,pr_pank'));
+      // ДОП.8: аптека/акции больше НЕ передаются с клиента — только файл.
+      expect(req.body, isNot(contains('pharmacyId')));
+      expect(req.body, isNot(contains('promoIds')));
+      expect(req.body, contains('filename="receipt.jpg"'));
       return http.Response(
         jsonEncode({'id': 'rcp_1', 'status': 'inReview', 'productName': 'Аквамарис', 'sku': 'p_a', 'amount': 0, 'bonus': 380, 'bonusCredited': 0, 'photoUrl': 'http://t/p.jpg', 'createdAt': '2026-06-09T10:00:00Z', 'pharmacyName': 'Аптека на Абая 10'}),
         201,
         headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }));
-    final r = await repo.submitReceipt(
-      title: 'Аквамарис',
-      photoPath: tmp.path,
-      pharmacyId: 'ph_chosen',
-      pharmacyName: 'Аптека на Абая 10',
-      promoIds: const ['pr_aqua', 'pr_pank'],
-    );
+    final r = await repo.submitReceipt(title: 'Чек', photoPath: tmp.path);
     expect(r.id, 'rcp_1');
     expect(r.status, ReceiptStatus.inReview);
+    // pharmacyName из ответа сервера (аптека из профиля) всё так же маппится в r.pharmacy.
     expect(r.pharmacy, 'Аптека на Абая 10');
     expect(r.bonus, 380);
     expect(r.photoUrl, 'http://t/p.jpg');

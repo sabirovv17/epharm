@@ -36,4 +36,12 @@ class ApiCatalogRepository implements CatalogRepository {
         .map(MobileCategory.fromJson)
         .toList();
   }
+
+  @override
+  Future<CatalogRecommendations> recommendations(String id) async {
+    final json = await _client.getJson(
+      '/api/mobile/catalog/products/${Uri.encodeComponent(id)}/recommendations',
+    );
+    return CatalogRecommendations.fromJson(json);
+  }
 }
