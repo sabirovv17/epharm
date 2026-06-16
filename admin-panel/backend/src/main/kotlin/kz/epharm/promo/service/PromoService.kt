@@ -59,6 +59,7 @@ class PromoService(
             productImage = req.productImage?.trim()?.takeIf { it.isNotBlank() },
             overrideImage = req.overrideImage?.trim()?.takeIf { it.isNotBlank() },
             overrideDescription = req.overrideDescription?.trim()?.takeIf { it.isNotBlank() },
+            overrideCharacteristics = req.overrideCharacteristics?.trim()?.takeIf { it.isNotBlank() },
             dateStart = req.dateStart,
             dateEnd = req.dateEnd,
             createdBy = createdBy,
@@ -104,6 +105,9 @@ class PromoService(
         // Override: пустая строка = очистить, иначе установить.
         req.overrideImage?.let { entity.overrideImage = it.trim().takeIf { s -> s.isNotBlank() } }
         req.overrideDescription?.let { entity.overrideDescription = it.trim().takeIf { s -> s.isNotBlank() } }
+        req.overrideCharacteristics?.let {
+            entity.overrideCharacteristics = it.trim().takeIf { s -> s.isNotBlank() }
+        }
         req.dateStart?.let { entity.dateStart = it }
         req.dateEnd?.let { entity.dateEnd = it }
 

@@ -51,6 +51,8 @@ data class PromoDto(
     val overrideImage: String?,
     /** Ручная замена описания (приоритет над Medusa). */
     val overrideDescription: String?,
+    /** Ручная замена характеристик (по строке; приоритет над keyFacts Medusa). */
+    val overrideCharacteristics: String?,
     /** Цена товара (read-only, из Medusa). */
     val price: Long,
     /** Бонус фармацевту за продажу (задаётся в админке). */
@@ -79,6 +81,7 @@ data class PromoDto(
             productImage = e.productImage,
             overrideImage = e.overrideImage,
             overrideDescription = e.overrideDescription,
+            overrideCharacteristics = e.overrideCharacteristics,
             price = e.price,
             pharmacistBonus = e.pharmacistBonus,
             dateStart = e.dateStart,
@@ -123,6 +126,7 @@ data class CreatePromoRequest(
     @field:Size(max = 1024)
     val overrideImage: String? = null,
     val overrideDescription: String? = null,
+    val overrideCharacteristics: String? = null,
     @field:Min(0)
     val pharmacistBonus: Long = 0,
     val dateStart: LocalDate? = null,
@@ -157,6 +161,7 @@ data class UpdatePromoRequest(
     @field:Size(max = 1024)
     val overrideImage: String? = null,
     val overrideDescription: String? = null,
+    val overrideCharacteristics: String? = null,
     @field:Min(0)
     val pharmacistBonus: Long? = null,
     val dateStart: LocalDate? = null,

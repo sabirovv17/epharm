@@ -88,6 +88,10 @@ class PromoEntity(
     @Column(name = "override_description", columnDefinition = "text")
     var overrideDescription: String? = null,
 
+    /** Ручная замена характеристик (по строке). NULL = берём keyFacts из Medusa. */
+    @Column(name = "override_characteristics", columnDefinition = "text")
+    var overrideCharacteristics: String? = null,
+
     @Column(name = "date_start")
     var dateStart: LocalDate? = null,
 

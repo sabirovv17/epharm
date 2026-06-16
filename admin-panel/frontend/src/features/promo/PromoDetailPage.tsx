@@ -16,6 +16,7 @@ import type { PromoStatus, UpdatePromoRequest } from '@/lib/api-types'
 import { describeError } from '@/lib/describeError'
 import { useT } from '@/i18n'
 import { useArchivePromo, usePromo, useRestorePromo, useUpdatePromo } from '@/lib/queries/promo'
+import { useStorefrontProduct } from '@/lib/queries/storefront'
 import type { SelectedProduct } from './PromoProductPicker'
 import { PromoRulesEditor } from './PromoRulesEditor'
 
@@ -33,6 +34,7 @@ interface FormState {
   pharmacistBonus: string
   overrideImage: string
   overrideDescription: string
+  overrideCharacteristics: string
 }
 
 const EMPTY_FORM: FormState = {
@@ -48,6 +50,7 @@ const EMPTY_FORM: FormState = {
   pharmacistBonus: '0',
   overrideImage: '',
   overrideDescription: '',
+  overrideCharacteristics: '',
 }
 
 export default function PromoDetailPage() {
@@ -88,10 +91,29 @@ export default function PromoDetailPage() {
         pharmacistBonus: String(promo.pharmacistBonus),
         overrideImage: promo.overrideImage ?? '',
         overrideDescription: promo.overrideDescription ?? '',
+        overrideCharacteristics: promo.overrideCharacteristics ?? '',
       })
       setSaveErr(null)
     }
   }, [promo])
+
+  // Описание и характеристики товара из Medusa (с уже наложенными override кампании).
+  // Показываем их прямо на странице и предзаполняем поля, чтобы можно было перезаписать.
+  const medusaId = promo?.medusaProductId ?? null
+  const { data: medusaProduct } = useStorefrontProduct(medusaId)
+  const medusaCharacteristics = (medusaProduct?.keyFacts ?? []).join('\n')
+
+  // Предзаполняем поля значениями из Medusa, если своих override ещё нет
+  // (в форме пусто). Зависимость [medusaProduct] → срабатывает один раз при загрузке.
+  useEffect(() => {
+    if (!medusaProduct) return
+    setForm((f) => ({
+      ...f,
+      overrideDescription: f.overrideDescription || (medusaProduct.description ?? ''),
+      overrideCharacteristics:
+        f.overrideCharacteristics || (medusaProduct.keyFacts ?? []).join('\n'),
+    }))
+  }, [medusaProduct])
 
   const goBack = () => navigate('/promo')
 
@@ -151,7 +173,8 @@ export default function PromoDetailPage() {
     form.dateEnd !== (promo.dateEnd ?? '') ||
     form.pharmacistBonus !== String(promo.pharmacistBonus) ||
     form.overrideImage !== (promo.overrideImage ?? '') ||
-    form.overrideDescription !== (promo.overrideDescription ?? '')
+    form.overrideDescription !== (promo.overrideDescription ?? '') ||
+    form.overrideCharacteristics !== (promo.overrideCharacteristics ?? '')
 
   const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -168,6 +191,21 @@ export default function PromoDetailPage() {
     // price НЕ отправляем — read-only из Medusa. tiers тоже не шлём (T1).
     // Продвигаемый товар (medusaProductId/productName/productImage) выбирается ТОЛЬКО при
     // создании (1 кампания = 1 товар) и здесь НЕ редактируется — в patch его не кладём.
+    //
+    // Описание/характеристики предзаполнены из Medusa. Чтобы НЕ «замораживать» товар
+    // снимком (и сохранить ежедневный рефреш): если значение не меняли и оно совпадает
+    // с тем, что отдаёт Medusa, и своего override раньше не было — шлём null (фоллбэк).
+    const descVal = form.overrideDescription.trim()
+    const hadDescOverride = !!promo.overrideDescription?.trim()
+    const baseDesc = (medusaProduct?.description ?? '').trim()
+    const overrideDescription = !hadDescOverride && descVal === baseDesc ? null : descVal || null
+
+    const charVal = form.overrideCharacteristics.trim()
+    const hadCharOverride = !!promo.overrideCharacteristics?.trim()
+    const baseChar = medusaCharacteristics.trim()
+    const overrideCharacteristics =
+      !hadCharOverride && charVal === baseChar ? null : charVal || null
+
     const patch: UpdatePromoRequest = {
       title: form.title.trim(),
       brand: form.brand.trim(),
@@ -177,7 +215,8 @@ export default function PromoDetailPage() {
       cover: form.cover.trim(),
       pharmacistBonus: Math.max(0, Math.trunc(Number(form.pharmacistBonus) || 0)),
       overrideImage: form.overrideImage.trim() || null,
-      overrideDescription: form.overrideDescription.trim() || null,
+      overrideDescription,
+      overrideCharacteristics,
       dateStart: form.dateStart || null,
       dateEnd: form.dateEnd || null,
     }
@@ -338,7 +377,11 @@ export default function PromoDetailPage() {
                 disabled={isArchived}
               />
             </Field>
-            <Field label={t('pm.fldOverrideDesc')} hint={t('pm.overrideHint')} optional>
+            <Field
+              label={t('pm.fldOverrideDesc')}
+              hint={medusaId ? t('pm.medusaHint') : t('pm.overrideHint')}
+              optional
+            >
               <textarea
                 className="inp"
                 rows={3}
@@ -347,6 +390,34 @@ export default function PromoDetailPage() {
                 disabled={isArchived}
               />
             </Field>
+            <Field
+              label={t('pm.fldOverrideChars')}
+              hint={medusaId ? t('pm.medusaCharsHint') : t('pm.overrideCharsHint')}
+              optional
+            >
+              <textarea
+                className="inp font-mono text-[13px]"
+                rows={5}
+                value={form.overrideCharacteristics}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, overrideCharacteristics: e.target.value }))
+                }
+                placeholder={t('pm.charsPlaceholder')}
+                disabled={isArchived}
+              />
+            </Field>
+            {medusaProduct && medusaCharacteristics && (
+              <div className="rounded-xl bg-ink-50 px-3.5 py-3 text-[12px] text-ink-500">
+                <div className="mb-1 font-bold uppercase tracking-[0.05em] text-ink-400">
+                  {t('pm.medusaCharsRef')}
+                </div>
+                <ul className="list-disc space-y-0.5 pl-4">
+                  {(medusaProduct.keyFacts ?? []).map((k, i) => (
+                    <li key={i}>{k}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
           <div className="card flex flex-col gap-4 p-5">

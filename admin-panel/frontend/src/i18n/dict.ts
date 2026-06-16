@@ -850,7 +850,13 @@ export const ru: Dict = {
   'pm.dateOrderErr': 'Дата окончания раньше начала.',
   'pm.fldOverrideImage': 'Своё фото (URL)',
   'pm.fldOverrideDesc': 'Своё описание',
+  'pm.fldOverrideChars': 'Свои характеристики',
   'pm.overrideHint': 'Ручное переопределение данных PIM/Medusa',
+  'pm.overrideCharsHint': 'По одной характеристике в строке',
+  'pm.medusaHint': 'Из Medusa — можно перезаписать (по умолчанию обновляется ежедневно)',
+  'pm.medusaCharsHint': 'Из Medusa, по строке — можно перезаписать (иначе обновляется ежедневно)',
+  'pm.charsPlaceholder': 'Например:\nФорма выпуска: спрей\nОбъём: 50 мл\nПроизводитель: …',
+  'pm.medusaCharsRef': 'Характеристики из Medusa',
 
   // ── PromoDetail (товарная секция T1) ───────────────────────────────────
   'pd.productSection': 'Акция — товар, цена, бонус, даты',
@@ -1742,7 +1748,13 @@ export const kk: Dict = {
   'pm.dateOrderErr': 'Аяқталу күні басталудан ерте.',
   'pm.fldOverrideImage': 'Өз фотосы (URL)',
   'pm.fldOverrideDesc': 'Өз сипаттамасы',
+  'pm.fldOverrideChars': 'Өз сипаттамалары',
   'pm.overrideHint': 'PIM/Medusa деректерін қолмен қайта анықтау',
+  'pm.overrideCharsHint': 'Әр жолда бір сипаттама',
+  'pm.medusaHint': 'Medusa-дан — қайта жазуға болады (әдепкіде күн сайын жаңарады)',
+  'pm.medusaCharsHint': 'Medusa-дан, әр жолда — қайта жазуға болады (әйтпесе күн сайын жаңарады)',
+  'pm.charsPlaceholder': 'Мысалы:\nШығару түрі: спрей\nКөлемі: 50 мл\nӨндіруші: …',
+  'pm.medusaCharsRef': 'Medusa сипаттамалары',
 
   // ── PromoDetail (товарная секция T1) ───────────────────────────────────
   'pd.productSection': 'Науқан — тауар, баға, бонус, күндер',

@@ -351,6 +351,8 @@ export interface PromoDto {
   overrideImage: string | null
   /** Ручной override описания товара (поверх PIM/Medusa). null — нет переопределения. */
   overrideDescription: string | null
+  /** Ручной override характеристик (по строке; поверх keyFacts Medusa). null — нет. */
+  overrideCharacteristics: string | null
   /** Цена товара из Medusa (read-only, обновляется ежедневно — НЕ редактируется в админке). */
   price: number
   /** Единый бонус фармацевту за продажу (заменил многоуровневые пороги). */
@@ -377,6 +379,7 @@ export interface CreatePromoRequest {
   productImage?: string | null
   overrideImage?: string | null
   overrideDescription?: string | null
+  overrideCharacteristics?: string | null
   pharmacistBonus?: number
   dateStart?: string | null
   dateEnd?: string | null
@@ -395,6 +398,7 @@ export interface UpdatePromoRequest {
   productImage?: string | null
   overrideImage?: string | null
   overrideDescription?: string | null
+  overrideCharacteristics?: string | null
   pharmacistBonus?: number
   dateStart?: string | null
   dateEnd?: string | null
@@ -704,6 +708,26 @@ export interface StorefrontProductDto {
   imageUrl: string | null
   barcode: string | null
   category: string | null
+}
+
+/** Зеркало backend MobileCatalogDetailDto — деталь товара витрины (описание + характеристики). */
+export interface StorefrontProductDetailDto {
+  id: string
+  name: string
+  brand: string | null
+  mnn: string | null
+  atc: string | null
+  rxOtc: string | null
+  price: number | null
+  currency: string
+  imageUrl: string | null
+  images: string[]
+  barcode: string | null
+  category: string | null
+  country: string | null
+  manufacturer: string | null
+  description: string | null
+  keyFacts: string[]
 }
 
 export interface StorefrontPageDto {

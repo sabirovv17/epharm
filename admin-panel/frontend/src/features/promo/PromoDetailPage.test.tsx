@@ -19,7 +19,10 @@ const promoHooks = vi.hoisted(() => ({
   usePromos: vi.fn(),
   useCreatePromo: vi.fn(),
 }))
-const storefrontHooks = vi.hoisted(() => ({ useStorefront: vi.fn() }))
+const storefrontHooks = vi.hoisted(() => ({
+  useStorefront: vi.fn(),
+  useStorefrontProduct: vi.fn(),
+}))
 const promoRulesHooks = vi.hoisted(() => ({
   usePromoRules: vi.fn(),
   useSavePromoRules: vi.fn(),
@@ -27,8 +30,13 @@ const promoRulesHooks = vi.hoisted(() => ({
 
 vi.mock('@/lib/queries/promo', () => promoHooks)
 vi.mock('@/lib/queries/storefront', () => ({
-  storefrontKeys: { all: ['storefront'], list: () => ['storefront', 'list'] },
+  storefrontKeys: {
+    all: ['storefront'],
+    list: () => ['storefront', 'list'],
+    detail: (id: string) => ['storefront', 'detail', id],
+  },
   useStorefront: storefrontHooks.useStorefront,
+  useStorefrontProduct: storefrontHooks.useStorefrontProduct,
 }))
 vi.mock('@/lib/queries/promoRules', () => ({
   promoRulesKeys: { all: ['promo-rules'], detail: (id: string) => ['promo-rules', id] },
@@ -91,6 +99,7 @@ beforeEach(() => {
     data: { items: [], total: 0, limit: 50, offset: 0 },
     isFetching: false,
   })
+  storefrontHooks.useStorefrontProduct.mockReturnValue({ data: undefined })
   promoRulesHooks.usePromoRules.mockReturnValue({
     data: {
       promoId: 'pr_1',
@@ -184,6 +193,46 @@ describe('PromoDetailPage — редактирование', () => {
     await user.click(screen.getByRole('button', { name: /^Сохранить$/ }))
     expect(mutate).toHaveBeenCalledWith(
       { id: 'pr_1', patch: expect.objectContaining({ title: 'Летняя кампания', brand: 'Jadran' }) },
+      expect.any(Object),
+    )
+  })
+
+  it('Medusa: описание/характеристики предзаполнены, изменённые попадают в патч, неизменённые → null', async () => {
+    const mutate = vi.fn()
+    promoHooks.useUpdatePromo.mockReturnValue({ mutate, isPending: false })
+    promoHooks.usePromo.mockReturnValue({
+      data: mkPromo({
+        medusaProductId: 'prod_1',
+        overrideDescription: null,
+        overrideCharacteristics: null,
+      }),
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+    storefrontHooks.useStorefrontProduct.mockReturnValue({
+      data: { description: 'Описание из Medusa', keyFacts: ['Форма: спрей', 'Объём: 50 мл'] },
+    })
+    const user = userEvent.setup()
+    renderDetail()
+    // Предзаполнение из Medusa
+    expect(await screen.findByDisplayValue('Описание из Medusa')).toBeInTheDocument()
+    const charsField = screen.getByDisplayValue(/Форма: спрей/)
+    expect(charsField).toBeInTheDocument()
+    // Меняем только характеристики
+    await user.clear(charsField)
+    await user.type(charsField, 'Своя характеристика')
+    await user.click(screen.getByRole('button', { name: /^Сохранить$/ }))
+    expect(mutate).toHaveBeenCalledWith(
+      {
+        id: 'pr_1',
+        patch: expect.objectContaining({
+          // описание не трогали → совпадает с Medusa → null (сохраняем ежедневный фоллбэк)
+          overrideDescription: null,
+          overrideCharacteristics: 'Своя характеристика',
+        }),
+      },
       expect.any(Object),
     )
   })

@@ -60,12 +60,21 @@ class MobileCatalogService(
      */
     private fun applyPromoOverride(medusaProductId: String, base: MobileCatalogDetailDto): MobileCatalogDetailDto {
         val promo = promoRepository.findAllByMedusaProductId(medusaProductId)
-            .firstOrNull { it.overrideImage != null || it.overrideDescription != null }
+            .firstOrNull {
+                it.overrideImage != null || it.overrideDescription != null ||
+                    it.overrideCharacteristics != null
+            }
             ?: return base
+        // Свои характеристики (по строке) заменяют keyFacts из Medusa, если заданы.
+        val keyFacts = promo.overrideCharacteristics
+            ?.lines()?.map { it.trim() }?.filter { it.isNotEmpty() }
+            ?.takeIf { it.isNotEmpty() }
+            ?: base.keyFacts
         return base.copy(
             imageUrl = promo.overrideImage ?: base.imageUrl,
             images = promo.overrideImage?.let { listOf(it) } ?: base.images,
             description = promo.overrideDescription ?: base.description,
+            keyFacts = keyFacts,
         )
     }
 
