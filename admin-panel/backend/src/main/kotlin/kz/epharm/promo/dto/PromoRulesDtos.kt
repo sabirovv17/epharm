@@ -58,19 +58,19 @@ data class PromoRuleProductRefDto(
     /** Таблица-сравнение «было/стало» для этой пары. */
     @field:Valid
     val comparison: List<PromoComparisonRowDto> = emptyList(),
-    /** Цель «N/target <label>» + бонус за цель — для этой пары. */
-    @field:Size(max = 120)
-    val goalLabel: String? = null,
-    @field:Min(0)
-    val goalTarget: Int? = null,
-    @field:Min(0)
-    val goalBonus: Int? = null,
+    /**
+     * Статус именно этой пары: true = «Активно», false = «Черновик».
+     * Правило встанет active только если И кампания active, И пара active.
+     */
+    val active: Boolean = true,
 )
 
 /**
  * Полная конфигурация правил кампании (request на PUT и тело ответа на GET).
- * Поля карточки теперь per-pair (в [PromoRuleProductRefDto]). Одноимённые поля здесь —
- * необязательный ОБЩИЙ дефолт (применяется к паре, если у неё своё поле пустое).
+ * Поля карточки (script/advantages/partnerLabel/comparison) — per-pair (в [PromoRuleProductRefDto]).
+ * Поле «Цель» (goalLabel/goalTarget/goalBonus) — на уровне ВСЕЙ кампании (одно на все пары):
+ * применяется ко всем правилам кампании. script/advantages/partnerLabel/comparison здесь
+ * оставлены для обратной совместимости (legacy «общий дефолт»), фронт их не шлёт.
  */
 data class PromoRulesConfigDto(
     @field:Valid
@@ -84,6 +84,7 @@ data class PromoRulesConfigDto(
     val partnerLabel: String? = null,
     @field:Valid
     val comparison: List<PromoComparisonRowDto> = emptyList(),
+    // ── Цель кампании (одна на всю кампанию) ──────────────────────────────
     @field:Size(max = 120)
     val goalLabel: String? = null,
     @field:Min(0)

@@ -70,8 +70,18 @@ class PromoRulesService(
             )
         }
 
-        // Верхний уровень config — нейтральный: все поля карточки теперь per-pair (в refs выше).
-        val config = PromoRulesConfigDto(replacements = replacements, crossSells = crossSells)
+        // Цель — на уровне кампании (одна на все правила). Восстанавливаем её из любого
+        // правила, где она задана (все правила кампании несут одинаковую цель).
+        val goalCard = rules.firstNotNullOfOrNull { r ->
+            r.card?.takeIf { it.goalLabel != null || it.goalTarget != null || it.goalBonus != null }
+        }
+        val config = PromoRulesConfigDto(
+            replacements = replacements,
+            crossSells = crossSells,
+            goalLabel = goalCard?.goalLabel,
+            goalTarget = goalCard?.goalTarget,
+            goalBonus = goalCard?.goalBonus,
+        )
         return PromoRulesViewDto(
             promoId = promoId,
             config = config,
@@ -97,7 +107,11 @@ class PromoRulesService(
         val promoted = upsertPromotedProduct(promo, promotedMedusaId)
 
         val bonus = promo.pharmacistBonus.toInt()
-        val status = if (promo.status == PromoStatus.active) RuleStatus.active else RuleStatus.draft
+        // Кампания — мастер-выключатель: правило active только если И кампания active,
+        // И сама пара active (ref.active). Иначе — draft.
+        val campaignActive = promo.status == PromoStatus.active
+        fun effectiveStatus(ref: PromoRuleProductRefDto): RuleStatus =
+            if (campaignActive && ref.active) RuleStatus.active else RuleStatus.draft
 
         // Replace-семантика: удаляем прежние правила этой кампании.
         ruleRepository.deleteByPromoId(promoId)
@@ -120,7 +134,7 @@ class PromoRulesService(
                     card = cardFor(ref, config),
                     trigger = RuleTrigger(kind = "product", value = trig.id),
                     createdBy = createdBy,
-                ).also { it.type = RuleType.substitution; it.status = status; it.promoId = promoId }
+                ).also { it.type = RuleType.substitution; it.status = effectiveStatus(ref); it.promoId = promoId }
             }
 
         // Кросс-селл: триггер — продвигаемый товар, рекомендация — товар-компаньон.
@@ -139,7 +153,7 @@ class PromoRulesService(
                     card = cardFor(ref, config),
                     trigger = RuleTrigger(kind = "product", value = promoted.id),
                     createdBy = createdBy,
-                ).also { it.type = RuleType.crosssell; it.status = status; it.promoId = promoId }
+                ).also { it.type = RuleType.crosssell; it.status = effectiveStatus(ref); it.promoId = promoId }
             }
 
         ruleRepository.saveAll(created)
@@ -163,11 +177,14 @@ class PromoRulesService(
         val comparison = rows.map {
             RuleComparisonRow(it.label, it.triggerValue, it.recommendValue, it.recommendHighlight)
         }
-        val goalLabel = (ref.goalLabel ?: config.goalLabel)?.takeIf { it.isNotBlank() }
-        val goalTarget = ref.goalTarget ?: config.goalTarget
-        val goalBonus = ref.goalBonus ?: config.goalBonus
+        // Цель — на уровне кампании: одна на все правила, берётся из config.
+        val goalLabel = config.goalLabel?.takeIf { it.isNotBlank() }
+        val goalTarget = config.goalTarget
+        val goalBonus = config.goalBonus
+        // Намерение по статусу пары храним только когда «черновик» (false); активная — дефолт.
+        val pairDraft = !ref.active
         val hasAny = partner != null || comparison.isNotEmpty() || goalLabel != null ||
-            goalTarget != null || goalBonus != null
+            goalTarget != null || goalBonus != null || pairDraft
         return if (hasAny) {
             RuleCard(
                 partnerLabel = partner,
@@ -175,13 +192,19 @@ class PromoRulesService(
                 goalLabel = goalLabel,
                 goalTarget = goalTarget,
                 goalBonus = goalBonus,
+                pairActive = if (pairDraft) false else null,
             )
         } else {
             null
         }
     }
 
-    /** Восстанавливает все per-pair поля карточки в ref из правила (для view/GET). */
+    /**
+     * Восстанавливает per-pair поля карточки в ref из правила (для view/GET).
+     * Цель НЕ восстанавливаем в ref — она на уровне кампании (см. view()).
+     * Статус пары берём из намерения (card.pairActive), а не из эффективного rule.status
+     * (тот мог стать draft из-за paused/draft кампании) — чтобы тоггл не «сбрасывался».
+     */
     private fun reconstructRef(base: PromoRuleProductRefDto, rule: RuleEntity): PromoRuleProductRefDto {
         val card = rule.card
         return base.copy(
@@ -191,9 +214,7 @@ class PromoRulesService(
             comparison = card?.comparison.orEmpty().map {
                 PromoComparisonRowDto(it.label, it.triggerValue, it.recommendValue, it.recommendHighlight)
             },
-            goalLabel = card?.goalLabel,
-            goalTarget = card?.goalTarget,
-            goalBonus = card?.goalBonus,
+            active = card?.pairActive != false,
         )
     }
 

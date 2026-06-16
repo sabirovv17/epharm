@@ -73,6 +73,13 @@ data class RuleCard(
     val goalLabel: String? = null,
     val goalTarget: Int? = null,
     val goalBonus: Int? = null,
+    /**
+     * Намерение админа по статусу пары замены/кросс-селла: false = «Черновик».
+     * null/отсутствует = «Активно» (дефолт). Эффективный статус правила гейтится
+     * ещё и статусом кампании (мастер-выключатель), поэтому намерение храним отдельно,
+     * чтобы оно round-trip'илось в редакторе даже при paused/draft кампании.
+     */
+    val pairActive: Boolean? = null,
 )
 
 @Entity

@@ -12,6 +12,7 @@ import kz.epharm.promo.entity.PromoEntity
 import kz.epharm.promo.entity.PromoStatus
 import kz.epharm.promo.entity.PromoTier
 import kz.epharm.promo.repository.PromoRepository
+import kz.epharm.rules.entity.RuleStatus
 import kz.epharm.rules.entity.RuleType
 import kz.epharm.rules.repository.RuleRepository
 import org.assertj.core.api.Assertions.assertThat
@@ -189,22 +190,24 @@ class PromoRulesIntegrationTest {
     }
 
     @Test
-    fun `per-pair поля карточки (преимущества-сравнение-цель) сохраняются и возвращаются по паре`() {
-        // Поля «блока рекомендации» теперь у каждой пары свои → в её правило (rules.advantages/card).
+    fun `per-pair поля карточки сохраняются по паре, а цель — на уровне кампании`() {
+        // Преимущества/партнёр/сравнение — у каждой пары свои (rules.advantages/card).
+        // Цель (goalLabel/goalTarget/goalBonus) — одна на всю кампанию (на уровне config),
+        // применяется ко ВСЕМ правилам кампании.
         val body = """
             {"replacements":[{"medusaProductId":"prod_comp1","name":"Аквалор Норм",
               "advantages":["Дешевле","Мягче"],
               "partnerLabel":"ПАРТНЁР",
-              "comparison":[{"label":"Объём","triggerValue":"15мл","recommendValue":"30мл","recommendHighlight":true}],
-              "goalLabel":"замен","goalTarget":10,"goalBonus":500}],
-             "crossSells":[]}
+              "comparison":[{"label":"Объём","triggerValue":"15мл","recommendValue":"30мл","recommendHighlight":true}]}],
+             "crossSells":[],
+             "goalLabel":"замен","goalTarget":10,"goalBonus":500}
         """.trimIndent()
         mockMvc.perform(
             put("/api/admin/promo/pr_camp/rules").header("Authorization", bearer)
                 .contentType(MediaType.APPLICATION_JSON).content(body),
         ).andExpect(status().isOk)
 
-        // В БД: поля попали в правило именно этой пары.
+        // В БД: per-pair поля в правиле пары; цель кампании наложена на карточку правила.
         val rule = ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc("pr_camp")
             .first { it.type == RuleType.substitution }
         assertThat(rule.advantages).containsExactly("Дешевле", "Мягче")
@@ -213,14 +216,42 @@ class PromoRulesIntegrationTest {
         assertThat(rule.card?.goalTarget).isEqualTo(10)
         assertThat(rule.card?.goalBonus).isEqualTo(500)
 
-        // GET возвращает поля per-pair.
+        // GET: per-pair поля у пары, а цель — на уровне config (кампании).
         mockMvc.perform(get("/api/admin/promo/pr_camp/rules").header("Authorization", bearer))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.config.replacements[0].advantages[0]").value("Дешевле"))
             .andExpect(jsonPath("$.config.replacements[0].partnerLabel").value("ПАРТНЁР"))
             .andExpect(jsonPath("$.config.replacements[0].comparison[0].label").value("Объём"))
             .andExpect(jsonPath("$.config.replacements[0].comparison[0].recommendHighlight").value(true))
-            .andExpect(jsonPath("$.config.replacements[0].goalTarget").value(10))
+            .andExpect(jsonPath("$.config.replacements[0].active").value(true))
+            .andExpect(jsonPath("$.config.goalTarget").value(10))
+            .andExpect(jsonPath("$.config.goalBonus").value(500))
+    }
+
+    @Test
+    fun `пара со статусом Черновик не активна даже в активной кампании`() {
+        // Кампания pr_camp активна (см. setUp). Пара active=false → её правило draft.
+        val body = """
+            {"replacements":[
+               {"medusaProductId":"prod_comp1","name":"Активная","active":true},
+               {"medusaProductId":"prod_comp2","name":"Черновик","active":false}],
+             "crossSells":[]}
+        """.trimIndent()
+        mockMvc.perform(
+            put("/api/admin/promo/pr_camp/rules").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(body),
+        ).andExpect(status().isOk)
+
+        val rules = ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc("pr_camp")
+        val draft = rules.first { (it.trigger.value as? String) == "prod_comp2" }
+        val active = rules.first { (it.trigger.value as? String) == "prod_comp1" }
+        assertThat(draft.status).isEqualTo(RuleStatus.draft)
+        assertThat(active.status).isEqualTo(RuleStatus.active)
+
+        // GET round-trip'ит намерение пары (active true/false) обратно в редактор.
+        mockMvc.perform(get("/api/admin/promo/pr_camp/rules").header("Authorization", bearer))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.config.replacements[?(@.medusaProductId=='prod_comp2')].active").value(false))
     }
 
     @Test
