@@ -5,11 +5,14 @@
 // T3: страница упрощена — нет ручного создания плейлиста (собираются автоматически),
 //     убраны колонка «Аптек» и пустой блок «Расписание».
 // T4: виджет «Подключено касс: N» (heartbeat подключённых POSM-плееров, поллинг 30с).
+// ДОП.2: убран таргетинг по аптеке — один глобальный видеоряд, все кассы подхватывают
+//        активный плейлист автоматически (backend: fallback на глобальный pharmacyId IS NULL).
+//        Адресацию под конкретную аптеку добавим позже.
 
 import { useEffect, useRef, useState } from 'react'
 import { Button, Empty, Field, Input, Modal, PageHeader, SectionCard, Select, useToast } from '@/ui'
 import { IconScreens, IconStack, IconTrash, IconUpload } from '@/ui/icons'
-import type { PharmacyDto, PlaylistDto, SlideDto } from '@/lib/api-types'
+import type { PlaylistDto, SlideDto } from '@/lib/api-types'
 import {
   useAssignSlide,
   useConnectedScreens,
@@ -20,7 +23,6 @@ import {
   useUpdatePlaylist,
   useUploadSlide,
 } from '@/lib/queries/screens'
-import { usePharmacies } from '@/lib/queries/pharmacies'
 import { describeError } from '@/lib/describeError'
 import { formatNum } from '@/mocks/fixtures'
 import { useT } from '@/i18n'
@@ -31,10 +33,8 @@ export default function ScreensPage() {
 
   const playlistsQ = usePlaylists()
   const slidesQ = useSlides()
-  const pharmaciesQ = usePharmacies()
   const playlists = playlistsQ.data ?? []
   const slides = slidesQ.data ?? []
-  const pharmacies = pharmaciesQ.data ?? []
 
   return (
     <div className="flex flex-col gap-4">
@@ -84,14 +84,13 @@ export default function ScreensPage() {
                 <th className="px-5 py-2.5">{t('scr.thPlaylist')}</th>
                 <th className="px-3 py-2.5 text-right">{t('scr.thSlides')}</th>
                 <th className="px-3 py-2.5 text-right">{t('scr.thDur')}</th>
-                <th className="px-3 py-2.5">{t('scr.thTarget')}</th>
                 <th className="px-3 py-2.5">{t('scr.thStatus')}</th>
                 <th className="px-5 py-2.5" />
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-100">
               {playlists.map((p) => (
-                <PlaylistRow key={p.id} p={p} pharmacies={pharmacies} />
+                <PlaylistRow key={p.id} p={p} />
               ))}
             </tbody>
           </table>
@@ -167,36 +166,19 @@ function fmtDuration(sec: number): string {
   return m > 0 ? `${m}м ${s}с` : `${s}с`
 }
 
-function PlaylistRow({ p, pharmacies }: { p: PlaylistDto; pharmacies: PharmacyDto[] }) {
+function PlaylistRow({ p }: { p: PlaylistDto }) {
   const t = useT()
   const toast = useToast()
   const update = useUpdatePlaylist()
   const del = useDeletePlaylist()
   const pending = update.isPending || del.isPending
 
+  // Один активный плейлист = текущий видеоряд для ВСЕХ касс (таргетинг по аптеке убран).
   const toggleStatus = () => {
     const next = p.status === 'active' ? 'draft' : 'active'
     update.mutate(
       { id: p.id, patch: { status: next } },
       { onError: () => toast.push(t('scr.statusErr')) },
-    )
-  }
-
-  // Назначение: «Все экраны» (null) или конкретная аптека. Sentinel '__all__' — чтобы пустое
-  // значение не конфликтовало с placeholder-логикой Select. setTarget=true применяет выбор.
-  const ALL = '__all__'
-  const targetOptions = [
-    { value: ALL, label: t('scr.targetAll') },
-    ...pharmacies.map((ph) => ({ value: ph.id, label: `${ph.name} · ${ph.city}` })),
-  ]
-  const onTarget = (value: string) => {
-    const target = value === ALL ? null : value
-    update.mutate(
-      { id: p.id, patch: { setTarget: true, targetPharmacyId: target } },
-      {
-        onSuccess: () => toast.push(target ? t('scr.targetSetOne') : t('scr.targetSetAll')),
-        onError: (e) => toast.push(describeError(e)),
-      },
     )
   }
 
@@ -213,14 +195,6 @@ function PlaylistRow({ p, pharmacies }: { p: PlaylistDto; pharmacies: PharmacyDt
       <td className="px-5 py-2.5 font-extrabold text-ink-900">{p.name}</td>
       <td className="num px-3 py-2.5 text-right">{formatNum(p.slidesCount)}</td>
       <td className="num px-3 py-2.5 text-right">{fmtDuration(p.durationSec)}</td>
-      <td className="px-3 py-2.5" data-testid={`playlist-target-${p.id}`}>
-        <Select
-          value={p.pharmacyId ?? ALL}
-          onChange={onTarget}
-          options={targetOptions}
-          className="!w-[190px]"
-        />
-      </td>
       <td className="px-3 py-2.5">
         <span className={`chip ${p.status === 'active' ? 'chip-green' : 'chip-ink'}`}>
           {p.status === 'active'

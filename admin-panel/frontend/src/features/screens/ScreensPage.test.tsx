@@ -216,34 +216,8 @@ describe('ScreensPage — управление (ТЗ §3.3)', () => {
     })
   })
 
-  it('назначение плейлиста на конкретный экран → useUpdatePlaylist с setTarget', async () => {
-    setData([mkPlaylist({ id: 'pl_x' })], [])
-    const user = userEvent.setup()
-    renderPage()
-    const select = screen
-      .getByTestId('playlist-target-pl_x')
-      .querySelector('select') as HTMLSelectElement
-    await user.selectOptions(select, 'ph_1')
-    expect(mut.updatePlaylist).toHaveBeenCalled()
-    expect(mut.updatePlaylist.mock.calls.at(-1)?.[0]).toMatchObject({
-      id: 'pl_x',
-      patch: { setTarget: true, targetPharmacyId: 'ph_1' },
-    })
-  })
-
-  it('возврат плейлиста на все экраны → targetPharmacyId=null', async () => {
-    setData([mkPlaylist({ id: 'pl_y', pharmacyId: 'ph_1' })], [])
-    const user = userEvent.setup()
-    renderPage()
-    const select = screen
-      .getByTestId('playlist-target-pl_y')
-      .querySelector('select') as HTMLSelectElement
-    await user.selectOptions(select, '__all__')
-    expect(mut.updatePlaylist.mock.calls.at(-1)?.[0]).toMatchObject({
-      id: 'pl_y',
-      patch: { setTarget: true, targetPharmacyId: null },
-    })
-  })
+  // ДОП.2: таргетинг по аптеке убран из UI (один глобальный видеоряд на все кассы),
+  // поэтому тесты назначения плейлиста на экран удалены.
 
   it('удаление плейлиста с подтверждением → useDeletePlaylist', async () => {
     setData([mkPlaylist({ id: 'pl_x' })], [])
