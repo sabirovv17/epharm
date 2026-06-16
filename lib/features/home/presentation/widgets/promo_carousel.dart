@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_gradients.dart';
 import '../../../../core/theme/app_radii.dart';
-import '../../../../core/theme/app_shadows.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../data/home_repository.dart';
 
@@ -49,12 +48,12 @@ class _BannerPlaceholderCard extends StatelessWidget {
     return Container(
       width: 180,
       height: 234,
-      // Мягкая светлая подложка с лёгким градиентом + тень на внешнем контейнере.
+      // Мягкая подложка БЕЗ тени: тень давала жёсткую границу снизу. Низ градиента
+      // сведён к цвету канваса → нижний край растворяется в фоне, перехода не видно.
       // Контент (иконка/подпись) приглушён — спокойный плейсхолдер без резкого контраста.
       decoration: BoxDecoration(
         gradient: AppGradients.bannerPlaceholder,
         borderRadius: AppRadii.brXl,
-        boxShadow: AppShadows.card,
       ),
       clipBehavior: Clip.antiAlias,
       child: Material(

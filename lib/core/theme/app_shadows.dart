@@ -2,18 +2,19 @@ import 'package:flutter/material.dart';
 
 /// Тени Epharm. Источник: `_reference/design-tokens.md` §4.
 abstract final class AppShadows {
-  /// Список-роу, белые карточки. Тень достаточно выраженная, чтобы карточки
-  /// чётко отделялись от paperCanvas (`#F4F6FA`) и не сливались с фоном.
+  /// Список-роу, белые карточки. Тень МЯГКАЯ — карточки спокойно лежат на
+  /// paperCanvas (`#F4F6FA`) без жёсткой тёмной кромки (приятнее глазу).
+  /// Раньше свечение было 0.12 — давало резкую границу под блоками.
   static const List<BoxShadow> card = [
     BoxShadow(
-      color: Color(0x140F1424), // rgba(15,20,36,0.08) — близкая «контактная» тень
+      color: Color(0x0D0F1424), // rgba(15,20,36,0.05) — лёгкая «контактная» тень
       offset: Offset(0, 1),
       blurRadius: 3,
     ),
     BoxShadow(
-      color: Color(0x1F0F1424), // rgba(15,20,36,0.12) — мягкое нижнее свечение
-      offset: Offset(0, 6),
-      blurRadius: 18,
+      color: Color(0x140F1424), // rgba(15,20,36,0.08) — мягкое нижнее свечение
+      offset: Offset(0, 4),
+      blurRadius: 16,
     ),
   ];
 
