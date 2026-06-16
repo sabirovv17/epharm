@@ -368,8 +368,6 @@ class _PreviewHome extends StatelessWidget {
                       _MiniChip(label: '↕'),
                       const SizedBox(width: 3),
                       _MiniChip(label: 'Бренд'),
-                      const SizedBox(width: 3),
-                      _MiniChip(label: 'Конкурсные', active: true),
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -418,26 +416,25 @@ class _MiniPill extends StatelessWidget {
 }
 
 class _MiniChip extends StatelessWidget {
-  const _MiniChip({required this.label, this.active = false});
+  const _MiniChip({required this.label});
   final String label;
-  final bool active;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: active ? AppColors.brandGreen600 : AppColors.paperInput,
+        color: AppColors.paperInput,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         label,
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: 'Manrope',
-         fontFamilyFallback: ['Roboto', 'sans-serif'],
+          fontFamilyFallback: ['Roboto', 'sans-serif'],
           fontSize: 8,
           fontWeight: FontWeight.w800,
-          color: active ? Colors.white : AppColors.ink900,
+          color: AppColors.ink900,
         ),
       ),
     );

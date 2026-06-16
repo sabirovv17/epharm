@@ -381,9 +381,7 @@ class _GridThumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const h = 116.0;
     Widget placeholder() => Container(
-          height: h,
           width: double.infinity,
           alignment: Alignment.center,
           color: AppColors.brandGreen100,
@@ -401,16 +399,17 @@ class _GridThumb extends StatelessWidget {
           ),
         );
     final url = promo.imageUrl;
-    return (url == null || url.isEmpty)
+    final child = (url == null || url.isEmpty)
         ? placeholder()
         : Image.network(
             url,
-            height: h,
             width: double.infinity,
             fit: BoxFit.cover,
             loadingBuilder: (_, child, p) => p == null ? child : placeholder(),
             errorBuilder: (_, __, ___) => placeholder(),
           );
+    // Фото формата 3:4 (ширина:высота), как в ПИМ. Высота = ширина ячейки × 4/3.
+    return AspectRatio(aspectRatio: 3 / 4, child: child);
   }
 }
 

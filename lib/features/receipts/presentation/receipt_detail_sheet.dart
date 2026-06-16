@@ -195,16 +195,20 @@ class _ReceiptPhoto extends StatelessWidget {
       final f = File(receipt.photoPath!);
       if (f.existsSync()) img = Image.file(f, fit: BoxFit.cover);
     }
-    return Container(
-      width: double.infinity,
-      height: 180,
-      decoration: BoxDecoration(
-        color: AppColors.paperInput,
-        borderRadius: AppRadii.brXl,
-        boxShadow: AppShadows.card,
+    // Чек — вертикальный документ: превью формата 3:4 (как фото в ПИМ),
+    // а не горизонтальная плашка 180px. Высота = ширина × 4/3.
+    return AspectRatio(
+      aspectRatio: 3 / 4,
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: AppColors.paperInput,
+          borderRadius: AppRadii.brXl,
+          boxShadow: AppShadows.card,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: img ?? const _PhotoFallback(),
       ),
-      clipBehavior: Clip.antiAlias,
-      child: img ?? const _PhotoFallback(),
     );
   }
 }

@@ -27,8 +27,6 @@ import 'widgets/balance_card.dart';
 import 'widgets/bottom_navigation.dart';
 import 'widgets/brand_sheet.dart';
 import 'widgets/category_sheet.dart';
-import 'widgets/contests_stub_screen.dart';
-import 'widgets/contests_stub_sheet.dart';
 import 'widgets/home_welcome_gate.dart';
 import 'widgets/learning_stub_screen.dart';
 import 'widgets/login_invite_card.dart';
@@ -248,10 +246,8 @@ class _HomeTab extends ConsumerWidget {
             ),
           ),
 
-          // 4) Filter row: сортировка + Бренд + Категории + Конкурсные.
-          //    Бренд/Категории — реальные фильтры каталога. «Конкурсные» — атрибут
-          //    программы лояльности (не каталога Medusa), данных пока нет → chip
-          //    открывает заглушку «добавим позже» (showContestsStubSheet).
+          // 4) Filter row: сортировка + Бренд + Категории.
+          //    Раздел «Конкурсные» полностью убран (ДОП.3c).
           SliverToBoxAdapter(
             child: SizedBox(
               height: 56,
@@ -294,13 +290,6 @@ class _HomeTab extends ConsumerWidget {
                         color: AppColors.ink900,
                       ),
                       onTap: () => showCategorySheet(context),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Center(
-                    child: PharmaFilterChip(
-                      label: 'Конкурсные',
-                      onTap: () => showContestsStubSheet(context),
                     ),
                   ),
                 ],
@@ -405,13 +394,13 @@ class _PromoSliver extends StatelessWidget {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenEdge),
       sliver: SliverGrid(
-        // 2 колонки. mainAxisExtent — фикс-высота ячейки (фото 116 + текст/бонус),
-        // надёжнее childAspectRatio при разной длине названия.
+        // 2 колонки. childAspectRatio 0.5 (ширина:высота ячейки = 1:2): вмещает
+        // фото 3:4 (ДОП.4, высота = ширина×4/3) + блок названия/бренда/бонуса.
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
-          mainAxisExtent: 238,
+          childAspectRatio: 0.5,
         ),
         delegate: SliverChildBuilderDelegate(
           (ctx, i) {
@@ -492,7 +481,7 @@ class _Header extends StatelessWidget {
 /// Структура (см. `_reference/.../screens/profile.jsx`):
 /// • Зелёный header (grad-blueHead) с PharmaWordmark и:
 ///   - unauthed → LoginInviteCard «Войдите в аккаунт»
-///   - authed → аватар + ФИО + телефон + 2 glass-pill (История, Конкурсы)
+///   - authed → аватар + ФИО + телефон + glass-pill «История»
 /// • Тело на paperCanvas: секции «Помощь» (4 row) и «О приложении» (2 row),
 ///   кнопка «Выйти» (только authed), footer версии приложения.
 class _ProfileTab extends ConsumerWidget {
@@ -822,29 +811,11 @@ class _AuthedHeader extends StatelessWidget {
           ],
         ),
         const SizedBox(height: AppSpacing.s16),
-        // Две glass-pill кнопки: История + Конкурсы.
-        Row(
-          children: [
-            Expanded(
-              child: GlassPill(
-                icon: Icons.access_time_rounded,
-                label: 'История',
-                onTap: onHistoryTap,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: GlassPill(
-                icon: Icons.emoji_events_outlined,
-                label: 'Конкурсы',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const ContestsStubScreen(),
-                  ),
-                ),
-              ),
-            ),
-          ],
+        // Кнопка истории чеков на всю ширину (раздел «Конкурсы» убран — ДОП.3c).
+        GlassPill(
+          icon: Icons.access_time_rounded,
+          label: 'История',
+          onTap: onHistoryTap,
         ),
       ],
     );

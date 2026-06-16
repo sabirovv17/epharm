@@ -27,7 +27,8 @@ class CatalogCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             AspectRatio(
-              aspectRatio: 1.4,
+              // Фото 3:4 (ширина:высота), как в ПИМ (ДОП.4).
+              aspectRatio: 3 / 4,
               child: _CatalogCardImage(product: product),
             ),
             Expanded(
