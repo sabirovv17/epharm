@@ -424,10 +424,8 @@ export interface PromoRuleProductRef {
   partnerLabel?: string | null
   /** Таблица-сравнение «было/стало». */
   comparison?: RuleComparisonRowDto[]
-  /** Цель «N/target» + бонус за цель. */
-  goalLabel?: string | null
-  goalTarget?: number | null
-  goalBonus?: number | null
+  /** Статус ЭТОЙ пары: true=«Активно», false=«Черновик». */
+  active?: boolean
 }
 
 export interface PromoRulesConfigDto {
@@ -439,6 +437,7 @@ export interface PromoRulesConfigDto {
   advantages: string[]
   partnerLabel: string | null
   comparison: RuleComparisonRowDto[]
+  /** Цель кампании (одна на всю кампанию): «N/target <label>» + бонус за цель. */
   goalLabel: string | null
   goalTarget: number | null
   goalBonus: number | null

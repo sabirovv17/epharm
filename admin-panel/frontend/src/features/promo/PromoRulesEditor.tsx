@@ -44,9 +44,7 @@ function toRef(p: StorefrontProductDto): PromoRuleProductRef {
     advantages: [],
     partnerLabel: null,
     comparison: [],
-    goalLabel: null,
-    goalTarget: null,
-    goalBonus: null,
+    active: true,
   }
 }
 
@@ -101,20 +99,21 @@ export function PromoRulesEditor({
     advantages: (r.advantages ?? []).map((a) => a.trim()).filter((a) => a.length > 0),
     comparison: (r.comparison ?? []).filter((row) => row.label.trim().length > 0),
     partnerLabel: r.partnerLabel?.trim() || null,
-    goalLabel: r.goalLabel?.trim() || null,
+    active: r.active !== false,
   })
 
   const onSave = () => {
     const config: PromoRulesConfigDto = {
       ...cfg,
-      // Все поля карточки теперь per-pair; общий уровень оставляем пустым.
+      // script/advantages/partnerLabel/comparison — per-pair; общий уровень пуст.
       script: '',
       advantages: [],
       partnerLabel: null,
       comparison: [],
-      goalLabel: null,
-      goalTarget: null,
-      goalBonus: null,
+      // Цель — на уровне кампании: сохраняем как есть.
+      goalLabel: cfg.goalLabel?.trim() || null,
+      goalTarget: cfg.goalTarget ?? null,
+      goalBonus: cfg.goalBonus ?? null,
       replacements: dedupe(cfg.replacements).map(cleanRef),
       crossSells: dedupe(cfg.crossSells).map(cleanRef),
     }
@@ -174,6 +173,45 @@ export function PromoRulesEditor({
             onRemove={(idp) => removeFrom('crossSells', idp)}
             onPatch={(idp, p) => updatePair('crossSells', idp, p)}
           />
+
+          {/* Цель — одна на всю кампанию (применяется ко всем парам). */}
+          <Field label={t('pr.campaignGoal')} hint={t('pr.campaignGoalHint')}>
+            <div className="grid grid-cols-3 gap-2">
+              <Input
+                value={cfg.goalLabel ?? ''}
+                disabled={disabled}
+                placeholder={t('pr.goalLabel')}
+                data-testid="pr-goal-label"
+                onChange={(e) => setCfg((c) => ({ ...c, goalLabel: e.target.value || null }))}
+              />
+              <Input
+                type="number"
+                value={cfg.goalTarget ?? ''}
+                disabled={disabled}
+                placeholder={t('pr.goalTarget')}
+                data-testid="pr-goal-target"
+                onChange={(e) =>
+                  setCfg((c) => ({
+                    ...c,
+                    goalTarget: e.target.value === '' ? null : Number(e.target.value),
+                  }))
+                }
+              />
+              <Input
+                type="number"
+                value={cfg.goalBonus ?? ''}
+                disabled={disabled}
+                placeholder={t('pr.goalBonus')}
+                data-testid="pr-goal-bonus"
+                onChange={(e) =>
+                  setCfg((c) => ({
+                    ...c,
+                    goalBonus: e.target.value === '' ? null : Number(e.target.value),
+                  }))
+                }
+              />
+            </div>
+          </Field>
 
           {!disabled && (
             <div className="hairline flex items-center justify-end border-t pt-3">
@@ -302,13 +340,28 @@ function PairCard({
             <div className="truncate text-[11px] font-semibold text-ink-500">{r.brand}</div>
           )}
         </div>
+        {/* Статус именно этой пары: Активно / Черновик. */}
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => onPatch({ active: r.active === false })}
+          data-testid={`pr-status-${r.medusaProductId}`}
+          aria-pressed={r.active !== false}
+          className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors ${
+            r.active !== false
+              ? 'bg-brand-green-50 text-brand-green-700'
+              : 'bg-paper-input text-ink-500'
+          } ${disabled ? 'cursor-default opacity-70' : 'hover:opacity-80'}`}
+        >
+          {r.active !== false ? t('pr.statusActive') : t('pr.statusDraft')}
+        </button>
         {!disabled && (
           <button
             type="button"
             onClick={onRemove}
             aria-label={t('pr.removePair')}
             data-testid={`pr-remove-${r.medusaProductId}`}
-            className="text-ink-400 transition-colors hover:text-accent-danger"
+            className="shrink-0 text-ink-400 transition-colors hover:text-accent-danger"
           >
             <IconClose size={14} />
           </button>
@@ -444,36 +497,6 @@ function PairCard({
               )}
             </div>
           </Field>
-
-          <div className="grid grid-cols-3 gap-2">
-            <Field label={t('pr.goalLabel')}>
-              <Input
-                value={r.goalLabel ?? ''}
-                disabled={disabled}
-                onChange={(e) => onPatch({ goalLabel: e.target.value || null })}
-              />
-            </Field>
-            <Field label={t('pr.goalTarget')}>
-              <Input
-                type="number"
-                value={r.goalTarget ?? ''}
-                disabled={disabled}
-                onChange={(e) =>
-                  onPatch({ goalTarget: e.target.value === '' ? null : Number(e.target.value) })
-                }
-              />
-            </Field>
-            <Field label={t('pr.goalBonus')}>
-              <Input
-                type="number"
-                value={r.goalBonus ?? ''}
-                disabled={disabled}
-                onChange={(e) =>
-                  onPatch({ goalBonus: e.target.value === '' ? null : Number(e.target.value) })
-                }
-              />
-            </Field>
-          </div>
         </div>
       )}
     </li>

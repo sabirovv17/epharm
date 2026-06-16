@@ -896,6 +896,10 @@ export const ru: Dict = {
   'pr.goalLabel': 'Цель (название)',
   'pr.goalTarget': 'Цель (шт)',
   'pr.goalBonus': 'Бонус за цель, ₸',
+  'pr.campaignGoal': 'Цель кампании',
+  'pr.campaignGoalHint': 'Одна на всю кампанию — применяется ко всем заменам и кросс-селлам',
+  'pr.statusActive': 'Активно',
+  'pr.statusDraft': 'Черновик',
   'pr.save': 'Сохранить правила',
   'pr.savedToast': 'Правила кампании сохранены',
   'pr.standaloneBanner':
@@ -1794,6 +1798,10 @@ export const kk: Dict = {
   'pr.goalLabel': 'Мақсат (атауы)',
   'pr.goalTarget': 'Мақсат (дана)',
   'pr.goalBonus': 'Мақсат бонусы, ₸',
+  'pr.campaignGoal': 'Науқан мақсаты',
+  'pr.campaignGoalHint': 'Бүкіл науқанға біреу — барлық ауыстыру мен кросс-селлге қолданылады',
+  'pr.statusActive': 'Белсенді',
+  'pr.statusDraft': 'Қаралама',
   'pr.save': 'Ережелерді сақтау',
   'pr.savedToast': 'Науқан ережелері сақталды',
   'pr.standaloneBanner':
