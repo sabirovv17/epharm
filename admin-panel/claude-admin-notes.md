@@ -3365,8 +3365,21 @@ refetchOnWindowFocus:true + refetchInterval:20_000`. Persisted рендерит�
 Убран таргетинг плейлиста по аптеке из UI. Активный плейлист = текущий видеоряд для ВСЕХ касс
 (backend уже делает fallback `activePlaylistForScreen` → `pharmacyId IS NULL`). Per-аптеку — позже.
 
+### Батч D — мобильный (часть, готово + отревьюено)
+
+- ✅ Убрать «Конкурсные» (home/profile/welcome + stub-файлы); фото карточек 3×4 (AspectRatio 3/4,
+  грид Home childAspectRatio **0.46** — фикс overflow на 320px по ревью); превью чека 3×4. (06ef428)
+- ✅ Дефолтная карта (ДОП.7): `CardStore` (secure-storage), грузится на старте main.dart, build()
+  читает синхронно (убрана async-гонка по ревью). (2576410, fdbd45d)
+- ✅ Баннер на весь экран — плейсхолдер «Контент появится позже» (реальных баннеров пока нет). (2cdb8fe)
+- ✅ ID чеков (ДОП.9): `RCP-ГГММДД-XXXXXXXX` (8 hex — collision-safe по ревью). (d89659d, 3c73889)
+
 ### Осталось (накапливаем коммиты, деплой в конце)
 
-Батч D (мобильный: Q&A Medusa, секции Альтернативы/Дополнения, удалить «Конкурсные», фото 3×4,
-дерево категорий, превью чека 3×4, дефолтная карта, фуллскрин-баннер + Flutter-перф); Батч E (чек:
-авто-определение акции/аптеки + красивые ID); финал — общий деплой backend+frontend + APK.
+- **ДОП.3a** Q&A в карточке товара — данные есть в Medusa `metadata.faq` (`[{q,a}]`, STOREFRONT.md);
+  backend (MobileCatalogService/Dtos) + mobile (catalog_models/catalog_product_sheet).
+- **ДОП.5** дерево категорий — сменить источник (category_sheet берёт плоские имена из
+  promoCategoriesProvider; иерархия parentId есть в `/api/mobile/catalog/categories`).
+- **ДОП.3b** Альтернативы/Дополнения — backend-эндпоинт рекомендаций по товару + миграция + mobile-секции.
+- **Батч E** авто-определение акции/аптеки из чека (убрать пикеры promo/аптека, матчинг на бэке).
+- Финал — общий деплой backend+frontend + APK со ссылкой.
