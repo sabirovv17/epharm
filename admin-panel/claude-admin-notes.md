@@ -3400,4 +3400,32 @@ refetchOnWindowFocus:true + refetchInterval:20_000`. Persisted рендерит�
   - Mobile: удалены `promo_picker_screen`/`address_sheet` + орфанная инфра аптек
     (`pharmacy_repository`/`api`/`mock`/`nearby_pharmacies` + провайдеры). `ReceiptDraft` = photo+card.
     Экран обзора: 1 пункт (карта) + инфо-баннер «Акции и аптека — автоматически». `submitReceipt(title, photoPath)`.
-- Финал: общий деплой backend+frontend + APK со ссылкой (после ultracode-ревью).
+
+### ИБ-харднинг рекомендаций (cef3323)
+
+- Эндпоинт `/recommendations` публичный (как весь каталог), НО `bonus`/`script` (размер
+  вознаграждения + скрипт продажи) — коммерчески чувствительны. Сервис гейтит их флагом
+  `includeIncentive`; контроллер выставляет его по `@AuthenticationPrincipal PharmacistPrincipal?`.
+  Аноним видит только товары-рекомендации; суммы/скрипт — лишь авторизованному фармацевту.
+  Юнит-тест в `MobileCatalogServiceTest`.
+
+### Деплой 2026-06-17 (демо 78.140.246.238) — только backend
+
+- Залит **только backend** (фронт-админ в батче не менялся): `git archive HEAD admin-panel/backend`
+  → ssh tar-x → `docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build backend`.
+- Health-проверки: `/api/health` 200; `/api/mobile/catalog/products` 200; **новый**
+  `/api/mobile/catalog/products/{id}/recommendations` 200 (`{"alternatives":[],"crosssells":[]}` —
+  у товара нет правил, но эндпоинт жив и без токена бонус не отдаётся).
+- APK: `flutter build apk --release` (51 335 645 байт) → mc cp в `epharm-receipts/epharm-demo.apk`
+  → download `https://epharm.78-140-246-238.sslip.io/s3/epharm-receipts/epharm-demo.apk`
+  (HTTP/2 200, `application/vnd.android.package-archive`).
+
+### ⚠️ ИБ-наблюдение на будущее (для созвона с Inkar/Quasar)
+
+Бакет `epharm-receipts` = **anonymous `download`** (public-read, документировано в S3MediaStorage.kt):
+фото чеков + слайды экранов + APK играются/скачиваются в браузере без presigned-URL. Ключи —
+UUID (не перечисляемы), но это «security by obscurity»: любой со ссылкой на фото чека (личные/
+фискальные данные) скачает его без авторизации. Для прод-INKAR стоит рассмотреть: presigned-URL
+для фото чеков ИЛИ приватный бакет + auth-прокси на скачивание; APK/слайды можно оставить в публичном.
+Сейчас НЕ менял (сломало бы показ фото в админ-дровере + проигрывание слайдов; это осознанное
+архитектурное решение) — вынесено как рекомендация.
