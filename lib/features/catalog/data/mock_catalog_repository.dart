@@ -142,4 +142,7 @@ class MockCatalogRepository implements CatalogRepository {
       ],
     );
   }
+
+  @override
+  Future<List<MobileCategory>> categories() async => const [];
 }

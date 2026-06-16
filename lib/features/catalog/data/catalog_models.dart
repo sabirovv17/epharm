@@ -89,6 +89,26 @@ class CatalogMarketplaceLink {
       );
 }
 
+/// Категория каталога (Medusa) с иерархией: `parentId` указывает на родителя
+/// (null — корневая). Используется для построения дерева в фильтре категорий.
+class MobileCategory {
+  const MobileCategory({
+    required this.id,
+    required this.name,
+    this.parentId,
+  });
+
+  final String id;
+  final String name;
+  final String? parentId;
+
+  factory MobileCategory.fromJson(Map<String, dynamic> j) => MobileCategory(
+        id: j['id'] as String? ?? '',
+        name: j['name'] as String? ?? '',
+        parentId: j['parentId'] as String?,
+      );
+}
+
 /// Вопрос-ответ из ПИМ (Medusa metadata.faq).
 class CatalogQaItem {
   const CatalogQaItem({required this.q, required this.a});

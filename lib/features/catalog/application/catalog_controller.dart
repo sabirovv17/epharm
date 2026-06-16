@@ -25,3 +25,9 @@ final catalogDetailProvider =
     FutureProvider.autoDispose.family<CatalogProductDetail, String>(
   (ref, id) => ref.read(catalogRepositoryProvider).detail(id),
 );
+
+/// Категории каталога с иерархией (parentId) — для дерева в фильтре категорий.
+/// Кешируется (не autoDispose) — каталог категорий меняется редко.
+final catalogCategoriesProvider = FutureProvider<List<MobileCategory>>(
+  (ref) => ref.read(catalogRepositoryProvider).categories(),
+);

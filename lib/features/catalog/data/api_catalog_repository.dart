@@ -27,4 +27,13 @@ class ApiCatalogRepository implements CatalogRepository {
     );
     return CatalogProductDetail.fromJson(json);
   }
+
+  @override
+  Future<List<MobileCategory>> categories() async {
+    final raw = await _client.getJsonList('/api/mobile/catalog/categories');
+    return raw
+        .whereType<Map<String, dynamic>>()
+        .map(MobileCategory.fromJson)
+        .toList();
+  }
 }

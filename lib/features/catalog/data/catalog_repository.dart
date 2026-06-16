@@ -6,4 +6,7 @@ import 'catalog_models.dart';
 abstract interface class CatalogRepository {
   Future<CatalogPage> search({String? q, int limit, int offset});
   Future<CatalogProductDetail> detail(String id);
+
+  /// Все категории каталога с иерархией (parentId) — для дерева фильтра.
+  Future<List<MobileCategory>> categories();
 }
