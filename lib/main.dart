@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 import 'core/config/api_config.dart';
+import 'core/network/card_store.dart';
 import 'core/network/token_store.dart';
 import 'features/profile/application/profile_controller.dart';
 
@@ -29,6 +30,9 @@ void _bootstrap() {
   };
 
   final container = ProviderContainer();
+  // Дефолтная карта (ДОП.7) — локальна, грузим всегда (независимо от useApi),
+  // заранее, чтобы экран чека префилил её синхронно из памяти.
+  unawaited(container.read(cardStoreProvider).load());
   unawaited(_restoreSession(container));
 
   runApp(UncontrolledProviderScope(container: container, child: const PharmacyApp()));

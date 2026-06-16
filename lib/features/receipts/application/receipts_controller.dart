@@ -99,17 +99,9 @@ class ReceiptDraft {
 class ReceiptDraftNotifier extends Notifier<ReceiptDraft> {
   @override
   ReceiptDraft build() {
-    // Префилл дефолтной картой (ДОП.7): если уже в памяти — сразу; иначе подгружаем
-    // из защищённого хранилища и обновляем стейт, пока пользователь не ввёл свою.
-    final store = ref.read(cardStoreProvider);
-    if (store.card == null) {
-      store.load().then((_) {
-        if (store.card != null && state.card == null) {
-          state = state.copyWith(card: store.card);
-        }
-      });
-    }
-    return ReceiptDraft(card: store.card);
+    // Префилл дефолтной картой (ДОП.7). CardStore.load() выполняется на старте
+    // (main.dart), здесь читаем уже из памяти — синхронно, без async-гонок в build().
+    return ReceiptDraft(card: ref.read(cardStoreProvider).card);
   }
 
   void setPhoto(String path) => state = state.copyWith(photoPath: path);

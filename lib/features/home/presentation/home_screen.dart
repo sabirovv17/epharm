@@ -394,13 +394,14 @@ class _PromoSliver extends StatelessWidget {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenEdge),
       sliver: SliverGrid(
-        // 2 колонки. childAspectRatio 0.5 (ширина:высота ячейки = 1:2): вмещает
-        // фото 3:4 (ДОП.4, высота = ширина×4/3) + блок названия/бренда/бонуса.
+        // 2 колонки. childAspectRatio 0.46 (ячейка выше ширины): вмещает фото 3:4
+        // (ДОП.4, высота = ширина×4/3 ≈ 1.33w) + блок названия/бренда/бонуса даже на
+        // узких экранах (320px) без overflow.
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
-          childAspectRatio: 0.5,
+          childAspectRatio: 0.46,
         ),
         delegate: SliverChildBuilderDelegate(
           (ctx, i) {
