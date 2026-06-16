@@ -4,6 +4,8 @@ import kz.epharm.catalog.entity.ProductEntity
 import kz.epharm.catalog.repository.ProductRepository
 import kz.epharm.posm.dto.CartItemDto
 import kz.epharm.posm.repository.ProductPosCodeRepository
+import kz.epharm.promo.entity.PromoStatus
+import kz.epharm.promo.repository.PromoRepository
 import kz.epharm.rules.entity.RuleEntity
 import kz.epharm.rules.entity.RuleStatus
 import kz.epharm.rules.entity.RuleTrigger
@@ -59,6 +61,7 @@ class RulesEngineService(
     private val ruleRepository: RuleRepository,
     private val productRepository: ProductRepository,
     private val productPosCodeRepository: ProductPosCodeRepository,
+    private val promoRepository: PromoRepository,
 ) {
 
     @Transactional(readOnly = true)
@@ -71,7 +74,18 @@ class RulesEngineService(
         val cartProducts: Map<String, ProductEntity> =
             productRepository.findAllById(cartSkus).associateBy { it.id }
 
-        val active = ruleRepository.findAllByStatusRawOrderByUpdatedAtDesc(RuleStatus.active.name)
+        val activeRules = ruleRepository.findAllByStatusRawOrderByUpdatedAtDesc(RuleStatus.active.name)
+        // Кампания — мастер-выключатель: правило из неактивной кампании НЕ показываем,
+        // даже если оно осталось active в БД (смена статуса кампании не пересохраняет правила).
+        // Правила без promoId (legacy ручные) проходят как есть.
+        val promoIds = activeRules.mapNotNull { it.promoId }.toSet()
+        val activePromoIds =
+            if (promoIds.isEmpty()) emptySet()
+            else promoRepository.findAllById(promoIds)
+                .filter { it.status == PromoStatus.active }
+                .map { it.id }
+                .toSet()
+        val active = activeRules.filter { it.promoId == null || it.promoId in activePromoIds }
 
         val raw = active.mapNotNull { rule ->
             val triggerSku = matchTrigger(rule.trigger, cartSkus, cartProducts) ?: return@mapNotNull null

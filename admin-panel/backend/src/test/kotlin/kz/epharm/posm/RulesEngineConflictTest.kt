@@ -6,6 +6,7 @@ import kz.epharm.catalog.entity.ProductEntity
 import kz.epharm.catalog.repository.ProductRepository
 import kz.epharm.posm.dto.CartItemDto
 import kz.epharm.posm.repository.ProductPosCodeRepository
+import kz.epharm.promo.repository.PromoRepository
 import kz.epharm.posm.service.RulesEngineService
 import kz.epharm.rules.entity.RuleEntity
 import kz.epharm.rules.entity.RuleStatus
@@ -26,7 +27,10 @@ class RulesEngineConflictTest {
     private val ruleRepo = mockk<RuleRepository>()
     private val productRepo = mockk<ProductRepository>()
     private val posCodeRepo = mockk<ProductPosCodeRepository>(relaxed = true)
-    private val engine = RulesEngineService(ruleRepo, productRepo, posCodeRepo)
+    // Правила теста без promoId (legacy) → гейтинг по кампании их не трогает,
+    // promoRepo.findAllById не вызывается; mock нужен только для конструктора.
+    private val promoRepo = mockk<PromoRepository>(relaxed = true)
+    private val engine = RulesEngineService(ruleRepo, productRepo, posCodeRepo, promoRepo)
 
     private fun product(id: String) = ProductEntity(id = id, name = "Товар $id", price = 100)
 

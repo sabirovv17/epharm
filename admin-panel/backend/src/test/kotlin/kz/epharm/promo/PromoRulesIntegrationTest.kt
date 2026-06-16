@@ -255,6 +255,28 @@ class PromoRulesIntegrationTest {
     }
 
     @Test
+    fun `цель кампании сохраняется даже без пар (на promo, не в правилах)`() {
+        // Регресс на критическую находку ревью: цель жила только в rules.card и терялась,
+        // если у кампании нет ни одной пары. Теперь источник истины — promos.*.
+        val body = """
+            {"replacements":[],"crossSells":[],
+             "goalLabel":"замен в июне","goalTarget":7,"goalBonus":300}
+        """.trimIndent()
+        mockMvc.perform(
+            put("/api/admin/promo/pr_camp/rules").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(body),
+        ).andExpect(status().isOk)
+
+        // Правил нет, но цель не потерялась — отдаётся на GET из promos.
+        mockMvc.perform(get("/api/admin/promo/pr_camp/rules").header("Authorization", bearer))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.config.replacements.length()").value(0))
+            .andExpect(jsonPath("$.config.goalLabel").value("замен в июне"))
+            .andExpect(jsonPath("$.config.goalTarget").value(7))
+            .andExpect(jsonPath("$.config.goalBonus").value(300))
+    }
+
+    @Test
     fun `PUT для кампании без товара → 400`() {
         promoRepository.save(
             PromoEntity(id = "pr_noprod", title = "Без товара").also { it.status = PromoStatus.draft },

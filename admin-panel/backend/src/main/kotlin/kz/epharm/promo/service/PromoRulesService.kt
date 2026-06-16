@@ -49,7 +49,7 @@ class PromoRulesService(
 
     @Transactional(readOnly = true)
     fun view(promoId: String): PromoRulesViewDto {
-        loadPromo(promoId)
+        val promo = loadPromo(promoId)
         val rules = ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc(promoId)
         val subs = rules.filter { it.type == RuleType.substitution }
         val cross = rules.filter { it.type == RuleType.crosssell }
@@ -70,17 +70,14 @@ class PromoRulesService(
             )
         }
 
-        // Цель — на уровне кампании (одна на все правила). Восстанавливаем её из любого
-        // правила, где она задана (все правила кампании несут одинаковую цель).
-        val goalCard = rules.firstNotNullOfOrNull { r ->
-            r.card?.takeIf { it.goalLabel != null || it.goalTarget != null || it.goalBonus != null }
-        }
+        // Цель — на уровне кампании (источник истины — promos.*), а не из правил:
+        // так она не теряется, даже если у кампании пока нет ни одной пары.
         val config = PromoRulesConfigDto(
             replacements = replacements,
             crossSells = crossSells,
-            goalLabel = goalCard?.goalLabel,
-            goalTarget = goalCard?.goalTarget,
-            goalBonus = goalCard?.goalBonus,
+            goalLabel = promo.goalLabel,
+            goalTarget = promo.goalTarget,
+            goalBonus = promo.goalBonus,
         )
         return PromoRulesViewDto(
             promoId = promoId,
@@ -105,6 +102,16 @@ class PromoRulesService(
             )
         // Локальный товар-продвигаемый (recommend для замен, trigger для кросс-селла).
         val promoted = upsertPromotedProduct(promo, promotedMedusaId)
+
+        // Цель кампании — пишем на саму кампанию (источник истины), чтобы она не терялась
+        // даже без пар. В card правил она потом денормализуется (для POSM-кассы).
+        // Цель «всё-или-ничего»: без target цель бессмысленна (касса её не покажет).
+        val goalLabel = config.goalLabel?.trim()?.takeIf { it.isNotBlank() }
+        val goalTarget = config.goalTarget?.takeIf { it > 0 }
+        promo.goalLabel = if (goalTarget != null) goalLabel else null
+        promo.goalTarget = goalTarget
+        promo.goalBonus = if (goalTarget != null) config.goalBonus?.takeIf { it >= 0 } else null
+        promoRepository.save(promo)
 
         val bonus = promo.pharmacistBonus.toInt()
         // Кампания — мастер-выключатель: правило active только если И кампания active,
@@ -177,10 +184,11 @@ class PromoRulesService(
         val comparison = rows.map {
             RuleComparisonRow(it.label, it.triggerValue, it.recommendValue, it.recommendHighlight)
         }
-        // Цель — на уровне кампании: одна на все правила, берётся из config.
-        val goalLabel = config.goalLabel?.takeIf { it.isNotBlank() }
-        val goalTarget = config.goalTarget
-        val goalBonus = config.goalBonus
+        // Цель — на уровне кампании, денормализуется в card для POSM-кассы.
+        // «Всё-или-ничего»: без target>0 цель не пишем (касса всё равно её не покажет).
+        val goalTarget = config.goalTarget?.takeIf { it > 0 }
+        val goalLabel = if (goalTarget != null) config.goalLabel?.takeIf { it.isNotBlank() } else null
+        val goalBonus = if (goalTarget != null) config.goalBonus else null
         // Намерение по статусу пары храним только когда «черновик» (false); активная — дефолт.
         val pairDraft = !ref.active
         val hasAny = partner != null || comparison.isNotEmpty() || goalLabel != null ||

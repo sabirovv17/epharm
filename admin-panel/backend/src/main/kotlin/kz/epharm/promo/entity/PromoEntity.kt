@@ -92,6 +92,19 @@ class PromoEntity(
     @Column(name = "override_characteristics", columnDefinition = "text")
     var overrideCharacteristics: String? = null,
 
+    // ── Цель кампании (одна на всю кампанию; источник истины) ────────────────
+    /** Подпись цели «N/target <label>». NULL = цель не задана. */
+    @Column(name = "goal_label", length = 120)
+    var goalLabel: String? = null,
+
+    /** Сколько замен/кросс-селлов нужно для цели. */
+    @Column(name = "goal_target")
+    var goalTarget: Int? = null,
+
+    /** Бонус фармацевту за достижение цели, ₸. */
+    @Column(name = "goal_bonus")
+    var goalBonus: Int? = null,
+
     @Column(name = "date_start")
     var dateStart: LocalDate? = null,
 
