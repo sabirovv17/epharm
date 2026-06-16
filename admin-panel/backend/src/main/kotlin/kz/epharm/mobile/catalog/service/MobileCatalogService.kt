@@ -120,7 +120,7 @@ class MobileCatalogService(
      * Рекомендованные товары резолвятся к карточкам витрины ([cardsByIds]); недоступные пропускаем.
      * Пусто (нет правил) → обе секции пустые, мобилка их не рисует.
      */
-    fun recommendations(productId: String): MobileRecommendationsDto {
+    fun recommendations(productId: String, includeIncentive: Boolean): MobileRecommendationsDto {
         val active = activeRules()
         val subs = active.filter {
             it.type == RuleType.substitution && it.recommend != productId && triggerMatches(it, productId)
@@ -132,8 +132,8 @@ class MobileCatalogService(
         if (ids.isEmpty()) return MobileRecommendationsDto(emptyList(), emptyList())
         val cards = cardsByIds(ids)
         return MobileRecommendationsDto(
-            alternatives = toRecommendations(subs, cards),
-            crosssells = toRecommendations(cross, cards),
+            alternatives = toRecommendations(subs, cards, includeIncentive),
+            crosssells = toRecommendations(cross, cards, includeIncentive),
         )
     }
 
@@ -160,10 +160,14 @@ class MobileCatalogService(
         else -> false
     }
 
-    /** Правила → рекомендации: сортировка по бонусу (выше — раньше), дедуп по товару, резолв карточки. */
+    /**
+     * Правила → рекомендации: сортировка по бонусу (выше — раньше), дедуп по товару, резолв карточки.
+     * [includeIncentive]=false (аноним) → bonus/note скрыты (видны только товары-рекомендации).
+     */
     private fun toRecommendations(
         rules: List<RuleEntity>,
         cards: Map<String, MobileCatalogProductDto>,
+        includeIncentive: Boolean,
     ): List<MobileRecommendationDto> =
         rules.sortedByDescending { it.bonus }
             .distinctBy { it.recommend }
@@ -171,8 +175,8 @@ class MobileCatalogService(
                 val card = cards[r.recommend] ?: return@mapNotNull null
                 MobileRecommendationDto(
                     product = card,
-                    note = r.script.trim().takeIf { it.isNotBlank() },
-                    bonus = r.bonus.takeIf { it > 0 },
+                    note = if (includeIncentive) r.script.trim().takeIf { it.isNotBlank() } else null,
+                    bonus = if (includeIncentive) r.bonus.takeIf { it > 0 } else null,
                 )
             }
 

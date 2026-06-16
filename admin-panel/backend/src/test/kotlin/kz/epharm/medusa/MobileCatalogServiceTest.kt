@@ -11,6 +11,10 @@ import kz.epharm.medusa.dto.MedusaProductListResponse
 import kz.epharm.medusa.dto.MedusaVariant
 import kz.epharm.mobile.catalog.service.MobileCatalogService
 import kz.epharm.promo.repository.PromoRepository
+import kz.epharm.rules.entity.RuleEntity
+import kz.epharm.rules.entity.RuleStatus
+import kz.epharm.rules.entity.RuleTrigger
+import kz.epharm.rules.entity.RuleType
 import kz.epharm.rules.repository.RuleRepository
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
@@ -42,6 +46,33 @@ class MobileCatalogServiceTest {
     private fun stubList(vararg products: MedusaProduct, count: Int = products.size) {
         every { medusa.listProducts(any(), any(), any(), any(), any()) } returns
             MedusaProductListResponse(products = products.toList(), count = count, limit = 24, offset = 0)
+    }
+
+    @Test
+    fun `рекомендации ИБ - аноним не видит bonus и script, фармацевт видит`() {
+        // Legacy substitution-правило (promoId=null → проходит гейтинг кампании):
+        // триггер товар X → рекомендуем Y, бонус 500, скрипт «pitch».
+        val rule = RuleEntity(
+            id = "r1", recommend = "Y", bonus = 500, script = "pitch",
+            trigger = RuleTrigger(kind = "product", value = "X"),
+        ).also { it.type = RuleType.substitution; it.status = RuleStatus.active }
+        every { ruleRepo.findAllByStatusRawOrderByUpdatedAtDesc(RuleStatus.active.name) } returns listOf(rule)
+        // Резолв товара-рекомендации Y из Medusa.
+        stubList(MedusaProduct(id = "Y", title = "Товар Y", variants = emptyList()))
+
+        // Фармацевт (includeIncentive=true) — видит бонус и скрипт.
+        val authed = service.recommendations("X", includeIncentive = true)
+        assertEquals(1, authed.alternatives.size)
+        assertEquals("Y", authed.alternatives[0].product.id)
+        assertEquals(500, authed.alternatives[0].bonus)
+        assertEquals("pitch", authed.alternatives[0].note)
+
+        // Аноним (includeIncentive=false) — товар виден, но бонус/скрипт скрыты.
+        val anon = service.recommendations("X", includeIncentive = false)
+        assertEquals(1, anon.alternatives.size)
+        assertEquals("Y", anon.alternatives[0].product.id)
+        assertNull(anon.alternatives[0].bonus)
+        assertNull(anon.alternatives[0].note)
     }
 
     @Test

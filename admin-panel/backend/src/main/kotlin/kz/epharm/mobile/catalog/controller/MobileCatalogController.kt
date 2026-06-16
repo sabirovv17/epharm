@@ -1,10 +1,12 @@
 package kz.epharm.mobile.catalog.controller
 
+import kz.epharm.mobile.auth.security.PharmacistPrincipal
 import kz.epharm.mobile.catalog.dto.MobileCatalogDetailDto
 import kz.epharm.mobile.catalog.dto.MobileCatalogPageDto
 import kz.epharm.mobile.catalog.dto.MobileCategoryDto
 import kz.epharm.mobile.catalog.dto.MobileRecommendationsDto
 import kz.epharm.mobile.catalog.service.MobileCatalogService
+import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
@@ -48,11 +50,16 @@ class MobileCatalogController(
     /**
      * Рекомендации к товару (ДОП.3b): «Альтернативы» (замены) + «Дополнения» (кросс-селл)
      * из активных правил активных кампаний. Грузится отдельно от карточки (не тормозит detail).
+     *
+     * ИБ: эндпоинт публичный (как весь каталог — товары видны до логина), НО размер бонуса
+     * фармацевту и текст скрипта — коммерчески чувствительны, поэтому отдаются ТОЛЬКО
+     * авторизованному фармацевту (principal != null). Аноним видит лишь сами товары-рекомендации.
      */
     @GetMapping("/products/{id}/recommendations")
     fun recommendations(
         @PathVariable id: String,
-    ): MobileRecommendationsDto = service.recommendations(id)
+        @AuthenticationPrincipal principal: PharmacistPrincipal?,
+    ): MobileRecommendationsDto = service.recommendations(id, includeIncentive = principal != null)
 
     /** Дерево категорий (на будущее — товары к ним линкуются постепенно). */
     @GetMapping("/categories")
