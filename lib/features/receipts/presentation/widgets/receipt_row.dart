@@ -142,18 +142,24 @@ class ReceiptRow extends StatelessWidget {
                           height: 1.25,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _formatAmount(receipt.amountKzt),
-                        style: const TextStyle(
-                          fontFamily: 'Manrope',
-                          fontFamilyFallback: ['Roboto', 'sans-serif'],
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.ink700,
-                          height: 1.25,
+                      // Сумму показываем ТОЛЬКО у подтверждённого чека — и это бонус
+                      // фармацевту («+X ₸» зелёным). Пока чек на проверке/ожидании/
+                      // отклонён — суммы нет вообще (бонус ещё не начислен).
+                      if (receipt.status == ReceiptStatus.confirmed &&
+                          receipt.bonusCredited > 0) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          '+${_formatAmount(receipt.bonusCredited)}',
+                          style: const TextStyle(
+                            fontFamily: 'Manrope',
+                            fontFamilyFallback: ['Roboto', 'sans-serif'],
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.brandGreen700,
+                            height: 1.25,
+                          ),
                         ),
-                      ),
+                      ],
                       if (receipt.status == ReceiptStatus.rejected &&
                           receipt.rejectedReason != null) ...[
                         const SizedBox(height: 4),

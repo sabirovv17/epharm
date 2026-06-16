@@ -129,25 +129,22 @@ class _ReceiptDetailSheet extends StatelessWidget {
                       ? receipt.pharmacy!
                       : 'Не указана',
                 ),
-                _DetailRow(
-                  icon: Icons.receipt_long_outlined,
-                  label: 'Сумма по чеку',
-                  value: receipt.amountKzt > 0
-                      ? _formatKzt(receipt.amountKzt)
-                      : 'Уточняется при сверке',
-                ),
+                // Сумму по чеку показываем только когда она подтверждена сверкой (>0).
+                // Пока чек на проверке — никаких сумм (ни «0», ни «уточняется»).
+                if (receipt.amountKzt > 0)
+                  _DetailRow(
+                    icon: Icons.receipt_long_outlined,
+                    label: 'Сумма по чеку',
+                    value: _formatKzt(receipt.amountKzt),
+                  ),
+                // Бонус показываем ТОЛЬКО когда он начислен (чек подтверждён).
+                // Ожидаемый бонус до подтверждения НЕ показываем.
                 if (receipt.bonusCredited > 0)
                   _DetailRow(
                     icon: Icons.savings_outlined,
                     label: 'Бонус зачислен',
                     value: _formatKzt(receipt.bonusCredited),
                     accent: true,
-                  )
-                else if (receipt.bonus != null && receipt.bonus! > 0)
-                  _DetailRow(
-                    icon: Icons.savings_outlined,
-                    label: 'Бонус к зачислению',
-                    value: _formatKzt(receipt.bonus!),
                   ),
                 _DetailRow(
                   icon: Icons.schedule_outlined,
