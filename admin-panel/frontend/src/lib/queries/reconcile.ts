@@ -15,6 +15,18 @@ export const reconcileKeys = {
   summary: () => [...reconcileKeys.all, 'summary'] as const,
 }
 
+// Чеки от фармацевтов прилетают постоянно, очередь живая. Раньше она «висела» до 5 мин:
+// бэкенд пишет чек сразу, но persisted localStorage-кэш отдавал старый список, а refetch
+// не триггерился (staleTime 30с + refetchOnWindowFocus=false глобально + gcTime 5 мин).
+// Решение: persisted-кэш показываем мгновенно (нет «прыжка» в пустоту), но всегда делаем
+// фоновый refetch на маунте, короткий поллинг и refetch при возврате на вкладку.
+const LIVE_QUEUE_OPTS = {
+  staleTime: 0,
+  refetchOnMount: 'always',
+  refetchOnWindowFocus: true,
+  refetchInterval: 20_000,
+} as const
+
 export function useReceipts(status?: ReceiptStatus) {
   return useQuery<ReceiptDto[]>({
     queryKey: reconcileKeys.list(status),
@@ -22,6 +34,7 @@ export function useReceipts(status?: ReceiptStatus) {
       api
         .get<ReceiptDto[]>('/api/admin/reconcile', { params: status ? { status } : {} })
         .then((r) => r.data),
+    ...LIVE_QUEUE_OPTS,
   })
 }
 
@@ -29,6 +42,7 @@ export function useReconcileSummary() {
   return useQuery<ReconcileSummaryDto>({
     queryKey: reconcileKeys.summary(),
     queryFn: () => api.get<ReconcileSummaryDto>('/api/admin/reconcile/summary').then((r) => r.data),
+    ...LIVE_QUEUE_OPTS,
   })
 }
 

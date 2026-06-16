@@ -154,3 +154,4 @@ App/obj/
 # admin-пароли Medusa/PIM. В репозиторий НЕ коммитить (ротировать — см. claude-admin-notes.md).
 STOREFRONT-CREDENTIALS.md
 STOREFRONT.md
+.mega-batch-map.json
