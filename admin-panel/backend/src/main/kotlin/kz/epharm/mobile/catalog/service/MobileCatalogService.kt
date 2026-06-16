@@ -10,6 +10,7 @@ import kz.epharm.mobile.catalog.dto.MobileCatalogProductDto
 import kz.epharm.mobile.catalog.dto.MobileCatalogQaDto
 import kz.epharm.mobile.catalog.dto.MobileCategoryDto
 import kz.epharm.mobile.catalog.dto.MobileRecommendationDto
+import kz.epharm.mobile.catalog.dto.MobileRecommendationPoolsDto
 import kz.epharm.mobile.catalog.dto.MobileRecommendationsDto
 import kz.epharm.promo.entity.PromoStatus
 import kz.epharm.promo.repository.PromoRepository
@@ -134,6 +135,28 @@ class MobileCatalogService(
         return MobileRecommendationsDto(
             alternatives = toRecommendations(subs, cards, includeIncentive),
             crosssells = toRecommendations(cross, cards, includeIncentive),
+        )
+    }
+
+    /**
+     * Глобальные пулы для ленты каталога (пилюли «Альтернативы»/«Дополнения»): весь
+     * ассортимент продвигаемых замен и допов, не привязанный к товару карточки.
+     *  - alternatives — distinct recommend активных substitution-правил;
+     *  - crosssells   — distinct recommend активных crosssell-правил.
+     * Резолвятся к карточкам витрины ([cardsByIds]); недоступные id пропускаем. Порядок —
+     * как у правил (свежие кампании раньше: findAllByStatusRaw…OrderByUpdatedAtDesc).
+     */
+    fun recommendationPools(): MobileRecommendationPoolsDto {
+        val active = activeRules()
+        val altIds = active.filter { it.type == RuleType.substitution }.map { it.recommend }.distinct()
+        val crossIds = active.filter { it.type == RuleType.crosssell }.map { it.recommend }.distinct()
+        if (altIds.isEmpty() && crossIds.isEmpty()) {
+            return MobileRecommendationPoolsDto(emptyList(), emptyList())
+        }
+        val cards = cardsByIds(altIds + crossIds)
+        return MobileRecommendationPoolsDto(
+            alternatives = altIds.mapNotNull { cards[it] },
+            crosssells = crossIds.mapNotNull { cards[it] },
         )
     }
 

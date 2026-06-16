@@ -4,6 +4,7 @@ import kz.epharm.mobile.auth.security.PharmacistPrincipal
 import kz.epharm.mobile.catalog.dto.MobileCatalogDetailDto
 import kz.epharm.mobile.catalog.dto.MobileCatalogPageDto
 import kz.epharm.mobile.catalog.dto.MobileCategoryDto
+import kz.epharm.mobile.catalog.dto.MobileRecommendationPoolsDto
 import kz.epharm.mobile.catalog.dto.MobileRecommendationsDto
 import kz.epharm.mobile.catalog.service.MobileCatalogService
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -60,6 +61,14 @@ class MobileCatalogController(
         @PathVariable id: String,
         @AuthenticationPrincipal principal: PharmacistPrincipal?,
     ): MobileRecommendationsDto = service.recommendations(id, includeIncentive = principal != null)
+
+    /**
+     * Глобальные пулы рекомендаций для ленты каталога (пилюли «Альтернативы»/«Дополнения»):
+     * все товары, продвигаемые как замены/дополнения в активных правилах активных кампаний.
+     * Публичный (как весь каталог); отдаёт только товары, без бонуса/скрипта.
+     */
+    @GetMapping("/recommendation-pools")
+    fun recommendationPools(): MobileRecommendationPoolsDto = service.recommendationPools()
 
     /** Дерево категорий (на будущее — товары к ним линкуются постепенно). */
     @GetMapping("/categories")

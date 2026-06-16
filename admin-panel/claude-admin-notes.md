@@ -3446,3 +3446,19 @@ UUID (не перечисляемы), но это «security by obscurity»: л�
   админка отдаёт 200 + свежий бандл, backend остался healthy.
 - **Урок (на будущее):** «общий деплой» после нескольких батчей = деплоить ВСЕ затронутые слои
   (backend + admin-frontend + APK), сверяясь с git по изменённым областям, а не только по последнему батчу.
+
+## 2026-06-17 — Пулы рекомендаций для ленты мобилки (Альтернативы/Дополнения)
+
+- Новый публичный эндпоинт `GET /api/mobile/catalog/recommendation-pools` (`MobileCatalogController`)
+  → `MobileRecommendationPoolsDto{alternatives, crosssells}` (списки `MobileCatalogProductDto`).
+- `MobileCatalogService.recommendationPools()`: distinct `recommend` активных substitution-правил →
+  `alternatives`, активных crosssell → `crosssells`; гейтинг статусом кампании как в `activeRules()`;
+  резолв в карточки витрины через `cardsByIds()` (Medusa). Бонус/скрипт НЕ отдаём (только товары) —
+  пул для просмотра ассортимента, а не для POSM-мотивации.
+- Под `/api/mobile/catalog/**` (permitAll) → эндпоинт публичный автоматически. Тесты:
+  `MobileCatalogServiceTest` +2 (дубль recommend A схлопывается → `[A]`; нет правил → пустые пулы).
+- Мобилка: пилюли «Альтернативы/Дополнения» в ленте (детали — `claude-notes.md` 2026-06-17).
+- **Прод-данные:** пулы наполняются `recommend`-товарами активных substitution/crosssell-правил
+  активных кампаний (заведены в админке). Если в проде нет таких правил — пилюля показывает
+  «пока не заведены» (после деплоя проверить `curl …/recommendation-pools`).
+- Деплой этого батча: **только backend** (+ APK/iOS). Admin frontend НЕ затронут.

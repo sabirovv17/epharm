@@ -89,3 +89,15 @@ data class MobileRecommendationsDto(
     val alternatives: List<MobileRecommendationDto>,
     val crosssells: List<MobileRecommendationDto>,
 )
+
+/**
+ * Глобальные пулы рекомендаций для ленты каталога (пилюли «Альтернативы»/«Дополнения»):
+ *  - alternatives — товары, продвигаемые как ЗАМЕНЫ (recommend активных substitution-правил);
+ *  - crosssells   — товары, продвигаемые как ДОПОЛНЕНИЯ (recommend активных crosssell-правил).
+ * В отличие от [MobileRecommendationsDto] (привязана к товару карточки), это весь ассортимент
+ * замен/допов из правил кампаний. Отдаём только товары — без бонуса/скрипта.
+ */
+data class MobileRecommendationPoolsDto(
+    val alternatives: List<MobileCatalogProductDto>,
+    val crosssells: List<MobileCatalogProductDto>,
+)

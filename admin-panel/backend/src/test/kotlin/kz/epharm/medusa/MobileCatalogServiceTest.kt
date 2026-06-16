@@ -76,6 +76,42 @@ class MobileCatalogServiceTest {
     }
 
     @Test
+    fun `пулы рекомендаций - distinct recommend активных substitution и crosssell правил`() {
+        // 2 substitution на один и тот же товар A (дубль схлопывается) + 1 crosssell на B.
+        val sub1 = RuleEntity(
+            id = "s1", recommend = "A", bonus = 100, script = "",
+            trigger = RuleTrigger(kind = "product", value = "X"),
+        ).also { it.type = RuleType.substitution; it.status = RuleStatus.active }
+        val sub2 = RuleEntity(
+            id = "s2", recommend = "A", bonus = 50, script = "",
+            trigger = RuleTrigger(kind = "product", value = "Y"),
+        ).also { it.type = RuleType.substitution; it.status = RuleStatus.active }
+        val cross1 = RuleEntity(
+            id = "c1", recommend = "B", bonus = 80, script = "",
+            trigger = RuleTrigger(kind = "product", value = "Z"),
+        ).also { it.type = RuleType.crosssell; it.status = RuleStatus.active }
+        every { ruleRepo.findAllByStatusRawOrderByUpdatedAtDesc(RuleStatus.active.name) } returns
+            listOf(sub1, sub2, cross1)
+        // Резолв товаров A и B из Medusa.
+        stubList(
+            MedusaProduct(id = "A", title = "Товар A", variants = emptyList()),
+            MedusaProduct(id = "B", title = "Товар B", variants = emptyList()),
+        )
+
+        val pools = service.recommendationPools()
+        assertEquals(listOf("A"), pools.alternatives.map { it.id }) // distinct → один A
+        assertEquals(listOf("B"), pools.crosssells.map { it.id })
+    }
+
+    @Test
+    fun `пулы рекомендаций - нет правил → пустые пулы без обращения к Medusa`() {
+        every { ruleRepo.findAllByStatusRawOrderByUpdatedAtDesc(RuleStatus.active.name) } returns emptyList()
+        val pools = service.recommendationPools()
+        assertTrue(pools.alternatives.isEmpty())
+        assertTrue(pools.crosssells.isEmpty())
+    }
+
+    @Test
     fun `неполный товар (нет цены, фото, категорий) маппится с fallback из metadata`() {
         stubList(
             MedusaProduct(
