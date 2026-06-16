@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/api_config.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/network/card_store.dart';
 import '../../../core/validation/card.dart';
 import '../../promotions/data/promotion_models.dart';
 import '../data/api_pharmacy_repository.dart';
@@ -97,7 +98,19 @@ class ReceiptDraft {
 
 class ReceiptDraftNotifier extends Notifier<ReceiptDraft> {
   @override
-  ReceiptDraft build() => const ReceiptDraft();
+  ReceiptDraft build() {
+    // Префилл дефолтной картой (ДОП.7): если уже в памяти — сразу; иначе подгружаем
+    // из защищённого хранилища и обновляем стейт, пока пользователь не ввёл свою.
+    final store = ref.read(cardStoreProvider);
+    if (store.card == null) {
+      store.load().then((_) {
+        if (store.card != null && state.card == null) {
+          state = state.copyWith(card: store.card);
+        }
+      });
+    }
+    return ReceiptDraft(card: store.card);
+  }
 
   void setPhoto(String path) => state = state.copyWith(photoPath: path);
 
@@ -109,7 +122,11 @@ class ReceiptDraftNotifier extends Notifier<ReceiptDraft> {
   /// Принимает форматированный номер «1234 5678 9012 3456». Card persists
   /// между submission'ами в рамках сессии — её НЕ обнуляет `reset()` по
   /// умолчанию (см. [reset(keepCard: true)]).
-  void setCard(String formatted) => state = state.copyWith(card: formatted);
+  void setCard(String formatted) {
+    state = state.copyWith(card: formatted);
+    // Запоминаем валидную карту как дефолтную — чтобы не вводить её снова (ДОП.7).
+    if (isValidCardNumber(formatted)) ref.read(cardStoreProvider).save(formatted);
+  }
 
   /// После Submit: обнуляет всё кроме card (она остаётся «привязанной» в
   /// рамках сессии). Полный reset (включая card) — через
