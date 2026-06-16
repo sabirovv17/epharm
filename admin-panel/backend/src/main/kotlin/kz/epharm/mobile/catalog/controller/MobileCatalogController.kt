@@ -3,6 +3,7 @@ package kz.epharm.mobile.catalog.controller
 import kz.epharm.mobile.catalog.dto.MobileCatalogDetailDto
 import kz.epharm.mobile.catalog.dto.MobileCatalogPageDto
 import kz.epharm.mobile.catalog.dto.MobileCategoryDto
+import kz.epharm.mobile.catalog.dto.MobileRecommendationsDto
 import kz.epharm.mobile.catalog.service.MobileCatalogService
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -43,6 +44,15 @@ class MobileCatalogController(
     fun product(
         @PathVariable id: String,
     ): MobileCatalogDetailDto = service.detail(id)
+
+    /**
+     * Рекомендации к товару (ДОП.3b): «Альтернативы» (замены) + «Дополнения» (кросс-селл)
+     * из активных правил активных кампаний. Грузится отдельно от карточки (не тормозит detail).
+     */
+    @GetMapping("/products/{id}/recommendations")
+    fun recommendations(
+        @PathVariable id: String,
+    ): MobileRecommendationsDto = service.recommendations(id)
 
     /** Дерево категорий (на будущее — товары к ним линкуются постепенно). */
     @GetMapping("/categories")

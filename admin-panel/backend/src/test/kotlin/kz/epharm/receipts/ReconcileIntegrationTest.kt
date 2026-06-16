@@ -145,40 +145,57 @@ class ReconcileIntegrationTest {
     }
 
     @Test
-    fun `submit с выбранной аптекой → она сохранена в чеке (а не из профиля)`() {
-        // Баг-фикс: фармацевт явно выбирает аптеку в приложении — она должна
-        // сохраниться и показываться в детали чека, не подменяясь профилем.
+    fun `submit → аптека берётся из профиля фармацевта (ДОП8, без выбора в UI)`() {
+        // ДОП.8: ручного выбора аптеки нет. Аптека сохраняется из профиля (u_t → ph_t).
         val file = MockMultipartFile("file", "r.jpg", "image/jpeg", byteArrayOf(1, 2, 3))
         mockMvc.perform(
             multipart("/api/admin/reconcile/submit")
                 .file(file)
                 .param("pharmacistId", "u_t")
-                .param("pharmacyId", "ph_chosen")
-                .param("pharmacyName", "Аптека на Абая 10")
                 .header("Authorization", bearer),
         )
             .andExpect(status().isCreated)
-            .andExpect(jsonPath("$.pharmacyId").value("ph_chosen"))
-            .andExpect(jsonPath("$.pharmacyName").value("Аптека на Абая 10"))
+            .andExpect(jsonPath("$.pharmacyId").value("ph_t"))
+            .andExpect(jsonPath("$.pharmacyName").value("Аптека Т"))
     }
 
     @Test
-    fun `submit чека из чужой аптеки (не совпадает с POSM-бронью) → flagged wrong_pharmacy`() {
-        // pending pb_t забронирован в ph_t; фармацевт грузит чек с другой аптекой → анти-фрод.
+    fun `submit когда профиль-аптека ≠ POSM-бронь → flagged wrong_pharmacy`() {
+        // ДОП.8: аптека из профиля. Если открытая POSM-бронь оформлена в другой аптеке,
+        // чем home-аптека фармацевта из профиля — анти-фрод (несовпадение источников).
+        // ph_far — отдельная аптека (FK pharmacists.pharmacy_id / денормализованный лог брони).
+        pharmacyRepository.save(
+            PharmacyEntity(
+                id = "ph_far", name = "Дальняя аптека", chainId = "ch_t", chainName = "Сеть Т",
+                city = "Алматы", district = "", addr = "",
+            ).also { it.group = PharmacyGroup.pilot },
+        )
+        pharmacistRepository.save(
+            PharmacistEntity(
+                id = "u_w", name = "Уокер", iin = "880101300017", phone = "+77009990000",
+                pharmacyId = "ph_t", pharmacyName = "Аптека Т", city = "Алматы",
+                balance = 0, earned30d = 0,
+            ),
+        )
+        pendingBonusRepository.save(
+            PendingBonusEntity(
+                id = "pb_w", pharmacistId = "u_w", pharmacistName = "Уокер",
+                pharmacyId = "ph_far", pharmacyName = "Дальняя аптека",
+                sku = "p_y", productName = "Товар Y", expectedAmount = 1_000, bonus = 300,
+                createdAt = Instant.now(),
+            ),
+        )
         val file = MockMultipartFile("file", "r.jpg", "image/jpeg", byteArrayOf(1, 2, 3))
         mockMvc.perform(
             multipart("/api/admin/reconcile/submit")
                 .file(file)
-                .param("pharmacistId", "u_t")
-                .param("pharmacyId", "ph_other")
-                .param("pharmacyName", "Чужая аптека")
+                .param("pharmacistId", "u_w")
                 .header("Authorization", bearer),
         )
             .andExpect(status().isCreated)
             .andExpect(jsonPath("$.status").value("flagged"))
             .andExpect(jsonPath("$.flagReason").value("wrong_pharmacy"))
-        // Бонус не начислен.
-        assert(pharmacistRepository.findById("u_t").get().balance == 0L)
+        assert(pharmacistRepository.findById("u_w").get().balance == 0L)
     }
 
     @Test

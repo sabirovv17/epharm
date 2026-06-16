@@ -31,18 +31,13 @@ class MobileReceiptService(
         photoBytes: ByteArray?,
         photoContentType: String?,
         photoName: String?,
-        pharmacyId: String?,
-        pharmacyName: String?,
-        claimedPromoIds: String?,
     ): MobileReceiptDto {
+        // ДОП.8: только фото. Аптека — из профиля, акции — авто-матчинг (POSM/OCR), без выбора в UI.
         val dto = reconcileService.submitReceipt(
             pharmacistId = pharmacistId,
             photoBytes = photoBytes,
             photoContentType = photoContentType,
             photoName = photoName,
-            pharmacyId = pharmacyId,
-            pharmacyName = pharmacyName,
-            claimedPromoIds = claimedPromoIds,
         )
         return MobileReceiptDto.from(dto, productNameOf(dto.parsedSku))
     }

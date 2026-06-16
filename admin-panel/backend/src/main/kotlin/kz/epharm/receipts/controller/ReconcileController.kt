@@ -58,23 +58,19 @@ class ReconcileController(
     ): ReceiptDto = reconcileService.reject(id, requireUserId(principal), req.reason)
 
     /**
-     * Загрузка чека (фото) от имени фармацевта. multipart: file? + pharmacistId + аптека.
-     * Матчинг с pending_bonus → определяет ветку (по источникам: лог + Excel; anti-fraud).
+     * Загрузка чека (фото) от имени фармацевта — dev/демо. multipart: file? + pharmacistId.
+     * ДОП.8: аптека из профиля, акции — авто-матчинг (POSM-бронь). Матчинг → ветка (лог + Excel; anti-fraud).
      */
     @PostMapping("/submit", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     @ResponseStatus(HttpStatus.CREATED)
     fun submit(
         @RequestParam("pharmacistId") pharmacistId: String,
         @RequestParam(name = "file", required = false) file: MultipartFile?,
-        @RequestParam(name = "pharmacyId", required = false) pharmacyId: String?,
-        @RequestParam(name = "pharmacyName", required = false) pharmacyName: String?,
     ): ReceiptDto = reconcileService.submitReceipt(
         pharmacistId = pharmacistId,
         photoBytes = file?.takeIf { !it.isEmpty }?.bytes,
         photoContentType = file?.contentType,
         photoName = file?.originalFilename,
-        pharmacyId = pharmacyId,
-        pharmacyName = pharmacyName,
     )
 
     /**

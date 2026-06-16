@@ -11,6 +11,7 @@ import kz.epharm.medusa.dto.MedusaProductListResponse
 import kz.epharm.medusa.dto.MedusaVariant
 import kz.epharm.mobile.catalog.service.MobileCatalogService
 import kz.epharm.promo.repository.PromoRepository
+import kz.epharm.rules.repository.RuleRepository
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -32,7 +33,11 @@ class MobileCatalogServiceTest {
     private val promoRepo = mockk<PromoRepository>(relaxed = true).also {
         every { it.findAllByMedusaProductId(any()) } returns emptyList()
     }
-    private val service = MobileCatalogService(medusa, MedusaCatalogCache(0), promoRepo)
+    // Правила нужны только для рекомендаций (ДОП.3b); в этих тестах маппинга их нет → пустой список.
+    private val ruleRepo = mockk<RuleRepository>(relaxed = true).also {
+        every { it.findAllByStatusRawOrderByUpdatedAtDesc(any()) } returns emptyList()
+    }
+    private val service = MobileCatalogService(medusa, MedusaCatalogCache(0), promoRepo, ruleRepo)
 
     private fun stubList(vararg products: MedusaProduct, count: Int = products.size) {
         every { medusa.listProducts(any(), any(), any(), any(), any()) } returns

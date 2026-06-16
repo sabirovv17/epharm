@@ -9,7 +9,14 @@ import kz.epharm.mobile.catalog.dto.MobileCatalogPageDto
 import kz.epharm.mobile.catalog.dto.MobileCatalogProductDto
 import kz.epharm.mobile.catalog.dto.MobileCatalogQaDto
 import kz.epharm.mobile.catalog.dto.MobileCategoryDto
+import kz.epharm.mobile.catalog.dto.MobileRecommendationDto
+import kz.epharm.mobile.catalog.dto.MobileRecommendationsDto
+import kz.epharm.promo.entity.PromoStatus
 import kz.epharm.promo.repository.PromoRepository
+import kz.epharm.rules.entity.RuleEntity
+import kz.epharm.rules.entity.RuleStatus
+import kz.epharm.rules.entity.RuleType
+import kz.epharm.rules.repository.RuleRepository
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import org.springframework.http.HttpStatus
@@ -30,6 +37,7 @@ class MobileCatalogService(
     private val medusa: MedusaClient,
     private val cache: MedusaCatalogCache,
     private val promoRepository: PromoRepository,
+    private val ruleRepository: RuleRepository,
 ) {
 
     fun search(q: String?, category: String?, limit: Int, offset: Int): MobileCatalogPageDto {
@@ -101,6 +109,72 @@ class MobileCatalogService(
                 .associate { it.id to card(it) }
         }
     }
+
+    // ── Рекомендации к товару (ДОП.3b) ────────────────────────────────────────
+
+    /**
+     * «Альтернативы» (замены) и «Дополнения» (кросс-селл) для товара карточки.
+     * Источник — те же активные правила активных кампаний, что и у POSM-кассы:
+     *  - alternatives: substitution-правила, чей триггер = этот товар → рекомендуют продвигаемый;
+     *  - crosssells:   crosssell-правила, чей триггер = этот товар → рекомендуют компаньона.
+     * Рекомендованные товары резолвятся к карточкам витрины ([cardsByIds]); недоступные пропускаем.
+     * Пусто (нет правил) → обе секции пустые, мобилка их не рисует.
+     */
+    fun recommendations(productId: String): MobileRecommendationsDto {
+        val active = activeRules()
+        val subs = active.filter {
+            it.type == RuleType.substitution && it.recommend != productId && triggerMatches(it, productId)
+        }
+        val cross = active.filter {
+            it.type == RuleType.crosssell && it.recommend != productId && triggerMatches(it, productId)
+        }
+        val ids = (subs + cross).map { it.recommend }.distinct()
+        if (ids.isEmpty()) return MobileRecommendationsDto(emptyList(), emptyList())
+        val cards = cardsByIds(ids)
+        return MobileRecommendationsDto(
+            alternatives = toRecommendations(subs, cards),
+            crosssells = toRecommendations(cross, cards),
+        )
+    }
+
+    /**
+     * Активные правила, гейтнутые статусом кампании (мастер-выключатель) — копия логики
+     * RulesEngineService: правило из неактивной кампании не показываем, legacy без promoId проходят.
+     */
+    private fun activeRules(): List<RuleEntity> {
+        val activeRules = ruleRepository.findAllByStatusRawOrderByUpdatedAtDesc(RuleStatus.active.name)
+        val promoIds = activeRules.mapNotNull { it.promoId }.toSet()
+        val activePromoIds =
+            if (promoIds.isEmpty()) emptySet()
+            else promoRepository.findAllById(promoIds)
+                .filter { it.status == PromoStatus.active }
+                .map { it.id }
+                .toSet()
+        return activeRules.filter { it.promoId == null || it.promoId in activePromoIds }
+    }
+
+    /** Триггер правила указывает на этот товар? (mnn-триггеры пропускаем — нужен mnn товара, редкий legacy.) */
+    private fun triggerMatches(rule: RuleEntity, productId: String): Boolean = when (rule.trigger.kind) {
+        "product" -> (rule.trigger.value as? String) == productId
+        "product_any" -> (rule.trigger.value as? List<*>)?.any { it == productId } == true
+        else -> false
+    }
+
+    /** Правила → рекомендации: сортировка по бонусу (выше — раньше), дедуп по товару, резолв карточки. */
+    private fun toRecommendations(
+        rules: List<RuleEntity>,
+        cards: Map<String, MobileCatalogProductDto>,
+    ): List<MobileRecommendationDto> =
+        rules.sortedByDescending { it.bonus }
+            .distinctBy { it.recommend }
+            .mapNotNull { r ->
+                val card = cards[r.recommend] ?: return@mapNotNull null
+                MobileRecommendationDto(
+                    product = card,
+                    note = r.script.trim().takeIf { it.isNotBlank() },
+                    bonus = r.bonus.takeIf { it > 0 },
+                )
+            }
 
     // ── маппинг Medusa → mobile ───────────────────────────────────────────────
 

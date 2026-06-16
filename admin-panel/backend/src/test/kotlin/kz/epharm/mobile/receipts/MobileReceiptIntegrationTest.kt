@@ -1,13 +1,9 @@
 package kz.epharm.mobile.receipts
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import kz.epharm.auth.service.JwtService
 import kz.epharm.pharmacists.entity.PharmacistEntity
 import kz.epharm.pharmacists.entity.PharmacistStatus
 import kz.epharm.pharmacists.repository.PharmacistRepository
-import kz.epharm.promo.entity.PromoEntity
-import kz.epharm.promo.entity.PromoTier
-import kz.epharm.promo.repository.PromoRepository
 import kz.epharm.receipts.entity.ReceiptEntity
 import kz.epharm.receipts.entity.ReceiptStatus
 import kz.epharm.receipts.repository.PendingBonusRepository
@@ -61,10 +57,8 @@ class MobileReceiptIntegrationTest {
     }
 
     @Autowired private lateinit var mockMvc: MockMvc
-    @Autowired private lateinit var objectMapper: ObjectMapper
     @Autowired private lateinit var pharmacistRepository: PharmacistRepository
     @Autowired private lateinit var receiptRepository: ReceiptRepository
-    @Autowired private lateinit var promoRepository: PromoRepository
     @Autowired private lateinit var pendingBonusRepository: PendingBonusRepository
     @Autowired private lateinit var jwtService: JwtService
 
@@ -74,7 +68,6 @@ class MobileReceiptIntegrationTest {
     fun seed() {
         receiptRepository.deleteAll()
         pendingBonusRepository.deleteAll()
-        promoRepository.deleteAll()
         pharmacistRepository.deleteAll()
         val rx = pharmacistRepository.save(
             PharmacistEntity(id = "u_rx", name = "Фарм Тестов", iin = "850615400016", phone = "+77005556677")
@@ -118,94 +111,44 @@ class MobileReceiptIntegrationTest {
     }
 
     @Test
-    fun `POST чек с выбранной аптекой → аптека сохранена и видна в DTO`() {
-        // Баг-фикс: выбранная в приложении аптека должна попасть в чек, а не теряться
-        // (профиль u_rx без аптеки — раньше pharmacyName приходил пустым).
+    fun `POST чек → аптека берётся из профиля фармацевта (ДОП8)`() {
+        // ДОП.8: ручного выбора аптеки нет — аптека приходит из профиля фармацевта.
+        val ph = pharmacistRepository.save(
+            PharmacistEntity(
+                id = "u_ph",
+                name = "Фарм Профильный",
+                iin = "900101400017",
+                phone = "+77007778899",
+                pharmacyId = "ph_profile",
+                pharmacyName = "Аптека с улицы Ленина",
+            ).also { it.status = PharmacistStatus.active },
+        )
+        val phToken = jwtService.issuePharmacistToken(ph.id, ph.name, ph.phone)
         val file = MockMultipartFile("file", "receipt.jpg", "image/jpeg", "bytes".toByteArray())
         mockMvc.perform(
             multipart("/api/mobile/receipts").file(file)
-                .param("pharmacyId", "ph_abc")
-                .param("pharmacyName", "Аптека на Сатпаева 5")
-                .header("Authorization", "Bearer $token"),
+                // НЕ передаём pharmacyId/pharmacyName/promoIds — их больше не принимаем.
+                .header("Authorization", "Bearer $phToken"),
         )
             .andExpect(status().isCreated)
-            .andExpect(jsonPath("$.pharmacyName").value("Аптека на Сатпаева 5"))
+            .andExpect(jsonPath("$.pharmacyName").value("Аптека с улицы Ленина"))
     }
 
     @Test
-    fun `POST чек с promoIds → заявленные акции сохранены на чеке`() {
-        // Фармацевт выбрал акции в пикере мобилки — их CSV сохраняется как claim
-        // (контекст для модератора); на матчинг бонуса не влияет.
+    fun `POST чек без POSM-брони → без бонуса, в проверке, claimedPromoIds пуст (ДОП8)`() {
+        // ДОП.8: без открытой POSM-брони чек уходит в проверку без бонуса; никаких
+        // заявленных акций от клиента (система матчит сама из лога/Excel).
         val file = MockMultipartFile("file", "receipt.jpg", "image/jpeg", "bytes".toByteArray())
         val response = mockMvc.perform(
-            multipart("/api/mobile/receipts").file(file)
-                .param("promoIds", "pr_aqua,pr_pank")
-                .header("Authorization", "Bearer $token"),
+            multipart("/api/mobile/receipts").file(file).header("Authorization", "Bearer $token"),
         )
             .andExpect(status().isCreated)
+            .andExpect(jsonPath("$.status").value("inReview"))
             .andReturn().response.contentAsString
-        val id = objectMapper.readTree(response).get("id").asText()
+        val id = com.fasterxml.jackson.databind.ObjectMapper().readTree(response).get("id").asText()
         val saved = receiptRepository.findById(id).orElseThrow()
-        org.junit.jupiter.api.Assertions.assertEquals("pr_aqua,pr_pank", saved.claimedPromoIds)
-    }
-
-    @Test
-    fun `POST чек с акцией без POSM-брони → создаётся бронь из акции (макс тир-бонус)`() {
-        // App-flow без кассы: фармацевт выбрал акцию в пикере. Бэк создаёт pending_bonus
-        // из акции (бонус = макс среди порогов = 900), привязывает к чеку. На approve
-        // модератором баланс пополнится на 900.
-        promoRepository.save(
-            PromoEntity(
-                id = "pr_demo1",
-                title = "Демо акция",
-                productName = "Демо Товар 10мг",
-                medusaProductId = "prod_demo",
-                tiers = listOf(
-                    PromoTier(minQty = 1, price = 500, bonus = 0),
-                    PromoTier(minQty = 10, price = 600, bonus = 900),
-                ),
-            ),
-        )
-        val file = MockMultipartFile("file", "receipt.jpg", "image/jpeg", "bytes".toByteArray())
-        val response = mockMvc.perform(
-            multipart("/api/mobile/receipts").file(file)
-                .param("promoIds", "pr_demo1")
-                .param("pharmacyId", "ph_demo")
-                .param("pharmacyName", "Демо аптека")
-                .header("Authorization", "Bearer $token"),
-        )
-            .andExpect(status().isCreated)
-            .andReturn().response.contentAsString
-        val id = objectMapper.readTree(response).get("id").asText()
-        val receipt = receiptRepository.findById(id).orElseThrow()
-        org.junit.jupiter.api.Assertions.assertNotNull(receipt.pendingBonusId, "бронь должна быть создана и привязана")
-        val pending = pendingBonusRepository.findById(receipt.pendingBonusId!!).orElseThrow()
-        org.junit.jupiter.api.Assertions.assertEquals(900L, pending.bonus)
-        org.junit.jupiter.api.Assertions.assertEquals("ph_demo", pending.pharmacyId)
-    }
-
-    @Test
-    fun `POST чек с акцией без бонусных порогов → бронь не создаётся`() {
-        promoRepository.save(
-            PromoEntity(
-                id = "pr_nobonus",
-                title = "Без бонуса",
-                productName = "Товар без бонуса",
-                medusaProductId = "prod_nb",
-                tiers = listOf(PromoTier(minQty = 1, price = 500, bonus = 0)),
-            ),
-        )
-        val file = MockMultipartFile("file", "receipt.jpg", "image/jpeg", "bytes".toByteArray())
-        val response = mockMvc.perform(
-            multipart("/api/mobile/receipts").file(file)
-                .param("promoIds", "pr_nobonus")
-                .header("Authorization", "Bearer $token"),
-        )
-            .andExpect(status().isCreated)
-            .andReturn().response.contentAsString
-        val id = objectMapper.readTree(response).get("id").asText()
-        val receipt = receiptRepository.findById(id).orElseThrow()
-        org.junit.jupiter.api.Assertions.assertNull(receipt.pendingBonusId, "без бонусных порогов брони нет")
+        org.junit.jupiter.api.Assertions.assertNull(saved.pendingBonusId, "без POSM-брони бонуса нет")
+        org.junit.jupiter.api.Assertions.assertNull(saved.claimedPromoIds, "claimedPromoIds не приходит с клиента")
     }
 
     @Test

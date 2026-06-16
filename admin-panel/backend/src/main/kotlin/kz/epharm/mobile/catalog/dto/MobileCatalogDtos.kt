@@ -68,3 +68,24 @@ data class MobileCategoryDto(
     val handle: String?,
     val parentId: String?,
 )
+
+/**
+ * Одна рекомендация в карточке товара (ДОП.3b): сам товар-рекомендация (карточка витрины)
+ * + короткая подсказка фармацевту (script правила) + бонус за рекомендацию.
+ */
+data class MobileRecommendationDto(
+    val product: MobileCatalogProductDto,
+    val note: String?,   // короткий скрипт/подсказка из правила; null — нет текста
+    val bonus: Int?,     // бонус фармацевту, ₸; null — не показываем
+)
+
+/**
+ * Рекомендации к товару карточки (ДОП.3b):
+ *  - alternatives — «Альтернативы» (замены): чем продвигаемым можно заменить этот товар;
+ *  - crosssells   — «Дополнения» (кросс-селл): что предложить вместе с этим товаром.
+ * Источник — активные правила активных кампаний (тот же набор, что у POSM-кассы).
+ */
+data class MobileRecommendationsDto(
+    val alternatives: List<MobileRecommendationDto>,
+    val crosssells: List<MobileRecommendationDto>,
+)

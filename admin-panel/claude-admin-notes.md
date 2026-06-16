@@ -3374,12 +3374,30 @@ refetchOnWindowFocus:true + refetchInterval:20_000`. Persisted рендерит�
 - ✅ Баннер на весь экран — плейсхолдер «Контент появится позже» (реальных баннеров пока нет). (2cdb8fe)
 - ✅ ID чеков (ДОП.9): `RCP-ГГММДД-XXXXXXXX` (8 hex — collision-safe по ревью). (d89659d, 3c73889)
 
-### Осталось (накапливаем коммиты, деплой в конце)
+### Батч D финал + Батч E (готово, отревьюено)
 
-- **ДОП.3a** Q&A в карточке товара — данные есть в Medusa `metadata.faq` (`[{q,a}]`, STOREFRONT.md);
-  backend (MobileCatalogService/Dtos) + mobile (catalog_models/catalog_product_sheet).
-- **ДОП.5** дерево категорий — сменить источник (category_sheet берёт плоские имена из
-  promoCategoriesProvider; иерархия parentId есть в `/api/mobile/catalog/categories`).
-- **ДОП.3b** Альтернативы/Дополнения — backend-эндпоинт рекомендаций по товару + миграция + mobile-секции.
-- **Батч E** авто-определение акции/аптеки из чека (убрать пикеры promo/аптека, матчинг на бэке).
-- Финал — общий деплой backend+frontend + APK со ссылкой.
+- ✅ **ДОП.3a** Q&A — `MobileCatalogService.faqList` читает `metadata.faq` → `qa` в detail-DTO; mobile секция «Вопросы и ответы». (7c3c3b1)
+- ✅ **ДОП.5** дерево категорий — fetch `/api/mobile/catalog/categories` (parentId), `buildPrunedTree`, раскрывающиеся узлы; fallback на плоский список при поиске/офлайне. (9433048)
+- ✅ **ДОП.3b** Альтернативы/Дополнения — `GET /api/mobile/catalog/products/{id}/recommendations`
+  (`MobileCatalogService.recommendations`): substitution→alternatives, crosssell→crosssells из АКТИВНЫХ
+  правил активных кампаний (гейтинг = копия `RulesEngineService`). `triggerMatches` по product/product_any
+  (mnn осознанно пропущен — нужен mnn товара). `recommend` (= medusaProductId) резолвится через `cardsByIds`
+  (Medusa). Сорт по бонусу, дедуп по товару. **Без миграции** (active-правила читаем в памяти — их единицы).
+  Эндпоинт публичный (под `/api/mobile/catalog/**` permitAll), bonus показываем (мотивация фармацевта).
+  Mobile: `catalogRecommendationsProvider` (отдельный fetch, не тормозит detail) + горизонтальные карточки
+  3:4 с бонус-бейджем, тап → карточка товара. (грядущий коммит)
+- ✅ **ДОП.8** авто-матчинг чека — убран ручной выбор акции/аптеки.
+  - `ReconcileService.submitReceipt(pharmacistId, photoBytes, contentType, name)` — БЕЗ
+    pharmacyId/pharmacyName/claimedPromoIds. Аптека из профиля фармацевта. candidate = только
+    `latestAwaitingFor` (POSM-бронь). `claimedPromoIds = null` (заполняет система, не клиент).
+  - Удалены `pendingFromClaimedPromos` + `normalizeClaimedPromoIds`; убран `promoRepository` из сервиса.
+  - `decideBranch` wrong_pharmacy: guard `receipt.pharmacyId.isNotBlank()` (пустой профиль ≠ ложный фрод).
+  - `MobileReceiptController`/`MobileReceiptService`/`ReconcileController` (dev-submit) — те же параметры убраны.
+  - **Колонка `claimed_promo_ids` остаётся** (для истории/будущего OCR), миграция не нужна.
+  - Тесты: `MobileReceiptIntegrationTest` (аптека из профиля; без POSM-брони → pending, claimedPromoIds null),
+    `ReconcileIntegrationTest` (профиль-аптека; wrong_pharmacy = профиль ≠ POSM-бронь — нужна вторая аптека
+    под FK `pharmacists.pharmacy_id`).
+  - Mobile: удалены `promo_picker_screen`/`address_sheet` + орфанная инфра аптек
+    (`pharmacy_repository`/`api`/`mock`/`nearby_pharmacies` + провайдеры). `ReceiptDraft` = photo+card.
+    Экран обзора: 1 пункт (карта) + инфо-баннер «Акции и аптека — автоматически». `submitReceipt(title, photoPath)`.
+- Финал: общий деплой backend+frontend + APK со ссылкой (после ultracode-ревью).

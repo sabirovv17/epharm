@@ -17,6 +17,13 @@ interface PendingBonusRepository : JpaRepository<PendingBonusEntity, String> {
     /** Открытые pending-бонусы по SKU (любой фармацевт) — для матчинга Excel-строки без фармацевта. */
     fun findAllBySkuAndStatusRaw(sku: String, statusRaw: String): List<PendingBonusEntity>
 
+    /** Открытые брони фармацевта (любой SKU) — для авто-матчинга при загрузке чека (свежие первыми).
+     *  SQL-фильтр по индексу вместо findAll()+in-memory: на проде брони исчисляются тысячами. */
+    fun findAllByPharmacistIdAndStatusRawOrderByCreatedAtDesc(
+        pharmacistId: String,
+        statusRaw: String,
+    ): List<PendingBonusEntity>
+
     fun countByStatusRaw(statusRaw: String): Long
 }
 
