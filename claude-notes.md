@@ -660,3 +660,33 @@ xattr `com.apple.FinderInfo`/`fileprovider`, а `codesign` их отвергае
   к цвету канваса (`#F2F4F9 ≈ #F4F6FA`) → нижний край растворяется, шва нет; `AppShadows.card`
   смягчена (свечение 0.12→0.08, контакт 0.08→0.05) — все карточки лежат на фоне мягче.
   **Урок:** «жёсткий переход» у светлого блока — почти всегда про ТЕНЬ/кромку, не про сам цвет.
+
+## 2026-06-17 — Батч мобильных правок (Q&A, категории, пилюли пулов, скролл, онбординг)
+
+- **Q&A-аккордеон** (`catalog_product_sheet.dart`): секция «Вопросы и ответы» свёрнута в
+  кнопку-заголовок (счётчик + шеврон `AnimatedRotation`), по тапу `AnimatedCrossFade` раскрывает
+  все Q&A. Длинный FAQ не растягивает карточку. Виджет `_QaSection` (StatefulWidget).
+- **Категории без «Сайт»** (`category_sheet.dart` → `buildPrunedTree`): «Сайт» — структурный
+  корень Medusa; его детей промотим на верхний уровень (категории «как раньше», разбито по
+  разделам). Флэттеним любой root с именем `сайт` (lowercase). Плоский список (поиск) и так
+  фильтровал «сайт» в `promoCategoriesProvider`.
+- **Пилюли «Альтернативы»/«Дополнения»**: рядом с Бренд/Категории — два тумблера
+  (`homeRecoPoolProvider`, enum `RecoPool` none/alternatives/crosssells, взаимоисключающие).
+  Активная пилюля заменяет ленту акций на сетку пула продвигаемых товаров (`_CatalogPoolSliver`
+  → `CatalogCard`). Источник: новый backend `GET /api/mobile/catalog/recommendation-pools` →
+  `CatalogRecommendationPools{alternatives,crosssells}` (distinct recommend активных
+  substitution/crosssell-правил, резолв в Medusa-карточки). Провайдер
+  `catalogRecommendationPoolsProvider` (кеш). Поиск применяется к пулу (`_filterCatalog`).
+- **Скролл/перф** — лаги ленты от полноразмерного декода фото. Фикс: `cacheWidth` у всех
+  `Image.network` сетки/ленты (`promo_product_card` \_GridThumb 400/\_Thumb 220, `catalog_card` 400,
+  `catalog_product_sheet` \_DetailImage 700/\_RecoThumb 320) — декод под размер ячейки, нет
+  re-decode при скролле. Без нового пакета (cached_network_image не тянул — лишние нативные pod).
+- **Онбординг у залогиненного** (фикс): был единственный гейт redirect по `currentUser` —
+  гонка с фоновым восстановлением сессии, залогиненный успевал увидеть Welcome. Решение:
+  стартовый `SplashScreen` (initialLocation `/splash`) + `appStartProvider`/`resolveStartDestination`
+  решают по ПЕРСИСТНУТЫМ токенам ДО показа Welcome: есть токены → Home (онбординг скрыт); нет
+  токенов, но `OnboardingStore.seen()` → Home; иначе Welcome. `welcome_screen` зовёт `markSeen()`
+  при завершении. `main.dart` больше не дёргает `_restoreSession` (логика в appStartProvider).
+  `widget_test` override'ит `appStartProvider`→Welcome (иначе спиннер сплеша «висит таймером»).
+- Тесты: `app_start_controller_test` (5 кейсов), `reco_pool_test` (тумблер + fromJson), `widget_test`
+  починен. Flutter 62/62, analyze 0. Backend `MobileCatalogServiceTest` +2 кейса.

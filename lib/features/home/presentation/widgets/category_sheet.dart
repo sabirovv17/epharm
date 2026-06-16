@@ -40,10 +40,22 @@ List<CategoryNode> buildPrunedTree(
   }
 
   final roots = all.where((c) => c.parentId == null || !ids.contains(c.parentId));
-  return roots
-      .map(build)
-      .whereType<CategoryNode>()
-      .toList()
+  final builtRoots =
+      roots.map(build).whereType<CategoryNode>().toList();
+
+  // «Сайт» — структурный корень Medusa, от которого идёт весь каталог. В фильтре
+  // он не нужен (пользователь: «не пиши категорию Сайт, оставь как раньше — разбито
+  // по категориям»): вместо самого корня показываем его подкатегории как верхний
+  // уровень. Поддерживаем и несколько таких корней-обёрток.
+  final flattened = <CategoryNode>[];
+  for (final r in builtRoots) {
+    if (r.name.toLowerCase() == 'сайт') {
+      flattened.addAll(r.children);
+    } else {
+      flattened.add(r);
+    }
+  }
+  return flattened
     ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 }
 
