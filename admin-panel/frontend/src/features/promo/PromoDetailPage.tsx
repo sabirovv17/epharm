@@ -482,7 +482,11 @@ export default function PromoDetailPage() {
           </div>
 
           {/* T2 — Замены и кросс-селл (правила, авторинг из кампании) */}
-          <PromoRulesEditor promoId={promo.id} disabled={isArchived} />
+          <PromoRulesEditor
+            promoId={promo.id}
+            bonus={promo.pharmacistBonus}
+            disabled={isArchived}
+          />
         </div>
 
         {/* Правая колонка: превью + бюджет + мета */}

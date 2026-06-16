@@ -99,7 +99,8 @@ describe('PromoRulesEditor — per-pair скрипт + «Добавить»', ()
   it('показывает выбранную пару с её per-pair скриптом', () => {
     renderEditor()
     expect(screen.getByTestId('pr-chosen-prod_a')).toBeInTheDocument()
-    expect(screen.getByText('Аквалор Норм')).toBeInTheDocument()
+    // Имя встречается дважды: в форме пары и в превью карточки кассы.
+    expect(screen.getAllByText('Аквалор Норм').length).toBeGreaterThanOrEqual(1)
     expect((screen.getByTestId('pr-script-prod_a') as HTMLTextAreaElement).value).toBe(
       'Замени — мягче',
     )
