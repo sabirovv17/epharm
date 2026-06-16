@@ -109,9 +109,11 @@ class _CatalogCardImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final url = product.imageUrl;
     if (url == null || url.isEmpty) return _placeholder();
+    // Декод под ширину ячейки сетки (~180px, ≈2×) — без re-decode при скролле.
     return Image.network(
       url,
       fit: BoxFit.cover,
+      cacheWidth: 400,
       loadingBuilder: (ctx, child, progress) =>
           progress == null ? child : _placeholder(),
       errorBuilder: (_, __, ___) => _placeholder(),

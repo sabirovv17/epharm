@@ -201,9 +201,9 @@ class _CatalogProductSheet extends ConsumerWidget {
         ],
         if (d.qa.isNotEmpty) ...[
           const SizedBox(height: 14),
-          const _SectionTitle('Вопросы и ответы'),
-          const SizedBox(height: 6),
-          ...d.qa.map(_qaItem),
+          // Q&A — выдвижная секция: по умолчанию свёрнута в кнопку-заголовок,
+          // по тапу плавно раскрывает все вопросы (не растягивает карточку).
+          _QaSection(items: d.qa),
         ],
         if (d.marketplaceLinks.isNotEmpty) ...[
           const SizedBox(height: 14),
@@ -257,6 +257,103 @@ class _CatalogProductSheet extends ConsumerWidget {
     );
   }
 
+  String _platformLabel(String p) {
+    switch (p.toLowerCase()) {
+      case 'kaspi':
+        return 'Kaspi';
+      case 'wb':
+        return 'Wildberries';
+      case 'ozon':
+        return 'Ozon';
+      default:
+        return p;
+    }
+  }
+}
+
+/// Выдвижная секция «Вопросы и ответы»: по умолчанию свёрнута в кнопку-заголовок
+/// (счётчик + шеврон), по тапу плавно раскрывает все Q&A. Длинный FAQ не растягивает
+/// карточку — фармацевт раскрывает его осознанно (пожелание UX).
+class _QaSection extends StatefulWidget {
+  const _QaSection({required this.items});
+  final List<CatalogQaItem> items;
+
+  @override
+  State<_QaSection> createState() => _QaSectionState();
+}
+
+class _QaSectionState extends State<_QaSection> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Кнопка-заголовок: тап раскрывает/сворачивает секцию.
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: AppRadii.brLg,
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.help_outline_rounded,
+                      size: 18, color: AppColors.brandGreen700),
+                  const SizedBox(width: 6),
+                  const Expanded(child: _SectionTitle('Вопросы и ответы')),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.paperInput,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '${widget.items.length}',
+                      style: const TextStyle(
+                        fontFamily: 'Manrope',
+                        fontFamilyFallback: ['Roboto', 'sans-serif'],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.ink500,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  AnimatedRotation(
+                    turns: _expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: const Icon(Icons.keyboard_arrow_down_rounded,
+                        size: 22, color: AppColors.ink500),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        // Контент: плавное раскрытие всех вопросов/ответов.
+        AnimatedCrossFade(
+          firstChild: const SizedBox(width: double.infinity),
+          secondChild: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [for (final it in widget.items) _qaItem(it)],
+            ),
+          ),
+          crossFadeState: _expanded
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
+          duration: const Duration(milliseconds: 220),
+          sizeCurve: Curves.easeOutCubic,
+        ),
+      ],
+    );
+  }
+
   Widget _qaItem(CatalogQaItem item) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -289,19 +386,6 @@ class _CatalogProductSheet extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  String _platformLabel(String p) {
-    switch (p.toLowerCase()) {
-      case 'kaspi':
-        return 'Kaspi';
-      case 'wb':
-        return 'Wildberries';
-      case 'ozon':
-        return 'Ozon';
-      default:
-        return p;
-    }
   }
 }
 
@@ -508,9 +592,12 @@ class _RecoThumb extends StatelessWidget {
   Widget build(BuildContext context) {
     final u = url;
     if (u == null || u.isEmpty) return _placeholder();
+    // cacheWidth — декодируем уменьшенную картинку (карточка ~132px): меньше памяти,
+    // нет re-decode при скролле горизонтальной ленты рекомендаций.
     return Image.network(
       u,
       fit: BoxFit.cover,
+      cacheWidth: 320,
       loadingBuilder: (ctx, child, progress) =>
           progress == null ? child : _placeholder(),
       errorBuilder: (_, __, ___) => _placeholder(),
@@ -544,9 +631,12 @@ class _DetailImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final url = d.imageUrl;
     if (url == null || url.isEmpty) return _placeholder();
+    // cacheWidth ограничивает декод по ширине карточки (≈ экран): полноразмерное
+    // фото из ПИМ не держим в памяти целиком.
     return Image.network(
       url,
       fit: BoxFit.cover,
+      cacheWidth: 700,
       loadingBuilder: (ctx, child, progress) =>
           progress == null ? child : _placeholder(),
       errorBuilder: (_, __, ___) => _placeholder(),

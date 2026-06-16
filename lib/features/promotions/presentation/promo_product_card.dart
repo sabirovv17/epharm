@@ -156,6 +156,7 @@ class _Thumb extends StatelessWidget {
               width: size,
               height: size,
               fit: BoxFit.cover,
+              cacheWidth: 220, // декод под миниатюру 88px (≈2.5×) — экономия памяти
               loadingBuilder: (_, child, p) =>
                   p == null ? child : placeholder(),
               errorBuilder: (_, __, ___) => placeholder(),
@@ -405,6 +406,9 @@ class _GridThumb extends StatelessWidget {
             url,
             width: double.infinity,
             fit: BoxFit.cover,
+            // Декод под ширину ячейки сетки (~180px, ≈2×): ключевой фикс лагов
+            // скролла ленты — полноразмерные фото не держим в памяти и не пере-декодим.
+            cacheWidth: 400,
             loadingBuilder: (_, child, p) => p == null ? child : placeholder(),
             errorBuilder: (_, __, ___) => placeholder(),
           );
