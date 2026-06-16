@@ -23,6 +23,8 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 import kotlin.math.abs
 
@@ -57,6 +59,20 @@ class ReconcileService(
 
         /** Длина колонки receipts.claimed_promo_ids (VARCHAR(512)). */
         private const val CLAIMED_PROMOS_MAX_LEN = 512
+
+        /** Формат даты в человекочитаемом id чека (ДОП.9): RCP-ГГММДД-XXXX, зона Алматы. */
+        private val RECEIPT_ID_DATE_FMT: DateTimeFormatter =
+            DateTimeFormatter.ofPattern("yyMMdd").withZone(ZoneId.of("Asia/Almaty"))
+
+        /**
+         * Аккуратный читаемый id чека: `RCP-260616-7F3A` (префикс + дата + короткий
+         * суффикс из UUID). Без сквозного счётчика — нет гонки на уникальность PK.
+         */
+        fun newReceiptId(): String {
+            val date = RECEIPT_ID_DATE_FMT.format(Instant.now())
+            val suffix = UUID.randomUUID().toString().take(4).uppercase()
+            return "RCP-$date-$suffix"
+        }
     }
 
     // ── Чтение ────────────────────────────────────────────────────────────
@@ -138,7 +154,7 @@ class ReconcileService(
         // фактическую сумму/фискальный id/кассира заполнит сверка по источникам
         // (лог Стандарт-Н → ingestLogSale, Excel → ingestExcelRows).
         val receipt = ReceiptEntity(
-            id = "rcp_${UUID.randomUUID().toString().substring(0, 8)}",
+            id = newReceiptId(),
             pharmacistId = pharmacist.id,
             pharmacistName = pharmacist.name,
             pharmacyId = resolvedPharmacyId,
@@ -306,7 +322,7 @@ class ReconcileService(
         soldAt: Instant,
         amount: Long,
     ): ReceiptEntity = ReceiptEntity(
-        id = "rcp_${UUID.randomUUID().toString().substring(0, 8)}",
+        id = newReceiptId(),
         pharmacistId = pending.pharmacistId,
         pharmacistName = pending.pharmacistName,
         pharmacyId = pending.pharmacyId,
