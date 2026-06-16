@@ -12,6 +12,7 @@ import '../../features/profile_pages/presentation/faq_screen.dart';
 import '../../features/profile_pages/presentation/instruction_screen.dart';
 import '../../features/profile_pages/presentation/privacy_screen.dart';
 import '../../features/profile_pages/presentation/terms_screen.dart';
+import '../../features/welcome/presentation/splash_screen.dart';
 import '../../features/welcome/presentation/welcome_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -22,7 +23,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   ref.onDispose(authRefresh.dispose);
   return GoRouter(
     refreshListenable: authRefresh,
-    initialLocation: '/welcome',
+    // Старт — splash-решатель: по персистнутой сессии решает Home/Welcome ДО показа
+    // онбординга (фикс «онбординг у залогиненного»). См. SplashScreen/appStartProvider.
+    initialLocation: '/splash',
     redirect: (context, state) {
       // /home доступен всем — авторизация добровольная.
       // Если пользователь уже залогинен и попал на welcome/auth — перебрасываем в home.
@@ -34,6 +37,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/splash',
+        builder: (_, __) => const SplashScreen(),
+      ),
       GoRoute(
         path: '/welcome',
         builder: (_, __) => const WelcomeScreen(),

@@ -5,10 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
-import 'core/config/api_config.dart';
 import 'core/network/card_store.dart';
-import 'core/network/token_store.dart';
-import 'features/profile/application/profile_controller.dart';
 
 void main() {
   // Глобальный перехват необработанных ошибок (async/zone). Логируем —
@@ -33,24 +30,9 @@ void _bootstrap() {
   // Дефолтная карта (ДОП.7) — локальна, грузим всегда (независимо от useApi),
   // заранее, чтобы экран чека префилил её синхронно из памяти.
   unawaited(container.read(cardStoreProvider).load());
-  unawaited(_restoreSession(container));
+  // Восстановление сессии и решение «куда стартовать» (Home/Welcome) — внутри
+  // SplashScreen через appStartProvider: он читает персистнутые токены ДО показа
+  // онбординга, поэтому залогиненный его не увидит (фикс гонки восстановления сессии).
 
   runApp(UncontrolledProviderScope(container: container, child: const PharmacyApp()));
-}
-
-/// Восстановление сессии в фоне: если в защищённом хранилище есть токены — тянем
-/// профиль (`/api/mobile/me`) и логиним пользователя. Ошибки/зависания не блокируют UI.
-Future<void> _restoreSession(ProviderContainer container) async {
-  if (!ApiConfig.useApi) return;
-  try {
-    final tokenStore = container.read(tokenStoreProvider);
-    await tokenStore.load().timeout(const Duration(seconds: 3));
-    if (!tokenStore.hasTokens) return;
-    await container
-        .read(profileActionsProvider)
-        .refreshMe()
-        .timeout(const Duration(seconds: 6));
-  } catch (_) {
-    // Хранилище/сеть недоступны — остаёмся на экране приветствия.
-  }
 }
