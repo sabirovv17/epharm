@@ -65,12 +65,14 @@ class ReconcileService(
             DateTimeFormatter.ofPattern("yyMMdd").withZone(ZoneId.of("Asia/Almaty"))
 
         /**
-         * Аккуратный читаемый id чека: `RCP-260616-7F3A` (префикс + дата + короткий
-         * суффикс из UUID). Без сквозного счётчика — нет гонки на уникальность PK.
+         * Аккуратный читаемый id чека: `RCP-260616-A1B2C3D4` (префикс + дата +
+         * суффикс из UUID). Суффикс 8 hex = 16^8 ≈ 4.3 млрд вариантов в день — как у
+         * прежнего rcp_<8hex>, коллизия PK исключена при любом реальном объёме чеков.
+         * Без сквозного счётчика — нет гонки на уникальность.
          */
         fun newReceiptId(): String {
             val date = RECEIPT_ID_DATE_FMT.format(Instant.now())
-            val suffix = UUID.randomUUID().toString().take(4).uppercase()
+            val suffix = UUID.randomUUID().toString().take(8).uppercase()
             return "RCP-$date-$suffix"
         }
     }
