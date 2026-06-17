@@ -690,3 +690,17 @@ xattr `com.apple.FinderInfo`/`fileprovider`, а `codesign` их отвергае
   `widget_test` override'ит `appStartProvider`→Welcome (иначе спиннер сплеша «висит таймером»).
 - Тесты: `app_start_controller_test` (5 кейсов), `reco_pool_test` (тумблер + fromJson), `widget_test`
   починен. Flutter 62/62, analyze 0. Backend `MobileCatalogServiceTest` +2 кейса.
+
+## 2026-06-17 — UI-доводки (категории-тап, порядок секций, логотип)
+
+- **Дерево категорий** (`category_sheet.dart`): тап по ВСЕЙ строке раскрывает подкатегории
+  (раньше только по шеврону); выбор фильтра — только по чекбоксу справа (GestureDetector,
+  зона +8). Применено и к `_TreeNodeTile`, и к `_CategoryRow` (плоский список поиска).
+- **Карточка товара**: `_RecommendationsSections` (Альтернативы/Дополнения) перенесён ПЕРЕД
+  секцией Q&A (рекомендации важнее справки).
+- **Логотип**: текстовый `PharmaWordmark` («Epharm») заменён на `PharmaLogo` — SVG-глиф
+  «чек-штамп» (как admin `Logo.tsx`), через `flutter_svg` `SvgPicture.string`. Заменён во всех
+  9 местах (главная/профиль/чеки header, welcome, splash, phone/otp/profile_form). Читается на
+  зелёном (белый чек + синий ⊕) и на белом (зелёный контур). Имя бренда не финал — показываем знак.
+  Admin: Sidebar/LoginPage тоже без текста «Epharm» (остался глиф Logo), тесты обновлены.
+- Деплой 2026-06-17: admin-frontend (логотип) + iOS на iPhone + APK. Backend не трогали. Flutter 62/62.
