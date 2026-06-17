@@ -69,9 +69,7 @@ export function Sidebar({
               <Logo size={22} />
             </span>
             <div className="min-w-0 flex-1">
-              <div className="text-[15px] font-extrabold leading-tight tracking-tight">
-                <span className="text-brand-green-400">E</span>pharm
-              </div>
+              {/* Текстовый wordmark «Epharm» убран — бренд = логотип-глиф слева. */}
               <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-white/45">
                 Console · HQ
               </div>

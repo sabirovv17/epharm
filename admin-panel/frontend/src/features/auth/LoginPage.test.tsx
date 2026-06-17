@@ -72,11 +72,11 @@ describe('LoginPage — рендер', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('wordmark = Epharm Console с зелёным акцентом «E»; нет упоминания PharmaPay', () => {
+  it('бренд = логотип-глиф + Console (текст Epharm убран); нет PharmaPay', () => {
     const { container } = renderLogin()
-    const accentE = screen.getByText('E')
-    expect(accentE).toHaveClass('text-brand-green-600')
-    expect(accentE.parentElement).toHaveTextContent('Epharm Console')
+    expect(container.querySelector('svg')).toBeInTheDocument() // логотип-глиф
+    expect(screen.getByText('Console')).toBeInTheDocument()
+    expect(container.innerHTML).not.toMatch(/Epharm/i)
     expect(container.innerHTML).not.toMatch(/PharmaPay/i)
   })
 })

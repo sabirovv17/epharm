@@ -25,12 +25,11 @@ function setup(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
 }
 
 describe('Sidebar — брендинг', () => {
-  it('в expanded — wordmark Epharm с зелёным акцентом на «E»', () => {
-    setup()
-    const accentE = screen.getByText('E')
-    expect(accentE).toHaveClass('text-brand-green-400')
-    expect(accentE.parentElement).toHaveTextContent('Epharm')
+  it('в expanded — логотип-глиф + Console · HQ (текстовый wordmark Epharm убран)', () => {
+    const { container } = setup()
+    expect(container.querySelector('svg')).toBeInTheDocument() // бренд = SVG-логотип
     expect(screen.getByText(/Console · HQ/i)).toBeInTheDocument()
+    expect(screen.queryByText('E')).not.toBeInTheDocument() // нет зелёной монограммы «E»
   })
 
   it('в expanded — нет упоминания старого бренда PharmaPay', () => {

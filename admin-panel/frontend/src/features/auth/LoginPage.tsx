@@ -56,9 +56,7 @@ export default function LoginPage() {
             <Logo size={32} />
           </div>
           <div className="text-center">
-            <div className="text-[24px] font-extrabold leading-tight text-ink-900">
-              <span className="text-brand-green-600">E</span>pharm Console
-            </div>
+            <div className="text-[24px] font-extrabold leading-tight text-ink-900">Console</div>
             <div className="mt-1 text-[13px] font-semibold text-ink-500">
               Вход для HQ Inkar и категорийной команды
             </div>
