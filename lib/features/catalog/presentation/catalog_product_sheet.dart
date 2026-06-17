@@ -199,6 +199,9 @@ class _CatalogProductSheet extends ConsumerWidget {
           const SizedBox(height: 6),
           ...d.keyFacts.map(_bullet),
         ],
+        // Альтернативы / Дополнения (ДОП.3b) — ПЕРЕД Q&A (пожелание): рекомендации
+        // важнее справки. Грузятся отдельным запросом, пустые секции скрыты.
+        _RecommendationsSections(id: id),
         if (d.qa.isNotEmpty) ...[
           const SizedBox(height: 14),
           // Q&A — выдвижная секция: по умолчанию свёрнута в кнопку-заголовок,
@@ -223,8 +226,6 @@ class _CatalogProductSheet extends ConsumerWidget {
                 .toList(),
           ),
         ],
-        // Альтернативы / Дополнения (ДОП.3b) — грузятся отдельным запросом, пустые секции скрыты.
-        _RecommendationsSections(id: id),
       ],
     );
   }
