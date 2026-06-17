@@ -1,61 +1,40 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
-import '../theme/app_colors.dart';
-
-/// Wordmark «Epharm»: "E" в `brand/blue/600` (короткий акцент-монограмма),
-/// "pharm" в текущем цвете (по умолчанию white).
+/// Логотип Epharm — брендовый глиф «чек-штамп» (белый чек + синий ⊕, зелёный
+/// контур). Единый знак для мобильного приложения и админ-панели (source-of-truth —
+/// `admin-panel/frontend/src/layout/Logo.tsx`).
 ///
-/// Раньше было «PharmaPay» (Pharma white + Pay blue). После ребрендинга
-/// 2026-05-26 (PharmaPay → Epharm) тот же визуальный паттерн — короткая
-/// часть = blue-accent, длинная = основной цвет — сохранён, только
-/// акцентная часть стала одной буквой "E". Это создаёт monogram-feel
-/// (как у Spotify, Telegram, etc.).
-///
-/// Размеры:
-///  - sm = 20px (chrome бар, мелкий контекст)
-///  - md = 32px (default — Home / Receipts header, должен быть заметнее
-///    «Добро пожаловать!» 22/700 и других sub-headings)
-///  - lg = 38px (Welcome splash, auth screens)
-class PharmaWordmark extends StatelessWidget {
-  const PharmaWordmark({
-    super.key,
-    this.color = Colors.white,
-    this.size = PharmaWordmarkSize.md,
-  });
+/// Текстовый wordmark «Epharm» убран по требованию (название бренда ещё не
+/// финализировано) — показываем только знак. Глиф читается и на зелёном фоне
+/// (белая заливка чека + синий ⊕), и на белом (зелёный контур/линии видны).
+/// Размер задаётся [size] — глиф квадратный (viewBox 64×64).
+class PharmaLogo extends StatelessWidget {
+  const PharmaLogo({super.key, this.size = 44});
 
-  /// Цвет основной части ("pharm"). По умолчанию белый — для зелёного header.
-  final Color color;
-  final PharmaWordmarkSize size;
+  final double size;
 
-  double get _fontSize => switch (size) {
-        PharmaWordmarkSize.sm => 20,
-        PharmaWordmarkSize.md => 32,
-        PharmaWordmarkSize.lg => 38,
-      };
+  // Идентичен admin Logo.tsx — один знак на обеих платформах.
+  static const _svg = '''
+<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+<path d="M16 12a3 3 0 0 1 3-3h26a3 3 0 0 1 3 3v40l-4-3-4 3-4-3-4 3-4-3-4 3-4-3-4 3-4-3-4 3z" fill="#FFFFFF" stroke="#16C97A" stroke-width="3" stroke-linejoin="round"/>
+<rect x="22" y="32" width="20" height="2.5" rx="1.2" fill="#16C97A" opacity="0.55"/>
+<rect x="22" y="38" width="14" height="2.5" rx="1.2" fill="#16C97A" opacity="0.55"/>
+<rect x="22" y="44" width="17" height="2.5" rx="1.2" fill="#16C97A" opacity="0.55"/>
+<g transform="translate(32 14)">
+<circle r="11" fill="#2A2BE2"/>
+<rect x="-1.5" y="-7" width="3" height="14" rx="0.8" fill="#FFFFFF"/>
+<rect x="-7" y="-1.5" width="14" height="3" rx="0.8" fill="#FFFFFF"/>
+</g>
+</svg>''';
 
   @override
   Widget build(BuildContext context) {
-    final fs = _fontSize;
-    return RichText(
-      text: TextSpan(
-        style: TextStyle(
-          fontFamily: 'Manrope',
-          fontSize: fs,
-          fontWeight: FontWeight.w800,
-          height: 1.0,
-          letterSpacing: -0.02 * fs,
-          color: color,
-        ),
-        children: const [
-          TextSpan(
-            text: 'E',
-            style: TextStyle(color: AppColors.brandBlue600),
-          ),
-          TextSpan(text: 'pharm'),
-        ],
-      ),
+    return SvgPicture.string(
+      _svg,
+      width: size,
+      height: size,
+      fit: BoxFit.contain,
     );
   }
 }
-
-enum PharmaWordmarkSize { sm, md, lg }

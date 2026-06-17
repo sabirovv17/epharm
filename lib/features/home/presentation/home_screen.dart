@@ -592,7 +592,7 @@ class _Header extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const PharmaWordmark(),
+              const PharmaLogo(size: 44),
               const SizedBox(height: AppSpacing.s16),
               if (loggedIn)
                 BalanceCard(
@@ -718,7 +718,7 @@ class _ProfileTab extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const PharmaWordmark(),
+                  const PharmaLogo(size: 44),
                   const SizedBox(height: AppSpacing.s20),
                   if (user == null)
                     LoginInviteCard(onLogin: onLogin)

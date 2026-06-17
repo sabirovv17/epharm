@@ -37,7 +37,7 @@ class SplashScreen extends ConsumerWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  PharmaWordmark(),
+                  PharmaLogo(size: 64),
                   SizedBox(height: 24),
                   SizedBox(
                     width: 22,

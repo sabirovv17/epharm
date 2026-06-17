@@ -72,7 +72,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                   padding: EdgeInsets.symmetric(horizontal: AppSpacing.s24),
                   child: Align(
                     alignment: Alignment.centerLeft,
-                    child: PharmaWordmark(),
+                    child: PharmaLogo(size: 44),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.s16),
@@ -284,7 +284,7 @@ class _PreviewHome extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const PharmaWordmark(size: PharmaWordmarkSize.sm),
+          const PharmaLogo(size: 22),
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(8),

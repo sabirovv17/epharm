@@ -96,7 +96,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                             icon: const Icon(Icons.arrow_back, color: Colors.white),
                           ),
                           const SizedBox(width: 4),
-                          const PharmaWordmark(size: PharmaWordmarkSize.lg),
+                          const PharmaLogo(size: 48),
                         ],
                       ),
                     ),

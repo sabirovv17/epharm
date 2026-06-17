@@ -297,7 +297,7 @@ class _Header extends ConsumerWidget {
                     onTap: () => Navigator.of(context).pop(),
                   ),
                   const SizedBox(width: 8),
-                  const PharmaWordmark(),
+                  const PharmaLogo(size: 44),
                 ],
               ),
               const SizedBox(height: AppSpacing.s16),
