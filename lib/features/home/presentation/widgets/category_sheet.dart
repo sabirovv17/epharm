@@ -322,13 +322,15 @@ class _CategoryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        child: Row(
-          children: [
-            Expanded(
+    // Выбор фильтра — только по квадратику справа (единообразно с деревом).
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        children: [
+          const SizedBox(width: 8),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
               child: Text(
                 name,
                 style: TextStyle(
@@ -340,9 +342,16 @@ class _CategoryRow extends StatelessWidget {
                 ),
               ),
             ),
-            _CheckBox(checked: checked),
-          ],
-        ),
+          ),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: _CheckBox(checked: checked),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -407,29 +416,28 @@ class _TreeNodeTileState extends State<_TreeNodeTile> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         InkWell(
-          onTap: () => widget.onToggle(n.name),
+          // Тап по ВСЕЙ строке раскрывает/сворачивает подкатегории (если есть).
+          // Выбор фильтра — отдельно, только по квадратику справа (см. ниже).
+          onTap:
+              hasKids ? () => setState(() => _expanded = !_expanded) : null,
           child: Padding(
             padding: EdgeInsets.only(
               left: 20.0 + widget.depth * 16,
-              right: 20,
+              right: 12,
               top: 12,
               bottom: 12,
             ),
             child: Row(
               children: [
                 if (hasKids)
-                  GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => setState(() => _expanded = !_expanded),
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: Icon(
-                        _expanded
-                            ? Icons.keyboard_arrow_down_rounded
-                            : Icons.keyboard_arrow_right_rounded,
-                        size: 22,
-                        color: AppColors.ink500,
-                      ),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: Icon(
+                      _expanded
+                          ? Icons.keyboard_arrow_down_rounded
+                          : Icons.keyboard_arrow_right_rounded,
+                      size: 22,
+                      color: AppColors.ink500,
                     ),
                   )
                 else
@@ -446,7 +454,16 @@ class _TreeNodeTileState extends State<_TreeNodeTile> {
                     ),
                   ),
                 ),
-                _CheckBox(checked: checked),
+                // Выбор фильтра — ТОЛЬКО по квадратику (увеличенная зона тапа,
+                // не конфликтует с раскрытием строки).
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => widget.onToggle(n.name),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: _CheckBox(checked: checked),
+                  ),
+                ),
               ],
             ),
           ),
