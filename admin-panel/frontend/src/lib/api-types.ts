@@ -735,3 +735,46 @@ export interface StorefrontPageDto {
   limit: number
   offset: number
 }
+
+// ─── Banners (п.5) — баннеры главного экрана мобильного приложения ──────────
+// Зеркало kz.epharm.banners.dto.* (BannerDtos.kt). Картинка грузится отдельно
+// (POST /image → imageUrl), затем её URL передаётся в create/update.
+export type BannerStatus = 'active' | 'draft' | 'archived'
+
+/** Админская карточка баннера (все статусы). */
+export interface BannerDto {
+  id: string
+  title: string
+  subtitle: string | null
+  imageUrl: string
+  detailMd: string | null
+  status: BannerStatus
+  position: number
+  createdAt: string
+  updatedAt: string
+}
+
+/** Создание баннера. status по умолчанию draft на backend. */
+export interface CreateBannerRequest {
+  title: string
+  subtitle?: string | null
+  imageUrl?: string | null
+  detailMd?: string | null
+  status?: BannerStatus
+  position?: number
+}
+
+/** Частичное обновление: только не-null поля (null/undefined = «не трогать»). */
+export interface UpdateBannerRequest {
+  title?: string
+  subtitle?: string | null
+  imageUrl?: string | null
+  detailMd?: string | null
+  status?: BannerStatus
+  position?: number
+}
+
+/** Ответ загрузки картинки баннера (POST /api/admin/banners/image). */
+export interface BannerImageUploadDto {
+  imageUrl: string
+}

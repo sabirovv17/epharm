@@ -50,35 +50,60 @@ function ProductSearchList({
   }, [raw])
 
   const { data, isFetching } = useStorefront(q, page * PAGE, PAGE)
-  const total = data?.total ?? 0
 
   // Накапливаем страницы в один список (page=0 заменяет, >0 — добавляет). Храним
   // по q, чтобы смена запроса начинала с чистого листа. Обновляем acc только когда
   // реально пришли НОВЫЕ id (или сменился запрос) — иначе бесконечный ре-рендер,
   // т.к. useStorefront может возвращать новый объект data на каждый рендер.
-  const [acc, setAcc] = useState<{ q: string; ids: string; items: StorefrontProductDto[] }>({
-    q: '',
-    ids: '',
-    items: [],
-  })
+  // total держим в acc, чтобы строка «показано X из Y» не мигала, пока data пустой
+  // во время загрузки следующей страницы (placeholderData убран — см. storefront.ts).
+  // lastOffset — offset последней УЧТЁННОЙ страницы. Нужен, чтобы отличить «ре-ран
+  // эффекта на тех же данных» (эффект зависит от acc и пере-прогоняется после setAcc —
+  // added===0, это норма, ничего не делаем) от «новая страница реально не дала новых
+  // id» (исчерпано/дедуп-десинк — закрываем пагинацию, чтобы «Показать ещё» не стала
+  // вечной мёртвой кнопкой).
+  const [acc, setAcc] = useState<{
+    q: string
+    ids: string
+    items: StorefrontProductDto[]
+    total: number
+    lastOffset: number
+  }>({ q: '', ids: '', items: [], total: 0, lastOffset: -1 })
   useEffect(() => {
     if (!data) return
     const fresh = data.items
     if (page === 0 || acc.q !== q) {
       const ids = fresh.map((i) => i.id).join(',')
       if (acc.q === q && acc.ids === ids) return // ничего не изменилось — не дёргаем state
-      setAcc({ q, ids, items: fresh })
+      setAcc({ q, ids, items: fresh, total: data.total, lastOffset: data.offset })
       return
     }
-    // page > 0: дозагрузка — добавляем только товары, которых ещё нет
+    // page > 0: дозагрузка. Эту же страницу уже учли (ре-ран эффекта на тех же
+    // данных) — выходим без изменений, НЕ путая с исчерпанием каталога.
+    if (acc.lastOffset === data.offset) return
     const seen = new Set(acc.items.map((i) => i.id))
     const added = fresh.filter((i) => !seen.has(i.id))
-    if (added.length === 0) return
+    if (added.length === 0) {
+      // Новая страница не дала НОВЫХ id (дубликаты / каталог исчерпан, но total ещё
+      // больше из-за рассинхрона дедупа). Закрываем пагинацию: total = items.length →
+      // canLoadMore=false, кнопка спрячется.
+      setAcc((a) => ({ ...a, total: a.items.length, lastOffset: data.offset }))
+      return
+    }
     const items = [...acc.items, ...added]
-    setAcc({ q, ids: items.map((i) => i.id).join(','), items })
+    setAcc({
+      q,
+      ids: items.map((i) => i.id).join(','),
+      items,
+      total: data.total,
+      lastOffset: data.offset,
+    })
   }, [data, page, q, acc])
 
+  // Показываем только результаты, соответствующие текущему q (не stale от прошлого
+  // запроса). До прихода данных acc.q !== q → пусто → спиннер «Поиск…».
   const items = acc.q === q ? acc.items : []
+  const total = acc.q === q ? acc.total : 0
   const canLoadMore = items.length < total
 
   return (

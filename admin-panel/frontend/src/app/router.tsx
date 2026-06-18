@@ -14,6 +14,7 @@ const Promo = lazy(() => import('@/features/promo/PromoPage'))
 const PromoDetail = lazy(() => import('@/features/promo/PromoDetailPage'))
 const Rules = lazy(() => import('@/features/rules/RulesPage'))
 const Screens = lazy(() => import('@/features/screens/ScreensPage'))
+const Banners = lazy(() => import('@/features/banners/BannersPage'))
 const Pharmacies = lazy(() => import('@/features/pharmacies/PharmaciesPage'))
 const PharmacyDetail = lazy(() => import('@/features/pharmacies/PharmacyDetailPage'))
 const Pharmacists = lazy(() => import('@/features/pharmacists/PharmacistsPage'))
@@ -31,6 +32,7 @@ export const SECTION_ROUTES: Record<SectionId, string> = {
   promo: '/promo',
   rules: '/rules',
   screens: '/screens',
+  banners: '/banners',
   pharmacies: '/pharmacies',
   pharmacists: '/pharmacists',
   reconcile: '/reconcile',
@@ -66,6 +68,7 @@ export function AppRouter() {
           <Route path="/promo/:id" element={withSuspense(<PromoDetail />)} />
           <Route path="/rules" element={withSuspense(<Rules />)} />
           <Route path="/screens" element={withSuspense(<Screens />)} />
+          <Route path="/banners" element={withSuspense(<Banners />)} />
           <Route path="/pharmacies" element={withSuspense(<Pharmacies />)} />
           <Route path="/pharmacies/:id" element={withSuspense(<PharmacyDetail />)} />
           <Route path="/pharmacists" element={withSuspense(<Pharmacists />)} />

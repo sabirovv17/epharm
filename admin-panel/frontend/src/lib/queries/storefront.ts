@@ -1,6 +1,13 @@
 // Витрина каталога (Medusa) — read-only TanStack Query хук для админки.
 // Бэкенд проксирует Medusa Store API: GET /api/admin/storefront/products (admin-JWT).
-// Поиск и пагинация — серверные (q/limit/offset). keepPreviousData → плавность.
+// Поиск и пагинация — серверные (q/limit/offset).
+//
+// БАГ-ФИКС (поиск): раньше тут стоял placeholderData: (prev) => prev. При смене
+// запроса react-query отдавал ДАННЫЕ ПРЕДЫДУЩЕГО запроса как placeholder, а
+// накопитель в ProductSearchList коммитил их как результат нового запроса —
+// в выдаче «витамин» висели первые 50 из всех 27975 (Везилют и т.п.), хотя
+// Medusa по q=витамин корректно отдаёт 528 релевантных. Убрали placeholderData:
+// на время загрузки список пустой (спиннер), после ответа — отфильтрованные.
 
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -39,6 +46,5 @@ export function useStorefront(q: string, offset: number, limit = 50) {
         })
         .then((r) => r.data),
     staleTime: 60 * 1000,
-    placeholderData: (prev) => prev,
   })
 }
