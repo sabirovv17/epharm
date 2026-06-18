@@ -17,7 +17,7 @@ interface TabsProps<V extends string> {
 export function Tabs<V extends string>({ items, value, onChange, trailing }: TabsProps<V>) {
   return (
     // Bug K fix: gap-4 (вместо gap-7) + min-w-0 на trailing, flex-none + whitespace-nowrap
-    // на tabs — иначе длинные русские лейблы («Кросс-сейл») переносятся на 2 строки,
+    // на tabs — иначе длинные русские лейблы («Кросс-селл») переносятся на 2 строки,
     // когда trailing-блок (search+filter) занимает много места.
     <div className="hairline flex items-end justify-between gap-4 border-b">
       <div className="flex flex-none items-center gap-6">

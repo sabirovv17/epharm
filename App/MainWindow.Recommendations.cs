@@ -218,7 +218,7 @@ namespace CustomerDisplay
                 var win = new RecommendationWindow(DemoRecommendations(), autoCloseSec: 3600, targetScreen: null);
                 // В превью выходим, только когда окно полностью закрыто (по всем рекомендациям
                 // принято решение, либо ✕). Приём одной реко НЕ закрывает приложение — можно
-                // принять и замену, и кросс-сейл по очереди.
+                // принять и замену, и кросс-селл по очереди.
                 win.Closed += (_, _) => System.Windows.Application.Current.Shutdown();
                 win.Show();
             }
@@ -246,7 +246,7 @@ namespace CustomerDisplay
 
             var win = new RecommendationWindow(recs, _posmConfig?.PopupAutoCloseSec ?? 30, PharmacistScreen());
             // Каждая реко решается независимо — фиксируем именно ту, по которой принято решение
-            // (окно не закрывается, пока есть нерешённые: можно принять и замену, и кросс-сейл).
+            // (окно не закрывается, пока есть нерешённые: можно принять и замену, и кросс-селл).
             win.Accepted += (_, rec) => _ = RespondAsync(rec, "accepted");
             win.Skipped += (_, rec) => _ = RespondAsync(rec, "rejected");
             win.Closed += (_, _) => { if (ReferenceEquals(_recoWindow, win)) _recoWindow = null; };

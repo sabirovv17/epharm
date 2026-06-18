@@ -486,6 +486,8 @@ export default function PromoDetailPage() {
             promoId={promo.id}
             bonus={promo.pharmacistBonus}
             disabled={isArchived}
+            promotedName={promo.productName}
+            promotedPrice={promo.price}
           />
         </div>
 

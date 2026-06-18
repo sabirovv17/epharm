@@ -60,11 +60,16 @@ export function PromoRulesEditor({
   promoId,
   bonus = 0,
   disabled = false,
+  promotedName,
+  promotedPrice,
 }: {
   promoId: string
   /** Бонус фармацевту за продажу (из кампании) — для превью карточки кассы. */
   bonus?: number
   disabled?: boolean
+  /** Продвигаемый товар кампании — триггер кросс-селла / предложение замены в превью. */
+  promotedName?: string
+  promotedPrice?: number | null
 }) {
   const t = useT()
   const toast = useToast()
@@ -176,6 +181,8 @@ export function PromoRulesEditor({
             disabled={disabled}
             bonus={bonus}
             goal={goal}
+            promotedName={promotedName}
+            promotedPrice={promotedPrice}
             onToggle={toggleIn('replacements')}
             onRemove={(idp) => removeFrom('replacements', idp)}
             onPatch={(idp, p) => updatePair('replacements', idp, p)}
@@ -190,6 +197,8 @@ export function PromoRulesEditor({
             disabled={disabled}
             bonus={bonus}
             goal={goal}
+            promotedName={promotedName}
+            promotedPrice={promotedPrice}
             onToggle={toggleIn('crossSells')}
             onRemove={(idp) => removeFrom('crossSells', idp)}
             onPatch={(idp, p) => updatePair('crossSells', idp, p)}
@@ -265,6 +274,8 @@ function RuleSection({
   disabled,
   bonus,
   goal,
+  promotedName,
+  promotedPrice,
   onToggle,
   onRemove,
   onPatch,
@@ -277,6 +288,8 @@ function RuleSection({
   disabled: boolean
   bonus: number
   goal: CampaignGoal
+  promotedName?: string
+  promotedPrice?: number | null
   onToggle: (p: StorefrontProductDto) => void
   onRemove: (medusaProductId: string) => void
   onPatch: (medusaProductId: string, patch: Partial<PromoRuleProductRef>) => void
@@ -299,6 +312,8 @@ function RuleSection({
               kind={kind}
               bonus={bonus}
               goal={goal}
+              promotedName={promotedName}
+              promotedPrice={promotedPrice}
               onRemove={() => onRemove(r.medusaProductId)}
               onPatch={(p) => onPatch(r.medusaProductId, p)}
             />
@@ -347,6 +362,8 @@ function PairCard({
   kind,
   bonus,
   goal,
+  promotedName,
+  promotedPrice,
   onRemove,
   onPatch,
 }: {
@@ -355,6 +372,8 @@ function PairCard({
   kind: PairKind
   bonus: number
   goal: CampaignGoal
+  promotedName?: string
+  promotedPrice?: number | null
   onRemove: () => void
   onPatch: (patch: Partial<PromoRuleProductRef>) => void
 }) {
@@ -538,7 +557,14 @@ function PairCard({
       </div>
 
       {/* Превью карточки рекомендации — как её увидит фармацевт на кассе (C# POSM). */}
-      <RecommendationPreview r={r} kind={kind} bonus={bonus} goal={goal} />
+      <RecommendationPreview
+        r={r}
+        kind={kind}
+        bonus={bonus}
+        goal={goal}
+        promotedName={promotedName}
+        promotedPrice={promotedPrice}
+      />
     </li>
   )
 }
@@ -553,18 +579,33 @@ function RecommendationPreview({
   kind,
   bonus,
   goal,
+  promotedName,
+  promotedPrice,
 }: {
   r: PromoRuleProductRef
   kind: PairKind
   bonus: number
   goal: CampaignGoal
+  promotedName?: string
+  promotedPrice?: number | null
 }) {
   const t = useT()
   const advantages = (r.advantages ?? []).map((a) => a.trim()).filter((a) => a.length > 0)
   const comparison = (r.comparison ?? []).filter((row) => row.label.trim().length > 0)
-  const price = r.price != null ? `${r.price.toLocaleString('ru-RU')} ₸` : null
-  const title = kind === 'replacement' ? t('pr.previewReplace') : t('pr.previewCross')
-  const actionLabel = kind === 'replacement' ? t('pr.previewActReplace') : t('pr.previewActAdd')
+  const fmtPrice = (p?: number | null) => (p != null ? `${p.toLocaleString('ru-RU')} ₸` : null)
+  const isReplace = kind === 'replacement'
+  const title = isReplace ? t('pr.previewReplace') : t('pr.previewCross')
+  const actionLabel = isReplace ? t('pr.previewActReplace') : t('pr.previewActAdd')
+
+  // Семантика как на кассе (backend PromoRulesService):
+  //  • замена   — триггер = заменяемый товар (r), ПРЕДЛОЖИТЕ ВМЕСТО = товар кампании;
+  //  • кросс-селл — триггер = товар кампании (УЖЕ В ЧЕКЕ), ДОБАВЬТЕ = компаньон (r).
+  const triggerLabel = isReplace ? t('pr.previewAsked') : t('pr.previewInCart')
+  const triggerName = isReplace ? r.name : promotedName
+  const offerLabel = isReplace ? t('pr.previewOfferInstead') : t('pr.previewOfferAdd')
+  const offerName = isReplace ? promotedName : r.name
+  const offerPrice = fmtPrice(isReplace ? promotedPrice : r.price)
+
   const goalText =
     goal.label && goal.target != null ? `0/${goal.target} ${goal.label}` : goal.label || null
 
@@ -583,17 +624,34 @@ function RecommendationPreview({
           <span className="ml-auto text-[15px] leading-none text-white/60">×</span>
         </div>
 
-        {/* Предложение */}
-        <div className="bg-[#F8E7DD] px-3.5 py-3">
-          {r.partnerLabel && (
-            <span className="mb-1.5 inline-block rounded-md bg-[#9A4427] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-              {r.partnerLabel}
-            </span>
-          )}
-          <div className="text-[14px] font-extrabold leading-tight text-ink-900">
-            {r.name || t('pr.previewNoName')}
+        {/* Триггер: УЖЕ В ЧЕКЕ / ПОКУПАТЕЛЬ ПОПРОСИЛ */}
+        {triggerName && (
+          <div className="px-3.5 pb-1 pt-2.5">
+            <div className="text-[10px] font-bold uppercase tracking-wide text-ink-400">
+              {triggerLabel}
+            </div>
+            <div className="text-[13px] font-extrabold text-ink-900">{triggerName}</div>
           </div>
-          {price && <div className="mt-0.5 text-[15px] font-extrabold text-[#9A4427]">{price}</div>}
+        )}
+
+        {/* Предложение: ПРЕДЛОЖИТЕ ВМЕСТО / ДОБАВЬТЕ К ПОКУПКЕ */}
+        <div className="mt-1.5 bg-[#F8E7DD] px-3.5 py-3">
+          <div className="flex items-start justify-between gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-[#BE5A38]">
+              {offerLabel}
+            </span>
+            {r.partnerLabel && (
+              <span className="inline-block rounded-md bg-[#9A4427] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                {r.partnerLabel}
+              </span>
+            )}
+          </div>
+          <div className="mt-1 text-[15px] font-extrabold leading-tight text-ink-900">
+            {offerName || t('pr.previewNoName')}
+          </div>
+          {offerPrice && (
+            <div className="mt-0.5 text-[15px] font-extrabold text-[#9A4427]">{offerPrice}</div>
+          )}
         </div>
 
         {/* Сравнение ИЛИ преимущества */}
@@ -639,8 +697,11 @@ function RecommendationPreview({
         {/* Низ: бонус + цель + кнопки */}
         <div className="flex flex-col gap-2 px-3.5 pb-3 pt-1">
           <div className="flex items-center gap-2">
-            <span className="rounded-full bg-[#F8E7DD] px-2.5 py-1 text-[12px] font-bold text-[#BE5A38]">
+            <span className="rounded-lg bg-[#F8E7DD] px-2.5 py-1 text-center text-[12px] font-bold text-[#BE5A38]">
               +{bonus.toLocaleString('ru-RU')} ₸
+              <span className="ml-1 text-[10px] font-semibold text-[#BE5A38]/80">
+                {t('pr.previewBonusYou')}
+              </span>
             </span>
             {goalText && <span className="text-[11px] font-semibold text-ink-400">{goalText}</span>}
           </div>

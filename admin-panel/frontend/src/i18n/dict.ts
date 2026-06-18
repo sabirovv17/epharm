@@ -103,7 +103,7 @@ export const ru: Dict = {
   'promoDetail.back': 'К кампаниям',
   'page.rules.title': 'Rules Engine',
   'page.rules.subtitle':
-    'Правила замены и кросс-сейл. Триггер срабатывает в чеке — фармацевт получает рекомендацию и бонус.',
+    'Правила замены и кросс-селл. Триггер срабатывает в чеке — фармацевт получает рекомендацию и бонус.',
   'page.screens.title': 'Управление экранами',
   'page.screens.subtitle':
     'Indoor-DOOH экраны в кассовых зонах аптек. Плейлисты, ротация 15-минутная, расписание по аптекам и времени дня.',
@@ -677,7 +677,7 @@ export const ru: Dict = {
   'rules.staleWarn': 'Не удалось обновить данные с сервера ({e}). Показаны последние сохранённые.',
   'rules.searchPh': 'Поиск по правилам…',
   'rules.tabSubst': 'Замены',
-  'rules.tabCross': 'Кросс-сейл',
+  'rules.tabCross': 'Кросс-селл',
   'rules.tabArchive': 'Архив',
   'rules.statusAll': 'Все статусы',
   'rules.statusActive': 'Активные',
@@ -965,11 +965,17 @@ export const ru: Dict = {
   'pr.statusDraft': 'Черновик',
   'pr.previewTitle': 'Превью на кассе',
   'pr.previewReplace': 'Замена',
-  'pr.previewCross': 'Кросс-сейл',
+  'pr.previewCross': 'Кросс-селл',
   'pr.previewActReplace': 'Заменить',
   'pr.previewActAdd': 'Добавить',
   'pr.previewSkip': 'Пропустить',
   'pr.previewNoName': 'Товар',
+  // Превью кассы 1:1 с реальным окном POSM
+  'pr.previewAsked': 'ПОКУПАТЕЛЬ ПОПРОСИЛ',
+  'pr.previewInCart': 'УЖЕ В ЧЕКЕ',
+  'pr.previewOfferInstead': 'ПРЕДЛОЖИТЕ ВМЕСТО',
+  'pr.previewOfferAdd': 'ДОБАВЬТЕ К ПОКУПКЕ',
+  'pr.previewBonusYou': 'вам',
   'pr.save': 'Сохранить правила',
   'pr.savedToast': 'Правила кампании сохранены',
   'pr.standaloneBanner':
@@ -1073,7 +1079,7 @@ export const kk: Dict = {
   'promoDetail.back': 'Науқандарға',
   'page.rules.title': 'Rules Engine',
   'page.rules.subtitle':
-    'Алмастыру және кросс-сейл ережелері. Триггер чекте іске қосылады — фармацевт ұсыныс пен бонус алады.',
+    'Алмастыру және кросс-селл ережелері. Триггер чекте іске қосылады — фармацевт ұсыныс пен бонус алады.',
   'page.screens.title': 'Экрандарды басқару',
   'page.screens.subtitle':
     'Дәріханалардың касса аймағындағы indoor-DOOH экрандары. Плейлистер, 15 минуттық ротация, дәріханалар мен тәулік уақыты бойынша кесте.',
@@ -1649,7 +1655,7 @@ export const kk: Dict = {
     'Серверден деректерді жаңарту мүмкін болмады ({e}). Соңғы сақталғаны көрсетілді.',
   'rules.searchPh': 'Ережелер бойынша іздеу…',
   'rules.tabSubst': 'Алмастыру',
-  'rules.tabCross': 'Кросс-сейл',
+  'rules.tabCross': 'Кросс-селл',
   'rules.tabArchive': 'Архив',
   'rules.statusAll': 'Барлық мәртебелер',
   'rules.statusActive': 'Белсенді',
@@ -1942,6 +1948,11 @@ export const kk: Dict = {
   'pr.previewActAdd': 'Қосу',
   'pr.previewSkip': 'Өткізу',
   'pr.previewNoName': 'Тауар',
+  'pr.previewAsked': 'САТЫП АЛУШЫ СҰРАДЫ',
+  'pr.previewInCart': 'ЧЕКТЕ БАР',
+  'pr.previewOfferInstead': 'ОРНЫНА ҰСЫНЫҢЫЗ',
+  'pr.previewOfferAdd': 'САТЫП АЛУҒА ҚОСЫҢЫЗ',
+  'pr.previewBonusYou': 'сізге',
   'pr.save': 'Ережелерді сақтау',
   'pr.savedToast': 'Науқан ережелері сақталды',
   'pr.standaloneBanner':

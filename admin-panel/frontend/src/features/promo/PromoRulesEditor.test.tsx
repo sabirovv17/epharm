@@ -89,7 +89,7 @@ function renderEditor() {
   return render(
     <QueryClientProvider client={qc}>
       <ToastHost>
-        <PromoRulesEditor promoId="pr_1" />
+        <PromoRulesEditor promoId="pr_1" promotedName="Эпигам спрей" promotedPrice={1990} />
       </ToastHost>
     </QueryClientProvider>,
   )
@@ -134,5 +134,38 @@ describe('PromoRulesEditor — per-pair скрипт + «Добавить»', ()
     expect(arg.config.replacements[0].script).toBe('Новый скрипт')
     // Общий скрипт больше не используется — пустой.
     expect(arg.config.script).toBe('')
+  })
+})
+
+describe('PromoRulesEditor — превью кассы (структура как на реальной кассе)', () => {
+  it('замена: триггер = заменяемый товар, предложение = товар кампании', () => {
+    renderEditor()
+    // По семантике backend: для замены ПОКУПАТЕЛЬ ПОПРОСИЛ заменяемый (r),
+    // а ПРЕДЛОЖИТЕ ВМЕСТО — продвигаемый товар кампании.
+    expect(screen.getByText('ПОКУПАТЕЛЬ ПОПРОСИЛ')).toBeInTheDocument()
+    expect(screen.getByText('ПРЕДЛОЖИТЕ ВМЕСТО')).toBeInTheDocument()
+    // Заменяемый товар (триггер) — в превью.
+    expect(screen.getAllByText('Аквалор Норм').length).toBeGreaterThanOrEqual(1)
+    // Предлагаемый = товар кампании.
+    expect(screen.getByText('Эпигам спрей')).toBeInTheDocument()
+  })
+
+  it('кросс-селл: триггер = товар кампании (УЖЕ В ЧЕКЕ), предложение = компаньон', () => {
+    rulesHooks.usePromoRules.mockReturnValue({
+      data: mkView({
+        replacements: [],
+        crossSells: [{ medusaProductId: 'prod_c', name: 'Платочки Zewa', brand: 'Zewa' }],
+      }),
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+    renderEditor()
+    expect(screen.getByText('УЖЕ В ЧЕКЕ')).toBeInTheDocument()
+    expect(screen.getByText('ДОБАВЬТЕ К ПОКУПКЕ')).toBeInTheDocument()
+    // Триггер = товар кампании, компаньон = предложение.
+    expect(screen.getByText('Эпигам спрей')).toBeInTheDocument()
+    expect(screen.getAllByText('Платочки Zewa').length).toBeGreaterThanOrEqual(1)
   })
 })

@@ -130,8 +130,8 @@ describe('RuleBuilder — Header', () => {
     expect(screen.getByText(/обновлено 2026-05-01/i)).toBeInTheDocument()
   })
 
-  it('crosssell rule → префикс «Кросс-сейл»', () => {
+  it('crosssell rule → префикс «Кросс-селл»', () => {
     render(<RuleBuilder rule={mkRule({ type: 'crosssell' })} onSave={vi.fn()} onToggle={vi.fn()} />)
-    expect(screen.getByText(/Кросс-сейл/i)).toBeInTheDocument()
+    expect(screen.getByText(/Кросс-селл/i)).toBeInTheDocument()
   })
 })

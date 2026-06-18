@@ -12,8 +12,9 @@
         SizeToContent="Height"
         Width="410">
 
+    <!-- Палитра Claude (коралл/кремовый) — единый стиль с приложением и админкой. -->
     <Border CornerRadius="14" Background="White" Margin="12"
-            BorderBrush="#1F5C3F" BorderThickness="1.5">
+            BorderBrush="#9A4427" BorderThickness="1.5">
         <Border.Effect>
             <DropShadowEffect Color="#000000" Opacity="0.26" BlurRadius="24" ShadowDepth="5"/>
         </Border.Effect>
@@ -27,63 +28,63 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <Border Grid.Column="0" Background="#1F5C3F" CornerRadius="6" Width="22" Height="22"
+                <Border Grid.Column="0" Background="#9A4427" CornerRadius="6" Width="22" Height="22"
                         VerticalAlignment="Center">
                     <TextBlock Text="i" Foreground="White" FontWeight="Bold" FontSize="14"
                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Border>
                 <TextBlock x:Name="TbHeader" Grid.Column="1" Text="Epharm — рекомендация замены"
-                           Foreground="#1F5C3F" FontWeight="Bold" FontSize="16"
+                           Foreground="#9A4427" FontWeight="Bold" FontSize="16"
                            VerticalAlignment="Center" Margin="9,0,0,0"/>
                 <Button Grid.Column="2" Content="✕" Width="26" Height="26" FontSize="13"
-                        Foreground="#6B7280" Background="#F1F3F5" BorderThickness="0"
+                        Foreground="#6F665B" Background="#EFEAE2" BorderThickness="0"
                         Cursor="Hand" Click="OnCloseClick"/>
             </Grid>
 
-            <Border Height="1" Background="#E5E7EB"/>
+            <Border Height="1" Background="#E2DCD2"/>
 
             <!-- ТАБЫ: Замена | Допродажа (видны только если рекомендаций >1) -->
-            <Border x:Name="PanelTabs" Background="#F1F3F5" CornerRadius="9" Margin="14,11,14,2"
+            <Border x:Name="PanelTabs" Background="#EFEAE2" CornerRadius="9" Margin="14,11,14,2"
                     Padding="3" Visibility="Collapsed">
                 <prim:UniformGrid x:Name="TabsPanel" Rows="1"/>
             </Border>
 
             <!-- ПОКУПАТЕЛЬ ПОПРОСИЛ / УЖЕ В ЧЕКЕ -->
             <StackPanel x:Name="PanelTrigger" Margin="14,9,14,9">
-                <TextBlock x:Name="TbTriggerLabel" Text="ПОКУПАТЕЛЬ ПОПРОСИЛ" Foreground="#9CA3AF"
+                <TextBlock x:Name="TbTriggerLabel" Text="ПОКУПАТЕЛЬ ПОПРОСИЛ" Foreground="#9D9388"
                            FontSize="11" FontWeight="Bold"/>
-                <TextBlock x:Name="TbTrigger" Text="" Foreground="#0B1F17" FontSize="16"
+                <TextBlock x:Name="TbTrigger" Text="" Foreground="#221C16" FontSize="16"
                            FontWeight="Bold" TextWrapping="Wrap" Margin="0,2,0,0"/>
             </StackPanel>
 
-            <!-- ПРЕДЛОЖИТЕ ВМЕСТО / ДОБАВИТЬ К ПОКУПКЕ (зелёный блок) -->
-            <Border Background="#EAF6EF">
+            <!-- ПРЕДЛОЖИТЕ ВМЕСТО / ДОБАВИТЬ К ПОКУПКЕ (кремовый блок) -->
+            <Border Background="#F8E7DD">
                 <StackPanel Margin="14,10,14,12">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="TbOfferLabel" Text="ПРЕДЛОЖИТЕ ВМЕСТО" Foreground="#0E7C4F"
+                        <TextBlock x:Name="TbOfferLabel" Text="ПРЕДЛОЖИТЕ ВМЕСТО" Foreground="#BE5A38"
                                    FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
-                        <Border x:Name="PartnerBadge" Grid.Column="1" Background="#1F5C3F" CornerRadius="6"
+                        <Border x:Name="PartnerBadge" Grid.Column="1" Background="#9A4427" CornerRadius="6"
                                 Padding="8,3">
                             <TextBlock x:Name="TbPartner" Text="ПАРТНЁР EPHARM" Foreground="White"
                                        FontSize="10.5" FontWeight="Bold"/>
                         </Border>
                     </Grid>
 
-                    <TextBlock x:Name="TbRecommend" Text="" Foreground="#0B1F17" FontSize="25"
+                    <TextBlock x:Name="TbRecommend" Text="" Foreground="#221C16" FontSize="25"
                                FontWeight="Bold" TextWrapping="Wrap" Margin="0,5,0,0"/>
 
-                    <TextBlock x:Name="TbPrice" Text="" Foreground="#0B1F17" FontSize="23"
+                    <TextBlock x:Name="TbPrice" Text="" Foreground="#221C16" FontSize="23"
                                FontWeight="Bold" Margin="0,6,0,0"/>
                 </StackPanel>
             </Border>
 
             <!-- СРАВНЕНИЕ -->
             <StackPanel x:Name="PanelComparison" Margin="14,10,14,2">
-                <TextBlock Text="СРАВНЕНИЕ" Foreground="#9CA3AF" FontSize="11" FontWeight="Bold"
+                <TextBlock Text="СРАВНЕНИЕ" Foreground="#9D9388" FontSize="11" FontWeight="Bold"
                            Margin="0,0,0,4"/>
                 <ItemsControl x:Name="ComparisonList">
                     <ItemsControl.ItemTemplate>
@@ -94,18 +95,18 @@
                                     <ColumnDefinition Width="1*"/>
                                     <ColumnDefinition Width="1.25*"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="{Binding Label}" Foreground="#6B7280"
+                                <TextBlock Grid.Column="0" Text="{Binding Label}" Foreground="#6F665B"
                                            FontSize="13.5" TextWrapping="Wrap"/>
-                                <TextBlock Grid.Column="1" Text="{Binding TriggerValue}" Foreground="#374151"
+                                <TextBlock Grid.Column="1" Text="{Binding TriggerValue}" Foreground="#423B32"
                                            FontSize="13.5" TextWrapping="Wrap"/>
                                 <TextBlock Grid.Column="2" Text="{Binding RecommendValue}"
                                            FontSize="13.5" TextWrapping="Wrap">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="#374151"/>
+                                            <Setter Property="Foreground" Value="#423B32"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding RecommendHighlight}" Value="True">
-                                                    <Setter Property="Foreground" Value="#0E7C4F"/>
+                                                    <Setter Property="Foreground" Value="#BE5A38"/>
                                                     <Setter Property="FontWeight" Value="SemiBold"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
@@ -123,8 +124,8 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <StackPanel Orientation="Horizontal" Margin="0,2,0,2">
-                            <TextBlock Text="•" Foreground="#16C97A" FontWeight="Bold" Margin="0,0,8,0"/>
-                            <TextBlock Text="{Binding}" FontSize="14" FontWeight="Medium" Foreground="#374151"
+                            <TextBlock Text="•" Foreground="#D97757" FontWeight="Bold" Margin="0,0,8,0"/>
+                            <TextBlock Text="{Binding}" FontSize="14" FontWeight="Medium" Foreground="#423B32"
                                        TextWrapping="Wrap"/>
                         </StackPanel>
                     </DataTemplate>
@@ -132,20 +133,20 @@
             </ItemsControl>
 
             <!-- СКРИПТ -->
-            <Border x:Name="PanelScript" Background="#F4F6FA" CornerRadius="10" Padding="11"
+            <Border x:Name="PanelScript" Background="#F3EEE7" CornerRadius="10" Padding="11"
                     Margin="14,10,14,0">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <Border Grid.Column="0" Background="#E5EFEA" CornerRadius="13" Width="26" Height="26"
+                    <Border Grid.Column="0" Background="#F8E7DD" CornerRadius="13" Width="26" Height="26"
                             VerticalAlignment="Top">
-                        <TextBlock Text="A" Foreground="#1F5C3F" FontWeight="Bold" FontSize="13"
+                        <TextBlock Text="A" Foreground="#9A4427" FontWeight="Bold" FontSize="13"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <TextBlock x:Name="TbScript" Grid.Column="1" Text="" FontSize="14" FontStyle="Italic"
-                               Foreground="#1F2937" FontWeight="Medium" TextWrapping="Wrap"
+                               Foreground="#2E2820" FontWeight="Medium" TextWrapping="Wrap"
                                LineHeight="19" Margin="9,1,0,0"/>
                 </Grid>
             </Border>
@@ -157,18 +158,18 @@
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <Border Grid.Column="0" Background="#E7FBF1" CornerRadius="10" Padding="11,7"
+                    <Border Grid.Column="0" Background="#F8E7DD" CornerRadius="10" Padding="11,7"
                             VerticalAlignment="Top">
                         <StackPanel>
-                            <TextBlock x:Name="TbBonus" Text="+0 ₸" Foreground="#0E7C4F" FontSize="18"
+                            <TextBlock x:Name="TbBonus" Text="+0 ₸" Foreground="#BE5A38" FontSize="18"
                                        FontWeight="Bold"/>
-                            <TextBlock Text="вам" Foreground="#0E7C4F" FontSize="12" FontWeight="SemiBold"/>
+                            <TextBlock Text="вам" Foreground="#BE5A38" FontSize="12" FontWeight="SemiBold"/>
                         </StackPanel>
                     </Border>
                     <StackPanel x:Name="PanelGoal" Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                        <TextBlock x:Name="TbGoal" Text="" Foreground="#6B7280" FontSize="12.5"
+                        <TextBlock x:Name="TbGoal" Text="" Foreground="#6F665B" FontSize="12.5"
                                    FontWeight="Medium" TextWrapping="Wrap"/>
-                        <TextBlock x:Name="TbGoalBonus" Text="" Foreground="#6B7280" FontSize="12.5"
+                        <TextBlock x:Name="TbGoalBonus" Text="" Foreground="#6F665B" FontSize="12.5"
                                    FontWeight="Medium" TextWrapping="Wrap" Margin="0,2,0,0"/>
                     </StackPanel>
                 </Grid>
@@ -180,11 +181,11 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <Button x:Name="BtnSkip" Grid.Column="0" Content="Пропустить (Esc)"
-                            Height="44" FontSize="15" FontWeight="SemiBold" Foreground="#374151"
-                            Background="#EEF1F5" BorderThickness="0" Cursor="Hand" Click="OnSkipClick"/>
+                            Height="44" FontSize="15" FontWeight="SemiBold" Foreground="#423B32"
+                            Background="#EFEAE2" BorderThickness="0" Cursor="Hand" Click="OnSkipClick"/>
                     <Button x:Name="BtnAccept" Grid.Column="2" Content="Заменить (F9)"
                             Height="44" FontSize="15" FontWeight="Bold" Foreground="White"
-                            Background="#16C97A" BorderThickness="0" Cursor="Hand" Click="OnAcceptClick"/>
+                            Background="#D97757" BorderThickness="0" Cursor="Hand" Click="OnAcceptClick"/>
                 </Grid>
 
                 <!-- Подтверждение результата (показывается вместо кнопок, когда реко решена) -->

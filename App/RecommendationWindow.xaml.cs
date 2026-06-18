@@ -12,9 +12,9 @@ namespace CustomerDisplay
 {
     /// <summary>
     /// Popup-рекомендация поверх кассы (ТЗ §4, шаблон Figure 11). Принимает СПИСОК рекомендаций
-    /// (замена и/или кросс-сейл): если их >1 — под шапкой табы «Замена | Кросс-сейл», переключение
+    /// (замена и/или кросс-селл): если их >1 — под шапкой табы «Замена | Кросс-селл», переключение
     /// клик/Tab; на экране одна карточка. КАЖДАЯ рекомендация решается независимо — фармацевт может
-    /// принять и замену, и кросс-сейл (или одну). Окно живёт, пока есть нерешённые; закрывается,
+    /// принять и замену, и кросс-селл (или одну). Окно живёт, пока есть нерешённые; закрывается,
     /// когда по всем принято решение, либо ✕/таймаут. ВСЕ поля приходят из данных (задаются в
     /// админке, пуллятся в клиент) — пустые секции скрываются.
     /// </summary>
@@ -45,7 +45,7 @@ namespace CustomerDisplay
         {
         }
 
-        /// <param name="recs">Список рекомендаций (замена и/или кросс-сейл), 1–2 шт.</param>
+        /// <param name="recs">Список рекомендаций (замена и/или кросс-селл), 1–2 шт.</param>
         /// <param name="targetScreen">Монитор ФАРМАЦЕВТА (НЕ клиентский). null — основной.</param>
         public RecommendationWindow(List<Recommendation> recs, int autoCloseSec = 30, System.Windows.Forms.Screen? targetScreen = null)
         {
@@ -75,7 +75,7 @@ namespace CustomerDisplay
             _autoClose?.Start();
         }
 
-        /// <summary>Перерисовать табы «Замена | Кросс-сейл» со статусом (✓ принято / ✕ пропущено). Скрыты при 1 реко.</summary>
+        /// <summary>Перерисовать табы «Замена | Кросс-селл» со статусом (✓ принято / ✕ пропущено). Скрыты при 1 реко.</summary>
         private void BuildTabs()
         {
             if (_recs.Count <= 1)
@@ -87,7 +87,7 @@ namespace CustomerDisplay
             TabsPanel.Children.Clear();
             for (int i = 0; i < _recs.Count; i++)
             {
-                var label = _recs[i].IsSubstitution ? "Замена" : "Кросс-сейл";
+                var label = _recs[i].IsSubstitution ? "Замена" : "Кросс-селл";
                 if (_status[i] == 1) label += " ✓";
                 else if (_status[i] == 2) label += " ✕";
                 TabsPanel.Children.Add(MakeTab(label, i, i == _index, _status[i]));
@@ -96,13 +96,13 @@ namespace CustomerDisplay
 
         private Border MakeTab(string text, int i, bool active, int status)
         {
-            // Цвет таба: активный (текущий просмотр) — яркий зелёный; принятый — бледно-зелёный с ✓;
-            // пропущенный — серый; ожидающий — обычный. Так видно, что замена/кросс-сейл применились.
+            // Цвет таба: активный (текущий просмотр) — коралл; принятый — кремовый с ✓;
+            // пропущенный — серый; ожидающий — обычный. Так видно, что замена/кросс-селл применились.
             Brush bg, fg;
-            if (active) { bg = Brush("#16C97A"); fg = Brushes.White; }
-            else if (status == 1) { bg = Brush("#D9F2E5"); fg = Brush("#0E7C4F"); }
-            else if (status == 2) { bg = Brushes.Transparent; fg = Brush("#9CA3AF"); }
-            else { bg = Brushes.Transparent; fg = Brush("#374151"); }
+            if (active) { bg = Brush("#D97757"); fg = Brushes.White; }
+            else if (status == 1) { bg = Brush("#F8E7DD"); fg = Brush("#BE5A38"); }
+            else if (status == 2) { bg = Brushes.Transparent; fg = Brush("#9D9388"); }
+            else { bg = Brushes.Transparent; fg = Brush("#423B32"); }
 
             var tb = new TextBlock
             {
@@ -129,7 +129,7 @@ namespace CustomerDisplay
 
         /// <summary>
         /// Низ карточки: для нерешённой реко — кнопки; для решённой — заметная плашка-подтверждение
-        /// «✓ Замена применена» / «✓ Кросс-сейл применён» (зелёная) либо «Пропущено» (серая).
+        /// «✓ Замена применена» / «✓ Кросс-селл применён» (зелёная) либо «Пропущено» (серая).
         /// </summary>
         private void UpdateDecisionUI()
         {
@@ -149,14 +149,14 @@ namespace CustomerDisplay
                 PanelStatus.Visibility = Visibility.Visible;
                 if (st == 1)
                 {
-                    PanelStatus.Background = Brush("#16C97A");
+                    PanelStatus.Background = Brush("#D97757");
                     TbStatus.Foreground = Brushes.White;
-                    TbStatus.Text = Current.IsSubstitution ? "✓ Замена применена" : "✓ Кросс-сейл применён";
+                    TbStatus.Text = Current.IsSubstitution ? "✓ Замена применена" : "✓ Кросс-селл применён";
                 }
                 else
                 {
-                    PanelStatus.Background = Brush("#EEF1F5");
-                    TbStatus.Foreground = Brush("#6B7280");
+                    PanelStatus.Background = Brush("#EFEAE2");
+                    TbStatus.Foreground = Brush("#6F665B");
                     TbStatus.Text = "Пропущено";
                 }
             }
@@ -165,7 +165,7 @@ namespace CustomerDisplay
         /// <summary>Раскладывает данные рекомендации по карточке; пустые секции прячет.</summary>
         private void Fill(Recommendation rec)
         {
-            TbHeader.Text = rec.IsSubstitution ? "Epharm — рекомендация замены" : "Epharm — рекомендация кросс-сейла";
+            TbHeader.Text = rec.IsSubstitution ? "Epharm — рекомендация замены" : "Epharm — рекомендация кросс-селла";
 
             // Что попросил покупатель / что уже в чеке
             TbTriggerLabel.Text = rec.IsSubstitution ? "ПОКУПАТЕЛЬ ПОПРОСИЛ" : "УЖЕ В ЧЕКЕ";
@@ -298,7 +298,7 @@ namespace CustomerDisplay
         /// <summary>
         /// Решение по ТЕКУЩЕЙ рекомендации (принять/пропустить). Фиксирует её результат и переходит
         /// к следующей нерешённой; если решены все — закрывает окно. Так фармацевт может принять и
-        /// замену, и кросс-сейл по очереди.
+        /// замену, и кросс-селл по очереди.
         /// </summary>
         private void DecideCurrent(bool accepted)
         {

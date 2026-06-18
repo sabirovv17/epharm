@@ -13,7 +13,7 @@ namespace CustomerDisplay
 {
     /// <summary>
     /// Баннер-уведомление о КОНФЛИКТЕ правила кампании (ТЗ T2): backend нашёл подходящее правило
-    /// замены/кросс-сейла, но применить его нельзя (товара нет в наличии, кампания на паузе, …).
+    /// замены/кросс-селла, но применить его нельзя (товара нет в наличии, кампания на паузе, …).
     /// Фармацевту показываем красный фрейм с причиной (Conflict.Reason) — «подмена/допродажа сейчас
     /// невозможна». Окно frameless/Topmost, на экране ФАРМАЦЕВТА (не клиентский киоск), авто-закрытие
     /// по таймауту — как и popup рекомендаций. Не блокирует кассу; рекомендации (если пришли)
@@ -112,8 +112,8 @@ namespace CustomerDisplay
                 Width = 26,
                 Height = 26,
                 FontSize = 13,
-                Foreground = Brush("#6B7280"),
-                Background = Brush("#F1F3F5"),
+                Foreground = Brush("#6F665B"),
+                Background = Brush("#EFEAE2"),
                 BorderThickness = new Thickness(0),
                 Cursor = Cursors.Hand,
             };
@@ -142,7 +142,7 @@ namespace CustomerDisplay
         private Border BuildConflictRow(Conflict c)
         {
             var kindLabel = c.Kind == "substitution" ? "Замена"
-                : c.Kind == "crosssell" ? "Кросс-сейл"
+                : c.Kind == "crosssell" ? "Кросс-селл"
                 : "Рекомендация";
 
             var stack = new StackPanel { Margin = new Thickness(0, 6, 0, 6) };
@@ -170,7 +170,7 @@ namespace CustomerDisplay
                 top.Children.Add(new TextBlock
                 {
                     Text = c.TriggerName,
-                    Foreground = Brush("#0B1F17"),
+                    Foreground = Brush("#221C16"),
                     FontSize = 14,
                     FontWeight = FontWeights.Bold,
                     VerticalAlignment = VerticalAlignment.Center,
