@@ -3560,3 +3560,21 @@ UUID (не перечисляемы), но это «security by obscurity»: л�
   дубликат → пагинация закрыта).
 - Финал после фиксов: backend reco-тест exit 0; mobile analyze чисто + `flutter test` **+95**;
   admin promo/banners/storefront/i18n/rules — **13 файлов / 139 тестов passed**.
+
+## 2026-06-18 — Редизайн в стиле Claude (orange/white) — админка
+
+Бренд зелёный → **коралл** (`brand-green` ramp в `tailwind.config.ts` теперь коралловый, 600=`#D97757`;
+**имена классов `brand-green-*`/`brand-blue-*` сохранены** — меняли только значения, 87 usage не трогали).
+`brand-blue` → коралл-акцент; `paper` серый → кремовый (`#FAF7F2`); `ink` → тёплый.
+
+- Перекрашены: `index.css`, `Logo.tsx`, UI (`Metric/ProgressBar/Sparkline/ToastHost/Avatar/StatusChip/
+ErrorBoundary`), фичи (`rules/promo/pharmacies`), категориальные палитры (Avatar/VENDOR/COVER —
+  разнесены по коралловой шкале). Цветовые ассерты в тестах обновлены.
+- ⚠️ **Семантика оставлена**: `accent.success #16C97A` (зелёный = «успех/одобрено»), danger/amber/purple.
+  В CSS-бандле бренд-зелёного нет; success-green живёт JS-константой (ToastHost).
+- `design-tokens-admin.md` §2 переведён в коралл.
+- ⚠️ **Деплой `up -d --build frontend` пересоздаёт и backend** (frontend `depends_on` backend) — backend
+  рестартует тем же кодом (Flyway re-run = no-op, данные целы). Для изоляции можно `--no-deps frontend`.
+- Верификация на проде: CSS-бандл содержит `#d97757` (×6), бренд-`#16c97a` = 0; admin `/`+`/banners` 200.
+- Координаты прод-деплоя — см. память `reference-prod-deploy` (`/root/epharm`, ключ, sslip-URL, бакет
+  `epharm-receipts`).

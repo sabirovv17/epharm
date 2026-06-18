@@ -777,3 +777,18 @@ Backend-контракт этого батча — в `admin-panel/claude-admin-
 ### Верификация
 
 - `flutter analyze lib test` — чисто. `flutter test` — **+95 All tests passed**.
+
+## 2026-06-18 — Редизайн в стиле Claude (orange/white)
+
+Бренд зелёный → **коралл `#D97757`** (primary), синий-акцент → коралл (моно-бренд); поверхности
+серые → **кремовые** (`#FAF7F2`/`#F3EEE7`); ink → тёплый (`#221C16…#D4CCC0`). Градиенты сделаны
+почти плоскими коралловыми; зелёный glow → мягкий коралл `rgba(217,119,87,0.28)`.
+
+- Token-driven: `lib/core/theme/{app_colors,app_gradients,app_shadows,app_theme}.dart` — смена
+  значений тянется по всей теме. Логотип-глиф (`pharma_logo.dart`): чек #D97757, ⊕ #BE5A38.
+- Хардкод вычищен в экранах профиля (сотрудничество/инструкции/видео), карте-бонусе, чеках.
+- ⚠️ Семантический **success-green оставлен** (статус «Подтверждён» — `receipt_row.dart`,
+  `receipt_detail_sheet.dart`): зелёный = «одобрено», это статус, не бренд.
+- Палитра-канон в `_reference/design-tokens.md §1/§4/§7/§8` переведена в коралл.
+- Верификация: analyze чисто, `flutter test` +95; финальный grep — бренд-зелёного/синего нет
+  (кроме success). Деплой: оранжевый iOS на «iphone amir» + оранжевый APK в MinIO (sslip-URL).
