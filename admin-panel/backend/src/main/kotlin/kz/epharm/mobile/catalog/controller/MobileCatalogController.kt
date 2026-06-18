@@ -42,11 +42,18 @@ class MobileCatalogController(
         @RequestParam(defaultValue = "0") offset: Int,
     ): MobileCatalogPageDto = service.search(q = q, category = category, limit = limit, offset = offset)
 
-    /** Карточка товара по medusa-id. */
+    /**
+     * Карточка товара по medusa-id.
+     *
+     * ИБ: эндпоинт публичный (товары видны до логина). hasActiveCampaign/promoId/campaignTitle
+     * отдаём всем, НО размер бонуса фармацевту коммерчески чувствителен — поэтому bonus
+     * отдаётся ТОЛЬКО авторизованному фармацевту (principal != null). Аноним → bonus=null.
+     */
     @GetMapping("/products/{id}")
     fun product(
         @PathVariable id: String,
-    ): MobileCatalogDetailDto = service.detail(id)
+        @AuthenticationPrincipal principal: PharmacistPrincipal?,
+    ): MobileCatalogDetailDto = service.detail(id, includeIncentive = principal != null)
 
     /**
      * Рекомендации к товару (ДОП.3b): «Альтернативы» (замены) + «Дополнения» (кросс-селл)

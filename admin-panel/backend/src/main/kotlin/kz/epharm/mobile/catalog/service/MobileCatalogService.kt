@@ -56,11 +56,43 @@ class MobileCatalogService(
         }
     }
 
-    fun detail(id: String): MobileCatalogDetailDto = cache.get("detail|$id") {
-        // Товар обязан существовать в Medusa — никаких карточек «из воздуха» (T5).
-        val p = medusa.getProduct(id)
-            ?: throw AppException(ErrorCode.NOT_FOUND, "Товар не найден", HttpStatus.NOT_FOUND)
-        applyPromoOverride(id, detailOf(p))
+    /**
+     * Карточка товара. Поля Medusa мемоизируются в кеше; КАМПАНИЙНЫЕ поля
+     * (hasActiveCampaign/promoId/campaignTitle/bonus) вычисляются ВНЕ cache.get — иначе
+     * смена статуса кампании «залипла» бы в кеше до истечения TTL.
+     *
+     * [includeIncentive]=false (аноним) → bonus скрыт (коммерческая тайна), но
+     * hasActiveCampaign/promoId/campaignTitle корректны для всех.
+     */
+    fun detail(id: String, includeIncentive: Boolean = false): MobileCatalogDetailDto {
+        val base = cache.get("detail|$id") {
+            // Товар обязан существовать в Medusa — никаких карточек «из воздуха» (T5).
+            val p = medusa.getProduct(id)
+                ?: throw AppException(ErrorCode.NOT_FOUND, "Товар не найден", HttpStatus.NOT_FOUND)
+            applyPromoOverride(id, detailOf(p))
+        }
+        return applyCampaign(id, base, includeIncentive)
+    }
+
+    /**
+     * Накладывает поля активной кампании товара (вне кеша). Активная = PromoEntity со
+     * статусом active на этом medusaProductId. bonus отдаём только авторизованному
+     * фармацевту ([includeIncentive]) — анониму null. Нет активной → всё null/false.
+     */
+    private fun applyCampaign(
+        medusaProductId: String,
+        base: MobileCatalogDetailDto,
+        includeIncentive: Boolean,
+    ): MobileCatalogDetailDto {
+        val promo = promoRepository.findAllByMedusaProductId(medusaProductId)
+            .firstOrNull { it.status == PromoStatus.active }
+            ?: return base
+        return base.copy(
+            hasActiveCampaign = true,
+            promoId = promo.id,
+            campaignTitle = promo.title,
+            bonus = if (includeIncentive) promo.pharmacistBonus.toInt().takeIf { it > 0 } else null,
+        )
     }
 
     /**
@@ -126,17 +158,36 @@ class MobileCatalogService(
         val subs = active.filter {
             it.type == RuleType.substitution && it.recommend != productId && triggerMatches(it, productId)
         }
+        // Дедуп: если товар уже попал в «Альтернативы» (замена), не дублируем его в
+        // «Допродать» — замена приоритетнее (как RulesEngineService.survivors у POSM),
+        // иначе одна и та же карточка висела бы в обеих секциях.
+        val altRecommendIds = subs.map { it.recommend }.toSet()
         val cross = active.filter {
-            it.type == RuleType.crosssell && it.recommend != productId && triggerMatches(it, productId)
+            it.type == RuleType.crosssell &&
+                it.recommend != productId &&
+                it.recommend !in altRecommendIds &&
+                triggerMatches(it, productId)
         }
         val ids = (subs + cross).map { it.recommend }.distinct()
         if (ids.isEmpty()) return MobileRecommendationsDto(emptyList(), emptyList())
         val cards = cardsByIds(ids)
+        // Какие из товаров-компаньонов имеют СВОЮ активную кампанию (для группировки кросс-селла).
+        val activeIds = activeCampaignProductIds()
         return MobileRecommendationsDto(
-            alternatives = toRecommendations(subs, cards, includeIncentive),
-            crosssells = toRecommendations(cross, cards, includeIncentive),
+            alternatives = toRecommendations(subs, cards, includeIncentive, activeIds),
+            crosssells = toRecommendations(cross, cards, includeIncentive, activeIds),
         )
     }
+
+    /**
+     * Medusa-id товаров, на которых есть активная кампания (PromoEntity со статусом active).
+     * Используется для группировки рекомендаций: компаньон кросс-селла без своей кампании
+     * показывается, но мобилка делает его некликабельным.
+     */
+    private fun activeCampaignProductIds(): Set<String> =
+        promoRepository.findAllByStatusRawAndMedusaProductIdIsNotNullOrderByUpdatedAtDesc(PromoStatus.active.name)
+            .mapNotNull { it.medusaProductId }
+            .toSet()
 
     /**
      * Глобальные пулы для ленты каталога (пилюли «Альтернативы»/«Дополнения»): весь
@@ -186,20 +237,34 @@ class MobileCatalogService(
     /**
      * Правила → рекомендации: сортировка по бонусу (выше — раньше), дедуп по товару, резолв карточки.
      * [includeIncentive]=false (аноним) → bonus/note скрыты (видны только товары-рекомендации).
+     *
+     * Группировка (п.1/п.7): substitution → group="alternative", hasActiveCampaign=false (продвигаемый
+     * товар — это сам recommend кампании-триггера, отдельная кампания у него не требуется). crosssell →
+     * hasActiveCampaign = recommend ∈ [activeCampaignIds]; group = "crosssell_with_campaign" /
+     * "crosssell_no_campaign". Компаньон без своей кампании остаётся в выдаче (мобилка его не кликает).
      */
     private fun toRecommendations(
         rules: List<RuleEntity>,
         cards: Map<String, MobileCatalogProductDto>,
         includeIncentive: Boolean,
+        activeCampaignIds: Set<String>,
     ): List<MobileRecommendationDto> =
         rules.sortedByDescending { it.bonus }
             .distinctBy { it.recommend }
             .mapNotNull { r ->
                 val card = cards[r.recommend] ?: return@mapNotNull null
+                val isCross = r.type == RuleType.crosssell
+                val hasActiveCampaign = isCross && r.recommend in activeCampaignIds
                 MobileRecommendationDto(
                     product = card,
                     note = if (includeIncentive) r.script.trim().takeIf { it.isNotBlank() } else null,
                     bonus = if (includeIncentive) r.bonus.takeIf { it > 0 } else null,
+                    hasActiveCampaign = hasActiveCampaign,
+                    group = when {
+                        !isCross -> "alternative"
+                        hasActiveCampaign -> "crosssell_with_campaign"
+                        else -> "crosssell_no_campaign"
+                    },
                 )
             }
 

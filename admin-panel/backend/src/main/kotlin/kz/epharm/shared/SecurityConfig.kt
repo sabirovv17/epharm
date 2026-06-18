@@ -6,12 +6,10 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
-import org.springframework.http.HttpStatus
 import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.web.SecurityFilterChain
-import org.springframework.security.web.authentication.HttpStatusEntryPoint
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource
@@ -35,6 +33,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 @EnableMethodSecurity
 class SecurityConfig(
     private val jwtAuthenticationFilter: JwtAuthenticationFilter,
+    private val apiAuthenticationEntryPoint: ApiAuthenticationEntryPoint,
+    private val apiAccessDeniedHandler: ApiAccessDeniedHandler,
     @Value("\${app.cors.allowed-origins:http://localhost:5173}") private val allowedOriginsRaw: String,
 ) {
 
@@ -76,6 +76,8 @@ class SecurityConfig(
                         // Лента промо-товаров (активные промо-кампании из админки +
                         // данные Medusa) — главная страница фармацевта, тоже без логина.
                         "/api/mobile/promotions/**",
+                        // Лента баннеров главного экрана (п.5) — публичная, как promotions.
+                        "/api/mobile/banners/**",
                     ).permitAll()
                     // Метрики/prometheus — только для админ-консоли, не наружу.
                     .requestMatchers("/actuator/**").hasAnyRole(*ADMIN_ROLES)
@@ -85,12 +87,16 @@ class SecurityConfig(
                     .requestMatchers("/api/mobile/**").hasRole("PHARMACIST")
                     .anyRequest().authenticated()
             }
-            // Неаутентифицированный запрос (нет/истёк/невалиден токен) → 401, НЕ 403.
-            // Это критично для фронта: axios-interceptor рефрешит токен только на 401.
-            // Дефолтный Spring entry point отдавал 403 → протухший access-токен (TTL 15м)
-            // ронял каждую секцию в «нет доступа» без авто-refresh. 403 оставляем для
-            // будущих ролевых запретов (@PreAuthorize → AccessDeniedHandler).
-            .exceptionHandling { it.authenticationEntryPoint(HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)) }
+            // Неаутентифицированный запрос (нет/истёк/невалиден токен) → 401, ролевой
+            // запрет → 403. ОБА отдают JSON-тело ApiErrorResponse {code,message} (а не
+            // пустое тело дефолтного HttpStatusEntryPoint). Это критично: мобильный
+            // _decode рассчитывает на {code,message} — пустое тело деградировало в
+            // дефолт «Ошибка сервера» (экран «Мои чеки», п.6). 401 сохранён для
+            // axios-refresh админки, который рефрешит токен только на 401.
+            .exceptionHandling {
+                it.authenticationEntryPoint(apiAuthenticationEntryPoint)
+                    .accessDeniedHandler(apiAccessDeniedHandler)
+            }
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter::class.java)
 
         return http.build()

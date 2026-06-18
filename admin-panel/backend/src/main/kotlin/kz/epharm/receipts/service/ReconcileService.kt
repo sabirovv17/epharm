@@ -119,6 +119,7 @@ class ReconcileService(
         photoBytes: ByteArray?,
         photoContentType: String?,
         photoName: String?,
+        claimedPromoIds: String? = null,
     ): ReceiptDto {
         val pharmacist = pharmacistRepository.findById(pharmacistId).orElseThrow {
             AppException(ErrorCode.VALIDATION_FAILED, "Фармацевт $pharmacistId не найден", HttpStatus.BAD_REQUEST)
@@ -136,6 +137,16 @@ class ReconcileService(
         // (замена на кассе). Реальное начисление всё равно гейтит сверка/модератор.
         val candidate = latestAwaitingFor(pharmacistId)
 
+        // Акции, которые фармацевт выбрал в приложении (CSV pr_*). Нормализуем: trim, выкинуть
+        // пустые, дедуп с сохранением порядка. Это «заявка» пользователя — реальное начисление
+        // всё равно гейтит сверка/модератор, поэтому ничего здесь не доверяем на 100%.
+        val normalizedPromoIds = claimedPromoIds
+            ?.split(',')
+            ?.mapNotNull { it.trim().takeIf { s -> s.isNotEmpty() } }
+            ?.distinct()
+            ?.takeIf { it.isNotEmpty() }
+            ?.joinToString(",")
+
         val photoUrl =
             mediaStorage.upload(photoBytes, photoContentType ?: "image/jpeg", photoName ?: "receipt.jpg")
 
@@ -151,8 +162,9 @@ class ReconcileService(
             photoUrl = photoUrl,
             parsedSku = candidate?.sku ?: "",
             pendingBonusId = candidate?.id,
-            // claimedPromoIds заполняется системой (POSM/OCR), не пользователем — на загрузке пусто.
-            claimedPromoIds = null,
+            // Акции, заявленные фармацевтом в приложении (канал «акция→чек»). Пусто (null), если
+            // ничего не выбрал — тогда акции определит POSM-бронь/модератор/источники сверки.
+            claimedPromoIds = normalizedPromoIds,
         )
 
         decideBranch(receipt, candidate)

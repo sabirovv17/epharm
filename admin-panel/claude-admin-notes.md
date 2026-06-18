@@ -3475,3 +3475,88 @@ UUID (не перечисляемы), но это «security by obscurity»: л�
   замены/кросс-селла на реальный товар витрины + кампания «Активна».
 - Прямую запись демо-правил в прод-БД заблокировал предохранитель Claude Code (правильно —
   деплой ≠ произвольный SQL). Пользователь выбрал «через админку».
+
+## 2026-06-18 — Батч 8 правок (backend + админка)
+
+Большой батч (mobile+admin+backend), оркестрован воркфлоу-агентами на раздельных файлах +
+интеграция общих файлов вручную. Здесь backend и admin части (mobile см. `claude-notes.md`).
+
+### Контракт рекомендаций/бонусов (п.1,2,7)
+
+- `MobileRecommendationDto` (`/products/{id}/recommendations`): +`hasActiveCampaign: Boolean`, +`group: String` ∈ {`alternative`, `crosssell_with_campaign`, `crosssell_no_campaign`}. Семантика:
+  товар-компаньон БЕЗ своей активной кампании ВСЁ РАВНО в выдаче `crosssells[]`, но с
+  `group=crosssell_no_campaign` → мобилка делает его некликабельным (это «хендлинг товара без
+  кампании», п.1). substitution → всегда `alternative`, `hasActiveCampaign=false`.
+- `MobileCatalogDetailDto` (`/products/{id}`): +`hasActiveCampaign`, `promoId`, `campaignTitle`,
+  `bonus: Int?`. Бонус из `PromoEntity.pharmacistBonus`, **гейтится принципалом**: эндпоинт теперь
+  читает `@AuthenticationPrincipal PharmacistPrincipal?` → `detail(id, includeIncentive=principal!=null)`;
+  аноним → `bonus=null`, но `hasActiveCampaign/promoId/campaignTitle` корректны для всех.
+- `MobileCatalogService`: `activeCampaignProductIds()`; `applyCampaign()` накладывает кампанийные поля
+  **ВНЕ `MedusaCatalogCache.get`** (иначе смена статуса кампании залипала бы в кэше).
+- ⚠️ `detail()` имеет дефолт `includeIncentive=false` → `AdminStorefrontController.detail(id)` и старый
+  `medusa/MobileCatalogServiceTest` компилируются без правок. НЕ убирать дефолт.
+- Канал «акция→чек» восстановлен (был удалён в ДОП.8): `MobileReceiptController.submit` +`@RequestParam promoIds` (CSV) → `MobileReceiptService` → `ReconcileService.submitReceipt(claimedPromoIds)`
+  (нормализация trim/дедуп → `claimed_promo_ids`, колонка V024). Тесты: `MobileCatalogServiceTest`
+  (mockk), `MobileReceiptPromoTest` (Testcontainers).
+
+### Единый JSON-контракт ошибок 401/403 (п.6 — корень бага «Ошибка сервера»)
+
+- Было: `HttpStatusEntryPoint(UNAUTHORIZED)` → 401/403 с **пустым телом** → мобильный `_decodeList`
+  деградировал в «Ошибка сервера» (экран «Мои чеки»).
+- Стало: `ApiAuthenticationEntryPoint` (401) + `ApiAccessDeniedHandler` (403), оба `@Component`, пишут
+  `ApiErrorResponse {code,message}` (коды `UNAUTHORIZED`/`FORBIDDEN` уже в `ErrorCode`). Подключены в
+  `SecurityConfig.exceptionHandling`. 401 сохранён (не 403) для axios-refresh админки. Тест
+  `AuthErrorContractTest`.
+- ⚠️ **Ловушка Kotlin**: вложенные блок-комментарии. `/api/admin/**` внутри KDoc `/** */` —
+  последовательность `/*` открывает вложенный комментарий → «Unclosed comment». В комментариях писать
+  без glob-звёзд. Поймано 2× при сборке.
+
+### Баннеры — backend-домен + раздел админки (п.5)
+
+- Решение: баннер ведёт ТОЛЬКО на детальный экран в приложении (без target на товар/кампанию/URL).
+  Контент: картинка + заголовок + подзаголовок + `detailMd`.
+- Backend (пакет `kz.epharm.banners`): `V029__banners.sql`, `BannerEntity/BannerStatus`, repo,
+  `BannerService` (CRUD + `uploadImage` → **переиспользует `MediaStorage`/MinIO**), `BannerController`
+  (`/api/admin/banners`), `MobileBannersController` (`/api/mobile/banners` → active по position).
+  `SecurityConfig` +permitAll `/api/mobile/banners/**`; `DevDataSeeder` +3 демо-баннера. Тест
+  `BannerIntegrationTest`.
+- Админка: `features/banners/BannersPage.tsx` (калька со Screens — форма+upload+CRUD),
+  `lib/queries/banners.ts`, `lib/api-types.ts`, `fixtures.ts` (SECTIONS +`banners`/группа «Кампании»),
+  `router.tsx` (/banners), i18n `bn.*` (ru+kk). Тест `BannersPage.test.tsx`.
+  ⚠️ `Modal` рендерит `title` как `<div>` (не heading) → в тестах модалки `getByText`, не
+  `getByRole('heading')`.
+
+### Поиск товаров в пикере — фикс (п.8)
+
+- **Диагностика инструментально**: Medusa `?q=витамин` → 528 ✅; backend-прокси `catalog.search(q)` →
+  528 ✅. Значит Medusa и `MedusaClient` ни при чём — на экране был НЕфильтрованный `q=""`.
+- Корень — **чисто фронтовой**: `useStorefront` имел `placeholderData: (prev) => prev` → при смене q
+  отдавал данные предыдущего запроса, а накопитель `acc` коммитил их как результат нового q. Фикс:
+  убран `placeholderData`; `acc` хранит `total`, `items=acc.q===q?acc.items:[]`. Тест
+  `PromoProductPicker.test.tsx`.
+
+### Верификация
+
+- Backend: компиляция + **полный `./gradlew test` exit 0** (правка SecurityConfig глобальна — регрессий
+  нет). Admin: `tsc` 0 ошибок; vitest banners(9)/picker/i18n зелёные; PromoPage/storefront изолированно
+  28 passed (2 таймаута в полном прогоне — флак под нагрузкой 39 файлов/138с).
+
+### Адверсариал-ревью батча — 2 фикса (backend + админка)
+
+Запущен воркфлоу-ревью 5 измерений рантайм-стыков (CTA-бонус, 401, гейтинг, баннеры, поиск) +
+независимая адверсариал-верификация каждого предполагаемого бага. Подтверждено 5 (3 мобильных — см.
+`claude-notes.md`; 2 здесь):
+
+- **#4 Дубль рекомендации (LOW)**: товар, который является `recommend` И substitution-, И crosssell-
+  правила (один триггер), попадал и в «Альтернативы», и в «Допродать». Фикс в
+  `MobileCatalogService.recommendations`: дедуп — `cross.filter { recommend !in altRecommendIds }`
+  (замена приоритетнее, как `RulesEngineService.survivors` у POSM). Тест +1 (mockk).
+- **#5 «Показать ещё» — мёртвая кнопка (MEDIUM)**: при рассинхроне дедупа по id с серверным `total`
+  кнопка могла остаться вечной (страница без новых id, но `items.length < total`). Фикс в
+  `PromoProductPicker`: накопитель `acc` получил `lastOffset` — отличает ре-ран эффекта на тех же
+  данных (норма) от реально новой страницы без новых id (→ `total = items.length`, кнопка прячется).
+  ⚠️ Наивная версия фикса (`total=items.length` на любом `added===0`) ЛОМАЛА T6-тест: эффект зависит
+  от `acc` и пере-прогоняется → ложно схлопывал total. `lastOffset`-guard решает. Тест +1 (страница-
+  дубликат → пагинация закрыта).
+- Финал после фиксов: backend reco-тест exit 0; mobile analyze чисто + `flutter test` **+95**;
+  admin promo/banners/storefront/i18n/rules — **13 файлов / 139 тестов passed**.

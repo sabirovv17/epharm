@@ -6,6 +6,9 @@ import kz.epharm.auth.domain.AdminRole
 import kz.epharm.auth.domain.AdminUserStatus
 import kz.epharm.auth.entity.AdminUserEntity
 import kz.epharm.auth.repository.AdminUserRepository
+import kz.epharm.banners.entity.BannerEntity
+import kz.epharm.banners.entity.BannerStatus
+import kz.epharm.banners.repository.BannerRepository
 import kz.epharm.catalog.entity.ProductEntity
 import kz.epharm.catalog.repository.ProductRepository
 import kz.epharm.finance.entity.PayoutBatchEntity
@@ -98,6 +101,7 @@ class DevDataSeeder {
         examQuestionRepository: ExamQuestionRepository,
         pendingBonusRepository: PendingBonusRepository,
         receiptRepository: ReceiptRepository,
+        bannerRepository: BannerRepository,
     ): ApplicationRunner = ApplicationRunner {
         seedAdminsImpl(adminUserRepository, passwordEncoder)
         seedProductsImpl(productRepository)
@@ -112,6 +116,7 @@ class DevDataSeeder {
         seedScreensImpl(playlistRepository, slideRepository)
         seedExamQuestionsImpl(examQuestionRepository)
         seedReceiptsImpl(pendingBonusRepository, receiptRepository, pharmacistRepository)
+        seedBannersImpl(bannerRepository)
     }
 
     /**
@@ -141,10 +146,12 @@ class DevDataSeeder {
         examQuestionRepository: ExamQuestionRepository,
         pendingBonusRepository: PendingBonusRepository,
         receiptRepository: ReceiptRepository,
+        bannerRepository: BannerRepository,
     ) {
         // 1. Очистка в FK-безопасном порядке (зависимые сначала).
         receiptRepository.deleteAll() // FK → pending_bonuses
         pendingBonusRepository.deleteAll()
+        bannerRepository.deleteAll() // баннеры ни от чего не зависят
         payoutItemRepository.deleteAll()
         payoutBatchRepository.deleteAll()
         pharmacistRepository.deleteAll()
@@ -172,7 +179,51 @@ class DevDataSeeder {
         seedScreensImpl(playlistRepository, slideRepository)
         seedExamQuestionsImpl(examQuestionRepository)
         seedReceiptsImpl(pendingBonusRepository, receiptRepository, pharmacistRepository)
+        seedBannersImpl(bannerRepository)
         log.info("DevDataSeeder.resetAndReseed: dev-данные сброшены к seed-базису")
+    }
+
+    /**
+     * Демо-баннеры главного экрана (п.5): 3 активных карточки. Лента мобилки берёт
+     * status=active ORDER BY position; админка управляет ими в разделе «Баннеры».
+     */
+    private fun seedBannersImpl(bannerRepository: BannerRepository) {
+        if (bannerRepository.count() > 0L) {
+            log.info("Banners already seeded — skip")
+            return
+        }
+        bannerRepository.saveAll(
+            listOf(
+                BannerEntity(
+                    id = "bn_welcome",
+                    title = "Добро пожаловать в Epharm",
+                    subtitle = "Бонусы за рекомендации любимых брендов",
+                    imageUrl = "https://images.unsplash.com/photo-1587854692152-cbe660dbde88?w=1200",
+                    detailMd = "## Как это работает\n\nРекомендуйте товары на кассе — получайте бонусы. " +
+                        "Загружайте чеки в приложении и следите за балансом.",
+                    position = 0,
+                ).also { it.status = BannerStatus.active },
+                BannerEntity(
+                    id = "bn_aqua",
+                    title = "Майский марафон Аквамарис",
+                    subtitle = "Повышенный бонус за каждую упаковку",
+                    imageUrl = "https://images.unsplash.com/photo-1576602976047-174e57a47881?w=1200",
+                    detailMd = "## Майский марафон\n\nС 1 по 31 мая — повышенный бонус за рекомендацию линейки " +
+                        "Аквамарис. Подробности у регионального менеджера.",
+                    position = 1,
+                ).also { it.status = BannerStatus.active },
+                BannerEntity(
+                    id = "bn_lms",
+                    title = "Новые курсы в обучении",
+                    subtitle = "Прокачайте знания и получите бонусы",
+                    imageUrl = "https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?w=1200",
+                    detailMd = "## Обучение\n\nДоступны новые курсы по назальным средствам и cross-sell. " +
+                        "Прохождение курса начисляет бонусы на ваш баланс.",
+                    position = 2,
+                ).also { it.status = BannerStatus.active },
+            ),
+        )
+        log.info("Seeded 3 demo banners")
     }
 
     /**

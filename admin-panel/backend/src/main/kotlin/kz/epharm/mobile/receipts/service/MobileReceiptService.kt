@@ -31,13 +31,17 @@ class MobileReceiptService(
         photoBytes: ByteArray?,
         photoContentType: String?,
         photoName: String?,
+        claimedPromoIds: String? = null,
     ): MobileReceiptDto {
-        // ДОП.8: только фото. Аптека — из профиля, акции — авто-матчинг (POSM/OCR), без выбора в UI.
+        // Фото обязательно; аптека — из профиля. Канал «акция→чек»: фармацевт может заявить
+        // выбранные акции (claimedPromoIds, CSV pr_*); если не выбрал — акции определит
+        // POSM-бронь/модератор. Реальное начисление всё равно гейтит сверка по источникам.
         val dto = reconcileService.submitReceipt(
             pharmacistId = pharmacistId,
             photoBytes = photoBytes,
             photoContentType = photoContentType,
             photoName = photoName,
+            claimedPromoIds = claimedPromoIds,
         )
         return MobileReceiptDto.from(dto, productNameOf(dto.parsedSku))
     }

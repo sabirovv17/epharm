@@ -2,6 +2,7 @@ package kz.epharm.auth
 
 import kz.epharm.ai_exam.repository.ExamQuestionRepository
 import kz.epharm.auth.repository.AdminUserRepository
+import kz.epharm.banners.repository.BannerRepository
 import kz.epharm.catalog.repository.ProductRepository
 import kz.epharm.finance.repository.PayoutBatchRepository
 import kz.epharm.finance.repository.PayoutItemRepository
@@ -51,6 +52,7 @@ class DevController(
     private val examQuestionRepository: ExamQuestionRepository,
     private val pendingBonusRepository: PendingBonusRepository,
     private val receiptRepository: ReceiptRepository,
+    private val bannerRepository: BannerRepository,
 ) {
 
     @PostMapping("/reset")
@@ -73,6 +75,7 @@ class DevController(
             examQuestionRepository = examQuestionRepository,
             pendingBonusRepository = pendingBonusRepository,
             receiptRepository = receiptRepository,
+            bannerRepository = bannerRepository,
         )
         return mapOf(
             "status" to "reseeded",

@@ -60,6 +60,20 @@ data class MobileCatalogDetailDto(
     val marketplaceLinks: List<MobileCatalogMarketplaceLinkDto>,
     /** Вопрос-ответ из ПИМ (Medusa metadata.faq). Пусто — секции Q&A нет. */
     val qa: List<MobileCatalogQaDto>,
+    /**
+     * Есть ли на этот товар активная кампания (PromoEntity со статусом active). Отдаём всем
+     * (анониму тоже) — мобилка по нему решает, кликабельна ли карточка/кнопка «акция в чек».
+     */
+    val hasActiveCampaign: Boolean = false,
+    /** Id активной кампании (pr_*) — мобилка шлёт его с чеком. null — активной кампании нет. */
+    val promoId: String? = null,
+    /** Название активной кампании. null — активной кампании нет. */
+    val campaignTitle: String? = null,
+    /**
+     * Бонус фармацевту за продажу по активной кампании, ₸. Коммерчески чувствителен —
+     * отдаётся ТОЛЬКО авторизованному фармацевту (includeIncentive); аноним → null.
+     */
+    val bonus: Int? = null,
 )
 
 data class MobileCategoryDto(
@@ -77,6 +91,19 @@ data class MobileRecommendationDto(
     val product: MobileCatalogProductDto,
     val note: String?,   // короткий скрипт/подсказка из правила; null — нет текста
     val bonus: Int?,     // бонус фармацевту, ₸; null — не показываем
+    /**
+     * Есть ли своя активная кампания у товара-рекомендации (п.7). Компаньон кросс-селла
+     * БЕЗ своей кампании всё равно показывается — мобилка делает его некликабельным.
+     * substitution (замены) → всегда false (продвигаемый — это сам recommend кампании-триггера).
+     */
+    val hasActiveCampaign: Boolean = false,
+    /**
+     * Группировка для мобилки (п.1/п.7):
+     *  - "alternative"               — замена (substitution-правило);
+     *  - "crosssell_with_campaign"   — допродажа, у компаньона есть своя активная кампания (кликабелен);
+     *  - "crosssell_no_campaign"     — допродажа без кампании у компаньона (показываем, но не кликабелен).
+     */
+    val group: String = "alternative",
 )
 
 /**
