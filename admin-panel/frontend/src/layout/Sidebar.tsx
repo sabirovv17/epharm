@@ -91,7 +91,7 @@ export function Sidebar({
           onClick={onToggle}
           title="Развернуть сайдбар"
           className="absolute -right-3 top-1/2 z-10 flex h-12 w-6 -translate-y-1/2 items-center justify-center rounded-r-lg border border-l-0 border-white/10 bg-ink-900 text-white/70 shadow-elevated hover:bg-ink-800 hover:text-white"
-          style={{ boxShadow: '4px 0 12px rgba(15,20,36,0.18)' }}
+          style={{ boxShadow: '4px 0 12px rgba(34,28,22,0.18)' }}
         >
           <IconChevRight size={14} />
         </button>

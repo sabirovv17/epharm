@@ -491,8 +491,9 @@ interface FormBlockProps {
 }
 
 const STEP_TINT: Record<StepColor, { bg: string; fg: string }> = {
-  blue: { bg: '#E8EAFE', fg: '#2A2BE2' },
-  green: { bg: '#D7F5E4', fg: '#0F8F55' },
+  // Бренд-плитки шагов (blue/green) → коралл. amber/purple — семантика.
+  blue: { bg: '#F8E7DD', fg: '#BE5A38' },
+  green: { bg: '#F8E7DD', fg: '#BE5A38' },
   amber: { bg: '#FEF3C7', fg: '#B45309' },
   purple: { bg: '#F3E8FF', fg: '#7C3AED' },
 }

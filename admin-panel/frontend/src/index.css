@@ -103,7 +103,7 @@
 
   /* ── Hairline (1px тонкий разделитель ink-900 @ 6%) ──────────── */
   .hairline {
-    border-color: rgba(15, 20, 36, 0.06);
+    border-color: rgba(34, 28, 22, 0.06);
   }
 
   /* ── Chips §9.2 ───────────────────────────────────────────────── */
@@ -159,7 +159,7 @@
 
   /* ── Modal backdrop §11.1 ─────────────────────────────────────── */
   .scrim {
-    background: rgba(15, 20, 36, 0.45);
+    background: rgba(34, 28, 22, 0.45);
     backdrop-filter: blur(2px);
     -webkit-backdrop-filter: blur(2px);
   }
@@ -184,34 +184,36 @@
   }
 
   /* ── Sidebar / Topbar surfaces ────────────────────────────────── */
+  /* Тёплый тёмный sidebar (ink-900 #221c16 + тёплый акцент в углу). */
   .sidebar-bg {
-    background: radial-gradient(120% 80% at 0% 0%, #15192a 0%, #0f1424 60%) #0f1424;
+    background: radial-gradient(120% 80% at 0% 0%, #2e2820 0%, #221c16 60%) #221c16;
   }
   .topbar-bg {
     @apply bg-paper-card;
-    border-bottom: 1px solid rgba(15, 20, 36, 0.06);
+    border-bottom: 1px solid rgba(34, 28, 22, 0.06);
   }
   .sidebar-hover:hover {
     background: rgba(255, 255, 255, 0.04);
   }
+  /* Active row — мягкий коралловый лифт + коралловая риска вместо зелёной. */
   .sidebar-active {
-    background: linear-gradient(180deg, rgba(22, 201, 122, 0.18), rgba(22, 201, 122, 0.08));
-    box-shadow: inset 2px 0 0 #16c97a;
+    background: linear-gradient(180deg, rgba(217, 119, 87, 0.18), rgba(217, 119, 87, 0.08));
+    box-shadow: inset 2px 0 0 #d97757;
   }
 
   /* ── Key-cap (kbd) §3 ─────────────────────────────────────────── */
   .kbd {
     @apply inline-flex h-5 min-w-[20px] items-center justify-center rounded-sm
            px-1 font-mono text-[11px] font-semibold text-ink-600 num;
-    background: #f7f8fb;
+    background: #f6f3ee;
     box-shadow:
-      0 1px 0 rgba(15, 20, 36, 0.12),
-      inset 0 -1px 0 rgba(15, 20, 36, 0.08);
+      0 1px 0 rgba(34, 28, 22, 0.12),
+      inset 0 -1px 0 rgba(34, 28, 22, 0.08);
   }
 
   /* ── divide-hairline (ul / list separator §6) ────────────────── */
   .divide-hairline > * + * {
-    border-top: 1px solid rgba(15, 20, 36, 0.06);
+    border-top: 1px solid rgba(34, 28, 22, 0.06);
   }
 
   /* ── Drag indication §12 ──────────────────────────────────────── */
@@ -219,7 +221,7 @@
     opacity: 0.4;
   }
   .drop-over {
-    box-shadow: inset 0 2px 0 #16c97a;
+    box-shadow: inset 0 2px 0 #d97757;
   }
   .drag-handle {
     cursor: grab;
@@ -231,14 +233,14 @@
   /* ── Thin scrollbar (panes / lists) ───────────────────────────── */
   .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: rgba(15, 20, 36, 0.18) transparent;
+    scrollbar-color: rgba(34, 28, 22, 0.18) transparent;
   }
   .scrollbar-thin::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: rgba(15, 20, 36, 0.18);
+    background-color: rgba(34, 28, 22, 0.18);
     border-radius: 999px;
   }
   .scrollbar-thin::-webkit-scrollbar-track {

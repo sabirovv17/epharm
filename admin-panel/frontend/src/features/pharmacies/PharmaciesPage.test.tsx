@@ -45,7 +45,7 @@ function mkChain(over: Partial<ChainDto> = {}): ChainDto {
   return {
     id: 'europharma',
     name: 'Europharma',
-    color: '#2A2BE2',
+    color: '#BE5A38',
     points: 100,
     group: 'pilot',
     ...over,

@@ -60,7 +60,7 @@ describe('vendorColor', () => {
     expect(vendorColor(brand)).toBe(color)
   })
 
-  it('неизвестный бренд → дефолтный серый #5A6173', () => {
-    expect(vendorColor('Random LLC')).toBe('#5A6173')
+  it('неизвестный бренд → дефолтный тёплый серый #6F665B', () => {
+    expect(vendorColor('Random LLC')).toBe('#6F665B')
   })
 })

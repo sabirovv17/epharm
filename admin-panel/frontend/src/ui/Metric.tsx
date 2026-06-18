@@ -15,11 +15,12 @@ interface MetricProps {
 }
 
 const TINT: Record<Accent, { bg: string; fg: string }> = {
-  green: { bg: '#EDFBF3', fg: '#0F8F55' },
-  blue: { bg: '#E8EAFE', fg: '#2A2BE2' },
+  // Бренд-плитки — коралл (бывшие зелёная/синяя). amber/purple — семантика, без изменений.
+  green: { bg: '#F8E7DD', fg: '#BE5A38' },
+  blue: { bg: '#F8E7DD', fg: '#BE5A38' },
   amber: { bg: '#FEF3C7', fg: '#B45309' },
   purple: { bg: '#F3E8FF', fg: '#7C3AED' },
-  ink: { bg: '#EEF0F5', fg: '#0F1424' },
+  ink: { bg: '#EFEAE2', fg: '#221C16' },
 }
 
 export function Metric({ label, value, sub, delta, icon, accent = 'green', meta }: MetricProps) {

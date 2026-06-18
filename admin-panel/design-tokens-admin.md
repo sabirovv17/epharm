@@ -1,6 +1,6 @@
 # PharmaPay Admin Console — Design Tokens
 
-Дизайн-токены для **HQ web** админ-консоли PharmaPay (`PharmaPay Admin.html` + `admin-panel/references/*`). Это **продолжение** мобильного design system'а (см. `design-tokens.md`), а не отдельная система: бренд-зелёный, бренд-синий, Manrope, логотип — общие. Этот файл описывает то, что админ-консоль **добавляет** поверх мобильной базы: расширенную палитру серых и зелёных, монохромный шрифт для табличных чисел, плотную сетку, sidebar, topbar, таблицы, модалки, дровер и командную палитру.
+Дизайн-токены для **HQ web** админ-консоли PharmaPay (`PharmaPay Admin.html` + `admin-panel/references/*`). Это **продолжение** мобильного design system'а (см. `design-tokens.md`), а не отдельная система: бренд-коралл (Claude orange), Manrope, логотип — общие. Этот файл описывает то, что админ-консоль **добавляет** поверх мобильной базы: расширенную тёплую нейтральную шкалу и коралловую шкалу, монохромный шрифт для табличных чисел, плотную сетку, sidebar, topbar, таблицы, модалки, дровер и командную палитру.
 
 > Source-of-truth: Tailwind config + `<style>` блок внутри `PharmaPay Admin.html`. JSX-имплементация — в `admin-panel/references/`.
 
@@ -8,77 +8,81 @@
 
 ## 1. Когда что использовать
 
-| Поверхность   | Где жить зелёному                                                     | Где жить синему                                                         |
-| ------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Mobile app    | Hero — заливает шапку, welcome-карточку, primary CTA, бонусную карту  | Акценты — NEW-бэйдж, success-disc, ссылки                               |
-| Admin console | Accent — активный пункт sidebar, primary CTA, success-чип, lift-линия | Info-чип, role-бэйдж, иконки в blue-tile (например, профайл-роу аптеки) |
+| Поверхность   | Где жить кораллу (PRIMARY)                                           | Где жить коралл-акценту (глубже)                                   |
+| ------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Mobile app    | Hero — заливает шапку, welcome-карточку, primary CTA, бонусную карту | Акценты — NEW-бэйдж, ссылки (моно-бренд)                           |
+| Admin console | Accent — активный пункт sidebar, primary CTA, бренд-чип, lift-линия  | Info-чип, role-бэйдж, иконки в tile (например, профайл-роу аптеки) |
 
-Канва админки **тихая и светлая** (`paper/DEFAULT`). Бренд-зелёный должен «выстреливать» точечно: тёмный sidebar `ink/900` существует именно для того, чтобы зелёному было от чего отталкиваться. Не заливай большие площади зелёным.
+Канва админки **тихая и светлая** (`paper/DEFAULT`, кремовая). Бренд-коралл должен «выстреливать» точечно: тёмный тёплый sidebar `ink/900` существует именно для того, чтобы кораллу было от чего отталкиваться. Не заливай большие площади кораллом. (Палитра монохромная: «синий» класс — тоже коралл, чуть глубже.)
 
 ---
 
 ## 2. Палитра
 
-### 2.1 Brand green — расширенная шкала (50–800)
+### 2.1 Brand «green» — коралловая шкала Claude orange (50–800)
+
+> Имя класса `brand-green-*` сохранено (чтобы не трогать сотни usage-классов), но значения теперь **коралловые** (Claude orange). Зелёным остаётся только семантический `accent/success`.
 
 | Token             | Hex       | Где                                                                                               |
 | ----------------- | --------- | ------------------------------------------------------------------------------------------------- |
-| `brand/green/50`  | `#EDFBF3` | Выделенная строка таблицы, soft-success surface, фон KPI-плитки                                   |
-| `brand/green/100` | `#D7F5E4` | Фон chip-green, прогресс-филл курсов, heatmap level 1                                             |
-| `brand/green/200` | `#A9EBC6` | Selection highlight, heatmap level 2, ring/border                                                 |
-| `brand/green/300` | `#6FDDA0` | Зарезервирован — для illustration                                                                 |
-| `brand/green/400` | `#3DCDA2` | Heatmap level 3, градиент-стоп карточек курсов                                                    |
-| `brand/green/500` | `#21D17A` | Mid-stop header gradient (общий с mobile)                                                         |
-| `brand/green/600` | `#16C97A` | **Primary CTA**, активный таб-индикатор, акцент sidebar-active, sparkline stroke, heatmap level 4 |
-| `brand/green/700` | `#0F8F55` | Лейбл активного таба, текст success-чипа, hover/pressed CTA, sidebar contract-widget              |
-| `brand/green/800` | `#0B6E42` | Зарезервирован — outline на самых тёмных поверхностях                                             |
+| `brand/green/50`  | `#FBF3EE` | Выделенная строка таблицы, soft surface, фон KPI-плитки                                           |
+| `brand/green/100` | `#F8E7DD` | Фон chip-green, прогресс-филл курсов, heatmap level 1                                             |
+| `brand/green/200` | `#F0C8B4` | Selection highlight, heatmap level 2, ring/border                                                 |
+| `brand/green/300` | `#E4A485` | Зарезервирован — для illustration                                                                 |
+| `brand/green/400` | `#E0916B` | Heatmap level 3, градиент-стоп карточек курсов                                                    |
+| `brand/green/500` | `#DB7F57` | Mid-stop header gradient (общий с mobile)                                                         |
+| `brand/green/600` | `#D97757` | **Primary CTA** (коралл-PRIMARY), активный таб, акцент sidebar-active, sparkline, heatmap level 4 |
+| `brand/green/700` | `#BE5A38` | Лейбл активного таба, текст бренд-чипа, hover/pressed CTA, sidebar contract-widget                |
+| `brand/green/800` | `#9A4427` | Зарезервирован — outline на самых тёмных поверхностях                                             |
 
-### 2.2 Brand blue
+### 2.2 Brand «blue» — коралл-акцент (моно-бренд)
 
-Hex-коды те же, что в mobile spec. В админке используется дополнительно:
+> Синий упразднён: моно-брендовая палитра. Класс `brand-blue-*` сохранён, значения — коралл чуть глубже.
 
-| Token            | Hex       | Где (admin)                                            |
-| ---------------- | --------- | ------------------------------------------------------ |
-| `brand/blue/100` | `#E8EAFE` | Фон info-chip, профайл-роу иконки, синяя мини-карточка |
-| `brand/blue/200` | `#C9CCFF` | Disabled-blue, тонкие акценты                          |
-| `brand/blue/600` | `#2A2BE2` | Текст info-чипа, role-бэйдж, stamp в логотипе          |
-| `brand/blue/700` | `#1F1FCC` | Pressed blue CTA                                       |
+| Token            | Hex       | Где (admin)                                      |
+| ---------------- | --------- | ------------------------------------------------ |
+| `brand/blue/100` | `#F8E7DD` | Фон info-chip, профайл-роу иконки, мини-карточка |
+| `brand/blue/200` | `#F0C8B4` | Disabled, тонкие акценты                         |
+| `brand/blue/600` | `#BE5A38` | Текст info-чипа, role-бэйдж, stamp в логотипе    |
+| `brand/blue/700` | `#A8472A` | Pressed CTA                                      |
 
-### 2.3 Ink — нейтральная шкала (11 ступеней)
+### 2.3 Ink — тёплая нейтральная шкала (11 ступеней)
+
+> Шкала переведена в тёплый тон (под Claude orange/white): холодный сине-серый → коричнево-серый.
 
 | Token     | Hex       | Где                                                                       |
 | --------- | --------- | ------------------------------------------------------------------------- |
-| `ink/50`  | `#F7F8FB` | Empty-state icon tile, sticky table-header surface                        |
-| `ink/100` | `#EEF0F5` | Hover icon-buttons, neutral chip background, heatmap level 0, key-cap фон |
-| `ink/200` | `#E1E4EC` | Toggle off track, button outline, вертикальные сепараторы в topbar        |
-| `ink/300` | `#C2C7D2` | Drag-handle glyph, dashed strokes, weak placeholders                      |
-| `ink/400` | `#9098A6` | Caption text, empty-state icons, chevron-right в роу                      |
-| `ink/500` | `#5A6173` | Secondary body, table-header label, sub-titles                            |
-| `ink/600` | `#3F465A` | Strong neutral text (button-ghost label, kbd text)                        |
-| `ink/700` | `#2A2F40` | Body strong (form fields, helper text)                                    |
-| `ink/800` | `#1A1D2B` | Hover state ink CTAs                                                      |
-| `ink/900` | `#0F1424` | Headings, table values, dark CTA fill, sidebar-bg base                    |
+| `ink/50`  | `#F6F3EE` | Empty-state icon tile, sticky table-header surface                        |
+| `ink/100` | `#EFEAE2` | Hover icon-buttons, neutral chip background, heatmap level 0, key-cap фон |
+| `ink/200` | `#E2DCD2` | Toggle off track, button outline, вертикальные сепараторы в topbar        |
+| `ink/300` | `#D4CCC0` | Drag-handle glyph, dashed strokes, weak placeholders                      |
+| `ink/400` | `#9D9388` | Caption text, empty-state icons, chevron-right в роу                      |
+| `ink/500` | `#6F665B` | Secondary body, table-header label, sub-titles                            |
+| `ink/600` | `#514A40` | Strong neutral text (button-ghost label, kbd text)                        |
+| `ink/700` | `#423B32` | Body strong (form fields, helper text)                                    |
+| `ink/800` | `#2E2820` | Hover state ink CTAs                                                      |
+| `ink/900` | `#221C16` | Headings, table values, dark CTA fill, sidebar-bg base                    |
 
-### 2.4 Paper — поверхности
+### 2.4 Paper — кремовые поверхности
 
 | Token           | Hex       | Где                                                     |
 | --------------- | --------- | ------------------------------------------------------- |
-| `paper/DEFAULT` | `#F4F6FA` | App canvas (фон main-зоны)                              |
+| `paper/DEFAULT` | `#FAF7F2` | App canvas (фон main-зоны)                              |
 | `paper/card`    | `#FFFFFF` | Все белые карточки, тела модалок/дровера                |
-| `paper/input`   | `#F2F4F8` | Soft input variant, command-palette search, fake-чек    |
-| `paper/hover`   | `#F7F9FC` | Row hover, sticky toolbar background, modal footer band |
+| `paper/input`   | `#F3EEE7` | Soft input variant, command-palette search, fake-чек    |
+| `paper/hover`   | `#F5F1EA` | Row hover, sticky toolbar background, modal footer band |
 
 ### 2.5 Accent / status
 
-| Token            | Hex                   | Где                                         |
-| ---------------- | --------------------- | ------------------------------------------- |
-| `accent/success` | `#16C97A`             | Совпадает с brand/green/600                 |
-| `accent/warning` | `#F1B416`             | Toggle/Pause, warning chip                  |
-| `accent/amber`   | `#F4B73A`             | Coin glyph, Platinum-tier, ручная модерация |
-| `accent/danger`  | `#E5484D`             | Danger-кнопка, error-chip                   |
-| `accent/purple`  | `#8B5CF6`             | Третичный акцент (цвета сетей, курсов)      |
-| Red surfaces     | `#FEE2E2` / `#B91C1C` | Danger-кнопка фон / нажатый текст           |
-| Amber surfaces   | `#FEF3C7` / `#B45309` | Warning-chip фон / текст                    |
+| Token            | Hex                   | Где                                                      |
+| ---------------- | --------------------- | -------------------------------------------------------- |
+| `accent/success` | `#16C97A`             | Семантика «успех/одобрено» — остаётся ЗЕЛЁНЫМ (не бренд) |
+| `accent/warning` | `#F1B416`             | Toggle/Pause, warning chip                               |
+| `accent/amber`   | `#F4B73A`             | Coin glyph, Platinum-tier, ручная модерация              |
+| `accent/danger`  | `#E5484D`             | Danger-кнопка, error-chip                                |
+| `accent/purple`  | `#8B5CF6`             | Третичный акцент (цвета сетей, курсов)                   |
+| Red surfaces     | `#FEE2E2` / `#B91C1C` | Danger-кнопка фон / нажатый текст                        |
+| Amber surfaces   | `#FEF3C7` / `#B45309` | Warning-chip фон / текст                                 |
 
 ---
 
@@ -157,15 +161,15 @@ Hex-коды те же, что в mobile spec. В админке использ�
 
 ## 6. Тени
 
-| Token             | Value                                                             | Где                                         |
-| ----------------- | ----------------------------------------------------------------- | ------------------------------------------- |
-| `shadow/card`     | `0 1px 2px rgba(15,20,36,0.04), 0 4px 16px rgba(15,20,36,0.06)`   | `.card`, строки списка                      |
-| `shadow/elevated` | `0 4px 8px rgba(15,20,36,0.06), 0 12px 32px rgba(15,20,36,0.10)`  | Модалки, дропдауны, тосты, command palette  |
-| `shadow/fab`      | `0 8px 20px rgba(22,201,122,0.35)`                                | Primary green CTA glow                      |
-| `shadow/sidebar`  | `inset -1px 0 0 rgba(15,20,36,0.06)`                              | Правый край light-sidebar (зарезервировано) |
-| `shadow/kbd`      | `0 1px 0 rgba(15,20,36,0.12), inset 0 -1px 0 rgba(15,20,36,0.08)` | Key-cap depth                               |
+| Token             | Value                                                             | Где                                                |
+| ----------------- | ----------------------------------------------------------------- | -------------------------------------------------- |
+| `shadow/card`     | `0 1px 2px rgba(34,28,22,0.04), 0 4px 16px rgba(34,28,22,0.06)`   | `.card`, строки списка                             |
+| `shadow/elevated` | `0 4px 8px rgba(34,28,22,0.06), 0 12px 32px rgba(34,28,22,0.10)`  | Модалки, дропдауны, тосты, command palette         |
+| `shadow/fab`      | `0 8px 20px rgba(217,119,87,0.28)`                                | Primary coral CTA glow (мягче, ниже интенсивность) |
+| `shadow/sidebar`  | `inset -1px 0 0 rgba(34,28,22,0.06)`                              | Правый край light-sidebar (зарезервировано)        |
+| `shadow/kbd`      | `0 1px 0 rgba(34,28,22,0.12), inset 0 -1px 0 rgba(34,28,22,0.08)` | Key-cap depth                                      |
 
-Sidebar-expand tab имеет кастомную тень `4px 0 12px rgba(15,20,36,0.18)` — чтобы плавающий chevron «висел» над канвой.
+Sidebar-expand tab имеет кастомную тень `4px 0 12px rgba(34,28,22,0.18)` — чтобы плавающий chevron «висел» над канвой.
 
 ---
 
@@ -173,8 +177,8 @@ Sidebar-expand tab имеет кастомную тень `4px 0 12px rgba(15,20
 
 ### 7.1 Sidebar
 
-- **Фон**: `radial-gradient(120% 80% at 0% 0%, #15192A 0%, #0F1424 60%) #0F1424` (почти чёрный с тёплым акцентом в левом верхнем углу).
-- **Active row** (`.sidebar-active`): `linear-gradient(180deg, rgba(22,201,122,0.18), rgba(22,201,122,0.08))` + `inset 2px 0 0 #16C97A` + иконка/лейбл уходят в `text-brand-green-400` / белый.
+- **Фон**: `radial-gradient(120% 80% at 0% 0%, #2E2820 0%, #221C16 60%) #221C16` (тёплый почти-чёрный с акцентом в левом верхнем углу).
+- **Active row** (`.sidebar-active`): `linear-gradient(180deg, rgba(217,119,87,0.18), rgba(217,119,87,0.08))` + `inset 2px 0 0 #D97757` + иконка/лейбл уходят в `text-brand-green-400` / белый.
 - **Hover row** (`.sidebar-hover:hover`): `rgba(255,255,255,0.04)` — едва заметный лифт.
 - **Group headers** — uppercase font-bold 10/12 на 40% белого, padding-x 16, margin-bottom 6.
 - **Логотип** — 64-tall блок, отделён `border-b border-white/5`. В свёрнутом виде логотип-плитка сама становится кнопкой развернуть **+** плавающий tab на внешнем правом крае (24×48, ink/900, `shadow/elevated`). Два пути к развернуть — намеренно.
@@ -182,7 +186,7 @@ Sidebar-expand tab имеет кастомную тень `4px 0 12px rgba(15,20
 
 ### 7.2 Topbar
 
-- Surface белый, `border-bottom: 1px solid rgba(15,20,36,0.06)`. Sticky `top: 0`, `z-index: 30`.
+- Surface белый, `border-bottom: 1px solid rgba(34,28,22,0.06)`. Sticky `top: 0`, `z-index: 30`.
 - **Слева** — хлебная крошка (`HQ › <Section>`).
 - **По центру** — фейковый search input (кнопка стилизованная под input), открывает command palette. Справа kbd-подсказка `⌘ K`.
 - **Справа** — селектор периода (Май 2026 ▾), bell с красной точкой, history, вертикальный разделитель, role-пилюля (avatar + ФИО + role/company стэком, chevron-down). Клик → role-switcher modal.
@@ -209,7 +213,7 @@ Sidebar-expand tab имеет кастомную тень `4px 0 12px rgba(15,20
 ### 8.2 Inputs (`.inp`)
 
 - h 38, padding-x 12, radius 10, белая поверхность, `1 px ink-200` border.
-- Focus: `border-color: brand/green/600` + `box-shadow: 0 0 0 3px rgba(22,201,122,0.18)`.
+- Focus: `border-color: brand/green/600` (коралл) + `box-shadow: 0 0 0 3px rgba(217,119,87,0.20)`.
 - Placeholder `ink/400`. Body `ink/900`, 14/20/400.
 - Textarea (`<textarea class="inp">`): height auto, padding 10/12, min-height 64, `resize: vertical`.
 - Search variant `inp-search` — добавляет 36-px left padding для лидирующего search-glyph (позиционируется absolute).
@@ -242,7 +246,7 @@ Sidebar-expand tab имеет кастомную тень `4px 0 12px rgba(15,20
 
 - Full-width, `border-collapse: separate`, no `border-spacing`.
 - `<th>` — 11/700 uppercase, ls 0.04em, `ink/500`, padding 10/12, surface `ink/50`, **sticky top** для скроллящихся таблиц.
-- `<td>` — 14/500–800 `ink/900`, padding 14/12, `border-bottom: 1 px rgba(15,20,36,0.04)`.
+- `<td>` — 14/500–800 `ink/900`, padding 14/12, `border-bottom: 1 px rgba(34,28,22,0.04)`.
 - Row hover: surface `paper/hover`. Selected: `brand/green/50` + `inset 3 px 0 0 brand/green/600` на первой ячейке.
 - Числовые ячейки — класс `.num`.
 - Используй chips в статус-колонках; inline `<ProgressBar>` (h 6) в процент-колонках.
@@ -253,12 +257,12 @@ Sidebar-expand tab имеет кастомную тень `4px 0 12px rgba(15,20
 - Варианты: `chip-green`, `chip-blue`, `chip-amber`, `chip-red`, `chip-ink`.
 - Лидирующая точка `.chip-dot` (6×6 round) — в status-чипах усиливает цвет.
 - `StatusChip` мэппинг:
-  - `active → chip-green + #16C97A`
+  - `active → chip-green (коралл) + #D97757`
   - `paused → chip-amber + #F1B416`
-  - `draft|archived → chip-ink + #9098A6`
-  - `pending → chip-blue + #2A2BE2`
+  - `draft|archived → chip-ink + #9D9388`
+  - `pending → chip-blue (коралл) + #BE5A38`
   - `rejected → chip-red + #E5484D`
-  - `approved → chip-green`
+  - `approved → chip-green (коралл)`
 
 ---
 
@@ -284,8 +288,8 @@ Sidebar-expand tab имеет кастомную тень `4px 0 12px rgba(15,20
 ### 10.3 Sparkline / charts
 
 - `<Sparkline>` — width 64–120, height 22–36, stroke 1.8, optional 12 %-fill. Inline в таблицах и метрик-плитках.
-- Big chart дашборда: 720×240 viewBox, dual-line (shown vs accepted), 5 горизонтальных grid-линий `rgba(15,20,36,0.06)`, axis-лейблы JetBrains Mono `ink/400`, accepted-точки 3 px white-fill / green-stroke.
-- Heatmap: 12 колонок (недели) × 7 рядов (дни). Cell 1:1, radius 3. Палитра `heat-0` (`ink/100`) → `heat-4` (`brand/green/600`).
+- Big chart дашборда: 720×240 viewBox, dual-line (shown vs accepted), 5 горизонтальных grid-линий `rgba(34,28,22,0.06)`, axis-лейблы JetBrains Mono `ink/400`, accepted-точки 3 px white-fill / coral-stroke.
+- Heatmap: 12 колонок (недели) × 7 рядов (дни). Cell 1:1, radius 3. Палитра `heat-0` (`ink/100`) → `heat-4` (`brand/green/600`, коралл).
 
 ---
 
@@ -293,7 +297,7 @@ Sidebar-expand tab имеет кастомную тень `4px 0 12px rgba(15,20
 
 ### 11.1 Modal (`<Modal>`)
 
-- Centered, max-width 460–620. Backdrop `rgba(15,20,36,0.45)` + `backdrop-filter: blur(2px)`.
+- Centered, max-width 460–620. Backdrop `rgba(34,28,22,0.45)` + `backdrop-filter: blur(2px)`.
 - Body: `.card` + `shadow/elevated`. Header 20/20/12, footer 20/12 (bg `paper/hover`).
 - Header: title 16/800 `ink/900`, subtitle 13/500 `ink/500`. Close-кнопка (icon-ghost) справа сверху, ESC закрывает.
 - Slide-in: `translateX(24px) → 0` за 220 ms `cubic-bezier(0.2, 0.8, 0.2, 1)` + opacity fade.

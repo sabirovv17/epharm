@@ -209,11 +209,11 @@ export default function PharmaciesPage() {
                           className="chip-dot"
                           style={{
                             background: !p.active
-                              ? '#9098A6'
+                              ? '#9D9388' // тёплый ink-400
                               : p.group === 'pilot'
-                                ? '#16C97A'
+                                ? '#D97757' // коралл-PRIMARY
                                 : p.group === 'control'
-                                  ? '#2A2BE2'
+                                  ? '#BE5A38' // коралл-акцент
                                   : '#F1B416',
                           }}
                         />

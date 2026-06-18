@@ -301,7 +301,7 @@ interface PromoCardProps {
 
 function PromoCard({ promo, onOpen, onToggle, onArchive, onRestore }: PromoCardProps) {
   const t = useT()
-  const cover = promo.cover || '#5A6173'
+  const cover = promo.cover || '#6F665B'
   const isArchive = promo.status === 'archived'
 
   // Outer = div role="button" (НЕ настоящий <button>) — иначе nested-button

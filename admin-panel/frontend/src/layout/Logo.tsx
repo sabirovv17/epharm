@@ -11,15 +11,15 @@ export function Logo({ size = 22 }: LogoProps) {
       <path
         d="M16 12a3 3 0 0 1 3-3h26a3 3 0 0 1 3 3v40l-4-3-4 3-4-3-4 3-4-3-4 3-4-3-4 3-4-3-4 3z"
         fill="#FFFFFF"
-        stroke="#16C97A"
+        stroke="#D97757"
         strokeWidth="3"
         strokeLinejoin="round"
       />
-      <rect x="22" y="32" width="20" height="2.5" rx="1.2" fill="#16C97A" opacity="0.55" />
-      <rect x="22" y="38" width="14" height="2.5" rx="1.2" fill="#16C97A" opacity="0.55" />
-      <rect x="22" y="44" width="17" height="2.5" rx="1.2" fill="#16C97A" opacity="0.55" />
+      <rect x="22" y="32" width="20" height="2.5" rx="1.2" fill="#D97757" opacity="0.55" />
+      <rect x="22" y="38" width="14" height="2.5" rx="1.2" fill="#D97757" opacity="0.55" />
+      <rect x="22" y="44" width="17" height="2.5" rx="1.2" fill="#D97757" opacity="0.55" />
       <g transform="translate(32 14)">
-        <circle r="11" fill="#2A2BE2" />
+        <circle r="11" fill="#BE5A38" />
         <rect x="-1.5" y="-7" width="3" height="14" rx="0.8" fill="#FFFFFF" />
         <rect x="-7" y="-1.5" width="14" height="3" rx="0.8" fill="#FFFFFF" />
       </g>

@@ -25,16 +25,17 @@ export function ruleSummary(r: Rule, lookup?: ProductLookup): string {
   return `${trig} → ${rec}`
 }
 
-// Палитра упаковки по бренду (для ProductIcon). Если бренда нет в палитре — серый.
+// Палитра упаковки по бренду (для ProductIcon). Если бренда нет в палитре — тёплый серый.
+// Бренд-стопы переведены в коралл (Claude orange); amber/red/purple — без изменений.
 export const VENDOR_PALETTE: Record<string, string> = {
-  'Jadran-Galenski': '#16C97A',
-  'Aurena Labs': '#2A2BE2',
+  'Jadran-Galenski': '#D97757', // коралл 600
+  'Aurena Labs': '#BE5A38', // коралл 700
   GlaxoSmithKline: '#F4B73A',
-  Novartis: '#5560FB',
+  Novartis: '#E0916B', // коралл 400
   Bayer: '#E5484D',
   Polpharma: '#8B5CF6',
-  KRKA: '#0F8F55',
+  KRKA: '#BE5A38', // коралл 700
   Reckitt: '#B91C1C',
 }
 
-export const vendorColor = (brand: string): string => VENDOR_PALETTE[brand] ?? '#5A6173'
+export const vendorColor = (brand: string): string => VENDOR_PALETTE[brand] ?? '#6F665B'

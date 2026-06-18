@@ -48,19 +48,19 @@ export function SummaryBar({ metrics }: { metrics: RulesMetrics }) {
       label: t('rules.mActive'),
       value: `${metrics.active}`,
       sub: t('rules.ofN', { n: metrics.total }),
-      dot: '#16C97A',
+      dot: '#D97757', // коралл-PRIMARY
     },
     {
       label: t('rules.mShown'),
       value: formatNum(metrics.impressions),
       sub: t('rules.recsSub'),
-      dot: '#2A2BE2',
+      dot: '#BE5A38', // коралл-акцент
     },
     {
       label: t('rules.mAccepted'),
       value: formatNum(metrics.accepts),
       sub: t('rules.convSub', { c: metrics.conv.toFixed(1) }),
-      dot: '#0F8F55',
+      dot: '#BE5A38', // глубокий коралл
       delta: +4.8,
     },
     {

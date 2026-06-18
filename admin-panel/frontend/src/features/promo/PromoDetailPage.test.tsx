@@ -60,7 +60,7 @@ function mkPromo(over: Partial<PromoDto> = {}): PromoDto {
     budget: 1_000_000,
     spent: 250_000,
     kpi: '1000 рек.',
-    cover: '#16C97A',
+    cover: '#D97757',
     medusaProductId: null,
     productName: '',
     productImage: null,

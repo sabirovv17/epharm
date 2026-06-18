@@ -58,7 +58,7 @@ export function RuleRow({
       className={`group relative flex cursor-pointer items-center gap-3 py-3 pl-3 pr-4 ${
         selected ? 'bg-brand-green-50/60' : 'hover:bg-paper-hover'
       } ${dragging ? 'dragging' : ''}`}
-      style={selected ? { boxShadow: 'inset 3px 0 0 #16C97A' } : undefined}
+      style={selected ? { boxShadow: 'inset 3px 0 0 #D97757' } : undefined}
       data-testid={`rule-row-${rule.id}`}
     >
       {!isArchive && (

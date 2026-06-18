@@ -34,9 +34,9 @@ const initial = (): FormState => ({
   product: null,
   title: '',
   titleTouched: false,
-  // Дефолт — основной брендовый зелёный (как шапка/навбар), чтобы у новой
+  // Дефолт — основной брендовый коралл (как шапка/навбар), чтобы у новой
   // кампании сразу была осмысленная обложка.
-  cover: '#16C97A',
+  cover: '#D97757',
   dateStart: '',
   dateEnd: '',
   pharmacistBonus: '0',
@@ -44,16 +44,17 @@ const initial = (): FormState => ({
   overrideDescription: '',
 })
 
-/// Пресеты цвета обложки (палитра Epharm + акценты). Источник — design-tokens.
+/// Пресеты цвета обложки (палитра Claude orange + акценты). Источник — design-tokens.
+/// Бренд-стопы разведены по коралловой шкале (узкая дельта, плоско), amber/red/ink — без изменений.
 const COVER_PRESETS = [
-  '#16C97A', // brand green 600 (основной)
-  '#0F8F55', // green 700
-  '#3DCDA2', // green 400
-  '#2A2BE2', // blue 600
-  '#3F47F0', // blue 500
+  '#D97757', // коралл 600 (PRIMARY)
+  '#BE5A38', // коралл 700
+  '#E0916B', // коралл 400
+  '#9A4427', // коралл 800
+  '#E4A485', // коралл 300
   '#F4B73A', // amber
   '#E5484D', // red
-  '#5A6173', // ink 500
+  '#6F665B', // тёплый ink 500
 ]
 
 /// Выбор цвета обложки: пресеты-кружки + нативный пикер «свой цвет». Активный
@@ -83,7 +84,7 @@ function CoverColorPicker({ value, onChange }: { value: string; onChange: (c: st
       {/* Свой цвет — нативный color-picker (swatch показывает текущее значение). */}
       <input
         type="color"
-        value={/^#[0-9a-fA-F]{6}$/.test(value) ? value : '#16C97A'}
+        value={/^#[0-9a-fA-F]{6}$/.test(value) ? value : '#D97757'}
         onChange={(e) => onChange(e.target.value)}
         className="h-8 w-8 cursor-pointer rounded-full border border-black/10 bg-transparent p-0"
         aria-label="Свой цвет обложки"

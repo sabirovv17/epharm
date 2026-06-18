@@ -49,7 +49,7 @@ function mkPromo(over: Partial<PromoDto> = {}): PromoDto {
     budget: 1_000_000,
     spent: 250_000,
     kpi: '1000 рек.',
-    cover: '#16C97A',
+    cover: '#D97757',
     medusaProductId: null,
     productName: '',
     productImage: null,
@@ -360,12 +360,12 @@ describe('PromoPage — Create modal (товарная акция)', () => {
     const user = userEvent.setup()
     renderPromo()
     await user.click(screen.getAllByRole('button', { name: /Новая кампания/ })[0])
-    // палитра цвета обложки доступна сразу при создании (дефолт — основной зелёный)
-    expect(screen.getByRole('button', { name: '#16C97A' })).toBeInTheDocument()
+    // палитра цвета обложки доступна сразу при создании (дефолт — основной коралл)
+    expect(screen.getByRole('button', { name: '#D97757' })).toBeInTheDocument()
     await user.click(screen.getByText('Панкраген 0,2г капс. №60'))
-    await user.click(screen.getByRole('button', { name: '#2A2BE2' })) // выбрать синий
+    await user.click(screen.getByRole('button', { name: '#9A4427' })) // выбрать глубокий коралл
     await user.click(screen.getByRole('button', { name: /Создать черновик/ }))
-    expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ cover: '#2A2BE2' }))
+    expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ cover: '#9A4427' }))
   })
 
   it('submit вызывает useCreatePromo.mutateAsync с товаром и статусом draft', async () => {

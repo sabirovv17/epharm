@@ -15,14 +15,16 @@ interface StatusChipProps {
   status: Status
 }
 
+// Точки совпадают по цвету со своим chip: chip-green/chip-blue теперь коралловые.
+// paused/rejected — семантика (amber/red), draft/archived — нейтраль (тёплый ink-400).
 const MAP: Record<Status, { cls: string; dot: string }> = {
-  active: { cls: 'chip-green', dot: '#16C97A' },
+  active: { cls: 'chip-green', dot: '#D97757' },
   paused: { cls: 'chip-amber', dot: '#F1B416' },
-  draft: { cls: 'chip-ink', dot: '#9098A6' },
-  archived: { cls: 'chip-ink', dot: '#9098A6' },
-  pending: { cls: 'chip-blue', dot: '#2A2BE2' },
+  draft: { cls: 'chip-ink', dot: '#9D9388' },
+  archived: { cls: 'chip-ink', dot: '#9D9388' },
+  pending: { cls: 'chip-blue', dot: '#BE5A38' },
   rejected: { cls: 'chip-red', dot: '#E5484D' },
-  approved: { cls: 'chip-green', dot: '#16C97A' },
+  approved: { cls: 'chip-green', dot: '#D97757' },
 }
 
 export function StatusChip({ status }: StatusChipProps) {

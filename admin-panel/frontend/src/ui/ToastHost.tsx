@@ -29,9 +29,9 @@ export function useToast(): ToastApi {
 }
 
 const KIND_COLOR: Record<ToastKind, string> = {
-  success: '#16C97A',
+  success: '#16C97A', // семантика «успех» — остаётся зелёным
   error: '#E5484D',
-  info: '#2A2BE2',
+  info: '#BE5A38', // info — бренд-акцент, теперь коралл
 }
 
 export function ToastHost({ children }: { children: ReactNode }) {

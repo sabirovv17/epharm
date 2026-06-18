@@ -38,7 +38,7 @@ export class ErrorBoundary extends Component<Props, State> {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#F4F6FA',
+          background: '#FAF7F2',
           fontFamily: 'Manrope, system-ui, sans-serif',
           padding: 24,
         }}
@@ -49,14 +49,14 @@ export class ErrorBoundary extends Component<Props, State> {
             background: '#fff',
             borderRadius: 16,
             padding: '28px 24px',
-            boxShadow: '0 8px 32px rgba(15,20,36,0.12)',
+            boxShadow: '0 8px 32px rgba(34,28,22,0.12)',
             textAlign: 'center',
           }}
         >
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#0F1424', marginBottom: 8 }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#221C16', marginBottom: 8 }}>
             Что-то пошло не так
           </div>
-          <div style={{ fontSize: 14, color: '#5B6478', marginBottom: 20, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 14, color: '#6F665B', marginBottom: 20, lineHeight: 1.5 }}>
             Произошла ошибка в интерфейсе. Перезагрузите страницу — если повторяется, сообщите в
             поддержку.
           </div>
@@ -64,7 +64,7 @@ export class ErrorBoundary extends Component<Props, State> {
             type="button"
             onClick={() => window.location.reload()}
             style={{
-              background: '#1FA971',
+              background: '#D97757',
               color: '#fff',
               border: 'none',
               borderRadius: 10,

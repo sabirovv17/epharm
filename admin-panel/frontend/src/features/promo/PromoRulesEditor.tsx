@@ -575,7 +575,7 @@ function RecommendationPreview({
       </div>
       <div className="overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-sm">
         {/* Шапка */}
-        <div className="flex items-center gap-2 bg-[#1F5C3F] px-3.5 py-2.5 text-white">
+        <div className="flex items-center gap-2 bg-[#9A4427] px-3.5 py-2.5 text-white">
           <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-[12px] font-bold">
             i
           </span>
@@ -584,16 +584,16 @@ function RecommendationPreview({
         </div>
 
         {/* Предложение */}
-        <div className="bg-[#EAF6EF] px-3.5 py-3">
+        <div className="bg-[#F8E7DD] px-3.5 py-3">
           {r.partnerLabel && (
-            <span className="mb-1.5 inline-block rounded-md bg-[#1F5C3F] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+            <span className="mb-1.5 inline-block rounded-md bg-[#9A4427] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
               {r.partnerLabel}
             </span>
           )}
           <div className="text-[14px] font-extrabold leading-tight text-ink-900">
             {r.name || t('pr.previewNoName')}
           </div>
-          {price && <div className="mt-0.5 text-[15px] font-extrabold text-[#1F5C3F]">{price}</div>}
+          {price && <div className="mt-0.5 text-[15px] font-extrabold text-[#9A4427]">{price}</div>}
         </div>
 
         {/* Сравнение ИЛИ преимущества */}
@@ -606,7 +606,7 @@ function RecommendationPreview({
                   <td className="px-2 py-1.5 text-ink-400 line-through">{row.triggerValue}</td>
                   <td
                     className={`px-3 py-1.5 text-right font-bold ${
-                      row.recommendHighlight ? 'text-[#0F8F55]' : 'text-ink-700'
+                      row.recommendHighlight ? 'text-[#BE5A38]' : 'text-ink-700'
                     }`}
                   >
                     {row.recommendValue}
@@ -619,7 +619,7 @@ function RecommendationPreview({
           <ul className="flex flex-col gap-1 px-3.5 py-2.5">
             {advantages.map((a, i) => (
               <li key={i} className="flex items-start gap-2 text-[12px] text-ink-700">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#16C97A]" />
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#D97757]" />
                 {a}
               </li>
             ))}
@@ -628,8 +628,8 @@ function RecommendationPreview({
 
         {/* Скрипт */}
         {r.script?.trim() && (
-          <div className="mx-3 my-2 flex items-start gap-2 rounded-lg bg-[#F4F6FA] px-3 py-2">
-            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-[#1F5C3F] text-[10px] font-bold text-white">
+          <div className="mx-3 my-2 flex items-start gap-2 rounded-lg bg-[#FAF7F2] px-3 py-2">
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-[#9A4427] text-[10px] font-bold text-white">
               А
             </span>
             <span className="text-[12px] italic text-ink-600">{r.script.trim()}</span>
@@ -639,7 +639,7 @@ function RecommendationPreview({
         {/* Низ: бонус + цель + кнопки */}
         <div className="flex flex-col gap-2 px-3.5 pb-3 pt-1">
           <div className="flex items-center gap-2">
-            <span className="rounded-full bg-[#E7FBF1] px-2.5 py-1 text-[12px] font-bold text-[#0F8F55]">
+            <span className="rounded-full bg-[#F8E7DD] px-2.5 py-1 text-[12px] font-bold text-[#BE5A38]">
               +{bonus.toLocaleString('ru-RU')} ₸
             </span>
             {goalText && <span className="text-[11px] font-semibold text-ink-400">{goalText}</span>}
@@ -648,7 +648,7 @@ function RecommendationPreview({
             <span className="flex-1 rounded-lg bg-ink-100 py-1.5 text-center text-[12px] font-bold text-ink-500">
               {t('pr.previewSkip')}
             </span>
-            <span className="flex-1 rounded-lg bg-[#1F5C3F] py-1.5 text-center text-[12px] font-bold text-white">
+            <span className="flex-1 rounded-lg bg-[#9A4427] py-1.5 text-center text-[12px] font-bold text-white">
               {actionLabel}
             </span>
           </div>

@@ -158,7 +158,7 @@ export default function PromoDetailPage() {
   const isArchived = promo.status === 'archived'
   const isActive = promo.status === 'active'
   const pending = updatePromo.isPending || archivePromo.isPending || restorePromo.isPending
-  const cover = form.cover || promo.cover || '#5A6173'
+  const cover = form.cover || promo.cover || '#6F665B'
   const progressMax = Math.max(promo.budget, 1)
   const progressPct = Math.round((promo.spent / progressMax) * 100)
 
