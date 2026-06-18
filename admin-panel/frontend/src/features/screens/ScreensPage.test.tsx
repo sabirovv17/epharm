@@ -24,6 +24,17 @@ vi.mock('@/lib/queries/screens', () => screenHooks)
 const pharmacyHooks = vi.hoisted(() => ({ usePharmacies: vi.fn() }))
 vi.mock('@/lib/queries/pharmacies', () => pharmacyHooks)
 
+// Вкладка «Баннеры приложения» рендерит BannersPanel → мокаем его queries-модуль.
+const bannerHooks = vi.hoisted(() => ({
+  useBanners: vi.fn(),
+  useCreateBanner: vi.fn(),
+  useUpdateBanner: vi.fn(),
+  useDeleteBanner: vi.fn(),
+  useReorderBanner: vi.fn(),
+  useUploadBannerImage: vi.fn(),
+}))
+vi.mock('@/lib/queries/banners', () => bannerHooks)
+
 // Общие мок-мутации, чтобы можно было ассертить вызовы.
 const mut = {
   updatePlaylist: vi.fn(),
@@ -98,6 +109,19 @@ beforeEach(() => {
   pharmacyHooks.usePharmacies.mockReturnValue({
     data: [{ id: 'ph_1', name: 'Аптека №1', city: 'Алматы' }],
   })
+  // По умолчанию баннеров нет — вкладка «Баннеры» покажет пустое состояние.
+  bannerHooks.useBanners.mockReturnValue({
+    data: [],
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  })
+  bannerHooks.useCreateBanner.mockReturnValue({ mutate: vi.fn(), isPending: false })
+  bannerHooks.useUpdateBanner.mockReturnValue({ mutate: vi.fn(), isPending: false })
+  bannerHooks.useDeleteBanner.mockReturnValue({ mutate: vi.fn(), isPending: false })
+  bannerHooks.useReorderBanner.mockReturnValue({ mutate: vi.fn(), isPending: false })
+  bannerHooks.useUploadBannerImage.mockReturnValue({ mutate: vi.fn(), isPending: false })
 })
 
 function renderPage() {
@@ -249,5 +273,33 @@ describe('ScreensPage — управление (ТЗ §3.3)', () => {
     renderPage()
     await user.click(screen.getByTestId('slide-delete-sl_x'))
     expect(mut.deleteSlide).toHaveBeenCalledWith('sl_x', expect.anything())
+  })
+})
+
+describe('ScreensPage — вкладки (экраны + баннеры)', () => {
+  it('по умолчанию открыта вкладка «Экраны в аптеках»', () => {
+    setData([mkPlaylist()], [mkSlide()])
+    renderPage()
+    expect(screen.getByText(/Активные плейлисты/i)).toBeInTheDocument()
+    expect(screen.queryByTestId('banners-list')).not.toBeInTheDocument()
+  })
+
+  it('клик по «Баннеры приложения» показывает панель + кнопку «Добавить баннер»', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(screen.getByRole('button', { name: /Баннеры приложения/i }))
+    expect(screen.getByTestId('banners-create')).toBeInTheDocument()
+    expect(screen.getByText(/Баннеров пока нет/i)).toBeInTheDocument()
+    // контент вкладки экранов скрыт
+    expect(screen.queryByText(/Активные плейлисты/i)).not.toBeInTheDocument()
+  })
+
+  it('кнопка «Добавить баннер» открывает форму нового баннера', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(screen.getByRole('button', { name: /Баннеры приложения/i }))
+    await user.click(screen.getByTestId('banners-create'))
+    expect(screen.getByTestId('banner-file-input')).toBeInTheDocument()
+    expect(screen.getByText(/Новый баннер/i)).toBeInTheDocument()
   })
 })

@@ -1,53 +1,69 @@
-// Banners — управление баннерами главного экрана мобильного приложения (п.5).
-// UX 1:1 с разделом Screens: список карточек (превью + заголовок + статус),
-// кнопка «Создать», модалка-форма (картинка через загрузку в MinIO + заголовок +
-// подзаголовок + детальный текст + статус + позиция), редактирование, архив/удаление.
+// BannersPanel — управление баннерами главного экрана приложения. Живёт внутри
+// раздела «Управление экранами» (вкладка «Баннеры приложения»).
 //
-// Картинка грузится отдельным запросом (POST /image → imageUrl) — как слайды в
-// ScreensPage. Тап по баннеру в приложении ведёт на детальный экран (detailMd).
+// Максимально простой UX (требование продукта):
+//   • кнопка «Добавить баннер» (в шапке вкладок, ScreensPage) открывает форму;
+//   • форма — всего 4 поля: картинка + заголовок + подзаголовок + детальный текст;
+//   • статус и порядок задаются прямо в списке — переключатель «Показывать»
+//     (active↔draft) и стрелки ↑↓. Позиция новому баннеру назначается автоматически
+//     (в конец), поэтому в форме её нет.
+//
+// Картинка грузится отдельным запросом (POST /image → imageUrl), как слайды в Screens.
+// Тап по баннеру в приложении ведёт на детальный экран (detailMd).
 
 import { useEffect, useRef, useState } from 'react'
-import { Button, Empty, Field, Input, Modal, PageHeader, SectionCard, Select, useToast } from '@/ui'
-import { IconLayers, IconTrash, IconUpload } from '@/ui/icons'
-import type { BannerDto, BannerStatus, CreateBannerRequest } from '@/lib/api-types'
+import { Button, Empty, Field, Input, Modal, SectionCard, Toggle, useToast } from '@/ui'
+import { IconArrowDown, IconArrowUp, IconEdit, IconLayers, IconPlus, IconTrash } from '@/ui/icons'
+import type { BannerDto, CreateBannerRequest } from '@/lib/api-types'
 import {
   useBanners,
   useCreateBanner,
   useDeleteBanner,
+  useReorderBanner,
   useUpdateBanner,
   useUploadBannerImage,
 } from '@/lib/queries/banners'
 import { describeError } from '@/lib/describeError'
 import { useT } from '@/i18n'
 
-export default function BannersPage() {
+// editing === null → форма закрыта; 'new' → создание; BannerDto → редактирование.
+export type BannerEditing = BannerDto | 'new' | null
+
+export function BannersPanel({
+  editing,
+  setEditing,
+}: {
+  editing: BannerEditing
+  setEditing: (e: BannerEditing) => void
+}) {
   const t = useT()
-  // editing === null → форма закрыта; 'new' → создание; BannerDto → редактирование.
-  const [editing, setEditing] = useState<BannerDto | 'new' | null>(null)
+  const toast = useToast()
+  const reorder = useReorderBanner()
 
   const bannersQ = useBanners()
   const banners = bannersQ.data ?? []
 
-  return (
-    <div className="flex flex-col gap-4">
-      <PageHeader
-        title={t('page.banners.title')}
-        subtitle={t('page.banners.subtitle')}
-        actions={
-          <Button
-            variant="primary"
-            leading={<IconUpload size={14} />}
-            onClick={() => setEditing('new')}
-            data-testid="banners-create"
-          >
-            {t('bn.create')}
-          </Button>
-        }
-      />
+  // Сдвиг баннера в списке: меняем местами с соседом и нормализуем позиции
+  // (position = индекс) — патчим только тех, у кого позиция реально изменилась.
+  const move = (index: number, dir: -1 | 1) => {
+    const target = index + dir
+    if (target < 0 || target >= banners.length) return
+    const next = [...banners]
+    ;[next[index], next[target]] = [next[target], next[index]]
+    const updates: { id: string; position: number }[] = []
+    next.forEach((b, idx) => {
+      if (b.position !== idx) updates.push({ id: b.id, position: idx })
+    })
+    if (updates.length === 0) return
+    reorder.mutate(updates, { onError: () => toast.push(t('bn.reorderErr')) })
+  }
 
+  return (
+    <>
       <BannerFormModal
         open={editing !== null}
         banner={editing === 'new' ? null : editing}
+        nextPosition={banners.length}
         onClose={() => setEditing(null)}
       />
 
@@ -71,43 +87,64 @@ export default function BannersPage() {
             body={t('bn.emptyBody')}
             icon={<IconLayers size={26} />}
             action={
-              <Button leading={<IconUpload size={14} />} onClick={() => setEditing('new')}>
-                {t('bn.create')}
+              <Button
+                leading={<IconPlus size={14} />}
+                onClick={() => setEditing('new')}
+                data-testid="banners-create-empty"
+              >
+                {t('bn.add')}
               </Button>
             }
           />
         ) : (
           <ul className="flex flex-col" data-testid="banners-list">
-            {banners.map((b) => (
-              <BannerRow key={b.id} b={b} onEdit={() => setEditing(b)} />
+            {banners.map((b, i) => (
+              <BannerRow
+                key={b.id}
+                b={b}
+                canUp={i > 0}
+                canDown={i < banners.length - 1}
+                reordering={reorder.isPending}
+                onEdit={() => setEditing(b)}
+                onMoveUp={() => move(i, -1)}
+                onMoveDown={() => move(i, 1)}
+              />
             ))}
           </ul>
         )}
       </SectionCard>
-    </div>
+    </>
   )
 }
 
 // ─── Строка баннера ──────────────────────────────────────────────────────────
-function BannerRow({ b, onEdit }: { b: BannerDto; onEdit: () => void }) {
+function BannerRow({
+  b,
+  canUp,
+  canDown,
+  reordering,
+  onEdit,
+  onMoveUp,
+  onMoveDown,
+}: {
+  b: BannerDto
+  canUp: boolean
+  canDown: boolean
+  reordering: boolean
+  onEdit: () => void
+  onMoveUp: () => void
+  onMoveDown: () => void
+}) {
   const t = useT()
   const toast = useToast()
   const update = useUpdateBanner()
   const del = useDeleteBanner()
   const pending = update.isPending || del.isPending
 
-  // Тоггл статуса: active ↔ draft (архив выставляется отдельной кнопкой).
-  const toggleStatus = () => {
-    const next: BannerStatus = b.status === 'active' ? 'draft' : 'active'
+  // Переключатель «Показывать»: active ↔ draft (скрытый = черновик, не в ленте).
+  const toggleShown = (on: boolean) => {
     update.mutate(
-      { id: b.id, patch: { status: next } },
-      { onError: () => toast.push(t('bn.statusErr')) },
-    )
-  }
-
-  const archive = () => {
-    update.mutate(
-      { id: b.id, patch: { status: 'archived' } },
+      { id: b.id, patch: { status: on ? 'active' : 'draft' } },
       { onError: () => toast.push(t('bn.statusErr')) },
     )
   }
@@ -120,69 +157,95 @@ function BannerRow({ b, onEdit }: { b: BannerDto; onEdit: () => void }) {
     })
   }
 
-  const chipCls =
-    b.status === 'active' ? 'chip-green' : b.status === 'draft' ? 'chip-ink' : 'chip-ink'
-  const statusLabel =
-    b.status === 'active'
-      ? t('bn.status.active')
-      : b.status === 'draft'
-        ? t('bn.status.draft')
-        : t('bn.status.archived')
+  const shown = b.status === 'active'
 
   return (
     <li
       data-testid={`banner-${b.id}`}
       className="hairline flex items-center gap-3 border-b px-4 py-2.5 last:border-b-0"
     >
+      {/* Переупорядочивание стрелками ↑↓. */}
+      <div className="flex flex-none flex-col text-ink-300">
+        <button
+          type="button"
+          onClick={onMoveUp}
+          disabled={!canUp || reordering}
+          aria-label={t('bn.moveUp')}
+          data-testid={`banner-up-${b.id}`}
+          className="leading-none transition-colors hover:text-ink-700 disabled:opacity-30"
+        >
+          <IconArrowUp size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={onMoveDown}
+          disabled={!canDown || reordering}
+          aria-label={t('bn.moveDown')}
+          data-testid={`banner-down-${b.id}`}
+          className="leading-none transition-colors hover:text-ink-700 disabled:opacity-30"
+        >
+          <IconArrowDown size={14} />
+        </button>
+      </div>
+
       {/* Превью картинки — публичный MinIO-URL. */}
       <div className="h-12 w-20 flex-none overflow-hidden rounded-md bg-ink-100">
-        <img src={b.imageUrl} alt={b.title} className="h-full w-full object-cover" />
+        {b.imageUrl ? (
+          <img src={b.imageUrl} alt={b.title} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-ink-400">
+            <IconLayers size={18} />
+          </div>
+        )}
       </div>
+
       <div className="min-w-0 flex-1">
         <div className="truncate text-[13px] font-bold text-ink-900">{b.title}</div>
         <div className="truncate text-[11px] text-ink-500">{b.subtitle || t('bn.noSubtitle')}</div>
       </div>
-      <span className="num flex-none text-[11px] text-ink-400">
-        {t('bn.position')} {b.position}
-      </span>
-      <span className={`chip flex-none ${chipCls}`}>{statusLabel}</span>
+
+      {/* Показывать / Скрыт. */}
       <div className="flex flex-none items-center gap-2">
-        <Button variant="ghost" size="sm" disabled={pending} onClick={onEdit}>
-          {t('bn.edit')}
-        </Button>
-        {b.status !== 'archived' ? (
-          <Button variant="ghost" size="sm" disabled={pending} onClick={archive}>
-            {t('bn.archive')}
-          </Button>
-        ) : (
-          <Button variant="ghost" size="sm" disabled={pending} onClick={toggleStatus}>
-            {t('bn.activate')}
-          </Button>
-        )}
-        <button
-          type="button"
-          onClick={handleDelete}
-          disabled={pending}
-          aria-label={t('bn.delete')}
-          data-testid={`banner-delete-${b.id}`}
-          className="text-ink-400 transition-colors hover:text-accent-danger disabled:opacity-40"
+        <span
+          className={`text-[11px] font-semibold ${shown ? 'text-brand-green-700' : 'text-ink-400'}`}
         >
-          <IconTrash size={15} />
-        </button>
+          {shown ? t('bn.shown') : t('bn.hidden')}
+        </span>
+        <Toggle on={shown} onChange={toggleShown} disabled={pending} />
       </div>
+
+      {/* Редактировать + удалить. */}
+      <Button
+        variant="ghost"
+        size="sm"
+        disabled={pending}
+        onClick={onEdit}
+        leading={<IconEdit size={13} />}
+        data-testid={`banner-edit-${b.id}`}
+      >
+        {t('bn.edit')}
+      </Button>
+      <button
+        type="button"
+        onClick={handleDelete}
+        disabled={pending}
+        aria-label={t('bn.delete')}
+        data-testid={`banner-delete-${b.id}`}
+        className="flex-none text-ink-400 transition-colors hover:text-accent-danger disabled:opacity-40"
+      >
+        <IconTrash size={15} />
+      </button>
     </li>
   )
 }
 
-// ─── Модалка создания/редактирования ─────────────────────────────────────────
+// ─── Модалка создания/редактирования (4 поля) ─────────────────────────────────
 
 interface FormState {
   title: string
   subtitle: string
   imageUrl: string
   detailMd: string
-  status: BannerStatus
-  position: string
 }
 
 function initialForm(banner: BannerDto | null): FormState {
@@ -191,18 +254,18 @@ function initialForm(banner: BannerDto | null): FormState {
     subtitle: banner?.subtitle ?? '',
     imageUrl: banner?.imageUrl ?? '',
     detailMd: banner?.detailMd ?? '',
-    status: banner?.status ?? 'draft',
-    position: banner ? String(banner.position) : '0',
   }
 }
 
 function BannerFormModal({
   open,
   banner,
+  nextPosition,
   onClose,
 }: {
   open: boolean
   banner: BannerDto | null
+  nextPosition: number
   onClose: () => void
 }) {
   const t = useT()
@@ -243,20 +306,18 @@ function BannerFormModal({
       if (!form.imageUrl.trim()) setErr(t('bn.imageRequired'))
       return
     }
-    const position = Math.max(0, Math.trunc(Number(form.position) || 0))
-    const payload: CreateBannerRequest = {
-      title: form.title.trim(),
-      // Пустая строка очищает подзаголовок/детальный текст (backend трактует "" как очистку).
-      subtitle: form.subtitle.trim(),
-      imageUrl: form.imageUrl.trim(),
-      detailMd: form.detailMd.trim(),
-      status: form.status,
-      position,
-    }
-
     if (isEdit && banner) {
+      // Редактирование — патчим только контент (статус/позиция управляются в списке).
       update.mutate(
-        { id: banner.id, patch: payload },
+        {
+          id: banner.id,
+          patch: {
+            title: form.title.trim(),
+            subtitle: form.subtitle.trim(),
+            imageUrl: form.imageUrl.trim(),
+            detailMd: form.detailMd.trim(),
+          },
+        },
         {
           onSuccess: () => {
             toast.push(t('bn.savedToast'))
@@ -266,6 +327,15 @@ function BannerFormModal({
         },
       )
     } else {
+      // Создание — новый баннер сразу активен и встаёт в конец ленты.
+      const payload: CreateBannerRequest = {
+        title: form.title.trim(),
+        subtitle: form.subtitle.trim(),
+        imageUrl: form.imageUrl.trim(),
+        detailMd: form.detailMd.trim(),
+        status: 'active',
+        position: nextPosition,
+      }
       create.mutate(payload, {
         onSuccess: () => {
           toast.push(t('bn.createdToast'))
@@ -275,12 +345,6 @@ function BannerFormModal({
       })
     }
   }
-
-  const statusOptions = [
-    { value: 'draft', label: t('bn.status.draft') },
-    { value: 'active', label: t('bn.status.active') },
-    { value: 'archived', label: t('bn.status.archived') },
-  ]
 
   return (
     <Modal
@@ -369,24 +433,6 @@ function BannerFormModal({
             onChange={(e) => setForm({ ...form, detailMd: e.target.value })}
           />
         </Field>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Field label={t('bn.fldStatus')}>
-            <Select
-              value={form.status}
-              onChange={(v) => setForm({ ...form, status: v as BannerStatus })}
-              options={statusOptions}
-            />
-          </Field>
-          <Field label={t('bn.fldPosition')} hint={t('bn.positionHint')}>
-            <Input
-              type="number"
-              min={0}
-              value={form.position}
-              onChange={(e) => setForm({ ...form, position: e.target.value })}
-            />
-          </Field>
-        </div>
       </div>
     </Modal>
   )

@@ -3520,11 +3520,33 @@ UUID (не перечисляемы), но это «security by obscurity»: л�
   (`/api/admin/banners`), `MobileBannersController` (`/api/mobile/banners` → active по position).
   `SecurityConfig` +permitAll `/api/mobile/banners/**`; `DevDataSeeder` +3 демо-баннера. Тест
   `BannerIntegrationTest`.
-- Админка: `features/banners/BannersPage.tsx` (калька со Screens — форма+upload+CRUD),
-  `lib/queries/banners.ts`, `lib/api-types.ts`, `fixtures.ts` (SECTIONS +`banners`/группа «Кампании»),
-  `router.tsx` (/banners), i18n `bn.*` (ru+kk). Тест `BannersPage.test.tsx`.
+- Админка: `lib/queries/banners.ts`, `lib/api-types.ts`, i18n `bn.*` (ru+kk).
   ⚠️ `Modal` рендерит `title` как `<div>` (не heading) → в тестах модалки `getByText`, не
   `getByRole('heading')`.
+
+#### Баннеры → внутрь раздела «Управление экранами» (2026-06-18, режим extra)
+
+- **Решение по UX (пользователь)**: у баннеров НЕТ отдельного пункта сайдбара — они управляются
+  внутри раздела «Управление экранами» как вкладка. Интерфейс «максимально простой»: кнопка
+  «Добавить баннер» → форма из 4 полей.
+- `ScreensPage.tsx` теперь = `<Tabs>` на 2 вкладки: **«Экраны в аптеках»** (бывший контент —
+  `ScreensTab`: подключённые кассы + плейлисты + библиотека слайдов) и **«Баннеры приложения»**
+  (`BannersPanel`). Первичная кнопка живёт в `trailing` у `<Tabs>` и контекстна вкладке:
+  «Загрузить слайд» / «Добавить баннер».
+- `features/screens/BannersPanel.tsx` — управляемый (`editing`/`setEditing` приходят из ScreensPage,
+  чтобы кнопка из шапки вкладок открывала форму). **Форма упрощена до 4 полей**: картинка + заголовок
+  - подзаголовок + детальный текст. **Статус и порядок вынесены в список**: переключатель «Показывать»
+    (active↔draft) + стрелки ↑↓. Новый баннер создаётся сразу `active` и `position = banners.length`
+    (в конец) — поэтому полей «Статус»/«Позиция» в форме НЕТ.
+- Переупорядочивание: `useReorderBanner` (queries/banners.ts) патчит `{id,position}` для изменившихся.
+  В БД `position` НЕ уникальна (только индекс V029) → параллельные PATCH безопасны. `move()` меняет
+  соседей местами и **нормализует позиции = индексам** (работает даже из ненормализованного состояния,
+  напр. все position=0). Стрелки заблокированы при `reorder.isPending` (анти-гонка).
+- Удалены: `features/banners/` (страница+тест), `SectionId/SECTIONS` `banners`, route `/banners`
+  (→ редирект на `/screens` для старых ссылок), импорт `IconLayers` в fixtures.
+- Бэкенд НЕ менялся (тот же `/api/admin/banners`); мобильная лента `/api/mobile/banners` не затронута.
+- Тесты: `BannersPanel.test.tsx` (12: список/статус-toggle/reorder/delete/форма) + `ScreensPage.test.tsx`
+  (+3 на вкладки). Полный admin: `tsc` 0, **vitest 358/358**, `vite build` ок.
 
 ### Поиск товаров в пикере — фикс (п.8)
 

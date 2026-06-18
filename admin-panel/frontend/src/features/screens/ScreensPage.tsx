@@ -10,8 +10,19 @@
 //        Адресацию под конкретную аптеку добавим позже.
 
 import { useEffect, useRef, useState } from 'react'
-import { Button, Empty, Field, Input, Modal, PageHeader, SectionCard, Select, useToast } from '@/ui'
-import { IconScreens, IconStack, IconTrash, IconUpload } from '@/ui/icons'
+import {
+  Button,
+  Empty,
+  Field,
+  Input,
+  Modal,
+  PageHeader,
+  SectionCard,
+  Select,
+  Tabs,
+  useToast,
+} from '@/ui'
+import { IconPlus, IconScreens, IconStack, IconTrash, IconUpload } from '@/ui/icons'
 import type { PlaylistDto, SlideDto } from '@/lib/api-types'
 import {
   useAssignSlide,
@@ -26,10 +37,67 @@ import {
 import { describeError } from '@/lib/describeError'
 import { formatNum } from '@/mocks/fixtures'
 import { useT } from '@/i18n'
+import { BannersPanel, type BannerEditing } from './BannersPanel'
 
 export default function ScreensPage() {
   const t = useT()
+  // Две вкладки одного раздела: физические экраны касс и баннеры в приложении.
+  const [tab, setTab] = useState<'screens' | 'banners'>('screens')
   const [uploadOpen, setUploadOpen] = useState(false)
+  const [bannerEditing, setBannerEditing] = useState<BannerEditing>(null)
+
+  return (
+    <div className="flex flex-col gap-4">
+      <PageHeader title={t('page.screens.title')} subtitle={t('page.screens.subtitle')} />
+
+      <Tabs
+        items={[
+          { value: 'screens', label: t('scr.tabScreens') },
+          { value: 'banners', label: t('scr.tabBanners') },
+        ]}
+        value={tab}
+        onChange={setTab}
+        trailing={
+          tab === 'screens' ? (
+            <Button
+              variant="primary"
+              leading={<IconUpload size={14} />}
+              onClick={() => setUploadOpen(true)}
+              data-testid="screens-upload-slide"
+            >
+              {t('scr.uploadSlide')}
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              leading={<IconPlus size={14} />}
+              onClick={() => setBannerEditing('new')}
+              data-testid="banners-create"
+            >
+              {t('bn.add')}
+            </Button>
+          )
+        }
+      />
+
+      {tab === 'screens' ? (
+        <ScreensTab uploadOpen={uploadOpen} setUploadOpen={setUploadOpen} />
+      ) : (
+        <BannersPanel editing={bannerEditing} setEditing={setBannerEditing} />
+      )}
+    </div>
+  )
+}
+
+// ─── Вкладка «Экраны в аптеках» — физические DOOH-экраны (плейлисты + слайды) ──
+function ScreensTab({
+  uploadOpen,
+  setUploadOpen,
+}: {
+  uploadOpen: boolean
+  setUploadOpen: (v: boolean) => void
+}) {
+  const t = useT()
 
   const playlistsQ = usePlaylists()
   const slidesQ = useSlides()
@@ -38,21 +106,6 @@ export default function ScreensPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
-        title={t('page.screens.title')}
-        subtitle={t('page.screens.subtitle')}
-        actions={
-          <Button
-            variant="primary"
-            leading={<IconUpload size={14} />}
-            onClick={() => setUploadOpen(true)}
-            data-testid="screens-upload-slide"
-          >
-            {t('scr.uploadSlide')}
-          </Button>
-        }
-      />
-
       <UploadSlideModal open={uploadOpen} onClose={() => setUploadOpen(false)} />
 
       <ConnectedRegistersCard />

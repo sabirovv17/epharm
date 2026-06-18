@@ -20,7 +20,6 @@ import {
   IconAIExam,
   IconRules,
   IconScreens,
-  IconLayers,
   IconLMS,
   IconSettings,
 } from '@/ui/icons'
@@ -35,7 +34,6 @@ export type SectionId =
   | 'promo'
   | 'rules'
   | 'screens'
-  | 'banners'
   | 'pharmacies'
   | 'pharmacists'
   | 'reconcile'
@@ -58,8 +56,9 @@ export const SECTIONS: Section[] = [
   { id: 'dashboard', label: 'Дашборд аналитики', group: 'Обзор', Icon: IconDashboard },
   { id: 'promo', label: 'Промо-кампании', group: 'Кампании', Icon: IconPromo },
   { id: 'rules', label: 'Rules Engine', group: 'Кампании', Icon: IconRules },
+  // Баннеры приложения управляются внутри раздела «Управление экранами» (вкладка),
+  // поэтому отдельного пункта сайдбара у них нет.
   { id: 'screens', label: 'Управление экранами', group: 'Кампании', Icon: IconScreens },
-  { id: 'banners', label: 'Баннеры', group: 'Кампании', Icon: IconLayers },
   { id: 'pharmacies', label: 'Сеть аптек', group: 'Сеть', Icon: IconPharmacy },
   { id: 'pharmacists', label: 'Фармацевты', group: 'Сеть', Icon: IconPharmacist },
   { id: 'storefront', label: 'Витрина / Каталог', group: 'Сеть', Icon: IconBox },

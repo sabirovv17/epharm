@@ -53,6 +53,22 @@ export function useDeleteBanner() {
 }
 
 /**
+ * Переупорядочивание: принимает список { id, position } для баннеров, чья позиция
+ * изменилась, и патчит каждый. position в БД НЕ уникальна (только индекс), поэтому
+ * параллельные PATCH безопасны. Один invalidate после всех — один рефетч списка.
+ */
+export function useReorderBanner() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (updates: { id: string; position: number }[]) =>
+      Promise.all(
+        updates.map((u) => api.patch(`/api/admin/banners/${u.id}`, { position: u.position })),
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: bannersKeys.list() }),
+  })
+}
+
+/**
  * Загрузка картинки баннера: multipart (file) → backend → MinIO, возвращает
  * { imageUrl }. axios сам выставит boundary для FormData. URL потом кладётся
  * в create/update-запрос (как mediaUrl слайда).
