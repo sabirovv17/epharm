@@ -41,8 +41,21 @@ dependencies:
 
 dev_dependencies:
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
   flutter_test:
     sdk: flutter
+
+# Иконка приложения — фирменный знак-чек (палитра Claude, ярко-оранжевый коралл).
+# Источник рисуется tools/generate_app_icon.py. Перегенерация:
+#   python3 tools/generate_app_icon.py && dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/icon/app_icon.png
+  remove_alpha_ios: true
+  background_color_ios: '#E07E52'
+  adaptive_icon_background: assets/icon/app_icon_bg.png
+  adaptive_icon_foreground: assets/icon/app_icon_foreground.png
 
 flutter:
   uses-material-design: true
