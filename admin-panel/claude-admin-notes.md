@@ -3575,6 +3575,29 @@ UUID (не перечисляемы), но это «security by obscurity»: л�
   ⚠️ **WPF не собирается на macOS** — C#-правки только в исходниках; чтобы доехали до касс, нужен
   Windows-билд + публикация через авто-апдейтер (manifest V017). Не задеплоено из этой среды.
 
+### Rules Engine → read-only (2026-06-18)
+
+- **Решение продукта**: правила замены/кросс-селла создаются ТОЛЬКО из кампаний (`PromoRulesEditor`).
+  Раздел Rules Engine стал **полностью read-only**: просмотр списка + параметры/аналитика/превью.
+- **Аудит «экстра-фич»**: переносить в кампании было НЕЧЕГО — функциональные поля (товар/триггер/
+  бонус/скрипт/преимущества/партнёр/сравнение/цель) уже задаются в кампании. Остальное в старом
+  конструкторе — **нерабочие заглушки**: `abTest` хранится в БД, но POSM-движок его не читает
+  (в `posm/` ноль ссылок); daily-cap/until/cities/chains — `defaultValue` без стейта, никуда не
+  сохранялись.
+- **Удалено**: `CreateRuleModal.tsx`, `BuilderForm` (editable-форма) + `FormBlock` из `RuleBuilder.tsx`,
+  `BuilderForm.test.tsx`. Кнопки «Новое правило»/«Ещё», Save/Cancel, тоггл статуса, ⋯-меню строк
+  (Дублировать/Архив), confirm-модалка.
+- **Добавлено**: `RuleConfigView` (read-only: триггер/рекомендуем/бонус/скрипт/преимущества/сравнение/
+  цель + подсказка «правила из кампаний»). Статус правила — read-only chip (вкл. `stArchived`).
+  Вкладка переименована «Конструктор»→«Параметры» (`rules.btConfig`). Сброс вкладки при смене правила —
+  через `key={rule.id}` (remount), без set-state-in-effect.
+- `RulesPage` больше не импортит `useUpdateRule/useArchiveRule/useDuplicateRule` (мутации-хуки в
+  `queries/rules.ts` оставлены как есть — бэкенд-эндпоинты не трогали). `RuleRow` без
+  `onArchive/onDuplicate` → ⋯-меню не рендерится (guard уже был).
+- i18n: новые `rules.cfg*`/`btConfig`/`stArchived`/`readOnlyHint` (ru+kk); тексты subtitle/emptyBody/
+  selectBody переписаны под read-only. Тесты переписаны (RuleBuilder/RulesPage). tsc 0, vitest
+  348 (флак PromoPicker под нагрузкой — на повторе зелено), build ок.
+
 ### Поиск товаров в пикере — фикс (п.8)
 
 - **Диагностика инструментально**: Medusa `?q=витамин` → 528 ✅; backend-прокси `catalog.search(q)` →

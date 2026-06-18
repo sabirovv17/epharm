@@ -1,10 +1,9 @@
-// RulesPage — главный экран ТЗ §3.2 (Figure 32).
-// Layout: PageHeader → SummaryBar → split (Rules list | RuleBuilder).
-// Этап 3.2: данные приходят из backend через TanStack Query.
-// Все мутации (toggle status / archive / save / create) — через useUpdateRule/Archive/Create.
+// RulesPage — главный экран ТЗ §3.2 (Figure 32), READ-ONLY.
+// Правила замены/кросс-селла создаются ТОЛЬКО из кампаний (раздел «Промо»).
+// Здесь — просмотр: список + конфигурация/аналитика/превью кассы. Никаких мутаций.
 
 import { useMemo, useState } from 'react'
-import type { Rule, RuleStatus } from '@/mocks/fixtures'
+import type { Rule } from '@/mocks/fixtures'
 import {
   Button,
   Empty,
@@ -12,28 +11,23 @@ import {
   SearchInput,
   Select,
   Tabs,
-  Modal,
-  useToast,
   type SelectOption,
   type TabItem,
 } from '@/ui'
-import { IconArchive, IconChevDown, IconPlus, IconRules } from '@/ui/icons'
+import { IconRules } from '@/ui/icons'
 import { useProductLookup } from '@/lib/queries/catalog'
-import { useArchiveRule, useDuplicateRule, useRules, useUpdateRule } from '@/lib/queries/rules'
+import { useRules } from '@/lib/queries/rules'
 import { SummaryBar, computeMetrics } from './SummaryBar'
 import { RuleRow } from './RuleRow'
 import { RuleBuilder } from './RuleBuilder'
-import { CreateRuleModal } from './CreateRuleModal'
 import { describeError } from '@/lib/describeError'
 import { useT } from '@/i18n'
-import { ruleSummary } from './lib'
 
 type RulesTab = 'substitution' | 'crosssell' | 'archive'
 type StatusFilter = 'all' | 'active' | 'paused'
 
 export default function RulesPage() {
   const t = useT()
-  const toast = useToast()
   const productById = useProductLookup()
 
   const STATUS_OPTIONS: SelectOption[] = [
@@ -45,16 +39,11 @@ export default function RulesPage() {
   const { data: rules = [], isLoading, isError, error, refetch } = useRules()
   const hasData = rules.length > 0
   const showWarningBanner = isError && hasData
-  const updateRule = useUpdateRule()
-  const archiveRule = useArchiveRule()
-  const duplicateRule = useDuplicateRule()
 
   const [tab, setTab] = useState<RulesTab>('substitution')
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState<StatusFilter>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [createOpen, setCreateOpen] = useState(false)
-  const [confirmDel, setConfirmDel] = useState<Rule | null>(null)
 
   const { subst, cross, archive } = useMemo(() => {
     const s: Rule[] = []
@@ -86,93 +75,6 @@ export default function RulesPage() {
     return `${trigName ?? ''} ${recName}`.toLowerCase().includes(q.toLowerCase())
   })
 
-  // ── Actions ─────────────────────────────────────────────────────────────
-
-  const handleToggleStatus = (r: Rule) => {
-    const next: RuleStatus = r.status === 'active' ? 'paused' : 'active'
-    updateRule.mutate(
-      { id: r.id, patch: { status: next } },
-      {
-        onSuccess: () =>
-          toast.push(next === 'active' ? t('rules.toggleOn') : t('rules.toggleOff'), {
-            action: {
-              label: t('rules.undo'),
-              onClick: () => updateRule.mutate({ id: r.id, patch: { status: r.status } }),
-            },
-          }),
-        onError: () => toast.push(t('rules.toggleErr')),
-      },
-    )
-  }
-
-  const handleSave = (id: string, patch: Partial<Rule>) => {
-    // Из формы прилетает весь Rule (включая id, timestamps) — отбираем только
-    // редактируемые поля для PATCH-запроса.
-    // advantages: чистим пустые строки и trim — пока юзер набирает в textarea они
-    // могут быть (см. BuilderForm), но на сервер всё-таки шлём санитизированный массив.
-    const cleanAdvantages = patch.advantages?.map((a) => a.trim()).filter((a) => a.length > 0)
-    // Богатая карточка (Фаза 2): чистим пустые строки сравнения; если карточка пустая —
-    // явно убираем (clearCard), иначе пушим card. null = «не трогать» на бэке.
-    const c = patch.card
-    const cleanComparison = (c?.comparison ?? []).filter((r) => r.label.trim().length > 0)
-    const cardHasContent =
-      cleanComparison.length > 0 ||
-      !!c?.partnerLabel?.trim() ||
-      !!c?.goalLabel?.trim() ||
-      c?.goalTarget != null ||
-      c?.goalBonus != null
-    const cleanCard = cardHasContent
-      ? {
-          partnerLabel: c?.partnerLabel?.trim() || null,
-          comparison: cleanComparison,
-          goalLabel: c?.goalLabel?.trim() || null,
-          goalTarget: c?.goalTarget ?? null,
-          goalBonus: c?.goalBonus ?? null,
-        }
-      : null
-    updateRule.mutate(
-      {
-        id,
-        patch: {
-          status: patch.status,
-          trigger: patch.trigger,
-          recommend: patch.recommend,
-          bonus: patch.bonus,
-          script: patch.script,
-          advantages: cleanAdvantages,
-          abTest: patch.abTest,
-          card: cardHasContent ? cleanCard : undefined,
-          clearCard: !cardHasContent,
-        },
-      },
-      {
-        onSuccess: () => toast.push(t('rules.saved')),
-        onError: () => toast.push(t('rules.saveErr')),
-      },
-    )
-  }
-
-  const handleArchive = (r: Rule) => {
-    archiveRule.mutate(r.id, {
-      onSuccess: () => {
-        toast.push(t('rules.archived'))
-        setSelectedId(null)
-      },
-      onError: () => toast.push(t('rules.archiveErr')),
-    })
-  }
-
-  const handleDuplicate = (r: Rule) => {
-    duplicateRule.mutate(r.id, {
-      onSuccess: (copy) => {
-        toast.push(t('rules.duplicated'))
-        setTab(copy.type === 'substitution' ? 'substitution' : 'crosssell')
-        setSelectedId(copy.id)
-      },
-      onError: () => toast.push(t('rules.dupErr')),
-    })
-  }
-
   const metrics = useMemo(() => computeMetrics(subst, cross), [subst, cross])
 
   const tabItems: TabItem<RulesTab>[] = [
@@ -181,10 +83,7 @@ export default function RulesPage() {
     { value: 'archive', label: t('rules.tabArchive'), count: archive.length },
   ]
 
-  // Когда переключаем таб:
-  //  - есть правила в новом табе → выбираем первое
-  //  - нет правил → сбрасываем selectedId, иначе builder продолжит показывать
-  //    правило из старого таба пока список слева пуст (confusing UX).
+  // При переключении таба выбираем первое правило нового таба (или сбрасываем).
   const onChangeTab = (v: RulesTab) => {
     setTab(v)
     const next = v === 'substitution' ? subst[0] : v === 'crosssell' ? cross[0] : archive[0]
@@ -193,25 +92,7 @@ export default function RulesPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
-        title={t('page.rules.title')}
-        subtitle={t('page.rules.subtitle')}
-        actions={
-          <>
-            <Button variant="outline" size="md" trailing={<IconChevDown size={12} />}>
-              {t('rules.more')}
-            </Button>
-            <Button
-              variant="primary"
-              size="md"
-              leading={<IconPlus size={14} />}
-              onClick={() => setCreateOpen(true)}
-            >
-              {t('rules.newRule')}
-            </Button>
-          </>
-        }
-      />
+      <PageHeader title={t('page.rules.title')} subtitle={t('page.rules.subtitle')} />
 
       <div
         className="hairline rounded-xl border bg-brand-green-50 px-4 py-2.5 text-[12px] font-semibold text-ink-700"
@@ -235,7 +116,7 @@ export default function RulesPage() {
         </div>
       )}
 
-      {/* Main work area: list + builder */}
+      {/* Main work area: list + read-only detail */}
       <div className="grid gap-4" style={{ gridTemplateColumns: 'minmax(0, 1fr) 480px' }}>
         {/* Left — rules list */}
         <div className="card flex min-h-[640px] flex-col">
@@ -245,9 +126,8 @@ export default function RulesPage() {
               onChange={onChangeTab}
               items={tabItems}
               trailing={
-                // flex-none — каждый input сохраняет ширину, не сжимается под давлением.
-                // Если контейнер слишком узкий, search+select переносятся на следующую
-                // строку (flex-wrap), а не схлопываются до нечитаемого огрызка.
+                // flex-none — каждый input сохраняет ширину, не сжимается; если узко —
+                // search+select переносятся на следующую строку (flex-wrap).
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   <SearchInput
                     value={q}
@@ -291,13 +171,6 @@ export default function RulesPage() {
                 title={t('rules.emptyTitle')}
                 body={tab === 'archive' ? t('rules.emptyArchiveBody') : t('rules.emptyBody')}
                 icon={<IconRules size={26} />}
-                action={
-                  tab !== 'archive' && (
-                    <Button leading={<IconPlus size={14} />} onClick={() => setCreateOpen(true)}>
-                      {t('rules.newRule')}
-                    </Button>
-                  )
-                }
               />
             ) : (
               <ul className="divide-hairline" data-testid="rules-list">
@@ -307,8 +180,6 @@ export default function RulesPage() {
                     rule={r}
                     selected={selectedId === r.id}
                     onSelect={() => setSelectedId(r.id)}
-                    onDuplicate={handleDuplicate}
-                    onArchive={(rule) => setConfirmDel(rule)}
                   />
                 ))}
               </ul>
@@ -316,17 +187,13 @@ export default function RulesPage() {
           </div>
         </div>
 
-        {/* Right — builder panel */}
+        {/* Right — read-only detail panel */}
         <div
           className="card sticky top-[88px] flex min-h-[640px] flex-col self-start"
           data-testid="rule-builder-panel"
         >
           {selected ? (
-            <RuleBuilder
-              rule={selected}
-              onSave={(patch) => handleSave(selected.id, patch)}
-              onToggle={() => handleToggleStatus(selected)}
-            />
+            <RuleBuilder key={selected.id} rule={selected} />
           ) : (
             <Empty
               title={t('rules.selectTitle')}
@@ -336,49 +203,6 @@ export default function RulesPage() {
           )}
         </div>
       </div>
-
-      {/* Modals */}
-      <CreateRuleModal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        onCreate={(r) => {
-          setTab(r.type === 'substitution' ? 'substitution' : 'crosssell')
-          setSelectedId(r.id)
-          setCreateOpen(false)
-          toast.push(t('rules.created'))
-        }}
-        onError={(msg) => toast.push(msg)}
-      />
-
-      <Modal
-        open={!!confirmDel}
-        onClose={() => setConfirmDel(null)}
-        title={t('rules.confirmArchiveTitle')}
-        subtitle={
-          confirmDel
-            ? t('rules.confirmArchiveSub', { summary: ruleSummary(confirmDel, productById) })
-            : ''
-        }
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setConfirmDel(null)}>
-              {t('common.cancel')}
-            </Button>
-            <Button
-              variant="danger"
-              onClick={() => {
-                if (confirmDel) handleArchive(confirmDel)
-                setConfirmDel(null)
-              }}
-              leading={<IconArchive size={14} />}
-            >
-              {t('rules.toArchive')}
-            </Button>
-          </>
-        }
-      >
-        <div />
-      </Modal>
     </div>
   )
 }

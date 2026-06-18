@@ -3,7 +3,7 @@
 // без MSW. QueryClientProvider обязателен (внутри хуки TanStack Query).
 
 import { describe, expect, it, beforeEach, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
@@ -139,11 +139,11 @@ describe('RulesPage — базовый рендер (пустой список)'
     expect(screen.getByRole('button', { name: /Архив/ })).toHaveTextContent('0')
   })
 
-  it('на пустом списке показывает Empty state с CTA «Новое правило»', () => {
+  it('на пустом списке — Empty state БЕЗ CTA создания (read-only)', () => {
     renderRules()
     expect(screen.getByText(/Правил пока нет/i)).toBeInTheDocument()
-    expect(screen.getByText(/Создайте первое правило/i)).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: /Новое правило/ }).length).toBeGreaterThan(0)
+    expect(screen.getByText(/Этот раздел — только для просмотра/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Новое правило/ })).not.toBeInTheDocument()
   })
 
   it('правая панель — Empty state «Выберите правило»', () => {
@@ -257,69 +257,22 @@ describe('RulesPage — отображение списка', () => {
   })
 })
 
-describe('RulesPage — Create rule modal', () => {
-  it('клик «Новое правило» открывает 3-step wizard', async () => {
-    const user = userEvent.setup()
+describe('RulesPage — read-only (нет создания/мутаций)', () => {
+  it('в шапке нет кнопки «Новое правило»', () => {
     renderRules()
-    const buttons = screen.getAllByRole('button', { name: /Новое правило/ })
-    await user.click(buttons[0])
-    expect(screen.getByText(/Шаг за шагом/i)).toBeInTheDocument()
-    expect(screen.getByText('Тип правила')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Новое правило/ })).not.toBeInTheDocument()
   })
 
-  it('закрытие wizard через Esc', async () => {
-    const user = userEvent.setup()
+  it('показывает баннер «правила из кампаний»', () => {
     renderRules()
-    const buttons = screen.getAllByRole('button', { name: /Новое правило/ })
-    await user.click(buttons[0])
-    await waitFor(() => expect(screen.getByText(/Шаг за шагом/i)).toBeInTheDocument())
-    await user.keyboard('{Escape}')
-    expect(screen.queryByText(/Шаг за шагом/i)).not.toBeInTheDocument()
+    expect(screen.getByTestId('rules-from-campaigns-banner')).toBeInTheDocument()
   })
-})
 
-describe('RulesPage — mutation actions через row-action menu', () => {
-  it('duplicate из ⋯-меню вызывает useDuplicateRule.mutate с id', async () => {
-    const dupMutate = vi.fn((id: string, opts: { onSuccess?: (r: unknown) => void }) => {
-      opts?.onSuccess?.(mkRule({ id: `${id}_copy`, status: 'draft' }))
-    })
-    rulesHooks.useDuplicateRule.mockReturnValue({ mutate: dupMutate, isPending: false })
-
+  it('у строки правила нет ⋯-меню (дублировать/архив отсутствуют)', () => {
     setRulesResponse([mkRule({ id: 'r_001', type: 'substitution', status: 'active' })])
     setProductsResponse([mkProduct({ id: 'p_aql' }), mkProduct({ id: 'p_aqm' })])
-
-    const user = userEvent.setup()
     renderRules()
-    await user.click(screen.getByTestId('row-menu-trigger-r_001'))
-    await user.click(screen.getByRole('menuitem', { name: /Дублировать/ }))
-    expect(dupMutate).toHaveBeenCalledWith('r_001', expect.any(Object))
-  })
-
-  it('archive из ⋯-меню → открывает confirm-modal', async () => {
-    setRulesResponse([mkRule({ id: 'r_001', type: 'substitution', status: 'active' })])
-    setProductsResponse([mkProduct({ id: 'p_aql' }), mkProduct({ id: 'p_aqm' })])
-
-    const user = userEvent.setup()
-    renderRules()
-    await user.click(screen.getByTestId('row-menu-trigger-r_001'))
-    await user.click(screen.getByRole('menuitem', { name: /В архив/ }))
-    expect(screen.getByText(/Отправить правило в архив\?/i)).toBeInTheDocument()
-  })
-
-  it('подтверждение confirm-modal вызывает useArchiveRule.mutate', async () => {
-    const archMutate = vi.fn((_id, opts: { onSuccess?: () => void }) => opts?.onSuccess?.())
-    rulesHooks.useArchiveRule.mockReturnValue({ mutate: archMutate, isPending: false })
-
-    setRulesResponse([mkRule({ id: 'r_001', type: 'substitution', status: 'active' })])
-    setProductsResponse([mkProduct({ id: 'p_aql' }), mkProduct({ id: 'p_aqm' })])
-
-    const user = userEvent.setup()
-    renderRules()
-    await user.click(screen.getByTestId('row-menu-trigger-r_001'))
-    await user.click(screen.getByRole('menuitem', { name: /В архив/ }))
-    // Кнопка В архив внутри Modal (вторая в DOM — первая в row-menu)
-    const archiveButtons = screen.getAllByRole('button', { name: /В архив/ })
-    await user.click(archiveButtons[archiveButtons.length - 1])
-    expect(archMutate).toHaveBeenCalledWith('r_001', expect.any(Object))
+    expect(screen.getByTestId('rule-row-r_001')).toBeInTheDocument()
+    expect(screen.queryByTestId('row-menu-trigger-r_001')).not.toBeInTheDocument()
   })
 })
