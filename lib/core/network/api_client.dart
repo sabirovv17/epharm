@@ -7,13 +7,22 @@ import '../config/api_config.dart';
 import 'api_exception.dart';
 import 'token_store.dart';
 
+/// Исход попытки refresh:
+///  - [ok] — токены обновлены, запрос можно повторить;
+///  - [authFailed] — рефреш-токен явно невалиден (сессия мертва, токены очищены);
+///  - [transient] — сеть/5xx/битый ответ: сессия МОЖЕТ быть жива, токены НЕ трогаем.
+enum _RefreshOutcome { ok, authFailed, transient }
+
 /// Тонкая обёртка над http.Client для backend Epharm.
 ///
 /// Возможности:
 ///  - префикс baseUrl + JSON-кодирование;
 ///  - Bearer-токен из TokenStore на защищённых запросах;
 ///  - **JWT-refresh interceptor**: на 401 пытается обновить пару через
-///    `/api/mobile/auth/refresh` и повторяет запрос один раз;
+///    `/api/mobile/auth/refresh` и повторяет запрос один раз. Refresh
+///    дедуплицируется (single-flight): конкурентные 401 (напр. /me + /promotions
+///    на Home) ждут ОДИН refresh, иначе второй запрос шлёт уже отозванный
+///    ротацией refresh-токен и затирает только что выданную валидную пару.
 ///  - единый разбор ошибок `{code,message}` → ApiException.
 class ApiClient {
   ApiClient(
@@ -26,6 +35,11 @@ class ApiClient {
   final http.Client _client;
   final TokenStore _tokenStore;
   final String _baseUrl;
+
+  /// In-flight refresh для дедупликации (single-flight): пока он не null, все
+  /// конкурентные 401 переиспользуют ОДИН результат refresh вместо параллельных
+  /// попыток, каждая из которых жгла бы одноразовый ротируемый refresh-токен.
+  Future<_RefreshOutcome>? _refreshInFlight;
 
   // ── Публичный API ──────────────────────────────────────────────────────────
 
@@ -108,37 +122,83 @@ class ApiClient {
       throw const ApiException.network();
     }
     if (res.statusCode == 401 && auth && _tokenStore.hasTokens) {
-      final refreshed = await _tryRefresh();
-      if (refreshed) {
-        try {
-          res = await request();
-        } catch (_) {
+      // Single-flight: конкурентные 401 ждут один общий refresh.
+      final outcome = await (_refreshInFlight ??=
+          _tryRefresh().whenComplete(() => _refreshInFlight = null));
+      switch (outcome) {
+        case _RefreshOutcome.ok:
+          // Повтор пересоздаёт запрос через thunk → подхватывает свежий токен.
+          try {
+            res = await request();
+          } catch (_) {
+            throw const ApiException.network();
+          }
+        case _RefreshOutcome.authFailed:
+          // Сессия мертва (_tryRefresh уже очистил токены). Типизированный
+          // UNAUTHORIZED, чтобы UI надёжно показал «сессия истекла» даже при
+          // пустом теле 401 (иначе _decode кинул бы bare «Ошибка сервера»).
+          throw ApiException(
+            message: 'Сессия истекла. Войдите снова.',
+            code: 'UNAUTHORIZED',
+            statusCode: 401,
+          );
+        case _RefreshOutcome.transient:
+          // Сеть/5xx/битый ответ — сессия МОЖЕТ быть жива. НЕ разлогиниваем:
+          // бросаем сетевую ошибку, UI покажет «повторить».
           throw const ApiException.network();
-        }
       }
     }
     return res;
   }
 
-  Future<bool> _tryRefresh() async {
+  /// Пытается обновить пару токенов. Токены очищаются ТОЛЬКО при явном отказе
+  /// бэка (рефреш-токен невалиден) — на транзиентных сбоях (сеть/5xx) сессия
+  /// сохраняется, чтобы повтор позже подхватил живую сессию (не форсить OTP-релогин).
+  Future<_RefreshOutcome> _tryRefresh() async {
     final tokens = _tokenStore.tokens;
-    if (tokens == null) return false;
+    if (tokens == null) return _RefreshOutcome.authFailed;
+    final http.Response res;
     try {
-      final res = await _client.post(
+      res = await _client.post(
         _uri('/api/mobile/auth/refresh'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'refreshToken': tokens.refreshToken}),
       );
-      if (res.statusCode == 200) {
+    } catch (_) {
+      return _RefreshOutcome.transient; // сетевой сбой — токены не трогаем
+    }
+    if (res.statusCode == 200) {
+      try {
         final json = jsonDecode(res.body) as Map<String, dynamic>;
         _tokenStore.save(AuthTokens.fromJson(json['tokens'] as Map<String, dynamic>));
-        return true;
+        return _RefreshOutcome.ok;
+      } catch (_) {
+        return _RefreshOutcome.transient; // битый ответ — не затираем сессию
+      }
+    }
+    if (_isDefiniteAuthFailure(res)) {
+      _tokenStore.clear(); // рефреш-токен явно невалиден — сессия мертва
+      return _RefreshOutcome.authFailed;
+    }
+    return _RefreshOutcome.transient; // 5xx и неоднозначные — сессию не трогаем
+  }
+
+  /// Бэк явно сказал, что рефреш-токен невалиден: 401/403 ИЛИ машинный код
+  /// INVALID_REFRESH_TOKEN/USER_NOT_FOUND/PHARMACIST_BLOCKED. 5xx — НЕ сюда.
+  bool _isDefiniteAuthFailure(http.Response res) {
+    if (res.statusCode == 401 || res.statusCode == 403) return true;
+    if (res.statusCode >= 500) return false;
+    try {
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      if (body is Map<String, dynamic>) {
+        final code = body['code'] as String?;
+        return code == 'INVALID_REFRESH_TOKEN' ||
+            code == 'USER_NOT_FOUND' ||
+            code == 'PHARMACIST_BLOCKED';
       }
     } catch (_) {
-      // fallthrough → clear
+      // тело не JSON — не считаем явным отказом
     }
-    // Refresh не удался — сессия мертва.
-    _tokenStore.clear();
     return false;
   }
 

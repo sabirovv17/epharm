@@ -55,6 +55,95 @@ void main() {
     });
   });
 
+  group('CatalogProductDetail.fromJson — поля кампании (п.2)', () {
+    test('парсит hasActiveCampaign/bonus/promoId/campaignTitle', () {
+      final d = CatalogProductDetail.fromJson(const {
+        'id': 'p1',
+        'name': 'Larimide Lifting',
+        'price': 12000,
+        'hasActiveCampaign': true,
+        'bonus': 520,
+        'promoId': 'pr_42',
+        'campaignTitle': 'Весенняя акция',
+      });
+      expect(d.hasActiveCampaign, isTrue);
+      expect(d.bonus, 520);
+      expect(d.promoId, 'pr_42');
+      expect(d.campaignTitle, 'Весенняя акция');
+    });
+
+    test('аноним/без кампании → дефолты (bonus/promoId null, hasActiveCampaign false)',
+        () {
+      final d = CatalogProductDetail.fromJson(const {
+        'id': 'p2',
+        'name': 'Везилют',
+      });
+      expect(d.hasActiveCampaign, isFalse);
+      expect(d.bonus, isNull);
+      expect(d.promoId, isNull);
+      expect(d.campaignTitle, isNull);
+    });
+  });
+
+  group('CatalogRecommendation.fromJson — group/hasActiveCampaign (п.7)', () {
+    test('парсит group и hasActiveCampaign', () {
+      final r = CatalogRecommendation.fromJson(const {
+        'product': {'id': 'p1', 'name': 'Допродажа'},
+        'bonus': 300,
+        'hasActiveCampaign': true,
+        'group': 'crosssell_with_campaign',
+      });
+      expect(r.group, 'crosssell_with_campaign');
+      expect(r.hasActiveCampaign, isTrue);
+      expect(r.bonus, 300);
+      expect(r.product.id, 'p1');
+    });
+
+    test('дефолты: group=="alternative", hasActiveCampaign=false', () {
+      final r = CatalogRecommendation.fromJson(const {
+        'product': {'id': 'p2', 'name': 'Замена'},
+      });
+      expect(r.group, 'alternative');
+      expect(r.hasActiveCampaign, isFalse);
+    });
+
+    test('crosssells разбиваются на 2 группы по полю group', () {
+      final recs = CatalogRecommendations.fromJson(const {
+        'alternatives': [
+          {
+            'product': {'id': 'a1', 'name': 'Альт 1'},
+            'group': 'alternative',
+          },
+        ],
+        'crosssells': [
+          {
+            'product': {'id': 'c1', 'name': 'Промо-доп'},
+            'group': 'crosssell_with_campaign',
+            'bonus': 400,
+            'hasActiveCampaign': true,
+          },
+          {
+            'product': {'id': 'c2', 'name': 'Сопутствующий'},
+            'group': 'crosssell_no_campaign',
+          },
+        ],
+      });
+      final upsell = recs.crosssells
+          .where((r) => r.group == 'crosssell_with_campaign')
+          .toList();
+      final companions = recs.crosssells
+          .where((r) => r.group == 'crosssell_no_campaign')
+          .toList();
+      expect(upsell.length, 1);
+      expect(upsell.first.product.id, 'c1');
+      expect(upsell.first.bonus, 400);
+      expect(companions.length, 1);
+      expect(companions.first.product.id, 'c2');
+      expect(companions.first.bonus, isNull);
+      expect(recs.alternatives.length, 1);
+    });
+  });
+
   group('MockCatalogRepository', () {
     final repo = MockCatalogRepository();
 

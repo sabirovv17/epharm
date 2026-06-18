@@ -13,10 +13,18 @@ import 'receipt_review_screen.dart';
 /// Bottom-sheet выбора способа загрузки чека. Открывается из CTA «Загрузить чек»
 /// (в ReceiptsListScreen и в Product Detail).
 ///
+/// [claimedPromoId] — заявленная акция (`pr_*`) для входа из карточки товара
+/// («Получить бонус»). Устанавливается в драфт РОВНО для этого потока загрузки;
+/// для обычного входа (FAB/история) = null → акция очищается, чтобы отменённая
+/// ранее бонус-заявка не «прилипла» к следующему, не связанному с ней чеку.
+///
 /// 2 опции:
 ///   • Сделать фото → реальная CameraScreen.
 ///   • Из галереи → системный image_picker.
-Future<void> showUploadPromptSheet(BuildContext context) {
+Future<void> showUploadPromptSheet(BuildContext context, {String? claimedPromoId}) {
+  ProviderScope.containerOf(context, listen: false)
+      .read(receiptDraftProvider.notifier)
+      .setClaimedPromo(claimedPromoId);
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,

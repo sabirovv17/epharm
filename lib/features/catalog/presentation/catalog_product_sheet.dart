@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
+import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../receipts/presentation/upload_prompt_sheet.dart';
 import '../application/catalog_controller.dart';
 import '../data/catalog_models.dart';
 
@@ -171,6 +173,10 @@ class _CatalogProductSheet extends ConsumerWidget {
             color: d.price == null ? AppColors.ink500 : AppColors.brandGreen700,
           ),
         ),
+        // Бонус + «Получить бонус» (п.2). bonus != null означает: фармацевт авторизован
+        // И у товара активная кампания. Аноним / товар без кампании → bonus == null,
+        // блок не рисуем — карточка как обычно (хендлинг п.1).
+        if (d.bonus != null) _BonusCta(detail: d),
         const SizedBox(height: 14),
         _InfoRow(label: 'Действующее вещество', value: d.mnn),
         _InfoRow(label: 'ATC', value: d.atc),
@@ -390,8 +396,13 @@ class _QaSectionState extends State<_QaSection> {
   }
 }
 
-/// Блок рекомендаций (ДОП.3b): «Альтернативы» (замены) + «Дополнения» (кросс-селл).
-/// Грузится отдельным провайдером; пока нет данных / при ошибке — ничего не рисуем.
+/// Блок рекомендаций (п.7): ТРИ секции в фиксированном порядке.
+///   1) «Можно допродать» — кросс-селл на промоции (group=='crosssell_with_campaign'),
+///      кликабельны (открывают карточку), с бонус-бейджем. Рисуется первой.
+///   2) «Сопутствующие» — кросс-селл без кампании (group=='crosssell_no_campaign'),
+///      инфо-карточки (фото+название), НЕ кликабельны, без бонуса.
+///   3) «Альтернативы» — все замены, инфо-карточки, НЕ кликабельны, без бонуса.
+/// Пустые секции скрыты (без лишних отступов). Грузится отдельным провайдером.
 class _RecommendationsSections extends ConsumerWidget {
   const _RecommendationsSections({required this.id});
   final String id;
@@ -401,22 +412,44 @@ class _RecommendationsSections extends ConsumerWidget {
     final recs = ref.watch(catalogRecommendationsProvider(id)).valueOrNull ??
         CatalogRecommendations.empty;
     if (recs.isEmpty) return const SizedBox.shrink();
+
+    // Разбиваем кросс-селл на две группы по полю group.
+    final upsell = recs.crosssells
+        .where((r) => r.group == 'crosssell_with_campaign')
+        .toList();
+    final companions = recs.crosssells
+        .where((r) => r.group == 'crosssell_no_campaign')
+        .toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (upsell.isNotEmpty)
+          _RecoSection(
+            title: 'Можно допродать',
+            subtitle: 'Тоже на промоции',
+            icon: Icons.add_circle_outline_rounded,
+            items: upsell,
+            clickable: true, // открывают карточку
+            showBonus: true,
+          ),
+        if (companions.isNotEmpty)
+          _RecoSection(
+            title: 'Сопутствующие',
+            subtitle: 'Что предложить вместе',
+            icon: Icons.inventory_2_outlined,
+            items: companions,
+            clickable: false, // инфо: только фото+название
+            showBonus: false,
+          ),
         if (recs.alternatives.isNotEmpty)
           _RecoSection(
             title: 'Альтернативы',
             subtitle: 'Чем можно заменить',
             icon: Icons.swap_horiz_rounded,
             items: recs.alternatives,
-          ),
-        if (recs.crosssells.isNotEmpty)
-          _RecoSection(
-            title: 'Дополнения',
-            subtitle: 'Что предложить вместе',
-            icon: Icons.add_circle_outline_rounded,
-            items: recs.crosssells,
+            clickable: false, // инфо: только фото+название
+            showBonus: false,
           ),
       ],
     );
@@ -429,12 +462,20 @@ class _RecoSection extends StatelessWidget {
     required this.subtitle,
     required this.icon,
     required this.items,
+    required this.clickable,
+    required this.showBonus,
   });
 
   final String title;
   final String subtitle;
   final IconData icon;
   final List<CatalogRecommendation> items;
+
+  /// Карточки секции открывают деталь товара по тапу (true) или это инфо-карточки (false).
+  final bool clickable;
+
+  /// Показывать ли бонус-бейдж в карточке (только для секции «Можно допродать»).
+  final bool showBonus;
 
   @override
   Widget build(BuildContext context) {
@@ -468,7 +509,11 @@ class _RecoSection extends StatelessWidget {
             padding: EdgeInsets.zero,
             itemCount: items.length,
             separatorBuilder: (_, __) => const SizedBox(width: 12),
-            itemBuilder: (_, i) => _RecoCard(item: items[i]),
+            itemBuilder: (_, i) => _RecoCard(
+              item: items[i],
+              clickable: clickable,
+              showBonus: showBonus,
+            ),
           ),
         ),
       ],
@@ -477,79 +522,176 @@ class _RecoSection extends StatelessWidget {
 }
 
 class _RecoCard extends StatelessWidget {
-  const _RecoCard({required this.item});
+  const _RecoCard({
+    required this.item,
+    required this.clickable,
+    required this.showBonus,
+  });
   final CatalogRecommendation item;
+  final bool clickable;
+  final bool showBonus;
 
   @override
   Widget build(BuildContext context) {
     final p = item.product;
-    return SizedBox(
-      width: 132,
-      child: Material(
-        color: Colors.white,
+    // Тап только у кликабельной секции и при валидном id (битый JSON → пустой id,
+    // иначе открылась бы карточка с пустым medusa-id и ошибкой).
+    final onTap = (clickable && p.id.isNotEmpty)
+        ? () => showCatalogProductSheet(context, p.id)
+        : null;
+
+    final card = Container(
+      decoration: BoxDecoration(
         borderRadius: AppRadii.brXl,
-        child: InkWell(
-          borderRadius: AppRadii.brXl,
-          // Тап по рекомендации открывает её карточку поверх текущей. Guard на пустой
-          // id (битый JSON) — иначе открылась бы карточка с пустым medusa-id и ошибкой.
-          onTap: p.id.isEmpty ? null : () => showCatalogProductSheet(context, p.id),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: AppRadii.brXl,
-              border: Border.all(color: AppColors.paperInput, width: 1),
-            ),
-            clipBehavior: Clip.antiAlias,
+        border: Border.all(color: AppColors.paperInput, width: 1),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AspectRatio(
+            aspectRatio: 3 / 4,
+            child: _RecoThumb(url: p.imageUrl, name: p.name),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                AspectRatio(
-                  aspectRatio: 3 / 4,
-                  child: _RecoThumb(url: p.imageUrl, name: p.name),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        p.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontFamily: 'Manrope',
-                          fontFamilyFallback: ['Roboto', 'sans-serif'],
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.ink900,
-                          height: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        catalogPriceLabel(p.price, currency: p.currency),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: 'Manrope',
-                          fontFamilyFallback: const ['Roboto', 'sans-serif'],
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          color: p.price == null
-                              ? AppColors.ink500
-                              : AppColors.brandGreen700,
-                        ),
-                      ),
-                      if (item.bonus != null) ...[
-                        const SizedBox(height: 6),
-                        _BonusBadge(bonus: item.bonus!),
-                      ],
-                    ],
+                Text(
+                  p.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'Manrope',
+                    fontFamilyFallback: ['Roboto', 'sans-serif'],
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.ink900,
+                    height: 1.2,
                   ),
                 ),
+                const SizedBox(height: 4),
+                Text(
+                  catalogPriceLabel(p.price, currency: p.currency),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Manrope',
+                    fontFamilyFallback: const ['Roboto', 'sans-serif'],
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: p.price == null
+                        ? AppColors.ink500
+                        : AppColors.brandGreen700,
+                  ),
+                ),
+                if (showBonus && item.bonus != null) ...[
+                  const SizedBox(height: 6),
+                  _BonusBadge(bonus: item.bonus!),
+                ],
               ],
             ),
           ),
-        ),
+        ],
+      ),
+    );
+
+    return SizedBox(
+      width: 132,
+      // Некликабельные секции (сопутствующие/альтернативы) — это инфо-карточки
+      // (фото+название): без ripple/InkWell, чтобы не намекать на действие.
+      child: onTap == null
+          ? card
+          : Material(
+              color: Colors.white,
+              borderRadius: AppRadii.brXl,
+              child: InkWell(
+                borderRadius: AppRadii.brXl,
+                onTap: onTap,
+                child: card,
+              ),
+            ),
+    );
+  }
+}
+
+/// Блок бонуса в карточке товара (п.2): бейдж «Бонус N ₸» (заливка brandGreen600,
+/// как _GridBonusPill) + крупная кнопка «Получить бонус». По нажатию:
+///   • закрываем стопку sheet'ов (popUntil до корня навигатора);
+///   • проставляем выбранную акцию в драфт чека (setClaimedPromo → promoIds=[promoId]);
+///   • открываем загрузку чека (showUploadPromptSheet поверх корня).
+/// Navigator/ref захватываем ДО pop — после закрытия sheet'а контекст невалиден.
+class _BonusCta extends StatelessWidget {
+  const _BonusCta({required this.detail});
+  final CatalogProductDetail detail;
+
+  void _claim(BuildContext context) {
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    final rootContext = rootNav.context;
+    final promoId = detail.promoId;
+    // Сворачиваем все модальные sheet'ы (карточка + вложенные карточки) до корня
+    // и открываем загрузку чека, передав заявленную акцию РОВНО для этого потока.
+    // showUploadPromptSheet сам проставит/очистит promoId в драфте — акция не
+    // «переживёт» отмену и не уйдёт со следующим, не связанным с ней чеком.
+    rootNav.popUntil((route) => route.isFirst);
+    showUploadPromptSheet(rootContext, claimedPromoId: promoId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Бейдж «Бонус N ₸» — стиль _GridBonusPill (заливка основным зелёным).
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+            decoration: BoxDecoration(
+              color: AppColors.brandGreen600,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              'Бонус ${catalogPriceLabel(detail.bonus!)}',
+              style: const TextStyle(
+                fontFamily: 'Manrope',
+                fontFamilyFallback: ['Roboto', 'sans-serif'],
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Крупная кнопка «Получить бонус» — стиль основной CTA (как _ContinueCta).
+          Material(
+            color: AppColors.brandGreen600,
+            borderRadius: AppRadii.brFull,
+            child: InkWell(
+              borderRadius: AppRadii.brFull,
+              onTap: () => _claim(context),
+              child: Container(
+                height: 56,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  borderRadius: AppRadii.brFull,
+                  boxShadow: AppShadows.fab,
+                ),
+                child: const Text(
+                  'Получить бонус',
+                  style: TextStyle(
+                    fontFamily: 'Manrope',
+                    fontFamilyFallback: ['Roboto', 'sans-serif'],
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

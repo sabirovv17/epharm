@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pharmacy/features/home/application/home_controller.dart';
-import 'package:pharmacy/features/home/data/home_repository.dart' show Promo;
+import 'package:pharmacy/features/home/data/banner_model.dart';
 import 'package:pharmacy/features/home/presentation/home_screen.dart';
 import 'package:pharmacy/features/promotions/application/promotions_controller.dart';
 import 'package:pharmacy/features/promotions/data/promotion_models.dart';
@@ -26,7 +26,7 @@ void main() {
           calls++;
           return calls == 1 ? const [_a] : const [_a, _b];
         }),
-        promoListProvider.overrideWith((ref) async => const <Promo>[]),
+        bannerListProvider.overrideWith((ref) async => const <BannerModel>[]),
       ],
     );
     addTearDown(container.dispose);
@@ -71,7 +71,7 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         promotionsProvider.overrideWith((ref) async => const [_a]),
-        promoListProvider.overrideWith((ref) async => const <Promo>[]),
+        bannerListProvider.overrideWith((ref) async => const <BannerModel>[]),
       ],
     );
     addTearDown(container.dispose);

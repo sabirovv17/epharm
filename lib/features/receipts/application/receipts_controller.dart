@@ -40,6 +40,7 @@ class ReceiptDraft {
   const ReceiptDraft({
     this.photoPath,
     this.card,
+    this.promoIds = const [],
   });
 
   final String? photoPath;
@@ -47,6 +48,11 @@ class ReceiptDraft {
   /// Отформатированная маска «1234 5678 9012 3456» (с пробелами). Без пробелов
   /// 16 цифр == валидно.
   final String? card;
+
+  /// Заявленные фармацевтом акции (`pr_*`) — проставляются из карточки товара
+  /// кнопкой «Получить бонус». Тихо уходят в multipart-поле `promoIds` при submit.
+  /// Пусто — система матчит акции сама (ДОП.8); это лишь подсказка.
+  final List<String> promoIds;
 
   /// Карта привязана И проходит алгоритм Луна (та же проверка, что в CardSheet).
   bool get hasCard => isValidCardNumber(card);
@@ -58,11 +64,14 @@ class ReceiptDraft {
   ReceiptDraft copyWith({
     String? photoPath,
     String? card,
+    List<String>? promoIds,
     bool clearPhoto = false,
+    bool clearPromo = false,
   }) =>
       ReceiptDraft(
         photoPath: clearPhoto ? null : (photoPath ?? this.photoPath),
         card: card ?? this.card,
+        promoIds: clearPromo ? const [] : (promoIds ?? this.promoIds),
       );
 }
 
@@ -75,6 +84,15 @@ class ReceiptDraftNotifier extends Notifier<ReceiptDraft> {
   }
 
   void setPhoto(String path) => state = state.copyWith(photoPath: path);
+
+  /// Устанавливает заявленную акцию для ТЕКУЩЕГО потока загрузки чека.
+  /// Вызывается ОДИН раз на входе в загрузку (`showUploadPromptSheet`): для входа
+  /// с «Получить бонус» — id акции, для обычного входа (FAB/история) — null →
+  /// очищает. Это закрывает баг «осиротевшего promoId»: отменённая ранее
+  /// бонус-заявка не «прилипает» к следующему, не связанному с ней чеку.
+  void setClaimedPromo(String? id) => state = (id != null && id.isNotEmpty)
+      ? state.copyWith(promoIds: [id])
+      : state.copyWith(clearPromo: true);
 
   /// Принимает форматированный номер «1234 5678 9012 3456». Card persists
   /// между submission'ами в рамках сессии — её НЕ обнуляет `reset()` по

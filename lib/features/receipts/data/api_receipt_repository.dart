@@ -26,6 +26,7 @@ class ApiReceiptRepository implements ReceiptRepository {
   Future<Receipt> submitReceipt({
     required String title,
     String? photoPath,
+    List<String>? promoIds,
   }) async {
     List<int>? bytes;
     if (photoPath != null) {
@@ -33,9 +34,13 @@ class ApiReceiptRepository implements ReceiptRepository {
       if (await file.exists()) bytes = await file.readAsBytes();
     }
     // ДОП.8: только фото. Аптеку backend берёт из профиля, акции матчит сам.
+    // promoIds (CSV) — необязательная подсказка о заявленных акциях из карточки товара.
     final json = await _client.postMultipart(
       '/api/mobile/receipts',
-      fields: const <String, String>{},
+      fields: <String, String>{
+        if (promoIds != null && promoIds.isNotEmpty)
+          'promoIds': promoIds.join(','),
+      },
       fileBytes: bytes,
       fileField: bytes != null ? 'file' : null,
       fileName: 'receipt.jpg',

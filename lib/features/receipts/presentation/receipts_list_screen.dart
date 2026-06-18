@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_gradients.dart';
@@ -9,6 +10,7 @@ import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/pharma_logo.dart';
+import '../../auth/application/auth_controller.dart';
 import '../application/receipts_controller.dart';
 import '../data/receipt_repository.dart';
 import 'receipt_detail_sheet.dart';
@@ -69,12 +71,7 @@ class ReceiptsListScreen extends ConsumerWidget {
                     displacement: 32,
                     child: receiptsAsync.when(
                       loading: () => const _LoadingList(),
-                      error: (e, _) => _ErrorList(
-                        message: e is ApiException
-                            ? e.message
-                            : 'Не удалось загрузить чеки. Проверьте соединение.',
-                        onRetry: () => ref.invalidate(receiptListProvider),
-                      ),
+                      error: (e, _) => _buildError(ref, e),
                       data: (list) {
                         if (list.isEmpty) {
                           return const _EmptyStateScrollable();
@@ -146,6 +143,32 @@ class ReceiptsListScreen extends ConsumerWidget {
       ),
     );
   }
+
+  /// Выбор экрана ошибки. Истёкшую сессию (401/UNAUTHORIZED) и запрет доступа
+  /// (403/FORBIDDEN) показываем отдельным дружелюбным экраном с кнопкой входа —
+  /// чтобы приложение само восстанавливалось перелогином по OTP (см. фикс
+  /// ротации app.jwt.secret), а не пугало пользователя «Ошибкой сервера».
+  Widget _buildError(WidgetRef ref, Object error) {
+    if (error is ApiException) {
+      final isUnauthorized =
+          error.statusCode == 401 || error.code == 'UNAUTHORIZED';
+      final isForbidden =
+          error.statusCode == 403 || error.code == 'FORBIDDEN';
+      if (isUnauthorized || isForbidden) {
+        return _SessionExpired(forbidden: isForbidden);
+      }
+      // Прочие ошибки бэка — показываем его сообщение как есть.
+      return _ErrorList(
+        message: error.message,
+        onRetry: () => ref.invalidate(receiptListProvider),
+      );
+    }
+    // Не-ApiException (парсинг/неизвестное) — обобщённое сообщение о сети.
+    return _ErrorList(
+      message: 'Не удалось загрузить чеки. Проверьте соединение.',
+      onRetry: () => ref.invalidate(receiptListProvider),
+    );
+  }
 }
 
 /// Скроллящийся пустой контейнер на время loading — чтобы RefreshIndicator
@@ -210,6 +233,111 @@ class _ErrorList extends StatelessWidget {
                     ),
                   ),
                 ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Экран «сессия истекла / доступ запрещён». Показывается когда история чеков
+/// упала на 401 (UNAUTHORIZED) или 403 (FORBIDDEN). Вместо пугающей «Ошибки
+/// сервера» — дружелюбное объяснение + кнопка входа: чистим сессию через
+/// [CurrentUserNotifier.logout] (он же затирает токены) и уводим на /welcome.
+/// Так приложение само-восстанавливается перелогином по OTP.
+class _SessionExpired extends ConsumerWidget {
+  const _SessionExpired({this.forbidden = false});
+
+  /// 403/FORBIDDEN — текст про запрет доступа; иначе — про истёкшую сессию.
+  final bool forbidden;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final title = forbidden ? 'Доступ запрещён' : 'Сессия истекла';
+    final subtitle = forbidden
+        ? 'Недостаточно прав для просмотра чеков. Войдите под своим аккаунтом.'
+        : 'Похоже, вы давно не заходили. Войдите снова, чтобы увидеть свои чеки.';
+
+    void onLogin() {
+      // Захватываем router ДО смены состояния — logout перерисует дерево.
+      final router = GoRouter.of(context);
+      ref.read(currentUserProvider.notifier).logout();
+      router.go('/welcome');
+    }
+
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        const SizedBox(height: 100),
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  forbidden
+                      ? Icons.lock_outline_rounded
+                      : Icons.lock_clock_outlined,
+                  size: 48,
+                  color: AppColors.ink400,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: 'Manrope',
+                    fontFamilyFallback: ['Roboto', 'sans-serif'],
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.ink900,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  subtitle,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: 'Manrope',
+                    fontFamilyFallback: ['Roboto', 'sans-serif'],
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.ink500,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                // Primary-кнопка входа в стиле CTA (brandGreen600, pill).
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: onLogin,
+                    borderRadius: BorderRadius.circular(99),
+                    child: Container(
+                      height: 52,
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      decoration: BoxDecoration(
+                        color: AppColors.brandGreen600,
+                        borderRadius: BorderRadius.circular(99),
+                        boxShadow: AppShadows.fab,
+                      ),
+                      child: const Text(
+                        'Войти снова',
+                        style: TextStyle(
+                          fontFamily: 'Manrope',
+                          fontFamilyFallback: ['Roboto', 'sans-serif'],
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

@@ -69,6 +69,45 @@ void main() {
     await tmp.delete();
   });
 
+  test('submitReceipt с promoIds шлёт CSV-поле promoIds', () async {
+    final tmp = await File('${Directory.systemTemp.path}/epharm_r_promo.jpg')
+        .writeAsBytes([1, 2, 3, 4]);
+    final repo = _repo(MockClient((req) async {
+      expect(req.method, 'POST');
+      expect(req.headers['content-type'], contains('multipart/form-data'));
+      // Заявленные акции уходят CSV-полем promoIds (подсказка для бэка).
+      expect(req.body, contains('name="promoIds"'));
+      expect(req.body, contains('pr_1,pr_2'));
+      return http.Response(
+        jsonEncode({'id': 'rcp_2', 'status': 'inReview', 'productName': 'X', 'sku': 'p_x', 'amount': 0, 'createdAt': '2026-06-09T10:00:00Z', 'pharmacyName': 'Аптека'}),
+        201,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }));
+    final r = await repo.submitReceipt(
+      title: 'Чек',
+      photoPath: tmp.path,
+      promoIds: const ['pr_1', 'pr_2'],
+    );
+    expect(r.id, 'rcp_2');
+    await tmp.delete();
+  });
+
+  test('submitReceipt с пустым promoIds НЕ шлёт поле promoIds', () async {
+    final tmp = await File('${Directory.systemTemp.path}/epharm_r_empty.jpg')
+        .writeAsBytes([1, 2, 3, 4]);
+    final repo = _repo(MockClient((req) async {
+      expect(req.body, isNot(contains('promoIds')));
+      return http.Response(
+        jsonEncode({'id': 'rcp_3', 'status': 'inReview', 'productName': 'X', 'sku': 'p_x', 'amount': 0, 'createdAt': '2026-06-09T10:00:00Z', 'pharmacyName': 'Аптека'}),
+        201,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }));
+    await repo.submitReceipt(title: 'Чек', photoPath: tmp.path, promoIds: const []);
+    await tmp.delete();
+  });
+
   test('ошибка сервера → ApiException пробрасывается', () async {
     final repo = _repo(MockClient((req) async => http.Response(
           jsonEncode({'code': 'VALIDATION_FAILED', 'message': 'Нужно фото чека'}),

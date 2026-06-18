@@ -142,6 +142,10 @@ class CatalogProductDetail {
     this.keyFacts = const [],
     this.marketplaceLinks = const [],
     this.qa = const [],
+    this.hasActiveCampaign = false,
+    this.bonus,
+    this.promoId,
+    this.campaignTitle,
   });
 
   final String id;
@@ -162,6 +166,19 @@ class CatalogProductDetail {
   final List<String> keyFacts;
   final List<CatalogMarketplaceLink> marketplaceLinks;
   final List<CatalogQaItem> qa;
+
+  /// У товара есть активная кампания (промо). Не зависит от авторизации.
+  final bool hasActiveCampaign;
+
+  /// Бонус фармацевту за продажу по активной кампании, ₸. Приходит ТОЛЬКО
+  /// авторизованному (аноним → null). null → блок «Получить бонус» не рисуем.
+  final int? bonus;
+
+  /// Id акции (`pr_*`) — пробрасываем в чек как заявленную акцию. null — нет кампании.
+  final String? promoId;
+
+  /// Заголовок кампании (для подписи блока бонуса). null — нет кампании.
+  final String? campaignTitle;
 
   bool get isRx => (rxOtc ?? '').toLowerCase() == 'rx';
 
@@ -193,12 +210,22 @@ class CatalogProductDetail {
             .whereType<Map<String, dynamic>>()
             .map(CatalogQaItem.fromJson)
             .toList(),
+        hasActiveCampaign: j['hasActiveCampaign'] as bool? ?? false,
+        bonus: (j['bonus'] as num?)?.toInt(),
+        promoId: j['promoId'] as String?,
+        campaignTitle: j['campaignTitle'] as String?,
       );
 }
 
 /// Одна рекомендация в карточке товара (ДОП.3b): товар-рекомендация + подсказка + бонус.
 class CatalogRecommendation {
-  const CatalogRecommendation({required this.product, this.note, this.bonus});
+  const CatalogRecommendation({
+    required this.product,
+    this.note,
+    this.bonus,
+    this.hasActiveCampaign = false,
+    this.group = 'alternative',
+  });
 
   final CatalogProduct product;
 
@@ -208,6 +235,15 @@ class CatalogRecommendation {
   /// Бонус фармацевту за рекомендацию, ₸; null — не показываем бейдж.
   final int? bonus;
 
+  /// У рекомендованного товара есть активная кампания (промо).
+  final bool hasActiveCampaign;
+
+  /// Группа рекомендации (определяет секцию в карточке):
+  ///  - `alternative` — замена;
+  ///  - `crosssell_with_campaign` — допродажа на промоции (кликабельна, с бонусом);
+  ///  - `crosssell_no_campaign` — сопутствующий товар (инфо, без бонуса).
+  final String group;
+
   factory CatalogRecommendation.fromJson(Map<String, dynamic> j) =>
       CatalogRecommendation(
         product: CatalogProduct.fromJson(
@@ -215,6 +251,8 @@ class CatalogRecommendation {
         ),
         note: j['note'] as String?,
         bonus: (j['bonus'] as num?)?.toInt(),
+        hasActiveCampaign: j['hasActiveCampaign'] as bool? ?? false,
+        group: j['group'] as String? ?? 'alternative',
       );
 }
 

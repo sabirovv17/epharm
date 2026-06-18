@@ -704,3 +704,76 @@ xattr `com.apple.FinderInfo`/`fileprovider`, а `codesign` их отвергае
   зелёном (белый чек + синий ⊕) и на белом (зелёный контур). Имя бренда не финал — показываем знак.
   Admin: Sidebar/LoginPage тоже без текста «Epharm» (остался глиф Logo), тесты обновлены.
 - Деплой 2026-06-17: admin-frontend (логотип) + iOS на iPhone + APK. Backend не трогали. Flutter 62/62.
+
+## 2026-06-18 — Батч 8 правок (мобилка)
+
+Backend-контракт этого батча — в `admin-panel/claude-admin-notes.md` (раздел 2026-06-18).
+
+### Home (`features/home`)
+
+- **Шапка (п.3)**: убран декоративный `PharmaLogo` + gap из `_Header` — карточка баланса встаёт
+  сразу под статус-баром (`SafeArea(top)` оставлен). Лишний зелёный воздух убран.
+- **Пилюли/сортировка (п.4)**: удалены пилюли «Альтернативы»/«Дополнения» и весь механизм `RecoPool`
+  (`RecoPoolNotifier`/`homeRecoPoolProvider`/`_CatalogPoolSliver`/`_filterCatalog`). Добавлена опция
+  сортировки `CatalogSort.bonusDesc` («По сумме бонуса») — в `applyPromotionFilters` сорт по убыванию
+  макс. бонуса промо (`p.tiers` max). `sort_sheet` рендерит `CatalogSort.values` — опция появилась сама.
+- **Баннеры (п.5)**: `promoListProvider`/`HomeRepository.loadPromos`/мок-`Promo` УДАЛЕНЫ. Новые
+  `banner_model.dart` (`BannerModel{id,title,subtitle?,imageUrl,detailMd?}`) + `banner_repository.dart`
+  (`ApiBannerRepository` → `GET /api/mobile/banners`, публичный; `MockBannerRepository` → пустой список),
+  `bannerListProvider`. `PromoCarousel` теперь рисует реальную карточку (`Image.network` + cacheWidth +
+  fallback) и **скрывается при пустом/loading/error** (`SizedBox.shrink` — нет пустой щели на Home).
+  Тап → `_BannerFullscreenScreen(banner)` (картинка + title + subtitle + detailMd). `refreshHomeData`
+  инвалидирует `bannerListProvider`.
+
+### Карточка товара (`catalog_product_sheet.dart`)
+
+- **3 секции (п.7)**: `CatalogRecommendation` +`group`/`hasActiveCampaign`. `_RecommendationsSections`
+  → «Можно допродать» (`crosssell_with_campaign`, КЛИКАБЕЛЬНЫ, бонус-бейдж, первыми) → «Сопутствующие»
+  (`crosssell_no_campaign`, фото+название, НЕ кликабельны) → «Альтернативы» (замены, фото+название, НЕ
+  кликабельны). `_RecoCard`: некликабельные — без `InkWell`/ripple (инфо-карточки).
+- **Бонус + CTA (п.2)**: `CatalogProductDetail` +`hasActiveCampaign`/`bonus`/`promoId`/`campaignTitle`.
+  При `detail.bonus != null` (авторизован + активная кампания) — `_BonusCta`: бейдж «Бонус N ₸» +
+  кнопка «Получить бонус». Тап: захват rootNav/notifier ДО pop → `setClaimedPromo(promoId)` →
+  `popUntil(isFirst)` → `showUploadPromptSheet` (чек учтёт акцию). `bonus==null` (аноним/без кампании)
+  → блок не рисуется (это и есть отображение «товара без кампании», п.1).
+- Канал promoIds: `ReceiptDraft.promoIds` + `setClaimedPromo`; `submitReceipt(promoIds:)` →
+  `api_receipt_repository` multipart-поле `promoIds`; `receipt_review_screen._submit` шлёт `draft.promoIds`.
+
+### Чеки (п.6 — «Ошибка сервера»)
+
+- Бэк теперь отдаёт JSON `{code,message}` на 401/403 (см. admin-notes). Мобилка: `api_client`
+  на 401 после неуспешного refresh бросает типизированный `ApiException(code:UNAUTHORIZED)`;
+  `receipts_list_screen` различает 401/`UNAUTHORIZED` → «Сессия истекла» + кнопка «Войти снова»
+  (чистит сессию, ведёт на `/welcome`), 403/`FORBIDDEN` → «Доступ запрещён», прочее → message бэка.
+  ⚠️ Прод-первопричина была — невалидные токены после редеплоя (вероятна ротация `app.jwt.secret`);
+  UX-фикс делает приложение само-восстанавливающимся (перелогин по OTP). **Зафиксировать
+  `app.jwt.secret` в `.env.prod` и не менять между деплоями.**
+
+### Карточка `DraggableScrollableSheet` — ловушка тестов
+
+- Карточка — `DraggableScrollableSheet` + ленивый `ListView`: контент ниже сгиба (бонус-блок после
+  большого фото, секции рекомендаций) НЕ строится в дефолтном 800×600 вьюпорте. В widget-тестах
+  ставить `tester.binding.setSurfaceSize(Size(1080, 3200))` (с `addTearDown(reset)`), иначе ассерты на
+  ПРИСУТСТВИЕ падают, а на ОТСУТСТВИЕ — вакуумно проходят (ложно-зелёные).
+
+### Адверсариал-ревью батча — 3 мобильных фикса (рантайм-стыки, юнит-тесты не ловили)
+
+- **#1 Осиротевший promoId (HIGH)**: `setClaimedPromo` писал акцию в singleton-драфт сразу при
+  тапе «Получить бонус»; при отмене камеры/галереи/sheet акция «прилипала» и уходила со СЛЕДУЮЩИМ,
+  не связанным чеком (FAB/история). Фикс: `showUploadPromptSheet(ctx, {claimedPromoId})` устанавливает
+  акцию РОВНО для своего потока (через `ProviderScope.containerOf` → `setClaimedPromo(id?)`); не-бонусный
+  вход → `null` → очистка (`copyWith(clearPromo:true)`). `_BonusCta` больше не пишет в драфт напрямую.
+- **#2 Конкурентные 401 (HIGH)**: `/me` + `/promotions` на Home ловили 401 одновременно → 2 независимых
+  refresh; второй слал уже отозванный ротацией refresh-токен → INVALID → `clear()` затирал свежую пару
+  → ложный разлогин. Фикс: single-flight `Future<_RefreshOutcome>? _refreshInFlight` в `ApiClient` —
+  конкурентные 401 ждут ОДИН refresh.
+- **#3 Транзиентный сбой refresh (HIGH)**: любой неуспех refresh (сеть/5xx) чистил токены → форс
+  OTP-релогин. Фикс: `_tryRefresh` возвращает `ok|authFailed|transient`; токены чистим ТОЛЬКО при явном
+  отказе (401/403 или код INVALID_REFRESH_TOKEN/USER_NOT_FOUND/PHARMACIST_BLOCKED); на сети/5xx →
+  `transient` → бросаем сетевую ошибку (UI «повторить»), сессию НЕ трогаем.
+- Тесты: `api_client_test` +2 (транзиентный 5xx сохраняет сессию; single-flight = 1 refresh на 2
+  запроса), `receipts_controller_test` +3 (setClaimedPromo(null/'') очищает, copyWith(clearPromo)).
+
+### Верификация
+
+- `flutter analyze lib test` — чисто. `flutter test` — **+95 All tests passed**.

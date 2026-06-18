@@ -95,8 +95,13 @@ abstract interface class ReceiptRepository {
   /// ДОП.8: аптеку и акции система определяет сама (аптека из профиля, товары —
   /// POSM-бронь/OCR). Mock кладёт чек локально; API делает multipart-upload фото,
   /// backend прогоняет его через ReconcileService (логи Стандарт-Н + Excel + модерация).
+  ///
+  /// [promoIds] — заявленные фармацевтом акции (`pr_*`) из карточки товара
+  /// (кнопка «Получить бонус»). Опционально: backend всё равно матчит акции сам,
+  /// это лишь подсказка. Пусто/null → поле не отправляем.
   Future<Receipt> submitReceipt({
     required String title,
     String? photoPath,
+    List<String>? promoIds,
   });
 }

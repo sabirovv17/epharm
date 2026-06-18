@@ -1,61 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// ─── Promo carousel models (3 kinds: info / huggies / kotex) ────────────────
-sealed class Promo {
-  const Promo({required this.id, required this.background});
-  final String id;
-  final LinearGradient background;
-}
-
-class InfoPromo extends Promo {
-  const InfoPromo({
-    required super.id,
-    required super.background,
-    required this.title,
-    required this.subtitle,
-    required this.note,
-  });
-
-  final String title;
-  final String subtitle;
-  final String note;
-}
-
-class HuggiesPromo extends Promo {
-  const HuggiesPromo({
-    required super.id,
-    required super.background,
-    required this.title,
-    required this.subtitle,
-    required this.period,
-    required this.amount,
-    required this.footer,
-  });
-
-  final String title;
-  final String subtitle;
-  final String period;
-  final String amount;
-  final String footer;
-}
-
-class KotexPromo extends Promo {
-  const KotexPromo({
-    required super.id,
-    required super.background,
-    required this.title,
-    required this.subtitle,
-    required this.period,
-    required this.amount,
-    required this.footer,
-  });
-
-  final String title;
-  final String subtitle;
-  final String period;
-  final String amount;
-  final String footer;
-}
+// NB: промо-карусель Home переведена на реальные баннеры из API
+// (`banner_model.dart` / `bannerListProvider`). Старые мок-классы Promo
+// (InfoPromo/HuggiesPromo/KotexPromo) и HomeRepository.loadPromos удалены.
 
 /// ─── Product catalog ────────────────────────────────────────────────────────
 
@@ -115,11 +62,6 @@ class Product {
 /// ─── Repository ─────────────────────────────────────────────────────────────
 
 class HomeRepository {
-  Future<List<Promo>> loadPromos() async {
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    return _promos;
-  }
-
   Future<List<Product>> loadProducts() async {
     await Future<void>.delayed(const Duration(milliseconds: 300));
     return _products;
@@ -131,46 +73,6 @@ class HomeRepository {
   }
 
   Future<List<String>> loadSortOptions() async => _sortOptions;
-
-  static const _promos = <Promo>[
-    InfoPromo(
-      id: 'p1',
-      background: LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Color(0xFFFAF6E4), Color(0xFFF2EEDA)],
-      ),
-      title: 'Важная информация',
-      subtitle: 'Проведена плановая проверка транзакций за 2025 год.',
-      note: 'Подробная информация доступна на сайте.',
-    ),
-    HuggiesPromo(
-      id: 'p2',
-      background: LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Color(0xFFF2E2BA), Color(0xFFE2C28C)],
-      ),
-      title: 'Huggies трусик-жөргектері мен',
-      subtitle: 'Kotex-пен бірге 50 000 тг кепілді',
-      period: '01.04.2026 – 31.05.2026',
-      amount: '50000₸',
-      footer: 'Гарантированно 50 000 тг вместе',
-    ),
-    KotexPromo(
-      id: 'p3',
-      background: LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Color(0xFFE94A4A), Color(0xFFC5292B)],
-      ),
-      title: 'Күн сайын',
-      subtitle: '10 000 тг бонус',
-      period: '01.04.2026 – 31.05.2026',
-      amount: '10000₸',
-      footer: 'На каждый день — с бонусом 10 000 тг',
-    ),
-  ];
 
   static const _products = <Product>[
     Product(

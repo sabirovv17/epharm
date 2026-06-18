@@ -19,6 +19,11 @@ bool _meaningful(String s) {
   return t.isNotEmpty && t != '-' && t != '—' && t != '_' && t.toLowerCase() != 'none';
 }
 
+/// Максимальный бонус промо (по всем порогам) — как считается в карточке
+/// (promo_product_card.dart:305). Используется сортировкой «По сумме бонуса».
+int _maxBonus(Promotion p) =>
+    p.tiers.fold<int>(0, (m, t) => t.bonus > m ? t.bonus : m);
+
 /// Бренды для фильтра — из ПУЛА промо (а не из всего каталога Medusa).
 final promoBrandsProvider = Provider<List<String>>((ref) {
   final items = ref.watch(promotionsProvider).valueOrNull ?? const [];
@@ -70,6 +75,10 @@ List<Promotion> applyPromotionFilters({
       list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     case CatalogSort.nameDesc:
       list.sort((a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase()));
+    case CatalogSort.bonusDesc:
+      // По убыванию МАКСИМАЛЬНОГО бонуса промо (как считается в карточке —
+      // promo_product_card.dart:305). Промо без порогов → бонус 0.
+      list.sort((a, b) => _maxBonus(b).compareTo(_maxBonus(a)));
   }
   return list;
 }

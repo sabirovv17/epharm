@@ -36,9 +36,11 @@ class ReceiptReviewScreen extends ConsumerWidget {
     try {
       // Репозиторий делает multipart-upload только фото (ДОП.8). Аптеку backend берёт из
       // профиля, товары/акции матчит сам; сумму подтверждает сверка на сервере.
+      // promoIds — тихая подсказка о заявленной акции (кнопка «Получить бонус» в карточке).
       await repo.submitReceipt(
         title: 'Чек',
         photoPath: draft.photoPath,
+        promoIds: draft.promoIds,
       );
     } catch (_) {
       // Сеть/сервер недоступны — показываем ошибку, draft не теряем (можно повторить).

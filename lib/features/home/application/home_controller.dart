@@ -1,26 +1,38 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../data/home_repository.dart';
+import '../../../core/config/api_config.dart';
+import '../../../core/network/api_client.dart';
+import '../data/banner_model.dart';
+import '../data/banner_repository.dart';
 
-final homeRepositoryProvider = Provider<HomeRepository>((ref) => HomeRepository());
+/// Репозиторий баннеров: реальный API при USE_API=true, иначе офлайн-mock.
+final bannerRepositoryProvider = Provider<BannerRepository>((ref) {
+  if (ApiConfig.useApi) {
+    return ApiBannerRepository(ref.read(apiClientProvider));
+  }
+  return MockBannerRepository();
+});
 
-/// Промо-карусель (баннеры) — отдельная сущность от ленты акций.
-final promoListProvider = FutureProvider<List<Promo>>(
-  (ref) => ref.read(homeRepositoryProvider).loadPromos(),
+/// Промо-карусель главной = баннеры из админки (`GET /api/mobile/banners`).
+/// Пустой список → карусель скрывается (см. home_screen.dart).
+final bannerListProvider = FutureProvider<List<BannerModel>>(
+  (ref) => ref.read(bannerRepositoryProvider).list(),
 );
 
 // NB: productListProvider (мок-каталог) удалён — и лента Home, и пикер чека
 // теперь берут реальный пул акций из promotionsProvider.
 
 // ─── Сортировка ленты ────────────────────────────────────────────────────────
-// По названию (А-Я / Я-А). Применяется к пулу промо-акций (applyPromotionFilters).
+// По названию (А-Я / Я-А) или по убыванию бонуса. Применяется к пулу промо-акций
+// (applyPromotionFilters).
 
-enum CatalogSort { nameAsc, nameDesc }
+enum CatalogSort { nameAsc, nameDesc, bonusDesc }
 
 extension CatalogSortLabel on CatalogSort {
   String get label => switch (this) {
         CatalogSort.nameAsc => 'По названию (А-Я)',
         CatalogSort.nameDesc => 'По названию (Я-А)',
+        CatalogSort.bonusDesc => 'По сумме бонуса',
       };
 }
 
@@ -48,23 +60,6 @@ final selectedBrandsProvider =
 
 final selectedCategoriesProvider =
     NotifierProvider<StringSetNotifier, Set<String>>(StringSetNotifier.new);
-
-// ─── Пилюли «Альтернативы»/«Дополнения» (пулы рекомендаций) ──────────────────
-// Режим ленты: обычные акции (none) ИЛИ пул замен (alternatives) ИЛИ пул допов
-// (crosssells). Пилюли — взаимоисключающие: активна максимум одна.
-
-enum RecoPool { none, alternatives, crosssells }
-
-class RecoPoolNotifier extends Notifier<RecoPool> {
-  @override
-  RecoPool build() => RecoPool.none;
-
-  /// Тап по пилюле: повторный тап по активной выключает её (назад к ленте акций).
-  void toggle(RecoPool p) => state = state == p ? RecoPool.none : p;
-}
-
-final homeRecoPoolProvider =
-    NotifierProvider<RecoPoolNotifier, RecoPool>(RecoPoolNotifier.new);
 
 // ─── Поиск ───────────────────────────────────────────────────────────────────
 

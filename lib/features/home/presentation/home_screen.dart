@@ -15,9 +15,6 @@ import '../../../core/widgets/glass_pill.dart';
 import '../../../core/widgets/pharma_logo.dart';
 import '../../../core/widgets/search_input.dart';
 import '../../auth/application/auth_controller.dart';
-import '../../catalog/application/catalog_controller.dart';
-import '../../catalog/data/catalog_models.dart';
-import '../../catalog/presentation/catalog_card.dart';
 import '../../catalog/presentation/catalog_product_sheet.dart';
 import '../../promotions/application/promotions_controller.dart';
 import '../../promotions/data/promotion_models.dart';
@@ -38,8 +35,8 @@ import 'widgets/promo_carousel.dart';
 import 'widgets/sort_sheet.dart';
 
 /// Живая синхронизация с админкой: перетягивает данные главной из backend —
-/// ленту акций ([promotionsProvider], то что заведено в админке), карусель
-/// ([promoListProvider]) и баланс ([ProfileActions.refreshMe]).
+/// ленту акций ([promotionsProvider], то что заведено в админке), баннеры
+/// карусели ([bannerListProvider]) и баланс ([ProfileActions.refreshMe]).
 ///
 /// [awaitData]=true — для pull-to-refresh: ЖДЁМ приход данных, чтобы спиннер
 /// RefreshIndicator держался до конца. [awaitData]=false — fire-and-forget
@@ -51,13 +48,13 @@ Future<void> refreshHomeData(WidgetRef ref, {bool awaitData = true}) async {
   final loggedIn = ref.read(currentUserProvider) != null;
   if (!awaitData) {
     ref.invalidate(promotionsProvider);
-    ref.invalidate(promoListProvider);
+    ref.invalidate(bannerListProvider);
     if (loggedIn) ref.read(profileActionsProvider).refreshMe();
     return;
   }
   final futures = <Future<void>>[
     ref.refresh(promotionsProvider.future).then((_) {}),
-    ref.refresh(promoListProvider.future).then((_) {}),
+    ref.refresh(bannerListProvider.future).then((_) {}),
     if (loggedIn) ref.read(profileActionsProvider).refreshMe(),
   ];
   try {
@@ -180,13 +177,12 @@ class _HomeTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
-    final promoAsync = ref.watch(promoListProvider);
+    final bannerAsync = ref.watch(bannerListProvider);
     final promotionsAsync = ref.watch(promotionsProvider);
     final brands = ref.watch(selectedBrandsProvider);
     final categories = ref.watch(selectedCategoriesProvider);
     final sort = ref.watch(homeSortProvider);
     final query = ref.watch(searchQueryProvider);
-    final recoPool = ref.watch(homeRecoPoolProvider);
 
     // Header теперь — обычный sliver внутри CustomScrollView. Раньше он был
     // в Stack/Positioned поверх скролла (sticky), но это создавало впечатление
@@ -215,24 +211,22 @@ class _HomeTab extends ConsumerWidget {
             ),
           ),
 
-          // 2) Промо-карусель.
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 16, bottom: 8),
-              child: promoAsync.when(
-                loading: () => const SizedBox(
-                  height: 234,
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-                error: (e, _) => Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.screenEdge,
+          // 2) Промо-карусель из баннеров (`bannerListProvider`). Пустой список
+          //    (или ошибка) → НЕ показываем карусель и не оставляем пустую щель:
+          //    поиск встаёт сразу под зелёной шапкой. Загрузка тоже без резерва
+          //    высоты — чтобы при отсутствии баннеров не мигал пустой блок.
+          bannerAsync.when(
+            loading: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
+            error: (_, __) =>
+                const SliverToBoxAdapter(child: SizedBox.shrink()),
+            data: (banners) => banners.isEmpty
+                ? const SliverToBoxAdapter(child: SizedBox.shrink())
+                : SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 16, bottom: 8),
+                      child: PromoCarousel(items: banners),
+                    ),
                   ),
-                  child: Text('Ошибка: $e'),
-                ),
-                data: (promos) => PromoCarousel(items: promos),
-              ),
-            ),
           ),
 
           // 3) Search.
@@ -296,42 +290,6 @@ class _HomeTab extends ConsumerWidget {
                       onTap: () => showCategorySheet(context),
                     ),
                   ),
-                  // Пилюли-разделы: «Альтернативы» (замены) и «Дополнения» (кросс-селл) —
-                  // тумблеры, переключают ленту на пул продвигаемых товаров.
-                  const SizedBox(width: 8),
-                  Center(
-                    child: PharmaFilterChip(
-                      label: 'Альтернативы',
-                      active: recoPool == RecoPool.alternatives,
-                      leading: Icon(
-                        Icons.swap_horiz_rounded,
-                        size: 18,
-                        color: recoPool == RecoPool.alternatives
-                            ? Colors.white
-                            : AppColors.ink900,
-                      ),
-                      onTap: () => ref
-                          .read(homeRecoPoolProvider.notifier)
-                          .toggle(RecoPool.alternatives),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Center(
-                    child: PharmaFilterChip(
-                      label: 'Дополнения',
-                      active: recoPool == RecoPool.crosssells,
-                      leading: Icon(
-                        Icons.add_circle_outline_rounded,
-                        size: 18,
-                        color: recoPool == RecoPool.crosssells
-                            ? Colors.white
-                            : AppColors.ink900,
-                      ),
-                      onTap: () => ref
-                          .read(homeRecoPoolProvider.notifier)
-                          .toggle(RecoPool.crosssells),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -339,42 +297,8 @@ class _HomeTab extends ConsumerWidget {
 
           const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-          // 5) Контент ленты: если активна пилюля «Альтернативы»/«Дополнения» —
-          //    показываем пул продвигаемых товаров (замены/допы из правил кампаний),
-          //    иначе обычную ленту акций. Поиск применяется к обоим режимам.
-          if (recoPool != RecoPool.none)
-            ref.watch(catalogRecommendationPoolsProvider).when(
-              loading: () => const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.all(AppSpacing.s24),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-              ),
-              error: (e, _) => SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.s24),
-                  child: Center(
-                    child: Text(
-                      'Не удалось загрузить',
-                      style: AppTypography.body14(color: AppColors.ink500),
-                    ),
-                  ),
-                ),
-              ),
-              data: (pools) {
-                final items = recoPool == RecoPool.alternatives
-                    ? pools.alternatives
-                    : pools.crosssells;
-                return _CatalogPoolSliver(
-                  items: _filterCatalog(items, query),
-                  emptyLabel: recoPool == RecoPool.alternatives
-                      ? 'Альтернативы пока не заведены'
-                      : 'Дополнения пока не заведены',
-                );
-              },
-            )
-          else
-            promotionsAsync.when(
+          // 5) Лента акций (фильтр бренд/категория/поиск/сортировка).
+          promotionsAsync.when(
             loading: () => const SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.all(AppSpacing.s24),
@@ -490,67 +414,6 @@ class _PromoSliver extends StatelessWidget {
   }
 }
 
-/// Клиентский фильтр пула рекомендаций по строке поиска (имя/бренд/МНН).
-List<CatalogProduct> _filterCatalog(List<CatalogProduct> items, String query) {
-  final q = query.trim().toLowerCase();
-  if (q.isEmpty) return items;
-  return items
-      .where((p) =>
-          p.name.toLowerCase().contains(q) ||
-          (p.brand ?? '').toLowerCase().contains(q) ||
-          (p.mnn ?? '').toLowerCase().contains(q))
-      .toList();
-}
-
-/// Сетка товаров пула «Альтернативы»/«Дополнения» (2 колонки [CatalogCard]).
-/// Тап → detail-sheet товара (по medusa id). Пусто → подсказка [emptyLabel].
-class _CatalogPoolSliver extends StatelessWidget {
-  const _CatalogPoolSliver({required this.items, required this.emptyLabel});
-  final List<CatalogProduct> items;
-  final String emptyLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    if (items.isEmpty) {
-      return SliverPadding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenEdge),
-        sliver: SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 32),
-            child: Text(
-              emptyLabel,
-              textAlign: TextAlign.center,
-              style: AppTypography.body14(color: AppColors.ink500),
-            ),
-          ),
-        ),
-      );
-    }
-    return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenEdge),
-      sliver: SliverGrid(
-        // Та же геометрия, что у ленты акций (фото 3:4 + название/бренд/цена).
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 0.46,
-        ),
-        delegate: SliverChildBuilderDelegate(
-          (ctx, i) {
-            final p = items[i];
-            return CatalogCard(
-              product: p,
-              onTap: () => showCatalogProductSheet(ctx, p.id),
-            );
-          },
-          childCount: items.length,
-        ),
-      ),
-    );
-  }
-}
-
 class _Header extends StatelessWidget {
   const _Header({
     required this.user,
@@ -582,18 +445,20 @@ class _Header extends StatelessWidget {
       ),
       child: SafeArea(
         bottom: false,
+        // Шапка схлопнута: декоративный логотип убран — карточка баланса /
+        // welcome-gate встаёт сразу под статус-баром. Верхний паддинг s16
+        // (вместо лого + s16) — небольшой зазор от статус-бара без пустого
+        // зелёного воздуха. SafeArea(top) сохранён.
         child: Padding(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.screenEdge,
-            8,
+            AppSpacing.s16,
             AppSpacing.screenEdge,
             20,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const PharmaLogo(size: 44),
-              const SizedBox(height: AppSpacing.s16),
               if (loggedIn)
                 BalanceCard(
                   balanceKzt: user.balanceKzt as int,
