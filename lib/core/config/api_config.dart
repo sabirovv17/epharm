@@ -4,6 +4,13 @@
 /// Релизная сборка без флагов идёт на прод (fail-safe) — на localhost она бы 100%
 /// не работала на реальном устройстве.
 ///
+/// ⚠️ ВНИМАНИЕ (проверено 2026-06-18): дефолт `api.epharm.kz` сейчас НЕ резолвится на сервер
+/// (health = 000, мёртвый/будущий домен). Реальный боевой backend — Caddy/TLS на
+/// `https://epharm.78-140-246-238.sslip.io`. Для боевых сборок ОБЯЗАТЕЛЬНО переопределяй адрес,
+/// иначе приложение не достучится до бэка:
+///   flutter build apk --release --dart-define=API_BASE=https://epharm.78-140-246-238.sslip.io
+///   (или `API_BASE=https://epharm.78-140-246-238.sslip.io bash builds/build_all.sh`)
+///
 /// ЛОКАЛЬНАЯ РАЗРАБОТКА — переопределяй явно, напр.:
 ///   flutter run --dart-define=API_BASE=http://10.0.2.2:8080   (Android-эмулятор)
 ///   flutter run --dart-define=API_BASE=http://localhost:8080  (iOS-симулятор)

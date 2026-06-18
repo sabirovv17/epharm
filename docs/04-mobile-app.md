@@ -23,7 +23,8 @@ flutter_secure_storage 10.3 · camera · image_picker · pinput · flutter_svg �
 **`config/api_config.dart`**
 
 - `ApiConfig.useApi` — флаг `--dart-define=USE_API` (по умолчанию `true`)
-- `ApiConfig.baseUrl` — `--dart-define=API_BASE` (по умолчанию `https://api.epharm.kz`)
+- `ApiConfig.baseUrl` — `--dart-define=API_BASE` (дефолт `https://api.epharm.kz` — **домен пока
+  мёртв**, не резолвится на сервер; боевой адрес см. ниже в «Сборке прод-APK»)
 - Переключает mock ↔ реальный API
 
 **`network/`**
@@ -98,15 +99,30 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) =>
 - **`FLTEnableImpeller = false`** — форсит рендерер Skia (Impeller давал белый экран на iPhone)
 - `NSAppTransportSecurity`: HTTPS по умолчанию, исключение для localhost (dev)
 
-**dart-define** (через `builds/build_all.sh`): `USE_API=true`, `API_BASE=https://api.epharm.kz`
+**dart-define** (через `builds/build_all.sh`): `USE_API=true`, `API_BASE` (дефолт скрипта —
+`https://api.epharm.kz`).
+
+> ⚠️ **Боевой backend сейчас — `https://epharm.78-140-246-238.sslip.io`** (через Caddy/TLS).
+> Дефолтный `api.epharm.kz` **не резолвится** на сервер (health `000`) — APK, собранный без
+> переопределения, до бэка не достучится. Для боевой сборки обязательно задавай реальный адрес:
+> `build_all.sh` читает его из переменной окружения `API_BASE`, а голый `flutter build` — из
+> `--dart-define=API_BASE`.
 
 **Сборка прод-APK:**
 
 ```bash
 cd <repo>
-bash builds/build_all.sh        # читает версию из pubspec, собирает APK (+ iOS --no-codesign)
-# результат: builds/Epharm-v<version>-release.apk (~49 МБ, USE_API=true, prod base URL)
+# Боевой адрес ОБЯЗАТЕЛЕН (иначе уйдёт на мёртвый api.epharm.kz):
+API_BASE=https://epharm.78-140-246-238.sslip.io bash builds/build_all.sh
+# результат: builds/Epharm-v<version>-release.apk (~49 МБ, USE_API=true, боевой base URL)
+
+# Голый flutter build (без скрипта) — тот же адрес через --dart-define:
+flutter build apk --release \
+  --dart-define=USE_API=true \
+  --dart-define=API_BASE=https://epharm.78-140-246-238.sslip.io
 ```
+
+APK раздаётся как `https://epharm.78-140-246-238.sslip.io/s3/epharm-receipts/epharm-demo.apk`.
 
 ## Запуск в dev
 

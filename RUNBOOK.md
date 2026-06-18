@@ -253,8 +253,14 @@ npx playwright show-report          # HTML-отчёт последнего пр�
 В отличие от dev (`bootRun` + `npm run dev`), backend и фронт собираются в контейнеры
 (`admin-panel/backend/Dockerfile`, `admin-panel/frontend/Dockerfile` + `nginx.conf`).
 
-**Предусловия (DNS + порты):** три A-записи указывают на IP сервера —
-`api.epharm.kz`, `admin.epharm.kz`, `s3.epharm.kz`; на сервере открыты **80 и 443**
+> **Текущий боевой сервер (проверено 2026-06-18):** `root@78.140.246.238` (hostname `medusa-test`),
+> каталог деплоя `/root/epharm`, доступ по ключу `~/.ssh/epharm_deploy`. Публичный адрес —
+> **`https://epharm.78-140-246-238.sslip.io`** (Caddy/TLS, один хост, маршруты по путям:
+> `/api/*`→backend, `/s3/*`→MinIO `epharm-receipts`, `/`→админка). Домены `*.epharm.kz` ещё **не
+> активны** (`api.epharm.kz` → health `000`). Подробности — `docs/06-deployment-and-ops.md`.
+
+**Предусловия для будущего go-live на `epharm.kz` (DNS + порты):** три A-записи указывают на IP
+сервера — `api.epharm.kz`, `admin.epharm.kz`, `s3.epharm.kz`; на сервере открыты **80 и 443**
 (Caddy сам получит сертификаты Let's Encrypt).
 
 **Запуск на сервере:**

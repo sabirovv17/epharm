@@ -1,23 +1,27 @@
 # Деплой и эксплуатация
 
-## Сервер
+## Сервер (текущий боевой)
 
-| Параметр       | Значение                                 |
-| -------------- | ---------------------------------------- |
-| Внутреннее имя | `inkpim.inkar.kz`                        |
-| IP             | `10.10.1.76` (внутренний, сеть INKAR)    |
-| ОС             | Ubuntu 26.04 LTS server                  |
-| Доступ         | SSH (порт 22), пользователь `adm-quasar` |
-| Каталог деплоя | `/home/adm-quasar/epharm/`               |
-| Docker         | `docker.io` + `docker-compose-v2`        |
+Координаты проверены вживую **2026-06-18**.
 
-Сервер **внутренний**: напрямую из интернета недоступен, только из сети INKAR / по корпоративному
-VPN (Check Point, маршрутизирует `10.10/16`). Корп. DNS (`10.10.1.119/120`) резолвит
-`inkpim.inkar.kz → 10.10.1.76`.
+| Параметр       | Значение                                                                           |
+| -------------- | ---------------------------------------------------------------------------------- |
+| Hostname       | `medusa-test`                                                                      |
+| Публичный URL  | `https://epharm.78-140-246-238.sslip.io` (Caddy, TLS Let's Encrypt)                |
+| IP             | `78.140.246.238` (публичный)                                                       |
+| Доступ         | SSH по ключу: `ssh -i ~/.ssh/epharm_deploy root@78.140.246.238` (пароль не вводим) |
+| Каталог деплоя | `/root/epharm` (docker compose project working_dir)                                |
+| Docker         | `docker.io` + `docker compose v2`                                                  |
 
-> Каталог `/home/adm-quasar/epharm` — **не git-репозиторий**: код заливается файлами. Перед
-> деплоем сверяй конфиги с git по sha256 (см. «Чистый деплой» ниже) — был случай молчаливого
-> недозалива Caddyfile, который ловится только проверкой хэша на диске.
+Сервер **публичный**: backend, веб-админка и MinIO отдаются наружу через Caddy на одном хосте
+`epharm.78-140-246-238.sslip.io`. sslip.io резолвит этот хост прямо в IP сервера, поэтому Caddy
+выпускает Let's Encrypt-сертификат без отдельного DNS. Домены `*.epharm.kz` — **будущие**: пока
+не резолвятся на сервер (`api.epharm.kz` → health `000`), см. «Будущий публичный go-live» ниже.
+
+> Каталог `/root/epharm` — **не git-репозиторий**: код заливается файлами (`git archive` → `scp`
+> → `tar`). `.env.prod` и `docker-compose.prod.yml` лежат там же и при деплое **не
+> перезатираются**. Перед деплоем сверяй конфиги с git по sha256 (см. «Чистый деплой» ниже) — был
+> случай молчаливого недозалива Caddyfile, который ловится только проверкой хэша на диске.
 
 ## Прод-стек (`docker-compose.prod.yml`)
 
@@ -38,22 +42,23 @@ VPN (Check Point, маршрутизирует `10.10/16`). Корп. DNS (`10.1
 - MinIO-консоль публикуется **только на `127.0.0.1`** сервера (доступ по SSH-туннелю).
 - Caddy — единственная точка входа; backend/frontend/minio/postgres/redis наружу не публикуются.
 
-## Caddy (`Caddyfile`)
+## Caddy — единая точка входа (текущая боевая схема)
 
-| Блок                                          | Куда           | Что                                        |
-| --------------------------------------------- | -------------- | ------------------------------------------ |
-| `{$API_DOMAIN}` (api.epharm.kz)               | `backend:8080` | API мобилки/касс/админки, лимит тела 64МБ  |
-| `{$ADMIN_DOMAIN}` (admin.epharm.kz)           | `frontend:80`  | публичная админка (по HTTPS)               |
-| `http://{$INTERNAL_DOMAIN}` (inkpim.inkar.kz) | `frontend:80`  | **внутренняя админка по VPN** (plain HTTP) |
-| `{$S3_DOMAIN}` (s3.epharm.kz)                 | `minio:9000`   | публичный бакет (фото чеков, слайды)       |
+На боевом сервере Caddy слушает 80/443 на хосте `epharm.78-140-246-238.sslip.io` и
+маршрутизирует **по путям** (проверено вживую 2026-06-18):
 
-Caddy сам выпускает/продлевает TLS (Let's Encrypt) для публичных доменов; сертификаты — в
-volume `caddy_data`.
+| Путь         | Куда           | Что                                                 |
+| ------------ | -------------- | --------------------------------------------------- |
+| `/api/*`     | `backend:8080` | API мобилки/касс/админки (`/api/health` → 200)      |
+| `/s3/*`      | `minio:9000`   | публичный бакет `epharm-receipts` (фото чеков, APK) |
+| `/` (прочее) | `frontend:80`  | веб-админка                                         |
 
-> **Доступ только по ИМЕНИ.** Прямой IP (`http://10.10.1.76`) не работает: Caddy для bare-IP
-> форсит self-signed TLS и редиректит 80→443 без валидного сертификата. На корп. Windows имя
-> резолвит корп. DNS; на macOS + Check Point VPN (где `getaddrinfo` не видит `inkar.kz`) — строка
-> `10.10.1.76 inkpim.inkar.kz` в `/etc/hosts`.
+Caddy сам выпускает/продлевает TLS (Let's Encrypt) — sslip.io резолвит хост в IP сервера,
+поэтому ACME-проверка проходит без отдельного DNS. Сертификаты — в volume `caddy_data`.
+
+> Шаблон `.env.prod.example` и таблица доменов в разделе «Будущий публичный go-live» описывают
+> схему с отдельными субдоменами `api/admin/s3.epharm.kz` — она ещё **не активна** (домены не
+> резолвятся на сервер). Боевой Caddyfile сейчас работает по путям на одном sslip.io-хосте.
 
 ## Переменные окружения (`.env.prod`)
 
@@ -69,18 +74,21 @@ volume `caddy_data`.
 | Первый админ | `ADMIN_BOOTSTRAP_EMAIL/PASSWORD/NAME/COMPANY`                                                                |
 | Medusa       | `MEDUSA_ENABLED`, `MEDUSA_BASE_URL`, `MEDUSA_PUBLISHABLE_KEY`, `MEDUSA_SALES_CHANNEL_ID`, `MEDUSA_REGION_ID` |
 
+> На боевом сервере `S3_PUBLIC_URL` = `https://epharm.78-140-246-238.sslip.io/s3` (а **не**
+> `s3.epharm.kz` из примера). Дефолтные `*.epharm.kz` в `.env.prod.example` — заготовка под
+> будущие домены.
 > `OTP_DEV_MODE=true` → код входа всегда `544544`. **Для публичного go-live выключить** (нужен
 > реальный SMS-провайдер, сейчас не подключён).
 
 ## Первый запуск на сервере
 
 ```bash
-cd /home/adm-quasar/epharm
+cd /root/epharm
 # 1. .env.prod (один раз): сгенерировать секреты
 bash tools/gen-prod-env.sh        # создаст .env.prod (НЕ коммитится)
 #    затем вписать ADMIN_BOOTSTRAP_EMAIL/PASSWORD и домены
 # 2. Поднять стек
-sudo docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
 # 3. ProdBootstrap создаст первого админа (HQ_HEAD) из ADMIN_BOOTSTRAP_*
 ```
 
@@ -92,22 +100,24 @@ sudo docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --buil
 # ЛОКАЛЬНО: чистый архив HEAD только нужных путей
 git archive --format=tar.gz -o /tmp/epharm-deploy.tar.gz HEAD \
   admin-panel/backend admin-panel/frontend docker-compose.prod.yml Caddyfile tools .env.prod.example
-# (.env.prod НЕ в архиве — он gitignored, на сервере не перезатрётся)
+scp -i ~/.ssh/epharm_deploy /tmp/epharm-deploy.tar.gz root@78.140.246.238:/tmp/
 
-# Передать на сервер (base64-через-ssh надёжнее scp), распаковать в каталог деплоя,
-# затем на СЕРВЕРЕ:
-cd /home/adm-quasar/epharm
-sudo docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+# НА СЕРВЕРЕ: распаковать только исходники (не трогая infra-конфиг и .env.prod), пересобрать
+cd /root/epharm
+tar xzf /tmp/epharm-deploy.tar.gz admin-panel/backend admin-panel/frontend
+bash tools/pg-backup.sh           # бэкап БД перед миграцией (см. «Бэкапы»)
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build backend frontend
 ```
 
-**Проверка после деплоя** (с клиента в сети INKAR / по VPN):
+**Проверка после деплоя** (с любого клиента, сервер публичный):
 
 ```bash
-curl http://inkpim.inkar.kz/api/health        # → {"status":"ok"}
-curl -X POST http://inkpim.inkar.kz/api/admin/auth/login -d '{...}'  # → 401 на неверный пароль
+curl https://epharm.78-140-246-238.sslip.io/api/health        # → {"status":"ok"}
+# 401 на неверный пароль:
+curl -X POST https://epharm.78-140-246-238.sslip.io/api/admin/auth/login -d '{...}'
 ```
 
-Контейнеры: `sudo docker compose --env-file .env.prod -f docker-compose.prod.yml ps` — все `healthy`.
+Контейнеры: `docker compose --env-file .env.prod -f docker-compose.prod.yml ps` — все `healthy`.
 
 > Совет: после заливки конфигов проверяй `sha256sum` файла на диске против локального — это ловит
 > молчаливые сбои передачи.
@@ -118,23 +128,23 @@ curl -X POST http://inkpim.inkar.kz/api/admin/auth/login -d '{...}'  # → 401 �
 chmod 600. Ставится в root-cron:
 
 ```bash
-sudo crontab -e
-# 0 3 * * *  /home/adm-quasar/epharm/tools/pg-backup.sh >> /home/adm-quasar/epharm/backups/backup.log 2>&1
+crontab -e
+# 0 3 * * *  /root/epharm/tools/pg-backup.sh >> /root/epharm/backups/backup.log 2>&1
 ```
 
 ## Эксплуатация (шпаргалка)
 
 ```bash
-cd /home/adm-quasar/epharm
+cd /root/epharm
 EF="--env-file .env.prod -f docker-compose.prod.yml"
-sudo docker compose $EF ps                       # статус
-sudo docker compose $EF logs -f backend          # логи
-sudo docker compose $EF restart caddy            # перезапуск одного сервиса
-sudo docker compose $EF up -d --build backend    # пересборка backend
-sudo docker logs epharm-caddy --tail 50          # ACME/TLS-логи Caddy
+docker compose $EF ps                       # статус
+docker compose $EF logs -f backend          # логи
+docker compose $EF restart caddy            # перезапуск одного сервиса
+docker compose $EF up -d --build backend    # пересборка backend
+docker logs epharm-caddy --tail 50          # ACME/TLS-логи Caddy
 
 # MinIO-консоль (только с сервера): SSH-туннель с клиента
-ssh -L 9001:127.0.0.1:9001 adm-quasar@10.10.1.76   # → http://localhost:9001
+ssh -i ~/.ssh/epharm_deploy -L 9001:127.0.0.1:9001 root@78.140.246.238   # → http://localhost:9001
 ```
 
 ## CI (`.github/workflows/ci.yml`)
@@ -145,29 +155,37 @@ ssh -L 9001:127.0.0.1:9001 adm-quasar@10.10.1.76   # → http://localhost:9001
 - Backend: Gradle build · Gradle test (Testcontainers Postgres)
 - Repo: commitlint (Conventional Commits)
 
-## Доступ к админке по VPN (текущая схема)
+## Доступ к админке (текущая схема)
 
-1. Подключиться к корпоративному VPN INKAR (Check Point).
-2. Открыть `http://inkpim.inkar.kz` (корп. Windows резолвит имя сам; на macOS — строка в `/etc/hosts`).
-3. Вход: `admin@epharm.kz` (пароль из `.env.prod`).
+Админка публична за тем же Caddy-хостом — открыть `https://epharm.78-140-246-238.sslip.io/`,
+вход `admin@epharm.kz` (пароль из `.env.prod`). VPN/корп-сеть для боевого sslip.io-сервера **не
+нужны** — он доступен из обычного интернета.
 
-Мобильное приложение и кассы для боевой работы должны ходить на **публичные** `api.epharm.kz` /
-`s3.epharm.kz` из обычного интернета (не через VPN) — для этого нужны публичный DNS и проброс
-портов (см. ниже).
+## Будущий публичный go-live (домены `epharm.kz` / контур INKAR)
 
-## Что нужно для публичного go-live (служебка сетевикам INKAR)
+Заготовка под будущий переезд на собственные домены и/или внутренний контур INKAR. Пока **не
+активна**: `*.epharm.kz` не резолвятся на сервер, боевой трафик идёт на sslip.io-хост (см. выше).
 
-1. **Публичные DNS A-записи** (зона `epharm.kz`) на внешний/NAT IP сервера:
-   `api.epharm.kz`, `s3.epharm.kz` (обязательно для мобилки/касс), `admin.epharm.kz` (опционально —
-   админку можно оставить только внутри по VPN).
-2. **Проброс портов** (NAT + firewall) из интернета на `10.10.1.76`: `TCP 443` (основной) и
-   `TCP 80` (для авто-выпуска Let's Encrypt + редирект на 443).
-3. Как пробросят порты и пропишут DNS — Caddy выпустит сертификаты сам, без дополнительных действий.
+Планируемая схема субдоменов (отражена в `.env.prod.example` и Caddy-переменных):
+
+| Блок                                | Куда           | Что                                       |
+| ----------------------------------- | -------------- | ----------------------------------------- |
+| `{$API_DOMAIN}` (api.epharm.kz)     | `backend:8080` | API мобилки/касс/админки, лимит тела 64МБ |
+| `{$ADMIN_DOMAIN}` (admin.epharm.kz) | `frontend:80`  | публичная админка (по HTTPS)              |
+| `{$S3_DOMAIN}` (s3.epharm.kz)       | `minio:9000`   | публичный бакет (фото чеков, слайды)      |
+
+Что нужно сетевикам для go-live на `epharm.kz`:
+
+1. **Публичные DNS A-записи** (зона `epharm.kz`): `api.epharm.kz`, `s3.epharm.kz` (обязательно для
+   мобилки/касс), `admin.epharm.kz` (опционально).
+2. **Проброс портов** (NAT + firewall) на сервер: `TCP 443` (основной) и `TCP 80` (авто-выпуск
+   Let's Encrypt + редирект на 443).
+3. Как пропишут DNS и пробросят порты — Caddy выпустит сертификаты сам, без дополнительных действий.
 
 ## Открытые задачи безопасности перед публичным go-live
 
 - **P0-6:** бакет чеков `epharm-receipts` сейчас публичный (анонимный download). Перед публичным
   выходом — сделать приватным + отдавать фото по presigned-URL.
-- **Ротация секретов**, утёкших в переписку: SSH-пароль сервера, VPN-креды, прод-пароли в `.env.prod`.
+- **Ротация секретов**, утёкших в переписку: SSH-доступ сервера, прод-пароли в `.env.prod`.
 - **Выключить dev-OTP** (`OTP_DEV_MODE=false`) и подключить реальный SMS-провайдер (Mobizon).
 - Полный список — `RELEASE-CHECKLIST.md` в корне репозитория.

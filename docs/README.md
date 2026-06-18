@@ -82,13 +82,15 @@ PharmaPayV2/
 
 ## Текущее состояние (на момент написания)
 
-- ✅ **Деплой на сервере `inkpim.inkar.kz` (10.10.1.76)** — все 6 сервисов healthy
+- ✅ **Деплой на сервере `medusa-test` (`78.140.246.238`, `/root/epharm`)** — все 6 сервисов healthy
   (postgres, redis, minio, backend, frontend, caddy). Конфиг сервера сверен с git (HEAD).
 - ✅ Бэкенд: 21 миграция, ~23 контроллера, реальный каталог из Medusa, первый админ создан
   через `ProdBootstrap` (`admin@epharm.kz`).
-- ✅ Админка отдаётся по VPN на внутреннем имени `inkpim.inkar.kz` (см. `06-deployment-and-ops.md`).
-- ✅ Мобильный прод-APK собирается (`builds/build_all.sh`, `USE_API=true`, `API_BASE=https://api.epharm.kz`).
-- ⏳ Публичные домены `*.epharm.kz` + проброс портов 80/443 — ожидают служебку сетевикам INKAR.
+- ✅ Всё отдаётся публично за Caddy на одном хосте `https://epharm.78-140-246-238.sslip.io`
+  (`/api/*`→backend, `/`→админка, `/s3/*`→MinIO `epharm-receipts`). См. `06-deployment-and-ops.md`.
+- ✅ Мобильный прод-APK собирается (`builds/build_all.sh`); боевой `API_BASE` —
+  `https://epharm.78-140-246-238.sslip.io` (дефолтный `api.epharm.kz` пока не резолвится).
+- ⏳ Публичные домены `*.epharm.kz` + проброс портов 80/443 — будущий go-live (служебка сетевикам INKAR).
 - ⏳ Открытые задачи безопасности перед публичным go-live: приватный бакет чеков (P0-6),
   ротация утёкших в чат секретов, выключение dev-OTP. См. `RELEASE-CHECKLIST.md` в корне.
 
