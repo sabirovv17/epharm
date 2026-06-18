@@ -1,49 +1,23 @@
-// Screens — управление indoor-DOOH экранами в аптеках (ТЗ §3.3).
-// Загрузка медиа (видео/картинки) в MinIO, сборка плейлистов, активация ротации,
-// назначение плейлистов на конкретную аптеку/экран. Рендер на 2-м мониторе = POSM.
+// Screens — управление экранами в аптеках (ТЗ §3.3). Две вкладки:
+//   • «Экраны в аптеках» — максимально просто: счётчик онлайн-касс + ОДИН общий ролик
+//     («эфир») с кнопкой «Загрузить/Заменить ролик». Один ролик играет на всех кассах;
+//     кассы подхватывают его поллингом /api/posm/playlists/active и шлют heartbeat.
+//   • «Баннеры приложения» — управление баннерами главного экрана (BannersPanel).
 //
-// T3: страница упрощена — нет ручного создания плейлиста (собираются автоматически),
-//     убраны колонка «Аптек» и пустой блок «Расписание».
-// T4: виджет «Подключено касс: N» (heartbeat подключённых POSM-плееров, поллинг 30с).
-// ДОП.2: убран таргетинг по аптеке — один глобальный видеоряд, все кассы подхватывают
-//        активный плейлист автоматически (backend: fallback на глобальный pharmacyId IS NULL).
-//        Адресацию под конкретную аптеку добавим позже.
+// ДОП: вместо плейлистов/библиотеки/назначений — один атомарный «эфир»
+//      (POST /api/admin/screens/broadcast). Сложный плейлист-CRUD скрыт из UI.
 
-import { useEffect, useRef, useState } from 'react'
-import {
-  Button,
-  Empty,
-  Field,
-  Input,
-  Modal,
-  PageHeader,
-  SectionCard,
-  Select,
-  Tabs,
-  useToast,
-} from '@/ui'
-import { IconPlus, IconScreens, IconStack, IconTrash, IconUpload } from '@/ui/icons'
-import type { PlaylistDto, SlideDto } from '@/lib/api-types'
-import {
-  useAssignSlide,
-  useConnectedScreens,
-  useDeletePlaylist,
-  useDeleteSlide,
-  usePlaylists,
-  useSlides,
-  useUpdatePlaylist,
-  useUploadSlide,
-} from '@/lib/queries/screens'
+import { useRef, useState } from 'react'
+import { Button, Empty, PageHeader, SectionCard, Tabs, useToast } from '@/ui'
+import { IconPlus, IconScreens, IconUpload } from '@/ui/icons'
+import { useBroadcast, useConnectedScreens, useUploadBroadcast } from '@/lib/queries/screens'
 import { describeError } from '@/lib/describeError'
-import { formatNum } from '@/mocks/fixtures'
 import { useT } from '@/i18n'
 import { BannersPanel, type BannerEditing } from './BannersPanel'
 
 export default function ScreensPage() {
   const t = useT()
-  // Две вкладки одного раздела: физические экраны касс и баннеры в приложении.
   const [tab, setTab] = useState<'screens' | 'banners'>('screens')
-  const [uploadOpen, setUploadOpen] = useState(false)
   const [bannerEditing, setBannerEditing] = useState<BannerEditing>(null)
 
   return (
@@ -58,16 +32,7 @@ export default function ScreensPage() {
         value={tab}
         onChange={setTab}
         trailing={
-          tab === 'screens' ? (
-            <Button
-              variant="primary"
-              leading={<IconUpload size={14} />}
-              onClick={() => setUploadOpen(true)}
-              data-testid="screens-upload-slide"
-            >
-              {t('scr.uploadSlide')}
-            </Button>
-          ) : (
+          tab === 'banners' ? (
             <Button
               variant="primary"
               leading={<IconPlus size={14} />}
@@ -76,12 +41,15 @@ export default function ScreensPage() {
             >
               {t('bn.add')}
             </Button>
-          )
+          ) : null
         }
       />
 
       {tab === 'screens' ? (
-        <ScreensTab uploadOpen={uploadOpen} setUploadOpen={setUploadOpen} />
+        <div className="flex flex-col gap-4">
+          <ConnectedRegistersCard />
+          <BroadcastCard />
+        </div>
       ) : (
         <BannersPanel editing={bannerEditing} setEditing={setBannerEditing} />
       )}
@@ -89,92 +57,7 @@ export default function ScreensPage() {
   )
 }
 
-// ─── Вкладка «Экраны в аптеках» — физические DOOH-экраны (плейлисты + слайды) ──
-function ScreensTab({
-  uploadOpen,
-  setUploadOpen,
-}: {
-  uploadOpen: boolean
-  setUploadOpen: (v: boolean) => void
-}) {
-  const t = useT()
-
-  const playlistsQ = usePlaylists()
-  const slidesQ = useSlides()
-  const playlists = playlistsQ.data ?? []
-  const slides = slidesQ.data ?? []
-
-  return (
-    <div className="flex flex-col gap-4">
-      <UploadSlideModal open={uploadOpen} onClose={() => setUploadOpen(false)} />
-
-      <ConnectedRegistersCard />
-
-      <SectionCard title={t('scr.activeTitle')} subtitle={t('scr.activeSub')} padded={false}>
-        {playlistsQ.isLoading && playlists.length === 0 ? (
-          <Empty
-            title={t('scr.loading')}
-            body={t('common.connecting')}
-            icon={<IconScreens size={26} />}
-          />
-        ) : playlistsQ.isError && playlists.length === 0 ? (
-          <Empty
-            title={t('scr.errPlaylists')}
-            body={describeError(playlistsQ.error)}
-            icon={<IconScreens size={26} />}
-            action={<Button onClick={() => playlistsQ.refetch()}>{t('common.retry')}</Button>}
-          />
-        ) : playlists.length === 0 ? (
-          <Empty
-            title={t('scr.noPlaylists')}
-            body={t('scr.noPlaylistsBody')}
-            icon={<IconScreens size={26} />}
-          />
-        ) : (
-          <table className="w-full text-[13px]" data-testid="playlists-table">
-            <thead className="hairline border-b">
-              <tr className="text-left text-[11px] font-bold uppercase tracking-[0.06em] text-ink-500">
-                <th className="px-5 py-2.5">{t('scr.thPlaylist')}</th>
-                <th className="px-3 py-2.5 text-right">{t('scr.thSlides')}</th>
-                <th className="px-3 py-2.5 text-right">{t('scr.thDur')}</th>
-                <th className="px-3 py-2.5">{t('scr.thStatus')}</th>
-                <th className="px-5 py-2.5" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ink-100">
-              {playlists.map((p) => (
-                <PlaylistRow key={p.id} p={p} />
-              ))}
-            </tbody>
-          </table>
-        )}
-      </SectionCard>
-
-      <SectionCard title={t('scr.libTitle')} subtitle={t('scr.libSub')} padded={false}>
-        {slides.length === 0 ? (
-          <Empty
-            title={t('scr.libEmpty')}
-            body={t('scr.libEmptyBody')}
-            icon={<IconStack size={26} />}
-            action={
-              <Button leading={<IconUpload size={14} />} onClick={() => setUploadOpen(true)}>
-                {t('scr.uploadSlide')}
-              </Button>
-            }
-          />
-        ) : (
-          <ul className="flex flex-col" data-testid="slides-list">
-            {slides.map((s) => (
-              <SlideRow key={s.id} s={s} playlists={playlists} />
-            ))}
-          </ul>
-        )}
-      </SectionCard>
-    </div>
-  )
-}
-
-// ─── Подключённые кассы (T4) ─────────────────────────────────────────────────
+// ─── Подключённые кассы (онлайн) ─────────────────────────────────────────────
 function ConnectedRegistersCard() {
   const t = useT()
   const { data, isLoading } = useConnectedScreens()
@@ -219,227 +102,77 @@ function fmtDuration(sec: number): string {
   return m > 0 ? `${m}м ${s}с` : `${s}с`
 }
 
-function PlaylistRow({ p }: { p: PlaylistDto }) {
+// ─── Эфир: один общий ролик на все кассы (максимально просто) ────────────────
+function BroadcastCard() {
   const t = useT()
   const toast = useToast()
-  const update = useUpdatePlaylist()
-  const del = useDeletePlaylist()
-  const pending = update.isPending || del.isPending
+  const broadcastQ = useBroadcast()
+  const upload = useUploadBroadcast()
+  const fileRef = useRef<HTMLInputElement>(null)
+  const current = broadcastQ.data?.slides?.[0] ?? null
 
-  // Один активный плейлист = текущий видеоряд для ВСЕХ касс (таргетинг по аптеке убран).
-  const toggleStatus = () => {
-    const next = p.status === 'active' ? 'draft' : 'active'
-    update.mutate(
-      { id: p.id, patch: { status: next } },
-      { onError: () => toast.push(t('scr.statusErr')) },
-    )
-  }
-
-  const handleDelete = () => {
-    if (!confirm(t('scr.confirmDeletePlaylist', { name: p.name }))) return
-    del.mutate(p.id, {
-      onSuccess: () => toast.push(t('scr.deletedPlaylist')),
-      onError: (e) => toast.push(describeError(e)),
-    })
-  }
-
-  return (
-    <tr data-testid={`playlist-${p.id}`}>
-      <td className="px-5 py-2.5 font-extrabold text-ink-900">{p.name}</td>
-      <td className="num px-3 py-2.5 text-right">{formatNum(p.slidesCount)}</td>
-      <td className="num px-3 py-2.5 text-right">{fmtDuration(p.durationSec)}</td>
-      <td className="px-3 py-2.5">
-        <span className={`chip ${p.status === 'active' ? 'chip-green' : 'chip-ink'}`}>
-          {p.status === 'active'
-            ? t('scr.playing')
-            : p.status === 'draft'
-              ? t('scr.draft')
-              : t('scr.archived')}
-        </span>
-      </td>
-      <td className="px-5 py-2.5">
-        <div className="flex items-center justify-end gap-2">
-          {p.status !== 'archived' && (
-            <Button variant="ghost" size="sm" disabled={pending} onClick={toggleStatus}>
-              {p.status === 'active' ? t('scr.toDraft') : t('scr.activate')}
-            </Button>
-          )}
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={pending}
-            aria-label={t('scr.deletePlaylist')}
-            data-testid={`playlist-delete-${p.id}`}
-            className="text-ink-400 transition-colors hover:text-accent-danger disabled:opacity-40"
-          >
-            <IconTrash size={15} />
-          </button>
-        </div>
-      </td>
-    </tr>
-  )
-}
-
-function SlideRow({ s, playlists }: { s: SlideDto; playlists: PlaylistDto[] }) {
-  const t = useT()
-  const toast = useToast()
-  const assign = useAssignSlide()
-  const del = useDeleteSlide()
-
-  const onAssign = (value: string) => {
-    assign.mutate(
-      { id: s.id, req: { playlistId: value || null, position: s.position } },
+  const onPick = (file: File | null) => {
+    if (!file) return
+    upload.mutate(
+      { file },
       {
-        onSuccess: () => toast.push(t('scr.assignedToast')),
+        onSuccess: () => toast.push(t('scr.broadcastUploaded')),
         onError: (e) => toast.push(describeError(e)),
       },
     )
+    if (fileRef.current) fileRef.current.value = ''
   }
-
-  const handleDelete = () => {
-    if (!confirm(t('scr.confirmDeleteSlide', { title: s.title }))) return
-    del.mutate(s.id, {
-      onSuccess: () => toast.push(t('scr.deletedSlide')),
-      onError: () => toast.push(t('scr.slideDeleteErr')),
-    })
-  }
-
-  const options = [
-    { value: '', label: t('scr.assignNone') },
-    ...playlists.map((p) => ({ value: p.id, label: p.name })),
-  ]
 
   return (
-    <li
-      data-testid={`slide-${s.id}`}
-      className="hairline flex items-center gap-3 border-b px-4 py-2.5 last:border-b-0"
-    >
-      {/* Превью: видео — мини-плеер, картинка — img. Источник — публичный MinIO-URL. */}
-      <div className="h-12 w-16 flex-none overflow-hidden rounded-md bg-ink-100">
-        {s.kind === 'video' ? (
-          <video src={s.mediaUrl} className="h-full w-full object-cover" muted preload="metadata" />
+    <SectionCard title={t('scr.broadcastTitle')} subtitle={t('scr.broadcastSub')} padded={false}>
+      <div className="flex flex-col items-center gap-4 px-5 py-6" data-testid="broadcast-card">
+        {current ? (
+          <>
+            <video
+              src={current.url}
+              className="max-h-[280px] w-auto rounded-xl border border-ink-100 bg-black"
+              controls
+              muted
+              preload="metadata"
+              data-testid="broadcast-video"
+            />
+            <div className="text-[12px] font-semibold text-ink-500">
+              {current.title} · {fmtDuration(current.durationSec)}
+            </div>
+          </>
         ) : (
-          <img src={s.mediaUrl} alt={s.title} className="h-full w-full object-cover" />
+          <Empty
+            title={t('scr.broadcastEmpty')}
+            body={t('scr.broadcastEmptyBody')}
+            icon={<IconScreens size={26} />}
+          />
         )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] font-bold text-ink-900">{s.title}</div>
-        <div className="num text-[11px] text-ink-500">
-          {s.kind === 'video' ? t('scr.video') : t('scr.photo')} · {fmtDuration(s.durationSec)}
+
+        <input
+          ref={fileRef}
+          type="file"
+          accept="video/*"
+          className="hidden"
+          data-testid="broadcast-file-input"
+          onChange={(e) => onPick(e.target.files?.[0] ?? null)}
+        />
+        <Button
+          variant="primary"
+          leading={<IconUpload size={14} />}
+          disabled={upload.isPending}
+          onClick={() => fileRef.current?.click()}
+          data-testid="broadcast-upload"
+        >
+          {upload.isPending
+            ? t('scr.broadcastUploading')
+            : current
+              ? t('scr.broadcastReplace')
+              : t('scr.broadcastUpload')}
+        </Button>
+        <div className="max-w-[420px] text-center text-[11px] leading-snug text-ink-400">
+          {t('scr.broadcastHint')}
         </div>
       </div>
-      <Select
-        value={s.playlistId ?? ''}
-        onChange={onAssign}
-        options={options}
-        className="!w-[180px] flex-none"
-      />
-      <button
-        type="button"
-        onClick={handleDelete}
-        disabled={del.isPending}
-        aria-label={t('scr.deleteSlide')}
-        data-testid={`slide-delete-${s.id}`}
-        className="flex-none text-ink-400 transition-colors hover:text-accent-danger disabled:opacity-40"
-      >
-        <IconTrash size={15} />
-      </button>
-    </li>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-
-function UploadSlideModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const t = useT()
-  const toast = useToast()
-  const upload = useUploadSlide()
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [file, setFile] = useState<File | null>(null)
-  const [title, setTitle] = useState('')
-  const [durationSec, setDurationSec] = useState('15')
-  const [err, setErr] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (open) {
-      setFile(null)
-      setTitle('')
-      setDurationSec('15')
-      setErr(null)
-      if (fileRef.current) fileRef.current.value = ''
-    }
-  }, [open])
-
-  const valid = !!file && title.trim().length > 0
-
-  const submit = () => {
-    if (!file || !title.trim()) return
-    upload.mutate(
-      { file, title: title.trim(), durationSec: Number(durationSec) || 15 },
-      {
-        onSuccess: () => {
-          toast.push(t('scr.uploadedToast'))
-          onClose()
-        },
-        onError: (e) => setErr(describeError(e)),
-      },
-    )
-  }
-
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={t('scr.upModalTitle')}
-      subtitle={t('scr.upModalSub')}
-      width={520}
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>
-            {t('common.cancel')}
-          </Button>
-          <Button variant="primary" disabled={!valid || upload.isPending} onClick={submit}>
-            {upload.isPending ? t('scr.uploading') : t('scr.upload')}
-          </Button>
-        </>
-      }
-    >
-      <div className="flex flex-col gap-3">
-        {err && (
-          <div className="rounded-lg bg-surface-danger px-3 py-2 text-[12px] font-semibold text-accent-danger">
-            {err}
-          </div>
-        )}
-        <Field label={t('scr.fldFile')}>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="video/*,image/*"
-            data-testid="slide-file-input"
-            onChange={(e) => {
-              const f = e.target.files?.[0] ?? null
-              setFile(f)
-              if (f && !title) setTitle(f.name.replace(/\.[^.]+$/, ''))
-            }}
-            className="block w-full text-[13px] text-ink-700 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-green-600 file:px-3 file:py-2 file:text-[12px] file:font-bold file:text-white hover:file:bg-brand-green-700"
-          />
-        </Field>
-        <Field label={t('scr.fldTitle')}>
-          <Input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder={t('scr.titlePh')}
-          />
-        </Field>
-        <Field label={t('scr.fldDuration')}>
-          <Input
-            type="number"
-            min={1}
-            value={durationSec}
-            onChange={(e) => setDurationSec(e.target.value)}
-          />
-        </Field>
-      </div>
-    </Modal>
+    </SectionCard>
   )
 }

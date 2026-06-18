@@ -3608,6 +3608,22 @@ UUID (не перечисляемы), но это «security by obscurity»: л�
 - Встроено в левую колонку после поля «Своё фото (URL)». i18n `pm.gallery*` (ru+kk).
   Тест `ProductGallery.test.tsx` (7). tsc 0, vitest 355, build ок.
 
+### Экраны → «эфир»: один общий ролик на все кассы (2026-06-18)
+
+- **Касса УЖЕ онлайн при запуске**: C# (`MainWindow.Screen.cs`) шлёт `POST /api/posm/heartbeat`
+  каждые 60с (deviceId = имя машины) → виджет «Подключено касс» показывает её; и поллит
+  `GET /api/posm/playlists/active` → тянет видео. «0 касс» = просто ни одна касса не запущена.
+- **Backend `ScreenService.broadcast(file, title)`** + эндпоинты `GET/POST /api/admin/screens/broadcast`:
+  атомарно загрузить ОДИН ролик → единственный активный плейлист `pl_broadcast` (BROADCAST_PLAYLIST_ID),
+  остальные active → draft, прежние слайды эфира удаляются (MinIO+БД). Кассы подхватывают поллингом.
+  C# НЕ менялся. Тесты в `ScreensIntegrationTest` (GET/POST/400).
+- **Admin UI максимально упрощён**: вкладка «Экраны в аптеках» = счётчик онлайн-касс +
+  карточка «Ролик на кассах» (превью текущего видео + одна кнопка «Загрузить/Заменить ролик»).
+  Убраны из UI: таблица плейлистов, библиотека слайдов, назначение слайдов, модалка с
+  title/длительностью (плейлист-CRUD на бэке остался, но скрыт). Хуки `useBroadcast`/
+  `useUploadBroadcast`, тип `ActivePlaylistDto`, i18n `scr.broadcast*` (ru+kk).
+  `ScreensPage.test` переписан (эфир/онлайн/табы). tsc 0, vitest 346, build ок.
+
 ### Поиск товаров в пикере — фикс (п.8)
 
 - **Диагностика инструментально**: Medusa `?q=витамин` → 528 ✅; backend-прокси `catalog.search(q)` →

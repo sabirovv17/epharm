@@ -30,6 +30,10 @@ class ScreenService(
     private val pharmacyRepository: PharmacyRepository,
     private val mediaStorage: MediaStorage,
 ) {
+    companion object {
+        /** Единственный глобальный плейлист «эфир» (один ролик на все кассы). */
+        const val BROADCAST_PLAYLIST_ID = "pl_broadcast"
+    }
 
     // ── Чтение ────────────────────────────────────────────────────────────
 
@@ -180,6 +184,53 @@ class ScreenService(
         if (oldPlaylist != null && oldPlaylist != req.playlistId) recountPlaylist(oldPlaylist)
         req.playlistId?.let { recountPlaylist(it) }
         return SlideDto.of(saved)
+    }
+
+    // ── Эфир: один общий ролик на все кассы (максимально просто) ────────────
+
+    /**
+     * «Эфир»: загрузил ОДИН ролик — он сразу играет на ВСЕХ кассах. Атомарно:
+     *  1) видео → MinIO (валидация в uploadSlide);
+     *  2) гасим все активные плейлисты (активен только эфир);
+     *  3) находим/создаём единственный плейлист BROADCAST_PLAYLIST_ID;
+     *  4) эфир = один ролик: удаляем прежние слайды этого плейлиста (MinIO + БД);
+     *  5) привязываем новый ролик и активируем плейлист.
+     * Кассы подхватят его поллингом `GET /api/posm/playlists/active`.
+     */
+    @Transactional
+    fun broadcast(file: MultipartFile, title: String?): ActivePlaylistDto {
+        val name = title?.trim()?.takeIf { it.isNotBlank() }
+            ?: file.originalFilename?.substringBeforeLast('.')?.trim()?.takeIf { it.isNotBlank() }
+            ?: "Ролик на кассах"
+        val uploaded = uploadSlide(file, name, 15)
+
+        playlistRepository.findAllByStatusRawOrderByUpdatedAtDesc(PlaylistStatus.active.name).forEach {
+            it.status = PlaylistStatus.draft
+            playlistRepository.save(it)
+        }
+
+        val playlist = playlistRepository.findById(BROADCAST_PLAYLIST_ID).orElseGet {
+            playlistRepository.save(
+                PlaylistEntity(id = BROADCAST_PLAYLIST_ID, name = "Эфир касс").also {
+                    it.status = PlaylistStatus.draft
+                },
+            )
+        }
+
+        slideRepository.findAllByPlaylistIdOrderByPositionAsc(playlist.id).forEach {
+            mediaStorage.delete(it.mediaUrl)
+            slideRepository.delete(it)
+        }
+
+        val slide = loadSlideOrThrow(uploaded.id)
+        slide.playlistId = playlist.id
+        slide.position = 0
+        slideRepository.save(slide)
+        playlist.status = PlaylistStatus.active
+        playlistRepository.save(playlist)
+        recountPlaylist(playlist.id)
+
+        return activePlaylistForScreen(null)
     }
 
     // ── Internals ─────────────────────────────────────────────────────────

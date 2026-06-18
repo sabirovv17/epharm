@@ -2,6 +2,7 @@ package kz.epharm.screens.controller
 
 import jakarta.validation.Valid
 import kz.epharm.posm.service.DevicePresenceService
+import kz.epharm.screens.dto.ActivePlaylistDto
 import kz.epharm.screens.dto.AssignSlideRequest
 import kz.epharm.screens.dto.ConnectedRegistersDto
 import kz.epharm.screens.dto.CreatePlaylistRequest
@@ -85,4 +86,17 @@ class ScreenController(
     @PostMapping("/slides/{id}/assign")
     fun assignSlide(@PathVariable id: String, @Valid @RequestBody req: AssignSlideRequest): SlideDto =
         screenService.assignSlide(id, req)
+
+    // ── Эфир: один общий ролик на все кассы (максимально просто) ─────────────
+
+    /** Текущий ролик на кассах (активный плейлист). Пустой playlistId → ролика нет. */
+    @GetMapping("/broadcast")
+    fun broadcast(): ActivePlaylistDto = screenService.activePlaylistForScreen(null)
+
+    /** Загрузить ОДИН ролик — он сразу играет на всех кассах. multipart (file + опц. title). */
+    @PostMapping("/broadcast", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    fun uploadBroadcast(
+        @RequestParam("file") file: MultipartFile,
+        @RequestParam(name = "title", required = false) title: String?,
+    ): ActivePlaylistDto = screenService.broadcast(file, title)
 }

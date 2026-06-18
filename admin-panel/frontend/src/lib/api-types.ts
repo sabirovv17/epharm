@@ -583,6 +583,19 @@ export interface SlideDto {
   position: number
 }
 
+/** Текущий ролик на кассах — «эфир» (GET/POST /api/admin/screens/broadcast). */
+export interface ActiveSlideDto {
+  url: string
+  kind: SlideKind
+  durationSec: number
+  title: string
+}
+export interface ActivePlaylistDto {
+  playlistId: string | null
+  name: string
+  slides: ActiveSlideDto[]
+}
+
 // Зеркало kz.epharm.screens.dto.* (управление экранами, ТЗ §3.3)
 export interface CreatePlaylistRequest {
   name: string

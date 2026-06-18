@@ -1002,6 +1002,16 @@ export const ru: Dict = {
   'scr.connectedLabel': 'Подключено касс',
   'scr.connectedLive': 'live · обновляется',
   'scr.connectedNoPharm': 'без аптеки',
+  // Эфир: один общий ролик на все кассы
+  'scr.broadcastTitle': 'Ролик на кассах',
+  'scr.broadcastSub': 'Один ролик играет на всех подключённых кассах',
+  'scr.broadcastEmpty': 'Ролик ещё не загружен',
+  'scr.broadcastEmptyBody': 'Загрузите видео — оно сразу начнёт играть на всех кассах.',
+  'scr.broadcastUpload': 'Загрузить ролик',
+  'scr.broadcastReplace': 'Заменить ролик',
+  'scr.broadcastUploading': 'Загружаем…',
+  'scr.broadcastUploaded': 'Ролик отправлен на все кассы',
+  'scr.broadcastHint': 'MP4/WebM. Кассы подхватят ролик автоматически в течение минуты.',
 }
 
 export const kk: Dict = {
@@ -1994,6 +2004,15 @@ export const kk: Dict = {
   'scr.connectedLabel': 'Қосылған кассалар',
   'scr.connectedLive': 'live · жаңарып тұр',
   'scr.connectedNoPharm': 'дәріханасыз',
+  'scr.broadcastTitle': 'Кассалардағы ролик',
+  'scr.broadcastSub': 'Бір ролик барлық қосылған кассаларда ойнайды',
+  'scr.broadcastEmpty': 'Ролик әлі жүктелмеген',
+  'scr.broadcastEmptyBody': 'Видео жүктеңіз — ол барлық кассаларда бірден ойнай бастайды.',
+  'scr.broadcastUpload': 'Ролик жүктеу',
+  'scr.broadcastReplace': 'Роликті ауыстыру',
+  'scr.broadcastUploading': 'Жүктелуде…',
+  'scr.broadcastUploaded': 'Ролик барлық кассаларға жіберілді',
+  'scr.broadcastHint': 'MP4/WebM. Кассалар роликті бір минут ішінде автоматты түрде алады.',
 }
 
 export const dict: Record<Lang, Dict> = { ru, kk }

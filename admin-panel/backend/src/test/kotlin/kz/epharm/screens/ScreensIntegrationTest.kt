@@ -205,6 +205,48 @@ class ScreensIntegrationTest {
             .andExpect(status().isNoContent)
     }
 
+    // ── Эфир: один общий ролик на все кассы ───────────────────────────────
+
+    @Test
+    fun `GET broadcast → текущий активный ролик`() {
+        // Изначально активен pl_act с видео sl_v.
+        mockMvc.perform(get("/api/admin/screens/broadcast").header("Authorization", bearer))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.playlistId").value("pl_act"))
+            .andExpect(jsonPath("$.slides.length()").value(1))
+    }
+
+    @Test
+    fun `POST broadcast → один активный плейлист-эфир с этим роликом`() {
+        val file = MockMultipartFile("file", "efir.mp4", "video/mp4", byteArrayOf(1, 2, 3))
+        mockMvc.perform(
+            multipart("/api/admin/screens/broadcast")
+                .file(file)
+                .param("title", "Эфир")
+                .header("Authorization", bearer),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.playlistId").value("pl_broadcast"))
+            .andExpect(jsonPath("$.slides.length()").value(1))
+            .andExpect(jsonPath("$.slides[0].title").value("Эфир"))
+            .andExpect(jsonPath("$.slides[0].kind").value("video"))
+
+        // Активен ровно один плейлист — эфир (прежний pl_act погашен).
+        mockMvc.perform(get("/api/admin/screens/playlists?status=active").header("Authorization", bearer))
+            .andExpect(jsonPath("$.length()").value(1))
+            .andExpect(jsonPath("$[0].id").value("pl_broadcast"))
+    }
+
+    @Test
+    fun `POST broadcast не-медиа → 400`() {
+        val file = MockMultipartFile("file", "doc.pdf", "application/pdf", byteArrayOf(1, 2))
+        mockMvc.perform(
+            multipart("/api/admin/screens/broadcast").file(file).header("Authorization", bearer),
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+    }
+
     private fun login(): LoginResponse {
         val req = LoginRequest(email = "damir@jadran.com", password = "damir2026")
         val result = mockMvc.perform(

@@ -5,6 +5,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type {
+  ActivePlaylistDto,
   AssignSlideRequest,
   ConnectedScreensDto,
   CreatePlaylistRequest,
@@ -26,6 +27,33 @@ export const screensKeys = {
     [...screensKeys.all, 'playlists', filter ?? {}] as const,
   slides: () => [...screensKeys.all, 'slides'] as const,
   connected: () => [...screensKeys.all, 'connected'] as const,
+  broadcast: () => [...screensKeys.all, 'broadcast'] as const,
+}
+
+/** Текущий ролик на кассах («эфир»). */
+export function useBroadcast() {
+  return useQuery<ActivePlaylistDto>({
+    queryKey: screensKeys.broadcast(),
+    queryFn: () => api.get<ActivePlaylistDto>('/api/admin/screens/broadcast').then((r) => r.data),
+  })
+}
+
+/** Загрузить ОДИН ролик — он сразу играет на всех кассах. multipart (file + опц. title). */
+export function useUploadBroadcast() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ file, title }: { file: File; title?: string }) => {
+      const form = new FormData()
+      form.append('file', file)
+      if (title) form.append('title', title)
+      return api.post<ActivePlaylistDto>('/api/admin/screens/broadcast', form).then((r) => r.data)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: screensKeys.broadcast() })
+      qc.invalidateQueries({ queryKey: screensKeys.playlistsRoot() })
+      qc.invalidateQueries({ queryKey: screensKeys.slides() })
+    },
+  })
 }
 
 /**

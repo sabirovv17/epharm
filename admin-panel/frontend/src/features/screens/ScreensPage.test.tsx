@@ -1,4 +1,5 @@
-// Тесты ScreensPage — плейлисты + слайды из real API (read-only).
+// Тесты ScreensPage — упрощённая вкладка «Экраны»: онлайн-кассы + один ролик (эфир)
+// + загрузка/замена. Плюс переключение на вкладку «Баннеры».
 
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
@@ -6,25 +7,17 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { ToastHost } from '@/ui'
-import type { PlaylistDto, SlideDto } from '@/lib/api-types'
+import type { ActivePlaylistDto } from '@/lib/api-types'
 import ScreensPage from './ScreensPage'
 
 const screenHooks = vi.hoisted(() => ({
-  usePlaylists: vi.fn(),
-  useSlides: vi.fn(),
   useConnectedScreens: vi.fn(),
-  useUpdatePlaylist: vi.fn(),
-  useDeletePlaylist: vi.fn(),
-  useUploadSlide: vi.fn(),
-  useDeleteSlide: vi.fn(),
-  useAssignSlide: vi.fn(),
+  useBroadcast: vi.fn(),
+  useUploadBroadcast: vi.fn(),
 }))
 vi.mock('@/lib/queries/screens', () => screenHooks)
 
-const pharmacyHooks = vi.hoisted(() => ({ usePharmacies: vi.fn() }))
-vi.mock('@/lib/queries/pharmacies', () => pharmacyHooks)
-
-// Вкладка «Баннеры приложения» рендерит BannersPanel → мокаем его queries-модуль.
+// Вкладка «Баннеры» рендерит BannersPanel — мокаем его queries-модуль.
 const bannerHooks = vi.hoisted(() => ({
   useBanners: vi.fn(),
   useCreateBanner: vi.fn(),
@@ -35,81 +28,21 @@ const bannerHooks = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/queries/banners', () => bannerHooks)
 
-// Общие мок-мутации, чтобы можно было ассертить вызовы.
-const mut = {
-  updatePlaylist: vi.fn(),
-  deletePlaylist: vi.fn(),
-  uploadSlide: vi.fn(),
-  deleteSlide: vi.fn(),
-  assignSlide: vi.fn(),
-}
+const uploadMutate = vi.fn()
 
-function mkPlaylist(over: Partial<PlaylistDto> = {}): PlaylistDto {
-  return {
-    id: 'pl_1',
-    name: 'Утренняя ротация',
-    status: 'active',
-    slidesCount: 4,
-    durationSec: 80,
-    pharmacies: 24,
-    pharmacyId: null,
-    createdAt: '2026-05-01T00:00:00Z',
-    updatedAt: '2026-05-01T00:00:00Z',
-    ...over,
-  }
-}
-
-function mkSlide(over: Partial<SlideDto> = {}): SlideDto {
-  return {
-    id: 'sl_1',
-    title: 'Аквалор',
-    kind: 'video',
-    durationSec: 20,
-    mediaUrl: 's3://x/a.mp4',
-    playlistId: 'pl_1',
-    position: 0,
-    ...over,
-  }
-}
-
-function setData(
-  playlists: PlaylistDto[] = [],
-  slides: SlideDto[] = [],
-  extra: Record<string, unknown> = {},
-) {
-  screenHooks.usePlaylists.mockReturnValue({
-    data: playlists,
-    isLoading: false,
-    isError: false,
-    error: null,
-    refetch: vi.fn(),
-    ...extra,
-  })
-  screenHooks.useSlides.mockReturnValue({
-    data: slides,
-    isLoading: false,
-    isError: false,
-    error: null,
-    refetch: vi.fn(),
-  })
+function setBroadcast(data: ActivePlaylistDto | undefined) {
+  screenHooks.useBroadcast.mockReturnValue({ data, isLoading: false, isError: false })
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  setData([], [])
   screenHooks.useConnectedScreens.mockReturnValue({
     data: { total: 0, devices: [] },
     isLoading: false,
   })
-  screenHooks.useUpdatePlaylist.mockReturnValue({ mutate: mut.updatePlaylist, isPending: false })
-  screenHooks.useDeletePlaylist.mockReturnValue({ mutate: mut.deletePlaylist, isPending: false })
-  screenHooks.useUploadSlide.mockReturnValue({ mutate: mut.uploadSlide, isPending: false })
-  screenHooks.useDeleteSlide.mockReturnValue({ mutate: mut.deleteSlide, isPending: false })
-  screenHooks.useAssignSlide.mockReturnValue({ mutate: mut.assignSlide, isPending: false })
-  pharmacyHooks.usePharmacies.mockReturnValue({
-    data: [{ id: 'ph_1', name: 'Аптека №1', city: 'Алматы' }],
-  })
-  // По умолчанию баннеров нет — вкладка «Баннеры» покажет пустое состояние.
+  setBroadcast({ playlistId: null, name: '', slides: [] })
+  screenHooks.useUploadBroadcast.mockReturnValue({ mutate: uploadMutate, isPending: false })
+
   bannerHooks.useBanners.mockReturnValue({
     data: [],
     isLoading: false,
@@ -137,169 +70,80 @@ function renderPage() {
   )
 }
 
-describe('ScreensPage — рендер', () => {
-  it('H1 + Empty на пустых данных', () => {
+describe('ScreensPage — онлайн-кассы', () => {
+  it('H1 + счётчик подключённых касс', () => {
     renderPage()
     expect(
       screen.getByRole('heading', { level: 1, name: /Управление экранами/i }),
     ).toBeInTheDocument()
-    expect(screen.getByText(/Плейлистов пока нет/i)).toBeInTheDocument()
-    expect(screen.getByText(/Библиотека пуста/i)).toBeInTheDocument()
+    expect(screen.getByTestId('connected-registers')).toHaveTextContent('Подключено касс')
   })
 
-  it('показывает плейлисты из API', () => {
-    setData([mkPlaylist({ id: 'pl_a' }), mkPlaylist({ id: 'pl_b', name: 'Промо' })], [])
-    renderPage()
-    expect(screen.getByTestId('playlists-table')).toBeInTheDocument()
-    expect(screen.getByTestId('playlist-pl_a')).toBeInTheDocument()
-    expect(screen.getByTestId('playlist-pl_b')).toBeInTheDocument()
-  })
-
-  it('показывает слайды из API (видео + библиотечный)', () => {
-    setData(
-      [],
-      [
-        mkSlide({ id: 'sl_v', kind: 'video' }),
-        mkSlide({ id: 'sl_lib', kind: 'image', playlistId: null }),
-      ],
-    )
-    renderPage()
-    expect(screen.getByTestId('slides-list')).toBeInTheDocument()
-    expect(screen.getByTestId('slide-sl_v')).toBeInTheDocument()
-    expect(screen.getByTestId('slide-sl_lib')).toBeInTheDocument()
-  })
-
-  it('T3: блок «Расписание» удалён', () => {
-    setData([mkPlaylist()], [mkSlide()])
-    renderPage()
-    expect(screen.queryByText(/Расписаний пока нет/i)).not.toBeInTheDocument()
-  })
-
-  it('T3: кнопка «Новый плейлист» удалена', () => {
-    renderPage()
-    expect(screen.queryByTestId('screens-new-playlist')).not.toBeInTheDocument()
-    expect(screen.queryByText(/Новый плейлист/i)).not.toBeInTheDocument()
-  })
-
-  it('T3: колонка «Аптек» удалена из таблицы плейлистов', () => {
-    setData([mkPlaylist({ id: 'pl_a' })], [])
-    renderPage()
-    const table = screen.getByTestId('playlists-table')
-    expect(table.querySelector('thead')?.textContent).not.toMatch(/Аптек/)
-  })
-
-  it('T4: виджет «Подключено касс» показывает total и устройства', () => {
+  it('показывает онлайн-кассы (total + устройства)', () => {
     screenHooks.useConnectedScreens.mockReturnValue({
       data: {
         total: 2,
         devices: [
-          { deviceId: 'dev-1', pharmacyId: 'ph_1', lastSeen: '2026-06-14T10:00:00Z' },
-          { deviceId: 'dev-2', pharmacyId: null, lastSeen: '2026-06-14T10:01:00Z' },
+          { deviceId: 'kassa-1', pharmacyId: 'ph_1', lastSeen: '2026-06-17T10:00:00Z' },
+          { deviceId: 'kassa-2', pharmacyId: null, lastSeen: '2026-06-17T10:01:00Z' },
         ],
       },
       isLoading: false,
     })
     renderPage()
-    const widget = screen.getByTestId('connected-registers')
-    expect(widget).toHaveTextContent('Подключено касс')
-    expect(widget).toHaveTextContent('2')
-    expect(screen.getByTestId('connected-dev-1')).toBeInTheDocument()
-    expect(screen.getByTestId('connected-dev-2')).toBeInTheDocument()
+    const w = screen.getByTestId('connected-registers')
+    expect(w).toHaveTextContent('2')
+    expect(screen.getByTestId('connected-kassa-1')).toBeInTheDocument()
+    expect(screen.getByTestId('connected-kassa-2')).toBeInTheDocument()
   })
 })
 
-describe('ScreensPage — error', () => {
-  it('баннер + Повторить когда плейлисты не загрузились', async () => {
-    const refetch = vi.fn()
-    setData([], [], { isError: true, error: new Error('x'), refetch })
-    const user = userEvent.setup()
+describe('ScreensPage — эфир (один ролик)', () => {
+  it('нет ролика → пустое состояние + кнопка «Загрузить ролик»', () => {
     renderPage()
-    expect(screen.getByText(/Не удалось загрузить плейлисты/i)).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /Повторить/ }))
-    expect(refetch).toHaveBeenCalled()
-  })
-})
-
-describe('ScreensPage — управление (ТЗ §3.3)', () => {
-  it('кнопка «Загрузить слайд» открывает модалку с file-input', async () => {
-    const user = userEvent.setup()
-    renderPage()
-    await user.click(screen.getByTestId('screens-upload-slide'))
-    expect(screen.getByTestId('slide-file-input')).toBeInTheDocument()
+    expect(screen.getByText(/Ролик ещё не загружен/i)).toBeInTheDocument()
+    expect(screen.getByTestId('broadcast-upload')).toHaveTextContent(/Загрузить ролик/i)
+    expect(screen.queryByTestId('broadcast-video')).not.toBeInTheDocument()
   })
 
-  it('активировать/в черновик зовёт useUpdatePlaylist', async () => {
-    setData([mkPlaylist({ id: 'pl_x', status: 'draft' })], [])
-    const user = userEvent.setup()
-    renderPage()
-    await user.click(screen.getByRole('button', { name: /Активировать/ }))
-    expect(mut.updatePlaylist).toHaveBeenCalled()
-    expect(mut.updatePlaylist.mock.calls[0][0]).toMatchObject({
-      id: 'pl_x',
-      patch: { status: 'active' },
+  it('есть ролик → видео + кнопка «Заменить ролик»', () => {
+    setBroadcast({
+      playlistId: 'pl_broadcast',
+      name: 'Эфир касс',
+      slides: [{ url: 'https://m/promo.mp4', kind: 'video', durationSec: 8, title: 'Промо' }],
     })
+    renderPage()
+    const video = screen.getByTestId('broadcast-video') as HTMLVideoElement
+    expect(video.src).toContain('promo.mp4')
+    expect(screen.getByTestId('broadcast-upload')).toHaveTextContent(/Заменить ролик/i)
   })
 
-  // ДОП.2: таргетинг по аптеке убран из UI (один глобальный видеоряд на все кассы),
-  // поэтому тесты назначения плейлиста на экран удалены.
-
-  it('удаление плейлиста с подтверждением → useDeletePlaylist', async () => {
-    setData([mkPlaylist({ id: 'pl_x' })], [])
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+  it('выбор файла → useUploadBroadcast.mutate с файлом', async () => {
     const user = userEvent.setup()
     renderPage()
-    await user.click(screen.getByTestId('playlist-delete-pl_x'))
-    expect(mut.deletePlaylist).toHaveBeenCalledWith('pl_x', expect.anything())
+    const file = new File(['x'], 'promo.mp4', { type: 'video/mp4' })
+    await user.upload(screen.getByTestId('broadcast-file-input') as HTMLInputElement, file)
+    expect(uploadMutate).toHaveBeenCalled()
+    expect(uploadMutate.mock.calls[0][0]).toMatchObject({ file })
   })
 
-  it('назначение слайда в плейлист → useAssignSlide', async () => {
-    setData([mkPlaylist({ id: 'pl_x', name: 'Утро' })], [mkSlide({ id: 'sl_x', playlistId: null })])
-    const user = userEvent.setup()
+  it('загрузка идёт → кнопка «Загружаем…» и disabled', () => {
+    screenHooks.useUploadBroadcast.mockReturnValue({ mutate: uploadMutate, isPending: true })
     renderPage()
-    // в строке слайда есть select с опцией плейлиста
-    const select = screen.getByTestId('slide-sl_x').querySelector('select') as HTMLSelectElement
-    await user.selectOptions(select, 'pl_x')
-    expect(mut.assignSlide).toHaveBeenCalled()
-    expect(mut.assignSlide.mock.calls[0][0]).toMatchObject({
-      id: 'sl_x',
-      req: { playlistId: 'pl_x' },
-    })
-  })
-
-  it('удаление слайда → useDeleteSlide', async () => {
-    setData([], [mkSlide({ id: 'sl_x' })])
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
-    const user = userEvent.setup()
-    renderPage()
-    await user.click(screen.getByTestId('slide-delete-sl_x'))
-    expect(mut.deleteSlide).toHaveBeenCalledWith('sl_x', expect.anything())
+    const btn = screen.getByTestId('broadcast-upload')
+    expect(btn).toHaveTextContent(/Загружаем/i)
+    expect(btn).toBeDisabled()
   })
 })
 
-describe('ScreensPage — вкладки (экраны + баннеры)', () => {
-  it('по умолчанию открыта вкладка «Экраны в аптеках»', () => {
-    setData([mkPlaylist()], [mkSlide()])
-    renderPage()
-    expect(screen.getByText(/Активные плейлисты/i)).toBeInTheDocument()
-    expect(screen.queryByTestId('banners-list')).not.toBeInTheDocument()
-  })
-
-  it('клик по «Баннеры приложения» показывает панель + кнопку «Добавить баннер»', async () => {
+describe('ScreensPage — вкладки', () => {
+  it('переключение на «Баннеры приложения» показывает панель + кнопку «Добавить баннер»', async () => {
     const user = userEvent.setup()
     renderPage()
+    // по умолчанию — эфир
+    expect(screen.getByTestId('broadcast-card')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /Баннеры приложения/i }))
     expect(screen.getByTestId('banners-create')).toBeInTheDocument()
-    expect(screen.getByText(/Баннеров пока нет/i)).toBeInTheDocument()
-    // контент вкладки экранов скрыт
-    expect(screen.queryByText(/Активные плейлисты/i)).not.toBeInTheDocument()
-  })
-
-  it('кнопка «Добавить баннер» открывает форму нового баннера', async () => {
-    const user = userEvent.setup()
-    renderPage()
-    await user.click(screen.getByRole('button', { name: /Баннеры приложения/i }))
-    await user.click(screen.getByTestId('banners-create'))
-    expect(screen.getByTestId('banner-file-input')).toBeInTheDocument()
-    expect(screen.getByText(/Новый баннер/i)).toBeInTheDocument()
+    expect(screen.queryByTestId('broadcast-card')).not.toBeInTheDocument()
   })
 })
