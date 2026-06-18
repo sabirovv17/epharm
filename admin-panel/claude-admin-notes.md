@@ -3547,6 +3547,10 @@ UUID (не перечисляемы), но это «security by obscurity»: л�
 - Бэкенд НЕ менялся (тот же `/api/admin/banners`); мобильная лента `/api/mobile/banners` не затронута.
 - Тесты: `BannersPanel.test.tsx` (12: список/статус-toggle/reorder/delete/форма) + `ScreensPage.test.tsx`
   (+3 на вкладки). Полный admin: `tsc` 0, **vitest 358/358**, `vite build` ок.
+- **Деплой (2026-06-18)**: хирургический rsync изменённых `src/`-файлов на прод + `rm -rf` старой
+  `features/banners/` → `docker compose ... up -d --build --no-deps frontend` (backend не тронут).
+  Проверка: бандл `index-BK2OBLZs.js` содержит «Экраны в аптеках»/«Добавить баннер»; `/`,`/screens`,
+  `/banners`,`/api/mobile/banners` → 200; Caddy отдаёт свежий бандл.
 
 ### Поиск товаров в пикере — фикс (п.8)
 
