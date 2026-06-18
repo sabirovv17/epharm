@@ -19,6 +19,7 @@ import { useArchivePromo, usePromo, useRestorePromo, useUpdatePromo } from '@/li
 import { useStorefrontProduct } from '@/lib/queries/storefront'
 import type { SelectedProduct } from './PromoProductPicker'
 import { PromoRulesEditor } from './PromoRulesEditor'
+import { ProductGallery } from './ProductGallery'
 
 interface FormState {
   title: string
@@ -258,6 +259,23 @@ export default function PromoDetailPage() {
     })
   }
 
+  // Галерея фото товара: «Своё фото» (обложка) + снимок + все фото из Medusa, без дублей.
+  const galleryImages: string[] = []
+  const pushImage = (u?: string | null) => {
+    const v = u?.trim()
+    if (v && !galleryImages.includes(v)) galleryImages.push(v)
+  }
+  pushImage(form.overrideImage)
+  pushImage(promo.productImage)
+  pushImage(medusaProduct?.imageUrl)
+  ;(medusaProduct?.images ?? []).forEach(pushImage)
+  const effectiveImage =
+    form.overrideImage.trim() ||
+    promo.productImage ||
+    medusaProduct?.imageUrl ||
+    galleryImages[0] ||
+    null
+
   return (
     <Shell
       onBack={goBack}
@@ -375,6 +393,15 @@ export default function PromoDetailPage() {
                 onChange={set('overrideImage')}
                 placeholder="https://…"
                 disabled={isArchived}
+              />
+            </Field>
+
+            {/* Галерея фото товара (просмотр): обложка + все фото из Medusa. */}
+            <Field label={t('pm.galleryTitle')} hint={t('pm.galleryHint')}>
+              <ProductGallery
+                key={galleryImages.join('|')}
+                images={galleryImages}
+                effective={effectiveImage}
               />
             </Field>
             <Field

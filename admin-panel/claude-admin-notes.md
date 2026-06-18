@@ -3598,6 +3598,16 @@ UUID (не перечисляемы), но это «security by obscurity»: л�
   selectBody переписаны под read-only. Тесты переписаны (RuleBuilder/RulesPage). tsc 0, vitest
   348 (флак PromoPicker под нагрузкой — на повторе зелено), build ок.
 
+### Галерея фото товара в кампании (2026-06-18)
+
+- `ProductGallery.tsx` (read-only): главное фото + миниатюры + лайтбокс (клик → модалка),
+  бейдж «Обложка» на effective-фото. Сброс активного кадра при смене набора — через `key`.
+- Данные уже были на странице: `PromoDetailPage` грузит `medusaProduct` (`useStorefrontProduct`),
+  у которого `images: string[]` + `imageUrl`. Набор галереи = `overrideImage` (обложка) + снимок
+  `productImage` + `medusaProduct.imageUrl` + `medusaProduct.images`, дедуп. Бэкенд не менялся.
+- Встроено в левую колонку после поля «Своё фото (URL)». i18n `pm.gallery*` (ru+kk).
+  Тест `ProductGallery.test.tsx` (7). tsc 0, vitest 355, build ок.
+
 ### Поиск товаров в пикере — фикс (п.8)
 
 - **Диагностика инструментально**: Medusa `?q=витамин` → 528 ✅; backend-прокси `catalog.search(q)` →
