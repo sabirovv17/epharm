@@ -3676,3 +3676,27 @@ ErrorBoundary`), фичи (`rules/promo/pharmacies`), категориальны
 - Верификация на проде: CSS-бандл содержит `#d97757` (×6), бренд-`#16c97a` = 0; admin `/`+`/banners` 200.
 - Координаты прод-деплоя — см. память `reference-prod-deploy` (`/root/epharm`, ключ, sslip-URL, бакет
   `epharm-receipts`).
+
+## 2026-06-19 — Фото Medusa: mixed-content прокси + галерея кампании
+
+**Корень бага «Фото не загрузились» во всех кампаниях:** Medusa отдаёт фото товаров по голому HTTP
+(`http://78.140.246.238:9000/static/…`), а админка по HTTPS → браузер блокирует mixed content. Мобилка
+грузит (cleartext-dev), браузер — нет. (Раньше галерея просто прятала «битые» фото → пустое состояние.)
+
+- **Backend:** `shared/media/MediaProxyController` — публичный `GET /api/media/img?u=<url>`: тянет картинку
+  server-to-server и отдаёт по нашему HTTPS. **SSRF-guard**: проксируем ТОЛЬКО `authority` хоста
+  `app.medusa.base-url` (чужой `u` → 400). `Cache-Control: public, max-age=7d`. permitAll `/api/media/**`
+  в `SecurityConfig`. Прод-проверка: реальное фото → `200 image/jpeg`, чужой хост → `400`.
+- **Frontend:** `lib/media.ts` `proxyMedia(url)` — `http://`→`${BASE_URL}/api/media/img?u=…`, остальное as-is.
+  В БД (`overrideImage`/`productImage`) храним ИСХОДНЫЙ URL Medusa, проксируем только для `<img src>`.
+  `BASE_URL` теперь **экспортируется** из `lib/api.ts` (в проде `''` → same-origin).
+- **ProductGallery:** проп `resolveSrc` (raw-значение != отображаемый src — для прокси) + `onPickCover`
+  (выбор обложки). Заведено в `PromoDetailPage` (галерея) и `PromoProductPicker` (миниатюры).
+- **Галерея при СОЗДАНИИ кампании** (`CreatePromoModal`): после выбора товара — `useStorefrontProduct` →
+  `ProductGallery` с `onPickCover` → выбранное фото идёт в `overrideImage` (обложка). ⚠️ хук зовётся
+  безусловно → в тестах PromoPage надо мокать `useStorefrontProduct` (иначе destructure undefined).
+- **Рефреш фото:** `MedusaPriceService.snapshotOf()` (цена+обложка одним запросом); `PromoPriceScheduler`
+  ежедневно обновляет и `productImage` (фото витрины тоже меняют), не только цену. Живая галерея и так
+  свежая через cache-ttl 300с. ⚠️ `overrideImage` (ручная обложка) рефреш НЕ трогает.
+- ⚠️ Предсуществующий долг `react-hooks/set-state-in-effect` в `PromoDetailPage` (prefill) и
+  `PromoProductPicker` (аккумулятор пагинации) — НЕ мой, оставлен (сложные эффекты с историей багфиксов).
