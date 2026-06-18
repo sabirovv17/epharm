@@ -19,7 +19,7 @@ class CooperationScreen extends StatelessWidget {
       gradient: LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [Color(0xFF21D17A), Color(0xFF16A65C)],
+        colors: [Color(0xFFDB7F57), Color(0xFFC2562E)],
       ),
     ),
     _CoopCard(
@@ -30,7 +30,7 @@ class CooperationScreen extends StatelessWidget {
       gradient: LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [Color(0xFF5560FB), Color(0xFF2A2BE2)],
+        colors: [Color(0xFFE0916B), Color(0xFFBE5A38)],
       ),
     ),
     _CoopCard(
@@ -150,7 +150,7 @@ class CooperationScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(99),
                   boxShadow: const [
                     BoxShadow(
-                      color: Color(0x4D2A2BE2),
+                      color: Color(0x47D97757), // rgba(217,119,87,0.28) — коралловый glow
                       offset: Offset(0, 8),
                       blurRadius: 20,
                     ),
@@ -216,7 +216,7 @@ class _CoopCardView extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x1A0F1424),
+            color: Color(0x1A221C16),
             offset: Offset(0, 8),
             blurRadius: 18,
           ),

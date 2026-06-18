@@ -4,7 +4,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_radii.dart';
 
 /// Glass pill (§6.1): rgba(255,255,255,0.16) + inner-glass shine, h=52 (default), pill radius.
-/// Используется на зелёном header'е («История», «Загрузить чек», «Конкурсы»).
+/// Используется на коралловом header'е («История», «Загрузить чек», «Конкурсы»).
 class GlassPill extends StatelessWidget {
   const GlassPill({
     super.key,
@@ -23,10 +23,10 @@ class GlassPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Зелёная glass-pill для header'а: light brand-green-500 fill (#21D17A)
-    // даёт ЯВНО ЗЕЛЁНУЮ плашку поверх gradient header'а (#21D17A → #16A65C).
+    // Коралловая glass-pill для header'а: brand-500 fill (#DB7F57) даёт ЯВНУЮ
+    // коралловую плашку поверх gradient header'а (#DC8460 → #CE6B43).
     // Раньше использовали white @ 40% — pill читался как «беловато-светлый»,
-    // а не как «более зелёный». Сейчас saturated green с лёгкой white-кромкой.
+    // а не как «более брендовый». Сейчас saturated coral с лёгкой white-кромкой.
     final content = Material(
       color: Colors.transparent,
       child: InkWell(

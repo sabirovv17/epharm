@@ -5,40 +5,41 @@ import 'package:flutter/material.dart';
 ///
 /// Использовать только через эти константы — не хардкодить хексы в виджетах.
 abstract final class AppColors {
-  // Brand — Green (primary)
-  static const Color brandGreen700 = Color(0xFF0F8F55);
-  static const Color brandGreen600 = Color(0xFF16C97A);
-  static const Color brandGreen500 = Color(0xFF21D17A);
-  static const Color brandGreen400 = Color(0xFF3DCDA2);
-  static const Color brandGreen100 = Color(0xFFE5F8EE);
+  // Brand — Coral (primary). Бренд = Claude coral.
+  // Имена brandGreen* сохранены для совместимости с виджетами; значения — коралл.
+  static const Color brandGreen700 = Color(0xFFBE5A38);
+  static const Color brandGreen600 = Color(0xFFD97757); // PRIMARY
+  static const Color brandGreen500 = Color(0xFFDB7F57);
+  static const Color brandGreen400 = Color(0xFFE0916B);
+  static const Color brandGreen100 = Color(0xFFF8E7DD);
 
-  // Brand — Blue (secondary / accents)
-  static const Color brandBlue700 = Color(0xFF1F1FCC);
-  static const Color brandBlue600 = Color(0xFF2A2BE2);
-  static const Color brandBlue500 = Color(0xFF3F47F0);
-  static const Color brandBlue400 = Color(0xFF5560FB);
-  static const Color brandBlue300 = Color(0xFF8189FF);
-  static const Color brandBlue200 = Color(0xFFC9CCFF);
-  static const Color brandBlue100 = Color(0xFFE8EAFE);
+  // Brand — Coral accent (бывш. синий; моно-бренд, акцент чуть глубже).
+  static const Color brandBlue700 = Color(0xFFA8472A);
+  static const Color brandBlue600 = Color(0xFFBE5A38);
+  static const Color brandBlue500 = Color(0xFFD97757);
+  static const Color brandBlue400 = Color(0xFFE0916B);
+  static const Color brandBlue300 = Color(0xFFE4A485);
+  static const Color brandBlue200 = Color(0xFFF0C8B4);
+  static const Color brandBlue100 = Color(0xFFF8E7DD);
 
-  // Neutrals — ink
-  static const Color ink900 = Color(0xFF0F1424);
-  static const Color ink700 = Color(0xFF2A2F40);
-  static const Color ink500 = Color(0xFF5A6173);
-  static const Color ink400 = Color(0xFF9098A6);
-  static const Color ink300 = Color(0xFFC2C7D2);
+  // Neutrals — ink (тёплый)
+  static const Color ink900 = Color(0xFF221C16);
+  static const Color ink700 = Color(0xFF423B32);
+  static const Color ink500 = Color(0xFF6F665B);
+  static const Color ink400 = Color(0xFF9D9388);
+  static const Color ink300 = Color(0xFFD4CCC0);
 
-  // Surfaces
-  static const Color paperCanvas = Color(0xFFF4F6FA);
+  // Surfaces (кремовый)
+  static const Color paperCanvas = Color(0xFFFAF7F2);
   static const Color paperCard = Color(0xFFFFFFFF);
-  static const Color paperInput = Color(0xFFF2F4F8);
+  static const Color paperInput = Color(0xFFF3EEE7);
 
   // Text on brand fills
   static const Color textOnBrand = Color(0xFFFFFFFF);
 
-  // Borders / overlays
-  static const Color borderHairline = Color(0x0F0F1424); // rgba(15,20,36,0.06)
-  static const Color overlayScrim = Color(0x730F1424); // rgba(15,20,36,0.45)
+  // Borders / overlays (тёплый ink-тон)
+  static const Color borderHairline = Color(0x0F221C16); // rgba(34,28,22,0.06)
+  static const Color overlayScrim = Color(0x73221C16); // rgba(34,28,22,0.45)
 
   // Status / accents
   static const Color accentTrophy = Color(0xFFF4B73A);

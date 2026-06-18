@@ -6,7 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 /// Карточка «Посмотрите видео-инструкцию». Открывает YouTube по тапу.
 ///
 /// Дизайн повторяет блок из `_reference/profile-pages/faq.jsx` (футер FAQ-экрана):
-/// 16:9 синий gradient с белым Epharm-бейджем сверху, плашкой «Бонус до 50%»,
+/// 16:9 коралловый gradient с белым Epharm-бейджем сверху, плашкой «Бонус до 50%»,
 /// красной play-кнопкой по центру и + декоративной иконкой в правом нижнем углу.
 class VideoInstructionCard extends StatelessWidget {
   const VideoInstructionCard({
@@ -77,16 +77,16 @@ class VideoInstructionCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    // Основной синий градиент (135deg).
+                    // Основной коралловый градиент (135deg).
                     const DecoratedBox(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            Color(0xFF1147A8),
-                            Color(0xFF1E70D8),
-                            Color(0xFF29A5E0),
+                            Color(0xFFBE5A38),
+                            Color(0xFFD97757),
+                            Color(0xFFE0916B),
                           ],
                           stops: [0.0, 0.45, 1.0],
                         ),
@@ -170,9 +170,9 @@ class VideoInstructionCard extends StatelessWidget {
                             center: Alignment(-0.3, -0.3),
                             radius: 0.9,
                             colors: [
-                              Color(0xFF5FCEFF),
-                              Color(0xFF1581D4),
-                              Color(0xFF0C4A8A),
+                              Color(0xFFE4A485),
+                              Color(0xFFD2693F),
+                              Color(0xFF9A4427),
                             ],
                             stops: [0.0, 0.6, 1.0],
                           ),
@@ -204,7 +204,7 @@ class VideoInstructionCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(10),
                           boxShadow: const [
                             BoxShadow(
-                              color: Color(0x590F1424),
+                              color: Color(0x59221C16),
                               offset: Offset(0, 4),
                               blurRadius: 14,
                             ),
@@ -249,7 +249,7 @@ class _BrandBadge extends StatelessWidget {
             fontFamilyFallback: ['Roboto', 'sans-serif'],
             fontSize: 7,
             fontWeight: FontWeight.w800,
-            color: Color(0xFF1E1FCC),
+            color: Color(0xFFA8472A),
             height: 1.1,
           ),
           children: [
@@ -263,7 +263,7 @@ class _BrandBadge extends StatelessWidget {
   }
 }
 
-/// Полупрозрачная sky-blue пилюля с текстом — для «Бонус до» / «50%».
+/// Полупрозрачная коралловая пилюля с текстом — для «Бонус до» / «50%».
 class _BonusPill extends StatelessWidget {
   const _BonusPill({required this.text, required this.size});
   final String text;

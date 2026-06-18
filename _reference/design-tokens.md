@@ -10,47 +10,56 @@ App flow: **Welcome onboarding (3 slides) → browseable Home (unauthed)**. User
 
 ## 1. Colors
 
-### Brand — Green (primary)
+> **Бренд = Claude coral (orange/white).** Ре-скин 2026-06: зелёный и синий
+> бренд-токены переведены в единый коралл (моно-бренд), серые поверхности — в
+> тёплый кремовый, ink — в тёплый коричнево-серый. Имена токенов (`brand/green/*`,
+> `brand/blue/*`) сохранены для совместимости с кодом, но значения теперь
+> коралловые. Зелёный остаётся ТОЛЬКО как семантика `accent/success` («одобрено/
+> принято»), золото/янтарь/красный — без изменений.
+
+### Brand — Coral (primary) — token-имена `brand/green/*`
 
 | Token | Hex | Use |
 |---|---|---|
-| `brand/green/800` | `#0B6E42` | Deepest — reserved for outlines/illustrations on darkest surfaces |
-| `brand/green/700` | `#0F8F55` | Balance card surface tint, active states on dark gradients, label colour on green-tinted chips, success-banner title |
-| `brand/green/600` | `#16C97A` | Primary CTA "Начать" / "Загрузить чек", price pills in tier ladder, active filter chip, **active bottom-nav tab** (icon + label), ring on profile success, filled checklist tile, numeric-keypad action button |
-| `brand/green/500` | `#21D17A` | Header gradient mid-stop, period badges on small cards, success ticks |
-| `brand/green/400` | `#3DCDA2` | Header gradient top-stop, mint "Войти" OTP submit |
-| `brand/green/300` | `#6FDDA0` | Reserved — illustration mid-tone |
-| `brand/green/200` | `#A9EBC6` | Hairline border on filled checklist rows and geolocation banner; success-chip ring |
-| `brand/green/100` | `#E5F8EE` | Light tint for outline/tag backgrounds; counter pill in catalog filter row; brand-pill on cards |
-| `brand/green/50`  | `#F2FBF6` | Subtle surface fill for filled checklist rows; selected list-row in pharmacy picker |
+| `brand/green/800` | `#9A4427` | Deepest — reserved for outlines/illustrations on darkest surfaces |
+| `brand/green/700` | `#BE5A38` | Balance card surface tint, active states on dark gradients, label colour on coral-tinted chips, success-banner title |
+| `brand/green/600` | `#D97757` | **PRIMARY** — CTA "Начать" / "Загрузить чек", price pills in tier ladder, active filter chip, **active bottom-nav tab** (icon + label), ring on profile success, filled checklist tile, numeric-keypad action button |
+| `brand/green/500` | `#DB7F57` | Header gradient mid-stop, period badges on small cards |
+| `brand/green/400` | `#E0916B` | Header gradient top-stop, coral "Войти" OTP submit |
+| `brand/green/300` | `#E4A485` | Reserved — illustration mid-tone |
+| `brand/green/200` | `#F0C8B4` | Hairline border on filled checklist rows and geolocation banner |
+| `brand/green/100` | `#F8E7DD` | Light tint for outline/tag backgrounds; counter pill in catalog filter row; brand-pill on cards |
+| `brand/green/50`  | `#FBF3EE` | Subtle surface fill for filled checklist rows; selected list-row in pharmacy picker |
 
-### Brand — Blue (secondary / accents)
+### Brand — Coral accent (мono-бренд) — token-имена `brand/blue/*`
 
-| Token | Hex | Use |
-|---|---|---|
-| `brand/blue/700` | `#1F1FCC` | Deepest blue — pressed state |
-| `brand/blue/600` | `#2A2BE2` | `.pay` wordmark accent, NEW badge, training-progress fill, profile-row icon glyph, ringbar in lesson list |
-| `brand/blue/500` | `#3F47F0` | Promo carousel outline alt, small-card NEW pill |
-| `brand/blue/400` | `#5560FB` | Course-cover gradient |
-| `brand/blue/300` | `#8189FF` | Translucent accents |
-| `brand/blue/200` | `#C9CCFF` | Subtle blue chips / disabled |
-| `brand/blue/100` | `#E8EAFE` | Profile-row icon-tile background, info-pill background |
-
-### Neutrals
+Бывший «синий» акцент сведён в тот же коралл, чуть глубже основного.
 
 | Token | Hex | Use |
 |---|---|---|
-| `text/primary` (`ink/900`) | `#0F1424` | Headings, body |
-| `text/strong` (`ink/700`) | `#2A2F40` | Card body, bonus rows |
-| `text/secondary` (`ink/500`) | `#5A6173` | Subtitles, helper |
-| `text/tertiary` (`ink/400`) | `#9098A6` | Placeholders, captions, inactive tab |
-| `text/hairline` (`ink/300`) | `#C2C7D2` | Dividers, OTP inactive borders |
-| `text/onBrand` | `#FFFFFF` | Text on green / blue fills |
-| `surface/canvas` (`paper/DEFAULT`) | `#F4F6FA` | Page background |
+| `brand/blue/700` | `#A8472A` | Deepest coral — pressed state |
+| `brand/blue/600` | `#BE5A38` | `.pay` wordmark accent, NEW badge, training-progress fill, profile-row icon glyph, ringbar in lesson list |
+| `brand/blue/500` | `#D97757` | Promo carousel outline alt, small-card NEW pill |
+| `brand/blue/400` | `#E0916B` | Course-cover gradient |
+| `brand/blue/300` | `#E4A485` | Translucent accents |
+| `brand/blue/200` | `#F0C8B4` | Subtle coral chips / disabled |
+| `brand/blue/100` | `#F8E7DD` | Profile-row icon-tile background, info-pill background |
+
+### Neutrals (тёплый ink + кремовые поверхности)
+
+| Token | Hex | Use |
+|---|---|---|
+| `text/primary` (`ink/900`) | `#221C16` | Headings, body |
+| `text/strong` (`ink/700`) | `#423B32` | Card body, bonus rows |
+| `text/secondary` (`ink/500`) | `#6F665B` | Subtitles, helper |
+| `text/tertiary` (`ink/400`) | `#9D9388` | Placeholders, captions, inactive tab |
+| `text/hairline` (`ink/300`) | `#D4CCC0` | Dividers, OTP inactive borders |
+| `text/onBrand` | `#FFFFFF` | Text on coral fills |
+| `surface/canvas` (`paper/DEFAULT`) | `#FAF7F2` | Page background |
 | `surface/card` (`paper/card`) | `#FFFFFF` | Card / list-row background |
-| `surface/input` (`paper/input`) | `#F2F4F8` | Search, sheet rows, brand filter input, OTP box (focus) |
-| `border/hairline` | `rgba(15,20,36,0.06)` | Card edges |
-| `overlay/scrim` | `rgba(15,20,36,0.45)` | Bottom-sheet backdrop |
+| `surface/input` (`paper/input`) | `#F3EEE7` | Search, sheet rows, brand filter input, OTP box (focus) |
+| `border/hairline` | `rgba(34,28,22,0.06)` | Card edges |
+| `overlay/scrim` | `rgba(34,28,22,0.45)` | Bottom-sheet backdrop |
 
 ### Status / accent
 
@@ -102,10 +111,10 @@ Weights used: **500 / 600 / 700 / 800**.
 
 | Token | Value | Use |
 |---|---|---|
-| `shadow/card` | `0 1px 2px rgba(15,20,36,0.04), 0 4px 16px rgba(15,20,36,0.06)` | List rows, white cards |
-| `shadow/elevated` | `0 4px 8px rgba(15,20,36,0.06), 0 12px 32px rgba(15,20,36,0.10)` | Bottom sheets, modals |
-| `shadow/fab` | `0 8px 20px rgba(22,201,122,0.35)` | Primary CTA, active filter chip, tier pills (green glow) |
-| `shadow/navTop` | `0 -2px 12px rgba(15,20,36,0.05)` | Top edge of bottom-nav |
+| `shadow/card` | `0 1px 3px rgba(34,28,22,0.05), 0 4px 16px rgba(34,28,22,0.08)` | List rows, white cards |
+| `shadow/elevated` | `0 4px 8px rgba(34,28,22,0.06), 0 12px 32px rgba(34,28,22,0.10)` | Bottom sheets, modals |
+| `shadow/fab` | `0 10px 24px rgba(217,119,87,0.28)` | Primary CTA, active filter chip, tier pills (мягкий коралловый glow) |
+| `shadow/navTop` | `0 -2px 12px rgba(34,28,22,0.05)` | Top edge of bottom-nav |
 | `shadow/inset-glass` | `inset 0 0 0 1px rgba(255,255,255,0.18), inset 0 1px 0 rgba(255,255,255,0.22)` | Translucent header pills ("История", "Загрузить чек") |
 
 ---
@@ -266,7 +275,7 @@ Opened from Profile → «Помощь» → «Вопросы и ответы».
   - Max-height transition: `420ms` ease-out on open, `260ms` on close; opacity cross-fades
   - Body text 15/400 `ink/900`, `leading-snug` (1.4)
   - Bullets — 5 × 5 px black disc, 12 px gap to text, items separated by 12 px gap
-  - Inline accent links — `brand/green/400` (#3DCDA2), weight 600, no underline. Render via the `FaqText` helper using `[link]…[/link]` markers in the data string. **Bold** runs use `**…**` markers.
+  - Inline accent links — `brand/green/400` (coral #E0916B), weight 600, no underline. Render via the `FaqText` helper using `[link]…[/link]` markers in the data string. **Bold** runs use `**…**` markers.
 - **Video instruction footer**
   - Centred label «Посмотрите видео-инструкцию» — 16/600 `ink/900`
   - 16:9 video card below: blue gradient (`#1147A8 → #1E70D8 → #29A5E0`), 24 px radius, `shadow/card`
@@ -301,28 +310,28 @@ The brand mark is **Receipt Stamp**: a stylised pharmacy receipt with the medica
 
 | Part | Role | Spec |
 |---|---|---|
-| Receipt body | Recognition silhouette | White fill, **3 px** stroke in `brand/green/600`, rounded stroke joins. Zig-zag bottom edge (5 V-notches) for "receipt" reading. |
-| Receipt lines | Suggest content | 3 horizontal rules, `brand/green/600` @ 45% opacity, radius 1.2, lengths 20 / 14 / 17 (descending) |
-| Stamp disc | Brand accent | 11-radius circle in `brand/blue/600`, overlaps top edge of receipt (centred at x=32, y=14) |
+| Receipt body | Recognition silhouette | White fill, **3 px** stroke in `brand/green/600` (coral `#D97757`), rounded stroke joins. Zig-zag bottom edge (5 V-notches) for "receipt" reading. |
+| Receipt lines | Suggest content | 3 horizontal rules, coral `#D97757` @ 55% opacity, radius 1.2, lengths 20 / 14 / 17 (descending) |
+| Stamp disc | Brand accent | 11-radius circle in dark coral `#BE5A38` (читается на коралловом фоне), overlaps top edge of receipt (centred at x=32, y=14) |
 | Cross | Primary brand symbol | White, 3 px wide × 14 px tall vertical + 14 wide × 3 tall horizontal arms, radius 0.8 |
 
 ### 7.2 Colours
 
-The mark is **two-colour** and uses tokens already in the palette — no new hexes introduced.
+The mark is **two-tone coral** and uses tokens already in the palette — no new hexes introduced.
 
 | Element | Token | Hex |
 |---|---|---|
 | Receipt body fill | `surface/card` | `#FFFFFF` |
-| Receipt body outline + lines | `brand/green/600` | `#16C97A` |
-| Stamp disc fill | `brand/blue/600` | `#2A2BE2` |
+| Receipt body outline + lines | `brand/green/600` (coral) | `#D97757` |
+| Stamp disc fill | `brand/green/700` (dark coral) | `#BE5A38` |
 | Cross fill | `text/onBrand` | `#FFFFFF` |
 
 #### Variants
 
 - **On light surfaces** — default colours above.
-- **On green surfaces** (`grad-blueHead`, success cards) — invert: receipt stroke + lines become white, stamp stays `brand/blue/600`, cross stays white. Set `color="#FFFFFF"` on `<MarkReceiptCross/>`.
+- **On coral surfaces** (`grad-coralHead`, success cards) — invert: receipt stroke + lines become white, stamp stays dark coral `#BE5A38`, cross stays white. Set `color="#FFFFFF"` on `<MarkReceiptCross/>`.
 - **On dark surfaces** — same as default; the white receipt body provides the contrast.
-- **Monochrome** (single-colour print / favicon at small sizes) — entire mark uses one of: `ink/900`, `text/onBrand`, or `brand/green/600`. Stamp and receipt become the same fill; receipt lines drop to 30% opacity.
+- **Monochrome** (single-colour print / favicon at small sizes) — entire mark uses one of: `ink/900`, `text/onBrand`, or coral `#D97757`. Stamp and receipt become the same fill; receipt lines drop to 30% opacity.
 
 ### 7.3 Sizing & padding
 
@@ -346,7 +355,7 @@ The mark is **two-colour** and uses tokens already in the palette — no new hex
 
 ### 7.6 Don'ts
 
-- Don't recolour the stamp anything other than `brand/blue/600` (or white-on-blue invert).
+- Don't recolour the stamp anything other than dark coral `#BE5A38` (or white-on-coral invert).
 - Don't add a drop shadow to the mark itself — the surface it sits on already carries `shadow/card`.
 - Don't rotate the receipt or the stamp; both stay axis-aligned.
 - Don't separate the stamp from the receipt — they always read as one composite mark.
@@ -356,13 +365,18 @@ The mark is **two-colour** and uses tokens already in the palette — no new hex
 
 ## 8. Key gradients
 
+Бренд-градиенты — **коралл, почти плоские** (узкая дельта между стопами), не
+неоновые многостоповые. Золото (`grad/coin`) и плейсхолдер-баннер — кремовые/без
+изменений по семантике.
+
 | Token | Value |
 |---|---|
-| `grad/welcome` | `linear-gradient(180deg, #3DCDA2 0%, #21D17A 50%, #16A65C 100%)` |
-| `grad/header` (`grad-blueHead`) | `linear-gradient(180deg, #21D17A 0%, #16A65C 100%)` |
-| `grad/receiptSheet` | `linear-gradient(150deg, #3DCDA2 0%, #21D17A 50%, #16A65C 100%)` |
-| `grad/courseCover-blue` | `linear-gradient(135deg, #2A2BE2 0%, #5560FB 100%)` |
-| `grad/courseCover-green` | `linear-gradient(135deg, #16A65C 0%, #21D17A 100%)` |
+| `grad/welcome` | `linear-gradient(180deg, #DE8460 0%, #D97757 100%)` |
+| `grad/header` (`grad-coralHead`) | `linear-gradient(180deg, #DC8460 0%, #CE6B43 100%)` |
+| `grad/receiptSheet` | `linear-gradient(150deg, #DE8460 0%, #D97757 100%)` |
+| `grad/courseCover-blue` | `linear-gradient(135deg, #C2562E 0%, #E0916B 100%)` |
+| `grad/courseCover-green` | `linear-gradient(135deg, #C2562E 0%, #DB7F57 100%)` |
+| `grad/bannerPlaceholder` | `linear-gradient(180deg, #F3ECE3 0%, #FAF7F2 100%)` |
 | `grad/coin` | `radial-gradient(35% 35%, #FFE07A 0%, #F4B73A 60%, #B97F11 100%)` |
 
 ---

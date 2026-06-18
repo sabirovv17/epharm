@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 
 /// Рендерит строку с inline-маркерами:
-///   • `[link]…[/link]` → акцентный teal-текст (#3DCDA2, w600, без подчёркивания)
+///   • `[link]…[/link]` → акцентный коралл-текст (#E0916B, w600, без подчёркивания)
 ///   • `**…**` → жирный фрагмент (w700)
 ///
 /// См. `_reference/profile-pages/faq.jsx → FaqText`.
@@ -42,7 +42,7 @@ class InlineMarkerText extends StatelessWidget {
         spans.add(TextSpan(
           text: token.substring(6, token.length - 7),
           style: base.copyWith(
-            color: const Color(0xFF3DCDA2),
+            color: const Color(0xFFE0916B),
             fontWeight: FontWeight.w700,
           ),
         ));
@@ -62,7 +62,7 @@ class InlineMarkerText extends StatelessWidget {
 }
 
 /// Запасной цвет для inline-link (если нужно использовать снаружи).
-const inlineLinkAccent = Color(0xFF3DCDA2);
+const inlineLinkAccent = Color(0xFFE0916B);
 
 /// Bullet glyph helper — 5×5 круг ink/900.
 class BulletDot extends StatelessWidget {

@@ -77,7 +77,7 @@ const systemUiOverlayStyleLight = SystemUiOverlayStyle(
   statusBarBrightness: Brightness.light,
 );
 
-/// Светлые иконки status bar на тёмном/брендовом фоне (зелёный header).
+/// Светлые иконки status bar на тёмном/брендовом фоне (коралловый header).
 const systemUiOverlayStyleDark = SystemUiOverlayStyle(
   statusBarColor: Color(0x00000000),
   statusBarIconBrightness: Brightness.light,

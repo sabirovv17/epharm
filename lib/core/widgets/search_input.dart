@@ -6,8 +6,8 @@ import '../theme/app_shadows.dart';
 import '../theme/app_typography.dart';
 
 /// Search-инпут (§6.2). **Белая** карточка с border и `shadow/card` —
-/// раньше использовали `paper/input` (#F2F4F8), который почти не отличался от
-/// канвасa `paper/DEFAULT` (#F4F6FA), поэтому строка поиска визуально сливалась
+/// раньше использовали `paper/input` (#F3EEE7), который почти не отличался от
+/// канвасa `paper/DEFAULT` (#FAF7F2), поэтому строка поиска визуально сливалась
 /// с фоном. Сейчас явная белая поверхность с 1 px бордюром `ink/300 @ 30%` и
 /// мягкой тенью — читается как полноценный input.
 class SearchInput extends StatelessWidget {

@@ -60,7 +60,7 @@ class _BannerCard extends StatelessWidget {
         borderRadius: AppRadii.brXl,
         boxShadow: const [
           BoxShadow(
-            color: Color(0x140F1424),
+            color: Color(0x14221C16),
             offset: Offset(0, 4),
             blurRadius: 16,
           ),

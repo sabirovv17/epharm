@@ -17,7 +17,7 @@ Future<void> showCardSheet(BuildContext context) {
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    barrierColor: const Color(0x730F1424),
+    barrierColor: const Color(0x73221C16),
     builder: (_) => const _CardSheet(),
   );
 }
@@ -206,16 +206,16 @@ class _CardPreview extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFF16A65C),
-            Color(0xFF21D17A),
-            Color(0xFF3DCDA2),
+            Color(0xFFC2562E),
+            Color(0xFFD97757),
+            Color(0xFFE0916B),
           ],
           stops: [0.0, 0.6, 1.0],
         ),
         borderRadius: AppRadii.brXxl,
         boxShadow: const [
           BoxShadow(
-            color: Color(0x590F8F55), // rgba(15,143,85,0.35)
+            color: Color(0x47D97757), // rgba(217,119,87,0.28) — коралловый glow
             offset: Offset(0, 10),
             blurRadius: 28,
           ),

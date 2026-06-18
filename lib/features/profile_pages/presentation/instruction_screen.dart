@@ -139,16 +139,16 @@ class _InstructionScreenState extends State<InstructionScreen> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        Color(0xFF6A7CFF),
-                        Color(0xFF5560FB),
-                        Color(0xFF4A56F2),
+                        Color(0xFFE0916B),
+                        Color(0xFFD97757),
+                        Color(0xFFC2562E),
                       ],
                       stops: [0.0, 0.6, 1.0],
                     ),
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: const [
                       BoxShadow(
-                        color: Color(0x595560FB),
+                        color: Color(0x47D97757), // rgba(217,119,87,0.28) — коралловый glow
                         offset: Offset(0, 12),
                         blurRadius: 28,
                       ),
@@ -326,12 +326,12 @@ class _PhonePreview extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFFF1F2F6), Color(0xFFD8DBE4)],
+          colors: [Color(0xFFF6F3EE), Color(0xFFE2DCD2)],
         ),
         borderRadius: BorderRadius.circular(28),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x2E0F1424),
+            color: Color(0x2E221C16),
             offset: Offset(0, 10),
             blurRadius: 30,
           ),
@@ -379,14 +379,14 @@ class _MiniContent extends StatelessWidget {
       case _PreviewKind.home:
         return Column(
           children: [
-            // Blue header.
+            // Coral header.
             Container(
               padding: const EdgeInsets.fromLTRB(12, 28, 12, 16),
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Color(0xFF3F47F0), Color(0xFF2A2BE2)],
+                  colors: [Color(0xFFDC8460), Color(0xFFCE6B43)],
                 ),
               ),
               child: Column(
@@ -405,7 +405,7 @@ class _MiniContent extends StatelessWidget {
                         TextSpan(text: 'Pharma'),
                         TextSpan(
                           text: 'Pay',
-                          style: TextStyle(color: Color(0xFF21D17A)),
+                          style: TextStyle(color: Color(0xFFF0C8B4)),
                         ),
                       ],
                     ),
@@ -477,7 +477,7 @@ class _MiniContent extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [Color(0xFF6A7CFF), Color(0xFF4A56F2)],
+              colors: [Color(0xFFDC8460), Color(0xFFCE6B43)],
             ),
           ),
           child: Padding(
@@ -522,7 +522,7 @@ class _MiniContent extends StatelessWidget {
                   height: 28,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF3DCDA2),
+                    color: const Color(0xFFD97757),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: const Text(
@@ -567,8 +567,8 @@ class _MiniContent extends StatelessWidget {
                     return Container(
                       decoration: BoxDecoration(
                         color: i < 3
-                            ? const Color(0xFFB8C0D8)
-                            : const Color(0xFFE8EAFE),
+                            ? const Color(0xFFD4CCC0)
+                            : const Color(0xFFF8E7DD),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     );
@@ -580,7 +580,7 @@ class _MiniContent extends StatelessWidget {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFF6A7CFF), Color(0xFF4A56F2)],
+                    colors: [Color(0xFFDC8460), Color(0xFFCE6B43)],
                   ),
                   borderRadius: BorderRadius.circular(8),
                 ),

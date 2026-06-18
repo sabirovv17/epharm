@@ -201,7 +201,7 @@ class _ReceiptUploadedBanner extends StatelessWidget {
         color: AppColors.brandGreen100,
         borderRadius: AppRadii.brXl,
         border: Border.all(
-          color: const Color(0xFFA9EBC6),
+          color: const Color(0xFFF0C8B4),
           width: 1,
         ),
       ),
@@ -400,7 +400,7 @@ class _ChecklistRow extends StatelessWidget {
         borderRadius: AppRadii.brXl,
         boxShadow: AppShadows.card,
         border: Border.all(
-          color: filled ? const Color(0xFFA9EBC6) : Colors.transparent,
+          color: filled ? const Color(0xFFF0C8B4) : Colors.transparent,
           width: 1,
         ),
       ),
@@ -490,7 +490,7 @@ class _AutoDetectNote extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.brandGreen100,
         borderRadius: AppRadii.brXl,
-        border: Border.all(color: const Color(0xFFA9EBC6), width: 1),
+        border: Border.all(color: const Color(0xFFF0C8B4), width: 1),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

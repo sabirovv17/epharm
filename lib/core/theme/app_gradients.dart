@@ -2,75 +2,72 @@ import 'package:flutter/material.dart';
 
 /// Градиенты Epharm. Источник: `_reference/design-tokens.md` §8.
 abstract final class AppGradients {
-  /// Welcome screen — большой 3-stop сверху вниз.
+  /// Welcome screen — коралловый, почти плоский (узкая дельта стопов).
   static const LinearGradient welcome = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
     colors: [
-      Color(0xFF3DCDA2),
-      Color(0xFF21D17A),
-      Color(0xFF16A65C),
+      Color(0xFFDE8460),
+      Color(0xFFD97757),
     ],
-    stops: [0.0, 0.5, 1.0],
+    stops: [0.0, 1.0],
   );
 
-  /// Header authed/unauthed Home (`grad-blueHead`).
-  /// Смягчённый 3-stop: чуть менее «неоновый» верх + плавный спуск к более
-  /// мягкому низу — чтобы стык зелёной шапки со светлым канвасом не резал глаз.
+  /// Header authed/unauthed Home (`grad-coralHead`).
+  /// Коралловый, почти плоский: узкая дельта стопов — мягкий спуск к низу,
+  /// чтобы стык шапки со светлым канвасом не резал глаз.
   static const LinearGradient header = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
     colors: [
-      Color(0xFF2ECC86),
-      Color(0xFF1FBE74),
-      Color(0xFF1AAE66),
+      Color(0xFFDC8460),
+      Color(0xFFCE6B43),
     ],
-    stops: [0.0, 0.55, 1.0],
+    stops: [0.0, 1.0],
   );
 
-  /// Плейсхолдер баннера (пока нет реальных): мягкая подложка, чей НИЗ сведён к
-  /// цвету канваса (#F4F6FA) — нижний край растворяется в фоне, без шва/«ступеньки».
-  /// Верх чуть тонирован, чтобы блок мягко читался. Тени у баннера нет (она и
-  /// давала жёсткую границу) — он не «висит», а спокойно лежит на канвасе.
+  /// Плейсхолдер баннера (пока нет реальных): мягкая кремовая подложка, чей НИЗ
+  /// сведён к цвету канваса (#FAF7F2) — нижний край растворяется в фоне, без
+  /// шва/«ступеньки». Верх чуть тонирован, чтобы блок мягко читался. Тени у
+  /// баннера нет (она и давала жёсткую границу) — он спокойно лежит на канвасе.
   static const LinearGradient bannerPlaceholder = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
     colors: [
-      Color(0xFFE8ECF3),
-      Color(0xFFF2F4F9),
+      Color(0xFFF3ECE3),
+      Color(0xFFFAF7F2),
     ],
   );
 
-  /// Bottom-sheet «Загрузить чек» — 150° диагональ.
+  /// Bottom-sheet «Загрузить чек» — 150° диагональ, коралл почти плоский.
   /// Flutter не оперирует углом напрямую — задаём через alignments.
   static const LinearGradient receiptSheet = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      Color(0xFF3DCDA2),
-      Color(0xFF21D17A),
-      Color(0xFF16A65C),
+      Color(0xFFDE8460),
+      Color(0xFFD97757),
     ],
-    stops: [0.0, 0.5, 1.0],
+    stops: [0.0, 1.0],
   );
 
-  /// Обложка курса — синяя.
+  /// Обложка курса — коралл (бывш. «синяя»).
   static const LinearGradient courseCoverBlue = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      Color(0xFF2A2BE2),
-      Color(0xFF5560FB),
+      Color(0xFFC2562E),
+      Color(0xFFE0916B),
     ],
   );
 
-  /// Обложка курса — зелёная.
+  /// Обложка курса — коралл (бывш. «зелёная»).
   static const LinearGradient courseCoverGreen = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      Color(0xFF16A65C),
-      Color(0xFF21D17A),
+      Color(0xFFC2562E),
+      Color(0xFFDB7F57),
     ],
   );
 

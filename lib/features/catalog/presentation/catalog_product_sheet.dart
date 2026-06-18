@@ -17,7 +17,7 @@ Future<void> showCatalogProductSheet(BuildContext context, String id) {
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    barrierColor: const Color(0x730F1424),
+    barrierColor: const Color(0x73221C16),
     builder: (_) => _CatalogProductSheet(id: id),
   );
 }

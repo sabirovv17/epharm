@@ -5,10 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 
-/// Холст бледно-лавандового цвета `#EFF3FB` для всех Profile-pages.
+/// Холст тёплого кремового цвета `#EFEAE2` для всех Profile-pages
+/// (Claude orange/white — бренд = коралл).
 /// См. `_reference/profile-pages/README.md` (общий паттерн) и
 /// `_reference/design_handoff_pharmapay/design-tokens.md` §6.9.
-const profilePageCanvas = Color(0xFFEFF3FB);
+const profilePageCanvas = Color(0xFFEFEAE2);
 
 /// Общий скаффолд для дочерних экранов Профиля:
 /// • back-стрелка слева вверху

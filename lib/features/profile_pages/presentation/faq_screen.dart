@@ -71,12 +71,12 @@ class _FaqRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(open ? 16 : 8),
         boxShadow: [
           BoxShadow(
-            color: const Color(0x0F0F1424),
+            color: const Color(0x0F221C16),
             blurRadius: open ? 12 : 0,
             offset: const Offset(0, 2),
           ),
           BoxShadow(
-            color: const Color(0x0A0F1424),
+            color: const Color(0x0A221C16),
             blurRadius: 0,
             spreadRadius: 1,
           ),

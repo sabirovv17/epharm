@@ -397,7 +397,7 @@ class _Header extends ConsumerWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Color(0x1F0F1424),
+            color: Color(0x1F221C16),
             offset: Offset(0, 4),
             blurRadius: 16,
           ),
