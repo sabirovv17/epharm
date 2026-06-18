@@ -78,6 +78,9 @@ class SecurityConfig(
                         "/api/mobile/promotions/**",
                         // Лента баннеров главного экрана (п.5) — публичная, как promotions.
                         "/api/mobile/banners/**",
+                        // Прокси изображений витрины Medusa (http→https, mixed-content fix).
+                        // Публичный, как сам каталог; SSRF-guard внутри MediaProxyController.
+                        "/api/media/**",
                     ).permitAll()
                     // Метрики/prometheus — только для админ-консоли, не наружу.
                     .requestMatchers("/actuator/**").hasAnyRole(*ADMIN_ROLES)

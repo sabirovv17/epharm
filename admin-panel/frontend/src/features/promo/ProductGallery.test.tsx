@@ -1,7 +1,7 @@
 // Тесты ProductGallery — листаемая карусель: главное фото + стрелки + счётчик +
 // миниатюры + бейдж обложки + лайтбокс + устойчивость к битым ссылкам + empty.
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ProductGallery } from './ProductGallery'
@@ -95,6 +95,34 @@ describe('ProductGallery', () => {
     expect(screen.queryByTestId('promo-gallery-zoom-img')).not.toBeInTheDocument()
     await user.click(screen.getByTestId('promo-gallery-main'))
     expect(screen.getByTestId('promo-gallery-zoom-img')).toBeInTheDocument()
+  })
+
+  it('resolveSrc применяется к src (proxy http→https)', () => {
+    render(
+      <ProductGallery
+        images={IMGS}
+        effective={IMGS[0]}
+        resolveSrc={(u) => `/proxy?u=${encodeURIComponent(u)}`}
+      />,
+    )
+    expect(mainSrc()).toContain('/proxy?u=')
+  })
+
+  it('onPickCover: метка обложки на текущей, «Сделать обложкой» — на остальных', async () => {
+    const user = userEvent.setup()
+    const onPick = vi.fn()
+    render(<ProductGallery images={IMGS} effective={IMGS[0]} onPickCover={onPick} />)
+    // Текущий кадр = обложка → кнопки нет, есть метка.
+    expect(screen.queryByTestId('promo-gallery-set-cover')).not.toBeInTheDocument()
+    // Листаем на второй кадр (не обложка) → появляется «Сделать обложкой».
+    await user.click(screen.getByTestId('promo-gallery-next'))
+    await user.click(screen.getByTestId('promo-gallery-set-cover'))
+    expect(onPick).toHaveBeenCalledWith(IMGS[1]) // raw URL, не проксированный
+  })
+
+  it('без onPickCover — кнопки выбора обложки нет', () => {
+    render(<ProductGallery images={IMGS} effective={IMGS[0]} />)
+    expect(screen.queryByTestId('promo-gallery-set-cover')).not.toBeInTheDocument()
   })
 
   it('одно фото → ни миниатюр, ни стрелок, ни счётчика', () => {

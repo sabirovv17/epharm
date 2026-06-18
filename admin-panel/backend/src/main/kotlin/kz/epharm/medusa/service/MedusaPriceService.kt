@@ -44,4 +44,28 @@ class MedusaPriceService(
         product?.variants
             ?.firstNotNullOfOrNull { it.calculatedPrice?.calculatedAmount }
             ?.roundToLong()
+
+    /**
+     * Снимок товара для ежедневного рефреша: актуальные цена + обложка одним
+     * запросом к Medusa (фото в витрине тоже меняют, не только цены). null —
+     * Medusa выключена/недоступна. Поля внутри тоже nullable: чего нет — не трогаем.
+     */
+    fun snapshotOf(medusaProductId: String?): MedusaSnapshot? {
+        if (medusaProductId.isNullOrBlank() || !medusa.active) return null
+        return try {
+            val p = medusa.getProduct(medusaProductId) ?: return null
+            MedusaSnapshot(price = priceOf(p), cover = coverOf(p))
+        } catch (e: Exception) {
+            log.warn("Не удалось получить снимок Medusa для {}: {}", medusaProductId, e.message)
+            null
+        }
+    }
+
+    /** Обложка товара: thumbnail, иначе первое непустое фото. */
+    private fun coverOf(product: MedusaProduct): String? =
+        product.thumbnail?.trim()?.takeIf { it.isNotBlank() }
+            ?: product.images.firstNotNullOfOrNull { it.url?.trim()?.takeIf { u -> u.isNotBlank() } }
+
+    /** Снимок витрины: цена (тенге) + URL обложки. Любое поле может быть null. */
+    data class MedusaSnapshot(val price: Long?, val cover: String?)
 }

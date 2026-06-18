@@ -14,6 +14,7 @@ import { IconArchive, IconArrowUp, IconPause, IconPlay, IconPromo, IconRefresh }
 import { formatKzt } from '@/mocks/fixtures'
 import type { PromoStatus, UpdatePromoRequest } from '@/lib/api-types'
 import { describeError } from '@/lib/describeError'
+import { proxyMedia } from '@/lib/media'
 import { useT } from '@/i18n'
 import { useArchivePromo, usePromo, useRestorePromo, useUpdatePromo } from '@/lib/queries/promo'
 import { useStorefrontProduct } from '@/lib/queries/storefront'
@@ -259,16 +260,19 @@ export default function PromoDetailPage() {
     })
   }
 
-  // Галерея фото товара: «Своё фото» (обложка) + снимок + все фото из Medusa, без дублей.
+  // Галерея фото товара: снимок + все фото из Medusa (в исходном порядке), без
+  // дублей. «Своё фото» (overrideImage) добавляем В КОНЕЦ — если это внешняя
+  // ссылка, не из Medusa; если совпадает с фото витрины — дедуп оставит его на
+  // месте. Так выбор обложки не перетасовывает ленту.
   const galleryImages: string[] = []
   const pushImage = (u?: string | null) => {
     const v = u?.trim()
     if (v && !galleryImages.includes(v)) galleryImages.push(v)
   }
-  pushImage(form.overrideImage)
   pushImage(promo.productImage)
   pushImage(medusaProduct?.imageUrl)
   ;(medusaProduct?.images ?? []).forEach(pushImage)
+  pushImage(form.overrideImage)
   const effectiveImage =
     form.overrideImage.trim() ||
     promo.productImage ||
@@ -402,6 +406,10 @@ export default function PromoDetailPage() {
                 key={galleryImages.join('|')}
                 images={galleryImages}
                 effective={effectiveImage}
+                resolveSrc={proxyMedia}
+                onPickCover={
+                  isArchived ? undefined : (url) => setForm((f) => ({ ...f, overrideImage: url }))
+                }
               />
             </Field>
             <Field

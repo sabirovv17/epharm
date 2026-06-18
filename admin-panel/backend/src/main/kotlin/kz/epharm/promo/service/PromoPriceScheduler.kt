@@ -60,14 +60,31 @@ class PromoPriceScheduler(
         val promos = promoRepository.findAllByMedusaProductIdIsNotNull()
         var updated = 0
         for (p in promos) {
-            val price = medusaPriceService.priceOf(p.medusaProductId) ?: continue
+            // Один запрос к Medusa → актуальные цена И обложка (фото в витрине тоже
+            // меняют). Снимок недоступен (Medusa легла / товара нет) → пропускаем,
+            // прошлые значения остаются.
+            val snap = medusaPriceService.snapshotOf(p.medusaProductId) ?: continue
+            var changed = false
+
+            // Цена первого порога (бонус фармацевту сохраняем как есть).
             val tier = p.tiers.firstOrNull()
-            if (tier == null || tier.price == price) continue
-            // Сохраняем бонус, обновляем только цену первого порога.
-            p.tiers = listOf(PromoTier(minQty = tier.minQty, price = price, bonus = tier.bonus)) +
-                p.tiers.drop(1)
-            promoRepository.save(p)
-            updated++
+            if (snap.price != null && tier != null && tier.price != snap.price) {
+                p.tiers = listOf(PromoTier(minQty = tier.minQty, price = snap.price, bonus = tier.bonus)) +
+                    p.tiers.drop(1)
+                changed = true
+            }
+
+            // Снимок обложки витрины (productImage) — фоллбэк-фото и первый кадр
+            // галереи. overrideImage (ручная обложка) — отдельное поле, не трогаем.
+            if (!snap.cover.isNullOrBlank() && p.productImage != snap.cover) {
+                p.productImage = snap.cover
+                changed = true
+            }
+
+            if (changed) {
+                promoRepository.save(p)
+                updated++
+            }
         }
         return acc.copy(promosTotal = promos.size, promosUpdated = updated)
     }

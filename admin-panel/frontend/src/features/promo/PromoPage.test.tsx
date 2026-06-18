@@ -30,12 +30,16 @@ const promoHooks = vi.hoisted(() => ({
 }))
 
 // PromoProductPicker дёргает useStorefront — мокаем, чтобы поиск товара отдавал фикстуру.
-const storefrontHooks = vi.hoisted(() => ({ useStorefront: vi.fn() }))
+const storefrontHooks = vi.hoisted(() => ({
+  useStorefront: vi.fn(),
+  useStorefrontProduct: vi.fn(),
+}))
 
 vi.mock('@/lib/queries/promo', () => promoHooks)
 vi.mock('@/lib/queries/storefront', () => ({
   storefrontKeys: { all: ['storefront'], list: () => ['storefront', 'list'] },
   useStorefront: storefrontHooks.useStorefront,
+  useStorefrontProduct: storefrontHooks.useStorefrontProduct,
 }))
 
 function mkPromo(over: Partial<PromoDto> = {}): PromoDto {
@@ -84,6 +88,8 @@ beforeEach(() => {
   promoHooks.useArchivePromo.mockReturnValue({ mutate: vi.fn(), isPending: false })
   promoHooks.useRestorePromo.mockReturnValue({ mutate: vi.fn(), isPending: false })
   promoHooks.useRefreshPrices.mockReturnValue({ mutate: vi.fn(), isPending: false })
+  // Деталь товара витрины — для галереи в CreatePromoModal (по умолчанию пусто).
+  storefrontHooks.useStorefrontProduct.mockReturnValue({ data: undefined })
   storefrontHooks.useStorefront.mockReturnValue({
     data: {
       items: [

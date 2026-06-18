@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Button, Input } from '@/ui'
 import { IconBox, IconCheck, IconSearch } from '@/ui/icons'
 import { useStorefront } from '@/lib/queries/storefront'
+import { proxyMedia } from '@/lib/media'
 import { useT } from '@/i18n'
 import type { StorefrontProductDto } from '@/lib/api-types'
 
@@ -255,7 +256,7 @@ function ProductThumb({
   }
   return (
     <img
-      src={url}
+      src={proxyMedia(url)}
       alt={name}
       onError={() => setBroken(true)}
       className="shrink-0 rounded-lg object-cover"

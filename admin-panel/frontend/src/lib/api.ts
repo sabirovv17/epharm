@@ -23,7 +23,10 @@ import type {
   UserDto,
 } from './api-types'
 
-const BASE_URL =
+// Базовый URL бэкенда. В проде пуст ('') → same-origin (Caddy проксирует /api/*),
+// в dev — localhost:8080. Экспортируем: image-прокси (proxyMedia) строит абсолютный
+// src от того же базового URL, что и axios, чтобы картинки били в тот же бэкенд.
+export const BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:8080'
 
 // Подписки на logout — store подписывается, чтобы синхронно очистить authedUser при провале refresh.

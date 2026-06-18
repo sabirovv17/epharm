@@ -1,23 +1,35 @@
-// ProductGallery — листаемая галерея фото товара кампании (read-only).
+// ProductGallery — листаемая галерея фото товара кампании.
 // Источник: фото из Medusa (`images`) + обложка (override/снимок). Главное фото
 // со стрелками ‹/›, клавиатурой (←/→) и свайпом + лента миниатюр + счётчик +
 // лайтбокс по клику. Текущая обложка (effective) помечается бейджем.
 //
-// Битые ссылки Medusa (404/CDN-мусор) ловятся через onError и тихо выпадают из
-// галереи — никаких браузерных «сломанных» иконок. Если не загрузилось ни одно
-// фото — чистое пустое состояние, а не сетка битых превью.
+// `images`/`effective` — ИСХОДНЫЕ URL (как в БД). Для тега <img> прогоняем через
+// `resolveSrc` (по умолчанию — без изменений; в админке — proxyMedia: http→https-
+// прокси против mixed content). Так значение обложки остаётся «чистым» URL Medusa,
+// а отображение идёт через прокси.
+//
+// Битые ссылки (404/CDN-мусор) ловятся через onError и тихо выпадают из галереи —
+// никаких браузерных «сломанных» иконок. Если не загрузилось ни одно фото — чистое
+// пустое состояние, а не сетка битых превью.
+//
+// `onPickCover` (опц.) — режим выбора обложки (создание/редактирование кампании):
+// на главном фото появляется «Сделать обложкой», текущая обложка помечена.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Modal } from '@/ui'
-import { IconChevLeft, IconChevRight, IconLayers } from '@/ui/icons'
+import { IconCheck, IconChevLeft, IconChevRight, IconLayers } from '@/ui/icons'
 import { useT } from '@/i18n'
 
 export function ProductGallery({
   images,
   effective,
+  resolveSrc = (u) => u,
+  onPickCover,
 }: {
   images: string[]
   effective: string | null
+  resolveSrc?: (url: string) => string
+  onPickCover?: (url: string) => void
 }) {
   const t = useT()
 
@@ -100,7 +112,13 @@ export function ProductGallery({
             ссылки битыми, даже когда визуально ничего не отрисовано. */}
         {images.map((src) =>
           broken.has(src) ? null : (
-            <img key={src} src={src} alt="" className="hidden" onError={() => markBroken(src)} />
+            <img
+              key={src}
+              src={resolveSrc(src)}
+              alt=""
+              className="hidden"
+              onError={() => markBroken(src)}
+            />
           ),
         )}
       </>
@@ -134,13 +152,32 @@ export function ProductGallery({
           className="block w-full cursor-zoom-in"
         >
           <img
-            src={main}
+            src={resolveSrc(main)}
             alt=""
             className="mx-auto max-h-[260px] w-auto select-none object-contain"
             draggable={false}
             onError={() => markBroken(main)}
           />
         </button>
+
+        {/* Выбор обложки (создание/редактирование): «Сделать обложкой» либо метка
+            текущей обложки. Не мешает зуму — отдельная кнопка поверх угла. */}
+        {onPickCover &&
+          (main === effective ? (
+            <span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-brand-green-700/90 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
+              <IconCheck size={12} />
+              {t('pm.galleryCurrent')}
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onPickCover(main)}
+              data-testid="promo-gallery-set-cover"
+              className="absolute left-2 top-2 rounded-full bg-paper-card/90 px-2.5 py-1 text-[11px] font-bold text-brand-green-700 shadow-sm backdrop-blur transition hover:bg-paper-card"
+            >
+              {t('pm.gallerySetCover')}
+            </button>
+          ))}
 
         {multi && (
           <>
@@ -183,7 +220,7 @@ export function ProductGallery({
               }`}
             >
               <img
-                src={src}
+                src={resolveSrc(src)}
                 alt=""
                 className="h-full w-full object-cover"
                 draggable={false}
@@ -202,7 +239,7 @@ export function ProductGallery({
       <Modal open={zoom} onClose={() => setZoom(false)} title={t('pm.galleryTitle')} width={760}>
         <div className="relative">
           <img
-            src={main}
+            src={resolveSrc(main)}
             alt=""
             className="mx-auto max-h-[70vh] w-auto object-contain"
             data-testid="promo-gallery-zoom-img"

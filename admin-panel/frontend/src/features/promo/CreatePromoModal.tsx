@@ -3,12 +3,15 @@
 // Medusa (обновляется ежедневно). Опционально — override фото/описания (поверх PIM).
 // Бренд берётся из выбранного товара. Многоуровневые пороги убраны (T1).
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Button, Field, Input, Modal } from '@/ui'
 import { IconCheck } from '@/ui/icons'
 import type { CreatePromoRequest } from '@/lib/api-types'
 import { formatKzt } from '@/mocks/fixtures'
+import { proxyMedia } from '@/lib/media'
+import { useStorefrontProduct } from '@/lib/queries/storefront'
 import { useT } from '@/i18n'
+import { ProductGallery } from './ProductGallery'
 import { PromoProductPicker, type SelectedProduct } from './PromoProductPicker'
 
 interface CreatePromoModalProps {
@@ -105,6 +108,29 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
   const datesOk = !form.dateStart || !form.dateEnd || form.dateStart <= form.dateEnd
   const valid = form.product !== null && form.title.trim().length > 0 && datesOk
 
+  // Деталь выбранного товара витрины — источник фото Medusa для галереи (выбор
+  // обложки прямо при создании). Хук вызываем безусловно (id=null → disabled).
+  const { data: detail } = useStorefrontProduct(form.product?.medusaProductId ?? null)
+  // Исходные URL (как в БД). Снимок товара + фото Medusa + «своё фото» в конце.
+  const galleryImages = useMemo(() => {
+    const out: string[] = []
+    const push = (u?: string | null) => {
+      const v = u?.trim()
+      if (v && !out.includes(v)) out.push(v)
+    }
+    push(form.product?.productImage)
+    push(detail?.imageUrl)
+    ;(detail?.images ?? []).forEach(push)
+    push(form.overrideImage)
+    return out
+  }, [form.product?.productImage, form.overrideImage, detail])
+  const effectiveCover =
+    form.overrideImage.trim() ||
+    form.product?.productImage ||
+    detail?.imageUrl ||
+    galleryImages[0] ||
+    null
+
   const submit = () => {
     if (!valid || !form.product) return
     onCreate({
@@ -170,6 +196,19 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
             >
               {form.product.price == null ? t('sf.priceNa') : formatKzt(form.product.price)}
             </div>
+          </Field>
+        )}
+
+        {/* Галерея фото Medusa — выбрать обложку сразу при создании кампании. */}
+        {form.product && galleryImages.length > 0 && (
+          <Field label={t('pm.galleryTitle')} hint={t('pm.galleryPickHint')}>
+            <ProductGallery
+              key={galleryImages.join('|')}
+              images={galleryImages}
+              effective={effectiveCover}
+              resolveSrc={proxyMedia}
+              onPickCover={(u) => setForm((f) => ({ ...f, overrideImage: u }))}
+            />
           </Field>
         )}
 
