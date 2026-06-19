@@ -12,7 +12,6 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/filter_chip_row.dart';
 import '../../../core/widgets/glass_pill.dart';
-import '../../../core/widgets/pharma_logo.dart';
 import '../../../core/widgets/search_input.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../catalog/presentation/catalog_product_sheet.dart';
@@ -576,25 +575,19 @@ class _ProfileTab extends ConsumerWidget {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.screenEdge,
-                AppSpacing.s8,
+                AppSpacing.s16,
                 AppSpacing.screenEdge,
-                AppSpacing.s32,
+                AppSpacing.s24,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const PharmaLogo(size: 44),
-                  const SizedBox(height: AppSpacing.s20),
-                  if (user == null)
-                    LoginInviteCard(onLogin: onLogin)
-                  else
-                    _AuthedHeader(
+              // Декоративный логотип-чек убран (как на home-шапке) — он держал
+              // пустую полосу сверху. Аватар/имя начинаются сразу под статус-баром.
+              child: user == null
+                  ? LoginInviteCard(onLogin: onLogin)
+                  : _AuthedHeader(
                       fio: user.fio,
                       phone: user.phone,
                       onHistoryTap: onHistoryTap,
                     ),
-                ],
-              ),
             ),
           ),
         ),
