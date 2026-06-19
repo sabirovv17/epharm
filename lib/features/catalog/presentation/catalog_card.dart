@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/network/media.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
 import '../data/catalog_models.dart';
@@ -110,8 +111,9 @@ class _CatalogCardImage extends StatelessWidget {
     final url = product.imageUrl;
     if (url == null || url.isEmpty) return _placeholder();
     // Декод под ширину ячейки сетки (~180px, ≈2×) — без re-decode при скролле.
+    // proxyMedia: http-фото Medusa через наш HTTPS-прокси (cleartext в релизе запрещён).
     return Image.network(
-      url,
+      proxyMedia(url) ?? url,
       fit: BoxFit.cover,
       cacheWidth: 400,
       loadingBuilder: (ctx, child, progress) =>

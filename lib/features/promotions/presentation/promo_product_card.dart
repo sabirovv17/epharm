@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/network/media.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
 import '../data/promotion_models.dart';
@@ -152,7 +153,7 @@ class _Thumb extends StatelessWidget {
       child: (url == null || url.isEmpty)
           ? placeholder()
           : Image.network(
-              url,
+              proxyMedia(url) ?? url,
               width: size,
               height: size,
               fit: BoxFit.cover,
@@ -403,7 +404,7 @@ class _GridThumb extends StatelessWidget {
     final child = (url == null || url.isEmpty)
         ? placeholder()
         : Image.network(
-            url,
+            proxyMedia(url) ?? url,
             width: double.infinity,
             fit: BoxFit.cover,
             // Декод под ширину ячейки сетки (~180px, ≈2×): ключевой фикс лагов

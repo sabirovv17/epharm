@@ -1,13 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/network/media.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/product_image_gallery.dart';
 import '../../receipts/presentation/upload_prompt_sheet.dart';
 import '../application/catalog_controller.dart';
 import '../data/catalog_models.dart';
+
+/// Все фото товара для галереи: обложка (imageUrl) + фото из Medusa, без дублей/пустых.
+List<String> _galleryImages(CatalogProductDetail d) {
+  final out = <String>[];
+  void add(String? u) {
+    final v = u?.trim();
+    if (v != null && v.isNotEmpty && !out.contains(v)) out.add(v);
+  }
+
+  add(d.imageUrl);
+  for (final u in d.images) {
+    add(u);
+  }
+  return out;
+}
 
 /// Детальная карточка товара каталога. Данные грузятся по medusa-id через
 /// [catalogDetailProvider]. Цена/фото/поля могут отсутствовать — секции рисуются
@@ -111,13 +128,11 @@ class _CatalogProductSheet extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-        ClipRRect(
-          borderRadius: AppRadii.brXl,
-          // Фото 3×4 (портрет) — все фото в Medusa в этом формате, заполняет без полос.
-          child: AspectRatio(
-            aspectRatio: 3 / 4,
-            child: _DetailImage(d: d),
-          ),
+        // Галерея фото товара: листаемые кадры из ПИМ/Medusa (как в админ-кампании).
+        // Один кадр — без точек/счётчика; несколько — свайп + индикатор.
+        ProductImageGallery(
+          images: _galleryImages(d),
+          fallbackName: d.name,
         ),
         const SizedBox(height: 14),
         Text(
@@ -738,7 +753,7 @@ class _RecoThumb extends StatelessWidget {
     // cacheWidth — декодируем уменьшенную картинку (карточка ~132px): меньше памяти,
     // нет re-decode при скролле горизонтальной ленты рекомендаций.
     return Image.network(
-      u,
+      proxyMedia(u) ?? u,
       fit: BoxFit.cover,
       cacheWidth: 320,
       loadingBuilder: (ctx, child, progress) =>
@@ -758,45 +773,6 @@ class _RecoThumb extends StatelessWidget {
           fontFamily: 'Manrope',
           fontFamilyFallback: ['Roboto', 'sans-serif'],
           fontSize: 28,
-          fontWeight: FontWeight.w800,
-          color: AppColors.brandGreen700,
-        ),
-      ),
-    );
-  }
-}
-
-class _DetailImage extends StatelessWidget {
-  const _DetailImage({required this.d});
-  final CatalogProductDetail d;
-
-  @override
-  Widget build(BuildContext context) {
-    final url = d.imageUrl;
-    if (url == null || url.isEmpty) return _placeholder();
-    // cacheWidth ограничивает декод по ширине карточки (≈ экран): полноразмерное
-    // фото из ПИМ не держим в памяти целиком.
-    return Image.network(
-      url,
-      fit: BoxFit.cover,
-      cacheWidth: 700,
-      loadingBuilder: (ctx, child, progress) =>
-          progress == null ? child : _placeholder(),
-      errorBuilder: (_, __, ___) => _placeholder(),
-    );
-  }
-
-  Widget _placeholder() {
-    final letter = d.name.isNotEmpty ? d.name.characters.first : '?';
-    return Container(
-      color: AppColors.brandGreen100,
-      alignment: Alignment.center,
-      child: Text(
-        letter.toUpperCase(),
-        style: const TextStyle(
-          fontFamily: 'Manrope',
-          fontFamilyFallback: ['Roboto', 'sans-serif'],
-          fontSize: 44,
           fontWeight: FontWeight.w800,
           color: AppColors.brandGreen700,
         ),
