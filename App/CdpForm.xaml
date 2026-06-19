@@ -13,7 +13,7 @@
         WindowStartupLocation="Manual">
 
     <Border CornerRadius="16" Background="White" Margin="14"
-            BorderBrush="#16C97A" BorderThickness="2">
+            BorderBrush="#D97757" BorderThickness="2">
         <Border.Effect>
             <DropShadowEffect Color="#000000" Opacity="0.28" BlurRadius="28" ShadowDepth="6"/>
         </Border.Effect>
@@ -47,7 +47,7 @@
 
                 <Button x:Name="BtnRegister" Grid.Column="2" Content="Зарегистрировать"
                         Height="44" FontSize="14" FontWeight="Bold" Foreground="White"
-                        Background="#16C97A" BorderThickness="0" Cursor="Hand" Click="OnRegisterClick"/>
+                        Background="#D97757" BorderThickness="0" Cursor="Hand" Click="OnRegisterClick"/>
             </Grid>
         </StackPanel>
     </Border>
