@@ -5,7 +5,6 @@ import io.mockk.mockk
 import kz.epharm.catalog.entity.ProductEntity
 import kz.epharm.catalog.repository.ProductRepository
 import kz.epharm.posm.dto.CartItemDto
-import kz.epharm.posm.repository.ProductPosCodeRepository
 import kz.epharm.promo.repository.PromoRepository
 import kz.epharm.posm.service.RulesEngineService
 import kz.epharm.rules.entity.RuleEntity
@@ -20,19 +19,20 @@ import java.util.Optional
 
 /**
  * Детект конфликтов правил (T2): неоднозначная замена и противоречие замена↔кросс-селл.
- * Репозитории замоканы — без БД.
+ * Репозитории замоканы — без БД. Корзина матчится по штрих-коду (barcode == EAN-13).
  */
 class RulesEngineConflictTest {
 
     private val ruleRepo = mockk<RuleRepository>()
     private val productRepo = mockk<ProductRepository>()
-    private val posCodeRepo = mockk<ProductPosCodeRepository>(relaxed = true)
     // Правила теста без promoId (legacy) → гейтинг по кампании их не трогает,
     // promoRepo.findAllById не вызывается; mock нужен только для конструктора.
     private val promoRepo = mockk<PromoRepository>(relaxed = true)
-    private val engine = RulesEngineService(ruleRepo, productRepo, posCodeRepo, promoRepo)
+    private val engine = RulesEngineService(ruleRepo, productRepo, promoRepo)
 
-    private fun product(id: String) = ProductEntity(id = id, name = "Товар $id", price = 100)
+    /** Товар с штрих-кодом «bar-<id>», чтобы корзина матчилась по barcode. */
+    private fun product(id: String) =
+        ProductEntity(id = id, name = "Товар $id", price = 100).also { it.barcode = "bar-$id" }
 
     private fun rule(id: String, type: RuleType, triggerProduct: String, recommend: String, bonus: Int = 100) =
         RuleEntity(
@@ -44,11 +44,19 @@ class RulesEngineConflictTest {
 
     private fun stub(rules: List<RuleEntity>, cartProducts: List<ProductEntity>, recommends: List<ProductEntity>) {
         every { ruleRepo.findAllByStatusRawOrderByUpdatedAtDesc("active") } returns rules
-        every { productRepo.findAllById(any<Iterable<String>>()) } returns cartProducts
+        // Резолв корзины идёт по штрих-коду.
+        every { productRepo.findAllByBarcodeIn(any()) } answers {
+            val wanted = firstArg<Collection<String>>().toSet()
+            cartProducts.filter { it.barcode in wanted }
+        }
         (cartProducts + recommends).forEach { p ->
             every { productRepo.findById(p.id) } returns Optional.of(p)
         }
     }
+
+    /** Корзина из товаров (по их штрих-кодам). */
+    private fun cart(vararg products: ProductEntity) =
+        products.map { CartItemDto(barcode = it.barcode) }
 
     @Test
     fun `неоднозначная замена — два разных рекомендованных на один триггер → конфликт, рекомендаций нет`() {
@@ -61,7 +69,7 @@ class RulesEngineConflictTest {
             cartProducts = listOf(x), recommends = listOf(y, z),
         )
 
-        val res = engine.match(listOf(CartItemDto(sku = "X")))
+        val res = engine.match(cart(x))
 
         assertTrue(res.matches.isEmpty(), "обе замены подавлены конфликтом")
         assertEquals(1, res.conflicts.size)
@@ -80,7 +88,7 @@ class RulesEngineConflictTest {
             cartProducts = listOf(x), recommends = listOf(y),
         )
 
-        val res = engine.match(listOf(CartItemDto(sku = "X")))
+        val res = engine.match(cart(x))
 
         assertTrue(res.matches.isEmpty())
         assertEquals(1, res.conflicts.size)
@@ -95,7 +103,7 @@ class RulesEngineConflictTest {
             cartProducts = listOf(x), recommends = listOf(y),
         )
 
-        val res = engine.match(listOf(CartItemDto(sku = "X")))
+        val res = engine.match(cart(x))
 
         assertEquals(1, res.matches.size)
         assertEquals("Y", res.matches[0].recommend.id)

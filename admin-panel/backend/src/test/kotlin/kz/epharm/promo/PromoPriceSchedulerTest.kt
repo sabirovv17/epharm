@@ -22,7 +22,7 @@ class PromoPriceSchedulerTest {
     private val scheduler = PromoPriceScheduler(promoRepo, productRepo, priceService)
 
     @Test
-    fun `рефреш обновляет цену порога и обложку промо + цену товара, бонус не трогает`() {
+    fun `рефреш обновляет цену порога, обложку и штрих-код промо + цену и штрих-код товара, бонус не трогает`() {
         val promo = PromoEntity(id = "pr_1", title = "Акция", medusaProductId = "m1").also {
             it.tiers = listOf(PromoTier(minQty = 1, price = 100, bonus = 500))
             it.productImage = "http://medusa/old.jpg"
@@ -32,9 +32,9 @@ class PromoPriceSchedulerTest {
         every { priceService.active } returns true
         every { promoRepo.findAllByMedusaProductIdIsNotNull() } returns listOf(promo)
         every { productRepo.findAllByMedusaProductIdIsNotNull() } returns listOf(product)
-        // Промо рефрешится снимком (цена + обложка), товар — ценой.
-        every { priceService.snapshotOf("m1") } returns MedusaSnapshot(price = 250L, cover = "http://medusa/new.jpg")
-        every { priceService.priceOf("m1") } returns 250L
+        // И промо, и товар рефрешатся одним снимком (цена + обложка + штрих-код).
+        every { priceService.snapshotOf("m1") } returns
+            MedusaSnapshot(price = 250L, cover = "http://medusa/new.jpg", barcode = "4603423004936")
         every { promoRepo.save(promo) } returns promo
         every { productRepo.save(product) } returns product
 
@@ -43,7 +43,9 @@ class PromoPriceSchedulerTest {
         assertEquals(250, promo.tiers[0].price.toInt())
         assertEquals(500, promo.tiers[0].bonus.toInt(), "бонус фармацевту сохранён")
         assertEquals("http://medusa/new.jpg", promo.productImage, "обложка обновлена из Medusa")
+        assertEquals("4603423004936", promo.barcode, "штрих-код промо обновлён из Medusa")
         assertEquals(250, product.price)
+        assertEquals("4603423004936", product.barcode, "штрих-код товара обновлён из Medusa")
         assertEquals(1, summary.promosUpdated)
         assertEquals(1, summary.productsUpdated)
     }

@@ -42,6 +42,15 @@ class ProductEntity(
     @Column(name = "medusa_product_id", length = 64)
     var medusaProductId: String? = null,
 
+    /**
+     * Штрих-код EAN-13 (из Medusa variant.barcode). ПЕРВИЧНЫЙ ключ матчинга корзины
+     * POSM-кассы → наш productId. Заполняется для кампанийных/правиловых товаров
+     * ([kz.epharm.promo.service.PromoRulesService] + [kz.epharm.promo.service.PromoPriceScheduler]).
+     * NULL у товаров без штрих-кода — тогда работает fallback по имени.
+     */
+    @Column(name = "barcode", length = 32)
+    var barcode: String? = null,
+
     @Column(name = "created_at", nullable = false)
     var createdAt: Instant = Instant.now(),
 

@@ -6,8 +6,9 @@ namespace CustomerDisplay.Models.Posm
     /// <summary>Позиция в отчёте о продаже (источник №1 сверки).</summary>
     public sealed class SaleReportItem
     {
-        public string Sku { get; set; } = "";
-        public string Name { get; set; } = "";
+        public string? Sku { get; set; }       // iPartID кассы — диагностика
+        public string? Barcode { get; set; }    // EAN-13 — ключ сверки (тот же, что в /recommend)
+        public string Name { get; set; } = "";  // sname — fallback-сверка
         public double Qty { get; set; } = 1.0;
         public long Price { get; set; }
         public long Total { get; set; }

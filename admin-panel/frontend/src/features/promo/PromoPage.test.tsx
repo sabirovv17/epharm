@@ -57,6 +57,7 @@ function mkPromo(over: Partial<PromoDto> = {}): PromoDto {
     medusaProductId: null,
     productName: '',
     productImage: null,
+    barcode: null,
     overrideImage: null,
     overrideDescription: null,
     price: 0,
@@ -102,7 +103,7 @@ beforeEach(() => {
           price: 4990,
           currency: 'KZT',
           imageUrl: null,
-          barcode: null,
+          barcode: '4603423004936',
           category: null,
         },
       ],
@@ -388,6 +389,8 @@ describe('PromoPage — Create modal (товарная акция)', () => {
         title: 'Панкраген 0,2г капс. №60',
         status: 'draft',
         pharmacistBonus: 0,
+        // EAN-13 продвигаемого товара уходит в payload (ключ матчинга на кассе).
+        barcode: '4603423004936',
       }),
     )
     // T1: пороги (tiers) и цена (price) в запрос на создание не уходят

@@ -41,6 +41,7 @@ function toRef(p: StorefrontProductDto): PromoRuleProductRef {
     brand: p.brand,
     mnn: p.mnn,
     price: p.price,
+    barcode: p.barcode,
     script: '',
     advantages: [],
     partnerLabel: null,
@@ -394,6 +395,14 @@ function PairCard({
             {r.brand && (
               <div className="truncate text-[11px] font-semibold text-ink-500">{r.brand}</div>
             )}
+            {r.barcode && (
+              <div
+                className="num truncate text-[11px] text-ink-400"
+                data-testid={`pr-barcode-${r.medusaProductId}`}
+              >
+                {t('pr.barcode')}: {r.barcode}
+              </div>
+            )}
           </div>
           {/* Статус именно этой пары: Активно / Черновик. */}
           <button
@@ -602,6 +611,9 @@ function RecommendationPreview({
   //  • кросс-селл — триггер = товар кампании (УЖЕ В ЧЕКЕ), ДОБАВЬТЕ = компаньон (r).
   const triggerLabel = isReplace ? t('pr.previewAsked') : t('pr.previewInCart')
   const triggerName = isReplace ? r.name : promotedName
+  // EAN-13 триггера: для замены ключ матчинга на кассе — штрих-код заменяемого
+  // товара (r); для кросс-селла триггер = товар кампании, его barcode тут нет.
+  const triggerBarcode = isReplace ? r.barcode : null
   const offerLabel = isReplace ? t('pr.previewOfferInstead') : t('pr.previewOfferAdd')
   const offerName = isReplace ? promotedName : r.name
   const offerPrice = fmtPrice(isReplace ? promotedPrice : r.price)
@@ -631,6 +643,7 @@ function RecommendationPreview({
               {triggerLabel}
             </div>
             <div className="text-[13px] font-extrabold text-ink-900">{triggerName}</div>
+            {triggerBarcode && <div className="num text-[10px] text-ink-400">{triggerBarcode}</div>}
           </div>
         )}
 

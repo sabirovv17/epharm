@@ -22,6 +22,8 @@ export interface SelectedProduct {
   brand: string
   /** Цена из витрины Medusa (read-only, для предпросмотра в форме). null — нет цены. */
   price: number | null
+  /** EAN-13 из Medusa (variant.barcode) — ключ матчинга на кассе. null — нет штрих-кода. */
+  barcode: string | null
 }
 
 /**
@@ -138,6 +140,14 @@ function ProductSearchList({
                   {p.brand && (
                     <div className="truncate text-[11px] font-semibold text-ink-500">{p.brand}</div>
                   )}
+                  {p.barcode && (
+                    <div
+                      className="num truncate text-[11px] text-ink-400"
+                      data-testid={`pp-barcode-${p.id}`}
+                    >
+                      {p.barcode}
+                    </div>
+                  )}
                 </div>
                 {selected && <IconCheck size={16} />}
               </button>
@@ -181,6 +191,7 @@ export function PromoProductPicker({ value, onChange }: Props) {
       productImage: p.imageUrl ?? null,
       brand: p.brand ?? '',
       price: p.price ?? null,
+      barcode: p.barcode ?? null,
     })
     setOpen(false)
   }
@@ -195,6 +206,9 @@ export function PromoProductPicker({ value, onChange }: Props) {
           </div>
           {value.brand && (
             <div className="truncate text-[12px] font-bold text-ink-500">{value.brand}</div>
+          )}
+          {value.barcode && (
+            <div className="num truncate text-[11px] text-ink-400">{value.barcode}</div>
           )}
         </div>
         <Button variant="ghost" onClick={() => setOpen(true)}>

@@ -48,7 +48,14 @@ describe('PromoProductPicker — пагинация (T6)', () => {
   function page(offset: number, limit: number): StorefrontPageDto {
     const items: StorefrontProductDto[] = []
     for (let i = offset; i < Math.min(offset + limit, TOTAL); i++) {
-      items.push(mkProduct({ id: `prod_${i}`, name: `Товар ${i}`, price: 1000 + i }))
+      items.push(
+        mkProduct({
+          id: `prod_${i}`,
+          name: `Товар ${i}`,
+          price: 1000 + i,
+          barcode: `460300000${i}`,
+        }),
+      )
     }
     return { items, total: TOTAL, limit, offset }
   }
@@ -97,14 +104,20 @@ describe('PromoProductPicker — пагинация (T6)', () => {
     expect(screen.getByText(/Показано 50 из 50/)).toBeInTheDocument()
   })
 
-  it('выбор товара отдаёт snapshot с price', async () => {
+  it('выбор товара отдаёт snapshot с price + barcode', async () => {
     const onChange = vi.fn()
     const user = userEvent.setup()
     render(<PromoProductPicker value={null} onChange={onChange} />)
     await user.click(screen.getByText('Товар 5'))
     expect(onChange).toHaveBeenCalledWith(
-      expect.objectContaining({ medusaProductId: 'prod_5', price: 1005 }),
+      expect.objectContaining({ medusaProductId: 'prod_5', price: 1005, barcode: '4603000005' }),
     )
+  })
+
+  it('EAN-13 (штрих-код) показан в строке результата', () => {
+    render(<PromoProductPicker value={null} onChange={vi.fn()} />)
+    // mono-строка под именем/брендом несёт штрих-код товара.
+    expect(screen.getByTestId('pp-barcode-prod_5')).toHaveTextContent('4603000005')
   })
 })
 

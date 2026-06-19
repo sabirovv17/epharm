@@ -6,6 +6,9 @@ namespace CustomerDisplay.Models
    public class ReceiptItem
 {
     public int PartId { get; set; }
+    // EAN-13 (штрих-код), извлечённый из лога кассы. Ключ матчинга на backend.
+    // PartId (iPartID Стандарт-Н) остаётся ключом де-дупа/удаления в UI.
+    public string? Barcode { get; set; }
     public string Name { get; set; } = "";
     public decimal Price { get; set; }
     public decimal Qty { get; set; } = 1m;

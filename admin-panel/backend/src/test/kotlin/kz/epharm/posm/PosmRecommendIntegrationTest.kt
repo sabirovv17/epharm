@@ -14,8 +14,6 @@ import kz.epharm.posm.dto.CartItemDto
 import kz.epharm.posm.dto.OutcomeRequest
 import kz.epharm.posm.dto.RecommendRequest
 import kz.epharm.posm.dto.RecommendResponse
-import kz.epharm.posm.entity.ProductPosCodeEntity
-import kz.epharm.posm.repository.ProductPosCodeRepository
 import kz.epharm.posm.repository.RecommendationEventRepository
 import kz.epharm.receipts.repository.PendingBonusRepository
 import kz.epharm.rules.entity.RuleCard
@@ -79,12 +77,16 @@ class PosmRecommendIntegrationTest {
     @Autowired private lateinit var chainRepository: ChainRepository
     @Autowired private lateinit var pendingBonusRepository: PendingBonusRepository
     @Autowired private lateinit var eventRepository: RecommendationEventRepository
-    @Autowired private lateinit var posCodeRepository: ProductPosCodeRepository
+
+    // EAN-13 штрих-коды демо-товаров (по ним матчится корзина кассы).
+    private val barBio = "4603423004936"
+    private val barOlda = "4603423001973"
+    private val barFood = "3858881254039"
+    // Триггерные товары (рекомендации не нужны для матча корзины — они только в правилах).
 
     @BeforeEach
     fun seed() {
         eventRepository.deleteAll()
-        posCodeRepository.deleteAll()
         pendingBonusRepository.deleteAll()
         ruleRepository.deleteAll()
         productRepository.deleteAll()
@@ -110,14 +112,14 @@ class PosmRecommendIntegrationTest {
             ),
         )
 
-        // Каталог: триггеры + рекомендации.
+        // Каталог: триггеры (со штрих-кодами) + рекомендации.
         listOf(
-            product("p_bio", "Bioderma", 4200),
-            product("p_olda", "Старый бренд А", 3000),
-            product("p_food", "Детское питание", 1500),
-            product("p_zen", "SelfieLab Zen", 4500),
-            product("p_zen2", "SelfieLab Zen 2", 4100),
-            product("p_cream", "Крем под подгузник", 1900),
+            product("p_bio", "Bioderma", 4200, barBio),
+            product("p_olda", "Старый бренд А", 3000, barOlda),
+            product("p_food", "Детское питание", 1500, barFood),
+            product("p_zen", "SelfieLab Zen", 4500, null),
+            product("p_zen2", "SelfieLab Zen 2", 4100, null),
+            product("p_cream", "Крем под подгузник", 1900, null),
         ).forEach { productRepository.save(it) }
 
         // 2 замены (бонус 650 и 500) + 1 cross-sell (320).
@@ -128,7 +130,7 @@ class PosmRecommendIntegrationTest {
 
     @Test
     fun `замены раньше cross-sell, отсортированы по бонусу, лимит 2`() {
-        val resp = recommend("s1", listOf("p_bio", "p_olda", "p_food"))
+        val resp = recommendByBarcode("s1", listOf(barBio, barOlda, barFood))
         assertEquals(2, resp.recommendations.size, "лимит top-2")
         // Обе замены впереди, cross-sell (320) выброшен лимитом.
         assertEquals("substitution", resp.recommendations[0].kind)
@@ -142,7 +144,7 @@ class PosmRecommendIntegrationTest {
 
     @Test
     fun `cross-sell показывается когда нет замен`() {
-        val resp = recommend("s2", listOf("p_food"))
+        val resp = recommendByBarcode("s2", listOf(barFood))
         assertEquals(1, resp.recommendations.size)
         assertEquals("crosssell", resp.recommendations[0].kind)
         assertEquals("p_cream", resp.recommendations[0].recommendSku)
@@ -153,7 +155,7 @@ class PosmRecommendIntegrationTest {
     fun `замена и cross-sell приходят ВМЕСТЕ (замена первой) — для табов на кассе`() {
         // Корзина даёт ровно одну замену (p_bio→p_zen) и один cross-sell (p_food→p_cream).
         // На кассе это две вкладки «Замена | Допродажа» в одной карточке.
-        val resp = recommend("s7", listOf("p_bio", "p_food"))
+        val resp = recommendByBarcode("s7", listOf(barBio, barFood))
         assertEquals(2, resp.recommendations.size)
         assertEquals("substitution", resp.recommendations[0].kind) // замена впереди
         assertEquals("p_zen", resp.recommendations[0].recommendSku)
@@ -183,7 +185,7 @@ class PosmRecommendIntegrationTest {
             },
         )
 
-        val r = recommend("sc", listOf("p_bio")).recommendations[0]
+        val r = recommendByBarcode("sc", listOf(barBio)).recommendations[0]
         assertEquals("p_zen", r.recommendSku)
         assertEquals("150 мл", r.triggerVolume)           // из каталога (product.volume)
         assertEquals(4200, r.triggerPrice)                // из каталога (product.price)
@@ -202,13 +204,13 @@ class PosmRecommendIntegrationTest {
                 .content(objectMapper.writeValueAsString(OutcomeRequest(outcome = "accepted"))),
         ).andExpect(status().isOk)
 
-        val r2 = recommend("sc2", listOf("p_bio")).recommendations[0]
+        val r2 = recommendByBarcode("sc2", listOf(barBio)).recommendations[0]
         assertEquals("цель «1/10 замен в мае»", r2.goalText)
     }
 
     @Test
     fun `принятая рекомендация создаёт pending_bonus, баланс ещё не начислен`() {
-        val resp = recommend("s3", listOf("p_bio"))
+        val resp = recommendByBarcode("s3", listOf(barBio))
         val eventId = resp.recommendations[0].eventId
 
         mockMvc.perform(
@@ -231,7 +233,7 @@ class PosmRecommendIntegrationTest {
 
     @Test
     fun `отклонённая рекомендация не показывается повторно в этом чеке`() {
-        val first = recommend("s4", listOf("p_bio"))
+        val first = recommendByBarcode("s4", listOf(barBio))
         val eventId = first.recommendations[0].eventId
 
         mockMvc.perform(
@@ -241,15 +243,40 @@ class PosmRecommendIntegrationTest {
                 .content(objectMapper.writeValueAsString(OutcomeRequest(outcome = "rejected"))),
         ).andExpect(status().isOk)
 
-        val second = recommend("s4", listOf("p_bio"))
+        val second = recommendByBarcode("s4", listOf(barBio))
         assertTrue(second.recommendations.none { it.recommendSku == "p_zen" }, "отклонённое не повторяем")
     }
 
     @Test
-    fun `код кассы (iPartID) резолвится в productId через product_pos_codes`() {
-        // Касса прислала числовой артикул 80309 — маппится на p_bio → срабатывает замена.
-        posCodeRepository.save(ProductPosCodeEntity(posCode = 80309, productId = "p_bio"))
-        val resp = recommend("s6", listOf("80309"))
+    fun `скан по штрих-коду (EAN-13) резолвится в товар → срабатывает замена`() {
+        // Касса прислала EAN-13 4603423004936 (Bioderma) → матч по barcode → замена на p_zen.
+        val resp = recommendByBarcode("s6", listOf(barBio))
+        assertEquals(1, resp.recommendations.size)
+        assertEquals("p_zen", resp.recommendations[0].recommendSku)
+        assertEquals("Bioderma", resp.recommendations[0].triggerName)
+    }
+
+    @Test
+    fun `fallback по имени (sname из лога) когда штрих-код не пришёл`() {
+        // Лог кассы пока без штрих-кода — только sname. Матч по нормализованному имени
+        // («bioderma» == ProductEntity.name «Bioderma»).
+        val resp = recommend("s8", listOf(CartItemDto(name = "Bioderma")))
+        assertEquals(1, resp.recommendations.size)
+        assertEquals("p_zen", resp.recommendations[0].recommendSku)
+    }
+
+    @Test
+    fun `имя матчится нормализованно (регистр, пунктуация, пробелы)`() {
+        // Касса прислала «BIODERMA!!»  с лишними знаками/регистром → всё равно матч на Bioderma.
+        val resp = recommend("s9", listOf(CartItemDto(name = "  BIODERMA!! ")))
+        assertEquals(1, resp.recommendations.size)
+        assertEquals("p_zen", resp.recommendations[0].recommendSku)
+    }
+
+    @Test
+    fun `штрих-код имеет приоритет над именем — неизвестное имя не мешает`() {
+        // barcode резолвит p_bio (замена p_zen), даже если name мусорный.
+        val resp = recommend("s10", listOf(CartItemDto(barcode = barBio, name = "мусор")))
         assertEquals(1, resp.recommendations.size)
         assertEquals("p_zen", resp.recommendations[0].recommendSku)
     }
@@ -259,31 +286,37 @@ class PosmRecommendIntegrationTest {
         mockMvc.perform(
             post("/api/posm/recommend")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(req("s5", listOf("p_bio")))),
+                .content(objectMapper.writeValueAsString(reqByBarcode("s5", listOf(barBio)))),
         ).andExpect(status().isUnauthorized)
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
-    private fun recommend(session: String, skus: List<String>): RecommendResponse {
+    private fun recommend(session: String, items: List<CartItemDto>): RecommendResponse {
         val body = mockMvc.perform(
             post("/api/posm/recommend")
                 .header("X-Posm-Key", POSM_KEY)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(req(session, skus))),
+                .content(objectMapper.writeValueAsString(req(session, items))),
         )
             .andExpect(status().isOk)
             .andReturn().response.getContentAsString(Charsets.UTF_8) // кириллица в карточке → UTF-8
         return objectMapper.readValue(body, RecommendResponse::class.java)
     }
 
-    private fun req(session: String, skus: List<String>) = RecommendRequest(
-        pharmacistId = "u_t", pharmacyId = "ph_t", sessionId = session,
-        cart = skus.map { CartItemDto(sku = it) },
+    private fun recommendByBarcode(session: String, barcodes: List<String>): RecommendResponse =
+        recommend(session, barcodes.map { CartItemDto(barcode = it) })
+
+    private fun req(session: String, items: List<CartItemDto>) = RecommendRequest(
+        pharmacistId = "u_t", pharmacyId = "ph_t", sessionId = session, cart = items,
     )
 
-    private fun product(id: String, name: String, price: Int) =
+    private fun reqByBarcode(session: String, barcodes: List<String>) =
+        req(session, barcodes.map { CartItemDto(barcode = it) })
+
+    private fun product(id: String, name: String, price: Int, barcode: String?) =
         ProductEntity(id = id, name = name, brand = "B", vendor = "V", mnn = "", price = price)
+            .also { it.barcode = barcode }
 
     private fun trigger(productId: String) = RuleTrigger(kind = "product", value = productId)
 

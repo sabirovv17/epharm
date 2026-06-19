@@ -64,6 +64,7 @@ function mkPromo(over: Partial<PromoDto> = {}): PromoDto {
     medusaProductId: null,
     productName: '',
     productImage: null,
+    barcode: null,
     overrideImage: null,
     overrideDescription: null,
     price: 0,
@@ -290,6 +291,14 @@ describe('PromoDetailPage — T1 (товар, цена read-only, бонус)', 
     // read-only — это div, не input
     expect(cell.tagName).not.toBe('INPUT')
     expect(cell.textContent).toMatch(/4\s?990/)
+  })
+
+  it('EAN-13 (штрих-код) товара показан в read-only блоке', () => {
+    setPromo(
+      mkPromo({ medusaProductId: 'prod_1', productName: 'Аквалор', barcode: '4603423004936' }),
+    )
+    renderDetail()
+    expect(screen.getByTestId('detail-barcode')).toHaveTextContent('4603423004936')
   })
 
   it('бонус фармацевту редактируется и попадает в патч', async () => {

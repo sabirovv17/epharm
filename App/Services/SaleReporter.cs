@@ -39,8 +39,9 @@ namespace CustomerDisplay.Services
                 .Where(i => i.PartId != 0)
                 .Select(i => new SaleReportItem
                 {
-                    Sku = i.PartId.ToString(),
-                    Name = i.Name,
+                    Sku = i.PartId.ToString(),   // диагностика
+                    Barcode = i.Barcode,          // EAN-13 — тот же ключ, что в /recommend (может быть null)
+                    Name = i.Name,                // fallback-сверка по имени
                     Qty = (double)i.Qty,
                     Price = (long)Math.Round(i.Price),
                     Total = (long)Math.Round(i.Total),

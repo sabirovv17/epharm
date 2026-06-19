@@ -57,6 +57,7 @@ class PromoService(
             medusaProductId = medusaProductId,
             productName = req.productName.trim(),
             productImage = req.productImage?.trim()?.takeIf { it.isNotBlank() },
+            barcode = req.barcode?.trim()?.takeIf { it.isNotBlank() },
             overrideImage = req.overrideImage?.trim()?.takeIf { it.isNotBlank() },
             overrideDescription = req.overrideDescription?.trim()?.takeIf { it.isNotBlank() },
             overrideCharacteristics = req.overrideCharacteristics?.trim()?.takeIf { it.isNotBlank() },
@@ -68,6 +69,8 @@ class PromoService(
         }
         // Цена — из Medusa (read-only), бонус — из запроса; кладём в единственный порог.
         syncTier(entity, desiredBonus = req.pharmacistBonus, refetchPrice = true)
+        // Штрих-код продвигаемого товара — из Medusa (для матчинга кассы); fallback на присланный.
+        syncBarcode(entity, refetch = true)
         validatePromo(entity)
         return PromoDto.of(promoRepository.save(entity))
     }
@@ -102,6 +105,7 @@ class PromoService(
         req.medusaProductId?.let { entity.medusaProductId = it.trim().takeIf { s -> s.isNotBlank() } }
         req.productName?.let { entity.productName = it.trim() }
         req.productImage?.let { entity.productImage = it.trim().takeIf { s -> s.isNotBlank() } }
+        req.barcode?.let { entity.barcode = it.trim().takeIf { s -> s.isNotBlank() } }
         // Override: пустая строка = очистить, иначе установить.
         req.overrideImage?.let { entity.overrideImage = it.trim().takeIf { s -> s.isNotBlank() } }
         req.overrideDescription?.let { entity.overrideDescription = it.trim().takeIf { s -> s.isNotBlank() } }
@@ -115,6 +119,8 @@ class PromoService(
         // или если ещё не проставлена.
         val desiredBonus = req.pharmacistBonus ?: entity.pharmacistBonus
         syncTier(entity, desiredBonus = desiredBonus, refetchPrice = productChanged || entity.price == 0L)
+        // Штрих-код перетягиваем из Medusa при смене товара (или если ещё не проставлен).
+        syncBarcode(entity, refetch = productChanged || entity.barcode.isNullOrBlank())
 
         validatePromo(entity)
         return PromoDto.of(promoRepository.save(entity))
@@ -160,6 +166,24 @@ class PromoService(
             e.price
         }
         e.tiers = listOf(PromoTier(minQty = 1, price = price, bonus = desiredBonus.coerceAtLeast(0)))
+    }
+
+    /**
+     * Синхронизирует штрих-код продвигаемого товара:
+     *   - товар не привязан → штрих-код очищается;
+     *   - привязан + refetch → тянем EAN-13 из Medusa (snapshot); недоступен → сохраняем текущий.
+     * Штрих-код — ключ матчинга POSM-кассы; стампится на ProductEntity в PromoRulesService.
+     */
+    private fun syncBarcode(e: PromoEntity, refetch: Boolean) {
+        val mpid = e.medusaProductId
+        if (mpid == null) {
+            e.barcode = null
+            return
+        }
+        if (refetch) {
+            val ean = medusaPriceService.snapshotOf(mpid)?.barcode?.trim()?.takeIf { it.isNotBlank() }
+            if (ean != null) e.barcode = ean
+        }
     }
 
     private fun loadOrThrow(id: String): PromoEntity =

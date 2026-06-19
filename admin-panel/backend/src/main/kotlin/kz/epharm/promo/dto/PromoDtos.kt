@@ -47,6 +47,8 @@ data class PromoDto(
     val medusaProductId: String?,
     val productName: String,
     val productImage: String?,
+    /** Штрих-код EAN-13 продвигаемого товара (из Medusa). */
+    val barcode: String?,
     /** Ручная замена фото (приоритет над Medusa). */
     val overrideImage: String?,
     /** Ручная замена описания (приоритет над Medusa). */
@@ -79,6 +81,7 @@ data class PromoDto(
             medusaProductId = e.medusaProductId,
             productName = e.productName,
             productImage = e.productImage,
+            barcode = e.barcode,
             overrideImage = e.overrideImage,
             overrideDescription = e.overrideDescription,
             overrideCharacteristics = e.overrideCharacteristics,
@@ -123,6 +126,9 @@ data class CreatePromoRequest(
     val productName: String = "",
     @field:Size(max = 1024)
     val productImage: String? = null,
+    /** Штрих-код EAN-13 продвигаемого товара (из Medusa, для матчинга кассы). */
+    @field:Size(max = 32)
+    val barcode: String? = null,
     @field:Size(max = 1024)
     val overrideImage: String? = null,
     val overrideDescription: String? = null,
@@ -158,6 +164,9 @@ data class UpdatePromoRequest(
     val productName: String? = null,
     @field:Size(max = 1024)
     val productImage: String? = null,
+    /** Штрих-код EAN-13 продвигаемого товара (из Medusa, для матчинга кассы). */
+    @field:Size(max = 32)
+    val barcode: String? = null,
     @field:Size(max = 1024)
     val overrideImage: String? = null,
     val overrideDescription: String? = null,

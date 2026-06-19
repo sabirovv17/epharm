@@ -240,6 +240,9 @@ class PromoRulesService(
         p.price = price
         p.volume = existing?.volume ?: ""
         p.medusaProductId = medusaId
+        // Штрих-код продвигаемого — из кампании (источник истины для матчинга кассы),
+        // иначе сохраняем прежний.
+        p.barcode = promo.barcode?.trim()?.takeIf { it.isNotBlank() } ?: existing?.barcode
         return productRepository.save(p)
     }
 
@@ -259,6 +262,11 @@ class PromoRulesService(
         p.price = price
         p.volume = ref.volume?.takeIf { it.isNotBlank() } ?: existing?.volume ?: ""
         p.medusaProductId = id
+        // Штрих-код заменяемого/компаньона: из ref (фронт), иначе из Medusa, иначе прежний.
+        // Это ключ матчинга POSM-кассы для товара-триггера замены.
+        p.barcode = ref.barcode?.trim()?.takeIf { it.isNotBlank() }
+            ?: medusaPriceService.snapshotOf(id)?.barcode?.trim()?.takeIf { it.isNotBlank() }
+            ?: existing?.barcode
         return productRepository.save(p)
     }
 
@@ -270,6 +278,7 @@ class PromoRulesService(
             brand = p.brand.takeIf { it.isNotBlank() },
             mnn = p.mnn.takeIf { it.isNotBlank() },
             volume = p.volume.takeIf { it.isNotBlank() },
+            barcode = p.barcode?.takeIf { it.isNotBlank() },
             price = p.price.takeIf { it > 0 },
         )
     }

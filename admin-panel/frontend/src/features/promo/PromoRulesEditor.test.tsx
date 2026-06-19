@@ -32,6 +32,7 @@ function mkView(over: Partial<PromoRulesViewDto['config']> = {}): PromoRulesView
           medusaProductId: 'prod_a',
           name: 'Аквалор Норм',
           brand: 'Stada',
+          barcode: '4603423004936',
           script: 'Замени — мягче',
         },
       ],
@@ -72,7 +73,7 @@ beforeEach(() => {
           price: 500,
           currency: 'KZT',
           imageUrl: null,
-          barcode: null,
+          barcode: '4604249789012',
           category: null,
         },
       ],
@@ -103,6 +104,26 @@ describe('PromoRulesEditor — per-pair скрипт + «Добавить»', ()
     expect(screen.getAllByText('Аквалор Норм').length).toBeGreaterThanOrEqual(1)
     expect((screen.getByTestId('pr-script-prod_a') as HTMLTextAreaElement).value).toBe(
       'Замени — мягче',
+    )
+  })
+
+  it('EAN-13 (штрих-код) показан у выбранной пары', () => {
+    renderEditor()
+    expect(screen.getByTestId('pr-barcode-prod_a')).toHaveTextContent('4603423004936')
+  })
+
+  it('добавленный товар несёт штрих-код в config при сохранении', async () => {
+    const user = userEvent.setup()
+    renderEditor()
+    // Открываем модалку «Добавить кросс-селл», кликаем найденный товар (с EAN).
+    await user.click(screen.getByTestId('pr-add-crossSells'))
+    await user.click(screen.getByText('Платочки'))
+    // Закрываем модалку (Esc) и сохраняем.
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByTestId('promo-rules-save'))
+    const arg = mutate.mock.calls[0][0]
+    expect(arg.config.crossSells[0]).toEqual(
+      expect.objectContaining({ medusaProductId: 'prod_b', barcode: '4604249789012' }),
     )
   })
 

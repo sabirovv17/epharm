@@ -2,7 +2,6 @@ package kz.epharm.posm.repository
 
 import java.time.Instant
 import kz.epharm.posm.entity.PosSaleEntity
-import kz.epharm.posm.entity.ProductPosCodeEntity
 import kz.epharm.posm.entity.RecommendationEventEntity
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
@@ -40,9 +39,6 @@ interface PharmacyCountRow {
     val pharmacyId: String
     val cnt: Long
 }
-
-@Repository
-interface ProductPosCodeRepository : JpaRepository<ProductPosCodeEntity, Long>
 
 @Repository
 interface PosSaleRepository : JpaRepository<PosSaleEntity, String> {

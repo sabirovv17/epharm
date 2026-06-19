@@ -8,9 +8,10 @@ import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.type.SqlTypes
 import java.time.Instant
 
-/** Позиция чека внутри pos_sale (хранится в jsonb). */
+/** Позиция чека внутри pos_sale (хранится в jsonb). sku — iPartID кассы, barcode — EAN-13 (ключ матчинга). */
 data class PosSaleItem(
     val sku: String = "",
+    val barcode: String? = null,
     val name: String = "",
     val qty: Double = 1.0,
     val price: Long = 0,

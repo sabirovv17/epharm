@@ -54,7 +54,7 @@ class MedusaPriceService(
         if (medusaProductId.isNullOrBlank() || !medusa.active) return null
         return try {
             val p = medusa.getProduct(medusaProductId) ?: return null
-            MedusaSnapshot(price = priceOf(p), cover = coverOf(p))
+            MedusaSnapshot(price = priceOf(p), cover = coverOf(p), barcode = barcodeOf(p))
         } catch (e: Exception) {
             log.warn("Не удалось получить снимок Medusa для {}: {}", medusaProductId, e.message)
             null
@@ -66,6 +66,14 @@ class MedusaPriceService(
         product.thumbnail?.trim()?.takeIf { it.isNotBlank() }
             ?: product.images.firstNotNullOfOrNull { it.url?.trim()?.takeIf { u -> u.isNotBlank() } }
 
-    /** Снимок витрины: цена (тенге) + URL обложки. Любое поле может быть null. */
-    data class MedusaSnapshot(val price: Long?, val cover: String?)
+    /**
+     * Штрих-код EAN-13 товара: первый вариант с непустым barcode (зеркало
+     * [kz.epharm.mobile.catalog.service.MobileCatalogService.barcodeOf]). Без metadata-fallback —
+     * для матчинга кассы нужен именно EAN-13 из variant.barcode.
+     */
+    private fun barcodeOf(product: MedusaProduct): String? =
+        product.variants.firstOrNull { !it.barcode.isNullOrBlank() }?.barcode?.trim()
+
+    /** Снимок витрины: цена (тенге) + URL обложки + штрих-код. Любое поле может быть null. */
+    data class MedusaSnapshot(val price: Long?, val cover: String?, val barcode: String?)
 }

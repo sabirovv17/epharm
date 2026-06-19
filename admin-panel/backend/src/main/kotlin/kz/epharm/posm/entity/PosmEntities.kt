@@ -13,22 +13,6 @@ enum class RecommendationKind { substitution, crosssell }
 enum class RecommendationOutcome { shown, accepted, rejected, expired }
 
 /**
- * Связь артикула кассы Стандарт-Н (iPartID) с нашим productId.
- * POSM-клиент конвертит код перед отправкой корзины; если кода нет — шлёт сырой,
- * матчер его просто не найдёт в каталоге.
- */
-@Entity
-@Table(name = "product_pos_codes")
-class ProductPosCodeEntity(
-    @Id
-    @Column(name = "pos_code", nullable = false)
-    var posCode: Long = 0,
-
-    @Column(name = "product_id", nullable = false, length = 64)
-    var productId: String = "",
-)
-
-/**
  * Факт + результат показанной рекомендации — доказательная база бонуса.
  * Создаётся при показе (outcome=shown), обновляется при решении фармацевта.
  */

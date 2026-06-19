@@ -81,6 +81,12 @@ class PromoPriceScheduler(
                 changed = true
             }
 
+            // Штрих-код EAN-13 (ключ матчинга POSM-кассы) — тоже обновляем из Medusa.
+            if (!snap.barcode.isNullOrBlank() && p.barcode != snap.barcode) {
+                p.barcode = snap.barcode
+                changed = true
+            }
+
             if (changed) {
                 promoRepository.save(p)
                 updated++
@@ -93,12 +99,25 @@ class PromoPriceScheduler(
         val products = productRepository.findAllByMedusaProductIdIsNotNull()
         var updated = 0
         for (prod in products) {
-            val price = medusaPriceService.priceOf(prod.medusaProductId) ?: continue
-            val intPrice = price.toInt()
-            if (prod.price == intPrice) continue
-            prod.price = intPrice
-            productRepository.save(prod)
-            updated++
+            // Один снимок Medusa → актуальные цена И штрих-код (ключ матчинга кассы).
+            // Снимок недоступен → пропускаем, прошлые значения остаются.
+            val snap = medusaPriceService.snapshotOf(prod.medusaProductId) ?: continue
+            var changed = false
+
+            val intPrice = snap.price?.toInt()
+            if (intPrice != null && prod.price != intPrice) {
+                prod.price = intPrice
+                changed = true
+            }
+            if (!snap.barcode.isNullOrBlank() && prod.barcode != snap.barcode) {
+                prod.barcode = snap.barcode
+                changed = true
+            }
+
+            if (changed) {
+                productRepository.save(prod)
+                updated++
+            }
         }
         return acc.copy(productsTotal = products.size, productsUpdated = updated)
     }

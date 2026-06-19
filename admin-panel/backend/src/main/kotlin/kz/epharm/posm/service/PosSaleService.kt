@@ -1,5 +1,6 @@
 package kz.epharm.posm.service
 
+import kz.epharm.posm.dto.CartItemDto
 import kz.epharm.posm.dto.PosSaleRequest
 import kz.epharm.posm.entity.PosSaleEntity
 import kz.epharm.posm.entity.PosSaleItem
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional
 class PosSaleService(
     private val posSaleRepository: PosSaleRepository,
     private val reconcileService: ReconcileService,
+    private val rulesEngineService: RulesEngineService,
 ) {
 
     private val log = LoggerFactory.getLogger(PosSaleService::class.java)
@@ -41,10 +43,16 @@ class PosSaleService(
                 cashier = req.cashier,
                 shift = req.shift,
                 totalAmount = req.totalAmount,
-                items = req.items.map { PosSaleItem(it.sku, it.name, it.qty, it.price, it.total) },
+                items = req.items.map { PosSaleItem(it.sku ?: "", it.barcode, it.name, it.qty, it.price, it.total) },
                 printedAt = req.printedAt,
             ),
         )
+
+        // Резолвим позиции (штрих-код → имя) в наши productId — тем же матчером, что и /recommend.
+        // pending-бонус хранит recommendSku = productId, поэтому в сверку отдаём именно productId
+        // (а не iPartID кассы). Не разрезолвилось — отдаём исходный sku (в проде не сматчится → ок).
+        val cartItems = req.items.map { CartItemDto(sku = it.sku, barcode = it.barcode, name = it.name, qty = it.qty) }
+        val productIds = rulesEngineService.resolveToProductIds(cartItems)
 
         reconcileService.ingestLogSale(
             LogSaleInput(
@@ -53,7 +61,9 @@ class PosSaleService(
                 fiscalId = req.fiscalId,
                 cashier = req.cashier,
                 soldAt = req.printedAt,
-                items = req.items.map { LogSaleItem(sku = it.sku, qty = it.qty, price = it.price, total = it.total) },
+                items = req.items.mapIndexed { i, it ->
+                    LogSaleItem(sku = productIds[i] ?: it.sku ?: "", qty = it.qty, price = it.price, total = it.total)
+                },
             ),
         )
         return true

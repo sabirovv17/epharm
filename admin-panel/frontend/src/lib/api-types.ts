@@ -347,6 +347,8 @@ export interface PromoDto {
   medusaProductId: string | null
   productName: string
   productImage: string | null
+  /** EAN-13 продвигаемого товара (из Medusa variant.barcode) — ключ матчинга на кассе. */
+  barcode: string | null
   /** Ручной override фото товара (поверх PIM/Medusa). null — берётся productImage. */
   overrideImage: string | null
   /** Ручной override описания товара (поверх PIM/Medusa). null — нет переопределения. */
@@ -377,6 +379,8 @@ export interface CreatePromoRequest {
   medusaProductId?: string | null
   productName?: string
   productImage?: string | null
+  /** EAN-13 продвигаемого товара (из Medusa) — ключ матчинга на кассе. */
+  barcode?: string | null
   overrideImage?: string | null
   overrideDescription?: string | null
   overrideCharacteristics?: string | null
@@ -396,6 +400,8 @@ export interface UpdatePromoRequest {
   medusaProductId?: string | null
   productName?: string
   productImage?: string | null
+  /** EAN-13 продвигаемого товара (из Medusa) — ключ матчинга на кассе. */
+  barcode?: string | null
   overrideImage?: string | null
   overrideDescription?: string | null
   overrideCharacteristics?: string | null
@@ -415,6 +421,8 @@ export interface PromoRuleProductRef {
   mnn?: string | null
   volume?: string | null
   price?: number | null
+  /** EAN-13 (из Medusa variant.barcode) — ключ матчинга этой пары на кассе. */
+  barcode?: string | null
   // ── Поля, которые видны в блоке рекомендации на кассе (per-pair) ──────────
   /** Скрипт ЭТОЙ пары: что сказать фармацевту и почему. */
   script?: string

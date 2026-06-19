@@ -5,16 +5,24 @@ import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Pattern
 
-/** Позиция корзины. sku = наш productId (POSM-клиент уже сконвертил iPartID). */
+/**
+ * Позиция корзины кассы Стандарт-Н. Матчинг к нашему товару идёт по [barcode] (EAN-13,
+ * первичный ключ), при его отсутствии — fallback по [name] (sname из лога).
+ *  - sku:     legacy iPartID кассы — только для диагностики, в матчинге НЕ участвует;
+ *  - barcode: EAN-13 (variant.barcode из Medusa) — ПЕРВИЧНЫЙ ключ матчинга;
+ *  - name:    название из лога кассы (sname) — fallback-ключ, пока касса не шлёт штрих-код;
+ *  - qty:     количество.
+ */
 data class CartItemDto(
-    @field:NotBlank
-    val sku: String,
+    val sku: String? = null,
+    val barcode: String? = null,
+    val name: String? = null,
     val qty: Double = 1.0,
 )
 
 /**
  * Запрос рекомендаций от кассы. Передаётся вся текущая корзина + (опц.) только что
- * отсканированный товар. sessionId = один открытый чек (генерит POSM-клиент).
+ * отсканированный штрих-код. sessionId = один открытый чек (генерит POSM-клиент).
  */
 data class RecommendRequest(
     @field:NotBlank
@@ -23,7 +31,8 @@ data class RecommendRequest(
     val pharmacyId: String,
     @field:NotBlank
     val sessionId: String,
-    val scannedSku: String? = null,
+    /** Последний отсканированный EAN-13 (информационно; матчинг идёт по cart). */
+    val scannedBarcode: String? = null,
     @field:NotNull
     @field:Valid
     val cart: List<CartItemDto> = emptyList(),
@@ -100,8 +109,10 @@ data class OutcomeResponse(
 // ── Источник №1 сверки: завершённый чек из лога кассы ───────────────────────
 
 data class PosSaleItemDto(
-    @field:NotBlank
-    val sku: String,
+    // sku — iPartID кассы (диагностика). barcode (EAN-13) + name — ключи матчинга к нашему товару
+    // (как в /recommend). Резолвятся в productId до сверки с pending-бонусами.
+    val sku: String? = null,
+    val barcode: String? = null,
     val name: String = "",
     val qty: Double = 1.0,
     val price: Long = 0,

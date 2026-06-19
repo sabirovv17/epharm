@@ -86,6 +86,7 @@ export default function PromoDetailPage() {
               productImage: promo.productImage,
               brand: promo.brand,
               price: promo.price,
+              barcode: promo.barcode,
             }
           : null,
         dateStart: promo.dateStart ?? '',
@@ -347,6 +348,11 @@ export default function PromoDetailPage() {
                 </div>
                 {form.product?.brand && (
                   <div className="text-[12px] font-bold text-ink-500">{form.product.brand}</div>
+                )}
+                {(promo.barcode || medusaProduct?.barcode) && (
+                  <div className="num text-[11px] text-ink-400" data-testid="detail-barcode">
+                    {t('pr.barcode')}: {promo.barcode || medusaProduct?.barcode}
+                  </div>
                 )}
               </div>
             </Field>

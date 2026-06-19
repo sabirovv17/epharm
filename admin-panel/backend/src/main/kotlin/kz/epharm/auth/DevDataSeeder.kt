@@ -417,20 +417,21 @@ class DevDataSeeder {
 
     private fun seedProductsImpl(productRepository: ProductRepository) {
         val products = listOf(
-            // Назальные/морская вода — главная категория правил Jadran
-            ProductSeed("p_aqm_norm_s", "Аквамарис Норм спрей 30мл",     "Jadran-Galenski", "Jadran",    "Морская вода",   1480),
-            ProductSeed("p_aqm_norm_d", "Аквамарис Норм капли 10мл",     "Jadran-Galenski", "Jadran",    "Морская вода",    980),
-            ProductSeed("p_aqm_strong", "Аквамарис Стронг 30мл",         "Jadran-Galenski", "Jadran",    "Морская вода",   1820),
-            ProductSeed("p_aqm_baby",   "Аквамарис Беби спрей 50мл",     "Jadran-Galenski", "Jadran",    "Морская вода",   2240),
-            ProductSeed("p_aql_norm_s", "Аквалор Норм спрей 50мл",       "Aurena Labs",     "Aurena",    "Морская вода",   1620),
-            ProductSeed("p_aql_baby_s", "Аквалор Беби спрей 50мл",       "Aurena Labs",     "Aurena",    "Морская вода",   2380),
+            // Назальные/морская вода — главная категория правил Jadran.
+            // У ключевых демо-товаров проставлены EAN-13 — локальный скан штрих-кода резолвится.
+            ProductSeed("p_aqm_norm_s", "Аквамарис Норм спрей 30мл",     "Jadran-Galenski", "Jadran",    "Морская вода",   1480, "3858881254008"),
+            ProductSeed("p_aqm_norm_d", "Аквамарис Норм капли 10мл",     "Jadran-Galenski", "Jadran",    "Морская вода",    980, "3858881254015"),
+            ProductSeed("p_aqm_strong", "Аквамарис Стронг 30мл",         "Jadran-Galenski", "Jadran",    "Морская вода",   1820, "3858881254022"),
+            ProductSeed("p_aqm_baby",   "Аквамарис Беби спрей 50мл",     "Jadran-Galenski", "Jadran",    "Морская вода",   2240, "3858881254039"),
+            ProductSeed("p_aql_norm_s", "Аквалор Норм спрей 50мл",       "Aurena Labs",     "Aurena",    "Морская вода",   1620, "4603423004936"),
+            ProductSeed("p_aql_baby_s", "Аквалор Беби спрей 50мл",       "Aurena Labs",     "Aurena",    "Морская вода",   2380, "4603423001973"),
             ProductSeed("p_rino_aqua",  "Риномарис аква 30мл",           "GlaxoSmithKline", "GSK",       "Морская вода",   1240),
             // Сосудосуживающие — типичный триггер cross-sell с Pinosol
             ProductSeed("p_otri_0_05",  "Отривин Бэби 0.05% 10мл",       "Novartis",        "Novartis",  "Ксилометазолин", 1380),
             ProductSeed("p_nazi_0_1",   "Називин 0.1% 10мл",             "Bayer",           "Bayer",     "Оксиметазолин",  1720),
             ProductSeed("p_iliad",      "Илиадин 0.05% спрей 10мл",      "Polpharma",       "Polpharma", "Оксиметазолин",  1480),
             // Восстановление слизистой / горло
-            ProductSeed("p_pinos",      "Пиносол спрей назальный 10мл",  "Jadran-Galenski", "Jadran",    "Эфирные масла",  1820),
+            ProductSeed("p_pinos",      "Пиносол спрей назальный 10мл",  "Jadran-Galenski", "Jadran",    "Эфирные масла",  1820, "3858881251007"),
             ProductSeed("p_septolete",  "Септолете нео леденцы",         "KRKA",            "KRKA",      "Цетилпиридиний", 1640),
             ProductSeed("p_strepsils",  "Стрепсилс ментол №24",          "Reckitt",         "Reckitt",   "Амилметакрезол", 2120),
         )
@@ -440,7 +441,7 @@ class DevDataSeeder {
                 productRepository.save(
                     ProductEntity(
                         id = p.id, name = p.name, brand = p.brand, vendor = p.vendor,
-                        mnn = p.mnn, price = p.price,
+                        mnn = p.mnn, price = p.price, barcode = p.barcode,
                     ),
                 )
                 created++
@@ -816,6 +817,8 @@ class DevDataSeeder {
         val vendor: String,
         val mnn: String,
         val price: Int,
+        /** EAN-13 для матчинга POSM-кассы по штрих-коду (демо). null — нет штрих-кода. */
+        val barcode: String? = null,
     )
 
     private data class BatchSeed(

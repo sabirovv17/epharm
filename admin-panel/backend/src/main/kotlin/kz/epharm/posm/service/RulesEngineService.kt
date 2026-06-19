@@ -3,13 +3,13 @@ package kz.epharm.posm.service
 import kz.epharm.catalog.entity.ProductEntity
 import kz.epharm.catalog.repository.ProductRepository
 import kz.epharm.posm.dto.CartItemDto
-import kz.epharm.posm.repository.ProductPosCodeRepository
 import kz.epharm.promo.entity.PromoStatus
 import kz.epharm.promo.repository.PromoRepository
 import kz.epharm.rules.entity.RuleEntity
 import kz.epharm.rules.entity.RuleStatus
 import kz.epharm.rules.entity.RuleTrigger
 import kz.epharm.rules.repository.RuleRepository
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -54,25 +54,29 @@ data class RuleMatchResult(
  *   4. порядок выживших: сначала ВСЕ substitution (бонус DESC), затем crosssell (бонус DESC).
  *   5. dedup по recommend-товару (первый победил).
  *
+ * РЕЗОЛВ корзины → наш productId (по ТЗ штрих-кода): касса Стандарт-Н шлёт позиции с EAN-13
+ * (barcode) и/или названием (name). Матчим:
+ *   (1) по штрих-коду (barcode) — ProductEntity.barcode == EAN-13 (первичный ключ);
+ *   (2) иначе по имени (name) — нормализованное совпадение с ProductEntity.name (fallback,
+ *       пока касса не шлёт штрих-код);
+ *   (3) иначе позиция не резолвится (в матчинге не участвует).
+ *
  * Фильтр «не показывать отклонённое в этом чеке» и лимит top-2 — в RecommendationService.
  */
 @Service
 class RulesEngineService(
     private val ruleRepository: RuleRepository,
     private val productRepository: ProductRepository,
-    private val productPosCodeRepository: ProductPosCodeRepository,
     private val promoRepository: PromoRepository,
 ) {
+    private val log = LoggerFactory.getLogger(RulesEngineService::class.java)
 
     @Transactional(readOnly = true)
     fun match(cart: List<CartItemDto>): RuleMatchResult {
-        // Нормализуем артикулы: числовой код кассы Стандарт-Н (iPartID) → наш productId
-        // через product_pos_codes; если это уже productId (или код неизвестен) — оставляем как есть.
-        val cartSkus = cart.map { resolveSku(it.sku) }.toSet()
+        // Резолвим позиции корзины в наши productId (штрих-код → имя), собираем уникальные товары.
+        val cartProducts: Map<String, ProductEntity> = resolveCart(cart)
+        val cartSkus: Set<String> = cartProducts.keys
         if (cartSkus.isEmpty()) return RuleMatchResult(emptyList(), emptyList())
-
-        val cartProducts: Map<String, ProductEntity> =
-            productRepository.findAllById(cartSkus).associateBy { it.id }
 
         val activeRules = ruleRepository.findAllByStatusRawOrderByUpdatedAtDesc(RuleStatus.active.name)
         // Кампания — мастер-выключатель: правило из неактивной кампании НЕ показываем,
@@ -149,11 +153,105 @@ class RulesEngineService(
         return RuleMatchResult(survivors, conflicts)
     }
 
-    /** Числовой код кассы → productId (если есть в product_pos_codes), иначе вход без изменений. */
-    private fun resolveSku(raw: String): String {
-        val posCode = raw.toLongOrNull() ?: return raw
-        return productPosCodeRepository.findById(posCode).map { it.productId }.orElse(raw)
+    /**
+     * Резолв корзины кассы → наши товары (id → ProductEntity).
+     *   (1) по штрих-коду (barcode, trim, непустой) — точное совпадение ProductEntity.barcode;
+     *   (2) для позиций без barcode (или не нашедшихся по barcode) — fallback по нормализованному
+     *       имени (только если такие позиции есть, чтобы не грузить весь каталог зря).
+     * Возврат — уникальные товары (по productId); один товар, даже если в корзине дважды, один раз.
+     *
+     * Коллизии (один штрих-код / одно нормализованное имя у ≠ товаров) НЕ разрешаем «наугад»:
+     * такой ключ считаем неоднозначным и НЕ матчим (с warn в лог) — лучше не показать рекомендацию,
+     * чем показать рекомендацию чужого товара. Уникальность гарантируется только данными PIM.
+     */
+    private fun resolveCart(cart: List<CartItemDto>): Map<String, ProductEntity> {
+        val byBarcode = barcodeIndex(cart)
+        val byName = nameIndex(cart, byBarcode)
+        val resolved = LinkedHashMap<String, ProductEntity>()
+        cart.forEach { item ->
+            resolveOne(item, byBarcode, byName)?.let { resolved.putIfAbsent(it.id, it) }
+        }
+        return resolved
     }
+
+    /**
+     * Резолв позиций (штрих-код → имя) в наши productId — для сверки чека из лога кассы
+     * (источник №1, /api/posm/sales). По каждой позиции в исходном порядке — productId или null
+     * (не нашли / неоднозначно). Тот же коллизионно-устойчивый матчинг, что и в рекомендациях.
+     */
+    @Transactional(readOnly = true)
+    fun resolveToProductIds(items: List<CartItemDto>): List<String?> {
+        val byBarcode = barcodeIndex(items)
+        val byName = nameIndex(items, byBarcode)
+        return items.map { resolveOne(it, byBarcode, byName)?.id }
+    }
+
+    /** Индекс штрих-код → товар: только однозначные ключи (коллизия → warn + пропуск). */
+    private fun barcodeIndex(cart: List<CartItemDto>): Map<String, ProductEntity> {
+        val barcodes = cart.mapNotNull { it.barcode?.trim()?.takeIf { b -> b.isNotEmpty() } }.distinct()
+        if (barcodes.isEmpty()) return emptyMap()
+        return productRepository.findAllByBarcodeIn(barcodes)
+            .filter { !it.barcode.isNullOrBlank() }
+            .groupBy { it.barcode!!.trim() }
+            .mapNotNull { (bc, products) -> uniqueOrWarn(bc, products, "штрих-код")?.let { bc to it } }
+            .toMap()
+    }
+
+    /**
+     * Индекс нормализованное-имя → товар. Строим только если есть позиции без barcode-матча, но с
+     * именем (чтобы не грузить каталог зря). Детерминированный порядок + защита от коллизий имён.
+     */
+    private fun nameIndex(cart: List<CartItemDto>, byBarcode: Map<String, ProductEntity>): Map<String, ProductEntity> {
+        val needName = cart.any { item ->
+            val bc = item.barcode?.trim()?.takeIf { it.isNotEmpty() }
+            (bc == null || bc !in byBarcode) && !item.name.isNullOrBlank()
+        }
+        if (!needName) return emptyMap()
+        return productRepository.findAllByOrderByNameAsc()
+            .filter { it.name.isNotBlank() }
+            .groupBy { normalizeName(it.name) }
+            .mapNotNull { (norm, products) -> uniqueOrWarn(norm, products, "имя")?.let { norm to it } }
+            .toMap()
+    }
+
+    /** Резолв одной позиции: сначала штрих-код, потом нормализованное имя. */
+    private fun resolveOne(
+        item: CartItemDto,
+        byBarcode: Map<String, ProductEntity>,
+        byName: Map<String, ProductEntity>,
+    ): ProductEntity? {
+        val bc = item.barcode?.trim()?.takeIf { it.isNotEmpty() }
+        return bc?.let { byBarcode[it] }
+            ?: item.name?.takeIf { it.isNotBlank() }?.let { byName[normalizeName(it)] }
+    }
+
+    /**
+     * Один товар на ключ → возвращаем его; несколько разных товаров на один ключ → неоднозначно,
+     * warn в лог и null (не матчим). distinctBy.id — несколько строк одного товара коллизией не считаем.
+     */
+    private fun uniqueOrWarn(key: String, products: List<ProductEntity>, kind: String): ProductEntity? {
+        val distinct = products.distinctBy { it.id }
+        if (distinct.size > 1) {
+            log.warn(
+                "POSM resolveCart: {} '{}' указывает на {} разных товаров {} — позицию не матчим (неоднозначно)",
+                kind, key, distinct.size, distinct.map { it.id },
+            )
+            return null
+        }
+        return distinct.firstOrNull()
+    }
+
+    /**
+     * Нормализация имени для fallback-матчинга: lowercase, trim, схлопывание внутренних
+     * пробелов в один, выбрасываем всю пунктуацию — оставляем буквы (вкл. кириллицу),
+     * цифры и пробелы. «Аквалор Норм спрей, 50 мл!» → «аквалор норм спрей 50 мл».
+     */
+    private fun normalizeName(raw: String): String =
+        raw.lowercase()
+            .map { ch -> if (ch.isLetterOrDigit() || ch.isWhitespace()) ch else ' ' }
+            .joinToString("")
+            .trim()
+            .replace(WHITESPACE, " ")
 
     /**
      * Возвращает sku из корзины, которое триггернуло правило, или null если не сработало.
@@ -177,5 +275,9 @@ class RulesEngineService(
             else cartProducts.values.firstOrNull { it.mnn == mnn && it.id !in excluded }?.id
         }
         else -> null
+    }
+
+    private companion object {
+        private val WHITESPACE = Regex("\\s+")
     }
 }

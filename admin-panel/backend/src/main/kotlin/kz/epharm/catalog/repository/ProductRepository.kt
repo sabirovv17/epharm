@@ -12,4 +12,7 @@ interface ProductRepository : JpaRepository<ProductEntity, String> {
 
     /** Товары каталога, привязанные к Medusa — для ежедневного рефреша цены планировщиком. */
     fun findAllByMedusaProductIdIsNotNull(): List<ProductEntity>
+
+    /** Товары по списку штрих-кодов — первичный матчинг корзины POSM-кассы. */
+    fun findAllByBarcodeIn(barcodes: Collection<String>): List<ProductEntity>
 }

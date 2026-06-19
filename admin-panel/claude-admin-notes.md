@@ -3700,3 +3700,48 @@ ErrorBoundary`), фичи (`rules/promo/pharmacies`), категориальны
   свежая через cache-ttl 300с. ⚠️ `overrideImage` (ручная обложка) рефреш НЕ трогает.
 - ⚠️ Предсуществующий долг `react-hooks/set-state-in-effect` в `PromoDetailPage` (prefill) и
   `PromoProductPicker` (аккумулятор пагинации) — НЕ мой, оставлен (сложные эффекты с историей багфиксов).
+
+## 2026-06-19 — POSM: матчинг скана по ШТРИХ-КОДУ (end-to-end) + сверка чека
+
+**Задача:** фармацевт сканирует товар на кассе → всплывает рекомендация (замена + кросс-селл),
+заданная на ЭТОТ товар в кампании. Ключ матчинга — **штрих-код EAN-13 из Medusa** (`variant.barcode`,
+напр. `4603423004936`; `variant.sku` — бесполезный GUID Medusa).
+
+**Что было сломано:** касса слала `iPartID` (внутр. int Стандарт-Н), backend `resolveSku()` пытался
+перевести его через таблицу `product_pos_codes`, которая **никогда не заполнялась** → реальный попап не
+всплывал (работало только демо по `D`). Штрих-код в Medusa был, долетал до админки в
+`StorefrontProductDto.barcode`, но **выбрасывался** при настройке правила и **не персистился**.
+
+**Решение (баркод-первичный, с фоллбэком по имени — реальный формат zkassa.log пока неизвестен):**
+
+- **БД V030** (`V030__product_barcode.sql`): `products.barcode VARCHAR(32)` + partial-индекс; `promos.barcode`;
+  `DROP TABLE product_pos_codes` (была пустая/мёртвая). `ProductPosCodeEntity/Repository` удалены.
+- **Резолв корзины** (`RulesEngineService.resolveCart`): (1) по `barcode` (точное, `findAllByBarcodeIn`),
+  (2) фоллбэк по нормализованному имени (`normalizeName`: lower, схлоп пробелов, убрать пунктуацию, кириллица ок).
+  ⚠️ **Коллизии не решаем наугад**: один штрих-код / одно имя у ≠ товаров → `uniqueOrWarn` логирует warn и
+  НЕ матчит (лучше не показать, чем показать чужой товар). Имя — детерминированно `findAllByOrderByNameAsc()`.
+- **products.barcode заполняется**: `PromoRulesService.upsertProduct/upsertPromotedProduct` (из ref/promo),
+  `PromoService.syncBarcode` (из Medusa-снапшота при create/смене товара), `PromoPriceScheduler` (ежедневно).
+  `MedusaPriceService.MedusaSnapshot` теперь несёт `barcode` (нет дефолта — все конструкторы передают).
+- **Контракт `/api/posm/recommend`** (camelCase): `CartItemDto{ sku?, barcode?, name?, qty }` — `sku` стал
+  nullable (iPartID = диагностика, НЕ ключ), `RecommendRequest.scannedSku` → `scannedBarcode`.
+- **Сверка чека `/api/posm/sales` (источник №1) — тоже на штрих-код** (был тот же баг: матч по iPartID ≠
+  productId, бонус по логу никогда не подтверждался). `PosSaleItemDto/PosSaleItem` += `barcode`;
+  `PosSaleService` резолвит позиции в productId тем же `RulesEngineService.resolveToProductIds()` ДО вызова
+  `ReconcileService.ingestLogSale` (так нет цикла posm↔receipts; `ingestLogSale` не трогали — матчит по
+  productId). pending-бонус хранит `recommendSku = productId`, поэтому в сверку отдаём productId.
+- **Админка:** `barcode` добавлен в `PromoRuleProductRef`/`PromoDto`/`CreatePromoRequest`/`UpdatePromoRequest`
+  (api-types). EAN показывается: строки пикера (`PromoProductPicker`), карточка пары правила (`PromoRulesEditor`
+  `PairCard`), read-only блок товара (`PromoDetailPage`). Метка i18n `pr.barcode` = «Штрихкод».
+- **C# (App/):** `ReceiptItem.Barcode`; `ExtractBarcode` робастно — поле `barcode=`/`ean=`, либо значение в
+  скобках `iPartID=<id>(<EAN>)` если 8/12/13/14 цифр и ≠ id; `ExtractPartId` берёт ведущие цифры (не привязан
+  к `(` — разделитель реального лога неизвестен, единый для add/delete-парсера). `CheckoutSession`/`SaleReporter`
+  шлют `barcode`+`name`. ⚠️ C# **не собирается на macOS** (нет .NET SDK) — билдить в Windows-VM перед релизом.
+- **Бэкафилл существующих кампаний:** после деплоя дёрнуть `POST /api/admin/promo/refresh-prices` (та же
+  логика ежедневного шедулера, теперь синкает и barcode) — иначе старые кампании без barcode до утреннего крона.
+
+**Тесты:** `PosmRecommendIntegrationTest` (скан-по-barcode, фоллбэк-по-имени, приоритет, нормализация),
+`RulesEngineConflictTest`, новый кейс в `ReconcileSourcesIntegrationTest` (касса шлёт EAN → резолв в productId
+→ лог подтверждает pending). Адверсари-ревью нашло 6 реальных багов (коллизии barcode/имени, недетерминизм
+findAll, путь /sales не на barcode, C# затирание barcode null'ом, парс iPartID только через `(`) — все
+закрыты до деплоя.

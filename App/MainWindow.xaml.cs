@@ -462,6 +462,8 @@ if (incoming.Qty <= 0)
     var idx = ReceiptItems.IndexOf(existing);
 
     existing.Name = incoming.Name;
+    // Не затираем уже пойманный штрих-код, если повторная строка лога (qty-bump/скидка) его не несёт.
+    if (!string.IsNullOrWhiteSpace(incoming.Barcode)) existing.Barcode = incoming.Barcode;
     existing.Price = incoming.Price;
     existing.DiscountPercent = incoming.DiscountPercent;
     existing.Qty = incoming.Qty;
@@ -477,8 +479,8 @@ private ReceiptItem? TryParseAdd2Cheque(string line)
 {
     try
     {
-        // iPartID=80309(80309)
-        var partIdStr = ExtractBetween(line, "iPartID=", "(")?.Trim();
+        // iPartID кассы — ведущие цифры после "iPartID=" (разделитель может быть "(", ";" или ",").
+        var partIdStr = ExtractPartId(line);
         var name = ExtractBetween(line, "sname=", ";")?.Trim();
         var priceStr = ExtractBetween(line, "price=", ";")?.Trim();
         var qtyStr = ExtractBetween(line, "quant=", null)?.Trim();
@@ -493,9 +495,13 @@ private ReceiptItem? TryParseAdd2Cheque(string line)
         var price = ParseDecimalSmart(priceStr);
         var qty = ParseDecimalSmart(qtyStr);
 
+        // EAN-13 — ключ матчинга на backend. Извлекаем робастно (реальный формат zkassa.log неизвестен).
+        var barcode = ExtractBarcode(line, partIdStr);
+
         return new ReceiptItem
         {
             PartId = partId,
+            Barcode = barcode,
             Name = name,
             Price = price,
             Qty = qty,
@@ -506,6 +512,58 @@ private ReceiptItem? TryParseAdd2Cheque(string line)
     {
         return null;
     }
+}
+
+/// <summary>
+/// Робастное извлечение EAN-13 из строки лога кассы (формат пока неизвестен — пробуем по очереди):
+///   (1) явное поле  barcode=&lt;цифры&gt;;  или  ean=&lt;цифры&gt;;  (без учёта регистра);
+///   (2) значение в скобках  iPartID=&lt;id&gt;(&lt;inner&gt;)  — если inner это 8/12/13/14 цифр И НЕ совпадает
+///       с внутренним id (как в синтетическом примере 80309(80309), где это просто дубль id);
+///   (3) иначе null (сработает fallback-матчинг по Name на backend).
+/// </summary>
+private static string? ExtractBarcode(string line, string partIdStr)
+{
+    // (1) явное поле barcode= / ean=
+    var explicitBc = ExtractBetween(line, "barcode=", ";")?.Trim();
+    if (IsBarcode(explicitBc)) return explicitBc;
+
+    var explicitEan = ExtractBetween(line, "ean=", ";")?.Trim();
+    if (IsBarcode(explicitEan)) return explicitEan;
+
+    // (2) значение в скобках iPartID=<id>(<inner>)
+    var inner = ExtractBetween(line, "(", ")")?.Trim();
+    if (IsBarcode(inner) && !string.Equals(inner, partIdStr?.Trim(), StringComparison.Ordinal))
+        return inner;
+
+    // (3) штрих-кода нет — backend сматчит по имени
+    return null;
+}
+
+/// <summary>EAN-подобный код: непустой, только цифры, длина 8/12/13/14.</summary>
+private static bool IsBarcode(string? s)
+{
+    if (string.IsNullOrWhiteSpace(s)) return false;
+    var len = s.Length;
+    if (len != 8 && len != 12 && len != 13 && len != 14) return false;
+    foreach (var ch in s)
+        if (ch < '0' || ch > '9') return false;
+    return true;
+}
+
+/// <summary>
+/// iPartID кассы — ведущие цифры сразу после "iPartID=". Реальный разделитель неизвестен,
+/// поэтому НЕ привязываемся к "(": берём цифры до первого не-цифрового символа. Работает для
+/// "iPartID=80309(80309)", "iPartID=80309;sname=…", "iPartID=80306,". null если цифр нет.
+/// </summary>
+private static string? ExtractPartId(string line)
+{
+    const string key = "iPartID=";
+    var i = line.IndexOf(key, StringComparison.OrdinalIgnoreCase);
+    if (i < 0) return null;
+    i += key.Length;
+    var start = i;
+    while (i < line.Length && line[i] >= '0' && line[i] <= '9') i++;
+    return i > start ? line.Substring(start, i - start) : null;
 }
 
 private static string? ExtractBetween(string s, string start, string? end)
@@ -527,8 +585,8 @@ private int? TryParsePartIdFromDelete(string line)
 {
     try
     {
-        // iPartID=80306,
-        var partIdStr = ExtractBetween(line, "iPartID=", ",")?.Trim();
+        // iPartID=80306, — берём те же ведущие цифры, что и add-парсер (единый разбор).
+        var partIdStr = ExtractPartId(line);
         if (string.IsNullOrWhiteSpace(partIdStr)) return null;
         return int.Parse(partIdStr);
     }

@@ -12,6 +12,8 @@ import kz.epharm.pharmacies.entity.PharmacyEntity
 import kz.epharm.pharmacies.entity.PharmacyGroup
 import kz.epharm.pharmacies.repository.ChainRepository
 import kz.epharm.pharmacies.repository.PharmacyRepository
+import kz.epharm.catalog.entity.ProductEntity
+import kz.epharm.catalog.repository.ProductRepository
 import kz.epharm.pharmacists.entity.PharmacistEntity
 import kz.epharm.pharmacists.repository.PharmacistRepository
 import kz.epharm.posm.dto.PosSaleItemDto
@@ -77,6 +79,7 @@ class ReconcileSourcesIntegrationTest {
     @Autowired private lateinit var posSaleRepository: PosSaleRepository
     @Autowired private lateinit var excelImportRepository: ExcelImportRepository
     @Autowired private lateinit var pharmacistRepository: PharmacistRepository
+    @Autowired private lateinit var productRepository: ProductRepository
     @Autowired private lateinit var pharmacyRepository: PharmacyRepository
     @Autowired private lateinit var chainRepository: ChainRepository
     @Autowired private lateinit var adminUserRepository: AdminUserRepository
@@ -90,6 +93,7 @@ class ReconcileSourcesIntegrationTest {
         posSaleRepository.deleteAll()
         excelImportRepository.deleteAll()
         pendingBonusRepository.deleteAll()
+        productRepository.deleteAll()
         pharmacistRepository.deleteAll()
         pharmacyRepository.deleteAll()
         chainRepository.deleteAll()
@@ -132,6 +136,32 @@ class ReconcileSourcesIntegrationTest {
         assertEquals("approved", r.status.name)
         assertEquals(true, r.confirmedByLog && r.confirmedByExcel)
         assertEquals(300L, pharmacistRepository.findById("u_t").get().balance)
+    }
+
+    @Test
+    fun `касса шлёт штрих-код → резолв в productId → лог подтверждает pending`() {
+        // Товар с EAN-13 и бонус, ожидающий чек по нему (sku = наш productId, как кладёт RecommendationService).
+        productRepository.save(ProductEntity(id = "p_zen", name = "Zen 30мл", barcode = "4600000000017"))
+        pendingBonusRepository.save(
+            PendingBonusEntity(id = "pb_bc", pharmacistId = "u_t", pharmacistName = "Тест Фарм",
+                pharmacyId = "ph_t", pharmacyName = "Аптека Т", sku = "p_zen", productName = "Zen 30мл",
+                expectedAmount = 1_000, bonus = 400, createdAt = Instant.now()),
+        )
+        // Касса присылает ШТРИХ-КОД (+ iPartID как диагностику), НЕ наш productId.
+        val req = PosSaleRequest(
+            saleId = "sale_bc", pharmacistId = "u_t", pharmacyId = "ph_t", fiscalId = "FBC",
+            cashier = "Касса 1", totalAmount = 1_000, printedAt = Instant.now(),
+            items = listOf(PosSaleItemDto(sku = "80309", barcode = "4600000000017", name = "Zen 30мл",
+                qty = 1.0, price = 1_000, total = 1_000)),
+        )
+        mockMvc.perform(
+            post("/api/posm/sales").header("X-Posm-Key", POSM_KEY)
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)),
+        ).andExpect(status().isOk)
+
+        val r = receiptRepository.findAll().first { it.pendingBonusId == "pb_bc" }
+        assertEquals(true, r.confirmedByLog)
+        assertEquals("moderation_required", r.status.name) // один лог → ждём второй источник
     }
 
     @Test

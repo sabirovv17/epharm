@@ -141,6 +141,7 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
       productName: form.product.productName,
       productImage: form.product.productImage,
       brand: form.product.brand,
+      barcode: form.product.barcode,
       pharmacistBonus: Math.max(0, Math.trunc(Number(form.pharmacistBonus) || 0)),
       overrideImage: form.overrideImage.trim() || null,
       overrideDescription: form.overrideDescription.trim() || null,

@@ -76,6 +76,14 @@ class PromoEntity(
     @Column(name = "product_name", nullable = false)
     var productName: String = "",
 
+    /**
+     * Штрих-код EAN-13 продвигаемого товара (из Medusa variant.barcode). Снимок для
+     * авторинга/админки; стампится на ProductEntity.barcode для матчинга POSM-кассы.
+     * Обновляется планировщиком [kz.epharm.promo.service.PromoPriceScheduler].
+     */
+    @Column(name = "barcode", length = 32)
+    var barcode: String? = null,
+
     /** Снимок фото товара. */
     @Column(name = "product_image", length = 1024)
     var productImage: String? = null,

@@ -6,10 +6,15 @@ namespace CustomerDisplay.Models.Posm
     // Имена полей зеркалят kz.epharm.posm.dto.* (Kotlin). Сериализация — camelCase
     // (настроена в EpharmApiClient через JsonSerializerOptions).
 
-    /// <summary>Позиция корзины. Sku — наш productId или код кассы (backend сам резолвит).</summary>
+    /// <summary>
+    /// Позиция корзины. Матчинг на backend: сначала по Barcode (EAN-13), затем fallback по Name.
+    /// Sku (iPartID Стандарт-Н) — только для диагностики, в матчинге НЕ участвует.
+    /// </summary>
     public sealed class CartItem
     {
-        public string Sku { get; set; } = "";
+        public string? Sku { get; set; }       // legacy iPartID кассы — диагностика, НЕ ключ матчинга
+        public string? Barcode { get; set; }    // EAN-13 — ПЕРВИЧНЫЙ ключ матчинга
+        public string? Name { get; set; }       // sname из лога — FALLBACK ключ матчинга
         public double Qty { get; set; } = 1.0;
     }
 
@@ -19,7 +24,7 @@ namespace CustomerDisplay.Models.Posm
         public string PharmacistId { get; set; } = "";
         public string PharmacyId { get; set; } = "";
         public string SessionId { get; set; } = "";
-        public string? ScannedSku { get; set; }
+        public string? ScannedBarcode { get; set; }   // последний отсканированный EAN-13 (информационно)
         public List<CartItem> Cart { get; set; } = new();
     }
 
