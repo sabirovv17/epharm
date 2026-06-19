@@ -29,7 +29,7 @@ _StatusStyle _styleFor(ReceiptStatus s) => switch (s) {
       ReceiptStatus.confirmed =>
         const _StatusStyle(Color(0xFFE5F8EE), Color(0xFF0F8F55)),
       ReceiptStatus.inReview =>
-        const _StatusStyle(Color(0xFFFFF1D6), Color(0xFFB8740E)),
+        const _StatusStyle(Color(0xFFFBEADF), Color(0xFFC95E33)),
       ReceiptStatus.awaitingReceipt =>
         const _StatusStyle(Color(0xFFEFF1F5), Color(0xFF5A6173)),
       ReceiptStatus.rejected =>

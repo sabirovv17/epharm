@@ -23,8 +23,8 @@ class GlassPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Коралловая glass-pill для header'а: brand-500 fill (#DB7F57) даёт ЯВНУЮ
-    // коралловую плашку поверх gradient header'а (#DC8460 → #CE6B43).
+    // Коралловая glass-pill для header'а: brand-500 fill (#E78A5C) даёт ЯВНУЮ
+    // коралловую плашку поверх gradient header'а (#F0A074 → #E07E52).
     // Раньше использовали white @ 40% — pill читался как «беловато-светлый»,
     // а не как «более брендовый». Сейчас saturated coral с лёгкой white-кромкой.
     final content = Material(

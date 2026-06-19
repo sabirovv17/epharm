@@ -5,20 +5,21 @@ import 'package:flutter/material.dart';
 ///
 /// Использовать только через эти константы — не хардкодить хексы в виджетах.
 abstract final class AppColors {
-  // Brand — Coral (primary). Бренд = Claude coral.
-  // Имена brandGreen* сохранены для совместимости с виджетами; значения — коралл.
-  static const Color brandGreen700 = Color(0xFFBE5A38);
-  static const Color brandGreen600 = Color(0xFFD97757); // PRIMARY
-  static const Color brandGreen500 = Color(0xFFDB7F57);
-  static const Color brandGreen400 = Color(0xFFE0916B);
+  // Brand — Bright Orange (Claude). Ярко-оранжевый + белый, БЕЗ коричневого:
+  // тёмный конец рампы остаётся насыщенно-оранжевым (D86C3A), не уходит в бурый.
+  // Имена brandGreen* сохранены для совместимости с виджетами; значения — оранж.
+  static const Color brandGreen700 = Color(0xFFD86C3A); // deep, vivid orange
+  static const Color brandGreen600 = Color(0xFFE07E52); // PRIMARY ярко-оранжевый
+  static const Color brandGreen500 = Color(0xFFE78A5C);
+  static const Color brandGreen400 = Color(0xFFEE9A6F);
   static const Color brandGreen100 = Color(0xFFF8E7DD);
 
-  // Brand — Coral accent (бывш. синий; моно-бренд, акцент чуть глубже).
-  static const Color brandBlue700 = Color(0xFFA8472A);
-  static const Color brandBlue600 = Color(0xFFBE5A38);
-  static const Color brandBlue500 = Color(0xFFD97757);
-  static const Color brandBlue400 = Color(0xFFE0916B);
-  static const Color brandBlue300 = Color(0xFFE4A485);
+  // Brand — Orange accent (моно-бренд, акцент чуть глубже primary).
+  static const Color brandBlue700 = Color(0xFFC95E33);
+  static const Color brandBlue600 = Color(0xFFD86C3A);
+  static const Color brandBlue500 = Color(0xFFE07E52);
+  static const Color brandBlue400 = Color(0xFFEE9A6F);
+  static const Color brandBlue300 = Color(0xFFF0AE8C);
   static const Color brandBlue200 = Color(0xFFF0C8B4);
   static const Color brandBlue100 = Color(0xFFF8E7DD);
 
@@ -42,7 +43,7 @@ abstract final class AppColors {
   static const Color overlayScrim = Color(0x73221C16); // rgba(34,28,22,0.45)
 
   // Status / accents
-  static const Color accentTrophy = Color(0xFFF4B73A);
-  static const Color accentWarning = Color(0xFFF1B416);
-  static const Color accentCoinDeep = Color(0xFFB97F11);
+  static const Color accentTrophy = Color(0xFFE78A5C);
+  static const Color accentWarning = Color(0xFFE8902E);
+  static const Color accentCoinDeep = Color(0xFFD86C3A);
 }

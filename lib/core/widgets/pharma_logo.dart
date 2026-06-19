@@ -17,12 +17,12 @@ class PharmaLogo extends StatelessWidget {
   // Идентичен admin Logo.tsx — один знак на обеих платформах.
   static const _svg = '''
 <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-<path d="M16 12a3 3 0 0 1 3-3h26a3 3 0 0 1 3 3v40l-4-3-4 3-4-3-4 3-4-3-4 3-4-3-4 3-4-3-4 3z" fill="#FFFFFF" stroke="#D97757" stroke-width="3" stroke-linejoin="round"/>
-<rect x="22" y="32" width="20" height="2.5" rx="1.2" fill="#D97757" opacity="0.55"/>
-<rect x="22" y="38" width="14" height="2.5" rx="1.2" fill="#D97757" opacity="0.55"/>
-<rect x="22" y="44" width="17" height="2.5" rx="1.2" fill="#D97757" opacity="0.55"/>
+<path d="M16 12a3 3 0 0 1 3-3h26a3 3 0 0 1 3 3v40l-4-3-4 3-4-3-4 3-4-3-4 3-4-3-4 3-4-3-4 3z" fill="#FFFFFF" stroke="#E07E52" stroke-width="3" stroke-linejoin="round"/>
+<rect x="22" y="32" width="20" height="2.5" rx="1.2" fill="#E07E52" opacity="0.55"/>
+<rect x="22" y="38" width="14" height="2.5" rx="1.2" fill="#E07E52" opacity="0.55"/>
+<rect x="22" y="44" width="17" height="2.5" rx="1.2" fill="#E07E52" opacity="0.55"/>
 <g transform="translate(32 14)">
-<circle r="11" fill="#BE5A38"/>
+<circle r="11" fill="#D86C3A"/>
 <rect x="-1.5" y="-7" width="3" height="14" rx="0.8" fill="#FFFFFF"/>
 <rect x="-7" y="-1.5" width="14" height="3" rx="0.8" fill="#FFFFFF"/>
 </g>

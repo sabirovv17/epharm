@@ -28,9 +28,9 @@ _BadgeColors _colorsFor(ReceiptStatus s) => switch (s) {
         ),
       // Проверка — янтарный/orange.
       ReceiptStatus.inReview => const _BadgeColors(
-          bg: Color(0xFFFFF1D6),
-          fg: Color(0xFFB8740E),
-          border: Color(0xFFF4C56F),
+          bg: Color(0xFFFBEADF),
+          fg: Color(0xFFC95E33),
+          border: Color(0xFFF0AE8C),
         ),
       // Ожидает чека — нейтральный серый (POSM записал, ждём фото от фармацевта).
       ReceiptStatus.awaitingReceipt => const _BadgeColors(

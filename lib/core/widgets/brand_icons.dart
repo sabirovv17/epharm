@@ -31,7 +31,7 @@ class CoinGlyph extends StatelessWidget {
               fontFamilyFallback: const ['Roboto', 'sans-serif'],
               fontSize: size * 0.4,
               fontWeight: FontWeight.w800,
-              color: const Color(0xFF7B4F08),
+              color: const Color(0xFFC95E33),
               height: 1.0,
             ),
           ),
@@ -50,9 +50,9 @@ class _CoinPainter extends CustomPainter {
       center: Alignment(-0.3, -0.3),
       radius: 0.75,
       colors: [
-        Color(0xFFFFE07A),
-        Color(0xFFF4B73A),
-        Color(0xFFB97F11),
+        Color(0xFFF0A074),
+        Color(0xFFE78A5C),
+        Color(0xFFD86C3A),
       ],
       stops: [0.0, 0.6, 1.0],
     );
@@ -62,7 +62,7 @@ class _CoinPainter extends CustomPainter {
 
     // Inner ring
     final ringPaint = Paint()
-      ..color = const Color(0xFFFFE07A).withValues(alpha: 0.6)
+      ..color = const Color(0xFFF0A074).withValues(alpha: 0.6)
       ..style = PaintingStyle.stroke
       ..strokeWidth = size.width * 0.03;
     canvas.drawCircle(center, r * 0.65, ringPaint);
@@ -161,10 +161,10 @@ class TrophyEmojiGlyph extends StatelessWidget {
 }
 
 class _TrophyPainter extends CustomPainter {
-  static const _gold = Color(0xFFFFE066);
-  static const _goldDeep = Color(0xFFD69A1B);
-  static const _base = Color(0xFFB26B0D);
-  static const _baseDeep = Color(0xFF7E480A);
+  static const _gold = Color(0xFFF0A074);
+  static const _goldDeep = Color(0xFFE78A5C);
+  static const _base = Color(0xFFD86C3A);
+  static const _baseDeep = Color(0xFFC95E33);
 
   @override
   void paint(Canvas canvas, Size size) {

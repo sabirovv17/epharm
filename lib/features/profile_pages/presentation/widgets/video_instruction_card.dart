@@ -84,9 +84,9 @@ class VideoInstructionCard extends StatelessWidget {
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            Color(0xFFBE5A38),
-                            Color(0xFFD97757),
-                            Color(0xFFE0916B),
+                            Color(0xFFD86C3A),
+                            Color(0xFFE07E52),
+                            Color(0xFFEE9A6F),
                           ],
                           stops: [0.0, 0.45, 1.0],
                         ),
@@ -170,9 +170,9 @@ class VideoInstructionCard extends StatelessWidget {
                             center: Alignment(-0.3, -0.3),
                             radius: 0.9,
                             colors: [
-                              Color(0xFFE4A485),
+                              Color(0xFFF0AE8C),
                               Color(0xFFD2693F),
-                              Color(0xFF9A4427),
+                              Color(0xFFC45E34),
                             ],
                             stops: [0.0, 0.6, 1.0],
                           ),
@@ -249,7 +249,7 @@ class _BrandBadge extends StatelessWidget {
             fontFamilyFallback: ['Roboto', 'sans-serif'],
             fontSize: 7,
             fontWeight: FontWeight.w800,
-            color: Color(0xFFA8472A),
+            color: Color(0xFFC95E33),
             height: 1.1,
           ),
           children: [

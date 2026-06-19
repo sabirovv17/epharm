@@ -167,7 +167,7 @@ class PackageMock extends StatelessWidget {
             left: 0,
             child: Column(
               children: const [
-                _RibbonStripe(color: Color(0xFFFFB84B)),
+                _RibbonStripe(color: Color(0xFFEE9A6F)),
                 _RibbonStripe(color: Color(0xFF3A7CD9)),
                 _RibbonStripe(color: Color(0xFFD94B4B)),
                 _RibbonStripe(color: Color(0xFF6FB54B)),

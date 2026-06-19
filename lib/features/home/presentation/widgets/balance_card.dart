@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radii.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/widgets/brand_icons.dart';
 import '../../../../core/widgets/glass_pill.dart';
+import '../../../../core/widgets/pharma_logo.dart';
 
 /// Balance card — на зелёном header'е после авторизации.
 /// Coin + «Epharm / Баланс» + сумма (24/800 white tabular) + 2 glass-pill (История, Загрузить чек).
@@ -45,7 +45,7 @@ class BalanceCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const CoinGlyph(size: 40),
+              const PharmaLogo(size: 40),
               const SizedBox(width: 12),
               const Expanded(
                 child: Column(

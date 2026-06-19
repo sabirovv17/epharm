@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_gradients.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/pharma_logo.dart';
 import 'profile_page_scaffold.dart';
 
 /// 5-шаговый туториал «Как пользоваться приложением». Карусель с peeking
@@ -139,11 +141,11 @@ class _InstructionScreenState extends State<InstructionScreen> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        Color(0xFFE0916B),
-                        Color(0xFFD97757),
-                        Color(0xFFC2562E),
+                        AppColors.brandGreen400, // E0916B
+                        AppColors.brandGreen600, // D97757 — PRIMARY
+                        AppColors.brandGreen700, // BE5A38
                       ],
-                      stops: [0.0, 0.6, 1.0],
+                      stops: [0.0, 0.55, 1.0],
                     ),
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: const [
@@ -379,245 +381,222 @@ class _MiniContent extends StatelessWidget {
       case _PreviewKind.home:
         return Column(
           children: [
-            // Coral header.
+            // Коралловый header c карточкой баланса — 1:1 с реальным экраном:
+            // знак-чек + «Epharm / Баланс» + сумма + пилюли История/Загрузить чек.
             Container(
-              padding: const EdgeInsets.fromLTRB(12, 28, 12, 16),
+              padding: const EdgeInsets.fromLTRB(10, 26, 10, 12),
               decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFFDC8460), Color(0xFFCE6B43)],
+                gradient: AppGradients.header,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(16),
+                  bottomRight: Radius.circular(16),
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  RichText(
-                    text: const TextSpan(
-                      style: TextStyle(
-                        fontFamily: 'Manrope',
-                        fontFamilyFallback: ['Roboto', 'sans-serif'],
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                      ),
-                      children: [
-                        TextSpan(text: 'Pharma'),
-                        TextSpan(
-                          text: 'Pay',
-                          style: TextStyle(color: Color(0xFFF0C8B4)),
-                        ),
-                      ],
-                    ),
+              child: Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.18),
                   ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
+                ),
+                child: Column(
+                  children: [
+                    Row(
                       children: [
+                        const PharmaLogo(size: 18),
+                        const SizedBox(width: 5),
                         const Expanded(
-                          child: Text(
-                            'Накопленный\nбаланс',
-                            style: TextStyle(
-                              fontFamily: 'Manrope',
-                              fontFamilyFallback: ['Roboto', 'sans-serif'],
-                              fontSize: 8,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white70,
-                              height: 1.1,
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('Epharm', style: _miniWhite8),
+                              Text('Баланс', style: _miniWhite8),
+                            ],
                           ),
                         ),
-                        const Text(
-                          '16,000 ₸',
-                          style: TextStyle(
-                            fontFamily: 'Manrope',
-                            fontFamilyFallback: ['Roboto', 'sans-serif'],
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                          ),
-                        ),
+                        const Text('3 500 ₸', style: _miniBalance),
                       ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Expanded(child: _miniPill('История')),
+                        const SizedBox(width: 5),
+                        Expanded(child: _miniPill('Загрузить чек')),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-            const Spacer(),
-            // Mini bottom nav.
-            Container(
-              height: 28,
-              color: Colors.white,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(4, (i) {
-                  return Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: i == 0
-                          ? AppColors.brandBlue600
-                          : AppColors.ink300,
+            // Канвас: поиск + чипы-фильтры + карточка товара с бонусом.
+            Expanded(
+              child: Container(
+                color: AppColors.paperCanvas,
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      height: 18,
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                      child: const Text('Поиск', style: _miniHint),
                     ),
-                  );
-                }),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        _miniChip('Бренд'),
+                        const SizedBox(width: 4),
+                        _miniChip('Категории'),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: Container(
+                                margin: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: AppColors.paperInput,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                              ),
+                            ),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 6),
+                              child: Text('Ivatherm Cicaderm',
+                                  style: _miniName),
+                            ),
+                            const SizedBox(height: 5),
+                            Container(
+                              margin: const EdgeInsets.all(6),
+                              height: 16,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: AppColors.brandGreen600,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text('Бонус 2 200 ₸',
+                                  style: _miniWhite8),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Нижняя навигация с центральной кнопкой-камерой.
+            Container(
+              height: 26,
+              color: Colors.white,
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  Icon(Icons.home_rounded,
+                      size: 13, color: AppColors.brandGreen600),
+                  _MiniCameraButton(),
+                  Icon(Icons.person_outline_rounded,
+                      size: 13, color: AppColors.ink400),
+                ],
               ),
             ),
           ],
         );
       case _PreviewKind.auth:
         return Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFFDC8460), Color(0xFFCE6B43)],
-            ),
-          ),
+          decoration: const BoxDecoration(gradient: AppGradients.welcome),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 32, 12, 16),
+            padding: const EdgeInsets.fromLTRB(14, 30, 14, 16),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Center(
-                  child: Text(
-                    'Добро пожаловать!',
-                    style: TextStyle(
-                      fontFamily: 'Manrope',
-                      fontFamilyFallback: ['Roboto', 'sans-serif'],
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 6),
                 Container(
-                  height: 28,
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(6),
+                    color: Colors.white.withValues(alpha: 0.16),
+                    shape: BoxShape.circle,
                   ),
+                  child: const PharmaLogo(size: 30),
+                ),
+                const SizedBox(height: 10),
+                const Text('Добро пожаловать!', style: _miniWhite11),
+                const SizedBox(height: 3),
+                const Text('Войдите по номеру телефона', style: _miniWhite7),
+                const Spacer(),
+                Container(
+                  height: 22,
                   alignment: Alignment.centerLeft,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: const Text(
-                    '+7',
-                    style: TextStyle(
-                      fontFamily: 'Manrope',
-                      fontFamilyFallback: ['Roboto', 'sans-serif'],
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.ink900,
-                    ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
                   ),
+                  child: const Text('+7 ___ ___ __ __', style: _miniHint),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Container(
-                  height: 28,
+                  height: 22,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFD97757),
-                    borderRadius: BorderRadius.circular(6),
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Text(
-                    'Войти',
-                    style: TextStyle(
-                      fontFamily: 'Manrope',
-                      fontFamilyFallback: ['Roboto', 'sans-serif'],
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
+                  child: const Text('Войти', style: _miniCoral8),
                 ),
+                const SizedBox(height: 10),
               ],
             ),
           ),
         );
       case _PreviewKind.upload:
-        return Padding(
+        return Container(
+          color: AppColors.paperCanvas,
           padding: const EdgeInsets.fromLTRB(8, 28, 8, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                '‹ Медиатека',
-                style: TextStyle(
-                  fontFamily: 'Manrope',
-                  fontFamilyFallback: ['Roboto', 'sans-serif'],
-                  fontSize: 9,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.ink900,
-                ),
-              ),
-              const SizedBox(height: 6),
+              const Center(child: Text('Загрузить чек', style: _miniTitle9)),
+              const SizedBox(height: 8),
               Expanded(
-                child: GridView.count(
-                  crossAxisCount: 3,
-                  mainAxisSpacing: 3,
-                  crossAxisSpacing: 3,
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: List.generate(9, (i) {
-                    return Container(
-                      decoration: BoxDecoration(
-                        color: i < 3
-                            ? const Color(0xFFD4CCC0)
-                            : const Color(0xFFF8E7DD),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    );
-                  }),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.brandGreen100,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: AppColors.brandGreen400,
+                      width: 1.2,
+                    ),
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.receipt_long_rounded,
+                        size: 34, color: AppColors.brandGreen600),
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFDC8460), Color(0xFFCE6B43)],
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Text(
-                      'Загрузите фото чека',
-                      style: TextStyle(
-                        fontFamily: 'Manrope',
-                        fontFamilyFallback: ['Roboto', 'sans-serif'],
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Container(
-                      height: 18,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                      child: const Text(
-                        'Сделать фото',
-                        style: TextStyle(
-                          fontFamily: 'Manrope',
-                          fontFamilyFallback: ['Roboto', 'sans-serif'],
-                          fontSize: 8,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.brandBlue600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              Row(
+                children: [
+                  Expanded(child: _miniSolidBtn('Камера', filled: true)),
+                  const SizedBox(width: 6),
+                  Expanded(child: _miniSolidBtn('Галерея', filled: false)),
+                ],
               ),
             ],
           ),
@@ -789,3 +768,154 @@ class _MiniContent extends StatelessWidget {
     }
   }
 }
+
+// ── Хелперы мини-превью (token-based, под палитру приложения) ────────────────
+
+/// Центральная кнопка-камера в нижней навигации превью «Главная».
+class _MiniCameraButton extends StatelessWidget {
+  const _MiniCameraButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 18,
+      height: 18,
+      decoration: const BoxDecoration(
+        color: AppColors.brandGreen600,
+        shape: BoxShape.circle,
+      ),
+      child: const Icon(Icons.photo_camera_rounded,
+          size: 10, color: Colors.white),
+    );
+  }
+}
+
+const _miniWhite11 = TextStyle(
+  fontFamily: 'Manrope',
+  fontFamilyFallback: ['Roboto', 'sans-serif'],
+  fontSize: 11,
+  fontWeight: FontWeight.w800,
+  color: Colors.white,
+);
+const _miniWhite8 = TextStyle(
+  fontFamily: 'Manrope',
+  fontFamilyFallback: ['Roboto', 'sans-serif'],
+  fontSize: 8,
+  fontWeight: FontWeight.w800,
+  color: Colors.white,
+  height: 1.15,
+);
+const _miniWhite7 = TextStyle(
+  fontFamily: 'Manrope',
+  fontFamilyFallback: ['Roboto', 'sans-serif'],
+  fontSize: 7,
+  fontWeight: FontWeight.w700,
+  color: Colors.white70,
+);
+const _miniBalance = TextStyle(
+  fontFamily: 'Manrope',
+  fontFamilyFallback: ['Roboto', 'sans-serif'],
+  fontSize: 12,
+  fontWeight: FontWeight.w800,
+  color: Colors.white,
+  fontFeatures: [FontFeature.tabularFigures()],
+);
+const _miniHint = TextStyle(
+  fontFamily: 'Manrope',
+  fontFamilyFallback: ['Roboto', 'sans-serif'],
+  fontSize: 8,
+  fontWeight: FontWeight.w700,
+  color: AppColors.ink400,
+);
+const _miniName = TextStyle(
+  fontFamily: 'Manrope',
+  fontFamilyFallback: ['Roboto', 'sans-serif'],
+  fontSize: 8,
+  fontWeight: FontWeight.w800,
+  color: AppColors.ink900,
+);
+const _miniCoral8 = TextStyle(
+  fontFamily: 'Manrope',
+  fontFamilyFallback: ['Roboto', 'sans-serif'],
+  fontSize: 8,
+  fontWeight: FontWeight.w800,
+  color: AppColors.brandGreen600,
+);
+const _miniTitle9 = TextStyle(
+  fontFamily: 'Manrope',
+  fontFamilyFallback: ['Roboto', 'sans-serif'],
+  fontSize: 9,
+  fontWeight: FontWeight.w800,
+  color: AppColors.ink900,
+);
+
+/// Полупрозрачная пилюля на коралловом header (История / Загрузить чек).
+Widget _miniPill(String label) => Container(
+      height: 16,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          fontFamily: 'Manrope',
+          fontFamilyFallback: ['Roboto', 'sans-serif'],
+          fontSize: 7,
+          fontWeight: FontWeight.w800,
+          color: Colors.white,
+        ),
+      ),
+    );
+
+/// Белый чип-фильтр на канвасе (Бренд ⌄ / Категории ⌄).
+Widget _miniChip(String label) => Container(
+      padding: const EdgeInsets.fromLTRB(6, 3, 4, 3),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'Manrope',
+              fontFamilyFallback: ['Roboto', 'sans-serif'],
+              fontSize: 7,
+              fontWeight: FontWeight.w800,
+              color: AppColors.ink700,
+            ),
+          ),
+          const Icon(Icons.keyboard_arrow_down_rounded,
+              size: 9, color: AppColors.ink400),
+        ],
+      ),
+    );
+
+/// Кнопка в превью загрузки (filled — коралл-заливка, иначе — обводка).
+Widget _miniSolidBtn(String label, {required bool filled}) => Container(
+      height: 18,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: filled ? AppColors.brandGreen600 : Colors.white,
+        borderRadius: BorderRadius.circular(99),
+        border:
+            filled ? null : Border.all(color: AppColors.brandGreen400, width: 1),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontFamily: 'Manrope',
+          fontFamilyFallback: const ['Roboto', 'sans-serif'],
+          fontSize: 8,
+          fontWeight: FontWeight.w800,
+          color: filled ? Colors.white : AppColors.brandGreen600,
+        ),
+      ),
+    );

@@ -19,7 +19,7 @@ class CooperationScreen extends StatelessWidget {
       gradient: LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [Color(0xFFDB7F57), Color(0xFFC2562E)],
+        colors: [Color(0xFFE78A5C), Color(0xFFD86C3A)],
       ),
     ),
     _CoopCard(
@@ -30,7 +30,7 @@ class CooperationScreen extends StatelessWidget {
       gradient: LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [Color(0xFFE0916B), Color(0xFFBE5A38)],
+        colors: [Color(0xFFEE9A6F), Color(0xFFD86C3A)],
       ),
     ),
     _CoopCard(
@@ -41,7 +41,7 @@ class CooperationScreen extends StatelessWidget {
       gradient: LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [Color(0xFFF4B73A), Color(0xFFD69010)],
+        colors: [Color(0xFFE78A5C), Color(0xFFD86C3A)],
       ),
     ),
   ];

@@ -206,9 +206,9 @@ class _CardPreview extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFFC2562E),
-            Color(0xFFD97757),
-            Color(0xFFE0916B),
+            Color(0xFFD86C3A),
+            Color(0xFFE07E52),
+            Color(0xFFEE9A6F),
           ],
           stops: [0.0, 0.6, 1.0],
         ),
@@ -266,7 +266,7 @@ class _CardPreview extends StatelessWidget {
                   gradient: const LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [Color(0xFFF4B73A), Color(0xFFB97F11)],
+                    colors: [Color(0xFFE78A5C), Color(0xFFD86C3A)],
                   ),
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
