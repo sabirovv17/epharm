@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.InteropServices;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
@@ -74,7 +75,27 @@ private static readonly string LogPath =
 
 private static void Log(string msg)
 {
-    File.AppendAllText(LogPath, $"{DateTime.Now:HH:mm:ss} {msg}\r\n");
+    var line = $"{DateTime.Now:HH:mm:ss} {msg}";
+    try { File.AppendAllText(LogPath, line + "\r\n"); } catch { }
+    // В debug-режиме консоль подключена к терминалу dotnet run (EnsureDebugConsole) —
+    // лог виден прямо там, без отдельного окна tail. Без консоли — тихий no-op.
+    try { Console.WriteLine(line); } catch { }
+}
+
+private const int ATTACH_PARENT_PROCESS = -1;
+
+[DllImport("kernel32.dll", SetLastError = true)]
+private static extern bool AttachConsole(int dwProcessId);
+
+// EPHARM_DEBUG=1 → подключаемся к консоли родительского процесса (окно, из которого
+// запущен dotnet run), чтобы Console.WriteLine из Log() печатался в это окно.
+private static void EnsureDebugConsole()
+{
+    var dbg = (Environment.GetEnvironmentVariable("EPHARM_DEBUG") ?? "").Trim().ToLowerInvariant();
+    if (dbg is "1" or "true" or "yes" or "on")
+    {
+        try { AttachConsole(ATTACH_PARENT_PROCESS); } catch { }
+    }
 }
 private CustomerDisplay.Services.Heartbeat? _heartbeat;
 
@@ -101,6 +122,7 @@ private void MainWindow_KeyDown(object sender, System.Windows.Input.KeyEventArgs
 }
         public MainWindow()
         {
+            EnsureDebugConsole(); // EPHARM_DEBUG=1 → лог в терминал dotnet run
             InitializeComponent();
 
     DataContext = this;                 // <-- ВАЖНО
