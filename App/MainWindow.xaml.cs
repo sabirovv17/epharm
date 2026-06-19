@@ -31,13 +31,21 @@ namespace CustomerDisplay
     public partial class MainWindow : Window
     {
 private CancellationTokenSource? _logCts;
-// Путь к логу кассы Стандарт-Н. На разных кассах он отличается, поэтому задаётся
-// через env EPHARM_LOG_PATH (иначе чек молча не читается → нет рекомендаций/CDP,
-// и чинится только пересборкой). Дефолт прежний.
-// Пример demo-пути: C:\Standart-N_DEMO\Apteka_KZ DEMO\Kassir\zkassa.log
-private string _logPath =
-    Environment.GetEnvironmentVariable("EPHARM_LOG_PATH")
-    ?? @"C:\Standart-N\Kassir\zkassa.log";
+// Пути к логу кассы Стандарт-Н. На разных кассах путь отличается (обычная установка
+// vs demo), поэтому слушаем СРАЗУ НЕСКОЛЬКО кандидатов — какой файл реально пишется,
+// тот и читается; остальные просто ждут появления. Доп. путь можно задать через env
+// EPHARM_LOG_PATH (добавляется первым). Дубли отсеиваются.
+private readonly List<string> _logPaths = BuildLogPaths();
+
+private static List<string> BuildLogPaths()
+{
+    var paths = new List<string>();
+    var env = Environment.GetEnvironmentVariable("EPHARM_LOG_PATH");
+    if (!string.IsNullOrWhiteSpace(env)) paths.Add(env);
+    paths.Add(@"C:\Standart-N\Kassir\zkassa.log");
+    paths.Add(@"C:\Standart-N_DEMO\Apteka_KZ DEMO\Kassir\zkassa.log");
+    return paths.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+}
 
 
 public ObservableCollection<ReceiptItem> ReceiptItems { get; } = new();
@@ -263,11 +271,20 @@ private void StartLogReader()
     _logCts?.Cancel();
     _logCts = new CancellationTokenSource();
 
-    _ = Task.Run(() => TailLogLoop(_logPath, _logCts.Token));
+    // Запускаем tail на КАЖДЫЙ путь-кандидат: оба кормят один парсер
+    // (ProcessLogLine). Отсутствующий файл — его цикл просто ждёт появления.
+    var token = _logCts.Token;
+    foreach (var p in _logPaths)
+    {
+        var path = p; // захват в замыкание
+        Log($"Слушаю лог: {path}");
+        _ = Task.Run(() => TailLogLoop(path, token));
+    }
 }
 
 private async Task TailLogLoop(string path, CancellationToken token)
 {
+    var warnedMissing = false; // чтобы не флудить лог каждые 0.5с по отсутствующему пути
     while (!token.IsCancellationRequested)
     {
         try
@@ -275,10 +292,11 @@ private async Task TailLogLoop(string path, CancellationToken token)
             // ждём пока файл появится
             if (!File.Exists(path))
             {
-Log($"Лог-файлa net{path}");
+                if (!warnedMissing) { Log($"Лог-файл не найден, жду появления: {path}"); warnedMissing = true; }
                 await Task.Delay(500, token);
                 continue;
             }
+            warnedMissing = false;
 
             using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
