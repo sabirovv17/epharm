@@ -140,7 +140,7 @@ this.Focus();
                 return;
             }
 
-           MoveToSecondScreenFullscreen();
+           MoveOrDebugWindow();
 
             // Видео можно отключить (env EPHARM_NO_VIDEO=true). Нужно для VM без GPU, где VLC
             // не рендерит видео и подвешивает окно (Q перестаёт работать, т.к. видео-контрол
@@ -243,6 +243,31 @@ private void PositionWindowToTopRightQuarter()
     this.Left = screenWidth - this.Width;
     this.Top = 0;
 }
+        // EPHARM_DEBUG=1 → маленькое оконце слева сверху на ОСНОВНОМ экране, НЕ поверх
+        // всех и с рамкой — чтобы рядом видеть терминал/лог кассы. Иначе — обычный
+        // полноэкранный киоск (Topmost) на клиентском мониторе.
+        private void MoveOrDebugWindow()
+        {
+            var dbg = (Environment.GetEnvironmentVariable("EPHARM_DEBUG") ?? "").Trim().ToLowerInvariant();
+            if (dbg is "1" or "true" or "yes" or "on")
+            {
+                Topmost = false;
+                WindowStyle = WindowStyle.SingleBorderWindow;
+                ResizeMode = ResizeMode.CanResize;
+                WindowState = WindowState.Normal;
+                var wa = (Screen.PrimaryScreen ?? Screen.AllScreens[0]).WorkingArea;
+                Left = wa.Left + 8;
+                Top = wa.Top + 8;
+                Width = 460;
+                Height = 820;
+                CustomerScreen = Screen.PrimaryScreen ?? Screen.AllScreens[0];
+                Title = "Epharm POSM — DEBUG";
+                Log("DEBUG-окно: маленькое слева сверху, не поверх всех (EPHARM_DEBUG=1)");
+                return;
+            }
+            MoveToSecondScreenFullscreen();
+        }
+
         private void MoveToSecondScreenFullscreen()
 {
     var screens = Screen.AllScreens;
