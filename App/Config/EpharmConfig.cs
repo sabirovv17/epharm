@@ -50,10 +50,11 @@ namespace CustomerDisplay.Config
         public int HeartbeatSec { get; set; } = 15;
         /// <summary>
         /// Аргументы инициализации LibVLC (env EPHARM_VLC_ARGS, через пробел). По умолчанию
-        /// софт-декод. Для VM можно перебирать вывод: «--avcodec-hw=none --vout=direct3d9»,
-        /// «… --vout=gl», «… --vout=gles2».
+        /// софт-декод + тишина (--quiet --verbose=0): иначе нативный VLC спамит в консоль
+        /// «[h264 …] get_buffer() failed / no frame!» при софт-декоде в VM без GPU.
+        /// Для VM можно перебирать вывод: «--avcodec-hw=none --vout=direct3d9 …».
         /// </summary>
-        public string VlcArgs { get; set; } = "--avcodec-hw=none";
+        public string VlcArgs { get; set; } = "--avcodec-hw=none --quiet --verbose=0";
 
         private const string DefaultPath = @"C:\Epharm\posm.json";
 

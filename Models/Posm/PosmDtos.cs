@@ -54,10 +54,12 @@ namespace CustomerDisplay.Models.Posm
         public string? TriggerName { get; set; }
         public string? TriggerVolume { get; set; }         // «150 мл»
         public int? TriggerPrice { get; set; }             // 2390
+        public string? TriggerBarcode { get; set; }        // EAN-13 исходного товара
 
         // Что предложить вместо / в дополнение
         public string RecommendSku { get; set; } = "";
         public string RecommendName { get; set; } = "";
+        public string? RecommendBarcode { get; set; }      // EAN-13 рекомендованного (лог + позиция чека)
         public string? RecommendVendor { get; set; }       // «Jadran Galenski»
         public string? RecommendVolume { get; set; }       // «150 мл»
         public string? RecommendStock { get; set; }        // «в наличии 14 уп.»

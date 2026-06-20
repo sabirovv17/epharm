@@ -58,9 +58,11 @@ data class RecommendationDto(
     val triggerName: String?,
     val triggerVolume: String?,
     val triggerPrice: Int?,
+    val triggerBarcode: String?,    // EAN-13 исходного товара (для лога кассы)
     val recommendSku: String,
     val recommendName: String,
     val recommendPrice: Int,
+    val recommendBarcode: String?,  // EAN-13 рекомендованного товара (касса логирует + кладёт в чек)
     val partnerLabel: String?,
     val bonus: Int,
     val script: String,

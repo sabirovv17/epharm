@@ -172,10 +172,14 @@ this.Focus();
             {
                 Core.Initialize();
                 // Аргументы VLC настраиваются (EPHARM_VLC_ARGS) — для перебора режимов вывода в VM.
-                var vlcArgs = (_posmConfig?.VlcArgs ?? "--avcodec-hw=none")
-                    .Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                // Принудительно дотягиваем --quiet/--verbose=0, даже если в posm.json/env их нет,
+                // чтобы нативный VLC не спамил h264-ошибками в консоль кассы (софт-декод в VM).
+                var argList = (_posmConfig?.VlcArgs ?? "--avcodec-hw=none")
+                    .Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
+                if (!argList.Any(a => a.StartsWith("--quiet"))) argList.Add("--quiet");
+                if (!argList.Any(a => a.StartsWith("--verbose"))) argList.Add("--verbose=0");
+                var vlcArgs = argList.ToArray();
                 _libVLC = new LibVLC(vlcArgs);
-                Log($"VLC args: {string.Join(' ', vlcArgs)}");
                 _mediaPlayer = new MediaPlayer(_libVLC);
                 VideoView.MediaPlayer = _mediaPlayer;
 

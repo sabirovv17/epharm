@@ -219,7 +219,7 @@ namespace CustomerDisplay
             Hide(); // прячем киоск-окно: на экране остаётся только карточка поверх кассы
             try
             {
-                var win = new RecommendationWindow(DemoRecommendations(), autoCloseSec: 3600, targetScreen: null);
+                var win = new RecommendationWindow(DemoRecommendations(), autoCloseSec: 0, targetScreen: null);
                 // В превью выходим, только когда окно полностью закрыто (по всем рекомендациям
                 // принято решение, либо ✕). Приём одной реко НЕ закрывает приложение — можно
                 // принять и замену, и кросс-селл по очереди.
@@ -245,10 +245,16 @@ namespace CustomerDisplay
         private void ShowRecommendations(List<Recommendation> recs)
         {
             if (recs == null || recs.Count == 0) return;
-            foreach (var r in recs) _shownEventIds.Add(r.EventId);
+            foreach (var r in recs)
+            {
+                _shownEventIds.Add(r.EventId);
+                var kind = r.IsSubstitution ? "замена" : "кросс-селл";
+                Log($"POSM popup: {kind} → {r.RecommendName} (EAN {r.RecommendBarcode ?? "—"}), бонус {r.Bonus} ₸");
+            }
             _recoWindow?.Close();
 
-            var win = new RecommendationWindow(recs, _posmConfig?.PopupAutoCloseSec ?? 30, PharmacistScreen());
+            // autoCloseSec=0 → попап НЕ закрывается по таймауту, ждёт решения фармацевта (F9/Esc/✕).
+            var win = new RecommendationWindow(recs, 0, PharmacistScreen());
             // Каждая реко решается независимо — фиксируем именно ту, по которой принято решение
             // (окно не закрывается, пока есть нерешённые: можно принять и замену, и кросс-селл).
             win.Accepted += (_, rec) =>
@@ -315,13 +321,16 @@ namespace CustomerDisplay
                 ReceiptItems.Add(new Models.ReceiptItem
                 {
                     PartId = _acceptedPartIdSeq--,        // синтетический id (не из кассы)
+                    Barcode = rec.RecommendBarcode,       // EAN-13 рекомендованного товара
                     Name = rec.RecommendName,
                     Price = rec.RecommendPrice,           // int → decimal
                     Qty = 1m,
                     DiscountPercent = 0m,
                 });
                 RecalcTotal();
-                Log($"Рекомендация принята — товар добавлен в чек: {rec.RecommendName}");
+                var kind = rec.IsSubstitution ? "замена" : "кросс-селл";
+                Log($"Рекомендация принята ({kind}) — товар добавлен в чек: {rec.RecommendName} " +
+                    $"(EAN {rec.RecommendBarcode ?? "—"})");
             }
             catch (Exception ex)
             {

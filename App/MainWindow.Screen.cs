@@ -20,6 +20,7 @@ namespace CustomerDisplay
         private DispatcherTimer? _videoWatchdog;
         private long _lastMediaTime = -1;
         private int _videoStallTicks = 0;
+        private bool _videoStartedLogged = false; // «видео запущено» логируем РОВНО один раз за сессию
 
         // Поллинг плейлиста: подпись текущего набора роликов (чтобы переключать ТОЛЬКО при
         // реальном изменении, а не перезапускать видео на каждый опрос). null = ещё не грузили
@@ -51,7 +52,8 @@ namespace CustomerDisplay
                     _videoStallTicks++;
                     if (_videoStallTicks >= 2) // ~6с без движения → завис
                     {
-                        Log($"video stall на {t}мс → перезапуск ролика");
+                        // Тихий перезапуск: в VM без GPU это происходит постоянно, лог не нужен
+                        // (флуд). Один раз про старт видео уже сказали в PlayNextVideo.
                         _videoStallTicks = 0;
                         _lastMediaTime = -1;
                         PlayNextVideo();
@@ -90,6 +92,7 @@ namespace CustomerDisplay
                 _mediaPlayer.Play(media);
                 _currentMedia?.Dispose();
                 _currentMedia = media;
+                if (!_videoStartedLogged) { Log("видео запущено"); _videoStartedLogged = true; }
             }
             catch (Exception ex)
             {

@@ -36,7 +36,8 @@ namespace CustomerDisplay
         /// <summary>Фармацевт пропустил рекомендацию (Esc/кнопка) — передаётся именно пропущенная.</summary>
         public event EventHandler<Recommendation>? Skipped;
 
-        private readonly DispatcherTimer _autoClose;
+        // null = автозакрытия по таймауту НЕТ (autoCloseSec <= 0). Окно ждёт F9/Esc/✕.
+        private readonly DispatcherTimer? _autoClose;
         private readonly System.Windows.Forms.Screen? _targetScreen;
 
         /// <summary>Одна рекомендация (обратная совместимость).</summary>
@@ -54,11 +55,16 @@ namespace CustomerDisplay
             _status = new int[_recs.Count];
             _targetScreen = targetScreen;
 
-            _autoClose = new DispatcherTimer { Interval = TimeSpan.FromSeconds(autoCloseSec) };
-            _autoClose.Tick += (_, _) => Close(); // таймаут закрывает окно (нерешённые не фиксируем)
+            // Автозакрытие по таймауту — только если autoCloseSec > 0. Для рекомендаций кассы
+            // передаём 0: окно висит, пока фармацевт не примет (F9) / не пропустит (Esc) / не закроет.
+            if (autoCloseSec > 0)
+            {
+                _autoClose = new DispatcherTimer { Interval = TimeSpan.FromSeconds(autoCloseSec) };
+                _autoClose.Tick += (_, _) => Close(); // таймаут закрывает окно (нерешённые не фиксируем)
+            }
 
             ShowAt(0);
-            _autoClose.Start();
+            _autoClose?.Start();
 
             KeyDown += OnKeyDown;
             Loaded += OnLoaded;
@@ -321,7 +327,7 @@ namespace CustomerDisplay
                 // задержкой, чтобы фармацевт успел увидеть, что применилось.
                 BuildTabs();
                 UpdateDecisionUI();
-                _autoClose.Stop();
+                _autoClose?.Stop();
                 var closeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1200) };
                 closeTimer.Tick += (_, _) => { closeTimer.Stop(); Close(); };
                 closeTimer.Start();
