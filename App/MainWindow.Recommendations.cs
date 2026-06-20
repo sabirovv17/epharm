@@ -28,6 +28,10 @@ namespace CustomerDisplay
         private RecommendationWindow? _recoWindow;
         private ConflictNotificationWindow? _conflictWindow;
 
+        // Синтетический PartId для товаров, добавленных в чек ПО ПРИНЯТОЙ рекомендации (не из лога
+        // кассы). Отрицательный и убывающий — чтобы не пересекаться с реальными iPartID Стандарт-Н.
+        private int _acceptedPartIdSeq = -1000;
+
         // Рекомендации, которые уже показаны в этом чеке — чтобы не всплывать повторно
         // на каждое добавление товара (backend возвращает тот же eventId — идемпотентно).
         private readonly HashSet<string> _shownEventIds = new();
@@ -247,7 +251,11 @@ namespace CustomerDisplay
             var win = new RecommendationWindow(recs, _posmConfig?.PopupAutoCloseSec ?? 30, PharmacistScreen());
             // Каждая реко решается независимо — фиксируем именно ту, по которой принято решение
             // (окно не закрывается, пока есть нерешённые: можно принять и замену, и кросс-селл).
-            win.Accepted += (_, rec) => _ = RespondAsync(rec, "accepted");
+            win.Accepted += (_, rec) =>
+            {
+                ApplyAcceptedToCheque(rec); // товар рекомендации появляется в чеке на экране
+                _ = RespondAsync(rec, "accepted");
+            };
             win.Skipped += (_, rec) => _ = RespondAsync(rec, "rejected");
             win.Closed += (_, _) => { if (ReferenceEquals(_recoWindow, win)) _recoWindow = null; };
             _recoWindow = win;
@@ -275,6 +283,50 @@ namespace CustomerDisplay
             win.Closed += (_, _) => { if (ReferenceEquals(_conflictWindow, win)) _conflictWindow = null; };
             _conflictWindow = win;
             win.Show();
+        }
+
+        /// <summary>
+        /// Применить принятую рекомендацию к чеку на ЭКРАНЕ (визуально):
+        ///   - замена (substitution): убираем исходный товар (по имени-триггеру, best-effort)
+        ///     и добавляем рекомендованный;
+        ///   - кросс-селл: просто добавляем рекомендованный товар.
+        /// Это зеркало для демо/наглядности — реальный чек ведёт Стандарт-Н. Вызывается из UI-потока
+        /// (событие окна), поэтому ObservableCollection меняем напрямую. Новый запрос рекомендаций
+        /// НЕ инициируем (OnCartChanged не зовём) — реко по этому товару уже показана.
+        /// </summary>
+        private void ApplyAcceptedToCheque(Recommendation rec)
+        {
+            if (rec == null || string.IsNullOrWhiteSpace(rec.RecommendName)) return;
+            try
+            {
+                // Замена → убрать исходный товар из чека (имя из лога может быть короче имени из
+                // каталога, поэтому матч по вхождению в любую сторону, без учёта регистра).
+                if (string.Equals(rec.Kind, "substitution", StringComparison.OrdinalIgnoreCase)
+                    && !string.IsNullOrWhiteSpace(rec.TriggerName))
+                {
+                    var tn = rec.TriggerName!.Trim();
+                    var trig = ReceiptItems.FirstOrDefault(x =>
+                        !string.IsNullOrWhiteSpace(x.Name) &&
+                        (x.Name.Contains(tn, StringComparison.OrdinalIgnoreCase) ||
+                         tn.Contains(x.Name.Trim(), StringComparison.OrdinalIgnoreCase)));
+                    if (trig != null) ReceiptItems.Remove(trig);
+                }
+
+                ReceiptItems.Add(new Models.ReceiptItem
+                {
+                    PartId = _acceptedPartIdSeq--,        // синтетический id (не из кассы)
+                    Name = rec.RecommendName,
+                    Price = rec.RecommendPrice,           // int → decimal
+                    Qty = 1m,
+                    DiscountPercent = 0m,
+                });
+                RecalcTotal();
+                Log($"Рекомендация принята — товар добавлен в чек: {rec.RecommendName}");
+            }
+            catch (Exception ex)
+            {
+                Log($"ApplyAcceptedToCheque error: {ex.Message}");
+            }
         }
 
         private async Task RespondAsync(Recommendation rec, string outcome)
