@@ -1,7 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
-import '../../home/application/home_controller.dart' show CatalogSort;
+import '../../home/application/home_controller.dart'
+    show
+        CatalogSort,
+        debouncedSearchQueryProvider,
+        homeSortProvider,
+        selectedBrandsProvider,
+        selectedCategoriesProvider;
 import '../data/promotion_models.dart';
 import '../data/promotions_repository.dart';
 
@@ -82,3 +88,27 @@ List<Promotion> applyPromotionFilters({
   }
   return list;
 }
+
+/// Уже отфильтрованная/отсортированная лента акций. Вынесено в отдельный
+/// провайдер, чтобы:
+///  - пересчёт фильтра+сортировки шёл ТОЛЬКО при смене входов (а не на каждый
+///    ребилд экрана/кадр ввода);
+///  - ввод поиска (через [debouncedSearchQueryProvider]) перестраивал ТОЛЬКО
+///    грид ленты, а не шапку/карусель/поиск/чипы Home.
+/// `whenData` сохраняет loading/error промо — экран сам покажет спиннер/ретрай.
+final filteredPromotionsProvider = Provider<AsyncValue<List<Promotion>>>((ref) {
+  final promos = ref.watch(promotionsProvider);
+  final brands = ref.watch(selectedBrandsProvider);
+  final categories = ref.watch(selectedCategoriesProvider);
+  final query = ref.watch(debouncedSearchQueryProvider);
+  final sort = ref.watch(homeSortProvider);
+  return promos.whenData(
+    (items) => applyPromotionFilters(
+      items: items,
+      brands: brands,
+      categories: categories,
+      query: query,
+      sort: sort,
+    ),
+  );
+});

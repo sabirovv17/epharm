@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/api_config.dart';
@@ -71,4 +73,31 @@ class SearchQueryNotifier extends Notifier<String> {
 
 final searchQueryProvider = NotifierProvider<SearchQueryNotifier, String>(
   SearchQueryNotifier.new,
+);
+
+/// Дебаунс поискового запроса: меняется не на каждый символ, а через паузу
+/// ~280мс. Так фильтрация ленты и ребилд грид-карточек не дёргаются на каждый
+/// keystroke — ввод остаётся плавным (саму строку TextField рисует мгновенно).
+/// Очистку (пустую строку) применяем сразу — отклик на сброс важнее.
+class DebouncedSearchNotifier extends Notifier<String> {
+  Timer? _timer;
+
+  @override
+  String build() {
+    ref.listen(searchQueryProvider, (_, next) {
+      _timer?.cancel();
+      if (next.isEmpty) {
+        state = '';
+        return;
+      }
+      _timer = Timer(const Duration(milliseconds: 280), () => state = next);
+    });
+    ref.onDispose(() => _timer?.cancel());
+    return '';
+  }
+}
+
+final debouncedSearchQueryProvider =
+    NotifierProvider<DebouncedSearchNotifier, String>(
+  DebouncedSearchNotifier.new,
 );

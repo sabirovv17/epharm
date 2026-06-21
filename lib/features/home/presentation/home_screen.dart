@@ -177,11 +177,12 @@ class _HomeTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
     final bannerAsync = ref.watch(bannerListProvider);
-    final promotionsAsync = ref.watch(promotionsProvider);
     final brands = ref.watch(selectedBrandsProvider);
     final categories = ref.watch(selectedCategoriesProvider);
     final sort = ref.watch(homeSortProvider);
-    final query = ref.watch(searchQueryProvider);
+    // NB: query и сам список акций здесь НЕ watch'им — иначе ввод поиска
+    // перестраивал бы весь CustomScrollView (шапка/карусель/чипы). Лента вынесена
+    // в _PromoFeedSliver, который слушает только filteredPromotionsProvider.
 
     // Header теперь — обычный sliver внутри CustomScrollView. Раньше он был
     // в Stack/Positioned поверх скролла (sticky), но это создавало впечатление
@@ -296,69 +297,75 @@ class _HomeTab extends ConsumerWidget {
 
           const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-          // 5) Лента акций (фильтр бренд/категория/поиск/сортировка).
-          promotionsAsync.when(
-            loading: () => const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.all(AppSpacing.s24),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-            ),
-            error: (e, _) => SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.screenEdge,
-                  24,
-                  AppSpacing.screenEdge,
-                  24,
-                ),
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.wifi_off_rounded,
-                        size: 40,
-                        color: AppColors.ink300,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Акции недоступны',
-                        style: AppTypography.body14(color: AppColors.ink500),
-                      ),
-                      TextButton(
-                        onPressed: () => ref.invalidate(promotionsProvider),
-                        child: const Text(
-                          'Повторить',
-                          style: TextStyle(
-                            fontFamily: 'Manrope',
-                            fontFamilyFallback: ['Roboto', 'sans-serif'],
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.brandGreen700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            data: (items) {
-              final filtered = applyPromotionFilters(
-                items: items,
-                brands: brands,
-                categories: categories,
-                query: query,
-                sort: sort,
-              );
-              return _PromoSliver(items: filtered);
-            },
-          ),
+          // 5) Лента акций (фильтр бренд/категория/поиск/сортировка). Вынесена в
+          //    отдельный Consumer — ввод поиска перестраивает только её.
+          const _PromoFeedSliver(),
 
           const SliverToBoxAdapter(child: SizedBox(height: 32)),
         ],
       ),
+    );
+  }
+}
+
+/// Лента акций как отдельный Consumer: подписан ТОЛЬКО на
+/// [filteredPromotionsProvider] (промо + бренды/категории/сортировка + debounce-
+/// поиск). Поэтому ввод поиска перестраивает лишь грид, а не шапку/карусель/чипы;
+/// фильтрация уже посчитана в провайдере (не на каждый кадр).
+class _PromoFeedSliver extends ConsumerWidget {
+  const _PromoFeedSliver();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final filtered = ref.watch(filteredPromotionsProvider);
+    return filtered.when(
+      loading: () => const SliverToBoxAdapter(
+        child: Padding(
+          padding: EdgeInsets.all(AppSpacing.s24),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ),
+      error: (e, _) => SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenEdge,
+            24,
+            AppSpacing.screenEdge,
+            24,
+          ),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.wifi_off_rounded,
+                  size: 40,
+                  color: AppColors.ink300,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Акции недоступны',
+                  style: AppTypography.body14(color: AppColors.ink500),
+                ),
+                TextButton(
+                  onPressed: () => ref.invalidate(promotionsProvider),
+                  child: const Text(
+                    'Повторить',
+                    style: TextStyle(
+                      fontFamily: 'Manrope',
+                      fontFamilyFallback: ['Roboto', 'sans-serif'],
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.brandGreen700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      data: (items) => _PromoSliver(items: items),
     );
   }
 }

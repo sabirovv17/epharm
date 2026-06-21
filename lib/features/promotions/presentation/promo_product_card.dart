@@ -410,6 +410,9 @@ class _GridThumb extends StatelessWidget {
             // Декод под ширину ячейки сетки (~180px, ≈2×): ключевой фикс лагов
             // скролла ленты — полноразмерные фото не держим в памяти и не пере-декодим.
             cacheWidth: 400,
+            // Держим декодированный кадр при ребилде грида (фильтр/поиск/сортировка),
+            // чтобы плитки не моргали placeholder'ом.
+            gaplessPlayback: true,
             loadingBuilder: (_, child, p) => p == null ? child : placeholder(),
             errorBuilder: (_, __, ___) => placeholder(),
           );

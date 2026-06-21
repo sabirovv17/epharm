@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
@@ -202,10 +203,25 @@ class ApiClient {
     return false;
   }
 
-  Map<String, dynamic> _decode(http.Response res) {
+  /// Разбор JSON: крупные ответы (каталог/акции/523 аптеки/~640 категорий)
+  /// парсим в ФОНОВОМ изоляте через compute — иначе jsonDecode большого тела
+  /// блокирует UI-поток на десятки мс (фриз при открытии экрана/pull-to-refresh).
+  /// Мелкие тела декодируем синхронно: спавн изолята + сериализация дороже самого
+  /// парсинга короткой строки.
+  static const _bgDecodeThreshold = 51200; // 50 КБ
+  Future<dynamic> _parseBody(String bodyText) {
+    if (bodyText.isEmpty) return Future.value(null);
+    if (bodyText.length > _bgDecodeThreshold) {
+      return compute(jsonDecode, bodyText);
+    }
+    return Future.value(jsonDecode(bodyText));
+  }
+
+  Future<Map<String, dynamic>> _decode(http.Response res) async {
     final ok = res.statusCode >= 200 && res.statusCode < 300;
     final bodyText = utf8.decode(res.bodyBytes);
-    final dynamic parsed = bodyText.isEmpty ? <String, dynamic>{} : jsonDecode(bodyText);
+    final dynamic parsed =
+        bodyText.isEmpty ? <String, dynamic>{} : await _parseBody(bodyText);
 
     if (ok) {
       return parsed is Map<String, dynamic> ? parsed : <String, dynamic>{};
@@ -221,10 +237,11 @@ class ApiClient {
     throw ApiException(message: 'Ошибка сервера', statusCode: res.statusCode);
   }
 
-  List<dynamic> _decodeList(http.Response res) {
+  Future<List<dynamic>> _decodeList(http.Response res) async {
     final ok = res.statusCode >= 200 && res.statusCode < 300;
     final bodyText = utf8.decode(res.bodyBytes);
-    final dynamic parsed = bodyText.isEmpty ? <dynamic>[] : jsonDecode(bodyText);
+    final dynamic parsed =
+        bodyText.isEmpty ? <dynamic>[] : await _parseBody(bodyText);
     if (ok) return parsed is List ? parsed : <dynamic>[];
     // Ошибка приходит объектом {code,message}.
     if (parsed is Map<String, dynamic>) {

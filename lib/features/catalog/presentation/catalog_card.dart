@@ -116,6 +116,9 @@ class _CatalogCardImage extends StatelessWidget {
       proxyMedia(url) ?? url,
       fit: BoxFit.cover,
       cacheWidth: 400,
+      // Держим уже декодированный кадр при ребилде грида (фильтр/поиск) — иначе
+      // на кадр мелькает placeholder и сетка «моргает».
+      gaplessPlayback: true,
       loadingBuilder: (ctx, child, progress) =>
           progress == null ? child : _placeholder(),
       errorBuilder: (_, __, ___) => _placeholder(),

@@ -189,8 +189,16 @@ class _ReceiptPhoto extends StatelessWidget {
         errorBuilder: (_, __, ___) => const _PhotoFallback(),
       );
     } else if (receipt.photoPath != null && receipt.photoPath!.isNotEmpty) {
-      final f = File(receipt.photoPath!);
-      if (f.existsSync()) img = Image.file(f, fit: BoxFit.cover);
+      // Без existsSync() (это блокирующий syscall прямо в build → фрейм-дроп):
+      // отсутствующий файл обработает errorBuilder. cacheWidth даунскейлит фото
+      // чека (камера — тысячи px) под фактическую ширину превью, а не декодит
+      // полноразмерный битмап.
+      img = Image.file(
+        File(receipt.photoPath!),
+        fit: BoxFit.cover,
+        cacheWidth: 1000,
+        errorBuilder: (_, __, ___) => const _PhotoFallback(),
+      );
     }
     // Чек — вертикальный документ: превью формата 3:4 (как фото в ПИМ),
     // а не горизонтальная плашка 180px. Высота = ширина × 4/3.

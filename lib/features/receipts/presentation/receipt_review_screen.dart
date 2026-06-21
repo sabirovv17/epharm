@@ -308,6 +308,9 @@ class _ReceiptThumb extends ConsumerWidget {
                 fit: BoxFit.cover,
                 width: double.infinity,
                 height: double.infinity,
+                // Превью-thumb: даунскейл фото камеры (тысячи px) под мелкий
+                // размер — иначе декодится полноразмерный битмап ради миниатюры.
+                cacheWidth: 400,
                 errorBuilder: (_, __, ___) => const _ReceiptThumbSkeleton(),
               )
             : const _ReceiptThumbSkeleton(),

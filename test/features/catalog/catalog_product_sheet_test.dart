@@ -89,7 +89,8 @@ void main() {
 
     expect(find.text('Можно допродать'), findsOneWidget);
     expect(find.text('Сопутствующие'), findsOneWidget);
-    expect(find.text('Альтернативы'), findsOneWidget);
+    // Секция замен переименована «Альтернативы» → «Аналоги».
+    expect(find.text('Аналоги'), findsOneWidget);
 
     // Бонус-бейдж только в секции «Можно допродать».
     expect(find.text('+400 ₸'), findsOneWidget);

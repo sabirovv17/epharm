@@ -42,7 +42,12 @@ Future<StartDestination> resolveStartDestination({
     }
   }
   // Токенов нет (или mock-режим): онбординг только если ещё не видели.
-  final seen = await onboardingStore.seen();
+  // Таймаут на чтение флага: на ПЕРВОМ cold-start iOS Keychain может отвечать
+  // медленно/зависнуть — без таймаута сплеш висел бы бесконечно (симптом
+  // «приложение открывается со второго раза»). Истёк → считаем «не видели».
+  final seen = await onboardingStore
+      .seen()
+      .timeout(const Duration(seconds: 2), onTimeout: () => false);
   return seen ? StartDestination.home : StartDestination.welcome;
 }
 
@@ -50,13 +55,21 @@ Future<StartDestination> resolveStartDestination({
 /// слушает его и навигирует на Home/Welcome. Восстановление сессии (refreshMe) —
 /// внутри, с таймаутом, чтобы не зависнуть на сплеше при недоступной сети.
 final appStartProvider = FutureProvider<StartDestination>((ref) async {
-  return resolveStartDestination(
-    useApi: ApiConfig.useApi,
-    tokenStore: ref.read(tokenStoreProvider),
-    onboardingStore: ref.read(onboardingStoreProvider),
-    restoreSession: () => ref
-        .read(profileActionsProvider)
-        .refreshMe()
-        .timeout(const Duration(seconds: 6)),
-  );
+  // Провайдер ОБЯЗАН резолвиться, иначе сплеш зависнет навсегда (нет навигации →
+  // «второй тап»). Все ветки resolveStartDestination уже защищены try/catch, но
+  // внешний guard страхует от любой неожиданной ошибки: тогда уходим на Home
+  // (гостевой режим доступен всем; не показываем онбординг по ошибке).
+  try {
+    return await resolveStartDestination(
+      useApi: ApiConfig.useApi,
+      tokenStore: ref.read(tokenStoreProvider),
+      onboardingStore: ref.read(onboardingStoreProvider),
+      restoreSession: () => ref
+          .read(profileActionsProvider)
+          .refreshMe()
+          .timeout(const Duration(seconds: 6)),
+    );
+  } catch (_) {
+    return StartDestination.home;
+  }
 });

@@ -22,8 +22,13 @@ class SplashScreen extends ConsumerWidget {
     // безопасен (после кадра); guard на mounted — экран мог уйти.
     ref.listen(appStartProvider, (_, next) {
       next.whenData((dest) {
-        if (!context.mounted) return;
-        context.go(dest == StartDestination.home ? '/home' : '/welcome');
+        // Навигируем ПОСЛЕ кадра: если решение готово синхронно (прогретый
+        // Keychain/mock), context.go в момент build мог бы сработать до первого
+        // кадра и дать пустой экран на cold-start. addPostFrameCallback убирает гонку.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!context.mounted) return;
+          context.go(dest == StartDestination.home ? '/home' : '/welcome');
+        });
       });
     });
 
