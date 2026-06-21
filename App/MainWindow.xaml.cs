@@ -80,10 +80,15 @@ private static string ResolveLogPath()
     return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "customerdisplay.log");
 }
 
+// Лог пишем в UTF-8 с BOM, чтобы кириллица корректно открывалась в любом редакторе
+// (Блокнот без BOM иногда читает как ANSI → «Лог-файлa net…»). BOM пишется один раз
+// при создании файла; на дозапись существующего не дублируется.
+private static readonly Encoding LogEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
+
 private static void Log(string msg)
 {
     var line = $"{DateTime.Now:HH:mm:ss} {msg}";
-    try { File.AppendAllText(LogPath, line + "\r\n"); } catch { }
+    try { File.AppendAllText(LogPath, line + "\r\n", LogEncoding); } catch { }
     // В debug-режиме консоль подключена к терминалу dotnet run (EnsureDebugConsole) —
     // лог виден прямо там, без отдельного окна tail. Без консоли — тихий no-op.
     try { Console.WriteLine(line); } catch { }
@@ -386,7 +391,8 @@ private void StartLogReader()
 
 private async Task TailLogLoop(string path, CancellationToken token)
 {
-    var warnedMissing = false; // чтобы не флудить лог каждые 0.5с по отсутствующему пути
+    var warnedMissing = false; // не флудим лог по отсутствующему пути
+    var lastWarn = DateTime.MinValue;
     while (!token.IsCancellationRequested)
     {
         try
@@ -394,8 +400,15 @@ private async Task TailLogLoop(string path, CancellationToken token)
             // ждём пока файл появится
             if (!File.Exists(path))
             {
-                if (!warnedMissing) { Log($"Лог-файл не найден, жду появления: {path}"); warnedMissing = true; }
-                await Task.Delay(500, token);
+                // один раз сразу, далее не чаще раза в 60с («всё ещё жду» — heartbeat,
+                // а не спам каждые 0.5с). Без Стандарт-Н файл не появится никогда.
+                if (!warnedMissing || (DateTime.Now - lastWarn).TotalSeconds >= 60)
+                {
+                    Log($"Лог кассы Стандарт-Н не найден, жду появления: {path}");
+                    warnedMissing = true;
+                    lastWarn = DateTime.Now;
+                }
+                await Task.Delay(1000, token);
                 continue;
             }
             warnedMissing = false;
