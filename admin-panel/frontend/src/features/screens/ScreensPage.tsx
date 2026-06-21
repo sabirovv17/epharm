@@ -60,7 +60,7 @@ export default function ScreensPage() {
 // ─── Подключённые кассы (онлайн) ─────────────────────────────────────────────
 function ConnectedRegistersCard() {
   const t = useT()
-  const { data, isLoading } = useConnectedScreens()
+  const { data, isLoading, isError } = useConnectedScreens()
   const total = data?.total ?? 0
   const devices = data?.devices ?? []
 
@@ -72,7 +72,9 @@ function ConnectedRegistersCard() {
             {t('scr.connectedLabel')}
           </div>
           <div className="num mt-1 text-[28px] font-extrabold text-ink-900">
-            {isLoading && !data ? '…' : total}
+            {/* Ошибка ≠ «0 подключено»: при сбое запроса показываем «—», иначе
+                фармацевт читал бы ложный ноль как «касс нет». */}
+            {isError && !data ? '—' : isLoading && !data ? '…' : total}
           </div>
         </div>
         <span className="chip chip-green">{t('scr.connectedLive')}</span>

@@ -68,6 +68,11 @@ export function AppShell() {
   // RequireAuth уже гарантирует не-null user; этот guard — для TS narrowing.
   if (!authedUser) return null
 
+  // Смена роли — ДЕМО-механика (подменяет authedUser фейком без нового JWT):
+  // UI показывал бы чужую личность, а API-запросы шли бы под исходным токеном.
+  // В проде прячем и пункт меню, и саму модалку — роли назначает админ на бэке.
+  const roleSwitchEnabled = import.meta.env.DEV
+
   return (
     <ToastHost>
       <div className="flex h-screen bg-paper" style={{ minWidth: 1280 }}>
@@ -83,7 +88,7 @@ export function AppShell() {
           <Topbar
             sectionLabel={activeLabel}
             role={authedUser}
-            onRoleSwitch={openRoleSwitcher}
+            onRoleSwitch={roleSwitchEnabled ? openRoleSwitcher : undefined}
             onLogout={handleLogout}
             onMenu={toggleSidebar}
             onCommand={openCommandPalette}
@@ -93,18 +98,18 @@ export function AppShell() {
           </main>
         </div>
 
-        <RoleSwitcher
-          open={roleSwitcherOpen}
-          onClose={closeRoleSwitcher}
-          current={authedUser}
-          onPick={setActiveRole}
-        />
+        {roleSwitchEnabled && (
+          <RoleSwitcher
+            open={roleSwitcherOpen}
+            onClose={closeRoleSwitcher}
+            current={authedUser}
+            onPick={setActiveRole}
+          />
+        )}
         <ContractModal open={contractModalOpen} onClose={closeContractModal} user={authedUser} />
-        <CommandPalette
-          open={commandPaletteOpen}
-          onClose={closeCommandPalette}
-          onNav={onSelectSection}
-        />
+        {commandPaletteOpen && (
+          <CommandPalette onClose={closeCommandPalette} onNav={onSelectSection} />
+        )}
       </div>
     </ToastHost>
   )

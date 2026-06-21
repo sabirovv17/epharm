@@ -1,72 +1,40 @@
 // CommandPalette — admin §11.4
 // ⌘K / Ctrl+K (или клик на topbar search) → top-aligned 12vh, max-w 560.
-// Фильтрует: все 12 разделов + top-8 продуктов + top-6 аптек.
+// Фильтрует 12 разделов админки. (Поиск по товарам/аптекам был завязан на
+// демо-fixtures, которые обнулены, — мёртвую ветку убрали; вернуть можно через
+// реальные хуки useProducts/usePharmacies с дебаунсом.)
 
-import { useEffect, useState, type ReactNode } from 'react'
-import {
-  SECTIONS,
-  PRODUCT_LIBRARY,
-  PHARMACY_LIST,
-  formatKzt,
-  type SectionId,
-} from '@/mocks/fixtures'
-import { IconBox, IconPharmacy, IconSearch } from '@/ui/icons'
+import { useState, type ReactNode } from 'react'
+import { SECTIONS, type SectionId } from '@/mocks/fixtures'
+import { IconSearch } from '@/ui/icons'
 import { useT } from '@/i18n'
 
 interface CommandPaletteProps {
-  open: boolean
   onClose: () => void
   onNav: (id: SectionId) => void
 }
 
-type ItemKind = 'section' | 'product' | 'pharmacy'
-
 interface Item {
-  kind: ItemKind
-  id: string
+  id: SectionId
   label: string
   sub: string
   icon: ReactNode
 }
 
-export function CommandPalette({ open, onClose, onNav }: CommandPaletteProps) {
+// Монтируется ТОЛЬКО когда открыта (см. AppShell), поэтому состояние поиска
+// сбрасывается само при каждом открытии — без setState-в-effect (cascading renders).
+export function CommandPalette({ onClose, onNav }: CommandPaletteProps) {
   const t = useT()
   const [q, setQ] = useState('')
 
-  useEffect(() => {
-    if (open) setQ('')
-  }, [open])
-
-  if (!open) return null
-
-  const items: Item[] = []
-  SECTIONS.forEach((s) => {
+  const items: Item[] = SECTIONS.map((s) => {
     const Icon = s.Icon
-    items.push({
-      kind: 'section',
+    return {
       id: s.id,
       label: t(`nav.${s.id}`),
       sub: t(`group.${s.group}`),
       icon: <Icon size={16} />,
-    })
-  })
-  PRODUCT_LIBRARY.slice(0, 8).forEach((p) => {
-    items.push({
-      kind: 'product',
-      id: p.id,
-      label: p.name,
-      sub: `${p.brand} · ${formatKzt(p.price)}`,
-      icon: <IconBox size={16} />,
-    })
-  })
-  PHARMACY_LIST.slice(0, 6).forEach((p) => {
-    items.push({
-      kind: 'pharmacy',
-      id: p.id,
-      label: p.name,
-      sub: `${p.city} · ${p.addr}`,
-      icon: <IconPharmacy size={16} />,
-    })
+    }
   })
 
   const filtered = q
@@ -74,14 +42,8 @@ export function CommandPalette({ open, onClose, onNav }: CommandPaletteProps) {
     : items.slice(0, 12)
 
   const onPick = (it: Item) => {
-    if (it.kind === 'section') onNav(it.id as SectionId)
+    onNav(it.id)
     onClose()
-  }
-
-  const kindLabel: Record<ItemKind, string> = {
-    section: t('palette.kind.section'),
-    product: t('palette.kind.product'),
-    pharmacy: t('palette.kind.pharmacy'),
   }
 
   return (
@@ -110,7 +72,7 @@ export function CommandPalette({ open, onClose, onNav }: CommandPaletteProps) {
           ) : (
             filtered.map((it) => (
               <button
-                key={`${it.kind}:${it.id}`}
+                key={it.id}
                 onClick={() => onPick(it)}
                 className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-paper-hover"
               >
@@ -122,7 +84,7 @@ export function CommandPalette({ open, onClose, onNav }: CommandPaletteProps) {
                   <div className="truncate text-[12px] text-ink-500">{it.sub}</div>
                 </div>
                 <span className="text-[11px] font-bold uppercase text-ink-400">
-                  {kindLabel[it.kind]}
+                  {t('palette.kind.section')}
                 </span>
               </button>
             ))

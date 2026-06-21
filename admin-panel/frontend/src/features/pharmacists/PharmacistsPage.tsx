@@ -214,7 +214,14 @@ export default function PharmacistsPage() {
                       <button
                         type="button"
                         onClick={(e) => handleToggleBlock(p, e)}
-                        className={`text-[12px] font-bold ${
+                        // Блокируем ТОЛЬКО эту строку, пока её мутация в полёте
+                        // (variables === p.id) — иначе быстрый двойной клик шлёт
+                        // два block/unblock. Остальная таблица остаётся активной.
+                        disabled={
+                          (blockPharmacist.isPending && blockPharmacist.variables === p.id) ||
+                          (unblockPharmacist.isPending && unblockPharmacist.variables === p.id)
+                        }
+                        className={`text-[12px] font-bold disabled:opacity-50 ${
                           p.status === 'blocked'
                             ? 'text-brand-green-700 hover:underline'
                             : 'text-accent-danger hover:underline'

@@ -19,7 +19,8 @@ import { PeriodPicker } from './PeriodPicker'
 interface TopbarProps {
   sectionLabel: string
   role: User
-  onRoleSwitch: () => void
+  /** Демо-смена роли. undefined (прод) → пункт меню скрыт. */
+  onRoleSwitch?: () => void
   onLogout: () => void
   onMenu: () => void
   onCommand: () => void
@@ -80,7 +81,7 @@ export function Topbar({
 
 interface RolePillProps {
   role: User
-  onRoleSwitch: () => void
+  onRoleSwitch?: () => void
   onLogout: () => void
 }
 
@@ -127,19 +128,21 @@ function RolePill({ role, onRoleSwitch, onLogout }: RolePillProps) {
           role="menu"
           className="card slide-in absolute right-0 top-full z-50 mt-1.5 w-56 overflow-hidden p-1.5 shadow-elevated"
         >
-          <button
-            role="menuitem"
-            onClick={() => {
-              setOpen(false)
-              onRoleSwitch()
-            }}
-            className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] font-semibold text-ink-700 hover:bg-paper-hover"
-          >
-            <span className="text-ink-500">
-              <IconUsers size={16} />
-            </span>
-            <span>{t('topbar.changeRole')}</span>
-          </button>
+          {onRoleSwitch && (
+            <button
+              role="menuitem"
+              onClick={() => {
+                setOpen(false)
+                onRoleSwitch()
+              }}
+              className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] font-semibold text-ink-700 hover:bg-paper-hover"
+            >
+              <span className="text-ink-500">
+                <IconUsers size={16} />
+              </span>
+              <span>{t('topbar.changeRole')}</span>
+            </button>
+          )}
           <button
             role="menuitem"
             onClick={() => {

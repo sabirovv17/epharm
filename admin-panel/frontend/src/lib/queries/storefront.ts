@@ -46,5 +46,10 @@ export function useStorefront(q: string, offset: number, limit = 50) {
         })
         .then((r) => r.data),
     staleTime: 60 * 1000,
+    // ВАЖНО: перебиваем глобальный placeholderData: keepPreviousData (queryClient.ts).
+    // При смене q меняется queryKey, и keepPreviousData отдал бы данные ПРЕДЫДУЩЕГО
+    // запроса как placeholder — накопитель закоммитил бы их как результат нового q
+    // (залипание чужой выдачи «витамин→Везилют»). Здесь хотим пусто→спиннер→свежее.
+    placeholderData: undefined,
   })
 }
