@@ -31,7 +31,7 @@ dotnet publish $proj -c Release -r win-x64 --self-contained true `
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish завершился с ошибкой." }
 
 # Переименовать лаунчер для брендинга (apphost-обёртку переименовывать безопасно —
-# имя главной dll в неё вшито при сборке). Запускать всё равно через Запустить.bat.
+# имя главной dll в неё вшито при сборке). Запускать всё равно через run.bat.
 $exe = Join-Path $out "CustomerDisplay.exe"
 if (Test-Path $exe) { Rename-Item $exe "Epharm-POSM.exe" -Force }
 
@@ -49,9 +49,9 @@ if (Test-Path $ConfigPath) {
   Write-Warning "Конфиг $ConfigPath не найден — впиши posm.json в dist\Epharm-POSM вручную перед отправкой!"
 }
 
-# README для получателя.
-$readme = Join-Path $root "App\scripts\README-для-разработчика.txt"
-if (Test-Path $readme) { Copy-Item $readme (Join-Path $out "ЧИТАТЬ-МЕНЯ.txt") -Force }
+# README для получателя (dev-гайд).
+$readme = Join-Path $root "App\scripts\README-distrib.md"
+if (Test-Path $readme) { Copy-Item $readme (Join-Path $out "README.md") -Force }
 
 # Лаунчер: подставляет путь к конфигу и запускает (с фоллбэком на старое имя exe).
 $bat = @'
@@ -61,7 +61,7 @@ cd /d "%~dp0"
 set "EPHARM_POSM_CONFIG=%~dp0posm.json"
 if exist "%~dp0Epharm-POSM.exe" ( start "" "Epharm-POSM.exe" ) else ( start "" "CustomerDisplay.exe" )
 '@
-Set-Content -Path (Join-Path $out "Запустить.bat") -Value $bat -Encoding Default
+Set-Content -Path (Join-Path $out "run.bat") -Value $bat -Encoding Default
 
 # Упаковать в ZIP.
 $zip = Join-Path $root ("dist\Epharm-POSM-v{0}-win-x64.zip" -f $Version)
@@ -71,5 +71,5 @@ $sizeMb = [math]::Round((Get-Item $zip).Length / 1MB, 1)
 
 Write-Host ""
 Write-Host ("ГОТОВО: {0}  ({1} МБ)" -f $zip, $sizeMb) -ForegroundColor Green
-Write-Host "Внутри: Epharm-POSM.exe + рантайм + libvlc, posm.json, Запустить.bat, ЧИТАТЬ-МЕНЯ.txt" -ForegroundColor Green
-Write-Host "Отправь этот ZIP. Получатель распаковывает целиком и жмёт Запустить.bat." -ForegroundColor Green
+Write-Host "Внутри: Epharm-POSM.exe + рантайм + libvlc, posm.json, run.bat, README.md" -ForegroundColor Green
+Write-Host "Отправь этот ZIP. Получатель распаковывает целиком и жмёт run.bat." -ForegroundColor Green

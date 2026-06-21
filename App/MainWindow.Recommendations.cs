@@ -66,16 +66,22 @@ namespace CustomerDisplay
                 _posmConfig = EpharmConfig.Load();
                 if (_posmConfig.Enabled)
                 {
-                    _epharm = new EpharmApiClient(_posmConfig);
+                    _epharm = new EpharmApiClient(_posmConfig, Log);
                     // Источник №1 сверки: гарантированная доставка чеков/результатов через outbox.
                     _outbox = new OfflineOutbox(_posmConfig.OutboxDbPath);
                     _saleReporter = new SaleReporter(_posmConfig, _outbox);
                     _flusher = new OutboxFlusher(_outbox, _epharm, _posmConfig.OutboxFlushSec);
-                    Log($"POSM включён: {_posmConfig.BackendBaseUrl}, аптека={_posmConfig.PharmacyId}");
+                    Log($"POSM включён: backend={_posmConfig.BackendBaseUrl}, аптека={_posmConfig.PharmacyId}");
                 }
                 else
                 {
-                    Log("POSM выключен (нет конфига / pharmacistId). Касса работает без рекомендаций.");
+                    // Частая причина «видео/рекомендации не работают»: Enabled=false в posm.json
+                    // ИЛИ пустой PharmacistId/PharmacyId. Пишем явно, чтобы было видно в логе.
+                    var why = string.IsNullOrWhiteSpace(_posmConfig.PharmacistId) ? "пустой PharmacistId"
+                        : string.IsNullOrWhiteSpace(_posmConfig.PharmacyId) ? "пустой PharmacyId"
+                        : "Enabled=false";
+                    Log($"POSM ВЫКЛЮЧЕН ({why}) → ни рекомендаций, ни видео из админки. " +
+                        "Проверь posm.json (Enabled, PharmacistId, PharmacyId).");
                 }
             }
             catch (Exception ex)

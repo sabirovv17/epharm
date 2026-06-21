@@ -17,6 +17,8 @@ namespace CustomerDisplay.Services
     public sealed class EpharmApiClient : IDisposable
     {
         private readonly HttpClient _http;
+        private readonly Action<string>? _log;
+        private readonly TimeSpan _recommendTimeout;
 
         private static readonly JsonSerializerOptions JsonOpts = new()
         {
@@ -24,28 +26,48 @@ namespace CustomerDisplay.Services
             PropertyNameCaseInsensitive = true,
         };
 
-        public EpharmApiClient(EpharmConfig cfg)
+        public EpharmApiClient(EpharmConfig cfg, Action<string>? log = null)
         {
+            _log = log;
+            // Рекомендации держим быстрыми (per-call CTS ниже), а ОБЩИЙ таймаут клиента — щедрый:
+            // плейлист/heartbeat/sales/cdp при 700мс часто таймаутили на чуть медленной сети
+            // (отсюда «видео не стягивается»). Теперь у них до 20с, а recommend ограничен отдельно.
+            _recommendTimeout = TimeSpan.FromMilliseconds(Math.Max(200, cfg.RecommendTimeoutMs));
             _http = new HttpClient
             {
                 BaseAddress = new Uri(cfg.BackendBaseUrl),
-                Timeout = TimeSpan.FromMilliseconds(cfg.RecommendTimeoutMs),
+                Timeout = TimeSpan.FromSeconds(20),
             };
             _http.DefaultRequestHeaders.Add("X-Posm-Key", cfg.DeviceKey);
         }
 
+        /// <summary>Человекочитаемая причина сбоя запроса для лога (таймаут / HTTP-код / сеть).</summary>
+        private static string Describe(Exception ex) => ex switch
+        {
+            TaskCanceledException or OperationCanceledException => "таймаут (нет ответа вовремя)",
+            HttpRequestException h => h.StatusCode is { } sc ? $"HTTP {(int)sc} {sc}" : $"сеть недоступна ({h.Message})",
+            _ => ex.Message,
+        };
+
         /// <summary>Корзина → рекомендации. null при любой ошибке/таймауте (popup не покажется).</summary>
         public async Task<RecommendResponse?> RecommendAsync(RecommendRequest req, CancellationToken ct = default)
         {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(_recommendTimeout);
             try
             {
-                using var resp = await _http.PostAsJsonAsync("/api/posm/recommend", req, JsonOpts, ct)
+                using var resp = await _http.PostAsJsonAsync("/api/posm/recommend", req, JsonOpts, cts.Token)
                     .ConfigureAwait(false);
-                if (!resp.IsSuccessStatusCode) return null;
-                return await resp.Content.ReadFromJsonAsync<RecommendResponse>(JsonOpts, ct).ConfigureAwait(false);
+                if (!resp.IsSuccessStatusCode)
+                {
+                    _log?.Invoke($"recommend: HTTP {(int)resp.StatusCode} {resp.StatusCode}");
+                    return null;
+                }
+                return await resp.Content.ReadFromJsonAsync<RecommendResponse>(JsonOpts, cts.Token).ConfigureAwait(false);
             }
-            catch
+            catch (Exception ex)
             {
+                _log?.Invoke($"recommend: {Describe(ex)}");
                 return null;
             }
         }
@@ -82,8 +104,9 @@ namespace CustomerDisplay.Services
                     url += "?pharmacyId=" + Uri.EscapeDataString(pharmacyId);
                 return await _http.GetFromJsonAsync<ActivePlaylist>(url, JsonOpts, ct).ConfigureAwait(false);
             }
-            catch
+            catch (Exception ex)
             {
+                _log?.Invoke($"плейлист: запрос не удался — {Describe(ex)}");
                 return null;
             }
         }
@@ -153,11 +176,13 @@ namespace CustomerDisplay.Services
                 if (!string.IsNullOrWhiteSpace(pharmacyId))
                     url += "&pharmacyId=" + Uri.EscapeDataString(pharmacyId);
                 using var resp = await _http.PostAsync(url, null, ct).ConfigureAwait(false);
+                if (!resp.IsSuccessStatusCode)
+                    _log?.Invoke($"heartbeat: HTTP {(int)resp.StatusCode} {resp.StatusCode}");
                 // тело ответа {ok, deviceId} нам не нужно — важен сам факт удара.
             }
-            catch
+            catch (Exception ex)
             {
-                // оффлайн/таймаут — пропускаем этот удар, касса работает дальше.
+                _log?.Invoke($"heartbeat: {Describe(ex)}");
             }
         }
 

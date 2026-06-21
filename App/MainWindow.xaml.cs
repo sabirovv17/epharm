@@ -70,8 +70,15 @@ private volatile int _switching = 0; // защита от двойного EndRe
         private MediaPlayer _mediaPlayer;
 
      
-private static readonly string LogPath =
-    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "customerdisplay.log");
+// Куда писать лог: env EPHARM_APP_LOG, иначе Рабочий стол\customerdisplay.log.
+// Путь печатается в баннере старта (LogStartupBanner), чтобы его было легко найти.
+private static readonly string LogPath = ResolveLogPath();
+private static string ResolveLogPath()
+{
+    var env = Environment.GetEnvironmentVariable("EPHARM_APP_LOG");
+    if (!string.IsNullOrWhiteSpace(env)) return env!;
+    return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "customerdisplay.log");
+}
 
 private static void Log(string msg)
 {
@@ -87,15 +94,12 @@ private const int ATTACH_PARENT_PROCESS = -1;
 [DllImport("kernel32.dll", SetLastError = true)]
 private static extern bool AttachConsole(int dwProcessId);
 
-// EPHARM_DEBUG=1 → подключаемся к консоли родительского процесса (окно, из которого
-// запущен dotnet run), чтобы Console.WriteLine из Log() печатался в это окно.
+// Подхватываем консоль РОДИТЕЛЬСКОГО процесса (терминал, из которого запущен dotnet run
+// или сам .exe), чтобы Console.WriteLine из Log() печатался прямо туда. Из проводника
+// (родителя-консоли нет) — тихий no-op, лог идёт только в файл. Безопасно вызывать всегда.
 private static void EnsureDebugConsole()
 {
-    var dbg = (Environment.GetEnvironmentVariable("EPHARM_DEBUG") ?? "").Trim().ToLowerInvariant();
-    if (dbg is "1" or "true" or "yes" or "on")
-    {
-        try { AttachConsole(ATTACH_PARENT_PROCESS); } catch { }
-    }
+    try { AttachConsole(ATTACH_PARENT_PROCESS); } catch { }
 }
 private CustomerDisplay.Services.Heartbeat? _heartbeat;
 
@@ -162,13 +166,15 @@ this.Focus();
                 return;
             }
 
-           MoveOrDebugWindow();
+            LogStartupBanner();
+            ApplyScreenMode();
 
             // Видео можно отключить (env EPHARM_NO_VIDEO=true). Нужно для VM без GPU, где VLC
             // не рендерит видео и подвешивает окно (Q перестаёт работать, т.к. видео-контрол
             // перехватывает клавиатуру). С отключённым видео левый экран чёрный, но чек +
             // рекомендации (D) + CDP (C) работают, и клавиши не перехватываются.
-            if (_posmConfig?.VideoEnabled != false)
+            // При _customerHidden (prod + 1 монитор) видео не запускаем — окна нет.
+            if (_posmConfig?.VideoEnabled != false && !_customerHidden)
             {
                 Core.Initialize();
                 // Аргументы VLC настраиваются (EPHARM_VLC_ARGS) — для перебора режимов вывода в VM.
@@ -269,46 +275,91 @@ private void PositionWindowToTopRightQuarter()
     this.Left = screenWidth - this.Width;
     this.Top = 0;
 }
-        // EPHARM_DEBUG=1 → маленькое оконце слева сверху на ОСНОВНОМ экране, НЕ поверх
-        // всех и с рамкой — чтобы рядом видеть терминал/лог кассы. Иначе — обычный
-        // полноэкранный киоск (Topmost) на клиентском мониторе.
-        private void MoveOrDebugWindow()
+        // Клиентский экран скрыт (prod + один монитор) — видео не запускаем, окно не показываем.
+        private bool _customerHidden;
+
+        // Итоговый режим экрана: EPHARM_DEBUG=1 принудительно → "dev"; иначе из конфига ScreenMode.
+        private string ResolveScreenMode()
         {
             var dbg = (Environment.GetEnvironmentVariable("EPHARM_DEBUG") ?? "").Trim().ToLowerInvariant();
-            if (dbg is "1" or "true" or "yes" or "on")
-            {
-                Topmost = false;
-                WindowStyle = WindowStyle.SingleBorderWindow;
-                ResizeMode = ResizeMode.CanResize;
-                WindowState = WindowState.Normal;
-                var wa = (Screen.PrimaryScreen ?? Screen.AllScreens[0]).WorkingArea;
-                Left = wa.Left + 8;
-                Top = wa.Top + 8;
-                Width = 460;
-                Height = 820;
-                CustomerScreen = Screen.PrimaryScreen ?? Screen.AllScreens[0];
-                Title = "Epharm POSM — DEBUG";
-                Log("DEBUG-окно: маленькое слева сверху, не поверх всех (EPHARM_DEBUG=1)");
-                return;
-            }
-            MoveToSecondScreenFullscreen();
+            if (dbg is "1" or "true" or "yes" or "on") return "dev";
+            var mode = (_posmConfig?.ScreenMode ?? "dev").Trim().ToLowerInvariant();
+            return mode == "prod" ? "prod" : "dev";
         }
 
-        private void MoveToSecondScreenFullscreen()
-{
-    var screens = Screen.AllScreens;
+        // Размещение клиентского экрана:
+        //   dev  — оконце 460×820 слева-сверху на основном мониторе (рядом виден терминал/лог);
+        //   prod — есть 2-й монитор → fullscreen-киоск на нём; один монитор → НЕ показываем вообще.
+        private void ApplyScreenMode()
+        {
+            var screens = Screen.AllScreens;
+            var mode = ResolveScreenMode();
 
-    // если есть второй монитор — используем его (это КЛИЕНТСКИЙ экран: промо + чек)
-    var target = screens.Length > 1 ? screens[1] : screens[0];
-    CustomerScreen = target; // запоминаем клиентский монитор — popup рекомендаций пойдёт на ДРУГОЙ
+            if (mode == "prod")
+            {
+                if (screens.Length >= 2)
+                {
+                    var target = screens[1]; // 2-й монитор = КЛИЕНТСКИЙ экран
+                    CustomerScreen = target; // popup рекомендаций пойдёт на ДРУГОЙ (фармацевта)
+                    Topmost = true;
+                    WindowStyle = WindowStyle.None;
+                    ResizeMode = ResizeMode.NoResize;
+                    Left = target.Bounds.Left;
+                    Top = target.Bounds.Top;
+                    Width = target.Bounds.Width;
+                    Height = target.Bounds.Height;
+                    WindowState = WindowState.Maximized;
+                    Log($"PROD: клиентский экран — монитор #2 ({target.Bounds.Width}x{target.Bounds.Height}).");
+                }
+                else
+                {
+                    // Один монитор: клиентский экран не показываем (только попап рекомендаций фармацевту).
+                    CustomerScreen = screens.Length > 0 ? screens[0] : Screen.PrimaryScreen;
+                    _customerHidden = true;
+                    Hide();
+                    Log("PROD: один монитор → клиентский экран СКРЫТ; работают только рекомендации фармацевту.");
+                }
+                return;
+            }
 
-    Left = target.Bounds.Left;
-    Top = target.Bounds.Top;
-    Width = target.Bounds.Width;
-    Height = target.Bounds.Height;
+            // dev: маленькое оконце слева-сверху, с рамкой, не поверх всех.
+            Topmost = false;
+            WindowStyle = WindowStyle.SingleBorderWindow;
+            ResizeMode = ResizeMode.CanResize;
+            WindowState = WindowState.Normal;
+            var wa = (Screen.PrimaryScreen ?? Screen.AllScreens[0]).WorkingArea;
+            Left = wa.Left + 8;
+            Top = wa.Top + 8;
+            Width = 460;
+            Height = 820;
+            CustomerScreen = Screen.PrimaryScreen ?? Screen.AllScreens[0];
+            Title = "Epharm POSM — DEV (окно слева)";
+            Log("DEV: оконце слева-сверху (рядом терминал/лог).");
+        }
 
-    WindowState = WindowState.Maximized;
-}
+        // Баннер старта: одним блоком в логе — куда пишется лог, какой backend/аптека, включён ли
+        // POSM, видео, режим экрана, период опроса плейлиста и какие логи кассы слушаем. Чтобы
+        // второй разработчик сразу видел всю картину «что и куда подключается».
+        private void LogStartupBanner()
+        {
+            Log("==================== Epharm POSM — старт ====================");
+            Log($"Лог приложения: {LogPath}");
+            Log($"Мониторов: {Screen.AllScreens.Length}; режим экрана: {ResolveScreenMode()}");
+            var c = _posmConfig;
+            if (c == null)
+            {
+                Log("Конфиг posm.json не загружен — POSM выключен.");
+            }
+            else
+            {
+                Log($"Backend: {c.BackendBaseUrl}");
+                Log($"Аптека: {(string.IsNullOrWhiteSpace(c.PharmacyId) ? "—" : c.PharmacyId)}; " +
+                    $"фармацевт: {(string.IsNullOrWhiteSpace(c.PharmacistId) ? "—" : "задан")}; " +
+                    $"POSM включён: {c.Enabled}; видео: {c.VideoEnabled}; опрос плейлиста: {c.PlaylistPollSec}с");
+                Log($"Логи кассы Стандарт-Н: {string.Join(" | ", _logPaths)}");
+            }
+            Log("============================================================");
+        }
 
 
         private void UpdateTotal()

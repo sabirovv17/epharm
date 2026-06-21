@@ -28,6 +28,20 @@ namespace CustomerDisplay.Config
         /// </summary>
         public int PlaylistPollSec { get; set; } = 120;
         /// <summary>
+        /// Размещение клиентского экрана (env EPHARM_SCREEN_MODE):
+        ///   "dev"  — оконце слева-сверху на основном мониторе (для разработки/тестов; рядом виден
+        ///            терминал и лог). ЗНАЧЕНИЕ ПО УМОЛЧАНИЮ, пока не финал.
+        ///   "prod" — боевой режим: ЕСТЬ 2-й монитор → полноэкранный киоск на 2-м (клиентский экран);
+        ///            ОДИН монитор → клиентский экран НЕ показываем вообще (работают только
+        ///            рекомендации фармацевту). EPHARM_DEBUG=1 принудительно даёт "dev".
+        /// </summary>
+        public string ScreenMode { get; set; } = "dev";
+        /// <summary>
+        /// Куда писать лог приложения (env EPHARM_APP_LOG). Пусто → Рабочий стол\customerdisplay.log.
+        /// Путь печатается в баннере старта, чтобы его было легко найти.
+        /// </summary>
+        public string AppLogPath { get; set; } = "";
+        /// <summary>
         /// Режим «только экран фармацевта» (env EPHARM_PHARMACIST_PREVIEW=true). Для скринов поверх
         /// Стандарт-Н: НЕ запускает киоск/видео/лог, сразу показывает одну карточку-рекомендацию
         /// (frameless, поверх всех окон), без авто-закрытия. Esc/закрытие → выход.
@@ -95,6 +109,9 @@ namespace CustomerDisplay.Config
             cfg.VlcArgs = Env("EPHARM_VLC_ARGS", cfg.VlcArgs);
             // Период опроса плейлиста (для пилота без правки файла).
             if (int.TryParse(Env("EPHARM_PLAYLIST_POLL_SEC", ""), out var pollSec)) cfg.PlaylistPollSec = pollSec;
+            // Режим размещения клиентского экрана (dev/prod) + путь лога — без правки файла.
+            cfg.ScreenMode = Env("EPHARM_SCREEN_MODE", cfg.ScreenMode);
+            cfg.AppLogPath = Env("EPHARM_APP_LOG", cfg.AppLogPath);
             // Режим превью экрана фармацевта (для скринов поверх Стандарт-Н).
             if (Env("EPHARM_PHARMACIST_PREVIEW", "false") == "true") cfg.PharmacistPreview = true;
             // Авто-обновление клиента.
