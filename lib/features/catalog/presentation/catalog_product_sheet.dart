@@ -417,7 +417,7 @@ class _QaSectionState extends State<_QaSection> {
 ///   2) «Сопутствующие» — кросс-селл без кампании (group=='crosssell_no_campaign'),
 ///      инфо-карточки (фото+название), НЕ кликабельны, без бонуса.
 ///   3) «Аналоги» — все замены, инфо-карточки, НЕ кликабельны, без бонуса.
-/// «Сопутствующие» и «Аналоги», если присутствуют обе, рисуются РЯДОМ (две колонки).
+/// Секции идут СТОПКОЙ одна под другой (Сопутствующие, затем Аналоги).
 /// Пустые секции скрыты (без лишних отступов). Грузится отдельным провайдером.
 class _RecommendationsSections extends ConsumerWidget {
   const _RecommendationsSections({required this.id});
@@ -437,31 +437,8 @@ class _RecommendationsSections extends ConsumerWidget {
         .where((r) => r.group == 'crosssell_no_campaign')
         .toList();
 
-    // Секции «Сопутствующие» (кросс-селл без кампании) и «Аналоги» (замены) —
-    // вторичные инфо-карточки без бонуса. Если присутствуют ОБЕ — ставим их
-    // РЯДОМ (две колонки в Row), иначе каждая идёт во всю ширину горизонтальным
-    // списком. «Можно допродать» (upsell, кликабельная, с бонусом) — всегда сверху.
-    _RecoSection buildCompanions({required bool vertical}) => _RecoSection(
-          title: 'Сопутствующие',
-          subtitle: 'Что предложить вместе',
-          icon: Icons.inventory_2_outlined,
-          items: companions,
-          clickable: false, // инфо: только фото+название
-          showBonus: false,
-          vertical: vertical,
-        );
-    _RecoSection buildAnalogs({required bool vertical}) => _RecoSection(
-          title: 'Аналоги',
-          subtitle: 'Чем можно заменить',
-          icon: Icons.swap_horiz_rounded,
-          items: recs.alternatives,
-          clickable: false, // инфо: только фото+название
-          showBonus: false,
-          vertical: vertical,
-        );
-    final hasBothSecondary =
-        companions.isNotEmpty && recs.alternatives.isNotEmpty;
-
+    // Секции идут стопкой: «Можно допродать» (если есть) → «Сопутствующие» →
+    // «Аналоги». Каждая — во всю ширину горизонтальным списком карточек.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -474,21 +451,24 @@ class _RecommendationsSections extends ConsumerWidget {
             clickable: true, // открывают карточку
             showBonus: true,
           ),
-        if (hasBothSecondary)
-          // Замена и кросс-селл рядом: две колонки, выровнены по верху; более
-          // короткая колонка просто заканчивается выше (без обрезки/растягивания).
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: buildCompanions(vertical: true)),
-              const SizedBox(width: 12),
-              Expanded(child: buildAnalogs(vertical: true)),
-            ],
-          )
-        else ...[
-          if (companions.isNotEmpty) buildCompanions(vertical: false),
-          if (recs.alternatives.isNotEmpty) buildAnalogs(vertical: false),
-        ],
+        if (companions.isNotEmpty)
+          _RecoSection(
+            title: 'Сопутствующие',
+            subtitle: 'Что предложить вместе',
+            icon: Icons.inventory_2_outlined,
+            items: companions,
+            clickable: false, // инфо: только фото+название
+            showBonus: false,
+          ),
+        if (recs.alternatives.isNotEmpty)
+          _RecoSection(
+            title: 'Аналоги',
+            subtitle: '', // подзаголовок «Чем можно заменить» убран по просьбе
+            icon: Icons.swap_horiz_rounded,
+            items: recs.alternatives,
+            clickable: false, // инфо: только фото+название
+            showBonus: false,
+          ),
       ],
     );
   }
@@ -502,7 +482,6 @@ class _RecoSection extends StatelessWidget {
     required this.items,
     required this.clickable,
     required this.showBonus,
-    this.vertical = false,
   });
 
   final String title;
@@ -515,10 +494,6 @@ class _RecoSection extends StatelessWidget {
 
   /// Показывать ли бонус-бейдж в карточке (только для секции «Можно допродать»).
   final bool showBonus;
-
-  /// true — секция стоит в узкой колонке рядом с другой: карточки идут вертикально
-  /// на всю ширину колонки (а не горизонтальным скроллом фиксированной высоты).
-  final bool vertical;
 
   @override
   Widget build(BuildContext context) {
@@ -533,50 +508,35 @@ class _RecoSection extends StatelessWidget {
             _SectionTitle(title),
           ],
         ),
-        const SizedBox(height: 2),
-        Text(
-          subtitle,
-          style: const TextStyle(
-            fontFamily: 'Manrope',
-            fontFamilyFallback: ['Roboto', 'sans-serif'],
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: AppColors.ink500,
-          ),
-        ),
-        const SizedBox(height: 10),
-        if (vertical)
-          // Узкая колонка (секция рядом с другой): карточки вертикально, на всю
-          // ширину колонки. Высоту подбирает сам Column — без обрезки по 290.
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (var i = 0; i < items.length; i++) ...[
-                if (i > 0) const SizedBox(height: 12),
-                _RecoCard(
-                  item: items[i],
-                  clickable: clickable,
-                  showBonus: showBonus,
-                  fullWidth: true,
-                ),
-              ],
-            ],
-          )
-        else
-          SizedBox(
-            height: 290,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: EdgeInsets.zero,
-              itemCount: items.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
-              itemBuilder: (_, i) => _RecoCard(
-                item: items[i],
-                clickable: clickable,
-                showBonus: showBonus,
-              ),
+        // Подзаголовок — только если задан (у «Аналогов» убран).
+        if (subtitle.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style: const TextStyle(
+              fontFamily: 'Manrope',
+              fontFamilyFallback: ['Roboto', 'sans-serif'],
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AppColors.ink500,
             ),
           ),
+        ],
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 290,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.zero,
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (_, i) => _RecoCard(
+              item: items[i],
+              clickable: clickable,
+              showBonus: showBonus,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -587,15 +547,10 @@ class _RecoCard extends StatelessWidget {
     required this.item,
     required this.clickable,
     required this.showBonus,
-    this.fullWidth = false,
   });
   final CatalogRecommendation item;
   final bool clickable;
   final bool showBonus;
-
-  /// true — карточка растягивается на всю ширину родителя (режим вертикальной
-  /// колонки), иначе фиксированные 132px (горизонтальный список).
-  final bool fullWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -666,7 +621,7 @@ class _RecoCard extends StatelessWidget {
     );
 
     return SizedBox(
-      width: fullWidth ? double.infinity : 132,
+      width: 132,
       // Некликабельные секции (сопутствующие/аналоги) — это инфо-карточки
       // (фото+название): без ripple/InkWell, чтобы не намекать на действие.
       child: onTap == null
