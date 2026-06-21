@@ -56,16 +56,7 @@ private void RecalcTotal()
     TbTotal.Text = total.ToString("#,0.##") + " тг";
 
 }
-private readonly List<string> _playlist = new()
-{
-    @"C:\Users\Alx\Desktop\CustomerDisplay\promo.mp4",
-    @"C:\Users\Alx\Desktop\CustomerDisplay\promo.mp4",
-    @"C:\Users\Alx\Desktop\CustomerDisplay\promo.mp4",
-};
-
-private int _index = -1;
 private Media? _currentMedia;
-private volatile int _switching = 0; // защита от двойного EndReached
         private LibVLC _libVLC;
         private MediaPlayer _mediaPlayer;
 
@@ -194,16 +185,16 @@ this.Focus();
                 _mediaPlayer = new MediaPlayer(_libVLC);
                 VideoView.MediaPlayer = _mediaPlayer;
 
-                var videoPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "promo.mp4");
-                _videoSources = new System.Collections.Generic.List<string> { videoPath };
+                // Видео берём ТОЛЬКО из админки (активный плейлист с backend). Локального
+                // promo.mp4 с Рабочего стола больше нет: пусто/оффлайн → экран без видео,
+                // пока админка не отдаст плейлист (поллинг подхватит позже).
+                _videoSources = new System.Collections.Generic.List<string>();
                 _videoIndex = -1;
                 _mediaPlayer.EndReached += (_, __) =>
                     System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(PlayNextVideo));
-                PlayNextVideo();
                 StartVideoWatchdog(); // авто-перезапуск при зависании (софт-декод в VM)
 
-                // подменяем локальное видео плейлистом из админ-панели (если backend доступен)
+                // Тянем активный плейлист из админ-панели (и далее периодически опрашиваем).
                 _ = LoadBackendPlaylistAsync();
                 // и далее периодически опрашиваем — смена плейлиста в админке подхватывается
                 // без перезапуска кассы (HTTP-поллинг).
@@ -224,47 +215,6 @@ StartLogReader();
             StartHeartbeatPolling();
 
         }
-
-private void NextVideo()
-{
-    if (System.Threading.Interlocked.Exchange(ref _switching, 1) == 1)
-        return;
-
-    Dispatcher.BeginInvoke(new Action(() =>
-    {
-        try
-        {
-            if (_playlist.Count == 0) return;
-
-            // максимум N попыток найти существующий файл, чтобы не уйти в бесконечную рекурсию
-            int tries = _playlist.Count;
-
-            while (tries-- > 0)
-            {
-                _index = (_index + 1) % _playlist.Count;
-                var path = _playlist[_index];
-
-                if (!File.Exists(path))
-                    continue; // файла нет — берем следующий
-
-                var newMedia = new Media(_libVLC!, new Uri(path));
-
-_mediaPlayer!.Play(newMedia);
-
-                _currentMedia?.Dispose();
-                _currentMedia = newMedia;
-                return;
-            }
-
-            // Если ни одного файла не нашли
-            _mediaPlayer?.Stop();
-        }
-        finally
-        {
-            System.Threading.Interlocked.Exchange(ref _switching, 0);
-        }
-    }));
-}
 
 private void PositionWindowToTopRightQuarter()
 {
