@@ -1,5 +1,6 @@
 package kz.epharm.posm.service
 
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import java.time.Instant
@@ -21,6 +22,7 @@ class DevicePresenceService(
     @Value("\${app.posm.heartbeat-ttl-seconds:90}") private val ttlSeconds: Long,
 ) {
     private val seen = ConcurrentHashMap<String, Presence>()
+    private val log = LoggerFactory.getLogger(DevicePresenceService::class.java)
 
     data class Presence(
         val deviceId: String,
@@ -28,15 +30,25 @@ class DevicePresenceService(
         val lastSeen: Instant,
     )
 
-    /** Зафиксировать пульс устройства. */
+    /** Зафиксировать пульс устройства. Логируем INFO только на ПОДКЛЮЧЕНИЕ (новый/после оффлайна),
+     *  чтобы не спамить каждые 60с, но было видно «касса подключилась» на бэкенде. */
     fun heartbeat(deviceId: String, pharmacyId: String?, now: Instant = Instant.now()) {
+        val prev = seen[deviceId]
+        val wasOffline = prev == null || prev.lastSeen.isBefore(now.minusSeconds(ttlSeconds))
         seen[deviceId] = Presence(deviceId, pharmacyId?.takeIf { it.isNotBlank() }, now)
+        if (wasOffline) {
+            log.info("POSM: касса ПОДКЛЮЧИЛАСЬ — deviceId={}, аптека={}", deviceId, pharmacyId ?: "—")
+        }
     }
 
-    /** Живые устройства (пульс не старше TTL). Заодно чистим протухшие записи. */
+    /** Живые устройства (пульс не старше TTL). Заодно чистим протухшие записи (лог об отключении). */
     fun connected(now: Instant = Instant.now()): List<Presence> {
         val cutoff = now.minusSeconds(ttlSeconds)
-        seen.entries.removeIf { it.value.lastSeen.isBefore(cutoff) }
+        seen.entries.removeIf { e ->
+            val expired = e.value.lastSeen.isBefore(cutoff)
+            if (expired) log.info("POSM: касса ОТКЛЮЧИЛАСЬ (нет пульса) — deviceId={}", e.value.deviceId)
+            expired
+        }
         return seen.values.sortedBy { it.deviceId }
     }
 
