@@ -3770,3 +3770,30 @@ findAll, путь /sales не на barcode, C# затирание barcode null'�
 `PromoPage.test.tsx` поставлен минимальный in-memory стаб, иначе тесты персиста падали.
 Все 364 фронт-теста зелёные, build/tsc/eslint чисто. Деплой НЕ делал (прод-сервер
 недоступен на момент задачи) — катить вместе со следующим фронт-деплоем.
+
+## 2026-06-22 — ИНЦИДЕНТ: Caddy в краш-цикле (ambiguous site) + деплой переключателя промо
+
+**Симптом:** публичный `https://epharm.78-140-246-238.sslip.io` не отвечал (timeout). Все
+контейнеры `healthy`, кроме `epharm-caddy` — `Restarting`. Лог Caddy:
+`Error: adapting config: ambiguous site definition: epharm.78-140-246-238.sslip.io`.
+
+**Причина:** в `.env.prod` (правка 16.06) `API_DOMAIN`, `ADMIN_DOMAIN`, `S3_DOMAIN` сведены
+к ОДНОМУ хосту (sslip), а `Caddyfile` остался с тремя отдельными site-блоками на этот
+адрес → Caddy не адаптирует конфиг и падает в цикле.
+
+**Фикс:** объединил три блока в ОДИН (`{$ADMIN_DOMAIN}`) с маршрутизацией по путям:
+`handle_path /s3/*`→minio:9000 (срезает префикс `/s3`, т.к. `S3_PUBLIC_URL=.../s3`),
+`handle /api/*`→backend:8080 (лимит тела 64MB), catch-all `handle`→frontend:80. Бэкап
+прод-файла → `Caddyfile.bak.20260622`. Валидация `caddy validate --adapter caddyfile`
+(в одноразовом `docker run` с подставленными доменами) ДО рестарта → `Valid configuration`.
+Рестарт: `docker compose --env-file .env.prod -f docker-compose.prod.yml restart caddy`.
+Репозиторный `/Caddyfile` приведён в соответствие (контракт деплоя — архив из git).
+
+**Урок:** при правке доменов в `.env.prod` СРАЗУ синхронить `Caddyfile`. Несколько site-блоков
+на один адрес = краш. Если домены позже разведут на разные хосты — вернуть три блока.
+
+**Деплой:** после починки Caddy залит фронт с переключателем сетка↔список (коммит репо
+с этой фичей). `git archive HEAD admin-panel/frontend` → scp → `up -d --build frontend`
+(compose пересоздал и backend из неизменного исходника — поведение то же). Проверено на
+проде: health 200, admin / 200, `/s3/*` 200; задеплоенный чанк `PromoPage-*.js` содержит
+маркеры `epharm.promoView`/`promo-list`/`promo-row-`.

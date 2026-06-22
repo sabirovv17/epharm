@@ -6,17 +6,33 @@
 	email {$ACME_EMAIL}
 }
 
-# API для касс (/api/posm) и телефонов (/api/mobile) + сама админка тоже бьёт сюда при желании.
-{$API_DOMAIN} {
-	reverse_proxy backend:8080
+# ВАЖНО: на этом этапе API/ADMIN/S3 — ОДИН публичный хост (sslip). Поэтому всё
+# обслуживается ОДНИМ site-блоком с маршрутизацией по путям. Раздельные блоки на
+# один и тот же адрес → Caddy: «ambiguous site definition» и крах (инцидент 22.06.2026).
+# Если позже домены РАЗВЕДУТ на разные хосты (api./admin./s3.epharm.kz) — верни
+# три отдельных блока по {$API_DOMAIN}/{$ADMIN_DOMAIN}/{$S3_DOMAIN}.
+{$ADMIN_DOMAIN} {
+	# Загрузки (фото чеков, слайды) идут через /api на backend — поднимаем лимит тела.
 	request_body {
 		max_size 64MB
 	}
-}
 
-# Веб-админка (статика + проксирование /api на backend делает её nginx).
-{$ADMIN_DOMAIN} {
-	reverse_proxy frontend:80
+	# Публичный S3: фото чеков и слайды. App генерит ссылки как
+	# https://<host>/s3/<bucket>/<key> (S3_PUBLIC_URL=.../s3). handle_path срезает
+	# префикс /s3 → MinIO path-style видит /<bucket>/<key>.
+	handle_path /s3/* {
+		reverse_proxy minio:9000
+	}
+
+	# API для касс (/api/posm), телефонов (/api/mobile) и самой админки.
+	handle /api/* {
+		reverse_proxy backend:8080
+	}
+
+	# Всё остальное — веб-админка (SPA, статика из nginx фронта).
+	handle {
+		reverse_proxy frontend:80
+	}
 }
 
 # ── Внутренний доступ к админке через корпоративный VPN / сеть INKAR ──────────
@@ -32,10 +48,4 @@
 # getaddrinfo не видит inkar.kz, нужна строка в /etc/hosts: «10.10.1.76 inkpim.inkar.kz».
 http://{$INTERNAL_DOMAIN:inkpim.inkar.kz} {
 	reverse_proxy frontend:80
-}
-
-# Публичный S3: фото чеков и слайды (анонимный download из bucket epharm-receipts,
-# path-style → https://s3.epharm.kz/epharm-receipts/<key>).
-{$S3_DOMAIN} {
-	reverse_proxy minio:9000
 }
