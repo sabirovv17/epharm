@@ -823,6 +823,18 @@ export const ru: Dict = {
 
   // ── Promo (список + create-модалка) ─────────────────────────────────────
   'pm.newCampaign': 'Новая кампания',
+  // Переключатель режима просмотра (сетка ↔ список)
+  'pm.viewGrid': 'Сетка',
+  'pm.viewList': 'Список',
+  'pm.viewMode': 'Режим просмотра',
+  // Заголовки колонок в режиме «Список»
+  'pm.colCampaign': 'Кампания',
+  'pm.colStatus': 'Статус',
+  'pm.colPeriod': 'Период',
+  'pm.colPharm': 'Аптеки',
+  'pm.colBudget': 'Бюджет',
+  'pm.colActions': 'Действия',
+  'pm.noPhoto': 'Без фото',
   'pm.refreshPrices': 'Обновить цены',
   'pm.refreshing': 'Обновляю…',
   'pm.pricesRefreshed': 'Цены обновлены: акций {p}, товаров {n}',
@@ -1848,6 +1860,16 @@ export const kk: Dict = {
 
   // ── Promo ──────────────────────────────────────────────────────────────
   'pm.newCampaign': 'Жаңа науқан',
+  'pm.viewGrid': 'Тор',
+  'pm.viewList': 'Тізім',
+  'pm.viewMode': 'Көру режимі',
+  'pm.colCampaign': 'Науқан',
+  'pm.colStatus': 'Күйі',
+  'pm.colPeriod': 'Кезең',
+  'pm.colPharm': 'Дәріханалар',
+  'pm.colBudget': 'Бюджет',
+  'pm.colActions': 'Әрекеттер',
+  'pm.noPhoto': 'Фотосыз',
   'pm.refreshPrices': 'Бағаны жаңарту',
   'pm.refreshing': 'Жаңартудамын…',
   'pm.pricesRefreshed': 'Бағалар жаңартылды: науқан {p}, тауар {n}',

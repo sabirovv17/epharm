@@ -451,3 +451,20 @@ export const IconReceipt = (p: IconProps) => (
     <path d="M8 8h8M8 12h8M8 16h5" />
   </Ic>
 )
+
+// Переключатель режима просмотра кампаний (сетка/список).
+export const IconGrid = (p: IconProps) => (
+  <Ic {...p}>
+    <rect x="3" y="3" width="7" height="7" rx="1.5" />
+    <rect x="14" y="3" width="7" height="7" rx="1.5" />
+    <rect x="3" y="14" width="7" height="7" rx="1.5" />
+    <rect x="14" y="14" width="7" height="7" rx="1.5" />
+  </Ic>
+)
+
+export const IconList = (p: IconProps) => (
+  <Ic {...p}>
+    <path d="M8 6h13M8 12h13M8 18h13" />
+    <path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01" />
+  </Ic>
+)

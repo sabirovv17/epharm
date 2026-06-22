@@ -1,7 +1,7 @@
 // Promo — управление промо-кампаниями брендов.
 // Этап 3.3: данные приходят из backend через usePromos/useCreatePromo/useUpdatePromo/useArchivePromo.
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Button,
@@ -19,7 +19,9 @@ import {
   IconArchive,
   IconArrowUp,
   IconFinance,
+  IconGrid,
   IconLift,
+  IconList,
   IconPause,
   IconPlay,
   IconPlus,
@@ -29,6 +31,7 @@ import {
 import { formatKzt, type Promo } from '@/mocks/fixtures'
 import type { PromoStatus } from '@/lib/api-types'
 import { describeError } from '@/lib/describeError'
+import { proxyMedia } from '@/lib/media'
 import {
   useArchivePromo,
   useCreatePromo,
@@ -41,6 +44,26 @@ import { useT } from '@/i18n'
 import { CreatePromoModal } from './CreatePromoModal'
 
 type StatusFilter = 'all' | PromoStatus
+
+// Режим просмотра кампаний: «сетка» (карточки с фото товара 3:4) ↔ «список» (таблица).
+// Выбор запоминаем в localStorage, чтобы не сбрасывался между визитами.
+type ViewMode = 'grid' | 'list'
+const VIEW_MODE_KEY = 'epharm.promoView'
+
+function readViewMode(): ViewMode {
+  try {
+    return localStorage.getItem(VIEW_MODE_KEY) === 'list' ? 'list' : 'grid'
+  } catch {
+    return 'grid'
+  }
+}
+
+// Эффективное фото товара для превью: ручной override → снимок из Medusa.
+// Возвращаем уже прогнанный через image-прокси URL либо null (тогда — градиент-заглушка).
+function promoPhoto(promo: Promo): string | null {
+  const raw = promo.overrideImage?.trim() || promo.productImage?.trim() || ''
+  return raw ? proxyMedia(raw) : null
+}
 
 export default function PromoPage() {
   const toast = useToast()
@@ -78,6 +101,15 @@ export default function PromoPage() {
   const [q, setQ] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [createOpen, setCreateOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<ViewMode>(readViewMode)
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(VIEW_MODE_KEY, viewMode)
+    } catch {
+      /* localStorage недоступен (приватный режим) — режим просто не запомнится */
+    }
+  }, [viewMode])
 
   const filtered = useMemo<Promo[]>(() => {
     return promos.filter((p) => {
@@ -137,6 +169,7 @@ export default function PromoPage() {
           // Bug M fix: убрал «Экспорт» — onClick не был подключён, кнопка выглядела
           // сломанной. Вернётся в Этапе 7 (Operational polish) с реальной CSV-выгрузкой.
           <div className="flex items-center gap-2">
+            <ViewModeToggle mode={viewMode} onChange={setViewMode} />
             <Button
               variant="ghost"
               size="md"
@@ -245,10 +278,18 @@ export default function PromoPage() {
                 </Button>
               }
             />
+          ) : viewMode === 'list' ? (
+            <PromoListView
+              promos={filtered}
+              onOpen={(p) => navigate(`/promo/${p.id}`)}
+              onToggle={handleToggle}
+              onArchive={handleArchive}
+              onRestore={handleRestore}
+            />
           ) : (
             <div
               className="grid gap-4"
-              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}
+              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}
               data-testid="promo-grid"
             >
               {filtered.map((p) => (
@@ -302,6 +343,7 @@ interface PromoCardProps {
 function PromoCard({ promo, onOpen, onToggle, onArchive, onRestore }: PromoCardProps) {
   const t = useT()
   const cover = promo.cover || '#6F665B'
+  const photo = promoPhoto(promo)
   const isArchive = promo.status === 'archived'
 
   // Outer = div role="button" (НЕ настоящий <button>) — иначе nested-button
@@ -329,18 +371,30 @@ function PromoCard({ promo, onOpen, onToggle, onArchive, onRestore }: PromoCardP
       data-testid={`promo-card-${promo.id}`}
       aria-label={`${t('pm.openDetails')} — ${promo.title}`}
     >
+      {/* Превью товара в формате 3:4: фото из Medusa (через image-прокси), либо
+          фирменный градиент-заглушка, если фото нет. Поверх — статус и название. */}
       <div
-        className="relative h-28"
-        style={{ background: `linear-gradient(135deg, ${cover}, ${cover}cc)` }}
+        className="relative aspect-[3/4] w-full overflow-hidden bg-paper-input"
+        style={photo ? undefined : { background: `linear-gradient(135deg, ${cover}, ${cover}cc)` }}
       >
+        {photo && (
+          <img
+            src={photo}
+            alt={promo.productName || promo.title}
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        )}
+        {/* Скрим внизу — чтобы белый текст названия читался на любом фото. */}
+        <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/70 to-transparent" />
         <div className="absolute left-3 top-3">
           <StatusChip status={promo.status} />
         </div>
-        <div className="absolute bottom-3 left-4 text-white">
+        <div className="absolute bottom-3 left-4 right-4 text-white">
           <div className="text-[11px] font-bold uppercase tracking-[0.06em] opacity-80">
             {promo.brand}
           </div>
-          <div className="max-w-[240px] truncate text-[16px] font-extrabold leading-tight">
+          <div className="truncate text-[15px] font-extrabold leading-tight drop-shadow">
             {promo.title}
           </div>
         </div>
@@ -399,5 +453,210 @@ function PromoCard({ promo, onOpen, onToggle, onArchive, onRestore }: PromoCardP
         </div>
       </div>
     </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ViewModeToggle — сегментированный переключатель «сетка ↔ список»
+// ─────────────────────────────────────────────────────────────────────────
+
+interface ViewModeToggleProps {
+  mode: ViewMode
+  onChange: (mode: ViewMode) => void
+}
+
+function ViewModeToggle({ mode, onChange }: ViewModeToggleProps) {
+  const t = useT()
+  const items: { value: ViewMode; label: string; icon: React.ReactNode }[] = [
+    { value: 'grid', label: t('pm.viewGrid'), icon: <IconGrid size={16} /> },
+    { value: 'list', label: t('pm.viewList'), icon: <IconList size={16} /> },
+  ]
+  return (
+    <div
+      role="group"
+      aria-label={t('pm.viewMode')}
+      className="hairline inline-flex items-center gap-0.5 rounded-lg border bg-paper-input p-0.5"
+    >
+      {items.map((it) => {
+        const active = mode === it.value
+        return (
+          <button
+            key={it.value}
+            type="button"
+            onClick={() => onChange(it.value)}
+            aria-pressed={active}
+            title={it.label}
+            data-testid={`promo-view-${it.value}`}
+            className={
+              active
+                ? 'flex h-8 items-center gap-1.5 rounded-md bg-white px-2.5 text-[12px] font-bold text-ink-900 shadow-sm'
+                : 'flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[12px] font-bold text-ink-500 hover:text-ink-700'
+            }
+          >
+            {it.icon}
+            <span className="hidden sm:inline">{it.label}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// PromoListView — табличный режим (как реестр контрактов)
+// ─────────────────────────────────────────────────────────────────────────
+
+interface PromoListViewProps {
+  promos: Promo[]
+  onOpen: (p: Promo) => void
+  onToggle: (p: Promo) => void
+  onArchive: (p: Promo) => void
+  onRestore: (p: Promo) => void
+}
+
+function PromoListView({ promos, onOpen, onToggle, onArchive, onRestore }: PromoListViewProps) {
+  const t = useT()
+  return (
+    <div className="hairline overflow-x-auto rounded-lg border" data-testid="promo-list">
+      <table className="w-full min-w-[760px] border-collapse text-left">
+        <thead>
+          <tr className="hairline border-b bg-paper-input text-[11px] font-bold uppercase tracking-[0.04em] text-ink-500">
+            <th className="px-4 py-2.5 font-bold">{t('pm.colCampaign')}</th>
+            <th className="px-4 py-2.5 font-bold">{t('pm.colStatus')}</th>
+            <th className="px-4 py-2.5 font-bold">{t('pm.colPeriod')}</th>
+            <th className="px-4 py-2.5 text-right font-bold">{t('pm.colPharm')}</th>
+            <th className="px-4 py-2.5 font-bold">{t('pm.colBudget')}</th>
+            <th className="px-4 py-2.5 text-right font-bold">{t('pm.colActions')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {promos.map((p) => (
+            <PromoRow
+              key={p.id}
+              promo={p}
+              onOpen={() => onOpen(p)}
+              onToggle={() => onToggle(p)}
+              onArchive={() => onArchive(p)}
+              onRestore={() => onRestore(p)}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+interface PromoRowProps {
+  promo: Promo
+  onOpen: () => void
+  onToggle: () => void
+  onArchive: () => void
+  onRestore: () => void
+}
+
+function PromoRow({ promo, onOpen, onToggle, onArchive, onRestore }: PromoRowProps) {
+  const t = useT()
+  const photo = promoPhoto(promo)
+  const cover = promo.cover || '#6F665B'
+  const isArchive = promo.status === 'archived'
+  const stop = (fn: () => void) => (e: React.MouseEvent) => {
+    e.stopPropagation()
+    fn()
+  }
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onOpen()
+    }
+  }
+  return (
+    <tr
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={onKeyDown}
+      className="hairline cursor-pointer border-b transition last:border-0 hover:bg-paper-hover focus:outline-none focus-visible:bg-paper-hover"
+      data-testid={`promo-row-${promo.id}`}
+      aria-label={`${t('pm.openDetails')} — ${promo.title}`}
+    >
+      {/* Кампания: мини-превью товара 3:4 + название + бренд */}
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-3">
+          <div
+            className="hairline h-12 w-9 flex-none overflow-hidden rounded-md border bg-paper-input"
+            style={photo ? undefined : { background: cover }}
+          >
+            {photo && (
+              <img
+                src={photo}
+                alt={promo.productName || promo.title}
+                loading="lazy"
+                className="h-full w-full object-cover"
+              />
+            )}
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-[13px] font-bold text-ink-900">{promo.title}</div>
+            <div className="truncate text-[11px] font-semibold uppercase tracking-[0.04em] text-ink-500">
+              {promo.brand || '—'}
+            </div>
+          </div>
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        <StatusChip status={promo.status} />
+      </td>
+      <td className="px-4 py-3 text-[12px] font-semibold text-ink-700">{promo.period || '—'}</td>
+      <td className="num px-4 py-3 text-right text-[12px] font-bold text-ink-700">
+        {promo.pharmacies}
+      </td>
+      <td className="px-4 py-3">
+        <div className="min-w-[150px]">
+          <div className="mb-1 flex items-center justify-between gap-2 text-[12px] font-bold">
+            <span className="num text-ink-900">
+              {formatKzt(promo.spent)} / {formatKzt(promo.budget)}
+            </span>
+          </div>
+          <ProgressBar value={promo.spent} max={Math.max(promo.budget, 1)} />
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex items-center justify-end gap-1">
+          {isArchive ? (
+            <button
+              type="button"
+              onClick={stop(onRestore)}
+              title={t('pm.restore')}
+              aria-label={t('pm.restore')}
+              className="flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-bold text-ink-500 hover:bg-paper-hover hover:text-brand-green-700"
+            >
+              <IconRefresh size={12} />
+              {t('pm.restore')}
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={stop(onToggle)}
+                title={promo.status === 'active' ? t('pm.pause') : t('pm.resume')}
+                aria-label={promo.status === 'active' ? t('pm.pause') : t('pm.resume')}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-ink-500 hover:bg-paper-hover hover:text-ink-900"
+              >
+                {promo.status === 'active' ? <IconPause size={14} /> : <IconPlay size={14} />}
+              </button>
+              <button
+                type="button"
+                onClick={stop(onArchive)}
+                title={t('pd.archive')}
+                aria-label={t('pm.archive')}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-ink-500 hover:bg-paper-hover hover:text-accent-danger"
+              >
+                <IconArchive size={14} />
+              </button>
+            </>
+          )}
+        </div>
+      </td>
+    </tr>
   )
 }

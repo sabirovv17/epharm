@@ -11,6 +11,24 @@ import { ToastHost } from '@/ui'
 import type { PromoDto } from '@/lib/api-types'
 import PromoPage from './PromoPage'
 
+// В этой jsdom-среде localStorage по умолчанию недоступен (как в store.test.ts).
+// Промо-страница хранит режим просмотра в localStorage — ставим минимальный
+// in-memory стаб, чтобы тесты персиста были осмысленными.
+if (typeof globalThis.localStorage === 'undefined') {
+  const mem = new Map<string, string>()
+  const stub: Storage = {
+    get length() {
+      return mem.size
+    },
+    clear: () => mem.clear(),
+    getItem: (k) => (mem.has(k) ? (mem.get(k) as string) : null),
+    key: (i) => Array.from(mem.keys())[i] ?? null,
+    removeItem: (k) => void mem.delete(k),
+    setItem: (k, v) => void mem.set(k, String(v)),
+  }
+  Object.defineProperty(globalThis, 'localStorage', { value: stub, configurable: true })
+}
+
 // Пробник текущего пути — карточка теперь навигирует на /promo/:id, а не
 // открывает модалку. Проверяем переход по pathname.
 function LocationProbe() {
@@ -83,6 +101,9 @@ function setPromosResponse(promos: PromoDto[] = []) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // Режим просмотра промо хранится в localStorage — сбрасываем, чтобы тесты
+  // стартовали в дефолтной «сетке» и не зависели от порядка выполнения.
+  localStorage.clear()
   setPromosResponse([])
   promoHooks.useCreatePromo.mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
   promoHooks.useUpdatePromo.mockReturnValue({ mutate: vi.fn(), isPending: false })
@@ -427,6 +448,93 @@ describe('PromoPage — Create modal (товарная акция)', () => {
     await user.click(screen.getByText('Панкраген 0,2г капс. №60'))
     await user.click(screen.getByRole('button', { name: /Создать черновик/ }))
     expect(await screen.findByText(/уже привязан к другой активной кампании/)).toBeInTheDocument()
+  })
+})
+
+describe('PromoPage — переключатель режима просмотра (сетка ↔ список)', () => {
+  it('по умолчанию режим «сетка» (карточки)', () => {
+    setPromosResponse([mkPromo({ id: 'pr_1', title: 'Кампания A' })])
+    renderPromo()
+    expect(screen.getByTestId('promo-grid')).toBeInTheDocument()
+    expect(screen.queryByTestId('promo-list')).not.toBeInTheDocument()
+    // aria-pressed на кнопке «Сетка»
+    expect(screen.getByTestId('promo-view-grid')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('promo-view-list')).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('клик «Список» переключает на таблицу со строками', async () => {
+    setPromosResponse([
+      mkPromo({ id: 'pr_1', title: 'Кампания A' }),
+      mkPromo({ id: 'pr_2', title: 'Кампания B' }),
+    ])
+    const user = userEvent.setup()
+    renderPromo()
+    await user.click(screen.getByTestId('promo-view-list'))
+    expect(screen.getByTestId('promo-list')).toBeInTheDocument()
+    expect(screen.queryByTestId('promo-grid')).not.toBeInTheDocument()
+    expect(screen.getByTestId('promo-row-pr_1')).toBeInTheDocument()
+    expect(screen.getByTestId('promo-row-pr_2')).toBeInTheDocument()
+    // Заголовки колонок таблицы
+    expect(screen.getByRole('columnheader', { name: 'Кампания' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Статус' })).toBeInTheDocument()
+  })
+
+  it('выбор режима запоминается в localStorage', async () => {
+    setPromosResponse([mkPromo({ id: 'pr_1' })])
+    const user = userEvent.setup()
+    renderPromo()
+    await user.click(screen.getByTestId('promo-view-list'))
+    expect(localStorage.getItem('epharm.promoView')).toBe('list')
+  })
+
+  it('режим из localStorage восстанавливается при загрузке', () => {
+    localStorage.setItem('epharm.promoView', 'list')
+    setPromosResponse([mkPromo({ id: 'pr_1' })])
+    renderPromo()
+    expect(screen.getByTestId('promo-list')).toBeInTheDocument()
+    expect(screen.getByTestId('promo-view-list')).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('строка списка: клик навигирует на /promo/:id', async () => {
+    localStorage.setItem('epharm.promoView', 'list')
+    setPromosResponse([mkPromo({ id: 'pr_row', title: 'Строка' })])
+    const user = userEvent.setup()
+    renderPromo()
+    await user.click(screen.getByTestId('promo-row-pr_row'))
+    expect(screen.getByTestId('location-probe')).toHaveTextContent('/promo/pr_row')
+  })
+
+  it('в списке inline-кнопка пауза не навигирует (stopPropagation)', async () => {
+    localStorage.setItem('epharm.promoView', 'list')
+    const mutate = vi.fn()
+    promoHooks.useUpdatePromo.mockReturnValue({ mutate, isPending: false })
+    setPromosResponse([mkPromo({ id: 'pr_x', status: 'active' })])
+    const user = userEvent.setup()
+    renderPromo()
+    await user.click(screen.getByRole('button', { name: /Поставить на паузу/ }))
+    expect(mutate).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('location-probe')).toHaveTextContent(/^\/promo$/)
+  })
+})
+
+describe('PromoPage — фото товара 3:4 в превью', () => {
+  it('карточка показывает фото товара (через image-прокси) когда есть productImage', () => {
+    setPromosResponse([
+      mkPromo({ id: 'pr_img', title: 'С фото', productImage: 'http://cdn.x/p.jpg' }),
+    ])
+    renderPromo()
+    const card = screen.getByTestId('promo-card-pr_img')
+    const img = card.querySelector('img')
+    expect(img).not.toBeNull()
+    // proxyMedia переписывает http→прокси: src не должен быть исходным http-URL «как есть».
+    expect(img?.getAttribute('src') ?? '').toContain('p.jpg')
+  })
+
+  it('без фото карточка не падает (рендерит градиент-заглушку без img)', () => {
+    setPromosResponse([mkPromo({ id: 'pr_nophoto', productImage: null, overrideImage: null })])
+    renderPromo()
+    const card = screen.getByTestId('promo-card-pr_nophoto')
+    expect(card.querySelector('img')).toBeNull()
   })
 })
 
