@@ -1,8 +1,11 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/network/image_cache_config.dart';
+import '../../../core/network/media.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_gradients.dart';
 import '../../../core/theme/app_radii.dart';
@@ -365,8 +368,31 @@ class _PromoFeedSliver extends ConsumerWidget {
           ),
         ),
       ),
-      data: (items) => _PromoSliver(items: items),
+      data: (items) {
+        // Префетч фото первого экрана ленты: к моменту появления грида плитки
+        // уже декодированы из кэша → нет «прогрузки» даже на первом заходе.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) _precacheFeedHead(context, items);
+        });
+        return _PromoSliver(items: items);
+      },
     );
+  }
+}
+
+/// Прогрев первого экрана ленты: тянем превью первых плиток в кэш заранее.
+/// Идемпотентно — повторные вызовы при ребилде дёшевы (фото уже в кэше).
+void _precacheFeedHead(BuildContext context, List<Promotion> items) {
+  const headCount = 8; // ~первый экран сетки 2×4
+  final n = items.length < headCount ? items.length : headCount;
+  for (var i = 0; i < n; i++) {
+    final url = proxyMedia(items[i].imageUrl, width: 400); // = cacheWidth грид-плитки
+    if (url != null && url.isNotEmpty) {
+      precacheImage(
+        CachedNetworkImageProvider(url, cacheManager: MediaCache.instance),
+        context,
+      );
+    }
   }
 }
 

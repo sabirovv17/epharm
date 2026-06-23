@@ -14,8 +14,13 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.client.RestClient
+import java.awt.RenderingHints
+import java.awt.image.BufferedImage
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.net.URI
 import java.time.Duration
+import javax.imageio.ImageIO
 
 /**
  * Прокси изображений витрины Medusa.
@@ -54,7 +59,12 @@ class MediaProxyController(
         .build()
 
     @GetMapping("/img")
-    fun img(@RequestParam("u") raw: String): ResponseEntity<ByteArray> {
+    fun img(
+        @RequestParam("u") raw: String,
+        // Опц. ширина превью в px: фото ресайзится server-side в JPEG (быстрая первая
+        // загрузка + меньше трафика на ленте/каталоге). Без `w` — отдаём оригинал.
+        @RequestParam(value = "w", required = false) w: Int? = null,
+    ): ResponseEntity<ByteArray> {
         val uri = runCatching { URI(raw) }.getOrNull()
             ?: throw badRequest("Некорректный URL изображения")
 
@@ -79,12 +89,41 @@ class MediaProxyController(
         if (body == null || body.isEmpty()) {
             throw AppException(ErrorCode.UPSTREAM_UNAVAILABLE, "Пустой ответ", HttpStatus.BAD_GATEWAY)
         }
+        // Превью: если задана разумная ширина и фото её больше — ресайзим в JPEG.
+        // Любая осечка (не картинка / уже мельче) → отдаём оригинал без ошибки.
+        if (w != null && w in 50..2000) {
+            resizeToWidth(body, w)?.let { thumb ->
+                return ResponseEntity.ok()
+                    .contentType(MediaType.IMAGE_JPEG)
+                    .cacheControl(CacheControl.maxAge(Duration.ofDays(7)).cachePublic())
+                    .body(thumb)
+            }
+        }
+
         val contentType = resp.headers.contentType ?: MediaType.APPLICATION_OCTET_STREAM
         return ResponseEntity.ok()
             .contentType(contentType)
             .cacheControl(CacheControl.maxAge(Duration.ofDays(7)).cachePublic())
             .body(body)
     }
+
+    /** Ресайз до ширины targetW (сохраняя пропорции) → JPEG. null, если не картинка
+     *  или исходник уже не шире targetW (не апскейлим — смысла нет). */
+    private fun resizeToWidth(src: ByteArray, targetW: Int): ByteArray? = runCatching {
+        val img = ImageIO.read(ByteArrayInputStream(src)) ?: return null
+        if (img.width <= targetW) return null
+        val targetH = (img.height.toLong() * targetW / img.width).toInt().coerceAtLeast(1)
+        val scaled = BufferedImage(targetW, targetH, BufferedImage.TYPE_INT_RGB)
+        scaled.createGraphics().apply {
+            setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR)
+            setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
+            drawImage(img, 0, 0, targetW, targetH, null)
+            dispose()
+        }
+        val out = ByteArrayOutputStream()
+        if (!ImageIO.write(scaled, "jpg", out)) return null
+        out.toByteArray()
+    }.getOrNull()
 
     private fun badRequest(msg: String) =
         AppException(ErrorCode.VALIDATION_FAILED, msg, HttpStatus.BAD_REQUEST)

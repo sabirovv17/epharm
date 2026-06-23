@@ -48,7 +48,9 @@ class MediaImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final resolved = proxyMedia(url);
+    // width=cacheWidth → прокси отдаёт превью ровно под ячейку (быстрая первая
+    // загрузка, мало трафика). Декод тоже под эту ширину (memCacheWidth ниже).
+    final resolved = proxyMedia(url, width: cacheWidth);
     if (resolved == null || resolved.isEmpty) return placeholder();
     return CachedNetworkImage(
       imageUrl: resolved,

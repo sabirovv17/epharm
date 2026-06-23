@@ -11,12 +11,16 @@ import '../config/api_config.dart';
 /// на наш домен — фото грузятся в релизе на обеих платформах, единый пайплайн
 /// медиа для всей экосистемы.
 ///
-/// http → `${ApiConfig.baseUrl}/api/media/img?u=<encoded>`; https/пусто — как есть.
-String? proxyMedia(String? url) {
+/// http → `${ApiConfig.baseUrl}/api/media/img?u=<encoded>[&w=<width>]`; https/пусто — как есть.
+///
+/// [width] (px) — прокси отдаёт server-side превью этой ширины (JPEG): быстрая
+/// первая загрузка и меньше трафика в ленте/каталоге. null — оригинал.
+String? proxyMedia(String? url, {int? width}) {
   final u = url?.trim();
   if (u == null || u.isEmpty) return null;
   if (u.startsWith('http://')) {
-    return '${ApiConfig.baseUrl}/api/media/img?u=${Uri.encodeComponent(u)}';
+    final w = (width != null && width > 0) ? '&w=$width' : '';
+    return '${ApiConfig.baseUrl}/api/media/img?u=${Uri.encodeComponent(u)}$w';
   }
   return u; // https / data: / уже прокси — без изменений
 }
