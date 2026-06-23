@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/network/media.dart';
+import '../../../core/widgets/media_image.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
 import '../data/promotion_models.dart';
@@ -147,21 +147,15 @@ class _Thumb extends StatelessWidget {
           ),
         );
 
-    final url = promo.imageUrl;
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
-      child: (url == null || url.isEmpty)
-          ? placeholder()
-          : Image.network(
-              proxyMedia(url) ?? url,
-              width: size,
-              height: size,
-              fit: BoxFit.cover,
-              cacheWidth: 220, // декод под миниатюру 88px (≈2.5×) — экономия памяти
-              loadingBuilder: (_, child, p) =>
-                  p == null ? child : placeholder(),
-              errorBuilder: (_, __, ___) => placeholder(),
-            ),
+      child: MediaImage(
+        url: promo.imageUrl,
+        placeholder: placeholder,
+        width: size,
+        height: size,
+        cacheWidth: 220, // декод под миниатюру 88px (≈2.5×) — экономия памяти
+      ),
     );
   }
 }
@@ -400,22 +394,15 @@ class _GridThumb extends StatelessWidget {
             ),
           ),
         );
-    final url = promo.imageUrl;
-    final child = (url == null || url.isEmpty)
-        ? placeholder()
-        : Image.network(
-            proxyMedia(url) ?? url,
-            width: double.infinity,
-            fit: BoxFit.cover,
-            // Декод под ширину ячейки сетки (~180px, ≈2×): ключевой фикс лагов
-            // скролла ленты — полноразмерные фото не держим в памяти и не пере-декодим.
-            cacheWidth: 400,
-            // Держим декодированный кадр при ребилде грида (фильтр/поиск/сортировка),
-            // чтобы плитки не моргали placeholder'ом.
-            gaplessPlayback: true,
-            loadingBuilder: (_, child, p) => p == null ? child : placeholder(),
-            errorBuilder: (_, __, ___) => placeholder(),
-          );
+    // MediaImage: декод под ширину ячейки (cacheWidth 400) + ДИСКОВЫЙ кэш —
+    // ключевой фикс микро-лагов скролла ленты: рециклируемые плитки больше не
+    // пере-фетчат и не пере-декодят фото из сети при возврате во вьюпорт.
+    final child = MediaImage(
+      url: promo.imageUrl,
+      placeholder: placeholder,
+      width: double.infinity,
+      cacheWidth: 400,
+    );
     // Фото формата 3:4 (ширина:высота), как в ПИМ. Высота = ширина ячейки × 4/3.
     return AspectRatio(aspectRatio: 3 / 4, child: child);
   }

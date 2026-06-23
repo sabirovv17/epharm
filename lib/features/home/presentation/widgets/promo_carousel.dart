@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_gradients.dart';
 import '../../../../core/theme/app_radii.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/widgets/media_image.dart';
 import '../../data/banner_model.dart';
 
 /// Горизонтальная карусель баннеров. Высота 234, ширина карточки 180 (−10%).
@@ -134,15 +135,15 @@ class _BannerImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (url.trim().isEmpty) return const _BannerImageFallback();
-    return Image.network(
-      url,
-      fit: BoxFit.cover,
+    // MediaImage: декод под ×2 DPR (cacheWidth 360) + ДИСКОВЫЙ кэш — баннеры не
+    // пере-фетчатся при горизонтальном скролле/возврате на главную и после рестарта.
+    // proxyMedia (http→https) применяется внутри MediaImage — http-баннеры тоже
+    // грузятся в релизе.
+    return MediaImage(
+      url: url,
+      placeholder: () => const _BannerImageFallback(),
       width: double.infinity,
-      // Ширина карточки 180 logical px; декодируем под ×2 DPR — без оверсемплинга
-      // огромных исходников, экономит память на карусели.
       cacheWidth: 360,
-      errorBuilder: (_, __, ___) => const _BannerImageFallback(),
     );
   }
 }

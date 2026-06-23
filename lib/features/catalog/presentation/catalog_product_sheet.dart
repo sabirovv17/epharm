@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/network/media.dart';
+import '../../../core/widgets/media_image.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_shadows.dart';
@@ -756,17 +756,12 @@ class _RecoThumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final u = url;
-    if (u == null || u.isEmpty) return _placeholder();
-    // cacheWidth — декодируем уменьшенную картинку (карточка ~132px): меньше памяти,
-    // нет re-decode при скролле горизонтальной ленты рекомендаций.
-    return Image.network(
-      proxyMedia(u) ?? u,
-      fit: BoxFit.cover,
+    // MediaImage: декод под карточку (~132px, cacheWidth 320) + ДИСКОВЫЙ кэш — нет
+    // повторного фетча/декода при скролле горизонтальной ленты рекомендаций.
+    return MediaImage(
+      url: url,
+      placeholder: _placeholder,
       cacheWidth: 320,
-      loadingBuilder: (ctx, child, progress) =>
-          progress == null ? child : _placeholder(),
-      errorBuilder: (_, __, ___) => _placeholder(),
     );
   }
 

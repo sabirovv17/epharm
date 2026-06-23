@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/network/media.dart';
+import '../../../core/widgets/media_image.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
 import '../data/catalog_models.dart';
@@ -108,20 +108,13 @@ class _CatalogCardImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final url = product.imageUrl;
-    if (url == null || url.isEmpty) return _placeholder();
-    // Декод под ширину ячейки сетки (~180px, ≈2×) — без re-decode при скролле.
-    // proxyMedia: http-фото Medusa через наш HTTPS-прокси (cleartext в релизе запрещён).
-    return Image.network(
-      proxyMedia(url) ?? url,
-      fit: BoxFit.cover,
+    // MediaImage: декод под ширину ячейки (cacheWidth 400) + ДИСКОВЫЙ кэш — без
+    // повторного фетча/декода из сети при скролле каталога. proxyMedia (http→https
+    // прокси Medusa, cleartext в релизе запрещён) применяется внутри MediaImage.
+    return MediaImage(
+      url: product.imageUrl,
+      placeholder: _placeholder,
       cacheWidth: 400,
-      // Держим уже декодированный кадр при ребилде грида (фильтр/поиск) — иначе
-      // на кадр мелькает placeholder и сетка «моргает».
-      gaplessPlayback: true,
-      loadingBuilder: (ctx, child, progress) =>
-          progress == null ? child : _placeholder(),
-      errorBuilder: (_, __, ___) => _placeholder(),
     );
   }
 

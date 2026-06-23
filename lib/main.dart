@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 import 'core/network/card_store.dart';
+import 'core/network/image_cache_config.dart';
 
 void main() {
   // Глобальный перехват необработанных ошибок (async/zone). Логируем —
@@ -19,6 +20,9 @@ void main() {
 void _bootstrap() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  // Лёгкий тюнинг in-memory imageCache (диск-кэш фото витрины — основной фикс
+  // лагов скролла — в MediaImage/MediaCache).
+  tuneImageCache();
 
   // Ошибки фреймворка (build/layout/paint) — в консоль (в release не валят приложение).
   FlutterError.onError = (FlutterErrorDetails details) {

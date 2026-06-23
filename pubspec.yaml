@@ -28,6 +28,14 @@ dependencies:
   # уже в кэше/транзитивен, MockClient из package:http/testing.dart даёт тесты без доп. пакетов.
   http: ^1.2.0
 
+  # Дисковый кэш сетевых фото витрины (через наш прокси /api/media/img). Без него
+  # рециклируемые плитки SliverGrid пере-фетчат+пере-декодят фото при возврате во
+  # вьюпорт и после рестарта → микро-лаги скролла ленты + лишняя нагрузка на прокси.
+  cached_network_image: ^3.4.1
+  # Транзитив cached_network_image, но импортируем напрямую (общий CacheManager
+  # с лимитами в image_cache_config.dart) → объявляем прямой зависимостью.
+  flutter_cache_manager: ^3.4.1
+
   # Открытие внешних ссылок (YouTube video-инструкция, WhatsApp поддержка).
   url_launcher: ^6.3.1
 

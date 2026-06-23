@@ -792,3 +792,33 @@ Backend-контракт этого батча — в `admin-panel/claude-admin-
 - Палитра-канон в `_reference/design-tokens.md §1/§4/§7/§8` переведена в коралл.
 - Верификация: analyze чисто, `flutter test` +95; финальный grep — бренд-зелёного/синего нет
   (кроме success). Деплой: оранжевый iOS на «iphone amir» + оранжевый APK в MinIO (sslip-URL).
+
+## 2026-06-23 — Перф: дисковый кэш фото витрины (фикс микро-лагов скролла ленты)
+
+Жалоба: микро-лаги при скролле ленты товаров. Веерная диагностика (ultracode, 5 агентов
+по дименшенам + адверсари-проверка каждой из 36 гипотез) → подтверждена РОВНО 1 реальная
+причина: все фото грузились голым `Image.network` БЕЗ дискового кэша. Под лимитом памяти
+`PaintingBinding.imageCache` декодированные кадры выбиваются → при возврате рециклируемой
+плитки во вьюпорт идёт повторный сетевой фетч через прокси `/api/media/img` + повторный
+декод → джанк кадра. После рестарта кэша нет вовсе. (Провайдеры фильтрации мемоизированы,
+JSON парсится в compute() — это НЕ причины скролла; отклонены адверсари-проверкой, как и
+идеи про RepaintBoundary/смену cacheWidth.)
+
+**Фикс (единый медиа-пайплайн с диск-кэшем):**
+
+- `pubspec`: + `cached_network_image ^3.4.1` (+ прямой `flutter_cache_manager ^3.4.1`).
+- `lib/core/network/image_cache_config.dart` — `MediaCache` (общий `CacheManager`,
+  bucket `epharm_media`, stale 14д) + `tuneImageCache()` (imageCache 120МБ), вызов в `main.dart`.
+- `lib/core/widgets/media_image.dart` — `MediaImage`: единая замена `Image.network`.
+  Внутри `proxyMedia` (http→https прокси, логика НЕ дублируется), `memCacheWidth`=прежний
+  `cacheWidth` (декод под ячейку), диск-кэш, placeholder/errorWidget, fadeIn 150мс.
+- Переведены ВСЕ скроллящиеся витрина-фото: `_GridThumb` (лента, причина №1), `_CatalogCardImage`
+  (каталог), `_Thumb` 88px, `_RecoThumb` (горизонт. лента реко), `_BannerImage` (карусель).
+  Галерея детали (`product_image_gallery.dart`) и фото чеков ОСТАВЛЕНЫ на `Image.network`
+  (галерея — спец-логика `_markBroken`; чеки — другой сабсистем/S3, не скролл-хот-путь).
+- Эффект: фото грузится по сети 1 раз → дальше с диска (нет round-trip на прокси,
+  нет пере-декода из сети при скролле/рестарте). Разгружает прокси под нагрузкой многих юзеров.
+
+Проверка: `flutter analyze` чисто, `flutter test` +98 (вкл. `banner_test` с каруселью на
+CachedNetworkImage — регрессии нет). Бэкенд `/api/media/**` публичный + `Cache-Control: 7d`
+— диск-кэш-клиент совместим. Реальную плавность мерить в `--profile` + DevTools Performance.
