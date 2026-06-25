@@ -18,29 +18,29 @@ The backend is a modular monolith under package `kz.epharm`.
 
 ## Domains
 
-| Package | Responsibility |
-| --- | --- |
-| `auth` | Admin auth, JWT, refresh tokens, roles. |
-| `mobile.auth` | Pharmacist OTP auth, registration, refresh/logout. |
-| `mobile.profile` | `/api/mobile/me` profile/balance. |
-| `mobile.catalog` | Public Medusa-backed product catalog for mobile. |
-| `mobile.promotions` | Public active promo campaign feed. |
-| `mobile.receipts` | Authenticated receipt upload/history. |
-| `mobile.pharmacies` | Public active pharmacy list. |
-| `catalog` | Internal/admin product master data used by rules. |
-| `promo` | Campaigns, Medusa product snapshots, tiers, campaign-generated rules. |
-| `rules` | Rules Engine admin CRUD and POSM matching logic. |
-| `receipts` | Receipt storage, moderation, POS/Excel reconciliation, bonus crediting. |
-| `pharmacies` | Chains and pharmacies. |
-| `pharmacists` | Pharmacist registry, status, balance. |
-| `finance` | Payout batches, items, approval, scheduler. |
-| `screens` | Broadcast/screen media and playlists. |
-| `banners` | Admin-managed mobile banners. |
-| `medusa` | Storefront client/proxy and admin read-only catalog. |
-| `posm` | POSM recommendations, outcomes, sales, playlists, heartbeat, CDP. |
-| `appupdate` | POSM app release metadata and auto-update endpoint. |
-| `lms`, `ai_exam`, `lift`, `dashboard` | Admin sections and reporting. |
-| `shared` | Security, errors, media proxy, storage, validation, dev reset. |
+| Package                               | Responsibility                                                          |
+| ------------------------------------- | ----------------------------------------------------------------------- |
+| `auth`                                | Admin auth, JWT, refresh tokens, roles.                                 |
+| `mobile.auth`                         | Pharmacist OTP auth, registration, refresh/logout.                      |
+| `mobile.profile`                      | `/api/mobile/me` profile/balance.                                       |
+| `mobile.catalog`                      | Public Medusa-backed product catalog for mobile.                        |
+| `mobile.promotions`                   | Public active promo campaign feed.                                      |
+| `mobile.receipts`                     | Authenticated receipt upload/history.                                   |
+| `mobile.pharmacies`                   | Public active pharmacy list.                                            |
+| `catalog`                             | Internal/admin product master data used by rules.                       |
+| `promo`                               | Campaigns, Medusa product snapshots, tiers, campaign-generated rules.   |
+| `rules`                               | Rules Engine admin CRUD and POSM matching logic.                        |
+| `receipts`                            | Receipt storage, moderation, POS/Excel reconciliation, bonus crediting. |
+| `pharmacies`                          | Chains and pharmacies.                                                  |
+| `pharmacists`                         | Pharmacist registry, status, balance.                                   |
+| `finance`                             | Payout batches, items, approval, scheduler.                             |
+| `screens`                             | Broadcast/screen media and playlists.                                   |
+| `banners`                             | Admin-managed mobile banners.                                           |
+| `medusa`                              | Storefront client/proxy and admin read-only catalog.                    |
+| `posm`                                | POSM recommendations, outcomes, sales, playlists, heartbeat, CDP.       |
+| `appupdate`                           | POSM app release metadata and auto-update endpoint.                     |
+| `lms`, `ai_exam`, `lift`, `dashboard` | Admin sections and reporting.                                           |
+| `shared`                              | Security, errors, media proxy, storage, validation, dev reset.          |
 
 ## API Map
 

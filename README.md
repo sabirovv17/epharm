@@ -30,13 +30,13 @@ environment is the `sslip.io` host unless explicitly changed in `.env.prod`.
 
 ## Modules
 
-| Module | Path | Stack | Current state |
-| --- | --- | --- | --- |
-| Mobile app | `lib/`, `ios/`, `android/` | Flutter 3.27 / Dart 3.6, Riverpod, go_router, http, secure storage | Real API is the default. Offline mocks remain behind `--dart-define=USE_API=false`. |
-| Backend | `admin-panel/backend/` | Kotlin 2.0.21, Spring Boot 3.3.5, JVM 22, PostgreSQL 16, Flyway, Redis, MinIO/S3 | Monolith with admin, mobile, POSM, Medusa proxy, media proxy, banners, payouts. Migrations V001-V030. |
-| Admin console | `admin-panel/frontend/` | React 19, Vite 8, TypeScript 6, Tailwind 3, TanStack Query, Zustand, axios | 13 protected sections on real API. Promo has grid/list view, product gallery, banners live under Screens. |
-| POSM client | `App/`, `Models/` | C# / WPF / .NET 10, LibVLCSharp, SQLite outbox | Windows-only client for Standard-N logs, barcode recommendations, customer display, heartbeat, auto-update. |
-| Storefront/PIM | external Medusa | Medusa v2.15.2 | External source for catalog, images, barcodes, categories, and pharmacy stock locations. This repo only consumes it. |
+| Module         | Path                       | Stack                                                                            | Current state                                                                                                        |
+| -------------- | -------------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Mobile app     | `lib/`, `ios/`, `android/` | Flutter 3.27 / Dart 3.6, Riverpod, go_router, http, secure storage               | Real API is the default. Offline mocks remain behind `--dart-define=USE_API=false`.                                  |
+| Backend        | `admin-panel/backend/`     | Kotlin 2.0.21, Spring Boot 3.3.5, JVM 22, PostgreSQL 16, Flyway, Redis, MinIO/S3 | Monolith with admin, mobile, POSM, Medusa proxy, media proxy, banners, payouts. Migrations V001-V030.                |
+| Admin console  | `admin-panel/frontend/`    | React 19, Vite 8, TypeScript 6, Tailwind 3, TanStack Query, Zustand, axios       | 13 protected sections on real API. Promo has grid/list view, product gallery, banners live under Screens.            |
+| POSM client    | `App/`, `Models/`          | C# / WPF / .NET 10, LibVLCSharp, SQLite outbox                                   | Windows-only client for Standard-N logs, barcode recommendations, customer display, heartbeat, auto-update.          |
+| Storefront/PIM | external Medusa            | Medusa v2.15.2                                                                   | External source for catalog, images, barcodes, categories, and pharmacy stock locations. This repo only consumes it. |
 
 ## Repository Map
 
@@ -90,11 +90,11 @@ Useful URLs:
 
 Dev admin users are seeded by the backend dev profile:
 
-| Email | Password | Role |
-| --- | --- | --- |
-| `damir@jadran.com` | `damir2026` | Brand Manager |
-| `aigerim@inkar.kz` | `aigerim2026` | Category Lead |
-| `bauyrzhan@inkar.kz` | `bauyrzhan2026` | HQ Head |
+| Email                | Password        | Role          |
+| -------------------- | --------------- | ------------- |
+| `damir@jadran.com`   | `damir2026`     | Brand Manager |
+| `aigerim@inkar.kz`   | `aigerim2026`   | Category Lead |
+| `bauyrzhan@inkar.kz` | `bauyrzhan2026` | HQ Head       |
 
 ## Mobile Start
 

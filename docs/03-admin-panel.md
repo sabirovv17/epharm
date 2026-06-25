@@ -47,21 +47,21 @@ the Screens section.
 
 ## Sections
 
-| Section | Current purpose |
-| --- | --- |
-| Dashboard | HQ summary/KPI entrypoint. |
-| Promo | Product campaign CRUD, Medusa product picker, gallery/cover, tiers, dates, goals, campaign rules, grid/list view. |
-| Rules | Read-only/global rules view plus rule builders/components; campaign rules are edited from Promo. |
-| Screens | Connected cash desks, one broadcast video/media flow, banners panel. |
-| Pharmacies | Chains/pharmacies, CRUD, detail page, real Medusa-derived pharmacy seed data. |
-| Pharmacists | Registry, block/unblock, status/balance data. |
-| Reconcile | Receipt moderation queue, claimed promos, POS/Excel source columns, approve/reject. |
-| AI Exam | Question bank CRUD. |
-| Finance | Payout batches, generation, approval with finance/HQ role checks. |
-| Lift | Pilot/control analytics view. |
-| LMS | Course CRUD. |
-| Storefront | Read-only Medusa catalog as seen through backend proxy. |
-| Settings | Language/timezone/session settings. |
+| Section     | Current purpose                                                                                                   |
+| ----------- | ----------------------------------------------------------------------------------------------------------------- |
+| Dashboard   | HQ summary/KPI entrypoint.                                                                                        |
+| Promo       | Product campaign CRUD, Medusa product picker, gallery/cover, tiers, dates, goals, campaign rules, grid/list view. |
+| Rules       | Read-only/global rules view plus rule builders/components; campaign rules are edited from Promo.                  |
+| Screens     | Connected cash desks, one broadcast video/media flow, banners panel.                                              |
+| Pharmacies  | Chains/pharmacies, CRUD, detail page, real Medusa-derived pharmacy seed data.                                     |
+| Pharmacists | Registry, block/unblock, status/balance data.                                                                     |
+| Reconcile   | Receipt moderation queue, claimed promos, POS/Excel source columns, approve/reject.                               |
+| AI Exam     | Question bank CRUD.                                                                                               |
+| Finance     | Payout batches, generation, approval with finance/HQ role checks.                                                 |
+| Lift        | Pilot/control analytics view.                                                                                     |
+| LMS         | Course CRUD.                                                                                                      |
+| Storefront  | Read-only Medusa catalog as seen through backend proxy.                                                           |
+| Settings    | Language/timezone/session settings.                                                                               |
 
 ## State and Data
 

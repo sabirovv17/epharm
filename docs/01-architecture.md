@@ -30,11 +30,11 @@ same frontend over plain HTTP inside the corporate VPN.
 
 The backend is one Spring Boot monolith with three main API surfaces:
 
-| Surface | Prefix | Client | Auth |
-| --- | --- | --- | --- |
-| Admin API | `/api/admin/**` | HQ web admin | Admin JWT + role checks |
-| Mobile API | `/api/mobile/**` | Flutter pharmacist app | Public for catalog/promotions/banners/pharmacies/auth; pharmacist JWT for `/me` and receipts |
-| POSM API | `/api/posm/**` | C#/WPF cash-desk client | `X-Posm-Key` device key |
+| Surface    | Prefix           | Client                  | Auth                                                                                         |
+| ---------- | ---------------- | ----------------------- | -------------------------------------------------------------------------------------------- |
+| Admin API  | `/api/admin/**`  | HQ web admin            | Admin JWT + role checks                                                                      |
+| Mobile API | `/api/mobile/**` | Flutter pharmacist app  | Public for catalog/promotions/banners/pharmacies/auth; pharmacist JWT for `/me` and receipts |
+| POSM API   | `/api/posm/**`   | C#/WPF cash-desk client | `X-Posm-Key` device key                                                                      |
 
 Public helper endpoints include `/api/health` and `/api/media/img` for safe HTTPS proxying of
 allowed Medusa HTTP images.
@@ -89,13 +89,13 @@ decision.
 
 ## External Integrations
 
-| Integration | Current use |
-| --- | --- |
-| Medusa | Product catalog, product images, barcode, category metadata, pharmacy stock locations. Backend proxies it; mobile/admin do not talk to Medusa directly. |
-| MinIO | Receipt photos, screen media, APK/demo files. Current bucket is public-readable; privatizing receipt access remains a release hardening item. |
-| Redis | Infrastructure dependency; available for cache/rate-limit/session work. |
-| SMS provider | Not connected. Dev OTP is active in pilot/demo flows. |
-| OCR / OFD QR | Removed/cancelled by product decision. Receipt validation is POS log + Excel + manual moderation/photo evidence. |
+| Integration  | Current use                                                                                                                                             |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Medusa       | Product catalog, product images, barcode, category metadata, pharmacy stock locations. Backend proxies it; mobile/admin do not talk to Medusa directly. |
+| MinIO        | Receipt photos, screen media, APK/demo files. Current bucket is public-readable; privatizing receipt access remains a release hardening item.           |
+| Redis        | Infrastructure dependency; available for cache/rate-limit/session work.                                                                                 |
+| SMS provider | Not connected. Dev OTP is active in pilot/demo flows.                                                                                                   |
+| OCR / OFD QR | Removed/cancelled by product decision. Receipt validation is POS log + Excel + manual moderation/photo evidence.                                        |
 
 ## Design Direction
 

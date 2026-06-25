@@ -22,50 +22,50 @@ Class names still use `brand-green-*` and `brand-blue-*` for compatibility, but 
 
 ### Brand Coral (`brand-green-*`)
 
-| Token | Hex | Use |
-| --- | --- | --- |
-| 50 | `#FBF3EE` | Selected rows, soft surfaces. |
-| 100 | `#F8E7DD` | Soft chips and tints. |
-| 200 | `#F0C8B4` | Borders/rings. |
-| 300 | `#E4A485` | Reserved illustration tint. |
-| 400 | `#E0916B` | Light accent/heatmap. |
-| 500 | `#DB7F57` | Mid accent. |
-| 600 | `#D97757` | Primary CTA, active tab, sidebar accent, chart line. |
-| 700 | `#BE5A38` | Active label, hover/pressed CTA, strong tint text. |
-| 800 | `#9A4427` | Deep outline/accent. |
+| Token | Hex       | Use                                                  |
+| ----- | --------- | ---------------------------------------------------- |
+| 50    | `#FBF3EE` | Selected rows, soft surfaces.                        |
+| 100   | `#F8E7DD` | Soft chips and tints.                                |
+| 200   | `#F0C8B4` | Borders/rings.                                       |
+| 300   | `#E4A485` | Reserved illustration tint.                          |
+| 400   | `#E0916B` | Light accent/heatmap.                                |
+| 500   | `#DB7F57` | Mid accent.                                          |
+| 600   | `#D97757` | Primary CTA, active tab, sidebar accent, chart line. |
+| 700   | `#BE5A38` | Active label, hover/pressed CTA, strong tint text.   |
+| 800   | `#9A4427` | Deep outline/accent.                                 |
 
 ### Coral Accent (`brand-blue-*`)
 
-| Token | Hex | Use |
-| --- | --- | --- |
-| 100 | `#F8E7DD` | Info chip/tile background. |
-| 200 | `#F0C8B4` | Disabled/subtle accent. |
-| 600 | `#BE5A38` | Role badge, info text, logo stamp. |
-| 700 | `#A8472A` | Pressed accent. |
+| Token | Hex       | Use                                |
+| ----- | --------- | ---------------------------------- |
+| 100   | `#F8E7DD` | Info chip/tile background.         |
+| 200   | `#F0C8B4` | Disabled/subtle accent.            |
+| 600   | `#BE5A38` | Role badge, info text, logo stamp. |
+| 700   | `#A8472A` | Pressed accent.                    |
 
 ### Warm Ink
 
-| Token | Hex | Use |
-| --- | --- | --- |
-| `ink-50` | `#F6F3EE` | Sticky table header, empty icon tile. |
-| `ink-100` | `#EFEAE2` | Hover surface, neutral chip. |
-| `ink-200` | `#E2DCD2` | Borders, toggle off. |
-| `ink-300` | `#D4CCC0` | Weak borders/placeholders. |
-| `ink-400` | `#9D9388` | Captions, chevrons. |
-| `ink-500` | `#6F665B` | Secondary text. |
-| `ink-600` | `#514A40` | Strong neutral. |
-| `ink-700` | `#423B32` | Form/body strong. |
-| `ink-800` | `#2E2820` | Ink hover. |
-| `ink-900` | `#221C16` | Headings, sidebar base. |
+| Token     | Hex       | Use                                   |
+| --------- | --------- | ------------------------------------- |
+| `ink-50`  | `#F6F3EE` | Sticky table header, empty icon tile. |
+| `ink-100` | `#EFEAE2` | Hover surface, neutral chip.          |
+| `ink-200` | `#E2DCD2` | Borders, toggle off.                  |
+| `ink-300` | `#D4CCC0` | Weak borders/placeholders.            |
+| `ink-400` | `#9D9388` | Captions, chevrons.                   |
+| `ink-500` | `#6F665B` | Secondary text.                       |
+| `ink-600` | `#514A40` | Strong neutral.                       |
+| `ink-700` | `#423B32` | Form/body strong.                     |
+| `ink-800` | `#2E2820` | Ink hover.                            |
+| `ink-900` | `#221C16` | Headings, sidebar base.               |
 
 ### Paper
 
-| Token | Hex | Use |
-| --- | --- | --- |
-| `paper.DEFAULT` | `#FAF7F2` | App canvas. |
-| `paper.card` | `#FFFFFF` | Cards/modals/drawers. |
-| `paper.input` | `#F3EEE7` | Inputs/search/soft rows. |
-| `paper.hover` | `#F5F1EA` | Hover/footer bands. |
+| Token           | Hex       | Use                      |
+| --------------- | --------- | ------------------------ |
+| `paper.DEFAULT` | `#FAF7F2` | App canvas.              |
+| `paper.card`    | `#FFFFFF` | Cards/modals/drawers.    |
+| `paper.input`   | `#F3EEE7` | Inputs/search/soft rows. |
+| `paper.hover`   | `#F5F1EA` | Hover/footer bands.      |
 
 ### Semantic
 
@@ -78,35 +78,35 @@ Class names still use `brand-green-*` and `brand-blue-*` for compatibility, but 
 - JetBrains Mono for key caps and dense/tabular numbers.
 - `.num` applies tabular numbers.
 
-| Role | Size / line | Weight |
-| --- | --- | --- |
-| Page title | 24 / 30 | 800 |
-| Section title | 15 / 22 | 800 |
-| KPI value | 28 / 28 | 800 |
-| Table header | 11 / 14 | 700 uppercase |
-| Table body | 14 / 20 | 500-800 |
-| Form label | 12 / 16 | 600 |
-| Helper | 12 / 18 | 500 |
-| Chip | 12 / 12 | 600 |
-| Sidebar label | 14 / 18 | 600/700 active |
-| Key cap | 11 / 12 | 600 mono |
+| Role          | Size / line | Weight         |
+| ------------- | ----------- | -------------- |
+| Page title    | 24 / 30     | 800            |
+| Section title | 15 / 22     | 800            |
+| KPI value     | 28 / 28     | 800            |
+| Table header  | 11 / 14     | 700 uppercase  |
+| Table body    | 14 / 20     | 500-800        |
+| Form label    | 12 / 16     | 600            |
+| Helper        | 12 / 18     | 500            |
+| Chip          | 12 / 12     | 600            |
+| Sidebar label | 14 / 18     | 600/700 active |
+| Key cap       | 11 / 12     | 600 mono       |
 
 Money formatting rule: full KZT only (`1 842 300 ₸`), never abbreviated.
 
 ## Layout
 
-| Element | Size |
-| --- | --- |
-| Sidebar expanded | 260px |
-| Sidebar collapsed | 72px |
-| Sidebar nav row | 40px high |
-| Topbar | 64px |
-| Content padding | 24px horizontal, 40px bottom |
-| Default card padding | 20px |
-| Compact card padding | 16px |
-| Modal width | 460-620px |
-| Drawer width | 480-560px |
-| Root min width | 1280px |
+| Element              | Size                         |
+| -------------------- | ---------------------------- |
+| Sidebar expanded     | 260px                        |
+| Sidebar collapsed    | 72px                         |
+| Sidebar nav row      | 40px high                    |
+| Topbar               | 64px                         |
+| Content padding      | 24px horizontal, 40px bottom |
+| Default card padding | 20px                         |
+| Compact card padding | 16px                         |
+| Modal width          | 460-620px                    |
+| Drawer width         | 480-560px                    |
+| Root min width       | 1280px                       |
 
 Use `gap-4`/`gap-5`, not per-card custom margins.
 

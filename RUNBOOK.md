@@ -28,11 +28,11 @@ docker exec epharm-postgres pg_isready -U epharm -d epharm
 
 Services:
 
-| Service | URL/port |
-| --- | --- |
-| Postgres | `localhost:5433` |
-| Redis | `localhost:6379` |
-| MinIO API | `localhost:9000` |
+| Service       | URL/port         |
+| ------------- | ---------------- |
+| Postgres      | `localhost:5433` |
+| Redis         | `localhost:6379` |
+| MinIO API     | `localhost:9000` |
 | MinIO console | `localhost:9001` |
 
 Stop:
@@ -74,11 +74,11 @@ The dev reset exists only in the dev profile.
 
 Dev admin users:
 
-| Email | Password | Role |
-| --- | --- | --- |
-| `damir@jadran.com` | `damir2026` | Brand Manager |
-| `aigerim@inkar.kz` | `aigerim2026` | Category Lead |
-| `bauyrzhan@inkar.kz` | `bauyrzhan2026` | HQ Head |
+| Email                | Password        | Role          |
+| -------------------- | --------------- | ------------- |
+| `damir@jadran.com`   | `damir2026`     | Brand Manager |
+| `aigerim@inkar.kz`   | `aigerim2026`   | Category Lead |
+| `bauyrzhan@inkar.kz` | `bauyrzhan2026` | HQ Head       |
 
 Dev POSM key:
 
@@ -275,13 +275,13 @@ Do not restore three identical site blocks: Caddy will crash with `ambiguous sit
 
 ## 10. Common Problems
 
-| Symptom | Fix |
-| --- | --- |
-| Backend cannot connect to `localhost:5433` | Start `docker compose up -d`; wait for Postgres healthy. |
-| Port 8080 busy | `lsof -ti tcp:8080 \| xargs kill -9` |
-| Port 5173 busy | use another Vite port or kill the old process. |
-| Flyway checksum mismatch | Do not edit applied migrations. For local-only reset use `docker compose down -v`. |
-| Mobile cannot reach local backend on physical phone | Use Mac LAN IP, not `localhost`. |
-| iOS codesign xattr error | Recreate `/tmp/codesign_shim` or keep build output outside iCloud-synced paths. |
-| Admin session odd after backend restart | Refresh page; axios should refresh token. If refresh fails, log in again. |
-| Medusa images blocked in browser | Use `proxyMedia`/`/api/media/img`, not raw HTTP image URLs. |
+| Symptom                                             | Fix                                                                                |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Backend cannot connect to `localhost:5433`          | Start `docker compose up -d`; wait for Postgres healthy.                           |
+| Port 8080 busy                                      | `lsof -ti tcp:8080 \| xargs kill -9`                                               |
+| Port 5173 busy                                      | use another Vite port or kill the old process.                                     |
+| Flyway checksum mismatch                            | Do not edit applied migrations. For local-only reset use `docker compose down -v`. |
+| Mobile cannot reach local backend on physical phone | Use Mac LAN IP, not `localhost`.                                                   |
+| iOS codesign xattr error                            | Recreate `/tmp/codesign_shim` or keep build output outside iCloud-synced paths.    |
+| Admin session odd after backend restart             | Refresh page; axios should refresh token. If refresh fails, log in again.          |
+| Medusa images blocked in browser                    | Use `proxyMedia`/`/api/media/img`, not raw HTTP image URLs.                        |

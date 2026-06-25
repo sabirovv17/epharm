@@ -33,16 +33,16 @@ this file; use git history if an old decision needs forensic detail.
 
 ## Current Features
 
-| Feature | Current behavior |
-| --- | --- |
-| Splash/welcome | Splash resolves tokens/onboarding before showing welcome. |
-| Auth | Phone -> OTP -> register if needed. Dev OTP is `544544` while backend allows it. |
-| Home | Public banners/promotions, balance for logged-in user, filters/sort, scan FAB. |
-| Promotions | Active backend campaigns from `/api/mobile/promotions`. |
-| Product detail | Detail sheet, image gallery, Q&A, bonus CTA, recommendations. |
-| Receipts | Photo + bonus card + optional claimed promo id. No manual pharmacy/promo picker. |
-| Receipt list/detail | Pull-to-refresh, auth-aware errors, status/detail sheets. |
-| Profile pages | FAQ, instruction, cooperation, terms, privacy. |
+| Feature             | Current behavior                                                                 |
+| ------------------- | -------------------------------------------------------------------------------- |
+| Splash/welcome      | Splash resolves tokens/onboarding before showing welcome.                        |
+| Auth                | Phone -> OTP -> register if needed. Dev OTP is `544544` while backend allows it. |
+| Home                | Public banners/promotions, balance for logged-in user, filters/sort, scan FAB.   |
+| Promotions          | Active backend campaigns from `/api/mobile/promotions`.                          |
+| Product detail      | Detail sheet, image gallery, Q&A, bonus CTA, recommendations.                    |
+| Receipts            | Photo + bonus card + optional claimed promo id. No manual pharmacy/promo picker. |
+| Receipt list/detail | Pull-to-refresh, auth-aware errors, status/detail sheets.                        |
+| Profile pages       | FAQ, instruction, cooperation, terms, privacy.                                   |
 
 Cancelled/removed:
 

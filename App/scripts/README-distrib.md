@@ -55,21 +55,21 @@ dotnet run
 
 ## Config and Env
 
-| Config | Env | Default / meaning |
-| --- | --- | --- |
-| `Enabled` | `EPHARM_POSM_ENABLED` | POSM backend integration. |
-| `BackendBaseUrl` | `EPHARM_BACKEND_URL` | Backend host. |
-| `DeviceKey` | `EPHARM_POSM_KEY` | `X-Posm-Key`. |
-| `PharmacyId` | `EPHARM_PHARMACY_ID` | Pharmacy/screen id. |
-| `PharmacistId` | `EPHARM_PHARMACIST_ID` | Pilot pharmacist id. |
-| `ScreenMode` | `EPHARM_SCREEN_MODE` | `dev` or `prod`. |
-| `VideoEnabled` | `EPHARM_NO_VIDEO=true` disables | Customer video. |
-| `PlaylistPollSec` | `EPHARM_PLAYLIST_POLL_SEC` | Playlist polling interval. |
-| `DebounceMs` | `EPHARM_RECOMMEND_DEBOUNCE_MS` | Scan debounce before `/api/posm/recommend`; default 150ms. |
-| `RecommendRefreshSec` | `EPHARM_RECOMMEND_REFRESH_SEC` | Legacy; default 0. Recommendations are scan-triggered. |
-| `MediaCacheDir` | `EPHARM_MEDIA_CACHE_DIR` | Local cache for admin-panel videos. |
-| `AppLogPath` | `EPHARM_APP_LOG` | App log file path. |
-| log path | `EPHARM_LOG_PATH` | Optional Standard-N log path override for non-standard cash desks. Do not set it for the default demo VM. |
+| Config                | Env                             | Default / meaning                                                                                         |
+| --------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `Enabled`             | `EPHARM_POSM_ENABLED`           | POSM backend integration.                                                                                 |
+| `BackendBaseUrl`      | `EPHARM_BACKEND_URL`            | Backend host.                                                                                             |
+| `DeviceKey`           | `EPHARM_POSM_KEY`               | `X-Posm-Key`.                                                                                             |
+| `PharmacyId`          | `EPHARM_PHARMACY_ID`            | Pharmacy/screen id.                                                                                       |
+| `PharmacistId`        | `EPHARM_PHARMACIST_ID`          | Pilot pharmacist id.                                                                                      |
+| `ScreenMode`          | `EPHARM_SCREEN_MODE`            | `dev` or `prod`.                                                                                          |
+| `VideoEnabled`        | `EPHARM_NO_VIDEO=true` disables | Customer video.                                                                                           |
+| `PlaylistPollSec`     | `EPHARM_PLAYLIST_POLL_SEC`      | Playlist polling interval.                                                                                |
+| `DebounceMs`          | `EPHARM_RECOMMEND_DEBOUNCE_MS`  | Scan debounce before `/api/posm/recommend`; default 150ms.                                                |
+| `RecommendRefreshSec` | `EPHARM_RECOMMEND_REFRESH_SEC`  | Legacy; default 0. Recommendations are scan-triggered.                                                    |
+| `MediaCacheDir`       | `EPHARM_MEDIA_CACHE_DIR`        | Local cache for admin-panel videos.                                                                       |
+| `AppLogPath`          | `EPHARM_APP_LOG`                | App log file path.                                                                                        |
+| log path              | `EPHARM_LOG_PATH`               | Optional Standard-N log path override for non-standard cash desks. Do not set it for the default demo VM. |
 
 ## Screen Modes
 
@@ -91,14 +91,14 @@ ssh root@<server> "cd /root/epharm && docker compose --env-file .env.prod -f doc
 
 ## Scripts
 
-| Script | Purpose |
-| --- | --- |
-| `publish-exe.ps1` | Build self-contained win-x64 package/zip. |
-| `run-kassa.ps1`, `run.bat` | Start packaged exe in dev mode with logs in the same terminal. |
-| `install-tasks.ps1` | Install scheduled task + watchdog. |
-| `uninstall-tasks.ps1` | Remove scheduled tasks. |
-| `watchdog.ps1` | Heartbeat/process watchdog. |
-| `standartn-discover.ps1` | Help discover Standard-N log paths. |
+| Script                                       | Purpose                                                                                                                                                 |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `publish-exe.ps1`                            | Build self-contained win-x64 package/zip.                                                                                                               |
+| `run-kassa.ps1`, `run.bat`                   | Start packaged exe in dev mode with logs in the same terminal.                                                                                          |
+| `install-tasks.ps1`                          | Install scheduled task + watchdog.                                                                                                                      |
+| `uninstall-tasks.ps1`                        | Remove scheduled tasks.                                                                                                                                 |
+| `watchdog.ps1`                               | Heartbeat/process watchdog.                                                                                                                             |
+| `standartn-discover.ps1`                     | Help discover Standard-N log paths.                                                                                                                     |
 | `scan-into-standartn.ps1`, `epharm-scan.ps1` | Source-tree diagnostic helpers only when Standard-N is unavailable. They are not included in the handoff zip. Normal tests must scan inside Standard-N. |
 
 ## Debug Checklist

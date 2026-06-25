@@ -30,16 +30,16 @@ Offline mocks remain available with `--dart-define=USE_API=false`.
 
 ## Features
 
-| Feature | Path | Current role |
-| --- | --- | --- |
-| Welcome/start | `features/welcome` | Splash decides route from persisted tokens/onboarding state before showing welcome. |
-| Auth | `features/auth` | Phone OTP, registration form, token storage. |
-| Home | `features/home` | Balance card, banners, filters, promo grid, refresh/resume sync. |
-| Promotions | `features/promotions` | Active campaign feed from `/api/mobile/promotions`, filters/sort. |
-| Catalog | `features/catalog` | Product detail sheet, recommendation sections, image gallery/card components. |
-| Receipts | `features/receipts` | Upload photo, bonus card capture, claimed promo id, receipt list/detail/status. |
-| Profile | `features/profile` | `/api/mobile/me` profile/balance refresh. |
-| Profile pages | `features/profile_pages` | FAQ, instruction, cooperation, terms, privacy, video instruction. |
+| Feature       | Path                     | Current role                                                                        |
+| ------------- | ------------------------ | ----------------------------------------------------------------------------------- |
+| Welcome/start | `features/welcome`       | Splash decides route from persisted tokens/onboarding state before showing welcome. |
+| Auth          | `features/auth`          | Phone OTP, registration form, token storage.                                        |
+| Home          | `features/home`          | Balance card, banners, filters, promo grid, refresh/resume sync.                    |
+| Promotions    | `features/promotions`    | Active campaign feed from `/api/mobile/promotions`, filters/sort.                   |
+| Catalog       | `features/catalog`       | Product detail sheet, recommendation sections, image gallery/card components.       |
+| Receipts      | `features/receipts`      | Upload photo, bonus card capture, claimed promo id, receipt list/detail/status.     |
+| Profile       | `features/profile`       | `/api/mobile/me` profile/balance refresh.                                           |
+| Profile pages | `features/profile_pages` | FAQ, instruction, cooperation, terms, privacy, video instruction.                   |
 
 ## App Flow
 

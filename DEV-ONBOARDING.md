@@ -106,10 +106,10 @@ Use any phone number for a pilot/dev registration unless a specific seeded user 
 
 ## Troubleshooting
 
-| Symptom | Fix |
-| --- | --- |
-| `flutter devices` does not show phone | Use a data cable; trust computer; enable USB debugging / Developer Mode. |
-| App cannot reach backend | Check `API_BASE`; `curl https://epharm.78-140-246-238.sslip.io/api/health`. |
-| iOS profile not trusted | iPhone Settings -> VPN & Device Management -> trust developer. |
-| iOS Developer Mode disabled | Enable Developer Mode and reboot. |
-| Local backend on physical phone | Use Mac LAN IP, not `localhost`. |
+| Symptom                               | Fix                                                                         |
+| ------------------------------------- | --------------------------------------------------------------------------- |
+| `flutter devices` does not show phone | Use a data cable; trust computer; enable USB debugging / Developer Mode.    |
+| App cannot reach backend              | Check `API_BASE`; `curl https://epharm.78-140-246-238.sslip.io/api/health`. |
+| iOS profile not trusted               | iPhone Settings -> VPN & Device Management -> trust developer.              |
+| iOS Developer Mode disabled           | Enable Developer Mode and reboot.                                           |
+| Local backend on physical phone       | Use Mac LAN IP, not `localhost`.                                            |

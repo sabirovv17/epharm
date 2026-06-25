@@ -22,21 +22,21 @@ The POSM client runs on a Windows cash-desk machine:
 
 ## Important Files
 
-| Path | Role |
-| --- | --- |
-| `App/MainWindow.xaml[.cs]` | WPF customer display and main integration shell. |
-| `App/MainWindow.Recommendations.cs` | Recommendation popup wiring. |
-| `App/MainWindow.Screen.cs` | Customer screen/video playlist logic. |
-| `App/MainWindow.Update.cs` | App auto-update logic. |
-| `App/RecommendationWindow.xaml[.cs]` | Pharmacist recommendation popup. |
-| `App/CdpForm.xaml[.cs]` | POSM customer-phone/CDP form. |
-| `App/Config/EpharmConfig.cs` | Config/env parsing. |
-| `App/Services/EpharmApiClient.cs` | HTTP client with `X-Posm-Key`. |
-| `App/Services/CheckoutSession.cs` | Current receipt/cart lifecycle. |
-| `App/Services/SaleReporter.cs` | Printed sale reporting. |
-| `App/Services/OfflineOutbox.cs` | SQLite outbox. |
-| `App/Services/OutboxFlusher.cs` | Retry loop. |
-| `Models/Posm/*` | DTOs shared by POSM requests/responses. |
+| Path                                 | Role                                             |
+| ------------------------------------ | ------------------------------------------------ |
+| `App/MainWindow.xaml[.cs]`           | WPF customer display and main integration shell. |
+| `App/MainWindow.Recommendations.cs`  | Recommendation popup wiring.                     |
+| `App/MainWindow.Screen.cs`           | Customer screen/video playlist logic.            |
+| `App/MainWindow.Update.cs`           | App auto-update logic.                           |
+| `App/RecommendationWindow.xaml[.cs]` | Pharmacist recommendation popup.                 |
+| `App/CdpForm.xaml[.cs]`              | POSM customer-phone/CDP form.                    |
+| `App/Config/EpharmConfig.cs`         | Config/env parsing.                              |
+| `App/Services/EpharmApiClient.cs`    | HTTP client with `X-Posm-Key`.                   |
+| `App/Services/CheckoutSession.cs`    | Current receipt/cart lifecycle.                  |
+| `App/Services/SaleReporter.cs`       | Printed sale reporting.                          |
+| `App/Services/OfflineOutbox.cs`      | SQLite outbox.                                   |
+| `App/Services/OutboxFlusher.cs`      | Retry loop.                                      |
+| `Models/Posm/*`                      | DTOs shared by POSM requests/responses.          |
 
 ## Matching Contract
 
@@ -60,18 +60,18 @@ Backend resolves barcode first, then normalized name. Ambiguous matches are skip
 
 `posm.json` keys can be overridden by environment variables:
 
-| Key | Env | Meaning |
-| --- | --- | --- |
-| `Enabled` | `EPHARM_POSM_ENABLED` | Enables backend integration. |
-| `BackendBaseUrl` | `EPHARM_BACKEND_URL` | Backend host, e.g. `https://epharm.78-140-246-238.sslip.io`. |
-| `DeviceKey` | `EPHARM_POSM_KEY` | POSM device key for `X-Posm-Key`. |
-| `PharmacyId` | `EPHARM_PHARMACY_ID` | Pharmacy/screen id. |
-| `PharmacistId` | `EPHARM_PHARMACIST_ID` | Pharmacist id credited in pilot config. |
-| `ScreenMode` | `EPHARM_SCREEN_MODE` | `dev` windowed or `prod` monitor behavior. |
-| `VideoEnabled` | `EPHARM_NO_VIDEO=true` disables | Customer video playback. |
-| `PlaylistPollSec` | `EPHARM_PLAYLIST_POLL_SEC` | Playlist poll period. |
-| `AppLogPath` | `EPHARM_APP_LOG` | POSM app log path. |
-| log path | `EPHARM_LOG_PATH` | Explicit Standard-N log path. |
+| Key               | Env                             | Meaning                                                      |
+| ----------------- | ------------------------------- | ------------------------------------------------------------ |
+| `Enabled`         | `EPHARM_POSM_ENABLED`           | Enables backend integration.                                 |
+| `BackendBaseUrl`  | `EPHARM_BACKEND_URL`            | Backend host, e.g. `https://epharm.78-140-246-238.sslip.io`. |
+| `DeviceKey`       | `EPHARM_POSM_KEY`               | POSM device key for `X-Posm-Key`.                            |
+| `PharmacyId`      | `EPHARM_PHARMACY_ID`            | Pharmacy/screen id.                                          |
+| `PharmacistId`    | `EPHARM_PHARMACIST_ID`          | Pharmacist id credited in pilot config.                      |
+| `ScreenMode`      | `EPHARM_SCREEN_MODE`            | `dev` windowed or `prod` monitor behavior.                   |
+| `VideoEnabled`    | `EPHARM_NO_VIDEO=true` disables | Customer video playback.                                     |
+| `PlaylistPollSec` | `EPHARM_PLAYLIST_POLL_SEC`      | Playlist poll period.                                        |
+| `AppLogPath`      | `EPHARM_APP_LOG`                | POSM app log path.                                           |
+| log path          | `EPHARM_LOG_PATH`               | Explicit Standard-N log path.                                |
 
 `Enabled` is effective only when key identity fields are present.
 

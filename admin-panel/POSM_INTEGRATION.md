@@ -91,12 +91,12 @@ This replaced the obsolete `product_pos_codes` approach; the table was dropped i
 
 ## Reconciliation Sources
 
-| Source | How it enters |
-| --- | --- |
-| POS log sale | `POST /api/posm/sales` |
-| Standard-N Excel | `POST /api/admin/reconcile/import-excel` |
-| Mobile receipt photo | `POST /api/mobile/receipts` |
-| Manual admin decision | Reconcile approve/reject |
+| Source                | How it enters                            |
+| --------------------- | ---------------------------------------- |
+| POS log sale          | `POST /api/posm/sales`                   |
+| Standard-N Excel      | `POST /api/admin/reconcile/import-excel` |
+| Mobile receipt photo  | `POST /api/mobile/receipts`              |
+| Manual admin decision | Reconcile approve/reject                 |
 
 Decision model:
 
@@ -118,16 +118,16 @@ Legacy playlist CRUD remains in backend but admin UI focuses on broadcast.
 
 ## API
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| POST | `/api/posm/recommend` | Cart -> recommendation list. |
-| POST | `/api/posm/recommendations/{eventId}/outcome` | Accepted/rejected outcome. |
-| POST | `/api/posm/sales` | Printed sale source for reconciliation. |
-| GET | `/api/posm/playlists/active` | Active customer-display playlist. |
-| GET | `/api/posm/app/version` | Current POSM app release. |
-| POST | `/api/posm/heartbeat` | Online cash-desk presence. |
-| POST | `/api/posm/cdp/lookup` | Customer lookup by phone. |
-| POST | `/api/posm/cdp/register` | Customer profile registration. |
+| Method | Path                                          | Purpose                                 |
+| ------ | --------------------------------------------- | --------------------------------------- |
+| POST   | `/api/posm/recommend`                         | Cart -> recommendation list.            |
+| POST   | `/api/posm/recommendations/{eventId}/outcome` | Accepted/rejected outcome.              |
+| POST   | `/api/posm/sales`                             | Printed sale source for reconciliation. |
+| GET    | `/api/posm/playlists/active`                  | Active customer-display playlist.       |
+| GET    | `/api/posm/app/version`                       | Current POSM app release.               |
+| POST   | `/api/posm/heartbeat`                         | Online cash-desk presence.              |
+| POST   | `/api/posm/cdp/lookup`                        | Customer lookup by phone.               |
+| POST   | `/api/posm/cdp/register`                      | Customer profile registration.          |
 
 ## Windows Client Notes
 

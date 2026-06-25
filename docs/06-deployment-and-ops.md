@@ -4,12 +4,12 @@
 
 Current shared environment:
 
-| Item | Value |
-| --- | --- |
-| Host | `medusa-test` |
+| Item       | Value                                    |
+| ---------- | ---------------------------------------- |
+| Host       | `medusa-test`                            |
 | Public URL | `https://epharm.78-140-246-238.sslip.io` |
-| Deploy dir | `/root/epharm` |
-| Stack | Docker Compose + Caddy |
+| Deploy dir | `/root/epharm`                           |
+| Stack      | Docker Compose + Caddy                   |
 
 The active public setup is one host with path routing. Do not assume `api.epharm.kz`,
 `admin.epharm.kz`, or `s3.epharm.kz` are active unless DNS and `.env.prod` have been changed and

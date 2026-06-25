@@ -221,9 +221,11 @@ describe('PromoRulesEditor — превью кассы (структура ка�
     expect(screen.getByText('УЖЕ В ЧЕКЕ')).toBeInTheDocument()
     expect(screen.getByText('ДОБАВЬТЕ К ПОКУПКЕ')).toBeInTheDocument()
     // Триггер = выбранный товар, предложение = товар кампании.
-    expect(within(screen.getByTestId('pr-preview-trigger-prod_c')).getByText('Платочки Zewa'))
-      .toBeInTheDocument()
-    expect(within(screen.getByTestId('pr-preview-offer-prod_c')).getByText('Эпигам спрей'))
-      .toBeInTheDocument()
+    expect(
+      within(screen.getByTestId('pr-preview-trigger-prod_c')).getByText('Платочки Zewa'),
+    ).toBeInTheDocument()
+    expect(
+      within(screen.getByTestId('pr-preview-offer-prod_c')).getByText('Эпигам спрей'),
+    ).toBeInTheDocument()
   })
 })

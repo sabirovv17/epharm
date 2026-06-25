@@ -10,24 +10,24 @@ Priorities:
 
 ## Current Scope
 
-| Area | Status |
-| --- | --- |
-| Backend | Functional monolith, migrations V001-V030, prod stack builds. |
-| Admin | Functional HQ console on real API. |
-| Mobile | Functional Flutter app with real API default and offline mock fallback. |
-| POSM | C#/WPF implementation exists; production rollout needs Windows build/install per cash desk. |
-| Storefront/PIM | External Medusa; this repo consumes catalog/images/barcodes/pharmacies only. |
+| Area           | Status                                                                                      |
+| -------------- | ------------------------------------------------------------------------------------------- |
+| Backend        | Functional monolith, migrations V001-V030, prod stack builds.                               |
+| Admin          | Functional HQ console on real API.                                                          |
+| Mobile         | Functional Flutter app with real API default and offline mock fallback.                     |
+| POSM           | C#/WPF implementation exists; production rollout needs Windows build/install per cash desk. |
+| Storefront/PIM | External Medusa; this repo consumes catalog/images/barcodes/pharmacies only.                |
 
 ## P0
 
-| Item | Owner | Status / action |
-| --- | --- | --- |
-| Receipt photos in public-readable MinIO bucket | code/ops | Move receipt photos behind authenticated/presigned URL access. Keep screen/broadcast media public or split buckets. |
-| Production secrets | ops | Ensure `.env.prod` has generated `JWT_SECRET`, `POSM_DEVICE_KEY`, DB/MinIO passwords, admin bootstrap credentials. |
-| Compromised storefront/PIM/SSH credentials | ops | Rotate credentials documented in existing credential files. Do not copy them into new docs. |
-| Postgres backup and restore | ops | Cron/off-site backup exists; restore has been tested. |
-| POSM rollout for automated bonus loop | ops | Build on Windows, install scheduled tasks/watchdog, set `EPHARM_LOG_PATH`, `EPHARM_POSM_KEY`, pharmacy/pharmacist ids. Without this, bonuses rely on mobile receipt/manual moderation. |
-| SMS provider | decision/ops | Real SMS provider not connected. If pilot keeps `OTP_DEV_MODE=true`, that is an explicit pilot-only decision. |
+| Item                                           | Owner        | Status / action                                                                                                                                                                        |
+| ---------------------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Receipt photos in public-readable MinIO bucket | code/ops     | Move receipt photos behind authenticated/presigned URL access. Keep screen/broadcast media public or split buckets.                                                                    |
+| Production secrets                             | ops          | Ensure `.env.prod` has generated `JWT_SECRET`, `POSM_DEVICE_KEY`, DB/MinIO passwords, admin bootstrap credentials.                                                                     |
+| Compromised storefront/PIM/SSH credentials     | ops          | Rotate credentials documented in existing credential files. Do not copy them into new docs.                                                                                            |
+| Postgres backup and restore                    | ops          | Cron/off-site backup exists; restore has been tested.                                                                                                                                  |
+| POSM rollout for automated bonus loop          | ops          | Build on Windows, install scheduled tasks/watchdog, set `EPHARM_LOG_PATH`, `EPHARM_POSM_KEY`, pharmacy/pharmacist ids. Without this, bonuses rely on mobile receipt/manual moderation. |
+| SMS provider                                   | decision/ops | Real SMS provider not connected. If pilot keeps `OTP_DEV_MODE=true`, that is an explicit pilot-only decision.                                                                          |
 
 ## P1
 

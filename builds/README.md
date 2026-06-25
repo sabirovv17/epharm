@@ -4,12 +4,12 @@
 
 Current app metadata:
 
-| Field | Value |
-| --- | --- |
-| `pubspec.yaml` version | `0.1.0+1` |
-| iOS bundle id | `kz.pharmacy.app` |
+| Field                  | Value             |
+| ---------------------- | ----------------- |
+| `pubspec.yaml` version | `0.1.0+1`         |
+| iOS bundle id          | `kz.pharmacy.app` |
 | Android application id | `kz.pharmacy.app` |
-| Display name | `Epharm` |
+| Display name           | `Epharm`          |
 
 Generated APK/IPA/app zip artifacts should not be committed unless there is an explicit release handoff.
 

@@ -66,12 +66,12 @@ Barcode in parentheses is the important part. POSM also supports explicit `barco
 
 ## Controls
 
-| Key | Action |
-| --- | --- |
-| `D` | Demo recommendation popup if supported by the current build. |
-| `F9` | Accept recommendation. |
-| `Esc` | Skip/close recommendation. |
-| `Q` | Dev exit in demo builds. |
+| Key   | Action                                                       |
+| ----- | ------------------------------------------------------------ |
+| `D`   | Demo recommendation popup if supported by the current build. |
+| `F9`  | Accept recommendation.                                       |
+| `Esc` | Skip/close recommendation.                                   |
+| `Q`   | Dev exit in demo builds.                                     |
 
 ## Logs
 
@@ -92,11 +92,11 @@ Check for:
 
 ## Troubleshooting
 
-| Symptom | Check |
-| --- | --- |
-| No popup | Log line read? Barcode present? Active campaign/rule exists? Backend reachable? |
-| 401 from POSM API | Wrong `DeviceKey`. |
-| Empty customer screen | No active broadcast playlist or POSM disabled. |
-| Video black in VM | Disable video or use physical/GPU-backed Windows. |
-| Broken Cyrillic item names | Log was not written as cp1251. |
-| Window position wrong | Check `ScreenMode` and monitor count. |
+| Symptom                    | Check                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------- |
+| No popup                   | Log line read? Barcode present? Active campaign/rule exists? Backend reachable? |
+| 401 from POSM API          | Wrong `DeviceKey`.                                                              |
+| Empty customer screen      | No active broadcast playlist or POSM disabled.                                  |
+| Video black in VM          | Disable video or use physical/GPU-backed Windows.                               |
+| Broken Cyrillic item names | Log was not written as cp1251.                                                  |
+| Window position wrong      | Check `ScreenMode` and monitor count.                                           |
