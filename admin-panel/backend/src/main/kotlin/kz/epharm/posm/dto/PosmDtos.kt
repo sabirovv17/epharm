@@ -6,11 +6,11 @@ import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Pattern
 
 /**
- * Позиция корзины кассы Стандарт-Н. Матчинг к нашему товару идёт по [barcode] (EAN-13,
- * первичный ключ), при его отсутствии — fallback по [name] (sname из лога).
- *  - sku:     legacy iPartID кассы — только для диагностики, в матчинге НЕ участвует;
- *  - barcode: EAN-13 (variant.barcode из Medusa) — ПЕРВИЧНЫЙ ключ матчинга;
- *  - name:    название из лога кассы (sname) — fallback-ключ, пока касса не шлёт штрих-код;
+ * Позиция корзины кассы Стандарт-Н. Матчинг к нашему товару идёт по точным ключам
+ * [sku] (iPartID) и [barcode] (EAN-13), затем fallback по [name] (sname из лога).
+ *  - sku:     iPartID кассы Стандарт-Н — точный ключ матчинга, если заполнен в админке;
+ *  - barcode: EAN-13 (variant.barcode из Medusa) — точный ключ матчинга;
+ *  - name:    название из лога кассы (sname) — fallback-ключ для неполных логов;
  *  - qty:     количество.
  */
 data class CartItemDto(
@@ -111,8 +111,7 @@ data class OutcomeResponse(
 // ── Источник №1 сверки: завершённый чек из лога кассы ───────────────────────
 
 data class PosSaleItemDto(
-    // sku — iPartID кассы (диагностика). barcode (EAN-13) + name — ключи матчинга к нашему товару
-    // (как в /recommend). Резолвятся в productId до сверки с pending-бонусами.
+    // sku — iPartID кассы. sku/barcode/name резолвятся в productId тем же матчерем, что /recommend.
     val sku: String? = null,
     val barcode: String? = null,
     val name: String = "",

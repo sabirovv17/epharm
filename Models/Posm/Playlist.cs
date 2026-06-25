@@ -13,7 +13,8 @@ namespace CustomerDisplay.Models.Posm
 
     /// <summary>
     /// Активный плейлист 2-го монитора, заданный из админки. POSM-клиент крутит Slides в цикле
-    /// вместо захардкоженного promo.mp4. Если PlaylistId == null / Slides пуст — откат на локальный promo.mp4.
+    /// вместо захардкоженного promo.mp4. Если backend недоступен — остаётся текущий/последний
+    /// закешированный локальный плейлист.
     /// </summary>
     public sealed class ActivePlaylist
     {

@@ -171,6 +171,7 @@ services:
       S3_DOMAIN: ${S3_DOMAIN:?set S3_DOMAIN (напр. s3.epharm.kz) in .env.prod}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /srv/epharm-downloads:/srv/epharm-downloads:ro
       - caddy_data:/data # сертификаты Let's Encrypt (переживают рестарт)
       - caddy_config:/config
 

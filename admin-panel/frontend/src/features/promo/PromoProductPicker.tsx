@@ -24,6 +24,8 @@ export interface SelectedProduct {
   price: number | null
   /** EAN-13 из Medusa (variant.barcode) — ключ матчинга на кассе. null — нет штрих-кода. */
   barcode: string | null
+  /** iPartID Стандарт-Н — ручной ключ матчинга, если известен. */
+  ipartId?: string | null
 }
 
 /**
@@ -192,6 +194,7 @@ export function PromoProductPicker({ value, onChange }: Props) {
       brand: p.brand ?? '',
       price: p.price ?? null,
       barcode: p.barcode ?? null,
+      ipartId: p.ipartId ?? null,
     })
     setOpen(false)
   }
@@ -209,6 +212,9 @@ export function PromoProductPicker({ value, onChange }: Props) {
           )}
           {value.barcode && (
             <div className="num truncate text-[11px] text-ink-400">{value.barcode}</div>
+          )}
+          {value.ipartId && (
+            <div className="num truncate text-[11px] text-ink-400">iPartID: {value.ipartId}</div>
           )}
         </div>
         <Button variant="ghost" onClick={() => setOpen(true)}>

@@ -8,6 +8,8 @@ import kz.epharm.promo.entity.PromoEntity
 import kz.epharm.promo.entity.PromoStatus
 import kz.epharm.promo.entity.PromoTier
 import kz.epharm.promo.repository.PromoRepository
+import kz.epharm.rules.entity.RuleStatus
+import kz.epharm.rules.repository.RuleRepository
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import org.springframework.http.HttpStatus
@@ -28,6 +30,7 @@ import java.util.UUID
 class PromoService(
     private val promoRepository: PromoRepository,
     private val medusaPriceService: MedusaPriceService,
+    private val ruleRepository: RuleRepository,
 ) {
 
     @Transactional(readOnly = true)
@@ -58,6 +61,7 @@ class PromoService(
             productName = req.productName.trim(),
             productImage = req.productImage?.trim()?.takeIf { it.isNotBlank() },
             barcode = req.barcode?.trim()?.takeIf { it.isNotBlank() },
+            ipartId = req.ipartId?.trim()?.takeIf { it.isNotBlank() },
             overrideImage = req.overrideImage?.trim()?.takeIf { it.isNotBlank() },
             overrideDescription = req.overrideDescription?.trim()?.takeIf { it.isNotBlank() },
             overrideCharacteristics = req.overrideCharacteristics?.trim()?.takeIf { it.isNotBlank() },
@@ -72,7 +76,9 @@ class PromoService(
         // Штрих-код продвигаемого товара — из Medusa (для матчинга кассы); fallback на присланный.
         syncBarcode(entity, refetch = true)
         validatePromo(entity)
-        return PromoDto.of(promoRepository.save(entity))
+        val saved = promoRepository.save(entity)
+        if (req.status != null) syncGeneratedRuleStatuses(saved)
+        return PromoDto.of(saved)
     }
 
     @Transactional
@@ -106,6 +112,7 @@ class PromoService(
         req.productName?.let { entity.productName = it.trim() }
         req.productImage?.let { entity.productImage = it.trim().takeIf { s -> s.isNotBlank() } }
         req.barcode?.let { entity.barcode = it.trim().takeIf { s -> s.isNotBlank() } }
+        req.ipartId?.let { entity.ipartId = it.trim().takeIf { s -> s.isNotBlank() } }
         // Override: пустая строка = очистить, иначе установить.
         req.overrideImage?.let { entity.overrideImage = it.trim().takeIf { s -> s.isNotBlank() } }
         req.overrideDescription?.let { entity.overrideDescription = it.trim().takeIf { s -> s.isNotBlank() } }
@@ -123,7 +130,9 @@ class PromoService(
         syncBarcode(entity, refetch = productChanged || entity.barcode.isNullOrBlank())
 
         validatePromo(entity)
-        return PromoDto.of(promoRepository.save(entity))
+        val saved = promoRepository.save(entity)
+        if (req.status != null) syncGeneratedRuleStatuses(saved)
+        return PromoDto.of(saved)
     }
 
     @Transactional
@@ -131,7 +140,9 @@ class PromoService(
         val entity = loadOrThrow(id)
         if (entity.status == PromoStatus.archived) return PromoDto.of(entity)
         entity.status = PromoStatus.archived
-        return PromoDto.of(promoRepository.save(entity))
+        val saved = promoRepository.save(entity)
+        syncGeneratedRuleStatuses(saved)
+        return PromoDto.of(saved)
     }
 
     /**
@@ -143,7 +154,9 @@ class PromoService(
         val entity = loadOrThrow(id)
         if (entity.status != PromoStatus.archived) return PromoDto.of(entity)
         entity.status = PromoStatus.draft
-        return PromoDto.of(promoRepository.save(entity))
+        val saved = promoRepository.save(entity)
+        syncGeneratedRuleStatuses(saved)
+        return PromoDto.of(saved)
     }
 
     // ── Internals ─────────────────────────────────────────────────────────
@@ -178,12 +191,34 @@ class PromoService(
         val mpid = e.medusaProductId
         if (mpid == null) {
             e.barcode = null
+            e.ipartId = null
             return
         }
         if (refetch) {
             val ean = medusaPriceService.snapshotOf(mpid)?.barcode?.trim()?.takeIf { it.isNotBlank() }
             if (ean != null) e.barcode = ean
         }
+    }
+
+    /**
+     * Кампания — мастер-выключатель для сгенерированных правил.
+     * При активации включаем только пары, которые админ не оставил черновиками.
+     */
+    private fun syncGeneratedRuleStatuses(promo: PromoEntity) {
+        val rules = ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc(promo.id)
+        if (rules.isEmpty()) return
+
+        val effectiveStatus: (Boolean) -> RuleStatus = when (promo.status) {
+            PromoStatus.active -> { pairEnabled -> if (pairEnabled) RuleStatus.active else RuleStatus.draft }
+            PromoStatus.archived -> { _ -> RuleStatus.archived }
+            PromoStatus.draft,
+            PromoStatus.paused -> { _ -> RuleStatus.draft }
+        }
+
+        rules.forEach { rule ->
+            rule.status = effectiveStatus(rule.card?.pairActive != false)
+        }
+        ruleRepository.saveAllAndFlush(rules)
     }
 
     private fun loadOrThrow(id: String): PromoEntity =

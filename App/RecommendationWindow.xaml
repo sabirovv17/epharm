@@ -151,7 +151,7 @@
                 </Grid>
             </Border>
 
-            <!-- НИЗ: бонус + цель + кнопки -->
+            <!-- НИЗ: бонус + цель -->
             <StackPanel Margin="14,11,14,13">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -172,20 +172,6 @@
                         <TextBlock x:Name="TbGoalBonus" Text="" Foreground="#6F665B" FontSize="12.5"
                                    FontWeight="Medium" TextWrapping="Wrap" Margin="0,2,0,0"/>
                     </StackPanel>
-                </Grid>
-
-                <Grid x:Name="PanelButtons" Margin="0,12,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="10"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <Button x:Name="BtnSkip" Grid.Column="0" Content="Пропустить (Esc)"
-                            Height="44" FontSize="15" FontWeight="SemiBold" Foreground="#423B32"
-                            Background="#EFEAE2" BorderThickness="0" Cursor="Hand" Click="OnSkipClick"/>
-                    <Button x:Name="BtnAccept" Grid.Column="2" Content="Заменить (F9)"
-                            Height="44" FontSize="15" FontWeight="Bold" Foreground="White"
-                            Background="#D97757" BorderThickness="0" Cursor="Hand" Click="OnAcceptClick"/>
                 </Grid>
 
                 <!-- Подтверждение результата (показывается вместо кнопок, когда реко решена) -->

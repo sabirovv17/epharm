@@ -43,13 +43,18 @@ class ProductEntity(
     var medusaProductId: String? = null,
 
     /**
-     * Штрих-код EAN-13 (из Medusa variant.barcode). ПЕРВИЧНЫЙ ключ матчинга корзины
-     * POSM-кассы → наш productId. Заполняется для кампанийных/правиловых товаров
-     * ([kz.epharm.promo.service.PromoRulesService] + [kz.epharm.promo.service.PromoPriceScheduler]).
-     * NULL у товаров без штрих-кода — тогда работает fallback по имени.
+     * Штрих-код EAN-13 (из Medusa variant.barcode). Один из точных ключей матчинга корзины
+     * POSM-кассы → наш productId. Заполняется для кампанийных/правиловых товаров.
      */
     @Column(name = "barcode", length = 32)
     var barcode: String? = null,
+
+    /**
+     * iPartID кассы Стандарт-Н. Заполняется вручную в кампании/паре правил, когда EAN-13
+     * в кассовом логе отсутствует или отличается от Medusa.
+     */
+    @Column(name = "ipart_id", length = 64)
+    var ipartId: String? = null,
 
     @Column(name = "created_at", nullable = false)
     var createdAt: Instant = Instant.now(),

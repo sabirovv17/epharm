@@ -1,197 +1,163 @@
-# Бэкенд (Kotlin + Spring Boot)
+# Backend
 
-**Путь:** `admin-panel/backend/` · **Стек:** Kotlin 2.0.21 (JVM 22), Spring Boot 3.3.5
-(Web, Security, Data JPA, Validation, Actuator), Gradle Kotlin DSL.
+Path: `admin-panel/backend/`.
 
-Единый монолит. Внутренний домен пакетов — `kz.epharm.*`. Все клиенты ходят через Caddy на
-`backend:8080` (наружу порт не публикуется).
+Stack:
 
-## Ключевые зависимости
+- Kotlin 2.0.21;
+- Spring Boot 3.3.5;
+- JVM toolchain 22;
+- Gradle 8.10.2 wrapper;
+- PostgreSQL 16 + Flyway;
+- Redis;
+- MinIO/S3;
+- Spring Security + JWT;
+- Testcontainers + JUnit 5 + MockK.
 
-| Библиотека              | Версия  | Зачем                                     |
-| ----------------------- | ------- | ----------------------------------------- |
-| JJWT                    | 0.12.6  | подпись/проверка JWT (HMAC-256)           |
-| Flyway                  | 10.20.1 | миграции БД (25 шт.)                      |
-| PostgreSQL driver       | —       | основная БД                               |
-| AWS SDK S3              | 2.29.9  | загрузка медиа в MinIO/S3 (+ presigner)   |
-| Apache POI              | 5.3.0   | парсинг Excel-выгрузки «Стандарт-Н»       |
-| Spring Data JPA / Redis | 3.3.5   | ORM (Hibernate) / кэш                     |
-| SpringDoc OpenAPI       | 2.6.0   | Swagger UI                                |
-| Testcontainers          | 1.20.3  | интеграционные тесты на реальном Postgres |
-| MockK                   | 1.13.13 | моки в тестах                             |
+The backend is a modular monolith under package `kz.epharm`.
 
-## Доменные пакеты
+## Domains
 
-`src/main/kotlin/kz/epharm/`
+| Package | Responsibility |
+| --- | --- |
+| `auth` | Admin auth, JWT, refresh tokens, roles. |
+| `mobile.auth` | Pharmacist OTP auth, registration, refresh/logout. |
+| `mobile.profile` | `/api/mobile/me` profile/balance. |
+| `mobile.catalog` | Public Medusa-backed product catalog for mobile. |
+| `mobile.promotions` | Public active promo campaign feed. |
+| `mobile.receipts` | Authenticated receipt upload/history. |
+| `mobile.pharmacies` | Public active pharmacy list. |
+| `catalog` | Internal/admin product master data used by rules. |
+| `promo` | Campaigns, Medusa product snapshots, tiers, campaign-generated rules. |
+| `rules` | Rules Engine admin CRUD and POSM matching logic. |
+| `receipts` | Receipt storage, moderation, POS/Excel reconciliation, bonus crediting. |
+| `pharmacies` | Chains and pharmacies. |
+| `pharmacists` | Pharmacist registry, status, balance. |
+| `finance` | Payout batches, items, approval, scheduler. |
+| `screens` | Broadcast/screen media and playlists. |
+| `banners` | Admin-managed mobile banners. |
+| `medusa` | Storefront client/proxy and admin read-only catalog. |
+| `posm` | POSM recommendations, outcomes, sales, playlists, heartbeat, CDP. |
+| `appupdate` | POSM app release metadata and auto-update endpoint. |
+| `lms`, `ai_exam`, `lift`, `dashboard` | Admin sections and reporting. |
+| `shared` | Security, errors, media proxy, storage, validation, dev reset. |
 
-| Пакет         | Ответственность                                                                                                     |
-| ------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `shared`      | `SecurityConfig`, JWT-фильтр, обработка ошибок, утилиты (Luhn, ИИН, телефон), `ProdBootstrap`, абстракция хранилища |
-| `auth`        | Аутентификация HQ-консоли (email/пароль + JWT + refresh + роли)                                                     |
-| `mobile`      | API мобилки фармацевта (auth/OTP, catalog, receipts, pharmacies, profile)                                           |
-| `catalog`     | Мастер-данные товаров (бренды, МНН, CRUD продуктов)                                                                 |
-| `rules`       | Rules Engine: правила замены/допродажи, JSONB-триггеры, A/B                                                         |
-| `promo`       | Маркетинговые кампании (бюджеты, периоды, KPI)                                                                      |
-| `pharmacies`  | Сети и аптеки (группы pilot/control/rolled для A/B)                                                                 |
-| `pharmacists` | Реестр фармацевтов (тир, баланс, прогресс курсов, блокировка)                                                       |
-| `finance`     | Выплаты (батчи, согласование, роль FINANCE_REVIEWER)                                                                |
-| `receipts`    | Сверка чеков (источники: лог + Excel + ручная модерация, анти-фрод, начисление)                                     |
-| `screens`     | Indoor-DOOH плейлисты (видео/картинки, загрузка в MinIO)                                                            |
-| `lms`         | Курсы обучения фармацевтов                                                                                          |
-| `ai_exam`     | Банк вопросов для пост-курсового экзамена                                                                           |
-| `posm`        | Интеграция с кассой (рекомендации, исходы, продажи, CDP)                                                            |
-| `medusa`      | Клиент Medusa Store API (реальный каталог, кэш, прокси)                                                             |
-| `cdp`         | Профили лояльности клиентов (по телефону)                                                                           |
-| `dashboard`   | Сводная аналитика (KPI)                                                                                             |
-| `lift`        | A/B-аналитика (pilot vs control)                                                                                    |
-| `appupdate`   | Манифест авто-апдейта POSM-клиента (версии, SHA256)                                                                 |
+## API Map
 
-## Модель безопасности
+### Admin
 
-`shared/SecurityConfig.kt` — stateless, JWT-фильтр кладёт `Authentication` в `SecurityContext`.
+- `POST /api/admin/auth/login|refresh|logout`, `GET /api/admin/auth/me`
+- `/api/admin/dashboard/summary`
+- `/api/admin/catalog/products`, `/brands`, `/mnn-groups`
+- `/api/admin/rules/**`
+- `/api/admin/promo/**`, including `/refresh-prices` and `/{id}/rules`
+- `/api/admin/banners/**`
+- `/api/admin/storefront/products`, `/products/{id}`
+- `/api/admin/pharmacies/**`
+- `/api/admin/pharmacists/**`
+- `/api/admin/reconcile/**`, including `/submit` and `/import-excel`
+- `/api/admin/payouts/**`
+- `/api/admin/screens/**`, including `/connected` and `/broadcast`
+- `/api/admin/app-releases/**`
+- `/api/admin/lms/courses/**`
+- `/api/admin/ai-exam/questions/**`
+- `/api/admin/lift`
 
-| URL-паттерн                                                  | Доступ                                                               |
-| ------------------------------------------------------------ | -------------------------------------------------------------------- |
-| `/api/admin/**`                                              | роли `HQ_HEAD`, `CATEGORY_LEAD`, `BRAND_MANAGER`, `FINANCE_REVIEWER` |
-| `/api/mobile/**`                                             | роль `PHARMACIST`                                                    |
-| `/api/posm/**`                                               | device-key (`X-Posm-Key`), без JWT                                   |
-| `/actuator/**`                                               | роли admin                                                           |
-| `/api/admin/auth/{login,refresh}`                            | permitAll                                                            |
-| `/api/mobile/auth/{sms/request,sms/verify,register,refresh}` | permitAll                                                            |
-| `/api/health`, `/actuator/health`, `/swagger-ui/**`          | permitAll                                                            |
+### Mobile
 
-**Роли админки:**
+Public:
 
-- `HQ_HEAD` — полный доступ
-- `CATEGORY_LEAD` — создание/редактирование правил и промо
-- `BRAND_MANAGER` — чтение правил/промо
-- `FINANCE_REVIEWER` — согласование выплат
+- `POST /api/mobile/auth/sms/request`
+- `POST /api/mobile/auth/sms/verify`
+- `POST /api/mobile/auth/register`
+- `POST /api/mobile/auth/refresh`
+- `GET /api/mobile/catalog/products`
+- `GET /api/mobile/catalog/products/{id}`
+- `GET /api/mobile/catalog/products/{id}/recommendations`
+- `GET /api/mobile/catalog/recommendation-pools`
+- `GET /api/mobile/catalog/categories`
+- `GET /api/mobile/promotions`
+- `GET /api/mobile/pharmacies`
+- `GET /api/mobile/banners`
 
-**Метод-уровневая защита** (`@EnableMethodSecurity` + `@PreAuthorize`):
+Authenticated pharmacist:
 
-- `PayoutController.approve()` и `.generate()` → `hasAnyRole('FINANCE_REVIEWER','HQ_HEAD')`
+- `GET /api/mobile/auth/me`
+- `POST /api/mobile/auth/logout`
+- `GET /api/mobile/me`
+- `GET /api/mobile/receipts`
+- `POST /api/mobile/receipts` multipart.
 
-## Справочник REST API
+### POSM
 
-### Admin API (`/api/admin/**`, JWT + роли)
+All POSM endpoints require `X-Posm-Key`.
 
-**Auth** — `auth/controller/AdminAuthController.kt` (`/api/admin/auth`)
+- `POST /api/posm/recommend`
+- `POST /api/posm/recommendations/{eventId}/outcome`
+- `POST /api/posm/sales`
+- `GET /api/posm/playlists/active?pharmacyId=...`
+- `GET /api/posm/app/version`
+- `POST /api/posm/heartbeat`
+- `POST /api/posm/cdp/lookup`
+- `POST /api/posm/cdp/register`
 
-- `POST /login` · `POST /refresh` · `POST /logout` · `GET /me`
+### Shared Public
 
-**Каталог** — `CatalogController` (`/api/admin/catalog`)
+- `GET /api/health`
+- `GET /api/media/img?u=<medusa-http-image-url>`
 
-- `GET|POST /products` · `GET|PATCH|DELETE /products/{id}` · `GET /brands` · `GET /mnn-groups`
+The media proxy only allows the configured Medusa authority and exists to avoid browser mixed-content
+blocking when the admin/mobile web views are served over HTTPS.
 
-**Rules Engine** — `RuleController` (`/api/admin/rules`)
+## Security Model
 
-- `GET ?type=&status=` · `GET /{id}` · `POST` · `PATCH /{id}` · `POST /{id}/archive` · `POST /{id}/duplicate`
+- Admin auth uses bcrypt passwords, access JWT, hashed refresh tokens, and admin roles.
+- Mobile auth uses OTP and separate mobile refresh tokens.
+- POSM uses a device key; comparison is constant-time.
+- `GlobalExceptionHandler` returns JSON `{code,message,fields?}` instead of stack traces.
+- Business errors should be `AppException(ErrorCode, message, HttpStatus)`.
+- Receipt/photo bucket access is still a hardening topic: current MinIO bucket is public-readable.
 
-**Промо** — `PromoController` (`/api/admin/promo`)
+## Medusa Integration
 
-- `GET ?status=` · `GET /{id}` · `POST` · `PATCH /{id}` · `POST /{id}/archive` · `POST /{id}/restore`
-- `GET /{id}/rules` · `PUT /{id}/rules` — правила замены/кросс-селла из кампании (T2): генерит/читает
-  substitution+crosssell-правила (`rules.promo_id`), апсертит товары витрины в локальный каталог.
-  Кампания = 1 товар; цена read-only из Medusa; `pharmacistBonus` — бонус фармацевту; `override_image/description`.
+Backend is the only consumer of Medusa from this repo. It fetches:
 
-**Аптеки и сети** — `PharmacyController` (`/api/admin/pharmacies`)
+- product list/detail/category data;
+- images, barcodes, MNN/ATC/rx metadata;
+- product recommendation data;
+- pharmacy stock locations exported into `seed/pharmacies.json`.
 
-- `GET|POST /chains` · `PATCH|DELETE /chains/{id}` · `GET ?group=&chainId=` · `GET /{id}` · `POST` · `PATCH|DELETE /{id}`
+Mobile/admin receive normalized DTOs from this backend, not raw Medusa responses.
 
-**Фармацевты** — `PharmacistController` (`/api/admin/pharmacists`)
+Important behavior:
 
-- `GET ?status=&pharmacyId=` · `GET /{id}` · `POST` · `PATCH /{id}` · `POST /{id}/block` · `POST /{id}/unblock`
+- `metadata` placeholders such as `-`, `_`, `none`, `n/a`, `н/д` are treated as empty.
+- Prices may be missing in Medusa; UI must degrade to "Цена в аптеке".
+- Product images may be HTTP; UI should display them through `/api/media/img`.
 
-**Финансы/выплаты** — `PayoutController` (`/api/admin/payouts`) — _@PreAuthorize_
+## POSM Matching
 
-- `GET ?status=` · `GET /{id}` · `GET /{id}/items` · `POST /{id}/approve` · `POST /generate?period=`
+Barcode is the primary key for cash-desk recommendation matching.
 
-**Дашборд/аналитика** — `DashboardController` (`/api/admin/dashboard/summary`), `LiftController` (`/api/admin/lift`)
+`CartItemDto` can include:
 
-**LMS** — `LmsController` (`/api/admin/lms/courses`)
+- `barcode`/EAN - primary matching key;
+- `name` - fallback matching key after normalization;
+- `sku` - Standard-N internal `iPartID`, diagnostic only;
+- `qty`.
 
-- `GET ?status=` · `GET /{id}` · `POST` · `PATCH /{id}` · `DELETE /{id}`
+Ambiguous barcode or normalized-name matches are logged and skipped. The system prefers not showing a
+recommendation over showing the wrong one.
 
-**Экраны** — `ScreenController` (`/api/admin/screens`)
-
-- `GET|POST /playlists` · `PATCH|DELETE /playlists/{id}` · `GET /slides` · `POST /slides` (multipart) · `DELETE /slides/{id}` · `POST /slides/{id}/assign`
-- `GET /connected` — сколько касс сейчас онлайн (T4): `{total, devices[]}` по пульсам heartbeat
-
-**AI-Exam** — `AiExamController` (`/api/admin/ai-exam/questions`)
-
-- `GET ?kind=` · `POST` · `PATCH /{id}` · `DELETE /{id}`
-
-**Сверка чеков** — `ReconcileController` (`/api/admin/reconcile`)
-
-- `GET ?status=` · `GET /summary` · `GET /{id}` · `POST /{id}/approve` · `POST /{id}/reject` · `POST /import-excel` (multipart)
-
-**Релизы POSM** — `AppReleaseController` (`/api/admin/app-releases`) — `GET` · `POST`
-
-**Витрина (Medusa)** — `AdminStorefrontController` (`/api/admin/storefront`) — `GET /products?q=&limit=&offset=` · `GET /products/{id}`
-
-### Mobile API (`/api/mobile/**`, JWT PHARMACIST)
-
-**Auth** — `MobileAuthController` (`/api/mobile/auth`)
-
-- `POST /sms/request` · `POST /sms/verify` · `POST /register` · `POST /refresh` (все public) · `POST /logout` · `GET /me`
-
-**Каталог** — `MobileCatalogController` (`/api/mobile/catalog`) — `GET /products?q=&category=&limit=&offset=` · `GET /products/{id}` · `GET /categories`
-
-**Аптеки** — `MobilePharmacyController` (`/api/mobile/pharmacies`) — `GET ?q=&city=` (адреса для привязки чека)
-
-**Чеки** — `MobileReceiptController` (`/api/mobile/receipts`) — `POST` (multipart, фото) · `GET` (история)
-
-**Профиль** — `MobileProfileController` (`/api/mobile/me`) — `GET` (баланс, тир, прогресс)
-
-### POSM API (`/api/posm/**`, X-Posm-Key)
-
-`PosmController`:
-
-- `POST /recommend` — рекомендации по корзине
-- `POST /recommendations/{eventId}/outcome` — исход (accepted/rejected)
-- `POST /sales` — лог завершённой продажи
-- `GET /playlists/active?pharmacyId=` — активный плейлист экрана
-- `POST /heartbeat?deviceId=&pharmacyId=` — пульс кассы (T4, каждые ~60с) для счётчика подключений
-- `GET /app/version?platform=` — текущая версия для авто-апдейта
-- `POST /cdp/lookup` · `POST /cdp/register` — лояльность по телефону
-
-### Прочее
-
-- `GET /api/health` — liveness (`shared/HealthController.kt`)
-
-## Ключевые сервисы
-
-| Сервис                                              | Назначение                                                                                |
-| --------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `JwtService`                                        | подпись/валидация JWT (access + refresh)                                                  |
-| `RefreshTokenService` / `MobileRefreshTokenService` | ротация refresh (SHA-256 в БД), отдельно для admin и фармацевтов                          |
-| `OtpService`                                        | генерация/проверка OTP (`mobile_otps`, TTL + throttling). Dev-режим → `544544`            |
-| `MedusaClient` + `MedusaCatalogCache`               | REST к Medusa, кэш каталога в памяти                                                      |
-| `MedusaPriceService`                                | резолвер цены товара из Medusa БЕЗ кэша (для создания промо + ежедневного рефреша)        |
-| `PromoPriceScheduler`                               | `@Scheduled` ежедневный рефреш цен promos.tiers + products.price из Medusa (T1)           |
-| `PromoRulesService`                                 | генерация правил замены/кросс-селла из кампании, апсерт товаров витрины (T2)              |
-| `DevicePresenceService`                             | счётчик подключённых касс (in-memory heartbeat + TTL, T4)                                 |
-| `S3MediaStorage` (impl `MediaStorage`)              | загрузка фото/слайдов в MinIO (AWS SDK v2)                                                |
-| `ReconcileService`                                  | сверка чеков (лог + Excel + ручная) и начисление бонуса                                   |
-| `ExcelImportService`                                | парсинг Excel «Стандарт-Н», матчинг pending-бонусов                                       |
-| `RulesEngineService`                                | подбор правила по корзине (JSONB-триггеры)                                                |
-| `RecommendationService`                             | запись событий рекомендаций, создание pending-бонусов                                     |
-| `PayoutService`                                     | генерация батчей выплат, workflow согласования                                            |
-| `ScreenService`                                     | CRUD плейлистов/слайдов, загрузка медиа, пересчёт                                         |
-| `DevDataSeeder`                                     | dev-данные (профиль `dev`)                                                                |
-| `ProdBootstrap`                                     | прод-инициализация: fail-fast на дефолтных секретах, первый админ из env (профиль `prod`) |
-| `RealPharmacySeeder`                                | загрузка ~523 реальных аптек из Medusa                                                    |
-
-## Сборка и запуск
+## Commands
 
 ```bash
-# из корня репозитория
-docker compose up -d                      # Postgres + Redis + MinIO (dev)
 cd admin-panel/backend
-./gradlew bootRun                         # профиль dev по умолчанию
-curl localhost:8080/api/health            # → {"status":"ok"}
+export JAVA_HOME=/Users/amir/Library/Java/JavaVirtualMachines/temurin-22.0.2/Contents/Home
+
+./gradlew bootRun
+./gradlew test
+./gradlew build
 ```
 
-- **Dockerfile** — multi-stage (gradle build → runtime), expose 8080.
-- Миграции применяются автоматически при старте (Flyway).
-- Полная схема БД — в [`07-database.md`](07-database.md).
+Local dev needs the root `docker compose up -d` infrastructure.

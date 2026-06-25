@@ -5,9 +5,12 @@
   "deviceKey": "ВЫДАЁТСЯ-ПРИ-ОНБОРДИНГЕ-АПТЕКИ",
   "pharmacistId": "u_xxx",
   "pharmacyId": "ph_xxx",
-  "recommendTimeoutMs": 700,
-  "debounceMs": 400,
+  "recommendTimeoutMs": 5000,
+  "debounceMs": 150,
+  "recommendRefreshSec": 0,
   "popupAutoCloseSec": 30,
+  "playlistPollSec": 20,
+  "mediaCacheDir": "C:\\Epharm\\media-cache",
   "heartbeatPath": "C:\\Epharm\\heartbeat.txt",
   "heartbeatSec": 15
 }

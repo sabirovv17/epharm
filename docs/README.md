@@ -1,104 +1,68 @@
-# Epharm — документация проекта
+# Epharm Project Documentation
 
-> Полная техническая документация экосистемы **Epharm** (Ledex × Inkar).
-> Эта папка — единый источник правды по всему проекту: архитектура, бэкенд, админка,
-> мобильное приложение, POSM-модуль для касс, деплой и эксплуатация.
+This folder is the maintained technical documentation for the current codebase. It is not deployed
+to the server.
 
-📌 **Эта папка `docs/` НЕ деплоится на сервер** — она только в репозитории, для команды.
-Серверный деплой собирается из конкретных путей (`admin-panel/backend`, `admin-panel/frontend`,
-`docker-compose.prod.yml`, `Caddyfile`, `tools`), `docs/` туда не попадает.
+## Product
 
----
+Epharm is a pharmacist-motivation system for Inkar/Ledex:
 
-## Что это за продукт
+1. HQ creates product campaigns, replacement/cross-sell rules, banners, payout batches, screen media,
+   courses, and moderation decisions in the web admin console.
+2. Pharmacists use the mobile app to view campaigns, inspect product cards, upload receipt photos,
+   and track receipt status and balance.
+3. POSM clients installed on Standard-N cash desks read cash-desk logs, send scanned items to the
+   backend, show recommendations to pharmacists, mirror receipt/video content on the customer screen,
+   and report sales/heartbeat.
+4. The backend reconciles accepted recommendations, POS sales, Excel imports, and mobile receipts
+   into approved or manually reviewed bonuses.
 
-**Epharm** — IT-экосистема мотивации фармацевтов и программы лояльности для аптечной сети.
-Фармацевт рекомендует на кассе нужный препарат (замена / допродажа), подтверждает продажу
-чеком — и получает бонус. HQ-команда (штаб Inkar/Ledex) управляет правилами рекомендаций,
-аптеками, фармацевтами и выплатами через веб-админку.
+## Active Environment
 
-Бренд продукта — **Epharm**. Заказчик/сеть — **Inkar**, разработка — **Ledex**.
+Current shared environment:
 
-## Три модуля системы
-
-| Модуль             | Что это                                                                                | Технологии                      | Где в репо             |
-| ------------------ | -------------------------------------------------------------------------------------- | ------------------------------- | ---------------------- |
-| **M1 — PharmaPay** | Приложение фармацевта + HQ-админка + бэкенд (auth, правила, чеки, выплаты, AI-экзамен) | Flutter · Kotlin/Spring · React | `lib/`, `admin-panel/` |
-| **M2 — POSM**      | Sidecar внутри кассовой программы «Стандарт-Н»: попап-рекомендации + клиентский экран  | C# / WPF (.NET 10)              | `App/`, `Models/`      |
-| **M3 — Витрина**   | Внешний каталог (интернет-магазин на Medusa) — read-only источник товаров для мобилки  | Medusa (внешний)                | интеграция в backend   |
-
-> M3 (полноценный e-com, PIM, маркетплейсы) — отдельная команда и roadmap. В этом репозитории
-> используется только как **источник реального каталога** (~523 товара/аптеки) через REST.
-
-## Карта документации
-
-| Файл                                                   | О чём                                                                                            |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| [`01-architecture.md`](01-architecture.md)             | Общая архитектура, API-поверхность, ключевые бизнес-потоки (чек→бонус, рекомендация→чек→выплата) |
-| [`02-backend.md`](02-backend.md)                       | Бэкенд: домены, полный справочник REST API, безопасность/роли, сервисы, сборка                   |
-| [`03-admin-panel.md`](03-admin-panel.md)               | Веб-админка: 13 разделов, роутинг, состояние, API-клиент, UI-kit, i18n                           |
-| [`04-mobile-app.md`](04-mobile-app.md)                 | Мобильное приложение фармацевта (Flutter): фичи, сеть, data-слой, сборка APK/iOS                 |
-| [`05-posm-client.md`](05-posm-client.md)               | POSM-клиент для кассы (C#): попап, клиентский экран, авто-апдейт, offline-очередь, деплой        |
-| [`06-deployment-and-ops.md`](06-deployment-and-ops.md) | Деплой на сервер, docker-compose, Caddy, .env, доступ по VPN, бэкапы, эксплуатация               |
-| [`07-database.md`](07-database.md)                     | Схема БД: 21 Flyway-миграция, таблицы по доменам, архитектурные решения                          |
-
-## Стек одним взглядом
-
-```
-Mobile  : Flutter · Riverpod · go_router · http · flutter_secure_storage
-Admin   : React 19 · Vite · TypeScript · Tailwind 3 · Zustand · TanStack Query · axios
-Backend : Kotlin 2.0 · Spring Boot 3.3 (Web/Security/JPA/Validation/Actuator) · Gradle
-DB/инфра: PostgreSQL 16 · Redis 7 · MinIO (S3) · Flyway · Docker Compose · Caddy (Let's Encrypt)
-POSM    : C# / .NET 10 · WPF · LibVLCSharp (видео) · SQLite (offline outbox)
-Каталог : Medusa Store API (внешний, read-only)
+```text
+https://epharm.78-140-246-238.sslip.io
 ```
 
-## Структура репозитория (верхний уровень)
+It is one public host behind Caddy:
 
-```
-PharmaPayV2/
-├── lib/                     # Flutter — приложение фармацевта (M1)
-├── android/ ios/ macos/     # платформенные конфиги Flutter
-├── assets/                  # иконки, шрифты, картинки мобилки
-├── builds/                  # build_all.sh + собранные APK
-├── admin-panel/
-│   ├── backend/             # Kotlin + Spring Boot монолит (M1 backend)
-│   ├── frontend/            # React + Vite админка (M1 admin)
-│   ├── references/          # JSX-эталон UI (UX-spec, не прод)
-│   ├── PLAN.md              # верхнеуровневый roadmap
-│   ├── claude-admin-notes.md# рабочие заметки бэка/админки/POSM
-│   └── design-tokens-admin.md
-├── App/                     # C# / WPF POSM-клиент (M2)
-├── Models/                  # C# DTO, общие для POSM (Posm/*, ReceiptItem)
-├── _reference/              # дизайн-токены мобилки + прототипы
-├── tools/                   # gen-prod-env.sh, pg-backup.sh, генераторы иконок
-├── .github/workflows/       # CI (lint/test/build)
-├── docker-compose.yml       # dev-стек (Postgres + Redis + MinIO)
-├── docker-compose.prod.yml  # прод-стек (всё + backend + frontend + Caddy)
-├── Caddyfile                # reverse-proxy + авто-TLS
-├── .env.prod.example        # шаблон прод-секретов
-└── docs/                    # ← эта документация
-```
+- `/api/*` -> backend;
+- `/s3/*` -> MinIO;
+- `/` -> admin frontend.
 
-## Текущее состояние (на момент написания)
+The `api/admin/s3.epharm.kz` split-domain model is a future/ops option, not the currently active
+public endpoint unless `.env.prod` and `Caddyfile` are changed together.
 
-- ✅ **Деплой на сервере `medusa-test` (`78.140.246.238`, `/root/epharm`)** — все 6 сервисов healthy
-  (postgres, redis, minio, backend, frontend, caddy). Конфиг сервера сверен с git (HEAD).
-- ✅ Бэкенд: 21 миграция, ~23 контроллера, реальный каталог из Medusa, первый админ создан
-  через `ProdBootstrap` (`admin@epharm.kz`).
-- ✅ Всё отдаётся публично за Caddy на одном хосте `https://epharm.78-140-246-238.sslip.io`
-  (`/api/*`→backend, `/`→админка, `/s3/*`→MinIO `epharm-receipts`). См. `06-deployment-and-ops.md`.
-- ✅ Мобильный прод-APK собирается (`builds/build_all.sh`); боевой `API_BASE` —
-  `https://epharm.78-140-246-238.sslip.io` (дефолтный `api.epharm.kz` пока не резолвится).
-- ⏳ Публичные домены `*.epharm.kz` + проброс портов 80/443 — будущий go-live (служебка сетевикам INKAR).
-- ⏳ Открытые задачи безопасности перед публичным go-live: приватный бакет чеков (P0-6),
-  ротация утёкших в чат секретов, выключение dev-OTP. См. `RELEASE-CHECKLIST.md` в корне.
+## Docs Map
 
-## Связанные документы в корне репозитория
+| File | Purpose |
+| --- | --- |
+| `01-architecture.md` | Current system architecture, runtime surfaces, business flows. |
+| `02-backend.md` | Backend stack, domains, API map, security, integrations, test/build commands. |
+| `03-admin-panel.md` | Admin frontend routes, state, UI system, sections, tests. |
+| `04-mobile-app.md` | Flutter app architecture, active flows, API/mock switching, build notes. |
+| `05-posm-client.md` | C#/WPF POSM client, log parsing, barcode matching, outbox, deployment. |
+| `06-deployment-and-ops.md` | Docker/Caddy production stack, deploy, backup, operations, known risks. |
+| `07-database.md` | Flyway migrations V001-V030 and domain tables. |
 
-- `README.md` — короткий обзор + quick start
-- `RUNBOOK.md` — локальный запуск (Docker + backend + frontend + мобилка)
-- `RELEASE-CHECKLIST.md` — чек-лист прод-готовности (P0/P1/P2)
-- `CONTRIBUTING.md` — git-flow, conventional commits
-- `admin-panel/PLAN.md` — изначальный план этапов 0–7
-- `App/POSM_DEPLOY.md`, `App/WINDOWS_RUNBOOK.md` — деплой POSM на кассу
+## Other Important Files
+
+| File | Purpose |
+| --- | --- |
+| `../README.md` | Short repo overview and quick start. |
+| `../RUNBOOK.md` | Day-to-day local startup, reset, tests, and production commands. |
+| `../DEV-ONBOARDING.md` | Run mobile app on Android/iPhone against shared backend. |
+| `../RELEASE-CHECKLIST.md` | Release blockers and hardening backlog. |
+| `../claude-notes.md` | Current mobile working memory. |
+| `../admin-panel/claude-admin-notes.md` | Current backend/admin/POSM working memory. |
+| `../admin-panel/design-tokens-admin.md` | Current admin design system. |
+| `../_reference/design-tokens.md` | Current mobile design system. |
+
+## Documentation Rules
+
+- Prefer these docs plus the two `claude*notes.md` files over historical handoff files.
+- Treat `admin-panel/PLAN.md` and `_reference/design_handoff_pharmapay/*` as historical context unless
+  a current doc explicitly points to them.
+- Do not move or duplicate secrets from existing credential files.
+- When changing behavior, update the relevant doc in the same work session.

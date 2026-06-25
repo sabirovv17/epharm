@@ -25,5 +25,22 @@ namespace CustomerDisplay.Models
         return Math.Round(sub - disc, 2, MidpointRounding.AwayFromZero);
     }
 }
+    public string PriceText => Price > 0m
+        ? Price.ToString("0.00")
+        : "—";
+
+    public string TotalText => Total > 0m
+        ? Total.ToString("0.00")
+        : "—";
+
+    public ReceiptItem Clone() => new ReceiptItem
+    {
+        PartId = PartId,
+        Barcode = Barcode,
+        Name = Name,
+        Price = Price,
+        Qty = Qty,
+        DiscountPercent = DiscountPercent
+    };
 }
 }

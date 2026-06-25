@@ -29,6 +29,8 @@ interface FormState {
   dateStart: string
   dateEnd: string
   pharmacistBonus: string
+  barcode: string
+  ipartId: string
   overrideImage: string
   overrideDescription: string
 }
@@ -43,6 +45,8 @@ const initial = (): FormState => ({
   dateStart: '',
   dateEnd: '',
   pharmacistBonus: '0',
+  barcode: '',
+  ipartId: '',
   overrideImage: '',
   overrideDescription: '',
 })
@@ -141,7 +145,8 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
       productName: form.product.productName,
       productImage: form.product.productImage,
       brand: form.product.brand,
-      barcode: form.product.barcode,
+      barcode: form.barcode.trim() || null,
+      ipartId: form.ipartId.trim() || null,
       pharmacistBonus: Math.max(0, Math.trunc(Number(form.pharmacistBonus) || 0)),
       overrideImage: form.overrideImage.trim() || null,
       overrideDescription: form.overrideDescription.trim() || null,
@@ -183,10 +188,33 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
                 product: p,
                 // авто-название по товару, пока пользователь не правил title вручную
                 title: f.titleTouched ? f.title : p.productName,
+                barcode: p.barcode ?? '',
+                ipartId: p.ipartId ?? '',
               }))
             }
           />
         </Field>
+
+        {form.product && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={t('pr.barcode')}>
+              <Input
+                className="num"
+                value={form.barcode}
+                onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+                data-testid="create-barcode"
+              />
+            </Field>
+            <Field label={t('pr.ipartId')}>
+              <Input
+                className="num"
+                value={form.ipartId}
+                onChange={(e) => setForm({ ...form, ipartId: e.target.value })}
+                data-testid="create-ipart"
+              />
+            </Field>
+          </div>
+        )}
 
         {/* Цена из Medusa — read-only (обновляется ежедневно). */}
         {form.product && (

@@ -1,100 +1,111 @@
-﻿# Epharm POSM — dev-сборка (клиентский экран + рекомендации для кассы Стандарт-Н)
+# Epharm POSM Distribution
 
-Десктоп-приложение (WPF, .NET 10, win-x64) для аптечной кассы. Боевой режим: смотрит на
-прод-бэкенд `https://epharm.78-140-246-238.sslip.io`.
+This folder contains helper scripts for the Windows C#/WPF POSM client.
 
-## Что делает
+## Client Capabilities
 
-1. **Слушает лог кассы Стандарт-Н** (`zkassa.log`, cp1251) как `tail -f`. При добавлении товара
-   в чек парсит строку `Add2Cheque … sname=…; price=…; quant=…` и шлёт корзину на бэкенд.
-2. **Рекомендации**: `POST /api/posm/recommend` → если на товар заведено правило (замена/кросс-селл),
-   показывает попап фармацевту (Tab — таб, F9 — принять, Esc — пропустить).
-3. **Клиентский экран**: крутит видео-плейлист из админки (`GET /api/posm/playlists/active`),
-   зеркалит чек.
-4. **Heartbeat**: `POST /api/posm/heartbeat` каждые ~60с → админка считает онлайн-кассы.
+- Reads Standard-N `zkassa.log`.
+- Extracts barcode/name/qty/price.
+- Calls backend recommendations.
+- Shows pharmacist popup.
+- Mirrors receipt and broadcast media on customer display.
+- Sends sale reports through outbox.
+- Sends heartbeat.
+- Polls app version for auto-update.
 
-Всё к бэкенду — fail-safe: при сети/таймауте касса не падает и не тормозит.
+## Run
 
-## Требования
+From a packaged build:
 
-- Windows 10/11 x64. **.NET ставить не нужно** — сборка self-contained.
-- Для рекомендаций — установленный Стандарт-Н (ДЕМО подойдёт). Без него экран+видео работают,
-  попапов нет (нечего слушать).
+```powershell
+run.bat
+```
 
-## Запуск
+or:
 
-**Быстро (exe):** распакуй ZIP целиком → двойной клик `run.bat` (подставляет `EPHARM_POSM_CONFIG`
-и стартует). Лог пишется в файл (см. ниже).
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+.\run-kassa.ps1
+```
 
-**Из исходников (видно консоль live):**
+The packaged launcher starts `CustomerDisplay.exe` in dev mode, so the customer screen opens as a
+window on the left side of the primary monitor and POSM logs are printed in the same terminal.
+
+The launcher does not set `EPHARM_LOG_PATH`. In the normal cash-desk flow the client listens to
+Standard-N logs directly:
+
+- `C:\Standart-N\Kassir\zkassa.log`
+- `C:\Standart-N_DEMO\Apteka_KZ DEMO\Kassir\zkassa.log`
+
+When a cashier scans/adds a product in Standard-N, Standard-N writes `Add2Cheque` lines to
+`zkassa.log`; the POSM client parses that file, sends the live cart to backend recommendations, shows
+the pharmacist popup, and writes diagnostics to the app log. Delete/discount/service lines update the
+local cart only and do not call the recommendation backend.
+
+For a realistic test, scan/add products inside Standard-N. Do not use synthetic scan scripts unless
+Standard-N is unavailable and you are doing parser diagnostics only.
+
+From source:
 
 ```powershell
 cd <repo>\App
-$env:EPHARM_POSM_CONFIG = "C:\Epharm\posm.json"   # или путь к своему posm.json
+$env:EPHARM_POSM_CONFIG = "C:\Epharm\posm.json"
 dotnet run
 ```
 
-## Конфиг (`posm.json` рядом с exe; каждый ключ переопределяется env)
+## Config and Env
 
-| Ключ              | Env                         | Дефолт                      | Назначение                                                   |
-| ----------------- | --------------------------- | --------------------------- | ------------------------------------------------------------ |
-| `Enabled`         | `EPHARM_POSM_ENABLED`       | false                       | вкл. POSM (рекомендации+видео+heartbeat). Должно быть `true` |
-| `BackendBaseUrl`  | `EPHARM_BACKEND_URL`        | localhost                   | адрес бэкенда (в дистрибутиве — прод)                        |
-| `DeviceKey`       | `EPHARM_POSM_KEY`           | —                           | ключ устройства (заголовок `X-Posm-Key`)                     |
-| `PharmacyId`      | `EPHARM_PHARMACY_ID`        | —                           | id аптеки (по нему берётся активный плейлист)                |
-| `PharmacistId`    | `EPHARM_PHARMACIST_ID`      | —                           | id фармацевта (кому бонус)                                   |
-| `ScreenMode`      | `EPHARM_SCREEN_MODE`        | **dev**                     | `dev` — оконце слева-сверху; `prod` — см. ниже               |
-| `VideoEnabled`    | `EPHARM_NO_VIDEO=true` выкл | true                        | крутить ли видео (для VM без GPU — выключить)                |
-| `PlaylistPollSec` | `EPHARM_PLAYLIST_POLL_SEC`  | 120                         | период опроса плейлиста (для демо ставь 20)                  |
-| `AppLogPath`      | `EPHARM_APP_LOG`            | Desktop\customerdisplay.log | куда писать лог приложения                                   |
-| —                 | `EPHARM_LOG_PATH`           | авто                        | путь к `zkassa.log`, если нестандартный                      |
+| Config | Env | Default / meaning |
+| --- | --- | --- |
+| `Enabled` | `EPHARM_POSM_ENABLED` | POSM backend integration. |
+| `BackendBaseUrl` | `EPHARM_BACKEND_URL` | Backend host. |
+| `DeviceKey` | `EPHARM_POSM_KEY` | `X-Posm-Key`. |
+| `PharmacyId` | `EPHARM_PHARMACY_ID` | Pharmacy/screen id. |
+| `PharmacistId` | `EPHARM_PHARMACIST_ID` | Pilot pharmacist id. |
+| `ScreenMode` | `EPHARM_SCREEN_MODE` | `dev` or `prod`. |
+| `VideoEnabled` | `EPHARM_NO_VIDEO=true` disables | Customer video. |
+| `PlaylistPollSec` | `EPHARM_PLAYLIST_POLL_SEC` | Playlist polling interval. |
+| `DebounceMs` | `EPHARM_RECOMMEND_DEBOUNCE_MS` | Scan debounce before `/api/posm/recommend`; default 150ms. |
+| `RecommendRefreshSec` | `EPHARM_RECOMMEND_REFRESH_SEC` | Legacy; default 0. Recommendations are scan-triggered. |
+| `MediaCacheDir` | `EPHARM_MEDIA_CACHE_DIR` | Local cache for admin-panel videos. |
+| `AppLogPath` | `EPHARM_APP_LOG` | App log file path. |
+| log path | `EPHARM_LOG_PATH` | Optional Standard-N log path override for non-standard cash desks. Do not set it for the default demo VM. |
 
-`Enabled` включается только если заданы `PharmacistId` И `PharmacyId`.
+## Screen Modes
 
-## Режимы экрана (`ScreenMode`)
+- `dev`: windowed debugging mode.
+- `prod`: fullscreen customer display on second monitor; if only one monitor exists, customer display is
+  suppressed and only pharmacist-side behavior remains.
 
-- **dev** (дефолт сейчас): окно 460×820 слева-сверху на основном мониторе, с рамкой, не поверх
-  всех — рядом виден терминал и лог. Для разработки/тестов.
-- **prod**: боевое правило экранов —
-  - **2 монитора** → полноэкранный киоск на **2-м** (клиентский экран), попап рекомендаций на 1-м;
-  - **1 монитор** → клиентский экран **не показываем вообще**, работают только рекомендации.
-- `EPHARM_DEBUG=1` принудительно даёт `dev`.
-
-## Логи
-
-**Приложение (касса):** файл `customerdisplay.log` на **Рабочем столе** (или `EPHARM_APP_LOG`).
-Точный путь печатается в баннере старта. Смотреть live:
+## Logs
 
 ```powershell
-Get-Content "$env:USERPROFILE\Desktop\customerdisplay.log" -Wait -Tail 50
+Get-Content "C:\Epharm\customerdisplay.log" -Wait -Tail 50
 ```
 
-При запуске из терминала (`dotnet run` или exe из консоли) лог дублируется в консоль.
+Backend POSM logs:
 
-В начале лога — баннер: путь лога, мониторы, режим экрана, backend, аптека, включён ли POSM,
-видео, период опроса, какие `zkassa.log` слушаются. Дальше — `Считана строка: …` (вход из кассы),
-результаты запросов (`плейлист: …`, `recommend: …`, `heartbeat: …` с причиной сбоя: таймаут / HTTP-код).
-
-**Бэкенд:** на сервере в логе контейнера `backend` — `POSM: касса ПОДКЛЮЧИЛАСЬ — deviceId=…, аптека=…`
-(на коннект) и `… ОТКЛЮЧИЛАСЬ (нет пульса) …`. Смотреть:
-
-```
-ssh root@<сервер> "cd /root/epharm && docker compose logs -f --tail=100 backend | grep POSM"
+```bash
+ssh root@<server> "cd /root/epharm && docker compose --env-file .env.prod -f docker-compose.prod.yml logs --tail=100 backend | grep POSM"
 ```
 
-## Если что-то не работает — смотри в лог
+## Scripts
 
-- **Видео не приходит из админки.** В логе будет одна из причин:
-  - `POSM ВЫКЛЮЧЕН (…)` → в `posm.json` `Enabled=false` или пустой Pharmacy/PharmacistId.
-  - `плейлист: запрос не удался — HTTP 401` → неверный `DeviceKey`.
-  - `плейлист: запрос не удался — таймаут` → сеть/бэкенд недоступен.
-  - `Backend-плейлист пуст` → у этой `PharmacyId` нет активного плейлиста в админке (раздел «Экраны»).
-- **Попап рекомендаций не появляется.** Проверь, что строка из кассы реально читается
-  (`Считана строка: …`), и что на товар заведено правило (раздел «Промо кампании»). `recommend: …`
-  в логе покажет код ошибки, если есть.
-- **Окно во весь экран / не туда.** Это `ScreenMode`. Для дева оставь `dev`.
+| Script | Purpose |
+| --- | --- |
+| `publish-exe.ps1` | Build self-contained win-x64 package/zip. |
+| `run-kassa.ps1`, `run.bat` | Start packaged exe in dev mode with logs in the same terminal. |
+| `install-tasks.ps1` | Install scheduled task + watchdog. |
+| `uninstall-tasks.ps1` | Remove scheduled tasks. |
+| `watchdog.ps1` | Heartbeat/process watchdog. |
+| `standartn-discover.ps1` | Help discover Standard-N log paths. |
+| `scan-into-standartn.ps1`, `epharm-scan.ps1` | Source-tree diagnostic helpers only when Standard-N is unavailable. They are not included in the handoff zip. Normal tests must scan inside Standard-N. |
 
-## Пересборка exe
+## Debug Checklist
 
-`publish-exe.ps1` (рядом) на Windows с .NET 10 SDK: `dotnet publish` self-contained →
-ZIP с exe+рантайм+libvlc+posm.json+run.bat на Рабочем столе.
+- Is `Enabled=true`?
+- Are `DeviceKey`, `PharmacyId`, `PharmacistId` set?
+- Does log show watched `zkassa.log` path?
+- Does log show parsed `barcode`?
+- Does backend return 401, timeout, empty recommendations, or actual recommendation?
+- Is a matching active campaign/rule configured in admin?

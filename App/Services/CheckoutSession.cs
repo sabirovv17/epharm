@@ -17,18 +17,19 @@ namespace CustomerDisplay.Services
         public string SessionId { get; } = "sess_" + Guid.NewGuid().ToString("N").Substring(0, 12);
 
         /// <summary>
-        /// Строит запрос рекомендаций из живой корзины. Матчинг на backend: Barcode (EAN-13) → Name.
-        /// Sku (iPartID) кладём только для диагностики. Позиции без Barcode НЕ отфильтровываем —
-        /// их сматчит fallback по имени.
+        /// Строит запрос рекомендаций из живой корзины. Матчинг на backend:
+        /// Sku/iPartID Стандарт-Н → Barcode (EAN-13) → Name.
         /// </summary>
-        public RecommendRequest BuildRequest(EpharmConfig cfg, IEnumerable<ReceiptItem> items)
+        public RecommendRequest BuildRequest(EpharmConfig cfg, IEnumerable<ReceiptItem> items, ReceiptItem? scannedItem = null)
         {
             var cart = items
-                .Where(i => i.PartId != 0)
+                // PartId < 0 is a POSM-only visual item added after accepting a recommendation.
+                // It is not a real Standard-N cart line and must not affect backend matching.
+                .Where(i => i.PartId > 0)
                 .Select(i => new CartItem
                 {
-                    Sku = i.PartId.ToString(),   // диагностика, не ключ матчинга
-                    Barcode = i.Barcode,          // первичный ключ матчинга (может быть null)
+                    Sku = i.PartId.ToString(),    // iPartID Стандарт-Н — точный ключ матчинга
+                    Barcode = i.Barcode,          // EAN-13 — точный ключ матчинга (может быть null)
                     Name = i.Name,                // fallback-ключ матчинга
                     Qty = (double)i.Qty,
                 })
@@ -39,8 +40,11 @@ namespace CustomerDisplay.Services
                 PharmacistId = cfg.PharmacistId,
                 PharmacyId = cfg.PharmacyId,
                 SessionId = SessionId,
-                // последний отсканированный EAN (информационно) — берём из последней позиции с штрих-кодом
-                ScannedBarcode = cart.LastOrDefault(c => !string.IsNullOrWhiteSpace(c.Barcode))?.Barcode,
+                // Последний отсканированный EAN (информационно). Передаём явный snapshot,
+                // потому что новые позиции в UI вставляются в начало списка.
+                ScannedBarcode = !string.IsNullOrWhiteSpace(scannedItem?.Barcode)
+                    ? scannedItem.Barcode
+                    : cart.FirstOrDefault(c => !string.IsNullOrWhiteSpace(c.Barcode))?.Barcode,
                 Cart = cart,
             };
         }

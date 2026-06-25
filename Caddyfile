@@ -24,6 +24,13 @@
 		reverse_proxy minio:9000
 	}
 
+	# Публичные статические архивы POSM-клиента для автообновления касс.
+	# URL вида https://<host>/downloads/Epharm-POSM-vX-win-x64.zip.
+	handle_path /downloads/* {
+		root * /srv/epharm-downloads
+		file_server
+	}
+
 	# API для касс (/api/posm), телефонов (/api/mobile) и самой админки.
 	handle /api/* {
 		reverse_proxy backend:8080

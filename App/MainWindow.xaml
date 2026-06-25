@@ -131,7 +131,7 @@ WindowStyle="None"
                             </Grid.ColumnDefinitions>
 
                             <TextBlock Grid.Column="0"
-                                       Text="{Binding Price, StringFormat={}{0:0.00}}"
+                                       Text="{Binding PriceText}"
                                        FontSize="13"
                                        TextAlignment="Right"/>
 
@@ -146,7 +146,7 @@ WindowStyle="None"
                                        TextAlignment="Right"/>
 
                             <TextBlock Grid.Column="3"
-                                       Text="{Binding Total, StringFormat={}{0:0.00}}"
+                                       Text="{Binding TotalText}"
                                        FontSize="13"
                                        FontWeight="Bold"
                                        TextAlignment="Right"/>

@@ -27,9 +27,10 @@ import java.util.UUID
 /**
  * Авторинг правил замены/кросс-селла ИЗ кампании (T2).
  *
- * Кампания продвигает один товар (promos.medusaProductId). Админ в её карточке выбирает:
- *  - какие товары ЗАМЕНЯЕМ на продвигаемый (substitution-правила),
- *  - с какими товарами ПРЕДЛАГАЕМ продвигаемый (crosssell-правила),
+ * Кампания продвигает один товар (promos.medusaProductId). Админ в её карточке выбирает товары,
+ * которые уже есть/могут быть в чеке и должны привести к продаже продвигаемого:
+ *  - replacements — какие товары ЗАМЕНЯЕМ на продвигаемый (substitution-правила),
+ *  - crossSells   — с какими товарами в чеке ПРЕДЛАГАЕМ продвигаемый (crosssell-правила),
  *  - и весь текст фармацевту (script/advantages/карточка-сравнение/цель) — общий для всех правил.
  *
  * `replace()` перезаписывает все правила кампании. Под каждый выбранный товар витрины
@@ -63,9 +64,17 @@ class PromoRulesService(
                 reconstructRef(productRef(id) ?: PromoRuleProductRefDto(medusaProductId = id, name = id), r)
             }
         }
-        val crossSells = cross.map { r ->
+        val crossSells = cross.mapNotNull { r ->
+            val triggerId = r.trigger.value as? String
+            // Новая семантика: crossSell ref = trigger. Совместимость со старыми правилами,
+            // где trigger был promoted, а ref лежал в recommend.
+            val refId = when {
+                triggerId == null -> r.recommend
+                triggerId == promo.medusaProductId -> r.recommend
+                else -> triggerId
+            }
             reconstructRef(
-                productRef(r.recommend) ?: PromoRuleProductRefDto(medusaProductId = r.recommend, name = r.recommend),
+                productRef(refId) ?: PromoRuleProductRefDto(medusaProductId = refId, name = refId),
                 r,
             )
         }
@@ -100,7 +109,7 @@ class PromoRulesService(
                 "Сначала привяжите товар к кампании, затем настраивайте замены/кросс-селл",
                 HttpStatus.BAD_REQUEST,
             )
-        // Локальный товар-продвигаемый (recommend для замен, trigger для кросс-селла).
+        // Локальный товар-продвигаемый (recommend для замен и кросс-селла).
         val promoted = upsertPromotedProduct(promo, promotedMedusaId)
 
         // Цель кампании — пишем на саму кампанию (источник истины), чтобы она не терялась
@@ -144,7 +153,7 @@ class PromoRulesService(
                 ).also { it.type = RuleType.substitution; it.status = effectiveStatus(ref); it.promoId = promoId }
             }
 
-        // Кросс-селл: триггер — продвигаемый товар, рекомендация — товар-компаньон.
+        // Кросс-селл: триггер — товар уже в чеке, рекомендация — продвигаемый товар кампании.
         config.crossSells
             .filter { it.medusaProductId != promotedMedusaId }
             .distinctBy { it.medusaProductId }
@@ -152,13 +161,13 @@ class PromoRulesService(
                 val companion = upsertProduct(ref)
                 created += RuleEntity(
                     id = generateRuleId(RuleType.crosssell),
-                    recommend = companion.id,
+                    recommend = promoted.id,
                     bonus = bonus,
                     // Поля карточки кассы — per-pair; пусто → общий дефолт из config.
                     script = ref.script.ifBlank { config.script },
                     advantages = ref.advantages.ifEmpty { config.advantages },
                     card = cardFor(ref, config),
-                    trigger = RuleTrigger(kind = "product", value = promoted.id),
+                    trigger = RuleTrigger(kind = "product", value = companion.id),
                     createdBy = createdBy,
                 ).also { it.type = RuleType.crosssell; it.status = effectiveStatus(ref); it.promoId = promoId }
             }
@@ -243,6 +252,7 @@ class PromoRulesService(
         // Штрих-код продвигаемого — из кампании (источник истины для матчинга кассы),
         // иначе сохраняем прежний.
         p.barcode = promo.barcode?.trim()?.takeIf { it.isNotBlank() } ?: existing?.barcode
+        p.ipartId = promo.ipartId?.trim()?.takeIf { it.isNotBlank() } ?: existing?.ipartId
         return productRepository.save(p)
     }
 
@@ -267,6 +277,7 @@ class PromoRulesService(
         p.barcode = ref.barcode?.trim()?.takeIf { it.isNotBlank() }
             ?: medusaPriceService.snapshotOf(id)?.barcode?.trim()?.takeIf { it.isNotBlank() }
             ?: existing?.barcode
+        p.ipartId = ref.ipartId?.trim()?.takeIf { it.isNotBlank() } ?: existing?.ipartId
         return productRepository.save(p)
     }
 
@@ -279,6 +290,7 @@ class PromoRulesService(
             mnn = p.mnn.takeIf { it.isNotBlank() },
             volume = p.volume.takeIf { it.isNotBlank() },
             barcode = p.barcode?.takeIf { it.isNotBlank() },
+            ipartId = p.ipartId?.takeIf { it.isNotBlank() },
             price = p.price.takeIf { it > 0 },
         )
     }

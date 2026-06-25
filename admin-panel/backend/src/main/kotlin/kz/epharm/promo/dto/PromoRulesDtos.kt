@@ -49,6 +49,9 @@ data class PromoRuleProductRefDto(
     /** Штрих-код EAN-13 (из Medusa) — стампится на ProductEntity.barcode для матчинга кассы. */
     @field:Size(max = 32)
     val barcode: String? = null,
+    /** iPartID Стандарт-Н — стампится на ProductEntity.ipartId для матчинга кассы. */
+    @field:Size(max = 64)
+    val ipartId: String? = null,
     val price: Int? = null,
     /** Скрипт пары: что сказать фармацевту и почему. → rules.script (видно на кассе). */
     @field:Size(max = 2000)

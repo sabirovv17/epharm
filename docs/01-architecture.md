@@ -1,127 +1,107 @@
-# Архитектура системы
+# Architecture
 
-## Общая схема
+## Runtime Shape
 
-```
-                        ┌───────────────────────────────────────────────┐
-                        │      Сервер medusa-test · 78.140.246.238      │
-                        │        epharm.78-140-246-238.sslip.io         │
-                        │                                               │
-   Фармацевт (телефон)  │   ┌─────────┐    ┌──────────┐   ┌──────────┐  │
-   ─────────────────────┼──►│  Caddy  │───►│ frontend │   │ Postgres │  │
-   мобильное приложение │   │ (TLS,   │    │ (nginx + │   │   16     │  │
-                        │   │  :80    │    │  React)  │   └────▲─────┘  │
-   Касса «Стандарт-Н»   │   │  :443)  │    └────┬─────┘        │        │
-   ─────────────────────┼──►│         │         │ /api    ┌────┴─────┐  │
-   POSM-клиент (C#)     │   │         │───►┌─────▼──────┐  │ backend  │  │
-                        │   │         │    │  backend   │──┤ Kotlin/  │  │
-   HQ-менеджер (браузер)│   │         │───►│  :8080     │  │ Spring   │  │
-   ─────────────────────┼──►│         │    └─────┬──────┘  └────┬─────┘  │
-   веб-админка          │   └────┬────┘          │              │        │
-                        │        │ s3.       ┌───▼───┐     ┌────▼─────┐  │
-                        │        └──────────►│ MinIO │     │ Redis 7  │  │
-                        │       фото чеков   │ (S3)  │     │ (cache)  │  │
-                        │                    └───────┘     └──────────┘  │
-                        └───────────────────────────────────┼───────────┘
-                                                             │ REST (read-only)
-                                                    ┌────────▼─────────┐
-                                                    │  Medusa (внешн.) │
-                                                    │  каталог товаров │
-                                                    └──────────────────┘
+```text
+                         public internet / VPN
+                                  |
+                                  v
+                   https://epharm.78-140-246-238.sslip.io
+                                  |
+                               Caddy
+              /api/* ------------+------------- /s3/* ------------ /
+                |                                |                  |
+             backend                          MinIO             frontend
+        Kotlin/Spring Boot                  S3-compatible      nginx + React
+                |
+       +--------+---------+----------------+
+       |                  |                |
+   PostgreSQL           Redis          external Medusa
+   Flyway V001-V030     cache/session   catalog/images/barcodes/pharmacies
 ```
 
-Единственная точка входа из сети — **Caddy** (порты 80/443). Backend, frontend, MinIO, Postgres,
-Redis наружу не публикуются: ходят между собой по внутренней docker-сети. Caddy сам получает и
-продлевает TLS-сертификаты (Let's Encrypt) для публичных доменов.
+Caddy is the only public entrypoint in the current deployment. Backend, frontend, MinIO, Postgres,
+and Redis are internal Docker services. The same host serves API, admin, and S3 by path.
 
-## Бэкенд как монолит с тремя API-поверхностями
+There is also an optional internal VPN hostname in `Caddyfile` (`inkpim.inkar.kz`) that proxies to the
+same frontend over plain HTTP inside the corporate VPN.
 
-Backend — единое Spring Boot приложение, но логически делит API на три «поверхности» с разной
-моделью аутентификации:
+## API Surfaces
 
-| Поверхность    | Префикс          | Кто ходит                      | Аутентификация                                                       |
-| -------------- | ---------------- | ------------------------------ | -------------------------------------------------------------------- |
-| **Admin API**  | `/api/admin/**`  | HQ-менеджеры (браузер/админка) | JWT + роли (HQ_HEAD, CATEGORY_LEAD, BRAND_MANAGER, FINANCE_REVIEWER) |
-| **Mobile API** | `/api/mobile/**` | Фармацевты (мобилка)           | JWT (роль PHARMACIST), вход по SMS-OTP                               |
-| **POSM API**   | `/api/posm/**`   | Кассовые клиенты (C#)          | Device-key в заголовке `X-Posm-Key` (без JWT)                        |
+The backend is one Spring Boot monolith with three main API surfaces:
 
-Плюс публичные эндпоинты без авторизации: `/api/health`, вход/refresh для обеих поверхностей,
-self-register фармацевта, swagger.
+| Surface | Prefix | Client | Auth |
+| --- | --- | --- | --- |
+| Admin API | `/api/admin/**` | HQ web admin | Admin JWT + role checks |
+| Mobile API | `/api/mobile/**` | Flutter pharmacist app | Public for catalog/promotions/banners/pharmacies/auth; pharmacist JWT for `/me` and receipts |
+| POSM API | `/api/posm/**` | C#/WPF cash-desk client | `X-Posm-Key` device key |
 
-Подробный справочник всех эндпоинтов — в [`02-backend.md`](02-backend.md).
+Public helper endpoints include `/api/health` and `/api/media/img` for safe HTTPS proxying of
+allowed Medusa HTTP images.
 
-## Ключевые бизнес-потоки
+## Main Business Flows
 
-### 1. Рекомендация на кассе → отложенный бонус → подтверждение чеком
+### Campaign -> Mobile Feed -> Receipt
 
-Главный сквозной поток системы (ТЗ §4 + §3.5):
+1. Admin creates a Promo campaign and selects a Medusa product.
+2. Backend snapshots product name/image/barcode and stores campaign dates, tiers, goal, and rules.
+3. Mobile reads `GET /api/mobile/promotions` and renders active campaigns.
+4. Pharmacist taps bonus CTA or uses the scan FAB, uploads a receipt photo, and optionally carries a
+   claimed promo id.
+5. Backend stores the photo in MinIO and creates a receipt with `pending`/review state.
+6. Admin Reconcile approves/rejects the receipt; approval credits the pharmacist balance.
 
-```
-1. Касса «Стандарт-Н» пишет товар в лог (zkassa.log).
-2. POSM-клиент (C#) читает лог, собирает корзину, шлёт POST /api/posm/recommend.
-3. Backend (RulesEngineService) подбирает правило замены/допродажи → возвращает до 2 карточек.
-4. POSM показывает попап фармацевту (замена | допродажа), бонус, скрипт, сравнение.
-5. Фармацевт жмёт «Заменить» (F9) → POST /api/posm/recommendations/{eventId}/outcome.
-6. Backend создаёт pending_bonus (отложенный бонус, ждёт подтверждения).
-7. Источники подтверждения продажи:
-     • лог кассы (POST /api/posm/sales), и/или
-     • Excel-выгрузка из «Стандарт-Н» (admin import), и/или
-     • фото чека из мобилки (POST /api/mobile/receipts).
-8. ReconcileService сверяет → при совпадении начисляет бонус на баланс фармацевта.
-9. Спорные/непонятные чеки попадают в очередь модерации админки (раздел «Сверка»).
-```
+### Cash Desk Recommendation -> Deferred Bonus -> Reconciliation
 
-> Исторически был OCR/QR-разбор чека, но он удалён (миграции V020/V021): подтверждение строится на
-> логе кассы + Excel + ручной модерации, без распознавания фото.
+1. Standard-N writes a cp1251 `zkassa.log` line for an added product.
+2. POSM client extracts `barcode`/`ean`, product name, internal `iPartID`, price, and quantity.
+3. POSM sends the cart to `POST /api/posm/recommend`.
+4. Backend resolves products primarily by barcode, then by normalized name. Ambiguous barcode/name
+   matches are rejected rather than guessed.
+5. Rules Engine returns up to two recommendations from active campaign rules.
+6. POSM shows the recommendation on the pharmacist screen. `F9` accepts, `Esc` rejects.
+7. Accepted recommendation creates a `pending_bonus`.
+8. POSM later sends sale data to `POST /api/posm/sales`; managers can also import Standard-N Excel
+   data via admin.
+9. Reconcile service compares POS sale, Excel row, and mobile/manual evidence:
+   - both POS and Excel match -> auto approved;
+   - one source only -> manual moderation;
+   - conflict/duplicate -> flagged/manual;
+   - no evidence after expiry -> expired.
 
-### 2. Чек из мобильного приложения
+### Screens / Broadcast
 
-```
-Фармацевт: фото чека → выбор аптеки → (карта) → POST /api/mobile/receipts (multipart).
-Backend: кладёт фото в MinIO (бакет epharm-receipts), создаёт запись receipts(status=pending).
-Админка (раздел «Сверка»): модератор видит фото + позиции → Approve/Reject.
-Approve → начисление бонуса на pharmacists.balance + audit.
-```
+1. Admin Screens section uploads or replaces the current broadcast video/image.
+2. Backend stores media in MinIO and makes a single active broadcast playlist.
+3. POSM clients poll `GET /api/posm/playlists/active?pharmacyId=...`.
+4. Customer screen updates on the next poll. SSE screen modes were explicitly cancelled; polling is the
+   current design.
 
-### 3. Выплаты (payouts)
+### Mobile Auth
 
-```
-HQ-финансист: раздел «Финансы» → Generate batch за период → собирает балансы в payout_batch.
-Approve batch → требует роль FINANCE_REVIEWER или HQ_HEAD (@PreAuthorize).
-Каждая позиция (payout_item) = сумма к выплате фармацевту.
-```
+1. Phone -> `POST /api/mobile/auth/sms/request`.
+2. OTP verify -> `POST /api/mobile/auth/sms/verify`.
+3. New user registration -> `POST /api/mobile/auth/register`.
+4. Tokens are stored in `flutter_secure_storage`; refresh uses `/api/mobile/auth/refresh`.
 
-### 4. Управление клиентским экраном (DOOH)
+`OTP_DEV_MODE=true` means the accepted code is `544544`. Real SMS integration is still an ops/product
+decision.
 
-```
-HQ: раздел «Экраны» → загрузка слайда (видео/картинка) в MinIO → сборка плейлиста →
-    назначение на аптеку (или «все экраны») → активация.
-POSM-клиент: каждые ~120с GET /api/posm/playlists/active?pharmacyId=... →
-    при смене сигнатуры плейлиста переключает видео на втором мониторе (VLC).
-```
+## External Integrations
 
-## Внешние интеграции
+| Integration | Current use |
+| --- | --- |
+| Medusa | Product catalog, product images, barcode, category metadata, pharmacy stock locations. Backend proxies it; mobile/admin do not talk to Medusa directly. |
+| MinIO | Receipt photos, screen media, APK/demo files. Current bucket is public-readable; privatizing receipt access remains a release hardening item. |
+| Redis | Infrastructure dependency; available for cache/rate-limit/session work. |
+| SMS provider | Not connected. Dev OTP is active in pilot/demo flows. |
+| OCR / OFD QR | Removed/cancelled by product decision. Receipt validation is POS log + Excel + manual moderation/photo evidence. |
 
-| Интеграция           | Назначение                                     | Как подключено                                                                                            |
-| -------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| **Medusa** (витрина) | Реальный каталог товаров и реестр аптек (~523) | `MedusaClient` (REST, publishable-key), прокси в `/api/mobile/catalog` и админ-витрину; кэш в памяти      |
-| **MinIO / S3**       | Хранение фото чеков и слайдов экранов          | `S3MediaStorage` (AWS SDK v2); публичный бакет `epharm-receipts` (отдаётся через Caddy на `s3.epharm.kz`) |
-| **SMS**              | OTP для входа фармацевтов                      | сейчас **stub** (`OTP_DEV_MODE=true` → фиксированный код `544544`); прод-провайдер (Mobizon) не подключён |
-| **OCR**              | —                                              | удалён, не используется                                                                                   |
+## Design Direction
 
-## Аутентификация и токены
+The current brand UI is Claude-style coral/white:
 
-- **Admin**: bcrypt-пароль → `POST /api/admin/auth/login` → JWT access (короткий) + refresh.
-  Refresh-токены хранятся хэшированными в `refresh_tokens`. Роли — в `admin_users.role`.
-- **Mobile**: телефон → `POST /api/mobile/auth/sms/request` (OTP) → `…/sms/verify` → JWT (PHARMACIST)
-  - отдельная таблица `mobile_refresh_tokens`. Токены на устройстве — в `flutter_secure_storage`.
-- **POSM**: статический `X-Posm-Key` на кассу (из `posm.json`), сверяется константно по времени
-  (`MessageDigest.isEqual`).
-
-## Профили окружения
-
-| Профиль | Когда                | Что делает                                                                                       |
-| ------- | -------------------- | ------------------------------------------------------------------------------------------------ |
-| `dev`   | локальная разработка | `DevDataSeeder`: 3 админа, продукты, правила, аптеки, курсы; OTP=544544                          |
-| `prod`  | сервер               | `ProdBootstrap`: fail-fast если секреты дефолтные; создаёт первого админа из `ADMIN_BOOTSTRAP_*` |
-| `test`  | тесты                | Testcontainers (Postgres), in-memory media storage                                               |
+- primary coral token is still named `brand-green-*` for compatibility;
+- former `brand-blue-*` is now a darker coral accent;
+- green remains only for semantic success/approved states;
+- mobile uses coral as hero surfaces; admin uses coral as sparse accent on a quiet cream canvas.

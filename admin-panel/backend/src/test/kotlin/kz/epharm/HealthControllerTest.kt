@@ -2,6 +2,8 @@ package kz.epharm
 
 import kz.epharm.auth.security.JwtAuthenticationFilter
 import kz.epharm.auth.service.JwtService
+import kz.epharm.shared.ApiAccessDeniedHandler
+import kz.epharm.shared.ApiAuthenticationEntryPoint
 import kz.epharm.shared.HealthController
 import kz.epharm.shared.SecurityConfig
 import kz.epharm.shared.error.GlobalExceptionHandler
@@ -20,7 +22,14 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
  * без БД и JPA — health должен работать всегда (актуатор-стиль endpoint).
  */
 @WebMvcTest(controllers = [HealthController::class])
-@Import(SecurityConfig::class, JwtAuthenticationFilter::class, JwtService::class, GlobalExceptionHandler::class)
+@Import(
+    SecurityConfig::class,
+    JwtAuthenticationFilter::class,
+    JwtService::class,
+    ApiAuthenticationEntryPoint::class,
+    ApiAccessDeniedHandler::class,
+    GlobalExceptionHandler::class,
+)
 @TestPropertySource(properties = [
     "app.jwt.secret=test-secret-key-of-at-least-32-bytes-for-hs256-tests-only-please",
     "app.jwt.access-ttl-minutes=15",

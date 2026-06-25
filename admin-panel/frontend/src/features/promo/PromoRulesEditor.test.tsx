@@ -33,6 +33,7 @@ function mkView(over: Partial<PromoRulesViewDto['config']> = {}): PromoRulesView
           name: 'Аквалор Норм',
           brand: 'Stada',
           barcode: '4603423004936',
+          ipartId: '80309',
           script: 'Замени — мягче',
         },
       ],
@@ -74,6 +75,7 @@ beforeEach(() => {
           currency: 'KZT',
           imageUrl: null,
           barcode: '4604249789012',
+          ipartId: null,
           category: null,
         },
       ],
@@ -107,9 +109,42 @@ describe('PromoRulesEditor — per-pair скрипт + «Добавить»', ()
     )
   })
 
-  it('EAN-13 (штрих-код) показан у выбранной пары', () => {
+  it('EAN-13 и iPartID редактируются у выбранной пары', async () => {
+    const user = userEvent.setup()
     renderEditor()
-    expect(screen.getByTestId('pr-barcode-prod_a')).toHaveTextContent('4603423004936')
+    const barcode = screen.getByTestId('pr-barcode-prod_a')
+    const ipart = screen.getByTestId('pr-ipart-prod_a')
+    expect(barcode).toHaveValue('4603423004936')
+    expect(ipart).toHaveValue('80309')
+
+    await user.clear(barcode)
+    await user.type(barcode, '4600000000001')
+    await user.clear(ipart)
+    await user.type(ipart, '99901')
+    await user.click(screen.getByTestId('promo-rules-save'))
+
+    const arg = mutate.mock.calls[0][0]
+    expect(arg.config.replacements[0]).toEqual(
+      expect.objectContaining({ barcode: '4600000000001', ipartId: '99901' }),
+    )
+  })
+
+  it('статус пары — switch, а не pill-кнопка', async () => {
+    const user = userEvent.setup()
+    renderEditor()
+    const status = screen.getByTestId('pr-status-prod_a')
+    const toggle = within(status).getByRole('switch')
+
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    expect(within(status).getByText('Активно')).toBeInTheDocument()
+
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    expect(within(status).getByText('Неактивно')).toBeInTheDocument()
+
+    await user.click(screen.getByTestId('promo-rules-save'))
+    const arg = mutate.mock.calls[0][0]
+    expect(arg.config.replacements[0].active).toBe(false)
   })
 
   it('добавленный товар несёт штрих-код в config при сохранении', async () => {
@@ -171,7 +206,7 @@ describe('PromoRulesEditor — превью кассы (структура ка�
     expect(screen.getByText('Эпигам спрей')).toBeInTheDocument()
   })
 
-  it('кросс-селл: триггер = товар кампании (УЖЕ В ЧЕКЕ), предложение = компаньон', () => {
+  it('кросс-селл: триггер = выбранный товар в чеке, предложение = товар кампании', () => {
     rulesHooks.usePromoRules.mockReturnValue({
       data: mkView({
         replacements: [],
@@ -185,8 +220,10 @@ describe('PromoRulesEditor — превью кассы (структура ка�
     renderEditor()
     expect(screen.getByText('УЖЕ В ЧЕКЕ')).toBeInTheDocument()
     expect(screen.getByText('ДОБАВЬТЕ К ПОКУПКЕ')).toBeInTheDocument()
-    // Триггер = товар кампании, компаньон = предложение.
-    expect(screen.getByText('Эпигам спрей')).toBeInTheDocument()
-    expect(screen.getAllByText('Платочки Zewa').length).toBeGreaterThanOrEqual(1)
+    // Триггер = выбранный товар, предложение = товар кампании.
+    expect(within(screen.getByTestId('pr-preview-trigger-prod_c')).getByText('Платочки Zewa'))
+      .toBeInTheDocument()
+    expect(within(screen.getByTestId('pr-preview-offer-prod_c')).getByText('Эпигам спрей'))
+      .toBeInTheDocument()
   })
 })

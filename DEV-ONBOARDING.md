@@ -1,149 +1,115 @@
-# Epharm — Dev Onboarding: запуск приложения на телефоне
+# Dev Onboarding: Mobile App on a Phone
 
-Цель: новый разработчик запускает рабочее мобильное приложение на своём телефоне
-(iOS **или** Android), связанное с общим backend и админкой.
+Goal: run the current Epharm mobile app on Android or iPhone against the shared backend.
 
-## Контекст: локально ничего поднимать не нужно
+## Shared Backend
 
-Backend, админка, каталог, чеки и БД уже работают на общем демо-сервере:
+Use:
 
-```
+```text
 https://epharm.78-140-246-238.sslip.io
 ```
 
-Приложение просто нацеливается на этот адрес флагами `--dart-define`. Что ты делаешь
-в приложении (регистрация, загрузка чека) — сразу видно в админке: одна общая база.
+No local backend is needed for this onboarding path. Actions in the app hit the shared database and
+are visible in the admin console.
 
-## Предусловия
+## Prerequisites
 
-- Доступ к репозиторию `github.com/sabirovv17/epharm` (приватный — попроси владельца
-  добавить коллаборатором). Рабочая ветка: `feat/mobile-backend`.
-- **Flutter 3.27.x** stable + Dart 3.6 (`flutter --version`).
-- Для iOS: **macOS + Xcode + CocoaPods**.
-- Для Android: **Android Studio** (или Android SDK + platform-tools).
+- Access to the private repository.
+- Flutter 3.27.x / Dart 3.6.
+- Android Studio or Android SDK for Android.
+- macOS + Xcode + CocoaPods for iOS.
 
-## Клонирование и зависимости
+## Setup
 
 ```bash
-git clone https://github.com/sabirovv17/epharm.git
-cd epharm
-git checkout feat/mobile-backend
+git clone <repo-url>
+cd PharmaPayV2
 flutter pub get
-flutter doctor          # нужный таргет (iOS/Android) должен быть зелёным
-flutter devices         # узнать id своего подключённого устройства
+flutter doctor
+flutter devices
 ```
 
-## Параметры запуска (одинаковые для обеих платформ)
+Run flags:
 
-```
+```text
 --dart-define=USE_API=true
 --dart-define=API_BASE=https://epharm.78-140-246-238.sslip.io
 ```
 
----
+## Android
 
-## 🤖 Случай 1 — запуск на Android
+Run from source:
 
-### 1a. Просто поставить готовый APK (без сборки)
-
-Открыть на телефоне ссылку и установить (в настройках Android разрешить «установку из
-неизвестных источников» для браузера). APK уже нацелен на сервер:
-
-```
-https://epharm.78-140-246-238.sslip.io/s3/epharm-receipts/epharm-demo.apk
+```bash
+flutter run -d <android-device-id> \
+  --dart-define=USE_API=true \
+  --dart-define=API_BASE=https://epharm.78-140-246-238.sslip.io
 ```
 
-### 1b. Запуск из исходников на устройстве
-
-1. На телефоне включи **Режим разработчика** (7 тапов по «Номер сборки» в «О телефоне»),
-   затем **Отладку по USB**.
-2. Подключи кабелем, подтверди «Разрешить отладку с этого компьютера».
-3. Запуск:
-   ```bash
-   flutter run -d <android-device-id> \
-     --dart-define=USE_API=true \
-     --dart-define=API_BASE=https://epharm.78-140-246-238.sslip.io
-   ```
-   (для production-варианта добавь `--release`).
-
-Собрать APK-файл самому:
+Build APK:
 
 ```bash
 flutter build apk --release \
   --dart-define=USE_API=true \
   --dart-define=API_BASE=https://epharm.78-140-246-238.sslip.io
-# → build/app/outputs/flutter-apk/app-release.apk
 ```
 
----
+The demo APK may also be hosted under the shared `/s3/` path when published by the team.
 
-## 🍏 Случай 2 — запуск на iPhone (iOS)
+## iPhone
 
-iOS требует подпись (code signing). В проекте уже настроена автоматическая подпись
-(`ios/Runner.xcodeproj`): команда `P55D384HK5`, bundle id `kz.pharmacy.app`,
-`CODE_SIGN_STYLE = Automatic`.
+iOS requires signing.
 
-### Шаги
+```bash
+flutter run --release -d <ios-device-id> \
+  --dart-define=USE_API=true \
+  --dart-define=API_BASE=https://epharm.78-140-246-238.sslip.io
+```
 
-1. **Apple ID в Xcode:** Xcode → Settings → Accounts → добавь Apple ID с доступом к
-   команде `P55D384HK5` (либо используй свою — см. примечание ниже).
-2. **На iPhone:** подключи кабелем, разблокируй, нажми **«Доверять этому компьютеру»**.
-3. **Developer Mode (iOS 16+):** Настройки → Конфиденциальность и безопасность →
-   Режим разработчика → вкл → перезагрузка. Один раз.
-4. **Запуск:**
-   ```bash
-   flutter run --release -d <ios-device-id> \
-     --dart-define=USE_API=true \
-     --dart-define=API_BASE=https://epharm.78-140-246-238.sslip.io
-   ```
-5. **Доверить профиль** (после установки): Настройки → Основные →
-   **VPN и управление устройством** → «Программа разработчика» → нажми на свой Apple ID →
-   **«Доверять»**.
-6. Открой иконку **Epharm** на экране.
+If signing fails:
 
-### Примечание: подпись своей командой
+1. Open `ios/Runner.xcworkspace`.
+2. Select target `Runner`.
+3. Choose an available Team in Signing & Capabilities.
+4. If using a free Personal Team, change bundle id to a unique one.
+5. Trust the developer profile on the iPhone after install.
 
-Если нет доступа к `P55D384HK5` — подпиши своей:
+If macOS/iCloud xattrs break codesign, recreate the shim:
 
-- открой `ios/Runner.xcworkspace` в Xcode → таргет **Runner** → Signing & Capabilities →
-  выбери свою **Team**;
-- если Team бесплатная (личный Apple ID), поменяй `PRODUCT_BUNDLE_IDENTIFIER` на уникальный
-  (напр. `kz.pharmacy.app.<имя>`), иначе подпись не выдастся;
-- на бесплатной подписи приложение работает ~7 дней, потом переустановить.
+```bash
+mkdir -p /tmp/codesign_shim
+printf '#!/bin/sh\nexec /usr/bin/codesign --no-strict "$@"\n' > /tmp/codesign_shim/codesign
+chmod +x /tmp/codesign_shim/codesign
+export PATH="/tmp/codesign_shim:$PATH"
+```
 
----
+## Login
 
-## Вход в приложении (dev-режим)
+While dev OTP is active, the OTP code is:
 
-Вход/регистрация — по номеру телефона + **OTP-код `544544`** (dev-режим, реальная SMS
-не отправляется). Подходит любой номер.
+```text
+544544
+```
 
-## Проверка связки «приложение ↔ админка»
+Use any phone number for a pilot/dev registration unless a specific seeded user is needed.
 
-1. В приложении: вход (любой номер + `544544`) → каталог и аптеки видны.
-2. Загрузи фото чека в приложении.
-3. В админке (`https://epharm.78-140-246-238.sslip.io`, вход админом) → раздел
-   **«Сверка»** → твой чек в очереди → **«Подтвердить»**.
-4. Баланс в приложении обновится — полный цикл «чек → бонус» на общей базе.
+## Verify App <-> Admin
 
----
+1. Login in the mobile app.
+2. Confirm promotions/catalog/banners load.
+3. Upload a receipt photo.
+4. Open admin: `https://epharm.78-140-246-238.sslip.io`.
+5. Go to Reconcile.
+6. Approve/reject the receipt.
+7. Pull-to-refresh mobile receipt list/balance.
 
-## Траблшутинг
+## Troubleshooting
 
-- **`flutter devices` не видит телефон** — кабель должен быть data (не только зарядка);
-  на iPhone «Доверять», на Android «Отладка по USB».
-- **iOS: `resource fork, Finder information, or similar detritus not allowed`** при codesign —
-  проект лежит в синхронизируемой папке (iCloud/Dropbox), на файлах висят xattr. Решение:
-  вынеси проект из синхронизируемой папки, либо собирай через шим:
-  ```bash
-  mkdir -p /tmp/codesign_shim
-  printf '#!/bin/sh\nexec /usr/bin/codesign --no-strict "$@"\n' > /tmp/codesign_shim/codesign
-  chmod +x /tmp/codesign_shim/codesign
-  export PATH="/tmp/codesign_shim:$PATH"   # перед flutter run
-  ```
-  Шим использует реальную подпись, только смягчает строгую проверку xattr.
-- **iOS: `invalid code signature … profile has not been explicitly trusted`** при запуске —
-  профиль не доверен: см. шаг 5 (VPN и управление устройством → Доверять).
-- **iOS: `Developer Mode disabled`** — включи Режим разработчика (шаг 3).
-- **Каталог «недоступен»** — проверь флаг `API_BASE` и что сервер жив:
-  `curl https://epharm.78-140-246-238.sslip.io/api/health` → должно вернуть `200`.
+| Symptom | Fix |
+| --- | --- |
+| `flutter devices` does not show phone | Use a data cable; trust computer; enable USB debugging / Developer Mode. |
+| App cannot reach backend | Check `API_BASE`; `curl https://epharm.78-140-246-238.sslip.io/api/health`. |
+| iOS profile not trusted | iPhone Settings -> VPN & Device Management -> trust developer. |
+| iOS Developer Mode disabled | Enable Developer Mode and reboot. |
+| Local backend on physical phone | Use Mac LAN IP, not `localhost`. |

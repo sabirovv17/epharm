@@ -1,143 +1,144 @@
-# Мобильное приложение фармацевта (Flutter)
+# Mobile App
 
-**Путь:** `lib/` · **Стек:** Flutter · Riverpod 2.6 · go_router 14.6 · http 1.2 ·
-flutter_secure_storage 10.3 · camera · image_picker · pinput · flutter_svg · url_launcher.
+Path: `lib/`.
 
-Приложение фармацевта: вход по телефону/OTP, баланс и каталог промо, загрузка чека (фото →
-аптека → карта), реальный каталог товаров, профиль с инфо-страницами.
+Stack:
 
-## Фичи (`lib/features/`)
+- Flutter 3.27 / Dart 3.6;
+- Riverpod 2.6;
+- go_router 14.6;
+- `http`;
+- `flutter_secure_storage`;
+- `camera`, `image_picker`;
+- `cached_network_image` + `flutter_cache_manager`;
+- `flutter_svg`, `url_launcher`, `pinput`.
 
-| Фича             | Экраны                                                   | Назначение                                                                                                 |
-| ---------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `auth/`          | phone, otp, profile_form                                 | Вход по OTP + само-регистрация (ФИО + ИИН)                                                                 |
-| `home/`          | home + виджеты                                           | Дашборд: карточка баланса (`/api/mobile/me`), промо-карусель, каталог продуктов, фильтры/сортировка/бренды |
-| `profile/`       | контроллер баланса                                       | Обновление профиля/баланса (`/api/mobile/me`)                                                              |
-| `profile_pages/` | faq, instruction, cooperation, terms, privacy            | Статичные инфо-страницы                                                                                    |
-| `receipts/`      | list, review, camera, success, address_sheet, card_sheet | Загрузка чека, выбор аптеки, номер карты (Luhn), история                                                   |
-| `catalog/`       | catalog, product_sheet                                   | Реальный каталог (прокси Medusa через backend), поиск                                                      |
-| `welcome/`       | welcome                                                  | Стартовый экран                                                                                            |
-
-## Core-инфраструктура (`lib/core/`)
-
-**`config/api_config.dart`**
-
-- `ApiConfig.useApi` — флаг `--dart-define=USE_API` (по умолчанию `true`)
-- `ApiConfig.baseUrl` — `--dart-define=API_BASE` (дефолт `https://api.epharm.kz` — **домен пока
-  мёртв**, не резолвится на сервер; боевой адрес см. ниже в «Сборке прод-APK»)
-- Переключает mock ↔ реальный API
-
-**`network/`**
-
-- `api_client.dart` — клиент на `package:http`: `getJson`, `postJson`, `postMultipart`; инъекция
-  Bearer-токена; на 401 авто-refresh (`/api/mobile/auth/refresh`) + один ретрай; парсинг `{code,message}`
-- `api_exception.dart` — `ApiException` (message, code, statusCode)
-- `token_store.dart` — `TokenStore`: хранит токены в `flutter_secure_storage` (Keychain /
-  EncryptedSharedPreferences), in-memory кэш + write-through, безопасен в юнит-тестах
-
-**`router/app_router.dart`** — go_router: `/welcome`, `/auth/{phone,otp,profile}`, `/home`,
-`/catalog`, `/profile/*`. Redirect: залогиненный → home; гард на auth-маршруты; слушает
-`currentUserProvider` для восстановления сессии.
-
-**`theme/`** — дизайн-токены (`app_colors`, `app_typography` (Manrope 500–800), `app_theme`
-(Material 3, light), `app_gradients`, `app_spacing`, `app_radii`, `app_shadows`). Fallback-шрифты
-для глифа ₸ (Roboto/SF Pro).
-
-**`validation/`** — `card.dart` (Luhn для 16-значной карты), `iin.dart` (ИИН Казахстана).
-
-**`widgets/`** — `error_snackbar` (`messageFromError`, `showErrorSnackBar`), `pharma_logo`,
-`primary_button`, `glass_pill`, `filter_chip_row`, `search_input`, `brand_icons`, `receipt_stamp_mark`.
-
-## Data-слой: mock vs API
-
-Каждая фича — Strategy-паттерн с переключением по флагу `USE_API`:
-
-```
-feature/data/
-  ├── {feature}_repository.dart       # абстрактный интерфейс
-  ├── api_{feature}_repository.dart    # реализация через ApiClient (backend)
-  ├── mock_{feature}_repository.dart   # хардкод-данные (offline-демо)
-  └── models.dart
-```
-
-Выбор репозитория — Riverpod-провайдер:
+The app defaults to the real backend:
 
 ```dart
-final authRepositoryProvider = Provider<AuthRepository>((ref) =>
-  ApiConfig.useApi
-    ? ApiAuthRepository(ref.read(apiClientProvider), ref.read(tokenStoreProvider))
-    : MockAuthRepository());
+ApiConfig.useApi == true
+ApiConfig.baseUrl == https://api.epharm.kz
 ```
 
-| Репозиторий | API-эндпоинт                                 | Mock                                |
-| ----------- | -------------------------------------------- | ----------------------------------- |
-| `Auth`      | `/api/mobile/auth/*`                         | OTP=`544544`                        |
-| `Receipt`   | `/api/mobile/receipts` (multipart + история) | in-memory статусы                   |
-| `Pharmacy`  | `/api/mobile/pharmacies`                     | ~20 фейков (реально ~523 из Medusa) |
-| `Catalog`   | `/api/mobile/catalog/*`                      | stub                                |
-| `Me`        | `/api/mobile/me`                             | —                                   |
-
-## main.dart / bootstrap
-
-- `runZonedGuarded` — глобальный перехват необработанных ошибок (логирует, UI не подменяет)
-- `FlutterError.onError` — ошибки фреймворка в лог (не фатально)
-- `_restoreSession` — восстановление сессии на старте: токены из `TokenStore` (timeout 3с) →
-  `/api/mobile/me` (timeout 6с); ошибки молча → welcome
-- `UncontrolledProviderScope` + portrait-only
-
-## Сборка и платформы
-
-**Android** (`android/app/build.gradle`, `AndroidManifest.xml`)
-
-- `minSdk = 23` (требование `flutter_secure_storage`; дефолтный 21 ронял release-сборку)
-- Разрешения: `CAMERA` (нет `RECORD_AUDIO`); cleartext только для dev/localhost, прод — HTTPS
-- Release-подпись из `android/key.properties`
-
-**iOS** (`ios/Runner/Info.plist`)
-
-- `NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription`
-- **`FLTEnableImpeller = false`** — форсит рендерер Skia (Impeller давал белый экран на iPhone)
-- `NSAppTransportSecurity`: HTTPS по умолчанию, исключение для localhost (dev)
-
-**dart-define** (через `builds/build_all.sh`): `USE_API=true`, `API_BASE` (дефолт скрипта —
-`https://api.epharm.kz`).
-
-> ⚠️ **Боевой backend сейчас — `https://epharm.78-140-246-238.sslip.io`** (через Caddy/TLS).
-> Дефолтный `api.epharm.kz` **не резолвится** на сервер (health `000`) — APK, собранный без
-> переопределения, до бэка не достучится. Для боевой сборки обязательно задавай реальный адрес:
-> `build_all.sh` читает его из переменной окружения `API_BASE`, а голый `flutter build` — из
-> `--dart-define=API_BASE`.
-
-**Сборка прод-APK:**
+For the current shared demo, always pass:
 
 ```bash
-cd <repo>
-# Боевой адрес ОБЯЗАТЕЛЕН (иначе уйдёт на мёртвый api.epharm.kz):
-API_BASE=https://epharm.78-140-246-238.sslip.io bash builds/build_all.sh
-# результат: builds/Epharm-v<version>-release.apk (~49 МБ, USE_API=true, боевой base URL)
-
-# Голый flutter build (без скрипта) — тот же адрес через --dart-define:
-flutter build apk --release \
-  --dart-define=USE_API=true \
-  --dart-define=API_BASE=https://epharm.78-140-246-238.sslip.io
+--dart-define=API_BASE=https://epharm.78-140-246-238.sslip.io
 ```
 
-APK раздаётся как `https://epharm.78-140-246-238.sslip.io/s3/epharm-receipts/epharm-demo.apk`.
+Offline mocks remain available with `--dart-define=USE_API=false`.
 
-## Запуск в dev
+## Features
+
+| Feature | Path | Current role |
+| --- | --- | --- |
+| Welcome/start | `features/welcome` | Splash decides route from persisted tokens/onboarding state before showing welcome. |
+| Auth | `features/auth` | Phone OTP, registration form, token storage. |
+| Home | `features/home` | Balance card, banners, filters, promo grid, refresh/resume sync. |
+| Promotions | `features/promotions` | Active campaign feed from `/api/mobile/promotions`, filters/sort. |
+| Catalog | `features/catalog` | Product detail sheet, recommendation sections, image gallery/card components. |
+| Receipts | `features/receipts` | Upload photo, bonus card capture, claimed promo id, receipt list/detail/status. |
+| Profile | `features/profile` | `/api/mobile/me` profile/balance refresh. |
+| Profile pages | `features/profile_pages` | FAQ, instruction, cooperation, terms, privacy, video instruction. |
+
+## App Flow
+
+1. `SplashScreen` checks persisted tokens/onboarding.
+2. User enters app/welcome/home.
+3. Public home can show banners/promotions without login.
+4. Bonus/receipt-sensitive actions require auth.
+5. Auth flow: phone -> OTP -> optional registration -> home.
+6. Home grid shows active promo campaigns.
+7. Product sheet can show bonus CTA if active campaign exists.
+8. Upload prompt opens camera/gallery.
+9. Receipt review currently requires the card step; campaign id can be carried from the bonus CTA.
+10. Submit uploads multipart receipt to backend.
+11. Receipt list/detail shows moderation status; pull-to-refresh updates.
+
+QR/OFD scanning was removed by product decision. Receipt validation is not based on OCR.
+
+## Data Layer
+
+Each domain keeps repository interfaces with API and mock implementations. Providers select by
+`ApiConfig.useApi`.
+
+Examples:
+
+- `AuthRepository` -> `/api/mobile/auth/**`;
+- `ReceiptRepository` -> `/api/mobile/receipts`;
+- `CatalogRepository` -> `/api/mobile/catalog/**`;
+- `PromotionsRepository` -> `/api/mobile/promotions`;
+- `MeRepository` -> `/api/mobile/me`;
+- `BannerRepository` -> `/api/mobile/banners`.
+
+Tokens and onboarding/card defaults use secure storage. `ApiClient` handles refresh and distinguishes
+auth failures from transient refresh failures.
+
+## Images and Performance
+
+Scrollable product/banner images use a shared `MediaImage`/cache pipeline:
+
+- HTTP Medusa images are proxied through `/api/media/img`;
+- disk cache bucket: `epharm_media`;
+- stale period: 14 days;
+- `PaintingBinding.imageCache` is tuned at startup;
+- hot list/grid images set cache widths to avoid over-decoding.
+
+Receipt photos and special product gallery paths can still use explicit image logic where needed.
+
+## Design
+
+Current mobile design source of truth:
+
+- `_reference/design-tokens.md`;
+- `lib/core/theme/*`;
+- `lib/core/widgets/*`.
+
+Current visual direction:
+
+- coral/cream Claude-style brand;
+- `brandGreen*` names remain in code, but values are coral;
+- semantic success green is kept for approved states;
+- Manrope with Roboto/SF fallback for the KZT glyph and platform text edge cases;
+- bottom navigation has two icon-only tabs plus a center scan FAB.
+
+## Build and Run
 
 ```bash
+# shared demo backend
 flutter run \
   --dart-define=USE_API=true \
-  --dart-define=API_BASE=http://10.0.2.2:8080   # Android-эмулятор → localhost хоста
-# вход: телефон → OTP 544544 (dev) → Home (баланс из бэка)
+  --dart-define=API_BASE=https://epharm.78-140-246-238.sslip.io
+
+# local backend, iOS simulator
+flutter run --dart-define=USE_API=true --dart-define=API_BASE=http://localhost:8080
+
+# local backend, Android emulator
+flutter run --dart-define=USE_API=true --dart-define=API_BASE=http://10.0.2.2:8080
+
+# offline mock mode
+flutter run --dart-define=USE_API=false
 ```
 
-## Ключевые решения
+`builds/build_all.sh` reads `API_BASE` from the environment. If omitted, it uses `https://api.epharm.kz`,
+which is the future production domain, not necessarily the current demo host.
 
-1. Без кодогенерации (нет freezed/build_runner) — простота на этапе bootstrap.
-2. `http` вместо Dio — легче + встроенный `MockClient` для тестов + свой auto-refresh.
-3. Persist токенов + восстановление сессии — авто-логин после рестарта.
-4. Mock-first: флаг `USE_API` даёт offline-демо без бэкенда.
-5. Дизайн-токены централизованы — никаких хардкод-цветов в виджетах.
-6. Impeller выключен на iOS — обход бага с белым экраном.
+```bash
+API_BASE=https://epharm.78-140-246-238.sslip.io bash builds/build_all.sh
+```
+
+## iOS Build Gotchas
+
+The repo lives under Desktop/iCloud on the main workstation. iCloud xattrs can break codesign. The
+current project includes `ios/fix_build.sh`; if `/tmp/codesign_shim` disappears after reboot, recreate it
+before iOS builds or use the build script.
+
+Do not run the Flutter build pipeline directly from Xcode before `flutter pub get`/`flutter run` has
+generated artifacts. Prefer `flutter run` with `ios/Runner.xcworkspace` only for signing inspection.
+
+## Checks
+
+```bash
+flutter analyze lib test
+flutter test
+```

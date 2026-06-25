@@ -19,6 +19,15 @@ namespace CustomerDisplay.Services
         private readonly HttpClient _http;
         private readonly Action<string>? _log;
         private readonly TimeSpan _recommendTimeout;
+        // На Windows VM первый DNS/TLS connect к публичному sslip.io домену может занимать
+        // заметно дольше, чем на сервере/маке. Эти вызовы фоновые и не блокируют кассу, поэтому
+        // лучше дать сети восстановиться, чем регулярно считать живой backend "таймаутом".
+        private readonly TimeSpan _playlistTimeout = TimeSpan.FromSeconds(20);
+        private readonly TimeSpan _heartbeatTimeout = TimeSpan.FromSeconds(20);
+        private DateTime _lastHeartbeatErrorLog = DateTime.MinValue;
+        private string? _lastHeartbeatErrorKey;
+
+        public string? LastPlaylistError { get; private set; }
 
         private static readonly JsonSerializerOptions JsonOpts = new()
         {
@@ -31,12 +40,13 @@ namespace CustomerDisplay.Services
             _log = log;
             // Рекомендации держим быстрыми (per-call CTS ниже), а ОБЩИЙ таймаут клиента — щедрый:
             // плейлист/heartbeat/sales/cdp при 700мс часто таймаутили на чуть медленной сети
-            // (отсюда «видео не стягивается»). Теперь у них до 20с, а recommend ограничен отдельно.
+            // (отсюда «видео не стягивается»). Теперь общий лимит не режет фоновые запросы раньше
+            // их собственного timeout, а recommend ограничен отдельно.
             _recommendTimeout = TimeSpan.FromMilliseconds(Math.Max(200, cfg.RecommendTimeoutMs));
             _http = new HttpClient
             {
                 BaseAddress = new Uri(cfg.BackendBaseUrl),
-                Timeout = TimeSpan.FromSeconds(20),
+                Timeout = TimeSpan.FromSeconds(30),
             };
             _http.DefaultRequestHeaders.Add("X-Posm-Key", cfg.DeviceKey);
         }
@@ -45,9 +55,22 @@ namespace CustomerDisplay.Services
         private static string Describe(Exception ex) => ex switch
         {
             TaskCanceledException or OperationCanceledException => "таймаут (нет ответа вовремя)",
-            HttpRequestException h => h.StatusCode is { } sc ? $"HTTP {(int)sc} {sc}" : $"сеть недоступна ({h.Message})",
+            HttpRequestException h when h.StatusCode is { } sc => $"HTTP {(int)sc} {sc}",
+            HttpRequestException h when h.Message.Contains("SSL", StringComparison.OrdinalIgnoreCase) ||
+                h.Message.Contains("TLS", StringComparison.OrdinalIgnoreCase) =>
+                "временный TLS/SSL сбой соединения",
+            HttpRequestException => "временно нет связи с backend",
             _ => ex.Message,
         };
+
+        private static bool ShouldLog(ref DateTime lastAt, ref string? lastKey, string key, int everySec = 60)
+        {
+            var now = DateTime.Now;
+            if (lastKey == key && (now - lastAt).TotalSeconds < everySec) return false;
+            lastKey = key;
+            lastAt = now;
+            return true;
+        }
 
         /// <summary>Корзина → рекомендации. null при любой ошибке/таймауте (popup не покажется).</summary>
         public async Task<RecommendResponse?> RecommendAsync(RecommendRequest req, CancellationToken ct = default)
@@ -64,6 +87,10 @@ namespace CustomerDisplay.Services
                     return null;
                 }
                 return await resp.Content.ReadFromJsonAsync<RecommendResponse>(JsonOpts, cts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -97,16 +124,26 @@ namespace CustomerDisplay.Services
         /// </summary>
         public async Task<ActivePlaylist?> GetActivePlaylistAsync(string? pharmacyId = null, CancellationToken ct = default)
         {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(_playlistTimeout);
             try
             {
                 var url = "/api/posm/playlists/active";
                 if (!string.IsNullOrWhiteSpace(pharmacyId))
                     url += "?pharmacyId=" + Uri.EscapeDataString(pharmacyId);
-                return await _http.GetFromJsonAsync<ActivePlaylist>(url, JsonOpts, ct).ConfigureAwait(false);
+                var playlist = await _http.GetFromJsonAsync<ActivePlaylist>(url, JsonOpts, cts.Token)
+                    .ConfigureAwait(false);
+                LastPlaylistError = null;
+                return playlist;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex)
             {
-                _log?.Invoke($"плейлист: запрос не удался — {Describe(ex)}");
+                var desc = Describe(ex);
+                LastPlaylistError = desc;
                 return null;
             }
         }
@@ -170,19 +207,27 @@ namespace CustomerDisplay.Services
         /// </summary>
         public async Task HeartbeatAsync(string deviceId, string? pharmacyId, CancellationToken ct = default)
         {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(_heartbeatTimeout);
             try
             {
                 var url = "/api/posm/heartbeat?deviceId=" + Uri.EscapeDataString(deviceId);
                 if (!string.IsNullOrWhiteSpace(pharmacyId))
                     url += "&pharmacyId=" + Uri.EscapeDataString(pharmacyId);
-                using var resp = await _http.PostAsync(url, null, ct).ConfigureAwait(false);
+                using var resp = await _http.PostAsync(url, null, cts.Token).ConfigureAwait(false);
                 if (!resp.IsSuccessStatusCode)
                     _log?.Invoke($"heartbeat: HTTP {(int)resp.StatusCode} {resp.StatusCode}");
                 // тело ответа {ok, deviceId} нам не нужно — важен сам факт удара.
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
-                _log?.Invoke($"heartbeat: {Describe(ex)}");
+                var desc = Describe(ex);
+                if (ShouldLog(ref _lastHeartbeatErrorLog, ref _lastHeartbeatErrorKey, desc))
+                    _log?.Invoke($"heartbeat: временно не доставлен ({desc}); повторю по таймеру");
             }
         }
 

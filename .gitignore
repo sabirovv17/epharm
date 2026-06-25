@@ -77,7 +77,8 @@ ios/Runner/GeneratedPluginRegistrant.*
 # Распакованные сборки для ревью — артефакты не коммитим, см. builds/README.md
 builds/*.apk
 builds/*.ipa
-builds/*.app.zip
+builds/*.zip
+builds/screens/
 
 # ─────────────────────────────────────────────────────────────────────
 # Kotlin / Spring Boot backend (admin-panel/backend/)

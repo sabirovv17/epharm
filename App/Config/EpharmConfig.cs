@@ -17,8 +17,14 @@ namespace CustomerDisplay.Config
         public string DeviceKey { get; set; } = "dev-posm-key";
         public string PharmacistId { get; set; } = "";
         public string PharmacyId { get; set; } = "";
-        public int RecommendTimeoutMs { get; set; } = 700;
-        public int DebounceMs { get; set; } = 400;
+        public int RecommendTimeoutMs { get; set; } = 5000;
+        public int DebounceMs { get; set; } = 150;
+        /// <summary>
+        /// Устаревший флаг фоновой перепроверки рекомендаций. По умолчанию выключен:
+        /// боевой клиент ходит в backend только после скана/добавления товара в кассе.
+        /// env EPHARM_RECOMMEND_REFRESH_SEC.
+        /// </summary>
+        public int RecommendRefreshSec { get; set; } = 0;
         public int PopupAutoCloseSec { get; set; } = 30;
         public string OutboxDbPath { get; set; } = @"C:\Epharm\outbox.db";
         public int OutboxFlushSec { get; set; } = 5;
@@ -26,7 +32,15 @@ namespace CustomerDisplay.Config
         /// Период опроса активного плейлиста (сек). Касса подхватывает смену видео из админки
         /// без перезапуска. 0 — выключить поллинг (env EPHARM_PLAYLIST_POLL_SEC).
         /// </summary>
-        public int PlaylistPollSec { get; set; } = 120;
+        public int PlaylistPollSec { get; set; } = 20;
+        /// <summary>
+        /// Локальный кеш видео с админ-панели. POSM хранит последний плейлист на диске,
+        /// докачивает новые ролики в фоне и переключает VLC только на локальные файлы.
+        /// Так окончание ролика, временный обрыв сети и замена видео в админке не блокируют
+        /// клиентский экран.
+        /// env EPHARM_MEDIA_CACHE_DIR.
+        /// </summary>
+        public string MediaCacheDir { get; set; } = @"C:\Epharm\media-cache";
         /// <summary>
         /// Размещение клиентского экрана (env EPHARM_SCREEN_MODE):
         ///   "dev"  — оконце слева-сверху на основном мониторе (для разработки/тестов; рядом виден
@@ -109,6 +123,11 @@ namespace CustomerDisplay.Config
             cfg.VlcArgs = Env("EPHARM_VLC_ARGS", cfg.VlcArgs);
             // Период опроса плейлиста (для пилота без правки файла).
             if (int.TryParse(Env("EPHARM_PLAYLIST_POLL_SEC", ""), out var pollSec)) cfg.PlaylistPollSec = pollSec;
+            if (int.TryParse(Env("EPHARM_RECOMMEND_DEBOUNCE_MS", ""), out var debounceMs) && debounceMs >= 0)
+                cfg.DebounceMs = debounceMs;
+            if (int.TryParse(Env("EPHARM_RECOMMEND_REFRESH_SEC", ""), out var recoRefreshSec))
+                cfg.RecommendRefreshSec = recoRefreshSec;
+            cfg.MediaCacheDir = Env("EPHARM_MEDIA_CACHE_DIR", cfg.MediaCacheDir);
             // Режим размещения клиентского экрана (dev/prod) + путь лога — без правки файла.
             cfg.ScreenMode = Env("EPHARM_SCREEN_MODE", cfg.ScreenMode);
             cfg.AppLogPath = Env("EPHARM_APP_LOG", cfg.AppLogPath);

@@ -114,7 +114,7 @@ class PosmRecommendIntegrationTest {
 
         // Каталог: триггеры (со штрих-кодами) + рекомендации.
         listOf(
-            product("p_bio", "Bioderma", 4200, barBio),
+            product("p_bio", "Bioderma", 4200, barBio, ipartId = "80309"),
             product("p_olda", "Старый бренд А", 3000, barOlda),
             product("p_food", "Детское питание", 1500, barFood),
             product("p_zen", "SelfieLab Zen", 4500, null),
@@ -257,6 +257,16 @@ class PosmRecommendIntegrationTest {
     }
 
     @Test
+    fun `скан по iPartID резолвится в товар → срабатывает замена`() {
+        // Стандарт-Н может прислать только iPartID без EAN-13. Если iPartID задан в админке,
+        // matcher обязан сработать так же стабильно, как по barcode.
+        val resp = recommend("s11", listOf(CartItemDto(sku = "80309")))
+        assertEquals(1, resp.recommendations.size)
+        assertEquals("p_zen", resp.recommendations[0].recommendSku)
+        assertEquals("Bioderma", resp.recommendations[0].triggerName)
+    }
+
+    @Test
     fun `fallback по имени (sname из лога) когда штрих-код не пришёл`() {
         // Лог кассы пока без штрих-кода — только sname. Матч по нормализованному имени
         // («bioderma» == ProductEntity.name «Bioderma»).
@@ -314,9 +324,9 @@ class PosmRecommendIntegrationTest {
     private fun reqByBarcode(session: String, barcodes: List<String>) =
         req(session, barcodes.map { CartItemDto(barcode = it) })
 
-    private fun product(id: String, name: String, price: Int, barcode: String?) =
+    private fun product(id: String, name: String, price: Int, barcode: String?, ipartId: String? = null) =
         ProductEntity(id = id, name = name, brand = "B", vendor = "V", mnn = "", price = price)
-            .also { it.barcode = barcode }
+            .also { it.barcode = barcode; it.ipartId = ipartId }
 
     private fun trigger(productId: String) = RuleTrigger(kind = "product", value = productId)
 

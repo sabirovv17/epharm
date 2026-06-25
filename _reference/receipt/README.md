@@ -1,68 +1,36 @@
-# `recipe/` — Поток отправки чека
+# Historical Receipt Prototype
 
-Здесь живут все экраны и компоненты фичи «загрузил чек → отправил». Они работают на обеих платформах (iOS / Android) одинаково.
+The old `recipe/` prototype described a manual receipt checklist:
 
-## Состав
+- select promos;
+- select pharmacy;
+- enter card.
 
-| Файл | Что внутри |
-|---|---|
-| `upload.jsx` | `UploadPrompt` (bottom-sheet «Загрузите фото чека»), `CameraScreen` (видоискатель), `SuccessScreen` (финальный экран после отправки). |
-| `review.jsx` | `ReceiptReviewScreen` (чек-лист из 3 действий после съёмки), `PromoPickerScreen` (каталог для выбора акций), `AddressSheet` (bottom-sheet с аптеками поблизости), `CardSheet` (bottom-sheet с превью карты + кастомная цифровая клавиатура). |
+That is no longer the current mobile flow.
 
-## Сценарий
+Current Flutter receipt draft:
 
-```
-HOME (authed) → «Загрузить чек» (на балансовой карточке)
-    │
-    ▼
-UploadPrompt (bottom-sheet) → «Сделать фото»
-    │
-    ▼
-CameraScreen — снимок (в демо авто-снимается через 1.8с)
-    │
-    ▼
-ReceiptReviewScreen
-    │  Тапаешь любой из 3 пунктов:
-    │   • «Добавить акции»        → PromoPickerScreen
-    │   • «Добавить адрес аптеки» → AddressSheet
-    │   • «Добавить номер карты»  → CardSheet
-    │
-    │  Когда все три заполнены, кнопка «Продолжить» активна.
-    ▼
-SuccessScreen — «Чек успешно отправлен»
-    ├── «История и статусы» → возвращает на Профиль, очищает draft
-    └── «Отправить ещё раз» → CameraScreen (карта сохраняется, остальное обнуляется)
-```
-
-## Состояние
-
-Состояние draft чек-листа живёт на корне (`src/app.jsx`):
-
-```js
-receiptDraft = {
-  promos: Product[],   // выбранные товары из каталога
-  pharmacy: Pharmacy | null,
-  card: string,        // отформатированная маска «1234 5678 9012 3456»
+```dart
+ReceiptDraft {
+  photoPath,
+  card,
+  promoIds
 }
 ```
 
-В `app.jsx` к нему привязаны:
-- `<AddressSheet>` — `onPick` пишет `pharmacy`
-- `<CardSheet>` — `onSubmit` пишет `card`
-- `<PromoPickerScreen>` — при «Добавить · N» отдаёт массив `picked` и переходит обратно на `REVIEW`
-- `SuccessScreen` → «История и статусы» обнуляет draft целиком; «Отправить ещё раз» — обнуляет всё, кроме `card`.
+Current behavior:
 
-## Дизайн-токены, специфичные для фичи
+- user uploads/takes a receipt photo;
+- user provides or reuses a bonus card;
+- optional `promoIds` can be set by a product bonus CTA;
+- backend/POSM/reconcile determine evidence and bonus credit;
+- QR/OFD/OCR is not part of the current product.
 
-Все компоненты используют общие токены из `design-tokens.md` (§ 1–8). Особенности этого потока:
+Current files:
 
-- **Чек-листовый ряд** (заполненный) — `bg-brand-green-50` + `border-brand-green-200`, иконка-плитка `bg-brand-green-600` с белым чек-маркой.
-- **Успех-диск** — `bg-brand-blue-600` 112×112, белая чек-марка, `ring-8 ring-white/20`. **Чек-марка обязательно `text-white`**, иначе сливается с синей подложкой.
-- **Карта-превью** — градиент `linear-gradient(135deg, #16A65C 0%, #21D17A 60%, #3DCDA2 100%)`, высота 150px, золотой чип 36×24px.
-- **Цифровая клавиатура** — 3×4 сетка, кнопки `h-14`, `bg-paper-input`, текст 24/800. Backspace = `bg-brand-green-600`, белая иконка, `shadow-fab`.
-
-## Не входит сюда
-
-- Экран **HOME** с его balance-картой и CTA «Загрузить чек» — он в `src/screens/home.jsx`.
-- **Bottom-nav** (3 таба, без «Чек») — он в `src/ui.jsx → BottomNav`.
-- Состояние авторизации — `src/app.jsx`.
+- `lib/features/receipts/application/receipts_controller.dart`;
+- `lib/features/receipts/presentation/upload_prompt_sheet.dart`;
+- `lib/features/receipts/presentation/receipt_review_screen.dart`;
+- `lib/features/receipts/presentation/card_sheet.dart`;
+- `lib/features/receipts/presentation/receipts_list_screen.dart`;
+- `docs/04-mobile-app.md`.

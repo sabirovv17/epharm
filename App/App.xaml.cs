@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using System.Windows;
 using CustomerDisplay.Services;
@@ -13,22 +14,31 @@ namespace CustomerDisplay;
 public partial class App : Application
 {
     private static Mutex? _instanceMutex;
-    private const string MutexName = "Global\\EpharmCustomerDisplay";
+    private const string MutexName = "Local\\EpharmCustomerDisplay";
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        _instanceMutex = new Mutex(initiallyOwned: true, MutexName, out var createdNew);
-        if (!createdNew)
-        {
-            // Уже запущено — выходим без окна (не плодим копии киоска).
-            Shutdown();
-            return;
-        }
-        base.OnStartup(e);
-
-        // Уровень 1 живучести: мягкие исключения (UI/фоновые Task) не должны ронять кассу —
-        // прослушка лога Стандарт-Н обязана работать «всегда». Фатальные поднимет watchdog/scheduler.
+        // Ставим crash guard до всего остального: если проблема случится на раннем старте,
+        // разработчик увидит её в C:\Epharm\crash.log, а не "приложение раз через раз не открылось".
         CrashGuard.Install(@"C:\Epharm\crash.log");
+
+        try
+        {
+            _instanceMutex = new Mutex(initiallyOwned: true, MutexName, out var createdNew);
+            if (!createdNew)
+            {
+                CrashGuard.Write("Startup skipped: another Epharm POSM instance is already running.");
+                // Уже запущено — выходим без окна (не плодим копии киоска).
+                Shutdown();
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            CrashGuard.Write($"Startup mutex error: {ex.Message}. Continuing without single-instance guard.");
+        }
+
+        base.OnStartup(e);
     }
 
     protected override void OnExit(ExitEventArgs e)

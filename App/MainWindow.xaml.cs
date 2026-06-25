@@ -1,28 +1,17 @@
 ﻿using System;
-using System.Runtime.InteropServices;
-using System.Collections.ObjectModel;
-using System.Linq;
-using System.Windows;
-using System.Windows.Threading;
-using LibVLCSharp.Shared;
-using System.Windows.Forms;
-using System.Diagnostics;
-using System.IO;
-using System.Windows;
-using LibVLCSharp.Shared;
-using System.Windows.Input;
 using System.Collections.Generic;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Windows;
 using System.Collections.ObjectModel;
-using System.Linq;
-using CustomerDisplay.Models;
 using System.IO;
+using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Forms;
+using System.Windows.Input;
+using CustomerDisplay.Models;
+using LibVLCSharp.Shared;
 
 
 
@@ -57,8 +46,8 @@ private void RecalcTotal()
 
 }
 private Media? _currentMedia;
-        private LibVLC _libVLC;
-        private MediaPlayer _mediaPlayer;
+        private LibVLC? _libVLC;
+        private MediaPlayer? _mediaPlayer;
 
      
 // Куда писать лог: env EPHARM_APP_LOG, иначе Рабочий стол\customerdisplay.log.
@@ -82,7 +71,10 @@ private static void Log(string msg)
     try { File.AppendAllText(LogPath, line + "\r\n", LogEncoding); } catch { }
     // В debug-режиме консоль подключена к терминалу dotnet run (EnsureDebugConsole) —
     // лог виден прямо там, без отдельного окна tail. Без консоли — тихий no-op.
-    try { Console.WriteLine(line); } catch { }
+    if (!ConsoleLogDisabled())
+    {
+        try { Console.WriteLine(line); } catch { }
+    }
 }
 
 private const int ATTACH_PARENT_PROCESS = -1;
@@ -95,7 +87,16 @@ private static extern bool AttachConsole(int dwProcessId);
 // (родителя-консоли нет) — тихий no-op, лог идёт только в файл. Безопасно вызывать всегда.
 private static void EnsureDebugConsole()
 {
+    if (ConsoleLogDisabled()) return;
     try { AttachConsole(ATTACH_PARENT_PROCESS); } catch { }
+}
+
+private static bool ConsoleLogDisabled()
+{
+    var v = (Environment.GetEnvironmentVariable("EPHARM_DISABLE_CONSOLE_LOG") ?? "")
+        .Trim()
+        .ToLowerInvariant();
+    return v is "1" or "true" or "yes" or "on";
 }
 private CustomerDisplay.Services.Heartbeat? _heartbeat;
 
@@ -193,6 +194,7 @@ this.Focus();
                 _mediaPlayer.EndReached += (_, __) =>
                     System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(PlayNextVideo));
                 StartVideoWatchdog(); // авто-перезапуск при зависании (софт-декод в VM)
+                TryStartCachedPlaylist(); // offline-start: последний успешно скачанный плейлист
 
                 // Тянем активный плейлист из админ-панели (и далее периодически опрашиваем).
                 _ = LoadBackendPlaylistAsync();
@@ -310,7 +312,8 @@ private void PositionWindowToTopRightQuarter()
                 Log($"Backend: {c.BackendBaseUrl}");
                 Log($"Аптека: {(string.IsNullOrWhiteSpace(c.PharmacyId) ? "—" : c.PharmacyId)}; " +
                     $"фармацевт: {(string.IsNullOrWhiteSpace(c.PharmacistId) ? "—" : "задан")}; " +
-                    $"POSM включён: {c.Enabled}; видео: {c.VideoEnabled}; опрос плейлиста: {c.PlaylistPollSec}с");
+                    $"POSM включён: {c.Enabled}; видео: {c.VideoEnabled}; " +
+                    $"опрос плейлиста: {c.PlaylistPollSec}с; рекомендации: только при скане, debounce {c.DebounceMs}мс");
                 Log($"Логи кассы Стандарт-Н: {string.Join(" | ", _logPaths)}");
             }
             Log("============================================================");
@@ -341,27 +344,17 @@ private void StartLogReader()
 
 private async Task TailLogLoop(string path, CancellationToken token)
 {
-    var warnedMissing = false; // не флудим лог по отсутствующему пути
-    var lastWarn = DateTime.MinValue;
     while (!token.IsCancellationRequested)
     {
         try
         {
-            // ждём пока файл появится
+            // Ждём появления файла тихо. Список прослушиваемых путей уже напечатан в
+            // стартовом баннере; повторять "не найден" в рабочем логе не нужно.
             if (!File.Exists(path))
             {
-                // один раз сразу, далее не чаще раза в 60с («всё ещё жду» — heartbeat,
-                // а не спам каждые 0.5с). Без Стандарт-Н файл не появится никогда.
-                if (!warnedMissing || (DateTime.Now - lastWarn).TotalSeconds >= 60)
-                {
-                    Log($"Лог кассы Стандарт-Н не найден, жду появления: {path}");
-                    warnedMissing = true;
-                    lastWarn = DateTime.Now;
-                }
                 await Task.Delay(1000, token);
                 continue;
             }
-            warnedMissing = false;
 
             using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
@@ -384,12 +377,8 @@ Log($"Лог-файл открыт: {path}");
                     await Task.Delay(200, token);
                     continue;
                 }
-if (line != null)
-{
-    Log($"Считана строка: {line}");
-}
-
-                ProcessLogLine(line);
+                Log($"Считана строка: {line}");
+                ProcessLogLine(line!);
             }
         }
         catch (OperationCanceledException)
@@ -422,9 +411,12 @@ if (line.Contains("ChequeList.OnChange"))
 
     Dispatcher.Invoke(() =>
     {
-        UpsertItemSetQty(item);
+        var shouldAskBackend = UpsertItemSetQty(item);
         RecalcTotal();
-        OnCartChanged(); // → запрос рекомендаций по обновлённой корзине
+        if (shouldAskBackend)
+            OnProductScanned(item); // → запрос рекомендаций только после скана/добавления товара
+        else
+            OnCartChangedLocalOnly();
     });
     return;
 }
@@ -453,6 +445,7 @@ if (line.Contains("Add2Cheque") && line.Contains("(delete)"))
     {
         RemoveItemByPartId(partId.Value);
         RecalcTotal();
+        OnCartChangedLocalOnly();
     });
 
     return;
@@ -460,25 +453,26 @@ if (line.Contains("Add2Cheque") && line.Contains("(delete)"))
 
 }
 
-private void UpsertItemSetQty(ReceiptItem incoming)
+private bool UpsertItemSetQty(ReceiptItem incoming)
 {
     var existing = ReceiptItems.FirstOrDefault(x => x.PartId == incoming.PartId);
+
+    if (incoming.Qty <= 0)
+    {
+        RemoveItemByPartId(incoming.PartId);
+        return false;
+    }
 
     if (existing == null)
     {
         ReceiptItems.Insert(0, incoming);
         Log($"Добавили новую позицию (PartId={incoming.PartId}): {incoming.Name}, qty={incoming.Qty}");
-        return;
+        return true;
     }
-if (incoming.Qty <= 0)
-{
-    RemoveItemByPartId(incoming.PartId);
-    return;
-}
 
     // обновляем поля + ставим новое количество
     var idx = ReceiptItems.IndexOf(existing);
-
+    var previousQty = existing.Qty;
     existing.Name = incoming.Name;
     // Не затираем уже пойманный штрих-код, если повторная строка лога (qty-bump/скидка) его не несёт.
     if (!string.IsNullOrWhiteSpace(incoming.Barcode)) existing.Barcode = incoming.Barcode;
@@ -490,6 +484,7 @@ if (incoming.Qty <= 0)
     ReceiptItems[idx] = existing;
 
     Log($"Обновили позицию (PartId={incoming.PartId}): qty={existing.Qty}");
+    return incoming.Qty > previousQty;
 }
 
 
@@ -693,9 +688,21 @@ ItemsList.Items.Refresh();
         {
             try
             {
+                _logCts?.Cancel();
+                _playlistPollCts?.Cancel();
+                _mediaWarmupCts?.Cancel();
+                _recoCts?.Cancel();
+                _heartbeatTimer?.Stop();
+                _videoWatchdog?.Stop();
+                _updateTimer?.Stop();
                 _mediaPlayer?.Stop();
                 _mediaPlayer?.Dispose();
+                _currentMedia?.Dispose();
                 _libVLC?.Dispose();
+                _flusher?.Dispose();
+                _appUpdater?.Dispose();
+                _epharm?.Dispose();
+                _mediaCache?.Dispose();
             }
             catch { /* ignore */ }
         }

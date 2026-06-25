@@ -1,113 +1,115 @@
-# POSM-клиент для кассы (C# / WPF)
+# POSM Client
 
-**Путь:** `App/` (+ общие DTO в `Models/`) · **Стек:** .NET 10 (`net10.0-windows`), WPF,
-LibVLCSharp (видео), Microsoft.Data.Sqlite (offline-очередь). Self-contained win-x64.
+Path: `App/` and `Models/`.
 
-POSM (Point-Of-Sale Management) — **sidecar-приложение**, которое крутится на кассовом ПК рядом
-с аптечной программой «Стандарт-Н» и делает четыре вещи: подсказывает фармацевту замену/допродажу,
-крутит рекламу на клиентском мониторе, регистрирует клиента в программе лояльности, и сам себя
-обновляет.
+Current client is C#/WPF/.NET 10. Older Electron references are historical and no longer describe the
+implementation.
 
-## Проект
+## Responsibilities
 
-- **`App/CustomerDisplay.csproj`** — `net10.0-windows`, `UseWPF`, `UseWindowsForms`, RID `win-x64`,
-  `Version` (бампается на каждый релиз для сравнения апдейтером).
-- Включает `Models/**/*.cs` явно (`<Compile Include="..\Models\**\*.cs" />`) — общие DTO лежат вне `App/`.
-- Зависимости: `LibVLCSharp.WPF` 3.9.5 + `VideoLAN.LibVLC.Windows` 3.0.23 (видео), `Microsoft.Data.Sqlite` 9.0 (outbox).
+The POSM client runs on a Windows cash-desk machine:
 
-## Исходники
+1. Reads Standard-N `zkassa.log` in cp1251 as a tailing log.
+2. Parses receipt item lines, including barcode/EAN when present.
+3. Sends cart data to `POST /api/posm/recommend`.
+4. Shows replacement/cross-sell recommendations to the pharmacist.
+5. Sends accepted/rejected outcomes.
+6. Reports printed sales to `POST /api/posm/sales`.
+7. Mirrors receipt and broadcast media on the customer display.
+8. Polls active playlist and app version.
+9. Sends heartbeat so admin can count online cash desks.
+10. Stores outgoing non-real-time events in a local SQLite outbox and retries safely.
 
-**UI (`App/*.xaml.cs`)**
-| Файл | Назначение |
-|---|---|
-| `App.xaml.cs` | Жизненный цикл; single-instance (Mutex); CrashGuard (перехват всех исключений) |
-| `MainWindow.xaml.cs` | Главное окно; чтение лога кассы `zkassa.log` (CP1251) tail-циклом; позиционирование на мониторы; горячие клавиши (`Ctrl+Shift+Q` — выход) |
-| `MainWindow.Recommendations.cs` | Логика попапа: `OnCartChanged` (debounce), показ только на экране фармацевта, запись исхода |
-| `MainWindow.Screen.cs` | Клиентский экран: VLC-видео по кругу, polling плейлиста, watchdog зависшего видео, `RewriteMediaHost` (localhost→backend для MinIO-URL) |
-| `MainWindow.Update.cs` | Авто-апдейт: первый чек через 15с, далее каждые `UpdatePollSec` |
-| `RecommendationWindow.xaml.cs` | Карточка-попап: табы **Замена \| Допродажа**, сравнение, бонус, скрипт; `F9`=принять, `Esc`=пропустить; авто-закрытие 30с |
-| `CdpForm.xaml.cs` | Лояльность: поиск по телефону (debounce 4+ цифр), регистрация нового клиента |
+## Important Files
 
-**Сервисы (`Services/`)**
-| Файл | Назначение |
-|---|---|
-| `EpharmApiClient.cs` | HTTP к бэкенду, все вызовы fail-safe (возвращают null/false, не кидают). Auth — `X-Posm-Key`. Таймаут 700мс (recommend), 10мин (download) |
-| `AppUpdater.cs` | Сравнивает версию, качает zip, **обязательно** проверяет SHA256, распаковывает, запускает `apply-update.cmd`, выходит. Только HTTPS (или localhost dev) |
-| `CheckoutSession.cs` | Контекст чека (`SessionId`), маппинг `ReceiptItem`→`RecommendRequest` |
-| `SaleReporter.cs` | Формирует `SaleReport` (источник №1 сверки), кладёт в outbox |
-| `OfflineOutbox.cs` | SQLite-очередь гарантированной доставки (`C:\Epharm\outbox.db`): enqueue/dequeue/reschedule (экспоненциальный backoff) |
-| `OutboxFlusher.cs` | Фоновый воркер (каждые 5с): шлёт продажи/исходы, успех→remove, ошибка→reschedule |
-| `EpharmConfig.cs` | Конфиг из `C:\Epharm\posm.json` (+ env `EPHARM_*`). Включается только если заданы `PharmacistId` и `PharmacyId` |
+| Path | Role |
+| --- | --- |
+| `App/MainWindow.xaml[.cs]` | WPF customer display and main integration shell. |
+| `App/MainWindow.Recommendations.cs` | Recommendation popup wiring. |
+| `App/MainWindow.Screen.cs` | Customer screen/video playlist logic. |
+| `App/MainWindow.Update.cs` | App auto-update logic. |
+| `App/RecommendationWindow.xaml[.cs]` | Pharmacist recommendation popup. |
+| `App/CdpForm.xaml[.cs]` | POSM customer-phone/CDP form. |
+| `App/Config/EpharmConfig.cs` | Config/env parsing. |
+| `App/Services/EpharmApiClient.cs` | HTTP client with `X-Posm-Key`. |
+| `App/Services/CheckoutSession.cs` | Current receipt/cart lifecycle. |
+| `App/Services/SaleReporter.cs` | Printed sale reporting. |
+| `App/Services/OfflineOutbox.cs` | SQLite outbox. |
+| `App/Services/OutboxFlusher.cs` | Retry loop. |
+| `Models/Posm/*` | DTOs shared by POSM requests/responses. |
 
-**DTO (`Models/Posm/`)** — `PosmDtos.cs` (`RecommendRequest/Response`, `Recommendation` с
-`kind=substitution|crosssell`, сравнением, бонусом; `OutcomeRequest`, `CartItem`, `ComparisonRow`),
-`Cdp.cs`, `Playlist.cs` (`ActiveSlide`, `ActivePlaylist`), `AppVersion.cs`, `SaleReport.cs`;
-`Models/ReceiptItem.cs` (позиция чека).
+## Matching Contract
 
-## Что делает функционально
+The current matching key is barcode/EAN from Medusa and the cash-desk log.
 
-**A. Рекомендации (ТЗ §4)** — читает `zkassa.log` в реальном времени, собирает корзину, шлёт
-debounce-запрос `POST /api/posm/recommend`. Бэкенд возвращает до 2 карточек (замена + допродажа).
-Попап показывается **только на экране фармацевта**: сравнение товаров, бонус, скрипт, кнопки
-(`F9`=заменить). Исход → `POST /api/posm/recommendations/{eventId}/outcome` (при сбое — в outbox).
+POSM sends:
 
-**B. Клиентский экран (второй монитор)** — VLC крутит локальное видео или плейлист с бэкенда
-(`GET /api/posm/playlists/active` каждые ~120с). Переключение только при смене сигнатуры плейлиста
-(без дёргания видео). Watchdog перезапускает зависшее видео.
+- `barcode` - primary matching key;
+- `name` - fallback;
+- `sku` - Standard-N `iPartID`, diagnostic only;
+- `qty`, price/total data for sales.
 
-**C. CDP / лояльность (§5.6)** — форма поиска клиента по телефону (`/api/posm/cdp/lookup`) и
-регистрации (`/api/posm/cdp/register`).
+Backend resolves barcode first, then normalized name. Ambiguous matches are skipped.
 
-**D. Авто-апдейт без простоя** — `GET /api/posm/app/version?platform=win-x64` каждые 30мин;
-если версия новее — скачивание + **обязательная** проверка SHA256 + внешний `apply-update.cmd`
-(ждёт выхода exe → robocopy → перезапуск). Все кассы обновляются сами.
+`ExtractBarcode` supports:
 
-**E. Offline-устойчивость** — любая исходящая запись (продажа/исход) сперва в SQLite-outbox,
-фоновый flusher шлёт с экспоненциальным backoff; идемпотентность по GUID. Переживает обрыв сети.
+- explicit `barcode=...` or `ean=...`;
+- values in `iPartID=<id>(<EAN>)` when the value is 8/12/13/14 digits and differs from the internal id.
 
-**F. Живучесть** — CrashGuard (внутри) + внешний watchdog по heartbeat-файлу + автозапуск через
-Task Scheduler (ONLOGON). Переживает падения, дедлоки, перезагрузки.
+## Config
 
-## Интеграция с бэкендом
+`posm.json` keys can be overridden by environment variables:
 
-Все вызовы — base `BackendBaseUrl`, заголовок `X-Posm-Key` (device-key из `posm.json`):
+| Key | Env | Meaning |
+| --- | --- | --- |
+| `Enabled` | `EPHARM_POSM_ENABLED` | Enables backend integration. |
+| `BackendBaseUrl` | `EPHARM_BACKEND_URL` | Backend host, e.g. `https://epharm.78-140-246-238.sslip.io`. |
+| `DeviceKey` | `EPHARM_POSM_KEY` | POSM device key for `X-Posm-Key`. |
+| `PharmacyId` | `EPHARM_PHARMACY_ID` | Pharmacy/screen id. |
+| `PharmacistId` | `EPHARM_PHARMACIST_ID` | Pharmacist id credited in pilot config. |
+| `ScreenMode` | `EPHARM_SCREEN_MODE` | `dev` windowed or `prod` monitor behavior. |
+| `VideoEnabled` | `EPHARM_NO_VIDEO=true` disables | Customer video playback. |
+| `PlaylistPollSec` | `EPHARM_PLAYLIST_POLL_SEC` | Playlist poll period. |
+| `AppLogPath` | `EPHARM_APP_LOG` | POSM app log path. |
+| log path | `EPHARM_LOG_PATH` | Explicit Standard-N log path. |
 
-| Эндпоинт                                           | Назначение                    |
-| -------------------------------------------------- | ----------------------------- |
-| `POST /api/posm/recommend`                         | рекомендации по корзине       |
-| `POST /api/posm/recommendations/{eventId}/outcome` | исход (accepted/rejected)     |
-| `POST /api/posm/sales`                             | лог продажи (источник сверки) |
-| `GET /api/posm/playlists/active?pharmacyId=`       | активный плейлист             |
-| `GET /api/posm/app/version?platform=win-x64`       | версия для апдейта            |
-| `POST /api/posm/cdp/{lookup,register}`             | лояльность                    |
+`Enabled` is effective only when key identity fields are present.
 
-## Деплой на кассу
+## Screen Modes
 
-Подробно — `App/POSM_DEPLOY.md` и `App/WINDOWS_RUNBOOK.md`. Кратко:
+- `dev`: windowed display for debugging.
+- `prod`: with two monitors, customer display opens fullscreen on the second monitor and popup stays
+  on the pharmacist/cashier screen; with one monitor, customer display is suppressed and recommendations
+  can still work.
 
-```powershell
-# 1. Публикация (именно publish — апдейтеру нужен exe, не dotnet.exe)
-dotnet publish App\CustomerDisplay.csproj -c Release -r win-x64 --self-contained -p:Version=1.0.0 -o C:\epharm\app
+## Build
 
-# 2. Конфиг C:\Epharm\posm.json
-#    { "Enabled": true, "BackendBaseUrl": "https://api.epharm.kz",
-#      "DeviceKey": "<ключ кассы>", "PharmacyId": "ph_017", ... }
-
-# 3. Автозапуск (ONLOGON + watchdog по heartbeat)
-powershell -ExecutionPolicy Bypass -File install-tasks.ps1 -InstallDir C:\epharm\app
-```
-
-**Выпуск нового релиза (авто-апдейт всех касс):**
+WPF builds only on Windows.
 
 ```powershell
-# zip публикации → SHA256:
-(Get-FileHash .\epharm-1.1.0.zip -Algorithm SHA256).Hash
-# регистрируем релиз через admin API:
-curl -X POST https://api.epharm.kz/api/admin/app-releases -H "Authorization: Bearer <admin-jwt>" \
-  -d '{"version":"1.1.0","url":"https://s3.epharm.kz/app/epharm-1.1.0.zip","sha256":"<hash>","platform":"win-x64","mandatory":false}'
-# кассы подхватят в течение UpdatePollSec (30 мин). Откат = заново зарегистрировать прошлую версию.
+cd <repo>\App
+dotnet run
+
+# release/self-contained
+powershell -ExecutionPolicy Bypass -File scripts\publish-exe.ps1
 ```
 
-> **Почему HTTP-polling, а не WebSocket:** контент экрана меняется редко и не критичен к задержке
-> (1 мин ок); polling устойчив к обрывам сети (каждый запрос независим), не требует серверного push.
-> Бесперебойность даёт автозапуск + single-instance + fail-safe, а не постоянный сокет.
+The release package must include the exe, runtime dependencies, LibVLC files, `posm.json`, and `run.bat`.
+
+## Deployment
+
+For long-running cash desk installation:
+
+- use `dotnet publish` or `publish-exe.ps1`, not `dotnet run`;
+- install scheduled tasks with `App/scripts/install-tasks.ps1`;
+- enable Windows autologin if the client must start after reboot without manual login;
+- use the watchdog task and heartbeat file;
+- publish app releases through `/api/admin/app-releases` for auto-update.
+
+## Operations
+
+Useful docs:
+
+- `App/scripts/README-distrib.md` - dev/release package operation.
+- `App/POSM_DEPLOY.md` - production installation, scheduled tasks, update release flow.
+- `App/WINDOWS_RUNBOOK.md` - Windows demo and barcode scan examples.

@@ -7,13 +7,12 @@ namespace CustomerDisplay.Models.Posm
     // (настроена в EpharmApiClient через JsonSerializerOptions).
 
     /// <summary>
-    /// Позиция корзины. Матчинг на backend: сначала по Barcode (EAN-13), затем fallback по Name.
-    /// Sku (iPartID Стандарт-Н) — только для диагностики, в матчинге НЕ участвует.
+    /// Позиция корзины. Матчинг на backend: Sku/iPartID Стандарт-Н → Barcode (EAN-13) → Name.
     /// </summary>
     public sealed class CartItem
     {
-        public string? Sku { get; set; }       // legacy iPartID кассы — диагностика, НЕ ключ матчинга
-        public string? Barcode { get; set; }    // EAN-13 — ПЕРВИЧНЫЙ ключ матчинга
+        public string? Sku { get; set; }        // iPartID кассы — точный ключ матчинга
+        public string? Barcode { get; set; }    // EAN-13 — точный ключ матчинга
         public string? Name { get; set; }       // sname из лога — FALLBACK ключ матчинга
         public double Qty { get; set; } = 1.0;
     }

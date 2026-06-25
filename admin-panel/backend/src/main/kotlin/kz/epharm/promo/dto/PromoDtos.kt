@@ -49,6 +49,8 @@ data class PromoDto(
     val productImage: String?,
     /** Штрих-код EAN-13 продвигаемого товара (из Medusa). */
     val barcode: String?,
+    /** iPartID продвигаемого товара в кассе Стандарт-Н. */
+    val ipartId: String?,
     /** Ручная замена фото (приоритет над Medusa). */
     val overrideImage: String?,
     /** Ручная замена описания (приоритет над Medusa). */
@@ -82,6 +84,7 @@ data class PromoDto(
             productName = e.productName,
             productImage = e.productImage,
             barcode = e.barcode,
+            ipartId = e.ipartId,
             overrideImage = e.overrideImage,
             overrideDescription = e.overrideDescription,
             overrideCharacteristics = e.overrideCharacteristics,
@@ -129,6 +132,9 @@ data class CreatePromoRequest(
     /** Штрих-код EAN-13 продвигаемого товара (из Medusa, для матчинга кассы). */
     @field:Size(max = 32)
     val barcode: String? = null,
+    /** iPartID продвигаемого товара в кассе Стандарт-Н (ручной ключ матчинга). */
+    @field:Size(max = 64)
+    val ipartId: String? = null,
     @field:Size(max = 1024)
     val overrideImage: String? = null,
     val overrideDescription: String? = null,
@@ -167,6 +173,9 @@ data class UpdatePromoRequest(
     /** Штрих-код EAN-13 продвигаемого товара (из Medusa, для матчинга кассы). */
     @field:Size(max = 32)
     val barcode: String? = null,
+    /** iPartID продвигаемого товара в кассе Стандарт-Н (ручной ключ матчинга). */
+    @field:Size(max = 64)
+    val ipartId: String? = null,
     @field:Size(max = 1024)
     val overrideImage: String? = null,
     val overrideDescription: String? = null,

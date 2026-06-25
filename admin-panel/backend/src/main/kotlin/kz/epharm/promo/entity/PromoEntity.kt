@@ -84,6 +84,13 @@ class PromoEntity(
     @Column(name = "barcode", length = 32)
     var barcode: String? = null,
 
+    /**
+     * iPartID продвигаемого товара в кассе Стандарт-Н. Редактируется вручную,
+     * стампится на ProductEntity.ipartId для POSM-матчинга.
+     */
+    @Column(name = "ipart_id", length = 64)
+    var ipartId: String? = null,
+
     /** Снимок фото товара. */
     @Column(name = "product_image", length = 1024)
     var productImage: String? = null,

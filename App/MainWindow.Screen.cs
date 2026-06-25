@@ -1,16 +1,19 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Threading;
+using CustomerDisplay.Services;
 using LibVLCSharp.Shared;
 
 namespace CustomerDisplay
 {
     /// <summary>
     /// Stage 3: плейлист 2-го монитора (клиентский экран). Видео грузится из админ-панели,
-    /// играет в аптеке через VLC. Стартует с локального promo.mp4, затем подменяется плейлистом
-    /// с backend (если доступен). Оффлайн/пусто → остаёмся на promo.mp4.
+    /// играет в аптеке через VLC. Backend отдаёт URL-ы, клиент скачивает ролики в локальный кеш
+    /// и переключает VLC только на локальные файлы. Оффлайн/пусто → держим текущий или последний
+    /// закешированный плейлист.
     /// </summary>
     public partial class MainWindow
     {
@@ -24,9 +27,16 @@ namespace CustomerDisplay
 
         // Поллинг плейлиста: подпись текущего набора роликов (чтобы переключать ТОЛЬКО при
         // реальном изменении, а не перезапускать видео на каждый опрос). null = ещё не грузили
-        // backend-плейлист (крутится локальный promo.mp4).
+        // backend-плейлист (до этого либо пусто, либо запущен прошлый кеш).
         private string? _currentPlaylistSig = null;
-        private DispatcherTimer? _playlistPollTimer;
+        private CancellationTokenSource? _playlistPollCts;
+        private CancellationTokenSource? _mediaWarmupCts;
+        private int _playlistLoadBusy;
+        private MediaCache? _mediaCache;
+        private string? _remotePlaylistSig;
+        private string? _warmingPlaylistSig;
+        private DateTime _lastPlaylistIssueAt = DateTime.MinValue;
+        private string? _lastPlaylistIssueKey;
 
         // Heartbeat кассы (T4): периодический «я жив» на backend, чтобы он считал подключённые
         // кассы (Redis TTL). Отдельный таймер, ~60с, независим от видео/плейлиста.
@@ -84,11 +94,17 @@ namespace CustomerDisplay
             }
             _lastVideoStart = DateTime.Now;
 
-            _videoIndex = (_videoIndex + 1) % _videoSources.Count;
+            _videoIndex = _videoSources.Count == 1 ? 0 : (_videoIndex + 1) % _videoSources.Count;
             var src = _videoSources[_videoIndex];
             try
             {
                 var media = new Media(_libVLC, new Uri(src));
+                if (_videoSources.Count == 1)
+                {
+                    // Один ролик на клиентском экране должен крутиться бесконечно без повторного
+                    // похода в сеть и без частого EndReached/reopen цикла VLC.
+                    media.AddOption(":input-repeat=65535");
+                }
                 _mediaPlayer.Play(media);
                 _currentMedia?.Dispose();
                 _currentMedia = media;
@@ -112,9 +128,22 @@ namespace CustomerDisplay
             var sec = _posmConfig.PlaylistPollSec;
             if (sec <= 0) { Log("Поллинг плейлиста выключен (PlaylistPollSec<=0)"); return; }
 
-            _playlistPollTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(sec) };
-            _playlistPollTimer.Tick += (_, __) => _ = LoadBackendPlaylistAsync();
-            _playlistPollTimer.Start();
+            _playlistPollCts?.Cancel();
+            _playlistPollCts = new CancellationTokenSource();
+            var token = _playlistPollCts.Token;
+            _ = Task.Run(async () =>
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(sec), token).ConfigureAwait(false);
+                        await LoadBackendPlaylistAsync(token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) { return; }
+                    catch (Exception ex) { Log($"playlist poll error: {ex.Message}"); }
+                }
+            }, token);
             Log($"Поллинг плейлиста запущен: каждые {sec}с");
         }
 
@@ -141,51 +170,175 @@ namespace CustomerDisplay
             Log($"Heartbeat кассы запущен: deviceId={deviceId}, каждые {HeartbeatSec}с");
         }
 
+        private void EnsureMediaCache()
+        {
+            if (_mediaCache == null && _posmConfig != null)
+                _mediaCache = new MediaCache(_posmConfig.MediaCacheDir, Log);
+        }
+
+        private void LogPlaylistIssue(string key, string message)
+        {
+            var now = DateTime.Now;
+            if (_lastPlaylistIssueKey != key || (now - _lastPlaylistIssueAt).TotalSeconds >= 60)
+            {
+                Log(message);
+                _lastPlaylistIssueKey = key;
+                _lastPlaylistIssueAt = now;
+            }
+        }
+
+        private void TryStartCachedPlaylist()
+        {
+            EnsureMediaCache();
+            var manifest = _mediaCache?.LoadPlaylistManifest();
+            if (manifest == null) return;
+
+            var cached = _mediaCache!.CachedSources(manifest.Value.Urls);
+            if (cached.Count == 0)
+            {
+                LogPlaylistIssue("cache-empty", "media-cache: прошлый плейлист найден, но локальных файлов нет");
+                return;
+            }
+
+            SwitchVideoSources(manifest.Value.RemoteSig, cached, "запущен локальный кеш прошлого плейлиста");
+        }
+
+        private void SwitchVideoSources(string remoteSig, List<string> localSources, string reason)
+        {
+            if (localSources.Count == 0) return;
+            var playableSig = remoteSig + "|local=" + string.Join("\n", localSources);
+            if (_currentPlaylistSig == playableSig) return;
+
+            _remotePlaylistSig = remoteSig;
+            _currentPlaylistSig = playableSig;
+            _videoSources = localSources;
+            _videoIndex = -1;
+            _lastVideoStart = DateTime.MinValue; // разрешить немедленный старт нового локального набора
+            PlayNextVideo();
+            Log($"Backend-плейлист: {reason}, локальных роликов={localSources.Count}");
+        }
+
         /// <summary>
         /// Тянет активный плейлист из админки (GET /api/posm/playlists/active) и переключает
-        /// 2-й монитор на его ролики — ТОЛЬКО если набор изменился (иначе видео не дёргаем).
+        /// 2-й монитор на его ролики — ТОЛЬКО после локального кеширования. VLC не стримит сеть:
+        /// если интернет отвалился или новый ролик качается, старый локальный контент продолжает
+        /// играть, а переключение происходит атомарно после успешной докачки.
         /// MinIO-хост localhost переписываем на адрес backend (из VM/кассы «localhost» — это
         /// сама машина, а не сервер). Вызывается на старте и периодически из StartPlaylistPolling.
         /// </summary>
-        private async Task LoadBackendPlaylistAsync()
+        private async Task LoadBackendPlaylistAsync(CancellationToken ct = default)
         {
             if (_epharm == null || _posmConfig == null) return;
+            if (Interlocked.Exchange(ref _playlistLoadBusy, 1) == 1) return;
             try
             {
-                var pl = await _epharm.GetActivePlaylistAsync(_posmConfig.PharmacyId);
-                var urls = pl?.Slides?
+                EnsureMediaCache();
+
+                var pl = await _epharm.GetActivePlaylistAsync(_posmConfig.PharmacyId, ct);
+                if (pl == null)
+                {
+                    // Оффлайн/TLS/таймаут → держим то, что уже играет. Это штатный fail-safe,
+                    // не пустой плейлист и не повод чернить экран.
+                    if (_videoSources.Count == 0) TryStartCachedPlaylist();
+                    var reason = _epharm.LastPlaylistError ?? "backend не ответил";
+                    LogPlaylistIssue("playlist-unavailable:" + reason,
+                        $"Backend-плейлист временно недоступен ({reason}) → продолжаю текущий/локальный контент");
+                    return;
+                }
+
+                var urls = pl.Slides?
                     .Where(s => s.Kind == "video" && !string.IsNullOrWhiteSpace(s.Url))
                     .Select(s => RewriteMediaHost(s.Url))
                     .ToList();
 
                 if (urls == null || urls.Count == 0)
                 {
-                    // Пусто/оффлайн → держим то, что уже играет (не чернеем, не дёргаем видео).
-                    Log("Backend-плейлист пуст → остаёмся на текущем контенте");
+                    // Backend ответил, но активного видео нет → держим текущий контент.
+                    if (_videoSources.Count == 0) TryStartCachedPlaylist();
+                    LogPlaylistIssue("playlist-empty", "Backend-плейлист пуст → продолжаю текущий/локальный контент");
                     return;
                 }
 
                 // Подпись набора: playlistId + список url. Меняется только при реальном изменении
                 // плейлиста/слайдов в админке — тогда и переключаемся.
-                var sig = (pl?.PlaylistId ?? "") + "|" + string.Join("\n", urls);
-                if (sig == _currentPlaylistSig)
+                var remoteSig = (pl?.PlaylistId ?? "") + "|" + string.Join("\n", urls);
+                _mediaCache!.SavePlaylistManifest(remoteSig, urls);
+
+                var cachedNow = _mediaCache.CachedSources(urls);
+                var allCached = _mediaCache.HasAllCached(urls);
+                if (cachedNow.Count > 0 && (allCached || _videoSources.Count == 0))
                 {
-                    return; // ничего не изменилось — видео не перезапускаем
+                    await Dispatcher.InvokeAsync(() =>
+                        SwitchVideoSources(remoteSig, cachedNow, allCached
+                            ? "переключён на полностью локальный плейлист"
+                            : "запущена доступная локальная часть плейлиста"));
                 }
 
-                await Dispatcher.InvokeAsync(() =>
+                if (remoteSig == _remotePlaylistSig && allCached)
                 {
-                    _currentPlaylistSig = sig;
-                    _videoSources = urls;
-                    _videoIndex = -1;
-                    _lastVideoStart = DateTime.MinValue; // разрешить немедленный старт нового набора
-                    PlayNextVideo(); // переключаемся на новый плейлист из админки
-                });
-                Log($"Backend-плейлист обновлён: {urls.Count} ролик(ов) от админ-панели (sig сменился)");
+                    return; // ничего нового — видео не перезапускаем
+                }
+
+                _remotePlaylistSig = remoteSig;
+                if (!allCached && _warmingPlaylistSig != remoteSig)
+                {
+                    StartPlaylistWarmup(remoteSig, urls);
+                    Log($"Backend-плейлист получен: {urls.Count} ролик(ов); докачиваю в локальный кеш");
+                }
             }
+            catch (OperationCanceledException) { /* shutdown */ }
             catch (Exception ex)
             {
                 Log($"Backend-плейлист error: {ex.Message}");
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _playlistLoadBusy, 0);
+            }
+        }
+
+        private void StartPlaylistWarmup(string remoteSig, List<string> urls)
+        {
+            // Не Dispose-им старый CTS здесь: его token ещё может быть внутри HttpClient.
+            // Старая warmup-задача сама освободит свой CTS в finally после выхода.
+            _mediaWarmupCts?.Cancel();
+            var cts = _playlistPollCts == null
+                ? new CancellationTokenSource()
+                : CancellationTokenSource.CreateLinkedTokenSource(_playlistPollCts.Token);
+            _mediaWarmupCts = cts;
+            _warmingPlaylistSig = remoteSig;
+            _ = Task.Run(() => WarmPlaylistCacheAsync(remoteSig, urls, cts), cts.Token);
+        }
+
+        private async Task WarmPlaylistCacheAsync(string remoteSig, List<string> urls, CancellationTokenSource cts)
+        {
+            var ct = cts.Token;
+            try
+            {
+                if (_mediaCache == null || urls.Count == 0) return;
+                await _mediaCache.EnsureCachedAsync(urls, ct).ConfigureAwait(false);
+                var cached = _mediaCache.CachedSources(urls);
+                if (cached.Count == 0)
+                {
+                    LogPlaylistIssue("cache-download-empty", "media-cache: ролики не скачались → продолжаем текущий контент");
+                    return;
+                }
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    if (_remotePlaylistSig != remoteSig) return;
+                    SwitchVideoSources(remoteSig, cached, "переключён после фоновой докачки");
+                });
+            }
+            catch (OperationCanceledException) { /* shutdown */ }
+            catch (Exception ex)
+            {
+                Log($"media-cache warmup error: {ex.Message}");
+            }
+            finally
+            {
+                if (_warmingPlaylistSig == remoteSig) _warmingPlaylistSig = null;
+                if (ReferenceEquals(_mediaWarmupCts, cts)) _mediaWarmupCts = null;
+                cts.Dispose();
             }
         }
 

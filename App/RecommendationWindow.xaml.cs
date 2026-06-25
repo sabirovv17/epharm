@@ -30,6 +30,9 @@ namespace CustomerDisplay
         /// <summary>Совместимость: первая рекомендация.</summary>
         public Recommendation Recommendation => _recs[0];
 
+        /// <summary>Все рекомендации, показанные в текущем popup-е.</summary>
+        public IReadOnlyList<Recommendation> Recommendations => _recs;
+
         /// <summary>Фармацевт принял рекомендацию (F9) — передаётся именно принятая.</summary>
         public event EventHandler<Recommendation>? Accepted;
 
@@ -134,7 +137,7 @@ namespace CustomerDisplay
         }
 
         /// <summary>
-        /// Низ карточки: для нерешённой реко — кнопки; для решённой — заметная плашка-подтверждение
+        /// Низ карточки: для нерешённой реко — без действий; для решённой — заметная плашка-подтверждение
         /// «✓ Замена применена» / «✓ Кросс-селл применён» (зелёная) либо «Пропущено» (серая).
         /// </summary>
         private void UpdateDecisionUI()
@@ -142,16 +145,10 @@ namespace CustomerDisplay
             int st = _status[_index];
             if (st == 0)
             {
-                PanelButtons.Visibility = Visibility.Visible;
                 PanelStatus.Visibility = Visibility.Collapsed;
-                BtnAccept.IsEnabled = true;
-                BtnSkip.IsEnabled = true;
-                BtnAccept.Content = Current.IsSubstitution ? "Заменить (F9)" : "Добавить (F9)";
-                BtnSkip.Content = "Пропустить (Esc)";
             }
             else
             {
-                PanelButtons.Visibility = Visibility.Collapsed;
                 PanelStatus.Visibility = Visibility.Visible;
                 if (st == 1)
                 {
@@ -177,7 +174,7 @@ namespace CustomerDisplay
             TbTriggerLabel.Text = rec.IsSubstitution ? "ПОКУПАТЕЛЬ ПОПРОСИЛ" : "УЖЕ В ЧЕКЕ";
             if (!string.IsNullOrWhiteSpace(rec.TriggerName))
             {
-                TbTrigger.Text = JoinDot(rec.TriggerName, rec.TriggerVolume, Money(rec.TriggerPrice));
+                TbTrigger.Text = JoinDot(rec.TriggerName, rec.TriggerVolume, PriceText(rec.TriggerPrice));
                 PanelTrigger.Visibility = Visibility.Visible;
             }
             else
@@ -198,7 +195,7 @@ namespace CustomerDisplay
             }
 
             TbRecommend.Text = rec.RecommendName;
-            TbPrice.Text = Money(rec.RecommendPrice);
+            TbPrice.Text = PriceText(rec.RecommendPrice);
 
             // Сравнение vs запасной список преимуществ
             if (rec.Comparison != null && rec.Comparison.Count > 0)
@@ -261,6 +258,12 @@ namespace CustomerDisplay
             return value.Value.ToString("#,0").Replace(",", " ") + " ₸";
         }
 
+        private static string PriceText(int? value)
+        {
+            if (!value.HasValue) return "";
+            return value.Value > 0 ? Money(value) : "цена уточняется";
+        }
+
         /// <summary>Склеивает непустые части через « · ».</summary>
         private static string JoinDot(params string?[] parts)
             => string.Join(" · ", parts.Where(s => !string.IsNullOrWhiteSpace(s)));
@@ -293,10 +296,6 @@ namespace CustomerDisplay
                 e.Handled = true;
             }
         }
-
-        private void OnAcceptClick(object sender, RoutedEventArgs e) => DecideCurrent(accepted: true);
-
-        private void OnSkipClick(object sender, RoutedEventArgs e) => DecideCurrent(accepted: false);
 
         /// <summary>✕ — закрыть всю карточку (нерешённые рекомендации не фиксируем).</summary>
         private void OnCloseClick(object sender, RoutedEventArgs e) => Close();

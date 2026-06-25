@@ -54,12 +54,12 @@ data class RuleMatchResult(
  *   4. порядок выживших: сначала ВСЕ substitution (бонус DESC), затем crosssell (бонус DESC).
  *   5. dedup по recommend-товару (первый победил).
  *
- * РЕЗОЛВ корзины → наш productId (по ТЗ штрих-кода): касса Стандарт-Н шлёт позиции с EAN-13
- * (barcode) и/или названием (name). Матчим:
- *   (1) по штрих-коду (barcode) — ProductEntity.barcode == EAN-13 (первичный ключ);
- *   (2) иначе по имени (name) — нормализованное совпадение с ProductEntity.name (fallback,
- *       пока касса не шлёт штрих-код);
- *   (3) иначе позиция не резолвится (в матчинге не участвует).
+ * РЕЗОЛВ корзины → наш productId: касса Стандарт-Н шлёт позиции с iPartID (sku),
+ * EAN-13 (barcode) и/или названием (name). Матчим:
+ *   (1) по iPartID (sku) — ProductEntity.ipartId == iPartID;
+ *   (2) иначе по штрих-коду (barcode) — ProductEntity.barcode == EAN-13;
+ *   (3) иначе по имени (name) — нормализованное совпадение с ProductEntity.name (fallback);
+ *   (4) иначе позиция не резолвится (в матчинге не участвует).
  *
  * Фильтр «не показывать отклонённое в этом чеке» и лимит top-2 — в RecommendationService.
  */
@@ -73,7 +73,7 @@ class RulesEngineService(
 
     @Transactional(readOnly = true)
     fun match(cart: List<CartItemDto>): RuleMatchResult {
-        // Резолвим позиции корзины в наши productId (штрих-код → имя), собираем уникальные товары.
+        // Резолвим позиции корзины в наши productId (iPartID → штрих-код → имя), собираем уникальные товары.
         val cartProducts: Map<String, ProductEntity> = resolveCart(cart)
         val cartSkus: Set<String> = cartProducts.keys
         if (cartSkus.isEmpty()) return RuleMatchResult(emptyList(), emptyList())
@@ -155,35 +155,48 @@ class RulesEngineService(
 
     /**
      * Резолв корзины кассы → наши товары (id → ProductEntity).
-     *   (1) по штрих-коду (barcode, trim, непустой) — точное совпадение ProductEntity.barcode;
-     *   (2) для позиций без barcode (или не нашедшихся по barcode) — fallback по нормализованному
-     *       имени (только если такие позиции есть, чтобы не грузить весь каталог зря).
+     *   (1) по iPartID (sku, trim, непустой) — точное совпадение ProductEntity.ipartId;
+     *   (2) по штрих-коду (barcode, trim, непустой) — точное совпадение ProductEntity.barcode;
+     *   (3) для позиций без точного матча — fallback по нормализованному имени.
      * Возврат — уникальные товары (по productId); один товар, даже если в корзине дважды, один раз.
      *
-     * Коллизии (один штрих-код / одно нормализованное имя у ≠ товаров) НЕ разрешаем «наугад»:
+     * Коллизии (один iPartID / штрих-код / нормализованное имя у ≠ товаров) НЕ разрешаем «наугад»:
      * такой ключ считаем неоднозначным и НЕ матчим (с warn в лог) — лучше не показать рекомендацию,
      * чем показать рекомендацию чужого товара. Уникальность гарантируется только данными PIM.
      */
     private fun resolveCart(cart: List<CartItemDto>): Map<String, ProductEntity> {
+        val byIpart = ipartIndex(cart)
         val byBarcode = barcodeIndex(cart)
-        val byName = nameIndex(cart, byBarcode)
+        val byName = nameIndex(cart, byIpart, byBarcode)
         val resolved = LinkedHashMap<String, ProductEntity>()
         cart.forEach { item ->
-            resolveOne(item, byBarcode, byName)?.let { resolved.putIfAbsent(it.id, it) }
+            resolveOne(item, byIpart, byBarcode, byName)?.let { resolved.putIfAbsent(it.id, it) }
         }
         return resolved
     }
 
     /**
-     * Резолв позиций (штрих-код → имя) в наши productId — для сверки чека из лога кассы
+     * Резолв позиций (iPartID → штрих-код → имя) в наши productId — для сверки чека из лога кассы
      * (источник №1, /api/posm/sales). По каждой позиции в исходном порядке — productId или null
      * (не нашли / неоднозначно). Тот же коллизионно-устойчивый матчинг, что и в рекомендациях.
      */
     @Transactional(readOnly = true)
     fun resolveToProductIds(items: List<CartItemDto>): List<String?> {
+        val byIpart = ipartIndex(items)
         val byBarcode = barcodeIndex(items)
-        val byName = nameIndex(items, byBarcode)
-        return items.map { resolveOne(it, byBarcode, byName)?.id }
+        val byName = nameIndex(items, byIpart, byBarcode)
+        return items.map { resolveOne(it, byIpart, byBarcode, byName)?.id }
+    }
+
+    /** Индекс iPartID Стандарт-Н → товар: только однозначные ключи (коллизия → warn + пропуск). */
+    private fun ipartIndex(cart: List<CartItemDto>): Map<String, ProductEntity> {
+        val ipartIds = cart.mapNotNull { it.sku?.trim()?.takeIf { id -> id.isNotEmpty() } }.distinct()
+        if (ipartIds.isEmpty()) return emptyMap()
+        return productRepository.findAllByIpartIdIn(ipartIds)
+            .filter { !it.ipartId.isNullOrBlank() }
+            .groupBy { it.ipartId!!.trim() }
+            .mapNotNull { (id, products) -> uniqueOrWarn(id, products, "iPartID")?.let { id to it } }
+            .toMap()
     }
 
     /** Индекс штрих-код → товар: только однозначные ключи (коллизия → warn + пропуск). */
@@ -198,13 +211,20 @@ class RulesEngineService(
     }
 
     /**
-     * Индекс нормализованное-имя → товар. Строим только если есть позиции без barcode-матча, но с
+     * Индекс нормализованное-имя → товар. Строим только если есть позиции без точного матча, но с
      * именем (чтобы не грузить каталог зря). Детерминированный порядок + защита от коллизий имён.
      */
-    private fun nameIndex(cart: List<CartItemDto>, byBarcode: Map<String, ProductEntity>): Map<String, ProductEntity> {
+    private fun nameIndex(
+        cart: List<CartItemDto>,
+        byIpart: Map<String, ProductEntity>,
+        byBarcode: Map<String, ProductEntity>,
+    ): Map<String, ProductEntity> {
         val needName = cart.any { item ->
+            val ipart = item.sku?.trim()?.takeIf { it.isNotEmpty() }
             val bc = item.barcode?.trim()?.takeIf { it.isNotEmpty() }
-            (bc == null || bc !in byBarcode) && !item.name.isNullOrBlank()
+            (ipart == null || ipart !in byIpart) &&
+                (bc == null || bc !in byBarcode) &&
+                !item.name.isNullOrBlank()
         }
         if (!needName) return emptyMap()
         return productRepository.findAllByOrderByNameAsc()
@@ -214,14 +234,17 @@ class RulesEngineService(
             .toMap()
     }
 
-    /** Резолв одной позиции: сначала штрих-код, потом нормализованное имя. */
+    /** Резолв одной позиции: сначала iPartID, потом штрих-код, потом нормализованное имя. */
     private fun resolveOne(
         item: CartItemDto,
+        byIpart: Map<String, ProductEntity>,
         byBarcode: Map<String, ProductEntity>,
         byName: Map<String, ProductEntity>,
     ): ProductEntity? {
+        val ipart = item.sku?.trim()?.takeIf { it.isNotEmpty() }
         val bc = item.barcode?.trim()?.takeIf { it.isNotEmpty() }
-        return bc?.let { byBarcode[it] }
+        return ipart?.let { byIpart[it] }
+            ?: bc?.let { byBarcode[it] }
             ?: item.name?.takeIf { it.isNotBlank() }?.let { byName[normalizeName(it)] }
     }
 

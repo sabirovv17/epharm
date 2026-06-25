@@ -36,7 +36,9 @@ namespace CustomerDisplay.Services
         public void Report(CheckoutSession session, IEnumerable<ReceiptItem> items)
         {
             var list = items
-                .Where(i => i.PartId != 0)
+                // Report only real Standard-N rows. Accepted recommendations are mirrored in UI
+                // with negative synthetic PartId until the cashier actually adds them.
+                .Where(i => i.PartId > 0)
                 .Select(i => new SaleReportItem
                 {
                     Sku = i.PartId.ToString(),   // диагностика

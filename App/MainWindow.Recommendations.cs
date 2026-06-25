@@ -13,7 +13,8 @@ namespace CustomerDisplay
     /// <summary>
     /// POSM-рекомендации (ТЗ §4) — аддитивная надстройка над существующим MainWindow.
     /// Логика тонкая и fail-safe: любые ошибки сети/конфига не должны влиять на работу кассы
-    /// и зеркалирование чека. Вызовы-хуки (InitPosm / OnCartChanged / OnReceiptFinalized)
+    /// и зеркалирование чека. Вызовы-хуки (InitPosm / OnProductScanned /
+    /// OnCartChangedLocalOnly / OnReceiptFinalized)
     /// дёргаются из MainWindow.xaml.cs в трёх точках.
     /// </summary>
     public partial class MainWindow
@@ -25,6 +26,7 @@ namespace CustomerDisplay
         private SaleReporter? _saleReporter;
         private CheckoutSession _session = new();
         private CancellationTokenSource? _recoCts;
+        private readonly SemaphoreSlim _recommendGate = new(1, 1);
         private RecommendationWindow? _recoWindow;
         private ConflictNotificationWindow? _conflictWindow;
 
@@ -32,13 +34,24 @@ namespace CustomerDisplay
         // кассы). Отрицательный и убывающий — чтобы не пересекаться с реальными iPartID Стандарт-Н.
         private int _acceptedPartIdSeq = -1000;
 
-        // Рекомендации, которые уже показаны в этом чеке — чтобы не всплывать повторно
-        // на каждое добавление товара (backend возвращает тот же eventId — идемпотентно).
-        private readonly HashSet<string> _shownEventIds = new();
+        // Рекомендации, которые уже показаны и всё ещё актуальны для текущей корзины.
+        // Важно: backend идемпотентно возвращает тот же eventId для sessionId+ruleId. Если просто
+        // держать eventId до конца чека, то сценарий "удалили товар → просканировали снова" больше
+        // никогда не покажет рекомендацию. Поэтому состояние привязано к trigger barcode/name и
+        // автоматически вычищается, когда исходного товара больше нет в корзине.
+        private readonly Dictionary<string, ShownRecommendationState> _shownRecommendations = new();
 
         // Конфликты, уже показанные в этом чеке (подпись = kind+триггер+ruleIds) — чтобы
         // баннер «недоступно» не всплывал повторно на каждое изменение корзины.
-        private readonly HashSet<string> _shownConflictSigs = new();
+        private readonly Dictionary<string, string?> _shownConflictSigs = new();
+
+        private sealed class ShownRecommendationState
+        {
+            public string EventId { get; init; } = "";
+            public string? TriggerSku { get; init; }
+            public string? TriggerBarcode { get; init; }
+            public string? TriggerName { get; init; }
+        }
 
         /// <summary>
         /// Монитор КЛИЕНТА (куда выведен киоск промо+чек). Заполняется в MoveToSecondScreenFullscreen.
@@ -90,52 +103,118 @@ namespace CustomerDisplay
             }
         }
 
-        /// <summary>Вызывается после каждого изменения корзины. Debounce → запрос рекомендаций.</summary>
-        private void OnCartChanged()
+        /// <summary>
+        /// Вызывается только после скана/добавления товара в Стандарт-Н. Debounce схлопывает
+        /// быстрые последовательные сканы в один актуальный запрос по текущей корзине.
+        /// Удаления/скидки/локальная очистка чека сюда не попадают и backend не нагружают.
+        /// </summary>
+        private void OnProductScanned(Models.ReceiptItem scannedItem)
         {
             if (_epharm == null || _posmConfig == null) return;
 
             _recoCts?.Cancel();
             _recoCts = new CancellationTokenSource();
             var token = _recoCts.Token;
-            var request = _session.BuildRequest(_posmConfig, ReceiptItems);
-            if (request.Cart.Count == 0) return;
-
             var debounceMs = _posmConfig.DebounceMs;
+            var scannedSnapshot = scannedItem.Clone();
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await Task.Delay(debounceMs, token).ConfigureAwait(false);
+                    if (debounceMs > 0)
+                        await Task.Delay(debounceMs, token).ConfigureAwait(false);
                     if (token.IsCancellationRequested) return;
-
-                    var resp = await _epharm.RecommendAsync(request, token).ConfigureAwait(false);
-                    if (resp == null) return;
-
-                    // Конфликты (T2): правило подошло, но применить нельзя (нет в наличии, кампания
-                    // на паузе, …). Показываем баннер с причиной — НЕ блокируя рекомендации ниже.
-                    // resp.Conflicts может быть null от старого backend — фильтруем безопасно.
-                    var conflicts = (resp.Conflicts ?? new List<Conflict>())
-                        .Where(c => c != null && !ConflictShown(c))
-                        .ToList();
-
-                    // До 2 рекомендаций (замена + cross-sell). Если ВСЕ уже показаны в этом чеке — пропускаем.
-                    var recs = resp.Recommendations
-                        .Take(2)
-                        .Where(r => !_shownEventIds.Contains(r.EventId))
-                        .ToList();
-
-                    if (conflicts.Count == 0 && recs.Count == 0) return;
-
-                    await Dispatcher.InvokeAsync(() =>
-                    {
-                        if (conflicts.Count > 0) ShowConflicts(conflicts);
-                        if (recs.Count > 0) ShowRecommendations(recs);
-                    });
+                    await RunRecommendCheckAsync("scan", scannedSnapshot, token, waitForPrevious: true).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) { /* новый товар отменил прошлый запрос */ }
                 catch (Exception ex) { Log($"POSM recommend error: {ex.Message}"); }
             }, token);
+        }
+
+        /// <summary>
+        /// Локальное изменение корзины без сетевого запроса: удаление позиции, очистка чека,
+        /// пересчёт скидки. Нужен только чтобы убрать "уже показано" для удалённых триггеров.
+        /// </summary>
+        private void OnCartChangedLocalOnly()
+        {
+            if (_posmConfig == null) return;
+            _recoCts?.Cancel();
+            if (ReceiptItems.Count == 0)
+            {
+                ResetRecommendationUiState(closeWindows: true);
+                _session = new CheckoutSession();
+                return;
+            }
+            CloseStaleRecommendationWindowForCurrentCart();
+            PruneShownStateForCurrentCart();
+        }
+
+        private async Task RunRecommendCheckAsync(
+            string reason,
+            Models.ReceiptItem? scannedItem,
+            CancellationToken token,
+            bool waitForPrevious = false)
+        {
+            if (_epharm == null || _posmConfig == null) return;
+            var waitMs = Math.Max(500, _posmConfig.RecommendTimeoutMs + 500);
+            var entered = waitForPrevious
+                ? await _recommendGate.WaitAsync(TimeSpan.FromMilliseconds(waitMs), token).ConfigureAwait(false)
+                : await _recommendGate.WaitAsync(0, token).ConfigureAwait(false);
+            if (!entered)
+            {
+                Log($"POSM recommend skipped ({reason}): предыдущий запрос ещё выполняется");
+                return;
+            }
+
+            try
+            {
+                var request = await Dispatcher.InvokeAsync(() =>
+                {
+                    var req = _session.BuildRequest(_posmConfig, ReceiptItems, scannedItem);
+                    if (req.Cart.Count == 0)
+                    {
+                        ResetRecommendationUiState(closeWindows: true);
+                        return null;
+                    }
+                    PruneShownStateForCurrentCart();
+                    return req;
+                });
+                if (request == null) return;
+
+                Log($"POSM recommend request ({reason}): " + string.Join(" | ", request.Cart.Select(i =>
+                    $"sku={i.Sku ?? "—"}, ean={i.Barcode ?? "—"}, name={i.Name ?? "—"}, qty={i.Qty:0.###}")));
+
+                var resp = await _epharm.RecommendAsync(request, token).ConfigureAwait(false);
+                if (resp == null) return;
+                var recommendations = resp.Recommendations ?? new List<Recommendation>();
+                var responseConflicts = resp.Conflicts ?? new List<Conflict>();
+                Log($"POSM recommend response ({reason}): recs={recommendations.Count}, conflicts={responseConflicts.Count}");
+
+                var conflicts = await Dispatcher.InvokeAsync(() => responseConflicts
+                    .Where(c => c != null && !ConflictShown(c))
+                    .ToList());
+                var recs = await Dispatcher.InvokeAsync(() => recommendations
+                    .Take(2)
+                    .Where(RecommendationAppliesToCurrentCart)
+                    .Where(r => !RecommendationShown(r))
+                    .ToList());
+
+                if (conflicts.Count == 0 && recs.Count == 0)
+                {
+                    Log("POSM recommend: показывать нечего (нет новых рекомендаций/конфликтов)");
+                    return;
+                }
+
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    if (conflicts.Count > 0) ShowConflicts(conflicts);
+                    if (recs.Count > 0) ShowRecommendations(recs);
+                });
+            }
+            finally
+            {
+                _recommendGate.Release();
+            }
         }
 
         /// <summary>Открыть форму карты клиента (CDP §5.6) — на экране фармацевта.</summary>
@@ -253,7 +332,7 @@ namespace CustomerDisplay
             if (recs == null || recs.Count == 0) return;
             foreach (var r in recs)
             {
-                _shownEventIds.Add(r.EventId);
+                MarkRecommendationShown(r);
                 var kind = r.IsSubstitution ? "замена" : "кросс-селл";
                 Log($"POSM popup: {kind} → {r.RecommendName} (EAN {r.RecommendBarcode ?? "—"}), бонус {r.Bonus} ₸");
             }
@@ -279,7 +358,7 @@ namespace CustomerDisplay
             (c.Kind ?? "") + "|" + (c.TriggerName ?? "") + "|" + string.Join(",", c.RuleIds ?? new List<string>());
 
         /// <summary>Уже показывали этот конфликт в текущем чеке? (баннер не всплывает повторно).</summary>
-        private bool ConflictShown(Conflict c) => _shownConflictSigs.Contains(ConflictSig(c));
+        private bool ConflictShown(Conflict c) => _shownConflictSigs.ContainsKey(ConflictSig(c));
 
         /// <summary>
         /// Показать баннер конфликта(ов) (T2): backend нашёл правило, но применить нельзя — выводим
@@ -288,13 +367,118 @@ namespace CustomerDisplay
         private void ShowConflicts(List<Conflict> conflicts)
         {
             if (conflicts == null || conflicts.Count == 0) return;
-            foreach (var c in conflicts) _shownConflictSigs.Add(ConflictSig(c));
+            foreach (var c in conflicts) _shownConflictSigs[ConflictSig(c)] = c.TriggerName;
             _conflictWindow?.Close();
 
             var win = new ConflictNotificationWindow(conflicts, _posmConfig?.PopupAutoCloseSec ?? 8, PharmacistScreen());
             win.Closed += (_, _) => { if (ReferenceEquals(_conflictWindow, win)) _conflictWindow = null; };
             _conflictWindow = win;
             win.Show();
+        }
+
+        private bool RecommendationShown(Recommendation rec) =>
+            !string.IsNullOrWhiteSpace(rec.EventId) && _shownRecommendations.ContainsKey(rec.EventId);
+
+        private void MarkRecommendationShown(Recommendation rec)
+        {
+            if (string.IsNullOrWhiteSpace(rec.EventId)) return;
+            _shownRecommendations[rec.EventId] = new ShownRecommendationState
+            {
+                EventId = rec.EventId,
+                TriggerSku = rec.TriggerSku,
+                TriggerBarcode = rec.TriggerBarcode,
+                TriggerName = rec.TriggerName,
+            };
+        }
+
+        private bool RecommendationAppliesToCurrentCart(Recommendation rec)
+        {
+            if (rec == null) return false;
+
+            // Старый/неполный backend может не вернуть trigger-поля. В этом случае не скрываем
+            // рекомендацию: лучше показать её, чем потерять валидную акцию из-за неполного DTO.
+            if (string.IsNullOrWhiteSpace(rec.TriggerSku) &&
+                string.IsNullOrWhiteSpace(rec.TriggerBarcode) &&
+                string.IsNullOrWhiteSpace(rec.TriggerName))
+                return true;
+
+            return CartContainsTrigger(rec.TriggerSku, rec.TriggerBarcode, rec.TriggerName);
+        }
+
+        private void CloseStaleRecommendationWindowForCurrentCart()
+        {
+            var win = _recoWindow;
+            if (win == null) return;
+
+            var stale = win.Recommendations.Any(r => !RecommendationAppliesToCurrentCart(r));
+            if (!stale) return;
+
+            Log("POSM popup закрыт: товар-триггер удалён из чека");
+            win.Close();
+            if (ReferenceEquals(_recoWindow, win)) _recoWindow = null;
+        }
+
+        private void PruneShownStateForCurrentCart()
+        {
+            if (_shownRecommendations.Count > 0)
+            {
+                foreach (var kv in _shownRecommendations.ToList())
+                {
+                    if (!CartContainsTrigger(kv.Value.TriggerSku, kv.Value.TriggerBarcode, kv.Value.TriggerName))
+                        _shownRecommendations.Remove(kv.Key);
+                }
+            }
+
+            if (_shownConflictSigs.Count > 0)
+            {
+                foreach (var kv in _shownConflictSigs.ToList())
+                {
+                    if (!CartContainsTrigger(null, null, kv.Value))
+                        _shownConflictSigs.Remove(kv.Key);
+                }
+            }
+        }
+
+        private bool CartContainsTrigger(string? sku, string? barcode, string? name)
+        {
+            return ReceiptItems.Where(IsRealCashItem).Any(item =>
+                (!string.IsNullOrWhiteSpace(sku) &&
+                 string.Equals(item.PartId.ToString(), sku.Trim(), StringComparison.OrdinalIgnoreCase))
+                || (!string.IsNullOrWhiteSpace(barcode) &&
+                 string.Equals(item.Barcode?.Trim(), barcode.Trim(), StringComparison.OrdinalIgnoreCase))
+                || NamesLikelyMatch(item.Name, name));
+        }
+
+        private static bool IsRealCashItem(Models.ReceiptItem item) => item.PartId > 0;
+
+        private static bool NamesLikelyMatch(string? a, string? b)
+        {
+            if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b)) return false;
+            var x = NormalizeName(a);
+            var y = NormalizeName(b);
+            return x == y || x.Contains(y, StringComparison.OrdinalIgnoreCase) || y.Contains(x, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string NormalizeName(string raw)
+        {
+            var chars = raw.ToLowerInvariant()
+                .Select(ch => char.IsLetterOrDigit(ch) || char.IsWhiteSpace(ch) ? ch : ' ')
+                .ToArray();
+            return string.Join(" ", new string(chars).Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        }
+
+        private void ResetRecommendationUiState(bool closeWindows)
+        {
+            _recoCts?.Cancel();
+            if (closeWindows)
+            {
+                _recoWindow?.Close();
+                _recoWindow = null;
+                _conflictWindow?.Close();
+                _conflictWindow = null;
+            }
+            _shownRecommendations.Clear();
+            _shownConflictSigs.Clear();
         }
 
         /// <summary>
@@ -337,6 +521,9 @@ namespace CustomerDisplay
                 var kind = rec.IsSubstitution ? "замена" : "кросс-селл";
                 Log($"Рекомендация принята ({kind}) — товар добавлен в чек: {rec.RecommendName} " +
                     $"(EAN {rec.RecommendBarcode ?? "—"})");
+                if (rec.RecommendPrice <= 0)
+                    Log($"POSM price: цена рекомендации неизвестна для {rec.RecommendName}; " +
+                        "backend/Medusa вернул 0, на клиентском экране показываю —");
             }
             catch (Exception ex)
             {
@@ -384,13 +571,7 @@ namespace CustomerDisplay
         private void OnReceiptFinalized()
         {
             _saleReporter?.Report(_session, ReceiptItems); // позиции ещё в чеке
-            _recoCts?.Cancel();
-            _recoWindow?.Close();
-            _recoWindow = null;
-            _conflictWindow?.Close();
-            _conflictWindow = null;
-            _shownEventIds.Clear();
-            _shownConflictSigs.Clear();
+            ResetRecommendationUiState(closeWindows: true);
             _session = new CheckoutSession();
         }
     }

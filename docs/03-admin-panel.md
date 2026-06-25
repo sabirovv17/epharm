@@ -1,103 +1,116 @@
-# Веб-админка (React + Vite)
+# Admin Console
 
-**Путь:** `admin-panel/frontend/` · **Стек:** React 19 + TypeScript + Vite + Tailwind 3 +
-React Router v6 + Zustand 5 + TanStack Query 5 + axios + lucide-react.
+Path: `admin-panel/frontend/`.
 
-HQ-консоль для штаба: управление правилами рекомендаций, аптеками, фармацевтами, выплатами,
-сверкой чеков, экранами, обучением. Собирается в статику, отдаётся nginx, который проксирует
-`/api/*` на backend.
+Stack:
 
-## Разделы (`src/features/`)
+- React 19;
+- Vite 8;
+- TypeScript 6;
+- Tailwind 3;
+- React Router v6;
+- TanStack Query v5;
+- Zustand v5;
+- axios;
+- lucide-react;
+- Vitest, Testing Library, Playwright.
 
-| Раздел           | Папка          | Что делает                                                                                                   |
-| ---------------- | -------------- | ------------------------------------------------------------------------------------------------------------ |
-| Дашборд          | `dashboard/`   | Обзор HQ: KPI + топ-листы + блоки (lift, heatmap)                                                            |
-| **Rules Engine** | `rules/`       | Создание/управление правилами замены и допродажи (JSONB-карточка). Список + live-билдер правила              |
-| Промо            | `promo/`       | Кампании брендов. Список + страница-редактор                                                                 |
-| **Сверка**       | `reconcile/`   | Очередь модерации чеков (pending/approved/rejected) + drawer с фото и позициями. Approve/Reject → начисление |
-| Экраны           | `screens/`     | Загрузка медиа в MinIO, сборка плейлистов, назначение на аптеку (per-screen targeting)                       |
-| Финансы          | `finance/`     | Батчи выплат: генерация → согласование → выплата                                                             |
-| Аптеки           | `pharmacies/`  | Сети + аптеки, табы по группам (pilot/control/rolled), детальная страница                                    |
-| Фармацевты       | `pharmacists/` | Реестр, блокировка/разблокировка, табы по статусу                                                            |
-| Lift             | `lift/`        | Аналитика pilot vs control по сетям                                                                          |
-| LMS              | `lms/`         | Каталог курсов, CRUD, табы published/draft                                                                   |
-| AI-Exam          | `ai-exam/`     | Банк вопросов для пост-курсового диалога                                                                     |
-| Витрина          | `storefront/`  | Read-only каталог Medusa (то же, что видит мобилка), серверный поиск + пагинация                             |
-| Настройки        | `settings/`    | Таймзона, язык, logout (без бэкенд-состояния)                                                                |
+The admin console is a desktop-only HQ tool. Root minimum width is 1280px; mobile adaptation is not a
+goal because mobile users have the Flutter app.
 
-## Роутинг (`src/app/router.tsx`)
+## Routes
 
-React Router v6, lazy-loaded страницы, Suspense fallback.
+Public:
 
-```
-/login                      LoginPage (public, без AppShell)
-/dashboard                  /rules (главная по умолчанию)
-/promo  /promo/:id          /pharmacies  /pharmacies/:id
-/screens  /reconcile  /ai-exam  /finance  /lift  /lms  /settings  /storefront
-*                           NotFoundPage
-```
+- `/login`
 
-- Гард `RequireAuth` на всех маршрутах кроме `/login` — читает `authedUser` из Zustand.
-- `SECTION_ROUTES` — общая карта путей для Sidebar и стора.
+Protected under `AppShell`:
 
-## Состояние и данные
+- `/dashboard`
+- `/promo`
+- `/promo/:id`
+- `/rules`
+- `/screens`
+- `/pharmacies`
+- `/pharmacies/:id`
+- `/pharmacists`
+- `/reconcile`
+- `/ai-exam`
+- `/finance`
+- `/lift`
+- `/lms`
+- `/settings`
+- `/storefront`
 
-**Zustand-стор** (`src/app/store.ts`, `useUiStore()`):
+`/` redirects to `/rules`. `/banners` redirects to `/screens` because banners are now a tab/panel in
+the Screens section.
 
-- `authedUser` — JWT + email + роль; `tokens` — access/refresh + сроки
-- `period` — выбранный месяц/год (single source of truth для фильтров)
-- `language` — `ru`/`kk` (в localStorage)
-- UI-флаги: `sidebarCollapsed`, `commandPaletteOpen`, `roleSwitcherOpen`, `contractModalOpen`
-- `init()` гидратирует auth синхронно (фикс гонки `Cmd+R` разлогинивает)
+## Sections
 
-**API-клиент** (`src/lib/api.ts`, axios-синглтон):
+| Section | Current purpose |
+| --- | --- |
+| Dashboard | HQ summary/KPI entrypoint. |
+| Promo | Product campaign CRUD, Medusa product picker, gallery/cover, tiers, dates, goals, campaign rules, grid/list view. |
+| Rules | Read-only/global rules view plus rule builders/components; campaign rules are edited from Promo. |
+| Screens | Connected cash desks, one broadcast video/media flow, banners panel. |
+| Pharmacies | Chains/pharmacies, CRUD, detail page, real Medusa-derived pharmacy seed data. |
+| Pharmacists | Registry, block/unblock, status/balance data. |
+| Reconcile | Receipt moderation queue, claimed promos, POS/Excel source columns, approve/reject. |
+| AI Exam | Question bank CRUD. |
+| Finance | Payout batches, generation, approval with finance/HQ role checks. |
+| Lift | Pilot/control analytics view. |
+| LMS | Course CRUD. |
+| Storefront | Read-only Medusa catalog as seen through backend proxy. |
+| Settings | Language/timezone/session settings. |
 
-- Base URL = `VITE_API_BASE_URL` (в проде пусто → относительные `/api/...`, проксирует nginx)
-- Request-interceptor: `Authorization: Bearer <access>`
-- Response-interceptor: на 401 → refresh через `/api/admin/auth/refresh` (дедуп параллельных) → ретрай или force-logout
+## State and Data
 
-**TanStack Query v5** (`src/lib/queries/*`):
+- `src/app/store.ts` owns UI/session state: auth user/tokens, period, language, sidebar state,
+  command palette, role switcher, contract modal.
+- `src/lib/api.ts` owns the axios singleton and token refresh. It de-duplicates refresh requests.
+- TanStack Query is used for server state. Mutations invalidate focused query keys.
+- Query cache is persisted to localStorage and cleared on logout.
+- DTO types live in `src/lib/api-types.ts` and should mirror backend DTOs exactly.
 
-- Иерархические ключи, инвалидация кэша на мутациях
-- Персист кэша в localStorage (`src/app/queryPersist.ts`), очистка на logout
+## UI and Design
 
-**Типы** (`src/lib/api-types.ts`): `UserDto`, `AuthTokens`, `RuleDto`, `PromoDto`, `PharmacyDto`,
-`ReceiptDto`, `PayoutBatchDto`, `CourseDto`, `ExamQuestionDto`, `RuleCardDto` (богатая карточка-сравнение) и др.
+Current design source of truth is `admin-panel/design-tokens-admin.md`:
 
-## UI-kit и каркас
+- coral/cream Claude-style palette;
+- class names `brand-green-*` and `brand-blue-*` remain for compatibility, but values are coral;
+- semantic success green remains only for approved/success states;
+- Manrope for UI and JetBrains Mono/tabular numbers for dense numeric data;
+- quiet cream canvas, dark warm sidebar, coral as accent/CTA.
 
-**UI-компоненты** (`src/ui/*.tsx`): `Button`, `Input`, `Select`, `Toggle`, `Field`, `Metric`,
-`ProgressBar`, `Sparkline`, `StatusChip`, `Avatar`, `SectionCard`, `PageHeader`, `Modal`,
-`Drawer`, `Tabs`, `Empty`, `ComingSoonBanner`, `SearchInput`, `ToastHost`; иконки — `src/ui/icons.tsx` (Lucide).
+Important layout rules:
 
-**Каркас** (`src/layout/*.tsx`): `Sidebar` (13 пунктов, collapsible, contract-widget),
-`Topbar` (роль-пилюля + RoleSwitcher, PeriodPicker, переключатель языка, logout),
-`CommandPalette` (`Cmd+K`), `ContractModal`, `Logo`, `PeriodPicker`.
+- Use `PageHeader`, `SectionCard`, `Metric`, `SummaryBar`, tables, drawers, and modals from `src/ui`.
+- Do not flood pages with KPI cards; dense pages prefer `SummaryBar`.
+- No raw hex colors in production components unless the design-token file explicitly requires a one-off.
+- All money values use full KZT formatting, never abbreviated millions.
 
-**i18n** (`src/i18n/`): лёгкий хук `useT()` поверх Zustand-языка, словарь `dict.ts` (ru/kk),
-интерполяция `{name}`. Покрыты nav, заголовки, кнопки, ошибки, все 13 разделов.
+## Auth
 
-**ErrorBoundary** (`src/app/ErrorBoundary.tsx`) — class-компонент с inline-fallback (работает,
-даже если CSS не загрузился).
+All routes except `/login` are protected by `RequireAuth`. The axios interceptor adds
+`Authorization: Bearer <accessToken>` and performs refresh on 401. If refresh fails as auth failure,
+the store is cleared and the user returns to login.
 
-## Сборка и деплой
-
-- **Vite** (`vite.config.ts`): React-плагин, alias `@`→`src/`, Vitest (jsdom).
-- **Tailwind** (`tailwind.config.ts`): дизайн-токены из `design-tokens-admin.md` (палитра brand/ink/paper/accent, Manrope + JetBrains Mono, тени, радиусы).
-- **Docker** (`Dockerfile`): multi-stage (Node build → nginx alpine). Build-arg `VITE_API_BASE_URL`.
-- **nginx** (`nginx.conf`): проксирует `/api/*` → `backend:8080`, SPA-fallback на `index.html`,
-  security-заголовки (X-Frame-Options, CSP, X-Content-Type-Options), gzip, кэш `/assets/*` на год,
-  `listen [::]:80` (dual-stack — чинит healthcheck по IPv6).
-
-## Тесты
-
-- **Vitest** + Testing Library + jsdom, MSW-хендлеры (`src/test/setup.ts`).
-- **Playwright** E2E (`e2e/*.spec.ts`): auth, rules, promo, reconcile, смена языка и др.
+## Build and Tests
 
 ```bash
 cd admin-panel/frontend
 npm install
-npm run dev        # localhost:5173 (через Vite proxy на backend)
-npm test           # Vitest
-npm run build      # dist/
+npm run dev
+npm run lint
+npm test
+npm run build
+npm run test:e2e
 ```
+
+Playwright E2E expects backend and local infra to be running. Vite can be launched by Playwright's
+webServer configuration.
+
+## Historical References
+
+`admin-panel/references/` is a historical JSX prototype and visual reference. Production code lives in
+`admin-panel/frontend/src`. Use the references only to understand intent, not as current architecture.

@@ -1,6 +1,7 @@
 package kz.epharm.promo
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import jakarta.persistence.EntityManager
 import kz.epharm.auth.domain.AdminRole
 import kz.epharm.auth.domain.AdminUserStatus
 import kz.epharm.auth.dto.LoginRequest
@@ -28,6 +29,7 @@ import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
@@ -71,6 +73,7 @@ class PromoRulesIntegrationTest {
     @Autowired private lateinit var productRepository: ProductRepository
     @Autowired private lateinit var adminUserRepository: AdminUserRepository
     @Autowired private lateinit var passwordEncoder: PasswordEncoder
+    @Autowired private lateinit var entityManager: EntityManager
 
     private lateinit var bearer: String
 
@@ -99,6 +102,7 @@ class PromoRulesIntegrationTest {
             PromoEntity(
                 id = "pr_camp", title = "Кампания Аквамарис",
                 medusaProductId = "prod_promoted", productName = "Аквамарис Норм",
+                barcode = "4600000000001", ipartId = "90001",
             ).also {
                 it.status = PromoStatus.active
                 it.tiers = listOf(PromoTier(minQty = 1, price = 0, bonus = 300))
@@ -109,8 +113,10 @@ class PromoRulesIntegrationTest {
     @Test
     fun `PUT генерирует правила замены и кросс-селла из кампании`() {
         val body = """
-            {"replacements":[{"medusaProductId":"prod_comp1","name":"Аквалор Норм","price":1200}],
-             "crossSells":[{"medusaProductId":"prod_cross1","name":"Платочки","price":500}],
+            {"replacements":[{"medusaProductId":"prod_comp1","name":"Аквалор Норм","price":1200,
+               "barcode":"4603423004936","ipartId":"80309"}],
+             "crossSells":[{"medusaProductId":"prod_cross1","name":"Платочки","price":500,
+               "barcode":"4604249789012","ipartId":"80444"}],
              "script":"Предложите Аквамарис","advantages":["Дешевле","Тот же эффект"],
              "partnerLabel":"ПАРТНЁР EPHARM"}
         """.trimIndent()
@@ -130,13 +136,16 @@ class PromoRulesIntegrationTest {
         assertThat(sub.trigger.value).isEqualTo("prod_comp1")    // триггер — заменяемый товар
         assertThat(sub.bonus).isEqualTo(300)                     // бонус кампании
         val cross = rules.first { it.type == RuleType.crosssell }
-        assertThat(cross.trigger.value).isEqualTo("prod_promoted") // триггер — продвигаемый
-        assertThat(cross.recommend).isEqualTo("prod_cross1")       // допродаём компаньон
+        assertThat(cross.trigger.value).isEqualTo("prod_cross1")   // триггер — товар уже в чеке
+        assertThat(cross.recommend).isEqualTo("prod_promoted")     // допродаём товар кампании
 
         // Локальные товары апсертнуты (id = medusaProductId).
         assertThat(productRepository.existsById("prod_promoted")).isTrue()
         assertThat(productRepository.existsById("prod_comp1")).isTrue()
         assertThat(productRepository.existsById("prod_cross1")).isTrue()
+        assertThat(productRepository.findById("prod_promoted").get().ipartId).isEqualTo("90001")
+        assertThat(productRepository.findById("prod_comp1").get().ipartId).isEqualTo("80309")
+        assertThat(productRepository.findById("prod_cross1").get().ipartId).isEqualTo("80444")
     }
 
     @Test
@@ -251,6 +260,48 @@ class PromoRulesIntegrationTest {
         // GET round-trip'ит намерение пары (active true/false) обратно в редактор.
         mockMvc.perform(get("/api/admin/promo/pr_camp/rules").header("Authorization", bearer))
             .andExpect(status().isOk)
+            .andExpect(jsonPath("$.config.replacements[?(@.medusaProductId=='prod_comp2')].active").value(false))
+    }
+
+    @Test
+    fun `активация кампании активирует правила замен и кросс-селла`() {
+        promoRepository.saveAndFlush(
+            promoRepository.findById("pr_camp").get().also { it.status = PromoStatus.draft },
+        )
+        val body = """
+            {"replacements":[
+               {"medusaProductId":"prod_comp1","name":"Активная замена","active":true},
+               {"medusaProductId":"prod_comp2","name":"Черновик замены","active":false}],
+             "crossSells":[{"medusaProductId":"prod_cross1","name":"Активный кросс-селл","active":true}]}
+        """.trimIndent()
+        mockMvc.perform(
+            put("/api/admin/promo/pr_camp/rules").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(body),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.ruleCount").value(3))
+            .andExpect(jsonPath("$.activeCount").value(0))
+
+        assertThat(ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc("pr_camp"))
+            .allSatisfy { assertThat(it.status).isEqualTo(RuleStatus.draft) }
+
+        mockMvc.perform(
+            patch("/api/admin/promo/pr_camp").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content("""{"status":"active"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("active"))
+
+        entityManager.clear()
+        val rules = ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc("pr_camp")
+        assertThat(rules).hasSize(3)
+        assertThat(rules.filter { it.status == RuleStatus.active }).hasSize(2)
+        assertThat(rules.first { (it.trigger.value as? String) == "prod_comp2" }.status)
+            .isEqualTo(RuleStatus.draft)
+
+        mockMvc.perform(get("/api/admin/promo/pr_camp/rules").header("Authorization", bearer))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.activeCount").value(2))
             .andExpect(jsonPath("$.config.replacements[?(@.medusaProductId=='prod_comp2')].active").value(false))
     }
 

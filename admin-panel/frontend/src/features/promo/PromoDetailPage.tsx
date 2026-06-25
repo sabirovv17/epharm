@@ -34,6 +34,8 @@ interface FormState {
   dateStart: string
   dateEnd: string
   pharmacistBonus: string
+  barcode: string
+  ipartId: string
   overrideImage: string
   overrideDescription: string
   overrideCharacteristics: string
@@ -50,6 +52,8 @@ const EMPTY_FORM: FormState = {
   dateStart: '',
   dateEnd: '',
   pharmacistBonus: '0',
+  barcode: '',
+  ipartId: '',
   overrideImage: '',
   overrideDescription: '',
   overrideCharacteristics: '',
@@ -87,11 +91,14 @@ export default function PromoDetailPage() {
               brand: promo.brand,
               price: promo.price,
               barcode: promo.barcode,
+              ipartId: promo.ipartId,
             }
           : null,
         dateStart: promo.dateStart ?? '',
         dateEnd: promo.dateEnd ?? '',
         pharmacistBonus: String(promo.pharmacistBonus),
+        barcode: promo.barcode ?? '',
+        ipartId: promo.ipartId ?? '',
         overrideImage: promo.overrideImage ?? '',
         overrideDescription: promo.overrideDescription ?? '',
         overrideCharacteristics: promo.overrideCharacteristics ?? '',
@@ -175,6 +182,8 @@ export default function PromoDetailPage() {
     form.dateStart !== (promo.dateStart ?? '') ||
     form.dateEnd !== (promo.dateEnd ?? '') ||
     form.pharmacistBonus !== String(promo.pharmacistBonus) ||
+    form.barcode !== (promo.barcode ?? '') ||
+    form.ipartId !== (promo.ipartId ?? '') ||
     form.overrideImage !== (promo.overrideImage ?? '') ||
     form.overrideDescription !== (promo.overrideDescription ?? '') ||
     form.overrideCharacteristics !== (promo.overrideCharacteristics ?? '')
@@ -217,6 +226,8 @@ export default function PromoDetailPage() {
       kpi: form.kpi.trim(),
       cover: form.cover.trim(),
       pharmacistBonus: Math.max(0, Math.trunc(Number(form.pharmacistBonus) || 0)),
+      barcode: form.barcode.trim() || null,
+      ipartId: form.ipartId.trim() || null,
       overrideImage: form.overrideImage.trim() || null,
       overrideDescription,
       overrideCharacteristics,
@@ -349,13 +360,29 @@ export default function PromoDetailPage() {
                 {form.product?.brand && (
                   <div className="text-[12px] font-bold text-ink-500">{form.product.brand}</div>
                 )}
-                {(promo.barcode || medusaProduct?.barcode) && (
-                  <div className="num text-[11px] text-ink-400" data-testid="detail-barcode">
-                    {t('pr.barcode')}: {promo.barcode || medusaProduct?.barcode}
-                  </div>
-                )}
               </div>
             </Field>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Field label={t('pr.barcode')}>
+                <Input
+                  className="num"
+                  value={form.barcode}
+                  onChange={set('barcode')}
+                  disabled={isArchived}
+                  data-testid="detail-barcode"
+                />
+              </Field>
+              <Field label={t('pr.ipartId')}>
+                <Input
+                  className="num"
+                  value={form.ipartId}
+                  onChange={set('ipartId')}
+                  disabled={isArchived}
+                  data-testid="detail-ipart"
+                />
+              </Field>
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               {/* Цена из Medusa — read-only (обновляется ежедневно, не редактируется). */}

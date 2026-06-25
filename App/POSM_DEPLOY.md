@@ -1,38 +1,35 @@
-# POSM-клиент на кассе: деплой, автозапуск, авто-обновление, удалённое видео
+# POSM Deployment
 
-Документ по эксплуатации Windows-клиента (CustomerDisplay) в аптеке: как поставить «навсегда»,
-как обновлять без выезда, как из админки управлять видео на кассовом экране.
+Deployment guide for the C#/WPF cash-desk client.
 
-Связь с админ-панелью — **по HTTP** (см. «Почему HTTP, а не WebSocket» ниже). Клиент сам
-опрашивает backend; держать постоянное соединение не нужно.
+## Build
 
----
-
-## 1. Сборка для прода (publish, а не `dotnet run`)
-
-Авто-обновление работает с **опубликованной** сборкой (папка с `CustomerDisplay.exe` + dll),
-а не с `dotnet run` (там процесс — `dotnet.exe`, перезапуск самого приложения не сработает).
+Build on Windows with .NET 10 SDK.
 
 ```powershell
-# из папки с проектом
+cd <repo>
 dotnet publish App\CustomerDisplay.csproj -c Release -r win-x64 --self-contained `
-  -p:Version=1.0.0 -o C:\epharm\app
+  -p:Version=1.0.0 -o C:\Epharm\app
 ```
 
-- `-p:Version=1.0.0` — версия установленной сборки. Её авто-апдейтер сравнивает с релизом из
-  админки. **Бампать при каждом релизе** (1.0.1, 1.1.0, …).
-- `--self-contained` — не требует установленного .NET на кассе.
+Auto-update works with a published app folder containing `CustomerDisplay.exe`, dependencies, LibVLC,
+config, and scripts. Do not deploy `dotnet run` as production.
 
-## 2. Конфиг кассы — `C:\Epharm\posm.json`
+## Config
+
+`C:\Epharm\posm.json` example:
 
 ```json
 {
   "Enabled": true,
-  "BackendBaseUrl": "https://api.epharm.kz",
-  "DeviceKey": "<ключ-этой-кассы>",
-  "PharmacistId": "ph_user_42",
-  "PharmacyId": "ph_017",
-  "PlaylistPollSec": 120,
+  "BackendBaseUrl": "https://epharm.78-140-246-238.sslip.io",
+  "DeviceKey": "<POSM_DEVICE_KEY>",
+  "PharmacistId": "u_smoke",
+  "PharmacyId": "ph_smoke",
+  "ScreenMode": "prod",
+  "RecommendRefreshSec": 0,
+  "PlaylistPollSec": 20,
+  "MediaCacheDir": "C:\\Epharm\\media-cache",
   "UpdateEnabled": true,
   "UpdatePollSec": 1800,
   "HeartbeatPath": "C:\\Epharm\\heartbeat.txt",
@@ -40,106 +37,79 @@ dotnet publish App\CustomerDisplay.csproj -c Release -r win-x64 --self-contained
 }
 ```
 
-- **`PharmacyId`** — идентификатор аптеки/экрана. По нему backend отдаёт плейлист, назначенный
-  «на конкретный экран». Если для аптеки своего плейлиста нет — играет глобальный («все экраны»).
-- `PlaylistPollSec` — как часто проверять смену плейлиста (по умолчанию 120с).
-- `UpdatePollSec` — как часто проверять обновление приложения (по умолчанию 1800с = 30 мин).
-- Любой параметр можно переопределить переменной окружения (`EPHARM_PHARMACY_ID`,
-  `EPHARM_PLAYLIST_POLL_SEC`, `EPHARM_UPDATE_ENABLED`, …) — удобно для пилота без правки файла.
+Every key can be overridden by env variables. See `App/scripts/README-distrib.md`.
 
-## 3. Автозапуск «навсегда» (две задачи: приложение + watchdog)
+## Install Scheduled Tasks
 
-Приложение с UI (видео на клиентском экране) — поэтому НЕ Windows-служба, а задача планировщика.
-Чтобы прослушка логов Стандарт-Н работала **всегда**, живучесть двухуровневая:
-
-1. **`EpharmPOSM`** — запуск при входе пользователя + **RestartOnFailure** (перезапуск каждую
-   минуту при сбое). Покрывает **падения** и `taskkill`.
-2. **`EpharmPOSM-Watchdog`** — раз в минуту проверяет heartbeat приложения и поднимает его, если
-   процесс упал **ИЛИ завис** (deadlock UI, который RestartOnFailure не ловит, т.к. процесс жив).
-
-Плюс внутри приложения: глобальный `CrashGuard` гасит мягкие исключения (UI/фоновые Task), чтобы
-случайная ошибка не роняла кассу; UI-поток пишет heartbeat (`HeartbeatPath` из `posm.json`).
-
-**Установка (от администратора, один раз на кассу):**
+Run as administrator:
 
 ```powershell
-# из папки App\scripts (рядом с опубликованным приложением или из репозитория)
-powershell -ExecutionPolicy Bypass -File install-tasks.ps1 -InstallDir C:\epharm\app
+cd <repo>\App\scripts
+powershell -ExecutionPolicy Bypass -File install-tasks.ps1 -InstallDir C:\Epharm\app
 ```
 
-Скрипт идемпотентно создаёт обе задачи (ONLOGON, наивысшие права, без лимита по времени, не
-глушится на батарее) и сразу запускает приложение. Снять автозапуск: `uninstall-tasks.ps1`.
+This creates:
 
-Проверка: `Get-ScheduledTask EpharmPOSM*` — обе задачи в состоянии Ready/Running.
+- `EpharmPOSM` - starts on user logon and restarts on failure;
+- `EpharmPOSM-Watchdog` - checks heartbeat and restarts hung/dead client.
 
-> **Старт без человека (важно для аптеки).** Триггер `ONLOGON` срабатывает только когда кто-то
-> вошёл в Windows. Если касса перезагрузилась и стоит на экране входа — клиент не стартует до
-> логина. Для гарантии «всегда» включите **автологин Windows** под учёткой кассира:
-> `netplwiz` → снять «Требовать ввод имени и пароля», либо реестр
-> `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon`:
-> `AutoAdminLogon=1`, `DefaultUserName`, `DefaultPassword`. Тогда после любого ребута/Windows
-> Update Windows сам логинится → ONLOGON поднимает кассу без участия человека.
+For unattended startup after reboot, configure Windows autologin for the cash-desk user. Scheduled
+task trigger is logon-based.
 
-Выход для обслуживания: **Ctrl+Shift+Q** (обычная `Q` намеренно НЕ закрывает — чтобы кассир не
-остановил прослушку случайным нажатием). Или Диспетчер задач → завершить CustomerDisplay
-(watchdog поднимет его в течение минуты — для обслуживания сначала `uninstall-tasks.ps1`).
+Uninstall:
 
-### Что переживает (с этой конфигурацией)
+```powershell
+powershell -ExecutionPolicy Bypass -File uninstall-tasks.ps1
+```
 
-| Сценарий                         | Поднимется? | Чем                                           |
-| -------------------------------- | ----------- | --------------------------------------------- |
-| Перезагрузка ПК / Windows Update | ✅          | ONLOGON (+ автологин для старта без человека) |
-| Выход/вход пользователя          | ✅          | ONLOGON                                       |
-| Падение процесса / `taskkill`    | ✅          | RestartOnFailure + watchdog                   |
-| Зависание (deadlock UI)          | ✅          | watchdog по устаревшему heartbeat             |
-| Мягкая UI/фоновая ошибка         | ✅          | CrashGuard гасит, касса не падает             |
-| Случайное нажатие `Q`            | ✅          | защищённый выход Ctrl+Shift+Q                 |
+## Broadcast Video
 
-## 4. Удалённое видео: загрузил в админке → заиграло на кассе
+Admin Screens section currently exposes a simplified broadcast flow:
 
-1. Админка → **Экраны**: «Загрузить слайд» (видео уходит в MinIO) → собрать плейлист → добавить слайд.
-2. В колонке **«Экран»** выбрать назначение:
-   - **«Все экраны»** — плейлист играет на всех кассах (глобальный);
-   - **конкретная аптека** — только на её кассе (перекрывает глобальный для неё).
-3. Активировать плейлист (статус → «Играет»).
-4. Касса подхватит изменение **на следующем опросе** (≤ `PlaylistPollSec`, по умолчанию ≤ 2 мин),
-   **без перезапуска**. Видео переключается только если набор реально изменился (не дёргается зря).
+1. Upload/replace the broadcast media.
+2. Backend stores media in MinIO and updates the active broadcast playlist.
+3. POSM polls `/api/posm/playlists/active`.
+4. Customer display switches on the next poll.
 
-Требования: backend + MinIO доступны с кассы по сети (URL слайда считается из `BackendBaseUrl`,
-`localhost`/`127.0.0.1` в media-URL автоматически переписывается на хост backend).
+## App Auto-Update
 
-## 5. Авто-обновление приложения (без выезда на точку)
+POSM periodically calls:
 
-Касса периодически (`UpdatePollSec`) спрашивает `GET /api/posm/app/version`. Если релиз новее
-установленной версии — сама качает zip, проверяет sha256, распаковывает и применяет через внешний
-скрипт (`apply-update.cmd`): ждёт выхода приложения → копирует файлы поверх → перезапускает.
+```text
+GET /api/posm/app/version?platform=win-x64
+```
 
-**Выпуск новой версии:**
+Release flow:
 
-1. `dotnet publish … -p:Version=1.1.0 -o <out>` → запаковать папку в zip.
-2. Залить zip в MinIO (или любой доступный кассам URL). Посчитать sha256:
-   ```powershell
-   (Get-FileHash .\epharm-1.1.0.zip -Algorithm SHA256).Hash
-   ```
-3. Зарегистрировать релиз (он сразу становится «текущим»):
-   ```bash
-   curl -X POST https://api.epharm.kz/api/admin/app-releases \
-     -H "Authorization: Bearer <admin-jwt>" -H "Content-Type: application/json" \
-     -d '{"version":"1.1.0","url":"https://s3.epharm.kz/app/epharm-1.1.0.zip",
-          "sha256":"<хеш>","platform":"win-x64","mandatory":false,"notes":"plus poll"}'
-   ```
-4. Все кассы обновятся в течение `UpdatePollSec`. Откат = зарегистрировать предыдущую версию заново.
+1. Publish new version with bumped `-p:Version=...`.
+2. Zip the published folder.
+3. Upload zip to a URL reachable by cash desks.
+4. Calculate SHA256.
+5. Register via admin API `/api/admin/app-releases`.
 
-Всё fail-safe: недоступный backend / битый zip / несовпавший sha256 → обновление просто не
-происходит, касса работает дальше.
+The client downloads only HTTPS URLs and verifies SHA256 before applying.
 
----
+## Recommendation Smoke
 
-## Почему HTTP-поллинг, а не WebSocket (решение зафиксировано)
+A real popup requires:
 
-- Контент на кассе (плейлист, версия приложения) меняется **редко** и **не критичен к задержке** —
-  минута на подхват несущественна для digital-signage.
-- Поллинг **устойчив к обрывам** аптечной сети: каждый запрос независим, не нужен reconnect/keepalive.
-- Не требует серверного push-инфраструктуры (STOMP/SSE), проще и надёжнее.
-- «Всегда на связи» обеспечивается **автозапуском + single-instance + fail-safe опросом**, а не
-  постоянным сокетом. WebSocket дал бы мгновенный push ценой сложности — здесь это оверинжиниринг.
+- POSM enabled;
+- valid backend URL and device key;
+- active campaign/rule for the scanned product;
+- barcode in the cash-desk log or a name that matches uniquely.
+
+Demo log line format:
+
+```powershell
+$log = "C:\Standart-N_DEMO\Apteka_KZ DEMO\Kassir\zkassa.log"
+$enc = [System.Text.Encoding]::GetEncoding(1251)
+$line = "Add2Cheque iPartID=80309(4603423004936);sname=Аквалор;price=1620;quant=1"
+[System.IO.File]::AppendAllText($log, "$line`r`n", $enc)
+```
+
+## Operational Rules
+
+- `Q` must not be a casual production exit path; use protected exit/maintenance flow from current app.
+- Watch the POSM log first when debugging.
+- If one-monitor cash desk is in `prod` mode, customer display is suppressed; recommendation popup can still work.
+- Rotate shared POSM device key to per-device keys before large rollout.

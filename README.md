@@ -1,112 +1,156 @@
-# Epharm
+# Epharm / PharmaPayV2
 
-Экосистема для аптечной сети Inkar (Казахстан): мотивация фармацевтов + HQ-управление + подсказки на кассе.
-Часть совместного предприятия **Ledex × Inkar** (см. `ИТОГОВОЕ_ТЗ.pdf` за пределами репо).
+Epharm is the current product name. `PharmaPayV2`, `pharmacy`, and `PharmaPay` remain in code,
+bundle ids, historical references, and design handoff files.
 
-## Модули
+The repository is the working monorepo for the Ledex x Inkar pharmacist-motivation ecosystem:
 
-| Модуль                                      | Что                                                                                                                                                         | Стек                                                           | Статус                                                      |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------- |
-| **Mobile app** (`lib/`)                     | iOS + Android приложение фармацевта: баланс, промо, реальный каталог, аптеки, загрузка чеков                                                                | Flutter 3.27 + Riverpod + go_router                            | Реальный backend (`USE_API`), запускается на iPhone/Android |
-| **Admin Console** (`admin-panel/frontend/`) | HQ web для категорийной команды Inkar и бренд-менеджеров: 13 разделов (правила замен, кампании, сверка чеков, выплаты, экраны, LMS, AI-экзамен, витрина, …) | React 19 + Vite + TS + Tailwind 3 + TanStack Query + Zustand   | Готова: 13 разделов на реальном API, прод-сборка зелёная    |
-| **Backend** (`admin-panel/backend/`)        | Spring Boot монолит — REST для mobile + admin + POSM, JWT + RBAC, Flyway, S3, прокси Medusa                                                                 | Kotlin 2.0 + Spring Boot 3.3 + PostgreSQL 16 + Redis 7 + MinIO | Готов: build SUCCESSFUL, миграции V001–V021                 |
-| **POSM Sidecar** (`posm-sidecar/`, Этап 5)  | Electron-клиент на POS-моноблоке аптеки: popup-рекомендации замен + второй монитор клиента                                                                  | Electron 30 + React                                            | Не начат                                                    |
+- a Flutter mobile app for pharmacists;
+- a Kotlin/Spring Boot backend;
+- a React/Vite HQ admin console;
+- a C#/WPF POSM client for Standard-N cash desks;
+- integration with the external Medusa storefront/PIM used as a product and pharmacy source.
 
-> **Что НЕ делаем** в этом репозитории: Module 3 ТЗ (интернет-магазин, PIM, CMS, маркетплейсы, CDP) — это отдельная команда и отдельный roadmap.
+## Current Runtime
 
-## Документация
+The shared demo environment is:
 
-| Файл                                                                           | Для кого                                                                                         |
-| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| **[admin-panel/PLAN.md](./admin-panel/PLAN.md)**                               | План разработки всей экосистемы — этапы 0-7, mapping ТЗ → код                                    |
-| **[admin-panel/claude-admin-notes.md](./admin-panel/claude-admin-notes.md)**   | Живые рабочие заметки по admin / backend / POSM. **Читать первым в новой сессии по этим зонам.** |
-| **[claude-notes.md](./claude-notes.md)**                                       | Живые рабочие заметки по mobile-приложению. **Читать первым в новой сессии по lib/.**            |
-| **[admin-panel/design-tokens-admin.md](./admin-panel/design-tokens-admin.md)** | Источник истины дизайн-системы админки (палитра, типографика, компоненты)                        |
-| **[\_reference/design-tokens.md](./_reference/design-tokens.md)**              | Источник истины дизайн-системы мобильного приложения                                             |
-| **[CONTRIBUTING.md](./CONTRIBUTING.md)**                                       | Git workflow, branch naming, commit format, как открывать PR                                     |
+```text
+https://epharm.78-140-246-238.sslip.io
+```
 
-## Быстрый запуск (Этап 0+)
+Caddy serves one public host and routes by path:
+
+- `/api/*` -> backend;
+- `/s3/*` -> MinIO;
+- `/` -> admin frontend.
+
+The future `*.epharm.kz` domains are prepared in `.env.prod.example`, but the active public
+environment is the `sslip.io` host unless explicitly changed in `.env.prod`.
+
+## Modules
+
+| Module | Path | Stack | Current state |
+| --- | --- | --- | --- |
+| Mobile app | `lib/`, `ios/`, `android/` | Flutter 3.27 / Dart 3.6, Riverpod, go_router, http, secure storage | Real API is the default. Offline mocks remain behind `--dart-define=USE_API=false`. |
+| Backend | `admin-panel/backend/` | Kotlin 2.0.21, Spring Boot 3.3.5, JVM 22, PostgreSQL 16, Flyway, Redis, MinIO/S3 | Monolith with admin, mobile, POSM, Medusa proxy, media proxy, banners, payouts. Migrations V001-V030. |
+| Admin console | `admin-panel/frontend/` | React 19, Vite 8, TypeScript 6, Tailwind 3, TanStack Query, Zustand, axios | 13 protected sections on real API. Promo has grid/list view, product gallery, banners live under Screens. |
+| POSM client | `App/`, `Models/` | C# / WPF / .NET 10, LibVLCSharp, SQLite outbox | Windows-only client for Standard-N logs, barcode recommendations, customer display, heartbeat, auto-update. |
+| Storefront/PIM | external Medusa | Medusa v2.15.2 | External source for catalog, images, barcodes, categories, and pharmacy stock locations. This repo only consumes it. |
+
+## Repository Map
+
+```text
+PharmaPayV2/
+├── lib/                     # Flutter mobile app
+├── android/ ios/ macos/     # Flutter platform projects
+├── assets/                  # fonts/images/icons for mobile
+├── builds/                  # build_all.sh and review artifacts
+├── admin-panel/
+│   ├── backend/             # Kotlin/Spring backend
+│   ├── frontend/            # React/Vite admin frontend
+│   ├── references/          # historical JSX admin prototype
+│   ├── design-tokens-admin.md
+│   └── claude-admin-notes.md
+├── App/                     # C#/WPF POSM app
+├── Models/                  # shared POSM DTOs
+├── docs/                    # maintained technical docs
+├── _reference/              # mobile design references and historical handoff
+├── tools/                   # prod env, backup, icon helpers
+├── docker-compose.yml       # local Postgres/Redis/MinIO
+├── docker-compose.prod.yml  # full production stack
+├── Caddyfile                # current one-host path routing + internal VPN host
+└── RUNBOOK.md               # day-to-day startup and troubleshooting
+```
+
+## Fast Local Start
+
+Backend/admin local development uses Docker for infrastructure, `bootRun` for backend, and Vite for
+frontend.
 
 ```bash
-# 1. Инфраструктура (Postgres 16 на 5433, Redis 7, MinIO)
+# from repo root
 docker compose up -d
 
-# 2. Backend (требует JAVA_HOME=Temurin 22)
 cd admin-panel/backend
-export JAVA_HOME=/Users/<user>/Library/Java/JavaVirtualMachines/temurin-22.0.2/Contents/Home
-./gradlew bootRun                # → http://localhost:8080/api/health
+export JAVA_HOME=/Users/amir/Library/Java/JavaVirtualMachines/temurin-22.0.2/Contents/Home
+./gradlew bootRun
 
-# 3. Admin console (frontend)
-cd admin-panel/frontend
-npm install                      # один раз
-npm run dev                      # → http://localhost:5173
-
-# 4. Mobile (как раньше)
-export PATH="$HOME/development/flutter/bin:$PATH"
-flutter pub get
-flutter run                      # iOS-симулятор
+cd ../frontend
+npm install
+npm run dev
 ```
 
-## Структура корня репо
+Useful URLs:
 
-```
-PharmaPayV2/
-├── admin-panel/                   # ⭐ Админ-консоль (backend + frontend + docs в одном проекте)
-│   ├── backend/                   # Kotlin 2.0 + Spring Boot 3.3 (Gradle wrapper, JVM 22)
-│   │   ├── src/main/kotlin/kz/epharm/  # auth/ shared/ ... (домены)
-│   │   ├── src/test/kotlin/        # JUnit5 unit + Testcontainers integration
-│   │   └── build.gradle.kts, gradle/
-│   ├── frontend/                  # React 19 + Vite + TS + Tailwind 3
-│   │   ├── src/{app, layout, ui, features, lib, mocks}/
-│   │   ├── src/**/*.test.{ts,tsx} # Vitest: unit + Testing Library + smoke
-│   │   └── package.json, vite.config.ts
-│   ├── PLAN.md                    # план развития экосистемы (Этапы 0-7)
-│   ├── claude-admin-notes.md      # живые заметки admin / backend / POSM
-│   ├── design-tokens-admin.md     # дизайн-система админки
-│   └── references/                # JSX-эталон 12 секций — source-of-truth UX
-├── lib/                           # Flutter mobile app
-├── ios/ android/ macos/ assets/   # Платформы + ассеты mobile
-├── posm-sidecar/                  # Electron client (Этап 5+, не начат)
-├── _reference/                    # mobile design tokens + HTML/JSX прототипы
-├── docker-compose.yml             # Postgres + Redis + MinIO для local dev
-├── .github/                       # CI workflows + CODEOWNERS + PR template
-├── .husky/                        # pre-commit + commit-msg хуки
-├── claude-notes.md                # живые заметки mobile-приложения
-├── package.json                   # корневой — husky/commitlint/prettier
-├── CONTRIBUTING.md                # git workflow + commit format
-└── README.md                      # этот файл
+- backend health: `http://localhost:8080/api/health`;
+- admin: `http://localhost:5173`;
+- Swagger UI in dev: `http://localhost:8080/swagger-ui.html`;
+- MinIO console: `http://localhost:9001`.
+
+Dev admin users are seeded by the backend dev profile:
+
+| Email | Password | Role |
+| --- | --- | --- |
+| `damir@jadran.com` | `damir2026` | Brand Manager |
+| `aigerim@inkar.kz` | `aigerim2026` | Category Lead |
+| `bauyrzhan@inkar.kz` | `bauyrzhan2026` | HQ Head |
+
+## Mobile Start
+
+Against the shared demo backend:
+
+```bash
+flutter run \
+  --dart-define=USE_API=true \
+  --dart-define=API_BASE=https://epharm.78-140-246-238.sslip.io
 ```
 
-**Принцип:** админка = один проект (`admin-panel/`), внутри 2 подпапки `backend/` (Kotlin) + `frontend/` (React). Mobile приложение фармацевта — отдельный модуль в корне (`lib/` + платформы). Mobile и admin делят общий backend через `POST /api/admin/...` / `POST /api/mobile/...` префиксы.
+Against a local backend:
 
-## Версии (зафиксированы)
+```bash
+# iOS simulator
+flutter run --dart-define=USE_API=true --dart-define=API_BASE=http://localhost:8080
 
-| Стек             | Версия                |
-| ---------------- | --------------------- |
-| Flutter / Dart   | 3.27 / 3.6            |
-| Kotlin           | 2.0.21                |
-| Spring Boot      | 3.3.5                 |
-| Gradle wrapper   | 8.10.2                |
-| Java (toolchain) | Temurin 22            |
-| Node             | 22 (CI) / 26+ (local) |
-| Vite             | 7.x                   |
-| React            | 19.x                  |
-| Tailwind         | 3.4.x                 |
-| PostgreSQL       | 16-alpine             |
-| Redis            | 7-alpine              |
-| MinIO            | latest                |
+# Android emulator
+flutter run --dart-define=USE_API=true --dart-define=API_BASE=http://10.0.2.2:8080
 
-## Дизайн-токены — единственный источник правды
+# offline demo
+flutter run --dart-define=USE_API=false
+```
 
-- **Mobile** — `_reference/design-tokens.md` (814 строк, §1-§11 включая receipt-flow и admin console refs)
-- **Admin** — `admin-panel/design-tokens-admin.md` (412 строк, расширение mobile-токенов для desktop)
-- **Хексы в коде запрещены** — только Tailwind-токены (`bg-brand-green-600`) или Dart-константы (`AppColors.brandGreen600`)
-- Тенге `₸` в Flutter: всегда `fontFamilyFallback: ['Roboto', 'sans-serif']` — Manrope-Variable не содержит U+20B8
+OTP is `544544` while `OTP_DEV_MODE=true`. Real SMS is intentionally not wired yet.
 
-## Build артефакты mobile
+## Quality Bar
 
-`builds/` содержит готовые APK / IPA для ревью. Подробности — `builds/README.md`, regenerate — `bash builds/build_all.sh`.
+Project working rule:
 
-## Lead
+- reproduce bugs with a failing test first when feasible;
+- fix root cause with the smallest scoped change;
+- keep frontend DTOs aligned with backend DTOs;
+- use `AppException(ErrorCode, message, status)` for backend business errors;
+- update `claude-notes.md` or `admin-panel/claude-admin-notes.md` after non-trivial decisions;
+- run the relevant suite before calling work done.
 
-Амир ([@sabirovv17](https://github.com/sabirovv17)) — текущий единственный owner всего репо (см. `.github/CODEOWNERS`).
+Common checks:
+
+```bash
+cd admin-panel/backend && ./gradlew test
+cd admin-panel/frontend && npm test && npm run build
+flutter analyze lib test && flutter test
+```
+
+## Security Notes
+
+Secrets and live credentials currently remain in the files where they already exist, per project
+practice for this workspace. Do not copy them into new docs, commits, logs, screenshots, or issue
+bodies. The current release checklist still tracks rotation of storefront/PIM/SSH credentials and
+privatization of receipt storage as important hardening work.
+
+## Maintained Docs
+
+- `RUNBOOK.md` - local startup, resets, tests, production stack operations.
+- `docs/` - architecture, backend/admin/mobile/POSM/deployment/database.
+- `DEV-ONBOARDING.md` - launching the mobile app on a real phone against the shared demo backend.
+- `RELEASE-CHECKLIST.md` - current release blockers and hardening items.
+- `admin-panel/claude-admin-notes.md` and `claude-notes.md` - working memory and latest decisions.

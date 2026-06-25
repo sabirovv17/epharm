@@ -76,6 +76,7 @@ function mkPromo(over: Partial<PromoDto> = {}): PromoDto {
     productName: '',
     productImage: null,
     barcode: null,
+    ipartId: null,
     overrideImage: null,
     overrideDescription: null,
     price: 0,

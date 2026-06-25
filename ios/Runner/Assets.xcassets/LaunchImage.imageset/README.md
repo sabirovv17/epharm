@@ -1,5 +1,6 @@
-# Launch Screen Assets
+# Launch Image Assets
 
-You can customize the launch screen with your own desired assets by replacing the image files in this directory.
+Flutter's default launch image placeholder is still present.
 
-You can also do it by opening your Flutter project's Xcode project with `open ios/Runner.xcworkspace`, selecting `Runner/Assets.xcassets` in the Project Navigator and dropping in the desired images.
+Release polish item: replace the plain launch asset with Epharm branding when App Store/TestFlight
+packaging is prepared.

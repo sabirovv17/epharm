@@ -42,6 +42,7 @@ function toRef(p: StorefrontProductDto): PromoRuleProductRef {
     mnn: p.mnn,
     price: p.price,
     barcode: p.barcode,
+    ipartId: p.ipartId ?? null,
     script: '',
     advantages: [],
     partnerLabel: null,
@@ -68,7 +69,7 @@ export function PromoRulesEditor({
   /** Бонус фармацевту за продажу (из кампании) — для превью карточки кассы. */
   bonus?: number
   disabled?: boolean
-  /** Продвигаемый товар кампании — триггер кросс-селла / предложение замены в превью. */
+  /** Продвигаемый товар кампании — рекомендация для замены и кросс-селла в превью. */
   promotedName?: string
   promotedPrice?: number | null
 }) {
@@ -113,6 +114,8 @@ export function PromoRulesEditor({
   const cleanRef = (r: PromoRuleProductRef): PromoRuleProductRef => ({
     ...r,
     script: (r.script ?? '').trim(),
+    barcode: r.barcode?.trim() || null,
+    ipartId: r.ipartId?.trim() || null,
     advantages: (r.advantages ?? []).map((a) => a.trim()).filter((a) => a.length > 0),
     comparison: (r.comparison ?? []).filter((row) => row.label.trim().length > 0),
     partnerLabel: r.partnerLabel?.trim() || null,
@@ -382,6 +385,7 @@ function PairCard({
   const [open, setOpen] = useState(false)
   const cmp = r.comparison ?? []
   const setComparison = (rows: RuleComparisonRowDto[]) => onPatch({ comparison: rows })
+  const pairActive = r.active !== false
 
   return (
     <li
@@ -395,30 +399,19 @@ function PairCard({
             {r.brand && (
               <div className="truncate text-[11px] font-semibold text-ink-500">{r.brand}</div>
             )}
-            {r.barcode && (
-              <div
-                className="num truncate text-[11px] text-ink-400"
-                data-testid={`pr-barcode-${r.medusaProductId}`}
-              >
-                {t('pr.barcode')}: {r.barcode}
-              </div>
-            )}
           </div>
-          {/* Статус именно этой пары: Активно / Черновик. */}
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => onPatch({ active: r.active === false })}
+          {/* Статус именно этой пары: Активно / Неактивно. */}
+          <div
             data-testid={`pr-status-${r.medusaProductId}`}
-            aria-pressed={r.active !== false}
-            className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors ${
-              r.active !== false
-                ? 'bg-brand-green-50 text-brand-green-700'
-                : 'bg-paper-input text-ink-500'
-            } ${disabled ? 'cursor-default opacity-70' : 'hover:opacity-80'}`}
+            className={`shrink-0 ${disabled ? 'opacity-70' : ''}`}
           >
-            {r.active !== false ? t('pr.statusActive') : t('pr.statusDraft')}
-          </button>
+            <Toggle
+              on={pairActive}
+              onChange={(next) => onPatch({ active: next })}
+              label={pairActive ? t('pr.statusActive') : t('pr.statusInactive')}
+              disabled={disabled}
+            />
+          </div>
           {!disabled && (
             <button
               type="button"
@@ -430,6 +423,33 @@ function PairCard({
               <IconClose size={14} />
             </button>
           )}
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="flex min-w-0 flex-col gap-1">
+            <span className="text-[11px] font-bold uppercase tracking-[0.04em] text-ink-400">
+              {t('pr.barcode')}
+            </span>
+            <Input
+              className="num"
+              value={r.barcode ?? ''}
+              disabled={disabled}
+              data-testid={`pr-barcode-${r.medusaProductId}`}
+              onChange={(e) => onPatch({ barcode: e.target.value || null })}
+            />
+          </label>
+          <label className="flex min-w-0 flex-col gap-1">
+            <span className="text-[11px] font-bold uppercase tracking-[0.04em] text-ink-400">
+              {t('pr.ipartId')}
+            </span>
+            <Input
+              className="num"
+              value={r.ipartId ?? ''}
+              disabled={disabled}
+              data-testid={`pr-ipart-${r.medusaProductId}`}
+              onChange={(e) => onPatch({ ipartId: e.target.value || null })}
+            />
+          </label>
         </div>
 
         <textarea
@@ -608,15 +628,14 @@ function RecommendationPreview({
 
   // Семантика как на кассе (backend PromoRulesService):
   //  • замена   — триггер = заменяемый товар (r), ПРЕДЛОЖИТЕ ВМЕСТО = товар кампании;
-  //  • кросс-селл — триггер = товар кампании (УЖЕ В ЧЕКЕ), ДОБАВЬТЕ = компаньон (r).
+  //  • кросс-селл — триггер = товар уже в чеке (r), ДОБАВЬТЕ = товар кампании.
   const triggerLabel = isReplace ? t('pr.previewAsked') : t('pr.previewInCart')
-  const triggerName = isReplace ? r.name : promotedName
-  // EAN-13 триггера: для замены ключ матчинга на кассе — штрих-код заменяемого
-  // товара (r); для кросс-селла триггер = товар кампании, его barcode тут нет.
-  const triggerBarcode = isReplace ? r.barcode : null
+  const triggerName = r.name
+  // EAN-13 триггера: выбранный товар пары является trigger и для замены, и для кросс-селла.
+  const triggerBarcode = r.barcode
   const offerLabel = isReplace ? t('pr.previewOfferInstead') : t('pr.previewOfferAdd')
-  const offerName = isReplace ? promotedName : r.name
-  const offerPrice = fmtPrice(isReplace ? promotedPrice : r.price)
+  const offerName = promotedName
+  const offerPrice = fmtPrice(promotedPrice)
 
   const goalText =
     goal.label && goal.target != null ? `0/${goal.target} ${goal.label}` : goal.label || null
@@ -638,7 +657,10 @@ function RecommendationPreview({
 
         {/* Триггер: УЖЕ В ЧЕКЕ / ПОКУПАТЕЛЬ ПОПРОСИЛ */}
         {triggerName && (
-          <div className="px-3.5 pb-1 pt-2.5">
+          <div
+            className="px-3.5 pb-1 pt-2.5"
+            data-testid={`pr-preview-trigger-${r.medusaProductId}`}
+          >
             <div className="text-[10px] font-bold uppercase tracking-wide text-ink-400">
               {triggerLabel}
             </div>
@@ -648,7 +670,10 @@ function RecommendationPreview({
         )}
 
         {/* Предложение: ПРЕДЛОЖИТЕ ВМЕСТО / ДОБАВЬТЕ К ПОКУПКЕ */}
-        <div className="mt-1.5 bg-[#F8E7DD] px-3.5 py-3">
+        <div
+          className="mt-1.5 bg-[#F8E7DD] px-3.5 py-3"
+          data-testid={`pr-preview-offer-${r.medusaProductId}`}
+        >
           <div className="flex items-start justify-between gap-2">
             <span className="text-[10px] font-bold uppercase tracking-wide text-[#BE5A38]">
               {offerLabel}

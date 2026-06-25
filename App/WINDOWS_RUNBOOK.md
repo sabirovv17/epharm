@@ -1,161 +1,102 @@
-# POSM клиентский экран (C#/WPF) — запуск на Windows для демо
+# Windows Runbook for POSM Demo
 
-Это десктоп-приложение киоска (клиентский экран кассы), а не Windows-сервис. Запускается
-на Windows (WPF). Цель этой инструкции — поднять и сделать скриншоты для показа.
+Use this when demonstrating or debugging the C#/WPF POSM client on Windows.
 
-## Что увидим
+## Requirements
 
-- **Киоск на весь экран**: слева промо-видео, справа живой чек (Название/Цена/Кол-во/Скидка/Сумма + ИТОГО).
-- **Popup рекомендации** замены/кросс-селла с бонусом фармацевту (клавиша `D` — демо).
+- Windows 10/11 x64.
+- .NET 10 SDK for source builds.
+- `App/` and `Models/` must be copied together because `CustomerDisplay.csproj` references shared DTOs.
+- Optional: a demo MP4 for local video fallback.
 
-> 🎨 **Цвета и термины (2026-06-19):** popup рекомендации и форма клиента (CDP)
-> перекрашены в **фирменный коралл Claude** (`#D97757`), зелёного больше нет;
-> терминология — «кросс-селл» (опечатка «кросс-сейл» исправлена).
->
-> ⚠️ **Готовый zip `builds/Epharm-POSM-v1.0.0-win-x64.zip` собран ДО этого перекраса**
-> (показывает старые зелёные акценты) — WPF не собирается на macOS, поэтому свежий
-> бинарь нужно собрать на Windows. Коралловая версия = пересобрать из исходников:
-> `dotnet run` (демо, §3) или `dotnet publish` (прод, см. `POSM_DEPLOY.md` §1).
-
----
-
-## 0. Требования (один раз)
-
-- **Windows 10/11** (или Windows-VM).
-- **.NET 10 SDK** — проверить: `dotnet --version` → должно быть `10.x`.
-  Нет → поставить SDK с https://dotnet.microsoft.com/download (именно SDK, не только Runtime).
-- VLC отдельно ставить **не нужно** — нативные библиотеки идут NuGet-пакетом `VideoLAN.LibVLC.Windows`.
-
-## 1. Скопировать код в Windows
-
-Нужны **обе** папки рядом: `App/` и `Models/` (csproj подключает `..\Models\**\*.cs`).
-
-```powershell
-git clone <repo> C:\epharm
-cd C:\epharm\App
-```
-
-(или скопировать папки `App` и `Models` вручную в одну родительскую папку.)
-
-## 2. Положить промо-видео на рабочий стол
-
-Приложение играет `Desktop\promo.mp4`. Без него левая панель будет чёрной.
-
-```powershell
-# любой mp4 переименовать в promo.mp4 и положить на рабочий стол:
-copy "C:\путь\к\ролику.mp4" "$env:USERPROFILE\Desktop\promo.mp4"
-```
-
-## 3. Собрать и запустить
+## Run From Source
 
 ```powershell
 cd C:\epharm\App
+$env:EPHARM_POSM_CONFIG = "C:\Epharm\posm.json"
 dotnet run
-# если ругается на RID:  dotnet run -r win-x64
 ```
 
-Откроется на втором мониторе (если есть) или на основном — frameless, на весь экран.
-
-## 4. Что скриншотить
-
-1. **Киоск целиком** — промо слева + панель чека справа. (Скриншот в VM: `Win + Shift + S`.)
-2. **Popup рекомендации** — нажми клавишу **`D`** → всплывёт карточка
-   «Bioderma → SelfieLab Zen, +650 ₸» с кнопками **Заменить (F9)** / **Пропустить (Esc)**.
-   👉 Это главный кадр для показа.
-
-## 5. (Опц.) Наполнить чек реальными позициями для скриншота
-
-Приложение читает лог кассы `C:\Standart-N\Kassir\zkassa.log` как `tail -f`. Пока оно **запущено**,
-допиши строки в кодировке 1251 — позиции появятся на экране:
+If RID is needed:
 
 ```powershell
-$log = "C:\Standart-N\Kassir\zkassa.log"
-New-Item -ItemType Directory -Force -Path (Split-Path $log) | Out-Null
-$enc = [System.Text.Encoding]::GetEncoding(1251)
-$lines = @(
-  "Add2Cheque iPartID=80309(80309);sname=Аквалор Норм спрей 50мл;price=1620;quant=1",
-  "Add2Cheque iPartID=80312(80312);sname=Аквамарис Норм спрей 30мл;price=1480;quant=1",
-  "Add2Cheque iPartID=70150(70150);sname=Пиносол капли;price=890;quant=2"
-)
-foreach ($l in $lines) { [System.IO.File]::AppendAllText($log, "$l`r`n", $enc) }
+dotnet run -r win-x64
 ```
 
-Скидка на весь чек:
-
-```powershell
-[System.IO.File]::AppendAllText($log, "ChequeList.OnChange 4880,00 / 4880,00 (-488,00)`r`n", $enc)
-```
-
-Закрыть чек (очистить экран): строка с `RunScriptByIndex` + `После печати очереди чеков`.
-
-## 6. Реальные рекомендации от backend по ШТРИХ-КОДУ — «как на самом деле»
-
-Чтобы popup приходил не по `D`, а по сканированию товара (через наш Rules Engine), нужно:
-**(а)** включить POSM в `C:\Epharm\posm.json`; **(б)** чтобы у товара в кампании был штрих-код
-(заполняется из Medusa); **(в)** активная кампания с правилом замены/кросс-селла на этот товар.
-
-### Вариант A — против ПРОДА (данные уже залиты и проверены) ⭐ рекомендую
+## Config for Shared Backend
 
 ```json
 {
-  "enabled": true,
-  "backendBaseUrl": "https://epharm.78-140-246-238.sslip.io",
-  "deviceKey": "<POSM_DEVICE_KEY из /root/epharm/.env.prod>",
-  "pharmacistId": "u_smoke",
-  "pharmacyId": "ph_smoke"
+  "Enabled": true,
+  "BackendBaseUrl": "https://epharm.78-140-246-238.sslip.io",
+  "DeviceKey": "<POSM_DEVICE_KEY>",
+  "PharmacistId": "u_smoke",
+  "PharmacyId": "ph_smoke",
+  "ScreenMode": "dev",
+  "PlaylistPollSec": 20
 }
 ```
 
-`deviceKey` — секрет с боевого сервера, узнать (на машине с SSH-доступом):
-`ssh -i ~/.ssh/epharm_deploy root@78.140.246.238 "grep '^POSM_DEVICE_KEY=' /root/epharm/.env.prod"`.
-(`pharmacistId/pharmacyId` на матчинг рекомендации не влияют — любые непустые; реальные id из реестра
-нужны только чтобы бонус привязался к конкретному фармацевту/аптеке.)
+Use local backend with:
 
-### Вариант B — против ЛОКАЛЬНОГО backend (без секретов)
+```json
+{
+  "Enabled": true,
+  "BackendBaseUrl": "http://<host-ip>:8080",
+  "DeviceKey": "dev-posm-key",
+  "PharmacistId": "u_smoke",
+  "PharmacyId": "ph_smoke",
+  "ScreenMode": "dev"
+}
+```
 
-`./gradlew bootRun` в `admin-panel/backend` (профиль dev сидит демо-товары Аквалор/Аквамарис/Пиносол
-с EAN + правило Аквалор→Аквамарис). posm.json: `backendBaseUrl: "http://<IP-хоста>:8080"`,
-`deviceKey: "dev-posm-key"`.
+## Demo Scan
 
-### Демо-скан (пока запущено приложение, дописать в лог в кодировке 1251)
+Append a cp1251 Standard-N-like line while the app is running:
 
 ```powershell
-$log = "C:\Standart-N_DEMO\Apteka_KZ DEMO\Kassir\zkassa.log"   # или твой реальный путь
+$log = "C:\Standart-N_DEMO\Apteka_KZ DEMO\Kassir\zkassa.log"
+New-Item -ItemType Directory -Force -Path (Split-Path $log) | Out-Null
 $enc = [System.Text.Encoding]::GetEncoding(1251)
-# EAN в скобках iPartID=<внутр.код>(<штрихкод>) — так касса увидит штрих-код:
-$line = "Add2Cheque iPartID=80309(4603423001072);sname=Жидкий уголь Комплекс;price=1620;quant=1"
+$line = "Add2Cheque iPartID=80309(4603423004936);sname=Аквалор;price=1620;quant=1"
 [System.IO.File]::AppendAllText($log, "$line`r`n", $enc)
 ```
 
-→ на ПРОДЕ это даёт popup **замена: «Жидкий уголь» → «Нормофтал», бонус 300 ₸**.
-(Вариант B: возьми EAN `4603423004936` и `sname=Аквалор` → замена на «Аквамарис».)
+Barcode in parentheses is the important part. POSM also supports explicit `barcode=`/`ean=` fields.
 
-> **Ключ матчинга — EAN-13 (штрих-код).** Корзина уходит на backend полями `barcode` (EAN-13,
-> первичный ключ), `name` (sname, fallback) и `sku` (iPartID кассы, только диагностика —
-> в матчинге НЕ участвует). Backend матчит сначала по `barcode`, при пустом — по `name`.
-> Клиент извлекает EAN из строки лога робастно: явное поле `barcode=…;` / `ean=…;`,
-> либо значение в скобках `iPartID=<id>(<EAN>)` (если внутри 8/12/13/14 цифр и это не дубль id).
-> Если реальный лог Стандарт-Н пишет штрих-код иначе — добавь поле `barcode=<EAN>;` в строку,
-> либо матчинг сработает по `name`. Когда касса начнёт писать EAN штатно — barcode-матчинг
-> заработает сам, без изменений клиента.
->
-> 🔎 **Где взять штрих-код товара:** админка → кампания/правило → он показан под названием товара
-> (или в «Витрине»). Это тот же EAN из Medusa, что прилетает на кассу при сканировании.
+## Controls
 
-## 7. Управление
+| Key | Action |
+| --- | --- |
+| `D` | Demo recommendation popup if supported by the current build. |
+| `F9` | Accept recommendation. |
+| `Esc` | Skip/close recommendation. |
+| `Q` | Dev exit in demo builds. |
 
-| Клавиша | Действие                         |
-| ------- | -------------------------------- |
-| **D**   | показать демо-popup рекомендации |
-| **F9**  | принять рекомендацию (в popup)   |
-| **Esc** | пропустить рекомендацию          |
-| **Q**   | выйти из приложения              |
+## Logs
 
-## 8. Если что-то не так
+Default app log is on the desktop unless overridden by `EPHARM_APP_LOG`.
 
-- **«The framework 'Microsoft.NETCore.App', version '10…' was not found»** → не установлен .NET 10 SDK.
-- **Левая панель чёрная** → нет `Desktop\promo.mp4`.
-- **Чек пустой** → это норма: позиции появляются из лога кассы (см. п.5).
-- **Кракозябры в названиях** → лог дописан не в кодировке 1251 (используй `[System.Text.Encoding]::GetEncoding(1251)` как в п.5).
-- **Окно не там / нужно закрыть** → нажми **Q**.
-- **VM с одним монитором** → киоск займёт единственный экран (это нормально), выход — **Q**.
+```powershell
+Get-Content "$env:USERPROFILE\Desktop\customerdisplay.log" -Wait -Tail 80
+```
+
+Check for:
+
+- config banner;
+- watched `zkassa.log` paths;
+- parsed lines;
+- `recommend` request/result;
+- playlist polling;
+- heartbeat.
+
+## Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| No popup | Log line read? Barcode present? Active campaign/rule exists? Backend reachable? |
+| 401 from POSM API | Wrong `DeviceKey`. |
+| Empty customer screen | No active broadcast playlist or POSM disabled. |
+| Video black in VM | Disable video or use physical/GPU-backed Windows. |
+| Broken Cyrillic item names | Log was not written as cp1251. |
+| Window position wrong | Check `ScreenMode` and monitor count. |
