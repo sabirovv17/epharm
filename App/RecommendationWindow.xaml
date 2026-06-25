@@ -76,9 +76,6 @@
 
                     <TextBlock x:Name="TbRecommend" Text="" Foreground="#221C16" FontSize="25"
                                FontWeight="Bold" TextWrapping="Wrap" Margin="0,5,0,0"/>
-
-                    <TextBlock x:Name="TbPrice" Text="" Foreground="#221C16" FontSize="23"
-                               FontWeight="Bold" Margin="0,6,0,0"/>
                 </StackPanel>
             </Border>
 
@@ -173,13 +170,6 @@
                                    FontWeight="Medium" TextWrapping="Wrap" Margin="0,2,0,0"/>
                     </StackPanel>
                 </Grid>
-
-                <!-- Подтверждение результата (показывается вместо кнопок, когда реко решена) -->
-                <Border x:Name="PanelStatus" Visibility="Collapsed" CornerRadius="10"
-                        Padding="0,13,0,13" Margin="0,12,0,0">
-                    <TextBlock x:Name="TbStatus" Text="" HorizontalAlignment="Center"
-                               FontSize="16" FontWeight="Bold"/>
-                </Border>
             </StackPanel>
         </StackPanel>
     </Border>

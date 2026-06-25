@@ -30,10 +30,6 @@ namespace CustomerDisplay
         private RecommendationWindow? _recoWindow;
         private ConflictNotificationWindow? _conflictWindow;
 
-        // Синтетический PartId для товаров, добавленных в чек ПО ПРИНЯТОЙ рекомендации (не из лога
-        // кассы). Отрицательный и убывающий — чтобы не пересекаться с реальными iPartID Стандарт-Н.
-        private int _acceptedPartIdSeq = -1000;
-
         // Рекомендации, которые уже показаны и всё ещё актуальны для текущей корзины.
         // Важно: backend идемпотентно возвращает тот же eventId для sessionId+ruleId. Если просто
         // держать eventId до конца чека, то сценарий "удалили товар → просканировали снова" больше
@@ -338,16 +334,11 @@ namespace CustomerDisplay
             }
             _recoWindow?.Close();
 
-            // autoCloseSec=0 → попап НЕ закрывается по таймауту, ждёт решения фармацевта (F9/Esc/✕).
+            // autoCloseSec=0 → попап НЕ закрывается по таймауту, висит до ✕. Карточка
+            // информационная: F9/Esc (принять/пропустить) убраны — факт продажи определяется
+            // по реальному чеку (источник №1 сверки), а не нажатием в окне. Поэтому ни
+            // ApplyAcceptedToCheque, ни outcome-репорт отсюда не нужны.
             var win = new RecommendationWindow(recs, 0, PharmacistScreen());
-            // Каждая реко решается независимо — фиксируем именно ту, по которой принято решение
-            // (окно не закрывается, пока есть нерешённые: можно принять и замену, и кросс-селл).
-            win.Accepted += (_, rec) =>
-            {
-                ApplyAcceptedToCheque(rec); // товар рекомендации появляется в чеке на экране
-                _ = RespondAsync(rec, "accepted");
-            };
-            win.Skipped += (_, rec) => _ = RespondAsync(rec, "rejected");
             win.Closed += (_, _) => { if (ReferenceEquals(_recoWindow, win)) _recoWindow = null; };
             _recoWindow = win;
             win.Show();
@@ -481,88 +472,6 @@ namespace CustomerDisplay
             _shownConflictSigs.Clear();
         }
 
-        /// <summary>
-        /// Применить принятую рекомендацию к чеку на ЭКРАНЕ (визуально):
-        ///   - замена (substitution): убираем исходный товар (по имени-триггеру, best-effort)
-        ///     и добавляем рекомендованный;
-        ///   - кросс-селл: просто добавляем рекомендованный товар.
-        /// Это зеркало для демо/наглядности — реальный чек ведёт Стандарт-Н. Вызывается из UI-потока
-        /// (событие окна), поэтому ObservableCollection меняем напрямую. Новый запрос рекомендаций
-        /// НЕ инициируем (OnCartChanged не зовём) — реко по этому товару уже показана.
-        /// </summary>
-        private void ApplyAcceptedToCheque(Recommendation rec)
-        {
-            if (rec == null || string.IsNullOrWhiteSpace(rec.RecommendName)) return;
-            try
-            {
-                // Замена → убрать исходный товар из чека (имя из лога может быть короче имени из
-                // каталога, поэтому матч по вхождению в любую сторону, без учёта регистра).
-                if (string.Equals(rec.Kind, "substitution", StringComparison.OrdinalIgnoreCase)
-                    && !string.IsNullOrWhiteSpace(rec.TriggerName))
-                {
-                    var tn = rec.TriggerName!.Trim();
-                    var trig = ReceiptItems.FirstOrDefault(x =>
-                        !string.IsNullOrWhiteSpace(x.Name) &&
-                        (x.Name.Contains(tn, StringComparison.OrdinalIgnoreCase) ||
-                         tn.Contains(x.Name.Trim(), StringComparison.OrdinalIgnoreCase)));
-                    if (trig != null) ReceiptItems.Remove(trig);
-                }
-
-                ReceiptItems.Add(new Models.ReceiptItem
-                {
-                    PartId = _acceptedPartIdSeq--,        // синтетический id (не из кассы)
-                    Barcode = rec.RecommendBarcode,       // EAN-13 рекомендованного товара
-                    Name = rec.RecommendName,
-                    Price = rec.RecommendPrice,           // int → decimal
-                    Qty = 1m,
-                    DiscountPercent = 0m,
-                });
-                RecalcTotal();
-                var kind = rec.IsSubstitution ? "замена" : "кросс-селл";
-                Log($"Рекомендация принята ({kind}) — товар добавлен в чек: {rec.RecommendName} " +
-                    $"(EAN {rec.RecommendBarcode ?? "—"})");
-                if (rec.RecommendPrice <= 0)
-                    Log($"POSM price: цена рекомендации неизвестна для {rec.RecommendName}; " +
-                        "backend/Medusa вернул 0, на клиентском экране показываю —");
-            }
-            catch (Exception ex)
-            {
-                Log($"ApplyAcceptedToCheque error: {ex.Message}");
-            }
-        }
-
-        private async Task RespondAsync(Recommendation rec, string outcome)
-        {
-            // Окно НЕ закрываем здесь — оно живёт, пока есть нерешённые рекомендации, и само
-            // обнулит _recoWindow в своём Closed. Тут только фиксируем результат на backend.
-            if (_epharm == null) return;
-            try
-            {
-                var ok = await _epharm.RecordOutcomeAsync(
-                    rec.EventId,
-                    new OutcomeRequest { Outcome = outcome, FinalSku = rec.RecommendSku });
-                if (!ok)
-                {
-                    // нет связи — кладём в outbox, flusher досылет
-                    EnqueueOutcome(rec, outcome);
-                }
-                Log($"POSM outcome {outcome} eventId={rec.EventId} → {(ok ? "ok" : "queued (outbox)")}");
-            }
-            catch (Exception ex)
-            {
-                EnqueueOutcome(rec, outcome);
-                Log($"POSM outcome error → outbox: {ex.Message}");
-            }
-        }
-
-        private void EnqueueOutcome(Recommendation rec, string outcome)
-        {
-            if (_outbox == null) return;
-            var payload = System.Text.Json.JsonSerializer.Serialize(
-                new OutboxOutcomePayload { EventId = rec.EventId, Outcome = outcome, FinalSku = rec.RecommendSku },
-                EpharmJson.Options);
-            _outbox.Enqueue($"oc_{rec.EventId}_{outcome}", "outcome", payload);
-        }
 
         /// <summary>
         /// Вызывается при печати/завершении чека ДО очистки позиций. Фиксирует продажу (источник №1),

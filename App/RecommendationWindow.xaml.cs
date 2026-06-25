@@ -21,7 +21,6 @@ namespace CustomerDisplay
     public partial class RecommendationWindow : Window
     {
         private readonly List<Recommendation> _recs;
-        private readonly int[] _status; // 0 = не решено, 1 = принято, 2 = пропущено
         private int _index;
 
         /// <summary>Текущая показанная рекомендация (на активном табе).</summary>
@@ -33,13 +32,8 @@ namespace CustomerDisplay
         /// <summary>Все рекомендации, показанные в текущем popup-е.</summary>
         public IReadOnlyList<Recommendation> Recommendations => _recs;
 
-        /// <summary>Фармацевт принял рекомендацию (F9) — передаётся именно принятая.</summary>
-        public event EventHandler<Recommendation>? Accepted;
-
-        /// <summary>Фармацевт пропустил рекомендацию (Esc/кнопка) — передаётся именно пропущенная.</summary>
-        public event EventHandler<Recommendation>? Skipped;
-
-        // null = автозакрытия по таймауту НЕТ (autoCloseSec <= 0). Окно ждёт F9/Esc/✕.
+        // null = автозакрытия по таймауту НЕТ (autoCloseSec <= 0). Окно живёт до ✕/таймаута.
+        // Карточка информационная: решение (F9/Esc) убрано — факт определяется по реальному чеку.
         private readonly DispatcherTimer? _autoClose;
         private readonly System.Windows.Forms.Screen? _targetScreen;
 
@@ -55,11 +49,10 @@ namespace CustomerDisplay
         {
             InitializeComponent();
             _recs = (recs != null && recs.Count > 0) ? recs : new List<Recommendation> { new Recommendation() };
-            _status = new int[_recs.Count];
             _targetScreen = targetScreen;
 
             // Автозакрытие по таймауту — только если autoCloseSec > 0. Для рекомендаций кассы
-            // передаём 0: окно висит, пока фармацевт не примет (F9) / не пропустит (Esc) / не закроет.
+            // передаём 0: окно висит, пока фармацевт не закроет (✕).
             if (autoCloseSec > 0)
             {
                 _autoClose = new DispatcherTimer { Interval = TimeSpan.FromSeconds(autoCloseSec) };
@@ -79,12 +72,11 @@ namespace CustomerDisplay
             _index = Math.Max(0, Math.Min(i, _recs.Count - 1));
             Fill(_recs[_index]);
             BuildTabs();
-            UpdateDecisionUI();
             _autoClose?.Stop();
             _autoClose?.Start();
         }
 
-        /// <summary>Перерисовать табы «Замена | Кросс-селл» со статусом (✓ принято / ✕ пропущено). Скрыты при 1 реко.</summary>
+        /// <summary>Перерисовать табы «Замена | Кросс-селл» (клик/Tab переключают). Скрыты при 1 реко.</summary>
         private void BuildTabs()
         {
             if (_recs.Count <= 1)
@@ -97,20 +89,15 @@ namespace CustomerDisplay
             for (int i = 0; i < _recs.Count; i++)
             {
                 var label = _recs[i].IsSubstitution ? "Замена" : "Кросс-селл";
-                if (_status[i] == 1) label += " ✓";
-                else if (_status[i] == 2) label += " ✕";
-                TabsPanel.Children.Add(MakeTab(label, i, i == _index, _status[i]));
+                TabsPanel.Children.Add(MakeTab(label, i, i == _index));
             }
         }
 
-        private Border MakeTab(string text, int i, bool active, int status)
+        private Border MakeTab(string text, int i, bool active)
         {
-            // Цвет таба: активный (текущий просмотр) — коралл; принятый — кремовый с ✓;
-            // пропущенный — серый; ожидающий — обычный. Так видно, что замена/кросс-селл применились.
+            // Цвет таба: активный (текущий просмотр) — коралл; остальные — обычные.
             Brush bg, fg;
             if (active) { bg = Brush("#D97757"); fg = Brushes.White; }
-            else if (status == 1) { bg = Brush("#F8E7DD"); fg = Brush("#BE5A38"); }
-            else if (status == 2) { bg = Brushes.Transparent; fg = Brush("#9D9388"); }
             else { bg = Brushes.Transparent; fg = Brush("#423B32"); }
 
             var tb = new TextBlock
@@ -136,35 +123,6 @@ namespace CustomerDisplay
             return border;
         }
 
-        /// <summary>
-        /// Низ карточки: для нерешённой реко — без действий; для решённой — заметная плашка-подтверждение
-        /// «✓ Замена применена» / «✓ Кросс-селл применён» (зелёная) либо «Пропущено» (серая).
-        /// </summary>
-        private void UpdateDecisionUI()
-        {
-            int st = _status[_index];
-            if (st == 0)
-            {
-                PanelStatus.Visibility = Visibility.Collapsed;
-            }
-            else
-            {
-                PanelStatus.Visibility = Visibility.Visible;
-                if (st == 1)
-                {
-                    PanelStatus.Background = Brush("#D97757");
-                    TbStatus.Foreground = Brushes.White;
-                    TbStatus.Text = Current.IsSubstitution ? "✓ Замена применена" : "✓ Кросс-селл применён";
-                }
-                else
-                {
-                    PanelStatus.Background = Brush("#EFEAE2");
-                    TbStatus.Foreground = Brush("#6F665B");
-                    TbStatus.Text = "Пропущено";
-                }
-            }
-        }
-
         /// <summary>Раскладывает данные рекомендации по карточке; пустые секции прячет.</summary>
         private void Fill(Recommendation rec)
         {
@@ -174,7 +132,8 @@ namespace CustomerDisplay
             TbTriggerLabel.Text = rec.IsSubstitution ? "ПОКУПАТЕЛЬ ПОПРОСИЛ" : "УЖЕ В ЧЕКЕ";
             if (!string.IsNullOrWhiteSpace(rec.TriggerName))
             {
-                TbTrigger.Text = JoinDot(rec.TriggerName, rec.TriggerVolume, PriceText(rec.TriggerPrice));
+                // Цену в попапе НЕ показываем (ни значение, ни «уточняется») — только товар и объём.
+                TbTrigger.Text = JoinDot(rec.TriggerName, rec.TriggerVolume);
                 PanelTrigger.Visibility = Visibility.Visible;
             }
             else
@@ -195,7 +154,6 @@ namespace CustomerDisplay
             }
 
             TbRecommend.Text = rec.RecommendName;
-            TbPrice.Text = PriceText(rec.RecommendPrice);
 
             // Сравнение vs запасной список преимуществ
             if (rec.Comparison != null && rec.Comparison.Count > 0)
@@ -258,12 +216,6 @@ namespace CustomerDisplay
             return value.Value.ToString("#,0").Replace(",", " ") + " ₸";
         }
 
-        private static string PriceText(int? value)
-        {
-            if (!value.HasValue) return "";
-            return value.Value > 0 ? Money(value) : "цена уточняется";
-        }
-
         /// <summary>Склеивает непустые части через « · ».</summary>
         private static string JoinDot(params string?[] parts)
             => string.Join(" · ", parts.Where(s => !string.IsNullOrWhiteSpace(s)));
@@ -288,57 +240,16 @@ namespace CustomerDisplay
 
         private void OnKeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.F9) DecideCurrent(accepted: true);
-            else if (e.Key == Key.Escape) DecideCurrent(accepted: false);
-            else if (e.Key == Key.Tab && _recs.Count > 1)
+            // Tab переключает табы «Замена | Кросс-селл» (если рекомендаций >1). F9 (принять) и
+            // Esc (пропустить) убраны: карточка информационная, факт — по реальному чеку (сверка).
+            if (e.Key == Key.Tab && _recs.Count > 1)
             {
-                ShowAt((_index + 1) % _recs.Count); // Tab переключает между табами
+                ShowAt((_index + 1) % _recs.Count);
                 e.Handled = true;
             }
         }
 
-        /// <summary>✕ — закрыть всю карточку (нерешённые рекомендации не фиксируем).</summary>
+        /// <summary>✕ — закрыть карточку.</summary>
         private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
-
-        /// <summary>
-        /// Решение по ТЕКУЩЕЙ рекомендации (принять/пропустить). Фиксирует её результат и переходит
-        /// к следующей нерешённой; если решены все — закрывает окно. Так фармацевт может принять и
-        /// замену, и кросс-селл по очереди.
-        /// </summary>
-        private void DecideCurrent(bool accepted)
-        {
-            if (_status[_index] == 0)
-            {
-                _status[_index] = accepted ? 1 : 2;
-                var rec = _recs[_index];
-                if (accepted) Accepted?.Invoke(this, rec);
-                else Skipped?.Invoke(this, rec);
-            }
-
-            int next = FirstPending();
-            if (next >= 0)
-            {
-                ShowAt(next); // ещё есть нерешённые — переходим к ним
-            }
-            else
-            {
-                // решены все — показываем финальное подтверждение текущей, затем закрываем с
-                // задержкой, чтобы фармацевт успел увидеть, что применилось.
-                BuildTabs();
-                UpdateDecisionUI();
-                _autoClose?.Stop();
-                var closeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1200) };
-                closeTimer.Tick += (_, _) => { closeTimer.Stop(); Close(); };
-                closeTimer.Start();
-            }
-        }
-
-        /// <summary>Индекс первой нерешённой рекомендации, или -1 если решены все.</summary>
-        private int FirstPending()
-        {
-            for (int i = 0; i < _status.Length; i++)
-                if (_status[i] == 0) return i;
-            return -1;
-        }
     }
 }

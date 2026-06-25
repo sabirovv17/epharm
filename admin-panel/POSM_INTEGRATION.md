@@ -83,11 +83,15 @@ This replaced the obsolete `product_pos_codes` approach; the table was dropped i
 1. POSM reads `Add2Cheque` line.
 2. POSM updates checkout session and sends cart to `/api/posm/recommend`.
 3. Backend filters active campaign rules and returns recommendations.
-4. POSM displays recommendation on the pharmacist screen.
-5. `F9` -> `/api/posm/recommendations/{eventId}/outcome` with accepted.
-6. Backend creates `pending_bonus`.
-7. POSM later sends printed sale to `/api/posm/sales`.
-8. Reconcile matches sale/Excel/mobile evidence and credits bonus on approval.
+4. POSM displays the recommendation on the pharmacist screen (informational popup; no
+   accept/skip key — the previous `F9`/`Esc` actions were removed).
+5. POSM sends the printed sale to `/api/posm/sales`.
+6. Reconcile matches sale/Excel/mobile evidence and credits bonus on approval —
+   fulfillment is attributed from the real sale, not a key press in the popup.
+
+The outcome endpoint (`/api/posm/recommendations/{eventId}/outcome`) still exists on the
+backend and is supported by the outbox for backward compatibility, but the current client
+no longer calls it from the popup.
 
 ## Reconciliation Sources
 

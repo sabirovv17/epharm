@@ -66,11 +66,13 @@ Barcode in parentheses is the important part. POSM also supports explicit `barco
 
 ## Controls
 
+The recommendation popup is informational: there is no accept/skip key. Fulfillment is
+determined from the actual printed sale during reconciliation, not from a key press.
+
 | Key   | Action                                                       |
 | ----- | ------------------------------------------------------------ |
 | `D`   | Demo recommendation popup if supported by the current build. |
-| `F9`  | Accept recommendation.                                       |
-| `Esc` | Skip/close recommendation.                                   |
+| `Tab` | Switch Substitution / Cross-sell tabs (when both are shown). |
 | `Q`   | Dev exit in demo builds.                                     |
 
 ## Logs

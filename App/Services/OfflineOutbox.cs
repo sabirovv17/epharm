@@ -35,6 +35,14 @@ namespace CustomerDisplay.Services
         private void Init()
         {
             using var conn = Open();
+            // WAL + synchronous=NORMAL — устойчивость к внезапному обесточиванию/крашу кассы
+            // (форс-мажор): незавершённая транзакция откатывается, БД не бьётся, очередь переживает
+            // power-loss. WAL также не блокирует чтение во время записи.
+            using (var pragma = conn.CreateCommand())
+            {
+                pragma.CommandText = "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;";
+                pragma.ExecuteNonQuery();
+            }
             using var cmd = conn.CreateCommand();
             cmd.CommandText = @"
                 CREATE TABLE IF NOT EXISTS outbox (
