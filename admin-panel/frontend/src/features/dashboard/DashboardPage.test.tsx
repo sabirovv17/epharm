@@ -65,6 +65,7 @@ function mkAnalytics(over: Partial<RecommendationAnalyticsDto> = {}): Recommenda
         type: 'show',
         at: '2026-06-26T10:00:00Z',
         title: 'SelfieLab Zen',
+        triggerName: 'Супрастин',
         pharmacyId: 'ph_1',
         pharmacyName: 'Аптека Центр',
         pharmacistId: 'u_1',
@@ -78,6 +79,7 @@ function mkAnalytics(over: Partial<RecommendationAnalyticsDto> = {}): Recommenda
         type: 'sale',
         at: '2026-06-26T10:01:05Z',
         title: 'Аквамарис +1',
+        triggerName: null,
         pharmacyId: 'ph_1',
         pharmacyName: 'Аптека Центр',
         pharmacistId: 'u_1',
@@ -164,7 +166,8 @@ describe('DashboardPage — Журнал показов и продаж (V032)',
     expect(screen.getByTestId('recan-kpis')).toBeInTheDocument()
     // показ
     expect(screen.getByTestId('recan-row-rec_1')).toBeInTheDocument()
-    expect(screen.getByText('SelfieLab Zen')).toBeInTheDocument()
+    expect(screen.getByText('SelfieLab Zen')).toBeInTheDocument() // что рекомендовали
+    expect(screen.getByText(/выбрали: Супрастин/)).toBeInTheDocument() // что выбрал покупатель
     // продажа (из второй таблицы) в том же логе
     expect(screen.getByTestId('recan-row-sale_1')).toBeInTheDocument()
     expect(screen.getByText('Аквамарис +1')).toBeInTheDocument()

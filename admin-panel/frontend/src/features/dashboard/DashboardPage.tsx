@@ -232,17 +232,24 @@ function RecommendationsSection() {
                       {e.type === 'sale' ? t('recan.kindSale') : t('recan.kindShow')}
                     </span>
                   </td>
-                  <td className="py-2.5 pr-3 font-extrabold text-ink-900">
-                    {e.title}
-                    {e.type === 'show' && e.converted && (
-                      <span className="chip chip-green ml-2 whitespace-nowrap font-normal">
-                        {t('recan.soldIn', { t: fmtSecs(e.secondsToSale ?? 0) })}
-                      </span>
-                    )}
-                    {e.type === 'sale' && e.secondsToSale != null && (
-                      <span className="chip chip-green ml-2 whitespace-nowrap font-normal">
-                        {t('recan.soldAfter', { t: fmtSecs(e.secondsToSale) })}
-                      </span>
+                  <td className="py-2.5 pr-3">
+                    <div className="font-extrabold text-ink-900">
+                      {e.title}
+                      {e.type === 'show' && e.converted && (
+                        <span className="chip chip-green ml-2 whitespace-nowrap font-normal">
+                          {t('recan.soldIn', { t: fmtSecs(e.secondsToSale ?? 0) })}
+                        </span>
+                      )}
+                      {e.type === 'sale' && e.secondsToSale != null && (
+                        <span className="chip chip-green ml-2 whitespace-nowrap font-normal">
+                          {t('recan.soldAfter', { t: fmtSecs(e.secondsToSale) })}
+                        </span>
+                      )}
+                    </div>
+                    {e.type === 'show' && e.triggerName && (
+                      <div className="text-[11px] text-ink-500">
+                        {t('recan.chose', { n: e.triggerName })}
+                      </div>
                     )}
                   </td>
                   <td className="py-2.5 pr-3 text-ink-600">{e.pharmacyName}</td>

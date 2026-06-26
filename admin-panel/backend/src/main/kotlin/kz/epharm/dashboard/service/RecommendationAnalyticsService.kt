@@ -3,6 +3,7 @@ package kz.epharm.dashboard.service
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import kotlin.math.roundToInt
+import kz.epharm.catalog.repository.ProductRepository
 import kz.epharm.dashboard.dto.LogEntryDto
 import kz.epharm.dashboard.dto.RecommendationAnalyticsDto
 import kz.epharm.dashboard.dto.TimeBucketDto
@@ -27,6 +28,7 @@ class RecommendationAnalyticsService(
     private val posSaleRepository: PosSaleRepository,
     private val pharmacyRepository: PharmacyRepository,
     private val pharmacistRepository: PharmacistRepository,
+    private val productRepository: ProductRepository,
     @Value("\${app.analytics.window-days:90}") private val windowDays: Long,
 ) {
 
@@ -36,6 +38,7 @@ class RecommendationAnalyticsService(
         val type: String,
         val at: Instant,
         val title: String,
+        val triggerSku: String?,
         val pharmacyId: String,
         val pharmacistId: String,
         val amount: Long,
@@ -64,7 +67,8 @@ class RecommendationAnalyticsService(
         val showRaw = shows.map { e ->
             Raw(
                 id = e.id, type = "show", at = e.displayedAt ?: e.shownAt,
-                title = e.recommendName, pharmacyId = e.pharmacyId, pharmacistId = e.pharmacistId,
+                title = e.recommendName, triggerSku = e.triggerSku,
+                pharmacyId = e.pharmacyId, pharmacistId = e.pharmacistId,
                 amount = e.expectedAmount, converted = e.soldAt != null, secondsToSale = e.secondsToSale,
             )
         }
@@ -77,7 +81,8 @@ class RecommendationAnalyticsService(
         val saleRaw = sales.map { s ->
             Raw(
                 id = s.id, type = "sale", at = s.printedAt,
-                title = saleTitle(s.items), pharmacyId = s.pharmacyId, pharmacistId = s.pharmacistId,
+                title = saleTitle(s.items), triggerSku = null,
+                pharmacyId = s.pharmacyId, pharmacistId = s.pharmacistId,
                 amount = s.totalAmount, converted = false, secondsToSale = saleToSecs[s.id],
             )
         }
@@ -89,6 +94,10 @@ class RecommendationAnalyticsService(
         val pharmacistNames = namesByIds(rows.map { it.pharmacistId }) { ids ->
             pharmacistRepository.findAllById(ids).associate { it.id to it.name }
         }
+        // triggerSku — productId товара-триггера («что выбрал покупатель»); резолвим в имя.
+        val triggerNames = namesByIds(rows.mapNotNull { it.triggerSku }) { ids ->
+            productRepository.findAllById(ids).associate { it.id to it.name }
+        }
 
         val log = rows.map { r ->
             LogEntryDto(
@@ -96,6 +105,7 @@ class RecommendationAnalyticsService(
                 type = r.type,
                 at = r.at,
                 title = r.title,
+                triggerName = r.triggerSku?.let { triggerNames[it] },
                 pharmacyId = r.pharmacyId,
                 pharmacyName = pharmacyNames[r.pharmacyId] ?: r.pharmacyId.ifBlank { "—" },
                 pharmacistId = r.pharmacistId,

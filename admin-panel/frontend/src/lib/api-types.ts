@@ -528,7 +528,8 @@ export interface LogEntryDto {
   id: string
   type: string // "show" | "sale"
   at: string // точное время события (ISO/UTC)
-  title: string // что: рекомендованный товар (показ) / состав чека (продажа)
+  title: string // что РЕКОМЕНДОВАЛИ (показ) / состав чека (продажа)
+  triggerName: string | null // что ВЫБРАЛ покупатель — товар-триггер (только показ)
   pharmacyId: string
   pharmacyName: string
   pharmacistId: string

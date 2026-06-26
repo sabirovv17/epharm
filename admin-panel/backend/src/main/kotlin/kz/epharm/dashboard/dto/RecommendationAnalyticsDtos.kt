@@ -31,7 +31,8 @@ data class LogEntryDto(
     val id: String,
     val type: String,             // "show" (показ) | "sale" (продажа)
     val at: Instant,              // точное время события
-    val title: String,            // что: рекомендованный товар (показ) / состав чека (продажа)
+    val title: String,            // что: РЕКОМЕНДОВАННЫЙ товар (показ) / состав чека (продажа)
+    val triggerName: String?,     // что ВЫБРАЛ покупатель — товар-триггер (только для показа)
     val pharmacyId: String,
     val pharmacyName: String,
     val pharmacistId: String,

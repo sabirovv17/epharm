@@ -209,7 +209,8 @@ class RecommendationAttributionIntegrationTest {
         val show = dto.log.first { it.id == rec.eventId }
         assertEquals("show", show.type)
         assertTrue(show.converted)
-        assertEquals("SelfieLab Zen", show.title)        // рекомендованный товар
+        assertEquals("SelfieLab Zen", show.title)        // ЧТО рекомендовали
+        assertEquals("Bioderma", show.triggerName)       // ЧТО выбрал покупатель (триггер)
         assertEquals("Аптека Т", show.pharmacyName)      // резолв pharmacyId → имя
         assertEquals("Тест Фарм", show.pharmacistName)   // резолв pharmacistId → имя
 
