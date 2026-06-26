@@ -25,5 +25,7 @@ export function useRecommendationAnalytics() {
       api
         .get<RecommendationAnalyticsDto>('/api/admin/dashboard/recommendations')
         .then((r) => r.data),
+    // Авто-обновление: новые показы/продажи с кассы появляются в разделе без ручного F5.
+    refetchInterval: 15_000,
   })
 }
