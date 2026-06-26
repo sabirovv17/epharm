@@ -22,7 +22,7 @@ Backend:
 - Spring Boot 3.3.5;
 - JVM 22;
 - PostgreSQL 16;
-- Flyway V001-V030;
+- Flyway V001-V032;
 - Redis;
 - MinIO/S3;
 - Testcontainers/JUnit/MockK.
@@ -78,6 +78,11 @@ POSM:
 - Screen updates use HTTP polling; SSE mode was cancelled.
 - Cash-desk online count uses heartbeat.
 - App auto-update uses `/api/posm/app/version` and SHA256-verified HTTPS zip.
+- Показ рекомендации пингуется в backend (`POST .../{eventId}/shown` → `displayed_at`) через тот же
+  outbox; продажа атрибутируется к показу по `session_id` (V032: `sold_at` / `sale_id` /
+  `seconds_to_sale`). Аналитика — Dashboard «Показанные рекомендации»
+  (`GET /api/admin/dashboard/recommendations`): конверсия показ→продажа, ≤2 мин, среднее/медиана
+  времени до продажи, «лог» событий. Атрибуция — чистая аналитика, бонусы/выплаты не трогает.
 
 ## Current Product Decisions
 

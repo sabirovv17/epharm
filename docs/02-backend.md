@@ -48,6 +48,7 @@ The backend is a modular monolith under package `kz.epharm`.
 
 - `POST /api/admin/auth/login|refresh|logout`, `GET /api/admin/auth/me`
 - `/api/admin/dashboard/summary`
+- `/api/admin/dashboard/recommendations` — конверсия показ→продажа + время до продажи (V032)
 - `/api/admin/catalog/products`, `/brands`, `/mnn-groups`
 - `/api/admin/rules/**`
 - `/api/admin/promo/**`, including `/refresh-prices` and `/{id}/rules`
@@ -94,6 +95,7 @@ All POSM endpoints require `X-Posm-Key`.
 
 - `POST /api/posm/recommend`
 - `POST /api/posm/recommendations/{eventId}/outcome`
+- `POST /api/posm/recommendations/{eventId}/shown` — факт+время показа попапа (V032, атрибуция)
 - `POST /api/posm/sales`
 - `GET /api/posm/playlists/active?pharmacyId=...`
 - `GET /api/posm/app/version`

@@ -22,6 +22,7 @@ class PosSaleService(
     private val posSaleRepository: PosSaleRepository,
     private val reconcileService: ReconcileService,
     private val rulesEngineService: RulesEngineService,
+    private val attributionService: RecommendationAttributionService,
 ) {
 
     private val log = LoggerFactory.getLogger(PosSaleService::class.java)
@@ -33,7 +34,7 @@ class PosSaleService(
             return false
         }
 
-        posSaleRepository.save(
+        val sale = posSaleRepository.save(
             PosSaleEntity(
                 id = req.saleId,
                 sessionId = req.sessionId,
@@ -53,6 +54,9 @@ class PosSaleService(
         // (а не iPartID кассы). Не разрезолвилось — отдаём исходный sku (в проде не сматчится → ок).
         val cartItems = req.items.map { CartItemDto(sku = it.sku, barcode = it.barcode, name = it.name, qty = it.qty) }
         val productIds = rulesEngineService.resolveToProductIds(cartItems)
+
+        // Атрибуция показ→продажа (V032): закрываем рекомендации этой сессии, чей товар попал в чек.
+        attributionService.attributeSale(sale, productIds.filterNotNull().toSet())
 
         reconcileService.ingestLogSale(
             LogSaleInput(

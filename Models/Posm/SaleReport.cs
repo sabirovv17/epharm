@@ -39,4 +39,15 @@ namespace CustomerDisplay.Models.Posm
         public string Outcome { get; set; } = "";
         public string? FinalSku { get; set; }
     }
+
+    /// <summary>
+    /// Полезная нагрузка пинга «рекомендация показана» (в outbox, V032). Гарантированная доставка
+    /// факта и времени показа фармацевту — даже при пропадании интернета/форс-мажоре доезжает,
+    /// когда связь восстановится.
+    /// </summary>
+    public sealed class OutboxShownPayload
+    {
+        public string EventId { get; set; } = "";
+        public DateTimeOffset ShownAt { get; set; } = DateTimeOffset.UtcNow;
+    }
 }

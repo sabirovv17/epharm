@@ -107,6 +107,20 @@ class RecommendationService(
         return text to card.goalBonus
     }
 
+    /**
+     * Фиксация фактического показа попапа (V032): касса шлёт client-время показа через outbox.
+     * Идемпотентно — пишем displayedAt только если ещё пусто. Толерантно к неизвестному eventId
+     * (no-op без ошибки), чтобы outbox-пинг не зацикливался на 404, если событие не дошло.
+     */
+    @Transactional
+    fun markDisplayed(eventId: String, shownAt: Instant) {
+        val event = eventRepository.findById(eventId).orElse(null) ?: return
+        if (event.displayedAt == null) {
+            event.displayedAt = shownAt
+            eventRepository.save(event)
+        }
+    }
+
     @Transactional
     fun recordOutcome(eventId: String, req: OutcomeRequest): OutcomeResponse {
         val event = eventRepository.findById(eventId).orElseThrow {

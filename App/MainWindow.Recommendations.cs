@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -380,6 +381,27 @@ namespace CustomerDisplay
                 TriggerBarcode = rec.TriggerBarcode,
                 TriggerName = rec.TriggerName,
             };
+            EnqueueShownPing(rec.EventId);
+        }
+
+        /// <summary>
+        /// Пинг «рекомендация показана» (V032) в outbox — гарантированная доставка факта и времени
+        /// показа фармацевту (для аналитики «время до продажи»). id = "shown_"+eventId → один пинг на
+        /// событие (INSERT OR IGNORE идемпотентно). Демо-карточки (клавиша D / превью) не шлём — их
+        /// eventId нет в БД. Любая ошибка проглатывается: касса не должна тормозить из-за телеметрии.
+        /// </summary>
+        private void EnqueueShownPing(string eventId)
+        {
+            if (_outbox == null || eventId == "demo" || eventId == "demo-cross") return;
+            try
+            {
+                var payload = new OutboxShownPayload { EventId = eventId, ShownAt = DateTimeOffset.UtcNow };
+                _outbox.Enqueue("shown_" + eventId, "shown", JsonSerializer.Serialize(payload, EpharmJson.Options));
+            }
+            catch (Exception ex)
+            {
+                Log($"shown-ping enqueue error: {ex.Message}");
+            }
         }
 
         private bool RecommendationAppliesToCurrentCart(Recommendation rec)

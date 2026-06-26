@@ -64,6 +64,23 @@ class RecommendationEventEntity(
 
     @Column(name = "decided_at")
     var decidedAt: Instant? = null,
+
+    // ── Атрибуция продажи (V032): конверсия показ→продажа + время до продажи ──
+    /** Когда касса РЕАЛЬНО показала попап (пинг из outbox); fallback для тайминга — shownAt. */
+    @Column(name = "displayed_at")
+    var displayedAt: Instant? = null,
+
+    /** printed_at чека, в котором продан рекомендованный товар (null — ещё не продан). */
+    @Column(name = "sold_at")
+    var soldAt: Instant? = null,
+
+    /** Какой pos_sale закрыл рекомендацию (для трассировки). */
+    @Column(name = "sale_id", length = 64)
+    var saleId: String? = null,
+
+    /** Время от показа до продажи в секундах: soldAt − COALESCE(displayedAt, shownAt). */
+    @Column(name = "seconds_to_sale")
+    var secondsToSale: Int? = null,
 ) {
     var kind: RecommendationKind
         get() = RecommendationKind.valueOf(kindRaw)

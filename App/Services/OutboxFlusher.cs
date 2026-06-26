@@ -80,6 +80,11 @@ namespace CustomerDisplay.Services
                         return o != null && await _api
                             .RecordOutcomeAsync(o.EventId, new OutcomeRequest { Outcome = o.Outcome, FinalSku = o.FinalSku })
                             .ConfigureAwait(false);
+                    case "shown":
+                        var sh = JsonSerializer.Deserialize<OutboxShownPayload>(item.Payload, EpharmJson.Options);
+                        return sh != null && await _api
+                            .MarkShownAsync(sh.EventId, sh.ShownAt)
+                            .ConfigureAwait(false);
                     default:
                         return true; // неизвестный тип — выкидываем, чтобы не копился
                 }

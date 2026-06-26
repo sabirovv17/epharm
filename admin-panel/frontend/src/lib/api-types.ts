@@ -517,6 +517,44 @@ export interface DashboardSummaryDto {
   topProducts: TopProductDto[]
 }
 
+// ─── Аналитика «Показано рекомендаций» (V032) — конверсия показ→продажа + время до продажи ───
+export interface TimeBucketDto {
+  label: string
+  count: number
+}
+
+/** Одна показанная рекомендация — строка «лога» в красивой таблице. */
+export interface RecommendationEventRowDto {
+  id: string
+  shownAt: string
+  kind: string // substitution | crosssell
+  ruleId: string
+  triggerName: string | null
+  recommendName: string
+  recommendSku: string
+  pharmacyId: string
+  pharmacyName: string
+  pharmacistId: string
+  pharmacistName: string
+  amount: number
+  converted: boolean
+  soldAt: string | null
+  secondsToSale: number | null
+}
+
+export interface RecommendationAnalyticsDto {
+  windowDays: number
+  shown: number
+  converted: number
+  convRate: number
+  convertedUnder2m: number
+  avgSecondsToSale: number | null
+  medianSecondsToSale: number | null
+  attributedRevenue: number
+  buckets: TimeBucketDto[]
+  events: RecommendationEventRowDto[]
+}
+
 // ─── Lift (Этап 3.6) — pilot vs control аналитика ───
 export interface LiftSegmentDto {
   name: string

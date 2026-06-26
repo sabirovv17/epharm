@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace CustomerDisplay.Models.Posm
@@ -117,5 +118,15 @@ namespace CustomerDisplay.Models.Posm
         public string EventId { get; set; } = "";
         public string Outcome { get; set; } = "";
         public string? PendingBonusId { get; set; }
+    }
+
+    /// <summary>
+    /// Подтверждение фактического показа попапа фармацевту (V032). Касса шлёт client-время показа;
+    /// по нему backend считает время до продажи точнее, чем по моменту генерации рекомендации.
+    /// Зеркалит kz.epharm.posm.dto.MarkShownRequest.
+    /// </summary>
+    public sealed class MarkShownRequest
+    {
+        public DateTimeOffset ShownAt { get; set; } = DateTimeOffset.UtcNow;
     }
 }

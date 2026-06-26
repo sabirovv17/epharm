@@ -68,6 +68,12 @@ interface RecommendationEventRepository : JpaRepository<RecommendationEventEntit
     /** Все события чека — для фильтра «не показывать отклонённое в этом чеке». */
     fun findAllBySessionId(sessionId: String): List<RecommendationEventEntity>
 
+    /** Неатрибутированные показы этого чека — кандидаты на закрытие продажей (V032). */
+    fun findBySessionIdAndSoldAtIsNull(sessionId: String): List<RecommendationEventEntity>
+
+    /** События за период (свежие первыми) — для раздела аналитики «Показано рекомендаций». */
+    fun findByShownAtGreaterThanEqualOrderByShownAtDesc(since: Instant): List<RecommendationEventEntity>
+
     /** Последнее событие правила в этом чеке — для идемпотентного показа. */
     fun findFirstBySessionIdAndRuleIdOrderByShownAtDesc(
         sessionId: String,

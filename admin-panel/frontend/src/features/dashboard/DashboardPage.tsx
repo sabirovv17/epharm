@@ -13,7 +13,7 @@ import {
   IconReconcile,
   IconRules,
 } from '@/ui/icons'
-import { useDashboardSummary } from '@/lib/queries/dashboard'
+import { useDashboardSummary, useRecommendationAnalytics } from '@/lib/queries/dashboard'
 import { describeError } from '@/lib/describeError'
 import { formatKzt, formatNum } from '@/mocks/fixtures'
 import { useT } from '@/i18n'
@@ -125,7 +125,129 @@ export default function DashboardPage() {
           />
         </SectionCard>
       </div>
+
+      {/* Показано рекомендаций — конверсия показ→продажа + время до продажи (V032) */}
+      <RecommendationsSection />
     </div>
+  )
+}
+
+/** Формат «время до продажи»: «45 с» / «1 мин 5 с» / «3 мин». */
+function fmtSecs(s: number): string {
+  if (s < 60) return `${s} с`
+  const m = Math.floor(s / 60)
+  const r = s % 60
+  return r > 0 ? `${m} мин ${r} с` : `${m} мин`
+}
+
+/** Дата/время показа — компактно (дд.мм чч:мм). */
+function fmtWhen(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function MiniKpi({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="hairline rounded-xl border p-3">
+      <div className="text-[11px] font-bold uppercase tracking-[0.04em] text-ink-500">{label}</div>
+      <div
+        className={`num mt-1 text-[18px] font-extrabold ${accent ? 'text-brand-green-700' : 'text-ink-900'}`}
+      >
+        {value}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Раздел «Показано рекомендаций» (V032): KPI конверсии показ→продажа и времени до продажи +
+ * «лог» последних показов красивой таблицей (Задача 1 + 1.2).
+ */
+function RecommendationsSection() {
+  const t = useT()
+  const { data: a, isLoading } = useRecommendationAnalytics()
+  const events = a?.events ?? []
+
+  return (
+    <SectionCard title={t('recan.title')} subtitle={t('recan.subtitle')}>
+      <div
+        className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5"
+        data-testid="recan-kpis"
+      >
+        <MiniKpi label={t('recan.shown')} value={formatNum(a?.shown ?? 0)} />
+        <MiniKpi
+          label={t('recan.converted')}
+          value={`${formatNum(a?.converted ?? 0)} · ${a?.convRate ?? 0}%`}
+          accent
+        />
+        <MiniKpi label={t('recan.under2m')} value={formatNum(a?.convertedUnder2m ?? 0)} />
+        <MiniKpi
+          label={t('recan.avgTime')}
+          value={a?.avgSecondsToSale != null ? fmtSecs(a.avgSecondsToSale) : '—'}
+        />
+        <MiniKpi label={t('recan.revenue')} value={formatKzt(a?.attributedRevenue ?? 0)} />
+      </div>
+
+      {events.length === 0 ? (
+        <Empty
+          title={isLoading ? t('dash.loading') : t('recan.empty')}
+          icon={<IconEye size={22} />}
+        />
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-[13px]" data-testid="recan-table">
+            <thead className="hairline border-b">
+              <tr className="text-left text-[11px] font-bold uppercase tracking-[0.06em] text-ink-500">
+                <th className="py-2.5 pr-3">{t('recan.colTime')}</th>
+                <th className="py-2.5 pr-3">{t('recan.colReco')}</th>
+                <th className="py-2.5 pr-3">{t('recan.colTrigger')}</th>
+                <th className="py-2.5 pr-3">{t('recan.colKind')}</th>
+                <th className="py-2.5 pr-3">{t('recan.colPharmacy')}</th>
+                <th className="py-2.5 pr-3">{t('recan.colPharmacist')}</th>
+                <th className="py-2.5 pr-3">{t('recan.colResult')}</th>
+                <th className="py-2.5 text-right">{t('recan.colAmount')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-ink-100">
+              {events.map((e) => (
+                <tr key={e.id} data-testid={`recan-row-${e.id}`} className="hover:bg-paper-hover">
+                  <td className="num whitespace-nowrap py-2.5 pr-3 text-[11px] text-ink-500">
+                    {fmtWhen(e.shownAt)}
+                  </td>
+                  <td className="py-2.5 pr-3 font-extrabold text-ink-900">{e.recommendName}</td>
+                  <td className="py-2.5 pr-3 text-ink-600">{e.triggerName ?? '—'}</td>
+                  <td className="py-2.5 pr-3">
+                    <span className={`chip ${e.kind === 'crosssell' ? 'chip-amber' : 'chip-blue'}`}>
+                      {e.kind === 'crosssell' ? t('recan.kindCross') : t('recan.kindSub')}
+                    </span>
+                  </td>
+                  <td className="py-2.5 pr-3 text-ink-600">{e.pharmacyName}</td>
+                  <td className="py-2.5 pr-3 text-ink-600">{e.pharmacistName}</td>
+                  <td className="py-2.5 pr-3">
+                    {e.converted ? (
+                      <span className="chip chip-green whitespace-nowrap">
+                        {t('recan.soldIn', { t: fmtSecs(e.secondsToSale ?? 0) })}
+                      </span>
+                    ) : (
+                      <span className="chip chip-ink">{t('recan.notSold')}</span>
+                    )}
+                  </td>
+                  <td className="num py-2.5 text-right font-bold text-ink-900">
+                    {formatKzt(e.amount)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </SectionCard>
   )
 }
 

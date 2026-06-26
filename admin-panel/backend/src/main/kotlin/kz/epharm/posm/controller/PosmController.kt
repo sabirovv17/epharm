@@ -10,6 +10,8 @@ import kz.epharm.appupdate.dto.AppVersionDto
 import kz.epharm.appupdate.service.AppReleaseService
 import kz.epharm.cdp.service.CdpService
 import kz.epharm.posm.dto.HeartbeatResponse
+import kz.epharm.posm.dto.MarkShownRequest
+import kz.epharm.posm.dto.MarkShownResponse
 import kz.epharm.posm.dto.OutcomeRequest
 import kz.epharm.posm.dto.OutcomeResponse
 import kz.epharm.posm.dto.PosSaleRequest
@@ -70,6 +72,21 @@ class PosmController(
     ): OutcomeResponse {
         requireDeviceKey(key)
         return recommendationService.recordOutcome(eventId, req)
+    }
+
+    /**
+     * Фактический показ попапа фармацевту (V032): касса шлёт client-время показа через outbox.
+     * По нему считаем время до продажи точнее, чем по моменту генерации рекомендации.
+     */
+    @PostMapping("/recommendations/{eventId}/shown")
+    fun markShown(
+        @PathVariable eventId: String,
+        @RequestHeader(name = "X-Posm-Key", required = false) key: String?,
+        @Valid @RequestBody req: MarkShownRequest,
+    ): MarkShownResponse {
+        requireDeviceKey(key)
+        recommendationService.markDisplayed(eventId, req.shownAt)
+        return MarkShownResponse(eventId = eventId, ok = true)
     }
 
     /** Источник №1 сверки: завершённый чек из лога кассы. Идемпотентно по saleId. */

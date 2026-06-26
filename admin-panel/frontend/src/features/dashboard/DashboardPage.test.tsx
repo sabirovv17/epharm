@@ -6,11 +6,12 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { ToastHost } from '@/ui'
-import type { DashboardSummaryDto } from '@/lib/api-types'
+import type { DashboardSummaryDto, RecommendationAnalyticsDto } from '@/lib/api-types'
 import DashboardPage from './DashboardPage'
 
 const dashHooks = vi.hoisted(() => ({
   useDashboardSummary: vi.fn(),
+  useRecommendationAnalytics: vi.fn(),
 }))
 
 vi.mock('@/lib/queries/dashboard', () => dashHooks)
@@ -47,9 +48,75 @@ function setSummary(data: DashboardSummaryDto | undefined, extra: Record<string,
   })
 }
 
+function mkAnalytics(over: Partial<RecommendationAnalyticsDto> = {}): RecommendationAnalyticsDto {
+  return {
+    windowDays: 90,
+    shown: 2,
+    converted: 1,
+    convRate: 50,
+    convertedUnder2m: 1,
+    avgSecondsToSale: 65,
+    medianSecondsToSale: 65,
+    attributedRevenue: 4500,
+    buckets: [],
+    events: [
+      {
+        id: 'rec_1',
+        shownAt: '2026-06-26T10:00:00Z',
+        kind: 'substitution',
+        ruleId: 'r_1',
+        triggerName: 'Bioderma',
+        recommendName: 'SelfieLab Zen',
+        recommendSku: 'p_zen',
+        pharmacyId: 'ph_1',
+        pharmacyName: 'Аптека Центр',
+        pharmacistId: 'u_1',
+        pharmacistName: 'Иван',
+        amount: 4500,
+        converted: true,
+        soldAt: '2026-06-26T10:01:05Z',
+        secondsToSale: 65,
+      },
+      {
+        id: 'rec_2',
+        shownAt: '2026-06-26T09:00:00Z',
+        kind: 'crosssell',
+        ruleId: 'r_2',
+        triggerName: null,
+        recommendName: 'Хьюмер аспиратор',
+        recommendSku: 'p_hum',
+        pharmacyId: 'ph_1',
+        pharmacyName: 'Аптека Центр',
+        pharmacistId: 'u_1',
+        pharmacistName: 'Иван',
+        amount: 3200,
+        converted: false,
+        soldAt: null,
+        secondsToSale: null,
+      },
+    ],
+    ...over,
+  }
+}
+
+function setAnalytics(
+  data: RecommendationAnalyticsDto | undefined,
+  extra: Record<string, unknown> = {},
+) {
+  dashHooks.useRecommendationAnalytics.mockReturnValue({
+    data,
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+    ...extra,
+  })
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   setSummary(mkSummary())
+  setAnalytics(mkAnalytics())
 })
 
 function renderPage() {
@@ -96,6 +163,24 @@ describe('DashboardPage — пустые топ-списки', () => {
     setSummary(mkSummary({ topRules: [], topPharmacies: [], topProducts: [] }))
     renderPage()
     expect(screen.getAllByText(/Нет данных/i).length).toBeGreaterThanOrEqual(3)
+  })
+})
+
+describe('DashboardPage — Показано рекомендаций (V032)', () => {
+  it('KPI конверсии + строки лога с резолвом имён', () => {
+    renderPage()
+    expect(screen.getByTestId('recan-kpis')).toBeInTheDocument()
+    expect(screen.getByTestId('recan-row-rec_1')).toBeInTheDocument()
+    expect(screen.getByText('SelfieLab Zen')).toBeInTheDocument()
+    expect(screen.getByText('Bioderma')).toBeInTheDocument()
+    // проданная рекомендация → chip «Продано · 1 мин 5 с» (65 сек)
+    expect(screen.getByText(/Продано · 1 мин 5 с/)).toBeInTheDocument()
+  })
+
+  it('пустой период → Empty', () => {
+    setAnalytics(mkAnalytics({ events: [], shown: 0, converted: 0 }))
+    renderPage()
+    expect(screen.getByText(/Пока нет показанных рекомендаций/i)).toBeInTheDocument()
   })
 })
 

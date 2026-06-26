@@ -84,7 +84,9 @@ This replaced the obsolete `product_pos_codes` approach; the table was dropped i
 2. POSM updates checkout session and sends cart to `/api/posm/recommend`.
 3. Backend filters active campaign rules and returns recommendations.
 4. POSM displays the recommendation on the pharmacist screen (informational popup; no
-   accept/skip key — the previous `F9`/`Esc` actions were removed).
+   accept/skip key — the previous `F9`/`Esc` actions were removed). On display, POSM enqueues a
+   durable "shown" ping to `/api/posm/recommendations/{eventId}/shown` carrying the client display
+   time (`displayed_at`).
 5. POSM sends the printed sale to `/api/posm/sales`.
 6. Reconcile matches sale/Excel/mobile evidence and credits bonus on approval —
    fulfillment is attributed from the real sale, not a key press in the popup.
@@ -92,6 +94,25 @@ This replaced the obsolete `product_pos_codes` approach; the table was dropped i
 The outcome endpoint (`/api/posm/recommendations/{eventId}/outcome`) still exists on the
 backend and is supported by the outbox for backward compatibility, but the current client
 no longer calls it from the popup.
+
+## Recommendation → Sale Attribution (V032)
+
+Analytics-only attribution of a shown recommendation to the subsequent sale of the recommended
+product, with timing. No bonus/payout side effects.
+
+- When a sale is recorded, the backend correlates it to shown recommendations of the **same
+  `session_id`** (one session = one checkout — stronger than a time window) and checks whether the
+  recommended product (matched by our `productId`, the same collision-safe iPartID→barcode→name
+  resolver used elsewhere) is present in the sale.
+- On a match the `recommendation_events` row gets `sold_at` (= printed time), `sale_id`, and
+  `seconds_to_sale` = `sold_at − COALESCE(displayed_at, shown_at)` (clamped ≥ 0).
+- The "shown" ping (`displayed_at`) is the time origin when present; otherwise the generation time
+  (`shown_at`) is used. The ping rides the same SQLite outbox as sales/outcomes, so it survives
+  offline/power-loss and is delivered when connectivity returns.
+- Surfaced in the admin Dashboard "Показанные рекомендации" section via
+  `GET /api/admin/dashboard/recommendations`: shown/converted counts, conversion rate, "sold
+  ≤ 2 min" count, avg/median time-to-sale, attributed revenue, a time-to-sale distribution, and a
+  per-event log table (resolved pharmacy/pharmacist/trigger names).
 
 ## Reconciliation Sources
 

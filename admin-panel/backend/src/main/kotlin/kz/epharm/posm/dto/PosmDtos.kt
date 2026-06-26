@@ -108,6 +108,18 @@ data class OutcomeResponse(
     val pendingBonusId: String?,
 )
 
+/**
+ * Подтверждение фактического показа рекомендации фармацевту (V032). Касса шлёт client-время
+ * показа попапа через outbox (гарантированная доставка). По нему считаем время до продажи точнее,
+ * чем по shown_at (момент генерации рекомендации).
+ */
+data class MarkShownRequest(
+    @field:NotNull
+    val shownAt: java.time.Instant,
+)
+
+data class MarkShownResponse(val eventId: String, val ok: Boolean)
+
 // ── Источник №1 сверки: завершённый чек из лога кассы ───────────────────────
 
 data class PosSaleItemDto(
