@@ -59,39 +59,31 @@ function mkAnalytics(over: Partial<RecommendationAnalyticsDto> = {}): Recommenda
     medianSecondsToSale: 65,
     attributedRevenue: 4500,
     buckets: [],
-    events: [
+    log: [
       {
         id: 'rec_1',
-        shownAt: '2026-06-26T10:00:00Z',
-        kind: 'substitution',
-        ruleId: 'r_1',
-        triggerName: 'Bioderma',
-        recommendName: 'SelfieLab Zen',
-        recommendSku: 'p_zen',
+        type: 'show',
+        at: '2026-06-26T10:00:00Z',
+        title: 'SelfieLab Zen',
         pharmacyId: 'ph_1',
         pharmacyName: 'Аптека Центр',
         pharmacistId: 'u_1',
         pharmacistName: 'Иван',
         amount: 4500,
         converted: true,
-        soldAt: '2026-06-26T10:01:05Z',
         secondsToSale: 65,
       },
       {
-        id: 'rec_2',
-        shownAt: '2026-06-26T09:00:00Z',
-        kind: 'crosssell',
-        ruleId: 'r_2',
-        triggerName: null,
-        recommendName: 'Хьюмер аспиратор',
-        recommendSku: 'p_hum',
+        id: 'sale_1',
+        type: 'sale',
+        at: '2026-06-26T10:01:05Z',
+        title: 'Аквамарис +1',
         pharmacyId: 'ph_1',
         pharmacyName: 'Аптека Центр',
         pharmacistId: 'u_1',
         pharmacistName: 'Иван',
         amount: 3200,
         converted: false,
-        soldAt: null,
         secondsToSale: null,
       },
     ],
@@ -166,21 +158,24 @@ describe('DashboardPage — пустые топ-списки', () => {
   })
 })
 
-describe('DashboardPage — Показано рекомендаций (V032)', () => {
-  it('KPI конверсии + строки лога с резолвом имён', () => {
+describe('DashboardPage — Журнал показов и продаж (V032)', () => {
+  it('KPI + единый лог: строка показа и строка продажи', () => {
     renderPage()
     expect(screen.getByTestId('recan-kpis')).toBeInTheDocument()
+    // показ
     expect(screen.getByTestId('recan-row-rec_1')).toBeInTheDocument()
     expect(screen.getByText('SelfieLab Zen')).toBeInTheDocument()
-    expect(screen.getByText('Bioderma')).toBeInTheDocument()
-    // проданная рекомендация → chip «Продано · 1 мин 5 с» (65 сек)
+    // продажа (из второй таблицы) в том же логе
+    expect(screen.getByTestId('recan-row-sale_1')).toBeInTheDocument()
+    expect(screen.getByText('Аквамарис +1')).toBeInTheDocument()
+    // конвертированный показ → chip «Продано · 1 мин 5 с» (65 сек)
     expect(screen.getByText(/Продано · 1 мин 5 с/)).toBeInTheDocument()
   })
 
   it('пустой период → Empty', () => {
-    setAnalytics(mkAnalytics({ events: [], shown: 0, converted: 0 }))
+    setAnalytics(mkAnalytics({ log: [], shown: 0, converted: 0 }))
     renderPage()
-    expect(screen.getByText(/Пока нет показанных рекомендаций/i)).toBeInTheDocument()
+    expect(screen.getByText(/Пока нет событий за период/i)).toBeInTheDocument()
   })
 })
 

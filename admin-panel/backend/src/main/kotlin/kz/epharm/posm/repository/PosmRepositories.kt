@@ -42,6 +42,9 @@ interface PharmacyCountRow {
 
 @Repository
 interface PosSaleRepository : JpaRepository<PosSaleEntity, String> {
+    /** Чеки за период (свежие первыми) — для единого журнала показ+продажа в админке. */
+    fun findByPrintedAtGreaterThanEqualOrderByPrintedAtDesc(since: Instant): List<PosSaleEntity>
+
     /** Чеки кассы за период по каждой аптеке — для receipts30d (реальные данные). */
     @Query(
         nativeQuery = true,

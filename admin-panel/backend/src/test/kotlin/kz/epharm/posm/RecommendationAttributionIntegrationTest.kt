@@ -194,7 +194,7 @@ class RecommendationAttributionIntegrationTest {
     }
 
     @Test
-    fun `аналитика отражает конверсию и строку лога с резолвом имён`() {
+    fun `аналитика отражает конверсию и единый журнал показ+продажа`() {
         val rec = recommendByBarcode("sess_e", listOf(barBio)).recommendations[0]
         postSale("sale_e", "sess_e", listOf(saleItem(barZen, 4500)))
 
@@ -205,12 +205,31 @@ class RecommendationAttributionIntegrationTest {
         assertEquals(1, dto.convertedUnder2m, "продажа сразу после показа → в корзине ≤2 мин")
         assertEquals(4500L, dto.attributedRevenue)
 
-        val row = dto.events.first { it.id == rec.eventId }
-        assertTrue(row.converted)
-        assertEquals("SelfieLab Zen", row.recommendName)
-        assertEquals("Bioderma", row.triggerName)        // резолв triggerSku → имя
-        assertEquals("Аптека Т", row.pharmacyName)       // резолв pharmacyId → имя
-        assertEquals("Тест Фарм", row.pharmacistName)    // резолв pharmacistId → имя
+        // Журнал содержит и показ, и продажу (две наши таблицы в одном логе).
+        val show = dto.log.first { it.id == rec.eventId }
+        assertEquals("show", show.type)
+        assertTrue(show.converted)
+        assertEquals("SelfieLab Zen", show.title)        // рекомендованный товар
+        assertEquals("Аптека Т", show.pharmacyName)      // резолв pharmacyId → имя
+        assertEquals("Тест Фарм", show.pharmacistName)   // резолв pharmacistId → имя
+
+        val sale = dto.log.first { it.type == "sale" }
+        assertEquals("sale_e", sale.id)
+        assertEquals("Тест Фарм", sale.pharmacistName)
+    }
+
+    @Test
+    fun `recommend без pharmacistId (пустой) принимается — фармацевт берётся из лога кассы`() {
+        val body = mockMvc.perform(
+            post("/api/posm/recommend")
+                .header("X-Posm-Key", POSM_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"pharmacyId":"ph_t","sessionId":"sess_np","cart":[{"barcode":"$barBio"}]}"""),
+        )
+            .andExpect(status().isOk)
+            .andReturn().response.getContentAsString(Charsets.UTF_8)
+        val resp = objectMapper.readValue(body, RecommendResponse::class.java)
+        assertEquals(1, resp.recommendations.size, "pharmacistId опционален — рекомендация всё равно отдаётся")
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

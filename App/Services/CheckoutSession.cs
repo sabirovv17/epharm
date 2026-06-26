@@ -20,7 +20,11 @@ namespace CustomerDisplay.Services
         /// Строит запрос рекомендаций из живой корзины. Матчинг на backend:
         /// Sku/iPartID Стандарт-Н → Barcode (EAN-13) → Name.
         /// </summary>
-        public RecommendRequest BuildRequest(EpharmConfig cfg, IEnumerable<ReceiptItem> items, ReceiptItem? scannedItem = null)
+        public RecommendRequest BuildRequest(
+            EpharmConfig cfg,
+            IEnumerable<ReceiptItem> items,
+            ReceiptItem? scannedItem = null,
+            string? pharmacistId = null)
         {
             var cart = items
                 // PartId < 0 is a POSM-only visual item added after accepting a recommendation.
@@ -37,7 +41,8 @@ namespace CustomerDisplay.Services
 
             return new RecommendRequest
             {
-                PharmacistId = cfg.PharmacistId,
+                // Фармацевт берётся из лога кассы (kassir=); конфиг — лишь запасной вариант (обычно пуст).
+                PharmacistId = string.IsNullOrWhiteSpace(pharmacistId) ? cfg.PharmacistId : pharmacistId,
                 PharmacyId = cfg.PharmacyId,
                 SessionId = SessionId,
                 // Последний отсканированный EAN (информационно). Передаём явный snapshot,

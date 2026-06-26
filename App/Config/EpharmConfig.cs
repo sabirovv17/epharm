@@ -113,8 +113,9 @@ namespace CustomerDisplay.Config
             cfg.PharmacistId = Env("EPHARM_PHARMACIST_ID", cfg.PharmacistId);
             cfg.PharmacyId = Env("EPHARM_PHARMACY_ID", cfg.PharmacyId);
 
-            // Включаем только если есть, кому начислять бонус.
-            if (!string.IsNullOrWhiteSpace(cfg.PharmacistId) && !string.IsNullOrWhiteSpace(cfg.PharmacyId))
+            // POSM включается при заданной аптеке. Фармацевт НЕ требуется в конфиге — он берётся
+            // из лога кассы (токен kassir=), т.к. фармацевты работают посменно.
+            if (!string.IsNullOrWhiteSpace(cfg.PharmacyId))
                 cfg.Enabled = cfg.Enabled || Env("EPHARM_POSM_ENABLED", "false") == "true";
 
             // Отключение видео (для VM без GPU): env EPHARM_NO_VIDEO=true.

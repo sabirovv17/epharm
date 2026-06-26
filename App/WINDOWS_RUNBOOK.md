@@ -58,11 +58,16 @@ Append a cp1251 Standard-N-like line while the app is running:
 $log = "C:\Standart-N_DEMO\Apteka_KZ DEMO\Kassir\zkassa.log"
 New-Item -ItemType Directory -Force -Path (Split-Path $log) | Out-Null
 $enc = [System.Text.Encoding]::GetEncoding(1251)
-$line = "Add2Cheque iPartID=80309(4603423004936);sname=Аквалор;price=1620;quant=1"
+$line = "Add2Cheque iPartID=80309(4603423004936);sname=Аквалор;price=1620;quant=1;kassir=Иванова"
 [System.IO.File]::AppendAllText($log, "$line`r`n", $enc)
 ```
 
 Barcode in parentheses is the important part. POSM also supports explicit `barcode=`/`ean=` fields.
+
+Pharmacist/cashier is taken from the log token `kassir=<id>` (synonym `cashier=`), case-insensitive,
+value up to `;`/space/end. It is NOT read from `posm.json` anymore (pharmacists work in shifts).
+The value may be an id or a name (Cyrillic OK). The real Standard-N cashier field maps to this once
+a real `zkassa.log` is available.
 
 ## Controls
 

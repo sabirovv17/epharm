@@ -33,7 +33,7 @@ namespace CustomerDisplay.Services
             _outbox = outbox;
         }
 
-        public void Report(CheckoutSession session, IEnumerable<ReceiptItem> items)
+        public void Report(CheckoutSession session, IEnumerable<ReceiptItem> items, string? pharmacistId = null)
         {
             var list = items
                 // Report only real Standard-N rows. Accepted recommendations are mirrored in UI
@@ -55,7 +55,8 @@ namespace CustomerDisplay.Services
             var sale = new SaleReport
             {
                 SaleId = "sale_" + Guid.NewGuid().ToString("N").Substring(0, 16),
-                PharmacistId = _cfg.PharmacistId,
+                // Фармацевт — из лога кассы (kassir=); конфиг лишь запасной вариант (обычно пуст).
+                PharmacistId = string.IsNullOrWhiteSpace(pharmacistId) ? _cfg.PharmacistId : pharmacistId,
                 PharmacyId = _cfg.PharmacyId,
                 SessionId = session.SessionId,
                 // FiscalId / Cashier — из лога Стандарт-Н (формат уточняется пилотом, missing data #1).

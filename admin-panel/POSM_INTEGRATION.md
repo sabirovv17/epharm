@@ -54,6 +54,14 @@ X-Posm-Key: <device key>
 The current backend validates against configured `app.posm.device-key` / `POSM_DEVICE_KEY`.
 Per-device keys are a hardening item.
 
+## Pharmacist identity
+
+`pharmacistId` is taken from the **cash log**, not `posm.json` (pharmacists work in shifts). POSM
+parses the token `kassir=<id>` (synonym `cashier=`, case-insensitive) from any log line and stamps
+that value on `/recommend` and `/sales`. `posm.json` no longer needs `pharmacistId`, and backend
+`pharmacistId` is optional (empty allowed). The real Standard-N cashier field maps to this token
+once a real `zkassa.log` is available.
+
 ## Recommendation Matching
 
 Current matching is barcode-first.
@@ -107,12 +115,15 @@ product, with timing. No bonus/payout side effects.
 - On a match the `recommendation_events` row gets `sold_at` (= printed time), `sale_id`, and
   `seconds_to_sale` = `sold_at − COALESCE(displayed_at, shown_at)` (clamped ≥ 0).
 - The "shown" ping (`displayed_at`) is the time origin when present; otherwise the generation time
-  (`shown_at`) is used. The ping rides the same SQLite outbox as sales/outcomes, so it survives
-  offline/power-loss and is delivered when connectivity returns.
-- Surfaced in the admin Dashboard "Показанные рекомендации" section via
-  `GET /api/admin/dashboard/recommendations`: shown/converted counts, conversion rate, "sold
-  ≤ 2 min" count, avg/median time-to-sale, attributed revenue, a time-to-sale distribution, and a
-  per-event log table (resolved pharmacy/pharmacist/trigger names).
+  (`shown_at`) is used. The ping and the printed sale both ride the same SQLite outbox (WAL,
+  idempotent), so they survive offline/power-loss and are delivered when connectivity returns. On
+  network reconnect the flusher resets the retry schedule (`MarkAllDue`) so anything queued during
+  the outage is delivered immediately, not after the exponential-backoff window.
+- Surfaced in the admin Dashboard "Журнал показов и продаж" section via
+  `GET /api/admin/dashboard/recommendations`: KPI (shown/converted/conv-rate, "sold ≤ 2 min",
+  avg/median time-to-sale, attributed revenue) + a single chronological **log merged from two
+  tables** — `recommendation_events` (показ) and `pos_sales` (продажа) — each row with exact time,
+  type chip, pharmacy and pharmacist (the `kassir=` token). Auto-refreshes every 15 s.
 
 ## Reconciliation Sources
 

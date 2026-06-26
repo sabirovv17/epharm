@@ -26,6 +26,11 @@ namespace CustomerDisplay
         private OutboxFlusher? _flusher;
         private SaleReporter? _saleReporter;
         private CheckoutSession _session = new();
+
+        // Текущий фармацевт/кассир — берётся из лога кассы (токен kassir=/cashier=), а НЕ из конфига:
+        // фармацевты работают посменно, поэтому id динамический. Пусто, пока касса не прислала кассира.
+        private string _currentPharmacistId = "";
+
         private CancellationTokenSource? _recoCts;
         private readonly SemaphoreSlim _recommendGate = new(1, 1);
         private RecommendationWindow? _recoWindow;
@@ -87,11 +92,10 @@ namespace CustomerDisplay
                 {
                     // Частая причина «видео/рекомендации не работают»: Enabled=false в posm.json
                     // ИЛИ пустой PharmacistId/PharmacyId. Пишем явно, чтобы было видно в логе.
-                    var why = string.IsNullOrWhiteSpace(_posmConfig.PharmacistId) ? "пустой PharmacistId"
-                        : string.IsNullOrWhiteSpace(_posmConfig.PharmacyId) ? "пустой PharmacyId"
+                    var why = string.IsNullOrWhiteSpace(_posmConfig.PharmacyId) ? "пустой PharmacyId"
                         : "Enabled=false";
                     Log($"POSM ВЫКЛЮЧЕН ({why}) → ни рекомендаций, ни видео из админки. " +
-                        "Проверь posm.json (Enabled, PharmacistId, PharmacyId).");
+                        "Проверь posm.json (Enabled, PharmacyId). Фармацевт берётся из лога кассы (kassir=).");
                 }
             }
             catch (Exception ex)
@@ -167,7 +171,7 @@ namespace CustomerDisplay
             {
                 var request = await Dispatcher.InvokeAsync(() =>
                 {
-                    var req = _session.BuildRequest(_posmConfig, ReceiptItems, scannedItem);
+                    var req = _session.BuildRequest(_posmConfig, ReceiptItems, scannedItem, _currentPharmacistId);
                     if (req.Cart.Count == 0)
                     {
                         ResetRecommendationUiState(closeWindows: true);
@@ -501,7 +505,7 @@ namespace CustomerDisplay
         /// </summary>
         private void OnReceiptFinalized()
         {
-            _saleReporter?.Report(_session, ReceiptItems); // позиции ещё в чеке
+            _saleReporter?.Report(_session, ReceiptItems, _currentPharmacistId); // позиции ещё в чеке
             ResetRecommendationUiState(closeWindows: true);
             _session = new CheckoutSession();
         }

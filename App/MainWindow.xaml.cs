@@ -398,6 +398,11 @@ private void ProcessLogLine(string line)
     // Тут будет твоя реальная логика триггеров.
     // Пока даю универсальные заглушки:
 
+    // Кассир/смена из лога: токен kassir=<id> или cashier=<id> в любой строке обновляет текущего
+    // фармацевта. Так id фармацевта берётся из кассы (фармацевты работают посменно), а НЕ из конфига.
+    var kassir = ExtractCashier(line);
+    if (!string.IsNullOrWhiteSpace(kassir)) _currentPharmacistId = kassir!;
+
 if (line.Contains("ChequeList.OnChange"))
 {
     HandleChequeDiscount(line);
@@ -577,6 +582,23 @@ private static string? ExtractPartId(string line)
     var start = i;
     while (i < line.Length && line[i] >= '0' && line[i] <= '9') i++;
     return i > start ? line.Substring(start, i - start) : null;
+}
+
+/// <summary>
+/// Кассир/фармацевт из строки лога кассы: токен kassir=&lt;id&gt; или cashier=&lt;id&gt; (без учёта
+/// регистра). Значение — до ';', пробела или конца строки. null, если токена нет. Реальное поле
+/// Стандарт-Н смапим, когда увидим настоящий лог; для демо кассир пишется этим токеном.
+/// </summary>
+private static string? ExtractCashier(string line)
+{
+    foreach (var key in new[] { "kassir=", "cashier=" })
+    {
+        var v = ExtractBetween(line, key, ";")?.Trim();
+        if (string.IsNullOrWhiteSpace(v)) continue;
+        var sp = v.IndexOf(' ');           // обрезаем хвост, если за токеном идёт ещё что-то
+        return (sp >= 0 ? v.Substring(0, sp) : v).Trim();
+    }
+    return null;
 }
 
 private static string? ExtractBetween(string s, string start, string? end)

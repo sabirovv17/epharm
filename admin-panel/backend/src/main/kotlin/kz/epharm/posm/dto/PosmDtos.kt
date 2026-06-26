@@ -25,8 +25,9 @@ data class CartItemDto(
  * отсканированный штрих-код. sessionId = один открытый чек (генерит POSM-клиент).
  */
 data class RecommendRequest(
-    @field:NotBlank
-    val pharmacistId: String,
+    // pharmacistId опционален: фармацевт приходит из лога кассы (kassir=), работает посменно;
+    // если касса его не прислала — пусто.
+    val pharmacistId: String = "",
     @field:NotBlank
     val pharmacyId: String,
     @field:NotBlank
@@ -139,8 +140,8 @@ data class PosSaleItemDto(
 data class PosSaleRequest(
     @field:NotBlank
     val saleId: String,
-    @field:NotBlank
-    val pharmacistId: String,
+    // pharmacistId опционален: фармацевт из лога кассы (kassir=), может быть пуст.
+    val pharmacistId: String = "",
     @field:NotBlank
     val pharmacyId: String,
     val sessionId: String? = null,

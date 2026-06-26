@@ -112,6 +112,25 @@ namespace CustomerDisplay.Services
             }
         }
 
+        /// <summary>
+        /// Сбросить расписание: все записи становятся «к отправке сейчас» (next_retry_at = now).
+        /// Зовётся при ВОЗВРАТЕ сети — причина backoff (нет интернета) исчезла, поэтому копившиеся
+        /// в офлайне sale/shown досылаем немедленно, не дожидаясь окна экспоненциального backoff
+        /// (которое могло вырасти до 30 минут). attempts не трогаем — если снова не доедет, backoff
+        /// продолжится с того же места.
+        /// </summary>
+        public void MarkAllDue()
+        {
+            lock (_lock)
+            {
+                using var conn = Open();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "UPDATE outbox SET next_retry_at = $now;";
+                cmd.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToString("o"));
+                cmd.ExecuteNonQuery();
+            }
+        }
+
         /// <summary>Экспоненциальный backoff: 2^attempts минут, максимум 30 минут.</summary>
         public void Reschedule(string id, int attempts)
         {

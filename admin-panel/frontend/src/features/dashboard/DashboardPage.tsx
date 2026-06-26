@@ -141,7 +141,7 @@ function fmtSecs(s: number): string {
 }
 
 /**
- * Дата/время показа — компактно (дд.мм чч:мм). Рендерим в ЛОКАЛЬНОМ поясе зрителя (без фиксации
+ * Точное дата/время события (дд.мм чч:мм:сс). Рендерим в ЛОКАЛЬНОМ поясе зрителя (без фиксации
  * timeZone): кто из какого региона открыл админку — у того и пояс. Бэкенд отдаёт UTC (ISO с 'Z'),
  * браузер сам переводит в местное время.
  */
@@ -153,6 +153,7 @@ function fmtWhen(iso: string): string {
     month: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
+    second: '2-digit',
   })
 }
 
@@ -170,13 +171,13 @@ function MiniKpi({ label, value, accent }: { label: string; value: string; accen
 }
 
 /**
- * Раздел «Показано рекомендаций» (V032): KPI конверсии показ→продажа и времени до продажи +
- * «лог» последних показов красивой таблицей (Задача 1 + 1.2).
+ * Раздел «Журнал показов и продаж» (V032): KPI конверсии показ→продажа и времени до продажи +
+ * единый лог событий из ДВУХ таблиц (показы + продажи) с точным временем (Задача 1 + 1.2).
  */
 function RecommendationsSection() {
   const t = useT()
   const { data: a, isLoading } = useRecommendationAnalytics()
-  const events = a?.events ?? []
+  const log = a?.log ?? []
 
   return (
     <SectionCard title={t('recan.title')} subtitle={t('recan.subtitle')}>
@@ -198,7 +199,7 @@ function RecommendationsSection() {
         <MiniKpi label={t('recan.revenue')} value={formatKzt(a?.attributedRevenue ?? 0)} />
       </div>
 
-      {events.length === 0 ? (
+      {log.length === 0 ? (
         <Empty
           title={isLoading ? t('dash.loading') : t('recan.empty')}
           icon={<IconEye size={22} />}
@@ -209,39 +210,38 @@ function RecommendationsSection() {
             <thead className="hairline border-b">
               <tr className="text-left text-[11px] font-bold uppercase tracking-[0.06em] text-ink-500">
                 <th className="py-2.5 pr-3">{t('recan.colTime')}</th>
-                <th className="py-2.5 pr-3">{t('recan.colReco')}</th>
-                <th className="py-2.5 pr-3">{t('recan.colTrigger')}</th>
                 <th className="py-2.5 pr-3">{t('recan.colKind')}</th>
+                <th className="py-2.5 pr-3">{t('recan.colWhat')}</th>
                 <th className="py-2.5 pr-3">{t('recan.colPharmacy')}</th>
                 <th className="py-2.5 pr-3">{t('recan.colPharmacist')}</th>
-                <th className="py-2.5 pr-3">{t('recan.colResult')}</th>
                 <th className="py-2.5 text-right">{t('recan.colAmount')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-100">
-              {events.map((e) => (
-                <tr key={e.id} data-testid={`recan-row-${e.id}`} className="hover:bg-paper-hover">
+              {log.map((e) => (
+                <tr
+                  key={`${e.type}-${e.id}`}
+                  data-testid={`recan-row-${e.id}`}
+                  className="hover:bg-paper-hover"
+                >
                   <td className="num whitespace-nowrap py-2.5 pr-3 text-[11px] text-ink-500">
-                    {fmtWhen(e.shownAt)}
+                    {fmtWhen(e.at)}
                   </td>
-                  <td className="py-2.5 pr-3 font-extrabold text-ink-900">{e.recommendName}</td>
-                  <td className="py-2.5 pr-3 text-ink-600">{e.triggerName ?? '—'}</td>
                   <td className="py-2.5 pr-3">
-                    <span className={`chip ${e.kind === 'crosssell' ? 'chip-amber' : 'chip-blue'}`}>
-                      {e.kind === 'crosssell' ? t('recan.kindCross') : t('recan.kindSub')}
+                    <span className={`chip ${e.type === 'sale' ? 'chip-green' : 'chip-blue'}`}>
+                      {e.type === 'sale' ? t('recan.kindSale') : t('recan.kindShow')}
                     </span>
+                  </td>
+                  <td className="py-2.5 pr-3 font-extrabold text-ink-900">
+                    {e.title}
+                    {e.type === 'show' && e.converted && (
+                      <span className="chip chip-green ml-2 whitespace-nowrap font-normal">
+                        {t('recan.soldIn', { t: fmtSecs(e.secondsToSale ?? 0) })}
+                      </span>
+                    )}
                   </td>
                   <td className="py-2.5 pr-3 text-ink-600">{e.pharmacyName}</td>
                   <td className="py-2.5 pr-3 text-ink-600">{e.pharmacistName}</td>
-                  <td className="py-2.5 pr-3">
-                    {e.converted ? (
-                      <span className="chip chip-green whitespace-nowrap">
-                        {t('recan.soldIn', { t: fmtSecs(e.secondsToSale ?? 0) })}
-                      </span>
-                    ) : (
-                      <span className="chip chip-ink">{t('recan.notSold')}</span>
-                    )}
-                  </td>
                   <td className="num py-2.5 text-right font-bold text-ink-900">
                     {formatKzt(e.amount)}
                   </td>

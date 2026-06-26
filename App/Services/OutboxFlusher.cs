@@ -37,11 +37,23 @@ namespace CustomerDisplay.Services
             // дальше — обычный период.
             _timer = new Timer(_ => _ = FlushAsync(), null, TimeSpan.FromSeconds(2), period);
 
-            // Событие «сеть восстановилась» → мгновенный досыл (не ждём тик таймера).
-            _onNetAddr = (_, _) => _ = FlushAsync();
-            _onNetAvail = (_, e) => { if (e.IsAvailable) _ = FlushAsync(); };
+            // Событие «сеть восстановилась» → мгновенный досыл со сбросом backoff (не ждём тик таймера
+            // и не ждём окна экспоненциального backoff, накопленного за офлайн).
+            _onNetAddr = (_, _) => _ = FlushNowAsync();
+            _onNetAvail = (_, e) => { if (e.IsAvailable) _ = FlushNowAsync(); };
             NetworkChange.NetworkAddressChanged += _onNetAddr;
             NetworkChange.NetworkAvailabilityChanged += _onNetAvail;
+        }
+
+        /// <summary>
+        /// Досыл сразу после возврата сети: сбрасываем расписание (всё «к отправке сейчас») и шлём.
+        /// Так sale/shown, накопленные в офлайне, доезжают мгновенно при реконнекте, а не ждут
+        /// окна backoff (которое могло вырасти до 30 минут).
+        /// </summary>
+        public async Task FlushNowAsync()
+        {
+            try { _outbox.MarkAllDue(); } catch { /* фон не должен падать */ }
+            await FlushAsync().ConfigureAwait(false);
         }
 
         public async Task FlushAsync()

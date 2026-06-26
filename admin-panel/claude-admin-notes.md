@@ -80,9 +80,15 @@ POSM:
 - App auto-update uses `/api/posm/app/version` and SHA256-verified HTTPS zip.
 - Показ рекомендации пингуется в backend (`POST .../{eventId}/shown` → `displayed_at`) через тот же
   outbox; продажа атрибутируется к показу по `session_id` (V032: `sold_at` / `sale_id` /
-  `seconds_to_sale`). Аналитика — Dashboard «Показанные рекомендации»
-  (`GET /api/admin/dashboard/recommendations`): конверсия показ→продажа, ≤2 мин, среднее/медиана
-  времени до продажи, «лог» событий. Атрибуция — чистая аналитика, бонусы/выплаты не трогает.
+  `seconds_to_sale`). Аналитика — Dashboard «Журнал показов и продаж»
+  (`GET /api/admin/dashboard/recommendations`): KPI конверсии/времени + единый лог из ДВУХ таблиц
+  (`recommendation_events` показ + `pos_sales` продажа) с точным временем, авто-обновление 15с.
+  Атрибуция — чистая аналитика, бонусы/выплаты не трогает.
+- `pharmacistId` берётся из лога кассы (токен `kassir=`/`cashier=`), НЕ из `posm.json` (фармацевты
+  посменно). На backend `pharmacistId` опционален (recommend+sales). Реальное поле Стандарт-Н по
+  кассиру смапим, когда увидим настоящий `zkassa.log` ([[project_posm_log_format_unknown]]).
+- Офлайн на кассе: sale/shown копятся в SQLite-outbox (WAL); при возврате сети flusher сбрасывает
+  backoff (`MarkAllDue`) и досылает немедленно. Идемпотентно по saleId / eventId.
 
 ## Current Product Decisions
 

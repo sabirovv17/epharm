@@ -523,23 +523,19 @@ export interface TimeBucketDto {
   count: number
 }
 
-/** Одна показанная рекомендация — строка «лога» в красивой таблице. */
-export interface RecommendationEventRowDto {
+/** Строка журнала: показ рекомендации ИЛИ продажа (из двух наших таблиц). */
+export interface LogEntryDto {
   id: string
-  shownAt: string
-  kind: string // substitution | crosssell
-  ruleId: string
-  triggerName: string | null
-  recommendName: string
-  recommendSku: string
+  type: string // "show" | "sale"
+  at: string // точное время события (ISO/UTC)
+  title: string // что: рекомендованный товар (показ) / состав чека (продажа)
   pharmacyId: string
   pharmacyName: string
   pharmacistId: string
   pharmacistName: string
   amount: number
-  converted: boolean
-  soldAt: string | null
-  secondsToSale: number | null
+  converted: boolean // показ: продан ли рекомендованный товар
+  secondsToSale: number | null // показ: через сколько секунд продан
 }
 
 export interface RecommendationAnalyticsDto {
@@ -552,7 +548,7 @@ export interface RecommendationAnalyticsDto {
   medianSecondsToSale: number | null
   attributedRevenue: number
   buckets: TimeBucketDto[]
-  events: RecommendationEventRowDto[]
+  log: LogEntryDto[]
 }
 
 // ─── Lift (Этап 3.6) — pilot vs control аналитика ───
