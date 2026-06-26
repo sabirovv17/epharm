@@ -141,15 +141,14 @@ function fmtSecs(s: number): string {
 }
 
 /**
- * Дата/время показа — компактно (дд.мм чч:мм). Рендерим в едином рабочем поясе HQ — Москва
- * (Europe/Moscow, UTC+3), а НЕ в поясе машины зрителя: так время показа в админке совпадает с
- * тем, по которому работает команда, независимо от того, откуда открыли админку.
+ * Дата/время показа — компактно (дд.мм чч:мм). Рендерим в ЛОКАЛЬНОМ поясе зрителя (без фиксации
+ * timeZone): кто из какого региона открыл админку — у того и пояс. Бэкенд отдаёт UTC (ISO с 'Z'),
+ * браузер сам переводит в местное время.
  */
 function fmtWhen(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return '—'
   return d.toLocaleString('ru-RU', {
-    timeZone: 'Europe/Moscow',
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
