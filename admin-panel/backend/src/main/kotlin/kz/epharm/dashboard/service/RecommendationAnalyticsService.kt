@@ -68,11 +68,17 @@ class RecommendationAnalyticsService(
                 amount = e.expectedAmount, converted = e.soldAt != null, secondsToSale = e.secondsToSale,
             )
         }
+        // Для строки ПРОДАЖИ — время до продажи рекомендации, которую этот чек закрыл (если закрыл).
+        // Один чек может закрыть несколько показов → берём минимальное (самую быструю конверсию).
+        val saleToSecs = convertedEvents
+            .filter { it.secondsToSale != null && !it.saleId.isNullOrBlank() }
+            .groupBy { it.saleId!! }
+            .mapValues { (_, evs) -> evs.minOf { it.secondsToSale!! } }
         val saleRaw = sales.map { s ->
             Raw(
                 id = s.id, type = "sale", at = s.printedAt,
                 title = saleTitle(s.items), pharmacyId = s.pharmacyId, pharmacistId = s.pharmacistId,
-                amount = s.totalAmount, converted = false, secondsToSale = null,
+                amount = s.totalAmount, converted = false, secondsToSale = saleToSecs[s.id],
             )
         }
         val rows = (showRaw + saleRaw).sortedByDescending { it.at }.take(limit.coerceIn(1, MAX_LIMIT))

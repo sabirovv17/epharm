@@ -84,7 +84,7 @@ function mkAnalytics(over: Partial<RecommendationAnalyticsDto> = {}): Recommenda
         pharmacistName: 'Иван',
         amount: 3200,
         converted: false,
-        secondsToSale: null,
+        secondsToSale: 65, // этот чек закрыл показ → длительность видна и на строке продажи
       },
     ],
     ...over,
@@ -170,6 +170,8 @@ describe('DashboardPage — Журнал показов и продаж (V032)',
     expect(screen.getByText('Аквамарис +1')).toBeInTheDocument()
     // конвертированный показ → chip «Продано · 1 мин 5 с» (65 сек)
     expect(screen.getByText(/Продано · 1 мин 5 с/)).toBeInTheDocument()
+    // на строке продажи — длительность «через 1 мин 5 с после показа»
+    expect(screen.getByText(/через 1 мин 5 с после показа/)).toBeInTheDocument()
   })
 
   it('пустой период → Empty', () => {

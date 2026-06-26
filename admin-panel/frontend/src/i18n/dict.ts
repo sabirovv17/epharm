@@ -226,6 +226,7 @@ export const ru: Dict = {
   'recan.kindShow': 'Показ',
   'recan.kindSale': 'Продажа',
   'recan.soldIn': 'Продано · {t}',
+  'recan.soldAfter': 'через {t} после показа',
   'recan.empty': 'Пока нет событий за период',
 
   // ── Lift ────────────────────────────────────────────────────────────────
@@ -1284,6 +1285,7 @@ export const kk: Dict = {
   'recan.kindShow': 'Көрсету',
   'recan.kindSale': 'Сату',
   'recan.soldIn': 'Сатылды · {t}',
+  'recan.soldAfter': 'көрсетуден {t} кейін',
   'recan.empty': 'Кезеңде оқиғалар әзірге жоқ',
 
   // ── Lift ────────────────────────────────────────────────────────────────

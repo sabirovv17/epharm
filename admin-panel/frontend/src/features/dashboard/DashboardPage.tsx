@@ -239,6 +239,11 @@ function RecommendationsSection() {
                         {t('recan.soldIn', { t: fmtSecs(e.secondsToSale ?? 0) })}
                       </span>
                     )}
+                    {e.type === 'sale' && e.secondsToSale != null && (
+                      <span className="chip chip-green ml-2 whitespace-nowrap font-normal">
+                        {t('recan.soldAfter', { t: fmtSecs(e.secondsToSale) })}
+                      </span>
+                    )}
                   </td>
                   <td className="py-2.5 pr-3 text-ink-600">{e.pharmacyName}</td>
                   <td className="py-2.5 pr-3 text-ink-600">{e.pharmacistName}</td>
