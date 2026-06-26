@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Удаляет задачи автозапуска и watchdog кассового POSM-клиента Epharm.
 .DESCRIPTION
