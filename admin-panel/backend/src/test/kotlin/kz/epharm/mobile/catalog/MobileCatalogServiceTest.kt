@@ -216,4 +216,23 @@ class MobileCatalogServiceTest {
         assertNull(d.promoId)
         assertNull(d.bonus)
     }
+
+    @Test
+    fun `detail без faq в metadata → fallback Q&A из полей товара (рецептурность, МНН, производитель)`() {
+        // У Medusa-товаров нет metadata.faq → раньше qa=[] и выдвижная Q&A-секция в мобилке пропадала.
+        // Теперь fallback из реальных полей: рецептурность + действующее вещество + производитель.
+        every { medusa.getProduct("prod_q") } returns MedusaProduct(
+            id = "prod_q", title = "Цетрин 10мг", variants = emptyList(),
+            metadata = mapOf(
+                "rx_otc" to "OTC", "mnn" to "Цетиризин", "atc" to "R06AE07",
+                "manufacturer" to "Dr.Reddy`s", "country" to "Индия",
+            ),
+        )
+
+        val d = service.detail("prod_q", includeIncentive = false)
+        assertEquals(3, d.qa.size)
+        assertTrue(d.qa.any { it.q.contains("рецепт", ignoreCase = true) && it.a.contains("безрецептурный") })
+        assertTrue(d.qa.any { it.a.contains("Цетиризин") && it.a.contains("R06AE07") })
+        assertTrue(d.qa.any { it.a.contains("Dr.Reddy`s") && it.a.contains("Индия") })
+    }
 }

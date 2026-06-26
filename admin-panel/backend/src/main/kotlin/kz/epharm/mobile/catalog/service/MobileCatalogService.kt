@@ -401,9 +401,13 @@ class MobileCatalogService(
             }
             ?: emptyList()
 
-    /** Вопрос-ответ из metadata.faq: список объектов {q, a}; пустые/битые пропускаем. */
-    private fun faqList(p: MedusaProduct): List<MobileCatalogQaDto> =
-        (p.metadata?.get("faq") as? List<*>)
+    /**
+     * Вопрос-ответ для карточки. Сначала пробуем реальный metadata.faq ({q,a}); если его нет —
+     * собираем fallback из РЕАЛЬНЫХ полей товара ([generatedFaq]), чтобы выдвижная Q&A-секция
+     * не исчезала на товарах без своего FAQ (у Medusa-товаров его нет).
+     */
+    private fun faqList(p: MedusaProduct): List<MobileCatalogQaDto> {
+        val real = (p.metadata?.get("faq") as? List<*>)
             ?.mapNotNull { it as? Map<*, *> }
             ?.mapNotNull { m ->
                 val q = (m["q"] as? String)?.trim()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
@@ -411,6 +415,38 @@ class MobileCatalogService(
                 MobileCatalogQaDto(q = q, a = a)
             }
             ?: emptyList()
+        return real.ifEmpty { generatedFaq(p) }
+    }
+
+    /**
+     * Fallback-Q&A из заполненных полей товара — БЕЗ выдуманных мед.утверждений: только
+     * рецептурность, действующее вещество (+АТХ) и производитель (+страна). Пустые поля пропускаем.
+     */
+    private fun generatedFaq(p: MedusaProduct): List<MobileCatalogQaDto> {
+        val out = mutableListOf<MobileCatalogQaDto>()
+        metaStr(p, "rx_otc")?.let { rx ->
+            val low = rx.lowercase()
+            val prescription = low.contains("rx") || (low.contains("рецепт") && !low.contains("без"))
+            out += MobileCatalogQaDto(
+                q = "Отпускается по рецепту?",
+                a = if (prescription) "Да, рецептурный препарат — отпускается по назначению врача."
+                else "Нет, безрецептурный препарат (OTC).",
+            )
+        }
+        metaStr(p, "mnn")?.let { mnn ->
+            val atc = metaStr(p, "atc")
+            out += MobileCatalogQaDto(
+                q = "Какое действующее вещество?",
+                a = if (atc != null) "Действующее вещество — $mnn (АТХ: $atc)." else "Действующее вещество — $mnn.",
+            )
+        }
+        val manuf = metaStr(p, "manufacturer_official") ?: metaStr(p, "manufacturer")
+        val country = metaStr(p, "country_official") ?: metaStr(p, "country")
+        if (manuf != null || country != null) {
+            out += MobileCatalogQaDto(q = "Кто производитель?", a = listOfNotNull(manuf, country).joinToString(", "))
+        }
+        return out
+    }
 
     companion object {
         // Канал «Сайт» сейчас ~77 товаров — лента грузит весь каталог за 1-2 запроса.

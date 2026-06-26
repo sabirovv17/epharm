@@ -178,16 +178,19 @@ class _CatalogProductSheet extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 12),
-        Text(
-          catalogPriceLabel(d.price, currency: d.currency),
-          style: TextStyle(
-            fontFamily: 'Manrope',
-            fontFamilyFallback: const ['Roboto', 'sans-serif'],
-            fontSize: d.price == null ? 15 : 22,
-            fontWeight: FontWeight.w800,
-            color: d.price == null ? AppColors.ink500 : AppColors.brandGreen700,
+        // Цену показываем ТОЛЬКО когда она задана. Без цены не выводим заглушку
+        // «Цена в аптеке» (по просьбе) — сразу идёт бонус/инфо.
+        if (d.price != null)
+          Text(
+            catalogPriceLabel(d.price, currency: d.currency),
+            style: const TextStyle(
+              fontFamily: 'Manrope',
+              fontFamilyFallback: ['Roboto', 'sans-serif'],
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: AppColors.brandGreen700,
+            ),
           ),
-        ),
         // Бонус + «Получить бонус» (п.2). bonus != null означает: фармацевт авторизован
         // И у товара активная кампания. Аноним / товар без кампании → bonus == null,
         // блок не рисуем — карточка как обычно (хендлинг п.1).
