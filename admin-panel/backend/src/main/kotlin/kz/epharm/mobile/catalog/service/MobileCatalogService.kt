@@ -146,37 +146,59 @@ class MobileCatalogService(
     // ── Рекомендации к товару (ДОП.3b) ────────────────────────────────────────
 
     /**
-     * «Альтернативы» (замены) и «Дополнения» (кросс-селл) для товара карточки.
-     * Источник — те же активные правила активных кампаний, что и у POSM-кассы:
-     *  - alternatives: substitution-правила, чей триггер = этот товар → рекомендуют продвигаемый;
-     *  - crosssells:   crosssell-правила, чей триггер = этот товар → рекомендуют компаньона.
-     * Рекомендованные товары резолвятся к карточкам витрины ([cardsByIds]); недоступные пропускаем.
+     * «Альтернативы» (замены) и «Дополнения» (кросс-селл) для товара карточки — из тех же активных
+     * правил активных кампаний, что и у POSM-кассы. Матчинг ДВУНАПРАВЛЕННЫЙ: связь видна и когда
+     * товар — триггер правила (→ показываем продвигаемый recommend, с бонусом/кликом), и когда товар
+     * сам ПРОДВИГАЕМЫЙ recommend (→ показываем товар(ы)-триггер как инфо-карточки). Иначе карточка
+     * самой акции (продвигаемый товар) не показывала бы свои замены/кросс-селл.
+     * Партнёры резолвятся к карточкам витрины ([cardsByIds]); недоступные пропускаем.
      * Пусто (нет правил) → обе секции пустые, мобилка их не рисует.
      */
     fun recommendations(productId: String, includeIncentive: Boolean): MobileRecommendationsDto {
         val active = activeRules()
-        val subs = active.filter {
-            it.type == RuleType.substitution && it.recommend != productId && triggerMatches(it, productId)
+        // Собираем партнёров товара по ОБОИМ направлениям правила:
+        //  1) этот товар = ТРИГГЕР  → партнёр = recommend (продвигаемый): бонус/клик доступны;
+        //  2) этот товар = RECOMMEND (сам продвигаемый) → партнёр(ы) = триггер(ы): инфо-карточка.
+        // Иначе связь видна ТОЛЬКО на исходном товаре, а на самой карточке акции (продвигаемый
+        // товар = recommend) разделов нет — что и ломало ожидание. Теперь видно с обеих сторон.
+        val subPartners = LinkedHashMap<String, Partner>()
+        val crossPartners = LinkedHashMap<String, Partner>()
+        for (r in active) {
+            val map = when (r.type) {
+                RuleType.substitution -> subPartners
+                RuleType.crosssell -> crossPartners
+                else -> continue
+            }
+            if (r.recommend != productId && triggerMatches(r, productId)) {
+                map.putIfAbsent(r.recommend, Partner(r.recommend, r, promoted = true))
+            }
+            if (r.recommend == productId) {
+                for (tp in triggerProductIds(r)) {
+                    if (tp != productId) map.putIfAbsent(tp, Partner(tp, r, promoted = false))
+                }
+            }
         }
-        // Дедуп: если товар уже попал в «Альтернативы» (замена), не дублируем его в
-        // «Допродать» — замена приоритетнее (как RulesEngineService.survivors у POSM),
-        // иначе одна и та же карточка висела бы в обеих секциях.
-        val altRecommendIds = subs.map { it.recommend }.toSet()
-        val cross = active.filter {
-            it.type == RuleType.crosssell &&
-                it.recommend != productId &&
-                it.recommend !in altRecommendIds &&
-                triggerMatches(it, productId)
-        }
-        val ids = (subs + cross).map { it.recommend }.distinct()
+        // Дедуп: товар уже в «Альтернативы» (замена) → не дублируем в «Допродать» (замена приоритетнее).
+        crossPartners.keys.removeAll(subPartners.keys)
+        val ids = (subPartners.keys + crossPartners.keys).toList()
         if (ids.isEmpty()) return MobileRecommendationsDto(emptyList(), emptyList())
         val cards = cardsByIds(ids)
         // Какие из товаров-компаньонов имеют СВОЮ активную кампанию (для группировки кросс-селла).
         val activeIds = activeCampaignProductIds()
         return MobileRecommendationsDto(
-            alternatives = toRecommendations(subs, cards, includeIncentive, activeIds),
-            crosssells = toRecommendations(cross, cards, includeIncentive, activeIds),
+            alternatives = toRecommendations(subPartners.values, cards, includeIncentive, activeIds),
+            crosssells = toRecommendations(crossPartners.values, cards, includeIncentive, activeIds),
         )
+    }
+
+    /** Партнёр товара в правиле + само правило (для бонуса/скрипта) и сторона (промо или нет). */
+    private data class Partner(val productId: String, val rule: RuleEntity, val promoted: Boolean)
+
+    /** Товар(ы)-триггер(ы) правила: product → [value]; product_any → список; mnn/прочее → пусто. */
+    private fun triggerProductIds(rule: RuleEntity): List<String> = when (rule.trigger.kind) {
+        "product" -> listOfNotNull(rule.trigger.value as? String)
+        "product_any" -> (rule.trigger.value as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+        else -> emptyList()
     }
 
     /**
@@ -244,21 +266,24 @@ class MobileCatalogService(
      * "crosssell_no_campaign". Компаньон без своей кампании остаётся в выдаче (мобилка его не кликает).
      */
     private fun toRecommendations(
-        rules: List<RuleEntity>,
+        partners: Collection<Partner>,
         cards: Map<String, MobileCatalogProductDto>,
         includeIncentive: Boolean,
         activeCampaignIds: Set<String>,
     ): List<MobileRecommendationDto> =
-        rules.sortedByDescending { it.bonus }
-            .distinctBy { it.recommend }
-            .mapNotNull { r ->
-                val card = cards[r.recommend] ?: return@mapNotNull null
+        partners.sortedByDescending { it.rule.bonus }
+            .mapNotNull { partner ->
+                val card = cards[partner.productId] ?: return@mapNotNull null
+                val r = partner.rule
                 val isCross = r.type == RuleType.crosssell
-                val hasActiveCampaign = isCross && r.recommend in activeCampaignIds
+                // Бонус/скрипт — только когда партнёр это ПРОДВИГАЕМЫЙ recommend (его продажа даёт
+                // бонус). Для обратной стороны (партнёр = триггер) это инфо-карточка без бонуса.
+                val showIncentive = includeIncentive && partner.promoted
+                val hasActiveCampaign = isCross && partner.productId in activeCampaignIds
                 MobileRecommendationDto(
                     product = card,
-                    note = if (includeIncentive) r.script.trim().takeIf { it.isNotBlank() } else null,
-                    bonus = if (includeIncentive) r.bonus.takeIf { it > 0 } else null,
+                    note = if (showIncentive) r.script.trim().takeIf { it.isNotBlank() } else null,
+                    bonus = if (showIncentive) r.bonus.takeIf { it > 0 } else null,
                     hasActiveCampaign = hasActiveCampaign,
                     group = when {
                         !isCross -> "alternative"

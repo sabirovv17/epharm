@@ -133,6 +133,33 @@ class MobileCatalogServiceTest {
         assertTrue(rec.crosssells.isEmpty()) // дедуп: не дублируется в допродаже
     }
 
+    @Test
+    fun `обратное направление — карточка ПРОДВИГАЕМОГО товара показывает товар-триггер как замену и кросс-селл`() {
+        // Кампания продвигает Y: правило замены (выбрали X → рекомендуем Y) и кросс-селл (выбрали A → Y).
+        // Открыли САМ продвигаемый Y → должны увидеть X в «Аналоги» и A в «Сопутствующие» —
+        // инфо-карточки без бонуса (бонус только когда продают сам продвигаемый Y, а это уже его карточка).
+        // Раньше recommendations("Y") был пуст (Y нигде не триггер) — отсюда «акция без разделов».
+        every { ruleRepo.findAllByStatusRawOrderByUpdatedAtDesc(RuleStatus.active.name) } returns listOf(
+            rule("s1", recommend = "Y", type = RuleType.substitution, bonus = 500, trigger = "X"),
+            rule("c1", recommend = "Y", type = RuleType.crosssell, bonus = 80, trigger = "A"),
+        )
+        stubList(
+            MedusaProduct(id = "X", title = "Товар X", variants = emptyList()),
+            MedusaProduct(id = "A", title = "Товар A", variants = emptyList()),
+        )
+
+        val rec = service.recommendations("Y", includeIncentive = true)
+        assertEquals(1, rec.alternatives.size)
+        assertEquals("X", rec.alternatives[0].product.id)
+        assertEquals("alternative", rec.alternatives[0].group)
+        assertNull(rec.alternatives[0].bonus) // обратная сторона → без бонуса
+
+        assertEquals(1, rec.crosssells.size)
+        assertEquals("A", rec.crosssells[0].product.id)
+        assertEquals("crosssell_no_campaign", rec.crosssells[0].group)
+        assertNull(rec.crosssells[0].bonus)
+    }
+
     // ── Поля активной кампании в карточке (п.2) ──────────────────────────────
 
     @Test
