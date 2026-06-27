@@ -1,4 +1,4 @@
-﻿﻿﻿# standartn-discover.ps1 — узнать, КАК интегрироваться с реальной Стандарт-Н (а не с выдуманным логом).
+﻿# standartn-discover.ps1 — узнать, КАК интегрироваться с реальной Стандарт-Н (а не с выдуманным логом).
 # Запускать в VM со Стандарт-Н ДЕМО.
 #
 #   .\standartn-discover.ps1 find    — найти установку + файлы-кандидаты (log/csv/dbf/fdb...)
@@ -39,7 +39,7 @@ function Find-SqlServers {
     $r = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL' -ErrorAction Stop
     foreach ($pn in $r.PSObject.Properties) {
       if ($pn.Name -match '^PS') { continue }
-      if ($pn.Value -eq 'MSSQLSERVER') { $servers += 'localhost' } else { $servers += "localhost\$($pn.Name)" }
+      if ($pn.Name -eq 'MSSQLSERVER') { $servers += 'localhost' } else { $servers += "localhost\$($pn.Name)" }
     }
   } catch {}
   $servers += @('localhost','.\SQLEXPRESS','localhost\SQLEXPRESS','.\STANDARTN','localhost\STANDARTN','(localdb)\MSSQLLocalDB')
