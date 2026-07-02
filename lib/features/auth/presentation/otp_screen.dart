@@ -31,9 +31,11 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   final _focus = FocusNode();
   String _code = '';
   bool _busy = false;
+  bool _resending = false;
   String? _error;
   Timer? _ticker;
-  int _seconds = 119; // 1:59
+  // 60с — в такт серверному кулдауну повторной отправки (app.otp.resend-cooldown-seconds).
+  int _seconds = 60;
   Timer? _autoFillTimer;
 
   @override
@@ -65,6 +67,34 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   }
 
   bool get _canSubmit => _code.length == 6 && !_busy;
+
+  /// Повторная отправка кода (когда таймер дошёл до 0). Реальная SMS может потеряться /
+  /// задержаться — без этой кнопки пользователь застревал на экране. Бэкенд держит свой
+  /// кулдаун (429 OTP_RESEND_TOO_SOON) — его сообщение показываем как есть.
+  Future<void> _resend() async {
+    if (_resending) return;
+    final phone = ref.read(authDraftProvider).phone;
+    if (phone == null || phone.isEmpty) return;
+    setState(() {
+      _resending = true;
+      _error = null;
+    });
+    try {
+      await ref.read(authActionsProvider).sendOtp(phone);
+      if (!mounted) return;
+      _controller.clear();
+      setState(() {
+        _code = '';
+        _seconds = 60; // новый цикл ожидания
+      });
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Ошибка сети. Попробуйте ещё раз.');
+    } finally {
+      if (mounted) setState(() => _resending = false);
+    }
+  }
 
   Future<void> _submit() async {
     if (!_canSubmit) return;
@@ -229,15 +259,32 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                         ),
                       ),
                     Center(
-                      child: Text(
-                        'Повторная отправка через: $mm:$ss',
-                        style: const TextStyle(
-                          fontFamily: 'Manrope',
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
+                      // Пока тикает таймер — показываем обратный отсчёт; на нуле — активную
+                      // кнопку повторной отправки (SMS может потеряться, без неё тупик).
+                      child: _seconds > 0
+                          ? Text(
+                              'Повторная отправка через: $mm:$ss',
+                              style: const TextStyle(
+                                fontFamily: 'Manrope',
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            )
+                          : TextButton(
+                              onPressed: _resending ? null : _resend,
+                              child: Text(
+                                _resending ? 'Отправляем…' : 'Отправить код ещё раз',
+                                style: const TextStyle(
+                                  fontFamily: 'Manrope',
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                  decoration: TextDecoration.underline,
+                                  decorationColor: Colors.white,
+                                ),
+                              ),
+                            ),
                     ),
                   ],
                 ),

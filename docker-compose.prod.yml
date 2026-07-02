@@ -114,6 +114,11 @@ services:
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       # ВАЖНО для прода: выключить dev-OTP (иначе код входа всегда 544544).
       OTP_DEV_MODE: ${OTP_DEV_MODE:-false}
+      # SMS-провайдер p1sms.kz: ключ ПУСТ → SMS не уходят (лог-заглушка). Канал digit/char,
+      # sender нужен только для char (зарегистрированное в ЛК имя отправителя).
+      P1SMS_API_KEY: ${P1SMS_API_KEY:-}
+      P1SMS_CHANNEL: ${P1SMS_CHANNEL:-digit}
+      P1SMS_SENDER: ${P1SMS_SENDER:-}
       POSM_DEVICE_KEY: ${POSM_DEVICE_KEY:?set POSM_DEVICE_KEY in .env.prod}
       # Bootstrap первого admin-аккаунта HQ-консоли (ProdBootstrap, profile=prod).
       # Без них admin_users пуста → в консоль не войти.

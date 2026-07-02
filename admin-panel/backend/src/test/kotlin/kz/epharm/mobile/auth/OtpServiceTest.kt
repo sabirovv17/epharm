@@ -5,6 +5,7 @@ import kz.epharm.mobile.auth.service.OtpService
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatCode
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -144,5 +145,35 @@ class OtpServiceTest {
         otpService.request(phone)
         otpService.consume(phone)
         assertThat(otpRepository.findById(phone)).isEmpty
+    }
+
+    // ── Кулдаун повторной отправки (анти-спам: SMS платные) ──────────────────
+
+    @Test
+    fun `повторный request раньше кулдауна бросает OTP_RESEND_TOO_SOON`() {
+        val t0 = Instant.parse("2026-06-09T10:00:00Z")
+        otpService.request(phone, now = t0)
+        // cooldown=60с (дефолт) → повтор через 30с отбивается.
+        assertThatThrownBy { otpService.request(phone, now = t0.plus(Duration.ofSeconds(30))) }
+            .isInstanceOf(AppException::class.java)
+            .extracting("code").isEqualTo(ErrorCode.OTP_RESEND_TOO_SOON)
+    }
+
+    @Test
+    fun `повторный request после кулдауна проходит`() {
+        val t0 = Instant.parse("2026-06-09T10:00:00Z")
+        otpService.request(phone, now = t0)
+        val r = otpService.request(phone, now = t0.plus(Duration.ofSeconds(61)))
+        assertThat(r.devCode).isEqualTo("544544")
+    }
+
+    @Test
+    fun `после verify кулдаун не мешает новому циклу входа`() {
+        val t0 = Instant.parse("2026-06-09T10:00:00Z")
+        otpService.request(phone, now = t0)
+        otpService.verify(phone, "544544", now = t0)
+        // Строка verified → повторный запрос сразу разрешён (новый вход).
+        assertThatCode { otpService.request(phone, now = t0.plus(Duration.ofSeconds(5))) }
+            .doesNotThrowAnyException()
     }
 }

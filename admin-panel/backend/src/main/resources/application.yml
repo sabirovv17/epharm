@@ -70,6 +70,21 @@ app:
     ttl-seconds: 300
     max-attempts: 5
     register-window-seconds: 900
+    # Анти-спам: повторная отправка кода на тот же номер не чаще, чем раз в N секунд
+    # (SMS платные). 0 = выключить. Мобилка держит такой же таймер на кнопке resend.
+    resend-cooldown-seconds: ${OTP_RESEND_COOLDOWN_SECONDS:60}
+  sms:
+    # Боевой SMS-провайдер p1sms.kz (apiInstruction.pdf). api-key ПУСТ → лог-заглушка
+    # (SMS не уходят). Ключ — в ЛК admin.p1sms.kz («Эмулятор запросов»/«Инструкция по API»).
+    p1sms:
+      base-url: ${P1SMS_BASE_URL:https://admin.p1sms.kz}
+      api-key: ${P1SMS_API_KEY:}
+      # Канал: digit (цифровой, без имени отправителя) | char (буквенный, нужен
+      # зарегистрированный в ЛК sender). Ставим тот, что активирован на аккаунте.
+      channel: ${P1SMS_CHANNEL:digit}
+      sender: ${P1SMS_SENDER:}
+      text-template: 'Код входа ePharm: {code}'
+      timeout-ms: 10000
   posm:
     # Ключ устройства кассы (Module 2). POSM-клиент шлёт его в заголовке X-Posm-Key.
     # На MVP — общий ключ; в prod каждой кассе выдаётся свой (Stage 4).
@@ -100,6 +115,6 @@ app:
     publishable-key: ${MEDUSA_PUBLISHABLE_KEY:pk_ed9c35a59066b45de7d9e12510468ca27af16b6d0170b0910c03746545da4525}
     sales-channel-id: ${MEDUSA_SALES_CHANNEL_ID:sc_01KRXGQFYXMJN3FD1WJ7S83WME}
     region-id: ${MEDUSA_REGION_ID:reg_01KSBNEH2D4GVJN8EATK79WNSH}
-    timeout-ms: ${MEDUSA_TIMEOUT_MS:6000}
+    timeout-ms: ${MEDUSA_TIMEOUT_MS:15000}
     # TTL кэша смаппленного каталога (сек). 0 — выключить кэш.
     cache-ttl-seconds: ${MEDUSA_CACHE_TTL:300}

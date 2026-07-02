@@ -32,17 +32,35 @@ class OtpService(
     @Value("\${app.otp.ttl-seconds:300}") private val ttlSeconds: Long,
     @Value("\${app.otp.max-attempts:5}") private val maxAttempts: Int,
     @Value("\${app.otp.register-window-seconds:900}") private val registerWindowSeconds: Long,
+    @Value("\${app.otp.resend-cooldown-seconds:60}") private val resendCooldownSeconds: Long,
 ) {
     private val random = SecureRandom()
 
     /**
      * Генерит/перезаписывает код для номера. Возвращает devCode (только в dev-режиме — для
      * curl/E2E; в prod null, код уходит SMS-ой) + ttl. Сбрасывает attempts и verified_at.
+     *
+     * Анти-спам: повторный запрос для того же номера раньше resendCooldownSeconds → 429
+     * OTP_RESEND_TOO_SOON (реальные SMS платные; без кулдауна кнопку можно закликать).
+     * Уже подтверждённые строки (verified_at) кулдауном не блокируем — это новый цикл входа.
      */
     @Transactional
     fun request(phone: String, now: Instant = Instant.now()): RequestedOtp {
+        val existing = otpRepository.findById(phone).orElse(null)
+        if (existing != null && existing.verifiedAt == null && resendCooldownSeconds > 0) {
+            val nextAllowedAt = existing.createdAt.plusSeconds(resendCooldownSeconds)
+            if (now.isBefore(nextAllowedAt)) {
+                val waitSec = Duration.between(now, nextAllowedAt).seconds.coerceAtLeast(1)
+                throw AppException(
+                    ErrorCode.OTP_RESEND_TOO_SOON,
+                    "Код уже отправлен — повторная отправка через $waitSec с",
+                    HttpStatus.TOO_MANY_REQUESTS,
+                )
+            }
+        }
+
         val code = if (devMode) devFixed else generateCode()
-        val entity = otpRepository.findById(phone).orElseGet { MobileOtpEntity(phone = phone) }
+        val entity = existing ?: MobileOtpEntity(phone = phone)
         entity.codeHash = RefreshTokenService.hash(code)
         entity.expiresAt = now.plus(Duration.ofSeconds(ttlSeconds))
         entity.attempts = 0

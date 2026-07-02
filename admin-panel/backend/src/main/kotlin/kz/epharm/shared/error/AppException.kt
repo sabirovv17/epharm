@@ -38,5 +38,9 @@ enum class ErrorCode {
     OTP_INVALID,
     OTP_TOO_MANY_ATTEMPTS,
     OTP_NOT_VERIFIED,
+    // Повторный запрос кода раньше кулдауна (анти-спам: реальные SMS платные).
+    OTP_RESEND_TOO_SOON,
+    // SMS-провайдер (p1sms) недоступен/отклонил отправку — код не ушёл, OTP-строка откатана.
+    SMS_SEND_FAILED,
     PHARMACIST_BLOCKED,
 }
