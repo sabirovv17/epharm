@@ -1,9 +1,9 @@
 {
-  "_comment": "Скопировать в C:\\Epharm\\posm.json на кассе и заполнить реальными значениями. Любое поле можно переопределить переменной окружения (EPHARM_BACKEND_URL / EPHARM_POSM_KEY / EPHARM_PHARMACIST_ID / EPHARM_PHARMACY_ID / EPHARM_POSM_ENABLED).",
+  "_comment": "Скопировать в C:\\Epharm\\posm.json на кассе и заполнить реальными значениями. В боевом режиме pharmacistId/цены читаются строго из БД Стандарт-Н ztrade. Если БД не найдена, эти поля остаются пустыми, POSM не падает. Любое поле можно переопределить env-переменной.",
   "enabled": true,
   "backendBaseUrl": "https://api.epharm.kz",
   "deviceKey": "ВЫДАЁТСЯ-ПРИ-ОНБОРДИНГЕ-АПТЕКИ",
-  "pharmacistId": "u_xxx",
+  "pharmacistId": "",
   "pharmacyId": "ph_xxx",
   "recommendTimeoutMs": 5000,
   "debounceMs": 150,
@@ -12,5 +12,12 @@
   "playlistPollSec": 20,
   "mediaCacheDir": "C:\\Epharm\\media-cache",
   "heartbeatPath": "C:\\Epharm\\heartbeat.txt",
-  "heartbeatSec": 15
+  "heartbeatSec": 15,
+  "standardNDbEnabled": true,
+  "standardNDbHost": "localhost",
+  "standardNDbPort": 3050,
+  "standardNDbPath": "C:\\Standart-N_DEMO\\Apteka_KZ DEMO\\db\\ztrade",
+  "standardNDbUser": "SYSDBA",
+  "standardNDbPassword": "masterkey",
+  "standardNDbTimeoutMs": 1000
 }

@@ -25,10 +25,11 @@ namespace CustomerDisplay
         private OfflineOutbox? _outbox;
         private OutboxFlusher? _flusher;
         private SaleReporter? _saleReporter;
+        private StandardNDbLookup? _standardNDb;
         private CheckoutSession _session = new();
 
-        // Текущий фармацевт/кассир — берётся из лога кассы (токен kassir=/cashier=), а НЕ из конфига:
-        // фармацевты работают посменно, поэтому id динамический. Пусто, пока касса не прислала кассира.
+        // Текущий фармацевт/кассир — в боевом режиме берётся строго из БД Стандарт-Н
+        // (ACTIVEUSERS.USER_ID). Пусто, если БД недоступна/не знает активного пользователя.
         private string _currentPharmacistId = "";
 
         private CancellationTokenSource? _recoCts;
@@ -79,6 +80,7 @@ namespace CustomerDisplay
             try
             {
                 _posmConfig = EpharmConfig.Load();
+                _standardNDb = new StandardNDbLookup(_posmConfig, Log);
                 if (_posmConfig.Enabled)
                 {
                     _epharm = new EpharmApiClient(_posmConfig, Log);
@@ -169,6 +171,8 @@ namespace CustomerDisplay
 
             try
             {
+                List<string> requestLogItems = new();
+                string? requestPharmacistId = null;
                 var request = await Dispatcher.InvokeAsync(() =>
                 {
                     var req = _session.BuildRequest(_posmConfig, ReceiptItems, scannedItem, _currentPharmacistId);
@@ -178,12 +182,18 @@ namespace CustomerDisplay
                         return null;
                     }
                     PruneShownStateForCurrentCart();
+                    requestPharmacistId = req.PharmacistId;
+                    requestLogItems = ReceiptItems
+                        .Where(IsRealCashItem)
+                        .Select(i => $"sku={i.PartId}, ean={i.Barcode ?? "—"}, name={i.Name ?? "—"}, " +
+                                     $"qty={i.Qty:0.###}, price={FormatMoneyForLog(i.Price)}")
+                        .ToList();
                     return req;
                 });
                 if (request == null) return;
 
-                Log($"POSM recommend request ({reason}): " + string.Join(" | ", request.Cart.Select(i =>
-                    $"sku={i.Sku ?? "—"}, ean={i.Barcode ?? "—"}, name={i.Name ?? "—"}, qty={i.Qty:0.###}")));
+                Log($"POSM recommend request ({reason}): pharmacistId={requestPharmacistId ?? "—"}; " +
+                    string.Join(" | ", requestLogItems));
 
                 var resp = await _epharm.RecommendAsync(request, token).ConfigureAwait(false);
                 if (resp == null) return;
@@ -505,6 +515,7 @@ namespace CustomerDisplay
         /// </summary>
         private void OnReceiptFinalized()
         {
+            RefreshCurrentPharmacistFromStandardNDb();
             _saleReporter?.Report(_session, ReceiptItems, _currentPharmacistId); // позиции ещё в чеке
             ResetRecommendationUiState(closeWindows: true);
             _session = new CheckoutSession();

@@ -64,10 +64,14 @@ $line = "Add2Cheque iPartID=80309(4603423004936);sname=Аквалор;price=1620
 
 Barcode in parentheses is the important part. POSM also supports explicit `barcode=`/`ean=` fields.
 
-Pharmacist/cashier is taken from the log token `kassir=<id>` (synonym `cashier=`), case-insensitive,
-value up to `;`/space/end. It is NOT read from `posm.json` anymore (pharmacists work in shifts).
-The value may be an id or a name (Cyrillic OK). The real Standard-N cashier field maps to this once
-a real `zkassa.log` is available.
+Pharmacist/cashier is read from the local Standard-N Firebird database (`ztrade`):
+`ACTIVEUSERS.USER_ID` is logged and stamped on `/recommend` + `/sales`. The log token
+`kassir=<id>` / `cashier=<id>` is used only when DB reading is explicitly disabled for diagnostics.
+
+Prices are also enriched from `ztrade` by `iPartID` (`PRICES` / `VW_WAREBASE_KASSA`). If the cash
+log has `price=0` or no price, POSM still logs and reports the real local retail price when the DB
+is reachable. If the DB is not reachable, trusted price/pharmacist fields stay empty instead of using
+stale fallback values.
 
 ## Controls
 

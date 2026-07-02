@@ -16,12 +16,18 @@
   Всё fail-safe: ошибки только логируются, watchdog не падает.
 
 .PARAMETER ExePath        Полный путь к CustomerDisplay.exe.
+.PARAMETER ConfigPath     Полный путь к posm.json.
+.PARAMETER ScreenMode     Режим экрана: dev/prod. Для демо-пакета по умолчанию dev.
+.PARAMETER AppLogPath     Путь к логу приложения.
 .PARAMETER HeartbeatPath  Путь к heartbeat-файлу (как в posm.json HeartbeatPath).
 .PARAMETER MaxAgeSec      Порог устаревания heartbeat в секундах (по умолчанию 90).
 .PARAMETER LogPath        Лог watchdog.
 #>
 param(
     [string]$ExePath = "C:\epharm\app\CustomerDisplay.exe",
+    [string]$ConfigPath = "C:\Epharm\posm.json",
+    [string]$ScreenMode = "dev",
+    [string]$AppLogPath = "C:\Epharm\customerdisplay.log",
     [string]$HeartbeatPath = "C:\Epharm\heartbeat.txt",
     [int]$MaxAgeSec = 90,
     [string]$LogPath = "C:\Epharm\watchdog.log"
@@ -37,8 +43,23 @@ function Write-Log([string]$msg) {
 
 function Start-Posm() {
     try {
+        if ([string]::IsNullOrWhiteSpace($ScreenMode)) { $ScreenMode = "dev" }
+        $mode = $ScreenMode.Trim().ToLowerInvariant()
+        if ($mode -ne "prod") { $mode = "dev" }
+
+        $env:EPHARM_POSM_CONFIG = $ConfigPath
+        $env:EPHARM_SCREEN_MODE = $mode
+        $env:EPHARM_APP_LOG = $AppLogPath
+        Remove-Item Env:\EPHARM_LOG_PATH -ErrorAction SilentlyContinue
+
+        if ($mode -eq "dev") {
+            $env:EPHARM_DEBUG = "1"
+        } else {
+            Remove-Item Env:\EPHARM_DEBUG -ErrorAction SilentlyContinue
+        }
+
         Start-Process -FilePath $ExePath -WorkingDirectory (Split-Path -Parent $ExePath)
-        Write-Log "started: $ExePath"
+        Write-Log "started: $ExePath, screenMode=$mode"
     } catch {
         Write-Log "start FAILED: $($_.Exception.Message)"
     }

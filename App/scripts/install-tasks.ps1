@@ -37,6 +37,8 @@ param(
     [string]$ScriptsDir = $PSScriptRoot,
     [string]$ConfigPath = "",
     [string]$HeartbeatPath = "C:\Epharm\heartbeat.txt",
+    [string]$ScreenMode = "dev",
+    [string]$AppLogPath = "C:\Epharm\customerdisplay.log",
     [int]$MaxAgeSec = 90
 )
 
@@ -61,6 +63,9 @@ if (-not $exePath) {
 }
 $exeName = [System.IO.Path]::GetFileName($exePath)
 Write-Host "[i] Приложение: $exePath" -ForegroundColor Cyan
+foreach ($p in @("CustomerDisplay", "Epharm-POSM")) {
+    Get-Process -Name $p -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+}
 
 $watchdog = Join-Path $ScriptsDir "watchdog.ps1"
 $hasWatchdog = Test-Path $watchdog
@@ -94,8 +99,51 @@ $appTask = "EpharmPOSM"
 $wdTask = "EpharmPOSM-Watchdog"
 $me = "$env:USERDOMAIN\$env:USERNAME"
 
+if ([string]::IsNullOrWhiteSpace($ScreenMode)) { $ScreenMode = "dev" }
+$ScreenMode = $ScreenMode.Trim().ToLowerInvariant()
+if ($ScreenMode -ne "prod") { $ScreenMode = "dev" }
+
+# ── 2.5. Единый launcher для автозапуска и watchdog ────────────────────────────────────────────
+# Нельзя запускать exe напрямую: тогда задача планировщика не передаёт dev/prod env-параметры,
+# и окно может открыться не в левом DEV-режиме. Launcher выставляет окружение перед стартом.
+$appLauncher = Join-Path $InstallDir "start-posm.ps1"
+$appLauncherBody = @'
+param(
+    [Parameter(Mandatory=$true)][string]$ExePath,
+    [Parameter(Mandatory=$true)][string]$ConfigPath,
+    [string]$ScreenMode = "dev",
+    [string]$AppLogPath = "C:\Epharm\customerdisplay.log"
+)
+
+$ErrorActionPreference = "Stop"
+
+$env:EPHARM_POSM_CONFIG = $ConfigPath
+$env:EPHARM_SCREEN_MODE = $ScreenMode
+$env:EPHARM_APP_LOG = $AppLogPath
+Remove-Item Env:\EPHARM_LOG_PATH -ErrorAction SilentlyContinue
+
+if ($ScreenMode -eq "dev") {
+    $env:EPHARM_DEBUG = "1"
+} else {
+    Remove-Item Env:\EPHARM_DEBUG -ErrorAction SilentlyContinue
+}
+
+Start-Process -FilePath $ExePath -WorkingDirectory (Split-Path -Parent $ExePath)
+'@
+[System.IO.File]::WriteAllText($appLauncher, $appLauncherBody, [System.Text.UTF8Encoding]::new($true))
+
+$appHiddenLauncher = Join-Path $InstallDir "start-posm-hidden.vbs"
+$appPsArgs = "-NoLogo -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$appLauncher`" " +
+             "-ExePath `"$exePath`" -ConfigPath `"$defaultCfg`" -ScreenMode `"$ScreenMode`" -AppLogPath `"$AppLogPath`""
+$appCommand = "powershell.exe $appPsArgs"
+$appCommandForVbs = $appCommand.Replace('"', '""')
+$appVbs = "Set sh = CreateObject(""WScript.Shell"")`r`n" +
+          "sh.Run ""$appCommandForVbs"", 0, False`r`n"
+[System.IO.File]::WriteAllText($appHiddenLauncher, $appVbs, [System.Text.UTF8Encoding]::new($false))
+Write-Host "[ok] Launcher создан: screenMode=$ScreenMode, log=$AppLogPath" -ForegroundColor Green
+
 # ── 3. Основное приложение: ONLOGON + RestartOnFailure ──────────────────────────────────────────
-$appAction = New-ScheduledTaskAction -Execute $exePath -WorkingDirectory $InstallDir
+$appAction = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$appHiddenLauncher`"" -WorkingDirectory $InstallDir
 $appTrigger = New-ScheduledTaskTrigger -AtLogOn
 $appPrincipal = New-ScheduledTaskPrincipal -UserId $me -LogonType Interactive -RunLevel Highest
 $appSettings = New-ScheduledTaskSettingsSet `
@@ -107,13 +155,22 @@ $appSettings = New-ScheduledTaskSettingsSet `
 
 Register-ScheduledTask -TaskName $appTask -Action $appAction -Trigger $appTrigger `
     -Principal $appPrincipal -Settings $appSettings -Force | Out-Null
-Write-Host "[ok] Задача '$appTask' создана (ONLOGON + restart-on-failure, exe=$exeName)." -ForegroundColor Green
+Write-Host "[ok] Задача '$appTask' создана (ONLOGON, launcher -> exe=$exeName, screenMode=$ScreenMode)." -ForegroundColor Green
 
 # ── 4. Watchdog: ONLOGON + повтор каждую минуту (если watchdog.ps1 рядом) ────────────────────────
 if ($hasWatchdog) {
-    $wdArgs = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$watchdog`" " +
-              "-ExePath `"$exePath`" -HeartbeatPath `"$HeartbeatPath`" -MaxAgeSec $MaxAgeSec"
-    $wdAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $wdArgs
+    # Запуск watchdog через wscript/VBS нужен, чтобы раз в минуту НЕ мигало окно PowerShell.
+    # -WindowStyle Hidden у powershell.exe в интерактивной задаче не всегда предотвращает flash.
+    $hiddenLauncher = Join-Path $InstallDir "watchdog-hidden.vbs"
+    $wdPsArgs = "-NoLogo -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$watchdog`" " +
+                "-ExePath `"$exePath`" -ConfigPath `"$defaultCfg`" -ScreenMode `"$ScreenMode`" " +
+                "-AppLogPath `"$AppLogPath`" -HeartbeatPath `"$HeartbeatPath`" -MaxAgeSec $MaxAgeSec"
+    $wdCommand = "powershell.exe $wdPsArgs"
+    $wdCommandForVbs = $wdCommand.Replace('"', '""')
+    $vbs = "Set sh = CreateObject(""WScript.Shell"")`r`n" +
+           "sh.Run ""$wdCommandForVbs"", 0, False`r`n"
+    [System.IO.File]::WriteAllText($hiddenLauncher, $vbs, [System.Text.UTF8Encoding]::new($false))
+    $wdAction = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$hiddenLauncher`""
 
     $wdTrigger = New-ScheduledTaskTrigger -AtLogOn
     $rep = (New-ScheduledTaskTrigger -Once -At (Get-Date) `

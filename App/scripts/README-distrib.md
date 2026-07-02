@@ -5,7 +5,9 @@ This folder contains helper scripts for the Windows C#/WPF POSM client.
 ## Client Capabilities
 
 - Reads Standard-N `zkassa.log`.
-- Extracts barcode/name/qty/price.
+- Extracts barcode/name/qty from the cash log.
+- Reads active pharmacist id and real product prices from the local Standard-N Firebird DB (`ztrade`)
+  when it is available.
 - Calls backend recommendations.
 - Shows pharmacist popup.
 - Mirrors receipt and broadcast media on customer display.
@@ -69,7 +71,15 @@ dotnet run
 | `RecommendRefreshSec` | `EPHARM_RECOMMEND_REFRESH_SEC`  | Legacy; default 0. Recommendations are scan-triggered.                                                    |
 | `MediaCacheDir`       | `EPHARM_MEDIA_CACHE_DIR`        | Local cache for admin-panel videos.                                                                       |
 | `AppLogPath`          | `EPHARM_APP_LOG`                | App log file path.                                                                                        |
+| `StandardNDbEnabled`  | `EPHARM_STANDARDN_DB_ENABLED`   | Read active pharmacist/prices from local Standard-N Firebird DB. Default `true`.                          |
+| `StandardNDbPath`     | `EPHARM_STANDARDN_DB_PATH`      | Optional path to `ztrade`; empty means POSM probes standard demo/prod paths.                              |
+| `StandardNDbHost`     | `EPHARM_STANDARDN_DB_HOST`      | Firebird host. Default `localhost`.                                                                       |
+| `StandardNDbPort`     | `EPHARM_STANDARDN_DB_PORT`      | Firebird port. Default `3050`.                                                                            |
 | log path              | `EPHARM_LOG_PATH`               | Optional Standard-N log path override for non-standard cash desks. Do not set it for the default demo VM. |
+
+If `ztrade` is not found or Firebird is unavailable, POSM remains running and keeps recommendations/video
+working. In that case `pharmacistId` and trusted prices are left empty in POSM logs/reports instead of
+using stale fallback values.
 
 ## Screen Modes
 
@@ -104,8 +114,10 @@ ssh root@<server> "cd /root/epharm && docker compose --env-file .env.prod -f doc
 ## Debug Checklist
 
 - Is `Enabled=true`?
-- Are `DeviceKey`, `PharmacyId`, `PharmacistId` set?
+- Are `DeviceKey` and `PharmacyId` set?
+- Does log show `БД Стандарт-Н: ... db=<path>` or a clear "not found" message?
 - Does log show watched `zkassa.log` path?
 - Does log show parsed `barcode`?
+- Does scan log show `pharmacistId` and non-zero price when `ztrade` is available?
 - Does backend return 401, timeout, empty recommendations, or actual recommendation?
 - Is a matching active campaign/rule configured in admin?

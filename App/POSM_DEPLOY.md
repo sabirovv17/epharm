@@ -97,6 +97,7 @@ A real popup requires:
 - valid backend URL and device key;
 - active campaign/rule for the scanned product;
 - barcode in the cash-desk log or a name that matches uniquely.
+- local Standard-N Firebird DB (`ztrade`) reachable if you need real `pharmacistId` and prices in logs.
 
 Demo log line format:
 
@@ -106,6 +107,14 @@ $enc = [System.Text.Encoding]::GetEncoding(1251)
 $line = "Add2Cheque iPartID=80309(4603423004936);sname=Аквалор;price=1620;quant=1"
 [System.IO.File]::AppendAllText($log, "$line`r`n", $enc)
 ```
+
+For production logs POSM enriches the scan with:
+
+- active pharmacist id from `ACTIVEUSERS.USER_ID`;
+- retail price from `VW_WAREBASE_KASSA` / `PRICES` by `iPartID`.
+
+If `ztrade` is not found, POSM does not fail: recommendations/video continue, while trusted
+`pharmacistId` and price fields remain empty until the DB path/Firebird connection is available.
 
 ## Operational Rules
 

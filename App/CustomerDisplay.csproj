@@ -8,14 +8,26 @@
     <Nullable>enable</Nullable>
  <PlatformTarget>x64</PlatformTarget>
   <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!-- Явно задаём XAML items: на Windows/.NET 10 publish из сетевого Z: иногда
+         передаёт WPF-компилятору литерал **/*.xaml и падает BG1002/BG1003. -->
+    <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
+    <EnableDefaultPageItems>false</EnableDefaultPageItems>
     <!-- Версия установленной сборки — с ней авто-апдейтер сравнивает релиз из админки.
          Бампать при каждом релизе (или задавать через -p:Version=x.y.z при publish). -->
     <Version>1.0.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
+    <ApplicationDefinition Include="App.xaml" />
+    <Page Include="MainWindow.xaml" />
+    <Page Include="RecommendationWindow.xaml" />
+    <Page Include="CdpForm.xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="LibVLCSharp.WPF" Version="3.9.5" />
     <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.23" />
+    <PackageReference Include="FirebirdSql.Data.FirebirdClient" Version="10.3.4" />
     <!-- Offline-outbox сверки чеков (источник №1): локальная SQLite-очередь исходящих. -->
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.2" />
   </ItemGroup>

@@ -11,6 +11,7 @@ using System.Windows;
 using System.Windows.Forms;
 using System.Windows.Input;
 using CustomerDisplay.Models;
+using CustomerDisplay.Services;
 using LibVLCSharp.Shared;
 
 
@@ -315,6 +316,7 @@ private void PositionWindowToTopRightQuarter()
                     $"POSM включён: {c.Enabled}; видео: {c.VideoEnabled}; " +
                     $"опрос плейлиста: {c.PlaylistPollSec}с; рекомендации: только при скане, debounce {c.DebounceMs}мс");
                 Log($"Логи кассы Стандарт-Н: {string.Join(" | ", _logPaths)}");
+                Log($"БД Стандарт-Н: {(_standardNDb == null ? "не инициализирована" : _standardNDb.Describe())}");
             }
             Log("============================================================");
         }
@@ -398,10 +400,13 @@ private void ProcessLogLine(string line)
     // Тут будет твоя реальная логика триггеров.
     // Пока даю универсальные заглушки:
 
-    // Кассир/смена из лога: токен kassir=<id> или cashier=<id> в любой строке обновляет текущего
-    // фармацевта. Так id фармацевта берётся из кассы (фармацевты работают посменно), а НЕ из конфига.
-    var kassir = ExtractCashier(line);
-    if (!string.IsNullOrWhiteSpace(kassir)) _currentPharmacistId = kassir!;
+    // Fallback для синтетических тестов: kassir=/cashier= читаем только если чтение БД Стандарт-Н
+    // явно выключено. В боевом режиме фармацевт должен приходить строго из ACTIVEUSERS.USER_ID.
+    if (_posmConfig?.StandardNDbEnabled == false)
+    {
+        var kassir = ExtractCashier(line);
+        if (!string.IsNullOrWhiteSpace(kassir)) _currentPharmacistId = kassir!;
+    }
 
 if (line.Contains("ChequeList.OnChange"))
 {
@@ -411,8 +416,11 @@ if (line.Contains("ChequeList.OnChange"))
 
     if (line.Contains("Add2Cheque") && !line.Contains("(delete)"))
 {
+    RefreshCurrentPharmacistFromStandardNDb();
     var item = TryParseAdd2Cheque(line);
     if (item == null) return;
+    var priceSource = EnrichItemFromStandardNDb(item);
+    LogScannedItemContext(item, priceSource);
 
     Dispatcher.Invoke(() =>
     {
@@ -501,16 +509,14 @@ private ReceiptItem? TryParseAdd2Cheque(string line)
         var partIdStr = ExtractPartId(line);
         var name = ExtractBetween(line, "sname=", ";")?.Trim();
         var priceStr = ExtractBetween(line, "price=", ";")?.Trim();
-        var qtyStr = ExtractBetween(line, "quant=", null)?.Trim();
+        var qtyStr = ExtractBetween(line, "quant=", ";")?.Trim();
 
         if (string.IsNullOrWhiteSpace(partIdStr) ||
-            string.IsNullOrWhiteSpace(name) ||
-            string.IsNullOrWhiteSpace(priceStr) ||
             string.IsNullOrWhiteSpace(qtyStr))
             return null;
 
         var partId = int.Parse(partIdStr);
-        var price = ParseDecimalSmart(priceStr);
+        var price = string.IsNullOrWhiteSpace(priceStr) ? 0m : ParseDecimalSmart(priceStr);
         var qty = ParseDecimalSmart(qtyStr);
 
         // EAN-13 — ключ матчинга на backend. Извлекаем робастно (реальный формат zkassa.log неизвестен).
@@ -520,7 +526,7 @@ private ReceiptItem? TryParseAdd2Cheque(string line)
         {
             PartId = partId,
             Barcode = barcode,
-            Name = name,
+            Name = name ?? "",
             Price = price,
             Qty = qty,
             DiscountPercent = 0m
@@ -531,6 +537,72 @@ private ReceiptItem? TryParseAdd2Cheque(string line)
         return null;
     }
 }
+
+private void RefreshCurrentPharmacistFromStandardNDb()
+{
+    if (_posmConfig?.StandardNDbEnabled != true) return;
+    var active = _standardNDb?.GetActivePharmacist();
+    if (active == null)
+    {
+        if (!string.IsNullOrWhiteSpace(_currentPharmacistId))
+            Log("Активный фармацевт из БД Стандарт-Н не найден — pharmacistId очищен");
+        _currentPharmacistId = "";
+        return;
+    }
+
+    var previous = _currentPharmacistId;
+    _currentPharmacistId = active.Id;
+
+    if (!string.Equals(previous, _currentPharmacistId, StringComparison.OrdinalIgnoreCase))
+    {
+        Log($"Активный фармацевт из БД Стандарт-Н: id={active.Id}, " +
+            $"name={active.Name ?? "—"}, session={active.SessionId?.ToString() ?? "—"}");
+    }
+}
+
+private string EnrichItemFromStandardNDb(ReceiptItem item)
+{
+    var source = item.Price > 0m ? "лог кассы" : "нет в логе";
+    if (_posmConfig?.StandardNDbEnabled != true) return source;
+
+    var dbProduct = _standardNDb?.GetProduct(item.PartId, item.Barcode);
+    if (dbProduct == null)
+    {
+        // Для прод-режима цена доверенная только из БД. Не показываем/не репортим цену из лога,
+        // если Firebird недоступен или товара в ztrade не нашли.
+        item.Price = 0m;
+        return "БД Стандарт-Н недоступна/цена не найдена";
+    }
+
+    if (string.IsNullOrWhiteSpace(item.Barcode) && !string.IsNullOrWhiteSpace(dbProduct.Barcode))
+        item.Barcode = dbProduct.Barcode;
+
+    if (string.IsNullOrWhiteSpace(item.Name) && !string.IsNullOrWhiteSpace(dbProduct.Name))
+        item.Name = dbProduct.Name;
+
+    if (dbProduct.Price > 0m)
+    {
+        if (item.Price > 0m && item.Price != dbProduct.Price)
+        {
+            Log($"Цена товара уточнена из БД Стандарт-Н: PartId={item.PartId}, " +
+                $"лог={FormatMoneyForLog(item.Price)}, БД={FormatMoneyForLog(dbProduct.Price)}");
+        }
+        item.Price = dbProduct.Price;
+        source = $"БД Стандарт-Н/{dbProduct.Source}";
+    }
+
+    return source;
+}
+
+private void LogScannedItemContext(ReceiptItem item, string priceSource)
+{
+    Log($"Скан товара: pharmacistId={(string.IsNullOrWhiteSpace(_currentPharmacistId) ? "—" : _currentPharmacistId)}, " +
+        $"PartId={item.PartId}, EAN={item.Barcode ?? "—"}, цена={FormatMoneyForLog(item.Price)} " +
+        $"({priceSource}), qty={item.Qty:0.###}, name={item.Name}");
+}
+
+private static string FormatMoneyForLog(decimal value) =>
+    value > 0m ? $"{value:0.##} тг" : "—";
 
 /// <summary>
 /// Робастное извлечение EAN-13 из строки лога кассы (формат пока неизвестен — пробуем по очереди):
@@ -724,6 +796,7 @@ ItemsList.Items.Refresh();
                 _flusher?.Dispose();
                 _appUpdater?.Dispose();
                 _epharm?.Dispose();
+                _standardNDb?.Dispose();
                 _mediaCache?.Dispose();
             }
             catch { /* ignore */ }

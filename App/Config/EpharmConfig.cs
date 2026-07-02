@@ -84,6 +84,23 @@ namespace CustomerDisplay.Config
         /// </summary>
         public string VlcArgs { get; set; } = "--avcodec-hw=none --quiet --verbose=0";
 
+        /// <summary>
+        /// Читать локальную БД Стандарт-Н (Firebird) для диагностически важных полей, которых может
+        /// не быть в zkassa.log: активный фармацевт (ACTIVEUSERS.USER_ID) и реальные цены товаров.
+        /// Fail-safe: недоступная БД не блокирует кассу, POSM остаётся на данных из лога/backend.
+        /// </summary>
+        public bool StandardNDbEnabled { get; set; } = true;
+        public string StandardNDbHost { get; set; } = "localhost";
+        public int StandardNDbPort { get; set; } = 3050;
+        /// <summary>
+        /// Путь к ztrade на кассовом ПК. Если пусто, POSM пробует стандартные пути Стандарт-Н и demo.
+        /// env EPHARM_STANDARDN_DB_PATH.
+        /// </summary>
+        public string StandardNDbPath { get; set; } = "";
+        public string StandardNDbUser { get; set; } = "SYSDBA";
+        public string StandardNDbPassword { get; set; } = "masterkey";
+        public int StandardNDbTimeoutMs { get; set; } = 1000;
+
         private const string DefaultPath = @"C:\Epharm\posm.json";
 
         public static EpharmConfig Load()
@@ -140,6 +157,16 @@ namespace CustomerDisplay.Config
             // Heartbeat (для внешнего watchdog).
             cfg.HeartbeatPath = Env("EPHARM_HEARTBEAT_PATH", cfg.HeartbeatPath);
             if (int.TryParse(Env("EPHARM_HEARTBEAT_SEC", ""), out var hbSec) && hbSec > 0) cfg.HeartbeatSec = hbSec;
+            // Локальная БД Стандарт-Н (Firebird): активный фармацевт + реальные цены.
+            if (Env("EPHARM_STANDARDN_DB_ENABLED", cfg.StandardNDbEnabled ? "true" : "false") == "false")
+                cfg.StandardNDbEnabled = false;
+            cfg.StandardNDbHost = Env("EPHARM_STANDARDN_DB_HOST", cfg.StandardNDbHost);
+            cfg.StandardNDbPath = Env("EPHARM_STANDARDN_DB_PATH", cfg.StandardNDbPath);
+            cfg.StandardNDbUser = Env("EPHARM_STANDARDN_DB_USER", cfg.StandardNDbUser);
+            cfg.StandardNDbPassword = Env("EPHARM_STANDARDN_DB_PASSWORD", cfg.StandardNDbPassword);
+            if (int.TryParse(Env("EPHARM_STANDARDN_DB_PORT", ""), out var fbPort) && fbPort > 0) cfg.StandardNDbPort = fbPort;
+            if (int.TryParse(Env("EPHARM_STANDARDN_DB_TIMEOUT_MS", ""), out var fbTimeout) && fbTimeout > 0)
+                cfg.StandardNDbTimeoutMs = fbTimeout;
 
             return cfg;
         }

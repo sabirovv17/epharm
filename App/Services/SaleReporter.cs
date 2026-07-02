@@ -55,8 +55,11 @@ namespace CustomerDisplay.Services
             var sale = new SaleReport
             {
                 SaleId = "sale_" + Guid.NewGuid().ToString("N").Substring(0, 16),
-                // Фармацевт — из лога кассы (kassir=); конфиг лишь запасной вариант (обычно пуст).
-                PharmacistId = string.IsNullOrWhiteSpace(pharmacistId) ? _cfg.PharmacistId : pharmacistId,
+                // В боевом режиме фармацевт берётся строго из БД Стандарт-Н ACTIVEUSERS.USER_ID.
+                // Если БД включена, но недоступна/пуста, отправляем пусто, а не устаревший fallback.
+                PharmacistId = !string.IsNullOrWhiteSpace(pharmacistId)
+                    ? pharmacistId
+                    : (_cfg.StandardNDbEnabled ? "" : _cfg.PharmacistId),
                 PharmacyId = _cfg.PharmacyId,
                 SessionId = session.SessionId,
                 // FiscalId / Cashier — из лога Стандарт-Н (формат уточняется пилотом, missing data #1).

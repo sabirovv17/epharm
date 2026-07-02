@@ -7,23 +7,74 @@
 #   Set-ExecutionPolicy -Scope Process Bypass -Force
 #   .\App\scripts\publish-exe.ps1
 #
-# Результат: dist\Epharm-POSM-v<версия>-win-x64.zip — его и отправляй.
+# Результат: Рабочий стол\Epharm-POSM-v<версия>-win-x64.zip — его и отправляй.
 # Получатель распаковывает архив и запускает run.bat или run-kassa.ps1:
 # клиентский экран откроется слева в dev-режиме, POSM-логи пойдут в этот же терминал.
 
 param(
   [string]$ConfigPath = "C:\Epharm\posm.json",
-  [string]$Version = "1.0.13"
+  [string]$Version = "1.0.20",
+  [string]$OutputDir = "",
+  [switch]$KeepPackageFolder
 )
 $ErrorActionPreference = "Stop"
 
-$root = (Get-Location).Path
-$proj = Join-Path $root "App\CustomerDisplay.csproj"
-if (!(Test-Path $proj)) {
-  throw "Не найден $proj. Запускай из КОРНЯ репозитория (где лежит папка App)."
+trap {
+  if (-not $KeepPackageFolder -and $out -and (Test-Path $out)) {
+    Remove-Item $out -Recurse -Force -ErrorAction SilentlyContinue
+  }
+  if ($buildRoot -and (Test-Path $buildRoot)) {
+    Remove-Item $buildRoot -Recurse -Force -ErrorAction SilentlyContinue
+  }
+  throw $_
 }
 
-$out = Join-Path $root "dist\Epharm-POSM"
+$sourceRoot = (Get-Location).Path
+$sourceProj = Join-Path $sourceRoot "App\CustomerDisplay.csproj"
+if (!(Test-Path $sourceProj)) {
+  throw "Не найден $sourceProj. Запускай из КОРНЯ репозитория (где лежит папка App)."
+}
+
+if ([string]::IsNullOrWhiteSpace($OutputDir)) {
+  $OutputDir = [Environment]::GetFolderPath("Desktop")
+}
+if ([string]::IsNullOrWhiteSpace($OutputDir)) {
+  $OutputDir = $sourceRoot
+}
+$OutputDir = $OutputDir.Trim()
+if ($OutputDir -match "^[A-Za-z]:$") {
+  $OutputDir = "$OutputDir\"
+}
+if (!(Test-Path -LiteralPath $OutputDir)) {
+  New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
+}
+$resolvedOutputDir = Resolve-Path -LiteralPath $OutputDir -ErrorAction SilentlyContinue
+if ($resolvedOutputDir) {
+  $OutputDir = $resolvedOutputDir.ProviderPath
+}
+
+function Invoke-RoboMirror([string]$From, [string]$To) {
+  if (Test-Path $To) { Remove-Item $To -Recurse -Force }
+  New-Item -ItemType Directory -Force -Path $To | Out-Null
+  robocopy $From $To /MIR /XD bin obj /NFL /NDL /NJH /NJS /NP | Out-Null
+  if ($LASTEXITCODE -gt 7) {
+    throw "robocopy завершился с ошибкой ($LASTEXITCODE): $From -> $To"
+  }
+}
+
+# Публикуем из локального staging в TEMP, а не напрямую из сетевого Z:.
+# На Windows/WPF publish из сетевой общей папки иногда падает BG1002/BG1003 по **/*.xaml.
+$buildRoot = Join-Path $env:TEMP ("Epharm-POSM-build-{0}" -f $Version)
+if (Test-Path $buildRoot) { Remove-Item $buildRoot -Recurse -Force }
+New-Item -ItemType Directory -Force -Path $buildRoot | Out-Null
+Invoke-RoboMirror (Join-Path $sourceRoot "App") (Join-Path $buildRoot "App")
+Invoke-RoboMirror (Join-Path $sourceRoot "Models") (Join-Path $buildRoot "Models")
+
+$root = $buildRoot
+$proj = Join-Path $root "App\CustomerDisplay.csproj"
+
+$packageName = "Epharm-POSM-v$Version-win-x64"
+$out = Join-Path $buildRoot $packageName
 if (Test-Path $out) { Remove-Item $out -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 
@@ -39,23 +90,35 @@ if ($LASTEXITCODE -ne 0) { throw "dotnet publish завершился с оши�
 
 # Боевой конфиг рядом с .exe (адрес бэкенда, ключ устройства, id аптеки).
 if (Test-Path $ConfigPath) {
-  Copy-Item $ConfigPath (Join-Path $out "posm.json") -Force
+  $packageConfig = Join-Path $out "posm.json"
+  Copy-Item $ConfigPath $packageConfig -Force
   try {
-    $cfg = Get-Content $ConfigPath -Raw | ConvertFrom-Json
+    $cfg = Get-Content $packageConfig -Raw | ConvertFrom-Json
+    $cfg | Add-Member -NotePropertyName "ScreenMode" -NotePropertyValue "dev" -Force
+    $cfg | ConvertTo-Json -Depth 20 | Set-Content -Path $packageConfig -Encoding UTF8
     Write-Host ("Конфиг скопирован. BackendBaseUrl = {0} | PharmacyId = {1}" -f $cfg.BackendBaseUrl, $cfg.PharmacyId) -ForegroundColor Green
     if ($cfg.BackendBaseUrl -match "localhost|127\.0\.0\.1") {
-      Write-Warning "Конфиг смотрит на localhost — для боевого режима поправь BackendBaseUrl в posm.json внутри dist\Epharm-POSM перед упаковкой!"
+      Write-Warning "Конфиг смотрит на localhost — для боевого режима поправь BackendBaseUrl в posm.json перед отправкой!"
     }
+    Write-Host "ScreenMode в ZIP принудительно установлен в dev (окно слева)." -ForegroundColor Green
   } catch { }
 } else {
-  Write-Warning "Конфиг $ConfigPath не найден — впиши posm.json в dist\Epharm-POSM вручную перед отправкой!"
+  Write-Warning "Конфиг $ConfigPath не найден — впиши posm.json вручную перед отправкой!"
 }
 
-# README и диагностические скрипты для получателя.
-$readme = Join-Path $root "App\scripts\README-distrib.md"
+# README, автозапуск и диагностические скрипты для получателя.
+$readme = Join-Path $sourceRoot "App\scripts\README-distrib.md"
 if (Test-Path $readme) { Copy-Item $readme (Join-Path $out "README.md") -Force }
-$discover = Join-Path $root "App\scripts\standartn-discover.ps1"
-if (Test-Path $discover) { Copy-Item $discover (Join-Path $out "standartn-discover.ps1") -Force }
+foreach ($scriptName in @(
+  "standartn-discover.ps1",
+  "setup-autostart.bat",
+  "install-tasks.ps1",
+  "uninstall-tasks.ps1",
+  "watchdog.ps1"
+)) {
+  $src = Join-Path $sourceRoot "App\scripts\$scriptName"
+  if (Test-Path $src) { Copy-Item $src (Join-Path $out $scriptName) -Force }
+}
 
 # Лаунчер для тестовой передачи разработчику: подставляет путь к конфигу,
 # включает dev-режим (окно слева) и оставляет POSM-логи в этом же терминале.
@@ -182,13 +245,26 @@ if errorlevel 1 pause
 '@
 Set-Content -Path (Join-Path $out "run.bat") -Value $bat -Encoding Default
 
-# Упаковать в ZIP.
-$zip = Join-Path $root ("dist\Epharm-POSM-v{0}-win-x64.zip" -f $Version)
+# Упаковать в ZIP локально, затем одним файлом перенести в OutputDir.
+# Нельзя публиковать/сжимать тысячи self-contained файлов напрямую на Z:\:
+# shared-диск UTM/WebDAV делает это в разы медленнее и иногда держит locks.
+$zipName = "Epharm-POSM-v{0}-win-x64.zip" -f $Version
+$localZip = Join-Path $buildRoot $zipName
+$zip = Join-Path $OutputDir $zipName
+if (Test-Path $localZip) { Remove-Item $localZip -Force }
 if (Test-Path $zip) { Remove-Item $zip -Force }
-Compress-Archive -Path (Join-Path $out "*") -DestinationPath $zip
+Compress-Archive -Path (Join-Path $out "*") -DestinationPath $localZip
+Copy-Item $localZip $zip -Force
 $sizeMb = [math]::Round((Get-Item $zip).Length / 1MB, 1)
+
+if ($KeepPackageFolder) {
+  $debugOut = Join-Path $OutputDir $packageName
+  if (Test-Path $debugOut) { Remove-Item $debugOut -Recurse -Force }
+  Copy-Item $out $debugOut -Recurse -Force
+}
+Remove-Item $buildRoot -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Host ""
 Write-Host ("ГОТОВО: {0}  ({1} МБ)" -f $zip, $sizeMb) -ForegroundColor Green
-Write-Host "Внутри: CustomerDisplay.exe + рантайм + libvlc, posm.json, run-kassa.ps1, run.bat, README.md, standartn-discover.ps1" -ForegroundColor Green
-Write-Host "Отправь этот ZIP. Получатель распаковывает целиком и запускает run.bat или run-kassa.ps1." -ForegroundColor Green
+Write-Host "Внутри: CustomerDisplay.exe + рантайм + libvlc, posm.json, run-kassa.ps1, run.bat, setup-autostart.bat, install/watchdog/uninstall scripts, README.md." -ForegroundColor Green
+Write-Host "На диске оставлен только ZIP. Получатель распаковывает его целиком и запускает setup-autostart.bat для автозапуска или run.bat для ручного теста." -ForegroundColor Green

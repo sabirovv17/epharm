@@ -41,8 +41,11 @@ namespace CustomerDisplay.Services
 
             return new RecommendRequest
             {
-                // Фармацевт берётся из лога кассы (kassir=); конфиг — лишь запасной вариант (обычно пуст).
-                PharmacistId = string.IsNullOrWhiteSpace(pharmacistId) ? cfg.PharmacistId : pharmacistId,
+                // В боевом режиме фармацевт берётся строго из БД Стандарт-Н ACTIVEUSERS.USER_ID.
+                // Если БД включена, но недоступна/пуста, отправляем пусто, а не устаревший fallback.
+                PharmacistId = !string.IsNullOrWhiteSpace(pharmacistId)
+                    ? pharmacistId
+                    : (cfg.StandardNDbEnabled ? "" : cfg.PharmacistId),
                 PharmacyId = cfg.PharmacyId,
                 SessionId = SessionId,
                 // Последний отсканированный EAN (информационно). Передаём явный snapshot,
