@@ -109,7 +109,7 @@ app:
     # base-url / sales-channel / region / publishable-key — клиентские (не секретные)
     # идентификаторы витрины: ключ Medusa по дизайну публикуемый (как в любом storefront).
     # В prod переопределяются env'ом (см. .env.prod.example). Реальные секреты (SSH/admin)
-    # из STOREFRONT-CREDENTIALS.md в код НЕ попадают.
+    # из docs/STOREFRONT-CREDENTIALS.md в код НЕ попадают.
     enabled: ${MEDUSA_ENABLED:true}
     base-url: ${MEDUSA_BASE_URL:http://78.140.246.238:9000}
     publishable-key: ${MEDUSA_PUBLISHABLE_KEY:pk_ed9c35a59066b45de7d9e12510468ca27af16b6d0170b0910c03746545da4525}

@@ -175,4 +175,4 @@ curl -s -X POST http://localhost:8080/api/posm/recommend \
 
 ## Current Roadmap
 
-See `admin-panel/PLAN.md` and `RELEASE-CHECKLIST.md`.
+See `admin-panel/PLAN.md` and `docs/RELEASE-CHECKLIST.md`.

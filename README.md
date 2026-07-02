@@ -60,7 +60,7 @@ PharmaPayV2/
 ├── docker-compose.yml       # local Postgres/Redis/MinIO
 ├── docker-compose.prod.yml  # full production stack
 ├── Caddyfile                # current one-host path routing + internal VPN host
-└── RUNBOOK.md               # day-to-day startup and troubleshooting
+└── docs/                    # вся документация (см. docs/README.md)
 ```
 
 ## Fast Local Start
@@ -129,7 +129,7 @@ Project working rule:
 - fix root cause with the smallest scoped change;
 - keep frontend DTOs aligned with backend DTOs;
 - use `AppException(ErrorCode, message, status)` for backend business errors;
-- update `claude-notes.md` or `admin-panel/claude-admin-notes.md` after non-trivial decisions;
+- update `docs/claude-notes.md` or `admin-panel/claude-admin-notes.md` after non-trivial decisions;
 - run the relevant suite before calling work done.
 
 Common checks:
@@ -149,8 +149,8 @@ privatization of receipt storage as important hardening work.
 
 ## Maintained Docs
 
-- `RUNBOOK.md` - local startup, resets, tests, production stack operations.
+- `docs/RUNBOOK.md` - local startup, resets, tests, production stack operations.
 - `docs/` - architecture, backend/admin/mobile/POSM/deployment/database.
-- `DEV-ONBOARDING.md` - launching the mobile app on a real phone against the shared demo backend.
-- `RELEASE-CHECKLIST.md` - current release blockers and hardening items.
-- `admin-panel/claude-admin-notes.md` and `claude-notes.md` - working memory and latest decisions.
+- `docs/DEV-ONBOARDING.md` - launching the mobile app on a real phone against the shared demo backend.
+- `docs/RELEASE-CHECKLIST.md` - current release blockers and hardening items.
+- `admin-panel/claude-admin-notes.md` and `docs/claude-notes.md` - working memory and latest decisions.

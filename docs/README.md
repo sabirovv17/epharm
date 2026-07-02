@@ -36,28 +36,34 @@ public endpoint unless `.env.prod` and `Caddyfile` are changed together.
 
 ## Docs Map
 
-| File                       | Purpose                                                                       |
-| -------------------------- | ----------------------------------------------------------------------------- |
-| `01-architecture.md`       | Current system architecture, runtime surfaces, business flows.                |
-| `02-backend.md`            | Backend stack, domains, API map, security, integrations, test/build commands. |
-| `03-admin-panel.md`        | Admin frontend routes, state, UI system, sections, tests.                     |
-| `04-mobile-app.md`         | Flutter app architecture, active flows, API/mock switching, build notes.      |
-| `05-posm-client.md`        | C#/WPF POSM client, log parsing, barcode matching, outbox, deployment.        |
-| `06-deployment-and-ops.md` | Docker/Caddy production stack, deploy, backup, operations, known risks.       |
-| `07-database.md`           | Flyway migrations V001-V030 and domain tables.                                |
+| File                        | Purpose                                                                       |
+| --------------------------- | ----------------------------------------------------------------------------- |
+| `00-project-map.md`         | Карта проекта: где лежит код/доки/важные файлы. НАЧИНАТЬ ОТСЮДА.              |
+| `01-architecture.md`        | Current system architecture, runtime surfaces, business flows.                |
+| `02-backend.md`             | Backend stack, domains, API map, security, integrations, test/build commands. |
+| `03-admin-panel.md`         | Admin frontend routes, state, UI system, sections, tests.                     |
+| `04-mobile-app.md`          | Flutter app architecture, active flows, API/mock switching, build notes.      |
+| `05-posm-client.md`         | C#/WPF POSM client, log parsing, barcode matching, outbox, deployment.        |
+| `06-deployment-and-ops.md`  | Docker/Caddy production stack, deploy, backup, operations, known risks.       |
+| `07-database.md`            | Flyway migrations and domain tables.                                          |
+| `RUNBOOK.md`                | Day-to-day local startup, reset, tests, and production commands.              |
+| `DEV-ONBOARDING.md`         | Run mobile app on Android/iPhone against shared backend.                      |
+| `RELEASE-CHECKLIST.md`      | Release blockers and hardening backlog.                                       |
+| `BACKLOG.md`                | Текущий бэклог: доп-проверки + что осталось до завершения.                    |
+| `claude-notes.md`           | Current mobile working memory.                                                |
+| `STOREFRONT.md`             | Medusa storefront integration notes (untracked).                              |
+| `STOREFRONT-CREDENTIALS.md` | Storefront/SSH credentials (untracked, NEVER commit).                         |
 
 ## Other Important Files
 
-| File                                    | Purpose                                                          |
-| --------------------------------------- | ---------------------------------------------------------------- |
-| `../README.md`                          | Short repo overview and quick start.                             |
-| `../RUNBOOK.md`                         | Day-to-day local startup, reset, tests, and production commands. |
-| `../DEV-ONBOARDING.md`                  | Run mobile app on Android/iPhone against shared backend.         |
-| `../RELEASE-CHECKLIST.md`               | Release blockers and hardening backlog.                          |
-| `../claude-notes.md`                    | Current mobile working memory.                                   |
-| `../admin-panel/claude-admin-notes.md`  | Current backend/admin/POSM working memory.                       |
-| `../admin-panel/design-tokens-admin.md` | Current admin design system.                                     |
-| `../_reference/design-tokens.md`        | Current mobile design system.                                    |
+| File                                    | Purpose                                                         |
+| --------------------------------------- | --------------------------------------------------------------- |
+| `../CLAUDE.md`                          | Контракт для Claude: docs-first, карта, правила (автозагрузка). |
+| `../README.md`                          | Short repo overview and quick start.                            |
+| `../admin-panel/claude-admin-notes.md`  | Current backend/admin/POSM working memory.                      |
+| `../admin-panel/design-tokens-admin.md` | Current admin design system.                                    |
+| `../_reference/design-tokens.md`        | Current mobile design system.                                   |
+| `../App/WINDOWS_RUNBOOK.md`             | POSM module runbook (module-local).                             |
 
 ## Documentation Rules
 

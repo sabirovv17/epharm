@@ -222,7 +222,7 @@ curl -s -X POST http://localhost:8080/api/posm/recommend \
 For Windows client operation, use:
 
 - `App/scripts/README-distrib.md`;
-- `App/WINDOWS_RUNBOOK.md`;
+- `../App/WINDOWS_RUNBOOK.md`;
 - `App/POSM_DEPLOY.md`.
 
 ## 8. Production Stack

@@ -34,7 +34,7 @@ scope = admin | backend | mobile | posm | infra | repo
 - [ ] `npm run lint && npx tsc --noEmit` зелёное (если затронут frontend)
 - [ ] `./gradlew build test` зелёное (если затронут backend)
 - [ ] `flutter analyze && flutter test` зелёное (если затронут lib/)
-- [ ] `claude-admin-notes.md` или `claude-notes.md` обновлён, если решение нетривиальное
+- [ ] `admin-panel/claude-admin-notes.md` или `docs/claude-notes.md` обновлён, если решение нетривиальное
 - [ ] Нет секретов (`.env`, keystore, API-ключей) в diff'е
 - [ ] PR — атомарный (одна фича / один баг), не сборная солянка
 

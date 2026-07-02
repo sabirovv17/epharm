@@ -16,7 +16,7 @@ echo "▶ Building Epharm v${VERSION}  (API_BASE=${API_BASE})"
 
 # Воссоздать codesign shim (после reboot Mac /tmp обнуляется → shim пропадает,
 # и Flutter не может подписать Flutter.framework для simulator/iCloud-папки).
-# См. claude-notes.md → раздел «iOS codesign fix».
+# См. docs/claude-notes.md → раздел «iOS codesign fix».
 mkdir -p /tmp/codesign_shim
 cat > /tmp/codesign_shim/codesign << 'SHIM'
 #!/bin/sh

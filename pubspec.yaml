@@ -40,7 +40,7 @@ dependencies:
   url_launcher: ^6.3.1
 
   # Камера для съёмки чеков. Управляет permissions нативно (iOS Info.plist key
-  # + Android <uses-permission/> в манифесте). См. claude-notes.md Этап 3.
+  # + Android <uses-permission/> в манифесте). См. docs/claude-notes.md Этап 3.
   camera: ^0.11.0+2
 
   # Выбор фото из системной галереи как альтернатива камере.

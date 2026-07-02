@@ -156,3 +156,6 @@ App/obj/
 STOREFRONT-CREDENTIALS.md
 STOREFRONT.md
 .mega-batch-map.json
+
+# Локальные дистрибутивы POSM (собираются publish-exe.ps1, в git не нужны)
+dist/

@@ -21,7 +21,7 @@ Current sources:
 - `_reference/design-tokens.md`;
 - `lib/core/theme/*`;
 - `lib/features/*`;
-- `claude-notes.md`;
+- `docs/claude-notes.md`;
 - `docs/04-mobile-app.md`.
 
 If a prototype file conflicts with current Flutter code or maintained docs, follow the maintained docs.
