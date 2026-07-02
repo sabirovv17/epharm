@@ -2,6 +2,7 @@ package kz.epharm.medusa.client
 
 import kz.epharm.medusa.dto.MedusaCategoryListResponse
 import kz.epharm.medusa.dto.MedusaProduct
+import kz.epharm.medusa.dto.MedusaProductPharmaciesResponse
 import kz.epharm.medusa.dto.MedusaProductListResponse
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
@@ -99,6 +100,25 @@ class MedusaClient(
         } catch (e: Exception) {
             log.warn("Medusa getProduct({}) failed: {}", id, e.message)
             throw upstream(e)
+        }
+    }
+
+    /**
+     * Retail-цены товара по аптекам из Medusa `pharmacy_pricing`.
+     *
+     * Это fallback для HQ/POSM, когда нативный `variant.calculated_price` ещё не
+     * заполнен. Ошибка fallback не должна ронять каталог: возвращаем null и
+     * оставляем товар без цены.
+     */
+    fun getProductPharmacies(id: String): MedusaProductPharmaciesResponse? {
+        if (!active || id.isBlank()) return null
+        return try {
+            rest.get().uri { uri ->
+                uri.path("/store/products/{id}/pharmacies").build(id)
+            }.retrieve().body(MedusaProductPharmaciesResponse::class.java)
+        } catch (e: Exception) {
+            log.warn("Medusa product pharmacies fallback failed (id={}): {}", id, e.message)
+            null
         }
     }
 

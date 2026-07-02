@@ -3,6 +3,8 @@ package kz.epharm.mobile.catalog.service
 import kz.epharm.medusa.MedusaCatalogCache
 import kz.epharm.medusa.client.MedusaClient
 import kz.epharm.medusa.dto.MedusaProduct
+import kz.epharm.medusa.dto.MedusaRetailPriceSummary
+import kz.epharm.medusa.dto.toRetailPriceSummary
 import kz.epharm.mobile.catalog.dto.MobileCatalogDetailDto
 import kz.epharm.mobile.catalog.dto.MobileCatalogMarketplaceLinkDto
 import kz.epharm.mobile.catalog.dto.MobileCatalogPageDto
@@ -22,6 +24,9 @@ import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 
 /**
@@ -40,15 +45,24 @@ class MobileCatalogService(
     private val promoRepository: PromoRepository,
     private val ruleRepository: RuleRepository,
 ) {
+    private val retailPriceExecutor = Executors.newFixedThreadPool(RETAIL_PRICE_WORKERS) { runnable ->
+        Thread(runnable, "medusa-retail-price").apply { isDaemon = true }
+    }
 
-    fun search(q: String?, category: String?, limit: Int, offset: Int): MobileCatalogPageDto {
+    fun search(
+        q: String?,
+        category: String?,
+        limit: Int,
+        offset: Int,
+        includeRetailFallbackPrices: Boolean = false,
+    ): MobileCatalogPageDto {
         val safeLimit = limit.coerceIn(1, MAX_LIMIT)
         val safeOffset = offset.coerceAtLeast(0)
-        val key = "list|q=${q?.trim()?.lowercase().orEmpty()}|cat=${category.orEmpty()}|l=$safeLimit|o=$safeOffset"
+        val key = "list|q=${q?.trim()?.lowercase().orEmpty()}|cat=${category.orEmpty()}|l=$safeLimit|o=$safeOffset|retail=$includeRetailFallbackPrices"
         return cache.get(key) {
             val resp = medusa.listProducts(q = q, categoryId = category, ids = null, limit = safeLimit, offset = safeOffset)
             MobileCatalogPageDto(
-                items = resp.products.map { card(it) },
+                items = cards(resp.products, includeRetailFallbackPrices),
                 total = resp.count,
                 limit = safeLimit,
                 offset = safeOffset,
@@ -64,12 +78,20 @@ class MobileCatalogService(
      * [includeIncentive]=false (аноним) → bonus скрыт (коммерческая тайна), но
      * hasActiveCampaign/promoId/campaignTitle корректны для всех.
      */
-    fun detail(id: String, includeIncentive: Boolean = false): MobileCatalogDetailDto {
-        val base = cache.get("detail|$id") {
+    fun detail(
+        id: String,
+        includeIncentive: Boolean = false,
+        includeRetailFallbackPrices: Boolean = false,
+    ): MobileCatalogDetailDto {
+        val base = cache.get("detail|$id|retail=$includeRetailFallbackPrices") {
             // Товар обязан существовать в Medusa — никаких карточек «из воздуха» (T5).
             val p = medusa.getProduct(id)
                 ?: throw AppException(ErrorCode.NOT_FOUND, "Товар не найден", HttpStatus.NOT_FOUND)
-            applyPromoOverride(id, detailOf(p))
+            val detail = withRetailPriceFallback(
+                detailOf(p),
+                if (includeRetailFallbackPrices) retailPriceOf(p.id) else null,
+            )
+            applyPromoOverride(id, detail)
         }
         return applyCampaign(id, base, includeIncentive)
     }
@@ -291,9 +313,40 @@ class MobileCatalogService(
                         else -> "crosssell_no_campaign"
                     },
                 )
-            }
+    }
 
     // ── маппинг Medusa → mobile ───────────────────────────────────────────────
+
+    private fun cards(products: List<MedusaProduct>, includeRetailFallbackPrices: Boolean): List<MobileCatalogProductDto> {
+        val base = products.map { card(it) }
+        if (!includeRetailFallbackPrices || base.none { it.price == null }) return base
+
+        val missingIds = base.asSequence()
+            .filter { it.price == null }
+            .map { it.id }
+            .distinct()
+            .take(MAX_RETAIL_PRICE_FALLBACKS)
+            .toList()
+        if (missingIds.isEmpty()) return base
+
+        val futures = missingIds.associateWith { id ->
+            CompletableFuture
+                .supplyAsync({ retailPriceOf(id) }, retailPriceExecutor)
+                .orTimeout(RETAIL_PRICE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        }
+        try {
+            CompletableFuture.allOf(*futures.values.toTypedArray())
+                .get(RETAIL_PRICE_TIMEOUT_MS + 750L, TimeUnit.MILLISECONDS)
+        } catch (_: Exception) {
+            // Частичная деградация допустима: каталог не должен падать из-за ценового fallback.
+        }
+
+        val byId = futures.mapNotNull { (id, future) ->
+            if (!future.isDone || future.isCompletedExceptionally) null
+            else future.getNow(null)?.let { id to it }
+        }.toMap()
+        return base.map { withRetailPriceFallback(it, byId[it.id]) }
+    }
 
     private fun card(p: MedusaProduct) = MobileCatalogProductDto(
         id = p.id,
@@ -330,6 +383,37 @@ class MobileCatalogService(
         marketplaceLinks = marketplaceLinks(p),
         qa = faqList(p),
     )
+
+    private fun retailPriceOf(productId: String): MedusaRetailPriceSummary? =
+        medusa.getProductPharmacies(productId)?.toRetailPriceSummary()
+
+    private fun withRetailPriceFallback(
+        card: MobileCatalogProductDto,
+        retail: MedusaRetailPriceSummary?,
+    ): MobileCatalogProductDto {
+        if (retail == null || card.price != null) return card
+        return card.copy(
+            price = retail.price,
+            currency = retail.currency,
+            priceMin = retail.min,
+            priceMax = retail.max,
+            pharmacyPriceCount = retail.pharmacyCount.takeIf { it > 0 },
+        )
+    }
+
+    private fun withRetailPriceFallback(
+        detail: MobileCatalogDetailDto,
+        retail: MedusaRetailPriceSummary?,
+    ): MobileCatalogDetailDto {
+        if (retail == null || detail.price != null) return detail
+        return detail.copy(
+            price = retail.price,
+            currency = retail.currency,
+            priceMin = retail.min,
+            priceMax = retail.max,
+            pharmacyPriceCount = retail.pharmacyCount.takeIf { it > 0 },
+        )
+    }
 
     private fun nameOf(p: MedusaProduct): String =
         p.title?.trim()?.takeIf { it.isNotBlank() }
@@ -451,6 +535,9 @@ class MobileCatalogService(
     companion object {
         // Канал «Сайт» сейчас ~77 товаров — лента грузит весь каталог за 1-2 запроса.
         const val MAX_LIMIT = 100
+        private const val MAX_RETAIL_PRICE_FALLBACKS = 50
+        private const val RETAIL_PRICE_WORKERS = 8
+        private const val RETAIL_PRICE_TIMEOUT_MS = 2_500L
 
         // Плейсхолдеры «поле не заполнено» из 1С-выгрузки витрины (товар есть, значения нет):
         // прочерки разных видов, "_", "none", "н/д". Сравнение по lowercase + trim.

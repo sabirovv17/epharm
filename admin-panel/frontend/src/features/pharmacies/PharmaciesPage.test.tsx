@@ -136,6 +136,8 @@ describe('PharmaciesPage — список', () => {
     expect(screen.getByTestId('pharmacies-table')).toBeInTheDocument()
     expect(screen.getByTestId('pharmacy-row-ph_a')).toBeInTheDocument()
     expect(screen.getByTestId('pharmacy-row-ph_b')).toBeInTheDocument()
+    expect(screen.getByTestId('pharmacy-posm-id-ph_a')).toHaveTextContent('ph_a')
+    expect(screen.getByRole('columnheader', { name: /POSM pharmacyId/i })).toBeInTheDocument()
     expect(screen.getByText('Europharma №100')).toBeInTheDocument()
   })
 
@@ -177,6 +179,18 @@ describe('PharmaciesPage — список', () => {
     await user.type(screen.getByPlaceholderText(/Поиск по аптеке/), 'Зерде')
     expect(screen.queryByText('Аквалор')).not.toBeInTheDocument()
     expect(screen.getByText('Зерде')).toBeInTheDocument()
+  })
+
+  it('поиск находит аптеку по POSM pharmacyId', async () => {
+    setPharmacies([
+      mkPharmacy({ id: 'ph_medusa_abc', name: 'Аквалор', city: 'Алматы' }),
+      mkPharmacy({ id: 'ph_other', name: 'Зерде', city: 'Астана' }),
+    ])
+    const user = userEvent.setup()
+    renderPage()
+    await user.type(screen.getByPlaceholderText(/Поиск по аптеке, ID/), 'medusa_abc')
+    expect(screen.getByText('Аквалор')).toBeInTheDocument()
+    expect(screen.queryByText('Зерде')).not.toBeInTheDocument()
   })
 })
 

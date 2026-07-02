@@ -9,6 +9,7 @@ import { useStorefront } from '@/lib/queries/storefront'
 import { describeError } from '@/lib/describeError'
 import { formatKzt } from '@/mocks/fixtures'
 import { useT } from '@/i18n'
+import type { StorefrontProductDto } from '@/lib/api-types'
 
 const PAGE = 50
 
@@ -111,11 +112,7 @@ export default function StorefrontPage() {
                     </td>
                     <td className="px-3 py-2.5 text-ink-700">{p.category ?? '—'}</td>
                     <td className="num px-5 py-2.5 text-right font-semibold">
-                      {p.price == null ? (
-                        <span className="text-ink-400">{t('sf.priceNa')}</span>
-                      ) : (
-                        formatKzt(p.price)
-                      )}
+                      <PriceCell product={p} fallback={t('sf.priceNa')} />
                     </td>
                   </tr>
                 ))}
@@ -144,6 +141,27 @@ export default function StorefrontPage() {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function PriceCell({ product, fallback }: { product: StorefrontProductDto; fallback: string }) {
+  if (product.price == null) return <span className="text-ink-400">{fallback}</span>
+  const hasRange =
+    product.priceMin != null &&
+    product.priceMax != null &&
+    product.priceMin > 0 &&
+    product.priceMax > 0 &&
+    product.priceMin !== product.priceMax
+
+  return (
+    <div className="flex flex-col items-end gap-0.5">
+      <span>{formatKzt(product.price)}</span>
+      {hasRange && (
+        <span className="text-[11px] font-semibold text-ink-400">
+          {formatKzt(product.priceMin!)}–{formatKzt(product.priceMax!)}
+        </span>
+      )}
     </div>
   )
 }

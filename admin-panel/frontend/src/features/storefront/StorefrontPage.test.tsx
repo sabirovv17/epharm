@@ -85,6 +85,27 @@ describe('StorefrontPage', () => {
     expect(screen.getByText('Цена в аптеке')).toBeInTheDocument()
   })
 
+  it('показывает retail-цену и диапазон по аптекам', () => {
+    hooks.useStorefront.mockReturnValue({
+      data: mkPage([
+        mkProduct({
+          price: 5775,
+          priceMin: 2060,
+          priceMax: 6670,
+          pharmacyPriceCount: 227,
+        }),
+      ]),
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+      isFetching: false,
+    })
+    renderPage()
+    expect(screen.getByText('5 775 ₸')).toBeInTheDocument()
+    expect(screen.getByText('2 060 ₸–6 670 ₸')).toBeInTheDocument()
+  })
+
   it('ошибка загрузки показывает кнопку «Повторить»', () => {
     hooks.useStorefront.mockReturnValue({
       data: undefined,

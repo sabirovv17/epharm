@@ -772,6 +772,9 @@ export interface StorefrontProductDto {
   barcode: string | null
   ipartId?: string | null
   category: string | null
+  priceMin?: number | null
+  priceMax?: number | null
+  pharmacyPriceCount?: number | null
 }
 
 /** Зеркало backend MobileCatalogDetailDto — деталь товара витрины (описание + характеристики). */
@@ -793,6 +796,9 @@ export interface StorefrontProductDetailDto {
   manufacturer: string | null
   description: string | null
   keyFacts: string[]
+  priceMin?: number | null
+  priceMax?: number | null
+  pharmacyPriceCount?: number | null
 }
 
 export interface StorefrontPageDto {

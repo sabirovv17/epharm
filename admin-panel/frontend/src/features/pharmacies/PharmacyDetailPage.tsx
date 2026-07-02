@@ -218,7 +218,7 @@ export default function PharmacyDetailPage() {
             label={t('phd.metaLift')}
             value={ph.liftPct > 0 ? `+${ph.liftPct.toFixed(1)}%` : '—'}
           />
-          <Meta label={t('phd.metaId')} value={ph.id} mono />
+          <Meta label={t('phd.metaId')} value={ph.id} mono wide testId="pharmacy-detail-posm-id" />
         </div>
       </div>
     </Shell>
@@ -254,11 +254,35 @@ function Shell({
   )
 }
 
-function Meta({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function Meta({
+  label,
+  value,
+  mono,
+  wide,
+  testId,
+}: {
+  label: string
+  value: string
+  mono?: boolean
+  wide?: boolean
+  testId?: string
+}) {
   return (
-    <div>
+    <div
+      className={
+        wide ? 'col-span-2 min-w-0 rounded-lg border border-ink-100 bg-paper px-3 py-2' : 'min-w-0'
+      }
+    >
       <div className="text-[11px] font-bold uppercase tracking-[0.04em] text-ink-400">{label}</div>
-      <div className={`mt-0.5 font-extrabold text-ink-900 ${mono ? 'num' : ''}`}>{value}</div>
+      <div
+        className={`mt-0.5 font-extrabold text-ink-900 ${
+          mono ? 'num break-all text-[12px] leading-relaxed' : 'truncate'
+        }`}
+        title={value}
+        data-testid={testId}
+      >
+        {value}
+      </div>
     </div>
   )
 }

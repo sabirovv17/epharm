@@ -50,7 +50,7 @@ export default function PharmaciesPage() {
     return pharmacies.filter((p) => {
       if (tab !== 'all' && p.group !== tab) return false
       if (!q) return true
-      return `${p.name} ${p.chainName} ${p.city}`.toLowerCase().includes(q.toLowerCase())
+      return `${p.id} ${p.name} ${p.chainName} ${p.city}`.toLowerCase().includes(q.toLowerCase())
     })
   }, [pharmacies, q, tab])
 
@@ -166,17 +166,32 @@ export default function PharmaciesPage() {
               icon={<IconPharmacy size={26} />}
             />
           ) : (
-            <table className="w-full text-[13px]" data-testid="pharmacies-table">
+            <table
+              className="w-full min-w-[1280px] table-fixed text-[13px]"
+              data-testid="pharmacies-table"
+            >
+              <colgroup>
+                <col className="w-[30%]" />
+                <col className="w-[260px]" />
+                <col className="w-[160px]" />
+                <col className="w-[150px]" />
+                <col className="w-[160px]" />
+                <col className="w-[80px]" />
+                <col className="w-[120px]" />
+                <col className="w-[120px]" />
+                <col className="w-[80px]" />
+              </colgroup>
               <thead className="hairline border-b">
                 <tr className="text-left text-[11px] font-bold uppercase tracking-[0.06em] text-ink-500">
-                  <th className="px-5 py-2.5">{t('ph.thName')}</th>
-                  <th className="px-3 py-2.5">{t('ph.thChain')}</th>
-                  <th className="px-3 py-2.5">{t('ph.thCity')}</th>
-                  <th className="px-3 py-2.5">{t('ph.thGroup')}</th>
-                  <th className="px-3 py-2.5 text-right">{t('ph.thPharm')}</th>
-                  <th className="px-3 py-2.5 text-right">{t('ph.thReceipts')}</th>
-                  <th className="px-3 py-2.5 text-right">{t('ph.thGmv')}</th>
-                  <th className="px-5 py-2.5 text-right">{t('ph.thLift')}</th>
+                  <th className="px-5 py-2.5 align-middle">{t('ph.thName')}</th>
+                  <th className="px-3 py-2.5 align-middle">{t('ph.thPosmId')}</th>
+                  <th className="px-3 py-2.5 align-middle">{t('ph.thChain')}</th>
+                  <th className="px-3 py-2.5 align-middle">{t('ph.thCity')}</th>
+                  <th className="px-3 py-2.5 align-middle">{t('ph.thGroup')}</th>
+                  <th className="px-3 py-2.5 text-right align-middle">{t('ph.thPharm')}</th>
+                  <th className="px-3 py-2.5 text-right align-middle">{t('ph.thReceipts')}</th>
+                  <th className="px-3 py-2.5 text-right align-middle">{t('ph.thGmv')}</th>
+                  <th className="px-5 py-2.5 text-right align-middle">{t('ph.thLift')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink-100">
@@ -187,13 +202,26 @@ export default function PharmaciesPage() {
                     className="cursor-pointer hover:bg-paper-hover"
                     data-testid={`pharmacy-row-${p.id}`}
                   >
-                    <td className="px-5 py-2.5">
-                      <div className="font-extrabold text-ink-900">{p.name}</div>
-                      <div className="text-[11px] text-ink-500">{p.addr}</div>
+                    <td className="min-w-0 px-5 py-2.5 align-middle">
+                      <div className="line-clamp-2 font-extrabold leading-snug text-ink-900">
+                        {p.name}
+                      </div>
+                      <div className="mt-1 truncate text-[11px] text-ink-500">{p.addr}</div>
                     </td>
-                    <td className="px-3 py-2.5 text-ink-700">{p.chainName}</td>
-                    <td className="px-3 py-2.5 text-ink-700">{p.city}</td>
-                    <td className="px-3 py-2.5">
+                    <td className="min-w-0 px-3 py-2.5 align-middle">
+                      <span
+                        className="num block w-full select-text truncate rounded-md border border-ink-100 bg-paper px-2.5 py-1.5 text-[11px] font-extrabold leading-none text-ink-700"
+                        title={`${p.id} — ${t('ph.posmIdHint')}`}
+                        data-testid={`pharmacy-posm-id-${p.id}`}
+                      >
+                        {p.id}
+                      </span>
+                    </td>
+                    <td className="truncate px-3 py-2.5 align-middle text-ink-700">
+                      {p.chainName}
+                    </td>
+                    <td className="truncate px-3 py-2.5 align-middle text-ink-700">{p.city}</td>
+                    <td className="px-3 py-2.5 align-middle">
                       <span
                         className={`chip ${
                           !p.active
@@ -226,11 +254,15 @@ export default function PharmaciesPage() {
                               : t('ph.gRolled')}
                       </span>
                     </td>
-                    <td className="num px-3 py-2.5 text-right">{p.pharmacists}</td>
-                    <td className="num px-3 py-2.5 text-right">{formatNum(p.receipts30d)}</td>
-                    <td className="num px-3 py-2.5 text-right">{formatKzt(p.gmv30d)}</td>
+                    <td className="num px-3 py-2.5 text-right align-middle">{p.pharmacists}</td>
+                    <td className="num px-3 py-2.5 text-right align-middle">
+                      {formatNum(p.receipts30d)}
+                    </td>
+                    <td className="num px-3 py-2.5 text-right align-middle">
+                      {formatKzt(p.gmv30d)}
+                    </td>
                     <td
-                      className={`num px-5 py-2.5 text-right font-extrabold ${
+                      className={`num px-5 py-2.5 text-right align-middle font-extrabold ${
                         p.liftPct > 0 ? 'text-brand-green-700' : 'text-ink-400'
                       }`}
                     >

@@ -2,6 +2,7 @@ package kz.epharm.medusa.dto
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonProperty
+import kotlin.math.roundToInt
 
 /**
  * DTO ответов Medusa Store API (v2.15.2) — витрина inkar.kz (Module 3).
@@ -80,6 +81,67 @@ data class MedusaCalculatedPrice(
     @JsonProperty("calculated_amount") val calculatedAmount: Double? = null,
     @JsonProperty("currency_code") val currencyCode: String? = null,
 )
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class MedusaProductPharmaciesResponse(
+    @JsonProperty("product_id") val productId: String? = null,
+    val currency: String? = null,
+    @JsonProperty("price_range") val priceRange: MedusaPriceRange? = null,
+    @JsonProperty("pharmacy_count") val pharmacyCount: Int = 0,
+    val pharmacies: List<MedusaPharmacyPrice> = emptyList(),
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class MedusaPriceRange(
+    val min: Double? = null,
+    val max: Double? = null,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class MedusaPharmacyPrice(
+    val price: Double? = null,
+)
+
+/**
+ * Единая цена для HQ/POSM из per-pharmacy retail-снимков.
+ *
+ * В Medusa у многих товаров `variant.calculated_price` ещё пустой, но импорт остатков
+ * уже наполнил `pharmacy_pricing`. Для одного числа берём медиану по аптекам: она
+ * устойчивее минимума/максимума и не выглядит как точная цена конкретной точки.
+ */
+data class MedusaRetailPriceSummary(
+    val price: Int,
+    val min: Int?,
+    val max: Int?,
+    val pharmacyCount: Int,
+    val currency: String,
+)
+
+fun MedusaProductPharmaciesResponse.toRetailPriceSummary(): MedusaRetailPriceSummary? {
+    val prices = pharmacies.mapNotNull { it.price?.takeIf { p -> p > 0 } }
+    val median = medianRounded(prices)
+    val min = priceRange?.min?.takeIf { it > 0 }?.roundToInt()
+        ?: prices.minOrNull()?.roundToInt()
+    val max = priceRange?.max?.takeIf { it > 0 }?.roundToInt()
+        ?: prices.maxOrNull()?.roundToInt()
+    val primary = median ?: min ?: max ?: return null
+    val cur = currency?.trim()?.takeIf { it.isNotBlank() }?.uppercase() ?: "KZT"
+    return MedusaRetailPriceSummary(
+        price = primary,
+        min = min,
+        max = max,
+        pharmacyCount = pharmacyCount.takeIf { it > 0 } ?: prices.size,
+        currency = cur,
+    )
+}
+
+private fun medianRounded(values: List<Double>): Int? {
+    if (values.isEmpty()) return null
+    val sorted = values.sorted()
+    val mid = sorted.size / 2
+    val median = if (sorted.size % 2 == 1) sorted[mid] else (sorted[mid - 1] + sorted[mid]) / 2.0
+    return median.roundToInt()
+}
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class MedusaCategoryListResponse(

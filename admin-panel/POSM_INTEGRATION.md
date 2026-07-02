@@ -56,11 +56,12 @@ Per-device keys are a hardening item.
 
 ## Pharmacist identity
 
-`pharmacistId` is taken from the **cash log**, not `posm.json` (pharmacists work in shifts). POSM
-parses the token `kassir=<id>` (synonym `cashier=`, case-insensitive) from any log line and stamps
-that value on `/recommend` and `/sales`. `posm.json` no longer needs `pharmacistId`, and backend
-`pharmacistId` is optional (empty allowed). The real Standard-N cashier field maps to this token
-once a real `zkassa.log` is available.
+`pharmacistId` is taken from the local Standard-N Firebird database, not `posm.json` (pharmacists
+work in shifts). POSM reads `ACTIVEUSERS.USER_ID` from `ztrade` and stamps that value on
+`/recommend` and `/sales`. The cash-log token `kassir=<id>` / `cashier=<id>` is used only when DB
+reading is explicitly disabled for diagnostics. If `ztrade` is unavailable, `pharmacistId` stays
+empty rather than using stale fallback data. `posm.json` no longer needs `pharmacistId`, and backend
+`pharmacistId` is optional (empty allowed).
 
 ## Recommendation Matching
 

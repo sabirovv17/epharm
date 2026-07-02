@@ -19,6 +19,9 @@ data class MobileCatalogProductDto(
     val barcode: String?,
     val category: String?,            // первая категория (для краткого показа)
     val categories: List<String>,    // все категории товара — для клиентского фильтра в ленте
+    val priceMin: Int? = null,        // retail fallback по аптекам: минимум
+    val priceMax: Int? = null,        // retail fallback по аптекам: максимум
+    val pharmacyPriceCount: Int? = null,
 )
 
 data class MobileCatalogPageDto(
@@ -60,6 +63,9 @@ data class MobileCatalogDetailDto(
     val marketplaceLinks: List<MobileCatalogMarketplaceLinkDto>,
     /** Вопрос-ответ из ПИМ (Medusa metadata.faq). Пусто — секции Q&A нет. */
     val qa: List<MobileCatalogQaDto>,
+    val priceMin: Int? = null,
+    val priceMax: Int? = null,
+    val pharmacyPriceCount: Int? = null,
     /**
      * Есть ли на этот товар активная кампания (PromoEntity со статусом active). Отдаём всем
      * (анониму тоже) — мобилка по нему решает, кликабельна ли карточка/кнопка «акция в чек».

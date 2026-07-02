@@ -35,7 +35,13 @@ class AdminStorefrontController(
         @RequestParam(defaultValue = "0") offset: Int,
     ): MobileCatalogPageDto {
         requireAdmin(admin)
-        return catalog.search(q = q, category = null, limit = limit, offset = offset)
+        return catalog.search(
+            q = q,
+            category = null,
+            limit = limit,
+            offset = offset,
+            includeRetailFallbackPrices = true,
+        )
     }
 
     @GetMapping("/products/{id}")
@@ -44,7 +50,7 @@ class AdminStorefrontController(
         @PathVariable id: String,
     ): MobileCatalogDetailDto {
         requireAdmin(admin)
-        return catalog.detail(id)
+        return catalog.detail(id, includeRetailFallbackPrices = true)
     }
 
     private fun requireAdmin(admin: AdminPrincipal?) {

@@ -513,11 +513,13 @@ export const ru: Dict = {
   'ph.mTotal': 'Всего аптек',
   'ph.fromChains': 'из {n} сетей',
   'ph.mRolled': 'Развёрнутые',
-  'ph.search': 'Поиск по аптеке, сети, городу',
+  'ph.search': 'Поиск по аптеке, ID, сети, городу',
   'ph.loading': 'Загружаем аптеки…',
   'ph.empty': 'Аптек пока нет',
   'ph.emptyBody': 'Аптеки появятся здесь после первого hand-shake POSM-sidecar со Стандарт-Н.',
   'ph.thName': 'Аптека',
+  'ph.thPosmId': 'POSM pharmacyId',
+  'ph.posmIdHint': 'Этот ID указывается в posm.json как PharmacyId',
   'ph.thChain': 'Сеть',
   'ph.thCity': 'Город',
   'ph.thGroup': 'Группа',
@@ -575,7 +577,7 @@ export const ru: Dict = {
   'phd.metaReceipts': 'Чеков/30д',
   'phd.metaGmv': 'GMV/30д',
   'phd.metaLift': 'Lift',
-  'phd.metaId': 'ID',
+  'phd.metaId': 'POSM pharmacyId',
 
   // ── Pharmacists ───────────────────────────────────────────────────────
   'phc.tabAll': 'Все',
@@ -1573,7 +1575,7 @@ export const kk: Dict = {
   'ph.mTotal': 'Барлық дәріханалар',
   'ph.fromChains': '{n} желіден',
   'ph.mRolled': 'Жайылған',
-  'ph.search': 'Дәріхана, желі, қала бойынша іздеу',
+  'ph.search': 'Дәріхана, ID, желі, қала бойынша іздеу',
   'ph.loading': 'Дәріханалар жүктелуде…',
   'ph.empty': 'Дәріханалар әзірге жоқ',
   'ph.emptyBody':
@@ -1586,6 +1588,8 @@ export const kk: Dict = {
   'ph.thReceipts': 'Чек/30к',
   'ph.thGmv': 'GMV/30к',
   'ph.thLift': 'Lift',
+  'ph.thPosmId': 'POSM pharmacyId',
+  'ph.posmIdHint': 'Бұл ID posm.json ішінде PharmacyId ретінде көрсетіледі',
   'ph.inactive': 'Белсенді емес',
   'ph.gPilot': 'Пилот',
   'ph.gControl': 'Бақылау',
@@ -1636,7 +1640,7 @@ export const kk: Dict = {
   'phd.metaReceipts': 'Чектер/30к',
   'phd.metaGmv': 'GMV/30к',
   'phd.metaLift': 'Lift',
-  'phd.metaId': 'ID',
+  'phd.metaId': 'POSM pharmacyId',
 
   // ── Pharmacists ───────────────────────────────────────────────────────
   'phc.tabAll': 'Барлығы',

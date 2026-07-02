@@ -2,6 +2,7 @@ package kz.epharm.medusa.service
 
 import kz.epharm.medusa.client.MedusaClient
 import kz.epharm.medusa.dto.MedusaProduct
+import kz.epharm.medusa.dto.toRetailPriceSummary
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import kotlin.math.roundToLong
@@ -31,12 +32,13 @@ class MedusaPriceService(
      */
     fun priceOf(medusaProductId: String?): Long? {
         if (medusaProductId.isNullOrBlank() || !medusa.active) return null
-        return try {
+        val nativePrice = try {
             priceOf(medusa.getProduct(medusaProductId))
         } catch (e: Exception) {
             log.warn("Не удалось получить цену Medusa для {}: {}", medusaProductId, e.message)
             null
         }
+        return nativePrice ?: retailPriceOf(medusaProductId)
     }
 
     /** Цена из уже загруженного товара (первый вариант с calculatedPrice). */
@@ -54,12 +56,19 @@ class MedusaPriceService(
         if (medusaProductId.isNullOrBlank() || !medusa.active) return null
         return try {
             val p = medusa.getProduct(medusaProductId) ?: return null
-            MedusaSnapshot(price = priceOf(p), cover = coverOf(p), barcode = barcodeOf(p))
+            MedusaSnapshot(
+                price = priceOf(p) ?: retailPriceOf(medusaProductId),
+                cover = coverOf(p),
+                barcode = barcodeOf(p),
+            )
         } catch (e: Exception) {
             log.warn("Не удалось получить снимок Medusa для {}: {}", medusaProductId, e.message)
             null
         }
     }
+
+    private fun retailPriceOf(medusaProductId: String): Long? =
+        medusa.getProductPharmacies(medusaProductId)?.toRetailPriceSummary()?.price?.toLong()
 
     /** Обложка товара: thumbnail, иначе первое непустое фото. */
     private fun coverOf(product: MedusaProduct): String? =

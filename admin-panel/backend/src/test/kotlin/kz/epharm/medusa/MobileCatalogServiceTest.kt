@@ -6,8 +6,11 @@ import kz.epharm.medusa.client.MedusaClient
 import kz.epharm.medusa.dto.MedusaCalculatedPrice
 import kz.epharm.medusa.dto.MedusaCategory
 import kz.epharm.medusa.dto.MedusaImage
+import kz.epharm.medusa.dto.MedusaPharmacyPrice
 import kz.epharm.medusa.dto.MedusaProduct
+import kz.epharm.medusa.dto.MedusaProductPharmaciesResponse
 import kz.epharm.medusa.dto.MedusaProductListResponse
+import kz.epharm.medusa.dto.MedusaPriceRange
 import kz.epharm.medusa.dto.MedusaVariant
 import kz.epharm.mobile.catalog.service.MobileCatalogService
 import kz.epharm.promo.repository.PromoRepository
@@ -143,6 +146,36 @@ class MobileCatalogServiceTest {
         assertNull(c.imageUrl)             // ни thumbnail, ни images
         assertEquals("4603423004936", c.barcode)
         assertEquals("Биологически активные добавки", c.category) // из metadata.category
+    }
+
+    @Test
+    fun `admin fallback подтягивает retail-цену из pharmacy pricing когда calculated_price пустой`() {
+        stubList(
+            MedusaProduct(
+                id = "prod_1",
+                title = "Везилют капс. №30",
+                variants = listOf(MedusaVariant(id = "v1", sku = "X", barcode = "4603423004936", calculatedPrice = null)),
+            ),
+        )
+        every { medusa.getProductPharmacies("prod_1") } returns MedusaProductPharmaciesResponse(
+            productId = "prod_1",
+            currency = "KZT",
+            priceRange = MedusaPriceRange(min = 2060.0, max = 6670.0),
+            pharmacyCount = 3,
+            pharmacies = listOf(
+                MedusaPharmacyPrice(2060.0),
+                MedusaPharmacyPrice(5775.0),
+                MedusaPharmacyPrice(6670.0),
+            ),
+        )
+
+        val page = service.search(q = null, category = null, limit = 24, offset = 0, includeRetailFallbackPrices = true)
+
+        val c = page.items.single()
+        assertEquals(5775, c.price)
+        assertEquals(2060, c.priceMin)
+        assertEquals(6670, c.priceMax)
+        assertEquals(3, c.pharmacyPriceCount)
     }
 
     @Test

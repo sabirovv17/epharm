@@ -75,6 +75,18 @@ describe('PharmacyDetailPage', () => {
     expect(screen.getByText('Europharma')).toBeInTheDocument()
   })
 
+  it('показывает POSM pharmacyId в отдельном read-only блоке', () => {
+    hooks.usePharmacy.mockReturnValue({
+      data: mkPharmacy({ id: 'sloc_01KSAHYDSPA5SA3MRBHRTY6HRW' }),
+      isLoading: false,
+      isError: false,
+    })
+    renderPage()
+    expect(screen.getByTestId('pharmacy-detail-posm-id')).toHaveTextContent(
+      'sloc_01KSAHYDSPA5SA3MRBHRTY6HRW',
+    )
+  })
+
   it('правка названия → активируется Сохранить → mutate', async () => {
     hooks.usePharmacy.mockReturnValue({ data: mkPharmacy(), isLoading: false, isError: false })
     const user = userEvent.setup()
