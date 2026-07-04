@@ -84,6 +84,16 @@ POSM:
   Тест `ScreensIntegrationTest`: аптеке нужна родительская `ChainEntity` (FK
   `pharmacies_chain_id_fkey`), иначе autoflush pending-insert → 409 на GET.
 - App auto-update uses `/api/posm/app/version` and SHA256-verified HTTPS zip.
+- Дистрибутив: exe ДОЛЖЕН называться `CustomerDisplay.exe` (= csproj без AssemblyName).
+  `setup-autostart.bat`/`install-tasks.ps1` принимают и `Epharm-POSM.exe`, но НЕ переименовывай
+  apphost при упаковке — v1.0.25 уехала с `Epharm-POSM.exe`, и `.bat` падал «exe not found».
+  Apphost грузит dll по зашитому имени (`CustomerDisplay.dll`), так что переименование exe безопасно.
+- Прод-автостарт (киоск на 2-м мониторе): `install-tasks.ps1` при пустом `-ScreenMode` берёт
+  `screenMode` из `posm.json` (единый источник правды). Значит `setup-autostart.bat` двойным кликом
+  даёт prod, если в `posm.json` стоит `"screenMode":"prod"`. `EPHARM_DEBUG=1` (dev-лаунчер) форсит dev
+  поверх конфига — поэтому dev-скрипт `run-kassa.ps1`/`publish-exe.ps1` всегда dev; для прода идём
+  через setup-autostart.bat, а не run.bat. Сборка на Mac: `dotnet publish App/CustomerDisplay.csproj
+-r win-x64 --self-contained -p:EnableWindowsTargeting=true -p:Version=x.y.z`.
 - Показ рекомендации пингуется в backend (`POST .../{eventId}/shown` → `displayed_at`) через тот же
   outbox; продажа атрибутируется к показу по `session_id` (V032: `sold_at` / `sale_id` /
   `seconds_to_sale`). Аналитика — Dashboard «Журнал показов и продаж»
