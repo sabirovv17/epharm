@@ -37,7 +37,8 @@ param(
     [string]$ScriptsDir = $PSScriptRoot,
     [string]$ConfigPath = "",
     [string]$HeartbeatPath = "C:\Epharm\heartbeat.txt",
-    [string]$ScreenMode = "dev",
+    # Пусто = взять screenMode из posm.json (единый источник правды). Явный -ScreenMode перекрывает.
+    [string]$ScreenMode = "",
     [string]$AppLogPath = "C:\Epharm\customerdisplay.log",
     [int]$MaxAgeSec = 90
 )
@@ -99,6 +100,21 @@ $appTask = "EpharmPOSM"
 $wdTask = "EpharmPOSM-Watchdog"
 $me = "$env:USERDOMAIN\$env:USERNAME"
 
+# Режим экрана: приоритет — явный -ScreenMode; иначе screenMode из posm.json (единый источник
+# правды); если и там нет — dev. Раньше был хардкод "dev", из-за чего setup-autostart.bat всегда
+# ставил dev-режим, игнорируя "screenMode":"prod" в конфиге (окно слева вместо киоска на 2-м экране).
+if ([string]::IsNullOrWhiteSpace($ScreenMode)) {
+    $cfgForMode = if (Test-Path $defaultCfg) { $defaultCfg } elseif (Test-Path $ConfigPath) { $ConfigPath } else { $null }
+    if ($cfgForMode) {
+        try {
+            $modeFromCfg = (Get-Content $cfgForMode -Raw | ConvertFrom-Json).screenMode
+            if (-not [string]::IsNullOrWhiteSpace($modeFromCfg)) {
+                $ScreenMode = $modeFromCfg
+                Write-Host "[i] screenMode из posm.json: $ScreenMode" -ForegroundColor Cyan
+            }
+        } catch { }
+    }
+}
 if ([string]::IsNullOrWhiteSpace($ScreenMode)) { $ScreenMode = "dev" }
 $ScreenMode = $ScreenMode.Trim().ToLowerInvariant()
 if ($ScreenMode -ne "prod") { $ScreenMode = "dev" }
