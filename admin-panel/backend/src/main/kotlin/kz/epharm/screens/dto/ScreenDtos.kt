@@ -91,6 +91,10 @@ data class ConnectedRegistersDto(
 data class RegisterPresenceDto(
     val deviceId: String,
     val pharmacyId: String?,
+    // Название и адрес аптеки, резолвятся из справочника по pharmacyId (null, если аптека не
+    // найдена/не задана) — чтобы в админ-виджете читалась «Аспект-траст», а не «sloc_…».
+    val pharmacyName: String?,
+    val pharmacyAddress: String?,
     val lastSeen: Instant,
 )
 

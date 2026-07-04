@@ -671,6 +671,8 @@ export interface AssignSlideRequest {
 export interface ConnectedDeviceDto {
   deviceId: string
   pharmacyId: string | null
+  pharmacyName: string | null
+  pharmacyAddress: string | null
   lastSeen: string
 }
 

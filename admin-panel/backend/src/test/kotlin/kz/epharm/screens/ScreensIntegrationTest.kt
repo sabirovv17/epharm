@@ -7,6 +7,11 @@ import kz.epharm.auth.dto.LoginRequest
 import kz.epharm.auth.dto.LoginResponse
 import kz.epharm.auth.entity.AdminUserEntity
 import kz.epharm.auth.repository.AdminUserRepository
+import kz.epharm.pharmacies.entity.ChainEntity
+import kz.epharm.pharmacies.entity.PharmacyEntity
+import kz.epharm.pharmacies.repository.ChainRepository
+import kz.epharm.pharmacies.repository.PharmacyRepository
+import kz.epharm.posm.service.DevicePresenceService
 import kz.epharm.screens.entity.PlaylistEntity
 import kz.epharm.screens.entity.PlaylistStatus
 import kz.epharm.screens.entity.SlideEntity
@@ -67,6 +72,9 @@ class ScreensIntegrationTest {
     @Autowired private lateinit var playlistRepository: PlaylistRepository
     @Autowired private lateinit var slideRepository: SlideRepository
     @Autowired private lateinit var adminUserRepository: AdminUserRepository
+    @Autowired private lateinit var pharmacyRepository: PharmacyRepository
+    @Autowired private lateinit var chainRepository: ChainRepository
+    @Autowired private lateinit var devicePresenceService: DevicePresenceService
     @Autowired private lateinit var passwordEncoder: PasswordEncoder
 
     private lateinit var bearer: String
@@ -245,6 +253,43 @@ class ScreensIntegrationTest {
         )
             .andExpect(status().isBadRequest)
             .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+    }
+
+    // ── Подключённые кассы: резолв названия+адреса аптеки по pharmacyId ────
+
+    @Test
+    fun `GET connected → название и адрес аптеки резолвятся из справочника`() {
+        chainRepository.save(ChainEntity(id = "ch_1", name = "Сеть", color = "#000"))
+        pharmacyRepository.save(
+            PharmacyEntity(
+                id = "ph_known", name = "Аспект-траст", chainId = "ch_1", chainName = "Сеть",
+                city = "Алматы", addr = "Достык 248а",
+            ),
+        )
+        // одна касса привязана к известной аптеке, вторая — к отсутствующей в справочнике
+        devicePresenceService.heartbeat("kassa-known", "ph_known")
+        devicePresenceService.heartbeat("kassa-orphan", "ph_missing")
+
+        mockMvc.perform(get("/api/admin/screens/connected").header("Authorization", bearer))
+            .andExpect(status().isOk)
+            // известная аптека → имя + «город, адрес»
+            .andExpect(
+                jsonPath("$.devices[?(@.deviceId=='kassa-known')].pharmacyName")
+                    .value(org.hamcrest.Matchers.hasItem("Аспект-траст")),
+            )
+            .andExpect(
+                jsonPath("$.devices[?(@.deviceId=='kassa-known')].pharmacyAddress")
+                    .value(org.hamcrest.Matchers.hasItem("Алматы, Достык 248а")),
+            )
+            // неизвестная аптека → имя/адрес null (фронт покажет сырой id)
+            .andExpect(
+                jsonPath("$.devices[?(@.deviceId=='kassa-orphan')].pharmacyId")
+                    .value(org.hamcrest.Matchers.hasItem("ph_missing")),
+            )
+            .andExpect(
+                jsonPath("$.devices[?(@.deviceId=='kassa-orphan')].pharmacyName")
+                    .value(org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.nullValue())),
+            )
     }
 
     private fun login(): LoginResponse {

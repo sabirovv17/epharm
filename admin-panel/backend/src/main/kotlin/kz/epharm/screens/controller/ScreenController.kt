@@ -1,6 +1,7 @@
 package kz.epharm.screens.controller
 
 import jakarta.validation.Valid
+import kz.epharm.pharmacies.repository.PharmacyRepository
 import kz.epharm.posm.service.DevicePresenceService
 import kz.epharm.screens.dto.ActivePlaylistDto
 import kz.epharm.screens.dto.AssignSlideRequest
@@ -34,15 +35,35 @@ import org.springframework.web.multipart.MultipartFile
 class ScreenController(
     private val screenService: ScreenService,
     private val devicePresenceService: DevicePresenceService,
+    private val pharmacyRepository: PharmacyRepository,
 ) {
 
-    /** Сколько касс сейчас онлайн (T4) — пульсы за последний TTL. */
+    /**
+     * Сколько касс сейчас онлайн (T4) — пульсы за последний TTL. Для каждой кассы резолвим
+     * название и адрес аптеки одним batch-запросом (findAllById), чтобы в админ-виджете
+     * показывать «Аспект-траст, г.Алматы, Достык 248а», а не сырой pharmacyId.
+     */
     @GetMapping("/connected")
     fun connected(): ConnectedRegistersDto {
         val devices = devicePresenceService.connected()
+        val ids = devices.mapNotNull { it.pharmacyId?.takeIf { p -> p.isNotBlank() } }.distinct()
+        val byId = if (ids.isEmpty()) emptyMap()
+        else pharmacyRepository.findAllById(ids).associateBy { it.id }
         return ConnectedRegistersDto(
             total = devices.size,
-            devices = devices.map { RegisterPresenceDto(it.deviceId, it.pharmacyId, it.lastSeen) },
+            devices = devices.map { d ->
+                val ph = d.pharmacyId?.let { byId[it] }
+                RegisterPresenceDto(
+                    deviceId = d.deviceId,
+                    pharmacyId = d.pharmacyId,
+                    pharmacyName = ph?.name,
+                    pharmacyAddress = ph?.let {
+                        listOf(it.city, it.addr).filter { s -> s.isNotBlank() }
+                            .joinToString(", ").takeIf { s -> s.isNotBlank() }
+                    },
+                    lastSeen = d.lastSeen,
+                )
+            },
         )
     }
 

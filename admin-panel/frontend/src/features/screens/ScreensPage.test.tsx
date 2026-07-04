@@ -84,8 +84,20 @@ describe('ScreensPage — онлайн-кассы', () => {
       data: {
         total: 2,
         devices: [
-          { deviceId: 'kassa-1', pharmacyId: 'ph_1', lastSeen: '2026-06-17T10:00:00Z' },
-          { deviceId: 'kassa-2', pharmacyId: null, lastSeen: '2026-06-17T10:01:00Z' },
+          {
+            deviceId: 'kassa-1',
+            pharmacyId: 'ph_1',
+            pharmacyName: 'Аспект-траст',
+            pharmacyAddress: 'Алматы, Достык 248а',
+            lastSeen: '2026-06-17T10:00:00Z',
+          },
+          {
+            deviceId: 'kassa-2',
+            pharmacyId: null,
+            pharmacyName: null,
+            pharmacyAddress: null,
+            lastSeen: '2026-06-17T10:01:00Z',
+          },
         ],
       },
       isLoading: false,
@@ -95,6 +107,11 @@ describe('ScreensPage — онлайн-кассы', () => {
     expect(w).toHaveTextContent('2')
     expect(screen.getByTestId('connected-kassa-1')).toBeInTheDocument()
     expect(screen.getByTestId('connected-kassa-2')).toBeInTheDocument()
+    // касса с известной аптекой → название + адрес (а не сырой id)
+    expect(screen.getByTestId('connected-kassa-1')).toHaveTextContent('Аспект-траст')
+    expect(screen.getByTestId('connected-kassa-1')).toHaveTextContent('Достык 248а')
+    // касса без аптеки → «без аптеки»
+    expect(screen.getByTestId('connected-kassa-2')).toHaveTextContent('без аптеки')
   })
 })
 

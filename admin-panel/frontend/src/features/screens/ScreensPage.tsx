@@ -87,9 +87,23 @@ function ConnectedRegistersCard() {
               data-testid={`connected-${d.deviceId}`}
               className="flex items-center justify-between gap-3 py-1.5 text-[12px]"
             >
-              <span className="num font-bold text-ink-900">{d.deviceId}</span>
-              <span className="text-ink-500">{d.pharmacyId ?? t('scr.connectedNoPharm')}</span>
-              <span className="num text-ink-400">{d.lastSeen.slice(0, 19).replace('T', ' ')}</span>
+              <span className="num shrink-0 font-bold text-ink-900">{d.deviceId}</span>
+              {/* Аптека: название + адрес (резолв с бэка); если аптека не найдена — id/«без аптеки» */}
+              <span className="min-w-0 flex-1 truncate text-right">
+                {d.pharmacyName ? (
+                  <>
+                    <span className="font-bold text-ink-700">{d.pharmacyName}</span>
+                    {d.pharmacyAddress && (
+                      <span className="text-ink-500"> · {d.pharmacyAddress}</span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-ink-500">{d.pharmacyId ?? t('scr.connectedNoPharm')}</span>
+                )}
+              </span>
+              <span className="num shrink-0 text-ink-400">
+                {d.lastSeen.slice(0, 19).replace('T', ' ')}
+              </span>
             </li>
           ))}
         </ul>
