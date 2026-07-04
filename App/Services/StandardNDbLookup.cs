@@ -196,27 +196,103 @@ namespace CustomerDisplay.Services
         {
             if (!string.IsNullOrWhiteSpace(_resolvedDbPath)) return _resolvedDbPath;
 
+            // 1) Явный путь из конфига — высший приоритет.
             if (!string.IsNullOrWhiteSpace(_cfg.StandardNDbPath))
             {
                 _resolvedDbPath = _cfg.StandardNDbPath.Trim();
                 return _resolvedDbPath;
             }
 
+            // 2) Авто-поиск из РОДНОГО options.ini кассы ([Connect] base=…\ztrade.fdb) — так путь
+            //    находится на любой боевой установке Стандарт-Н, а не только по демо-путям.
+            var fromIni = TryDiscoverFromOptionsIni();
+            if (!string.IsNullOrWhiteSpace(fromIni))
+            {
+                _resolvedDbPath = fromIni;
+                if (logIfMissing) _log($"БД Стандарт-Н найдена по options.ini: {fromIni}");
+                return _resolvedDbPath;
+            }
+
+            // 3) Демо-пути (fallback для VM).
             foreach (var p in DefaultDbPaths)
             {
                 try
                 {
-                    if (File.Exists(p))
-                    {
-                        _resolvedDbPath = p;
-                        return _resolvedDbPath;
-                    }
+                    if (File.Exists(p)) { _resolvedDbPath = p; return _resolvedDbPath; }
                 }
                 catch { }
             }
 
             if (logIfMissing)
                 LogErrorRateLimited("БД Стандарт-Н не найдена: укажи StandardNDbPath в posm.json");
+            return null;
+        }
+
+        /// <summary>
+        /// Ищет путь к ztrade.fdb, читая `Kassir\options.ini` кассы: секция [Connect], ключ base=.
+        /// Перебирает типовые корни Стандарт-Н + верхнеуровневые папки C:\ с именами Standart/Apteka.
+        /// Всё best-effort: любая ошибка → null (POSM не должен падать из-за поиска БД).
+        /// </summary>
+        private string? TryDiscoverFromOptionsIni()
+        {
+            try
+            {
+                var iniCandidates = new System.Collections.Generic.List<string>();
+                var roots = new System.Collections.Generic.List<string>
+                {
+                    @"C:\Standart-N_DEMO", @"C:\Standart-N", @"C:\StandartN", @"C:\Standart_N",
+                    @"C:\Program Files\Standart-N", @"C:\Program Files (x86)\Standart-N",
+                };
+                try
+                {
+                    foreach (var d in Directory.GetDirectories(@"C:\"))
+                    {
+                        var n = Path.GetFileName(d);
+                        if (n.IndexOf("standart", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                            n.IndexOf("apteka", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                            n.IndexOf("kassir", StringComparison.OrdinalIgnoreCase) >= 0)
+                            roots.Add(d);
+                    }
+                }
+                catch { }
+
+                foreach (var root in roots)
+                {
+                    try
+                    {
+                        if (!Directory.Exists(root)) continue;
+                        iniCandidates.Add(Path.Combine(root, "Kassir", "options.ini"));
+                        // Стандарт-Н часто ставится в подпапку («Apteka_KZ DEMO» и т.п.).
+                        foreach (var sub in Directory.GetDirectories(root))
+                            iniCandidates.Add(Path.Combine(sub, "Kassir", "options.ini"));
+                    }
+                    catch { }
+                }
+
+                var cp1251 = Encoding.GetEncoding(1251);
+                foreach (var ini in iniCandidates)
+                {
+                    try
+                    {
+                        if (!File.Exists(ini)) continue;
+                        foreach (var raw in File.ReadAllLines(ini, cp1251))
+                        {
+                            var line = raw.Trim();
+                            if (!line.StartsWith("base", StringComparison.OrdinalIgnoreCase)) continue;
+                            var eq = line.IndexOf('=');
+                            if (eq < 0) continue;
+                            var val = line.Substring(eq + 1).Trim();
+                            // Формат может быть «host:C:\...\ztrade.fdb» — берём часть после последнего «:» с диском.
+                            var colon = val.IndexOf(":\\", StringComparison.Ordinal);
+                            if (colon > 0) val = val.Substring(colon - 1);
+                            if (val.EndsWith(".fdb", StringComparison.OrdinalIgnoreCase) && File.Exists(val))
+                                return val;
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch { }
             return null;
         }
 

@@ -562,16 +562,20 @@ private void RefreshCurrentPharmacistFromStandardNDb()
 
 private string EnrichItemFromStandardNDb(ReceiptItem item)
 {
+    // Базовая цена — из лога кассы (price=… в строке Add2Cheque). Стандарт-Н сам пишет её в свой
+    // лог, значит это РЕАЛЬНАЯ цена позиции в чеке — достоверна для зеркала покупателя.
+    // БД Firebird здесь = ОБОГАЩЕНИЕ (штрихкод/имя) и запасной источник цены, а НЕ замена лога.
     var source = item.Price > 0m ? "лог кассы" : "нет в логе";
     if (_posmConfig?.StandardNDbEnabled != true) return source;
 
-    var dbProduct = _standardNDb?.GetProduct(item.PartId, item.Barcode);
+    StandardNProductInfo? dbProduct = null;
+    try { dbProduct = _standardNDb?.GetProduct(item.PartId, item.Barcode); } catch { /* БД опциональна */ }
+
     if (dbProduct == null)
     {
-        // Для прод-режима цена доверенная только из БД. Не показываем/не репортим цену из лога,
-        // если Firebird недоступен или товара в ztrade не нашли.
-        item.Price = 0m;
-        return "БД Стандарт-Н недоступна/цена не найдена";
+        // Firebird недоступен/товара нет в ztrade. НЕ обнуляем цену — остаёмся на цене из лога.
+        // (Раньше здесь было item.Price=0 → на зеркале «—» на любой кассе без доступной БД.)
+        return item.Price > 0m ? "лог кассы (БД недоступна)" : "нет в логе, БД недоступна";
     }
 
     if (string.IsNullOrWhiteSpace(item.Barcode) && !string.IsNullOrWhiteSpace(dbProduct.Barcode))
@@ -582,13 +586,19 @@ private string EnrichItemFromStandardNDb(ReceiptItem item)
 
     if (dbProduct.Price > 0m)
     {
-        if (item.Price > 0m && item.Price != dbProduct.Price)
+        if (item.Price <= 0m)
         {
-            Log($"Цена товара уточнена из БД Стандарт-Н: PartId={item.PartId}, " +
-                $"лог={FormatMoneyForLog(item.Price)}, БД={FormatMoneyForLog(dbProduct.Price)}");
+            // В логе цены не было — подставляем из БД.
+            item.Price = dbProduct.Price;
+            source = $"БД Стандарт-Н/{dbProduct.Source}";
         }
-        item.Price = dbProduct.Price;
-        source = $"БД Стандарт-Н/{dbProduct.Source}";
+        else if (item.Price != dbProduct.Price)
+        {
+            // Ненулевую цену из лога (= цену чека) не перезаписываем: на зеркале должна быть
+            // ровно она. Расхождение только логируем для диагностики.
+            Log($"Цена: лог={FormatMoneyForLog(item.Price)} vs БД={FormatMoneyForLog(dbProduct.Price)} " +
+                $"(PartId={item.PartId}) — оставляю цену из лога (цена чека)");
+        }
     }
 
     return source;
