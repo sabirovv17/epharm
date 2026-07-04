@@ -17,8 +17,13 @@ if not exist "%__EPHARM_POSM_DIR%install-tasks.ps1" (
   exit /b 1
 )
 
-if not exist "%__EPHARM_POSM_DIR%CustomerDisplay.exe" (
-  echo [ERROR] CustomerDisplay.exe was not found next to setup-autostart.bat.
+rem exe name depends on build: prod = CustomerDisplay.exe, dev = Epharm-POSM.exe.
+rem install-tasks.ps1 accepts BOTH — keep this guard in sync so it never blocks a valid package.
+set "__EPHARM_EXE="
+if exist "%__EPHARM_POSM_DIR%CustomerDisplay.exe" set "__EPHARM_EXE=CustomerDisplay.exe"
+if exist "%__EPHARM_POSM_DIR%Epharm-POSM.exe" set "__EPHARM_EXE=Epharm-POSM.exe"
+if not defined __EPHARM_EXE (
+  echo [ERROR] Neither CustomerDisplay.exe nor Epharm-POSM.exe was found next to setup-autostart.bat.
   echo The package is incomplete. Rebuild or unzip the full archive.
   echo.
   pause
