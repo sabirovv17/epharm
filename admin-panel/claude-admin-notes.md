@@ -76,7 +76,13 @@ POSM:
 - Ambiguous barcode/name matches are skipped.
 - POSM endpoints require `X-Posm-Key`.
 - Screen updates use HTTP polling; SSE mode was cancelled.
-- Cash-desk online count uses heartbeat.
+- Cash-desk online count uses heartbeat. `GET /api/admin/screens/connected` резолвит
+  название+«город, адрес» аптеки по `pharmacyId` одним batch-запросом
+  (`PharmacyRepository.findAllById`) → виджет «Экраны → подключено касс» показывает
+  «Аспект-траст · Алматы, Достык 248а», а не сырой `sloc_…`; фронт падает на id/«без аптеки»,
+  если аптека не найдена (`RegisterPresenceDto.pharmacyName/pharmacyAddress` nullable).
+  Тест `ScreensIntegrationTest`: аптеке нужна родительская `ChainEntity` (FK
+  `pharmacies_chain_id_fkey`), иначе autoflush pending-insert → 409 на GET.
 - App auto-update uses `/api/posm/app/version` and SHA256-verified HTTPS zip.
 - Показ рекомендации пингуется в backend (`POST .../{eventId}/shown` → `displayed_at`) через тот же
   outbox; продажа атрибутируется к показу по `session_id` (V032: `sold_at` / `sale_id` /
