@@ -100,9 +100,17 @@ POSM:
   (`GET /api/admin/dashboard/recommendations`): KPI конверсии/времени + единый лог из ДВУХ таблиц
   (`recommendation_events` показ + `pos_sales` продажа) с точным временем, авто-обновление 15с.
   Атрибуция — чистая аналитика, бонусы/выплаты не трогает.
-- `pharmacistId` берётся из лога кассы (токен `kassir=`/`cashier=`), НЕ из `posm.json` (фармацевты
-  посменно). На backend `pharmacistId` опционален (recommend+sales). Реальное поле Стандарт-Н по
-  кассиру смапим, когда увидим настоящий `zkassa.log` ([[project_posm_log_format_unknown]]).
+- `pharmacistId` — цепочка источников на POSM (v1.0.27): БД Стандарт-Н `ACTIVEUSERS.USER_ID`
+  (приоритет) → токен `kassir=`/`cashier=` из лога (всегда-активный fallback, БД не перебивает).
+  При ОШИБКЕ БД прежний кассир НЕ затирается (`TryGetActivePharmacist` различает «БД недоступна»
+  от «никто не залогинен»). НЕ из `posm.json`. Диагноз прод-кассы (06.07.2026): Firebird недоступен
+  POSM-клиенту — у 119/119 позиций pos_sales barcode=null и 65 чеков без фармацевта; причину
+  смотреть в `C:\Epharm\customerdisplay.log` («БД Стандарт-Н недоступна: …», rate-limit 60с).
+- Журнал Дашборда — ПО ПОЗИЦИЯМ: строка «Продажа» = одна позиция чека (item.total/qty),
+  `LogEntryDto.saleId` связывает позиции одного чека (для проверки чека и агрегатов);
+  id строки = `<saleId>#<index>`. Чип «через X после показа» — на позиции рекомендованного
+  товара (matchRecommendedIndex: barcode → имя → первая). pos_sales хранится как был —
+  единым документом чека.
 - Офлайн на кассе: sale/shown копятся в SQLite-outbox (WAL); при возврате сети flusher сбрасывает
   backoff (`MarkAllDue`) и досылает немедленно. Идемпотентно по saleId / eventId.
 
