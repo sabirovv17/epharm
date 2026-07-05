@@ -400,12 +400,17 @@ private void ProcessLogLine(string line)
     // Тут будет твоя реальная логика триггеров.
     // Пока даю универсальные заглушки:
 
-    // Fallback для синтетических тестов: kassir=/cashier= читаем только если чтение БД Стандарт-Н
-    // явно выключено. В боевом режиме фармацевт должен приходить строго из ACTIVEUSERS.USER_ID.
-    if (_posmConfig?.StandardNDbEnabled == false)
+    // kassir=/cashier= из лога — fallback-источник фармацевта: работает ВСЕГДА, но не перебивает
+    // значение из БД Стандарт-Н (ACTIVEUSERS — приоритетный источник). На реальных кассах, где
+    // Firebird недоступен POSM-клиенту, лог — единственный шанс узнать кассира.
     {
         var kassir = ExtractCashier(line);
-        if (!string.IsNullOrWhiteSpace(kassir)) _currentPharmacistId = kassir!;
+        if (!string.IsNullOrWhiteSpace(kassir) && !_pharmacistFromDb &&
+            !string.Equals(_currentPharmacistId, kassir, StringComparison.OrdinalIgnoreCase))
+        {
+            _currentPharmacistId = kassir!;
+            Log($"Фармацевт из лога кассы (kassir=): {kassir}");
+        }
     }
 
 if (line.Contains("ChequeList.OnChange"))
@@ -540,18 +545,30 @@ private ReceiptItem? TryParseAdd2Cheque(string line)
 
 private void RefreshCurrentPharmacistFromStandardNDb()
 {
-    if (_posmConfig?.StandardNDbEnabled != true) return;
-    var active = _standardNDb?.GetActivePharmacist();
+    if (_posmConfig?.StandardNDbEnabled != true || _standardNDb == null) return;
+
+    // Различаем исходы: ошибка БД (ok=false) — прежнее значение НЕ трогаем (временный сбой
+    // Firebird не значит «кассир вышел»; ошибка уже залогирована rate-limited внутри lookup).
+    var ok = _standardNDb.TryGetActivePharmacist(out var active);
+    if (!ok) return;
+
     if (active == null)
     {
-        if (!string.IsNullOrWhiteSpace(_currentPharmacistId))
+        // БД доступна, но активного пользователя нет. Очищаем ТОЛЬКО значение, которое сами же
+        // брали из БД (кассир реально вышел). Значение из лога (kassir=) — не наша юрисдикция:
+        // на кассах, где ACTIVEUSERS не ведётся, лог — единственный источник, его не затираем.
+        if (_pharmacistFromDb)
+        {
             Log("Активный фармацевт из БД Стандарт-Н не найден — pharmacistId очищен");
-        _currentPharmacistId = "";
+            _currentPharmacistId = "";
+            _pharmacistFromDb = false;
+        }
         return;
     }
 
     var previous = _currentPharmacistId;
     _currentPharmacistId = active.Id;
+    _pharmacistFromDb = true;
 
     if (!string.Equals(previous, _currentPharmacistId, StringComparison.OrdinalIgnoreCase))
     {

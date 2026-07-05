@@ -28,9 +28,13 @@ namespace CustomerDisplay
         private StandardNDbLookup? _standardNDb;
         private CheckoutSession _session = new();
 
-        // Текущий фармацевт/кассир — в боевом режиме берётся строго из БД Стандарт-Н
-        // (ACTIVEUSERS.USER_ID). Пусто, если БД недоступна/не знает активного пользователя.
+        // Текущий фармацевт/кассир. Цепочка источников (по убыванию приоритета):
+        //   1) БД Стандарт-Н ACTIVEUSERS.USER_ID — основной боевой источник;
+        //   2) токен kassir=/cashier= из лога кассы — fallback, когда БД недоступна/пуста.
+        // При ОШИБКЕ БД прежнее значение НЕ затирается (сбой БД ≠ «кассир вышел»).
         private string _currentPharmacistId = "";
+        // true — текущее значение пришло из БД (лог-fallback не должен его перебивать).
+        private bool _pharmacistFromDb;
 
         private CancellationTokenSource? _recoCts;
         private readonly SemaphoreSlim _recommendGate = new(1, 1);

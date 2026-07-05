@@ -46,39 +46,64 @@ namespace CustomerDisplay.Services
         public StandardNActivePharmacist? GetActivePharmacist()
         {
             if (!_cfg.StandardNDbEnabled) return null;
+            TryGetActivePharmacist(out var active);
+            return active;
+        }
 
-            return SafeQuery(() =>
+        /// <summary>
+        /// Активный фармацевт из ACTIVEUSERS с различением исходов:
+        /// true  — запрос выполнился (active == null означает «никто не залогинен»);
+        /// false — БД недоступна/ошибка (active == null НИЧЕГО не значит — прежнее значение
+        ///         фармацевта затирать нельзя, иначе временный сбой БД стирает известного кассира).
+        /// </summary>
+        public bool TryGetActivePharmacist(out StandardNActivePharmacist? active)
+        {
+            active = null;
+            if (!_cfg.StandardNDbEnabled) return false;
+
+            try
             {
-                using var conn = OpenConnection();
-                using var cmd = conn.CreateCommand();
-                cmd.CommandTimeout = TimeoutSec();
-                cmd.CommandText = @"
-                    select first 1
-                        a.user_id,
-                        a.username as active_username,
-                        a.session_id,
-                        u.username as user_login,
-                        u.usercode,
-                        u.username_n
-                    from activeusers a
-                    left join users u on u.id = a.user_id
-                    order by a.session_id desc";
+                active = QueryActivePharmacist();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LogErrorRateLimited($"БД Стандарт-Н недоступна (активный фармацевт): {ex.Message}");
+                return false;
+            }
+        }
 
-                using var reader = cmd.ExecuteReader();
-                if (!reader.Read()) return null;
+        private StandardNActivePharmacist? QueryActivePharmacist()
+        {
+            using var conn = OpenConnection();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandTimeout = TimeoutSec();
+            cmd.CommandText = @"
+                select first 1
+                    a.user_id,
+                    a.username as active_username,
+                    a.session_id,
+                    u.username as user_login,
+                    u.usercode,
+                    u.username_n
+                from activeusers a
+                left join users u on u.id = a.user_id
+                order by a.session_id desc";
 
-                var userId = ReadString(reader, "USER_ID");
-                if (string.IsNullOrWhiteSpace(userId)) return null;
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read()) return null;
 
-                return new StandardNActivePharmacist(
-                    userId,
-                    FirstNotEmpty(
-                        ReadString(reader, "USERCODE"),
-                        ReadString(reader, "USERNAME_N"),
-                        ReadString(reader, "USER_LOGIN"),
-                        ReadString(reader, "ACTIVE_USERNAME")),
-                    ReadInt64(reader, "SESSION_ID"));
-            });
+            var userId = ReadString(reader, "USER_ID");
+            if (string.IsNullOrWhiteSpace(userId)) return null;
+
+            return new StandardNActivePharmacist(
+                userId,
+                FirstNotEmpty(
+                    ReadString(reader, "USERCODE"),
+                    ReadString(reader, "USERNAME_N"),
+                    ReadString(reader, "USER_LOGIN"),
+                    ReadString(reader, "ACTIVE_USERNAME")),
+                ReadInt64(reader, "SESSION_ID"));
         }
 
         public StandardNProductInfo? GetProduct(int partId, string? barcode)
