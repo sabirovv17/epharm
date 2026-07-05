@@ -1,7 +1,7 @@
 // Тесты DashboardPage — KPI из real API, топ-списки, loading/error.
 
 import { describe, expect, it, beforeEach, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
@@ -74,21 +74,40 @@ function mkAnalytics(over: Partial<RecommendationAnalyticsDto> = {}): Recommenda
         converted: true,
         secondsToSale: 65,
         units: null,
+        saleId: null,
       },
+      // Один чек (sale_1) = две позиции = две строки журнала, связанные saleId.
       {
-        id: 'sale_1',
+        id: 'sale_1#0',
         type: 'sale',
         at: '2026-06-26T10:01:05Z',
-        title: 'Аквамарис и ещё 1',
+        title: 'Аквамарис',
         triggerName: null,
         pharmacyId: 'ph_1',
         pharmacyName: 'Аптека Центр',
         pharmacistId: 'u_1',
         pharmacistName: 'Иван',
-        amount: 3200,
+        amount: 2100,
         converted: false,
-        secondsToSale: 65, // этот чек закрыл показ → длительность видна и на строке продажи
-        units: 3, // продано 3 единицы в чеке
+        secondsToSale: 65, // позиция рекомендованного товара — чип «через … после показа»
+        units: 2,
+        saleId: 'sale_1',
+      },
+      {
+        id: 'sale_1#1',
+        type: 'sale',
+        at: '2026-06-26T10:01:05Z',
+        title: 'Цитрамон-П табл №10',
+        triggerName: null,
+        pharmacyId: 'ph_1',
+        pharmacyName: 'Аптека Центр',
+        pharmacistId: 'u_1',
+        pharmacistName: 'Иван',
+        amount: 1100,
+        converted: false,
+        secondsToSale: null,
+        units: 1,
+        saleId: 'sale_1',
       },
     ],
     ...over,
@@ -170,15 +189,17 @@ describe('DashboardPage — Журнал показов и продаж (V032)',
     expect(screen.getByTestId('recan-row-rec_1')).toBeInTheDocument()
     expect(screen.getByText('SelfieLab Zen')).toBeInTheDocument() // что рекомендовали
     expect(screen.getByText(/выбрали: Супрастин/)).toBeInTheDocument() // что выбрал покупатель
-    // продажа (из второй таблицы) в том же логе
-    expect(screen.getByTestId('recan-row-sale_1')).toBeInTheDocument()
-    expect(screen.getByText('Аквамарис и ещё 1')).toBeInTheDocument()
-    // количество проданных единиц в чеке — «3 шт» (а не двусмысленный «+N»)
-    expect(screen.getByTestId('recan-units-sale_1')).toHaveTextContent('3 шт')
+    // продажа: каждая позиция чека — отдельной строкой со своим кол-вом и суммой
+    const pos0 = screen.getByTestId('recan-row-sale_1#0')
+    const pos1 = screen.getByTestId('recan-row-sale_1#1')
+    expect(within(pos0).getByText('Аквамарис')).toBeInTheDocument()
+    expect(within(pos1).getByText('Цитрамон-П табл №10')).toBeInTheDocument()
+    expect(screen.getByTestId('recan-units-sale_1#0')).toHaveTextContent('2 шт')
+    expect(screen.getByTestId('recan-units-sale_1#1')).toHaveTextContent('1 шт')
     // конвертированный показ → chip «Продано · 1 мин 5 с» (65 сек)
     expect(screen.getByText(/Продано · 1 мин 5 с/)).toBeInTheDocument()
-    // на строке продажи — длительность «через 1 мин 5 с после показа»
-    expect(screen.getByText(/через 1 мин 5 с после показа/)).toBeInTheDocument()
+    // чип «через 1 мин 5 с после показа» — ровно на ОДНОЙ позиции (рекомендованный товар)
+    expect(screen.getAllByText(/через 1 мин 5 с после показа/)).toHaveLength(1)
   })
 
   it('пустой период → Empty', () => {

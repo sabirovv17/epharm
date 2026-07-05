@@ -526,18 +526,19 @@ export interface TimeBucketDto {
 /** Строка журнала: показ рекомендации ИЛИ продажа (из двух наших таблиц). */
 export interface LogEntryDto {
   id: string
-  type: string // "show" | "sale"
+  type: string // "show" | "sale" (одна строка = одна позиция чека)
   at: string // точное время события (ISO/UTC)
-  title: string // что РЕКОМЕНДОВАЛИ (показ) / состав чека (продажа)
+  title: string // что РЕКОМЕНДОВАЛИ (показ) / товар-позиция чека (продажа)
   triggerName: string | null // что ВЫБРАЛ покупатель — товар-триггер (только показ)
   pharmacyId: string
   pharmacyName: string
   pharmacistId: string
   pharmacistName: string
-  amount: number
+  amount: number // показ: ожидаемая сумма; продажа: сумма ЭТОЙ позиции
   converted: boolean // показ: продан ли рекомендованный товар
-  secondsToSale: number | null // показ: через сколько секунд продан
-  units: number | null // продажа: сколько единиц продано в чеке (Σ qty); null для показа
+  secondsToSale: number | null // показ/позиция: через сколько секунд после показа продан
+  units: number | null // продажа: количество единиц ЭТОЙ позиции; null для показа
+  saleId: string | null // id чека — связь позиций одного чека (для проверки чека); null для показов
 }
 
 export interface RecommendationAnalyticsDto {

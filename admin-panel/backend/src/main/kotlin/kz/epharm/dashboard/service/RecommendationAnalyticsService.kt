@@ -44,7 +44,8 @@ class RecommendationAnalyticsService(
         val amount: Long,
         val converted: Boolean,
         val secondsToSale: Int?,
-        val units: Double?,        // продажа: сколько единиц продано в чеке (Σ qty); null для показа
+        val units: Double?,        // продажа: количество единиц ЭТОЙ позиции (qty); null для показа
+        val saleId: String?,       // id чека (pos_sales.id); null для показов
     )
 
     @Transactional(readOnly = true)
@@ -71,23 +72,54 @@ class RecommendationAnalyticsService(
                 title = e.recommendName, triggerSku = e.triggerSku,
                 pharmacyId = e.pharmacyId, pharmacistId = e.pharmacistId,
                 amount = e.expectedAmount, converted = e.soldAt != null, secondsToSale = e.secondsToSale,
-                units = null,
+                units = null, saleId = null,
             )
         }
-        // Для строки ПРОДАЖИ — время до продажи рекомендации, которую этот чек закрыл (если закрыл).
-        // Один чек может закрыть несколько показов → берём минимальное (самую быструю конверсию).
-        val saleToSecs = convertedEvents
+        // Для чека — время до продажи рекомендации, которую он закрыл (если закрыл).
+        // Один чек может закрыть несколько показов → берём самую быструю конверсию.
+        val saleEvents = convertedEvents
             .filter { it.secondsToSale != null && !it.saleId.isNullOrBlank() }
             .groupBy { it.saleId!! }
-            .mapValues { (_, evs) -> evs.minOf { it.secondsToSale!! } }
-        val saleRaw = sales.map { s ->
-            Raw(
-                id = s.id, type = "sale", at = s.printedAt,
-                title = saleTitle(s.items), triggerSku = null,
-                pharmacyId = s.pharmacyId, pharmacistId = s.pharmacistId,
-                amount = s.totalAmount, converted = false, secondsToSale = saleToSecs[s.id],
-                units = s.items.sumOf { it.qty }.takeIf { it > 0 },
-            )
+            .mapValues { (_, evs) -> evs.minBy { it.secondsToSale!! } }
+        // Штрих-коды рекомендованных товаров закрытых показов — чтобы повесить чип
+        // «через X после показа» на КОНКРЕТНУЮ позицию чека (а не на весь чек).
+        val recommendBarcodes = namesByIds(saleEvents.values.map { it.recommendSku }) { ids ->
+            productRepository.findAllById(ids)
+                .filter { !it.barcode.isNullOrBlank() }
+                .associate { it.id to it.barcode!! }
+        }
+
+        // Каждая позиция чека — ОТДЕЛЬНАЯ строка журнала со своей ценой и количеством;
+        // связь позиций одного чека сохраняется через saleId (нужна для проверки чека).
+        val saleRaw = sales.flatMap { s ->
+            if (s.items.isEmpty()) {
+                // чек без позиций (не должен случаться, но не роняем журнал)
+                return@flatMap listOf(
+                    Raw(
+                        id = s.id, type = "sale", at = s.printedAt,
+                        title = "Чек", triggerSku = null,
+                        pharmacyId = s.pharmacyId, pharmacistId = s.pharmacistId,
+                        amount = s.totalAmount, converted = false,
+                        secondsToSale = saleEvents[s.id]?.secondsToSale,
+                        units = null, saleId = s.id,
+                    ),
+                )
+            }
+            val ev = saleEvents[s.id]
+            val recIdx = ev?.let { matchRecommendedIndex(s.items, recommendBarcodes[it.recommendSku], it.recommendName) } ?: -1
+            s.items.mapIndexed { idx, item ->
+                Raw(
+                    // составной id: чек + порядковый номер позиции (уникальный ключ строки журнала)
+                    id = "${s.id}#$idx", type = "sale", at = s.printedAt,
+                    title = item.name.ifBlank { item.sku.ifBlank { "позиция" } },
+                    triggerSku = null,
+                    pharmacyId = s.pharmacyId, pharmacistId = s.pharmacistId,
+                    amount = item.total, converted = false,
+                    // чип «через X после показа» — только на позиции рекомендованного товара
+                    secondsToSale = if (idx == recIdx) ev?.secondsToSale else null,
+                    units = item.qty.takeIf { it > 0 }, saleId = s.id,
+                )
+            }
         }
         val rows = (showRaw + saleRaw).sortedByDescending { it.at }.take(limit.coerceIn(1, MAX_LIMIT))
 
@@ -118,6 +150,7 @@ class RecommendationAnalyticsService(
                 converted = r.converted,
                 secondsToSale = r.secondsToSale,
                 units = r.units,
+                saleId = r.saleId,
             )
         }
 
@@ -136,13 +169,21 @@ class RecommendationAnalyticsService(
     }
 
     /**
-     * Краткий заголовок продажи: первый товар, и если позиций больше — «и ещё N».
-     * Раньше было «+N», но это читалось как количество единиц; количество теперь в поле units.
+     * Позиция чека, соответствующая рекомендованному товару закрытого показа, — на неё вешается
+     * чип «через X после показа». Матчинг best-effort: штрих-код → нормализованное имя → первая
+     * позиция (чек закрыл показ, значит товар в нём есть — даже если точный матч не удался).
      */
-    private fun saleTitle(items: List<PosSaleItem>): String {
-        if (items.isEmpty()) return "Чек"
-        val first = items.first().name.ifBlank { items.first().sku.ifBlank { "позиция" } }
-        return if (items.size == 1) first else "$first и ещё ${items.size - 1}"
+    private fun matchRecommendedIndex(items: List<PosSaleItem>, barcode: String?, recommendName: String): Int {
+        if (!barcode.isNullOrBlank()) {
+            val byBarcode = items.indexOfFirst { it.barcode == barcode }
+            if (byBarcode >= 0) return byBarcode
+        }
+        val norm = recommendName.trim().lowercase()
+        if (norm.isNotBlank()) {
+            val byName = items.indexOfFirst { it.name.trim().lowercase() == norm }
+            if (byName >= 0) return byName
+        }
+        return 0
     }
 
     /** Точечный резолв id→имя; пустой вход → пустая мапа (не дёргаем БД зря). */

@@ -196,7 +196,8 @@ class RecommendationAttributionIntegrationTest {
     @Test
     fun `аналитика отражает конверсию и единый журнал показ+продажа`() {
         val rec = recommendByBarcode("sess_e", listOf(barBio)).recommendations[0]
-        postSale("sale_e", "sess_e", listOf(saleItem(barZen, 4500)))
+        // чек из ДВУХ позиций: рекомендованный Zen + другой товар Bioderma
+        postSale("sale_e", "sess_e", listOf(saleItem(barZen, 4500), saleItem(barBio, 1500)))
 
         val dto = analyticsService.analytics(100)
         assertEquals(1, dto.shown)
@@ -214,12 +215,21 @@ class RecommendationAttributionIntegrationTest {
         assertEquals("Аптека Т", show.pharmacyName)      // резолв pharmacyId → имя
         assertEquals("Тест Фарм", show.pharmacistName)   // резолв pharmacistId → имя
 
-        val sale = dto.log.first { it.type == "sale" }
-        assertEquals("sale_e", sale.id)
-        assertEquals("Тест Фарм", sale.pharmacistName)
-        assertEquals(1.0, sale.units)                    // продано единиц в чеке (Σ qty)
-        // на строке продажи тоже видно время до продажи (этот чек закрыл показ).
-        assertNotNull(sale.secondsToSale)
+        // Каждая позиция чека — ОТДЕЛЬНАЯ строка со своей суммой/кол-вом, связанная saleId.
+        val saleRows = dto.log.filter { it.type == "sale" }
+        assertEquals(2, saleRows.size, "чек из 2 позиций → 2 строки журнала")
+        assertTrue(saleRows.all { it.saleId == "sale_e" }, "все позиции ссылаются на свой чек")
+        assertTrue(saleRows.all { it.pharmacistName == "Тест Фарм" })
+
+        val zenRow = saleRows.first { it.id == "sale_e#0" }
+        assertEquals(4500L, zenRow.amount)               // сумма ИМЕННО этой позиции
+        assertEquals(1.0, zenRow.units)                  // количество этой позиции
+        // чип «через X после показа» — только на позиции рекомендованного товара
+        assertNotNull(zenRow.secondsToSale)
+
+        val otherRow = saleRows.first { it.id == "sale_e#1" }
+        assertEquals(1500L, otherRow.amount)
+        assertEquals(null, otherRow.secondsToSale, "на прочих позициях чипа нет")
     }
 
     @Test

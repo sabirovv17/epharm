@@ -29,16 +29,19 @@ data class TimeBucketDto(val label: String, val count: Int)
  */
 data class LogEntryDto(
     val id: String,
-    val type: String,             // "show" (показ) | "sale" (продажа)
+    val type: String,             // "show" (показ) | "sale" (позиция чека)
     val at: Instant,              // точное время события
-    val title: String,            // что: РЕКОМЕНДОВАННЫЙ товар (показ) / состав чека (продажа)
+    val title: String,            // что: РЕКОМЕНДОВАННЫЙ товар (показ) / товар-позиция чека (продажа)
     val triggerName: String?,     // что ВЫБРАЛ покупатель — товар-триггер (только для показа)
     val pharmacyId: String,
     val pharmacyName: String,
     val pharmacistId: String,
     val pharmacistName: String,
-    val amount: Long,             // показ: expected_amount; продажа: total_amount
+    val amount: Long,             // показ: expected_amount; продажа: сумма ЭТОЙ позиции (item.total)
     val converted: Boolean,       // показ: продан ли рекомендованный товар
-    val secondsToSale: Int?,      // показ: через сколько секунд продан
-    val units: Double? = null,    // продажа: сколько единиц продано в чеке (Σ qty); null для показа
+    val secondsToSale: Int?,      // показ/позиция: через сколько секунд после показа продан
+    val units: Double? = null,    // продажа: количество единиц ЭТОЙ позиции (qty); null для показа
+    // id чека (pos_sales.id) — связь позиций одного чека между собой и с бэком:
+    // пригодится для проверки валидности чека и агрегатной аналитики. null для показов.
+    val saleId: String? = null,
 )
