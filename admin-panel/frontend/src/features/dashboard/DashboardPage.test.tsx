@@ -73,12 +73,13 @@ function mkAnalytics(over: Partial<RecommendationAnalyticsDto> = {}): Recommenda
         amount: 4500,
         converted: true,
         secondsToSale: 65,
+        units: null,
       },
       {
         id: 'sale_1',
         type: 'sale',
         at: '2026-06-26T10:01:05Z',
-        title: 'Аквамарис +1',
+        title: 'Аквамарис и ещё 1',
         triggerName: null,
         pharmacyId: 'ph_1',
         pharmacyName: 'Аптека Центр',
@@ -87,6 +88,7 @@ function mkAnalytics(over: Partial<RecommendationAnalyticsDto> = {}): Recommenda
         amount: 3200,
         converted: false,
         secondsToSale: 65, // этот чек закрыл показ → длительность видна и на строке продажи
+        units: 3, // продано 3 единицы в чеке
       },
     ],
     ...over,
@@ -170,7 +172,9 @@ describe('DashboardPage — Журнал показов и продаж (V032)',
     expect(screen.getByText(/выбрали: Супрастин/)).toBeInTheDocument() // что выбрал покупатель
     // продажа (из второй таблицы) в том же логе
     expect(screen.getByTestId('recan-row-sale_1')).toBeInTheDocument()
-    expect(screen.getByText('Аквамарис +1')).toBeInTheDocument()
+    expect(screen.getByText('Аквамарис и ещё 1')).toBeInTheDocument()
+    // количество проданных единиц в чеке — «3 шт» (а не двусмысленный «+N»)
+    expect(screen.getByTestId('recan-units-sale_1')).toHaveTextContent('3 шт')
     // конвертированный показ → chip «Продано · 1 мин 5 с» (65 сек)
     expect(screen.getByText(/Продано · 1 мин 5 с/)).toBeInTheDocument()
     // на строке продажи — длительность «через 1 мин 5 с после показа»

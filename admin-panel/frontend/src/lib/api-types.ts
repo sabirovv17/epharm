@@ -537,6 +537,7 @@ export interface LogEntryDto {
   amount: number
   converted: boolean // показ: продан ли рекомендованный товар
   secondsToSale: number | null // показ: через сколько секунд продан
+  units: number | null // продажа: сколько единиц продано в чеке (Σ qty); null для показа
 }
 
 export interface RecommendationAnalyticsDto {

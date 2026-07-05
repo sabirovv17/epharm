@@ -217,6 +217,7 @@ class RecommendationAttributionIntegrationTest {
         val sale = dto.log.first { it.type == "sale" }
         assertEquals("sale_e", sale.id)
         assertEquals("Тест Фарм", sale.pharmacistName)
+        assertEquals(1.0, sale.units)                    // продано единиц в чеке (Σ qty)
         // на строке продажи тоже видно время до продажи (этот чек закрыл показ).
         assertNotNull(sale.secondsToSale)
     }

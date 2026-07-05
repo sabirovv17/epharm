@@ -44,6 +44,7 @@ class RecommendationAnalyticsService(
         val amount: Long,
         val converted: Boolean,
         val secondsToSale: Int?,
+        val units: Double?,        // продажа: сколько единиц продано в чеке (Σ qty); null для показа
     )
 
     @Transactional(readOnly = true)
@@ -70,6 +71,7 @@ class RecommendationAnalyticsService(
                 title = e.recommendName, triggerSku = e.triggerSku,
                 pharmacyId = e.pharmacyId, pharmacistId = e.pharmacistId,
                 amount = e.expectedAmount, converted = e.soldAt != null, secondsToSale = e.secondsToSale,
+                units = null,
             )
         }
         // Для строки ПРОДАЖИ — время до продажи рекомендации, которую этот чек закрыл (если закрыл).
@@ -84,6 +86,7 @@ class RecommendationAnalyticsService(
                 title = saleTitle(s.items), triggerSku = null,
                 pharmacyId = s.pharmacyId, pharmacistId = s.pharmacistId,
                 amount = s.totalAmount, converted = false, secondsToSale = saleToSecs[s.id],
+                units = s.items.sumOf { it.qty }.takeIf { it > 0 },
             )
         }
         val rows = (showRaw + saleRaw).sortedByDescending { it.at }.take(limit.coerceIn(1, MAX_LIMIT))
@@ -114,6 +117,7 @@ class RecommendationAnalyticsService(
                 amount = r.amount,
                 converted = r.converted,
                 secondsToSale = r.secondsToSale,
+                units = r.units,
             )
         }
 
@@ -131,11 +135,14 @@ class RecommendationAnalyticsService(
         )
     }
 
-    /** Краткий заголовок продажи: первый товар + «+N», если позиций больше. */
+    /**
+     * Краткий заголовок продажи: первый товар, и если позиций больше — «и ещё N».
+     * Раньше было «+N», но это читалось как количество единиц; количество теперь в поле units.
+     */
     private fun saleTitle(items: List<PosSaleItem>): String {
         if (items.isEmpty()) return "Чек"
         val first = items.first().name.ifBlank { items.first().sku.ifBlank { "позиция" } }
-        return if (items.size == 1) first else "$first +${items.size - 1}"
+        return if (items.size == 1) first else "$first и ещё ${items.size - 1}"
     }
 
     /** Точечный резолв id→имя; пустой вход → пустая мапа (не дёргаем БД зря). */

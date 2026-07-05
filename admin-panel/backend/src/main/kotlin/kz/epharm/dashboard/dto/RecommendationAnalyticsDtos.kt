@@ -40,4 +40,5 @@ data class LogEntryDto(
     val amount: Long,             // показ: expected_amount; продажа: total_amount
     val converted: Boolean,       // показ: продан ли рекомендованный товар
     val secondsToSale: Int?,      // показ: через сколько секунд продан
+    val units: Double? = null,    // продажа: сколько единиц продано в чеке (Σ qty); null для показа
 )

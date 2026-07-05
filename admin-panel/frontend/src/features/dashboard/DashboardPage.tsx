@@ -251,6 +251,11 @@ function RecommendationsSection() {
                         {t('recan.chose', { n: e.triggerName })}
                       </div>
                     )}
+                    {e.type === 'sale' && e.units != null && (
+                      <div className="text-[11px] text-ink-500" data-testid={`recan-units-${e.id}`}>
+                        {t('recan.units', { n: e.units })}
+                      </div>
+                    )}
                   </td>
                   <td className="py-2.5 pr-3 text-ink-600">{e.pharmacyName}</td>
                   <td className="py-2.5 pr-3 text-ink-600">{e.pharmacistName}</td>
