@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type {
+  ActivatePharmacistRequest,
   CreatePharmacistRequest,
   PharmacistDto,
   PharmacistStatus,
@@ -50,6 +51,18 @@ export function useUpdatePharmacist() {
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: UpdatePharmacistRequest }) =>
       api.patch<PharmacistDto>(`/api/admin/pharmacists/${id}`, patch).then((r) => r.data),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: pharmacistKeys.all })
+      qc.setQueryData(pharmacistKeys.detail(data.id), data)
+    },
+  })
+}
+
+export function useActivatePharmacist() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, request }: { id: string; request: ActivatePharmacistRequest }) =>
+      api.post<PharmacistDto>(`/api/admin/pharmacists/${id}/activate`, request).then((r) => r.data),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: pharmacistKeys.all })
       qc.setQueryData(pharmacistKeys.detail(data.id), data)

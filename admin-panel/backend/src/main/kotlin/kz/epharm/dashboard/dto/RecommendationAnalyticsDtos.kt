@@ -44,4 +44,7 @@ data class LogEntryDto(
     // id чека (pos_sales.id) — связь позиций одного чека между собой и с бэком:
     // пригодится для проверки валидности чека и агрегатной аналитики. null для показов.
     val saleId: String? = null,
+    // Источник продавца: posm_internal / standardn_name_match / standardn_unmapped /
+    // unresolved / legacy. null для показов старого формата.
+    val pharmacistSource: String? = null,
 )

@@ -9,6 +9,11 @@ interface PharmacistRepository : JpaRepository<PharmacistEntity, String> {
     fun findAllByOrderByNameAsc(): List<PharmacistEntity>
     fun findAllByStatusRawOrderByNameAsc(statusRaw: String): List<PharmacistEntity>
     fun findAllByPharmacyIdOrderByNameAsc(pharmacyId: String): List<PharmacistEntity>
+    fun findAllByPharmacyIdAndNameIgnoreCaseAndStatusRaw(
+        pharmacyId: String,
+        name: String,
+        statusRaw: String,
+    ): List<PharmacistEntity>
     fun findByIin(iin: String): PharmacistEntity?
     fun findByPhone(phone: String): PharmacistEntity?
     fun countByStatusRaw(statusRaw: String): Long

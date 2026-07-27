@@ -54,7 +54,7 @@ the Screens section.
 | Rules       | Read-only/global rules view plus rule builders/components; campaign rules are edited from Promo.                  |
 | Screens     | Connected cash desks, one broadcast video/media flow, banners panel.                                              |
 | Pharmacies  | Chains/pharmacies, CRUD, detail page, real Medusa-derived pharmacy seed data.                                     |
-| Pharmacists | Registry, block/unblock, status/balance data.                                                                     |
+| Pharmacists | Registry, pending-profile activation with pharmacy assignment, block/unblock, status/balance data.                |
 | Reconcile   | Receipt moderation queue, claimed promos, POS/Excel source columns, approve/reject.                               |
 | AI Exam     | Question bank CRUD.                                                                                               |
 | Finance     | Payout batches, generation, approval with finance/HQ role checks.                                                 |
@@ -94,6 +94,12 @@ Important layout rules:
 All routes except `/login` are protected by `RequireAuth`. The axios interceptor adds
 `Authorization: Bearer <accessToken>` and performs refresh on 401. If refresh fails as auth failure,
 the store is cleared and the user returns to login.
+
+## Pharmacist Onboarding
+
+Mobile self-registration creates a `pending` pharmacist without a pharmacy assignment. In
+`/pharmacists`, HQ selects an active pharmacy and activates that profile. This assignment is used
+when backend maps the active Standard-N cashier to an internal pharmacist for analytics and bonuses.
 
 ## Build and Tests
 

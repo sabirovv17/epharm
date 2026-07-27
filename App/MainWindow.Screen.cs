@@ -39,9 +39,11 @@ namespace CustomerDisplay
         private string? _lastPlaylistIssueKey;
 
         // Heartbeat кассы (T4): периодический «я жив» на backend, чтобы он считал подключённые
-        // кассы (Redis TTL). Отдельный таймер, ~60с, независим от видео/плейлиста.
+        // кассы (Redis TTL). Отдельный таймер, 30с, независим от видео/плейлиста.
         private DispatcherTimer? _heartbeatTimer;
-        private const int HeartbeatSec = 60;
+        private const int HeartbeatSec = 30;
+        private int _heartbeatRequestBusy;
+        private bool? _heartbeatDelivered;
 
         /// <summary>
         /// Сторож зависания видео: если позиция воспроизведения «встала» (~6с без движения, а плеер
@@ -148,8 +150,8 @@ namespace CustomerDisplay
         }
 
         /// <summary>
-        /// Heartbeat кассы (T4): шлёт «я жив» на backend сразу и далее каждые ~60с, чтобы админка
-        /// считала число подключённых касс (backend держит запись с Redis TTL). Транспорт — тот же
+        /// Heartbeat кассы (T4): шлёт «я жив» на backend сразу и далее каждые 30с, чтобы админка
+        /// считала число подключённых касс (backend хранит last-seen в Redis). Транспорт — тот же
         /// HTTP-поллинг, что и плейлист: каждый удар независим, устойчив к обрывам сети, fail-safe
         /// (EpharmApiClient.HeartbeatAsync проглатывает ошибки). deviceId = Environment.MachineName
         /// (стабилен на машине), pharmacyId — из конфига. Вызывается на старте рядом с поллингом
@@ -162,12 +164,45 @@ namespace CustomerDisplay
             var pharmacyId = _posmConfig.PharmacyId;
 
             // Первый удар сразу — касса появляется в счётчике без задержки.
-            _ = _epharm.HeartbeatAsync(deviceId, pharmacyId);
+            _ = SendHeartbeatOnceAsync(deviceId, pharmacyId);
 
             _heartbeatTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(HeartbeatSec) };
-            _heartbeatTimer.Tick += (_, __) => _ = _epharm.HeartbeatAsync(deviceId, pharmacyId);
+            _heartbeatTimer.Tick += (_, __) => _ = SendHeartbeatOnceAsync(deviceId, pharmacyId);
             _heartbeatTimer.Start();
             Log($"Heartbeat кассы запущен: deviceId={deviceId}, каждые {HeartbeatSec}с");
+        }
+
+        private async Task SendHeartbeatOnceAsync(string deviceId, string pharmacyId)
+        {
+            if (_epharm == null || Interlocked.Exchange(ref _heartbeatRequestBusy, 1) == 1) return;
+            try
+            {
+                var delivered = await _epharm.HeartbeatAsync(deviceId, pharmacyId).ConfigureAwait(false);
+                if (delivered && _heartbeatDelivered != true)
+                {
+                    _heartbeatDelivered = true;
+                    Log($"Heartbeat backend подтверждён: {_epharm.ActiveBackendBaseUri}, " +
+                        $"deviceId={deviceId}, pharmacyId={pharmacyId}");
+                }
+                else if (!delivered && _heartbeatDelivered != false)
+                {
+                    _heartbeatDelivered = false;
+                    Log($"Heartbeat backend OFFLINE: {_epharm.LastHeartbeatError ?? "неизвестная ошибка"}; " +
+                        "POSM продолжает работу и повторит подключение автоматически");
+                }
+            }
+            catch (Exception ex)
+            {
+                if (_heartbeatDelivered != false)
+                {
+                    _heartbeatDelivered = false;
+                    Log($"Heartbeat backend OFFLINE: {ex.GetBaseException().Message}");
+                }
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _heartbeatRequestBusy, 0);
+            }
         }
 
         private void EnsureMediaCache()
@@ -342,17 +377,32 @@ namespace CustomerDisplay
             }
         }
 
-        /// <summary>localhost/127.0.0.1 в media-URL → хост backend (MinIO живёт рядом с backend).</summary>
+        /// <summary>Media URL приводится к активному POSM origin, включая временный HTTP fallback.</summary>
         private string RewriteMediaHost(string url)
         {
             try
             {
                 if (_posmConfig == null) return url;
-                var host = new Uri(_posmConfig.BackendBaseUrl).Host;
-                if (host == "localhost") return url;
-                return url
-                    .Replace("://localhost", "://" + host)
-                    .Replace("://127.0.0.1", "://" + host);
+                var source = new Uri(url);
+                var configuredOrigins = _posmConfig.GetBackendBaseUris();
+                var activeOrigin = _epharm?.ActiveBackendBaseUri ?? configuredOrigins[0];
+                var belongsToBackend = source.Host == "localhost" || source.Host == "127.0.0.1";
+                foreach (var configuredOrigin in configuredOrigins)
+                {
+                    if (string.Equals(source.Host, configuredOrigin.Host, StringComparison.OrdinalIgnoreCase))
+                    {
+                        belongsToBackend = true;
+                        break;
+                    }
+                }
+                if (!belongsToBackend) return url;
+
+                return new UriBuilder(source)
+                {
+                    Scheme = activeOrigin.Scheme,
+                    Host = activeOrigin.Host,
+                    Port = activeOrigin.IsDefaultPort ? -1 : activeOrigin.Port,
+                }.Uri.AbsoluteUri;
             }
             catch
             {

@@ -5,10 +5,17 @@ import { useMemo, useState } from 'react'
 import { Button, Empty, Metric, PageHeader, SearchInput, Tabs, useToast, type TabItem } from '@/ui'
 import { IconPharmacist, IconUsers } from '@/ui/icons'
 import type { PharmacistDto, PharmacistStatus } from '@/lib/api-types'
-import { useBlockPharmacist, usePharmacists, useUnblockPharmacist } from '@/lib/queries/pharmacists'
+import {
+  useActivatePharmacist,
+  useBlockPharmacist,
+  usePharmacists,
+  useUnblockPharmacist,
+} from '@/lib/queries/pharmacists'
+import { usePharmacies } from '@/lib/queries/pharmacies'
 import { describeError } from '@/lib/describeError'
 import { formatKzt, formatNum } from '@/mocks/fixtures'
 import { useT } from '@/i18n'
+import { ActivatePharmacistModal } from './ActivatePharmacistModal'
 
 type PhTab = 'all' | PharmacistStatus
 
@@ -24,8 +31,11 @@ export default function PharmacistsPage() {
   const toast = useToast()
   const [tab, setTab] = useState<PhTab>('all')
   const [q, setQ] = useState('')
+  const [activating, setActivating] = useState<PharmacistDto | null>(null)
 
   const { data: pharmacists = [], isLoading, isError, error, refetch } = usePharmacists()
+  const { data: pharmacies = [] } = usePharmacies()
+  const activatePharmacist = useActivatePharmacist()
   const blockPharmacist = useBlockPharmacist()
   const unblockPharmacist = useUnblockPharmacist()
 
@@ -74,6 +84,21 @@ export default function PharmacistsPage() {
         onError: () => toast.push(t('phc.blockErr')),
       })
     }
+  }
+
+  const handleActivate = (pharmacyId: string) => {
+    if (!activating) return
+    activatePharmacist.mutate(
+      { id: activating.id, request: { pharmacyId } },
+      {
+        onSuccess: () => {
+          toast.push(t('phc.activatedToast', { name: activating.name }))
+          setActivating(null)
+        },
+        onError: (activationError) =>
+          toast.push(`${t('phc.activateErr')}: ${describeError(activationError)}`),
+      },
+    )
   }
 
   return (
@@ -173,7 +198,9 @@ export default function PharmacistsPage() {
                       </div>
                     </td>
                     <td className="px-3 py-2.5 text-ink-700">
-                      <div>{p.pharmacyName}</div>
+                      <div className={!p.pharmacyName ? 'font-bold text-accent-warning' : ''}>
+                        {p.pharmacyName || t('phc.unassigned')}
+                      </div>
                       <div className="text-[11px] text-ink-500">{p.city}</div>
                     </td>
                     <td className="px-3 py-2.5">
@@ -211,24 +238,39 @@ export default function PharmacistsPage() {
                       </span>
                     </td>
                     <td className="px-5 py-2.5 text-right">
-                      <button
-                        type="button"
-                        onClick={(e) => handleToggleBlock(p, e)}
-                        // Блокируем ТОЛЬКО эту строку, пока её мутация в полёте
-                        // (variables === p.id) — иначе быстрый двойной клик шлёт
-                        // два block/unblock. Остальная таблица остаётся активной.
-                        disabled={
-                          (blockPharmacist.isPending && blockPharmacist.variables === p.id) ||
-                          (unblockPharmacist.isPending && unblockPharmacist.variables === p.id)
-                        }
-                        className={`text-[12px] font-bold disabled:opacity-50 ${
-                          p.status === 'blocked'
-                            ? 'text-brand-green-700 hover:underline'
-                            : 'text-accent-danger hover:underline'
-                        }`}
-                      >
-                        {p.status === 'blocked' ? t('phc.unblock') : t('phc.block')}
-                      </button>
+                      <div className="flex items-center justify-end gap-3">
+                        {p.status === 'pending' && (
+                          <button
+                            type="button"
+                            onClick={() => setActivating(p)}
+                            disabled={
+                              activatePharmacist.isPending &&
+                              activatePharmacist.variables?.id === p.id
+                            }
+                            className="text-[12px] font-bold text-brand-green-700 hover:underline disabled:opacity-50"
+                          >
+                            {t('phc.activate')}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => handleToggleBlock(p, e)}
+                          // Блокируем ТОЛЬКО эту строку, пока её мутация в полёте
+                          // (variables === p.id) — иначе быстрый двойной клик шлёт
+                          // два block/unblock. Остальная таблица остаётся активной.
+                          disabled={
+                            (blockPharmacist.isPending && blockPharmacist.variables === p.id) ||
+                            (unblockPharmacist.isPending && unblockPharmacist.variables === p.id)
+                          }
+                          className={`text-[12px] font-bold disabled:opacity-50 ${
+                            p.status === 'blocked'
+                              ? 'text-brand-green-700 hover:underline'
+                              : 'text-accent-danger hover:underline'
+                          }`}
+                        >
+                          {p.status === 'blocked' ? t('phc.unblock') : t('phc.block')}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -237,6 +279,17 @@ export default function PharmacistsPage() {
           )}
         </div>
       </div>
+
+      {activating && (
+        <ActivatePharmacistModal
+          key={activating.id}
+          pharmacist={activating}
+          pharmacies={pharmacies}
+          pending={activatePharmacist.isPending}
+          onClose={() => setActivating(null)}
+          onActivate={handleActivate}
+        />
+      )}
     </div>
   )
 }

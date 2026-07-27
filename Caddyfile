@@ -1,17 +1,15 @@
-# Reverse-proxy + автоматический TLS (Let's Encrypt) поверх прод-стека Epharm.
-# Домены и email берутся из .env.prod (через environment контейнера caddy).
-# Caddy сам получает и продлевает сертификаты; данные сертификатов — в volume caddy_data.
-
+# Reverse-proxy + TLS поверх прод-стека Epharm.
+# Публичный wildcard-сертификат INKAR подключается из закрытого read-only mount.
 {
 	email {$ACME_EMAIL}
+	# Public DNS terminates on the INKAR ingress, so ACME challenges cannot reach
+	# this host. Certificate renewal is performed by INKAR IT and deployed manually.
+	auto_https disable_certs
 }
 
-# ВАЖНО: на этом этапе API/ADMIN/S3 — ОДИН публичный хост (sslip). Поэтому всё
-# обслуживается ОДНИМ site-блоком с маршрутизацией по путям. Раздельные блоки на
-# один и тот же адрес → Caddy: «ambiguous site definition» и крах (инцидент 22.06.2026).
-# Если позже домены РАЗВЕДУТ на разные хосты (api./admin./s3.epharm.kz) — верни
-# три отдельных блока по {$API_DOMAIN}/{$ADMIN_DOMAIN}/{$S3_DOMAIN}.
-{$ADMIN_DOMAIN} {
+# API/ADMIN/S3 используют один публичный хост (epharm.inkar.kz). Этот snippet
+# обеспечивает единые маршруты для прямого Caddy TLS и внешнего TLS ingress.
+(epharm_routes) {
 	# Загрузки (фото чеков, слайды) идут через /api на backend — поднимаем лимит тела.
 	request_body {
 		max_size 64MB
@@ -24,11 +22,19 @@
 		reverse_proxy minio:9000
 	}
 
-	# Публичные статические архивы POSM-клиента для автообновления касс.
-	# URL вида https://<host>/downloads/Epharm-POSM-vX-win-x64.zip.
-	handle_path /downloads/* {
+	# Архивы POSM содержат исполняемый код и доступны только клиентам с валидным
+	# device key. AppUpdater отправляет X-Posm-Key при каждом скачивании.
+	@authorized_posm_download {
+		path /downloads/*
+		header X-Posm-Key {$POSM_DEVICE_KEY}
+	}
+	handle @authorized_posm_download {
+		uri strip_prefix /downloads
 		root * /srv/epharm-downloads
 		file_server
+	}
+	handle /downloads/* {
+		respond 404
 	}
 
 	# API для касс (/api/posm), телефонов (/api/mobile) и самой админки.
@@ -40,6 +46,18 @@
 	handle {
 		reverse_proxy frontend:80
 	}
+}
+
+# Прямой доступ к серверу: Caddy завершает TLS сам.
+{$ADMIN_DOMAIN} {
+	tls /etc/caddy/tls/fullchain.pem /etc/caddy/tls/private.key
+	import epharm_routes
+}
+
+# Внешний ingress INKAR завершает wildcard TLS и проксирует epharm.inkar.kz
+# обычным HTTP на 10.10.1.76:8060. Отдельный listener исключает redirect-loop.
+http://{$ADMIN_DOMAIN}:8060 {
+	import epharm_routes
 }
 
 # ── Внутренний доступ к админке через корпоративный VPN / сеть INKAR ──────────

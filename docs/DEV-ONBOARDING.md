@@ -7,7 +7,7 @@ Goal: run the current Epharm mobile app on Android or iPhone against the shared 
 Use:
 
 ```text
-https://epharm.78-140-246-238.sslip.io
+https://epharm.inkar.kz
 ```
 
 No local backend is needed for this onboarding path. Actions in the app hit the shared database and
@@ -34,7 +34,7 @@ Run flags:
 
 ```text
 --dart-define=USE_API=true
---dart-define=API_BASE=https://epharm.78-140-246-238.sslip.io
+--dart-define=API_BASE=https://epharm.inkar.kz
 ```
 
 ## Android
@@ -44,7 +44,7 @@ Run from source:
 ```bash
 flutter run -d <android-device-id> \
   --dart-define=USE_API=true \
-  --dart-define=API_BASE=https://epharm.78-140-246-238.sslip.io
+  --dart-define=API_BASE=https://epharm.inkar.kz
 ```
 
 Build APK:
@@ -52,7 +52,7 @@ Build APK:
 ```bash
 flutter build apk --release \
   --dart-define=USE_API=true \
-  --dart-define=API_BASE=https://epharm.78-140-246-238.sslip.io
+  --dart-define=API_BASE=https://epharm.inkar.kz
 ```
 
 The demo APK may also be hosted under the shared `/s3/` path when published by the team.
@@ -64,7 +64,7 @@ iOS requires signing.
 ```bash
 flutter run --release -d <ios-device-id> \
   --dart-define=USE_API=true \
-  --dart-define=API_BASE=https://epharm.78-140-246-238.sslip.io
+  --dart-define=API_BASE=https://epharm.inkar.kz
 ```
 
 If signing fails:
@@ -99,17 +99,17 @@ Use any phone number for a pilot/dev registration unless a specific seeded user 
 1. Login in the mobile app.
 2. Confirm promotions/catalog/banners load.
 3. Upload a receipt photo.
-4. Open admin: `https://epharm.78-140-246-238.sslip.io`.
+4. Open admin: `https://epharm.inkar.kz`.
 5. Go to Reconcile.
 6. Approve/reject the receipt.
 7. Pull-to-refresh mobile receipt list/balance.
 
 ## Troubleshooting
 
-| Symptom                               | Fix                                                                         |
-| ------------------------------------- | --------------------------------------------------------------------------- |
-| `flutter devices` does not show phone | Use a data cable; trust computer; enable USB debugging / Developer Mode.    |
-| App cannot reach backend              | Check `API_BASE`; `curl https://epharm.78-140-246-238.sslip.io/api/health`. |
-| iOS profile not trusted               | iPhone Settings -> VPN & Device Management -> trust developer.              |
-| iOS Developer Mode disabled           | Enable Developer Mode and reboot.                                           |
-| Local backend on physical phone       | Use Mac LAN IP, not `localhost`.                                            |
+| Symptom                               | Fix                                                                      |
+| ------------------------------------- | ------------------------------------------------------------------------ |
+| `flutter devices` does not show phone | Use a data cable; trust computer; enable USB debugging / Developer Mode. |
+| App cannot reach backend              | Check `API_BASE`; `curl https://epharm.inkar.kz/api/health`.             |
+| iOS profile not trusted               | iPhone Settings -> VPN & Device Management -> trust developer.           |
+| iOS Developer Mode disabled           | Enable Developer Mode and reboot.                                        |
+| Local backend on physical phone       | Use Mac LAN IP, not `localhost`.                                         |

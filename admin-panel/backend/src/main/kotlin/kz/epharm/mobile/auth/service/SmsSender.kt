@@ -4,8 +4,9 @@ import org.slf4j.LoggerFactory
 
 /**
  * Отправка SMS с OTP. Реализации: [P1smsSender] (боевой p1sms.kz) и [LoggingSmsSender]
- * (заглушка-лог для dev/тестов). Какая активна — решает [SmsSenderConfig] по наличию
- * P1SMS_API_KEY. Интерфейс, чтобы бин подменялся без правок OtpService.
+ * (заглушка-лог только для dev/тестов). Какая активна — решает [SmsSenderConfig]:
+ * production без P1SMS_API_KEY не запускается, чтобы запрос OTP не выглядел успешным,
+ * когда SMS фактически не отправляется. Интерфейс позволяет подменять бин без правок OtpService.
  */
 interface SmsSender {
     fun sendOtp(phone: String, code: String)

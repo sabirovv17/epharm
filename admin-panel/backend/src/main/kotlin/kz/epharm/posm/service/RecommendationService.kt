@@ -68,6 +68,7 @@ class RecommendationService(
                 ruleId = m.rule.id,
                 kind = m.rule.type.name,
                 triggerSku = m.triggerSku,
+                triggerIpartId = m.triggerProduct?.ipartId?.trim()?.ifBlank { null },
                 triggerName = m.triggerName,
                 triggerVolume = m.triggerProduct?.volume?.ifBlank { null },
                 triggerPrice = m.triggerProduct?.price,
@@ -137,6 +138,13 @@ class RecommendationService(
                 event.decidedAt = Instant.now()
             }
             "accepted" -> {
+                if (event.pharmacistId.isBlank()) {
+                    throw AppException(
+                        ErrorCode.USER_NOT_ACTIVE,
+                        "POSM не определил активного фармацевта Standard-N или профиль ещё не сопоставлен",
+                        HttpStatus.CONFLICT,
+                    )
+                }
                 val pb = pendingBonusService.register(
                     pharmacistId = event.pharmacistId,
                     sku = event.recommendSku,

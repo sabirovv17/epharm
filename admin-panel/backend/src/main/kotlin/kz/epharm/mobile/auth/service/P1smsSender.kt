@@ -98,12 +98,16 @@ class SmsSenderConfig {
     fun smsSender(
         @Value("\${app.sms.p1sms.base-url:https://admin.p1sms.kz}") baseUrl: String,
         @Value("\${app.sms.p1sms.api-key:}") apiKey: String,
+        @Value("\${app.otp.dev-mode:true}") devMode: Boolean,
         @Value("\${app.sms.p1sms.channel:digit}") channel: String,
         @Value("\${app.sms.p1sms.sender:}") sender: String,
         @Value("\${app.sms.p1sms.text-template:Код входа ePharm: {code}}") textTemplate: String,
         @Value("\${app.sms.p1sms.timeout-ms:10000}") timeoutMs: Long,
     ): SmsSender {
         if (apiKey.isBlank()) {
+            check(devMode) {
+                "P1SMS_API_KEY must be configured when OTP_DEV_MODE=false"
+            }
             log.info("SMS: P1SMS_API_KEY не задан → LoggingSmsSender (заглушка, SMS не уходят)")
             return LoggingSmsSender()
         }

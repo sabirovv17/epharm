@@ -17,8 +17,8 @@ this file; use git history if an old decision needs forensic detail.
 - Product name in UI: Epharm.
 - Package/project name remains `pharmacy`.
 - Bundle/application id: `kz.pharmacy.app`.
-- Current shared backend: `https://epharm.78-140-246-238.sslip.io`.
-- Default code `API_BASE` is `https://api.epharm.kz`; for demo/pilot builds pass the sslip host.
+- Current shared backend: `https://epharm.inkar.kz`.
+- Default code `API_BASE` is `https://epharm.inkar.kz`.
 
 ## Stack
 
@@ -151,7 +151,7 @@ Prefer `flutter run` / `flutter build`; do not rely on raw Xcode Run before Flut
 
 ```bash
 # demo backend
-flutter run --dart-define=USE_API=true --dart-define=API_BASE=https://epharm.78-140-246-238.sslip.io
+flutter run --dart-define=USE_API=true --dart-define=API_BASE=https://epharm.inkar.kz
 
 # local backend
 flutter run --dart-define=USE_API=true --dart-define=API_BASE=http://localhost:8080
@@ -167,7 +167,7 @@ flutter test
 Build demo artifacts:
 
 ```bash
-API_BASE=https://epharm.78-140-246-238.sslip.io bash builds/build_all.sh
+API_BASE=https://epharm.inkar.kz bash builds/build_all.sh
 ```
 
 ## Definition of Done

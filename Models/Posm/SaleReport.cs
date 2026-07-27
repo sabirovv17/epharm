@@ -22,6 +22,7 @@ namespace CustomerDisplay.Models.Posm
     {
         public string SaleId { get; set; } = Guid.NewGuid().ToString("N");
         public string PharmacistId { get; set; } = "";
+        public string PharmacistName { get; set; } = "";
         public string PharmacyId { get; set; } = "";
         public string? SessionId { get; set; }
         public string? FiscalId { get; set; }

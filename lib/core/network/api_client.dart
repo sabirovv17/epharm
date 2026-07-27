@@ -19,6 +19,8 @@ enum _RefreshOutcome { ok, authFailed, transient }
 /// Возможности:
 ///  - префикс baseUrl + JSON-кодирование;
 ///  - Bearer-токен из TokenStore на защищённых запросах;
+///  - endpoint failover: HTTPS остаётся основным, а при сетевом/TLS-сбое запрос
+///    повторяется через временный `:8060` fallback;
 ///  - **JWT-refresh interceptor**: на 401 пытается обновить пару через
 ///    `/api/mobile/auth/refresh` и повторяет запрос один раз. Refresh
 ///    дедуплицируется (single-flight): конкурентные 401 (напр. /me + /promotions
@@ -30,12 +32,14 @@ class ApiClient {
     this._tokenStore, {
     http.Client? client,
     String? baseUrl,
+    List<String>? fallbackBaseUrls,
   })  : _client = client ?? http.Client(),
-        _baseUrl = baseUrl ?? ApiConfig.baseUrl;
+        _baseUrls = _resolveBaseUrls(baseUrl, fallbackBaseUrls);
 
   final http.Client _client;
   final TokenStore _tokenStore;
-  final String _baseUrl;
+  final List<String> _baseUrls;
+  int _activeBaseUrlIndex = 0;
 
   /// In-flight refresh для дедупликации (single-flight): пока он не null, все
   /// конкурентные 401 переиспользуют ОДИН результат refresh вместо параллельных
@@ -67,7 +71,8 @@ class ApiClient {
     bool auth = true,
   }) async {
     final res = await _sendWithRefresh(
-      () => _client.post(_uri(path), headers: _headers(auth: auth), body: jsonEncode(body)),
+      () => _client.post(_uri(path),
+          headers: _headers(auth: auth), body: jsonEncode(body)),
       auth: auth,
     );
     return _decode(res);
@@ -87,7 +92,8 @@ class ApiClient {
       req.headers.addAll(_headers(auth: true, json: false));
       req.fields.addAll(fields);
       if (fileBytes != null && fileField != null) {
-        req.files.add(http.MultipartFile.fromBytes(fileField, fileBytes, filename: fileName ?? 'receipt.jpg'));
+        req.files.add(http.MultipartFile.fromBytes(fileField, fileBytes,
+            filename: fileName ?? 'receipt.jpg'));
       }
       final streamed = await _client.send(req);
       return http.Response.fromStream(streamed);
@@ -98,6 +104,26 @@ class ApiClient {
   }
 
   // ── Внутреннее ─────────────────────────────────────────────────────────────
+
+  String get _baseUrl => _baseUrls[_activeBaseUrlIndex];
+
+  static List<String> _resolveBaseUrls(
+      String? baseUrl, List<String>? fallbackBaseUrls) {
+    final primary =
+        (baseUrl ?? ApiConfig.baseUrl).trim().replaceFirst(RegExp(r'/+$'), '');
+    final fallbacks = fallbackBaseUrls ??
+        (baseUrl == null ? ApiConfig.fallbackBaseUrls : const <String>[]);
+    final unique = <String>{};
+    for (final rawUrl in [primary, ...fallbacks]) {
+      final url = rawUrl.trim().replaceFirst(RegExp(r'/+$'), '');
+      if (url.isNotEmpty) unique.add(url);
+    }
+    if (unique.isEmpty) {
+      throw ArgumentError.value(
+          baseUrl, 'baseUrl', 'At least one backend URL is required');
+    }
+    return unique.toList(growable: false);
+  }
 
   Uri _uri(String path) => Uri.parse('$_baseUrl$path');
 
@@ -118,7 +144,7 @@ class ApiClient {
   }) async {
     http.Response res;
     try {
-      res = await request();
+      res = await _sendWithFailover(request);
     } catch (_) {
       throw const ApiException.network();
     }
@@ -130,7 +156,7 @@ class ApiClient {
         case _RefreshOutcome.ok:
           // Повтор пересоздаёт запрос через thunk → подхватывает свежий токен.
           try {
-            res = await request();
+            res = await _sendWithFailover(request);
           } catch (_) {
             throw const ApiException.network();
           }
@@ -152,6 +178,29 @@ class ApiClient {
     return res;
   }
 
+  /// Переключает origin только при исключении до получения HTTP-ответа (DNS,
+  /// TLS, разрыв соединения). Коды backend 4xx/5xx возвращаются как есть и не
+  /// повторяются, чтобы не скрывать доменную ошибку и не дублировать операцию.
+  Future<http.Response> _sendWithFailover(
+    Future<http.Response> Function() request,
+  ) async {
+    Object? lastError;
+    StackTrace? lastStackTrace;
+
+    for (var attempts = 0; attempts < _baseUrls.length; attempts++) {
+      try {
+        return await request();
+      } catch (error, stackTrace) {
+        lastError = error;
+        lastStackTrace = stackTrace;
+        if (_activeBaseUrlIndex >= _baseUrls.length - 1) break;
+        _activeBaseUrlIndex++;
+      }
+    }
+
+    Error.throwWithStackTrace(lastError!, lastStackTrace!);
+  }
+
   /// Пытается обновить пару токенов. Токены очищаются ТОЛЬКО при явном отказе
   /// бэка (рефреш-токен невалиден) — на транзиентных сбоях (сеть/5xx) сессия
   /// сохраняется, чтобы повтор позже подхватил живую сессию (не форсить OTP-релогин).
@@ -160,10 +209,12 @@ class ApiClient {
     if (tokens == null) return _RefreshOutcome.authFailed;
     final http.Response res;
     try {
-      res = await _client.post(
-        _uri('/api/mobile/auth/refresh'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'refreshToken': tokens.refreshToken}),
+      res = await _sendWithFailover(
+        () => _client.post(
+          _uri('/api/mobile/auth/refresh'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'refreshToken': tokens.refreshToken}),
+        ),
       );
     } catch (_) {
       return _RefreshOutcome.transient; // сетевой сбой — токены не трогаем
@@ -171,7 +222,8 @@ class ApiClient {
     if (res.statusCode == 200) {
       try {
         final json = jsonDecode(res.body) as Map<String, dynamic>;
-        _tokenStore.save(AuthTokens.fromJson(json['tokens'] as Map<String, dynamic>));
+        _tokenStore
+            .save(AuthTokens.fromJson(json['tokens'] as Map<String, dynamic>));
         return _RefreshOutcome.ok;
       } catch (_) {
         return _RefreshOutcome.transient; // битый ответ — не затираем сессию

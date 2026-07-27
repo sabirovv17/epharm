@@ -41,6 +41,10 @@ class RecommendationAnalyticsService(
         val triggerSku: String?,
         val pharmacyId: String,
         val pharmacistId: String,
+        val pharmacistName: String?, // снимок имени продавца из Standard-N; только для продаж
+        val reportedPharmacistId: String?,
+        val reportedPharmacistName: String?,
+        val pharmacistSource: String?,
         val amount: Long,
         val converted: Boolean,
         val secondsToSale: Int?,
@@ -71,6 +75,10 @@ class RecommendationAnalyticsService(
                 id = e.id, type = "show", at = e.displayedAt ?: e.shownAt,
                 title = e.recommendName, triggerSku = e.triggerSku,
                 pharmacyId = e.pharmacyId, pharmacistId = e.pharmacistId,
+                pharmacistName = null,
+                reportedPharmacistId = null,
+                reportedPharmacistName = null,
+                pharmacistSource = null,
                 amount = e.expectedAmount, converted = e.soldAt != null, secondsToSale = e.secondsToSale,
                 units = null, saleId = null,
             )
@@ -99,6 +107,10 @@ class RecommendationAnalyticsService(
                         id = s.id, type = "sale", at = s.printedAt,
                         title = "Чек", triggerSku = null,
                         pharmacyId = s.pharmacyId, pharmacistId = s.pharmacistId,
+                        pharmacistName = s.pharmacistName,
+                        reportedPharmacistId = s.reportedPharmacistId,
+                        reportedPharmacistName = s.reportedPharmacistName,
+                        pharmacistSource = s.pharmacistSource,
                         amount = s.totalAmount, converted = false,
                         secondsToSale = saleEvents[s.id]?.secondsToSale,
                         units = null, saleId = s.id,
@@ -114,6 +126,10 @@ class RecommendationAnalyticsService(
                     title = item.name.ifBlank { item.sku.ifBlank { "позиция" } },
                     triggerSku = null,
                     pharmacyId = s.pharmacyId, pharmacistId = s.pharmacistId,
+                    pharmacistName = s.pharmacistName,
+                    reportedPharmacistId = s.reportedPharmacistId,
+                    reportedPharmacistName = s.reportedPharmacistName,
+                    pharmacistSource = s.pharmacistSource,
                     amount = item.total, converted = false,
                     // чип «через X после показа» — только на позиции рекомендованного товара
                     secondsToSale = if (idx == recIdx) ev?.secondsToSale else null,
@@ -143,14 +159,20 @@ class RecommendationAnalyticsService(
                 triggerName = r.triggerSku?.let { triggerNames[it] },
                 pharmacyId = r.pharmacyId,
                 pharmacyName = pharmacyNames[r.pharmacyId] ?: r.pharmacyId.ifBlank { "—" },
-                pharmacistId = r.pharmacistId,
-                // фармацевт-токен из лога кассы (kassir=) обычно не в справочнике → показываем как есть.
-                pharmacistName = pharmacistNames[r.pharmacistId] ?: r.pharmacistId.ifBlank { "—" },
+                pharmacistId = r.pharmacistId.ifBlank { r.reportedPharmacistId.orEmpty() },
+                // Внутренний справочник приоритетен. Если Standard-N USER_ID ещё не сопоставлен,
+                // показываем сохранённое кассой имя; сырой id остаётся последним fallback.
+                pharmacistName = pharmacistNames[r.pharmacistId]
+                    ?: r.pharmacistName?.takeIf { it.isNotBlank() }
+                    ?: r.reportedPharmacistName?.takeIf { it.isNotBlank() }
+                    ?: r.reportedPharmacistId?.takeIf { it.isNotBlank() }
+                    ?: r.pharmacistId.ifBlank { "—" },
                 amount = r.amount,
                 converted = r.converted,
                 secondsToSale = r.secondsToSale,
                 units = r.units,
                 saleId = r.saleId,
+                pharmacistSource = r.pharmacistSource,
             )
         }
 

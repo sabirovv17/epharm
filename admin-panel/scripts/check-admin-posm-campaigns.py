@@ -27,7 +27,7 @@ def request_json(url: str, *, token: str | None = None, data: dict | None = None
 
 def main() -> None:
     env = load_env(Path(".env.prod"))
-    base = "https://" + env.get("ADMIN_DOMAIN", "epharm.78-140-246-238.sslip.io")
+    base = "https://" + env.get("ADMIN_DOMAIN", "epharm.inkar.kz")
     login = request_json(
         base + "/api/admin/auth/login",
         data={"email": env["ADMIN_BOOTSTRAP_EMAIL"], "password": env["ADMIN_BOOTSTRAP_PASSWORD"]},

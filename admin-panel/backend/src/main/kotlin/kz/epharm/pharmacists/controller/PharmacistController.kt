@@ -1,6 +1,7 @@
 package kz.epharm.pharmacists.controller
 
 import jakarta.validation.Valid
+import kz.epharm.pharmacists.dto.ActivatePharmacistRequest
 import kz.epharm.pharmacists.dto.CreatePharmacistRequest
 import kz.epharm.pharmacists.dto.PharmacistDto
 import kz.epharm.pharmacists.dto.UpdatePharmacistRequest
@@ -38,6 +39,12 @@ class PharmacistController(private val pharmacistService: PharmacistService) {
 
     @PostMapping("/{id}/block")
     fun block(@PathVariable id: String): PharmacistDto = pharmacistService.block(id)
+
+    @PostMapping("/{id}/activate")
+    fun activate(
+        @PathVariable id: String,
+        @Valid @RequestBody req: ActivatePharmacistRequest,
+    ): PharmacistDto = pharmacistService.activate(id, req)
 
     @PostMapping("/{id}/unblock")
     fun unblock(@PathVariable id: String): PharmacistDto = pharmacistService.unblock(id)

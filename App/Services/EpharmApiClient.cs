@@ -17,9 +17,10 @@ namespace CustomerDisplay.Services
     public sealed class EpharmApiClient : IDisposable
     {
         private readonly HttpClient _http;
+        private readonly BackendFailoverHandler _failover;
         private readonly Action<string>? _log;
         private readonly TimeSpan _recommendTimeout;
-        // На Windows VM первый DNS/TLS connect к публичному sslip.io домену может занимать
+        // На Windows VM первый DNS/TLS connect к публичному домену может занимать
         // заметно дольше, чем на сервере/маке. Эти вызовы фоновые и не блокируют кассу, поэтому
         // лучше дать сети восстановиться, чем регулярно считать живой backend "таймаутом".
         private readonly TimeSpan _playlistTimeout = TimeSpan.FromSeconds(20);
@@ -28,6 +29,8 @@ namespace CustomerDisplay.Services
         private string? _lastHeartbeatErrorKey;
 
         public string? LastPlaylistError { get; private set; }
+        public string? LastHeartbeatError { get; private set; }
+        public Uri ActiveBackendBaseUri => _failover.ActiveEndpoint;
 
         private static readonly JsonSerializerOptions JsonOpts = new()
         {
@@ -43,9 +46,11 @@ namespace CustomerDisplay.Services
             // (отсюда «видео не стягивается»). Теперь общий лимит не режет фоновые запросы раньше
             // их собственного timeout, а recommend ограничен отдельно.
             _recommendTimeout = TimeSpan.FromMilliseconds(Math.Max(200, cfg.RecommendTimeoutMs));
-            _http = new HttpClient
+            var endpoints = cfg.GetBackendBaseUris();
+            _failover = new BackendFailoverHandler(endpoints, _log);
+            _http = new HttpClient(_failover)
             {
-                BaseAddress = new Uri(cfg.BackendBaseUrl),
+                BaseAddress = endpoints[0],
                 Timeout = TimeSpan.FromSeconds(30),
             };
             _http.DefaultRequestHeaders.Add("X-Posm-Key", cfg.DeviceKey);
@@ -205,7 +210,7 @@ namespace CustomerDisplay.Services
         /// (Redis TTL). Fail-safe: при сети/таймауте/ошибке просто проглатываем — пропуск одного
         /// удара ничего не ломает, следующий тик досчитается. Не бросает.
         /// </summary>
-        public async Task HeartbeatAsync(string deviceId, string? pharmacyId, CancellationToken ct = default)
+        public async Task<bool> HeartbeatAsync(string deviceId, string? pharmacyId, CancellationToken ct = default)
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(_heartbeatTimeout);
@@ -216,8 +221,14 @@ namespace CustomerDisplay.Services
                     url += "&pharmacyId=" + Uri.EscapeDataString(pharmacyId);
                 using var resp = await _http.PostAsync(url, null, cts.Token).ConfigureAwait(false);
                 if (!resp.IsSuccessStatusCode)
+                {
+                    LastHeartbeatError = $"HTTP {(int)resp.StatusCode} {resp.StatusCode}";
                     _log?.Invoke($"heartbeat: HTTP {(int)resp.StatusCode} {resp.StatusCode}");
+                    return false;
+                }
                 // тело ответа {ok, deviceId} нам не нужно — важен сам факт удара.
+                LastHeartbeatError = null;
+                return true;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -226,8 +237,10 @@ namespace CustomerDisplay.Services
             catch (Exception ex)
             {
                 var desc = Describe(ex);
+                LastHeartbeatError = desc;
                 if (ShouldLog(ref _lastHeartbeatErrorLog, ref _lastHeartbeatErrorKey, desc))
                     _log?.Invoke($"heartbeat: временно не доставлен ({desc}); повторю по таймеру");
+                return false;
             }
         }
 

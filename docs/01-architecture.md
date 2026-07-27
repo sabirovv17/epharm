@@ -6,7 +6,7 @@
                          public internet / VPN
                                   |
                                   v
-                   https://epharm.78-140-246-238.sslip.io
+                   https://epharm.inkar.kz
                                   |
                                Caddy
               /api/* ------------+------------- /s3/* ------------ /
@@ -17,7 +17,7 @@
        +--------+---------+----------------+
        |                  |                |
    PostgreSQL           Redis          external Medusa
-   Flyway V001-V030     cache/session   catalog/images/barcodes/pharmacies
+   Flyway V001-V034     cache/session   catalog/images/barcodes/pharmacies
 ```
 
 Caddy is the only public entrypoint in the current deployment. Backend, frontend, MinIO, Postgres,
@@ -53,21 +53,26 @@ allowed Medusa HTTP images.
 
 ### Cash Desk Recommendation -> Deferred Bonus -> Reconciliation
 
-1. Standard-N writes a cp1251 `zkassa.log` line for an added product.
-2. POSM client extracts `barcode`/`ean`, product name, internal `iPartID`, price, and quantity.
-3. POSM sends the cart to `POST /api/posm/recommend`.
-4. Backend resolves products primarily by barcode, then by normalized name. Ambiguous barcode/name
+1. The pharmacist signs into Standard-N on the pharmacy workstation using the normal company flow.
+2. POSM identifies the local open `zkassa` session and reads its active Firebird receipt from
+   `DOCS` + `DOC_DETAIL_ACTIVE`; detailed `Add2Cheque` log lines remain a compatibility fallback.
+3. POSM obtains the manufacturer barcode/EAN, product name, internal `iPartID`, price, quantity, and
+   the active Standard-N cashier id/name from that workstation-bound session and receipt.
+4. POSM sends the cart to `POST /api/posm/recommend`.
+5. Backend preserves raw Standard-N identity and maps it to an active internal pharmacist only by
+   a deterministic same-pharmacy id or unique full-name match.
+6. Backend resolves products primarily by barcode, then by normalized name. Ambiguous barcode/name
    matches are rejected rather than guessed.
-5. Rules Engine returns up to two recommendations from active campaign rules.
-6. POSM shows the recommendation on the pharmacist screen. `F9` accepts, `Esc` rejects.
-7. Accepted recommendation creates a `pending_bonus`.
-8. POSM later sends sale data to `POST /api/posm/sales`; managers can also import Standard-N Excel
+7. Rules Engine returns up to two recommendations from active campaign rules.
+8. POSM shows the recommendation on the pharmacist screen.
+9. POSM later sends sale data to `POST /api/posm/sales`; managers can also import Standard-N Excel
    data via admin.
-9. Reconcile service compares POS sale, Excel row, and mobile/manual evidence:
-   - both POS and Excel match -> auto approved;
-   - one source only -> manual moderation;
-   - conflict/duplicate -> flagged/manual;
-   - no evidence after expiry -> expired.
+10. Reconcile service compares POS sale, Excel row, and mobile/manual evidence:
+
+- both POS and Excel match -> auto approved;
+- one source only -> manual moderation;
+- conflict/duplicate -> flagged/manual;
+- no evidence after expiry -> expired.
 
 ### Screens / Broadcast
 

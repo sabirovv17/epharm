@@ -9,6 +9,7 @@ import kz.epharm.pharmacies.entity.PharmacyGroup
 import kz.epharm.pharmacies.repository.ChainRepository
 import kz.epharm.pharmacies.repository.PharmacyRepository
 import kz.epharm.pharmacists.entity.PharmacistEntity
+import kz.epharm.pharmacists.entity.PharmacistStatus
 import kz.epharm.pharmacists.repository.PharmacistRepository
 import kz.epharm.posm.dto.CartItemDto
 import kz.epharm.posm.dto.OutcomeRequest
@@ -109,7 +110,7 @@ class PosmRecommendIntegrationTest {
                 id = "u_t", name = "Тест Фарм", iin = "900115300013", phone = "+77001234567",
                 pharmacyId = "ph_t", pharmacyName = "Аптека Т", city = "Алматы",
                 balance = 0, earned30d = 0,
-            ),
+            ).also { it.status = PharmacistStatus.active },
         )
 
         // Каталог: триггеры (со штрих-кодами) + рекомендации.
@@ -136,6 +137,7 @@ class PosmRecommendIntegrationTest {
         assertEquals("substitution", resp.recommendations[0].kind)
         assertEquals("p_zen", resp.recommendations[0].recommendSku)
         assertEquals(650, resp.recommendations[0].bonus)
+        assertEquals("80309", resp.recommendations[0].triggerIpartId)
         assertEquals("substitution", resp.recommendations[1].kind)
         assertEquals("p_zen2", resp.recommendations[1].recommendSku)
         assertEquals(500, resp.recommendations[1].bonus)
@@ -289,6 +291,22 @@ class PosmRecommendIntegrationTest {
         val resp = recommend("s10", listOf(CartItemDto(barcode = barBio, name = "мусор")))
         assertEquals(1, resp.recommendations.size)
         assertEquals("p_zen", resp.recommendations[0].recommendSku)
+    }
+
+    @Test
+    fun `штрих-код имеет приоритет над конфликтующим локальным iPartID`() {
+        // PARTS.ID is local to a pharmacy database. A numerically equal catalog ipartId can point
+        // to a different product, but an exact EAN must still trigger the configured campaign.
+        productRepository.save(product("p_local_collision", "Другой товар", 1000, "4870000000001", ipartId = "99123"))
+
+        val resp = recommend(
+            "s12",
+            listOf(CartItemDto(sku = "99123", barcode = barBio, name = "Ivatherm-like scan")),
+        )
+
+        assertEquals(1, resp.recommendations.size)
+        assertEquals("p_zen", resp.recommendations[0].recommendSku)
+        assertEquals("Bioderma", resp.recommendations[0].triggerName)
     }
 
     @Test

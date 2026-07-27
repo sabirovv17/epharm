@@ -234,8 +234,8 @@ namespace CustomerDisplay
             {
                 // если что-то не так с экранами — оставляем дефолтную позицию.
             }
-            Activate();
-            Focus();
+            // Barcode scanners usually behave as keyboards. The popup must remain topmost but must
+            // not steal focus from Standard-N, otherwise the next scan can be lost in this window.
         }
 
         private void OnKeyDown(object sender, KeyEventArgs e)

@@ -320,6 +320,10 @@ export interface UpdatePharmacistRequest {
   coursesTotal?: number
 }
 
+export interface ActivatePharmacistRequest {
+  pharmacyId: string
+}
+
 // ─── Promo (Этап 3.3) ────────────────────────────────────────────────────
 // Зеркало kz.epharm.promo.dto.* + PromoStatus.
 
@@ -539,6 +543,13 @@ export interface LogEntryDto {
   secondsToSale: number | null // показ/позиция: через сколько секунд после показа продан
   units: number | null // продажа: количество единиц ЭТОЙ позиции; null для показа
   saleId: string | null // id чека — связь позиций одного чека (для проверки чека); null для показов
+  pharmacistSource?:
+    | 'legacy'
+    | 'posm_internal'
+    | 'standardn_name_match'
+    | 'standardn_unmapped'
+    | 'unresolved'
+    | null
 }
 
 export interface RecommendationAnalyticsDto {

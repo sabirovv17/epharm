@@ -1,94 +1,141 @@
 ﻿<#
 .SYNOPSIS
-  Watchdog кассового POSM-клиента Epharm. Гарантирует, что прослушка логов Стандарт-Н
-  работает «всегда»: перезапускает CustomerDisplay.exe, если процесс УПАЛ или ЗАВИС.
+  Process and UI-heartbeat watchdog for the Epharm POSM Windows client.
 
 .DESCRIPTION
-  Запускается задачей планировщика "EpharmPOSM-Watchdog" раз в минуту. Проверяет:
-    1. Запущен ли процесс. Нет → запускает exe.
-    2. Свежий ли heartbeat-файл (его пишет UI-поток приложения каждые ~15с).
-       Если процесс жив, но heartbeat старше MaxAgeSec → приложение зависло (deadlock UI):
-       убивает процесс и запускает заново.
+  Runs every minute from the EpharmPOSM-Watchdog scheduled task. It repairs:
+    - a missing process;
+    - a process whose UI heartbeat stopped;
+    - a process that never created its first heartbeat.
 
-  Падения и так подхватывает RestartOnFailure самой задачи EpharmPOSM; этот watchdog
-  закрывает второй сценарий — ЗАВИСАНИЕ, которое RestartOnFailure не ловит (процесс жив).
-
-  Всё fail-safe: ошибки только логируются, watchdog не падает.
-
-.PARAMETER ExePath        Полный путь к CustomerDisplay.exe.
-.PARAMETER ConfigPath     Полный путь к posm.json.
-.PARAMETER ScreenMode     Режим экрана: dev/prod. Для демо-пакета по умолчанию dev.
-.PARAMETER AppLogPath     Путь к логу приложения.
-.PARAMETER HeartbeatPath  Путь к heartbeat-файлу (как в posm.json HeartbeatPath).
-.PARAMETER MaxAgeSec      Порог устаревания heartbeat в секундах (по умолчанию 90).
-.PARAMETER LogPath        Лог watchdog.
+  Restarts are routed through the main EpharmPOSM scheduled task so Task
+  Scheduler remains the owner of the visible application process.
 #>
 param(
-    [string]$ExePath = "C:\epharm\app\CustomerDisplay.exe",
+    [string]$ExePath = "C:\Epharm\app\CustomerDisplay.exe",
     [string]$ConfigPath = "C:\Epharm\posm.json",
-    [string]$ScreenMode = "dev",
+    [string]$ScreenMode = "prod",
     [string]$AppLogPath = "C:\Epharm\customerdisplay.log",
     [string]$HeartbeatPath = "C:\Epharm\heartbeat.txt",
     [int]$MaxAgeSec = 90,
+    [int]$StartupGraceSec = 120,
+    [string]$TaskName = "EpharmPOSM",
     [string]$LogPath = "C:\Epharm\watchdog.log"
 )
 
-function Write-Log([string]$msg) {
+$ErrorActionPreference = "Stop"
+
+function Write-WatchdogLog {
+    param([string]$Message)
+
     try {
-        $dir = Split-Path -Parent $LogPath
-        if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
-        Add-Content -Path $LogPath -Value ("{0} {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $msg)
+        $directory = Split-Path -Parent $LogPath
+        if ($directory -and -not (Test-Path -LiteralPath $directory)) {
+            New-Item -ItemType Directory -Path $directory -Force | Out-Null
+        }
+        Add-Content -LiteralPath $LogPath -Value ("{0} {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $Message)
     } catch { }
 }
 
-function Start-Posm() {
-    try {
-        if ([string]::IsNullOrWhiteSpace($ScreenMode)) { $ScreenMode = "dev" }
-        $mode = $ScreenMode.Trim().ToLowerInvariant()
-        if ($mode -ne "prod") { $mode = "dev" }
-
-        $env:EPHARM_POSM_CONFIG = $ConfigPath
-        $env:EPHARM_SCREEN_MODE = $mode
-        $env:EPHARM_APP_LOG = $AppLogPath
-        Remove-Item Env:\EPHARM_LOG_PATH -ErrorAction SilentlyContinue
-
-        if ($mode -eq "dev") {
-            $env:EPHARM_DEBUG = "1"
-        } else {
-            Remove-Item Env:\EPHARM_DEBUG -ErrorAction SilentlyContinue
-        }
-
-        Start-Process -FilePath $ExePath -WorkingDirectory (Split-Path -Parent $ExePath)
-        Write-Log "started: $ExePath, screenMode=$mode"
-    } catch {
-        Write-Log "start FAILED: $($_.Exception.Message)"
+function Get-PosmProcess {
+    $name = [System.IO.Path]::GetFileNameWithoutExtension($ExePath)
+    $expectedPath = [System.IO.Path]::GetFullPath($ExePath)
+    foreach ($process in @(Get-Process -Name $name -ErrorAction SilentlyContinue)) {
+        try {
+            if ([System.IO.Path]::GetFullPath($process.Path) -ieq $expectedPath) {
+                return $process
+            }
+        } catch { }
     }
+    return $null
+}
+
+function Start-Posm {
+    param([string]$Reason)
+
+    try {
+        $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+        if ($null -ne $task) {
+            Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 1
+            Start-ScheduledTask -TaskName $TaskName
+            Start-Sleep -Seconds 3
+            if ($null -ne (Get-PosmProcess)) {
+                Write-WatchdogLog "restarted through task '$TaskName': $Reason"
+                return
+            }
+        }
+    } catch {
+        Write-WatchdogLog "task restart failed: $($_.Exception.Message); trying direct fallback"
+    }
+
+    try {
+        $env:EPHARM_POSM_CONFIG = $ConfigPath
+        $env:EPHARM_SCREEN_MODE = $ScreenMode
+        $env:EPHARM_APP_LOG = $AppLogPath
+        Remove-Item Env:\EPHARM_DEBUG -ErrorAction SilentlyContinue
+        Start-Process -FilePath $ExePath -WorkingDirectory (Split-Path -Parent $ExePath)
+        Write-WatchdogLog "restarted directly: $Reason"
+    } catch {
+        Write-WatchdogLog "restart FAILED: $($_.Exception.Message)"
+    }
+}
+
+function Restart-Posm {
+    param(
+        [object]$Process,
+        [string]$Reason
+    )
+
+    try {
+        if ($null -ne $Process) {
+            Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue
+        }
+    } catch { }
+    Start-Sleep -Seconds 2
+    Start-Posm -Reason $Reason
 }
 
 try {
-    $procName = [System.IO.Path]::GetFileNameWithoutExtension($ExePath)
-    $proc = Get-Process -Name $procName -ErrorAction SilentlyContinue
-
-    if (-not $proc) {
-        Write-Log "process '$procName' not running -> starting"
-        Start-Posm
-        return
+    if (-not (Test-Path -LiteralPath $ExePath -PathType Leaf)) {
+        Write-WatchdogLog "executable missing: $ExePath"
+        exit 1
     }
 
-    # Процесс жив — проверяем, не завис ли (по свежести heartbeat).
-    if (Test-Path $HeartbeatPath) {
-        $ageSec = ((Get-Date) - (Get-Item $HeartbeatPath).LastWriteTime).TotalSeconds
-        if ($ageSec -gt $MaxAgeSec) {
-            Write-Log ("HUNG: heartbeat stale {0:N0}s (> {1}s) -> kill + restart" -f $ageSec, $MaxAgeSec)
-            try { Stop-Process -Name $procName -Force -ErrorAction SilentlyContinue } catch { }
-            Start-Sleep -Seconds 2
-            Start-Posm
-        }
-        # иначе всё хорошо — молча выходим (без спама в лог)
-    } else {
-        # Heartbeat ещё не создан (приложение только стартовало) — не трогаем, дадим время.
-        Write-Log "process alive, heartbeat file not yet present (grace) — skip"
+    $process = Get-PosmProcess
+    if ($null -eq $process) {
+        # At user logon the application and watchdog tasks can fire together.
+        # Give the direct application task time to create its process before repairing it.
+        Start-Sleep -Seconds 15
+        $process = Get-PosmProcess
+    }
+    if ($null -eq $process) {
+        Start-Posm -Reason "process was not running"
+        exit 0
+    }
+
+    try {
+        $processAgeSec = ((Get-Date) - $process.StartTime).TotalSeconds
+    } catch {
+        $processAgeSec = $StartupGraceSec + 1
+    }
+
+    if ($processAgeSec -lt $StartupGraceSec) {
+        exit 0
+    }
+
+    if (-not (Test-Path -LiteralPath $HeartbeatPath -PathType Leaf)) {
+        Restart-Posm -Process $process -Reason "heartbeat was never created after $([math]::Round($processAgeSec)) seconds"
+        exit 0
+    }
+
+    $heartbeatAgeSec = ((Get-Date) - (Get-Item -LiteralPath $HeartbeatPath).LastWriteTime).TotalSeconds
+    if ($heartbeatAgeSec -gt $MaxAgeSec) {
+        Restart-Posm -Process $process -Reason "UI heartbeat was stale for $([math]::Round($heartbeatAgeSec)) seconds"
     }
 } catch {
-    Write-Log "watchdog error (fail-safe): $($_.Exception.Message)"
+    Write-WatchdogLog "watchdog error (fail-safe): $($_.Exception.Message)"
+    exit 1
 }
+
+exit 0

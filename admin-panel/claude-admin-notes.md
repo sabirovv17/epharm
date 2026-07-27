@@ -6,7 +6,7 @@ this file; use git history for forensic detail.
 ## Product / Runtime
 
 - Product name: Epharm.
-- Active shared host: `https://epharm.78-140-246-238.sslip.io`.
+- Active shared host: `https://epharm.inkar.kz`.
 - Current production shape: one Caddy site with path routing:
   - `/api/*` -> backend;
   - `/s3/*` -> MinIO;
@@ -22,7 +22,7 @@ Backend:
 - Spring Boot 3.3.5;
 - JVM 22;
 - PostgreSQL 16;
-- Flyway V001-V032;
+- Flyway V001-V034;
 - Redis;
 - MinIO/S3;
 - Testcontainers/JUnit/MockK.
@@ -185,7 +185,7 @@ docker compose up -d
 Prod checks:
 
 ```bash
-curl https://epharm.78-140-246-238.sslip.io/api/health
+curl https://epharm.inkar.kz/api/health
 ```
 
 POSM local smoke:

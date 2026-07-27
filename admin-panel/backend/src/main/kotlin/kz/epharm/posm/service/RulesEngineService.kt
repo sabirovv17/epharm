@@ -54,10 +54,10 @@ data class RuleMatchResult(
  *   4. порядок выживших: сначала ВСЕ substitution (бонус DESC), затем crosssell (бонус DESC).
  *   5. dedup по recommend-товару (первый победил).
  *
- * РЕЗОЛВ корзины → наш productId: касса Стандарт-Н шлёт позиции с iPartID (sku),
- * EAN-13 (barcode) и/или названием (name). Матчим:
- *   (1) по iPartID (sku) — ProductEntity.ipartId == iPartID;
- *   (2) иначе по штрих-коду (barcode) — ProductEntity.barcode == EAN-13;
+ * РЕЗОЛВ корзины → наш productId: касса Стандарт-Н шлёт позиции с локальным PARTS.ID (sku),
+ * EAN/GTIN (barcode) и/или названием (name). Матчим:
+ *   (1) по штрих-коду (barcode) — стабильный межаптечный идентификатор товара;
+ *   (2) иначе по iPartID (sku), если EAN недоступен;
  *   (3) иначе по имени (name) — нормализованное совпадение с ProductEntity.name (fallback);
  *   (4) иначе позиция не резолвится (в матчинге не участвует).
  *
@@ -73,7 +73,7 @@ class RulesEngineService(
 
     @Transactional(readOnly = true)
     fun match(cart: List<CartItemDto>): RuleMatchResult {
-        // Резолвим позиции корзины в наши productId (iPartID → штрих-код → имя), собираем уникальные товары.
+        // Резолвим позиции корзины в productId (штрих-код → iPartID → имя), собираем уникальные товары.
         val cartProducts: Map<String, ProductEntity> = resolveCart(cart)
         val cartSkus: Set<String> = cartProducts.keys
         if (cartSkus.isEmpty()) return RuleMatchResult(emptyList(), emptyList())
@@ -165,9 +165,9 @@ class RulesEngineService(
      * чем показать рекомендацию чужого товара. Уникальность гарантируется только данными PIM.
      */
     private fun resolveCart(cart: List<CartItemDto>): Map<String, ProductEntity> {
-        val byIpart = ipartIndex(cart)
         val byBarcode = barcodeIndex(cart)
-        val byName = nameIndex(cart, byIpart, byBarcode)
+        val byIpart = ipartIndex(cart)
+        val byName = nameIndex(cart, byBarcode, byIpart)
         val resolved = LinkedHashMap<String, ProductEntity>()
         cart.forEach { item ->
             resolveOne(item, byIpart, byBarcode, byName)?.let { resolved.putIfAbsent(it.id, it) }
@@ -176,15 +176,15 @@ class RulesEngineService(
     }
 
     /**
-     * Резолв позиций (iPartID → штрих-код → имя) в наши productId — для сверки чека из лога кассы
+     * Резолв позиций (штрих-код → iPartID → имя) в наши productId — для сверки чека из лога кассы
      * (источник №1, /api/posm/sales). По каждой позиции в исходном порядке — productId или null
      * (не нашли / неоднозначно). Тот же коллизионно-устойчивый матчинг, что и в рекомендациях.
      */
     @Transactional(readOnly = true)
     fun resolveToProductIds(items: List<CartItemDto>): List<String?> {
-        val byIpart = ipartIndex(items)
         val byBarcode = barcodeIndex(items)
-        val byName = nameIndex(items, byIpart, byBarcode)
+        val byIpart = ipartIndex(items)
+        val byName = nameIndex(items, byBarcode, byIpart)
         return items.map { resolveOne(it, byIpart, byBarcode, byName)?.id }
     }
 
@@ -216,14 +216,14 @@ class RulesEngineService(
      */
     private fun nameIndex(
         cart: List<CartItemDto>,
-        byIpart: Map<String, ProductEntity>,
         byBarcode: Map<String, ProductEntity>,
+        byIpart: Map<String, ProductEntity>,
     ): Map<String, ProductEntity> {
         val needName = cart.any { item ->
             val ipart = item.sku?.trim()?.takeIf { it.isNotEmpty() }
             val bc = item.barcode?.trim()?.takeIf { it.isNotEmpty() }
-            (ipart == null || ipart !in byIpart) &&
-                (bc == null || bc !in byBarcode) &&
+            (bc == null || bc !in byBarcode) &&
+                (ipart == null || ipart !in byIpart) &&
                 !item.name.isNullOrBlank()
         }
         if (!needName) return emptyMap()
@@ -234,7 +234,7 @@ class RulesEngineService(
             .toMap()
     }
 
-    /** Резолв одной позиции: сначала iPartID, потом штрих-код, потом нормализованное имя. */
+    /** Резолв одной позиции: сначала EAN/GTIN, потом локальный iPartID, затем имя. */
     private fun resolveOne(
         item: CartItemDto,
         byIpart: Map<String, ProductEntity>,
@@ -243,8 +243,8 @@ class RulesEngineService(
     ): ProductEntity? {
         val ipart = item.sku?.trim()?.takeIf { it.isNotEmpty() }
         val bc = item.barcode?.trim()?.takeIf { it.isNotEmpty() }
-        return ipart?.let { byIpart[it] }
-            ?: bc?.let { byBarcode[it] }
+        return bc?.let { byBarcode[it] }
+            ?: ipart?.let { byIpart[it] }
             ?: item.name?.takeIf { it.isNotBlank() }?.let { byName[normalizeName(it)] }
     }
 

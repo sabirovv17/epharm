@@ -132,6 +132,12 @@ node_modules/
 *.jks
 secrets/
 .secret
+/tls/
+
+# Local diagnostics, screenshots, generated PDFs and other transient artifacts.
+/.audit-screens/
+/output/
+/tmp/
 
 # ─────────────────────────────────────────────────────────────────────
 # Локальные ассеты / временные файлы

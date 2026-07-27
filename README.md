@@ -16,7 +16,7 @@ The repository is the working monorepo for the Ledex x Inkar pharmacist-motivati
 The shared demo environment is:
 
 ```text
-https://epharm.78-140-246-238.sslip.io
+https://epharm.inkar.kz
 ```
 
 Caddy serves one public host and routes by path:
@@ -25,8 +25,7 @@ Caddy serves one public host and routes by path:
 - `/s3/*` -> MinIO;
 - `/` -> admin frontend.
 
-The future `*.epharm.kz` domains are prepared in `.env.prod.example`, but the active public
-environment is the `sslip.io` host unless explicitly changed in `.env.prod`.
+The active public environment is `epharm.inkar.kz`; API and S3 use its `/api/*` and `/s3/*` paths.
 
 ## Modules
 
@@ -103,7 +102,7 @@ Against the shared demo backend:
 ```bash
 flutter run \
   --dart-define=USE_API=true \
-  --dart-define=API_BASE=https://epharm.78-140-246-238.sslip.io
+  --dart-define=API_BASE=https://epharm.inkar.kz
 ```
 
 Against a local backend:

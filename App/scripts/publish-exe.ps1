@@ -13,7 +13,7 @@
 
 param(
   [string]$ConfigPath = "C:\Epharm\posm.json",
-  [string]$Version = "1.0.20",
+    [string]$Version = "1.0.44",
   [string]$OutputDir = "",
   [switch]$KeepPackageFolder
 )
@@ -94,13 +94,11 @@ if (Test-Path $ConfigPath) {
   Copy-Item $ConfigPath $packageConfig -Force
   try {
     $cfg = Get-Content $packageConfig -Raw | ConvertFrom-Json
-    $cfg | Add-Member -NotePropertyName "ScreenMode" -NotePropertyValue "dev" -Force
-    $cfg | ConvertTo-Json -Depth 20 | Set-Content -Path $packageConfig -Encoding UTF8
     Write-Host ("Конфиг скопирован. BackendBaseUrl = {0} | PharmacyId = {1}" -f $cfg.BackendBaseUrl, $cfg.PharmacyId) -ForegroundColor Green
     if ($cfg.BackendBaseUrl -match "localhost|127\.0\.0\.1") {
       Write-Warning "Конфиг смотрит на localhost — для боевого режима поправь BackendBaseUrl в posm.json перед отправкой!"
     }
-    Write-Host "ScreenMode в ZIP принудительно установлен в dev (окно слева)." -ForegroundColor Green
+    Write-Host ("ScreenMode в установочном ZIP сохранён из конфига: {0}. run.bat временно включает dev-режим только для ручного теста." -f $cfg.ScreenMode) -ForegroundColor Green
   } catch { }
 } else {
   Write-Warning "Конфиг $ConfigPath не найден — впиши posm.json вручную перед отправкой!"
@@ -110,11 +108,18 @@ if (Test-Path $ConfigPath) {
 $readme = Join-Path $sourceRoot "App\scripts\README-distrib.md"
 if (Test-Path $readme) { Copy-Item $readme (Join-Path $out "README.md") -Force }
 foreach ($scriptName in @(
-  "standartn-discover.ps1",
   "setup-autostart.bat",
   "install-tasks.ps1",
   "uninstall-tasks.ps1",
-  "watchdog.ps1"
+  "watchdog.ps1",
+  "diagnose-standardn.bat",
+  "diagnose-standardn.ps1",
+  "collect-posm-diagnostics.bat",
+  "collect-posm-diagnostics.ps1",
+  "capture-standardn-scan-source.bat",
+  "capture-standardn-scan-source.ps1",
+  "README-scan-source-capture.txt",
+  "THIRD-PARTY-NOTICES-scan-source.txt"
 )) {
   $src = Join-Path $sourceRoot "App\scripts\$scriptName"
   if (Test-Path $src) { Copy-Item $src (Join-Path $out $scriptName) -Force }
@@ -182,7 +187,6 @@ $env:EPHARM_DEBUG = "1"
 $env:EPHARM_SCREEN_MODE = "dev"
 $env:EPHARM_POSM_CONFIG = $config
 $env:EPHARM_APP_LOG = "C:\Epharm\customerdisplay.log"
-Remove-Item Env:\EPHARM_LOG_PATH -ErrorAction SilentlyContinue
 
 if (Test-Path $env:EPHARM_APP_LOG) {
   Remove-Item $env:EPHARM_APP_LOG -Force -ErrorAction SilentlyContinue
@@ -190,7 +194,7 @@ if (Test-Path $env:EPHARM_APP_LOG) {
 
 Write-Host "Конфиг: $env:EPHARM_POSM_CONFIG" -ForegroundColor Green
 Write-Host "Лог приложения: $env:EPHARM_APP_LOG" -ForegroundColor Green
-Write-Host "Лог Стандарт-Н НЕ переопределяю: клиент слушает стандартные zkassa.log пути." -ForegroundColor Green
+Write-Host "Лог Стандарт-Н: использую EPHARM_LOG_PATH, если он задан; иначе автообнаружение и стандартные пути." -ForegroundColor Green
 Write-Host "Клиентский экран: dev-режим, окно слева." -ForegroundColor Green
 Write-Host ""
 Write-Host "Логи POSM ниже. Для остановки закрой окно приложения или нажми Ctrl+C." -ForegroundColor Yellow
@@ -256,6 +260,26 @@ if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path (Join-Path $out "*") -DestinationPath $localZip
 Copy-Item $localZip $zip -Force
 $sizeMb = [math]::Round((Get-Item $zip).Length / 1MB, 1)
+$sha256 = (Get-FileHash -Path $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+Set-Content -Path "$zip.sha256" -Value "$sha256  $zipName" -Encoding ASCII
+
+# Публичный auto-update пакет не должен содержать аптечный posm.json: иначе общий
+# релиз перезапишет PharmacyId/DeviceKey каждой кассы. AppUpdater также удаляет такой
+# файл из staging для совместимости со старыми, ошибочно собранными архивами.
+$updatePackageName = "Epharm-POSM-update-v$Version-win-x64"
+$updateOut = Join-Path $buildRoot $updatePackageName
+Invoke-RoboMirror $out $updateOut
+Remove-Item (Join-Path $updateOut "posm.json") -Force -ErrorAction SilentlyContinue
+$updateZipName = "$updatePackageName.zip"
+$localUpdateZip = Join-Path $buildRoot $updateZipName
+$updateZip = Join-Path $OutputDir $updateZipName
+if (Test-Path $localUpdateZip) { Remove-Item $localUpdateZip -Force }
+if (Test-Path $updateZip) { Remove-Item $updateZip -Force }
+Compress-Archive -Path (Join-Path $updateOut "*") -DestinationPath $localUpdateZip
+Copy-Item $localUpdateZip $updateZip -Force
+$updateSizeMb = [math]::Round((Get-Item $updateZip).Length / 1MB, 1)
+$updateSha256 = (Get-FileHash -Path $updateZip -Algorithm SHA256).Hash.ToLowerInvariant()
+Set-Content -Path "$updateZip.sha256" -Value "$updateSha256  $updateZipName" -Encoding ASCII
 
 if ($KeepPackageFolder) {
   $debugOut = Join-Path $OutputDir $packageName
@@ -265,6 +289,8 @@ if ($KeepPackageFolder) {
 Remove-Item $buildRoot -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Host ""
-Write-Host ("ГОТОВО: {0}  ({1} МБ)" -f $zip, $sizeMb) -ForegroundColor Green
+Write-Host ("УСТАНОВОЧНЫЙ ZIP: {0}  ({1} МБ), SHA256={2}" -f $zip, $sizeMb, $sha256) -ForegroundColor Green
 Write-Host "Внутри: CustomerDisplay.exe + рантайм + libvlc, posm.json, run-kassa.ps1, run.bat, setup-autostart.bat, install/watchdog/uninstall scripts, README.md." -ForegroundColor Green
-Write-Host "На диске оставлен только ZIP. Получатель распаковывает его целиком и запускает setup-autostart.bat для автозапуска или run.bat для ручного теста." -ForegroundColor Green
+Write-Host ("AUTO-UPDATE ZIP: {0}  ({1} МБ), SHA256={2}" -f $updateZip, $updateSizeMb, $updateSha256) -ForegroundColor Green
+Write-Host "Auto-update ZIP не содержит posm.json и безопасен для общего релиза через /downloads/." -ForegroundColor Green
+Write-Host "Для первичной установки распакуй установочный ZIP целиком и запусти setup-autostart.bat либо run.bat для ручного теста." -ForegroundColor Green

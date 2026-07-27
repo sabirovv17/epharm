@@ -35,6 +35,18 @@ class PosSaleEntity(
     @Column(name = "pharmacist_id", nullable = false, length = 64)
     var pharmacistId: String = "",
 
+    @Column(name = "pharmacist_name")
+    var pharmacistName: String? = null,
+
+    @Column(name = "reported_pharmacist_id")
+    var reportedPharmacistId: String? = null,
+
+    @Column(name = "reported_pharmacist_name")
+    var reportedPharmacistName: String? = null,
+
+    @Column(name = "pharmacist_source", nullable = false, length = 32)
+    var pharmacistSource: String = "legacy",
+
     @Column(name = "pharmacy_id", nullable = false, length = 64)
     var pharmacyId: String = "",
 

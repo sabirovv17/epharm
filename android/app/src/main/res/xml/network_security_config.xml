@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   Прод-безопасно: cleartext (http) запрещён по умолчанию — приложение ходит только по HTTPS
-  (https://api.epharm.kz через Caddy). Исключение — локальная разработка: http к dev-бэкенду
+  (https://epharm.inkar.kz через Caddy). Исключение — локальная разработка: http к dev-бэкенду
   на эмуляторе/симуляторе (10.0.2.2 / localhost / 127.0.0.1). Произвольный http заблокирован.
 -->
 <network-security-config>

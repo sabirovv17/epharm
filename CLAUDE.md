@@ -24,7 +24,7 @@
 - `lib/` + `test/` — Flutter-мобилка; вход: `lib/features/auth/`, конфиг: `lib/core/config/api_config.dart`
 - `App/` + `Models/` — C#/WPF POSM-клиент кассы; конфиг: `App/Config/EpharmConfig.cs`
 - `docs/` — вся документация; `builds/` — архив релизов; `_reference/` — дизайн-токены
-- Прод: `root@78.140.246.238:/root/epharm` (ключ epharm_deploy), хост `epharm.78-140-246-238.sslip.io`
+- Прод: `adm-quasar@inkpim.inkar.kz:/home/adm-quasar/epharm`, хост `epharm.inkar.kz`
 
 ## Команды (проверка после изменений)
 

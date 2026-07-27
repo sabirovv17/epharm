@@ -45,7 +45,7 @@ PharmaPayV2/
 
 | Модуль          | Код                                              | Тесты                      | Ключевые файлы                                                                                                                           |
 | --------------- | ------------------------------------------------ | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| **Backend**     | `admin-panel/backend/src/main/kotlin/kz/epharm/` | `src/test/kotlin/`         | `application.yml` (вся конфигурация + env-переменные); Flyway: `src/main/resources/db/migration/` (V001–V032)                            |
+| **Backend**     | `admin-panel/backend/src/main/kotlin/kz/epharm/` | `src/test/kotlin/`         | `application.yml` (вся конфигурация + env-переменные); Flyway: `src/main/resources/db/migration/` (V001–V034)                            |
 | **Админ-фронт** | `admin-panel/frontend/src/`                      | `*.test.tsx` рядом с кодом | `features/*/Page.tsx` (12 разделов), `lib/api-types.ts`, `lib/queries/*`, `i18n/dict.ts` (ru+kk)                                         |
 | **Мобилка**     | `lib/`                                           | `test/`                    | `core/config/api_config.dart` (USE_API/API_BASE), `core/network/api_client.dart`, `features/*/{data,application,presentation}`           |
 | **POSM**        | `App/` + `Models/`                               | ручное на VM               | `MainWindow.xaml.cs` (лог кассы), `MainWindow.Recommendations.cs`, `Services/` (Api/Outbox/MediaCache/Updater), `Config/EpharmConfig.cs` |
@@ -70,27 +70,28 @@ PharmaPayV2/
 
 ## Важные файлы (когда что-то надо быстро)
 
-| Задача                           | Файл                                                             |
-| -------------------------------- | ---------------------------------------------------------------- |
-| Конфиг/env бэка (все переменные) | `admin-panel/backend/src/main/resources/application.yml`         |
-| Прод-деплой (как катить)         | `docs/06-deployment-and-ops.md` §Deploy From Git                 |
-| Прод-координаты/операции         | `docs/RUNBOOK.md` + `tools/pg-backup.sh`                         |
-| SMS-вход (провайдер p1sms)       | `…/mobile/auth/service/P1smsSender.kt` + `OtpService.kt`         |
-| Рекомендации в карточке мобилки  | `…/mobile/catalog/service/MobileCatalogService.kt`               |
-| POSM: парсер лога Стандарт-Н     | `App/MainWindow.xaml.cs` (`ProcessLogLine`/`TryParseAdd2Cheque`) |
-| POSM: сборка дистрибутива        | `~/Desktop/work/epharm-demo/publish-exe.ps1` (вне git, шара Z:)  |
-| Разведка Стандарт-Н на VM        | `App/scripts/standartn-discover.ps1`                             |
-| Мобилка: вход/OTP-экран          | `lib/features/auth/presentation/otp_screen.dart`                 |
-| Мобилка: сборка APK/iOS          | `docs/DEV-ONBOARDING.md`; APK всегда → MinIO `epharm-demo.apk`   |
-| Секреты витрины/SSH              | `docs/STOREFRONT-CREDENTIALS.md` (untracked!)                    |
+| Задача                           | Файл                                                                   |
+| -------------------------------- | ---------------------------------------------------------------------- |
+| Конфиг/env бэка (все переменные) | `admin-panel/backend/src/main/resources/application.yml`               |
+| Прод-деплой (как катить)         | `docs/06-deployment-and-ops.md` §Deploy From Git                       |
+| Прод-координаты/операции         | `docs/RUNBOOK.md` + `tools/pg-backup.sh`                               |
+| SMS-вход (провайдер p1sms)       | `…/mobile/auth/service/P1smsSender.kt` + `OtpService.kt`               |
+| Рекомендации в карточке мобилки  | `…/mobile/catalog/service/MobileCatalogService.kt`                     |
+| POSM: живой чек Стандарт-Н       | `App/MainWindow.StandardNReceipt.cs` + `Services/StandardNDbLookup.cs` |
+| POSM: fallback-парсер лога       | `App/MainWindow.xaml.cs` (`ProcessLogLine`/`TryParseAdd2Cheque`)       |
+| POSM: сборка дистрибутива        | `~/Desktop/work/epharm-demo/publish-exe.ps1` (вне git, шара Z:)        |
+| Разведка Стандарт-Н на VM        | `App/scripts/standartn-discover.ps1`                                   |
+| Мобилка: вход/OTP-экран          | `lib/features/auth/presentation/otp_screen.dart`                       |
+| Мобилка: сборка APK/iOS          | `docs/DEV-ONBOARDING.md`; APK всегда → MinIO `epharm-demo.apk`         |
+| Секреты витрины/SSH              | `docs/STOREFRONT-CREDENTIALS.md` (untracked!)                          |
 
 ## Внешние системы
 
-| Система                   | Адрес                                                                       | Заметки                                                                         |
-| ------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Прод-сервер               | `root@78.140.246.238` (ключ `~/.ssh/epharm_deploy`), каталог `/root/epharm` | деплой = git archive + scp + compose build                                      |
-| Публичный хост            | `https://epharm.78-140-246-238.sslip.io`                                    | `/api`→backend, `/s3`→MinIO, `/`→админка                                        |
-| Medusa (витрина inkar.kz) | `http://78.140.246.238:9000`                                                | каталог/цены/фото; ключи в application.yml                                      |
-| p1sms (SMS)               | `https://admin.p1sms.kz/apiSms/create`                                      | ключ в `.env.prod` (`P1SMS_API_KEY`)                                            |
-| Стандарт-Н ДЕМО           | VM пользователя, `C:\Standart-N_DEMO`                                       | Firebird `db/ztrade.fdb` (localhost, SYSDBA/masterkey), лог `Kassir/zkassa.log` |
-| Шара Mac↔VM               | Mac `~/Desktop/work` = VM `Z:\`                                             | `Z:\epharm-demo` — стейджинг POSM                                               |
+| Система                   | Адрес                                                           | Заметки                                                                         |
+| ------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Прод-сервер               | `adm-quasar@inkpim.inkar.kz`, каталог `/home/adm-quasar/epharm` | деплой = git archive + scp + compose build                                      |
+| Публичный хост            | `https://epharm.inkar.kz`                                       | `/api`→backend, `/s3`→MinIO, `/`→админка                                        |
+| Medusa (витрина inkar.kz) | `http://78.140.246.238:9000`                                    | каталог/цены/фото; ключи в application.yml                                      |
+| p1sms (SMS)               | `https://admin.p1sms.kz/apiSms/create`                          | ключ в `.env.prod` (`P1SMS_API_KEY`)                                            |
+| Стандарт-Н ДЕМО           | VM пользователя, `C:\Standart-N_DEMO`                           | Firebird `db/ztrade.fdb` (localhost, SYSDBA/masterkey), лог `Kassir/zkassa.log` |
+| Шара Mac↔VM               | Mac `~/Desktop/work` = VM `Z:\`                                 | `Z:\epharm-demo` — стейджинг POSM                                               |

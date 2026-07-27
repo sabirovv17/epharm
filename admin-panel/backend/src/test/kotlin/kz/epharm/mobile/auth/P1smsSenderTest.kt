@@ -1,8 +1,11 @@
 package kz.epharm.mobile.auth
 
 import kz.epharm.mobile.auth.service.P1smsSender
+import kz.epharm.mobile.auth.service.LoggingSmsSender
+import kz.epharm.mobile.auth.service.SmsSenderConfig
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
+import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatCode
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
@@ -101,4 +104,28 @@ class P1smsSenderTest {
             .extracting("code").isEqualTo(ErrorCode.SMS_SEND_FAILED)
         server.verify()
     }
+
+    @Test
+    fun `production без API key завершается с ошибкой конфигурации`() {
+        assertThatThrownBy {
+            senderConfig(apiKey = "", devMode = false)
+        }
+            .isInstanceOf(IllegalStateException::class.java)
+            .hasMessageContaining("P1SMS_API_KEY")
+    }
+
+    @Test
+    fun `dev режим без API key использует безопасную заглушку`() {
+        assertThat(senderConfig(apiKey = "", devMode = true)).isInstanceOf(LoggingSmsSender::class.java)
+    }
+
+    private fun senderConfig(apiKey: String, devMode: Boolean) = SmsSenderConfig().smsSender(
+        baseUrl = "https://sms.test",
+        apiKey = apiKey,
+        devMode = devMode,
+        channel = "digit",
+        sender = "",
+        textTemplate = "Код входа ePharm: {code}",
+        timeoutMs = 10_000,
+    )
 }

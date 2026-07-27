@@ -1,6 +1,7 @@
 package kz.epharm.pharmacists.service
 
 import kz.epharm.pharmacies.repository.PharmacyRepository
+import kz.epharm.pharmacists.dto.ActivatePharmacistRequest
 import kz.epharm.pharmacists.dto.CreatePharmacistRequest
 import kz.epharm.pharmacists.dto.PharmacistDto
 import kz.epharm.pharmacists.dto.UpdatePharmacistRequest
@@ -95,6 +96,24 @@ class PharmacistService(
     }
 
     @Transactional
+    fun activate(id: String, req: ActivatePharmacistRequest): PharmacistDto {
+        val entity = loadOrThrow(id)
+        if (entity.status != PharmacistStatus.pending) {
+            throw AppException(
+                ErrorCode.CONFLICT,
+                "Активировать можно только профиль со статусом pending",
+                HttpStatus.CONFLICT,
+            )
+        }
+        val pharmacy = loadPharmacy(req.pharmacyId)
+        entity.pharmacyId = pharmacy.id
+        entity.pharmacyName = pharmacy.name
+        entity.city = pharmacy.city
+        entity.status = PharmacistStatus.active
+        return PharmacistDto.of(pharmacistRepository.save(entity))
+    }
+
+    @Transactional
     fun block(id: String): PharmacistDto {
         val entity = loadOrThrow(id)
         entity.status = PharmacistStatus.blocked
@@ -105,8 +124,31 @@ class PharmacistService(
     fun unblock(id: String): PharmacistDto {
         val entity = loadOrThrow(id)
         if (entity.status != PharmacistStatus.blocked) return PharmacistDto.of(entity)
+        if (entity.pharmacyId.isNullOrBlank()) {
+            throw AppException(
+                ErrorCode.VALIDATION_FAILED,
+                "Перед разблокировкой необходимо назначить аптеку",
+                HttpStatus.CONFLICT,
+            )
+        }
         entity.status = PharmacistStatus.active
         return PharmacistDto.of(pharmacistRepository.save(entity))
+    }
+
+    private fun loadPharmacy(id: String) = pharmacyRepository.findById(id).orElseThrow {
+        AppException(
+            ErrorCode.VALIDATION_FAILED,
+            "Аптека $id не найдена",
+            HttpStatus.BAD_REQUEST,
+        )
+    }.also {
+        if (!it.active) {
+            throw AppException(
+                ErrorCode.VALIDATION_FAILED,
+                "Нельзя назначить отключённую аптеку",
+                HttpStatus.CONFLICT,
+            )
+        }
     }
 
     private fun loadOrThrow(id: String): PharmacistEntity =

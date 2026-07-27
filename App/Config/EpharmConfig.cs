@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 
@@ -14,6 +15,13 @@ namespace CustomerDisplay.Config
     {
         public bool Enabled { get; set; } = false;
         public string BackendBaseUrl { get; set; } = "http://localhost:8080";
+        /// <summary>
+        /// Резервные origin URL backend по приоритету. Нужны, когда основной публичный HTTPS
+        /// ingress ещё настраивается: POSM продолжает работать через доверенный HTTP fallback.
+        /// Путь здесь не указывается: API-клиент сам добавляет /api/posm/*.
+        /// env EPHARM_BACKEND_FALLBACK_URLS: URL через ; или ,.
+        /// </summary>
+        public List<string> BackendFallbackBaseUrls { get; set; } = new();
         public string DeviceKey { get; set; } = "dev-posm-key";
         public string PharmacistId { get; set; } = "";
         public string PharmacyId { get; set; } = "";
@@ -51,7 +59,7 @@ namespace CustomerDisplay.Config
         /// </summary>
         public string ScreenMode { get; set; } = "dev";
         /// <summary>
-        /// Куда писать лог приложения (env EPHARM_APP_LOG). Пусто → Рабочий стол\customerdisplay.log.
+        /// Куда писать лог приложения (env EPHARM_APP_LOG). Пусто → C:\Epharm\customerdisplay.log.
         /// Путь печатается в баннере старта, чтобы его было легко найти.
         /// </summary>
         public string AppLogPath { get; set; } = "";
@@ -86,7 +94,7 @@ namespace CustomerDisplay.Config
 
         /// <summary>
         /// Читать локальную БД Стандарт-Н (Firebird) для диагностически важных полей, которых может
-        /// не быть в zkassa.log: активный фармацевт (ACTIVEUSERS.USER_ID) и реальные цены товаров.
+        /// не быть в zkassa.log: активный фармацевт (ACTIVEUSERS или открытая сессия) и цены товаров.
         /// Fail-safe: недоступная БД не блокирует кассу, POSM остаётся на данных из лога/backend.
         /// </summary>
         public bool StandardNDbEnabled { get; set; } = true;
@@ -100,6 +108,20 @@ namespace CustomerDisplay.Config
         public string StandardNDbUser { get; set; } = "SYSDBA";
         public string StandardNDbPassword { get; set; } = "masterkey";
         public int StandardNDbTimeoutMs { get; set; } = 1000;
+        /// <summary>
+        /// Poll interval for the authoritative active receipt in DOCS/DOC_DETAIL_ACTIVE.
+        /// This is local pharmacy traffic to Standard-N, not traffic to the Epharm backend.
+        /// env EPHARM_STANDARDN_RECEIPT_POLL_MS.
+        /// </summary>
+        public int StandardNReceiptPollMs { get; set; } = 400;
+
+        /// <summary>
+        /// Optional explicit Standard-N cash log paths. Production installations are not uniform,
+        /// so these paths are tried before the legacy defaults and bounded background discovery.
+        /// env EPHARM_STANDARDN_LOG_PATHS accepts paths separated by ';'. The legacy singular
+        /// EPHARM_LOG_PATH variable is still accepted for diagnostics and older deployments.
+        /// </summary>
+        public List<string> StandardNLogPaths { get; set; } = new();
 
         private const string DefaultPath = @"C:\Epharm\posm.json";
 
@@ -126,6 +148,13 @@ namespace CustomerDisplay.Config
 
             // Переопределение из env (приоритетнее файла) — удобно для пилота без правки файла.
             cfg.BackendBaseUrl = Env("EPHARM_BACKEND_URL", cfg.BackendBaseUrl);
+            var fallbackUrls = Env("EPHARM_BACKEND_FALLBACK_URLS", "");
+            if (!string.IsNullOrWhiteSpace(fallbackUrls))
+            {
+                cfg.BackendFallbackBaseUrls = new List<string>(
+                    fallbackUrls.Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            }
+            cfg.BackendFallbackBaseUrls ??= new List<string>();
             cfg.DeviceKey = Env("EPHARM_POSM_KEY", cfg.DeviceKey);
             cfg.PharmacistId = Env("EPHARM_PHARMACIST_ID", cfg.PharmacistId);
             cfg.PharmacyId = Env("EPHARM_PHARMACY_ID", cfg.PharmacyId);
@@ -148,7 +177,11 @@ namespace CustomerDisplay.Config
             cfg.MediaCacheDir = Env("EPHARM_MEDIA_CACHE_DIR", cfg.MediaCacheDir);
             // Режим размещения клиентского экрана (dev/prod) + путь лога — без правки файла.
             cfg.ScreenMode = Env("EPHARM_SCREEN_MODE", cfg.ScreenMode);
-            cfg.AppLogPath = Env("EPHARM_APP_LOG", cfg.AppLogPath);
+            // A packaged production path is authoritative. Old POSM pilots commonly left a
+            // persistent EPHARM_APP_LOG pointing to Desktop; allowing it to override the installed
+            // config splits diagnostics across files and makes the current run look silent.
+            if (string.IsNullOrWhiteSpace(cfg.AppLogPath))
+                cfg.AppLogPath = Env("EPHARM_APP_LOG", cfg.AppLogPath);
             // Режим превью экрана фармацевта (для скринов поверх Стандарт-Н).
             if (Env("EPHARM_PHARMACIST_PREVIEW", "false") == "true") cfg.PharmacistPreview = true;
             // Авто-обновление клиента.
@@ -167,8 +200,51 @@ namespace CustomerDisplay.Config
             if (int.TryParse(Env("EPHARM_STANDARDN_DB_PORT", ""), out var fbPort) && fbPort > 0) cfg.StandardNDbPort = fbPort;
             if (int.TryParse(Env("EPHARM_STANDARDN_DB_TIMEOUT_MS", ""), out var fbTimeout) && fbTimeout > 0)
                 cfg.StandardNDbTimeoutMs = fbTimeout;
+            if (int.TryParse(Env("EPHARM_STANDARDN_RECEIPT_POLL_MS", ""), out var receiptPollMs))
+                cfg.StandardNReceiptPollMs = Math.Clamp(receiptPollMs, 200, 5000);
+
+            cfg.StandardNLogPaths ??= new List<string>();
+            var configuredLogPaths = Env("EPHARM_STANDARDN_LOG_PATHS", "");
+            if (!string.IsNullOrWhiteSpace(configuredLogPaths))
+            {
+                cfg.StandardNLogPaths.InsertRange(
+                    0,
+                    configuredLogPaths.Split(
+                        ';',
+                        StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            }
+            var legacyLogPath = Env("EPHARM_LOG_PATH", "");
+            if (!string.IsNullOrWhiteSpace(legacyLogPath))
+                cfg.StandardNLogPaths.Insert(0, legacyLogPath);
 
             return cfg;
+        }
+
+        /// <summary>Список HTTP(S) origin для failover без path/query/fragment и без дублей.</summary>
+        public IReadOnlyList<Uri> GetBackendBaseUris()
+        {
+            var rawUrls = new List<string> { BackendBaseUrl };
+            rawUrls.AddRange(BackendFallbackBaseUrls ?? new List<string>());
+
+            var endpoints = new List<Uri>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var raw in rawUrls)
+            {
+                if (string.IsNullOrWhiteSpace(raw) ||
+                    !Uri.TryCreate(raw.Trim(), UriKind.Absolute, out var parsed) ||
+                    (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps))
+                {
+                    continue;
+                }
+
+                var normalized = new UriBuilder(parsed.Scheme, parsed.Host, parsed.IsDefaultPort ? -1 : parsed.Port).Uri;
+                if (seen.Add(normalized.AbsoluteUri)) endpoints.Add(normalized);
+            }
+
+            if (endpoints.Count == 0)
+                throw new InvalidOperationException("POSM backend URL must be an absolute HTTP(S) origin.");
+
+            return endpoints;
         }
 
         private static string Env(string key, string fallback)

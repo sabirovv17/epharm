@@ -1,228 +1,628 @@
 ﻿<#
 .SYNOPSIS
-  Ставит автозапуск кассового POSM-клиента «навсегда»: задача планировщика основного приложения
-  (с перезапуском при сбое) + watchdog (ловит зависания). Самодостаточный: кладётся РЯДОМ с exe
-  (в распакованную папку сборки) и запускается оттуда — сам находит exe и конфиг.
+  Installer for the Epharm POSM Windows client.
 
 .DESCRIPTION
-  Создаёт две задачи планировщика:
+  The script is designed for a one-click pharmacy deployment:
+    1. validates the pharmacy-specific package and posm.json;
+    2. copies DEV/PROD to separate versioned folders on local disk;
+    3. keeps pharmacy data/config outside the replaceable app directory;
+    4. creates a direct interactive scheduled task for the cash-desk user;
+    5. creates a one-minute process/UI-heartbeat watchdog;
+    6. starts the application and returns success only after a live process and
+       a fresh heartbeat have both been observed.
 
-    1. "EpharmPOSM"          — запуск приложения при входе пользователя (ONLOGON),
-                               RestartOnFailure (каждую минуту, до 999 раз), без лимита по
-                               времени, не глушится на батарее. Покрывает ПАДЕНИЯ процесса.
-
-    2. "EpharmPOSM-Watchdog" — раз в минуту watchdog.ps1: поднимает клиента, если он упал ИЛИ
-                               завис (устаревший heartbeat-файл). Покрывает ЗАВИСАНИЯ
-                               (которые RestartOnFailure не ловит — процесс жив, но мёртв).
-
-  Что делает дополнительно (чтобы автозапуск работал на ЛЮБОЙ сборке zip):
-    - сам находит exe: CustomerDisplay.exe ИЛИ Epharm-POSM.exe в папке установки;
-    - копирует posm.json в C:\Epharm\posm.json — путь, который приложение читает ПО УМОЛЧАНИЮ
-      (планировщик запускает exe без env, поэтому конфиг должен лежать на дефолтном пути).
-
-  Идемпотентно: повторный запуск пересоздаёт задачи. Запускать ОТ ИМЕНИ АДМИНИСТРАТОРА.
-
-.PARAMETER InstallDir    Папка с exe. По умолчанию — папка этого скрипта (положи рядом с exe).
-.PARAMETER ScriptsDir    Папка с watchdog.ps1. По умолчанию — рядом с этим файлом.
-.PARAMETER ConfigPath    posm.json. По умолчанию <InstallDir>\posm.json.
-.PARAMETER HeartbeatPath Путь heartbeat (должен совпадать с posm.json). По умолчанию C:\Epharm\heartbeat.txt.
-.PARAMETER MaxAgeSec     Порог «зависания» для watchdog (сек). По умолчанию 90.
-
-.EXAMPLE
-  # из распакованной папки сборки, от администратора:
-  powershell -ExecutionPolicy Bypass -File .\install-tasks.ps1
+  It is idempotent. Running setup-autostart.bat again repairs/replaces the
+  scheduled tasks without deleting media cache or outbox data. A bounded
+  handover closes only Epharm POSM processes before the newly installed build
+  is started and verified.
 #>
+[CmdletBinding()]
 param(
-    [string]$InstallDir = $PSScriptRoot,
-    [string]$ScriptsDir = $PSScriptRoot,
+    # Windows PowerShell 5.1 can evaluate parameter defaults before
+    # $PSScriptRoot is initialized. Resolve it explicitly in the script body.
+    [string]$SourceDir = "",
+    [string]$InstallDir = "C:\Epharm\app",
     [string]$ConfigPath = "",
+    [string]$InteractiveUser = "",
     [string]$HeartbeatPath = "C:\Epharm\heartbeat.txt",
-    # Пусто = взять screenMode из posm.json (единый источник правды). Явный -ScreenMode перекрывает.
-    [string]$ScreenMode = "",
     [string]$AppLogPath = "C:\Epharm\customerdisplay.log",
-    [int]$MaxAgeSec = 90
+    [int]$MaxHeartbeatAgeSec = 90,
+    [int]$StartupTimeoutSec = 90
 )
 
 $ErrorActionPreference = "Stop"
+Set-StrictMode -Version 2.0
 
-# ── 0. Права администратора (Register-ScheduledTask с RunLevel Highest требует elevation) ────────
-$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
-).IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)
-if (-not $isAdmin) {
-    throw "Запусти от имени АДМИНИСТРАТОРА: ПКМ по «Windows PowerShell» → «Запуск от имени администратора», затем снова выполни этот скрипт."
-}
+$AppTaskName = "EpharmPOSM"
+$WatchdogTaskName = "EpharmPOSM-Watchdog"
+$InstallRoot = Split-Path -Parent $InstallDir
+$InstallLogPath = Join-Path $InstallRoot "install.log"
+$StatusPath = Join-Path $InstallRoot "install-status.json"
+$DefaultConfigPath = Join-Path $InstallRoot "posm.json"
+$TranscriptStarted = $false
+$ExitCode = 1
+$CurrentPhase = "initialization"
 
-# ── 1. Находим exe (имя зависит от сборки: dev = Epharm-POSM.exe, прод = CustomerDisplay.exe) ────
-$exePath = $null
-foreach ($n in @("CustomerDisplay.exe", "Epharm-POSM.exe")) {
-    $p = Join-Path $InstallDir $n
-    if (Test-Path $p) { $exePath = $p; break }
-}
-if (-not $exePath) {
-    throw "Не найден exe (CustomerDisplay.exe или Epharm-POSM.exe) в '$InstallDir'. " +
-          "Положи install-tasks.ps1 РЯДОМ с exe (в распакованную папку) или укажи -InstallDir."
-}
-$exeName = [System.IO.Path]::GetFileName($exePath)
-Write-Host "[i] Приложение: $exePath" -ForegroundColor Cyan
-foreach ($p in @("CustomerDisplay", "Epharm-POSM")) {
-    Get-Process -Name $p -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+function Write-Step {
+    param([string]$Message)
+    $script:CurrentPhase = $Message
+    Write-Host ("[i] {0}" -f $Message) -ForegroundColor Cyan
 }
 
-$watchdog = Join-Path $ScriptsDir "watchdog.ps1"
-$hasWatchdog = Test-Path $watchdog
-if (-not $hasWatchdog) {
-    Write-Warning "watchdog.ps1 не найден в '$ScriptsDir' — задача-watchdog (защита от ЗАВИСАНИЙ) создана НЕ будет. Положи watchdog.ps1 рядом."
+function Write-Ok {
+    param([string]$Message)
+    Write-Host ("[ok] {0}" -f $Message) -ForegroundColor Green
 }
 
-# ── 2. Конфиг на дефолтный путь C:\Epharm\posm.json (планировщик запускает exe без env) ─────────
-New-Item -ItemType Directory -Force -Path "C:\Epharm" | Out-Null
-if (-not $ConfigPath) { $ConfigPath = Join-Path $InstallDir "posm.json" }
-$defaultCfg = "C:\Epharm\posm.json"
-$srcFull = if (Test-Path $ConfigPath) { [System.IO.Path]::GetFullPath($ConfigPath) } else { $ConfigPath }
-$dstFull = [System.IO.Path]::GetFullPath($defaultCfg)
-if (Test-Path $ConfigPath) {
-    if ($srcFull -ieq $dstFull) {
-        Write-Host "[i] Конфиг уже на дефолтном пути ($defaultCfg)." -ForegroundColor DarkGray
-    } else {
-        Copy-Item $ConfigPath $defaultCfg -Force
-        Write-Host "[ok] Конфиг скопирован → $defaultCfg (приложение читает его по умолчанию)." -ForegroundColor Green
-        try {
-            $cfg = Get-Content $defaultCfg -Raw | ConvertFrom-Json
-            Write-Host ("    Аптека: {0} | Фармацевт: {1} | Backend: {2}" -f `
-                $cfg.pharmacyId, $cfg.pharmacistId, $cfg.backendBaseUrl) -ForegroundColor DarkGray
-        } catch {}
+function Test-IsAdministrator {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Resolve-InteractiveUser {
+    param([string]$RequestedUser)
+
+    if (-not [string]::IsNullOrWhiteSpace($RequestedUser)) {
+        return $RequestedUser.Trim()
     }
-} elseif (-not (Test-Path $defaultCfg)) {
-    Write-Warning "Конфиг не найден ('$ConfigPath') и '$defaultCfg' отсутствует — приложение стартует ВЫКЛЮЧЕННЫМ. Положи posm.json рядом с exe и перезапусти скрипт."
+
+    try {
+        $consoleUser = (Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop).UserName
+        if (-not [string]::IsNullOrWhiteSpace($consoleUser)) {
+            return $consoleUser.Trim()
+        }
+    } catch { }
+
+    return [Security.Principal.WindowsIdentity]::GetCurrent().Name
 }
 
-$appTask = "EpharmPOSM"
-$wdTask = "EpharmPOSM-Watchdog"
-$me = "$env:USERDOMAIN\$env:USERNAME"
+function Get-AppExe {
+    param([string]$Directory)
 
-# Режим экрана: приоритет — явный -ScreenMode; иначе screenMode из posm.json (единый источник
-# правды); если и там нет — dev. Раньше был хардкод "dev", из-за чего setup-autostart.bat всегда
-# ставил dev-режим, игнорируя "screenMode":"prod" в конфиге (окно слева вместо киоска на 2-м экране).
-if ([string]::IsNullOrWhiteSpace($ScreenMode)) {
-    $cfgForMode = if (Test-Path $defaultCfg) { $defaultCfg } elseif (Test-Path $ConfigPath) { $ConfigPath } else { $null }
-    if ($cfgForMode) {
-        try {
-            $modeFromCfg = (Get-Content $cfgForMode -Raw | ConvertFrom-Json).screenMode
-            if (-not [string]::IsNullOrWhiteSpace($modeFromCfg)) {
-                $ScreenMode = $modeFromCfg
-                Write-Host "[i] screenMode из posm.json: $ScreenMode" -ForegroundColor Cyan
+    foreach ($name in @("CustomerDisplay.exe", "Epharm-POSM.exe")) {
+        $candidate = Join-Path $Directory $name
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            return [System.IO.Path]::GetFullPath($candidate)
+        }
+    }
+
+    throw "CustomerDisplay.exe was not found in '$Directory'. The ZIP package is incomplete."
+}
+
+function Get-ConfigProperty {
+    param(
+        [object]$Config,
+        [string]$Name
+    )
+
+    $property = $Config.PSObject.Properties[$Name]
+    if ($null -eq $property) { return $null }
+    return $property.Value
+}
+
+function Read-AndValidateConfig {
+    param([string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "Pharmacy config was not found: $Path"
+    }
+
+    try {
+        $config = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
+    } catch {
+        throw "posm.json is not valid JSON: $($_.Exception.Message)"
+    }
+
+    foreach ($required in @(
+        "backendBaseUrl",
+        "deviceKey",
+        "pharmacyId",
+        "heartbeatPath",
+        "appLogPath"
+    )) {
+        $value = [string](Get-ConfigProperty -Config $config -Name $required)
+        if ([string]::IsNullOrWhiteSpace($value)) {
+            throw "posm.json has an empty required field: $required"
+        }
+    }
+
+    foreach ($requiredFlag in @("enabled", "videoEnabled", "updateEnabled")) {
+        $flag = Get-ConfigProperty -Config $config -Name $requiredFlag
+        if ($null -eq $flag -or -not [System.Convert]::ToBoolean($flag)) {
+            throw "posm.json must contain $requiredFlag=true for a production pharmacy package."
+        }
+    }
+
+    $screenMode = [string](Get-ConfigProperty -Config $config -Name "screenMode")
+    $screenMode = $screenMode.Trim().ToLowerInvariant()
+    if ($screenMode -notin @("dev", "prod")) {
+        throw "posm.json screenMode must be dev or prod."
+    }
+
+    $backendText = [string](Get-ConfigProperty -Config $config -Name "backendBaseUrl")
+    $backendUri = $null
+    if (-not [Uri]::TryCreate($backendText, [UriKind]::Absolute, [ref]$backendUri)) {
+        throw "backendBaseUrl is not an absolute URL: $backendText"
+    }
+    if ($backendUri.Scheme -notin @("http", "https")) {
+        throw "backendBaseUrl must use http or https: $backendText"
+    }
+    if ($backendUri.AbsolutePath -notin @("", "/")) {
+        throw "backendBaseUrl must be an origin without /login or /api path: $backendText"
+    }
+
+    $fallbacks = Get-ConfigProperty -Config $config -Name "backendFallbackBaseUrls"
+    foreach ($fallbackText in @($fallbacks)) {
+        if ([string]::IsNullOrWhiteSpace([string]$fallbackText)) { continue }
+        $fallbackUri = $null
+        if (-not [Uri]::TryCreate([string]$fallbackText, [UriKind]::Absolute, [ref]$fallbackUri)) {
+            throw "backendFallbackBaseUrls contains an invalid URL: $fallbackText"
+        }
+        if ($fallbackUri.Scheme -notin @("http", "https") -or $fallbackUri.AbsolutePath -notin @("", "/")) {
+            throw "backend fallback must be an http/https origin without /login or /api path: $fallbackText"
+        }
+    }
+
+    return $config
+}
+
+function Get-PackageVersion {
+    param([string]$Directory)
+
+    $depsPath = Join-Path $Directory "CustomerDisplay.deps.json"
+    if (-not (Test-Path -LiteralPath $depsPath -PathType Leaf)) {
+        throw "CustomerDisplay.deps.json is missing from the ZIP package."
+    }
+
+    try {
+        $deps = Get-Content -LiteralPath $depsPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $libraryName = @($deps.libraries.PSObject.Properties.Name) |
+            Where-Object { $_ -like "CustomerDisplay/*" } |
+            Select-Object -First 1
+        $version = ([string]$libraryName -split "/", 2)[1]
+        if ([string]::IsNullOrWhiteSpace($version) -or $version -notmatch "^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$") {
+            throw "invalid CustomerDisplay package version"
+        }
+        return $version
+    } catch {
+        throw "Could not read the POSM version from CustomerDisplay.deps.json: $($_.Exception.Message)"
+    }
+}
+
+function Test-PackageContentMatches {
+    param(
+        [string]$Source,
+        [string]$Target
+    )
+
+    try {
+        $sourceExe = Get-AppExe -Directory $Source
+        $targetExe = Get-AppExe -Directory $Target
+        if ((Get-FileHash -LiteralPath $sourceExe -Algorithm SHA256).Hash -ne
+            (Get-FileHash -LiteralPath $targetExe -Algorithm SHA256).Hash) {
+            return $false
+        }
+
+        foreach ($fileName in @(
+            "CustomerDisplay.dll",
+            "CustomerDisplay.deps.json",
+            "CustomerDisplay.runtimeconfig.json",
+            "watchdog.ps1",
+            "install-tasks.ps1"
+        )) {
+            $sourceFile = Join-Path $Source $fileName
+            $targetFile = Join-Path $Target $fileName
+            if (-not (Test-Path -LiteralPath $sourceFile -PathType Leaf) -or
+                -not (Test-Path -LiteralPath $targetFile -PathType Leaf)) {
+                return $false
             }
-        } catch { }
+            $sourceHash = (Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash
+            $targetHash = (Get-FileHash -LiteralPath $targetFile -Algorithm SHA256).Hash
+            if ($sourceHash -ne $targetHash) {
+                return $false
+            }
+        }
+        return $true
+    } catch {
+        return $false
     }
 }
-if ([string]::IsNullOrWhiteSpace($ScreenMode)) { $ScreenMode = "dev" }
-$ScreenMode = $ScreenMode.Trim().ToLowerInvariant()
-if ($ScreenMode -ne "prod") { $ScreenMode = "dev" }
 
-# ── 2.5. Единый launcher для автозапуска и watchdog ────────────────────────────────────────────
-# Нельзя запускать exe напрямую: тогда задача планировщика не передаёт dev/prod env-параметры,
-# и окно может открыться не в левом DEV-режиме. Launcher выставляет окружение перед стартом.
-$appLauncher = Join-Path $InstallDir "start-posm.ps1"
-$appLauncherBody = @'
-param(
-    [Parameter(Mandatory=$true)][string]$ExePath,
-    [Parameter(Mandatory=$true)][string]$ConfigPath,
-    [string]$ScreenMode = "dev",
-    [string]$AppLogPath = "C:\Epharm\customerdisplay.log"
-)
+function Install-VersionedApplicationFiles {
+    param(
+        [string]$From,
+        [string]$Root,
+        [string]$Version,
+        [ValidateSet("dev", "prod")]
+        [string]$Mode
+    )
 
-$ErrorActionPreference = "Stop"
+    $modeLabel = $Mode.ToUpperInvariant()
+    $versionRoot = Join-Path $Root ("app-{0}" -f $Mode)
+    $target = Join-Path $versionRoot $Version
+    New-Item -ItemType Directory -Path $versionRoot -Force | Out-Null
 
-$env:EPHARM_POSM_CONFIG = $ConfigPath
-$env:EPHARM_SCREEN_MODE = $ScreenMode
-$env:EPHARM_APP_LOG = $AppLogPath
-Remove-Item Env:\EPHARM_LOG_PATH -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $target -PathType Container) {
+        if (Test-PackageContentMatches -Source $From -Target $target) {
+            Write-Ok "Verified $modeLabel version $Version already exists on C:; reusing $target"
+            return $target
+        }
 
-if ($ScreenMode -eq "dev") {
-    $env:EPHARM_DEBUG = "1"
-} else {
-    Remove-Item Env:\EPHARM_DEBUG -ErrorAction SilentlyContinue
+        $matchingRepair = Get-ChildItem -LiteralPath $versionRoot -Directory -Filter "$Version-repair-*" -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Where-Object { Test-PackageContentMatches -Source $From -Target $_.FullName } |
+            Select-Object -First 1
+        if ($null -ne $matchingRepair) {
+            Write-Ok "Verified repaired $modeLabel version $Version already exists on C:; reusing $($matchingRepair.FullName)"
+            return $matchingRepair.FullName
+        }
+
+        $target = Join-Path $versionRoot ("{0}-repair-{1}" -f $Version, (Get-Date -Format "yyyyMMddHHmmssfff"))
+        Write-Warning "The existing local $modeLabel folder differs from this package; installing the verified copy into $target"
+    }
+
+    $staging = $target + ".installing"
+    if (Test-Path -LiteralPath $staging) {
+        Remove-Item -LiteralPath $staging -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $staging -Force | Out-Null
+
+    $sourceFull = [System.IO.Path]::GetFullPath($From).TrimEnd([System.IO.Path]::DirectorySeparatorChar)
+    $robocopy = Join-Path $env:SystemRoot "System32\robocopy.exe"
+    Write-Host "    Source:      $sourceFull" -ForegroundColor DarkGray
+    Write-Host "    Destination: $target" -ForegroundColor DarkGray
+    & $robocopy $sourceFull $staging "/E" "/COPY:DAT" "/DCOPY:DAT" "/R:2" "/W:1" "/NFL" "/NDL" "/NJH" "/NJS" "/NP" | Out-Null
+    $copyCode = $LASTEXITCODE
+    if ($copyCode -gt 7) {
+        throw "Failed to copy the $modeLabel package to local disk. Robocopy exit code: $copyCode"
+    }
+
+    [void](Get-AppExe -Directory $staging)
+    foreach ($required in @(
+        "CustomerDisplay.dll",
+        "CustomerDisplay.deps.json",
+        "CustomerDisplay.runtimeconfig.json",
+        "watchdog.ps1",
+        "install-tasks.ps1"
+    )) {
+        if (-not (Test-Path -LiteralPath (Join-Path $staging $required) -PathType Leaf)) {
+            throw "The local $modeLabel copy is incomplete: $required is missing."
+        }
+    }
+
+    Move-Item -LiteralPath $staging -Destination $target
+    Write-Ok "$modeLabel version $Version copied to local disk: $target"
+    return $target
 }
 
-Start-Process -FilePath $ExePath -WorkingDirectory (Split-Path -Parent $ExePath)
-'@
-[System.IO.File]::WriteAllText($appLauncher, $appLauncherBody, [System.Text.UTF8Encoding]::new($true))
+function Grant-InteractiveUserAccess {
+    param(
+        [string]$Root,
+        [string]$UserName
+    )
 
-$appHiddenLauncher = Join-Path $InstallDir "start-posm-hidden.vbs"
-$appPsArgs = "-NoLogo -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$appLauncher`" " +
-             "-ExePath `"$exePath`" -ConfigPath `"$defaultCfg`" -ScreenMode `"$ScreenMode`" -AppLogPath `"$AppLogPath`""
-$appCommand = "powershell.exe $appPsArgs"
-$appCommandForVbs = $appCommand.Replace('"', '""')
-$appVbs = "Set sh = CreateObject(""WScript.Shell"")`r`n" +
-          "sh.Run ""$appCommandForVbs"", 0, False`r`n"
-[System.IO.File]::WriteAllText($appHiddenLauncher, $appVbs, [System.Text.UTF8Encoding]::new($false))
-Write-Host "[ok] Launcher создан: screenMode=$ScreenMode, log=$AppLogPath" -ForegroundColor Green
-
-# ── 3. Основное приложение: ONLOGON + RestartOnFailure ──────────────────────────────────────────
-$appAction = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$appHiddenLauncher`"" -WorkingDirectory $InstallDir
-$appTrigger = New-ScheduledTaskTrigger -AtLogOn
-$appPrincipal = New-ScheduledTaskPrincipal -UserId $me -LogonType Interactive -RunLevel Highest
-$appSettings = New-ScheduledTaskSettingsSet `
-    -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
-    -RestartInterval (New-TimeSpan -Minutes 1) -RestartCount 999 `
-    -ExecutionTimeLimit (New-TimeSpan -Seconds 0) `
-    -MultipleInstances IgnoreNew `
-    -StartWhenAvailable
-
-Register-ScheduledTask -TaskName $appTask -Action $appAction -Trigger $appTrigger `
-    -Principal $appPrincipal -Settings $appSettings -Force | Out-Null
-Write-Host "[ok] Задача '$appTask' создана (ONLOGON, launcher -> exe=$exeName, screenMode=$ScreenMode)." -ForegroundColor Green
-
-# ── 4. Watchdog: ONLOGON + повтор каждую минуту (если watchdog.ps1 рядом) ────────────────────────
-if ($hasWatchdog) {
-    # Запуск watchdog через wscript/VBS нужен, чтобы раз в минуту НЕ мигало окно PowerShell.
-    # -WindowStyle Hidden у powershell.exe в интерактивной задаче не всегда предотвращает flash.
-    $hiddenLauncher = Join-Path $InstallDir "watchdog-hidden.vbs"
-    $wdPsArgs = "-NoLogo -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$watchdog`" " +
-                "-ExePath `"$exePath`" -ConfigPath `"$defaultCfg`" -ScreenMode `"$ScreenMode`" " +
-                "-AppLogPath `"$AppLogPath`" -HeartbeatPath `"$HeartbeatPath`" -MaxAgeSec $MaxAgeSec"
-    $wdCommand = "powershell.exe $wdPsArgs"
-    $wdCommandForVbs = $wdCommand.Replace('"', '""')
-    $vbs = "Set sh = CreateObject(""WScript.Shell"")`r`n" +
-           "sh.Run ""$wdCommandForVbs"", 0, False`r`n"
-    [System.IO.File]::WriteAllText($hiddenLauncher, $vbs, [System.Text.UTF8Encoding]::new($false))
-    $wdAction = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$hiddenLauncher`""
-
-    $wdTrigger = New-ScheduledTaskTrigger -AtLogOn
-    $rep = (New-ScheduledTaskTrigger -Once -At (Get-Date) `
-            -RepetitionInterval (New-TimeSpan -Minutes 1) `
-            -RepetitionDuration (New-TimeSpan -Days 3650)).Repetition
-    $wdTrigger.Repetition = $rep
-
-    $wdPrincipal = New-ScheduledTaskPrincipal -UserId $me -LogonType Interactive -RunLevel Highest
-    $wdSettings = New-ScheduledTaskSettingsSet `
-        -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
-        -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `
-        -MultipleInstances IgnoreNew `
-        -StartWhenAvailable
-
-    Register-ScheduledTask -TaskName $wdTask -Action $wdAction -Trigger $wdTrigger `
-        -Principal $wdPrincipal -Settings $wdSettings -Force | Out-Null
-    Write-Host "[ok] Задача '$wdTask' создана (проверка каждую минуту: падение/зависание)." -ForegroundColor Green
+    $icacls = Join-Path $env:SystemRoot "System32\icacls.exe"
+    $grant = "{0}:(OI)(CI)M" -f $UserName
+    # The inheritable ACE on C:\Epharm covers the newly installed app and data
+    # directories without traversing a potentially large extracted source ZIP.
+    & $icacls $Root "/grant" $grant "/C" "/Q" | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not grant Modify access on $Root to $UserName. icacls exit code: $LASTEXITCODE"
+    }
 }
 
-# ── 5. Запустить приложение сейчас (single-instance mutex не даст дубля) ─────────────────────────
-try { Start-ScheduledTask -TaskName $appTask; Write-Host "[ok] '$appTask' запущена сейчас." -ForegroundColor Green } catch {}
+function Wait-ForProcess {
+    param(
+        [string]$ExePath,
+        [int]$TimeoutSec
+    )
 
-# ── 6. Проверка результата ───────────────────────────────────────────────────────────────────────
-Start-Sleep -Seconds 2
-Write-Host ""
-Write-Host "── Проверка ──────────────────────────────────────────────" -ForegroundColor DarkGray
-Get-ScheduledTask EpharmPOSM* | Select-Object TaskName, State | Format-Table -AutoSize
-$proc = Get-Process ([System.IO.Path]::GetFileNameWithoutExtension($exeName)) -ErrorAction SilentlyContinue
-if ($proc) { Write-Host ("[ok] Процесс запущен: {0} (PID={1})." -f $exeName, $proc.Id) -ForegroundColor Green }
-else { Write-Warning "Процесс ещё не виден — проверь лог приложения (по умолчанию Рабочий стол\customerdisplay.log)." }
+    $expectedPath = [System.IO.Path]::GetFullPath($ExePath)
+    $name = [System.IO.Path]::GetFileNameWithoutExtension($expectedPath)
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        foreach ($process in @(Get-Process -Name $name -ErrorAction SilentlyContinue)) {
+            try {
+                if ([System.IO.Path]::GetFullPath($process.Path) -ieq $expectedPath) {
+                    return $process
+                }
+            } catch { }
+        }
+        Start-Sleep -Seconds 1
+    } while ((Get-Date) -lt $deadline)
 
-Write-Host ""
-Write-Host "Готово. Приложение поднимается при входе пользователя и переживает падение, kill," -ForegroundColor Green
-Write-Host "зависание, ребут и Windows Update." -ForegroundColor Green
-Write-Host ""
-Write-Host "ВАЖНО для моноблока-киоска: триггер ONLOGON срабатывает при ВХОДЕ пользователя." -ForegroundColor Yellow
-Write-Host "Чтобы касса стартовала сама при ВКЛЮЧЕНИИ (без ручного входа) — включи автологин Windows" -ForegroundColor Yellow
-Write-Host "(надёжнее всего Sysinternals Autologon: пароль хранится зашифрованным LSA-секретом)." -ForegroundColor Yellow
-Write-Host "Снять автозапуск: .\uninstall-tasks.ps1" -ForegroundColor DarkGray
+    return $null
+}
+
+function Get-EpharmPosmProcesses {
+    return @(
+        Get-Process -Name "CustomerDisplay", "Epharm-POSM" -ErrorAction SilentlyContinue
+    )
+}
+
+function Stop-EpharmPosmProcesses {
+    param([int]$GraceSec = 5)
+
+    $processes = @(Get-EpharmPosmProcesses)
+    if ($processes.Count -eq 0) {
+        return
+    }
+
+    Write-Host ("    Controlled handover: closing {0} existing Epharm POSM process(es)." -f $processes.Count) -ForegroundColor DarkGray
+    foreach ($process in $processes) {
+        try { [void]$process.CloseMainWindow() } catch { }
+    }
+
+    $deadline = (Get-Date).AddSeconds($GraceSec)
+    do {
+        $remaining = @($processes | Where-Object { $null -ne (Get-Process -Id $_.Id -ErrorAction SilentlyContinue) })
+        if ($remaining.Count -eq 0) {
+            return
+        }
+        Start-Sleep -Milliseconds 250
+    } while ((Get-Date) -lt $deadline)
+
+    foreach ($process in $remaining) {
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Seconds 1
+
+    $stillRunning = @($remaining | Where-Object { $null -ne (Get-Process -Id $_.Id -ErrorAction SilentlyContinue) })
+    if ($stillRunning.Count -gt 0) {
+        throw "Could not stop the previous Epharm POSM process within the bounded handover timeout."
+    }
+}
+
+function Wait-ForFreshHeartbeat {
+    param(
+        [string]$Path,
+        [int]$ProcessId,
+        [datetime]$NotBeforeUtc,
+        [int]$TimeoutSec
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        $process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+        if ($null -eq $process) {
+            throw "POSM exited before writing its heartbeat. Check C:\Epharm\crash.log and $AppLogPath"
+        }
+
+        if (Test-Path -LiteralPath $Path -PathType Leaf) {
+            $heartbeat = Get-Item -LiteralPath $Path
+            if ($heartbeat.LastWriteTimeUtc -ge $NotBeforeUtc.AddSeconds(-2)) {
+                return $heartbeat
+            }
+        }
+        Start-Sleep -Seconds 2
+    } while ((Get-Date) -lt $deadline)
+
+    throw "POSM process started but no fresh heartbeat appeared in $TimeoutSec seconds. Check $AppLogPath"
+}
+
+function Write-InstallStatus {
+    param(
+        [string]$Status,
+        [string]$Message,
+        [string]$Phase = "",
+        [string]$UserName = "",
+        [string]$PharmacyId = "",
+        [string]$ExePath = ""
+    )
+
+    try {
+        $statusObject = [ordered]@{
+            status = $Status
+            phase = $Phase
+            message = $Message
+            installedAt = [DateTimeOffset]::Now.ToString("o")
+            interactiveUser = $UserName
+            pharmacyId = $PharmacyId
+            executable = $ExePath
+        }
+        $statusObject | ConvertTo-Json | Set-Content -LiteralPath $StatusPath -Encoding UTF8
+    } catch { }
+}
+
+if (-not (Test-IsAdministrator)) {
+    Write-Error "Administrator rights are required. Run setup-autostart.bat and accept the UAC prompt."
+    exit 5
+}
+
+New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
+try {
+    Start-Transcript -Path $InstallLogPath -Append -Force | Out-Null
+    $TranscriptStarted = $true
+} catch { }
+
+try {
+    if ([string]::IsNullOrWhiteSpace($SourceDir)) {
+        if (-not [string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+            $SourceDir = $PSScriptRoot
+        } elseif (-not [string]::IsNullOrWhiteSpace($MyInvocation.MyCommand.Path)) {
+            $SourceDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+        } else {
+            throw "Could not determine the folder containing install-tasks.ps1."
+        }
+    }
+    $SourceDir = [System.IO.Path]::GetFullPath($SourceDir)
+    $InstallDir = [System.IO.Path]::GetFullPath($InstallDir)
+    if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
+        $ConfigPath = Join-Path $SourceDir "posm.json"
+    }
+    $ConfigPath = [System.IO.Path]::GetFullPath($ConfigPath)
+
+    Write-Step "Validating the pharmacy package."
+    [void](Get-AppExe -Directory $SourceDir)
+    if (-not (Test-Path -LiteralPath (Join-Path $SourceDir "watchdog.ps1") -PathType Leaf)) {
+        throw "watchdog.ps1 is missing from the ZIP package."
+    }
+    $config = Read-AndValidateConfig -Path $ConfigPath
+    $isDevMode = ([string](Get-ConfigProperty -Config $config -Name "screenMode")).Trim().ToLowerInvariant() -eq "dev"
+    $pharmacyId = [string](Get-ConfigProperty -Config $config -Name "pharmacyId")
+    $backendUrl = [string](Get-ConfigProperty -Config $config -Name "backendBaseUrl")
+    $HeartbeatPath = [string](Get-ConfigProperty -Config $config -Name "heartbeatPath")
+    $AppLogPath = [string](Get-ConfigProperty -Config $config -Name "appLogPath")
+    $InteractiveUser = Resolve-InteractiveUser -RequestedUser $InteractiveUser
+    if ([string]::IsNullOrWhiteSpace($InteractiveUser)) {
+        throw "Could not determine the currently logged-on Windows user."
+    }
+    Write-Ok "Package config: pharmacy=$pharmacyId, backend=$backendUrl, user=$InteractiveUser"
+
+    $screenMode = if ($isDevMode) { "dev" } else { "prod" }
+    $modeLabel = $screenMode.ToUpperInvariant()
+    Write-Step "Copying the $modeLabel package to a verified versioned folder on local disk."
+    $packageVersion = Get-PackageVersion -Directory $SourceDir
+    $InstallDir = Install-VersionedApplicationFiles -From $SourceDir -Root $InstallRoot -Version $packageVersion -Mode $screenMode
+
+    $exePath = Get-AppExe -Directory $InstallDir
+    $exeName = [System.IO.Path]::GetFileName($exePath)
+    $watchdogPath = Join-Path $InstallDir "watchdog.ps1"
+
+    Write-Step "Installing the pharmacy config and filesystem permissions."
+    $configTemp = $DefaultConfigPath + ".installing"
+    Copy-Item -LiteralPath $ConfigPath -Destination $configTemp -Force
+    [void](Read-AndValidateConfig -Path $configTemp)
+    Copy-Item -LiteralPath $configTemp -Destination $DefaultConfigPath -Force
+    Remove-Item -LiteralPath $configTemp -Force -ErrorAction SilentlyContinue
+    Write-Ok "Pharmacy config installed into $DefaultConfigPath"
+
+    foreach ($dataDir in @(
+        (Join-Path $InstallRoot "media-cache"),
+        (Join-Path $InstallRoot "updates")
+    )) {
+        New-Item -ItemType Directory -Path $dataDir -Force | Out-Null
+    }
+    Grant-InteractiveUserAccess -Root $InstallRoot -UserName $InteractiveUser
+    Write-Ok "Filesystem access granted to $InteractiveUser"
+
+    foreach ($legacyFile in @(
+        "start-posm.ps1",
+        "start-posm-hidden.vbs",
+        "watchdog-hidden.vbs"
+    )) {
+        Remove-Item -LiteralPath (Join-Path $InstallDir $legacyFile) -Force -ErrorAction SilentlyContinue
+    }
+
+    Write-Step "Registering automatic startup and watchdog tasks."
+    foreach ($taskName in @($AppTaskName, $WatchdogTaskName)) {
+        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+    }
+    $appAction = New-ScheduledTaskAction -Execute $exePath -WorkingDirectory $InstallDir
+    $appTrigger = New-ScheduledTaskTrigger -AtLogOn -User $InteractiveUser
+    $appPrincipal = New-ScheduledTaskPrincipal -UserId $InteractiveUser -LogonType Interactive -RunLevel Highest
+    $appSettingsParams = @{
+        AllowStartIfOnBatteries = $true
+        DontStopIfGoingOnBatteries = $true
+        RestartInterval = (New-TimeSpan -Minutes 1)
+        RestartCount = 999
+        ExecutionTimeLimit = (New-TimeSpan -Seconds 0)
+        MultipleInstances = "IgnoreNew"
+        StartWhenAvailable = $true
+    }
+    $appSettings = New-ScheduledTaskSettingsSet @appSettingsParams
+    Register-ScheduledTask -TaskName $AppTaskName -Action $appAction -Trigger $appTrigger -Principal $appPrincipal -Settings $appSettings -Force | Out-Null
+    Write-Ok "Task $AppTaskName registered with a direct $exeName action."
+
+    $powerShellExe = Join-Path $PSHOME "powershell.exe"
+    $watchdogArgs = (
+        '-NoLogo -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}" ' +
+        '-ExePath "{1}" -ConfigPath "{2}" -HeartbeatPath "{3}" -AppLogPath "{4}" ' +
+        '-ScreenMode "{5}" -MaxAgeSec {6} -TaskName "{7}"'
+    ) -f $watchdogPath, $exePath, $DefaultConfigPath, $HeartbeatPath, $AppLogPath, $screenMode, $MaxHeartbeatAgeSec, $AppTaskName
+    $watchdogLauncher = Join-Path $InstallDir "watchdog-hidden.vbs"
+    $watchdogCommand = ('"{0}" {1}' -f $powerShellExe, $watchdogArgs)
+    $watchdogCommandForVbs = $watchdogCommand.Replace('"', '""')
+    $watchdogVbs = "Set shell = CreateObject(""WScript.Shell"")`r`n" +
+                   "shell.Run ""$watchdogCommandForVbs"", 0, False`r`n"
+    [System.IO.File]::WriteAllText($watchdogLauncher, $watchdogVbs, [System.Text.UTF8Encoding]::new($false))
+
+    # A recurring task that directly starts powershell.exe can briefly flash a console even with
+    # -WindowStyle Hidden. WScript creates the PowerShell process with SW_HIDE from the start.
+    $wscriptExe = Join-Path $env:SystemRoot "System32\wscript.exe"
+    $watchdogAction = New-ScheduledTaskAction -Execute $wscriptExe -Argument "`"$watchdogLauncher`"" -WorkingDirectory $InstallDir
+    $watchdogLogonTrigger = New-ScheduledTaskTrigger -AtLogOn -User $InteractiveUser
+    $watchdogRecurringTrigger = New-ScheduledTaskTrigger -Once -At ((Get-Date).AddMinutes(1)) -RepetitionInterval (New-TimeSpan -Minutes 1) -RepetitionDuration (New-TimeSpan -Days 3650)
+    $watchdogSettingsParams = @{
+        AllowStartIfOnBatteries = $true
+        DontStopIfGoingOnBatteries = $true
+        ExecutionTimeLimit = (New-TimeSpan -Minutes 5)
+        MultipleInstances = "IgnoreNew"
+        StartWhenAvailable = $true
+        Hidden = $true
+    }
+    $watchdogSettings = New-ScheduledTaskSettingsSet @watchdogSettingsParams
+    Register-ScheduledTask -TaskName $WatchdogTaskName -Action $watchdogAction -Trigger @($watchdogLogonTrigger, $watchdogRecurringTrigger) -Principal $appPrincipal -Settings $watchdogSettings -Force | Out-Null
+    Write-Ok "Task $WatchdogTaskName registered with a fully hidden launcher (every minute and at logon)."
+
+    try {
+        Add-Type -AssemblyName System.Windows.Forms
+        $monitorCount = [System.Windows.Forms.Screen]::AllScreens.Count
+        if ($isDevMode) {
+            Write-Ok "DEV mode uses a window on the primary monitor; detected monitors: $monitorCount."
+        } elseif ($monitorCount -lt 2) {
+            Write-Warning "Windows detects only $monitorCount monitor. POSM will run in pharmacist-only mode: the customer video/receipt screen stays hidden, while scan-triggered recommendations remain active on the primary monitor."
+        } else {
+            Write-Ok "Windows detects $monitorCount monitors."
+        }
+    } catch {
+        Write-Warning "Monitor count could not be checked. POSM installation will continue: $($_.Exception.Message)"
+    }
+
+    Write-Step "Switching to the installed POSM build and validating its process and UI heartbeat."
+    Stop-EpharmPosmProcesses -GraceSec 5
+    Remove-Item -LiteralPath $HeartbeatPath -Force -ErrorAction SilentlyContinue
+    $startedAtUtc = (Get-Date).ToUniversalTime()
+    Start-ScheduledTask -TaskName $AppTaskName
+    $process = Wait-ForProcess -ExePath $exePath -TimeoutSec $StartupTimeoutSec
+    if ($null -eq $process) {
+        $taskInfo = Get-ScheduledTaskInfo -TaskName $AppTaskName -ErrorAction SilentlyContinue
+        $lastResult = if ($null -ne $taskInfo) { $taskInfo.LastTaskResult } else { "unknown" }
+        throw "$exeName did not start in $StartupTimeoutSec seconds. Scheduled task result: $lastResult"
+    }
+    Write-Ok "$exeName is running from the expected path (PID=$($process.Id))."
+
+    $heartbeat = Wait-ForFreshHeartbeat -Path $HeartbeatPath -ProcessId $process.Id -NotBeforeUtc $startedAtUtc -TimeoutSec $StartupTimeoutSec
+    Write-Ok "Fresh UI heartbeat received at $($heartbeat.LastWriteTime)."
+
+    Write-Ok "$modeLabel startup verified. Standard-N log discovery continues inside POSM without delaying setup."
+    Start-ScheduledTask -TaskName $WatchdogTaskName -ErrorAction SilentlyContinue
+
+    Start-Sleep -Seconds 3
+    if ($null -eq (Get-Process -Id $process.Id -ErrorAction SilentlyContinue)) {
+        throw "$exeName exited during the final stability check."
+    }
+
+    $autoLogon = ""
+    try {
+        $autoLogon = [string](Get-ItemProperty -LiteralPath "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "AutoAdminLogon" -ErrorAction Stop).AutoAdminLogon
+    } catch { }
+    if ($autoLogon -ne "1") {
+        Write-Warning "Windows automatic logon is not enabled. POSM starts automatically after the cash-desk user signs in; Windows cannot show desktop software before a user session exists."
+    }
+
+    $successMessage = "$modeLabel POSM installed; exact executable path and heartbeat verified. Standard-N log discovery is running in the client."
+    Write-InstallStatus -Status "ok" -Phase $CurrentPhase -Message $successMessage -UserName $InteractiveUser -PharmacyId $pharmacyId -ExePath $exePath
+    Write-Host ""
+    Write-Host "Epharm POSM installation completed successfully." -ForegroundColor Green
+    Write-Host "Installed app: $exePath" -ForegroundColor Green
+    Write-Host "Config:        $DefaultConfigPath" -ForegroundColor Green
+    Write-Host "Log:           $AppLogPath" -ForegroundColor Green
+    Write-Host "The setup console can close; POSM is owned by Windows Task Scheduler." -ForegroundColor Green
+    $ExitCode = 0
+} catch {
+    $message = $_.Exception.Message
+    Write-InstallStatus -Status "error" -Phase $CurrentPhase -Message $message -UserName $InteractiveUser
+    Write-Host ""
+    Write-Host ("INSTALLATION FAILED during '{0}': {1}" -f $CurrentPhase, $message) -ForegroundColor Red
+    Write-Host "Diagnostic log: $InstallLogPath" -ForegroundColor Yellow
+    $ExitCode = 1
+} finally {
+    if ($TranscriptStarted) {
+        try { Stop-Transcript | Out-Null } catch { }
+    }
+}
+
+exit $ExitCode

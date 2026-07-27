@@ -6,31 +6,36 @@ Current app metadata:
 
 | Field                  | Value             |
 | ---------------------- | ----------------- |
-| `pubspec.yaml` version | `0.1.0+1`         |
+| `pubspec.yaml` version | `0.1.1+2`         |
 | iOS bundle id          | `kz.pharmacy.app` |
 | Android application id | `kz.pharmacy.app` |
 | Display name           | `Epharm`          |
 
 Generated APK/IPA/app zip artifacts should not be committed unless there is an explicit release handoff.
 
+The current device build is `Epharm-iOS-0.1.1+2-Runner.app.zip`. It is signed with the
+development profile for the registered pilot iPhone and was verified with
+`codesign --verify --deep --strict` after extracting the ZIP. A development profile is
+device-specific and short-lived; rebuild it before the profile expires or when adding another iPhone.
+
 ## Important API_BASE Rule
 
 `builds/build_all.sh` uses:
 
 ```bash
-API_BASE="${API_BASE:-https://api.epharm.kz}"
+API_BASE="${API_BASE:-https://epharm.inkar.kz}"
 ```
 
 The current shared demo backend is:
 
 ```text
-https://epharm.78-140-246-238.sslip.io
+https://epharm.inkar.kz
 ```
 
 So for demo/pilot builds, run:
 
 ```bash
-API_BASE=https://epharm.78-140-246-238.sslip.io bash builds/build_all.sh
+API_BASE=https://epharm.inkar.kz bash builds/build_all.sh
 ```
 
 ## Build Script
@@ -38,7 +43,7 @@ API_BASE=https://epharm.78-140-246-238.sslip.io bash builds/build_all.sh
 ```bash
 export PATH="$HOME/development/flutter/bin:$PATH"
 cd /Users/amir/Desktop/work/pharma/PharmaPayV2
-API_BASE=https://epharm.78-140-246-238.sslip.io bash builds/build_all.sh
+API_BASE=https://epharm.inkar.kz bash builds/build_all.sh
 ```
 
 The script:
@@ -55,7 +60,7 @@ The script:
 ```bash
 flutter build apk --release \
   --dart-define=USE_API=true \
-  --dart-define=API_BASE=https://epharm.78-140-246-238.sslip.io
+  --dart-define=API_BASE=https://epharm.inkar.kz
 ```
 
 Requires Android signing files when producing release-signed APKs.
@@ -67,7 +72,7 @@ Unsigned app bundle:
 ```bash
 flutter build ios --release --no-codesign \
   --dart-define=USE_API=true \
-  --dart-define=API_BASE=https://epharm.78-140-246-238.sslip.io
+  --dart-define=API_BASE=https://epharm.inkar.kz
 ```
 
 Distribution IPA requires paid Apple Developer account and provisioning:
@@ -75,7 +80,7 @@ Distribution IPA requires paid Apple Developer account and provisioning:
 ```bash
 flutter build ipa --release \
   --dart-define=USE_API=true \
-  --dart-define=API_BASE=https://epharm.78-140-246-238.sslip.io
+  --dart-define=API_BASE=https://epharm.inkar.kz
 ```
 
 ## iOS xattr / iCloud Note

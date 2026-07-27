@@ -4,16 +4,21 @@
 
 Current shared environment:
 
-| Item       | Value                                    |
-| ---------- | ---------------------------------------- |
-| Host       | `medusa-test`                            |
-| Public URL | `https://epharm.78-140-246-238.sslip.io` |
-| Deploy dir | `/root/epharm`                           |
-| Stack      | Docker Compose + Caddy                   |
+| Item       | Value                     |
+| ---------- | ------------------------- |
+| Host       | `inkpim.inkar.kz`         |
+| Public URL | `https://epharm.inkar.kz` |
+| Deploy dir | `/home/adm-quasar/epharm` |
+| Stack      | Docker Compose + Caddy    |
 
-The active public setup is one host with path routing. Do not assume `api.epharm.kz`,
-`admin.epharm.kz`, or `s3.epharm.kz` are active unless DNS and `.env.prod` have been changed and
-`Caddyfile` has been changed with them.
+The intended public setup is one host with path routing: `epharm.inkar.kz`. Do not configure separate
+`api`, `admin`, or `s3` domains unless DNS, `.env.prod`, and `Caddyfile` are changed together.
+
+Current external-gateway state (verified 2026-07-21): TLS presents the expired `*.inteq.kz`
+certificate (expired 2026-05-23) and HTTPS `/api/health` returns `404`, while the
+trusted HTTP ingress `:8060/api/health` returns `200`. This proves that the application upstream is
+reachable but Host/SNI routing on `2.133.92.203:443` remains incomplete. IT must fix the external
+listener; application deployment alone cannot repair that gateway.
 
 ## Production Stack
 
@@ -27,7 +32,8 @@ The active public setup is one host with path routing. Do not assume `api.epharm
 - `frontend`;
 - `caddy`.
 
-Backend and frontend are not exposed directly. Caddy publishes ports 80/443/443-udp.
+Backend and frontend are not exposed directly. Caddy publishes ports 80/443/443-udp and the trusted
+HTTP upstream `8060` for the INKAR external TLS ingress.
 
 MinIO console is bound to `127.0.0.1:${MINIO_CONSOLE_PORT:-9001}` and should be reached through an SSH
 tunnel or VPN.
@@ -40,8 +46,14 @@ Current `Caddyfile` intentionally uses one site block for `{$ADMIN_DOMAIN}` and 
 - `/api/*` -> backend;
 - everything else -> frontend.
 
-This was changed after the 2026-06-22 incident: setting `API_DOMAIN`, `ADMIN_DOMAIN`, and `S3_DOMAIN`
-to the same sslip host while keeping three site blocks makes Caddy fail with `ambiguous site definition`.
+Public TLS uses the INKAR-issued wildcard certificate, not ACME: public DNS terminates on the
+corporate ingress and Let's Encrypt challenges cannot reach this host reliably. The server keeps
+`fullchain.pem` and `private.key` in `${TLS_CERT_DIR:-./tls}`; Compose mounts that directory read-only
+at `/etc/caddy/tls`. The private key must be owned by root with mode `0600`, the directory with mode
+`0700`, and neither file may be committed. Certificate renewal is an explicit IT/operations task.
+
+Using separate Caddy site blocks while `API_DOMAIN`, `ADMIN_DOMAIN`, and `S3_DOMAIN` point to the same
+host makes Caddy fail with `ambiguous site definition`.
 
 If future ops split domains into distinct hosts, restore separate site blocks and update `.env.prod`
 and docs together.
@@ -64,7 +76,7 @@ Required non-default secrets:
 Important current values/policies:
 
 - `OTP_DEV_MODE=false` is the intended production setting, but pilots may still use dev OTP by decision.
-- `S3_PUBLIC_URL` must match the external Caddy route. For one-host sslip it should include `/s3`.
+- `S3_PUBLIC_URL` must match the external Caddy route. It is `https://epharm.inkar.kz/s3`.
 - Medusa defaults in compose are publishable storefront ids, not admin/root secrets.
 - Live storefront/PIM/SSH credentials are documented in their existing credential files and must not be
   copied elsewhere.
@@ -77,13 +89,13 @@ The server deploy dir is not necessarily a git checkout. The reproducible deploy
 git archive --format=tar.gz -o /tmp/epharm-deploy.tar.gz HEAD \
   admin-panel/backend admin-panel/frontend docker-compose.prod.yml Caddyfile tools .env.prod.example
 
-scp -i ~/.ssh/epharm_deploy /tmp/epharm-deploy.tar.gz root@78.140.246.238:/tmp/
+scp /tmp/epharm-deploy.tar.gz adm-quasar@inkpim.inkar.kz:/tmp/
 ```
 
 On the server:
 
 ```bash
-cd /root/epharm
+cd /home/adm-quasar/epharm
 tar xzf /tmp/epharm-deploy.tar.gz admin-panel/backend admin-panel/frontend Caddyfile
 bash tools/pg-backup.sh
 docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build backend frontend caddy
@@ -100,15 +112,15 @@ without `--no-deps`, Compose may recreate backend because frontend depends on it
 ## Health Checks
 
 ```bash
-curl https://epharm.78-140-246-238.sslip.io/api/health
-curl -I https://epharm.78-140-246-238.sslip.io/
-curl -I https://epharm.78-140-246-238.sslip.io/s3/epharm-receipts/epharm-demo.apk
+curl https://epharm.inkar.kz/api/health
+curl -I https://epharm.inkar.kz/
+curl -I https://epharm.inkar.kz/s3/epharm-receipts/epharm-demo.apk
 ```
 
 Server-side:
 
 ```bash
-cd /root/epharm
+cd /home/adm-quasar/epharm
 docker compose --env-file .env.prod -f docker-compose.prod.yml ps
 docker compose --env-file .env.prod -f docker-compose.prod.yml logs -f backend
 docker logs epharm-caddy --tail 100
@@ -122,11 +134,14 @@ Production should also have a cron/off-site backup and a tested restore procedur
 Example cron:
 
 ```cron
-0 3 * * * /root/epharm/tools/pg-backup.sh >> /root/epharm/backups/backup.log 2>&1
+0 3 * * * /home/adm-quasar/epharm/tools/pg-backup.sh >> /home/adm-quasar/epharm/backups/backup.log 2>&1
 ```
 
 ## Known Operational Risks
 
+- External `epharm.inkar.kz:443` currently has the wrong expired certificate and returns gateway
+  `404`; POSM can use `:8060` only from
+  pharmacy networks that permit that outbound port.
 - Receipt photos are in a public-readable MinIO bucket. The release checklist tracks private bucket +
   presigned URL work.
 - Storefront/PIM/SSH credentials present in existing docs need rotation.

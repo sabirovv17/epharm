@@ -19,11 +19,16 @@ Epharm is a pharmacist-motivation system for Inkar/Ledex:
 
 ## Active Environment
 
-Current shared environment:
+Intended shared environment:
 
 ```text
-https://epharm.78-140-246-238.sslip.io
+https://epharm.inkar.kz
 ```
+
+As of 2026-07-21 the external corporate gateway presents an expired `*.inteq.kz` certificate and
+returns `404` for `/api/health`; the trusted
+`http://epharm.inkar.kz:8060/api/health` upstream returns `200`. Public 443 must not be considered
+healthy until IT fixes Host/SNI routing. POSM temporarily retains the `:8060` API fallback.
 
 It is one public host behind Caddy:
 
@@ -36,23 +41,28 @@ public endpoint unless `.env.prod` and `Caddyfile` are changed together.
 
 ## Docs Map
 
-| File                        | Purpose                                                                       |
-| --------------------------- | ----------------------------------------------------------------------------- |
-| `00-project-map.md`         | Карта проекта: где лежит код/доки/важные файлы. НАЧИНАТЬ ОТСЮДА.              |
-| `01-architecture.md`        | Current system architecture, runtime surfaces, business flows.                |
-| `02-backend.md`             | Backend stack, domains, API map, security, integrations, test/build commands. |
-| `03-admin-panel.md`         | Admin frontend routes, state, UI system, sections, tests.                     |
-| `04-mobile-app.md`          | Flutter app architecture, active flows, API/mock switching, build notes.      |
-| `05-posm-client.md`         | C#/WPF POSM client, log parsing, barcode matching, outbox, deployment.        |
-| `06-deployment-and-ops.md`  | Docker/Caddy production stack, deploy, backup, operations, known risks.       |
-| `07-database.md`            | Flyway migrations and domain tables.                                          |
-| `RUNBOOK.md`                | Day-to-day local startup, reset, tests, and production commands.              |
-| `DEV-ONBOARDING.md`         | Run mobile app on Android/iPhone against shared backend.                      |
-| `RELEASE-CHECKLIST.md`      | Release blockers and hardening backlog.                                       |
-| `BACKLOG.md`                | Текущий бэклог: доп-проверки + что осталось до завершения.                    |
-| `claude-notes.md`           | Current mobile working memory.                                                |
-| `STOREFRONT.md`             | Medusa storefront integration notes (untracked).                              |
-| `STOREFRONT-CREDENTIALS.md` | Storefront/SSH credentials (untracked, NEVER commit).                         |
+| File                                      | Purpose                                                                        |
+| ----------------------------------------- | ------------------------------------------------------------------------------ |
+| `00-project-map.md`                       | Карта проекта: где лежит код/доки/важные файлы. НАЧИНАТЬ ОТСЮДА.               |
+| `01-architecture.md`                      | Current system architecture, runtime surfaces, business flows.                 |
+| `02-backend.md`                           | Backend stack, domains, API map, security, integrations, test/build commands.  |
+| `03-admin-panel.md`                       | Admin frontend routes, state, UI system, sections, tests.                      |
+| `04-mobile-app.md`                        | Flutter app architecture, active flows, API/mock switching, build notes.       |
+| `05-posm-client.md`                       | C#/WPF POSM client, log parsing, barcode matching, outbox, deployment.         |
+| `06-deployment-and-ops.md`                | Docker/Caddy production stack, deploy, backup, operations, known risks.        |
+| `07-database.md`                          | Flyway migrations and domain tables.                                           |
+| `08-product-workflow.md`                  | Понятное описание того, как системой пользуются HQ, фармацевт и POSM в аптеке. |
+| `09-posm-v1.0.41-pilot-and-prod.md`       | Результат пилота Ауэзова 134, причины успеха и PROD-чеклист.                   |
+| `10-posm-v1.0.42-production-hardening.md` | Разбор VM/боевой кассы, исправления установки, логов и heartbeat.              |
+| `11-posm-v1.0.43-active-receipt.md`       | Причина сбоя на Ауэзова 134 и контракт чтения живого чека из Firebird.         |
+| `12-posm-v1.0.44-firebird-auth.md`        | Боевой сбой авторизации Firebird и детерминированный приоритет `options.ini`.  |
+| `RUNBOOK.md`                              | Day-to-day local startup, reset, tests, and production commands.               |
+| `DEV-ONBOARDING.md`                       | Run mobile app on Android/iPhone against shared backend.                       |
+| `RELEASE-CHECKLIST.md`                    | Release blockers and hardening backlog.                                        |
+| `BACKLOG.md`                              | Текущий бэклог: доп-проверки + что осталось до завершения.                     |
+| `claude-notes.md`                         | Current mobile working memory.                                                 |
+| `STOREFRONT.md`                           | Medusa storefront integration notes (untracked).                               |
+| `STOREFRONT-CREDENTIALS.md`               | Storefront/SSH credentials (untracked, NEVER commit).                          |
 
 ## Other Important Files
 
@@ -71,4 +81,4 @@ public endpoint unless `.env.prod` and `Caddyfile` are changed together.
 - Treat `admin-panel/PLAN.md` and `_reference/design_handoff_pharmapay/*` as historical context unless
   a current doc explicitly points to them.
 - Do not move or duplicate secrets from existing credential files.
-- When changing behavior, update the relevant doc in the same work session.
+- When changing behavior, update the relevant technical doc and `08-product-workflow.md` in the same work session when the HQ, pharmacist, customer, or POSM workflow changes.

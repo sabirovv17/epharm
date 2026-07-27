@@ -9,7 +9,7 @@ Build on Windows with .NET 10 SDK.
 ```powershell
 cd <repo>
 dotnet publish App\CustomerDisplay.csproj -c Release -r win-x64 --self-contained `
-  -p:Version=1.0.0 -o C:\Epharm\app
+  -p:Version=1.0.44 -o C:\Epharm\app
 ```
 
 Auto-update works with a published app folder containing `CustomerDisplay.exe`, dependencies, LibVLC,
@@ -22,9 +22,10 @@ config, and scripts. Do not deploy `dotnet run` as production.
 ```json
 {
   "Enabled": true,
-  "BackendBaseUrl": "https://epharm.78-140-246-238.sslip.io",
+  "BackendBaseUrl": "https://epharm.inkar.kz",
+  "BackendFallbackBaseUrls": ["http://epharm.inkar.kz:8060"],
   "DeviceKey": "<POSM_DEVICE_KEY>",
-  "PharmacistId": "u_smoke",
+  "PharmacistId": "",
   "PharmacyId": "ph_smoke",
   "ScreenMode": "prod",
   "RecommendRefreshSec": 0,
@@ -33,28 +34,57 @@ config, and scripts. Do not deploy `dotnet run` as production.
   "UpdateEnabled": true,
   "UpdatePollSec": 1800,
   "HeartbeatPath": "C:\\Epharm\\heartbeat.txt",
-  "HeartbeatSec": 15
+  "HeartbeatSec": 15,
+  "StandardNDbEnabled": true,
+  "StandardNDbPath": "",
+  "StandardNReceiptPollMs": 400
 }
 ```
 
 Every key can be overridden by env variables. See `App/scripts/README-distrib.md`.
 
-## Install Scheduled Tasks
+`BackendBaseUrl` is the preferred public HTTPS origin. `BackendFallbackBaseUrls` is an ordered list
+of temporary alternatives: the client switches to it after a gateway/network failure and retries the
+HTTPS origin every five minutes. Specify an origin only, never `/login`: POSM appends `/api/posm/*`
+itself. The `:8060` fallback is plain HTTP and must be removed after the HTTPS gateway is available.
+It is not used for automatic application updates: release ZIP downloads remain HTTPS-only.
 
-Run as administrator:
+## One-Click Pharmacy Install
 
-```powershell
-cd <repo>\App\scripts
-powershell -ExecutionPolicy Bypass -File install-tasks.ps1 -InstallDir C:\Epharm\app
-```
+For a pharmacy monoblock:
 
-This creates:
+1. Copy the pharmacy-specific ZIP to any local folder.
+2. Extract the entire ZIP.
+3. Run `setup-autostart.bat` and accept the administrator/UAC prompt.
+
+The installer validates `posm.json`, stores the active pharmacy config at
+`C:\Epharm\posm.json`, and creates the tasks below:
 
 - `EpharmPOSM` - starts on user logon and restarts on failure;
 - `EpharmPOSM-Watchdog` - checks heartbeat and restarts hung/dead client.
 
-For unattended startup after reboot, configure Windows autologin for the cash-desk user. Scheduled
-task trigger is logon-based.
+Setup copies the package from any accessible source into a versioned local
+folder: `C:\Epharm\app-dev\<version>` for DEV or
+`C:\Epharm\app-prod\<version>` for PROD. A repeated setup reuses a local copy only when key SHA-256
+hashes match the extracted package. Setup then performs a bounded handover from existing Epharm POSM
+processes and verifies the exact new executable path plus a fresh UI heartbeat. Standard-N log
+discovery continues in the running client without delaying installation.
+
+Re-running `setup-autostart.bat` repairs the tasks without deleting the media
+cache or offline outbox.
+
+The second monitor is optional. With two monitors, POSM shows the fullscreen
+customer video/receipt screen on monitor 2 and recommendation popups on the
+pharmacist monitor. With one monitor, the customer screen stays hidden while
+POSM continues listening to Standard-N and shows scan-triggered recommendation
+popups on the primary pharmacist monitor.
+
+For unattended visible startup after power loss, Windows must automatically
+log in to the cash-desk user. A desktop application cannot display a window
+before Windows creates an interactive user session.
+
+Installation diagnostics are written to `C:\Epharm\install.log`; the last
+machine-readable result is `C:\Epharm\install-status.json`.
 
 Uninstall:
 
@@ -82,12 +112,13 @@ GET /api/posm/app/version?platform=win-x64
 Release flow:
 
 1. Publish new version with bumped `-p:Version=...`.
-2. Zip the published folder.
+2. Zip the published folder without `posm.json`; pharmacy configuration must remain local.
 3. Upload zip to a URL reachable by cash desks.
 4. Calculate SHA256.
 5. Register via admin API `/api/admin/app-releases`.
 
 The client downloads only HTTPS URLs and verifies SHA256 before applying.
+The download endpoint also requires the client's `X-Posm-Key` header.
 
 ## Recommendation Smoke
 
@@ -96,8 +127,11 @@ A real popup requires:
 - POSM enabled;
 - valid backend URL and device key;
 - active campaign/rule for the scanned product;
-- barcode in the cash-desk log or a name that matches uniquely.
-- local Standard-N Firebird DB (`ztrade`) reachable if you need real `pharmacistId` and prices in logs.
+- matching barcode first, then `iPartID` when EAN is unavailable, then a uniquely normalized name;
+- local Standard-N Firebird DB (`ztrade`) reachable when the cash log does not contain the barcode.
+
+An identified cashier is required for seller attribution and bonuses, but never for showing the
+recommendation itself.
 
 Demo log line format:
 
@@ -108,13 +142,30 @@ $line = "Add2Cheque iPartID=80309(4603423004936);sname=Аквалор;price=1620
 [System.IO.File]::AppendAllText($log, "$line`r`n", $enc)
 ```
 
-For production logs POSM enriches the scan with:
+Where the installed Standard-N schema is recognized, POSM enriches the scan with:
 
-- active pharmacist id from `ACTIVEUSERS.USER_ID`;
-- retail price from `VW_WAREBASE_KASSA` / `PRICES` by `iPartID`.
+- an active cashier id/name from the discovered user/session tables;
+- barcode/name/retail price from `VW_WAREBASE_KASSA`, then `PARTS`, with `PRICES` as a price-only
+  fallback by `iPartID`.
+
+POSM v1.0.43 primarily reconciles the local workstation's open Standard-N receipt from
+`DOCS`/`DOC_DETAIL_ACTIVE`; `options.ini` supplies the actual Firebird server, path and credentials.
+It also watches configured/cached paths and the two v1.0.23 paths. In parallel, a
+bounded background locator searches for `zkassa.log` near running Standard-N/cashier processes and
+likely installation roots. A path that emits a real cash event is cached in
+`C:\Epharm\standardn-log-paths.txt`. Files are reopened after truncation or rotation.
+
+The backend presence heartbeat is sent every 30 seconds. A device expires after 90 seconds without a
+pulse; Redis stores the device/pharmacy last-seen state so a backend restart or a second backend
+instance does not temporarily erase the online-screen list.
 
 If `ztrade` is not found, POSM does not fail: recommendations/video continue, while trusted
 `pharmacistId` and price fields remain empty until the DB path/Firebird connection is available.
+Do not assume `ACTIVEUSERS` contains rows on every Standard-N release. POSM also probes unfinished
+cash-desk sessions in `SESSIONS`/`SP$SESSIONS` and resolves names through `HUMAN_ACTION_LOGS`. Run
+`collect-posm-diagnostics.bat` as administrator on the real machine and inspect its redacted archive
+before adapting queries. Run `diagnose-standardn.bat` after installation for a focused read-only
+identity report. Raw id/name remains visible in the dashboard even before internal mapping.
 
 ## Operational Rules
 

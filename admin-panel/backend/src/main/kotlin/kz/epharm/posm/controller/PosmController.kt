@@ -19,6 +19,7 @@ import kz.epharm.posm.dto.PosSaleResponse
 import kz.epharm.posm.dto.RecommendRequest
 import kz.epharm.posm.dto.RecommendResponse
 import kz.epharm.posm.service.DevicePresenceService
+import kz.epharm.posm.service.PosmPharmacistIdentityService
 import kz.epharm.posm.service.PosSaleService
 import kz.epharm.posm.service.RecommendationService
 import kz.epharm.screens.dto.ActivePlaylistDto
@@ -52,6 +53,7 @@ class PosmController(
     private val cdpService: CdpService,
     private val appReleaseService: AppReleaseService,
     private val devicePresenceService: DevicePresenceService,
+    private val pharmacistIdentityService: PosmPharmacistIdentityService,
     @Value("\${app.posm.device-key:dev-posm-key}") private val deviceKey: String,
 ) {
 
@@ -61,7 +63,12 @@ class PosmController(
         @Valid @RequestBody req: RecommendRequest,
     ): RecommendResponse {
         requireDeviceKey(key)
-        return recommendationService.recommend(req)
+        val identity = pharmacistIdentityService.resolve(
+            pharmacyId = req.pharmacyId,
+            reportedPharmacistId = req.pharmacistId,
+            reportedPharmacistName = req.pharmacistName,
+        )
+        return recommendationService.recommend(req.copy(pharmacistId = identity.pharmacistId))
     }
 
     @PostMapping("/recommendations/{eventId}/outcome")
@@ -96,7 +103,16 @@ class PosmController(
         @Valid @RequestBody req: PosSaleRequest,
     ): PosSaleResponse {
         requireDeviceKey(key)
-        val accepted = posSaleService.record(req)
+        val identity = pharmacistIdentityService.resolve(
+            pharmacyId = req.pharmacyId,
+            reportedPharmacistId = req.pharmacistId,
+            reportedPharmacistName = req.pharmacistName,
+        )
+        val effective = req.copy(
+            pharmacistId = identity.pharmacistId,
+            pharmacistName = identity.pharmacistName,
+        )
+        val accepted = posSaleService.record(effective, identity)
         return PosSaleResponse(saleId = req.saleId, accepted = accepted)
     }
 

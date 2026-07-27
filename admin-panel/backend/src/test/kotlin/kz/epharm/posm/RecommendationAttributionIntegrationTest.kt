@@ -11,6 +11,7 @@ import kz.epharm.pharmacies.entity.PharmacyGroup
 import kz.epharm.pharmacies.repository.ChainRepository
 import kz.epharm.pharmacies.repository.PharmacyRepository
 import kz.epharm.pharmacists.entity.PharmacistEntity
+import kz.epharm.pharmacists.entity.PharmacistStatus
 import kz.epharm.pharmacists.repository.PharmacistRepository
 import kz.epharm.posm.dto.CartItemDto
 import kz.epharm.posm.dto.MarkShownRequest
@@ -121,7 +122,7 @@ class RecommendationAttributionIntegrationTest {
                 id = "u_t", name = "Тест Фарм", iin = "900115300013", phone = "+77001234567",
                 pharmacyId = "ph_t", pharmacyName = "Аптека Т", city = "Алматы",
                 balance = 0, earned30d = 0,
-            ),
+            ).also { it.status = PharmacistStatus.active },
         )
 
         // Триггер p_bio (штрих-код barBio) → рекомендация p_zen (штрих-код barZen, чтобы продажа
@@ -233,7 +234,30 @@ class RecommendationAttributionIntegrationTest {
     }
 
     @Test
-    fun `recommend без pharmacistId (пустой) принимается — фармацевт берётся из лога кассы`() {
+    fun `продажа показывает имя из Standard-N когда внешний id отсутствует в справочнике`() {
+        postSale(
+            saleId = "sale_external_user",
+            session = "sess_external_user",
+            items = listOf(saleItem(barBio, 1500)),
+            pharmacistId = "standardn_154",
+            pharmacistName = "Иванова А.А.",
+        )
+
+        val saved = posSaleRepository.findById("sale_external_user").get()
+        assertEquals("", saved.pharmacistId)
+        assertEquals("Иванова А.А.", saved.pharmacistName)
+        assertEquals("standardn_154", saved.reportedPharmacistId)
+        assertEquals("standardn_unmapped", saved.pharmacistSource)
+
+        val saleRow = analyticsService.analytics(100).log
+            .first { it.type == "sale" && it.saleId == "sale_external_user" }
+        assertEquals("standardn_154", saleRow.pharmacistId)
+        assertEquals("Иванова А.А.", saleRow.pharmacistName)
+        assertEquals("standardn_unmapped", saleRow.pharmacistSource)
+    }
+
+    @Test
+    fun `recommend без pharmacistId показывается независимо от идентификации продавца`() {
         val body = mockMvc.perform(
             post("/api/posm/recommend")
                 .header("X-Posm-Key", POSM_KEY)
@@ -243,7 +267,67 @@ class RecommendationAttributionIntegrationTest {
             .andExpect(status().isOk)
             .andReturn().response.getContentAsString(Charsets.UTF_8)
         val resp = objectMapper.readValue(body, RecommendResponse::class.java)
-        assertEquals(1, resp.recommendations.size, "pharmacistId опционален — рекомендация всё равно отдаётся")
+        assertEquals(1, resp.recommendations.size, "рекомендация не должна зависеть от бонусной идентичности")
+    }
+
+    @Test
+    fun `неопределенный продавец видит рекомендацию но бонус не создается`() {
+        val body = mockMvc.perform(
+            post("/api/posm/recommend")
+                .header("X-Posm-Key", POSM_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"pharmacyId":"ph_t","sessionId":"sess_unresolved","cart":[{"barcode":"$barBio"}]}"""),
+        )
+            .andExpect(status().isOk)
+            .andReturn().response.getContentAsString(Charsets.UTF_8)
+        val response = objectMapper.readValue(body, RecommendResponse::class.java)
+
+        mockMvc.perform(
+            post("/api/posm/recommendations/${response.recommendations.single().eventId}/outcome")
+                .header("X-Posm-Key", POSM_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"outcome":"accepted"}"""),
+        ).andExpect(status().isConflict)
+
+        assertTrue(pendingBonusRepository.findAll().isEmpty())
+    }
+
+    @Test
+    fun `точное ФИО Standard-N связывает рекомендацию и продажу с внутренним профилем`() {
+        val body = mockMvc.perform(
+            post("/api/posm/recommend")
+                .header("X-Posm-Key", POSM_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """{"pharmacistId":"standardn_154","pharmacistName":"Тест Фарм","pharmacyId":"ph_t","sessionId":"sess_name_match","cart":[{"barcode":"$barBio"}]}""",
+                ),
+        )
+            .andExpect(status().isOk)
+            .andReturn().response.getContentAsString(Charsets.UTF_8)
+        val response = objectMapper.readValue(body, RecommendResponse::class.java)
+        val eventId = response.recommendations.single().eventId
+        assertEquals("u_t", eventRepository.findById(eventId).get().pharmacistId)
+
+        mockMvc.perform(
+            post("/api/posm/recommendations/$eventId/outcome")
+                .header("X-Posm-Key", POSM_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"outcome":"accepted"}"""),
+        ).andExpect(status().isOk)
+        assertEquals(1, pendingBonusRepository.findAll().count { it.pharmacistId == "u_t" })
+
+        postSale(
+            saleId = "sale_name_match",
+            session = "sess_name_match",
+            items = listOf(saleItem(barBio, 1500)),
+            pharmacistId = "standardn_154",
+            pharmacistName = "Тест Фарм",
+        )
+        val sale = posSaleRepository.findById("sale_name_match").orElseThrow()
+        assertEquals("u_t", sale.pharmacistId)
+        assertEquals("Тест Фарм", sale.pharmacistName)
+        assertEquals("standardn_154", sale.reportedPharmacistId)
+        assertEquals("standardn_name_match", sale.pharmacistSource)
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
@@ -267,7 +351,14 @@ class RecommendationAttributionIntegrationTest {
         return objectMapper.readValue(body, RecommendResponse::class.java)
     }
 
-    private fun postSale(saleId: String, session: String, items: List<PosSaleItemDto>) {
+    private fun postSale(
+        saleId: String,
+        session: String,
+        items: List<PosSaleItemDto>,
+        pharmacistId: String = "u_t",
+        pharmacistName: String? = null,
+        printedAt: Instant = Instant.now(),
+    ) {
         mockMvc.perform(
             post("/api/posm/sales")
                 .header("X-Posm-Key", POSM_KEY)
@@ -275,9 +366,10 @@ class RecommendationAttributionIntegrationTest {
                 .content(
                     objectMapper.writeValueAsString(
                         PosSaleRequest(
-                            saleId = saleId, pharmacistId = "u_t", pharmacyId = "ph_t",
+                            saleId = saleId, pharmacistId = pharmacistId, pharmacistName = pharmacistName,
+                            pharmacyId = "ph_t",
                             sessionId = session, totalAmount = items.sumOf { it.total },
-                            items = items, printedAt = Instant.now(),
+                            items = items, printedAt = printedAt,
                         ),
                     ),
                 ),

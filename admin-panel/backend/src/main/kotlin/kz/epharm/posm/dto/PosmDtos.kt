@@ -4,12 +4,13 @@ import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Pattern
+import jakarta.validation.constraints.Size
 
 /**
- * Позиция корзины кассы Стандарт-Н. Матчинг к нашему товару идёт по точным ключам
- * [sku] (iPartID) и [barcode] (EAN-13), затем fallback по [name] (sname из лога).
- *  - sku:     iPartID кассы Стандарт-Н — точный ключ матчинга, если заполнен в админке;
- *  - barcode: EAN-13 (variant.barcode из Medusa) — точный ключ матчинга;
+ * Позиция корзины кассы Стандарт-Н. Сначала используется точный [barcode], затем [sku]
+ * (iPartID, когда EAN недоступен), затем fallback по [name] (sname из лога).
+ *  - sku:     локальный iPartID кассы Стандарт-Н — запасной точный ключ;
+ *  - barcode: EAN/GTIN (variant.barcode из Medusa) — приоритетный межаптечный ключ;
  *  - name:    название из лога кассы (sname) — fallback-ключ для неполных логов;
  *  - qty:     количество.
  */
@@ -28,6 +29,10 @@ data class RecommendRequest(
     // pharmacistId опционален: фармацевт приходит из лога кассы (kassir=), работает посменно;
     // если касса его не прислала — пусто.
     val pharmacistId: String = "",
+    // ФИО из Standard-N позволяет выполнить строгое однозначное сопоставление с внутренним
+    // профилем той же аптеки, когда USER_ID двух систем различаются.
+    @field:Size(max = 255)
+    val pharmacistName: String? = null,
     @field:NotBlank
     val pharmacyId: String,
     @field:NotBlank
@@ -56,6 +61,7 @@ data class RecommendationDto(
     val ruleId: String,
     val kind: String,
     val triggerSku: String?,
+    val triggerIpartId: String?,  // iPartID Standard-N; triggerSku is internal catalog productId
     val triggerName: String?,
     val triggerVolume: String?,
     val triggerPrice: Int?,
@@ -142,6 +148,10 @@ data class PosSaleRequest(
     val saleId: String,
     // pharmacistId опционален: фармацевт из лога кассы (kassir=), может быть пуст.
     val pharmacistId: String = "",
+    // Снимок имени из локальной БД Standard-N. Используется для аудита и отображения, пока
+    // внешний USER_ID ещё не сопоставлен с внутренним фармацевтом Epharm.
+    @field:Size(max = 255)
+    val pharmacistName: String? = null,
     @field:NotBlank
     val pharmacyId: String,
     val sessionId: String? = null,

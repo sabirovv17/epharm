@@ -1,7 +1,8 @@
 {
   "_comment": "Скопировать в C:\\Epharm\\posm.json на кассе и заполнить реальными значениями. В боевом режиме pharmacistId/цены читаются строго из БД Стандарт-Н ztrade. Если БД не найдена, эти поля остаются пустыми, POSM не падает. Любое поле можно переопределить env-переменной.",
   "enabled": true,
-  "backendBaseUrl": "https://api.epharm.kz",
+  "backendBaseUrl": "https://epharm.inkar.kz",
+  "backendFallbackBaseUrls": ["http://epharm.inkar.kz:8060"],
   "deviceKey": "ВЫДАЁТСЯ-ПРИ-ОНБОРДИНГЕ-АПТЕКИ",
   "pharmacistId": "",
   "pharmacyId": "ph_xxx",
@@ -13,11 +14,17 @@
   "mediaCacheDir": "C:\\Epharm\\media-cache",
   "heartbeatPath": "C:\\Epharm\\heartbeat.txt",
   "heartbeatSec": 15,
+  "appLogPath": "C:\\Epharm\\customerdisplay.log",
+  "screenMode": "prod",
+  "videoEnabled": true,
+  "updateEnabled": true,
+  "standardNLogPaths": [],
   "standardNDbEnabled": true,
   "standardNDbHost": "localhost",
   "standardNDbPort": 3050,
-  "standardNDbPath": "C:\\Standart-N_DEMO\\Apteka_KZ DEMO\\db\\ztrade",
+  "standardNDbPath": "",
   "standardNDbUser": "SYSDBA",
   "standardNDbPassword": "masterkey",
-  "standardNDbTimeoutMs": 1000
+  "standardNDbTimeoutMs": 1000,
+  "standardNReceiptPollMs": 400
 }

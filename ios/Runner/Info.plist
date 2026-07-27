@@ -55,17 +55,22 @@
 	<!-- Photo library — для загрузки чеков из галереи. -->
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Epharm использует доступ к фото для загрузки изображений чеков из вашей галереи.</string>
-	<!-- Прод-безопасно: HTTPS по умолчанию (https://api.epharm.kz). Исключение —
-	     http только к localhost (iOS-симулятор против локального dev-бэка). Произвольный
-	     plain-HTTP запрещён. -->
+	<!-- HTTPS остаётся основным каналом. До исправления corporate ingress iOS может
+	     использовать ровно один временный fallback http://epharm.inkar.kz:8060.
+	     Другие HTTP-домены запрещены; исключение удалить после принятия HTTPS. -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<!-- DEV: http к бэкенду в локальной сети (физический iPhone → IP мака). Прод —
-		     публичный HTTPS (api.epharm.kz), его это не касается. -->
+	     публичный HTTPS (epharm.inkar.kz), его это не касается. -->
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 		<key>NSExceptionDomains</key>
 		<dict>
+			<key>epharm.inkar.kz</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
 			<key>localhost</key>
 			<dict>
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>

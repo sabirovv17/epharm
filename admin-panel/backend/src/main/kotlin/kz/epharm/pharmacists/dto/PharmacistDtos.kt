@@ -71,6 +71,12 @@ data class UpdatePharmacistRequest(
     @field:Min(0) val coursesTotal: Int? = null,
 )
 
+data class ActivatePharmacistRequest(
+    @field:NotBlank
+    @field:Size(max = 64)
+    val pharmacyId: String,
+)
+
 data class ChangeStatusRequest(
     @field:NotNull
     val status: PharmacistStatus,

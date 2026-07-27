@@ -87,6 +87,7 @@ function mkAnalytics(over: Partial<RecommendationAnalyticsDto> = {}): Recommenda
         pharmacyName: 'Аптека Центр',
         pharmacistId: 'u_1',
         pharmacistName: 'Иван',
+        pharmacistSource: 'standardn_name_match',
         amount: 2100,
         converted: false,
         secondsToSale: 65, // позиция рекомендованного товара — чип «через … после показа»
@@ -192,7 +193,10 @@ describe('DashboardPage — Журнал показов и продаж (V032)',
     // продажа: каждая позиция чека — отдельной строкой со своим кол-вом и суммой
     const pos0 = screen.getByTestId('recan-row-sale_1#0')
     const pos1 = screen.getByTestId('recan-row-sale_1#1')
+    expect(screen.getByText('Фармацевт / продавец')).toBeInTheDocument()
     expect(within(pos0).getByText('Аквамарис')).toBeInTheDocument()
+    expect(within(pos0).getByText('Иван')).toBeInTheDocument()
+    expect(within(pos0).getByText('Сопоставлено по ФИО Standard-N')).toBeInTheDocument()
     expect(within(pos1).getByText('Цитрамон-П табл №10')).toBeInTheDocument()
     expect(screen.getByTestId('recan-units-sale_1#0')).toHaveTextContent('2 шт')
     expect(screen.getByTestId('recan-units-sale_1#1')).toHaveTextContent('1 шт')

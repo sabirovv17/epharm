@@ -100,6 +100,18 @@ namespace CustomerDisplay.Services
                 var staging = Path.Combine(workDir, $"staging-{remote}");
                 if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
                 ZipFile.ExtractToDirectory(zipPath, staging);
+
+                // Конфигурация принадлежит конкретной аптеке и никогда не должна приходить
+                // из общего update ZIP. Это также страхует старые ошибочно собранные релизы,
+                // в которые мог попасть posm.json с чужими PharmacyId/DeviceKey.
+                SafeDelete(Path.Combine(staging, "posm.json"));
+                if (!File.Exists(Path.Combine(staging, "CustomerDisplay.exe")))
+                {
+                    _log("update: в архиве нет CustomerDisplay.exe — обновление отклонено");
+                    Directory.Delete(staging, recursive: true);
+                    SafeDelete(zipPath);
+                    return false;
+                }
                 _log($"update: распакован в {staging}");
 
                 LaunchApplyAndExit(staging);

@@ -1,10 +1,12 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -22,21 +24,10 @@ namespace CustomerDisplay
     public partial class MainWindow : Window
     {
 private CancellationTokenSource? _logCts;
-// Пути к логу кассы Стандарт-Н. На разных кассах путь отличается (обычная установка
-// vs demo), поэтому слушаем СРАЗУ НЕСКОЛЬКО кандидатов — какой файл реально пишется,
-// тот и читается; остальные просто ждут появления. Доп. путь можно задать через env
-// EPHARM_LOG_PATH (добавляется первым). Дубли отсеиваются.
-private readonly List<string> _logPaths = BuildLogPaths();
-
-private static List<string> BuildLogPaths()
-{
-    var paths = new List<string>();
-    var env = Environment.GetEnvironmentVariable("EPHARM_LOG_PATH");
-    if (!string.IsNullOrWhiteSpace(env)) paths.Add(env);
-    paths.Add(@"C:\Standart-N\Kassir\zkassa.log");
-    paths.Add(@"C:\Standart-N_DEMO\Apteka_KZ DEMO\Kassir\zkassa.log");
-    return paths.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-}
+// A reader is started once per physical path. Standard-N installations differ between
+// pharmacies, so legacy/configured paths start immediately and bounded discovery adds real paths.
+private readonly ConcurrentDictionary<string, byte> _activeLogReaders =
+    new(StringComparer.OrdinalIgnoreCase);
 
 
 public ObservableCollection<ReceiptItem> ReceiptItems { get; } = new();
@@ -51,14 +42,20 @@ private Media? _currentMedia;
         private MediaPlayer? _mediaPlayer;
 
      
-// Куда писать лог: env EPHARM_APP_LOG, иначе Рабочий стол\customerdisplay.log.
+// Куда писать лог: env EPHARM_APP_LOG, иначе единый production/dev путь C:\Epharm.
 // Путь печатается в баннере старта (LogStartupBanner), чтобы его было легко найти.
-private static readonly string LogPath = ResolveLogPath();
+private static string LogPath = ResolveLogPath();
 private static string ResolveLogPath()
 {
     var env = Environment.GetEnvironmentVariable("EPHARM_APP_LOG");
     if (!string.IsNullOrWhiteSpace(env)) return env!;
-    return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "customerdisplay.log");
+    return @"C:\Epharm\customerdisplay.log";
+}
+
+private static void ConfigureLogPath(string? configuredPath)
+{
+    if (!string.IsNullOrWhiteSpace(configuredPath))
+        LogPath = configuredPath.Trim();
 }
 
 // Лог пишем в UTF-8 с BOM, чтобы кириллица корректно открывалась в любом редакторе
@@ -209,6 +206,10 @@ this.Focus();
             }
 
 StartLogReader();
+            // Production Standard-N builds may omit Add2Cheque payloads from zkassa.log. The
+            // authoritative active receipt monitor keeps recommendations and the customer display
+            // working from DOCS/DOC_DETAIL_ACTIVE; log tailing above remains a compatibility path.
+            StartStandardNReceiptPolling();
 
             // Авто-обновление клиента из админки (fail-safe, no-op без POSM/при выкл.).
             StartUpdateChecks();
@@ -257,7 +258,9 @@ private void PositionWindowToTopRightQuarter()
             {
                 if (screens.Length >= 2)
                 {
-                    var target = screens[1]; // 2-й монитор = КЛИЕНТСКИЙ экран
+                    // The customer display is the non-primary screen. Screen.AllScreens ordering
+                    // is not a contract and differs between video drivers/docking stations.
+                    var target = screens.FirstOrDefault(s => !s.Primary) ?? screens[1];
                     CustomerScreen = target; // popup рекомендаций пойдёт на ДРУГОЙ (фармацевта)
                     Topmost = true;
                     WindowStyle = WindowStyle.None;
@@ -290,7 +293,10 @@ private void PositionWindowToTopRightQuarter()
             Top = wa.Top + 8;
             Width = 460;
             Height = 820;
-            CustomerScreen = Screen.PrimaryScreen ?? Screen.AllScreens[0];
+            // In DEV the small customer preview does not reserve a physical display. Keeping this
+            // null makes pharmacist recommendations open on the primary monitor even when Windows
+            // has a second customer-facing screen attached.
+            CustomerScreen = null;
             Title = "Epharm POSM — DEV (окно слева)";
             Log("DEV: оконце слева-сверху (рядом терминал/лог).");
         }
@@ -310,12 +316,14 @@ private void PositionWindowToTopRightQuarter()
             }
             else
             {
-                Log($"Backend: {c.BackendBaseUrl}");
+                Log($"Backend: {string.Join(" -> ", c.GetBackendBaseUris())}");
                 Log($"Аптека: {(string.IsNullOrWhiteSpace(c.PharmacyId) ? "—" : c.PharmacyId)}; " +
                     $"фармацевт: {(string.IsNullOrWhiteSpace(c.PharmacistId) ? "—" : "задан")}; " +
                     $"POSM включён: {c.Enabled}; видео: {c.VideoEnabled}; " +
                     $"опрос плейлиста: {c.PlaylistPollSec}с; рекомендации: только при скане, debounce {c.DebounceMs}мс");
-                Log($"Логи кассы Стандарт-Н: {string.Join(" | ", _logPaths)}");
+                Log("Начальные пути логов кассы Стандарт-Н: " +
+                    string.Join(" | ", StandardNLogLocator.BootstrapCandidates(c)));
+                Log("Фоновое обнаружение zkassa.log включено только около Standard-N/кассовых процессов и каталогов.");
                 Log($"БД Стандарт-Н: {(_standardNDb == null ? "не инициализирована" : _standardNDb.Describe())}");
             }
             Log("============================================================");
@@ -332,20 +340,64 @@ private void StartLogReader()
 {
     _logCts?.Cancel();
     _logCts = new CancellationTokenSource();
-
-    // Запускаем tail на КАЖДЫЙ путь-кандидат: оба кормят один парсер
-    // (ProcessLogLine). Отсутствующий файл — его цикл просто ждёт появления.
+    _activeLogReaders.Clear();
     var token = _logCts.Token;
-    foreach (var p in _logPaths)
+
+    // Explicit/cached/v1.0.23 paths are watched immediately even if Standard-N creates them later.
+    foreach (var path in StandardNLogLocator.BootstrapCandidates(_posmConfig))
+        StartLogTail(path, token, "начальный путь");
+
+    // Real pharmacies use different drive letters and install folders. Discovery is deliberately
+    // bounded and runs off the UI thread; it never scans all files on the workstation.
+    _ = Task.Run(() => DiscoverStandardNLogsLoop(token), token);
+}
+
+private async Task DiscoverStandardNLogsLoop(CancellationToken token)
+{
+    var firstPass = true;
+    while (!token.IsCancellationRequested)
     {
-        var path = p; // захват в замыкание
-        Log($"Слушаю лог: {path}");
-        _ = Task.Run(() => TailLogLoop(path, token));
+        try
+        {
+            var before = _activeLogReaders.Count;
+            foreach (var path in StandardNLogLocator.DiscoverExisting(_posmConfig))
+                StartLogTail(path, token, "обнаружен автоматически");
+
+            if (firstPass)
+            {
+                var added = _activeLogReaders.Count - before;
+                Log(added > 0
+                    ? $"Обнаружение Standard-N добавило логов: {added}"
+                    : "Обнаружение Standard-N: дополнительных zkassa.log пока не найдено; повторяю в фоне");
+                firstPass = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"Обнаружение Standard-N временно недоступно: {ex.GetBaseException().Message}");
+        }
+
+        try { await Task.Delay(TimeSpan.FromSeconds(30), token); }
+        catch (OperationCanceledException) { return; }
     }
+}
+
+private void StartLogTail(string path, CancellationToken token, string source)
+{
+    string fullPath;
+    try { fullPath = Path.GetFullPath(path); }
+    catch { return; }
+
+    if (!_activeLogReaders.TryAdd(fullPath, 0)) return;
+    Log($"Слушаю лог ({source}): {fullPath}");
+    _ = Task.Run(() => TailLogLoop(fullPath, token), token);
 }
 
 private async Task TailLogLoop(string path, CancellationToken token)
 {
+    DateTime lastErrorAt = DateTime.MinValue;
+    string? lastError = null;
+    var cashLogConfirmed = false;
     while (!token.IsCancellationRequested)
     {
         try
@@ -358,13 +410,28 @@ private async Task TailLogLoop(string path, CancellationToken token)
                 continue;
             }
 
-            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-using var reader = new StreamReader(fs, Encoding.GetEncoding(1251));
-           // using var reader = new StreamReader(fs, Encoding.UTF8);
-Log($"Лог-файл открыт: {path}");
+            using var fs = new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete,
+                bufferSize: 4096,
+                FileOptions.SequentialScan);
             // читаем только новое (с конца)
             fs.Seek(0, SeekOrigin.End);
+            var openedCreationTimeUtc = File.GetCreationTimeUtc(path);
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            using var reader = new StreamReader(fs, Encoding.GetEncoding(1251));
+            cashLogConfirmed = StandardNLogLocator.IsConfirmedCashLog(path);
+            if (cashLogConfirmed)
+            {
+                Log($"POSM готов принимать сканы: открыт {path}");
+                StandardNLogLocator.RememberConfirmed(path);
+            }
+            else
+            {
+                Log($"Слушаю кандидат кассового лога: {path}; подтвержу его на первой строке Standard-N");
+            }
 
             while (!token.IsCancellationRequested)
             {
@@ -372,14 +439,23 @@ Log($"Лог-файл открыт: {path}");
 
                 if (line == null)
                 {
-                    // если файл "перезаписали" (обнулили) — откроем заново
-                    if (fs.Length < fs.Position)
-                        break;
+                    // Reopen after truncate or rotation/replacement. FileShare.Delete allows
+                    // Standard-N to rotate the file without blocking either process.
+                    var current = new FileInfo(path);
+                    current.Refresh();
+                    if (!current.Exists || current.Length < fs.Position ||
+                        current.CreationTimeUtc != openedCreationTimeUtc) break;
 
                     await Task.Delay(200, token);
                     continue;
                 }
                 Log($"Считана строка: {line}");
+                if (!cashLogConfirmed && StandardNLogLocator.IsCashEventLine(line))
+                {
+                    cashLogConfirmed = true;
+                    Log($"POSM готов принимать сканы: открыт {path}");
+                    StandardNLogLocator.RememberConfirmed(path);
+                }
                 ProcessLogLine(line!);
             }
         }
@@ -387,9 +463,17 @@ Log($"Лог-файл открыт: {path}");
         {
             return;
         }
-        catch
+        catch (Exception ex)
         {
             // если касса временно блокнула файл / ротация / ошибка — пробуем снова
+            var key = ex.GetBaseException().Message;
+            if (!string.Equals(lastError, key, StringComparison.Ordinal) ||
+                DateTime.Now - lastErrorAt >= TimeSpan.FromSeconds(60))
+            {
+                lastError = key;
+                lastErrorAt = DateTime.Now;
+                Log($"Чтение zkassa.log временно недоступно ({path}): {key}; повторяю автоматически");
+            }
             await Task.Delay(500, token);
         }
     }
@@ -401,7 +485,7 @@ private void ProcessLogLine(string line)
     // Пока даю универсальные заглушки:
 
     // kassir=/cashier= из лога — fallback-источник фармацевта: работает ВСЕГДА, но не перебивает
-    // значение из БД Стандарт-Н (ACTIVEUSERS — приоритетный источник). На реальных кассах, где
+    // значение из БД Стандарт-Н (ACTIVEUSERS/открытая сессия — приоритетный источник). Там, где
     // Firebird недоступен POSM-клиенту, лог — единственный шанс узнать кассира.
     {
         var kassir = ExtractCashier(line);
@@ -409,21 +493,28 @@ private void ProcessLogLine(string line)
             !string.Equals(_currentPharmacistId, kassir, StringComparison.OrdinalIgnoreCase))
         {
             _currentPharmacistId = kassir!;
+            _currentPharmacistName = kassir!;
+            _currentStandardNSessionId = null;
             Log($"Фармацевт из лога кассы (kassir=): {kassir}");
         }
     }
 
-if (line.Contains("ChequeList.OnChange"))
+if (line.Contains("ChequeList.OnChange", StringComparison.OrdinalIgnoreCase))
 {
     HandleChequeDiscount(line);
     return;
 }
 
-    if (line.Contains("Add2Cheque") && !line.Contains("(delete)"))
+    if (line.Contains("Add2Cheque", StringComparison.OrdinalIgnoreCase) &&
+        !line.Contains("(delete)", StringComparison.OrdinalIgnoreCase))
 {
     RefreshCurrentPharmacistFromStandardNDb();
     var item = TryParseAdd2Cheque(line);
-    if (item == null) return;
+    if (item == null)
+    {
+        Log("POSM scan parse failed: строка Add2Cheque не содержит корректные iPartID/quant; см. предыдущую строку лога");
+        return;
+    }
     var priceSource = EnrichItemFromStandardNDb(item);
     LogScannedItemContext(item, priceSource);
 
@@ -439,8 +530,8 @@ if (line.Contains("ChequeList.OnChange"))
     return;
 }
 // Очистка чека после печати
-if (line.Contains("RunScriptByIndex") &&
-    line.Contains("После печати очереди чеков"))
+if (line.Contains("RunScriptByIndex", StringComparison.OrdinalIgnoreCase) &&
+    line.Contains("После печати очереди чеков", StringComparison.OrdinalIgnoreCase))
 {
     Log("Обнаружено завершение чека. Очищаем чек.");
 
@@ -454,7 +545,8 @@ if (line.Contains("RunScriptByIndex") &&
     return;
 }
 // Удаление позиции
-if (line.Contains("Add2Cheque") && line.Contains("(delete)"))
+if (line.Contains("Add2Cheque", StringComparison.OrdinalIgnoreCase) &&
+    line.Contains("(delete)", StringComparison.OrdinalIgnoreCase))
 {
     var partId = TryParsePartIdFromDelete(line);
     if (partId == null) return;
@@ -556,11 +648,13 @@ private void RefreshCurrentPharmacistFromStandardNDb()
     {
         // БД доступна, но активного пользователя нет. Очищаем ТОЛЬКО значение, которое сами же
         // брали из БД (кассир реально вышел). Значение из лога (kassir=) — не наша юрисдикция:
-        // на кассах, где ACTIVEUSERS не ведётся, лог — единственный источник, его не затираем.
+        // на кассах без доступной активной сессии лог — единственный источник, его не затираем.
         if (_pharmacistFromDb)
         {
             Log("Активный фармацевт из БД Стандарт-Н не найден — pharmacistId очищен");
             _currentPharmacistId = "";
+            _currentPharmacistName = "";
+            _currentStandardNSessionId = null;
             _pharmacistFromDb = false;
         }
         return;
@@ -568,6 +662,8 @@ private void RefreshCurrentPharmacistFromStandardNDb()
 
     var previous = _currentPharmacistId;
     _currentPharmacistId = active.Id;
+    _currentPharmacistName = active.Name ?? "";
+    _currentStandardNSessionId = active.SessionId;
     _pharmacistFromDb = true;
 
     if (!string.Equals(previous, _currentPharmacistId, StringComparison.OrdinalIgnoreCase))
@@ -632,23 +728,32 @@ private static string FormatMoneyForLog(decimal value) =>
     value > 0m ? $"{value:0.##} тг" : "—";
 
 /// <summary>
-/// Робастное извлечение EAN-13 из строки лога кассы (формат пока неизвестен — пробуем по очереди):
-///   (1) явное поле  barcode=&lt;цифры&gt;;  или  ean=&lt;цифры&gt;;  (без учёта регистра);
+/// Робастное извлечение EAN/GTIN из строки лога кассы:
+///   (1) явное поле barcode/barcode1/ean/ean13/bcode/штрихкод (без учёта регистра);
 ///   (2) значение в скобках  iPartID=&lt;id&gt;(&lt;inner&gt;)  — если inner это 8/12/13/14 цифр И НЕ совпадает
 ///       с внутренним id (как в синтетическом примере 80309(80309), где это просто дубль id);
 ///   (3) иначе null (сработает fallback-матчинг по Name на backend).
 /// </summary>
 private static string? ExtractBarcode(string line, string partIdStr)
 {
-    // (1) явное поле barcode= / ean=
-    var explicitBc = ExtractBetween(line, "barcode=", ";")?.Trim();
-    if (IsBarcode(explicitBc)) return explicitBc;
+    // Standard-N releases use different field labels and separators. Restrict the value to digits
+    // so a following field cannot accidentally become part of the barcode.
+    var explicitMatch = Regex.Match(
+        line,
+        @"(?:barcode1?|bar_?code|ean(?:13)?|bcode|shtrih|штрих(?:код)?)\s*[:=]\s*[""']?(?<value>\d{8,14})",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    if (explicitMatch.Success)
+    {
+        var value = explicitMatch.Groups["value"].Value;
+        if (IsBarcode(value)) return value;
+    }
 
-    var explicitEan = ExtractBetween(line, "ean=", ";")?.Trim();
-    if (IsBarcode(explicitEan)) return explicitEan;
-
-    // (2) значение в скобках iPartID=<id>(<inner>)
-    var inner = ExtractBetween(line, "(", ")")?.Trim();
+    // (2) value specifically attached to iPartID=<id>(<inner>), not an unrelated pair of brackets.
+    var ipartMatch = Regex.Match(
+        line,
+        @"iPartID\s*=\s*\d+\s*\(\s*(?<value>\d{8,14})\s*\)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    var inner = ipartMatch.Success ? ipartMatch.Groups["value"].Value : null;
     if (IsBarcode(inner) && !string.Equals(inner, partIdStr?.Trim(), StringComparison.Ordinal))
         return inner;
 
@@ -684,20 +789,19 @@ private static string? ExtractPartId(string line)
 }
 
 /// <summary>
-/// Кассир/фармацевт из строки лога кассы: токен kassir=&lt;id&gt; или cashier=&lt;id&gt; (без учёта
-/// регистра). Значение — до ';', пробела или конца строки. null, если токена нет. Реальное поле
-/// Стандарт-Н смапим, когда увидим настоящий лог; для демо кассир пишется этим токеном.
+/// Explicit cashier/operator marker from a Standard-N log line. This is a fallback for
+/// installations where Firebird is temporarily unavailable; the database remains authoritative.
 /// </summary>
 private static string? ExtractCashier(string line)
 {
-    foreach (var key in new[] { "kassir=", "cashier=" })
-    {
-        var v = ExtractBetween(line, key, ";")?.Trim();
-        if (string.IsNullOrWhiteSpace(v)) continue;
-        var sp = v.IndexOf(' ');           // обрезаем хвост, если за токеном идёт ещё что-то
-        return (sp >= 0 ? v.Substring(0, sp) : v).Trim();
-    }
-    return null;
+    var match = Regex.Match(
+        line,
+        @"(?:kassir|cashier|operator|seller|user_?id|user_?name|кассир|продавец|пользователь)\s*[:=]\s*[\""']?(?<value>[^;\t\r\n\""']+)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    if (!match.Success) return null;
+
+    var value = match.Groups["value"].Value.Trim().TrimEnd(',', '.');
+    return value.Length is > 0 and <= 255 ? value : null;
 }
 
 private static string? ExtractBetween(string s, string start, string? end)
@@ -810,6 +914,7 @@ ItemsList.Items.Refresh();
             try
             {
                 _logCts?.Cancel();
+                _standardNReceiptCts?.Cancel();
                 _playlistPollCts?.Cancel();
                 _mediaWarmupCts?.Cancel();
                 _recoCts?.Cancel();

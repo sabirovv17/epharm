@@ -103,8 +103,8 @@ class PharmacistsIntegrationTest {
             PharmacistEntity(
                 id = "u_pending", name = "Алмас Бекенов",
                 iin = "960501600011", phone = "+7 (701) 100-10-21",
-                pharmacyId = "europharma_0", pharmacyName = "Europharma №100",
-                city = "Алматы", joinedAt = LocalDate.of(2026, 2, 1),
+                pharmacyId = null, pharmacyName = null,
+                city = "", joinedAt = LocalDate.of(2026, 2, 1),
             ).also { it.tier = PharmacistTier.Silver; it.status = PharmacistStatus.pending },
         )
 
@@ -139,7 +139,7 @@ class PharmacistsIntegrationTest {
             get("/api/admin/pharmacists?pharmacyId=europharma_0").header("Authorization", bearer),
         )
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.length()").value(2))
+            .andExpect(jsonPath("$.length()").value(1))
     }
 
     @Test
@@ -242,6 +242,33 @@ class PharmacistsIntegrationTest {
         mockMvc.perform(post("/api/admin/pharmacists/u_active/unblock").header("Authorization", bearer))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.status").value("active"))
+    }
+
+    @Test
+    fun `POST activate назначает pending фармацевту аптеку и активирует профиль`() {
+        mockMvc.perform(
+            post("/api/admin/pharmacists/u_pending/activate")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"pharmacyId":"europharma_0"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("active"))
+            .andExpect(jsonPath("$.pharmacyId").value("europharma_0"))
+            .andExpect(jsonPath("$.pharmacyName").value("Europharma №100"))
+            .andExpect(jsonPath("$.city").value("Алматы"))
+    }
+
+    @Test
+    fun `POST activate отклоняет неизвестную аптеку`() {
+        mockMvc.perform(
+            post("/api/admin/pharmacists/u_pending/activate")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"pharmacyId":"missing"}"""),
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
     }
 
     private fun login(): LoginResponse {

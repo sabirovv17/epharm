@@ -33,7 +33,7 @@ namespace CustomerDisplay.Services
             _outbox = outbox;
         }
 
-        public void Report(CheckoutSession session, IEnumerable<ReceiptItem> items, string? pharmacistId = null)
+        public void Report(CheckoutSession session, IEnumerable<ReceiptItem> items)
         {
             var list = items
                 // Report only real Standard-N rows. Accepted recommendations are mirrored in UI
@@ -55,11 +55,12 @@ namespace CustomerDisplay.Services
             var sale = new SaleReport
             {
                 SaleId = "sale_" + Guid.NewGuid().ToString("N").Substring(0, 16),
-                // В боевом режиме фармацевт берётся строго из БД Стандарт-Н ACTIVEUSERS.USER_ID.
+                // В боевом режиме фармацевт берётся из активного пользователя/сессии Стандарт-Н.
                 // Если БД включена, но недоступна/пуста, отправляем пусто, а не устаревший fallback.
-                PharmacistId = !string.IsNullOrWhiteSpace(pharmacistId)
-                    ? pharmacistId
+                PharmacistId = !string.IsNullOrWhiteSpace(session.PharmacistId)
+                    ? session.PharmacistId
                     : (_cfg.StandardNDbEnabled ? "" : _cfg.PharmacistId),
+                PharmacistName = session.PharmacistName,
                 PharmacyId = _cfg.PharmacyId,
                 SessionId = session.SessionId,
                 // FiscalId / Cashier — из лога Стандарт-Н (формат уточняется пилотом, missing data #1).

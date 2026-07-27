@@ -17,13 +17,13 @@ The app defaults to the real backend:
 
 ```dart
 ApiConfig.useApi == true
-ApiConfig.baseUrl == https://api.epharm.kz
+ApiConfig.baseUrl == https://epharm.inkar.kz
 ```
 
 For the current shared demo, always pass:
 
 ```bash
---dart-define=API_BASE=https://epharm.78-140-246-238.sslip.io
+--dart-define=API_BASE=https://epharm.inkar.kz
 ```
 
 Offline mocks remain available with `--dart-define=USE_API=false`.
@@ -48,12 +48,14 @@ Offline mocks remain available with `--dart-define=USE_API=false`.
 3. Public home can show banners/promotions without login.
 4. Bonus/receipt-sensitive actions require auth.
 5. Auth flow: phone -> OTP -> optional registration -> home.
-6. Home grid shows active promo campaigns.
-7. Product sheet can show bonus CTA if active campaign exists.
-8. Upload prompt opens camera/gallery.
-9. Receipt review currently requires the card step; campaign id can be carried from the bonus CTA.
-10. Submit uploads multipart receipt to backend.
-11. Receipt list/detail shows moderation status; pull-to-refresh updates.
+6. Work shifts are managed only in Standard-N/company software on the pharmacy workstation; the
+   mobile application does not start or end shifts.
+7. Home grid shows active promo campaigns.
+8. Product sheet can show bonus CTA if active campaign exists.
+9. Upload prompt opens camera/gallery.
+10. Receipt review currently requires the card step; campaign id can be carried from the bonus CTA.
+11. Submit uploads multipart receipt to backend.
+12. Receipt list/detail shows moderation status; pull-to-refresh updates.
 
 QR/OFD scanning was removed by product decision. Receipt validation is not based on OCR.
 
@@ -108,7 +110,7 @@ Current visual direction:
 # shared demo backend
 flutter run \
   --dart-define=USE_API=true \
-  --dart-define=API_BASE=https://epharm.78-140-246-238.sslip.io
+  --dart-define=API_BASE=https://epharm.inkar.kz
 
 # local backend, iOS simulator
 flutter run --dart-define=USE_API=true --dart-define=API_BASE=http://localhost:8080
@@ -120,11 +122,10 @@ flutter run --dart-define=USE_API=true --dart-define=API_BASE=http://10.0.2.2:80
 flutter run --dart-define=USE_API=false
 ```
 
-`builds/build_all.sh` reads `API_BASE` from the environment. If omitted, it uses `https://api.epharm.kz`,
-which is the future production domain, not necessarily the current demo host.
+`builds/build_all.sh` reads `API_BASE` from the environment and defaults to `https://epharm.inkar.kz`.
 
 ```bash
-API_BASE=https://epharm.78-140-246-238.sslip.io bash builds/build_all.sh
+API_BASE=https://epharm.inkar.kz bash builds/build_all.sh
 ```
 
 ## iOS Build Gotchas

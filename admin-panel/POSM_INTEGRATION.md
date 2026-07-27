@@ -56,12 +56,19 @@ Per-device keys are a hardening item.
 
 ## Pharmacist identity
 
-`pharmacistId` is taken from the local Standard-N Firebird database, not `posm.json` (pharmacists
-work in shifts). POSM reads `ACTIVEUSERS.USER_ID` from `ztrade` and stamps that value on
-`/recommend` and `/sales`. The cash-log token `kassir=<id>` / `cashier=<id>` is used only when DB
-reading is explicitly disabled for diagnostics. If `ztrade` is unavailable, `pharmacistId` stays
-empty rather than using stale fallback data. `posm.json` no longer needs `pharmacistId`, and backend
-`pharmacistId` is optional (empty allowed).
+POSM reads the active cashier from Standard-N and sends both `USER_ID` and the name on
+`/recommend` and `/sales`. No shift is started or ended in the ePharm mobile app.
+
+The backend keeps the exact reported values for audit and resolves a trusted internal profile only
+when the reported id already is an active ePharm pharmacist of that pharmacy, or when the reported
+full name uniquely matches one active pharmacist assigned to the same pharmacy. Unmatched values
+are stored as `standardn_unmapped`, remain visible in the dashboard, and are excluded from automatic
+bonus reconciliation until mapped.
+
+The local Firebird adapter probes `ztrade` for an active user, but Standard-N installations may have
+different schemas. The production schema at Auezova 134 must be captured with the read-only diagnostic
+collector before automatic cashier detection can be considered verified. A fixed `pharmacistId` in
+`posm.json` must not be used for rotating employees.
 
 ## Recommendation Matching
 
@@ -81,9 +88,13 @@ Request item:
 Rules:
 
 1. Match product by exact `products.barcode`.
-2. If no barcode, match by normalized name.
-3. If multiple products match the same barcode/name, skip match and log a warning.
-4. `sku`/`iPartID` is diagnostic only.
+2. If barcode is unavailable/unmatched, match by exact `products.ipart_id`.
+3. If neither exact key resolves, match by normalized name.
+4. If multiple products match the same barcode/iPartID/name, skip match and log a warning.
+
+The client omits local `PARTS.ID` from recommendation requests whenever EAN is known. This keeps
+older deployed backends safe from cross-pharmacy numeric-id collisions while the server also enforces
+barcode-first matching.
 
 This replaced the obsolete `product_pos_codes` approach; the table was dropped in V030.
 
@@ -111,7 +122,7 @@ product, with timing. No bonus/payout side effects.
 
 - When a sale is recorded, the backend correlates it to shown recommendations of the **same
   `session_id`** (one session = one checkout — stronger than a time window) and checks whether the
-  recommended product (matched by our `productId`, the same collision-safe iPartID→barcode→name
+  recommended product (matched by our `productId`, the same collision-safe barcode→iPartID→name
   resolver used elsewhere) is present in the sale.
 - On a match the `recommendation_events` row gets `sold_at` (= printed time), `sale_id`, and
   `seconds_to_sale` = `sold_at − COALESCE(displayed_at, shown_at)` (clamped ≥ 0).
@@ -124,7 +135,7 @@ product, with timing. No bonus/payout side effects.
   `GET /api/admin/dashboard/recommendations`: KPI (shown/converted/conv-rate, "sold ≤ 2 min",
   avg/median time-to-sale, attributed revenue) + a single chronological **log merged from two
   tables** — `recommendation_events` (показ) and `pos_sales` (продажа) — each row with exact time,
-  type chip, pharmacy and pharmacist (the `kassir=` token). Auto-refreshes every 15 s.
+  type chip, pharmacy, trusted pharmacist, and attribution source. Auto-refreshes every 15 s.
 
 ## Reconciliation Sources
 

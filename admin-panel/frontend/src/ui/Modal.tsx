@@ -1,5 +1,5 @@
 // Modal — admin §11.1 — centered, max-width 460-620, esc closes, slide-in 220ms.
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useId, type ReactNode } from 'react'
 import { IconButton } from './Button'
 import { IconClose } from './icons'
 
@@ -22,6 +22,7 @@ export function Modal({
   footer,
   width = 520,
 }: ModalProps) {
+  const titleId = useId()
   useEffect(() => {
     if (!open) return
     const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -39,10 +40,15 @@ export function Modal({
         className="card slide-in w-full shadow-elevated"
         style={{ maxWidth: width }}
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
       >
         <div className="hairline flex items-start justify-between border-b px-5 pb-3 pt-5">
           <div>
-            <div className="text-[16px] font-extrabold text-ink-900">{title}</div>
+            <div id={titleId} className="text-[16px] font-extrabold text-ink-900">
+              {title}
+            </div>
             {subtitle && <div className="mt-0.5 text-[13px] text-ink-500">{subtitle}</div>}
           </div>
           <IconButton onClick={onClose} tip="Esc">

@@ -28,7 +28,7 @@ class PosSaleService(
     private val log = LoggerFactory.getLogger(PosSaleService::class.java)
 
     @Transactional
-    fun record(req: PosSaleRequest): Boolean {
+    fun record(req: PosSaleRequest, identity: PosmPharmacistIdentity): Boolean {
         if (posSaleRepository.existsById(req.saleId)) {
             log.debug("pos_sale {} уже обработан (идемпотентность)", req.saleId)
             return false
@@ -39,6 +39,10 @@ class PosSaleService(
                 id = req.saleId,
                 sessionId = req.sessionId,
                 pharmacistId = req.pharmacistId,
+                pharmacistName = req.pharmacistName?.trim()?.takeIf { it.isNotEmpty() },
+                reportedPharmacistId = identity.reportedPharmacistId,
+                reportedPharmacistName = identity.reportedPharmacistName,
+                pharmacistSource = identity.source.wireValue,
                 pharmacyId = req.pharmacyId,
                 fiscalId = req.fiscalId,
                 cashier = req.cashier,
@@ -48,6 +52,15 @@ class PosSaleService(
                 printedAt = req.printedAt,
             ),
         )
+        if (identity.pharmacistId.isBlank()) {
+            log.warn(
+                "POS sale {}: Standard-N продавец не сопоставлен (pharmacy={}, reportedId={}, reportedName={})",
+                req.saleId,
+                req.pharmacyId,
+                identity.reportedPharmacistId ?: "—",
+                identity.reportedPharmacistName ?: "—",
+            )
+        }
 
         // Резолвим позиции (штрих-код → имя) в наши productId — тем же матчером, что и /recommend.
         // pending-бонус хранит recommendSku = productId, поэтому в сверку отдаём именно productId
@@ -58,18 +71,22 @@ class PosSaleService(
         // Атрибуция показ→продажа (V032): закрываем рекомендации этой сессии, чей товар попал в чек.
         attributionService.attributeSale(sale, productIds.filterNotNull().toSet())
 
-        reconcileService.ingestLogSale(
-            LogSaleInput(
-                pharmacistId = req.pharmacistId,
-                pharmacyId = req.pharmacyId,
-                fiscalId = req.fiscalId,
-                cashier = req.cashier,
-                soldAt = req.printedAt,
-                items = req.items.mapIndexed { i, it ->
-                    LogSaleItem(sku = productIds[i] ?: it.sku ?: "", qty = it.qty, price = it.price, total = it.total)
-                },
-            ),
-        )
+        // Сверка/начисление допустимы только для доверенного внутреннего pharmacistId.
+        // Сырой Standard-N USER_ID всё равно сохранён выше и отображается в аналитике.
+        if (req.pharmacistId.isNotBlank()) {
+            reconcileService.ingestLogSale(
+                LogSaleInput(
+                    pharmacistId = req.pharmacistId,
+                    pharmacyId = req.pharmacyId,
+                    fiscalId = req.fiscalId,
+                    cashier = req.cashier,
+                    soldAt = req.printedAt,
+                    items = req.items.mapIndexed { i, it ->
+                        LogSaleItem(sku = productIds[i] ?: it.sku ?: "", qty = it.qty, price = it.price, total = it.total)
+                    },
+                ),
+            )
+        }
         return true
     }
 }

@@ -29,10 +29,12 @@ namespace CustomerDisplay
         private CheckoutSession _session = new();
 
         // Текущий фармацевт/кассир. Цепочка источников (по убыванию приоритета):
-        //   1) БД Стандарт-Н ACTIVEUSERS.USER_ID — основной боевой источник;
+        //   1) БД Стандарт-Н: ACTIVEUSERS либо открытая SESSIONS/SP$SESSIONS;
         //   2) токен kassir=/cashier= из лога кассы — fallback, когда БД недоступна/пуста.
         // При ОШИБКЕ БД прежнее значение НЕ затирается (сбой БД ≠ «кассир вышел»).
         private string _currentPharmacistId = "";
+        private string _currentPharmacistName = "";
+        private long? _currentStandardNSessionId;
         // true — текущее значение пришло из БД (лог-fallback не должен его перебивать).
         private bool _pharmacistFromDb;
 
@@ -55,7 +57,9 @@ namespace CustomerDisplay
         private sealed class ShownRecommendationState
         {
             public string EventId { get; init; } = "";
+            public RecommendationTriggerBinding? LocalTrigger { get; init; }
             public string? TriggerSku { get; init; }
+            public string? TriggerIpartId { get; init; }
             public string? TriggerBarcode { get; init; }
             public string? TriggerName { get; init; }
         }
@@ -74,7 +78,12 @@ namespace CustomerDisplay
         private System.Windows.Forms.Screen PharmacistScreen()
         {
             var screens = System.Windows.Forms.Screen.AllScreens;
-            var pharmacist = screens.FirstOrDefault(s => CustomerScreen == null || !s.Bounds.Equals(CustomerScreen.Bounds));
+            // Standard-N runs on the primary display in production. Prefer it explicitly instead
+            // of relying on Screen.AllScreens ordering, which is not guaranteed by Windows.
+            var pharmacist = screens.FirstOrDefault(s =>
+                s.Primary && (CustomerScreen == null || !s.Bounds.Equals(CustomerScreen.Bounds)));
+            pharmacist ??= screens.FirstOrDefault(s =>
+                CustomerScreen == null || !s.Bounds.Equals(CustomerScreen.Bounds));
             return pharmacist ?? System.Windows.Forms.Screen.PrimaryScreen!;
         }
 
@@ -84,6 +93,7 @@ namespace CustomerDisplay
             try
             {
                 _posmConfig = EpharmConfig.Load();
+                ConfigureLogPath(_posmConfig.AppLogPath);
                 _standardNDb = new StandardNDbLookup(_posmConfig, Log);
                 if (_posmConfig.Enabled)
                 {
@@ -92,7 +102,7 @@ namespace CustomerDisplay
                     _outbox = new OfflineOutbox(_posmConfig.OutboxDbPath);
                     _saleReporter = new SaleReporter(_posmConfig, _outbox);
                     _flusher = new OutboxFlusher(_outbox, _epharm, _posmConfig.OutboxFlushSec);
-                    Log($"POSM включён: backend={_posmConfig.BackendBaseUrl}, аптека={_posmConfig.PharmacyId}");
+                    Log($"POSM включён: backend={string.Join(" -> ", _posmConfig.GetBackendBaseUris())}, аптека={_posmConfig.PharmacyId}");
                 }
                 else
                 {
@@ -118,6 +128,8 @@ namespace CustomerDisplay
         private void OnProductScanned(Models.ReceiptItem scannedItem)
         {
             if (_epharm == null || _posmConfig == null) return;
+
+            CaptureCurrentSellerForSession();
 
             _recoCts?.Cancel();
             _recoCts = new CancellationTokenSource();
@@ -149,7 +161,7 @@ namespace CustomerDisplay
             if (ReceiptItems.Count == 0)
             {
                 ResetRecommendationUiState(closeWindows: true);
-                _session = new CheckoutSession();
+                StartNewCheckoutSession();
                 return;
             }
             CloseStaleRecommendationWindowForCurrentCart();
@@ -177,9 +189,10 @@ namespace CustomerDisplay
             {
                 List<string> requestLogItems = new();
                 string? requestPharmacistId = null;
+                string? requestPharmacistName = null;
                 var request = await Dispatcher.InvokeAsync(() =>
                 {
-                    var req = _session.BuildRequest(_posmConfig, ReceiptItems, scannedItem, _currentPharmacistId);
+                    var req = _session.BuildRequest(_posmConfig, ReceiptItems, scannedItem);
                     if (req.Cart.Count == 0)
                     {
                         ResetRecommendationUiState(closeWindows: true);
@@ -187,16 +200,17 @@ namespace CustomerDisplay
                     }
                     PruneShownStateForCurrentCart();
                     requestPharmacistId = req.PharmacistId;
-                    requestLogItems = ReceiptItems
-                        .Where(IsRealCashItem)
-                        .Select(i => $"sku={i.PartId}, ean={i.Barcode ?? "—"}, name={i.Name ?? "—"}, " +
-                                     $"qty={i.Qty:0.###}, price={FormatMoneyForLog(i.Price)}")
+                    requestPharmacistName = req.PharmacistName;
+                    requestLogItems = req.Cart
+                        .Select(i => $"sentSku={i.Sku ?? "—"}, ean={i.Barcode ?? "—"}, " +
+                                     $"name={i.Name ?? "—"}, qty={i.Qty:0.###}")
                         .ToList();
                     return req;
                 });
                 if (request == null) return;
 
-                Log($"POSM recommend request ({reason}): pharmacistId={requestPharmacistId ?? "—"}; " +
+                Log($"POSM recommend request ({reason}): pharmacistId={requestPharmacistId ?? "—"}, " +
+                    $"pharmacistName={requestPharmacistName ?? "—"}; " +
                     string.Join(" | ", requestLogItems));
 
                 var resp = await _epharm.RecommendAsync(request, token).ConfigureAwait(false);
@@ -204,13 +218,25 @@ namespace CustomerDisplay
                 var recommendations = resp.Recommendations ?? new List<Recommendation>();
                 var responseConflicts = resp.Conflicts ?? new List<Conflict>();
                 Log($"POSM recommend response ({reason}): recs={recommendations.Count}, conflicts={responseConflicts.Count}");
+                foreach (var rec in recommendations.Take(2))
+                {
+                    Log($"POSM recommend candidate: rule={rec.RuleId}, event={rec.EventId}, kind={rec.Kind}, " +
+                        $"triggerProductId={rec.TriggerSku ?? "—"}, triggerIpartId={rec.TriggerIpartId ?? "—"}, " +
+                        $"triggerEAN={rec.TriggerBarcode ?? "—"}, triggerName={rec.TriggerName ?? "—"}, " +
+                        $"recommend={rec.RecommendName}");
+                }
+
+                // OnProductScanned/OnCartChangedLocalOnly cancel this token whenever the cart changes.
+                // Therefore a live response already belongs to the current cart snapshot and is authoritative.
+                // Re-matching it locally used to drop valid recommendations because backend triggerSku is our
+                // catalog productId while Standard-N exposes iPartID. Stale responses remain protected by CTS.
+                token.ThrowIfCancellationRequested();
 
                 var conflicts = await Dispatcher.InvokeAsync(() => responseConflicts
                     .Where(c => c != null && !ConflictShown(c))
                     .ToList());
                 var recs = await Dispatcher.InvokeAsync(() => recommendations
                     .Take(2)
-                    .Where(RecommendationAppliesToCurrentCart)
                     .Where(r => !RecommendationShown(r))
                     .ToList());
 
@@ -222,8 +248,9 @@ namespace CustomerDisplay
 
                 await Dispatcher.InvokeAsync(() =>
                 {
+                    if (token.IsCancellationRequested) return;
                     if (conflicts.Count > 0) ShowConflicts(conflicts);
-                    if (recs.Count > 0) ShowRecommendations(recs);
+                    if (recs.Count > 0) ShowRecommendations(recs, scannedItem);
                 });
             }
             finally
@@ -342,25 +369,47 @@ namespace CustomerDisplay
         /// фиксируется по ТЕКУЩЕЙ показанной (win.Current) — фармацевт мог переключить таб.
         /// popup ВСЕГДА на экран фармацевта (не клиентский киоск). Бонус — не для клиента.
         /// </summary>
-        private void ShowRecommendations(List<Recommendation> recs)
+        private void ShowRecommendations(
+            List<Recommendation> recs,
+            Models.ReceiptItem? scannedItem = null)
         {
             if (recs == null || recs.Count == 0) return;
-            foreach (var r in recs)
-            {
-                MarkRecommendationShown(r);
-                var kind = r.IsSubstitution ? "замена" : "кросс-селл";
-                Log($"POSM popup: {kind} → {r.RecommendName} (EAN {r.RecommendBarcode ?? "—"}), бонус {r.Bonus} ₸");
-            }
             _recoWindow?.Close();
 
             // autoCloseSec=0 → попап НЕ закрывается по таймауту, висит до ✕. Карточка
             // информационная: F9/Esc (принять/пропустить) убраны — факт продажи определяется
             // по реальному чеку (источник №1 сверки), а не нажатием в окне. Поэтому ни
             // ApplyAcceptedToCheque, ни outcome-репорт отсюда не нужны.
-            var win = new RecommendationWindow(recs, 0, PharmacistScreen());
+            var target = PharmacistScreen();
+            var win = new RecommendationWindow(recs, 0, target);
+            var loaded = false;
+            win.Loaded += (_, _) =>
+            {
+                if (loaded) return;
+                loaded = true;
+                foreach (var r in recs)
+                {
+                    // Mark shown only after WPF confirms that the window is actually loaded.
+                    // A construction/Show failure must remain retryable and must not pollute analytics.
+                    MarkRecommendationShown(r, scannedItem);
+                    var kind = r.IsSubstitution ? "замена" : "кросс-селл";
+                    Log($"POSM popup показан: {kind} → {r.RecommendName} " +
+                        $"(EAN {r.RecommendBarcode ?? "—"}), бонус {r.Bonus} ₸");
+                }
+                Log($"POSM popup monitor={target.DeviceName}, primary={target.Primary}, " +
+                    $"bounds={target.Bounds}, window=({win.Left:0},{win.Top:0},{win.ActualWidth:0}x{win.ActualHeight:0})");
+            };
             win.Closed += (_, _) => { if (ReferenceEquals(_recoWindow, win)) _recoWindow = null; };
             _recoWindow = win;
-            win.Show();
+            try
+            {
+                win.Show();
+            }
+            catch (Exception ex)
+            {
+                if (ReferenceEquals(_recoWindow, win)) _recoWindow = null;
+                Log($"POSM popup не удалось открыть: {ex.Message}; следующий скан повторит показ");
+            }
         }
 
         /// <summary>Подпись конфликта для дедупликации в рамках чека (kind + триггер + правила).</summary>
@@ -389,13 +438,15 @@ namespace CustomerDisplay
         private bool RecommendationShown(Recommendation rec) =>
             !string.IsNullOrWhiteSpace(rec.EventId) && _shownRecommendations.ContainsKey(rec.EventId);
 
-        private void MarkRecommendationShown(Recommendation rec)
+        private void MarkRecommendationShown(Recommendation rec, Models.ReceiptItem? scannedItem)
         {
             if (string.IsNullOrWhiteSpace(rec.EventId)) return;
             _shownRecommendations[rec.EventId] = new ShownRecommendationState
             {
                 EventId = rec.EventId,
+                LocalTrigger = RecommendationTriggerBinding.FromReceiptItem(scannedItem),
                 TriggerSku = rec.TriggerSku,
+                TriggerIpartId = rec.TriggerIpartId,
                 TriggerBarcode = rec.TriggerBarcode,
                 TriggerName = rec.TriggerName,
             };
@@ -429,11 +480,12 @@ namespace CustomerDisplay
             // Старый/неполный backend может не вернуть trigger-поля. В этом случае не скрываем
             // рекомендацию: лучше показать её, чем потерять валидную акцию из-за неполного DTO.
             if (string.IsNullOrWhiteSpace(rec.TriggerSku) &&
+                string.IsNullOrWhiteSpace(rec.TriggerIpartId) &&
                 string.IsNullOrWhiteSpace(rec.TriggerBarcode) &&
                 string.IsNullOrWhiteSpace(rec.TriggerName))
                 return true;
 
-            return CartContainsTrigger(rec.TriggerSku, rec.TriggerBarcode, rec.TriggerName);
+            return CartContainsTrigger(rec.TriggerSku, rec.TriggerBarcode, rec.TriggerName, rec.TriggerIpartId);
         }
 
         private void CloseStaleRecommendationWindowForCurrentCart()
@@ -441,12 +493,22 @@ namespace CustomerDisplay
             var win = _recoWindow;
             if (win == null) return;
 
-            var stale = win.Recommendations.Any(r => !RecommendationAppliesToCurrentCart(r));
+            var stale = win.Recommendations.Any(r => !ShownRecommendationAppliesToCurrentCart(r));
             if (!stale) return;
 
             Log("POSM popup закрыт: товар-триггер удалён из чека");
             win.Close();
             if (ReferenceEquals(_recoWindow, win)) _recoWindow = null;
+        }
+
+        private bool ShownRecommendationAppliesToCurrentCart(Recommendation rec)
+        {
+            if (!string.IsNullOrWhiteSpace(rec.EventId) &&
+                _shownRecommendations.TryGetValue(rec.EventId, out var shown) &&
+                shown.LocalTrigger != null)
+                return shown.LocalTrigger.IsPresent(ReceiptItems);
+
+            return RecommendationAppliesToCurrentCart(rec);
         }
 
         private void PruneShownStateForCurrentCart()
@@ -455,7 +517,13 @@ namespace CustomerDisplay
             {
                 foreach (var kv in _shownRecommendations.ToList())
                 {
-                    if (!CartContainsTrigger(kv.Value.TriggerSku, kv.Value.TriggerBarcode, kv.Value.TriggerName))
+                    var applies = kv.Value.LocalTrigger?.IsPresent(ReceiptItems) ??
+                        CartContainsTrigger(
+                            kv.Value.TriggerSku,
+                            kv.Value.TriggerBarcode,
+                            kv.Value.TriggerName,
+                            kv.Value.TriggerIpartId);
+                    if (!applies)
                         _shownRecommendations.Remove(kv.Key);
                 }
             }
@@ -470,11 +538,13 @@ namespace CustomerDisplay
             }
         }
 
-        private bool CartContainsTrigger(string? sku, string? barcode, string? name)
+        private bool CartContainsTrigger(string? sku, string? barcode, string? name, string? ipartId = null)
         {
             return ReceiptItems.Where(IsRealCashItem).Any(item =>
                 (!string.IsNullOrWhiteSpace(sku) &&
                  string.Equals(item.PartId.ToString(), sku.Trim(), StringComparison.OrdinalIgnoreCase))
+                || (!string.IsNullOrWhiteSpace(ipartId) &&
+                 string.Equals(item.PartId.ToString(), ipartId.Trim(), StringComparison.OrdinalIgnoreCase))
                 || (!string.IsNullOrWhiteSpace(barcode) &&
                  string.Equals(item.Barcode?.Trim(), barcode.Trim(), StringComparison.OrdinalIgnoreCase))
                 || NamesLikelyMatch(item.Name, name));
@@ -519,9 +589,34 @@ namespace CustomerDisplay
         /// </summary>
         private void OnReceiptFinalized()
         {
-            RefreshCurrentPharmacistFromStandardNDb();
-            _saleReporter?.Report(_session, ReceiptItems, _currentPharmacistId); // позиции ещё в чеке
+            // If the first lookup failed, SellerCaptured remains false. Retry immediately before
+            // queuing the completed receipt instead of permanently sending an empty seller.
+            if (!_session.SellerCaptured)
+            {
+                RefreshCurrentPharmacistFromStandardNDb();
+                CaptureCurrentSellerForSession();
+            }
+            _saleReporter?.Report(_session, ReceiptItems); // позиции ещё в чеке
             ResetRecommendationUiState(closeWindows: true);
+            StartNewCheckoutSession();
+        }
+
+        private void CaptureCurrentSellerForSession()
+        {
+            if (_session.SellerCaptured) return;
+            _session.CaptureSeller(
+                _currentPharmacistId,
+                _currentPharmacistName,
+                _currentStandardNSessionId);
+            if (!_session.SellerCaptured) return;
+
+            Log($"Продавец чека зафиксирован: id={(_session.PharmacistId.Length == 0 ? "—" : _session.PharmacistId)}, " +
+                $"name={(_session.PharmacistName.Length == 0 ? "—" : _session.PharmacistName)}, " +
+                $"standardNSession={_session.StandardNSessionId?.ToString() ?? "—"}");
+        }
+
+        private void StartNewCheckoutSession()
+        {
             _session = new CheckoutSession();
         }
     }

@@ -12,6 +12,7 @@ import { Button, Empty, PageHeader, SectionCard, Tabs, useToast } from '@/ui'
 import { IconPlus, IconScreens, IconUpload } from '@/ui/icons'
 import { useBroadcast, useConnectedScreens, useUploadBroadcast } from '@/lib/queries/screens'
 import { describeError } from '@/lib/describeError'
+import { resolveEpharmMediaUrl } from '@/lib/media'
 import { useT } from '@/i18n'
 import { BannersPanel, type BannerEditing } from './BannersPanel'
 
@@ -145,7 +146,7 @@ function BroadcastCard() {
         {current ? (
           <>
             <video
-              src={current.url}
+              src={resolveEpharmMediaUrl(current.url)}
               className="max-h-[280px] w-auto rounded-xl border border-ink-100 bg-black"
               controls
               muted

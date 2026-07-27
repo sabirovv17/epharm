@@ -1,7 +1,7 @@
 // Тесты PharmacistsPage — пустой/loading/error/полный список + block/unblock.
 
 import { describe, expect, it, beforeEach, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
@@ -14,11 +14,18 @@ const pharmacistHooks = vi.hoisted(() => ({
   usePharmacist: vi.fn(),
   useCreatePharmacist: vi.fn(),
   useUpdatePharmacist: vi.fn(),
+  useActivatePharmacist: vi.fn(),
   useBlockPharmacist: vi.fn(),
   useUnblockPharmacist: vi.fn(),
 }))
 
 vi.mock('@/lib/queries/pharmacists', () => pharmacistHooks)
+
+const pharmacyHooks = vi.hoisted(() => ({
+  usePharmacies: vi.fn(),
+}))
+
+vi.mock('@/lib/queries/pharmacies', () => pharmacyHooks)
 
 function mkPharmacist(over: Partial<PharmacistDto> = {}): PharmacistDto {
   return {
@@ -56,6 +63,29 @@ function setPharmacists(list: PharmacistDto[] = []) {
 beforeEach(() => {
   vi.clearAllMocks()
   setPharmacists([])
+  pharmacyHooks.usePharmacies.mockReturnValue({
+    data: [
+      {
+        id: 'ph_1',
+        name: 'Ауэзова 134',
+        chainId: 'inkar',
+        chainName: 'Inkar',
+        city: 'Алматы',
+        district: '',
+        addr: '',
+        group: 'pilot',
+        pharmacists: 0,
+        receipts30d: 0,
+        gmv30d: 0,
+        liftPct: 0,
+        rulesAccepted: 0,
+        active: true,
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+      },
+    ],
+  })
+  pharmacistHooks.useActivatePharmacist.mockReturnValue({ mutate: vi.fn(), isPending: false })
   pharmacistHooks.useBlockPharmacist.mockReturnValue({ mutate: vi.fn(), isPending: false })
   pharmacistHooks.useUnblockPharmacist.mockReturnValue({ mutate: vi.fn(), isPending: false })
 })
@@ -150,5 +180,31 @@ describe('PharmacistsPage — список и actions', () => {
     renderPage()
     await user.click(screen.getByRole('button', { name: /Разблок\./ }))
     expect(mutate).toHaveBeenCalledWith('u_b', expect.any(Object))
+  })
+
+  it('pending фармацевта можно назначить аптеке и активировать', async () => {
+    const mutate = vi.fn()
+    pharmacistHooks.useActivatePharmacist.mockReturnValue({ mutate, isPending: false })
+    setPharmacists([
+      mkPharmacist({
+        id: 'u_pending',
+        status: 'pending',
+        pharmacyId: '',
+        pharmacyName: '',
+        city: '',
+      }),
+    ])
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(screen.getByRole('button', { name: 'Активировать' }))
+    const dialog = screen.getByRole('dialog', { name: 'Активация фармацевта' })
+    await user.selectOptions(within(dialog).getByRole('combobox'), 'ph_1')
+    await user.click(within(dialog).getByRole('button', { name: 'Активировать' }))
+
+    expect(mutate).toHaveBeenCalledWith(
+      { id: 'u_pending', request: { pharmacyId: 'ph_1' } },
+      expect.any(Object),
+    )
   })
 })

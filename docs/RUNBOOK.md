@@ -119,7 +119,7 @@ Shared demo backend:
 ```bash
 flutter run \
   --dart-define=USE_API=true \
-  --dart-define=API_BASE=https://epharm.78-140-246-238.sslip.io
+  --dart-define=API_BASE=https://epharm.inkar.kz
 ```
 
 Local backend:
@@ -230,13 +230,13 @@ For Windows client operation, use:
 Current public host:
 
 ```text
-https://epharm.78-140-246-238.sslip.io
+https://epharm.inkar.kz
 ```
 
 On server:
 
 ```bash
-cd /root/epharm
+cd /home/adm-quasar/epharm
 docker compose --env-file .env.prod -f docker-compose.prod.yml ps
 docker compose --env-file .env.prod -f docker-compose.prod.yml logs -f backend
 docker logs epharm-caddy --tail 100
@@ -248,13 +248,13 @@ Deploy from local git snapshot:
 git archive --format=tar.gz -o /tmp/epharm-deploy.tar.gz HEAD \
   admin-panel/backend admin-panel/frontend docker-compose.prod.yml Caddyfile tools .env.prod.example
 
-scp -i ~/.ssh/epharm_deploy /tmp/epharm-deploy.tar.gz root@78.140.246.238:/tmp/
+scp /tmp/epharm-deploy.tar.gz adm-quasar@inkpim.inkar.kz:/tmp/
 ```
 
 Then on server:
 
 ```bash
-cd /root/epharm
+cd /home/adm-quasar/epharm
 tar xzf /tmp/epharm-deploy.tar.gz admin-panel/backend admin-panel/frontend Caddyfile
 bash tools/pg-backup.sh
 docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build backend frontend caddy

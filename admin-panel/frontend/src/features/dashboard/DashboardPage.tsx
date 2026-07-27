@@ -258,7 +258,28 @@ function RecommendationsSection() {
                     )}
                   </td>
                   <td className="py-2.5 pr-3 text-ink-600">{e.pharmacyName}</td>
-                  <td className="py-2.5 pr-3 text-ink-600">{e.pharmacistName}</td>
+                  <td className="py-2.5 pr-3">
+                    <div
+                      className={
+                        e.pharmacistName === '—' ? 'font-semibold text-red-600' : 'text-ink-600'
+                      }
+                    >
+                      {e.pharmacistName === '—' ? t('recan.sellerUnknown') : e.pharmacistName}
+                    </div>
+                    {e.type === 'sale' && e.pharmacistSource === 'posm_internal' && (
+                      <div className="text-[11px] text-ink-500">{t('recan.sellerInternal')}</div>
+                    )}
+                    {e.type === 'sale' && e.pharmacistSource === 'standardn_name_match' && (
+                      <div className="text-[11px] font-semibold text-green-700">
+                        {t('recan.sellerNameMatch')}
+                      </div>
+                    )}
+                    {e.type === 'sale' && e.pharmacistSource === 'standardn_unmapped' && (
+                      <div className="text-[11px] font-semibold text-amber-700">
+                        {t('recan.sellerUnmapped')}
+                      </div>
+                    )}
+                  </td>
                   <td className="num py-2.5 text-right font-bold text-ink-900">
                     {formatKzt(e.amount)}
                   </td>

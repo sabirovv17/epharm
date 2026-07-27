@@ -1,0 +1,13 @@
+Third-party components bundled only with the Standard-N scan-source diagnostic
+
+Firebird ADO.NET Provider 10.3.4
+Copyright (c) 2002-2025 FirebirdSQL.
+License: see licenses/FirebirdSql.Data.FirebirdClient-license.txt.
+
+System.Threading.Tasks.Extensions 4.6.0
+Copyright (c) Microsoft Corporation.
+License: MIT.
+
+System.Runtime.CompilerServices.Unsafe 6.1.0
+Copyright (c) Microsoft Corporation.
+License: MIT.

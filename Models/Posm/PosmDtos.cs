@@ -22,6 +22,7 @@ namespace CustomerDisplay.Models.Posm
     public sealed class RecommendRequest
     {
         public string PharmacistId { get; set; } = "";
+        public string? PharmacistName { get; set; }
         public string PharmacyId { get; set; } = "";
         public string SessionId { get; set; } = "";
         public string? ScannedBarcode { get; set; }   // последний отсканированный EAN-13 (информационно)
@@ -51,6 +52,7 @@ namespace CustomerDisplay.Models.Posm
 
         // Что попросил покупатель (исходный товар)
         public string? TriggerSku { get; set; }
+        public string? TriggerIpartId { get; set; }      // iPartID Стандарт-Н (отдельно от productId каталога)
         public string? TriggerName { get; set; }
         public string? TriggerVolume { get; set; }         // «150 мл»
         public int? TriggerPrice { get; set; }             // 2390

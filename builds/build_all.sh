@@ -9,8 +9,8 @@ cd "$(dirname "$0")/.."
 
 VERSION=$(grep "^version:" pubspec.yaml | awk '{print $2}' | sed 's/+.*//')
 
-# Прод-таргет по умолчанию. Переопредели для стейджа: API_BASE=https://stage.api.epharm.kz ./build_all.sh
-API_BASE="${API_BASE:-https://api.epharm.kz}"
+# Прод-таргет по умолчанию. Переопредели для стейджа через API_BASE.
+API_BASE="${API_BASE:-https://epharm.inkar.kz}"
 DART_DEFINES="--dart-define=USE_API=true --dart-define=API_BASE=${API_BASE}"
 echo "▶ Building Epharm v${VERSION}  (API_BASE=${API_BASE})"
 

@@ -8,7 +8,7 @@
 # автозапуском при boot: `systemctl enable docker`).
 #
 # Клиенты (кассы /api/posm, телефоны /api/mobile, менеджеры — админка) ходят на этот сервер.
-# TLS/домен (api.epharm.kz) — отдельным reverse-proxy (Caddy) поверх; см. RUNBOOK.
+# TLS/домен (epharm.inkar.kz) — отдельным reverse-proxy (Caddy) поверх; см. RUNBOOK.
 # Секреты — в .env.prod (НЕ коммитится); шаблон — .env.prod.example.
 
 services:
@@ -156,7 +156,7 @@ services:
     expose:
       - '80'
 
-  # Reverse-proxy + автоматический TLS (Let's Encrypt). Единственная точка входа из интернета.
+  # Reverse-proxy + TLS. Порт 8060 — доверенный HTTP-upstream внешнего TLS ingress INKAR.
   caddy:
     image: caddy:2-alpine
     container_name: epharm-caddy
@@ -169,15 +169,18 @@ services:
       - '80:80'
       - '443:443'
       - '443:443/udp' # HTTP/3
+      - '8060:8060'
     environment:
       ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env.prod}
-      API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN (напр. api.epharm.kz) in .env.prod}
-      ADMIN_DOMAIN: ${ADMIN_DOMAIN:?set ADMIN_DOMAIN (напр. admin.epharm.kz) in .env.prod}
-      S3_DOMAIN: ${S3_DOMAIN:?set S3_DOMAIN (напр. s3.epharm.kz) in .env.prod}
+      API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN (напр. epharm.inkar.kz) in .env.prod}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN:?set ADMIN_DOMAIN (напр. epharm.inkar.kz) in .env.prod}
+      S3_DOMAIN: ${S3_DOMAIN:?set S3_DOMAIN (напр. epharm.inkar.kz) in .env.prod}
+      POSM_DEVICE_KEY: ${POSM_DEVICE_KEY:?set POSM_DEVICE_KEY in .env.prod}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${TLS_CERT_DIR:-./tls}:/etc/caddy/tls:ro
       - /srv/epharm-downloads:/srv/epharm-downloads:ro
-      - caddy_data:/data # сертификаты Let's Encrypt (переживают рестарт)
+      - caddy_data:/data # служебные данные Caddy (переживают рестарт)
       - caddy_config:/config
 
 volumes:
