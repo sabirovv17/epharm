@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import java.time.Instant
 
-/** Подсчёт подключённых касс (T4): пульсы, дедуп по deviceId, протухание по TTL. */
+/** Подсчёт подключённых касс (T4): пульсы, дедуп по аптеке + устройству, протухание по TTL. */
 class DevicePresenceServiceTest {
 
     private val svc = DevicePresenceService(ttlSeconds = 90)
@@ -26,6 +26,17 @@ class DevicePresenceServiceTest {
         svc.heartbeat("kassa-2", "ph_b", t0)
 
         assertEquals(2, svc.count(t0.plusSeconds(20)))
+    }
+
+    @Test
+    fun `одно имя Windows в разных аптеках считается разными кассами`() {
+        svc.heartbeat("KASSA1", "ph_a", t0)
+        svc.heartbeat("KASSA1", "ph_b", t0.plusSeconds(5))
+
+        val connected = svc.connected(t0.plusSeconds(10))
+        assertEquals(2, connected.size)
+        assertEquals(setOf("ph_a", "ph_b"), connected.mapNotNull { it.pharmacyId }.toSet())
+        assertEquals(setOf("KASSA1"), connected.map { it.deviceId }.toSet())
     }
 
     @Test
@@ -58,12 +69,15 @@ class DevicePresenceServiceTest {
         every { zset.rangeByScore(any(), any(), any()) } returns emptySet()
         every { zset.rangeByScoreWithScores(any(), any(), any()) } returns
             setOf(DefaultTypedTuple("kassa-redis", t0.toEpochMilli().toDouble()))
-        every { hash.multiGet(any(), any()) } returns listOf("ph_redis")
+        every { hash.multiGet("epharm:posm:presence:pharmacy", any()) } returns listOf("ph_redis")
+        every { hash.multiGet("epharm:posm:presence:device", any()) } returns listOf("kassa-redis")
 
         val writer = DevicePresenceService(ttlSeconds = 90, redisProvider = provider)
         writer.heartbeat("kassa-redis", "ph_redis", t0)
-        verify { zset.add("epharm:posm:presence:last-seen", "kassa-redis", t0.toEpochMilli().toDouble()) }
-        verify { hash.put("epharm:posm:presence:pharmacy", "kassa-redis", "ph_redis") }
+        val key = "ph_redis\u001Fkassa-redis"
+        verify { zset.add("epharm:posm:presence:last-seen", key, t0.toEpochMilli().toDouble()) }
+        verify { hash.put("epharm:posm:presence:pharmacy", key, "ph_redis") }
+        verify { hash.put("epharm:posm:presence:device", key, "kassa-redis") }
 
         val afterRestart = DevicePresenceService(ttlSeconds = 90, redisProvider = provider)
         val restored = afterRestart.connected(t0.plusSeconds(10))

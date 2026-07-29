@@ -13,7 +13,9 @@ import java.util.concurrent.atomic.AtomicLong
  * Присутствие касс (T4): сколько POSM-устройств сейчас «онлайн».
  *
  * Подход — хелсчек раз в минуту: касса шлёт POST /api/posm/heartbeat каждые ~60с,
- * мы помним последний пульс по deviceId. «Онлайн» = пульс не старше TTL
+ * мы помним последний пульс по паре pharmacyId + deviceId. Имя компьютера Windows часто
+ * повторяется между аптеками (например, KASSA1), поэтому deviceId сам по себе нельзя
+ * использовать как ключ присутствия. «Онлайн» = пульс не старше TTL
  * (`app.posm.heartbeat-ttl-seconds`, по умолчанию 90с ≈ 1.5 интервала).
  *
  * Redis хранит shared/persistent last-seen, поэтому список не обнуляется при рестарте backend и
@@ -32,26 +34,34 @@ class DevicePresenceService(
     companion object {
         private const val LAST_SEEN_KEY = "epharm:posm:presence:last-seen"
         private const val PHARMACY_KEY = "epharm:posm:presence:pharmacy"
+        private const val DEVICE_KEY = "epharm:posm:presence:device"
         private const val REDIS_WARNING_INTERVAL_MS = 60_000L
+        private const val STORAGE_SEPARATOR = "\u001F"
+
+        private fun presenceKey(deviceId: String, pharmacyId: String?): String =
+            pharmacyId?.let { "$it$STORAGE_SEPARATOR$deviceId" } ?: deviceId
     }
 
     data class Presence(
         val deviceId: String,
         val pharmacyId: String?,
         val lastSeen: Instant,
+        internal val storageKey: String = presenceKey(deviceId, pharmacyId),
     )
 
     /** Зафиксировать пульс устройства. Логируем INFO только на ПОДКЛЮЧЕНИЕ (новый/после оффлайна),
      *  чтобы не спамить каждые 60с, но было видно «касса подключилась» на бэкенде. */
     fun heartbeat(deviceId: String, pharmacyId: String?, now: Instant = Instant.now()) {
-        val prev = seen[deviceId]
-        val wasOffline = prev == null || prev.lastSeen.isBefore(now.minusSeconds(ttlSeconds))
         val normalizedPharmacy = pharmacyId?.takeIf { it.isNotBlank() }
-        seen[deviceId] = Presence(deviceId, normalizedPharmacy, now)
+        val key = presenceKey(deviceId, normalizedPharmacy)
+        val prev = seen[key]
+        val wasOffline = prev == null || prev.lastSeen.isBefore(now.minusSeconds(ttlSeconds))
+        seen[key] = Presence(deviceId, normalizedPharmacy, now, key)
 
         withRedis { redis ->
-            redis.opsForZSet().add(LAST_SEEN_KEY, deviceId, now.toEpochMilli().toDouble())
-            redis.opsForHash<String, String>().put(PHARMACY_KEY, deviceId, normalizedPharmacy ?: "")
+            redis.opsForZSet().add(LAST_SEEN_KEY, key, now.toEpochMilli().toDouble())
+            redis.opsForHash<String, String>().put(PHARMACY_KEY, key, normalizedPharmacy ?: "")
+            redis.opsForHash<String, String>().put(DEVICE_KEY, key, deviceId)
         }
 
         if (wasOffline) {
@@ -69,12 +79,12 @@ class DevicePresenceService(
         }
 
         val combined = HashMap<String, Presence>()
-        readRedisPresence(cutoff).forEach { combined[it.deviceId] = it }
+        readRedisPresence(cutoff).forEach { combined[it.storageKey] = it }
         seen.values.forEach { local ->
-            val stored = combined[local.deviceId]
-            if (stored == null || stored.lastSeen.isBefore(local.lastSeen)) combined[local.deviceId] = local
+            val stored = combined[local.storageKey]
+            if (stored == null || stored.lastSeen.isBefore(local.lastSeen)) combined[local.storageKey] = local
         }
-        return combined.values.sortedBy { it.deviceId }
+        return combined.values.sortedWith(compareBy<Presence>({ it.pharmacyId ?: "" }, { it.deviceId }))
     }
 
     fun count(now: Instant = Instant.now()): Int = connected(now).size
@@ -91,6 +101,7 @@ class DevicePresenceService(
             if (expiredIds.isNotEmpty()) {
                 zset.removeRangeByScore(LAST_SEEN_KEY, Double.NEGATIVE_INFINITY, expiredBefore)
                 hash.delete(PHARMACY_KEY, *expiredIds.toTypedArray())
+                hash.delete(DEVICE_KEY, *expiredIds.toTypedArray())
             }
 
             val tuples = zset.rangeByScoreWithScores(
@@ -103,13 +114,17 @@ class DevicePresenceService(
                 val score = tuple.score ?: return@mapNotNull null
                 deviceId to score
             }
-            val ids = values.map { it.first }
-            val pharmacies = if (ids.isEmpty()) emptyList() else hash.multiGet(PHARMACY_KEY, ids).orEmpty()
-            result = values.mapIndexed { index, (deviceId, score) ->
+            val keys = values.map { it.first }
+            val pharmacies = if (keys.isEmpty()) emptyList() else hash.multiGet(PHARMACY_KEY, keys).orEmpty()
+            val deviceIds = if (keys.isEmpty()) emptyList() else hash.multiGet(DEVICE_KEY, keys).orEmpty()
+            result = values.mapIndexed { index, (key, score) ->
                 Presence(
-                    deviceId = deviceId,
+                    // Records created before the composite-key fix have no DEVICE_KEY entry.
+                    // They naturally expire after the normal TTL and remain readable until then.
+                    deviceId = deviceIds.getOrNull(index)?.takeIf { it.isNotBlank() } ?: key,
                     pharmacyId = pharmacies.getOrNull(index)?.takeIf { it.isNotBlank() },
                     lastSeen = Instant.ofEpochMilli(score.toLong()),
+                    storageKey = key,
                 )
             }
         }
@@ -138,4 +153,5 @@ class DevicePresenceService(
             log.warn("POSM presence Redis temporarily unavailable; using in-memory fallback: {}", ex.message)
         }
     }
+
 }

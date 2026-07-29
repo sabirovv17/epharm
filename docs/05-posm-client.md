@@ -163,7 +163,9 @@ hashes before reusing an existing folder, performs a bounded handover from an ol
 reports success only after the expected executable path and a fresh UI heartbeat are verified.
 
 POSM sends backend presence every 30 seconds. Backend considers a device online for 90 seconds and
-persists last-seen/pharmacy mapping in Redis with an in-memory fail-safe. The admin screen polls the
+persists last-seen/pharmacy mapping in Redis with an in-memory fail-safe. Presence is keyed by the
+pair `pharmacyId + deviceId`, not by the Windows machine name alone: `KASSA1` can therefore exist
+in multiple pharmacies without one live cash desk hiding another. The admin screen polls the
 connected-device endpoint every 30 seconds.
 
 ## Operations

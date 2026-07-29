@@ -40,7 +40,9 @@ Admin
   continues and no popup is shown.
 - Outcomes and sale reports go through local SQLite outbox and retry.
 - Customer display media uses polling via `GET /api/posm/playlists/active`.
-- Online cash desk count uses `POST /api/posm/heartbeat`.
+- Online cash desk count uses `POST /api/posm/heartbeat`. Presence is unique per
+  `pharmacyId + deviceId`; a generic Windows name such as `KASSA1` may repeat in different
+  pharmacies without overwriting another connected cash desk.
 - SSE/websocket screen control is not active.
 
 ## Authentication
