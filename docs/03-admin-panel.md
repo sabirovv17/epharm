@@ -59,7 +59,7 @@ the Screens section.
 | AI Exam     | Question bank CRUD.                                                                                               |
 | Finance     | Payout batches, generation, approval with finance/HQ role checks.                                                 |
 | Lift        | Pilot/control analytics view.                                                                                     |
-| LMS         | Course CRUD.                                                                                                      |
+| Training    | Dashboard, programs/routes, courses, events/QR, assignments, attendance, results, certificates and analytics.     |
 | Storefront  | Read-only Medusa catalog as seen through backend proxy.                                                           |
 | Settings    | Language/timezone/session settings.                                                                               |
 

@@ -75,7 +75,7 @@ class LmsIntegrationTest {
 
         adminUserRepository.save(
             AdminUserEntity(email = "damir@jadran.com", passwordHash = passwordEncoder.encode("damir2026"),
-                name = "Дамир", company = "Jadran").also { it.role = AdminRole.BRAND_MANAGER; it.status = AdminUserStatus.ACTIVE },
+                name = "Дамир", company = "Jadran").also { it.role = AdminRole.HQ_HEAD; it.status = AdminUserStatus.ACTIVE },
         )
         bearer = "Bearer " + login().tokens.accessToken
     }
@@ -160,11 +160,15 @@ class LmsIntegrationTest {
     }
 
     @Test
-    fun `DELETE course → 204`() {
+    fun `DELETE course archives it without deleting history`() {
         mockMvc.perform(delete("/api/admin/lms/courses/crs_draft").header("Authorization", bearer))
             .andExpect(status().isNoContent)
         mockMvc.perform(get("/api/admin/lms/courses/crs_draft").header("Authorization", bearer))
-            .andExpect(status().isNotFound)
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("archived"))
+        mockMvc.perform(get("/api/admin/lms/courses?status=archived").header("Authorization", bearer))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$[0].id").value("crs_draft"))
     }
 
     @Test

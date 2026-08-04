@@ -50,7 +50,7 @@ export const ru: Dict = {
   'nav.ai_exam': 'AI-Экзаменация',
   'nav.finance': 'Финансы / выплаты',
   'nav.lift': 'Аналитика lift',
-  'nav.lms': 'Обучение / LMS',
+  'nav.lms': 'Обучение',
   'nav.settings': 'Настройки',
   'nav.storefront': 'Витрина / Каталог',
 
@@ -142,7 +142,7 @@ export const ru: Dict = {
   'page.lift.title': 'Аналитика lift',
   'page.lift.subtitle':
     'Pilot vs Control. Визуализация прироста продаж от внедрения промо-механики с расчётом статистической значимости.',
-  'page.lms.title': 'Обучение / LMS',
+  'page.lms.title': 'Обучение',
   'page.lms.subtitle':
     'Видео-курсы и тесты для фармацевтов. Бонусы за прохождение, прогресс, аналитика.',
   'page.settings.title': 'Настройки',
@@ -1220,7 +1220,7 @@ export const kk: Dict = {
   'page.lift.title': 'Lift аналитикасы',
   'page.lift.subtitle':
     'Pilot vs Control. Промо-механиканы енгізуден сатылым өсімін визуализациялау, статистикалық маңыздылықты есептеу.',
-  'page.lms.title': 'Оқыту / LMS',
+  'page.lms.title': 'Оқыту',
   'page.lms.subtitle':
     'Фармацевттерге арналған видео-курстар мен тесттер. Өту үшін бонустар, прогресс, аналитика.',
   'page.settings.title': 'Баптаулар',

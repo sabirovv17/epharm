@@ -13,6 +13,7 @@ spring:
       - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
 
 app:
+  public-base-url: http://localhost
   jwt:
     secret: test-secret-key-of-at-least-32-bytes-for-hs256-tests-only-please
     access-ttl-minutes: 15

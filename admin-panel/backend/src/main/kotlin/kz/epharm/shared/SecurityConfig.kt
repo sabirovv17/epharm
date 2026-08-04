@@ -81,6 +81,9 @@ class SecurityConfig(
                         // Прокси изображений витрины Medusa (http→https, mixed-content fix).
                         // Публичный, как сам каталог; SSRF-guard внутри MediaProxyController.
                         "/api/media/**",
+                        // Сертификат проверяется по непредсказуемому UUID-token из QR-кода.
+                        // Публичный доступ нужен внешнему проверяющему без учётной записи ePharm.
+                        "/api/public/training/certificates/**",
                     ).permitAll()
                     // Метрики/prometheus — только для админ-консоли, не наружу.
                     .requestMatchers("/actuator/**").hasAnyRole(*ADMIN_ROLES)
@@ -125,6 +128,15 @@ class SecurityConfig(
     companion object {
         // Роли HQ-консоли (без префикса ROLE_ — Spring добавляет его сам в hasAnyRole).
         // Должны соответствовать enum AdminRole и CHECK-constraint в V002__auth.sql.
-        private val ADMIN_ROLES = arrayOf("HQ_HEAD", "CATEGORY_LEAD", "BRAND_MANAGER", "FINANCE_REVIEWER")
+        private val ADMIN_ROLES = arrayOf(
+            "SYSTEM_ADMIN",
+            "HQ_HEAD",
+            "TRAINING_MANAGER",
+            "REGIONAL_MANAGER",
+            "TRAINER",
+            "CATEGORY_LEAD",
+            "BRAND_MANAGER",
+            "FINANCE_REVIEWER",
+        )
     }
 }

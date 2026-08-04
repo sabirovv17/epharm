@@ -66,7 +66,7 @@ export const SECTIONS: Section[] = [
   { id: 'ai_exam', label: 'AI-Экзаменация', group: 'Операции', Icon: IconAIExam },
   { id: 'finance', label: 'Финансы / выплаты', group: 'Операции', Icon: IconFinance },
   { id: 'lift', label: 'Аналитика lift', group: 'Аналитика', Icon: IconLift },
-  { id: 'lms', label: 'Обучение / LMS', group: 'Аналитика', Icon: IconLMS },
+  { id: 'lms', label: 'Обучение', group: 'Аналитика', Icon: IconLMS },
   { id: 'settings', label: 'Настройки', group: 'Система', Icon: IconSettings },
 ]
 
@@ -104,7 +104,11 @@ export const USERS: Record<string, UserDto> = {
 /** Локализованный лейбл для AdminRole. Используется в Topbar / RoleSwitcher / Settings. */
 export const roleLabel = (role: AdminRole): string =>
   ({
+    SYSTEM_ADMIN: 'Системный администратор',
     HQ_HEAD: 'Head of Trade Marketing',
+    TRAINING_MANAGER: 'Менеджер обучения',
+    REGIONAL_MANAGER: 'Региональный менеджер',
+    TRAINER: 'Тренер',
     CATEGORY_LEAD: 'Category Lead',
     BRAND_MANAGER: 'Brand Manager',
     FINANCE_REVIEWER: 'Finance Reviewer',

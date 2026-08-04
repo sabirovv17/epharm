@@ -17,7 +17,7 @@
        +--------+---------+----------------+
        |                  |                |
    PostgreSQL           Redis          external Medusa
-   Flyway V001-V034     cache/session   catalog/images/barcodes/pharmacies
+   Flyway V001-V036     cache/session   catalog/images/barcodes/pharmacies
 ```
 
 Caddy is the only public entrypoint in the current deployment. Backend, frontend, MinIO, Postgres,
@@ -91,6 +91,19 @@ allowed Medusa HTTP images.
 
 `OTP_DEV_MODE=true` means the accepted code is `544544`. Real SMS integration is still an ops/product
 decision.
+
+### Training Program -> Assignment -> Certificate
+
+1. Training manager creates a program and separate route for each enabled format.
+2. Backend snapshots the published route into an immutable program version.
+3. HQ assigns that version to one or more pharmacists with a format, deadline and optional event.
+4. Mobile shows only the authenticated pharmacist's route and allows material progress, eligible
+   event selection and QR attendance; it never allows format or score changes.
+5. Backend combines trusted online results and confirmed attendance, calculates completion and
+   creates one certificate and one reward idempotently.
+6. Admin dashboard, pharmacist profile and CSV export read the same assignment history.
+
+The complete contract and current MVP boundaries are documented in `13-training-module.md`.
 
 ## External Integrations
 

@@ -45,7 +45,7 @@ PharmaPayV2/
 
 | Модуль          | Код                                              | Тесты                      | Ключевые файлы                                                                                                                           |
 | --------------- | ------------------------------------------------ | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| **Backend**     | `admin-panel/backend/src/main/kotlin/kz/epharm/` | `src/test/kotlin/`         | `application.yml` (вся конфигурация + env-переменные); Flyway: `src/main/resources/db/migration/` (V001–V034)                            |
+| **Backend**     | `admin-panel/backend/src/main/kotlin/kz/epharm/` | `src/test/kotlin/`         | `application.yml` (вся конфигурация + env-переменные); Flyway: `src/main/resources/db/migration/` (V001–V036)                            |
 | **Админ-фронт** | `admin-panel/frontend/src/`                      | `*.test.tsx` рядом с кодом | `features/*/Page.tsx` (12 разделов), `lib/api-types.ts`, `lib/queries/*`, `i18n/dict.ts` (ru+kk)                                         |
 | **Мобилка**     | `lib/`                                           | `test/`                    | `core/config/api_config.dart` (USE_API/API_BASE), `core/network/api_client.dart`, `features/*/{data,application,presentation}`           |
 | **POSM**        | `App/` + `Models/`                               | ручное на VM               | `MainWindow.xaml.cs` (лог кассы), `MainWindow.Recommendations.cs`, `Services/` (Api/Outbox/MediaCache/Updater), `Config/EpharmConfig.cs` |
@@ -59,6 +59,7 @@ PharmaPayV2/
 | `mobile.catalog`                                  | каталог мобилки из Medusa + рекомендации карточки (двунаправленные) + fallback-Q&A |
 | `mobile` (остальное)                              | me/баланс, чеки, аптеки рядом                                                      |
 | `posm`                                            | recommend/sales/heartbeat/плейлисты касс + атрибуция показ→продажа (V032)          |
+| `training`                                        | программы, маршруты, назначения, события, результаты, сертификаты и бонусы         |
 | `rules`                                           | движок правил замены/кросс-селла (read-only, источник = Промо)                     |
 | `promo`                                           | Промо-кампании (1 кампания = 1 товар; правила создаются отсюда)                    |
 | `medusa`                                          | клиент витрины inkar.kz (каталог/цены/фото) + image-прокси                         |

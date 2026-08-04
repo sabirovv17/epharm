@@ -43,6 +43,10 @@ dependencies:
   # + Android <uses-permission/> в манифесте). См. docs/claude-notes.md Этап 3.
   camera: ^0.11.0+2
 
+  # QR-регистрация на очных мероприятиях. Ветка 5.x сохраняет поддержку iOS 12,
+  # которая заявлена текущим iOS-проектом; 6.x требует iOS 15.5+.
+  mobile_scanner: ^5.2.3
+
   # Выбор фото из системной галереи как альтернатива камере.
   image_picker: ^1.1.2
   flutter_secure_storage: ^10.3.1

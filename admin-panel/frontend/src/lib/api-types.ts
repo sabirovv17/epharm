@@ -1,7 +1,15 @@
 // Типы API — соответствуют DTO бэкенда (kz.epharm.auth.dto.*).
 // Когда обновляем бэкенд DTO — синхронизируем здесь.
 
-export type AdminRole = 'HQ_HEAD' | 'CATEGORY_LEAD' | 'BRAND_MANAGER' | 'FINANCE_REVIEWER'
+export type AdminRole =
+  | 'SYSTEM_ADMIN'
+  | 'HQ_HEAD'
+  | 'TRAINING_MANAGER'
+  | 'REGIONAL_MANAGER'
+  | 'TRAINER'
+  | 'CATEGORY_LEAD'
+  | 'BRAND_MANAGER'
+  | 'FINANCE_REVIEWER'
 
 export interface UserDto {
   id: string
@@ -864,4 +872,477 @@ export interface UpdateBannerRequest {
 /** Ответ загрузки картинки баннера (POST /api/admin/banners/image). */
 export interface BannerImageUploadDto {
   imageUrl: string
+}
+
+// ─── Training programs ───────────────────────────────────────────────────
+// Mirrors kz.epharm.training.dto and is shared by the operational admin UI.
+export type TrainingFormat = 'online' | 'hybrid' | 'offline'
+export type TrainingProgramStatus =
+  | 'draft'
+  | 'review'
+  | 'scheduled'
+  | 'published'
+  | 'paused'
+  | 'completed'
+  | 'archived'
+export type TrainingStageType =
+  | 'material'
+  | 'online_course'
+  | 'test'
+  | 'ai_exam'
+  | 'offline_event'
+  | 'manual_review'
+export type TrainingStageStatus =
+  | 'locked'
+  | 'available'
+  | 'in_progress'
+  | 'waiting_review'
+  | 'completed'
+  | 'failed'
+  | 'skipped'
+export type TrainingAssignmentStatus =
+  | 'scheduled'
+  | 'not_started'
+  | 'in_progress'
+  | 'waiting_online'
+  | 'waiting_test'
+  | 'waiting_exam'
+  | 'waiting_event_selection'
+  | 'waiting_offline'
+  | 'waiting_attendance'
+  | 'waiting_review'
+  | 'retake_required'
+  | 'completed'
+  | 'overdue'
+  | 'paused'
+  | 'cancelled'
+export type TrainingPriority = 'low' | 'normal' | 'high' | 'critical'
+export type OfflineEventStatus =
+  | 'draft'
+  | 'registration'
+  | 'scheduled'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
+  | 'archived'
+export type EventParticipantStatus =
+  | 'registered'
+  | 'confirmed'
+  | 'attended'
+  | 'late'
+  | 'no_show'
+  | 'excused'
+  | 'cancelled'
+  | 'waitlisted'
+export type AttendanceMethod = 'manual' | 'qr'
+export type CertificateStatus = 'valid' | 'expired' | 'revoked' | 'replaced'
+export type DuplicateAssignmentPolicy = 'skip' | 'update_deadline' | 'repeat'
+
+export interface TrainingCapabilitiesDto {
+  canManagePrograms: boolean
+  canManageAssignments: boolean
+  canManageEvents: boolean
+  canMarkAttendance: boolean
+  canAdjustRewards: boolean
+  canRecordResults: boolean
+  canManagePreferences: boolean
+  canExport: boolean
+  regionalScope: string[]
+}
+
+export interface TrainingDashboardDto {
+  activePrograms: number
+  totalAssignments: number
+  notStarted: number
+  inProgress: number
+  completed: number
+  overdue: number
+  completionRatePct: number
+  averageScore: number | null
+  certificates: number
+  rewardsIssued: number
+  attendanceConfirmed: number
+  noShows: number
+  byFormat: Partial<Record<TrainingFormat, number>>
+  capabilities: TrainingCapabilitiesDto
+}
+
+export interface TrainingProgramStageDto {
+  id: string
+  key: string
+  type: TrainingStageType
+  title: string
+  order: number
+  required: boolean
+  unlockAfterKey: string | null
+  deadlineDays: number | null
+  passingScore: number | null
+  maxAttempts: number | null
+  bonus: number
+  manualReview: boolean
+  applicableFormats: TrainingFormat[]
+  contentUrl: string | null
+}
+
+export interface TrainingProgramDto {
+  id: string
+  name: string
+  shortDescription: string
+  description: string
+  coverUrl: string | null
+  category: string
+  manufacturer: string
+  brand: string
+  product: string
+  language: string
+  managerId: string | null
+  managerName: string | null
+  allowedFormats: TrainingFormat[]
+  startsAt: string | null
+  endsAt: string | null
+  normativeDays: number
+  tags: string[]
+  status: TrainingProgramStatus
+  version: number
+  versionId: string
+  onlineCourseId: string | null
+  passingScore: number
+  maxAttempts: number
+  completionBonus: number
+  stages: TrainingProgramStageDto[]
+  assignments: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateTrainingStageRequest {
+  key: string
+  type: TrainingStageType
+  title: string
+  order: number
+  required?: boolean
+  unlockAfterKey?: string | null
+  deadlineDays?: number | null
+  passingScore?: number | null
+  maxAttempts?: number | null
+  bonus?: number
+  manualReview?: boolean
+  applicableFormats?: TrainingFormat[]
+  contentUrl?: string | null
+}
+
+export interface CreateTrainingProgramRequest {
+  name: string
+  shortDescription?: string
+  description?: string
+  coverUrl?: string | null
+  category?: string
+  manufacturer?: string
+  brand?: string
+  product?: string
+  language?: string
+  managerId?: string | null
+  allowedFormats: TrainingFormat[]
+  startsAt?: string | null
+  endsAt?: string | null
+  normativeDays?: number
+  tags?: string[]
+  status?: TrainingProgramStatus
+  onlineCourseId?: string | null
+  passingScore?: number
+  maxAttempts?: number
+  completionBonus?: number
+  stages?: CreateTrainingStageRequest[]
+}
+
+export type UpdateTrainingProgramRequest = Partial<CreateTrainingProgramRequest> & {
+  clearCoverUrl?: boolean
+  clearManager?: boolean
+  clearStartsAt?: boolean
+  clearEndsAt?: boolean
+  clearOnlineCourseId?: boolean
+}
+
+export interface OfflineEventDto {
+  id: string
+  programId: string
+  programVersionId: string
+  programName: string
+  title: string
+  eventType: string
+  startsAt: string
+  endsAt: string
+  timezone: string
+  region: string
+  city: string
+  address: string
+  mapUrl: string | null
+  trainerId: string | null
+  trainerName: string | null
+  organizer: string
+  capacity: number
+  occupied: number
+  registrationDeadline: string | null
+  status: OfflineEventStatus
+  materialsUrl: string | null
+  comment: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TrainingEventQrDto {
+  eventId: string
+  token: string
+  payload: string
+}
+
+export interface CreateOfflineEventRequest {
+  programId: string
+  title: string
+  eventType?: string
+  startsAt: string
+  endsAt: string
+  timezone?: string
+  region?: string
+  city?: string
+  address?: string
+  mapUrl?: string | null
+  trainerId?: string | null
+  organizer?: string
+  capacity: number
+  registrationDeadline?: string | null
+  status?: OfflineEventStatus
+  materialsUrl?: string | null
+  comment?: string
+}
+
+export type UpdateOfflineEventRequest = Omit<Partial<CreateOfflineEventRequest>, 'programId'> & {
+  clearRegistrationDeadline?: boolean
+}
+
+export interface EventParticipantDto {
+  id: string
+  eventId: string
+  assignmentId: string
+  pharmacistId: string
+  pharmacistName: string
+  pharmacyName: string
+  status: EventParticipantStatus
+  registeredAt: string
+  checkedInAt: string | null
+  checkMethod: AttendanceMethod | null
+  trainerComment: string | null
+  score: number | null
+}
+
+export interface MarkAttendanceRequest {
+  status: EventParticipantStatus
+  method?: AttendanceMethod
+  comment?: string | null
+  score?: number | null
+}
+
+export interface TrainingAssignmentStageDto {
+  id: string
+  programStageId: string
+  key: string
+  type: TrainingStageType
+  title: string
+  order: number
+  required: boolean
+  status: TrainingStageStatus
+  progressPct: number
+  score: number | null
+  attemptsUsed: number
+  maxAttempts: number | null
+  passingScore: number | null
+  contentUrl: string | null
+  startedAt: string | null
+  completedAt: string | null
+}
+
+export interface OfflineEventSummaryDto {
+  id: string
+  title: string
+  startsAt: string
+  endsAt: string
+  timezone: string
+  city: string
+  address: string
+  status: OfflineEventStatus
+}
+
+export interface TrainingCertificateDto {
+  id: string
+  number: string
+  assignmentId: string
+  pharmacistId: string
+  pharmacistName: string
+  programName: string
+  format: TrainingFormat
+  issuedAt: string
+  expiresAt: string | null
+  score: number | null
+  signerName: string
+  status: CertificateStatus
+  verificationToken: string
+  pdfUrl: string | null
+}
+
+export interface TrainingRewardDto {
+  id: string
+  assignmentId: string
+  amount: number
+  reason: string
+  status: string
+  issuedAt: string
+}
+
+export interface TrainingNotificationDto {
+  id: string
+  eventType: string
+  title: string
+  message: string
+  assignmentId: string | null
+  eventId: string | null
+  read: boolean
+  scheduledAt: string
+  readAt: string | null
+}
+
+export interface PharmacistTrainingProfileDto {
+  pharmacistId: string
+  pharmacistName: string
+  pharmacyName: string
+  city: string
+  defaultFormat: TrainingFormat | null
+  totalAssignments: number
+  completedAssignments: number
+  inProgressAssignments: number
+  totalRewards: number
+  assignments: TrainingAssignmentDto[]
+  certificates: TrainingCertificateDto[]
+  rewards: TrainingRewardDto[]
+  preferenceHistory: TrainingPreferenceDto[]
+}
+
+export interface TrainingAssignmentDto {
+  id: string
+  programId: string
+  programVersionId: string
+  programVersion: number
+  programName: string
+  programShortDescription: string
+  coverUrl: string | null
+  pharmacistId: string
+  pharmacistName: string
+  pharmacyName: string
+  city: string
+  format: TrainingFormat
+  status: TrainingAssignmentStatus
+  priority: TrainingPriority
+  required: boolean
+  event: OfflineEventSummaryDto | null
+  startsAt: string | null
+  dueAt: string | null
+  progressPct: number
+  score: number | null
+  startedAt: string | null
+  completedAt: string | null
+  stages: TrainingAssignmentStageDto[]
+  certificate: TrainingCertificateDto | null
+  reward: TrainingRewardDto | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TrainingAssignmentPageDto {
+  items: TrainingAssignmentDto[]
+  total: number
+  page: number
+  size: number
+  totalPages: number
+}
+
+export interface CreateTrainingAssignmentsRequest {
+  programId: string
+  pharmacistIds: string[]
+  format: TrainingFormat
+  startsAt?: string | null
+  dueAt?: string | null
+  eventId?: string | null
+  priority?: TrainingPriority
+  required?: boolean
+  responsibleId?: string | null
+  duplicatePolicy?: DuplicateAssignmentPolicy
+}
+
+export interface MassAssignmentResultDto {
+  created: number
+  updated: number
+  skipped: number
+  assignments: TrainingAssignmentDto[]
+}
+
+export interface RecordAssessmentResultRequest {
+  score: number
+  passed?: boolean | null
+  feedback?: string
+  competencyScores?: Record<string, number>
+}
+
+export interface TrainingAssessmentResultDto {
+  id: string
+  assignmentId: string
+  assignmentStageId: string
+  sourceType: TrainingStageType
+  attempt: number
+  score: number
+  passed: boolean
+  feedback: string
+  competencyScores: Record<string, number>
+  recordedBy: string
+  recordedByName: string
+  recordedAt: string
+}
+
+export interface TrainingPreferenceDto {
+  id: string
+  pharmacistId: string
+  pharmacistName: string
+  defaultFormat: TrainingFormat
+  changedBy: string
+  changedByName: string
+  reason: string
+  validFrom: string
+  validTo: string | null
+  current: boolean
+}
+
+export interface ChangeTrainingPreferenceRequest {
+  defaultFormat: TrainingFormat
+  reason: string
+}
+
+export interface MassChangeTrainingPreferencesRequest extends ChangeTrainingPreferenceRequest {
+  pharmacistIds: string[]
+}
+
+export interface ChangeAssignmentFormatRequest {
+  format: TrainingFormat
+  eventId?: string | null
+  reason: string
+}
+
+export interface TrainingAssignmentFormatHistoryDto {
+  id: string
+  assignmentId: string
+  oldFormat: TrainingFormat
+  newFormat: TrainingFormat
+  oldEventId: string | null
+  newEventId: string | null
+  reason: string
+  changedBy: string
+  changedByName: string
+  changedAt: string
 }

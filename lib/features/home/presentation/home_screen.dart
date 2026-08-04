@@ -23,6 +23,7 @@ import '../../promotions/data/promotion_models.dart';
 import '../../promotions/presentation/promo_product_card.dart';
 import '../../profile/application/profile_controller.dart';
 import '../../receipts/presentation/receipts_list_screen.dart';
+import '../../training/presentation/training_screen.dart';
 import '../application/home_controller.dart';
 import '../../receipts/presentation/upload_prompt_sheet.dart';
 import 'widgets/balance_card.dart';
@@ -30,7 +31,6 @@ import 'widgets/bottom_navigation.dart';
 import 'widgets/brand_sheet.dart';
 import 'widgets/category_sheet.dart';
 import 'widgets/home_welcome_gate.dart';
-import 'widgets/learning_stub_screen.dart';
 import 'widgets/login_invite_card.dart';
 import 'widgets/profile_row.dart';
 import 'widgets/promo_carousel.dart';
@@ -123,9 +123,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   /// 2-tab nav: 0=Главная, 1=Профиль. Между ними — центральный FAB-камера,
   /// открывающий upload sheet (не таб, не меняет [_tab]).
   ///
-  /// История: 4 таба → 3 таба → 2 таба. «Чек» удалён в Этапе 4 (pull-up sheet
-  /// из BalanceCard). «Обучение» перенесено в Profile menu в Этапе 5 — раздел
-  /// пока stub-only, не заслуживает отдельного таба.
+  /// История: 4 таба → 3 таба → 2 таба. «Чек» открывается из BalanceCard,
+  /// а назначенное обучение — из меню профиля.
   void _onTabTap(int i) {
     setState(() => _tab = i);
   }
@@ -386,7 +385,8 @@ void _precacheFeedHead(BuildContext context, List<Promotion> items) {
   const headCount = 8; // ~первый экран сетки 2×4
   final n = items.length < headCount ? items.length : headCount;
   for (var i = 0; i < n; i++) {
-    final url = proxyMedia(items[i].imageUrl, width: 400); // = cacheWidth грид-плитки
+    final url =
+        proxyMedia(items[i].imageUrl, width: 400); // = cacheWidth грид-плитки
     if (url != null && url.isNotEmpty) {
       precacheImage(
         CachedNetworkImageProvider(url, cacheManager: MediaCache.instance),
@@ -520,15 +520,14 @@ class _ProfileTab extends ConsumerWidget {
   final VoidCallback onLogin;
   final VoidCallback onHistoryTap;
 
-  /// Items секции «Помощь». «Обучение» добавлено в Этапе 5 — раньше был
-  /// отдельный таб в bottom-nav, перенесли сюда (см. [LearningStubScreen]).
+  /// Items секции «Помощь». «Обучение» открывает назначенные программы,
+  /// очные события и сертификаты текущего фармацевта.
   /// Школьная иконка та же, что была в bottom-nav.
   static const _helpItems = <_ProfileMenuItem>[
     _ProfileMenuItem(
       Icons.school_outlined,
       'Обучение',
-      // pushScreen — обработка ниже в build (через Navigator.push, не go_router,
-      // т.к. learning_stub живёт вне router-tree).
+      // Раздел использует свой ProviderScope-контекст и открывается как экран.
       pushScreen: _PushTarget.learning,
     ),
     _ProfileMenuItem(
@@ -566,8 +565,8 @@ class _ProfileTab extends ConsumerWidget {
     ),
   ];
 
-  /// Резолвит onTap для пункта меню: go_router-маршрут, push на stub-экран
-  /// или null (для внешних ссылок-заглушек как WhatsApp).
+  /// Резолвит onTap для пункта меню: go_router-маршрут, отдельный экран
+  /// или null для ещё не подключённой внешней ссылки.
   VoidCallback? _resolveOnTap(BuildContext context, _ProfileMenuItem item) {
     if (item.route != null) {
       return () => context.push(item.route!);
@@ -578,7 +577,7 @@ class _ProfileTab extends ConsumerWidget {
           case _PushTarget.learning:
             Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const LearningStubScreen(),
+                builder: (_) => const TrainingScreen(),
               ),
             );
         }
@@ -735,8 +734,7 @@ class _ProfileTab extends ConsumerWidget {
   }
 }
 
-/// Цели push-навигации для пунктов меню, у которых нет go_router-маршрута
-/// (stub-экраны живут вне router-tree).
+/// Цели push-навигации для экранов, которые не зарегистрированы в go_router.
 enum _PushTarget { learning }
 
 class _ProfileMenuItem {
@@ -753,8 +751,7 @@ class _ProfileMenuItem {
   /// go_router-маршрут (если есть). Например '/profile/faq'.
   final String? route;
 
-  /// Альтернатива route — push экрана через Navigator.push (для stub-экранов
-  /// которые не зарегистрированы в go_router).
+  /// Альтернатива route — push экрана через Navigator.push.
   final _PushTarget? pushScreen;
 }
 

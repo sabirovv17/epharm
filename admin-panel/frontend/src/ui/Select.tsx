@@ -9,6 +9,7 @@ interface SelectProps {
   options: SelectOption[]
   placeholder?: string
   className?: string
+  ariaLabel?: string
 }
 
 export function Select({
@@ -17,10 +18,12 @@ export function Select({
   options,
   placeholder = 'Выбрать',
   className = '',
+  ariaLabel,
 }: SelectProps) {
   return (
     <div className={`relative ${className}`}>
       <select
+        aria-label={ariaLabel}
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value)}
         className="inp appearance-none cursor-pointer pr-9"

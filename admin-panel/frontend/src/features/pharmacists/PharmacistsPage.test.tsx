@@ -4,7 +4,7 @@ import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { ToastHost } from '@/ui'
 import type { PharmacistDto } from '@/lib/api-types'
 import PharmacistsPage from './PharmacistsPage'
@@ -26,6 +26,17 @@ const pharmacyHooks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/queries/pharmacies', () => pharmacyHooks)
+
+const lmsHooks = vi.hoisted(() => ({
+  useTrainingPreferences: vi.fn(),
+  useTrainingPreferenceHistory: vi.fn(),
+  useChangeTrainingPreference: vi.fn(),
+  useMassChangeTrainingPreferences: vi.fn(),
+  useTrainingDashboard: vi.fn(),
+  usePharmacistTrainingProfile: vi.fn(),
+}))
+
+vi.mock('@/lib/queries/lms', () => lmsHooks)
 
 function mkPharmacist(over: Partial<PharmacistDto> = {}): PharmacistDto {
   return {
@@ -88,7 +99,79 @@ beforeEach(() => {
   pharmacistHooks.useActivatePharmacist.mockReturnValue({ mutate: vi.fn(), isPending: false })
   pharmacistHooks.useBlockPharmacist.mockReturnValue({ mutate: vi.fn(), isPending: false })
   pharmacistHooks.useUnblockPharmacist.mockReturnValue({ mutate: vi.fn(), isPending: false })
+  lmsHooks.useTrainingPreferences.mockReturnValue({
+    data: [],
+    isLoading: false,
+    isError: false,
+    isSuccess: true,
+  })
+  lmsHooks.useTrainingPreferenceHistory.mockReturnValue({ data: [], isLoading: false })
+  lmsHooks.useChangeTrainingPreference.mockReturnValue({ mutate: vi.fn(), isPending: false })
+  lmsHooks.useMassChangeTrainingPreferences.mockReturnValue({ mutate: vi.fn(), isPending: false })
+  lmsHooks.useTrainingDashboard.mockReturnValue({
+    data: {
+      capabilities: {
+        canManagePrograms: true,
+        canManageAssignments: true,
+        canManageEvents: true,
+        canMarkAttendance: true,
+        canAdjustRewards: false,
+        canRecordResults: true,
+        canManagePreferences: true,
+        canExport: true,
+        regionalScope: [],
+      },
+    },
+    isLoading: false,
+    isError: false,
+  })
+  lmsHooks.usePharmacistTrainingProfile.mockReturnValue({
+    data: {
+      pharmacistId: 'u_1',
+      pharmacistName: 'Айгерим Касенова',
+      pharmacyName: 'Europharma №100',
+      city: 'Алматы',
+      defaultFormat: 'hybrid',
+      totalAssignments: 1,
+      completedAssignments: 1,
+      inProgressAssignments: 0,
+      totalRewards: 5_000,
+      assignments: [],
+      certificates: [
+        {
+          id: 'certificate-1',
+          number: 'EPH-2026-001',
+          assignmentId: 'assignment-1',
+          pharmacistId: 'u_1',
+          pharmacistName: 'Айгерим Касенова',
+          programName: 'Работа с продуктом',
+          format: 'hybrid',
+          issuedAt: '2026-08-01T10:00:00Z',
+          expiresAt: null,
+          score: 92,
+          signerName: 'Руководитель обучения',
+          status: 'valid',
+          verificationToken: 'verify-token',
+          pdfUrl: '/api/public/training/certificates/verify-token/pdf',
+        },
+      ],
+      rewards: [],
+      preferenceHistory: [],
+    },
+    isLoading: false,
+    isError: false,
+  })
 })
+
+function LocationProbe() {
+  const location = useLocation()
+  return (
+    <output data-testid="location-probe">
+      {location.pathname}
+      {location.search}
+    </output>
+  )
+}
 
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -97,6 +180,7 @@ function renderPage() {
       <MemoryRouter>
         <ToastHost>
           <PharmacistsPage />
+          <LocationProbe />
         </ToastHost>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -205,6 +289,36 @@ describe('PharmacistsPage — список и actions', () => {
     expect(mutate).toHaveBeenCalledWith(
       { id: 'u_pending', request: { pharmacyId: 'ph_1' } },
       expect.any(Object),
+    )
+  })
+
+  it('передаёт выбранных активных фармацевтов в массовое назначение обучения', async () => {
+    setPharmacists([mkPharmacist({ id: 'u_active', name: 'Айгерим' })])
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(screen.getByRole('checkbox', { name: 'Выбрать Айгерим' }))
+    await user.click(screen.getByRole('button', { name: 'Назначить обучение (1)' }))
+
+    expect(screen.getByTestId('location-probe')).toHaveTextContent(
+      '/lms?action=assign&pharmacists=u_active',
+    )
+  })
+
+  it('открывает полную карточку обучения фармацевта', async () => {
+    setPharmacists([mkPharmacist()])
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(screen.getByRole('button', { name: 'Обучение' }))
+
+    expect(lmsHooks.usePharmacistTrainingProfile).toHaveBeenCalledWith('u_1')
+    const dialog = screen.getByRole('dialog', { name: 'Айгерим Касенова' })
+    expect(within(dialog).getByText('Гибрид')).toBeInTheDocument()
+    expect(within(dialog).getByText('Работа с продуктом')).toBeInTheDocument()
+    expect(within(dialog).getByRole('link', { name: /Работа с продуктом/ })).toHaveAttribute(
+      'href',
+      '/api/public/training/certificates/verify-token/pdf',
     )
   })
 })

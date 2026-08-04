@@ -78,6 +78,31 @@ class ApiClient {
     return _decode(res);
   }
 
+  Future<Map<String, dynamic>> patchJson(
+    String path,
+    Object body, {
+    bool auth = true,
+  }) async {
+    final res = await _sendWithRefresh(
+      () => _client.patch(
+        _uri(path),
+        headers: _headers(auth: auth),
+        body: jsonEncode(body),
+      ),
+      auth: auth,
+    );
+    return _decode(res);
+  }
+
+  /// Превращает относительную backend-ссылку (например PDF-сертификат) в
+  /// абсолютную, используя origin, на котором последний запрос реально прошёл.
+  String resolveUrl(String rawUrl) {
+    final parsed = Uri.tryParse(rawUrl);
+    if (parsed != null && parsed.hasScheme) return parsed.toString();
+    final path = rawUrl.startsWith('/') ? rawUrl : '/$rawUrl';
+    return _uri(path).toString();
+  }
+
   /// Multipart-загрузка (Фаза C — фото чека). file/qr опциональны.
   Future<Map<String, dynamic>> postMultipart(
     String path, {

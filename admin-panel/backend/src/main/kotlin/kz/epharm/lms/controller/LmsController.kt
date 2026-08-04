@@ -11,6 +11,7 @@ import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
@@ -35,16 +36,19 @@ class LmsController(private val courseService: CourseService) {
     fun get(@PathVariable id: String): CourseDto = courseService.get(id)
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HQ_HEAD','TRAINING_MANAGER')")
     fun create(
         @Valid @RequestBody req: CreateCourseRequest,
         @AuthenticationPrincipal principal: AdminPrincipal?,
     ): CourseDto = courseService.create(req, createdBy = requireUserId(principal))
 
     @PatchMapping("/{id}")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HQ_HEAD','TRAINING_MANAGER')")
     fun update(@PathVariable id: String, @Valid @RequestBody req: UpdateCourseRequest): CourseDto =
         courseService.update(id, req)
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HQ_HEAD','TRAINING_MANAGER')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun delete(@PathVariable id: String) = courseService.delete(id)
 

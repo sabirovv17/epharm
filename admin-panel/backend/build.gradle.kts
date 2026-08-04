@@ -43,6 +43,8 @@ dependencies {
 
     implementation(libs.aws.s3)
     implementation(libs.poi.ooxml)
+    implementation(libs.pdfbox)
+    implementation(libs.zxing.core)
 
     implementation(libs.springdoc.openapi.starter)
 
@@ -60,6 +62,9 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    maxHeapSize = "1g"
+    forkEvery = 12
+    systemProperty("spring.test.context.cache.maxSize", "6")
 }
 
 // Стабильное имя исполняемого jar — чтобы Dockerfile копировал build/libs/app.jar

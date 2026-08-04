@@ -1,207 +1,1237 @@
-// LMS — каталог курсов для фармацевтов.
-// Этап 3.6: подключён backend через useCourses / useCreateCourse.
-
-import { useMemo, useState } from 'react'
+import { useDeferredValue, useMemo, useState } from 'react'
+import { QrCode } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Button,
   Empty,
   Field,
   Input,
+  IconButton,
   Metric,
   Modal,
   PageHeader,
+  ProgressBar,
+  SearchInput,
   Select,
   Tabs,
   useToast,
   type TabItem,
 } from '@/ui'
-import { IconLMS, IconPlayCircle, IconPlus, IconTrash, IconUsers } from '@/ui/icons'
-import type { CourseDto, CourseStatus } from '@/lib/api-types'
-import { useCourses, useCreateCourse, useDeleteCourse } from '@/lib/queries/lms'
+import {
+  IconCheck,
+  IconArchive,
+  IconDownload,
+  IconDuplicate,
+  IconEdit,
+  IconLMS,
+  IconPlayCircle,
+  IconPlus,
+  IconUsers,
+} from '@/ui/icons'
+import type {
+  CourseDto,
+  CourseStatus,
+  OfflineEventDto,
+  TrainingAssignmentDto,
+  TrainingAssignmentStageDto,
+  TrainingAssignmentStatus,
+  TrainingCapabilitiesDto,
+  TrainingFormat,
+  TrainingProgramDto,
+  TrainingProgramStatus,
+} from '@/lib/api-types'
+import {
+  downloadTrainingAssignments,
+  useCourses,
+  useCreateCourse,
+  useDeleteCourse,
+  useOfflineEvents,
+  useTrainingAssignmentPage,
+  useTrainingAssignments,
+  useTrainingCertificates,
+  useTrainingDashboard,
+  useTrainingPrograms,
+  useUpdateTrainingProgram,
+} from '@/lib/queries/lms'
+import { usePharmacists } from '@/lib/queries/pharmacists'
 import { describeError } from '@/lib/describeError'
-import { formatNum } from '@/mocks/fixtures'
-import { useT } from '@/i18n'
+import { formatKzt, formatNum } from '@/mocks/fixtures'
+import {
+  AssignTrainingModal,
+  AssessmentResultModal,
+  AttendanceModal,
+  ChangeAssignmentFormatModal,
+  CreateEventModal,
+  CreateProgramModal,
+  EventSummary,
+  EventQrModal,
+} from './TrainingModals'
+import {
+  ASSIGNMENT_STATUS_LABEL,
+  FORMAT_LABEL,
+  PROGRAM_STATUS_LABEL,
+  STAGE_TYPE_LABEL,
+  chipClass,
+  dateOnly,
+  dateTime,
+} from './training-ui'
 
-type LMSTab = 'published' | 'draft'
+type TrainingTab =
+  | 'overview'
+  | 'programs'
+  | 'courses'
+  | 'events'
+  | 'assignments'
+  | 'attendance'
+  | 'results'
+  | 'certificates'
+  | 'analytics'
+  | 'settings'
+
+const TABS: TabItem<TrainingTab>[] = [
+  { value: 'overview', label: 'Дашборд' },
+  { value: 'programs', label: 'Программы' },
+  { value: 'courses', label: 'Онлайн-курсы' },
+  { value: 'events', label: 'Офлайн-мероприятия' },
+  { value: 'assignments', label: 'Назначения' },
+  { value: 'attendance', label: 'Посещаемость' },
+  { value: 'results', label: 'Результаты и экзамены' },
+  { value: 'certificates', label: 'Сертификаты' },
+  { value: 'analytics', label: 'Аналитика' },
+  { value: 'settings', label: 'Настройки' },
+]
 
 export default function LMSPage() {
-  const t = useT()
-  const toast = useToast()
-  const [tab, setTab] = useState<LMSTab>('published')
-  const [createOpen, setCreateOpen] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedPharmacistIds = useMemo(
+    () => (searchParams.get('pharmacists') ?? '').split(',').filter(Boolean),
+    [searchParams],
+  )
+  const requestedAssignment =
+    searchParams.get('action') === 'assign' && requestedPharmacistIds.length > 0
+  const [tab, setTab] = useState<TrainingTab>(() =>
+    requestedAssignment ? 'assignments' : 'overview',
+  )
+  const [programModalOpen, setProgramModalOpen] = useState(false)
+  const [programTarget, setProgramTarget] = useState<{
+    program: TrainingProgramDto
+    mode: 'edit' | 'duplicate'
+  } | null>(null)
+  const [assignmentModalOpen, setAssignmentModalOpen] = useState(requestedAssignment)
+  const [eventModalOpen, setEventModalOpen] = useState(false)
+  const [eventTarget, setEventTarget] = useState<OfflineEventDto | null>(null)
+  const [courseModalOpen, setCourseModalOpen] = useState(false)
+  const [attendanceEvent, setAttendanceEvent] = useState<OfflineEventDto | null>(null)
+  const [qrEvent, setQrEvent] = useState<OfflineEventDto | null>(null)
+  const [resultTarget, setResultTarget] = useState<{
+    assignment: TrainingAssignmentDto
+    stage: TrainingAssignmentStageDto
+  } | null>(null)
+  const [formatTarget, setFormatTarget] = useState<TrainingAssignmentDto | null>(null)
 
-  const { data: courses = [], isLoading, isError, error, refetch } = useCourses()
-  const hasData = courses.length > 0
+  const dashboardQuery = useTrainingDashboard()
+  const programsQuery = useTrainingPrograms()
+  const assignmentsQuery = useTrainingAssignments()
+  const eventsQuery = useOfflineEvents()
+  const certificatesQuery = useTrainingCertificates()
+  const coursesQuery = useCourses()
+  const pharmacistsQuery = usePharmacists()
 
-  const published = useMemo(() => courses.filter((c) => c.status === 'published'), [courses])
-  const drafts = useMemo(() => courses.filter((c) => c.status === 'draft'), [courses])
-  const visible = tab === 'published' ? published : drafts
+  const dashboard = dashboardQuery.data
+  const programs = programsQuery.data ?? []
+  const assignments = assignmentsQuery.data ?? []
+  const events = eventsQuery.data ?? []
+  const certificates = certificatesQuery.data ?? []
+  const courses = coursesQuery.data ?? []
+  const pharmacists = pharmacistsQuery.data ?? []
+  const capabilities = dashboard?.capabilities
+  const closeAssignmentModal = () => {
+    setAssignmentModalOpen(false)
+    if (requestedAssignment) setSearchParams({}, { replace: true })
+  }
 
-  const totalEnrolled = courses.reduce((a, c) => a + c.enrolled, 0)
-  const totalCompleted = courses.reduce((a, c) => a + c.completed, 0)
-
-  const tabs: TabItem<LMSTab>[] = [
-    { value: 'published', label: t('lms.tabPublished'), count: published.length },
-    { value: 'draft', label: t('lms.tabDraft'), count: drafts.length },
-  ]
+  const action = (() => {
+    if (tab === 'programs' && capabilities?.canManagePrograms) {
+      return (
+        <Button leading={<IconPlus size={15} />} onClick={() => setProgramModalOpen(true)}>
+          Новая программа
+        </Button>
+      )
+    }
+    if (tab === 'assignments' && capabilities?.canManageAssignments) {
+      return (
+        <Button leading={<IconPlus size={15} />} onClick={() => setAssignmentModalOpen(true)}>
+          Назначить обучение
+        </Button>
+      )
+    }
+    if (tab === 'events' && capabilities?.canManageEvents) {
+      return (
+        <Button leading={<IconPlus size={15} />} onClick={() => setEventModalOpen(true)}>
+          Новое событие
+        </Button>
+      )
+    }
+    if (tab === 'courses' && capabilities?.canManagePrograms) {
+      return (
+        <Button leading={<IconPlus size={15} />} onClick={() => setCourseModalOpen(true)}>
+          Новый курс
+        </Button>
+      )
+    }
+    return undefined
+  })()
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title={t('page.lms.title')}
-        subtitle={t('page.lms.subtitle')}
-        actions={
-          <Button
-            variant="primary"
-            size="md"
-            leading={<IconPlus size={14} />}
-            onClick={() => setCreateOpen(true)}
-          >
-            {t('lms.newCourse')}
-          </Button>
-        }
+        title="Обучение"
+        subtitle="Программы, назначения, очные события, контроль прохождения и сертификаты фармацевтов"
+        actions={action}
       />
 
-      <div className="grid grid-cols-3 gap-4">
-        <Metric
-          label={t('lms.mCatalog')}
-          value={formatNum(courses.length)}
-          accent="ink"
-          icon={<IconLMS size={16} />}
-        />
-        <Metric
-          label={t('lms.mStudents')}
-          value={formatNum(totalEnrolled)}
-          accent="green"
-          icon={<IconUsers size={16} />}
-        />
-        <Metric
-          label={t('lms.mCompleted')}
-          value={formatNum(totalCompleted)}
-          accent="blue"
-          icon={<IconPlayCircle size={16} />}
-        />
-      </div>
-
-      <div className="card flex min-h-[420px] flex-col">
-        <div className="px-5 pt-4">
-          <Tabs<LMSTab> items={tabs} value={tab} onChange={setTab} />
-        </div>
-        <div className="flex-1 px-5 pb-5 pt-3">
-          {isLoading && !hasData ? (
-            <Empty
-              title={t('lms.loading')}
-              body={t('common.connecting')}
-              icon={<IconLMS size={26} />}
-            />
-          ) : isError && !hasData ? (
-            <Empty
-              title={t('lms.errTitle')}
-              body={describeError(error)}
-              icon={<IconLMS size={26} />}
-              action={<Button onClick={() => refetch()}>{t('common.retry')}</Button>}
-            />
-          ) : visible.length === 0 ? (
-            <Empty
-              title={t('lms.empty')}
-              body={t('lms.emptyBody')}
-              icon={<IconLMS size={26} />}
-              action={
-                <Button leading={<IconPlus size={14} />} onClick={() => setCreateOpen(true)}>
-                  {t('lms.newCourse')}
-                </Button>
-              }
-            />
-          ) : (
-            <ul className="grid grid-cols-2 gap-3" data-testid="lms-courses">
-              {visible.map((c) => (
-                <CourseCard key={c.id} course={c} />
-              ))}
-            </ul>
-          )}
+      <div className="card overflow-x-auto px-5 pt-1">
+        <div className="min-w-max">
+          <Tabs items={TABS} value={tab} onChange={setTab} />
         </div>
       </div>
 
-      <CreateCourseModal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        onCreated={(title) => {
-          toast.push(t('lms.createdToast', { title }))
-          setCreateOpen(false)
-        }}
-      />
+      {dashboardQuery.isError && !dashboard ? (
+        <Empty
+          title="Не удалось загрузить раздел обучения"
+          body={describeError(dashboardQuery.error)}
+          icon={<IconLMS size={28} />}
+          action={<Button onClick={() => dashboardQuery.refetch()}>Повторить</Button>}
+        />
+      ) : tab === 'overview' ? (
+        <OverviewTab dashboard={dashboard} loading={dashboardQuery.isLoading} />
+      ) : tab === 'programs' ? (
+        <ProgramsTab
+          programs={programs}
+          loading={programsQuery.isLoading}
+          canManage={!!capabilities?.canManagePrograms}
+          onEdit={(program) => setProgramTarget({ program, mode: 'edit' })}
+          onDuplicate={(program) => setProgramTarget({ program, mode: 'duplicate' })}
+        />
+      ) : tab === 'assignments' ? (
+        <AssignmentsTab
+          programs={programs}
+          canManage={!!capabilities?.canManageAssignments}
+          canExport={!!capabilities?.canExport}
+          onChangeFormat={setFormatTarget}
+        />
+      ) : tab === 'events' || tab === 'attendance' ? (
+        <EventsTab
+          events={events}
+          loading={eventsQuery.isLoading}
+          canManageEvents={!!capabilities?.canManageEvents}
+          canMarkAttendance={!!capabilities?.canMarkAttendance}
+          onEdit={setEventTarget}
+          onParticipants={setAttendanceEvent}
+          onQr={setQrEvent}
+        />
+      ) : tab === 'courses' ? (
+        <CoursesTab
+          courses={courses}
+          loading={coursesQuery.isLoading}
+          canManage={!!capabilities?.canManagePrograms}
+        />
+      ) : tab === 'results' ? (
+        <ResultsTab
+          assignments={assignments}
+          loading={assignmentsQuery.isLoading}
+          canRecord={!!capabilities?.canRecordResults}
+          onRecord={setResultTarget}
+        />
+      ) : tab === 'certificates' ? (
+        <CertificatesTab certificates={certificates} loading={certificatesQuery.isLoading} />
+      ) : tab === 'analytics' ? (
+        <AnalyticsTab
+          dashboard={dashboard}
+          assignments={assignments}
+          canExport={!!capabilities?.canExport}
+        />
+      ) : (
+        <TrainingSettingsTab capabilities={capabilities} />
+      )}
+
+      {programModalOpen && (
+        <CreateProgramModal open onClose={() => setProgramModalOpen(false)} courses={courses} />
+      )}
+      {programTarget && (
+        <CreateProgramModal
+          key={`${programTarget.mode}-${programTarget.program.id}-${programTarget.program.version}`}
+          open
+          onClose={() => setProgramTarget(null)}
+          courses={courses}
+          program={programTarget.program}
+          mode={programTarget.mode}
+        />
+      )}
+      {assignmentModalOpen && (
+        <AssignTrainingModal
+          key={requestedPharmacistIds.join(':') || 'manual-assignment'}
+          open
+          onClose={closeAssignmentModal}
+          programs={programs}
+          events={events}
+          pharmacists={pharmacists}
+          initialPharmacistIds={requestedPharmacistIds}
+        />
+      )}
+      {eventModalOpen && (
+        <CreateEventModal open onClose={() => setEventModalOpen(false)} programs={programs} />
+      )}
+      {eventTarget && (
+        <CreateEventModal
+          key={`event-${eventTarget.id}-${eventTarget.updatedAt}`}
+          open
+          onClose={() => setEventTarget(null)}
+          programs={programs}
+          event={eventTarget}
+        />
+      )}
+      <CreateCourseModal open={courseModalOpen} onClose={() => setCourseModalOpen(false)} />
+      <AttendanceModal event={attendanceEvent} onClose={() => setAttendanceEvent(null)} />
+      <EventQrModal event={qrEvent} onClose={() => setQrEvent(null)} />
+      <AssessmentResultModal target={resultTarget} onClose={() => setResultTarget(null)} />
+      {formatTarget && (
+        <ChangeAssignmentFormatModal
+          key={formatTarget.id}
+          assignment={formatTarget}
+          program={programs.find((program) => program.id === formatTarget.programId) ?? null}
+          events={events}
+          onClose={() => setFormatTarget(null)}
+        />
+      )}
     </div>
   )
 }
 
-function CourseCard({ course }: { course: CourseDto }) {
-  const t = useT()
-  const toast = useToast()
-  const del = useDeleteCourse()
-
-  const handleDelete = () => {
-    if (!confirm(t('lms.confirmDelete', { title: course.title }))) return
-    del.mutate(course.id, {
-      onSuccess: () => toast.push(t('lms.deletedToast')),
-      onError: () => toast.push(t('lms.deleteErr')),
-    })
-  }
-
+function OverviewTab({
+  dashboard,
+  loading,
+}: {
+  dashboard: ReturnType<typeof useTrainingDashboard>['data']
+  loading: boolean
+}) {
+  if (loading || !dashboard) return <LoadingBlock label="Загружаем показатели обучения…" />
   return (
-    <li
-      data-testid={`lms-course-${course.id}`}
-      className="hairline flex flex-col gap-2 rounded-xl border p-4"
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="text-[14px] font-extrabold text-ink-900">{course.title}</div>
-        <div className="flex items-center gap-1.5">
-          <span className={`chip ${course.status === 'published' ? 'chip-green' : 'chip-ink'}`}>
-            {course.status === 'published' ? t('lms.published') : t('lms.draft')}
-          </span>
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={del.isPending}
-            aria-label={t('lms.delete')}
-            data-testid={`lms-course-delete-${course.id}`}
-            className="text-ink-400 transition-colors hover:text-accent-danger disabled:opacity-40"
-          >
-            <IconTrash size={15} />
-          </button>
+    <>
+      <div className="grid grid-cols-4 gap-4">
+        <Metric
+          label="Активные программы"
+          value={formatNum(dashboard.activePrograms)}
+          accent="ink"
+          icon={<IconLMS size={17} />}
+        />
+        <Metric
+          label="Назначено"
+          value={formatNum(dashboard.totalAssignments)}
+          accent="blue"
+          icon={<IconUsers size={17} />}
+        />
+        <Metric
+          label="Завершено"
+          value={formatNum(dashboard.completed)}
+          accent="green"
+          icon={<IconCheck size={17} />}
+        />
+        <Metric
+          label="Процент завершения"
+          value={`${dashboard.completionRatePct}%`}
+          accent="purple"
+          icon={<IconPlayCircle size={17} />}
+        />
+      </div>
+      <div className="grid grid-cols-[1.4fr_1fr] gap-4">
+        <section className="card p-5">
+          <h2 className="text-[15px] font-extrabold text-ink-900">Состояние назначений</h2>
+          <div className="mt-4 grid grid-cols-4 gap-5">
+            <CompactMetric label="Не начато" value={dashboard.notStarted} />
+            <CompactMetric label="В процессе" value={dashboard.inProgress} />
+            <CompactMetric label="Просрочено" value={dashboard.overdue} danger />
+            <CompactMetric
+              label="Средний балл"
+              value={dashboard.averageScore == null ? '—' : `${dashboard.averageScore}%`}
+            />
+          </div>
+          <div className="mt-5">
+            <ProgressBar value={dashboard.completionRatePct} height={8} />
+            <div className="mt-2 flex justify-between text-[11px] text-ink-500">
+              <span>Общий прогресс сети</span>
+              <span className="num font-bold">
+                {dashboard.completed} из {dashboard.totalAssignments}
+              </span>
+            </div>
+          </div>
+        </section>
+        <section className="card p-5">
+          <h2 className="text-[15px] font-extrabold text-ink-900">Результаты</h2>
+          <dl className="mt-4 divide-y divide-ink-100 text-[13px]">
+            <InfoRow label="Сертификатов выдано" value={formatNum(dashboard.certificates)} />
+            <InfoRow label="Бонусов начислено" value={formatKzt(dashboard.rewardsIssued)} />
+            <InfoRow
+              label="Посещение подтверждено"
+              value={formatNum(dashboard.attendanceConfirmed)}
+            />
+            <InfoRow label="Неявки" value={formatNum(dashboard.noShows)} />
+          </dl>
+        </section>
+      </div>
+      <section className="card p-5">
+        <h2 className="text-[15px] font-extrabold text-ink-900">Назначения по формату</h2>
+        <div className="mt-4 grid grid-cols-3 gap-4">
+          {(Object.keys(FORMAT_LABEL) as Array<keyof typeof FORMAT_LABEL>).map((format) => (
+            <div key={format} className="hairline rounded-lg border px-4 py-3">
+              <div className="text-[12px] font-semibold text-ink-500">{FORMAT_LABEL[format]}</div>
+              <div className="num mt-1 text-[22px] font-extrabold text-ink-900">
+                {formatNum(dashboard.byFormat[format] ?? 0)}
+              </div>
+            </div>
+          ))}
         </div>
-      </div>
-      <div className="text-[12px] text-ink-500">{course.category || t('lms.noCategory')}</div>
-      <div className="flex items-center gap-3 text-[12px] text-ink-600">
-        <span className="num">{t('lms.lessons', { n: formatNum(course.lessons) })}</span>
-        <span className="num">{t('lms.minutes', { n: formatNum(course.durationMin) })}</span>
-        <span className="num font-bold text-brand-green-700">
-          {t('lms.bonus', { n: formatNum(course.bonus) })}
-        </span>
-      </div>
-      <div className="num text-[11px] text-ink-500">
-        {t('lms.enrolledCompleted', {
-          e: formatNum(course.enrolled),
-          c: formatNum(course.completed),
-        })}
-      </div>
-    </li>
+      </section>
+    </>
   )
 }
 
-function CreateCourseModal({
-  open,
-  onClose,
-  onCreated,
+function ProgramsTab({
+  programs,
+  loading,
+  canManage,
+  onEdit,
+  onDuplicate,
 }: {
-  open: boolean
-  onClose: () => void
-  onCreated: (title: string) => void
+  programs: TrainingProgramDto[]
+  loading: boolean
+  canManage: boolean
+  onEdit: (program: TrainingProgramDto) => void
+  onDuplicate: (program: TrainingProgramDto) => void
 }) {
-  const t = useT()
-  const STATUS_OPTS: { value: CourseStatus; label: string }[] = [
-    { value: 'draft', label: t('lms.draft') },
-    { value: 'published', label: t('lms.published') },
-  ]
+  const toast = useToast()
+  const update = useUpdateTrainingProgram()
+  const [query, setQuery] = useState('')
+  const visible = useMemo(() => {
+    const normalized = query.trim().toLowerCase()
+    return programs.filter(
+      (program) =>
+        !normalized ||
+        `${program.name} ${program.brand} ${program.category}`.toLowerCase().includes(normalized),
+    )
+  }, [programs, query])
+
+  const changeStatus = (program: TrainingProgramDto, status: TrainingProgramStatus) => {
+    if (
+      status === 'archived' &&
+      !confirm(`Архивировать программу «${program.name}»? История назначений сохранится.`)
+    ) {
+      return
+    }
+    update.mutate(
+      { id: program.id, patch: { status } },
+      {
+        onSuccess: () => toast.push(`Статус программы «${program.name}» обновлён`),
+        onError: (error) => toast.push(describeError(error)),
+      },
+    )
+  }
+
+  if (loading) return <LoadingBlock label="Загружаем программы…" />
+  return (
+    <TableSection
+      search={
+        <SearchInput
+          value={query}
+          onChange={setQuery}
+          placeholder="Название, бренд или категория"
+          className="!h-9 w-[340px]"
+        />
+      }
+      empty={visible.length === 0}
+      emptyLabel="Программ обучения пока нет"
+    >
+      <table className="w-full text-[13px]" data-testid="training-programs-table">
+        <thead className="hairline border-b text-left text-[11px] font-bold uppercase text-ink-500">
+          <tr>
+            <th className="px-5 py-2.5">Программа</th>
+            <th className="px-3 py-2.5">Маршрут</th>
+            <th className="px-3 py-2.5">Формат</th>
+            <th className="px-3 py-2.5">Назначено</th>
+            <th className="px-3 py-2.5">Статус</th>
+            <th className="px-5 py-2.5" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-ink-100">
+          {visible.map((program) => (
+            <tr key={program.id} className="hover:bg-paper-hover">
+              <td className="px-5 py-3">
+                <div className="font-extrabold text-ink-900">{program.name}</div>
+                <div className="mt-0.5 text-[11px] text-ink-500">
+                  v{program.version} · {program.category || 'Без категории'} · бонус{' '}
+                  {formatKzt(program.completionBonus)}
+                </div>
+              </td>
+              <td className="px-3 py-3">
+                <div className="flex max-w-[360px] flex-col gap-1.5">
+                  {program.allowedFormats.map((format) => (
+                    <div key={format} className="flex items-center gap-1.5">
+                      <span className="w-16 text-[10px] font-bold uppercase text-ink-500">
+                        {FORMAT_LABEL[format]}
+                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {program.stages
+                          .filter((stage) => stage.applicableFormats.includes(format))
+                          .map((stage) => (
+                            <span key={`${format}-${stage.id}`} className="chip chip-ink">
+                              {STAGE_TYPE_LABEL[stage.type]}
+                            </span>
+                          ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </td>
+              <td className="px-3 py-3 text-ink-700">
+                {program.allowedFormats.map((format) => FORMAT_LABEL[format]).join(', ')}
+              </td>
+              <td className="num px-3 py-3 font-bold">{formatNum(program.assignments)}</td>
+              <td className="px-3 py-3">
+                <span className={`chip ${chipClass(program.status)}`}>
+                  {PROGRAM_STATUS_LABEL[program.status]}
+                </span>
+              </td>
+              <td className="px-5 py-3 text-right">
+                {canManage && program.status !== 'archived' && (
+                  <div className="flex items-center justify-end gap-1.5">
+                    <IconButton
+                      aria-label="Редактировать программу"
+                      tip="Редактировать программу"
+                      disabled={update.isPending}
+                      onClick={() => onEdit(program)}
+                    >
+                      <IconEdit size={16} />
+                    </IconButton>
+                    <IconButton
+                      aria-label="Создать копию"
+                      tip="Создать копию"
+                      disabled={update.isPending}
+                      onClick={() => onDuplicate(program)}
+                    >
+                      <IconDuplicate size={16} />
+                    </IconButton>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={update.isPending}
+                      onClick={() =>
+                        changeStatus(
+                          program,
+                          program.status === 'published' ? 'paused' : 'published',
+                        )
+                      }
+                    >
+                      {program.status === 'published' ? 'Приостановить' : 'Опубликовать'}
+                    </Button>
+                    <IconButton
+                      aria-label="Архивировать программу"
+                      tip="Архивировать программу"
+                      disabled={update.isPending}
+                      onClick={() => changeStatus(program, 'archived')}
+                    >
+                      <IconArchive size={16} />
+                    </IconButton>
+                  </div>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </TableSection>
+  )
+}
+
+function AssignmentsTab({
+  programs,
+  canManage,
+  canExport,
+  onChangeFormat,
+}: {
+  programs: TrainingProgramDto[]
+  canManage: boolean
+  canExport: boolean
+  onChangeFormat: (assignment: TrainingAssignmentDto) => void
+}) {
+  const toast = useToast()
+  const [query, setQuery] = useState('')
+  const [format, setFormat] = useState<TrainingFormat | 'all'>('all')
+  const [status, setStatus] = useState<TrainingAssignmentStatus | 'all'>('all')
+  const [programId, setProgramId] = useState('all')
+  const [page, setPage] = useState(0)
+  const [exporting, setExporting] = useState(false)
+  const deferredQuery = useDeferredValue(query.trim())
+  const pageQuery = useTrainingAssignmentPage({
+    format: format === 'all' ? undefined : format,
+    status: status === 'all' ? undefined : status,
+    programId: programId === 'all' ? undefined : programId,
+    q: deferredQuery || undefined,
+    page,
+    size: 25,
+  })
+  const pageData = pageQuery.data
+  const visible = pageData?.items ?? []
+
+  const exportCsv = async () => {
+    setExporting(true)
+    try {
+      const blob = await downloadTrainingAssignments({
+        format: format === 'all' ? undefined : format,
+        status: status === 'all' ? undefined : status,
+        programId: programId === 'all' ? undefined : programId,
+        q: query.trim() || undefined,
+      })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `training-assignments-${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      URL.revokeObjectURL(url)
+      toast.push('Отчёт сформирован с учётом текущих фильтров')
+    } catch (error) {
+      toast.push(describeError(error))
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  if (pageQuery.isLoading) return <LoadingBlock label="Загружаем назначения…" />
+  return (
+    <TableSection
+      search={
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <SearchInput
+            value={query}
+            onChange={(value) => {
+              setQuery(value)
+              setPage(0)
+            }}
+            placeholder="Фармацевт, аптека или программа"
+            className="!h-9 w-[320px]"
+          />
+          <Select
+            value={programId}
+            onChange={(value) => {
+              setProgramId(value)
+              setPage(0)
+            }}
+            className="w-[210px]"
+            options={[
+              { value: 'all', label: 'Все программы' },
+              ...programs.map((program) => ({ value: program.id, label: program.name })),
+            ]}
+          />
+          <Select
+            value={format}
+            onChange={(value) => {
+              setFormat(value as TrainingFormat | 'all')
+              setPage(0)
+            }}
+            className="w-[150px]"
+            options={[
+              { value: 'all', label: 'Все форматы' },
+              ...Object.entries(FORMAT_LABEL).map(([value, label]) => ({ value, label })),
+            ]}
+          />
+          <Select
+            value={status}
+            onChange={(value) => {
+              setStatus(value as TrainingAssignmentStatus | 'all')
+              setPage(0)
+            }}
+            className="w-[190px]"
+            options={[
+              { value: 'all', label: 'Все статусы' },
+              ...Object.entries(ASSIGNMENT_STATUS_LABEL).map(([value, label]) => ({
+                value,
+                label,
+              })),
+            ]}
+          />
+          {canExport && (
+            <Button
+              size="sm"
+              variant="outline"
+              leading={<IconDownload size={15} />}
+              disabled={exporting}
+              onClick={exportCsv}
+            >
+              {exporting ? 'Экспорт…' : 'CSV'}
+            </Button>
+          )}
+        </div>
+      }
+      empty={visible.length === 0}
+      emptyLabel="Назначений пока нет"
+    >
+      <table className="w-full text-[13px]" data-testid="training-assignments-table">
+        <thead className="hairline border-b text-left text-[11px] font-bold uppercase text-ink-500">
+          <tr>
+            <th className="px-5 py-2.5">Фармацевт</th>
+            <th className="px-3 py-2.5">Программа</th>
+            <th className="px-3 py-2.5">Формат</th>
+            <th className="px-3 py-2.5">Срок</th>
+            <th className="px-3 py-2.5">Прогресс</th>
+            <th className="px-3 py-2.5">Статус</th>
+            <th className="px-5 py-2.5" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-ink-100">
+          {visible.map((assignment) => (
+            <tr key={assignment.id} className="hover:bg-paper-hover">
+              <td className="px-5 py-3">
+                <div className="font-extrabold text-ink-900">{assignment.pharmacistName}</div>
+                <div className="text-[11px] text-ink-500">
+                  {assignment.pharmacyName} · {assignment.city}
+                </div>
+              </td>
+              <td className="px-3 py-3 font-semibold text-ink-800">{assignment.programName}</td>
+              <td className="px-3 py-3">{FORMAT_LABEL[assignment.format]}</td>
+              <td className="num px-3 py-3 text-ink-600">{dateOnly(assignment.dueAt)}</td>
+              <td className="px-3 py-3">
+                <div className="flex min-w-[130px] items-center gap-2">
+                  <ProgressBar value={assignment.progressPct} />
+                  <span className="num w-9 text-right text-[11px] font-bold">
+                    {assignment.progressPct}%
+                  </span>
+                </div>
+              </td>
+              <td className="px-3 py-3">
+                <span className={`chip ${chipClass(assignment.status)}`}>
+                  {ASSIGNMENT_STATUS_LABEL[assignment.status]}
+                </span>
+              </td>
+              <td className="px-5 py-3 text-right">
+                {canManage && assignment.status !== 'cancelled' && (
+                  <Button size="sm" variant="outline" onClick={() => onChangeFormat(assignment)}>
+                    Сменить формат
+                  </Button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {(pageData?.total ?? 0) > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink-100 px-5 py-3 text-[12px] text-ink-600">
+          <span>
+            Показано {page * 25 + 1}–{Math.min((page + 1) * 25, pageData?.total ?? 0)} из{' '}
+            {formatNum(pageData?.total ?? 0)}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={page === 0 || pageQuery.isFetching}
+              onClick={() => setPage((value) => Math.max(0, value - 1))}
+            >
+              Назад
+            </Button>
+            <span className="num min-w-[92px] text-center">
+              Страница {page + 1} из {Math.max(1, pageData?.totalPages ?? 1)}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={page + 1 >= (pageData?.totalPages ?? 0) || pageQuery.isFetching}
+              onClick={() => setPage((value) => value + 1)}
+            >
+              Далее
+            </Button>
+          </div>
+        </div>
+      )}
+    </TableSection>
+  )
+}
+
+function ResultsTab({
+  assignments,
+  loading,
+  canRecord,
+  onRecord,
+}: {
+  assignments: TrainingAssignmentDto[]
+  loading: boolean
+  canRecord: boolean
+  onRecord: (target: {
+    assignment: TrainingAssignmentDto
+    stage: TrainingAssignmentStageDto
+  }) => void
+}) {
+  const [query, setQuery] = useState('')
+  const rows = useMemo(() => {
+    const normalized = query.trim().toLowerCase()
+    return assignments.flatMap((assignment) =>
+      assignment.stages
+        .filter((stage) => ['test', 'ai_exam', 'manual_review'].includes(stage.type))
+        .filter(
+          (stage) =>
+            !normalized ||
+            `${assignment.pharmacistName} ${assignment.programName} ${stage.title}`
+              .toLowerCase()
+              .includes(normalized),
+        )
+        .map((stage) => ({ assignment, stage })),
+    )
+  }, [assignments, query])
+
+  if (loading) return <LoadingBlock label="Загружаем результаты…" />
+  return (
+    <TableSection
+      search={
+        <SearchInput
+          value={query}
+          onChange={setQuery}
+          placeholder="Фармацевт, программа или этап"
+          className="!h-9 w-[360px]"
+        />
+      }
+      empty={rows.length === 0}
+      emptyLabel="Этапов аттестации пока нет"
+    >
+      <table className="w-full text-[13px]" data-testid="training-results-table">
+        <thead className="hairline border-b text-left text-[11px] font-bold uppercase text-ink-500">
+          <tr>
+            <th className="px-5 py-2.5">Фармацевт</th>
+            <th className="px-3 py-2.5">Программа</th>
+            <th className="px-3 py-2.5">Этап</th>
+            <th className="px-3 py-2.5">Попытки</th>
+            <th className="px-3 py-2.5">Результат</th>
+            <th className="px-3 py-2.5">Статус</th>
+            <th className="px-5 py-2.5" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-ink-100">
+          {rows.map(({ assignment, stage }) => (
+            <tr key={stage.id} className="hover:bg-paper-hover">
+              <td className="px-5 py-3">
+                <div className="font-extrabold text-ink-900">{assignment.pharmacistName}</div>
+                <div className="text-[11px] text-ink-500">{assignment.pharmacyName}</div>
+              </td>
+              <td className="px-3 py-3 font-semibold text-ink-800">{assignment.programName}</td>
+              <td className="px-3 py-3">
+                <div className="font-semibold text-ink-800">{stage.title}</div>
+                <div className="text-[11px] text-ink-500">{STAGE_TYPE_LABEL[stage.type]}</div>
+              </td>
+              <td className="num px-3 py-3">
+                {stage.attemptsUsed}/{stage.maxAttempts ?? '∞'}
+              </td>
+              <td className="num px-3 py-3">{stage.score == null ? '—' : `${stage.score}%`}</td>
+              <td className="px-3 py-3">
+                <span className={`chip ${chipClass(stage.status)}`}>
+                  {stage.status.replaceAll('_', ' ')}
+                </span>
+              </td>
+              <td className="px-5 py-3 text-right">
+                {canRecord && !['completed', 'skipped', 'locked'].includes(stage.status) && (
+                  <Button size="sm" onClick={() => onRecord({ assignment, stage })}>
+                    Записать результат
+                  </Button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </TableSection>
+  )
+}
+
+function EventsTab({
+  events,
+  loading,
+  canManageEvents,
+  canMarkAttendance,
+  onEdit,
+  onParticipants,
+  onQr,
+}: {
+  events: OfflineEventDto[]
+  loading: boolean
+  canManageEvents: boolean
+  canMarkAttendance: boolean
+  onEdit: (event: OfflineEventDto) => void
+  onParticipants: (event: OfflineEventDto) => void
+  onQr: (event: OfflineEventDto) => void
+}) {
+  if (loading) return <LoadingBlock label="Загружаем события…" />
+  return (
+    <TableSection empty={events.length === 0} emptyLabel="Очных событий пока нет">
+      <table className="w-full text-[13px]" data-testid="training-events-table">
+        <thead className="hairline border-b text-left text-[11px] font-bold uppercase text-ink-500">
+          <tr>
+            <th className="px-5 py-2.5">Событие</th>
+            <th className="px-3 py-2.5">Дата и время</th>
+            <th className="px-3 py-2.5">Место</th>
+            <th className="px-3 py-2.5">Тренер</th>
+            <th className="px-3 py-2.5">Участники</th>
+            <th className="px-5 py-2.5" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-ink-100">
+          {events.map((event) => (
+            <tr key={event.id} className="hover:bg-paper-hover">
+              <td className="px-5 py-3">
+                <div className="font-extrabold text-ink-900">{event.title}</div>
+                <div className="text-[11px] text-ink-500">{event.programName}</div>
+              </td>
+              <td className="num px-3 py-3 text-ink-700">{dateTime(event.startsAt)}</td>
+              <td className="px-3 py-3 text-ink-700">
+                {event.city || '—'}
+                <div className="text-[11px] text-ink-500">{event.address}</div>
+              </td>
+              <td className="px-3 py-3 text-ink-700">
+                {event.trainerName || event.organizer || '—'}
+              </td>
+              <td className="px-3 py-3">
+                <EventSummary event={event} />
+              </td>
+              <td className="px-5 py-3 text-right">
+                {(canManageEvents || canMarkAttendance) && (
+                  <div className="flex justify-end gap-2">
+                    {canManageEvents && event.status !== 'archived' && (
+                      <IconButton
+                        aria-label="Редактировать событие"
+                        tip="Редактировать событие"
+                        onClick={() => onEdit(event)}
+                      >
+                        <IconEdit size={16} />
+                      </IconButton>
+                    )}
+                    {canMarkAttendance && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          leading={<QrCode size={15} />}
+                          onClick={() => onQr(event)}
+                        >
+                          QR-код
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => onParticipants(event)}>
+                          Участники
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </TableSection>
+  )
+}
+
+function CoursesTab({
+  courses,
+  loading,
+  canManage,
+}: {
+  courses: CourseDto[]
+  loading: boolean
+  canManage: boolean
+}) {
+  if (loading) return <LoadingBlock label="Загружаем онлайн-курсы…" />
+  return (
+    <TableSection empty={courses.length === 0} emptyLabel="Онлайн-курсов пока нет">
+      <table className="w-full text-[13px]" data-testid="lms-courses-table">
+        <thead className="hairline border-b text-left text-[11px] font-bold uppercase text-ink-500">
+          <tr>
+            <th className="px-5 py-2.5">Курс</th>
+            <th className="px-3 py-2.5">Материалы</th>
+            <th className="px-3 py-2.5">Фармацевты</th>
+            <th className="px-3 py-2.5">Статус</th>
+            <th className="px-5 py-2.5" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-ink-100">
+          {courses.map((course) => (
+            <CourseRow key={course.id} course={course} canManage={canManage} />
+          ))}
+        </tbody>
+      </table>
+    </TableSection>
+  )
+}
+
+function CourseRow({ course, canManage }: { course: CourseDto; canManage: boolean }) {
+  const toast = useToast()
+  const remove = useDeleteCourse()
+  const statusLabel: Record<CourseStatus, string> = {
+    published: 'Опубликован',
+    draft: 'Черновик',
+    archived: 'Архив',
+  }
+  return (
+    <tr className="hover:bg-paper-hover">
+      <td className="px-5 py-3">
+        <div className="font-extrabold text-ink-900">{course.title}</div>
+        <div className="text-[11px] text-ink-500">{course.category || 'Без категории'}</div>
+      </td>
+      <td className="px-3 py-3 text-ink-700">
+        {course.lessons} уроков · {course.durationMin} мин.
+      </td>
+      <td className="num px-3 py-3 text-ink-700">
+        {course.completed} / {course.enrolled}
+      </td>
+      <td className="px-3 py-3">
+        <span className={`chip ${chipClass(course.status)}`}>{statusLabel[course.status]}</span>
+      </td>
+      <td className="px-5 py-3 text-right">
+        {canManage && course.status !== 'archived' && (
+          <button
+            type="button"
+            aria-label={`Архивировать курс ${course.title}`}
+            className="text-ink-400 hover:text-accent-danger"
+            onClick={() => {
+              if (!confirm(`Архивировать курс «${course.title}»? История обучения сохранится.`))
+                return
+              remove.mutate(course.id, {
+                onSuccess: () => toast.push('Курс архивирован'),
+                onError: (error) => toast.push(describeError(error)),
+              })
+            }}
+          >
+            <IconArchive size={16} />
+          </button>
+        )}
+      </td>
+    </tr>
+  )
+}
+
+function CertificatesTab({
+  certificates,
+  loading,
+}: {
+  certificates: ReturnType<typeof useTrainingCertificates>['data'] extends infer T
+    ? NonNullable<T>
+    : never
+  loading: boolean
+}) {
+  if (loading) return <LoadingBlock label="Загружаем сертификаты…" />
+  return (
+    <TableSection empty={certificates.length === 0} emptyLabel="Сертификатов пока нет">
+      <table className="w-full text-[13px]" data-testid="training-certificates-table">
+        <thead className="hairline border-b text-left text-[11px] font-bold uppercase text-ink-500">
+          <tr>
+            <th className="px-5 py-2.5">Номер</th>
+            <th className="px-3 py-2.5">Фармацевт</th>
+            <th className="px-3 py-2.5">Программа</th>
+            <th className="px-3 py-2.5">Результат</th>
+            <th className="px-3 py-2.5">Выдан</th>
+            <th className="px-5 py-2.5" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-ink-100">
+          {certificates.map((certificate) => (
+            <tr key={certificate.id} className="hover:bg-paper-hover">
+              <td className="num px-5 py-3 font-bold text-ink-900">{certificate.number}</td>
+              <td className="px-3 py-3 font-semibold text-ink-800">{certificate.pharmacistName}</td>
+              <td className="px-3 py-3 text-ink-700">{certificate.programName}</td>
+              <td className="num px-3 py-3">
+                {certificate.score == null ? '—' : `${certificate.score}%`}
+              </td>
+              <td className="num px-3 py-3 text-ink-600">{dateOnly(certificate.issuedAt)}</td>
+              <td className="px-5 py-3 text-right">
+                {certificate.pdfUrl && (
+                  <a
+                    href={certificate.pdfUrl}
+                    className="inline-flex text-brand-green-700"
+                    aria-label="Скачать сертификат"
+                  >
+                    <IconDownload size={17} />
+                  </a>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </TableSection>
+  )
+}
+
+function AnalyticsTab({
+  dashboard,
+  assignments,
+  canExport,
+}: {
+  dashboard: ReturnType<typeof useTrainingDashboard>['data']
+  assignments: TrainingAssignmentDto[]
+  canExport: boolean
+}) {
+  const toast = useToast()
+  const [exporting, setExporting] = useState(false)
+  if (!dashboard) return <LoadingBlock label="Загружаем аналитику…" />
+
+  const rows = (Object.keys(FORMAT_LABEL) as TrainingFormat[]).map((format) => {
+    const scoped = assignments.filter((assignment) => assignment.format === format)
+    const started = scoped.filter(
+      (assignment) => assignment.status !== 'not_started' && assignment.status !== 'scheduled',
+    ).length
+    const completed = scoped.filter((assignment) => assignment.status === 'completed').length
+    const overdue = scoped.filter((assignment) => assignment.status === 'overdue').length
+    return {
+      format,
+      assigned: scoped.length,
+      started,
+      completed,
+      overdue,
+      completionRate: scoped.length === 0 ? 0 : Math.round((completed * 100) / scoped.length),
+    }
+  })
+
+  const exportCsv = async () => {
+    setExporting(true)
+    try {
+      const blob = await downloadTrainingAssignments()
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `training-analytics-${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      URL.revokeObjectURL(url)
+      toast.push('Отчёт по обучению сформирован')
+    } catch (error) {
+      toast.push(describeError(error))
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-4 gap-4">
+        <Metric label="Назначено" value={formatNum(dashboard.totalAssignments)} accent="blue" />
+        <Metric label="Завершено" value={formatNum(dashboard.completed)} accent="green" />
+        <Metric label="Просрочено" value={formatNum(dashboard.overdue)} accent="amber" />
+        <Metric label="Бонусы" value={formatKzt(dashboard.rewardsIssued)} accent="purple" />
+      </div>
+      <section className="card overflow-hidden">
+        <div className="hairline flex items-center justify-between border-b px-5 py-3">
+          <div>
+            <h2 className="text-[15px] font-extrabold text-ink-900">Эффективность по форматам</h2>
+            <p className="text-[11px] text-ink-500">
+              Текущие назначения в доступной области данных
+            </p>
+          </div>
+          {canExport && (
+            <Button
+              size="sm"
+              variant="outline"
+              leading={<IconDownload size={15} />}
+              disabled={exporting}
+              onClick={exportCsv}
+            >
+              {exporting ? 'Экспорт…' : 'Экспорт CSV'}
+            </Button>
+          )}
+        </div>
+        <table className="w-full text-[13px]" data-testid="training-analytics-table">
+          <thead className="hairline border-b text-left text-[11px] font-bold uppercase text-ink-500">
+            <tr>
+              <th className="px-5 py-2.5">Формат</th>
+              <th className="px-3 py-2.5">Назначено</th>
+              <th className="px-3 py-2.5">Начали</th>
+              <th className="px-3 py-2.5">Завершили</th>
+              <th className="px-3 py-2.5">Просрочили</th>
+              <th className="px-5 py-2.5">Завершение</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-ink-100">
+            {rows.map((row) => (
+              <tr key={row.format}>
+                <td className="px-5 py-3 font-extrabold text-ink-900">
+                  {FORMAT_LABEL[row.format]}
+                </td>
+                <td className="num px-3 py-3">{row.assigned}</td>
+                <td className="num px-3 py-3">{row.started}</td>
+                <td className="num px-3 py-3">{row.completed}</td>
+                <td className="num px-3 py-3">{row.overdue}</td>
+                <td className="px-5 py-3">
+                  <div className="flex min-w-[150px] items-center gap-2">
+                    <ProgressBar value={row.completionRate} />
+                    <span className="num w-10 text-right font-bold">{row.completionRate}%</span>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    </div>
+  )
+}
+
+function TrainingSettingsTab({ capabilities }: { capabilities?: TrainingCapabilitiesDto }) {
+  if (!capabilities) return <LoadingBlock label="Загружаем права доступа…" />
+  const permissions = [
+    ['Программы и маршруты', capabilities.canManagePrograms],
+    ['Назначения и форматы', capabilities.canManageAssignments],
+    ['Офлайн-мероприятия', capabilities.canManageEvents],
+    ['Посещаемость', capabilities.canMarkAttendance],
+    ['Результаты и экзамены', capabilities.canRecordResults],
+    ['Формат по умолчанию', capabilities.canManagePreferences],
+    ['Бонусы и корректировки', capabilities.canAdjustRewards],
+    ['Экспорт отчётов', capabilities.canExport],
+  ] as const
+  return (
+    <div className="grid grid-cols-[1.3fr_1fr] gap-4">
+      <section className="card overflow-hidden">
+        <div className="hairline border-b px-5 py-4">
+          <h2 className="text-[15px] font-extrabold text-ink-900">Права текущего пользователя</h2>
+        </div>
+        <div className="divide-y divide-ink-100">
+          {permissions.map(([label, allowed]) => (
+            <div key={label} className="flex items-center justify-between px-5 py-3 text-[13px]">
+              <span className="font-semibold text-ink-700">{label}</span>
+              <span className={`chip ${allowed ? 'chip-green' : 'chip-ink'}`}>
+                {allowed ? 'Разрешено' : 'Только просмотр'}
+              </span>
+            </div>
+          ))}
+        </div>
+      </section>
+      <section className="card p-5">
+        <h2 className="text-[15px] font-extrabold text-ink-900">Область данных</h2>
+        <div className="mt-4 text-[13px] text-ink-700">
+          {capabilities.regionalScope.length === 0 ? (
+            <span className="chip chip-green">Вся сеть</span>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {capabilities.regionalScope.map((region) => (
+                <span key={region} className="chip chip-ink">
+                  {region}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function CreateCourseModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const toast = useToast()
   const create = useCreateCourse()
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState('')
@@ -209,23 +1239,9 @@ function CreateCourseModal({
   const [durationMin, setDurationMin] = useState('')
   const [bonus, setBonus] = useState('')
   const [status, setStatus] = useState<CourseStatus>('draft')
-  const [err, setErr] = useState<string | null>(null)
-
-  const reset = () => {
-    setTitle('')
-    setCategory('')
-    setLessons('')
-    setDurationMin('')
-    setBonus('')
-    setStatus('draft')
-    setErr(null)
-  }
-
+  const [error, setError] = useState<string | null>(null)
   const submit = () => {
-    if (!title.trim()) {
-      setErr(t('lms.errTitleReq'))
-      return
-    }
+    if (!title.trim()) return setError('Введите название курса')
     create.mutate(
       {
         title: title.trim(),
@@ -237,91 +1253,146 @@ function CreateCourseModal({
       },
       {
         onSuccess: () => {
-          const t = title.trim()
-          reset()
-          onCreated(t)
+          toast.push('Онлайн-курс создан')
+          onClose()
         },
-        onError: (e) => setErr(describeError(e)),
+        onError: (requestError) => setError(describeError(requestError)),
       },
     )
   }
-
   return (
     <Modal
       open={open}
-      onClose={() => {
-        reset()
-        onClose()
-      }}
-      title={t('lms.newCourse')}
-      subtitle={t('lms.modalSub')}
+      onClose={onClose}
+      title="Новый онлайн-курс"
+      subtitle="Курс можно включить в одну или несколько программ"
       footer={
         <>
-          <Button
-            variant="ghost"
-            onClick={() => {
-              reset()
-              onClose()
-            }}
-          >
-            {t('common.cancel')}
+          <Button variant="ghost" onClick={onClose}>
+            Отмена
           </Button>
-          <Button variant="primary" disabled={create.isPending} onClick={submit}>
-            {create.isPending ? t('lms.creating') : t('lms.create')}
+          <Button disabled={create.isPending} onClick={submit}>
+            Создать
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-3">
-        {err && (
+        {error && (
           <div className="rounded-lg bg-surface-danger px-3 py-2 text-[12px] font-semibold text-accent-danger">
-            {err}
+            {error}
           </div>
         )}
-        <Field label={t('lms.fldTitle')}>
-          <Input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder={t('lms.titlePh')}
-            autoFocus
-          />
+        <Field label="Название">
+          <Input value={title} onChange={(event) => setTitle(event.target.value)} autoFocus />
         </Field>
-        <Field label={t('lms.fldCategory')} optional>
-          <Input
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            placeholder={t('lms.categoryPh')}
-          />
+        <Field label="Категория" optional>
+          <Input value={category} onChange={(event) => setCategory(event.target.value)} />
         </Field>
         <div className="grid grid-cols-3 gap-3">
-          <Field label={t('lms.fldLessons')}>
+          <Field label="Уроков">
             <Input
               type="number"
               min={0}
               value={lessons}
-              onChange={(e) => setLessons(e.target.value)}
+              onChange={(event) => setLessons(event.target.value)}
             />
           </Field>
-          <Field label={t('lms.fldMinutes')}>
+          <Field label="Минут">
             <Input
               type="number"
               min={0}
               value={durationMin}
-              onChange={(e) => setDurationMin(e.target.value)}
+              onChange={(event) => setDurationMin(event.target.value)}
             />
           </Field>
-          <Field label={t('lms.fldBonus')}>
-            <Input type="number" min={0} value={bonus} onChange={(e) => setBonus(e.target.value)} />
+          <Field label="Бонус, ₸">
+            <Input
+              type="number"
+              min={0}
+              value={bonus}
+              onChange={(event) => setBonus(event.target.value)}
+            />
           </Field>
         </div>
-        <Field label={t('lms.fldStatus')}>
+        <Field label="Статус">
           <Select
             value={status}
-            onChange={(v) => setStatus(v as CourseStatus)}
-            options={STATUS_OPTS}
+            onChange={(value) => setStatus(value as CourseStatus)}
+            options={[
+              { value: 'draft', label: 'Черновик' },
+              { value: 'published', label: 'Опубликован' },
+            ]}
           />
         </Field>
       </div>
     </Modal>
+  )
+}
+
+function TableSection({
+  children,
+  search,
+  empty,
+  emptyLabel,
+}: {
+  children: React.ReactNode
+  search?: React.ReactNode
+  empty: boolean
+  emptyLabel: string
+}) {
+  return (
+    <section className="card min-h-[430px] overflow-hidden">
+      {search && (
+        <div className="hairline flex items-center justify-end border-b px-5 py-3">{search}</div>
+      )}
+      {empty ? (
+        <Empty
+          title={emptyLabel}
+          body="Данные появятся после создания или назначения обучения"
+          icon={<IconLMS size={26} />}
+        />
+      ) : (
+        <div className="scrollbar-thin overflow-auto">{children}</div>
+      )}
+    </section>
+  )
+}
+
+function LoadingBlock({ label }: { label: string }) {
+  return (
+    <div className="card flex min-h-[360px] items-center justify-center text-[13px] font-semibold text-ink-500">
+      {label}
+    </div>
+  )
+}
+
+function CompactMetric({
+  label,
+  value,
+  danger = false,
+}: {
+  label: string
+  value: number | string
+  danger?: boolean
+}) {
+  return (
+    <div>
+      <div className="text-[11px] font-semibold text-ink-500">{label}</div>
+      <div
+        className={`num mt-1 text-[20px] font-extrabold ${danger ? 'text-accent-danger' : 'text-ink-900'}`}
+      >
+        {typeof value === 'number' ? formatNum(value) : value}
+      </div>
+    </div>
+  )
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between py-2.5">
+      <dt className="text-ink-600">{label}</dt>
+      <dd className="num font-extrabold text-ink-900">{value}</dd>
+    </div>
   )
 }

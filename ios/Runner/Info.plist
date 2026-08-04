@@ -51,7 +51,7 @@
 	<true/>
 	<!-- Camera access — для съёмки чеков (Этап 3 Receipts). -->
 	<key>NSCameraUsageDescription</key>
-	<string>Epharm использует камеру для фотографии чеков и сканирования QR-кода фискального чека.</string>
+	<string>Epharm использует камеру для фотографии чеков и регистрации на обучающих мероприятиях по QR-коду.</string>
 	<!-- Photo library — для загрузки чеков из галереи. -->
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Epharm использует доступ к фото для загрузки изображений чеков из вашей галереи.</string>

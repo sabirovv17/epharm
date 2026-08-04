@@ -39,6 +39,7 @@ The backend is a modular monolith under package `kz.epharm`.
 | `medusa`                              | Storefront client/proxy and admin read-only catalog.                    |
 | `posm`                                | POSM recommendations, outcomes, sales, playlists, heartbeat, CDP.       |
 | `appupdate`                           | POSM app release metadata and auto-update endpoint.                     |
+| `training`                            | Programs, routes, assignments, events, attendance, results and awards.  |
 | `lms`, `ai_exam`, `lift`, `dashboard` | Admin sections and reporting.                                           |
 | `shared`                              | Security, errors, media proxy, storage, validation, dev reset.          |
 
@@ -61,6 +62,7 @@ The backend is a modular monolith under package `kz.epharm`.
 - `/api/admin/screens/**`, including `/connected` and `/broadcast`
 - `/api/admin/app-releases/**`
 - `/api/admin/lms/courses/**`
+- `/api/admin/training/**`
 - `/api/admin/ai-exam/questions/**`
 - `/api/admin/lift`
 
@@ -88,6 +90,12 @@ Authenticated pharmacist:
 - `GET /api/mobile/me`
 - `GET /api/mobile/receipts`
 - `POST /api/mobile/receipts` multipart.
+- `/api/mobile/training/**` for the authenticated pharmacist's assignments, events and notifications.
+
+Public training verification:
+
+- `GET /api/public/training/certificates/{qrToken}`
+- `GET /api/public/training/certificates/{qrToken}/pdf`
 
 ### POSM
 

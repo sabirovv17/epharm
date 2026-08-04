@@ -9,6 +9,8 @@ mockk = "1.13.13"
 flyway = "10.20.1"
 aws-sdk = "2.29.9"
 poi = "5.3.0"
+pdfbox = "3.0.8"
+zxing = "3.5.4"
 
 [libraries]
 # Spring Boot starters
@@ -41,6 +43,10 @@ aws-s3 = { module = "software.amazon.awssdk:s3", version.ref = "aws-sdk" }
 
 # Excel (источник №2 сверки чеков — выгрузка Стандарт-Н)
 poi-ooxml = { module = "org.apache.poi:poi-ooxml", version.ref = "poi" }
+
+# PDF-сертификаты обучения + QR-код публичной проверки.
+pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 
 # OpenAPI
 springdoc-openapi-starter = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc-openapi" }

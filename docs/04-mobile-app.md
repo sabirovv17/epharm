@@ -40,6 +40,7 @@ Offline mocks remain available with `--dart-define=USE_API=false`.
 | Receipts      | `features/receipts`      | Upload photo, bonus card capture, claimed promo id, receipt list/detail/status.     |
 | Profile       | `features/profile`       | `/api/mobile/me` profile/balance refresh.                                           |
 | Profile pages | `features/profile_pages` | FAQ, instruction, cooperation, terms, privacy, video instruction.                   |
+| Training      | `features/training`      | Assigned routes, event selection/QR, progress, notifications, certificates/rewards. |
 
 ## App Flow
 
@@ -56,6 +57,9 @@ Offline mocks remain available with `--dart-define=USE_API=false`.
 10. Receipt review currently requires the card step; campaign id can be carried from the bonus CTA.
 11. Submit uploads multipart receipt to backend.
 12. Receipt list/detail shows moderation status; pull-to-refresh updates.
+13. Profile -> Training shows only the current pharmacist's assigned programs. The pharmacist can
+    start available stages, select an eligible event and check in by QR, but cannot change format or
+    record an assessment result.
 
 QR/OFD scanning was removed by product decision. Receipt validation is not based on OCR.
 
@@ -72,6 +76,7 @@ Examples:
 - `PromotionsRepository` -> `/api/mobile/promotions`;
 - `MeRepository` -> `/api/mobile/me`;
 - `BannerRepository` -> `/api/mobile/banners`.
+- `ApiTrainingRepository` -> `/api/mobile/training/**`.
 
 Tokens and onboarding/card defaults use secure storage. `ApiClient` handles refresh and distinguishes
 auth failures from transient refresh failures.

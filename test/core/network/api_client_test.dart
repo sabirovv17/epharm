@@ -55,6 +55,14 @@ void main() {
       // Успешный fallback становится активным для следующих запросов сессии.
       await client.getJson('/api/mobile/promotions', auth: false);
       expect(requestedOrigins.last, 'http://epharm.inkar.kz:8060');
+      expect(
+        client.resolveUrl('/api/public/training/certificates/token/pdf'),
+        'http://epharm.inkar.kz:8060/api/public/training/certificates/token/pdf',
+      );
+      expect(
+        client.resolveUrl('https://cdn.example.kz/certificate.pdf'),
+        'https://cdn.example.kz/certificate.pdf',
+      );
     });
 
     test('HTTP-ошибка backend не переключает origin', () async {

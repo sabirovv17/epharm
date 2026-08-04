@@ -56,6 +56,8 @@ public endpoint unless `.env.prod` and `Caddyfile` are changed together.
 | `10-posm-v1.0.42-production-hardening.md` | Разбор VM/боевой кассы, исправления установки, логов и heartbeat.              |
 | `11-posm-v1.0.43-active-receipt.md`       | Причина сбоя на Ауэзова 134 и контракт чтения живого чека из Firebird.         |
 | `12-posm-v1.0.44-firebird-auth.md`        | Боевой сбой авторизации Firebird и детерминированный приоритет `options.ini`.  |
+| `13-training-module.md`                   | Реализация блока обучения в backend, админке и мобильном приложении.           |
+| `TRAINING-TEST-GUIDE.md`                  | Сквозная проверка обучения: админка, приложение, QR, сертификат и роли.        |
 | `RUNBOOK.md`                              | Day-to-day local startup, reset, tests, and production commands.               |
 | `DEV-ONBOARDING.md`                       | Run mobile app on Android/iPhone against shared backend.                       |
 | `RELEASE-CHECKLIST.md`                    | Release blockers and hardening backlog.                                        |

@@ -60,7 +60,8 @@ class CourseService(
     @Transactional
     fun delete(id: String) {
         val entity = loadOrThrow(id)
-        courseRepository.delete(entity)
+        entity.status = CourseStatus.archived
+        courseRepository.save(entity)
     }
 
     private fun loadOrThrow(id: String): CourseEntity =

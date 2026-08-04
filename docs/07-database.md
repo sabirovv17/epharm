@@ -4,7 +4,7 @@ Database: PostgreSQL 16.
 
 Migrations: Flyway files in `admin-panel/backend/src/main/resources/db/migration/`.
 
-Current migration range: V001-V034.
+Current migration range: V001-V036.
 
 ## Migrations
 
@@ -44,22 +44,25 @@ Current migration range: V001-V034.
 | V032    | `recommendation_sale_attribution`    | Show-to-sale correlation, display time, attributed sale and duration.        |
 | V033    | `pos_sale_pharmacist_name`           | Standard-N pharmacist/cashier name snapshot on POS sales.                    |
 | V034    | `pos_sale_pharmacist_identity_audit` | Raw Standard-N id/name and identity-resolution source on POS sales.          |
+| V035    | `training_programs`                  | Programs, versions, assignments, events, attendance, certificates/rewards.   |
+| V036    | `training_routes_and_assessments`    | Per-format routes, result history and assignment format history.             |
 
 ## Domain Tables
 
-| Domain             | Main tables                                                                    |
-| ------------------ | ------------------------------------------------------------------------------ |
-| Auth               | `admin_users`, `refresh_tokens`, `mobile_otps`, `mobile_refresh_tokens`        |
-| Catalog/rules      | `products`, `rules`                                                            |
-| Promo              | `promos` plus campaign rule references                                         |
-| Receipts/reconcile | `receipts`, `pending_bonuses`, `pos_sales`, `excel_imports`, `excel_sale_rows` |
-| Pharmacies         | `chains`, `pharmacies`                                                         |
-| Pharmacists        | `pharmacists`                                                                  |
-| Finance            | `payout_batches`, `payout_items`                                               |
-| Screens            | `playlists`, `slides`                                                          |
-| POSM               | `recommendation_events`, app release tables, CDP tables                        |
-| LMS/AI             | `courses`, `exam_questions`                                                    |
-| Banners            | `banners`                                                                      |
+| Domain              | Main tables                                                                    |
+| ------------------- | ------------------------------------------------------------------------------ |
+| Auth                | `admin_users`, `refresh_tokens`, `mobile_otps`, `mobile_refresh_tokens`        |
+| Catalog/rules       | `products`, `rules`                                                            |
+| Promo               | `promos` plus campaign rule references                                         |
+| Receipts/reconcile  | `receipts`, `pending_bonuses`, `pos_sales`, `excel_imports`, `excel_sale_rows` |
+| Pharmacies          | `chains`, `pharmacies`                                                         |
+| Pharmacists         | `pharmacists`                                                                  |
+| Finance             | `payout_batches`, `payout_items`                                               |
+| Screens             | `playlists`, `slides`                                                          |
+| POSM                | `recommendation_events`, app release tables, CDP tables                        |
+| LMS/AI              | `courses`, `exam_questions`, `training_programs`, versions and result history  |
+| Training operations | `training_assignments`, stages, events, participants, certificates, rewards    |
+| Banners             | `banners`                                                                      |
 
 ## Current Architectural Decisions
 

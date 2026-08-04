@@ -42,6 +42,8 @@ springdoc:
 
 app:
   version: 0.1.0
+  # Канонический публичный origin для QR-проверки сертификатов.
+  public-base-url: ${APP_PUBLIC_BASE_URL:https://epharm.inkar.kz}
   cors:
     # comma-separated list of origins, без trailing slash
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
