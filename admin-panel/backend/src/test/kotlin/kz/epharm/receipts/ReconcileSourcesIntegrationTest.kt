@@ -15,6 +15,7 @@ import kz.epharm.pharmacies.repository.PharmacyRepository
 import kz.epharm.catalog.entity.ProductEntity
 import kz.epharm.catalog.repository.ProductRepository
 import kz.epharm.pharmacists.entity.PharmacistEntity
+import kz.epharm.pharmacists.entity.PharmacistStatus
 import kz.epharm.pharmacists.repository.PharmacistRepository
 import kz.epharm.posm.dto.PosSaleItemDto
 import kz.epharm.posm.dto.PosSaleRequest
@@ -109,7 +110,8 @@ class ReconcileSourcesIntegrationTest {
         )
         pharmacistRepository.save(
             PharmacistEntity(id = "u_t", name = "Тест Фарм", iin = "900115300013", phone = "+77001234567",
-                pharmacyId = "ph_t", pharmacyName = "Аптека Т", city = "Алматы", balance = 0, earned30d = 0),
+                pharmacyId = "ph_t", pharmacyName = "Аптека Т", city = "Алматы", balance = 0, earned30d = 0)
+                .also { it.status = PharmacistStatus.active },
         )
         pendingBonusRepository.save(
             PendingBonusEntity(id = "pb_t", pharmacistId = "u_t", pharmacistName = "Тест Фарм",
