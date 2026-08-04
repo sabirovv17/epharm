@@ -655,12 +655,15 @@ export interface SlideDto {
   position: number
 }
 
-/** Текущий ролик на кассах — «эфир» (GET/POST /api/admin/screens/broadcast). */
+/** Один ролик упорядоченного эфира (до 12 позиций). */
 export interface ActiveSlideDto {
+  id: string
   url: string
   kind: SlideKind
   durationSec: number
   title: string
+  /** Нулевая позиция; в UI отображается как слот 1..12. */
+  position: number
 }
 export interface ActivePlaylistDto {
   playlistId: string | null

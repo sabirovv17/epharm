@@ -59,7 +59,8 @@ The backend is a modular monolith under package `kz.epharm`.
 - `/api/admin/pharmacists/**`
 - `/api/admin/reconcile/**`, including `/submit` and `/import-excel`
 - `/api/admin/payouts/**`
-- `/api/admin/screens/**`, including `/connected` and `/broadcast`
+- `/api/admin/screens/**`, including `/connected`, `/broadcast`, and per-slot broadcast replacement
+  at `/broadcast/slots/{1..12}`
 - `/api/admin/app-releases/**`
 - `/api/admin/lms/courses/**`
 - `/api/admin/training/**`

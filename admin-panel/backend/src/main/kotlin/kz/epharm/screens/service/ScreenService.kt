@@ -20,6 +20,8 @@ import kz.epharm.shared.storage.MediaStorage
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionSynchronization
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.multipart.MultipartFile
 import java.util.UUID
 
@@ -31,8 +33,9 @@ class ScreenService(
     private val mediaStorage: MediaStorage,
 ) {
     companion object {
-        /** Единственный глобальный плейлист «эфир» (один ролик на все кассы). */
+        /** Единственный глобальный плейлист «эфир» на все кассы. */
         const val BROADCAST_PLAYLIST_ID = "pl_broadcast"
+        const val BROADCAST_SLOT_COUNT = 12
     }
 
     // ── Чтение ────────────────────────────────────────────────────────────
@@ -70,7 +73,14 @@ class ScreenService(
             ?: return ActivePlaylistDto(playlistId = null, name = "", slides = emptyList())
 
         val slides = slideRepository.findAllByPlaylistIdOrderByPositionAsc(playlist.id).map {
-            ActiveSlideDto(url = it.mediaUrl, kind = it.kind, durationSec = it.durationSec, title = it.title)
+            ActiveSlideDto(
+                id = it.id,
+                url = it.mediaUrl,
+                kind = it.kind,
+                durationSec = it.durationSec,
+                title = it.title,
+                position = it.position,
+            )
         }
         return ActivePlaylistDto(playlistId = playlist.id, name = playlist.name, slides = slides)
     }
@@ -186,54 +196,216 @@ class ScreenService(
         return SlideDto.of(saved)
     }
 
-    // ── Эфир: один общий ролик на все кассы (максимально просто) ────────────
+    // ── Эфир: до 12 роликов, один общий плейлист на все кассы ───────────────
 
     /**
-     * «Эфир»: загрузил ОДИН ролик — он сразу играет на ВСЕХ кассах. Атомарно:
-     *  1) видео → MinIO (валидация в uploadSlide);
+     * Legacy-операция «заменить весь эфир одним роликом». Сохраняется для обратной
+     * совместимости старого UI и интеграций:
+     *  1) видео → MinIO;
      *  2) гасим все активные плейлисты (активен только эфир);
      *  3) находим/создаём единственный плейлист BROADCAST_PLAYLIST_ID;
-     *  4) эфир = один ролик: удаляем прежние слайды этого плейлиста (MinIO + БД);
+     *  4) удаляем прежние слайды этого плейлиста;
      *  5) привязываем новый ролик и активируем плейлист.
+     *
+     * Старые объекты в MediaStorage удаляются только после успешного commit. Если
+     * транзакция откатится, удаляется новый объект, а прежний эфир остаётся целым.
      * Кассы подхватят его поллингом `GET /api/posm/playlists/active`.
      */
     @Transactional
     fun broadcast(file: MultipartFile, title: String?): ActivePlaylistDto {
-        val name = title?.trim()?.takeIf { it.isNotBlank() }
-            ?: file.originalFilename?.substringBeforeLast('.')?.trim()?.takeIf { it.isNotBlank() }
-            ?: "Ролик на кассах"
-        val uploaded = uploadSlide(file, name, 15)
-
-        playlistRepository.findAllByStatusRawOrderByUpdatedAtDesc(PlaylistStatus.active.name).forEach {
-            it.status = PlaylistStatus.draft
-            playlistRepository.save(it)
-        }
-
-        val playlist = playlistRepository.findById(BROADCAST_PLAYLIST_ID).orElseGet {
-            playlistRepository.save(
-                PlaylistEntity(id = BROADCAST_PLAYLIST_ID, name = "Эфир касс").also {
-                    it.status = PlaylistStatus.draft
-                },
-            )
-        }
-
-        slideRepository.findAllByPlaylistIdOrderByPositionAsc(playlist.id).forEach {
-            mediaStorage.delete(it.mediaUrl)
-            slideRepository.delete(it)
-        }
-
-        val slide = loadSlideOrThrow(uploaded.id)
-        slide.playlistId = playlist.id
-        slide.position = 0
-        slideRepository.save(slide)
-        playlist.status = PlaylistStatus.active
-        playlistRepository.save(playlist)
+        val uploaded = uploadBroadcastVideo(file, title, 15)
+        registerRollbackCleanup(uploaded.url)
+        val playlist = activateBroadcastPlaylist()
+        val previous = slideRepository.findAllByPlaylistIdOrderByPositionAsc(playlist.id)
+        slideRepository.deleteAll(previous)
+        slideRepository.save(uploaded.toEntity(position = 0, playlistId = playlist.id))
         recountPlaylist(playlist.id)
+        registerAfterCommitCleanup(previous.map { it.mediaUrl })
 
         return activePlaylistForScreen(null)
     }
 
+    /**
+     * Заменяет ровно один пользовательский слот (1..12), не затрагивая остальные.
+     * На POSM заполненные слоты приходят одним упорядоченным плейлистом и крутятся
+     * циклически в порядке их номеров; пустые позиции просто пропускаются.
+     */
+    @Transactional
+    fun replaceBroadcastSlot(
+        slot: Int,
+        file: MultipartFile,
+        title: String?,
+        durationSec: Int,
+    ): ActivePlaylistDto {
+        if (slot !in 1..BROADCAST_SLOT_COUNT) {
+            throw AppException(
+                ErrorCode.VALIDATION_FAILED,
+                "Номер слота должен быть от 1 до $BROADCAST_SLOT_COUNT",
+                HttpStatus.BAD_REQUEST,
+            )
+        }
+
+        val position = slot - 1
+        val uploaded = uploadBroadcastVideo(file, title, durationSec)
+        registerRollbackCleanup(uploaded.url)
+        val playlist = prepareBroadcastPlaylistForSlotUpdate()
+        val matches = slideRepository.findAllByPlaylistIdOrderByPositionAsc(playlist.id)
+            .filter { it.position == position }
+
+        val target = matches.firstOrNull()
+        val previousUrls = matches.map { it.mediaUrl }
+        if (target == null) {
+            slideRepository.save(uploaded.toEntity(position = position, playlistId = playlist.id))
+        } else {
+            target.title = uploaded.title
+            target.kind = uploaded.kind
+            target.durationSec = uploaded.durationSec
+            target.mediaUrl = uploaded.url
+            target.position = position
+            target.playlistId = playlist.id
+            slideRepository.save(target)
+            // На случай старых неконсистентных данных оставляем в слоте только одну запись.
+            if (matches.size > 1) {
+                slideRepository.deleteAll(matches.drop(1))
+            }
+        }
+
+        recountPlaylist(playlist.id)
+        registerAfterCommitCleanup(previousUrls)
+        return activePlaylistForScreen(null)
+    }
+
     // ── Internals ─────────────────────────────────────────────────────────
+
+    private data class UploadedBroadcastVideo(
+        val url: String,
+        val title: String,
+        val durationSec: Int,
+        val kind: SlideKind = SlideKind.video,
+    ) {
+        fun toEntity(position: Int, playlistId: String): SlideEntity =
+            SlideEntity(
+                id = "sl_${UUID.randomUUID().toString().substring(0, 8)}",
+                title = title,
+                durationSec = durationSec,
+                mediaUrl = url,
+                playlistId = playlistId,
+                position = position,
+            ).also { it.kind = kind }
+    }
+
+    private fun uploadBroadcastVideo(
+        file: MultipartFile,
+        title: String?,
+        durationSec: Int,
+    ): UploadedBroadcastVideo {
+        if (file.isEmpty) {
+            throw AppException(ErrorCode.VALIDATION_FAILED, "Файл пуст", HttpStatus.BAD_REQUEST)
+        }
+        val contentType = file.contentType.orEmpty()
+        if (!contentType.startsWith("video/")) {
+            throw AppException(
+                ErrorCode.VALIDATION_FAILED,
+                "Для эфира разрешены только видеофайлы (получен content-type=$contentType)",
+                HttpStatus.BAD_REQUEST,
+            )
+        }
+        val name = title?.trim()?.takeIf { it.isNotBlank() }
+            ?: file.originalFilename?.substringBeforeLast('.')?.trim()?.takeIf { it.isNotBlank() }
+            ?: "Ролик на кассах"
+        return UploadedBroadcastVideo(
+            url = mediaStorage.upload(file.bytes, contentType, file.originalFilename ?: "broadcast-video"),
+            title = name,
+            durationSec = durationSec.coerceIn(1, 86_400),
+        )
+    }
+
+    /**
+     * Делает `pl_broadcast` единственным активным плейлистом. Это сохраняет старую
+     * семантику эфира «на все кассы»: локальные overrides не должны его перекрывать.
+     */
+    private fun activateBroadcastPlaylist(): PlaylistEntity {
+        playlistRepository.findAllByStatusRawOrderByUpdatedAtDesc(PlaylistStatus.active.name)
+            .filter { it.id != BROADCAST_PLAYLIST_ID }
+            .forEach {
+                it.status = PlaylistStatus.draft
+                playlistRepository.save(it)
+            }
+
+        val playlist = playlistRepository.findById(BROADCAST_PLAYLIST_ID).orElseGet {
+            PlaylistEntity(id = BROADCAST_PLAYLIST_ID, name = "Эфир касс")
+        }
+        playlist.name = "Эфир касс"
+        playlist.pharmacyId = null
+        playlist.status = PlaylistStatus.active
+        return playlistRepository.save(playlist)
+    }
+
+    /**
+     * Rolling-deploy compatibility: before the first slot update, the active global
+     * playlist may still have a legacy id. Move its visible 1..12 positions into
+     * `pl_broadcast` so replacing one slot cannot silently discard the other videos.
+     */
+    private fun prepareBroadcastPlaylistForSlotUpdate(): PlaylistEntity {
+        val activeGlobal = playlistRepository.findFirstByStatusRawAndPharmacyIdIsNullOrderByUpdatedAtDesc(
+            PlaylistStatus.active.name,
+        )
+        if (activeGlobal == null || activeGlobal.id == BROADCAST_PLAYLIST_ID) {
+            return activateBroadcastPlaylist()
+        }
+
+        val broadcast = playlistRepository.findById(BROADCAST_PLAYLIST_ID).orElseGet {
+            playlistRepository.save(PlaylistEntity(id = BROADCAST_PLAYLIST_ID, name = "Эфир касс"))
+        }
+        val currentSlides = slideRepository.findAllByPlaylistIdOrderByPositionAsc(activeGlobal.id)
+        val currentUrls = currentSlides.map { it.mediaUrl }.toSet()
+        val staleBroadcastSlides = slideRepository.findAllByPlaylistIdOrderByPositionAsc(broadcast.id)
+        slideRepository.deleteAll(staleBroadcastSlides)
+
+        val occupied = mutableSetOf<Int>()
+        currentSlides.forEach { slide ->
+            if (slide.position in 0 until BROADCAST_SLOT_COUNT && occupied.add(slide.position)) {
+                slide.playlistId = broadcast.id
+            } else {
+                // Extra/duplicate legacy entries remain available in the media library.
+                slide.playlistId = null
+                slide.position = 0
+            }
+            slideRepository.save(slide)
+        }
+        recountPlaylist(activeGlobal.id)
+        recountPlaylist(broadcast.id)
+        registerAfterCommitCleanup(
+            staleBroadcastSlides.map { it.mediaUrl }.filterNot(currentUrls::contains),
+        )
+
+        return activateBroadcastPlaylist()
+    }
+
+    private fun registerRollbackCleanup(newUrl: String) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) return
+        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+            override fun afterCompletion(status: Int) {
+                if (status != TransactionSynchronization.STATUS_COMMITTED) {
+                    mediaStorage.delete(newUrl)
+                }
+            }
+        })
+    }
+
+    private fun registerAfterCommitCleanup(previousUrls: List<String>) {
+        if (previousUrls.isEmpty()) return
+        val uniqueUrls = previousUrls.distinct()
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            uniqueUrls.forEach(mediaStorage::delete)
+            return
+        }
+        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+            override fun afterCommit() {
+                uniqueUrls.forEach(mediaStorage::delete)
+            }
+        })
+    }
 
     /** slidesCount = число слайдов в плейлисте, durationSec = сумма их длительностей. */
     private fun recountPlaylist(playlistId: String) {

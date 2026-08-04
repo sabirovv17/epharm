@@ -76,10 +76,13 @@ data class ActivePlaylistDto(
 )
 
 data class ActiveSlideDto(
+    val id: String,
     val url: String,
     val kind: SlideKind,
     val durationSec: Int,
     val title: String,
+    /** Нулевая позиция в плейлисте. В админке позиции 0..11 отображаются как слоты 1..12. */
+    val position: Int,
 )
 
 /** Подключённые кассы (T4): сколько устройств онлайн + детали (для админ-виджета на экранах). */

@@ -108,16 +108,25 @@ class ScreenController(
     fun assignSlide(@PathVariable id: String, @Valid @RequestBody req: AssignSlideRequest): SlideDto =
         screenService.assignSlide(id, req)
 
-    // ── Эфир: один общий ролик на все кассы (максимально просто) ─────────────
+    // ── Эфир: до 12 роликов, один общий плейлист на все кассы ───────────────
 
-    /** Текущий ролик на кассах (активный плейлист). Пустой playlistId → ролика нет. */
+    /** Текущий эфир на кассах. Пустой playlistId → плейлиста нет. */
     @GetMapping("/broadcast")
     fun broadcast(): ActivePlaylistDto = screenService.activePlaylistForScreen(null)
 
-    /** Загрузить ОДИН ролик — он сразу играет на всех кассах. multipart (file + опц. title). */
+    /** Legacy: заменить весь эфир одним роликом. multipart (file + опц. title). */
     @PostMapping("/broadcast", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     fun uploadBroadcast(
         @RequestParam("file") file: MultipartFile,
         @RequestParam(name = "title", required = false) title: String?,
     ): ActivePlaylistDto = screenService.broadcast(file, title)
+
+    /** Загрузить/заменить один слот 1..12, сохранив остальные ролики плейлиста. */
+    @PostMapping("/broadcast/slots/{slot}", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    fun replaceBroadcastSlot(
+        @PathVariable slot: Int,
+        @RequestParam("file") file: MultipartFile,
+        @RequestParam(name = "title", required = false) title: String?,
+        @RequestParam(name = "durationSec", defaultValue = "15") durationSec: Int,
+    ): ActivePlaylistDto = screenService.replaceBroadcastSlot(slot, file, title, durationSec)
 }

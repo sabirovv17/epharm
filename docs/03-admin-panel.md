@@ -52,7 +52,7 @@ the Screens section.
 | Dashboard   | HQ summary/KPI entrypoint.                                                                                        |
 | Promo       | Product campaign CRUD, Medusa product picker, gallery/cover, tiers, dates, goals, campaign rules, grid/list view. |
 | Rules       | Read-only/global rules view plus rule builders/components; campaign rules are edited from Promo.                  |
-| Screens     | Connected cash desks, one broadcast video/media flow, banners panel.                                              |
+| Screens     | Connected cash desks, 12-slot broadcast playlist (grid/list), banners panel.                                      |
 | Pharmacies  | Chains/pharmacies, CRUD, detail page, real Medusa-derived pharmacy seed data.                                     |
 | Pharmacists | Registry, pending-profile activation with pharmacy assignment, block/unblock, status/balance data.                |
 | Reconcile   | Receipt moderation queue, claimed promos, POS/Excel source columns, approve/reject.                               |

@@ -94,12 +94,13 @@ powershell -ExecutionPolicy Bypass -File uninstall-tasks.ps1
 
 ## Broadcast Video
 
-Admin Screens section currently exposes a simplified broadcast flow:
+Admin Screens section exposes a 12-slot broadcast flow:
 
-1. Upload/replace the broadcast media.
-2. Backend stores media in MinIO and updates the active broadcast playlist.
-3. POSM polls `/api/posm/playlists/active`.
-4. Customer display switches on the next poll.
+1. Upload or replace any slot from 1 to 12 independently.
+2. Backend stores media in MinIO and returns filled slots as one ordered active playlist.
+3. POSM polls `/api/posm/playlists/active`, downloads changed videos to the local cache, and rotates
+   them in slot order.
+4. Empty slots are skipped. A network failure does not stop the currently cached playlist.
 
 ## App Auto-Update
 

@@ -30,7 +30,7 @@ export const screensKeys = {
   broadcast: () => [...screensKeys.all, 'broadcast'] as const,
 }
 
-/** Текущий ролик на кассах («эфир»). */
+/** Текущий упорядоченный эфир на кассах (до 12 роликов). */
 export function useBroadcast() {
   return useQuery<ActivePlaylistDto>({
     queryKey: screensKeys.broadcast(),
@@ -38,7 +38,7 @@ export function useBroadcast() {
   })
 }
 
-/** Загрузить ОДИН ролик — он сразу играет на всех кассах. multipart (file + опц. title). */
+/** Legacy: заменить весь эфир одним роликом. */
 export function useUploadBroadcast() {
   const qc = useQueryClient()
   return useMutation({
@@ -47,6 +47,37 @@ export function useUploadBroadcast() {
       form.append('file', file)
       if (title) form.append('title', title)
       return api.post<ActivePlaylistDto>('/api/admin/screens/broadcast', form).then((r) => r.data)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: screensKeys.broadcast() })
+      qc.invalidateQueries({ queryKey: screensKeys.playlistsRoot() })
+      qc.invalidateQueries({ queryKey: screensKeys.slides() })
+    },
+  })
+}
+
+/** Загрузить/заменить один слот 1..12, не затрагивая остальные ролики эфира. */
+export function useUploadBroadcastSlot() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      slot,
+      file,
+      title,
+      durationSec = 15,
+    }: {
+      slot: number
+      file: File
+      title?: string
+      durationSec?: number
+    }) => {
+      const form = new FormData()
+      form.append('file', file)
+      if (title) form.append('title', title)
+      form.append('durationSec', String(durationSec))
+      return api
+        .post<ActivePlaylistDto>(`/api/admin/screens/broadcast/slots/${slot}`, form)
+        .then((r) => r.data)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: screensKeys.broadcast() })

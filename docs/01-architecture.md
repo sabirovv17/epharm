@@ -76,11 +76,13 @@ allowed Medusa HTTP images.
 
 ### Screens / Broadcast
 
-1. Admin Screens section uploads or replaces the current broadcast video/image.
-2. Backend stores media in MinIO and makes a single active broadcast playlist.
+1. Admin Screens section manages 12 independent video slots in grid or list mode.
+2. Backend stores media in MinIO and exposes filled slots as one active playlist ordered 1 -> 12.
 3. POSM clients poll `GET /api/posm/playlists/active?pharmacyId=...`.
-4. Customer screen updates on the next poll. SSE screen modes were explicitly cancelled; polling is the
-   current design.
+4. POSM downloads changed media into its local cache and atomically switches to the new cyclic
+   playlist. Empty slots are skipped and the previous cache keeps playing while offline.
+5. Customer screen updates after the next poll/download. SSE screen modes were explicitly cancelled;
+   polling is the current design.
 
 ### Mobile Auth
 

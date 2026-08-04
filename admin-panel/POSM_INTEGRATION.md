@@ -157,14 +157,23 @@ Decision model:
 
 ## Screen/Broadcast
 
-Screens are currently simplified:
+The Screens page exposes 12 fixed broadcast slots:
 
-- Admin uploads/replaces one broadcast media item.
-- Backend creates/updates the active broadcast playlist.
-- POSM polls active playlist.
-- Connected cash desk count comes from heartbeat.
+- every slot can be uploaded or replaced independently;
+- filled slots are one global playlist ordered from slot 1 to slot 12;
+- empty slots are skipped;
+- the admin can switch between grid and list views without changing playback order;
+- POSM polls the active playlist, downloads every new video into its local cache and switches only
+  after the new set is ready;
+- connected cash desk count comes from heartbeat.
 
-Legacy playlist CRUD remains in backend but admin UI focuses on broadcast.
+Admin API:
+
+- `GET /api/admin/screens/broadcast` returns the current ordered playlist;
+- `POST /api/admin/screens/broadcast/slots/{slot}` replaces one slot (`1..12`);
+- legacy `POST /api/admin/screens/broadcast` still replaces the entire broadcast with one video.
+
+Legacy playlist CRUD remains in backend, while the regular admin workflow uses the 12-slot broadcast.
 
 ## API
 

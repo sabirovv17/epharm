@@ -1,5 +1,5 @@
-// Тесты ScreensPage — упрощённая вкладка «Экраны»: онлайн-кассы + один ролик (эфир)
-// + загрузка/замена. Плюс переключение на вкладку «Баннеры».
+// Тесты ScreensPage — онлайн-кассы + 12 независимых рекламных слотов,
+// образующих один эфирный плейлист. Плюс переключение на вкладку «Баннеры».
 
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
@@ -13,7 +13,7 @@ import ScreensPage from './ScreensPage'
 const screenHooks = vi.hoisted(() => ({
   useConnectedScreens: vi.fn(),
   useBroadcast: vi.fn(),
-  useUploadBroadcast: vi.fn(),
+  useUploadBroadcastSlot: vi.fn(),
 }))
 vi.mock('@/lib/queries/screens', () => screenHooks)
 
@@ -41,7 +41,11 @@ beforeEach(() => {
     isLoading: false,
   })
   setBroadcast({ playlistId: null, name: '', slides: [] })
-  screenHooks.useUploadBroadcast.mockReturnValue({ mutate: uploadMutate, isPending: false })
+  screenHooks.useUploadBroadcastSlot.mockReturnValue({
+    mutate: uploadMutate,
+    isPending: false,
+    variables: undefined,
+  })
 
   bannerHooks.useBanners.mockReturnValue({
     data: [],
@@ -115,41 +119,83 @@ describe('ScreensPage — онлайн-кассы', () => {
   })
 })
 
-describe('ScreensPage — эфир (один ролик)', () => {
-  it('нет ролика → пустое состояние + кнопка «Загрузить ролик»', () => {
+describe('ScreensPage — эфир (12 слотов)', () => {
+  it('нет роликов → показывает 12 независимых пустых слотов', () => {
     renderPage()
-    expect(screen.getByText(/Ролик ещё не загружен/i)).toBeInTheDocument()
-    expect(screen.getByTestId('broadcast-upload')).toHaveTextContent(/Загрузить ролик/i)
-    expect(screen.queryByTestId('broadcast-video')).not.toBeInTheDocument()
+    expect(screen.getAllByTestId(/^broadcast-slot-\d+$/)).toHaveLength(12)
+    expect(screen.getByTestId('broadcast-slot-1-upload')).toHaveTextContent(/Загрузить видео/i)
+    expect(screen.getByTestId('broadcast-slot-12')).toBeInTheDocument()
+    expect(screen.queryByTestId(/^broadcast-video-\d+$/)).not.toBeInTheDocument()
   })
 
-  it('есть ролик → видео + кнопка «Заменить ролик»', () => {
+  it('раскладывает ролики по position, оставляя промежуточные слоты пустыми', () => {
     setBroadcast({
       playlistId: 'pl_broadcast',
       name: 'Эфир касс',
-      slides: [{ url: 'https://m/promo.mp4', kind: 'video', durationSec: 8, title: 'Промо' }],
+      slides: [
+        {
+          id: 'sl_1',
+          url: 'https://m/promo-1.mp4',
+          kind: 'video',
+          durationSec: 8,
+          title: 'Промо 1',
+          position: 0,
+        },
+        {
+          id: 'sl_5',
+          url: 'https://m/promo-5.mp4',
+          kind: 'video',
+          durationSec: 12,
+          title: 'Промо 5',
+          position: 4,
+        },
+      ],
     })
     renderPage()
-    const video = screen.getByTestId('broadcast-video') as HTMLVideoElement
-    expect(video.src).toContain('promo.mp4')
-    expect(screen.getByTestId('broadcast-upload')).toHaveTextContent(/Заменить ролик/i)
+    expect((screen.getByTestId('broadcast-video-1') as HTMLVideoElement).src).toContain(
+      'promo-1.mp4',
+    )
+    expect((screen.getByTestId('broadcast-video-5') as HTMLVideoElement).src).toContain(
+      'promo-5.mp4',
+    )
+    expect(screen.queryByTestId('broadcast-video-2')).not.toBeInTheDocument()
+    expect(screen.getByTestId('broadcast-slot-1-upload')).toHaveTextContent(/Заменить видео/i)
+    expect(screen.getByTestId('broadcast-slot-2-upload')).toHaveTextContent(/Загрузить видео/i)
+    expect(screen.getByTestId('broadcast-card')).toHaveTextContent('Заполнено 2 из 12')
   })
 
-  it('выбор файла → useUploadBroadcast.mutate с файлом', async () => {
+  it('выбор файла в слоте 3 → адресная мутация только этого слота', async () => {
     const user = userEvent.setup()
     renderPage()
+    await user.click(screen.getByTestId('broadcast-slot-3-upload'))
     const file = new File(['x'], 'promo.mp4', { type: 'video/mp4' })
     await user.upload(screen.getByTestId('broadcast-file-input') as HTMLInputElement, file)
     expect(uploadMutate).toHaveBeenCalled()
-    expect(uploadMutate.mock.calls[0][0]).toMatchObject({ file })
+    expect(uploadMutate.mock.calls[0][0]).toMatchObject({ slot: 3, file })
   })
 
-  it('загрузка идёт → кнопка «Загружаем…» и disabled', () => {
-    screenHooks.useUploadBroadcast.mockReturnValue({ mutate: uploadMutate, isPending: true })
+  it('загрузка слота 4 → только он подписан «Загружаем», повторные загрузки заблокированы', () => {
+    screenHooks.useUploadBroadcastSlot.mockReturnValue({
+      mutate: uploadMutate,
+      isPending: true,
+      variables: { slot: 4 },
+    })
     renderPage()
-    const btn = screen.getByTestId('broadcast-upload')
-    expect(btn).toHaveTextContent(/Загружаем/i)
-    expect(btn).toBeDisabled()
+    expect(screen.getByTestId('broadcast-slot-4-upload')).toHaveTextContent(/Загружаем/i)
+    expect(screen.getByTestId('broadcast-slot-1-upload')).toBeDisabled()
+    expect(screen.getByTestId('broadcast-slot-12-upload')).toBeDisabled()
+  })
+
+  it('переключает отображение между сеткой и списком без изменения данных', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    expect(screen.getByTestId('broadcast-view-grid')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('broadcast-grid')).toBeInTheDocument()
+
+    await user.click(screen.getByTestId('broadcast-view-list'))
+    expect(screen.getByTestId('broadcast-view-list')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('broadcast-list')).toBeInTheDocument()
+    expect(screen.getAllByTestId(/^broadcast-slot-\d+$/)).toHaveLength(12)
   })
 })
 

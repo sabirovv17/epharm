@@ -20,6 +20,7 @@ import kz.epharm.screens.repository.PlaylistRepository
 import kz.epharm.screens.repository.SlideRepository
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.assertj.core.api.Assertions.assertThat
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
@@ -213,7 +214,7 @@ class ScreensIntegrationTest {
             .andExpect(status().isNoContent)
     }
 
-    // ── Эфир: один общий ролик на все кассы ───────────────────────────────
+    // ── Эфир: до 12 роликов, один общий плейлист на все кассы ─────────────
 
     @Test
     fun `GET broadcast → текущий активный ролик`() {
@@ -222,6 +223,8 @@ class ScreensIntegrationTest {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.playlistId").value("pl_act"))
             .andExpect(jsonPath("$.slides.length()").value(1))
+            .andExpect(jsonPath("$.slides[0].id").value("sl_v"))
+            .andExpect(jsonPath("$.slides[0].position").value(0))
     }
 
     @Test
@@ -243,6 +246,72 @@ class ScreensIntegrationTest {
         mockMvc.perform(get("/api/admin/screens/playlists?status=active").header("Authorization", bearer))
             .andExpect(jsonPath("$.length()").value(1))
             .andExpect(jsonPath("$[0].id").value("pl_broadcast"))
+    }
+
+    @Test
+    fun `POST broadcast slot → сохраняет остальные слоты и возвращает порядок плейлиста`() {
+        val slot2 = MockMultipartFile("file", "slot-2.mp4", "video/mp4", byteArrayOf(2))
+        mockMvc.perform(
+            multipart("/api/admin/screens/broadcast/slots/2")
+                .file(slot2)
+                .param("title", "Второй ролик")
+                .param("durationSec", "20")
+                .header("Authorization", bearer),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.playlistId").value("pl_broadcast"))
+            .andExpect(jsonPath("$.slides.length()").value(2))
+            .andExpect(jsonPath("$.slides[0].title").value("Видео"))
+            .andExpect(jsonPath("$.slides[0].position").value(0))
+            .andExpect(jsonPath("$.slides[1].title").value("Второй ролик"))
+            .andExpect(jsonPath("$.slides[1].position").value(1))
+
+        val slot1 = MockMultipartFile("file", "slot-1.mp4", "video/mp4", byteArrayOf(1))
+        mockMvc.perform(
+            multipart("/api/admin/screens/broadcast/slots/1")
+                .file(slot1)
+                .param("title", "Первый ролик")
+                .param("durationSec", "10")
+                .header("Authorization", bearer),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.slides.length()").value(2))
+            .andExpect(jsonPath("$.slides[0].title").value("Первый ролик"))
+            .andExpect(jsonPath("$.slides[0].position").value(0))
+            .andExpect(jsonPath("$.slides[1].title").value("Второй ролик"))
+            .andExpect(jsonPath("$.slides[1].position").value(1))
+
+        val replacement = MockMultipartFile("file", "slot-2-new.webm", "video/webm", byteArrayOf(3))
+        mockMvc.perform(
+            multipart("/api/admin/screens/broadcast/slots/2")
+                .file(replacement)
+                .param("title", "Второй ролик — новый")
+                .param("durationSec", "30")
+                .header("Authorization", bearer),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.slides.length()").value(2))
+            .andExpect(jsonPath("$.slides[0].title").value("Первый ролик"))
+            .andExpect(jsonPath("$.slides[1].title").value("Второй ролик — новый"))
+            .andExpect(jsonPath("$.slides[1].durationSec").value(30))
+
+        val stored = slideRepository.findAllByPlaylistIdOrderByPositionAsc("pl_broadcast")
+        assertThat(stored.map { it.position })
+            .describedAs("В эфире должны остаться ровно два уникальных упорядоченных слота")
+            .containsExactly(0, 1)
+        assertThat(slideRepository.findAllByPlaylistIdOrderByPositionAsc("pl_act")).isEmpty()
+    }
+
+    @Test
+    fun `POST broadcast slot вне диапазона → 400`() {
+        val file = MockMultipartFile("file", "slot-13.mp4", "video/mp4", byteArrayOf(1))
+        mockMvc.perform(
+            multipart("/api/admin/screens/broadcast/slots/13")
+                .file(file)
+                .header("Authorization", bearer),
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
     }
 
     @Test

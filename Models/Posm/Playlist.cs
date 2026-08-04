@@ -5,10 +5,13 @@ namespace CustomerDisplay.Models.Posm
     /// <summary>Слайд активного плейлиста (Stage 3). Зеркалит kz.epharm.screens.dto.ActiveSlideDto.</summary>
     public sealed class ActiveSlide
     {
+        public string Id { get; set; } = "";
         public string Url { get; set; } = "";
         public string Kind { get; set; } = "";   // video | image
         public int DurationSec { get; set; }
         public string Title { get; set; } = "";
+        /// <summary>Нулевая позиция в плейлисте; в админке это слот Position + 1.</summary>
+        public int Position { get; set; }
     }
 
     /// <summary>
