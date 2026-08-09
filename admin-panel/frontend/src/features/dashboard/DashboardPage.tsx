@@ -3,11 +3,14 @@
 // KPI + топ-3 списка из реальных данных. Time-series блоки (lift-график, heatmap)
 // остаются Empty — временных рядов в БД пока нет (честно, без фейковых цифр).
 
-import { Button, Empty, Metric, PageHeader, SectionCard } from '@/ui'
+import { useState } from 'react'
+import { Button, Empty, IconButton, Metric, PageHeader, SectionCard } from '@/ui'
 import {
   IconArrowUp,
   IconBox,
   IconCheck,
+  IconChevLeft,
+  IconChevRight,
   IconEye,
   IconPharmacist,
   IconReconcile,
@@ -176,8 +179,17 @@ function MiniKpi({ label, value, accent }: { label: string; value: string; accen
  */
 function RecommendationsSection() {
   const t = useT()
-  const { data: a, isLoading } = useRecommendationAnalytics()
+  const [page, setPage] = useState(0)
+  const { data: a, isLoading, isFetching } = useRecommendationAnalytics(page, JOURNAL_PAGE_SIZE)
   const log = a?.log ?? []
+  // Fallback-поля сохраняют UI рабочим во время rolling deploy, если новый frontend
+  // на несколько секунд попал на старый backend без метаданных пагинации.
+  const pageSize = a?.pageSize ?? JOURNAL_PAGE_SIZE
+  const totalElements = a?.totalElements ?? log.length
+  const totalPages = a?.totalPages ?? (log.length > 0 ? 1 : 0)
+  const effectivePage = a?.page ?? page
+  const rangeFrom = totalElements > 0 ? effectivePage * pageSize + 1 : 0
+  const rangeTo = Math.min((effectivePage + 1) * pageSize, totalElements)
 
   return (
     <SectionCard title={t('recan.title')} subtitle={t('recan.subtitle')}>
@@ -205,91 +217,184 @@ function RecommendationsSection() {
           icon={<IconEye size={22} />}
         />
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-[13px]" data-testid="recan-table">
-            <thead className="hairline border-b">
-              <tr className="text-left text-[11px] font-bold uppercase tracking-[0.06em] text-ink-500">
-                <th className="py-2.5 pr-3">{t('recan.colTime')}</th>
-                <th className="py-2.5 pr-3">{t('recan.colKind')}</th>
-                <th className="py-2.5 pr-3">{t('recan.colWhat')}</th>
-                <th className="py-2.5 pr-3">{t('recan.colPharmacy')}</th>
-                <th className="py-2.5 pr-3">{t('recan.colPharmacist')}</th>
-                <th className="py-2.5 text-right">{t('recan.colAmount')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ink-100">
-              {log.map((e) => (
-                <tr
-                  key={`${e.type}-${e.id}`}
-                  data-testid={`recan-row-${e.id}`}
-                  className="hover:bg-paper-hover"
-                >
-                  <td className="num whitespace-nowrap py-2.5 pr-3 text-[11px] text-ink-500">
-                    {fmtWhen(e.at)}
-                  </td>
-                  <td className="py-2.5 pr-3">
-                    <span className={`chip ${e.type === 'sale' ? 'chip-green' : 'chip-blue'}`}>
-                      {e.type === 'sale' ? t('recan.kindSale') : t('recan.kindShow')}
-                    </span>
-                  </td>
-                  <td className="py-2.5 pr-3">
-                    <div className="font-extrabold text-ink-900">
-                      {e.title}
-                      {e.type === 'show' && e.converted && (
-                        <span className="chip chip-green ml-2 whitespace-nowrap font-normal">
-                          {t('recan.soldIn', { t: fmtSecs(e.secondsToSale ?? 0) })}
-                        </span>
-                      )}
-                      {e.type === 'sale' && e.secondsToSale != null && (
-                        <span className="chip chip-green ml-2 whitespace-nowrap font-normal">
-                          {t('recan.soldAfter', { t: fmtSecs(e.secondsToSale) })}
-                        </span>
-                      )}
-                    </div>
-                    {e.type === 'show' && e.triggerName && (
-                      <div className="text-[11px] text-ink-500">
-                        {t('recan.chose', { n: e.triggerName })}
-                      </div>
-                    )}
-                    {e.type === 'sale' && e.units != null && (
-                      <div className="text-[11px] text-ink-500" data-testid={`recan-units-${e.id}`}>
-                        {t('recan.units', { n: e.units })}
-                      </div>
-                    )}
-                  </td>
-                  <td className="py-2.5 pr-3 text-ink-600">{e.pharmacyName}</td>
-                  <td className="py-2.5 pr-3">
-                    <div
-                      className={
-                        e.pharmacistName === '—' ? 'font-semibold text-red-600' : 'text-ink-600'
-                      }
-                    >
-                      {e.pharmacistName === '—' ? t('recan.sellerUnknown') : e.pharmacistName}
-                    </div>
-                    {e.type === 'sale' && e.pharmacistSource === 'posm_internal' && (
-                      <div className="text-[11px] text-ink-500">{t('recan.sellerInternal')}</div>
-                    )}
-                    {e.type === 'sale' && e.pharmacistSource === 'standardn_name_match' && (
-                      <div className="text-[11px] font-semibold text-green-700">
-                        {t('recan.sellerNameMatch')}
-                      </div>
-                    )}
-                    {e.type === 'sale' && e.pharmacistSource === 'standardn_unmapped' && (
-                      <div className="text-[11px] font-semibold text-amber-700">
-                        {t('recan.sellerUnmapped')}
-                      </div>
-                    )}
-                  </td>
-                  <td className="num py-2.5 text-right font-bold text-ink-900">
-                    {formatKzt(e.amount)}
-                  </td>
+        <div>
+          <div className={`overflow-x-auto ${isFetching ? 'opacity-70' : ''}`}>
+            <table className="w-full text-[13px]" data-testid="recan-table">
+              <thead className="hairline border-b">
+                <tr className="text-left text-[11px] font-bold uppercase tracking-[0.06em] text-ink-500">
+                  <th className="py-2.5 pr-3">{t('recan.colTime')}</th>
+                  <th className="py-2.5 pr-3">{t('recan.colKind')}</th>
+                  <th className="py-2.5 pr-3">{t('recan.colWhat')}</th>
+                  <th className="py-2.5 pr-3">{t('recan.colPharmacy')}</th>
+                  <th className="py-2.5 pr-3">{t('recan.colPharmacist')}</th>
+                  <th className="py-2.5 text-right">{t('recan.colAmount')}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-ink-100">
+                {log.map((e) => (
+                  <tr
+                    key={`${e.type}-${e.id}`}
+                    data-testid={`recan-row-${e.id}`}
+                    className="hover:bg-paper-hover"
+                  >
+                    <td className="num whitespace-nowrap py-2.5 pr-3 text-[11px] text-ink-500">
+                      {fmtWhen(e.at)}
+                    </td>
+                    <td className="py-2.5 pr-3">
+                      <span className={`chip ${e.type === 'sale' ? 'chip-green' : 'chip-blue'}`}>
+                        {e.type === 'sale' ? t('recan.kindSale') : t('recan.kindShow')}
+                      </span>
+                    </td>
+                    <td className="py-2.5 pr-3">
+                      <div className="font-extrabold text-ink-900">
+                        {e.title}
+                        {e.type === 'show' && e.converted && (
+                          <span className="chip chip-green ml-2 whitespace-nowrap font-normal">
+                            {t('recan.soldIn', { t: fmtSecs(e.secondsToSale ?? 0) })}
+                          </span>
+                        )}
+                        {e.type === 'sale' && e.secondsToSale != null && (
+                          <span className="chip chip-green ml-2 whitespace-nowrap font-normal">
+                            {t('recan.soldAfter', { t: fmtSecs(e.secondsToSale) })}
+                          </span>
+                        )}
+                      </div>
+                      {e.type === 'show' && e.triggerName && (
+                        <div className="text-[11px] text-ink-500">
+                          {t('recan.chose', { n: e.triggerName })}
+                        </div>
+                      )}
+                      {e.type === 'sale' && e.units != null && (
+                        <div
+                          className="text-[11px] text-ink-500"
+                          data-testid={`recan-units-${e.id}`}
+                        >
+                          {t('recan.units', { n: e.units })}
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-2.5 pr-3 text-ink-600">{e.pharmacyName}</td>
+                    <td className="py-2.5 pr-3">
+                      <div
+                        className={
+                          e.pharmacistName === '—' ? 'font-semibold text-red-600' : 'text-ink-600'
+                        }
+                      >
+                        {e.pharmacistName === '—' ? t('recan.sellerUnknown') : e.pharmacistName}
+                      </div>
+                      {e.type === 'sale' && e.pharmacistSource === 'posm_internal' && (
+                        <div className="text-[11px] text-ink-500">{t('recan.sellerInternal')}</div>
+                      )}
+                      {e.type === 'sale' && e.pharmacistSource === 'standardn_name_match' && (
+                        <div className="text-[11px] font-semibold text-green-700">
+                          {t('recan.sellerNameMatch')}
+                        </div>
+                      )}
+                      {e.type === 'sale' && e.pharmacistSource === 'standardn_unmapped' && (
+                        <div className="text-[11px] font-semibold text-amber-700">
+                          {t('recan.sellerUnmapped')}
+                        </div>
+                      )}
+                    </td>
+                    <td className="num py-2.5 text-right font-bold text-ink-900">
+                      {formatKzt(e.amount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <JournalPagination
+            page={effectivePage}
+            totalPages={totalPages}
+            totalElements={totalElements}
+            rangeFrom={rangeFrom}
+            rangeTo={rangeTo}
+            disabled={isFetching}
+            onChange={setPage}
+          />
         </div>
       )}
     </SectionCard>
+  )
+}
+
+const JOURNAL_PAGE_SIZE = 50
+
+function journalPageNumbers(page: number, totalPages: number): number[] {
+  const visible = Math.min(5, totalPages)
+  const start = Math.max(0, Math.min(page - 2, totalPages - visible))
+  return Array.from({ length: visible }, (_, index) => start + index)
+}
+
+function JournalPagination({
+  page,
+  totalPages,
+  totalElements,
+  rangeFrom,
+  rangeTo,
+  disabled,
+  onChange,
+}: {
+  page: number
+  totalPages: number
+  totalElements: number
+  rangeFrom: number
+  rangeTo: number
+  disabled: boolean
+  onChange: (page: number) => void
+}) {
+  const t = useT()
+  if (totalElements === 0) return null
+
+  return (
+    <nav
+      className="hairline flex flex-wrap items-center justify-between gap-3 border-t pt-3"
+      aria-label={t('recan.pagination')}
+      data-testid="recan-pagination"
+    >
+      <div className="text-[12px] text-ink-500">
+        {t('recan.range', { from: rangeFrom, to: rangeTo, total: totalElements })}
+      </div>
+      <div className="flex items-center gap-1">
+        <IconButton
+          tip={t('recan.prev')}
+          aria-label={t('recan.prev')}
+          disabled={disabled || page <= 0}
+          onClick={() => onChange(page - 1)}
+        >
+          <IconChevLeft size={16} />
+        </IconButton>
+        {journalPageNumbers(page, totalPages).map((value) => (
+          <button
+            key={value}
+            type="button"
+            className={`h-8 min-w-8 rounded-md px-2 text-[12px] font-bold ${
+              value === page
+                ? 'bg-ink-900 text-white'
+                : 'text-ink-600 hover:bg-paper-hover hover:text-ink-900'
+            }`}
+            aria-label={t('recan.goPage', { page: value + 1 })}
+            aria-current={value === page ? 'page' : undefined}
+            disabled={disabled}
+            onClick={() => onChange(value)}
+          >
+            {value + 1}
+          </button>
+        ))}
+        <IconButton
+          tip={t('recan.next')}
+          aria-label={t('recan.next')}
+          disabled={disabled || page + 1 >= totalPages}
+          onClick={() => onChange(page + 1)}
+        >
+          <IconChevRight size={16} />
+        </IconButton>
+        <span className="ml-2 whitespace-nowrap text-[11px] text-ink-400">
+          {t('recan.page', { page: page + 1, total: Math.max(1, totalPages) })}
+        </span>
+      </div>
+    </nav>
   )
 }
 

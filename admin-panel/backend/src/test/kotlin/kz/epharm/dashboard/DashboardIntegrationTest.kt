@@ -1,6 +1,7 @@
 package kz.epharm.dashboard
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import java.time.Instant
 import kz.epharm.auth.domain.AdminRole
 import kz.epharm.auth.domain.AdminUserStatus
 import kz.epharm.auth.dto.LoginRequest
@@ -19,6 +20,9 @@ import kz.epharm.pharmacies.repository.ChainRepository
 import kz.epharm.pharmacies.repository.PharmacyRepository
 import kz.epharm.posm.entity.RecommendationEventEntity
 import kz.epharm.posm.entity.RecommendationOutcome
+import kz.epharm.posm.entity.PosSaleEntity
+import kz.epharm.posm.entity.PosSaleItem
+import kz.epharm.posm.repository.PosSaleRepository
 import kz.epharm.posm.repository.RecommendationEventRepository
 import kz.epharm.rules.entity.RuleEntity
 import kz.epharm.rules.entity.RuleStatus
@@ -83,6 +87,7 @@ class DashboardIntegrationTest {
     @Autowired private lateinit var chainRepository: ChainRepository
     @Autowired private lateinit var batchRepository: PayoutBatchRepository
     @Autowired private lateinit var eventRepository: RecommendationEventRepository
+    @Autowired private lateinit var posSaleRepository: PosSaleRepository
     @Autowired private lateinit var adminUserRepository: AdminUserRepository
     @Autowired private lateinit var passwordEncoder: PasswordEncoder
 
@@ -91,6 +96,7 @@ class DashboardIntegrationTest {
     @BeforeEach
     fun seed() {
         eventRepository.deleteAll()
+        posSaleRepository.deleteAll()
         ruleRepository.deleteAll()
         productRepository.deleteAll()
         pharmacyRepository.deleteAll()
@@ -213,6 +219,51 @@ class DashboardIntegrationTest {
     fun `GET summary без Bearer → 401`() {
         mockMvc.perform(get("/api/admin/dashboard/summary"))
             .andExpect(status().isUnauthorized)
+    }
+
+    @Test
+    fun `recommendations пагинирует общий журнал после разворачивания позиций чека`() {
+        posSaleRepository.save(
+            PosSaleEntity(
+                id = "sale_page",
+                pharmacistId = "u_cashier",
+                pharmacistName = "Кассир",
+                pharmacyId = "ph_hi",
+                totalAmount = 3_500,
+                items = listOf(
+                    PosSaleItem(sku = "sku_a", name = "Товар А", qty = 1.0, total = 1_500),
+                    PosSaleItem(sku = "sku_b", name = "Товар Б", qty = 2.0, total = 2_000),
+                ),
+                // Новее seeded-показов: обе позиции должны занять первую страницу.
+                printedAt = Instant.now().plusSeconds(60),
+            ),
+        )
+
+        mockMvc.perform(
+            get("/api/admin/dashboard/recommendations")
+                .header("Authorization", bearer)
+                .param("page", "0")
+                .param("size", "2"),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.page").value(0))
+            .andExpect(jsonPath("$.pageSize").value(2))
+            .andExpect(jsonPath("$.totalElements").value(102))
+            .andExpect(jsonPath("$.totalPages").value(51))
+            .andExpect(jsonPath("$.log.length()").value(2))
+            .andExpect(jsonPath("$.log[0].saleId").value("sale_page"))
+            .andExpect(jsonPath("$.log[1].saleId").value("sale_page"))
+
+        mockMvc.perform(
+            get("/api/admin/dashboard/recommendations")
+                .header("Authorization", bearer)
+                .param("page", "1")
+                .param("size", "2"),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.page").value(1))
+            .andExpect(jsonPath("$.log.length()").value(2))
+            .andExpect(jsonPath("$.log[0].type").value("show"))
     }
 
     private fun login(): LoginResponse {

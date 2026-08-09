@@ -59,6 +59,10 @@ function mkAnalytics(over: Partial<RecommendationAnalyticsDto> = {}): Recommenda
     medianSecondsToSale: 65,
     attributedRevenue: 4500,
     buckets: [],
+    page: 0,
+    pageSize: 50,
+    totalElements: 3,
+    totalPages: 1,
     log: [
       {
         id: 'rec_1',
@@ -207,9 +211,19 @@ describe('DashboardPage — Журнал показов и продаж (V032)',
   })
 
   it('пустой период → Empty', () => {
-    setAnalytics(mkAnalytics({ log: [], shown: 0, converted: 0 }))
+    setAnalytics(mkAnalytics({ log: [], shown: 0, converted: 0, totalElements: 0, totalPages: 0 }))
     renderPage()
     expect(screen.getByText(/Пока нет событий за период/i)).toBeInTheDocument()
+  })
+
+  it('переключает страницы и показывает полный размер журнала', async () => {
+    setAnalytics(mkAnalytics({ totalElements: 123, totalPages: 3 }))
+    const user = userEvent.setup()
+    renderPage()
+
+    expect(screen.getByTestId('recan-pagination')).toHaveTextContent('Показано 1–50 из 123')
+    await user.click(screen.getByRole('button', { name: 'Перейти на страницу 2' }))
+    expect(dashHooks.useRecommendationAnalytics).toHaveBeenLastCalledWith(1, 50)
   })
 })
 

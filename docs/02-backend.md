@@ -160,6 +160,15 @@ Barcode is the primary key for cash-desk recommendation matching.
 Ambiguous barcode or normalized-name matches are logged and skipped. The system prefers not showing a
 recommendation over showing the wrong one.
 
+## Dashboard Journal
+
+`GET /api/admin/dashboard/recommendations?page=0&size=50` returns KPI values for the configured
+analytics window and a server-paginated combined journal of recommendation displays and POS sale
+items. Sale JSON arrays are expanded in PostgreSQL before `LIMIT/OFFSET`, so every receipt item is a
+separate row and all pages can be traversed without loading the complete sales window into the JVM.
+The response includes `page`, `pageSize`, `totalElements`, and `totalPages`. Page size is capped at
+100; the legacy `limit` query parameter remains an alias for the first-page size.
+
 ## Commands
 
 ```bash

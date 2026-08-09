@@ -40,6 +40,30 @@ interface PharmacyCountRow {
     val cnt: Long
 }
 
+/**
+ * Одна уже развёрнутая строка журнала показов/продаж. Продажные позиции извлекаются из
+ * `pos_sales.items` на стороне PostgreSQL, чтобы API мог читать только запрошенную страницу,
+ * а не загружать все чеки за аналитическое окно в память JVM.
+ */
+interface RecommendationLogRow {
+    val id: String
+    val eventType: String
+    val eventAt: Instant
+    val title: String
+    val triggerSku: String?
+    val pharmacyId: String
+    val pharmacistId: String
+    val pharmacistName: String?
+    val reportedPharmacistId: String?
+    val reportedPharmacistName: String?
+    val pharmacistSource: String?
+    val amount: Long
+    val converted: Boolean
+    val secondsToSale: Int?
+    val units: Double?
+    val saleId: String?
+}
+
 @Repository
 interface PosSaleRepository : JpaRepository<PosSaleEntity, String> {
     /** Чеки за период (свежие первыми) — для единого журнала показ+продажа в админке. */
@@ -76,6 +100,139 @@ interface RecommendationEventRepository : JpaRepository<RecommendationEventEntit
 
     /** События за период (свежие первыми) — для раздела аналитики «Показано рекомендаций». */
     fun findByShownAtGreaterThanEqualOrderByShownAtDesc(since: Instant): List<RecommendationEventEntity>
+
+    /**
+     * Единый журнал: показы + каждая позиция завершённого чека. Атрибуцию рекомендации
+     * повторяем по тому же контракту, что использовался в сервисе: штрихкод → точное имя →
+     * первая позиция чека. LIMIT/OFFSET применяются уже после UNION и сортировки.
+     */
+    @Query(
+        nativeQuery = true,
+        value = """
+            WITH fastest_attribution AS (
+                SELECT DISTINCT ON (re.sale_id)
+                       re.sale_id,
+                       re.seconds_to_sale,
+                       re.recommend_name,
+                       p.barcode AS recommend_barcode
+                FROM recommendation_events re
+                LEFT JOIN products p ON p.id = re.recommend_sku
+                WHERE re.sale_id IS NOT NULL
+                  AND re.seconds_to_sale IS NOT NULL
+                  AND re.sold_at >= :since
+                ORDER BY re.sale_id, re.seconds_to_sale ASC, re.id ASC
+            ),
+            sale_rows AS (
+                SELECT s.*,
+                       item.value AS item,
+                       item.ordinality AS item_ordinality,
+                       jsonb_array_length(s.items) AS item_count,
+                       attr.seconds_to_sale AS attributed_seconds,
+                       matched.item_ordinality AS matched_ordinality
+                FROM pos_sales s
+                LEFT JOIN fastest_attribution attr ON attr.sale_id = s.id
+                LEFT JOIN LATERAL (
+                    SELECT COALESCE(
+                        MIN(candidate.ordinality) FILTER (
+                            WHERE NULLIF(attr.recommend_barcode, '') IS NOT NULL
+                              AND candidate.value ->> 'barcode' = attr.recommend_barcode
+                        ),
+                        MIN(candidate.ordinality) FILTER (
+                            WHERE BTRIM(LOWER(COALESCE(attr.recommend_name, ''))) <> ''
+                              AND BTRIM(LOWER(COALESCE(candidate.value ->> 'name', ''))) =
+                                  BTRIM(LOWER(attr.recommend_name))
+                        ),
+                        1
+                    ) AS item_ordinality
+                    FROM jsonb_array_elements(s.items) WITH ORDINALITY candidate(value, ordinality)
+                ) matched ON attr.sale_id IS NOT NULL
+                CROSS JOIN LATERAL jsonb_array_elements(
+                    CASE
+                        WHEN jsonb_array_length(s.items) = 0 THEN '[{}]'::jsonb
+                        ELSE s.items
+                    END
+                ) WITH ORDINALITY item(value, ordinality)
+                WHERE s.printed_at >= :since
+            )
+            SELECT e.id AS "id",
+                   'show' AS "eventType",
+                   COALESCE(e.displayed_at, e.shown_at) AS "eventAt",
+                   e.recommend_name AS "title",
+                   e.trigger_sku AS "triggerSku",
+                   e.pharmacy_id AS "pharmacyId",
+                   e.pharmacist_id AS "pharmacistId",
+                   CAST(NULL AS VARCHAR) AS "pharmacistName",
+                   CAST(NULL AS VARCHAR) AS "reportedPharmacistId",
+                   CAST(NULL AS VARCHAR) AS "reportedPharmacistName",
+                   CAST(NULL AS VARCHAR) AS "pharmacistSource",
+                   e.expected_amount AS "amount",
+                   (e.sold_at IS NOT NULL) AS "converted",
+                   e.seconds_to_sale AS "secondsToSale",
+                   CAST(NULL AS DOUBLE PRECISION) AS "units",
+                   CAST(NULL AS VARCHAR) AS "saleId"
+            FROM recommendation_events e
+            WHERE e.shown_at >= :since
+
+            UNION ALL
+
+            SELECT CASE
+                       WHEN s.item_count = 0 THEN s.id
+                       ELSE s.id || '#' || (s.item_ordinality - 1)::text
+                   END AS "id",
+                   'sale' AS "eventType",
+                   s.printed_at AS "eventAt",
+                   CASE
+                       WHEN s.item_count = 0 THEN 'Чек'
+                       ELSE COALESCE(NULLIF(s.item ->> 'name', ''), NULLIF(s.item ->> 'sku', ''), 'позиция')
+                   END AS "title",
+                   CAST(NULL AS VARCHAR) AS "triggerSku",
+                   s.pharmacy_id AS "pharmacyId",
+                   s.pharmacist_id AS "pharmacistId",
+                   s.pharmacist_name AS "pharmacistName",
+                   s.reported_pharmacist_id AS "reportedPharmacistId",
+                   s.reported_pharmacist_name AS "reportedPharmacistName",
+                   s.pharmacist_source AS "pharmacistSource",
+                   CASE
+                       WHEN s.item_count = 0 THEN s.total_amount
+                       ELSE CAST(COALESCE(NULLIF(s.item ->> 'total', ''), '0') AS BIGINT)
+                   END AS "amount",
+                   false AS "converted",
+                   CASE
+                       WHEN s.attributed_seconds IS NOT NULL
+                        AND s.item_ordinality = COALESCE(s.matched_ordinality, 1)
+                       THEN s.attributed_seconds
+                       ELSE NULL
+                   END AS "secondsToSale",
+                   CASE
+                       WHEN s.item_count > 0
+                        AND CAST(COALESCE(NULLIF(s.item ->> 'qty', ''), '0') AS DOUBLE PRECISION) > 0
+                       THEN CAST(s.item ->> 'qty' AS DOUBLE PRECISION)
+                       ELSE NULL
+                   END AS "units",
+                   s.id AS "saleId"
+            FROM sale_rows s
+
+            ORDER BY "eventAt" DESC, "id" DESC
+            LIMIT :pageSize OFFSET :rowOffset
+        """,
+    )
+    fun findJournalRowsSince(
+        @Param("since") since: Instant,
+        @Param("pageSize") pageSize: Int,
+        @Param("rowOffset") rowOffset: Long,
+    ): List<RecommendationLogRow>
+
+    /** Общее число строк после разворачивания каждого чека в позиции. */
+    @Query(
+        nativeQuery = true,
+        value = """
+            SELECT
+                (SELECT COUNT(*) FROM recommendation_events WHERE shown_at >= :since) +
+                (SELECT COALESCE(SUM(GREATEST(jsonb_array_length(items), 1)), 0)
+                 FROM pos_sales WHERE printed_at >= :since)
+        """,
+    )
+    fun countJournalRowsSince(@Param("since") since: Instant): Long
 
     /** Последнее событие правила в этом чеке — для идемпотентного показа. */
     fun findFirstBySessionIdAndRuleIdOrderByShownAtDesc(

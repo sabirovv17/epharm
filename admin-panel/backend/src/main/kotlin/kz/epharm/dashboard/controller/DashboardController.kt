@@ -21,10 +21,13 @@ class DashboardController(
 
     /**
      * Аналитика «Показано рекомендаций» (Задача 1 + 1.2): конверсия показ→продажа, время до
-     * продажи и «лог» последних показов красивой таблицей. limit — размер списка событий.
+     * продажи и постраничный журнал показов/продаж. `limit` оставлен как совместимый alias
+     * размера первой страницы для старых интеграций.
      */
     @GetMapping("/recommendations")
     fun recommendations(
-        @RequestParam(required = false, defaultValue = "100") limit: Int,
-    ): RecommendationAnalyticsDto = recommendationAnalyticsService.analytics(limit)
+        @RequestParam(required = false, defaultValue = "0") page: Int,
+        @RequestParam(required = false, defaultValue = "50") size: Int,
+        @RequestParam(required = false) limit: Int?,
+    ): RecommendationAnalyticsDto = recommendationAnalyticsService.analytics(page, limit ?: size)
 }

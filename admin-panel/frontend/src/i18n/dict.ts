@@ -234,6 +234,12 @@ export const ru: Dict = {
   'recan.sellerNameMatch': 'Сопоставлено по ФИО Standard-N',
   'recan.sellerUnmapped': 'Standard-N: нет сопоставления',
   'recan.empty': 'Пока нет событий за период',
+  'recan.pagination': 'Страницы журнала',
+  'recan.range': 'Показано {from}–{to} из {total}',
+  'recan.page': 'Страница {page} из {total}',
+  'recan.goPage': 'Перейти на страницу {page}',
+  'recan.prev': 'Предыдущая страница',
+  'recan.next': 'Следующая страница',
 
   // ── Lift ────────────────────────────────────────────────────────────────
   'lift.errTitle': 'Не удалось загрузить аналитику',
@@ -1323,6 +1329,12 @@ export const kk: Dict = {
   'recan.sellerNameMatch': 'Standard-N аты-жөні бойынша сәйкестендірілді',
   'recan.sellerUnmapped': 'Standard-N: сәйкестік жоқ',
   'recan.empty': 'Кезеңде оқиғалар әзірге жоқ',
+  'recan.pagination': 'Журнал беттері',
+  'recan.range': '{total} жазбаның {from}–{to} көрсетілді',
+  'recan.page': '{total} беттің {page}-беті',
+  'recan.goPage': '{page}-бетке өту',
+  'recan.prev': 'Алдыңғы бет',
+  'recan.next': 'Келесі бет',
 
   // ── Lift ────────────────────────────────────────────────────────────────
   'lift.errTitle': 'Аналитиканы жүктеу мүмкін болмады',

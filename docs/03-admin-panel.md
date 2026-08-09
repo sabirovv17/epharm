@@ -49,7 +49,7 @@ the Screens section.
 
 | Section     | Current purpose                                                                                                   |
 | ----------- | ----------------------------------------------------------------------------------------------------------------- |
-| Dashboard   | HQ summary/KPI entrypoint.                                                                                        |
+| Dashboard   | HQ summary/KPI entrypoint and paginated 90-day journal of recommendation shows and POS sales.                     |
 | Promo       | Product campaign CRUD, Medusa product picker, gallery/cover, tiers, dates, goals, campaign rules, grid/list view. |
 | Rules       | Read-only/global rules view plus rule builders/components; campaign rules are edited from Promo.                  |
 | Screens     | Connected cash desks, 12-slot broadcast playlist (grid/list), banners panel.                                      |

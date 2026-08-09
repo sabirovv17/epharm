@@ -18,6 +18,10 @@ data class RecommendationAnalyticsDto(
     val attributedRevenue: Long,       // сумма expected_amount по проданным рекомендациям
     val buckets: List<TimeBucketDto>,  // распределение времени до продажи
     val log: List<LogEntryDto>,        // единый журнал: показы + продажи, свежие первыми
+    val page: Int,                     // текущая страница, 0-based
+    val pageSize: Int,
+    val totalElements: Long,           // строки после разворачивания чеков в позиции
+    val totalPages: Int,
 )
 
 /** Корзина распределения времени до продажи (например «< 30 сек», «30 сек – 2 мин»). */

@@ -9,8 +9,6 @@ import kz.epharm.dashboard.dto.RecommendationAnalyticsDto
 import kz.epharm.dashboard.dto.TimeBucketDto
 import kz.epharm.pharmacies.repository.PharmacyRepository
 import kz.epharm.pharmacists.repository.PharmacistRepository
-import kz.epharm.posm.entity.PosSaleItem
-import kz.epharm.posm.repository.PosSaleRepository
 import kz.epharm.posm.repository.RecommendationEventRepository
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
@@ -20,12 +18,11 @@ import org.springframework.transaction.annotation.Transactional
  * Аналитика «Показы и продажи» (Задача 1 + 1.2): KPI конверсии показ→продажа и времени до продажи
  * + единый журнал событий из ДВУХ таблиц (recommendation_events = показы, pos_sales = продажи),
  * всё с точным временем. РЕАЛЬНЫЕ данные за окно `app.analytics.window-days`. Имена
- * аптек/фармацевтов резолвятся точечно только для отображаемого среза (limit).
+ * аптек/фармацевтов резолвятся точечно только для отображаемой страницы.
  */
 @Service
 class RecommendationAnalyticsService(
     private val eventRepository: RecommendationEventRepository,
-    private val posSaleRepository: PosSaleRepository,
     private val pharmacyRepository: PharmacyRepository,
     private val pharmacistRepository: PharmacistRepository,
     private val productRepository: ProductRepository,
@@ -52,11 +49,15 @@ class RecommendationAnalyticsService(
         val saleId: String?,       // id чека (pos_sales.id); null для показов
     )
 
+    /** Совместимость внутренних вызовов/старых тестов: `limit` означает первую страницу. */
+    fun analytics(limit: Int): RecommendationAnalyticsDto = analytics(page = 0, size = limit)
+
     @Transactional(readOnly = true)
-    fun analytics(limit: Int): RecommendationAnalyticsDto {
+    fun analytics(page: Int, size: Int): RecommendationAnalyticsDto {
+        val requestedPage = page.coerceAtLeast(0)
+        val safeSize = size.coerceIn(1, MAX_PAGE_SIZE)
         val since = Instant.now().minus(windowDays, ChronoUnit.DAYS)
         val shows = eventRepository.findByShownAtGreaterThanEqualOrderByShownAtDesc(since)
-        val sales = posSaleRepository.findByPrintedAtGreaterThanEqualOrderByPrintedAtDesc(since)
 
         // ── KPI из показов (атрибуция показ→продажа) ─────────────────────────────
         val shown = shows.size
@@ -69,75 +70,35 @@ class RecommendationAnalyticsService(
         val median = if (secs.isNotEmpty()) secs[secs.size / 2] else null
         val revenue = convertedEvents.sumOf { it.expectedAmount }
 
-        // ── Единый журнал: показы + продажи, по времени, обрезаем до limit ───────
-        val showRaw = shows.map { e ->
+        // ── Единый журнал: PostgreSQL возвращает только запрошенную страницу ────
+        val totalElements = eventRepository.countJournalRowsSince(since)
+        val totalPages = if (totalElements == 0L) 0 else
+            ((totalElements - 1L) / safeSize + 1L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        val safePage = if (totalPages == 0) 0 else requestedPage.coerceAtMost(totalPages - 1)
+        val rows = eventRepository.findJournalRowsSince(
+            since = since,
+            pageSize = safeSize,
+            rowOffset = safePage.toLong() * safeSize,
+        ).map { row ->
             Raw(
-                id = e.id, type = "show", at = e.displayedAt ?: e.shownAt,
-                title = e.recommendName, triggerSku = e.triggerSku,
-                pharmacyId = e.pharmacyId, pharmacistId = e.pharmacistId,
-                pharmacistName = null,
-                reportedPharmacistId = null,
-                reportedPharmacistName = null,
-                pharmacistSource = null,
-                amount = e.expectedAmount, converted = e.soldAt != null, secondsToSale = e.secondsToSale,
-                units = null, saleId = null,
+                id = row.id,
+                type = row.eventType,
+                at = row.eventAt,
+                title = row.title,
+                triggerSku = row.triggerSku,
+                pharmacyId = row.pharmacyId,
+                pharmacistId = row.pharmacistId,
+                pharmacistName = row.pharmacistName,
+                reportedPharmacistId = row.reportedPharmacistId,
+                reportedPharmacistName = row.reportedPharmacistName,
+                pharmacistSource = row.pharmacistSource,
+                amount = row.amount,
+                converted = row.converted,
+                secondsToSale = row.secondsToSale,
+                units = row.units,
+                saleId = row.saleId,
             )
         }
-        // Для чека — время до продажи рекомендации, которую он закрыл (если закрыл).
-        // Один чек может закрыть несколько показов → берём самую быструю конверсию.
-        val saleEvents = convertedEvents
-            .filter { it.secondsToSale != null && !it.saleId.isNullOrBlank() }
-            .groupBy { it.saleId!! }
-            .mapValues { (_, evs) -> evs.minBy { it.secondsToSale!! } }
-        // Штрих-коды рекомендованных товаров закрытых показов — чтобы повесить чип
-        // «через X после показа» на КОНКРЕТНУЮ позицию чека (а не на весь чек).
-        val recommendBarcodes = namesByIds(saleEvents.values.map { it.recommendSku }) { ids ->
-            productRepository.findAllById(ids)
-                .filter { !it.barcode.isNullOrBlank() }
-                .associate { it.id to it.barcode!! }
-        }
-
-        // Каждая позиция чека — ОТДЕЛЬНАЯ строка журнала со своей ценой и количеством;
-        // связь позиций одного чека сохраняется через saleId (нужна для проверки чека).
-        val saleRaw = sales.flatMap { s ->
-            if (s.items.isEmpty()) {
-                // чек без позиций (не должен случаться, но не роняем журнал)
-                return@flatMap listOf(
-                    Raw(
-                        id = s.id, type = "sale", at = s.printedAt,
-                        title = "Чек", triggerSku = null,
-                        pharmacyId = s.pharmacyId, pharmacistId = s.pharmacistId,
-                        pharmacistName = s.pharmacistName,
-                        reportedPharmacistId = s.reportedPharmacistId,
-                        reportedPharmacistName = s.reportedPharmacistName,
-                        pharmacistSource = s.pharmacistSource,
-                        amount = s.totalAmount, converted = false,
-                        secondsToSale = saleEvents[s.id]?.secondsToSale,
-                        units = null, saleId = s.id,
-                    ),
-                )
-            }
-            val ev = saleEvents[s.id]
-            val recIdx = ev?.let { matchRecommendedIndex(s.items, recommendBarcodes[it.recommendSku], it.recommendName) } ?: -1
-            s.items.mapIndexed { idx, item ->
-                Raw(
-                    // составной id: чек + порядковый номер позиции (уникальный ключ строки журнала)
-                    id = "${s.id}#$idx", type = "sale", at = s.printedAt,
-                    title = item.name.ifBlank { item.sku.ifBlank { "позиция" } },
-                    triggerSku = null,
-                    pharmacyId = s.pharmacyId, pharmacistId = s.pharmacistId,
-                    pharmacistName = s.pharmacistName,
-                    reportedPharmacistId = s.reportedPharmacistId,
-                    reportedPharmacistName = s.reportedPharmacistName,
-                    pharmacistSource = s.pharmacistSource,
-                    amount = item.total, converted = false,
-                    // чип «через X после показа» — только на позиции рекомендованного товара
-                    secondsToSale = if (idx == recIdx) ev?.secondsToSale else null,
-                    units = item.qty.takeIf { it > 0 }, saleId = s.id,
-                )
-            }
-        }
-        val rows = (showRaw + saleRaw).sortedByDescending { it.at }.take(limit.coerceIn(1, MAX_LIMIT))
 
         val pharmacyNames = namesByIds(rows.map { it.pharmacyId }) { ids ->
             pharmacyRepository.findAllById(ids).associate { it.id to it.name }
@@ -187,25 +148,11 @@ class RecommendationAnalyticsService(
             attributedRevenue = revenue,
             buckets = buildBuckets(secs),
             log = log,
+            page = safePage,
+            pageSize = safeSize,
+            totalElements = totalElements,
+            totalPages = totalPages,
         )
-    }
-
-    /**
-     * Позиция чека, соответствующая рекомендованному товару закрытого показа, — на неё вешается
-     * чип «через X после показа». Матчинг best-effort: штрих-код → нормализованное имя → первая
-     * позиция (чек закрыл показ, значит товар в нём есть — даже если точный матч не удался).
-     */
-    private fun matchRecommendedIndex(items: List<PosSaleItem>, barcode: String?, recommendName: String): Int {
-        if (!barcode.isNullOrBlank()) {
-            val byBarcode = items.indexOfFirst { it.barcode == barcode }
-            if (byBarcode >= 0) return byBarcode
-        }
-        val norm = recommendName.trim().lowercase()
-        if (norm.isNotBlank()) {
-            val byName = items.indexOfFirst { it.name.trim().lowercase() == norm }
-            if (byName >= 0) return byName
-        }
-        return 0
     }
 
     /** Точечный резолв id→имя; пустой вход → пустая мапа (не дёргаем БД зря). */
@@ -227,6 +174,6 @@ class RecommendationAnalyticsService(
     private companion object {
         private const val TWO_MIN = 120
         private const val TEN_MIN = 600
-        private const val MAX_LIMIT = 500
+        private const val MAX_PAGE_SIZE = 100
     }
 }

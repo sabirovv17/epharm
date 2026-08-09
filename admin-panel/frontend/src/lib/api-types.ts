@@ -571,6 +571,10 @@ export interface RecommendationAnalyticsDto {
   attributedRevenue: number
   buckets: TimeBucketDto[]
   log: LogEntryDto[]
+  page: number // 0-based
+  pageSize: number
+  totalElements: number
+  totalPages: number
 }
 
 // ─── Lift (Этап 3.6) — pilot vs control аналитика ───
