@@ -7,6 +7,8 @@ import { api } from '@/lib/api'
 import type {
   ActivePlaylistDto,
   AssignSlideRequest,
+  BroadcastProfileDto,
+  BroadcastProfileSummaryDto,
   ConnectedScreensDto,
   CreatePlaylistRequest,
   PlaylistDto,
@@ -28,6 +30,8 @@ export const screensKeys = {
   slides: () => [...screensKeys.all, 'slides'] as const,
   connected: () => [...screensKeys.all, 'connected'] as const,
   broadcast: () => [...screensKeys.all, 'broadcast'] as const,
+  broadcastProfiles: () => [...screensKeys.all, 'broadcast-profiles'] as const,
+  broadcastProfile: (id: string) => [...screensKeys.broadcastProfiles(), id] as const,
 }
 
 /** Текущий упорядоченный эфир на кассах (до 12 роликов). */
@@ -83,6 +87,100 @@ export function useUploadBroadcastSlot() {
       qc.invalidateQueries({ queryKey: screensKeys.broadcast() })
       qc.invalidateQueries({ queryKey: screensKeys.playlistsRoot() })
       qc.invalidateQueries({ queryKey: screensKeys.slides() })
+    },
+  })
+}
+
+/** Два управляемых профиля: общий эфир и overrides для выбранных аптек. */
+export function useBroadcastProfiles() {
+  return useQuery<BroadcastProfileSummaryDto[]>({
+    queryKey: screensKeys.broadcastProfiles(),
+    queryFn: () =>
+      api
+        .get<BroadcastProfileSummaryDto[]>('/api/admin/screens/broadcast/profiles')
+        .then((r) => r.data),
+  })
+}
+
+export function useBroadcastProfile(id: string) {
+  return useQuery<BroadcastProfileDto>({
+    queryKey: screensKeys.broadcastProfile(id),
+    queryFn: () =>
+      api
+        .get<BroadcastProfileDto>(`/api/admin/screens/broadcast/profiles/${id}`)
+        .then((r) => r.data),
+    enabled: id.length > 0,
+  })
+}
+
+export function useUploadBroadcastProfileSlot() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      profileId,
+      slot,
+      file,
+      title,
+      durationSec = 15,
+    }: {
+      profileId: string
+      slot: number
+      file: File
+      title?: string
+      durationSec?: number
+    }) => {
+      const form = new FormData()
+      form.append('file', file)
+      if (title) form.append('title', title)
+      form.append('durationSec', String(durationSec))
+      return api
+        .post<BroadcastProfileDto>(
+          `/api/admin/screens/broadcast/profiles/${profileId}/slots/${slot}`,
+          form,
+        )
+        .then((r) => r.data)
+    },
+    onSuccess: (data) => {
+      qc.setQueryData(screensKeys.broadcastProfile(data.id), data)
+      qc.invalidateQueries({ queryKey: screensKeys.broadcastProfiles() })
+      qc.invalidateQueries({ queryKey: screensKeys.broadcast() })
+      qc.invalidateQueries({ queryKey: screensKeys.playlistsRoot() })
+      qc.invalidateQueries({ queryKey: screensKeys.slides() })
+    },
+  })
+}
+
+export function useRemoveBroadcastProfileSlot() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ profileId, slot }: { profileId: string; slot: number }) =>
+      api
+        .delete<BroadcastProfileDto>(
+          `/api/admin/screens/broadcast/profiles/${profileId}/slots/${slot}`,
+        )
+        .then((r) => r.data),
+    onSuccess: (data) => {
+      qc.setQueryData(screensKeys.broadcastProfile(data.id), data)
+      qc.invalidateQueries({ queryKey: screensKeys.broadcastProfiles() })
+      qc.invalidateQueries({ queryKey: screensKeys.broadcast() })
+      qc.invalidateQueries({ queryKey: screensKeys.playlistsRoot() })
+      qc.invalidateQueries({ queryKey: screensKeys.slides() })
+    },
+  })
+}
+
+export function useSetBroadcastProfilePharmacies() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ profileId, pharmacyIds }: { profileId: string; pharmacyIds: string[] }) =>
+      api
+        .put<BroadcastProfileDto>(`/api/admin/screens/broadcast/profiles/${profileId}/pharmacies`, {
+          pharmacyIds,
+        })
+        .then((r) => r.data),
+    onSuccess: (data) => {
+      qc.setQueryData(screensKeys.broadcastProfile(data.id), data)
+      qc.invalidateQueries({ queryKey: screensKeys.broadcastProfiles() })
     },
   })
 }

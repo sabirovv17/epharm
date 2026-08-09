@@ -4,17 +4,35 @@
 //     кассы подхватывают его поллингом /api/posm/playlists/active и шлют heartbeat.
 //   • «Баннеры приложения» — управление баннерами главного экрана (BannersPanel).
 
-import { useRef, useState } from 'react'
-import { Button, PageHeader, SectionCard, Tabs, useToast } from '@/ui'
-import { IconGrid, IconList, IconPlus, IconScreens, IconUpload } from '@/ui/icons'
-import { useBroadcast, useConnectedScreens, useUploadBroadcastSlot } from '@/lib/queries/screens'
+import { useMemo, useRef, useState } from 'react'
+import { Button, Modal, PageHeader, SearchInput, SectionCard, Tabs, useToast } from '@/ui'
+import {
+  IconGrid,
+  IconList,
+  IconPlus,
+  IconRefresh,
+  IconScreens,
+  IconUpload,
+  IconUsers,
+} from '@/ui/icons'
+import {
+  useBroadcastProfile,
+  useBroadcastProfiles,
+  useConnectedScreens,
+  useRemoveBroadcastProfileSlot,
+  useSetBroadcastProfilePharmacies,
+  useUploadBroadcastProfileSlot,
+} from '@/lib/queries/screens'
+import { usePharmacies } from '@/lib/queries/pharmacies'
 import { describeError } from '@/lib/describeError'
 import { resolveEpharmMediaUrl } from '@/lib/media'
-import type { ActiveSlideDto } from '@/lib/api-types'
+import type { ActiveSlideDto, PharmacyDto } from '@/lib/api-types'
 import { useT } from '@/i18n'
 import { BannersPanel, type BannerEditing } from './BannersPanel'
 
 const BROADCAST_SLOT_COUNT = 12
+const DEFAULT_PROFILE_ID = 'pl_broadcast'
+const TARGETED_PROFILE_ID = 'pl_broadcast_targeted'
 type BroadcastViewMode = 'grid' | 'list'
 
 export default function ScreensPage() {
@@ -140,15 +158,31 @@ function toBroadcastSlots(slides: ActiveSlideDto[]): Array<ActiveSlideDto | null
 function BroadcastCard() {
   const t = useT()
   const toast = useToast()
-  const broadcastQ = useBroadcast()
-  const upload = useUploadBroadcastSlot()
+  const profilesQ = useBroadcastProfiles()
+  const [profileId, setProfileId] = useState(DEFAULT_PROFILE_ID)
+  const profileQ = useBroadcastProfile(profileId)
+  const upload = useUploadBroadcastProfileSlot()
+  const remove = useRemoveBroadcastProfileSlot()
   const fileRef = useRef<HTMLInputElement>(null)
   const [viewMode, setViewMode] = useState<BroadcastViewMode>('grid')
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null)
-  const slots = toBroadcastSlots(broadcastQ.data?.slides ?? [])
+  const [assignmentsOpen, setAssignmentsOpen] = useState(false)
+  const profile = profileQ.data
+  const defaultProfile = profileId === DEFAULT_PROFILE_ID
+  const slots = toBroadcastSlots(profile?.slides ?? [])
   const loadedCount = slots.filter(Boolean).length
   const cycleDuration = slots.reduce((sum, slide) => sum + (slide?.durationSec ?? 0), 0)
-  const pendingSlot = upload.isPending ? (upload.variables?.slot ?? selectedSlot) : null
+  const pendingSlot =
+    upload.isPending && upload.variables?.profileId === profileId
+      ? (upload.variables.slot ?? selectedSlot)
+      : null
+  const removingSlot =
+    remove.isPending && remove.variables?.profileId === profileId ? remove.variables.slot : null
+  const profileSummaries = profilesQ.data ?? []
+  const targetedCount =
+    profileSummaries.find((item) => item.id === TARGETED_PROFILE_ID)?.assignedPharmacies ??
+    profile?.assignedPharmacyIds.length ??
+    0
 
   const openPicker = (slot: number) => {
     setSelectedSlot(slot)
@@ -163,7 +197,7 @@ function BroadcastCard() {
     const slot = selectedSlot
     if (!file || slot === null) return
     upload.mutate(
-      { slot, file },
+      { profileId, slot, file },
       {
         onSuccess: () => {
           toast.push(t('scr.broadcastSlotUpdated', { slot }))
@@ -175,6 +209,16 @@ function BroadcastCard() {
     if (fileRef.current) fileRef.current.value = ''
   }
 
+  const resetOverride = (slot: number) => {
+    remove.mutate(
+      { profileId, slot },
+      {
+        onSuccess: () => toast.push(t('scr.profileOverrideRemoved', { slot })),
+        onError: (e) => toast.push(describeError(e)),
+      },
+    )
+  }
+
   return (
     <SectionCard
       title={t('scr.broadcastTitle')}
@@ -183,6 +227,53 @@ function BroadcastCard() {
       action={<BroadcastViewToggle mode={viewMode} onChange={setViewMode} />}
     >
       <div data-testid="broadcast-card">
+        <div className="hairline flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
+          <div
+            role="group"
+            aria-label={t('scr.profileMode')}
+            className="hairline inline-flex min-w-0 items-center gap-0.5 rounded-lg border bg-paper-input p-0.5"
+          >
+            <button
+              type="button"
+              aria-pressed={defaultProfile}
+              onClick={() => setProfileId(DEFAULT_PROFILE_ID)}
+              data-testid="broadcast-profile-default"
+              className={
+                defaultProfile
+                  ? 'h-8 rounded-md bg-white px-3 text-[12px] font-bold text-ink-900 shadow-sm'
+                  : 'h-8 rounded-md px-3 text-[12px] font-bold text-ink-500 hover:text-ink-700'
+              }
+            >
+              {t('scr.profileDefault')}
+            </button>
+            <button
+              type="button"
+              aria-pressed={!defaultProfile}
+              onClick={() => setProfileId(TARGETED_PROFILE_ID)}
+              data-testid="broadcast-profile-targeted"
+              className={
+                !defaultProfile
+                  ? 'h-8 rounded-md bg-white px-3 text-[12px] font-bold text-ink-900 shadow-sm'
+                  : 'h-8 rounded-md px-3 text-[12px] font-bold text-ink-500 hover:text-ink-700'
+              }
+            >
+              {t('scr.profileTargeted')} · {targetedCount}
+            </button>
+          </div>
+
+          {!defaultProfile && (
+            <Button
+              variant="outline"
+              size="sm"
+              leading={<IconUsers size={14} />}
+              onClick={() => setAssignmentsOpen(true)}
+              data-testid="broadcast-profile-pharmacies"
+            >
+              {t('scr.profileManagePharmacies')}
+            </Button>
+          )}
+        </div>
+
         <div className="hairline flex flex-wrap items-center justify-between gap-2 border-b px-5 py-3">
           <div className="flex flex-wrap items-center gap-2 text-[12px]">
             <span className="font-bold text-ink-700">
@@ -196,7 +287,7 @@ function BroadcastCard() {
           <span className="text-[11px] text-ink-400">{t('scr.broadcastOrder')}</span>
         </div>
 
-        {broadcastQ.isError && (
+        {(profileQ.isError || profilesQ.isError) && (
           <div className="mx-5 mt-4 rounded-lg border border-accent-danger/20 bg-surface-danger px-3 py-2 text-[12px] font-semibold text-surface-danger-strong">
             {t('scr.broadcastLoadError')}
           </div>
@@ -223,8 +314,11 @@ function BroadcastCard() {
                   slot={index + 1}
                   slide={slide}
                   pending={pendingSlot === index + 1}
-                  disabled={upload.isPending}
+                  resetPending={removingSlot === index + 1}
+                  disabled={upload.isPending || remove.isPending}
+                  defaultProfile={defaultProfile}
                   onPick={openPicker}
+                  onReset={resetOverride}
                 />
               ))}
             </div>
@@ -239,8 +333,11 @@ function BroadcastCard() {
                   slot={index + 1}
                   slide={slide}
                   pending={pendingSlot === index + 1}
-                  disabled={upload.isPending}
+                  resetPending={removingSlot === index + 1}
+                  disabled={upload.isPending || remove.isPending}
+                  defaultProfile={defaultProfile}
                   onPick={openPicker}
+                  onReset={resetOverride}
                 />
               ))}
             </div>
@@ -251,6 +348,15 @@ function BroadcastCard() {
           </div>
         </div>
       </div>
+
+      {assignmentsOpen && (
+        <ProfilePharmaciesModal
+          open
+          onClose={() => setAssignmentsOpen(false)}
+          profileId={TARGETED_PROFILE_ID}
+          assignedIds={profile?.assignedPharmacyIds ?? []}
+        />
+      )}
     </SectionCard>
   )
 }
@@ -259,11 +365,23 @@ interface BroadcastSlotProps {
   slot: number
   slide: ActiveSlideDto | null
   pending: boolean
+  resetPending: boolean
   disabled: boolean
+  defaultProfile: boolean
   onPick: (slot: number) => void
+  onReset: (slot: number) => void
 }
 
-function BroadcastSlotCard({ slot, slide, pending, disabled, onPick }: BroadcastSlotProps) {
+function BroadcastSlotCard({
+  slot,
+  slide,
+  pending,
+  resetPending,
+  disabled,
+  defaultProfile,
+  onPick,
+  onReset,
+}: BroadcastSlotProps) {
   const t = useT()
   return (
     <article
@@ -275,7 +393,13 @@ function BroadcastSlotCard({ slot, slide, pending, disabled, onPick }: Broadcast
           {t('scr.broadcastSlot', { slot })}
         </span>
         <span className={slide ? 'chip chip-green' : 'text-[10px] font-semibold text-ink-400'}>
-          {slide ? t('scr.broadcastReady') : t('scr.broadcastEmpty')}
+          {slide
+            ? !defaultProfile && slide.inherited
+              ? t('scr.profileInherited')
+              : !defaultProfile
+                ? t('scr.profileOverride')
+                : t('scr.broadcastReady')
+            : t('scr.broadcastEmpty')}
         </span>
       </div>
 
@@ -305,12 +429,34 @@ function BroadcastSlotCard({ slot, slide, pending, disabled, onPick }: Broadcast
               ? t('scr.broadcastReplace')
               : t('scr.broadcastUpload')}
         </Button>
+        {!defaultProfile && slide && !slide.inherited && (
+          <Button
+            variant="ghost"
+            size="sm"
+            leading={<IconRefresh size={13} />}
+            className="w-full justify-center"
+            disabled={disabled}
+            onClick={() => onReset(slot)}
+            data-testid={`broadcast-slot-${slot}-reset`}
+          >
+            {resetPending ? t('scr.profileResetting') : t('scr.profileUseDefault')}
+          </Button>
+        )}
       </div>
     </article>
   )
 }
 
-function BroadcastSlotRow({ slot, slide, pending, disabled, onPick }: BroadcastSlotProps) {
+function BroadcastSlotRow({
+  slot,
+  slide,
+  pending,
+  resetPending,
+  disabled,
+  defaultProfile,
+  onPick,
+  onReset,
+}: BroadcastSlotProps) {
   const t = useT()
   return (
     <div
@@ -328,7 +474,18 @@ function BroadcastSlotRow({ slot, slide, pending, disabled, onPick }: BroadcastS
           {slide?.title ?? t('scr.broadcastEmptyTitle')}
         </div>
         <div className="mt-0.5 text-[11px] text-ink-400">
-          {slide ? fmtDuration(slide.durationSec) : t('scr.broadcastEmptyBody')}
+          {slide ? (
+            <>
+              {fmtDuration(slide.durationSec)}
+              {!defaultProfile && (
+                <span className="ml-2 font-semibold text-ink-500">
+                  {slide.inherited ? t('scr.profileInherited') : t('scr.profileOverride')}
+                </span>
+              )}
+            </>
+          ) : (
+            t('scr.broadcastEmptyBody')
+          )}
         </div>
       </div>
       <Button
@@ -346,6 +503,19 @@ function BroadcastSlotRow({ slot, slide, pending, disabled, onPick }: BroadcastS
             ? t('scr.broadcastReplace')
             : t('scr.broadcastUpload')}
       </Button>
+      {!defaultProfile && slide && !slide.inherited && (
+        <Button
+          variant="ghost"
+          size="sm"
+          leading={<IconRefresh size={13} />}
+          className="w-full justify-center sm:w-auto"
+          disabled={disabled}
+          onClick={() => onReset(slot)}
+          data-testid={`broadcast-slot-${slot}-reset`}
+        >
+          {resetPending ? t('scr.profileResetting') : t('scr.profileUseDefault')}
+        </Button>
+      )}
     </div>
   )
 }
@@ -382,6 +552,142 @@ function BroadcastPreview({
       )}
     </div>
   )
+}
+
+function ProfilePharmaciesModal({
+  open,
+  onClose,
+  profileId,
+  assignedIds,
+}: {
+  open: boolean
+  onClose: () => void
+  profileId: string
+  assignedIds: string[]
+}) {
+  const t = useT()
+  const toast = useToast()
+  const pharmaciesQ = usePharmacies()
+  const update = useSetBroadcastProfilePharmacies()
+  const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(assignedIds))
+
+  const filtered = useMemo(() => {
+    const needle = search.trim().toLocaleLowerCase('ru-RU')
+    const rows = pharmaciesQ.data ?? []
+    if (!needle) return rows
+    return rows.filter((pharmacy) => pharmacySearchText(pharmacy).includes(needle))
+  }, [pharmaciesQ.data, search])
+
+  const toggle = (id: string) => {
+    setSelected((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const save = () => {
+    update.mutate(
+      { profileId, pharmacyIds: Array.from(selected) },
+      {
+        onSuccess: () => {
+          toast.push(t('scr.profilePharmaciesSaved', { count: selected.size }))
+          onClose()
+        },
+        onError: (e) => toast.push(describeError(e)),
+      },
+    )
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={t('scr.profilePharmaciesTitle')}
+      subtitle={t('scr.profilePharmaciesSubtitle')}
+      width={720}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={update.isPending}>
+            {t('scr.profileCancel')}
+          </Button>
+          <Button
+            variant="primary"
+            onClick={save}
+            disabled={update.isPending || pharmaciesQ.isLoading}
+            data-testid="broadcast-profile-pharmacies-save"
+          >
+            {update.isPending
+              ? t('scr.profileSaving')
+              : t('scr.profileSavePharmacies', { count: selected.size })}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-3">
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder={t('scr.profilePharmaciesSearch')}
+        />
+
+        <div className="flex items-center justify-between text-[11px] text-ink-500">
+          <span>{t('scr.profileSelected', { count: selected.size })}</span>
+          <span>{t('scr.profileFound', { count: filtered.length })}</span>
+        </div>
+
+        {pharmaciesQ.isError ? (
+          <div className="rounded-lg border border-accent-danger/20 bg-surface-danger px-3 py-2 text-[12px] font-semibold text-surface-danger-strong">
+            {t('scr.profilePharmaciesLoadError')}
+          </div>
+        ) : (
+          <div
+            className="hairline max-h-[420px] divide-y divide-ink-100 overflow-auto rounded-lg border"
+            data-testid="broadcast-profile-pharmacy-list"
+          >
+            {filtered.map((pharmacy) => (
+              <label
+                key={pharmacy.id}
+                className="flex cursor-pointer items-start gap-3 bg-white px-3 py-2.5 hover:bg-paper-hover"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.has(pharmacy.id)}
+                  onChange={() => toggle(pharmacy.id)}
+                  className="mt-0.5 h-4 w-4 accent-brand-green-700"
+                  data-testid={`broadcast-profile-pharmacy-${pharmacy.id}`}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[12px] font-bold text-ink-800">
+                    {pharmacy.name}
+                  </span>
+                  <span className="block truncate text-[11px] text-ink-500">
+                    {[pharmacy.city, pharmacy.addr].filter(Boolean).join(' · ')}
+                  </span>
+                </span>
+                <span className="num max-w-40 truncate text-[10px] text-ink-400">
+                  {pharmacy.id}
+                </span>
+              </label>
+            ))}
+            {!pharmaciesQ.isLoading && filtered.length === 0 && (
+              <div className="px-3 py-8 text-center text-[12px] text-ink-400">
+                {t('scr.profileNothingFound')}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
+function pharmacySearchText(pharmacy: PharmacyDto): string {
+  return [pharmacy.name, pharmacy.city, pharmacy.addr, pharmacy.chainName, pharmacy.id]
+    .join(' ')
+    .toLocaleLowerCase('ru-RU')
 }
 
 function BroadcastViewToggle({

@@ -7,10 +7,12 @@ import kz.epharm.pharmacies.repository.ChainRepository
 import kz.epharm.pharmacies.repository.PharmacyRepository
 import kz.epharm.screens.dto.ActivePlaylistDto
 import kz.epharm.screens.entity.PlaylistEntity
+import kz.epharm.screens.entity.PlaylistPharmacyAssignmentEntity
 import kz.epharm.screens.entity.PlaylistStatus
 import kz.epharm.screens.entity.SlideEntity
 import kz.epharm.screens.entity.SlideKind
 import kz.epharm.screens.repository.PlaylistRepository
+import kz.epharm.screens.repository.PlaylistPharmacyAssignmentRepository
 import kz.epharm.screens.repository.SlideRepository
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
@@ -57,12 +59,14 @@ class PosmPlaylistIntegrationTest {
     @Autowired private lateinit var mockMvc: MockMvc
     @Autowired private lateinit var objectMapper: ObjectMapper
     @Autowired private lateinit var playlistRepository: PlaylistRepository
+    @Autowired private lateinit var playlistAssignmentRepository: PlaylistPharmacyAssignmentRepository
     @Autowired private lateinit var slideRepository: SlideRepository
     @Autowired private lateinit var pharmacyRepository: PharmacyRepository
     @Autowired private lateinit var chainRepository: ChainRepository
 
     @BeforeEach
     fun clean() {
+        playlistAssignmentRepository.deleteAll()
         slideRepository.deleteAll()
         playlistRepository.deleteAll()
         pharmacyRepository.deleteAll()
@@ -133,6 +137,44 @@ class PosmPlaylistIntegrationTest {
         val r2 = getPlaylist(pharmacyId = "ph_2")
         assertEquals("pl_global", r2.playlistId)
         assertEquals("http://minio/global.mp4", r2.slides[0].url)
+    }
+
+    @Test
+    fun `назначенная аптека получает эффективный профиль а остальные общий`() {
+        seedPharmacy("ph_1")
+        seedPharmacy("ph_2")
+        playlistRepository.save(
+            PlaylistEntity(id = "pl_broadcast", name = "Общий")
+                .also { it.status = PlaylistStatus.active },
+        )
+        playlistRepository.save(
+            PlaylistEntity(
+                id = "pl_broadcast_targeted",
+                name = "Индивидуальный",
+                parentPlaylistId = "pl_broadcast",
+            ).also { it.status = PlaylistStatus.active },
+        )
+        slideRepository.save(slide("g1", "pl_broadcast", pos = 0, url = "http://minio/global-1.mp4"))
+        slideRepository.save(slide("g2", "pl_broadcast", pos = 1, url = "http://minio/global-2.mp4"))
+        slideRepository.save(
+            slide("t2", "pl_broadcast_targeted", pos = 1, url = "http://minio/targeted-2.mp4"),
+        )
+        playlistAssignmentRepository.save(
+            PlaylistPharmacyAssignmentEntity(
+                pharmacyId = "ph_1",
+                playlistId = "pl_broadcast_targeted",
+            ),
+        )
+
+        val targeted = getPlaylist(pharmacyId = "ph_1")
+        assertEquals("pl_broadcast_targeted", targeted.playlistId)
+        assertEquals(listOf("http://minio/global-1.mp4", "http://minio/targeted-2.mp4"), targeted.slides.map { it.url })
+        assertEquals(listOf(true, false), targeted.slides.map { it.inherited })
+
+        val default = getPlaylist(pharmacyId = "ph_2")
+        assertEquals("pl_broadcast", default.playlistId)
+        assertEquals(listOf("http://minio/global-1.mp4", "http://minio/global-2.mp4"), default.slides.map { it.url })
+        assertEquals(listOf(false, false), default.slides.map { it.inherited })
     }
 
     private fun getPlaylist(pharmacyId: String? = null): ActivePlaylistDto {

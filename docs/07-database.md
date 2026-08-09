@@ -26,6 +26,7 @@ Current migration range: V001-V036.
 | V014    | `posm_sales_excel`                   | POS sales, Excel imports/rows, source columns.                               |
 | V015    | `cdp_profiles`                       | POSM CDP/customer profiles.                                                  |
 | V016    | `playlist_target`                    | Per-pharmacy playlist targeting.                                             |
+| V038    | `targeted_screen_playlists`          | Parent/child playlist inheritance and pharmacy-profile assignments.          |
 | V017    | `app_releases`                       | POSM app releases and auto-update metadata.                                  |
 | V018    | `rule_card`                          | Rich recommendation card JSON and product volume.                            |
 | V019    | `mobile_auth`                        | Mobile OTPs, mobile refresh tokens, self-register fields.                    |
@@ -58,7 +59,7 @@ Current migration range: V001-V036.
 | Pharmacies          | `chains`, `pharmacies`                                                         |
 | Pharmacists         | `pharmacists`                                                                  |
 | Finance             | `payout_batches`, `payout_items`                                               |
-| Screens             | `playlists`, `slides`                                                          |
+| Screens             | `playlists`, `slides`, `playlist_pharmacy_assignments`                         |
 | POSM                | `recommendation_events`, app release tables, CDP tables                        |
 | LMS/AI              | `courses`, `exam_questions`, `training_programs`, versions and result history  |
 | Training operations | `training_assignments`, stages, events, participants, certificates, rewards    |

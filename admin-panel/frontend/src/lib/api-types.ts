@@ -668,10 +668,28 @@ export interface ActiveSlideDto {
   title: string
   /** Нулевая позиция; в UI отображается как слот 1..12. */
   position: number
+  /** Для дочернего профиля: ролик взят из общего плейлиста. */
+  inherited?: boolean
 }
 export interface ActivePlaylistDto {
   playlistId: string | null
   name: string
+  slides: ActiveSlideDto[]
+}
+
+export interface BroadcastProfileSummaryDto {
+  id: string
+  name: string
+  defaultProfile: boolean
+  assignedPharmacies: number
+}
+
+export interface BroadcastProfileDto {
+  id: string
+  name: string
+  defaultProfile: boolean
+  assignedPharmacyIds: string[]
+  /** Эффективные слоты: собственные ролики плюс наследуемые из общего профиля. */
   slides: ActiveSlideDto[]
 }
 

@@ -3,16 +3,20 @@ package kz.epharm.screens.service
 import kz.epharm.screens.dto.ActivePlaylistDto
 import kz.epharm.screens.dto.ActiveSlideDto
 import kz.epharm.screens.dto.AssignSlideRequest
+import kz.epharm.screens.dto.BroadcastProfileDto
+import kz.epharm.screens.dto.BroadcastProfileSummaryDto
 import kz.epharm.screens.dto.CreatePlaylistRequest
 import kz.epharm.screens.dto.PlaylistDto
 import kz.epharm.screens.dto.SlideDto
 import kz.epharm.screens.dto.UpdatePlaylistRequest
 import kz.epharm.screens.entity.PlaylistEntity
+import kz.epharm.screens.entity.PlaylistPharmacyAssignmentEntity
 import kz.epharm.screens.entity.PlaylistStatus
 import kz.epharm.screens.entity.SlideEntity
 import kz.epharm.screens.entity.SlideKind
 import kz.epharm.pharmacies.repository.PharmacyRepository
 import kz.epharm.screens.repository.PlaylistRepository
+import kz.epharm.screens.repository.PlaylistPharmacyAssignmentRepository
 import kz.epharm.screens.repository.SlideRepository
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
@@ -29,12 +33,15 @@ import java.util.UUID
 class ScreenService(
     private val playlistRepository: PlaylistRepository,
     private val slideRepository: SlideRepository,
+    private val playlistAssignmentRepository: PlaylistPharmacyAssignmentRepository,
     private val pharmacyRepository: PharmacyRepository,
     private val mediaStorage: MediaStorage,
 ) {
     companion object {
         /** Единственный глобальный плейлист «эфир» на все кассы. */
         const val BROADCAST_PLAYLIST_ID = "pl_broadcast"
+        /** Профиль для выбранной группы аптек; пустые слоты наследуются из эфира. */
+        const val TARGETED_BROADCAST_PLAYLIST_ID = "pl_broadcast_targeted"
         const val BROADCAST_SLOT_COUNT = 12
     }
 
@@ -55,34 +62,65 @@ class ScreenService(
         slideRepository.findAllByOrderByCreatedAtDesc().map(SlideDto::of)
 
     /**
-     * Активный плейлист для 2-го монитора кассы (Stage 3, назначение V016). Приоритет:
-     *   1) активный плейлист, назначенный ИМЕННО на эту аптеку (pharmacyId) — override;
-     *   2) иначе активный ГЛОБАЛЬНЫЙ (pharmacy_id IS NULL) — «загружено на все экраны»;
-     *   3) иначе пусто → касса остаётся на локальном promo.mp4.
-     * Так «загрузить на конкретный экран» перекрывает «на все экраны» для этой кассы.
+     * Активный плейлист для POSM. Приоритет совместим со старой схемой V016:
+     *   1) legacy-плейлист ровно одной аптеки;
+     *   2) профиль группы из playlist_pharmacy_assignments;
+     *   3) основной pl_broadcast;
+     *   4) legacy-глобальный плейлист во время rolling deploy.
+     *
+     * Для дочернего профиля возвращается уже собранный список: его собственные
+     * позиции перекрывают основной эфир, остальные наследуются. POSM менять не нужно.
      */
     @Transactional(readOnly = true)
     fun activePlaylistForScreen(pharmacyId: String? = null): ActivePlaylistDto {
         val active = PlaylistStatus.active.name
-        val playlist = (
-            pharmacyId
-                ?.takeIf { it.isNotBlank() }
-                ?.let { playlistRepository.findFirstByStatusRawAndPharmacyIdOrderByUpdatedAtDesc(active, it) }
-            )
-            ?: playlistRepository.findFirstByStatusRawAndPharmacyIdIsNullOrderByUpdatedAtDesc(active)
+        val normalizedPharmacyId = pharmacyId?.trim()?.takeIf { it.isNotBlank() }
+        val legacyDirect = normalizedPharmacyId?.let {
+            playlistRepository.findFirstByStatusRawAndPharmacyIdOrderByUpdatedAtDesc(active, it)
+        }
+        val assigned = normalizedPharmacyId
+            ?.let(playlistAssignmentRepository::findByPharmacyId)
+            ?.let { playlistRepository.findById(it.playlistId).orElse(null) }
+            ?.takeIf { it.status == PlaylistStatus.active }
+        val default = playlistRepository.findById(BROADCAST_PLAYLIST_ID).orElse(null)
+            ?.takeIf { it.status == PlaylistStatus.active }
+        val legacyGlobal = playlistRepository
+            .findFirstByStatusRawAndPharmacyIdIsNullAndParentPlaylistIdIsNullOrderByUpdatedAtDesc(active)
+
+        val playlist = legacyDirect
+            ?: assigned
+            ?: default
+            ?: legacyGlobal
             ?: return ActivePlaylistDto(playlistId = null, name = "", slides = emptyList())
 
-        val slides = slideRepository.findAllByPlaylistIdOrderByPositionAsc(playlist.id).map {
-            ActiveSlideDto(
-                id = it.id,
-                url = it.mediaUrl,
-                kind = it.kind,
-                durationSec = it.durationSec,
-                title = it.title,
-                position = it.position,
-            )
+        return ActivePlaylistDto(
+            playlistId = playlist.id,
+            name = playlist.name,
+            slides = effectiveSlides(playlist),
+        )
+    }
+
+    @Transactional(readOnly = true)
+    fun listBroadcastProfiles(): List<BroadcastProfileSummaryDto> =
+        listOf(BROADCAST_PLAYLIST_ID, TARGETED_BROADCAST_PLAYLIST_ID).mapNotNull { id ->
+            playlistRepository.findById(id).orElse(null)?.let { playlist ->
+                BroadcastProfileSummaryDto(
+                    id = playlist.id,
+                    name = playlist.name,
+                    defaultProfile = playlist.id == BROADCAST_PLAYLIST_ID,
+                    assignedPharmacies = if (playlist.id == BROADCAST_PLAYLIST_ID) {
+                        0
+                    } else {
+                        playlistAssignmentRepository.findAllByPlaylistIdOrderByPharmacyIdAsc(playlist.id).size
+                    },
+                )
+            }
         }
-        return ActivePlaylistDto(playlistId = playlist.id, name = playlist.name, slides = slides)
+
+    @Transactional(readOnly = true)
+    fun getBroadcastProfile(id: String): BroadcastProfileDto {
+        val playlist = loadBroadcastProfileOrThrow(id)
+        return toBroadcastProfileDto(playlist)
     }
 
     // ── Плейлисты ─────────────────────────────────────────────────────────
@@ -196,16 +234,60 @@ class ScreenService(
         return SlideDto.of(saved)
     }
 
-    // ── Эфир: до 12 роликов, один общий плейлист на все кассы ───────────────
+    // ── Эфир: основной профиль + overrides для выбранных аптек ─────────────
+
+    /** Полностью заменяет список аптек профиля одной транзакцией. */
+    @Transactional
+    fun setBroadcastProfilePharmacies(id: String, pharmacyIds: List<String>): BroadcastProfileDto {
+        val playlist = loadBroadcastProfileOrThrow(id)
+        if (playlist.id == BROADCAST_PLAYLIST_ID) {
+            throw AppException(
+                ErrorCode.VALIDATION_FAILED,
+                "Основной плейлист применяется автоматически и не требует списка аптек",
+                HttpStatus.BAD_REQUEST,
+            )
+        }
+
+        val normalized = pharmacyIds.map(String::trim).filter(String::isNotBlank).distinct()
+        if (normalized.size > 1_000) {
+            throw AppException(
+                ErrorCode.VALIDATION_FAILED,
+                "За один запрос можно назначить не более 1000 аптек",
+                HttpStatus.BAD_REQUEST,
+            )
+        }
+        val found = pharmacyRepository.findAllById(normalized).map { it.id }.toSet()
+        val missing = normalized.filterNot(found::contains)
+        if (missing.isNotEmpty()) {
+            throw AppException(
+                ErrorCode.VALIDATION_FAILED,
+                "Не найдены аптеки: ${missing.take(10).joinToString()}",
+                HttpStatus.BAD_REQUEST,
+            )
+        }
+
+        playlistAssignmentRepository.deleteAllByPlaylistId(playlist.id)
+        playlistAssignmentRepository.flush()
+        playlistAssignmentRepository.saveAll(
+            normalized.map { pharmacyId ->
+                PlaylistPharmacyAssignmentEntity(
+                    pharmacyId = pharmacyId,
+                    playlistId = playlist.id,
+                )
+            },
+        )
+        playlist.pharmacies = normalized.size
+        playlistRepository.save(playlist)
+        return toBroadcastProfileDto(playlist)
+    }
 
     /**
      * Legacy-операция «заменить весь эфир одним роликом». Сохраняется для обратной
      * совместимости старого UI и интеграций:
      *  1) видео → MinIO;
-     *  2) гасим все активные плейлисты (активен только эфир);
-     *  3) находим/создаём единственный плейлист BROADCAST_PLAYLIST_ID;
-     *  4) удаляем прежние слайды этого плейлиста;
-     *  5) привязываем новый ролик и активируем плейлист.
+     *  2) находим/создаём основной BROADCAST_PLAYLIST_ID;
+     *  3) удаляем прежние слайды только основного плейлиста;
+     *  4) привязываем новый ролик и активируем основной профиль.
      *
      * Старые объекты в MediaStorage удаляются только после успешного commit. Если
      * транзакция откатится, удаляется новый объект, а прежний эфир остаётся целым.
@@ -237,42 +319,47 @@ class ScreenService(
         title: String?,
         durationSec: Int,
     ): ActivePlaylistDto {
-        if (slot !in 1..BROADCAST_SLOT_COUNT) {
-            throw AppException(
-                ErrorCode.VALIDATION_FAILED,
-                "Номер слота должен быть от 1 до $BROADCAST_SLOT_COUNT",
-                HttpStatus.BAD_REQUEST,
-            )
-        }
-
-        val position = slot - 1
         val uploaded = uploadBroadcastVideo(file, title, durationSec)
         registerRollbackCleanup(uploaded.url)
         val playlist = prepareBroadcastPlaylistForSlotUpdate()
-        val matches = slideRepository.findAllByPlaylistIdOrderByPositionAsc(playlist.id)
-            .filter { it.position == position }
+        replaceSlot(playlist, slot, uploaded)
+        return activePlaylistForScreen(null)
+    }
 
-        val target = matches.firstOrNull()
-        val previousUrls = matches.map { it.mediaUrl }
-        if (target == null) {
-            slideRepository.save(uploaded.toEntity(position = position, playlistId = playlist.id))
+    /** Загрузить override в основной или индивидуальный профиль. */
+    @Transactional
+    fun replaceBroadcastProfileSlot(
+        id: String,
+        slot: Int,
+        file: MultipartFile,
+        title: String?,
+        durationSec: Int,
+    ): BroadcastProfileDto {
+        val uploaded = uploadBroadcastVideo(file, title, durationSec)
+        registerRollbackCleanup(uploaded.url)
+        val playlist = if (id == BROADCAST_PLAYLIST_ID) {
+            prepareBroadcastPlaylistForSlotUpdate()
         } else {
-            target.title = uploaded.title
-            target.kind = uploaded.kind
-            target.durationSec = uploaded.durationSec
-            target.mediaUrl = uploaded.url
-            target.position = position
-            target.playlistId = playlist.id
-            slideRepository.save(target)
-            // На случай старых неконсистентных данных оставляем в слоте только одну запись.
-            if (matches.size > 1) {
-                slideRepository.deleteAll(matches.drop(1))
+            loadBroadcastProfileOrThrow(id).also {
+                it.status = PlaylistStatus.active
+                playlistRepository.save(it)
             }
         }
+        replaceSlot(playlist, slot, uploaded)
+        return toBroadcastProfileDto(playlist)
+    }
 
+    /** Удалить собственный слот. Для дочернего профиля сразу проявится основной ролик. */
+    @Transactional
+    fun removeBroadcastProfileSlot(id: String, slot: Int): BroadcastProfileDto {
+        validateSlot(slot)
+        val playlist = loadBroadcastProfileOrThrow(id)
+        val matches = slideRepository.findAllByPlaylistIdOrderByPositionAsc(playlist.id)
+            .filter { it.position == slot - 1 }
+        slideRepository.deleteAll(matches)
         recountPlaylist(playlist.id)
-        registerAfterCommitCleanup(previousUrls)
-        return activePlaylistForScreen(null)
+        registerAfterCommitCleanup(matches.map { it.mediaUrl })
+        return toBroadcastProfileDto(playlist)
     }
 
     // ── Internals ─────────────────────────────────────────────────────────
@@ -293,6 +380,100 @@ class ScreenService(
                 position = position,
             ).also { it.kind = kind }
     }
+
+    private fun replaceSlot(
+        playlist: PlaylistEntity,
+        slot: Int,
+        uploaded: UploadedBroadcastVideo,
+    ) {
+        validateSlot(slot)
+        val position = slot - 1
+        val matches = slideRepository.findAllByPlaylistIdOrderByPositionAsc(playlist.id)
+            .filter { it.position == position }
+        val target = matches.firstOrNull()
+        val previousUrls = matches.map { it.mediaUrl }
+
+        if (target == null) {
+            slideRepository.save(uploaded.toEntity(position = position, playlistId = playlist.id))
+        } else {
+            target.title = uploaded.title
+            target.kind = uploaded.kind
+            target.durationSec = uploaded.durationSec
+            target.mediaUrl = uploaded.url
+            target.position = position
+            target.playlistId = playlist.id
+            slideRepository.save(target)
+            // Старые неконсистентные данные не должны давать два ролика в одном слоте.
+            if (matches.size > 1) slideRepository.deleteAll(matches.drop(1))
+        }
+
+        recountPlaylist(playlist.id)
+        registerAfterCommitCleanup(previousUrls)
+    }
+
+    private fun validateSlot(slot: Int) {
+        if (slot !in 1..BROADCAST_SLOT_COUNT) {
+            throw AppException(
+                ErrorCode.VALIDATION_FAILED,
+                "Номер слота должен быть от 1 до $BROADCAST_SLOT_COUNT",
+                HttpStatus.BAD_REQUEST,
+            )
+        }
+    }
+
+    /** Собирает профиль рекурсивно; собственный слайд всегда перекрывает родителя. */
+    private fun effectiveSlides(
+        playlist: PlaylistEntity,
+        visited: Set<String> = emptySet(),
+    ): List<ActiveSlideDto> {
+        if (playlist.id in visited) return emptyList()
+        val nextVisited = visited + playlist.id
+        val merged = linkedMapOf<Int, ActiveSlideDto>()
+        playlist.parentPlaylistId
+            ?.let { playlistRepository.findById(it).orElse(null) }
+            ?.let { parent ->
+                effectiveSlides(parent, nextVisited).forEach { slide ->
+                    if (slide.position in 0 until BROADCAST_SLOT_COUNT) {
+                        merged[slide.position] = slide.copy(inherited = true)
+                    }
+                }
+            }
+
+        val ownPositions = mutableSetOf<Int>()
+        slideRepository.findAllByPlaylistIdOrderByPositionAsc(playlist.id).forEach { slide ->
+            if (slide.position in 0 until BROADCAST_SLOT_COUNT && ownPositions.add(slide.position)) {
+                // Собственный слайд перекрывает унаследованный. Повторные legacy-записи
+                // той же позиции игнорируются, чтобы POSM получил ровно один ролик.
+                merged[slide.position] = slide.toActiveSlide(inherited = false)
+            }
+        }
+        return merged.toSortedMap().values.toList()
+    }
+
+    private fun SlideEntity.toActiveSlide(inherited: Boolean): ActiveSlideDto =
+        ActiveSlideDto(
+            id = id,
+            url = mediaUrl,
+            kind = kind,
+            durationSec = durationSec,
+            title = title,
+            position = position,
+            inherited = inherited,
+        )
+
+    private fun toBroadcastProfileDto(playlist: PlaylistEntity): BroadcastProfileDto =
+        BroadcastProfileDto(
+            id = playlist.id,
+            name = playlist.name,
+            defaultProfile = playlist.id == BROADCAST_PLAYLIST_ID,
+            assignedPharmacyIds = if (playlist.id == BROADCAST_PLAYLIST_ID) {
+                emptyList()
+            } else {
+                playlistAssignmentRepository.findAllByPlaylistIdOrderByPharmacyIdAsc(playlist.id)
+                    .map { it.pharmacyId }
+            },
+            slides = effectiveSlides(playlist),
+        )
 
     private fun uploadBroadcastVideo(
         file: MultipartFile,
@@ -320,13 +501,14 @@ class ScreenService(
         )
     }
 
-    /**
-     * Делает `pl_broadcast` единственным активным плейлистом. Это сохраняет старую
-     * семантику эфира «на все кассы»: локальные overrides не должны его перекрывать.
-     */
+    /** Активирует основной эфир, не выключая дочерние и legacy-адресные профили. */
     private fun activateBroadcastPlaylist(): PlaylistEntity {
         playlistRepository.findAllByStatusRawOrderByUpdatedAtDesc(PlaylistStatus.active.name)
-            .filter { it.id != BROADCAST_PLAYLIST_ID }
+            .filter {
+                it.id != BROADCAST_PLAYLIST_ID &&
+                    it.parentPlaylistId == null &&
+                    it.pharmacyId == null
+            }
             .forEach {
                 it.status = PlaylistStatus.draft
                 playlistRepository.save(it)
@@ -337,6 +519,7 @@ class ScreenService(
         }
         playlist.name = "Эфир касс"
         playlist.pharmacyId = null
+        playlist.parentPlaylistId = null
         playlist.status = PlaylistStatus.active
         return playlistRepository.save(playlist)
     }
@@ -347,9 +530,10 @@ class ScreenService(
      * `pl_broadcast` so replacing one slot cannot silently discard the other videos.
      */
     private fun prepareBroadcastPlaylistForSlotUpdate(): PlaylistEntity {
-        val activeGlobal = playlistRepository.findFirstByStatusRawAndPharmacyIdIsNullOrderByUpdatedAtDesc(
-            PlaylistStatus.active.name,
-        )
+        val activeGlobal = playlistRepository
+            .findFirstByStatusRawAndPharmacyIdIsNullAndParentPlaylistIdIsNullOrderByUpdatedAtDesc(
+                PlaylistStatus.active.name,
+            )
         if (activeGlobal == null || activeGlobal.id == BROADCAST_PLAYLIST_ID) {
             return activateBroadcastPlaylist()
         }
@@ -420,6 +604,13 @@ class ScreenService(
         playlistRepository.findById(id).orElseThrow {
             AppException(ErrorCode.NOT_FOUND, "Playlist $id not found", HttpStatus.NOT_FOUND)
         }
+
+    private fun loadBroadcastProfileOrThrow(id: String): PlaylistEntity {
+        if (id !in setOf(BROADCAST_PLAYLIST_ID, TARGETED_BROADCAST_PLAYLIST_ID)) {
+            throw AppException(ErrorCode.NOT_FOUND, "Broadcast profile $id not found", HttpStatus.NOT_FOUND)
+        }
+        return loadPlaylistOrThrow(id)
+    }
 
     private fun loadSlideOrThrow(id: String): SlideEntity =
         slideRepository.findById(id).orElseThrow {

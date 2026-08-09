@@ -5,11 +5,14 @@ import kz.epharm.pharmacies.repository.PharmacyRepository
 import kz.epharm.posm.service.DevicePresenceService
 import kz.epharm.screens.dto.ActivePlaylistDto
 import kz.epharm.screens.dto.AssignSlideRequest
+import kz.epharm.screens.dto.BroadcastProfileDto
+import kz.epharm.screens.dto.BroadcastProfileSummaryDto
 import kz.epharm.screens.dto.ConnectedRegistersDto
 import kz.epharm.screens.dto.CreatePlaylistRequest
 import kz.epharm.screens.dto.PlaylistDto
 import kz.epharm.screens.dto.RegisterPresenceDto
 import kz.epharm.screens.dto.SlideDto
+import kz.epharm.screens.dto.SetBroadcastProfilePharmaciesRequest
 import kz.epharm.screens.dto.UpdatePlaylistRequest
 import kz.epharm.screens.entity.PlaylistStatus
 import kz.epharm.screens.service.ScreenService
@@ -20,6 +23,7 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
@@ -108,11 +112,25 @@ class ScreenController(
     fun assignSlide(@PathVariable id: String, @Valid @RequestBody req: AssignSlideRequest): SlideDto =
         screenService.assignSlide(id, req)
 
-    // ── Эфир: до 12 роликов, один общий плейлист на все кассы ───────────────
+    // ── Эфир: основной профиль + индивидуальный профиль группы аптек ───────
 
     /** Текущий эфир на кассах. Пустой playlistId → плейлиста нет. */
     @GetMapping("/broadcast")
     fun broadcast(): ActivePlaylistDto = screenService.activePlaylistForScreen(null)
+
+    @GetMapping("/broadcast/profiles")
+    fun broadcastProfiles(): List<BroadcastProfileSummaryDto> =
+        screenService.listBroadcastProfiles()
+
+    @GetMapping("/broadcast/profiles/{id}")
+    fun broadcastProfile(@PathVariable id: String): BroadcastProfileDto =
+        screenService.getBroadcastProfile(id)
+
+    @PutMapping("/broadcast/profiles/{id}/pharmacies")
+    fun setBroadcastProfilePharmacies(
+        @PathVariable id: String,
+        @Valid @RequestBody req: SetBroadcastProfilePharmaciesRequest,
+    ): BroadcastProfileDto = screenService.setBroadcastProfilePharmacies(id, req.pharmacyIds)
 
     /** Legacy: заменить весь эфир одним роликом. multipart (file + опц. title). */
     @PostMapping("/broadcast", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
@@ -129,4 +147,23 @@ class ScreenController(
         @RequestParam(name = "title", required = false) title: String?,
         @RequestParam(name = "durationSec", defaultValue = "15") durationSec: Int,
     ): ActivePlaylistDto = screenService.replaceBroadcastSlot(slot, file, title, durationSec)
+
+    @PostMapping(
+        "/broadcast/profiles/{id}/slots/{slot}",
+        consumes = [MediaType.MULTIPART_FORM_DATA_VALUE],
+    )
+    fun replaceBroadcastProfileSlot(
+        @PathVariable id: String,
+        @PathVariable slot: Int,
+        @RequestParam("file") file: MultipartFile,
+        @RequestParam(name = "title", required = false) title: String?,
+        @RequestParam(name = "durationSec", defaultValue = "15") durationSec: Int,
+    ): BroadcastProfileDto =
+        screenService.replaceBroadcastProfileSlot(id, slot, file, title, durationSec)
+
+    @DeleteMapping("/broadcast/profiles/{id}/slots/{slot}")
+    fun removeBroadcastProfileSlot(
+        @PathVariable id: String,
+        @PathVariable slot: Int,
+    ): BroadcastProfileDto = screenService.removeBroadcastProfileSlot(id, slot)
 }

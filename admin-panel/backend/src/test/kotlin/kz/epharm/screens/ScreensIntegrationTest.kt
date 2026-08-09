@@ -13,10 +13,12 @@ import kz.epharm.pharmacies.repository.ChainRepository
 import kz.epharm.pharmacies.repository.PharmacyRepository
 import kz.epharm.posm.service.DevicePresenceService
 import kz.epharm.screens.entity.PlaylistEntity
+import kz.epharm.screens.entity.PlaylistPharmacyAssignmentEntity
 import kz.epharm.screens.entity.PlaylistStatus
 import kz.epharm.screens.entity.SlideEntity
 import kz.epharm.screens.entity.SlideKind
 import kz.epharm.screens.repository.PlaylistRepository
+import kz.epharm.screens.repository.PlaylistPharmacyAssignmentRepository
 import kz.epharm.screens.repository.SlideRepository
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -36,6 +38,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
@@ -71,6 +74,7 @@ class ScreensIntegrationTest {
     @Autowired private lateinit var mockMvc: MockMvc
     @Autowired private lateinit var objectMapper: ObjectMapper
     @Autowired private lateinit var playlistRepository: PlaylistRepository
+    @Autowired private lateinit var playlistAssignmentRepository: PlaylistPharmacyAssignmentRepository
     @Autowired private lateinit var slideRepository: SlideRepository
     @Autowired private lateinit var adminUserRepository: AdminUserRepository
     @Autowired private lateinit var pharmacyRepository: PharmacyRepository
@@ -82,6 +86,7 @@ class ScreensIntegrationTest {
 
     @BeforeEach
     fun seed() {
+        playlistAssignmentRepository.deleteAll()
         slideRepository.deleteAll()
         playlistRepository.deleteAll()
         adminUserRepository.deleteAll()
@@ -324,6 +329,85 @@ class ScreensIntegrationTest {
             .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
     }
 
+    @Test
+    fun `индивидуальный профиль наследует общий эфир и хранит только свои замены`() {
+        seedBroadcastProfiles()
+
+        mockMvc.perform(
+            get("/api/admin/screens/broadcast/profiles/pl_broadcast_targeted")
+                .header("Authorization", bearer),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.defaultProfile").value(false))
+            .andExpect(jsonPath("$.slides.length()").value(2))
+            .andExpect(jsonPath("$.slides[0].title").value("Общий 1"))
+            .andExpect(jsonPath("$.slides[0].inherited").value(true))
+
+        val override = MockMultipartFile(
+            "file",
+            "targeted-2.mp4",
+            "video/mp4",
+            byteArrayOf(4, 5, 6),
+        )
+        mockMvc.perform(
+            multipart("/api/admin/screens/broadcast/profiles/pl_broadcast_targeted/slots/2")
+                .file(override)
+                .param("title", "Индивидуальный 2")
+                .header("Authorization", bearer),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.slides.length()").value(2))
+            .andExpect(jsonPath("$.slides[0].title").value("Общий 1"))
+            .andExpect(jsonPath("$.slides[0].inherited").value(true))
+            .andExpect(jsonPath("$.slides[1].title").value("Индивидуальный 2"))
+            .andExpect(jsonPath("$.slides[1].inherited").value(false))
+
+        mockMvc.perform(
+            delete("/api/admin/screens/broadcast/profiles/pl_broadcast_targeted/slots/2")
+                .header("Authorization", bearer),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.slides[1].title").value("Общий 2"))
+            .andExpect(jsonPath("$.slides[1].inherited").value(true))
+    }
+
+    @Test
+    fun `список аптек индивидуального профиля заменяется атомарно и валидируется`() {
+        seedBroadcastProfiles()
+        seedPharmacy("ph_target_1")
+        seedPharmacy("ph_target_2")
+
+        mockMvc.perform(
+            put("/api/admin/screens/broadcast/profiles/pl_broadcast_targeted/pharmacies")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"pharmacyIds":["ph_target_1","ph_target_2","ph_target_1"]}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.assignedPharmacyIds.length()").value(2))
+
+        assertThat(
+            playlistAssignmentRepository
+                .findAllByPlaylistIdOrderByPharmacyIdAsc("pl_broadcast_targeted")
+                .map(PlaylistPharmacyAssignmentEntity::pharmacyId),
+        ).containsExactly("ph_target_1", "ph_target_2")
+
+        mockMvc.perform(
+            put("/api/admin/screens/broadcast/profiles/pl_broadcast_targeted/pharmacies")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"pharmacyIds":["ph_missing"]}"""),
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+
+        assertThat(
+            playlistAssignmentRepository
+                .findAllByPlaylistIdOrderByPharmacyIdAsc("pl_broadcast_targeted")
+                .map(PlaylistPharmacyAssignmentEntity::pharmacyId),
+        ).containsExactly("ph_target_1", "ph_target_2")
+    }
+
     // ── Подключённые кассы: резолв названия+адреса аптеки по pharmacyId ────
 
     @Test
@@ -359,6 +443,48 @@ class ScreensIntegrationTest {
                 jsonPath("$.devices[?(@.deviceId=='kassa-orphan')].pharmacyName")
                     .value(org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.nullValue())),
             )
+    }
+
+    private fun seedBroadcastProfiles() {
+        playlistRepository.save(
+            PlaylistEntity(id = "pl_broadcast", name = "Эфир касс")
+                .also { it.status = PlaylistStatus.active },
+        )
+        playlistRepository.save(
+            PlaylistEntity(
+                id = "pl_broadcast_targeted",
+                name = "Индивидуальный плейлист",
+                parentPlaylistId = "pl_broadcast",
+            ).also { it.status = PlaylistStatus.active },
+        )
+        slideRepository.save(slide("sl_default_1", "Общий 1", "pl_broadcast", 0))
+        slideRepository.save(slide("sl_default_2", "Общий 2", "pl_broadcast", 1))
+    }
+
+    private fun slide(id: String, title: String, playlistId: String, position: Int) =
+        SlideEntity(
+            id = id,
+            title = title,
+            durationSec = 15,
+            mediaUrl = "https://media/$id.mp4",
+            playlistId = playlistId,
+            position = position,
+        ).also { it.kind = SlideKind.video }
+
+    private fun seedPharmacy(id: String) {
+        if (!chainRepository.existsById("ch_profiles")) {
+            chainRepository.save(ChainEntity(id = "ch_profiles", name = "Сеть", color = "#000"))
+        }
+        pharmacyRepository.save(
+            PharmacyEntity(
+                id = id,
+                name = "Аптека $id",
+                chainId = "ch_profiles",
+                chainName = "Сеть",
+                city = "Алматы",
+                addr = "Тестовый адрес",
+            ),
+        )
     }
 
     private fun login(): LoginResponse {

@@ -17,7 +17,8 @@ The POSM client runs on a Windows cash-desk machine:
 5. Sends accepted/rejected outcomes.
 6. Reports printed sales to `POST /api/posm/sales`.
 7. Mirrors receipt and broadcast media on the customer display.
-8. Polls active playlist and app version.
+8. Polls the effective active playlist and app version. The backend resolves the default or
+   pharmacy-targeted profile, so changing assignments or videos does not require reinstalling POSM.
 9. Sends heartbeat so admin can count online cash desks.
 10. Stores outgoing non-real-time events in a local SQLite outbox and retries safely.
 11. Sends any cashier id/name found in Standard-N as an audit signal; the backend decides the trusted

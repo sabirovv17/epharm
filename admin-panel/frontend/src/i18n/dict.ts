@@ -1082,9 +1082,9 @@ export const ru: Dict = {
   'scr.connectedLabel': 'Подключено касс',
   'scr.connectedLive': 'live · обновляется',
   'scr.connectedNoPharm': 'без аптеки',
-  // Эфир: 12 независимых слотов → один плейлист на всех кассах
+  // Эфир: общий профиль + overrides для выбранных аптек
   'scr.broadcastTitle': 'Реклама на кассах',
-  'scr.broadcastSub': 'До 12 роликов воспроизводятся одним плейлистом на всех кассах',
+  'scr.broadcastSub': 'Общий плейлист для всех касс и индивидуальные замены для выбранных аптек',
   'scr.broadcastEmpty': 'Пусто',
   'scr.broadcastEmptyTitle': 'Видео не загружено',
   'scr.broadcastEmptyBody': 'Этот слот не участвует в плейлисте',
@@ -1104,6 +1104,27 @@ export const ru: Dict = {
   'scr.broadcastLoadError': 'Не удалось загрузить текущий плейлист. Повторите попытку позже.',
   'scr.broadcastHint':
     'MP4/WebM. Заполненные слоты проигрываются по порядку и автоматически обновляются на кассах в течение минуты.',
+  'scr.profileMode': 'Профиль плейлиста',
+  'scr.profileDefault': 'Общий для всех',
+  'scr.profileTargeted': 'Индивидуальный список',
+  'scr.profileManagePharmacies': 'Выбрать аптеки',
+  'scr.profileInherited': 'Из общего',
+  'scr.profileOverride': 'Индивидуально',
+  'scr.profileUseDefault': 'Вернуть общий ролик',
+  'scr.profileResetting': 'Возвращаем…',
+  'scr.profileOverrideRemoved': 'Слот {slot} снова наследуется из общего плейлиста',
+  'scr.profilePharmaciesTitle': 'Аптеки индивидуального плейлиста',
+  'scr.profilePharmaciesSubtitle':
+    'Только выбранные аптеки получают индивидуальные замены. Остальные используют общий плейлист.',
+  'scr.profileCancel': 'Отмена',
+  'scr.profileSaving': 'Сохраняем…',
+  'scr.profileSavePharmacies': 'Сохранить · {count}',
+  'scr.profilePharmaciesSearch': 'Адрес, город, сеть или ID аптеки',
+  'scr.profileSelected': 'Выбрано: {count}',
+  'scr.profileFound': 'Найдено: {count}',
+  'scr.profilePharmaciesLoadError': 'Не удалось загрузить справочник аптек.',
+  'scr.profileNothingFound': 'Аптеки не найдены',
+  'scr.profilePharmaciesSaved': 'Индивидуальный плейлист назначен аптекам: {count}',
 }
 
 export const kk: Dict = {
@@ -2175,7 +2196,7 @@ export const kk: Dict = {
   'scr.connectedLive': 'live · жаңарып тұр',
   'scr.connectedNoPharm': 'дәріханасыз',
   'scr.broadcastTitle': 'Кассалардағы жарнама',
-  'scr.broadcastSub': '12 роликке дейін барлық кассада бір плейлист ретінде ойнатылады',
+  'scr.broadcastSub': 'Барлық кассаға ортақ плейлист және таңдалған дәріханаларға жеке ауыстырулар',
   'scr.broadcastEmpty': 'Бос',
   'scr.broadcastEmptyTitle': 'Видео жүктелмеген',
   'scr.broadcastEmptyBody': 'Бұл слот плейлистке кірмейді',
@@ -2195,6 +2216,27 @@ export const kk: Dict = {
   'scr.broadcastLoadError': 'Ағымдағы плейлистті жүктеу мүмкін болмады. Кейінірек қайталаңыз.',
   'scr.broadcastHint':
     'MP4/WebM. Толтырылған слоттар ретімен ойнатылады және кассаларда бір минут ішінде автоматты түрде жаңартылады.',
+  'scr.profileMode': 'Плейлист профилі',
+  'scr.profileDefault': 'Барлығына ортақ',
+  'scr.profileTargeted': 'Жеке тізім',
+  'scr.profileManagePharmacies': 'Дәріханаларды таңдау',
+  'scr.profileInherited': 'Ортақтан',
+  'scr.profileOverride': 'Жеке',
+  'scr.profileUseDefault': 'Ортақ роликті қайтару',
+  'scr.profileResetting': 'Қайтарылуда…',
+  'scr.profileOverrideRemoved': '{slot}-слот қайтадан ортақ плейлисттен алынады',
+  'scr.profilePharmaciesTitle': 'Жеке плейлист дәріханалары',
+  'scr.profilePharmaciesSubtitle':
+    'Жеке ауыстыруларды тек таңдалған дәріханалар алады. Қалғандары ортақ плейлистті қолданады.',
+  'scr.profileCancel': 'Бас тарту',
+  'scr.profileSaving': 'Сақталуда…',
+  'scr.profileSavePharmacies': 'Сақтау · {count}',
+  'scr.profilePharmaciesSearch': 'Мекенжай, қала, желі немесе дәріхана ID',
+  'scr.profileSelected': 'Таңдалды: {count}',
+  'scr.profileFound': 'Табылды: {count}',
+  'scr.profilePharmaciesLoadError': 'Дәріханалар анықтамалығын жүктеу мүмкін болмады.',
+  'scr.profileNothingFound': 'Дәріханалар табылмады',
+  'scr.profilePharmaciesSaved': 'Жеке плейлист дәріханаларға тағайындалды: {count}',
 }
 
 export const dict: Record<Lang, Dict> = { ru, kk }

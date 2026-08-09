@@ -37,6 +37,11 @@ class PlaylistEntity(
     @Column(name = "pharmacy_id", length = 64)
     var pharmacyId: String? = null,
 
+    // V038: дочерний профиль хранит только переопределённые слоты, остальные
+    // позиции наследуются из основного плейлиста.
+    @Column(name = "parent_playlist_id", length = 64)
+    var parentPlaylistId: String? = null,
+
     @Column(name = "created_at", nullable = false)
     var createdAt: Instant = Instant.now(),
 
@@ -59,6 +64,21 @@ class PlaylistEntity(
         updatedAt = Instant.now()
     }
 }
+
+@Entity
+@Table(name = "playlist_pharmacy_assignments")
+class PlaylistPharmacyAssignmentEntity(
+    // Одна аптека может быть назначена только одному специальному профилю.
+    @Id
+    @Column(name = "pharmacy_id", nullable = false, length = 64)
+    var pharmacyId: String = "",
+
+    @Column(name = "playlist_id", nullable = false, length = 64)
+    var playlistId: String = "",
+
+    @Column(name = "assigned_at", nullable = false)
+    var assignedAt: Instant = Instant.now(),
+)
 
 @Entity
 @Table(name = "slides")

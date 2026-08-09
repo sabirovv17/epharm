@@ -1,0 +1,179 @@
+{
+  "profileId": "pl_broadcast_targeted",
+  "description": "Аптеки из списка HQ для индивидуальных переопределений экранного плейлиста",
+  "confirmed": [
+    { "sourceAddress": "мкр. Орбита 2, 2", "pharmacyId": "sloc_01KSAHYDSHYDSTEXJE7N11N89K" },
+    {
+      "sourceAddress": "мкр. Астана 1/10 ТД Люмир",
+      "pharmacyId": "sloc_01KSAHYDSD2P8RXZDW329X035V"
+    },
+    { "sourceAddress": "мкр. Жетысу, дом 4/1", "pharmacyId": "sloc_01KSAHYDSCVWBB8PHRZ6HM2ACJ" },
+    { "sourceAddress": "Сатпаева д.22 кв 17", "pharmacyId": "sloc_01KSAHYDSKMZERN5DS11B68K17" },
+    { "sourceAddress": "Сейфуллина 553", "pharmacyId": "sloc_01KSAHYDSCR41B0NYCDCYQHAS9" },
+    { "sourceAddress": "Аксай 4 70б", "pharmacyId": "sloc_01KSAHYDSF5TFSDWEM4FSRNNPK" },
+    { "sourceAddress": "Жамбыла 155", "pharmacyId": "sloc_01KSAHYDSGXV8MT8W85S278FF4" },
+    { "sourceAddress": "Кабанбай батыра 99", "pharmacyId": "sloc_01KSAHYDSHJ9R40BD0JFF6HCBY" },
+    { "sourceAddress": "Сулейменова 24а", "pharmacyId": "sloc_01KSAHYDS9E5HDRG9RH2JKGK6D" },
+    { "sourceAddress": "Раймбека 150", "pharmacyId": "sloc_01KSAHYDSJ5JAN0QCT6MT5RHMY" },
+    { "sourceAddress": "Ауэзова 104Б", "pharmacyId": "sloc_01KSAHYDSDX3CCR5ZNG8GXXTDF" },
+    { "sourceAddress": "Толе би 228", "pharmacyId": "sloc_01KSAHYDSDJMMAFFMTNGZ55VEB" },
+    { "sourceAddress": "Ауэзова 163а", "pharmacyId": "sloc_01KSAHYDSE1GZKTGKS04W2VTKT" },
+    { "sourceAddress": "ул. Навои 328", "pharmacyId": "ph_8acce7b8" },
+    { "sourceAddress": "Достыка 40", "pharmacyId": "sloc_01KSAHYDSEPKDG07NQXD014HD9" },
+    { "sourceAddress": "Розыбакиева 210", "pharmacyId": "sloc_01KSAHYDSCFSGRNV8WVRVPTKAA" },
+    { "sourceAddress": "Гагарина 159", "pharmacyId": "ph_598eb3fd" },
+    { "sourceAddress": "Достыка 248", "pharmacyId": "sloc_01KSAHYDSN65DYVX7RJDYAS3K9" },
+    { "sourceAddress": "Толе Би 40", "pharmacyId": "sloc_01KSAHYDS96KVFAFXB3749EHCV" },
+    { "sourceAddress": "Тимирязева 44", "pharmacyId": "sloc_01KSAHYDSE4ATVTABHF0HDK2ES" },
+    { "sourceAddress": "Орбита 4/1", "pharmacyId": "sloc_01KSAHYDSDDE9J82WTQNWRN4P1" },
+    {
+      "sourceAddress": "г. Жаркент, ул. Юлдашева 13/1",
+      "pharmacyId": "sloc_01KSAHYDSGZ9NAWXPTXJSC2HZC"
+    },
+    { "sourceAddress": "Сейфуллина 41 вп7", "pharmacyId": "sloc_01KSAHYDSAX03MRR8ADEMC8AK1" },
+    { "sourceAddress": "Гагарина 137", "pharmacyId": "sloc_01KSAHYDSED7GPYC2CGYY940JZ" },
+    {
+      "sourceAddress": "ул. Толе би, д.46, н.п.5",
+      "pharmacyId": "sloc_01KSAHYDSD2V1WWZ1EKPNY3W70"
+    },
+    { "sourceAddress": "Асыл-ирбис Туркестан 10", "pharmacyId": "sloc_01KSAHYDSKZ833BF6DPFT9V7T0" },
+    {
+      "sourceAddress": "с. Жетыген, Уалиханова 92г",
+      "pharmacyId": "sloc_01KSAHYDSB2X042YH51YM2S37E"
+    },
+    { "sourceAddress": "мкр. Самал 2 дом 105", "pharmacyId": "sloc_01KSAHYDSMPG5DCG9JBFW0Q4ZZ" },
+    {
+      "sourceAddress": "ул. Достыка 8, ЖК LANDMARK",
+      "pharmacyId": "sloc_01KSAHYDSFJ158R9373V347B4J"
+    },
+    { "sourceAddress": "Момышулы 16, ВП 16", "pharmacyId": "sloc_01KSAHYDSAG1H1JEG44G5CHAQY" },
+    { "sourceAddress": "Мангелик ел 17", "pharmacyId": "sloc_01KSAHYDSAGGYTA3FFWWHRFP75" },
+    { "sourceAddress": "Казахфильм 19", "pharmacyId": "sloc_01KSAHYDSAT81M9QP7AHXM480B" },
+    { "sourceAddress": "Валиханова 27", "pharmacyId": "sloc_01KSAHYDSFWZE4ZKY2D6587DG6" },
+    {
+      "sourceAddress": "Иванова-Сокольского, дом 37 (Гагарина 181)",
+      "pharmacyId": "sloc_01KSAHYDSF2GKR5NB4XVA5KKF1"
+    },
+    {
+      "sourceAddress": "с. Бесагаш, ЖК Аспан Сити, блок 1144, н.п.92",
+      "pharmacyId": "sloc_01KSAHYDSNX3TSKRQHD2V8K1YA"
+    },
+    {
+      "sourceAddress": "Каскелен, Абылай Хана 92А",
+      "pharmacyId": "sloc_01KSAHYDSNC5KM9TKKJQMBHPT1"
+    },
+    { "sourceAddress": "Чайковского 22", "pharmacyId": "sloc_01KSAHYDSA5KTQ4E9S3FA02DZ2" },
+    { "sourceAddress": "мкр. 12, д.1 кв.2", "pharmacyId": "sloc_01KSAHYDSASP464P166S7K1VKT" },
+    { "sourceAddress": "Кошкарбаева 48", "pharmacyId": "sloc_01KSAHYDSCWMYE9AZK8RGJFCWS" },
+    {
+      "sourceAddress": "г. Каскелен, Абылай Хана 177",
+      "pharmacyId": "sloc_01KSAHYDSPC7GM1YAJNNT43TTQ"
+    },
+    { "sourceAddress": "ул. Курмангазы д.3", "pharmacyId": "sloc_01KSAHYDSNFKQYZN1CHHS92ZVC" },
+    { "sourceAddress": "Аксай 1 15", "pharmacyId": "sloc_01KSAHYDSM0F0EGW9580VCAMMT" },
+    { "sourceAddress": "Макатаева 45", "pharmacyId": "sloc_01KSAHYDSKPTD3XC47HY0XXXK0" },
+    { "sourceAddress": "мкр. Водник Алатау 2", "pharmacyId": "sloc_01KSAHYDSMJXQFMK9R50WNTD17" },
+    { "sourceAddress": "Гагарина 12", "pharmacyId": "sloc_01KSAHYDSP8TJQ6DM5RQQRKDXQ" },
+    { "sourceAddress": "Сары Арка 5", "pharmacyId": "sloc_01KSAHYDSDR98AV21WVERKBYRR" },
+    { "sourceAddress": "Абая 52/1", "pharmacyId": "sloc_01KSAHYDSPNCGYJCZ0K80TK01J" },
+    { "sourceAddress": "Толе Би 159", "pharmacyId": "sloc_01KSAHYDSE53M183HA588FFNMB" },
+    { "sourceAddress": "Абая 99", "pharmacyId": "sloc_01KSAHYDSF4J2DQR289SJKDWX2" },
+    { "sourceAddress": "Пацаева 6", "pharmacyId": "sloc_01KSAHYDSNMFZMZWYJRKRGGH2E" },
+    { "sourceAddress": "пр. Гагарина 310, корп.11, н.п.170", "pharmacyId": "ph_ff49afa8" },
+    { "sourceAddress": "Ауэзова 134", "pharmacyId": "sloc_01KSAHYDSE5MVP79KGJSH2F2SK" },
+    { "sourceAddress": "Достык 248а", "pharmacyId": "sloc_01KSAHYDSJ5BCQT07391P1T8D7" },
+    { "sourceAddress": "Толе Би 150", "pharmacyId": "sloc_01KSAHYDSD6TDYZJSV70971JEW" },
+    { "sourceAddress": "Талант 31Б/1", "pharmacyId": "sloc_01KSAHYDSNT6PYH1Q9N787XNR1" },
+    { "sourceAddress": "Ауэзова 109", "pharmacyId": "sloc_01KSAHYDS9MHDKAPC6P4KH7CNB" },
+    { "sourceAddress": "Нурмагамбетова 21", "pharmacyId": "sloc_01KSAHYDSBCJ8J04MHVW8BE89M" },
+    { "sourceAddress": "Водник 1.1а", "pharmacyId": "sloc_01KSAHYDSA3GS21TR3KTF95DJQ" },
+    { "sourceAddress": "Кенесары 45", "pharmacyId": "sloc_01KSAHYDSE7JSQ53WJN8EFFSQS" },
+    { "sourceAddress": "Айнабулак-3 д.88", "pharmacyId": "sloc_01KSAHYDSP8YEE3YSTVYX7JTHD" },
+    { "sourceAddress": "Аэродромная 98", "pharmacyId": "sloc_01KSAHYDSEC4ED0C9PX6M5BZJ3" },
+    { "sourceAddress": "Алтын Адам 140", "pharmacyId": "sloc_01KSAHYDSB0BEEG93FABFDNFTK" },
+    { "sourceAddress": "Кабанбай батыра 199", "pharmacyId": "sloc_01KSAHYDSH9F4R6HZC1XHMVV9S" },
+    { "sourceAddress": "Ерубаева 45", "pharmacyId": "sloc_01KSAHYDSKQQ8W406EXSTYAHSB" },
+    { "sourceAddress": "Нурлы жол 1/172", "pharmacyId": "sloc_01KSAHYDS9FJSNW4BQFMV1830E" },
+    {
+      "sourceAddress": "Мухтара Ауэзова д.56А кв.18",
+      "pharmacyId": "sloc_01KSAHYDSMWHK1CZWVT8CJZP5Z"
+    },
+    { "sourceAddress": "Курмангазы 210", "pharmacyId": "sloc_01KSAHYDSEXZH2EY4HFS11XXTE" },
+    { "sourceAddress": "Кадыр Мырза Али д.30/2", "pharmacyId": "sloc_01KSAHYDSF32D8AA80FJKDFH39" },
+    { "sourceAddress": "Азербаева 4/1", "pharmacyId": "sloc_01KSAHYDSCDCKP4YAHDBNJQ6PB" },
+    { "sourceAddress": "Орбита 4 д.11", "pharmacyId": "sloc_01KSAHYDSFQ3P0QKXNMPEDJS80" },
+    { "sourceAddress": "Муратбаева 63", "pharmacyId": "sloc_01KSAHYDSE0QVJKACJ80FCCN52" },
+    { "sourceAddress": "Маметова 22", "pharmacyId": "sloc_01KSAHYDSNDAQ7WDHE9JT0M4P3" },
+    { "sourceAddress": "Кунаева д.3", "pharmacyId": "sloc_01KSAHYDSBTFWR5RSFJKTMYQ63" },
+    { "sourceAddress": "Колхозная 68", "pharmacyId": "sloc_01KSAHYDSER81E6532HNPAJ8VX" },
+    { "sourceAddress": "ул. Жирентаева 22", "pharmacyId": "sloc_01KSAHYDSAWA6720MXJERTQGCQ" },
+    { "sourceAddress": "Абая 21", "pharmacyId": "sloc_01KSAHYDSNXHZ83GZBNEKBXBKT" },
+    { "sourceAddress": "Таттимбета 10", "pharmacyId": "sloc_01KSAHYDSH592DDW2AWPK2SPW0" },
+    { "sourceAddress": "Тимирязева 101", "pharmacyId": "sloc_01KSAHYDSNDKZ19PMENP64DP89" },
+    { "sourceAddress": "Макатаева 73", "pharmacyId": "sloc_01KSAHYDSF8Y1F11YYDFQ37WME" },
+    { "sourceAddress": "Орбита 3", "pharmacyId": "sloc_01KSAHYDSHJRQP6X83S80KZNEJ" },
+    { "sourceAddress": "Баймуканова 102а", "pharmacyId": "sloc_01KSAHYDSN727ZJ03VWHY90E6Q" },
+    { "sourceAddress": "Ауельбекова д.155", "pharmacyId": "sloc_01KSAHYDSN5GTKGFMYZ2XFKRFV" },
+    { "sourceAddress": "Наурызбай Батыра д.137", "pharmacyId": "sloc_01KSAHYDSN2WFE4DWJST5E5Z9F" },
+    { "sourceAddress": "З.Шукирова 29", "pharmacyId": "sloc_01KSAHYDSBJJQ636FQMVJBJPQV" },
+    { "sourceAddress": "Лермонтова 46", "pharmacyId": "sloc_01KSAHYDSKHGWTJZQBB9BYHDPV" },
+    { "sourceAddress": "Шакарима 145", "pharmacyId": "sloc_01KSBH8M00YF5BD7YNK88T3MPB" },
+    {
+      "sourceAddress": "Тюлькубасский р-н, с. Турар Рыскулова, Бекбосынова 211А",
+      "pharmacyId": "sloc_01KSAHYDSEXDRJTYB9E12CBYXC"
+    },
+    { "sourceAddress": "Кожанова 48", "pharmacyId": "sloc_01KSAHYDSBCSDNE73AY1DP8MVB" },
+    { "sourceAddress": "Ерубаева 105", "pharmacyId": "sloc_01KSAHYDSFQCPP480TKBY50DSM" },
+    {
+      "sourceAddress": "г. Жезказган, ул. Абая 81",
+      "pharmacyId": "sloc_01KSAHYDSCYNTA3M8R30YFHX1W"
+    },
+    { "sourceAddress": "Ушарал, Конаев 62", "pharmacyId": "sloc_01KSAHYDSFRF0CNQRG082HW50Y" },
+    { "sourceAddress": "Ушарал, Конаев 62/1", "pharmacyId": "sloc_01KSAHYDSNZ91D2B094AKC7F7B" },
+    {
+      "sourceAddress": "Ушарал, Богенбай батыра 148",
+      "pharmacyId": "sloc_01KSAHYDSCSCH6SGAAZQKEWSDJ"
+    },
+    { "sourceAddress": "Толе би 260", "pharmacyId": "sloc_01KSAHYDSAVS6G693S1DFGN8G2" },
+    { "sourceAddress": "Жана Гасыр 88В", "pharmacyId": "sloc_01KSBH8M09X8A13VD0AQ7GBGPF" },
+    { "sourceAddress": "Конаева 62в", "pharmacyId": "sloc_01KSAHYDSNZ91D2B094AKC7F7B" },
+    { "sourceAddress": "Богенбай Батыр 148", "pharmacyId": "sloc_01KSAHYDSCSCH6SGAAZQKEWSDJ" }
+  ],
+  "unresolved": [
+    {
+      "sourceAddress": "Наурызбай батыра 50",
+      "reason": "В production-справочнике найден только адрес Наурызбай батыра 137"
+    },
+    { "sourceAddress": "Гагарина 190", "reason": "Точного адреса нет в production-справочнике" },
+    {
+      "sourceAddress": "Васнецова 23, 27/92",
+      "reason": "Точного адреса нет в production-справочнике"
+    },
+    {
+      "sourceAddress": "с. Отеген Батыра, Титова 33",
+      "reason": "В production-справочнике есть только Титова 33б; требуется подтверждение"
+    },
+    {
+      "sourceAddress": "Жамбылский р-н, с. Узынагаш, Абая 58а",
+      "reason": "Точного адреса нет в production-справочнике"
+    },
+    { "sourceAddress": "Манаса 57", "reason": "Найденная аптека помечена как ЗАКРЫТА" },
+    {
+      "sourceAddress": "ул. Жирентаева 12",
+      "reason": "Точного адреса нет; найден адрес Жирентаева 22"
+    },
+    {
+      "sourceAddress": "Текей Батыра 14 к1",
+      "reason": "В production-справочнике есть только Текей батыр 14б; требуется подтверждение"
+    },
+    { "sourceAddress": "Мынбулак 48", "reason": "Точного адреса нет в production-справочнике" },
+    {
+      "sourceAddress": "г. Жезказган, ул. Сейфуллина 53",
+      "reason": "Точного адреса нет в production-справочнике"
+    },
+    {
+      "sourceAddress": "Inkar филиал Караганда",
+      "reason": "Не указан уникальный адрес и соответствие в production-справочнике"
+    }
+  ]
+}

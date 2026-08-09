@@ -83,6 +83,29 @@ data class ActiveSlideDto(
     val title: String,
     /** Нулевая позиция в плейлисте. В админке позиции 0..11 отображаются как слоты 1..12. */
     val position: Int,
+    /** Только для admin UI: true, если слот унаследован из основного плейлиста. */
+    val inherited: Boolean = false,
+)
+
+data class BroadcastProfileSummaryDto(
+    val id: String,
+    val name: String,
+    val defaultProfile: Boolean,
+    val assignedPharmacies: Int,
+)
+
+data class BroadcastProfileDto(
+    val id: String,
+    val name: String,
+    val defaultProfile: Boolean,
+    val assignedPharmacyIds: List<String>,
+    /** Эффективные слоты: собственные overrides + наследуемые позиции основного профиля. */
+    val slides: List<ActiveSlideDto>,
+)
+
+data class SetBroadcastProfilePharmaciesRequest(
+    @field:Size(max = 1_000)
+    val pharmacyIds: List<String>,
 )
 
 /** Подключённые кассы (T4): сколько устройств онлайн + детали (для админ-виджета на экранах). */

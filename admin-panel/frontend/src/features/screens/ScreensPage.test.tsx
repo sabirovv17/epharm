@@ -7,15 +7,23 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { ToastHost } from '@/ui'
-import type { ActivePlaylistDto } from '@/lib/api-types'
+import type { BroadcastProfileDto } from '@/lib/api-types'
 import ScreensPage from './ScreensPage'
 
 const screenHooks = vi.hoisted(() => ({
   useConnectedScreens: vi.fn(),
-  useBroadcast: vi.fn(),
-  useUploadBroadcastSlot: vi.fn(),
+  useBroadcastProfiles: vi.fn(),
+  useBroadcastProfile: vi.fn(),
+  useUploadBroadcastProfileSlot: vi.fn(),
+  useRemoveBroadcastProfileSlot: vi.fn(),
+  useSetBroadcastProfilePharmacies: vi.fn(),
 }))
 vi.mock('@/lib/queries/screens', () => screenHooks)
+
+const pharmacyHooks = vi.hoisted(() => ({
+  usePharmacies: vi.fn(),
+}))
+vi.mock('@/lib/queries/pharmacies', () => pharmacyHooks)
 
 // Вкладка «Баннеры» рендерит BannersPanel — мокаем его queries-модуль.
 const bannerHooks = vi.hoisted(() => ({
@@ -29,9 +37,12 @@ const bannerHooks = vi.hoisted(() => ({
 vi.mock('@/lib/queries/banners', () => bannerHooks)
 
 const uploadMutate = vi.fn()
+const removeMutate = vi.fn()
+const assignmentsMutate = vi.fn()
+let profiles: Record<string, BroadcastProfileDto>
 
-function setBroadcast(data: ActivePlaylistDto | undefined) {
-  screenHooks.useBroadcast.mockReturnValue({ data, isLoading: false, isError: false })
+function setBroadcast(data: BroadcastProfileDto) {
+  profiles.pl_broadcast = data
 }
 
 beforeEach(() => {
@@ -40,11 +51,58 @@ beforeEach(() => {
     data: { total: 0, devices: [] },
     isLoading: false,
   })
-  setBroadcast({ playlistId: null, name: '', slides: [] })
-  screenHooks.useUploadBroadcastSlot.mockReturnValue({
+  profiles = {
+    pl_broadcast: {
+      id: 'pl_broadcast',
+      name: 'Эфир касс',
+      defaultProfile: true,
+      assignedPharmacyIds: [],
+      slides: [],
+    },
+    pl_broadcast_targeted: {
+      id: 'pl_broadcast_targeted',
+      name: 'Индивидуальный плейлист',
+      defaultProfile: false,
+      assignedPharmacyIds: [],
+      slides: [],
+    },
+  }
+  screenHooks.useBroadcastProfiles.mockReturnValue({
+    data: [
+      { id: 'pl_broadcast', name: 'Эфир касс', defaultProfile: true, assignedPharmacies: 0 },
+      {
+        id: 'pl_broadcast_targeted',
+        name: 'Индивидуальный плейлист',
+        defaultProfile: false,
+        assignedPharmacies: 0,
+      },
+    ],
+    isLoading: false,
+    isError: false,
+  })
+  screenHooks.useBroadcastProfile.mockImplementation((id: string) => ({
+    data: profiles[id],
+    isLoading: false,
+    isError: false,
+  }))
+  screenHooks.useUploadBroadcastProfileSlot.mockReturnValue({
     mutate: uploadMutate,
     isPending: false,
     variables: undefined,
+  })
+  screenHooks.useRemoveBroadcastProfileSlot.mockReturnValue({
+    mutate: removeMutate,
+    isPending: false,
+    variables: undefined,
+  })
+  screenHooks.useSetBroadcastProfilePharmacies.mockReturnValue({
+    mutate: assignmentsMutate,
+    isPending: false,
+  })
+  pharmacyHooks.usePharmacies.mockReturnValue({
+    data: [],
+    isLoading: false,
+    isError: false,
   })
 
   bannerHooks.useBanners.mockReturnValue({
@@ -130,8 +188,10 @@ describe('ScreensPage — эфир (12 слотов)', () => {
 
   it('раскладывает ролики по position, оставляя промежуточные слоты пустыми', () => {
     setBroadcast({
-      playlistId: 'pl_broadcast',
+      id: 'pl_broadcast',
       name: 'Эфир касс',
+      defaultProfile: true,
+      assignedPharmacyIds: [],
       slides: [
         {
           id: 'sl_1',
@@ -171,14 +231,18 @@ describe('ScreensPage — эфир (12 слотов)', () => {
     const file = new File(['x'], 'promo.mp4', { type: 'video/mp4' })
     await user.upload(screen.getByTestId('broadcast-file-input') as HTMLInputElement, file)
     expect(uploadMutate).toHaveBeenCalled()
-    expect(uploadMutate.mock.calls[0][0]).toMatchObject({ slot: 3, file })
+    expect(uploadMutate.mock.calls[0][0]).toMatchObject({
+      profileId: 'pl_broadcast',
+      slot: 3,
+      file,
+    })
   })
 
   it('загрузка слота 4 → только он подписан «Загружаем», повторные загрузки заблокированы', () => {
-    screenHooks.useUploadBroadcastSlot.mockReturnValue({
+    screenHooks.useUploadBroadcastProfileSlot.mockReturnValue({
       mutate: uploadMutate,
       isPending: true,
-      variables: { slot: 4 },
+      variables: { profileId: 'pl_broadcast', slot: 4 },
     })
     renderPage()
     expect(screen.getByTestId('broadcast-slot-4-upload')).toHaveTextContent(/Загружаем/i)
@@ -196,6 +260,83 @@ describe('ScreensPage — эфир (12 слотов)', () => {
     expect(screen.getByTestId('broadcast-view-list')).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByTestId('broadcast-list')).toBeInTheDocument()
     expect(screen.getAllByTestId(/^broadcast-slot-\d+$/)).toHaveLength(12)
+  })
+
+  it('индивидуальный профиль отмечает наследование и позволяет убрать override', async () => {
+    const user = userEvent.setup()
+    profiles.pl_broadcast_targeted = {
+      ...profiles.pl_broadcast_targeted,
+      assignedPharmacyIds: ['ph_1'],
+      slides: [
+        {
+          id: 'sl_default',
+          url: 'https://m/default.mp4',
+          kind: 'video',
+          durationSec: 15,
+          title: 'Общий ролик',
+          position: 0,
+          inherited: true,
+        },
+        {
+          id: 'sl_override',
+          url: 'https://m/override.mp4',
+          kind: 'video',
+          durationSec: 15,
+          title: 'Индивидуальный ролик',
+          position: 1,
+          inherited: false,
+        },
+      ],
+    }
+    renderPage()
+    await user.click(screen.getByTestId('broadcast-profile-targeted'))
+
+    expect(screen.getByTestId('broadcast-slot-1')).toHaveTextContent('Из общего')
+    expect(screen.queryByTestId('broadcast-slot-1-reset')).not.toBeInTheDocument()
+    expect(screen.getByTestId('broadcast-slot-2')).toHaveTextContent('Индивидуально')
+    await user.click(screen.getByTestId('broadcast-slot-2-reset'))
+    expect(removeMutate.mock.calls[0][0]).toEqual({
+      profileId: 'pl_broadcast_targeted',
+      slot: 2,
+    })
+  })
+
+  it('сохраняет выбранные аптеки индивидуального профиля', async () => {
+    const user = userEvent.setup()
+    pharmacyHooks.usePharmacies.mockReturnValue({
+      data: [
+        {
+          id: 'ph_1',
+          name: 'Аптека Орбита',
+          chainId: 'ch_1',
+          chainName: 'Сеть',
+          city: 'Алматы',
+          district: '',
+          addr: 'Орбита 2, 2',
+          group: 'pilot',
+          pharmacists: 0,
+          receipts30d: 0,
+          gmv30d: 0,
+          liftPct: 0,
+          rulesAccepted: 0,
+          active: true,
+          createdAt: '2026-01-01T00:00:00Z',
+          updatedAt: '2026-01-01T00:00:00Z',
+        },
+      ],
+      isLoading: false,
+      isError: false,
+    })
+    renderPage()
+    await user.click(screen.getByTestId('broadcast-profile-targeted'))
+    await user.click(screen.getByTestId('broadcast-profile-pharmacies'))
+    await user.click(screen.getByTestId('broadcast-profile-pharmacy-ph_1'))
+    await user.click(screen.getByTestId('broadcast-profile-pharmacies-save'))
+
+    expect(assignmentsMutate.mock.calls[0][0]).toEqual({
+      profileId: 'pl_broadcast_targeted',
+      pharmacyIds: ['ph_1'],
+    })
   })
 })
 
