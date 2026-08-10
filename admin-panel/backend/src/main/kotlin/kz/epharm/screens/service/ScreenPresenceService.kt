@@ -74,6 +74,8 @@ class ScreenPresenceService(
             sheet.setMargin(org.apache.poi.ss.usermodel.Sheet.LeftMargin, 0.35)
             sheet.setMargin(org.apache.poi.ss.usermodel.Sheet.RightMargin, 0.35)
             sheet.printSetup.landscape = true
+            sheet.printSetup.fitWidth = 1
+            sheet.printSetup.fitHeight = 0
             sheet.fitToPage = true
 
             val titleStyle = workbook.createCellStyle().apply {

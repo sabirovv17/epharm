@@ -468,6 +468,8 @@ class ScreensIntegrationTest {
         XSSFWorkbook(ByteArrayInputStream(export.response.contentAsByteArray)).use { workbook ->
             val sheet = workbook.getSheet("POSM и экраны")
             assertThat(sheet.getRow(3).getCell(6).stringCellValue).isEqualTo("Клиентский экран")
+            assertThat(sheet.printSetup.fitWidth).isEqualTo(1)
+            assertThat(sheet.printSetup.fitHeight).isEqualTo(0)
             val known = (4..sheet.lastRowNum)
                 .map(sheet::getRow)
                 .first { it.getCell(4).stringCellValue == "kassa-known" }
