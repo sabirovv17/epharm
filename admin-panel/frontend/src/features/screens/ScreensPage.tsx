@@ -7,6 +7,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { Button, Modal, PageHeader, SearchInput, SectionCard, Tabs, useToast } from '@/ui'
 import {
+  IconDownload,
   IconGrid,
   IconList,
   IconPlus,
@@ -16,6 +17,7 @@ import {
   IconUsers,
 } from '@/ui/icons'
 import {
+  downloadConnectedScreensReport,
   useBroadcastProfile,
   useBroadcastProfiles,
   useConnectedScreens,
@@ -80,9 +82,31 @@ export default function ScreensPage() {
 // ─── Подключённые кассы (онлайн) ─────────────────────────────────────────────
 function ConnectedRegistersCard() {
   const t = useT()
+  const toast = useToast()
+  const [exporting, setExporting] = useState(false)
   const { data, isLoading, isError } = useConnectedScreens()
   const total = data?.total ?? 0
   const devices = data?.devices ?? []
+
+  const exportExcel = async () => {
+    setExporting(true)
+    try {
+      const blob = await downloadConnectedScreensReport()
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `epharm-posm-screens-${new Date().toISOString().slice(0, 10)}.xlsx`
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      URL.revokeObjectURL(url)
+      toast.push(t('scr.exportExcelReady'))
+    } catch (error) {
+      toast.push(describeError(error))
+    } finally {
+      setExporting(false)
+    }
+  }
 
   return (
     <div className="card flex flex-col gap-3 p-5" data-testid="connected-registers">
@@ -97,7 +121,19 @@ function ConnectedRegistersCard() {
             {isError && !data ? '—' : isLoading && !data ? '…' : total}
           </div>
         </div>
-        <span className="chip chip-green">{t('scr.connectedLive')}</span>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            leading={<IconDownload size={14} />}
+            disabled={exporting}
+            onClick={exportExcel}
+            data-testid="connected-export-excel"
+          >
+            {exporting ? t('scr.exportingExcel') : t('scr.exportExcel')}
+          </Button>
+          <span className="chip chip-green">{t('scr.connectedLive')}</span>
+        </div>
       </div>
       {devices.length > 0 && (
         <ul className="hairline flex flex-col divide-y divide-ink-100 border-t pt-1">

@@ -52,7 +52,7 @@ the Screens section.
 | Dashboard   | HQ summary/KPI entrypoint and paginated 90-day journal of recommendation shows and POS sales.                     |
 | Promo       | Product campaign CRUD, Medusa product picker, gallery/cover, tiers, dates, goals, campaign rules, grid/list view. |
 | Rules       | Read-only/global rules view plus rule builders/components; campaign rules are edited from Promo.                  |
-| Screens     | Connected cash desks, 12-slot default/targeted playlists with inheritance, banners panel.                         |
+| Screens     | Connected cash desks, Excel inventory of POSM/client screens, 12-slot default/targeted playlists, banners.        |
 | Pharmacies  | Chains/pharmacies, CRUD, detail page, real Medusa-derived pharmacy seed data.                                     |
 | Pharmacists | Registry, pending-profile activation with pharmacy assignment, block/unblock, status/balance data.                |
 | Reconcile   | Receipt moderation queue, claimed promos, POS/Excel source columns, approve/reject.                               |
@@ -64,6 +64,13 @@ the Screens section.
 | Settings    | Language/timezone/session settings.                                                                               |
 
 ## State and Data
+
+The connected-cash-desk card is a live view, not a permanent installation registry. Its Excel button
+exports the same active heartbeat snapshot with pharmacy name/city/address, Windows device id, last
+heartbeat and the customer-screen state. `Есть` means Windows reports at least two monitors, `Нет`
+means one monitor, and `Не определено` means the POSM client has not yet rolled forward to a version
+that sends monitor topology. The last state becomes known automatically through POSM auto-update;
+reinstalling pharmacy packages is not required.
 
 - `src/app/store.ts` owns UI/session state: auth user/tokens, period, language, sidebar state,
   command palette, role switcher, contract modal.

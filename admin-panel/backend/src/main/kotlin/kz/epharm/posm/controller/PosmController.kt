@@ -148,11 +148,18 @@ class PosmController(
         @RequestHeader(name = "X-Posm-Key", required = false) key: String?,
         @RequestParam(required = false) deviceId: String?,
         @RequestParam(required = false) pharmacyId: String?,
+        @RequestParam(required = false) monitorCount: Int?,
     ): HeartbeatResponse {
         requireDeviceKey(key)
         // deviceId необязателен — на MVP fallback на сам ключ (одно устройство).
         val id = deviceId?.takeIf { it.isNotBlank() } ?: "posm"
-        devicePresenceService.heartbeat(id, pharmacyId)
+        // Старые клиенты не передают monitorCount. Некорректное значение игнорируем, чтобы
+        // heartbeat оставался fail-safe и касса не выпадала из online-списка.
+        devicePresenceService.heartbeat(
+            id,
+            pharmacyId,
+            monitorCount = monitorCount?.takeIf { it in 1..16 },
+        )
         return HeartbeatResponse(ok = true, deviceId = id)
     }
 

@@ -35,6 +35,7 @@ class DevicePresenceService(
         private const val LAST_SEEN_KEY = "epharm:posm:presence:last-seen"
         private const val PHARMACY_KEY = "epharm:posm:presence:pharmacy"
         private const val DEVICE_KEY = "epharm:posm:presence:device"
+        private const val MONITOR_COUNT_KEY = "epharm:posm:presence:monitor-count"
         private const val REDIS_WARNING_INTERVAL_MS = 60_000L
         private const val STORAGE_SEPARATOR = "\u001F"
 
@@ -46,22 +47,33 @@ class DevicePresenceService(
         val deviceId: String,
         val pharmacyId: String?,
         val lastSeen: Instant,
+        /** null пока касса не обновилась до клиента, передающего топологию экранов. */
+        val monitorCount: Int? = null,
         internal val storageKey: String = presenceKey(deviceId, pharmacyId),
     )
 
     /** Зафиксировать пульс устройства. Логируем INFO только на ПОДКЛЮЧЕНИЕ (новый/после оффлайна),
      *  чтобы не спамить каждые 60с, но было видно «касса подключилась» на бэкенде. */
-    fun heartbeat(deviceId: String, pharmacyId: String?, now: Instant = Instant.now()) {
+    fun heartbeat(
+        deviceId: String,
+        pharmacyId: String?,
+        now: Instant = Instant.now(),
+        monitorCount: Int? = null,
+    ) {
         val normalizedPharmacy = pharmacyId?.takeIf { it.isNotBlank() }
         val key = presenceKey(deviceId, normalizedPharmacy)
         val prev = seen[key]
         val wasOffline = prev == null || prev.lastSeen.isBefore(now.minusSeconds(ttlSeconds))
-        seen[key] = Presence(deviceId, normalizedPharmacy, now, key)
+        val effectiveMonitorCount = monitorCount ?: prev?.monitorCount
+        seen[key] = Presence(deviceId, normalizedPharmacy, now, effectiveMonitorCount, key)
 
         withRedis { redis ->
             redis.opsForZSet().add(LAST_SEEN_KEY, key, now.toEpochMilli().toDouble())
             redis.opsForHash<String, String>().put(PHARMACY_KEY, key, normalizedPharmacy ?: "")
             redis.opsForHash<String, String>().put(DEVICE_KEY, key, deviceId)
+            if (monitorCount != null) {
+                redis.opsForHash<String, String>().put(MONITOR_COUNT_KEY, key, monitorCount.toString())
+            }
         }
 
         if (wasOffline) {
@@ -82,7 +94,14 @@ class DevicePresenceService(
         readRedisPresence(cutoff).forEach { combined[it.storageKey] = it }
         seen.values.forEach { local ->
             val stored = combined[local.storageKey]
-            if (stored == null || stored.lastSeen.isBefore(local.lastSeen)) combined[local.storageKey] = local
+            if (stored == null) {
+                combined[local.storageKey] = local
+            } else {
+                val latest = if (stored.lastSeen.isBefore(local.lastSeen)) local else stored
+                combined[local.storageKey] = latest.copy(
+                    monitorCount = local.monitorCount ?: stored.monitorCount,
+                )
+            }
         }
         return combined.values.sortedWith(compareBy<Presence>({ it.pharmacyId ?: "" }, { it.deviceId }))
     }
@@ -102,6 +121,7 @@ class DevicePresenceService(
                 zset.removeRangeByScore(LAST_SEEN_KEY, Double.NEGATIVE_INFINITY, expiredBefore)
                 hash.delete(PHARMACY_KEY, *expiredIds.toTypedArray())
                 hash.delete(DEVICE_KEY, *expiredIds.toTypedArray())
+                hash.delete(MONITOR_COUNT_KEY, *expiredIds.toTypedArray())
             }
 
             val tuples = zset.rangeByScoreWithScores(
@@ -117,6 +137,7 @@ class DevicePresenceService(
             val keys = values.map { it.first }
             val pharmacies = if (keys.isEmpty()) emptyList() else hash.multiGet(PHARMACY_KEY, keys).orEmpty()
             val deviceIds = if (keys.isEmpty()) emptyList() else hash.multiGet(DEVICE_KEY, keys).orEmpty()
+            val monitorCounts = if (keys.isEmpty()) emptyList() else hash.multiGet(MONITOR_COUNT_KEY, keys).orEmpty()
             result = values.mapIndexed { index, (key, score) ->
                 Presence(
                     // Records created before the composite-key fix have no DEVICE_KEY entry.
@@ -124,6 +145,7 @@ class DevicePresenceService(
                     deviceId = deviceIds.getOrNull(index)?.takeIf { it.isNotBlank() } ?: key,
                     pharmacyId = pharmacies.getOrNull(index)?.takeIf { it.isNotBlank() },
                     lastSeen = Instant.ofEpochMilli(score.toLong()),
+                    monitorCount = monitorCounts.getOrNull(index)?.toIntOrNull(),
                     storageKey = key,
                 )
             }

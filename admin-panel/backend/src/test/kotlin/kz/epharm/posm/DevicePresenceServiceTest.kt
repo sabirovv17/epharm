@@ -48,11 +48,20 @@ class DevicePresenceServiceTest {
 
     @Test
     fun `connected возвращает детали устройства`() {
-        svc.heartbeat("kassa-7", "ph_z", t0)
+        svc.heartbeat("kassa-7", "ph_z", t0, monitorCount = 2)
         val list = svc.connected(t0.plusSeconds(5))
         assertEquals(1, list.size)
         assertEquals("kassa-7", list[0].deviceId)
         assertEquals("ph_z", list[0].pharmacyId)
+        assertEquals(2, list[0].monitorCount)
+    }
+
+    @Test
+    fun `старый heartbeat сохраняет ранее известное количество мониторов`() {
+        svc.heartbeat("kassa-8", "ph_z", t0, monitorCount = 2)
+        svc.heartbeat("kassa-8", "ph_z", t0.plusSeconds(10))
+
+        assertEquals(2, svc.connected(t0.plusSeconds(20)).single().monitorCount)
     }
 
     @Test
@@ -71,18 +80,21 @@ class DevicePresenceServiceTest {
             setOf(DefaultTypedTuple("kassa-redis", t0.toEpochMilli().toDouble()))
         every { hash.multiGet("epharm:posm:presence:pharmacy", any()) } returns listOf("ph_redis")
         every { hash.multiGet("epharm:posm:presence:device", any()) } returns listOf("kassa-redis")
+        every { hash.multiGet("epharm:posm:presence:monitor-count", any()) } returns listOf("2")
 
         val writer = DevicePresenceService(ttlSeconds = 90, redisProvider = provider)
-        writer.heartbeat("kassa-redis", "ph_redis", t0)
+        writer.heartbeat("kassa-redis", "ph_redis", t0, monitorCount = 2)
         val key = "ph_redis\u001Fkassa-redis"
         verify { zset.add("epharm:posm:presence:last-seen", key, t0.toEpochMilli().toDouble()) }
         verify { hash.put("epharm:posm:presence:pharmacy", key, "ph_redis") }
         verify { hash.put("epharm:posm:presence:device", key, "kassa-redis") }
+        verify { hash.put("epharm:posm:presence:monitor-count", key, "2") }
 
         val afterRestart = DevicePresenceService(ttlSeconds = 90, redisProvider = provider)
         val restored = afterRestart.connected(t0.plusSeconds(10))
         assertEquals(1, restored.size)
         assertEquals("kassa-redis", restored.single().deviceId)
         assertEquals("ph_redis", restored.single().pharmacyId)
+        assertEquals(2, restored.single().monitorCount)
     }
 }

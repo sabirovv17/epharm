@@ -177,7 +177,12 @@ namespace CustomerDisplay
             if (_epharm == null || Interlocked.Exchange(ref _heartbeatRequestBusy, 1) == 1) return;
             try
             {
-                var delivered = await _epharm.HeartbeatAsync(deviceId, pharmacyId).ConfigureAwait(false);
+                // Запрашиваем топологию на каждом heartbeat: Windows может увидеть второй
+                // монитор уже после запуска приложения (кабель/питание/драйвер).
+                var monitorCount = System.Windows.Forms.Screen.AllScreens.Length;
+                var delivered = await _epharm
+                    .HeartbeatAsync(deviceId, pharmacyId, monitorCount)
+                    .ConfigureAwait(false);
                 if (delivered && _heartbeatDelivered != true)
                 {
                     _heartbeatDelivered = true;

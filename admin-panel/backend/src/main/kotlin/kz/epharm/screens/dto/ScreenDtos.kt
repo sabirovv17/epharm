@@ -121,6 +121,11 @@ data class RegisterPresenceDto(
     // найдена/не задана) — чтобы в админ-виджете читалась «Аспект-траст», а не «sloc_…».
     val pharmacyName: String?,
     val pharmacyAddress: String?,
+    val pharmacyCity: String?,
+    val pharmacyStreetAddress: String?,
+    /** null означает, что установленный POSM ещё не прислал топологию мониторов. */
+    val monitorCount: Int?,
+    val hasClientScreen: Boolean?,
     val lastSeen: Instant,
 )
 

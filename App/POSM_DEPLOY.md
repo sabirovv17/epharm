@@ -9,7 +9,7 @@ Build on Windows with .NET 10 SDK.
 ```powershell
 cd <repo>
 dotnet publish App\CustomerDisplay.csproj -c Release -r win-x64 --self-contained `
-  -p:Version=1.0.44 -o C:\Epharm\app
+  -p:Version=1.0.45 -o C:\Epharm\app
 ```
 
 Auto-update works with a published app folder containing `CustomerDisplay.exe`, dependencies, LibVLC,
@@ -158,7 +158,10 @@ likely installation roots. A path that emits a real cash event is cached in
 
 The backend presence heartbeat is sent every 30 seconds. A device expires after 90 seconds without a
 pulse; Redis stores the device/pharmacy last-seen state so a backend restart or a second backend
-instance does not temporarily erase the online-screen list.
+instance does not temporarily erase the online-screen list. Starting with v1.0.45, every pulse also
+contains the current Windows monitor count. The admin Excel inventory therefore resolves the client
+screen as `Есть` for two or more monitors, `Нет` for one, and `Не определено` for clients that have
+not completed the rolling auto-update yet. No pharmacy-specific `posm.json` is replaced by updates.
 
 If `ztrade` is not found, POSM does not fail: recommendations/video continue, while trusted
 `pharmacistId` and price fields remain empty until the DB path/Firebird connection is available.

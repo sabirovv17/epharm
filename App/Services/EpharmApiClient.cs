@@ -205,12 +205,16 @@ namespace CustomerDisplay.Services
         }
 
         /// <summary>
-        /// Heartbeat живости кассы (T4): POST /api/posm/heartbeat?deviceId=&amp;pharmacyId= (без тела,
-        /// X-Posm-Key уже в заголовках по умолчанию). Backend держит счётчик подключённых касс
+        /// Heartbeat живости кассы (T4): POST /api/posm/heartbeat?deviceId=&amp;pharmacyId=&amp;monitorCount=
+        /// (без тела, X-Posm-Key уже в заголовках по умолчанию). Backend держит счётчик подключённых касс
         /// (Redis TTL). Fail-safe: при сети/таймауте/ошибке просто проглатываем — пропуск одного
         /// удара ничего не ломает, следующий тик досчитается. Не бросает.
         /// </summary>
-        public async Task<bool> HeartbeatAsync(string deviceId, string? pharmacyId, CancellationToken ct = default)
+        public async Task<bool> HeartbeatAsync(
+            string deviceId,
+            string? pharmacyId,
+            int monitorCount,
+            CancellationToken ct = default)
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(_heartbeatTimeout);
@@ -219,6 +223,7 @@ namespace CustomerDisplay.Services
                 var url = "/api/posm/heartbeat?deviceId=" + Uri.EscapeDataString(deviceId);
                 if (!string.IsNullOrWhiteSpace(pharmacyId))
                     url += "&pharmacyId=" + Uri.EscapeDataString(pharmacyId);
+                url += "&monitorCount=" + Math.Max(1, monitorCount);
                 using var resp = await _http.PostAsync(url, null, cts.Token).ConfigureAwait(false);
                 if (!resp.IsSuccessStatusCode)
                 {

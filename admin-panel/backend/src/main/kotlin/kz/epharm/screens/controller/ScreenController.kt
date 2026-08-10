@@ -1,8 +1,6 @@
 package kz.epharm.screens.controller
 
 import jakarta.validation.Valid
-import kz.epharm.pharmacies.repository.PharmacyRepository
-import kz.epharm.posm.service.DevicePresenceService
 import kz.epharm.screens.dto.ActivePlaylistDto
 import kz.epharm.screens.dto.AssignSlideRequest
 import kz.epharm.screens.dto.BroadcastProfileDto
@@ -10,14 +8,16 @@ import kz.epharm.screens.dto.BroadcastProfileSummaryDto
 import kz.epharm.screens.dto.ConnectedRegistersDto
 import kz.epharm.screens.dto.CreatePlaylistRequest
 import kz.epharm.screens.dto.PlaylistDto
-import kz.epharm.screens.dto.RegisterPresenceDto
 import kz.epharm.screens.dto.SlideDto
 import kz.epharm.screens.dto.SetBroadcastProfilePharmaciesRequest
 import kz.epharm.screens.dto.UpdatePlaylistRequest
 import kz.epharm.screens.entity.PlaylistStatus
+import kz.epharm.screens.service.ScreenPresenceService
 import kz.epharm.screens.service.ScreenService
 import org.springframework.http.HttpStatus
+import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
+import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
@@ -30,6 +30,8 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
+import java.time.LocalDate
+import java.time.ZoneId
 
 // Indoor-DOOH экраны (ТЗ §3.3): управление контентом из админки.
 // Плейлисты (ротация) + библиотека слайдов (видео/картинки в MinIO).
@@ -38,8 +40,7 @@ import org.springframework.web.multipart.MultipartFile
 @RequestMapping("/api/admin/screens")
 class ScreenController(
     private val screenService: ScreenService,
-    private val devicePresenceService: DevicePresenceService,
-    private val pharmacyRepository: PharmacyRepository,
+    private val screenPresenceService: ScreenPresenceService,
 ) {
 
     /**
@@ -48,28 +49,20 @@ class ScreenController(
      * показывать «Аспект-траст, г.Алматы, Достык 248а», а не сырой pharmacyId.
      */
     @GetMapping("/connected")
-    fun connected(): ConnectedRegistersDto {
-        val devices = devicePresenceService.connected()
-        val ids = devices.mapNotNull { it.pharmacyId?.takeIf { p -> p.isNotBlank() } }.distinct()
-        val byId = if (ids.isEmpty()) emptyMap()
-        else pharmacyRepository.findAllById(ids).associateBy { it.id }
-        return ConnectedRegistersDto(
-            total = devices.size,
-            devices = devices.map { d ->
-                val ph = d.pharmacyId?.let { byId[it] }
-                RegisterPresenceDto(
-                    deviceId = d.deviceId,
-                    pharmacyId = d.pharmacyId,
-                    pharmacyName = ph?.name,
-                    pharmacyAddress = ph?.let {
-                        listOf(it.city, it.addr).filter { s -> s.isNotBlank() }
-                            .joinToString(", ").takeIf { s -> s.isNotBlank() }
-                    },
-                    lastSeen = d.lastSeen,
-                )
-            },
+    fun connected(): ConnectedRegistersDto = screenPresenceService.connected()
+
+    /** Excel-срез тех же live-данных, которые пользователь видит в карточке подключённых касс. */
+    @GetMapping(
+        "/connected/export.xlsx",
+        produces = ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+    )
+    fun exportConnected(): ResponseEntity<ByteArray> = ResponseEntity.ok()
+        .header(
+            HttpHeaders.CONTENT_DISPOSITION,
+            "attachment; filename=\"epharm-posm-screens-${LocalDate.now(ZoneId.of("Asia/Almaty"))}.xlsx\"",
         )
-    }
+        .header(HttpHeaders.CACHE_CONTROL, "no-store")
+        .body(screenPresenceService.exportConnectedXlsx())
 
     // ── Плейлисты ─────────────────────────────────────────────────────────
 

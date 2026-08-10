@@ -45,6 +45,8 @@ import org.springframework.transaction.annotation.Transactional
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import org.apache.poi.xssf.usermodel.XSSFWorkbook
+import java.io.ByteArrayInputStream
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -420,7 +422,7 @@ class ScreensIntegrationTest {
             ),
         )
         // одна касса привязана к известной аптеке, вторая — к отсутствующей в справочнике
-        devicePresenceService.heartbeat("kassa-known", "ph_known")
+        devicePresenceService.heartbeat("kassa-known", "ph_known", monitorCount = 2)
         devicePresenceService.heartbeat("kassa-orphan", "ph_missing")
 
         mockMvc.perform(get("/api/admin/screens/connected").header("Authorization", bearer))
@@ -434,6 +436,14 @@ class ScreensIntegrationTest {
                 jsonPath("$.devices[?(@.deviceId=='kassa-known')].pharmacyAddress")
                     .value(org.hamcrest.Matchers.hasItem("Алматы, Достык 248а")),
             )
+            .andExpect(
+                jsonPath("$.devices[?(@.deviceId=='kassa-known')].monitorCount")
+                    .value(org.hamcrest.Matchers.hasItem(2)),
+            )
+            .andExpect(
+                jsonPath("$.devices[?(@.deviceId=='kassa-known')].hasClientScreen")
+                    .value(org.hamcrest.Matchers.hasItem(true)),
+            )
             // неизвестная аптека → имя/адрес null (фронт покажет сырой id)
             .andExpect(
                 jsonPath("$.devices[?(@.deviceId=='kassa-orphan')].pharmacyId")
@@ -443,6 +453,32 @@ class ScreensIntegrationTest {
                 jsonPath("$.devices[?(@.deviceId=='kassa-orphan')].pharmacyName")
                     .value(org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.nullValue())),
             )
+
+        val export = mockMvc.perform(
+            get("/api/admin/screens/connected/export.xlsx").header("Authorization", bearer),
+        )
+            .andExpect(status().isOk)
+            .andReturn()
+
+        assertThat(export.response.contentType)
+            .isEqualTo("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        assertThat(export.response.getHeader("Content-Disposition"))
+            .contains("attachment", ".xlsx")
+
+        XSSFWorkbook(ByteArrayInputStream(export.response.contentAsByteArray)).use { workbook ->
+            val sheet = workbook.getSheet("POSM и экраны")
+            assertThat(sheet.getRow(3).getCell(6).stringCellValue).isEqualTo("Клиентский экран")
+            val known = (4..sheet.lastRowNum)
+                .map(sheet::getRow)
+                .first { it.getCell(4).stringCellValue == "kassa-known" }
+            val orphan = (4..sheet.lastRowNum)
+                .map(sheet::getRow)
+                .first { it.getCell(4).stringCellValue == "kassa-orphan" }
+            assertThat(known.getCell(3).stringCellValue).isEqualTo("Достык 248а")
+            assertThat(known.getCell(6).stringCellValue).isEqualTo("Есть")
+            assertThat(known.getCell(7).stringCellValue).isEqualTo("2")
+            assertThat(orphan.getCell(6).stringCellValue).isEqualTo("Не определено")
+        }
     }
 
     private fun seedBroadcastProfiles() {

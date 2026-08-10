@@ -2,7 +2,7 @@
 // образующих один эфирный плейлист. Плюс переключение на вкладку «Баннеры».
 
 import { describe, expect, it, beforeEach, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
@@ -11,6 +11,7 @@ import type { BroadcastProfileDto } from '@/lib/api-types'
 import ScreensPage from './ScreensPage'
 
 const screenHooks = vi.hoisted(() => ({
+  downloadConnectedScreensReport: vi.fn(),
   useConnectedScreens: vi.fn(),
   useBroadcastProfiles: vi.fn(),
   useBroadcastProfile: vi.fn(),
@@ -47,6 +48,7 @@ function setBroadcast(data: BroadcastProfileDto) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  screenHooks.downloadConnectedScreensReport.mockResolvedValue(new Blob(['xlsx']))
   screenHooks.useConnectedScreens.mockReturnValue({
     data: { total: 0, devices: [] },
     isLoading: false,
@@ -174,6 +176,27 @@ describe('ScreensPage — онлайн-кассы', () => {
     expect(screen.getByTestId('connected-kassa-1')).toHaveTextContent('Достык 248а')
     // касса без аптеки → «без аптеки»
     expect(screen.getByTestId('connected-kassa-2')).toHaveTextContent('без аптеки')
+  })
+
+  it('скачивает Excel-отчёт по кнопке', async () => {
+    const user = userEvent.setup()
+    const createObjectUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:posm-report')
+    const revokeObjectUrl = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
+    const anchorClick = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined)
+
+    renderPage()
+    await user.click(screen.getByTestId('connected-export-excel'))
+
+    await waitFor(() => expect(screenHooks.downloadConnectedScreensReport).toHaveBeenCalledOnce())
+    expect(createObjectUrl).toHaveBeenCalled()
+    expect(anchorClick).toHaveBeenCalled()
+    expect(revokeObjectUrl).toHaveBeenCalledWith('blob:posm-report')
+
+    createObjectUrl.mockRestore()
+    revokeObjectUrl.mockRestore()
+    anchorClick.mockRestore()
   })
 })
 

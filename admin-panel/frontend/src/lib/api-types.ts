@@ -719,6 +719,10 @@ export interface ConnectedDeviceDto {
   pharmacyId: string | null
   pharmacyName: string | null
   pharmacyAddress: string | null
+  pharmacyCity: string | null
+  pharmacyStreetAddress: string | null
+  monitorCount: number | null
+  hasClientScreen: boolean | null
   lastSeen: string
 }
 

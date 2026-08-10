@@ -197,6 +197,14 @@ export function useConnectedScreens() {
   })
 }
 
+/** Excel-срез live-списка POSM с адресами и признаком клиентского экрана. */
+export async function downloadConnectedScreensReport(): Promise<Blob> {
+  const response = await api.get<Blob>('/api/admin/screens/connected/export.xlsx', {
+    responseType: 'blob',
+  })
+  return response.data
+}
+
 export function usePlaylists(filter: PlaylistListFilter = {}) {
   return useQuery<PlaylistDto[]>({
     queryKey: screensKeys.playlists(filter),
