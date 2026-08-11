@@ -170,6 +170,15 @@ from a persistent `.part` file after a network interruption, retry four times, v
 SHA-256, and poll for the next release at least every five minutes. Update apply diagnostics are kept
 in `C:\Epharm\update.log`.
 
+Bootstrap releases must be downloadable from the same pharmacy networks that call the version API.
+An old client can reach the API through the HTTP `:8060` fallback while still being unable to fetch
+an `https://epharm.inkar.kz/...` package URL. For v1.0.46 the compact, credential-free bridge is also
+published as a GitHub Release asset and that HTTPS asset is used as the current release URL. Keep the
+identical ZIP on the application server as an operational mirror, verify both copies against the
+registered SHA-256, and never include `posm.json`, a device key, or pharmacy-specific data in a public
+release asset. A successful rollout is confirmed by non-legacy update checks plus `appVersion` and
+`monitorCount` values in subsequent heartbeats; a version-check log alone does not prove installation.
+
 If `ztrade` is not found, POSM does not fail: recommendations/video continue, while trusted
 `pharmacistId` and price fields remain empty until the DB path/Firebird connection is available.
 Do not assume `ACTIVEUSERS` contains rows on every Standard-N release. POSM also probes unfinished
