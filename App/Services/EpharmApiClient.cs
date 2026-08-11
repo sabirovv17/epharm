@@ -191,11 +191,19 @@ namespace CustomerDisplay.Services
         /// Текущий релиз клиента для платформы (авто-обновление). null при ошибке/оффлайне —
         /// апдейт просто не произойдёт в этот раз. Не бросает.
         /// </summary>
-        public async Task<AppVersionInfo?> GetAppVersionAsync(string platform = "win-x64", CancellationToken ct = default)
+        public async Task<AppVersionInfo?> GetAppVersionAsync(
+            string platform = "win-x64",
+            string? deviceId = null,
+            string? currentVersion = null,
+            CancellationToken ct = default)
         {
             try
             {
                 var url = "/api/posm/app/version?platform=" + Uri.EscapeDataString(platform);
+                if (!string.IsNullOrWhiteSpace(deviceId))
+                    url += "&deviceId=" + Uri.EscapeDataString(deviceId);
+                if (!string.IsNullOrWhiteSpace(currentVersion))
+                    url += "&currentVersion=" + Uri.EscapeDataString(currentVersion);
                 return await _http.GetFromJsonAsync<AppVersionInfo>(url, JsonOpts, ct).ConfigureAwait(false);
             }
             catch
@@ -214,6 +222,7 @@ namespace CustomerDisplay.Services
             string deviceId,
             string? pharmacyId,
             int monitorCount,
+            string appVersion,
             CancellationToken ct = default)
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -224,6 +233,8 @@ namespace CustomerDisplay.Services
                 if (!string.IsNullOrWhiteSpace(pharmacyId))
                     url += "&pharmacyId=" + Uri.EscapeDataString(pharmacyId);
                 url += "&monitorCount=" + Math.Max(1, monitorCount);
+                if (!string.IsNullOrWhiteSpace(appVersion))
+                    url += "&appVersion=" + Uri.EscapeDataString(appVersion);
                 using var resp = await _http.PostAsync(url, null, cts.Token).ConfigureAwait(false);
                 if (!resp.IsSuccessStatusCode)
                 {

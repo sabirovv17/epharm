@@ -126,6 +126,8 @@ data class RegisterPresenceDto(
     /** null означает, что установленный POSM ещё не прислал топологию мониторов. */
     val monitorCount: Int?,
     val hasClientScreen: Boolean?,
+    /** Версия установленного POSM; null у клиентов старого формата heartbeat. */
+    val appVersion: String?,
     val lastSeen: Instant,
 )
 

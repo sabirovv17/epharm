@@ -45,6 +45,7 @@ class ScreenPresenceService(
                 pharmacyStreetAddress = pharmacy?.addr?.takeIf(String::isNotBlank),
                 monitorCount = device.monitorCount,
                 hasClientScreen = device.monitorCount?.let { it >= 2 },
+                appVersion = device.appVersion,
                 lastSeen = device.lastSeen,
             )
         }.sortedWith(
@@ -166,6 +167,7 @@ class ScreenPresenceService(
                     device.pharmacyStreetAddress.orEmpty(),
                     device.deviceId,
                     "Подключён",
+                    device.appVersion ?: "Не передана (требуется обновление)",
                     when (device.hasClientScreen) {
                         true -> "Есть"
                         false -> "Нет"
@@ -179,8 +181,8 @@ class ScreenPresenceService(
                     row.createCell(column).apply {
                         setCellValue(value)
                         cellStyle = when (column) {
-                            0, 5, 7, 8 -> centerStyle
-                            6 -> when (device.hasClientScreen) {
+                            0, 5, 6, 8, 9 -> centerStyle
+                            7 -> when (device.hasClientScreen) {
                                 true -> yesStyle
                                 false -> noStyle
                                 null -> unknownStyle
@@ -222,11 +224,12 @@ class ScreenPresenceService(
             "Адрес",
             "Устройство",
             "POSM модуль",
+            "Версия POSM",
             "Клиентский экран",
             "Мониторов",
             "Последний heartbeat",
             "ID аптеки",
         )
-        private val COLUMN_WIDTHS = listOf(6, 30, 18, 34, 22, 18, 22, 12, 22, 30)
+        private val COLUMN_WIDTHS = listOf(6, 30, 18, 34, 22, 18, 26, 22, 12, 22, 30)
     }
 }

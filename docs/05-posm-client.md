@@ -168,9 +168,13 @@ POSM sends backend presence every 30 seconds. Backend considers a device online 
 persists last-seen/pharmacy mapping in Redis with an in-memory fail-safe. Presence is keyed by the
 pair `pharmacyId + deviceId`, not by the Windows machine name alone: `KASSA1` can therefore exist
 in multiple pharmacies without one live cash desk hiding another. The admin screen polls the
-connected-device endpoint every 30 seconds. POSM v1.0.45 also sends `monitorCount` on every pulse,
+connected-device endpoint every 30 seconds. POSM v1.0.46 sends `monitorCount` and `appVersion` on
+every pulse,
 so connecting or disconnecting the second monitor is reflected without restarting or reinstalling
 the client. During rolling update, older clients remain online and are exported as `Не определено`.
+The Excel report includes a separate POSM version column so an unknown screen has an explicit rollout
+cause instead of being mistaken for a confirmed one-monitor installation. v1.0.46 also caps update
+polling at five minutes and resumes interrupted release downloads from a persistent partial file.
 
 ## Operations
 

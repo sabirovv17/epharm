@@ -2,7 +2,9 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Threading;
@@ -40,7 +42,7 @@ namespace CustomerDisplay.Services
             _log = log;
             // Отдельный HttpClient с большим таймаутом — у основного клиента таймаут ~700мс
             // (под рекомендации), для скачивания zip это мало.
-            _downloadHttp = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
+            _downloadHttp = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
             _downloadHttp.DefaultRequestHeaders.Add("X-Posm-Key", cfg.DeviceKey);
         }
 
@@ -57,7 +59,12 @@ namespace CustomerDisplay.Services
             if (Interlocked.Exchange(ref _busy, 1) == 1) return false;
             try
             {
-                var info = await _api.GetAppVersionAsync("win-x64", ct).ConfigureAwait(false);
+                var local = CurrentVersion();
+                var info = await _api.GetAppVersionAsync(
+                    platform: "win-x64",
+                    deviceId: Environment.MachineName,
+                    currentVersion: local.ToString(),
+                    ct: ct).ConfigureAwait(false);
                 if (info == null || !info.Current || string.IsNullOrWhiteSpace(info.Url))
                     return false;
 
@@ -66,7 +73,6 @@ namespace CustomerDisplay.Services
                     _log($"update: не распарсить версию релиза '{info.Version}' — пропуск");
                     return false;
                 }
-                var local = CurrentVersion();
                 if (remote <= local)
                 {
                     return false; // уже актуально
@@ -85,8 +91,16 @@ namespace CustomerDisplay.Services
                     _log($"update: небезопасный (не https) URL обновления отклонён: {downloadUrl}");
                     return false;
                 }
-                if (!await DownloadAsync(downloadUrl, zipPath, ct).ConfigureAwait(false))
-                    return false;
+                if (File.Exists(zipPath) && VerifySha256(zipPath, info.Sha256))
+                {
+                    _log("update: использую уже скачанный и проверенный пакет");
+                }
+                else
+                {
+                    SafeDelete(zipPath);
+                    if (!await DownloadAsync(downloadUrl, zipPath, ct).ConfigureAwait(false))
+                        return false;
+                }
 
                 // sha256 ОБЯЗАТЕЛЕН: пустой ИЛИ несовпавший хеш → отказ. Без него подменённый
                 // или повреждённый zip распакуется и выполнится на кассе (RCE).
@@ -128,28 +142,103 @@ namespace CustomerDisplay.Services
             }
         }
 
+        /// <summary>
+        /// Скачивает релиз с докачкой. Незавершённый .part сохраняется между проверками и после
+        /// обрыва интернета, поэтому касса не начинает большой пакет с нуля.
+        /// </summary>
         private async Task<bool> DownloadAsync(string url, string destPath, CancellationToken ct)
         {
-            try
+            var partPath = destPath + ".part";
+            const int maxAttempts = 4;
+
+            for (var attempt = 1; attempt <= maxAttempts; attempt++)
             {
-                using var resp = await _downloadHttp
-                    .GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
-                if (!resp.IsSuccessStatusCode)
+                try
                 {
-                    _log($"update: скачивание {url} → HTTP {(int)resp.StatusCode}");
-                    return false;
+                    ct.ThrowIfCancellationRequested();
+                    var existingLength = File.Exists(partPath) ? new FileInfo(partPath).Length : 0L;
+                    using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                    if (existingLength > 0)
+                        request.Headers.Range = new RangeHeaderValue(existingLength, null);
+
+                    using var resp = await _downloadHttp.SendAsync(
+                        request,
+                        HttpCompletionOption.ResponseHeadersRead,
+                        ct).ConfigureAwait(false);
+
+                    if (resp.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable &&
+                        existingLength > 0 &&
+                        resp.Content.Headers.ContentRange?.Length == existingLength)
+                    {
+                        File.Move(partPath, destPath, overwrite: true);
+                        return true;
+                    }
+
+                    if (!resp.IsSuccessStatusCode)
+                    {
+                        _log($"update: скачивание → HTTP {(int)resp.StatusCode}, попытка {attempt}/{maxAttempts}");
+                        await RetryDelayAsync(attempt, maxAttempts, ct).ConfigureAwait(false);
+                        continue;
+                    }
+
+                    var append = existingLength > 0 && resp.StatusCode == HttpStatusCode.PartialContent;
+                    if (existingLength > 0 && !append)
+                    {
+                        _log("update: сервер не поддержал Range — начинаю пакет заново");
+                        existingLength = 0;
+                    }
+
+                    var expectedLength = resp.Content.Headers.ContentRange?.Length
+                        ?? (resp.Content.Headers.ContentLength is long contentLength
+                            ? existingLength + contentLength
+                            : (long?)null);
+
+                    await using (var src = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false))
+                    await using (var dst = new FileStream(
+                        partPath,
+                        append ? FileMode.Append : FileMode.Create,
+                        FileAccess.Write,
+                        FileShare.None,
+                        bufferSize: 128 * 1024,
+                        useAsync: true))
+                    {
+                        await src.CopyToAsync(dst, 128 * 1024, ct).ConfigureAwait(false);
+                        await dst.FlushAsync(ct).ConfigureAwait(false);
+                    }
+
+                    var downloadedLength = new FileInfo(partPath).Length;
+                    if (expectedLength.HasValue && downloadedLength != expectedLength.Value)
+                    {
+                        _log(
+                            $"update: получено {downloadedLength} из {expectedLength.Value} байт, " +
+                            $"повторяю попытку {attempt}/{maxAttempts}");
+                        await RetryDelayAsync(attempt, maxAttempts, ct).ConfigureAwait(false);
+                        continue;
+                    }
+
+                    File.Move(partPath, destPath, overwrite: true);
+                    _log($"update: пакет скачан полностью ({downloadedLength / 1024 / 1024.0:F1} МБ)");
+                    return true;
                 }
-                await using var src = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-                await using var dst = File.Create(destPath);
-                await src.CopyToAsync(dst, ct).ConfigureAwait(false);
-                return true;
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _log($"update: ошибка скачивания ({attempt}/{maxAttempts}): {ex.Message}");
+                    await RetryDelayAsync(attempt, maxAttempts, ct).ConfigureAwait(false);
+                }
             }
-            catch (Exception ex)
-            {
-                _log($"update: ошибка скачивания: {ex.Message}");
-                return false;
-            }
+
+            _log("update: пакет пока не скачан; частичный файл сохранён для следующей проверки");
+            return false;
         }
+
+        private static Task RetryDelayAsync(int attempt, int maxAttempts, CancellationToken ct)
+            => attempt >= maxAttempts
+                ? Task.CompletedTask
+                : Task.Delay(TimeSpan.FromSeconds(Math.Min(15, attempt * 3)), ct);
 
         private static bool VerifySha256(string path, string expectedHex)
         {
@@ -187,7 +276,11 @@ namespace CustomerDisplay.Services
 
             var script =
 $@"@echo off
+setlocal
 rem epharm POSM auto-update applier — ждём выхода приложения и копируем файлы
+if not exist ""C:\Epharm"" mkdir ""C:\Epharm""
+set ""LOG=C:\Epharm\update.log""
+echo [%date% %time%] apply start, source={staging}>>""%LOG%""
 set PID={pid}
 :wait
 tasklist /FI ""PID eq %PID%"" 2>nul | find ""%PID%"" >nul
@@ -195,10 +288,23 @@ if not errorlevel 1 (
   timeout /t 1 /nobreak >nul
   goto wait
 )
-robocopy ""{staging}"" ""{installDir}"" /E /IS /IT /NFL /NDL /NJH /NJS /NP >nul
+set ATTEMPT=0
+:copy
+set /a ATTEMPT+=1
+robocopy ""{staging}"" ""{installDir}"" /E /IS /IT /R:5 /W:2 /NFL /NDL /NJH /NJS /NP >>""%LOG%"" 2>&1
+if %ERRORLEVEL% LEQ 7 goto copied
+if %ATTEMPT% GEQ 5 goto failed
+timeout /t 3 /nobreak >nul
+goto copy
+:copied
+echo [%date% %time%] apply success>>""%LOG%""
 start """" ""{exePath}""
 rem самоудаление скрипта
 (goto) 2>nul & del ""%~f0""
+:failed
+echo [%date% %time%] apply failed after %ATTEMPT% attempts>>""%LOG%""
+start """" ""{exePath}""
+exit /b 1
 ";
             File.WriteAllText(cmdPath, script);
 
@@ -206,7 +312,8 @@ rem самоудаление скрипта
             {
                 FileName = "cmd.exe",
                 Arguments = $"/c \"{cmdPath}\"",
-                UseShellExecute = true,
+                WorkingDirectory = installDir,
+                UseShellExecute = false,
                 CreateNoWindow = true,
                 WindowStyle = ProcessWindowStyle.Hidden,
             });

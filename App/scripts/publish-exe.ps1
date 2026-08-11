@@ -13,7 +13,7 @@
 
 param(
   [string]$ConfigPath = "C:\Epharm\posm.json",
-    [string]$Version = "1.0.45",
+  [string]$Version = "1.0.46",
   [string]$OutputDir = "",
   [switch]$KeepPackageFolder
 )
@@ -281,6 +281,33 @@ $updateSizeMb = [math]::Round((Get-Item $updateZip).Length / 1MB, 1)
 $updateSha256 = (Get-FileHash -Path $updateZip -Algorithm SHA256).Hash.ToLowerInvariant()
 Set-Content -Path "$updateZip.sha256" -Value "$updateSha256  $updateZipName" -Encoding ASCII
 
+# Переходный пакет для уже установленных v1.0.44/v1.0.45. На кассах уже есть одинаковый
+# self-contained .NET/VLC runtime, поэтому достаточно заменить четыре файла приложения.
+# Это уменьшает первое массовое обновление примерно со 160 МБ до нескольких мегабайт.
+$bridgePackageName = "Epharm-POSM-bridge-v$Version-win-x64"
+$bridgeOut = Join-Path $buildRoot $bridgePackageName
+New-Item -ItemType Directory -Force -Path $bridgeOut | Out-Null
+foreach ($bridgeFile in @(
+  "CustomerDisplay.exe",
+  "CustomerDisplay.dll",
+  "CustomerDisplay.deps.json",
+  "CustomerDisplay.runtimeconfig.json"
+)) {
+  $bridgeSource = Join-Path $out $bridgeFile
+  if (!(Test-Path $bridgeSource)) { throw "Bridge package: не найден $bridgeFile" }
+  Copy-Item $bridgeSource (Join-Path $bridgeOut $bridgeFile) -Force
+}
+$bridgeZipName = "$bridgePackageName.zip"
+$localBridgeZip = Join-Path $buildRoot $bridgeZipName
+$bridgeZip = Join-Path $OutputDir $bridgeZipName
+if (Test-Path $localBridgeZip) { Remove-Item $localBridgeZip -Force }
+if (Test-Path $bridgeZip) { Remove-Item $bridgeZip -Force }
+Compress-Archive -Path (Join-Path $bridgeOut "*") -DestinationPath $localBridgeZip
+Copy-Item $localBridgeZip $bridgeZip -Force
+$bridgeSizeMb = [math]::Round((Get-Item $bridgeZip).Length / 1MB, 1)
+$bridgeSha256 = (Get-FileHash -Path $bridgeZip -Algorithm SHA256).Hash.ToLowerInvariant()
+Set-Content -Path "$bridgeZip.sha256" -Value "$bridgeSha256  $bridgeZipName" -Encoding ASCII
+
 if ($KeepPackageFolder) {
   $debugOut = Join-Path $OutputDir $packageName
   if (Test-Path $debugOut) { Remove-Item $debugOut -Recurse -Force }
@@ -293,4 +320,6 @@ Write-Host ("УСТАНОВОЧНЫЙ ZIP: {0}  ({1} МБ), SHA256={2}" -f $zip,
 Write-Host "Внутри: CustomerDisplay.exe + рантайм + libvlc, posm.json, run-kassa.ps1, run.bat, setup-autostart.bat, install/watchdog/uninstall scripts, README.md." -ForegroundColor Green
 Write-Host ("AUTO-UPDATE ZIP: {0}  ({1} МБ), SHA256={2}" -f $updateZip, $updateSizeMb, $updateSha256) -ForegroundColor Green
 Write-Host "Auto-update ZIP не содержит posm.json и безопасен для общего релиза через /downloads/." -ForegroundColor Green
+Write-Host ("BRIDGE ZIP: {0}  ({1} МБ), SHA256={2}" -f $bridgeZip, $bridgeSizeMb, $bridgeSha256) -ForegroundColor Green
+Write-Host "Bridge ZIP предназначен для быстрого перехода установленных v1.0.44/v1.0.45 на новый устойчивый updater." -ForegroundColor Green
 Write-Host "Для первичной установки распакуй установочный ZIP целиком и запусти setup-autostart.bat либо run.bat для ручного теста." -ForegroundColor Green

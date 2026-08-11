@@ -9,7 +9,7 @@ Build on Windows with .NET 10 SDK.
 ```powershell
 cd <repo>
 dotnet publish App\CustomerDisplay.csproj -c Release -r win-x64 --self-contained `
-  -p:Version=1.0.45 -o C:\Epharm\app
+  -p:Version=1.0.46 -o C:\Epharm\app
 ```
 
 Auto-update works with a published app folder containing `CustomerDisplay.exe`, dependencies, LibVLC,
@@ -32,7 +32,7 @@ config, and scripts. Do not deploy `dotnet run` as production.
   "PlaylistPollSec": 20,
   "MediaCacheDir": "C:\\Epharm\\media-cache",
   "UpdateEnabled": true,
-  "UpdatePollSec": 1800,
+  "UpdatePollSec": 300,
   "HeartbeatPath": "C:\\Epharm\\heartbeat.txt",
   "HeartbeatSec": 15,
   "StandardNDbEnabled": true,
@@ -158,10 +158,17 @@ likely installation roots. A path that emits a real cash event is cached in
 
 The backend presence heartbeat is sent every 30 seconds. A device expires after 90 seconds without a
 pulse; Redis stores the device/pharmacy last-seen state so a backend restart or a second backend
-instance does not temporarily erase the online-screen list. Starting with v1.0.45, every pulse also
-contains the current Windows monitor count. The admin Excel inventory therefore resolves the client
+instance does not temporarily erase the online-screen list. Starting with v1.0.46, every pulse also
+contains the current Windows monitor count and POSM application version. The admin Excel inventory therefore resolves the client
 screen as `Есть` for two or more monitors, `Нет` for one, and `Не определено` for clients that have
 not completed the rolling auto-update yet. No pharmacy-specific `posm.json` is replaced by updates.
+
+The v1.0.46 rollout uses a compact bridge ZIP containing only the four application host files. It is
+compatible with the installed v1.0.30-v1.0.45 self-contained runtime and avoids downloading the
+roughly 160 MB full package to every pharmacy. Once the bridge is installed, update downloads resume
+from a persistent `.part` file after a network interruption, retry four times, verify mandatory
+SHA-256, and poll for the next release at least every five minutes. Update apply diagnostics are kept
+in `C:\Epharm\update.log`.
 
 If `ztrade` is not found, POSM does not fail: recommendations/video continue, while trusted
 `pharmacistId` and price fields remain empty until the DB path/Firebird connection is available.

@@ -180,8 +180,9 @@ namespace CustomerDisplay
                 // Запрашиваем топологию на каждом heartbeat: Windows может увидеть второй
                 // монитор уже после запуска приложения (кабель/питание/драйвер).
                 var monitorCount = System.Windows.Forms.Screen.AllScreens.Length;
+                var appVersion = AppUpdater.CurrentVersion().ToString();
                 var delivered = await _epharm
-                    .HeartbeatAsync(deviceId, pharmacyId, monitorCount)
+                    .HeartbeatAsync(deviceId, pharmacyId, monitorCount, appVersion)
                     .ConfigureAwait(false);
                 if (delivered && _heartbeatDelivered != true)
                 {

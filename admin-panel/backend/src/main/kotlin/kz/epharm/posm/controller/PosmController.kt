@@ -28,6 +28,7 @@ import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
+import org.slf4j.LoggerFactory
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -56,6 +57,7 @@ class PosmController(
     private val pharmacistIdentityService: PosmPharmacistIdentityService,
     @Value("\${app.posm.device-key:dev-posm-key}") private val deviceKey: String,
 ) {
+    private val log = LoggerFactory.getLogger(PosmController::class.java)
 
     @PostMapping("/recommend")
     fun recommend(
@@ -134,9 +136,19 @@ class PosmController(
     fun appVersion(
         @RequestHeader(name = "X-Posm-Key", required = false) key: String?,
         @RequestParam(required = false, defaultValue = "win-x64") platform: String,
+        @RequestParam(required = false) deviceId: String?,
+        @RequestParam(required = false) currentVersion: String?,
     ): AppVersionDto {
         requireDeviceKey(key)
-        return appReleaseService.currentFor(platform)
+        val release = appReleaseService.currentFor(platform)
+        log.info(
+            "POSM update check: deviceId={}, currentVersion={}, targetVersion={}, platform={}",
+            deviceId?.take(128) ?: "legacy",
+            currentVersion?.take(32) ?: "legacy",
+            release.version,
+            platform.take(32),
+        )
+        return release
     }
 
     /**
@@ -149,6 +161,7 @@ class PosmController(
         @RequestParam(required = false) deviceId: String?,
         @RequestParam(required = false) pharmacyId: String?,
         @RequestParam(required = false) monitorCount: Int?,
+        @RequestParam(required = false) appVersion: String?,
     ): HeartbeatResponse {
         requireDeviceKey(key)
         // deviceId необязателен — на MVP fallback на сам ключ (одно устройство).
@@ -159,6 +172,9 @@ class PosmController(
             id,
             pharmacyId,
             monitorCount = monitorCount?.takeIf { it in 1..16 },
+            appVersion = appVersion
+                ?.trim()
+                ?.takeIf { it.matches(Regex("[0-9A-Za-z.+-]{1,32}")) },
         )
         return HeartbeatResponse(ok = true, deviceId = id)
     }

@@ -422,7 +422,14 @@ class ScreensIntegrationTest {
             ),
         )
         // одна касса привязана к известной аптеке, вторая — к отсутствующей в справочнике
-        devicePresenceService.heartbeat("kassa-known", "ph_known", monitorCount = 2)
+        mockMvc.perform(
+            post("/api/posm/heartbeat")
+                .header("X-Posm-Key", "dev-posm-key")
+                .param("deviceId", "kassa-known")
+                .param("pharmacyId", "ph_known")
+                .param("monitorCount", "2")
+                .param("appVersion", "1.0.46.0"),
+        ).andExpect(status().isOk)
         devicePresenceService.heartbeat("kassa-orphan", "ph_missing")
 
         mockMvc.perform(get("/api/admin/screens/connected").header("Authorization", bearer))
@@ -443,6 +450,10 @@ class ScreensIntegrationTest {
             .andExpect(
                 jsonPath("$.devices[?(@.deviceId=='kassa-known')].hasClientScreen")
                     .value(org.hamcrest.Matchers.hasItem(true)),
+            )
+            .andExpect(
+                jsonPath("$.devices[?(@.deviceId=='kassa-known')].appVersion")
+                    .value(org.hamcrest.Matchers.hasItem("1.0.46.0")),
             )
             // неизвестная аптека → имя/адрес null (фронт покажет сырой id)
             .andExpect(
@@ -467,7 +478,8 @@ class ScreensIntegrationTest {
 
         XSSFWorkbook(ByteArrayInputStream(export.response.contentAsByteArray)).use { workbook ->
             val sheet = workbook.getSheet("POSM и экраны")
-            assertThat(sheet.getRow(3).getCell(6).stringCellValue).isEqualTo("Клиентский экран")
+            assertThat(sheet.getRow(3).getCell(6).stringCellValue).isEqualTo("Версия POSM")
+            assertThat(sheet.getRow(3).getCell(7).stringCellValue).isEqualTo("Клиентский экран")
             assertThat(sheet.printSetup.fitWidth).isEqualTo(1)
             assertThat(sheet.printSetup.fitHeight).isEqualTo(0)
             val known = (4..sheet.lastRowNum)
@@ -477,9 +489,12 @@ class ScreensIntegrationTest {
                 .map(sheet::getRow)
                 .first { it.getCell(4).stringCellValue == "kassa-orphan" }
             assertThat(known.getCell(3).stringCellValue).isEqualTo("Достык 248а")
-            assertThat(known.getCell(6).stringCellValue).isEqualTo("Есть")
-            assertThat(known.getCell(7).stringCellValue).isEqualTo("2")
-            assertThat(orphan.getCell(6).stringCellValue).isEqualTo("Не определено")
+            assertThat(known.getCell(6).stringCellValue).isEqualTo("1.0.46.0")
+            assertThat(known.getCell(7).stringCellValue).isEqualTo("Есть")
+            assertThat(known.getCell(8).stringCellValue).isEqualTo("2")
+            assertThat(orphan.getCell(6).stringCellValue)
+                .isEqualTo("Не передана (требуется обновление)")
+            assertThat(orphan.getCell(7).stringCellValue).isEqualTo("Не определено")
         }
     }
 

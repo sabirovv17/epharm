@@ -36,6 +36,7 @@ class DevicePresenceService(
         private const val PHARMACY_KEY = "epharm:posm:presence:pharmacy"
         private const val DEVICE_KEY = "epharm:posm:presence:device"
         private const val MONITOR_COUNT_KEY = "epharm:posm:presence:monitor-count"
+        private const val APP_VERSION_KEY = "epharm:posm:presence:app-version"
         private const val REDIS_WARNING_INTERVAL_MS = 60_000L
         private const val STORAGE_SEPARATOR = "\u001F"
 
@@ -49,6 +50,8 @@ class DevicePresenceService(
         val lastSeen: Instant,
         /** null пока касса не обновилась до клиента, передающего топологию экранов. */
         val monitorCount: Int? = null,
+        /** null пока касса не обновилась до клиента с телеметрией версии. */
+        val appVersion: String? = null,
         internal val storageKey: String = presenceKey(deviceId, pharmacyId),
     )
 
@@ -59,13 +62,22 @@ class DevicePresenceService(
         pharmacyId: String?,
         now: Instant = Instant.now(),
         monitorCount: Int? = null,
+        appVersion: String? = null,
     ) {
         val normalizedPharmacy = pharmacyId?.takeIf { it.isNotBlank() }
         val key = presenceKey(deviceId, normalizedPharmacy)
         val prev = seen[key]
         val wasOffline = prev == null || prev.lastSeen.isBefore(now.minusSeconds(ttlSeconds))
         val effectiveMonitorCount = monitorCount ?: prev?.monitorCount
-        seen[key] = Presence(deviceId, normalizedPharmacy, now, effectiveMonitorCount, key)
+        val effectiveAppVersion = appVersion ?: prev?.appVersion
+        seen[key] = Presence(
+            deviceId = deviceId,
+            pharmacyId = normalizedPharmacy,
+            lastSeen = now,
+            monitorCount = effectiveMonitorCount,
+            appVersion = effectiveAppVersion,
+            storageKey = key,
+        )
 
         withRedis { redis ->
             redis.opsForZSet().add(LAST_SEEN_KEY, key, now.toEpochMilli().toDouble())
@@ -73,6 +85,9 @@ class DevicePresenceService(
             redis.opsForHash<String, String>().put(DEVICE_KEY, key, deviceId)
             if (monitorCount != null) {
                 redis.opsForHash<String, String>().put(MONITOR_COUNT_KEY, key, monitorCount.toString())
+            }
+            if (appVersion != null) {
+                redis.opsForHash<String, String>().put(APP_VERSION_KEY, key, appVersion)
             }
         }
 
@@ -100,6 +115,7 @@ class DevicePresenceService(
                 val latest = if (stored.lastSeen.isBefore(local.lastSeen)) local else stored
                 combined[local.storageKey] = latest.copy(
                     monitorCount = local.monitorCount ?: stored.monitorCount,
+                    appVersion = local.appVersion ?: stored.appVersion,
                 )
             }
         }
@@ -122,6 +138,7 @@ class DevicePresenceService(
                 hash.delete(PHARMACY_KEY, *expiredIds.toTypedArray())
                 hash.delete(DEVICE_KEY, *expiredIds.toTypedArray())
                 hash.delete(MONITOR_COUNT_KEY, *expiredIds.toTypedArray())
+                hash.delete(APP_VERSION_KEY, *expiredIds.toTypedArray())
             }
 
             val tuples = zset.rangeByScoreWithScores(
@@ -138,6 +155,7 @@ class DevicePresenceService(
             val pharmacies = if (keys.isEmpty()) emptyList() else hash.multiGet(PHARMACY_KEY, keys).orEmpty()
             val deviceIds = if (keys.isEmpty()) emptyList() else hash.multiGet(DEVICE_KEY, keys).orEmpty()
             val monitorCounts = if (keys.isEmpty()) emptyList() else hash.multiGet(MONITOR_COUNT_KEY, keys).orEmpty()
+            val appVersions = if (keys.isEmpty()) emptyList() else hash.multiGet(APP_VERSION_KEY, keys).orEmpty()
             result = values.mapIndexed { index, (key, score) ->
                 Presence(
                     // Records created before the composite-key fix have no DEVICE_KEY entry.
@@ -146,6 +164,7 @@ class DevicePresenceService(
                     pharmacyId = pharmacies.getOrNull(index)?.takeIf { it.isNotBlank() },
                     lastSeen = Instant.ofEpochMilli(score.toLong()),
                     monitorCount = monitorCounts.getOrNull(index)?.toIntOrNull(),
+                    appVersion = appVersions.getOrNull(index)?.takeIf { it.isNotBlank() },
                     storageKey = key,
                 )
             }

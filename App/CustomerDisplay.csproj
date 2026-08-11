@@ -14,7 +14,7 @@
     <EnableDefaultPageItems>false</EnableDefaultPageItems>
     <!-- Версия установленной сборки — с ней авто-апдейтер сравнивает релиз из админки.
          Бампать при каждом релизе (или задавать через -p:Version=x.y.z при publish). -->
-    <Version>1.0.45</Version>
+    <Version>1.0.46</Version>
   </PropertyGroup>
 
   <ItemGroup>

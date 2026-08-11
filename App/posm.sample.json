@@ -18,6 +18,7 @@
   "screenMode": "prod",
   "videoEnabled": true,
   "updateEnabled": true,
+  "updatePollSec": 300,
   "standardNLogPaths": [],
   "standardNDbEnabled": true,
   "standardNDbHost": "localhost",
