@@ -5,13 +5,16 @@
 // реальные хуки useProducts/usePharmacies с дебаунсом.)
 
 import { useState, type ReactNode } from 'react'
-import { SECTIONS, type SectionId } from '@/mocks/fixtures'
+import type { UserDto } from '@/lib/api-types'
+import { type SectionId } from '@/mocks/fixtures'
+import { sectionsForRole } from '@/app/accessPolicy'
 import { IconSearch } from '@/ui/icons'
 import { useT } from '@/i18n'
 
 interface CommandPaletteProps {
   onClose: () => void
   onNav: (id: SectionId) => void
+  user: UserDto
 }
 
 interface Item {
@@ -23,11 +26,11 @@ interface Item {
 
 // Монтируется ТОЛЬКО когда открыта (см. AppShell), поэтому состояние поиска
 // сбрасывается само при каждом открытии — без setState-в-effect (cascading renders).
-export function CommandPalette({ onClose, onNav }: CommandPaletteProps) {
+export function CommandPalette({ onClose, onNav, user }: CommandPaletteProps) {
   const t = useT()
   const [q, setQ] = useState('')
 
-  const items: Item[] = SECTIONS.map((s) => {
+  const items: Item[] = sectionsForRole(user.role).map((s) => {
     const Icon = s.Icon
     return {
       id: s.id,

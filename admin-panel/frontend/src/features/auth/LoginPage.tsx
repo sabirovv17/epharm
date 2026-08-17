@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Field, Input } from '@/ui'
 import { Logo } from '@/layout/Logo'
 import { useUiStore } from '@/app/store'
+import { defaultPathForRole } from '@/app/accessPolicy'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -34,7 +35,8 @@ export default function LoginPage() {
     try {
       const result = await login(email, password)
       if (result.ok) {
-        navigate('/rules', { replace: true })
+        const user = useUiStore.getState().authedUser
+        navigate(user ? defaultPathForRole(user.role) : '/rules', { replace: true })
       } else if (result.code === 'INVALID_CREDENTIALS') {
         setError('Неверный email или пароль')
       } else if (result.code === 'NETWORK') {

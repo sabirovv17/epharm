@@ -16,12 +16,12 @@ test.describe('Auth — /login форма', () => {
     await expect(freshPage.getByLabel(/Email/i)).toBeFocused()
   })
 
-  test('Epharm wordmark с зелёным «E», без упоминаний PharmaPay', async ({ freshPage }) => {
+  test('актуальный брендинг: логотип-глиф + Console, без старых wordmark', async ({ freshPage }) => {
     await freshPage.goto('/login')
-    // Wordmark в видимом DOM, не в HTML source (там попадают имена chunk-файлов
-    // которые могут содержать "Pharma" по дизайну).
-    await expect(freshPage.getByText('Epharm Console')).toBeVisible()
+    await expect(freshPage.getByText('Console', { exact: true })).toBeVisible()
+    await expect(freshPage.locator('svg').first()).toBeVisible()
     const bodyText = await freshPage.locator('body').textContent()
+    expect(bodyText ?? '').not.toMatch(/Epharm Console/)
     expect(bodyText ?? '').not.toMatch(/PharmaPay/)
   })
 })

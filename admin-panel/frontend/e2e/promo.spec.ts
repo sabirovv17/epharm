@@ -1,5 +1,4 @@
-// E2E: Промо-кампании — CRUD, filter, search, archive/restore, detail modal,
-// live preview. Покрывает Bug L+M+N+O regressions.
+// E2E: Промо-кампании — CRUD, filter, search, archive/restore и товарная форма.
 
 import { test, expect, BACKEND_URL, getBearer } from './fixtures'
 
@@ -108,30 +107,10 @@ test.describe('Promo — клик по карточке открывает ст�
 })
 
 test.describe('Promo — toggle pause/resume + stopPropagation', () => {
-  test('клик «Поставить на паузу» НЕ навигирует на страницу кампании', async ({
-    loggedInPage,
-    request,
-  }) => {
-    // Создаём свою active кампанию через API — не зависим от seed-state,
-    // который мог быть выключен прошлыми E2E run'ами (archive/pause).
-    const bearer = await getBearer(request)
-    const created = await request.post(`${BACKEND_URL}/api/admin/promo`, {
-      headers: { Authorization: bearer },
-      data: {
-        title: `E2E-pause-${Date.now()}`,
-        brand: 'Test',
-        status: 'active',
-        budget: 100,
-      },
-    })
-    expect(created.ok()).toBe(true)
-    const promo = (await created.json()) as { id: string }
-
-    // Чистим cache чтобы fresh fetch включил новую кампанию
-    await loggedInPage.evaluate(() => localStorage.removeItem('epharm.query.cache'))
-    await loggedInPage.goto('/promo')
-
-    const card = loggedInPage.locator(`[data-testid="promo-card-${promo.id}"]`)
+  test('клик «Поставить на паузу» НЕ навигирует на страницу кампании', async ({ loggedInPage }) => {
+    // pr_001 — стабильная active seed-кампания. Per-test reset возвращает её
+    // перед каждым сценарием, поэтому не создаём невалидную active-кампанию без товара.
+    const card = loggedInPage.getByTestId('promo-card-pr_001')
     await expect(card).toBeVisible({ timeout: 10_000 })
     await card.getByRole('button', { name: /Поставить на паузу/ }).click()
 
@@ -142,73 +121,133 @@ test.describe('Promo — toggle pause/resume + stopPropagation', () => {
 })
 
 test.describe('Promo — create кампанию', () => {
-  test('«Новая кампания» открывает modal с live preview', async ({ loggedInPage }) => {
-    await loggedInPage.getByRole('button', { name: /Новая кампания/ }).first().click()
-    await expect(loggedInPage.getByTestId('promo-create-preview')).toBeVisible()
-    await expect(loggedInPage.getByText(/Название кампании/i)).toBeVisible()
+  const storefrontProduct = {
+    id: 'prod_e2e_storefront',
+    name: 'E2E товар витрины',
+    brand: 'E2E Brand',
+    mnn: null,
+    rxOtc: 'OTC',
+    price: 4990,
+    currency: 'KZT',
+    imageUrl: null,
+    barcode: '4603423004936',
+    ipartId: 'E2E-IPART',
+    category: 'Тестовая категория',
+  }
+
+  test.beforeEach(async ({ loggedInPage }) => {
+    // UI-сценарии не должны зависеть от доступности внешней Medusa. Интеграция
+    // backend↔Medusa покрывается backend-тестами; здесь фиксируем контракт формы.
+    await loggedInPage.route('**/api/admin/storefront/products**', async (route) => {
+      const path = new URL(route.request().url()).pathname
+      const isDetail = path.endsWith(`/${storefrontProduct.id}`)
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          isDetail
+            ? {
+                ...storefrontProduct,
+                atc: null,
+                images: [],
+                country: null,
+                manufacturer: null,
+                description: 'Тестовое описание товара',
+                keyFacts: [],
+              }
+            : { items: [storefrontProduct], total: 1, limit: 50, offset: 0 },
+        ),
+      })
+    })
   })
 
-  test('Bug O regression: ввод title обновляет preview', async ({ loggedInPage }) => {
+  const selectFirstProduct = async (loggedInPage: import('@playwright/test').Page) => {
+    const option = loggedInPage.locator('[data-testid^="promo-product-option-"]').first()
+    await expect(option).toBeVisible()
+    await option.click()
+    await expect(loggedInPage.getByTestId('create-price-readonly')).toBeVisible()
+  }
+
+  test('«Новая кампания» открывает товарную форму Medusa', async ({ loggedInPage }) => {
     await loggedInPage.getByRole('button', { name: /Новая кампания/ }).first().click()
-    await loggedInPage
-      .getByPlaceholder(/Майский марафон Аквамарис/)
-      .fill('E2E test campaign')
-    await expect(loggedInPage.getByTestId('promo-create-preview')).toContainText(
-      'E2E test campaign',
-    )
+    const dialog = loggedInPage.getByRole('dialog', { name: /Новая кампания/ })
+    await expect(dialog).toBeVisible()
+    await expect(dialog.getByText(/Один товар из витрины/i)).toBeVisible()
+    await expect(dialog.getByPlaceholder(/Поиск товара в витрине Medusa/)).toBeVisible()
   })
 
-  test('Bug O regression: ввод hex обновляет background preview', async ({ loggedInPage }) => {
+  test('выбор товара заполняет название и показывает read-only цену', async ({ loggedInPage }) => {
     await loggedInPage.getByRole('button', { name: /Новая кампания/ }).first().click()
-    const coverInput = loggedInPage.getByPlaceholder('#16C97A')
-    await coverInput.clear()
-    await coverInput.fill('#FF00AA')
-    // Real chromium может сериализовать как rgb или hex. Проверяем через computed.
-    const bgImage = await loggedInPage.getByTestId('promo-create-preview').evaluate((el) =>
-      window.getComputedStyle(el).backgroundImage,
-    )
-    // #FF00AA = rgb(255, 0, 170)
-    expect(bgImage).toMatch(/rgb\(255,\s*0,\s*170\)/)
+    await selectFirstProduct(loggedInPage)
+    await expect(loggedInPage.getByPlaceholder(/Майский марафон Аквамарис/)).not.toHaveValue('')
   })
 
-  test('кнопка disabled пока title или brand пустые', async ({ loggedInPage }) => {
+  test('выбор пресета меняет цвет обложки', async ({ loggedInPage }) => {
+    await loggedInPage.getByRole('button', { name: /Новая кампания/ }).first().click()
+    const preset = loggedInPage.getByRole('button', { name: '#BE5A38' })
+    await preset.click()
+    await expect(preset).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  test('кнопка disabled до выбора товара, после выбора — enabled', async ({ loggedInPage }) => {
     await loggedInPage.getByRole('button', { name: /Новая кампания/ }).first().click()
     const submit = loggedInPage.getByRole('button', { name: /Создать черновик/ })
     await expect(submit).toBeDisabled()
-    await loggedInPage.getByPlaceholder(/Майский марафон Аквамарис/).fill('Test')
-    await expect(submit).toBeDisabled()
-    await loggedInPage.getByPlaceholder(/Jadran-Galenski/).fill('Jadran')
+    await selectFirstProduct(loggedInPage)
     await expect(submit).toBeEnabled()
   })
 
-  test('создать кампанию → toast + новый promo в списке', async ({ loggedInPage }) => {
+  test('создать кампанию → корректный POST + toast', async ({ loggedInPage }) => {
     const unique = `E2E-${Date.now()}`
+    let submitted: Record<string, unknown> | null = null
+    await loggedInPage.route('**/api/admin/promo', async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.continue()
+        return
+      }
+      const payload = route.request().postDataJSON() as Record<string, unknown>
+      submitted = payload
+      const now = new Date().toISOString()
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'pr_e2e_created',
+          ...payload,
+          status: 'draft',
+          pharmacies: 0,
+          budget: 0,
+          spent: 0,
+          kpi: '',
+          price: storefrontProduct.price,
+          tiers: [{ minQty: 1, price: storefrontProduct.price, bonus: 0 }],
+          createdBy: 'u_brand',
+          createdAt: now,
+          updatedAt: now,
+        }),
+      })
+    })
+
     await loggedInPage.getByRole('button', { name: /Новая кампания/ }).first().click()
+    await selectFirstProduct(loggedInPage)
     await loggedInPage.getByPlaceholder(/Майский марафон Аквамарис/).fill(unique)
-    await loggedInPage.getByPlaceholder(/Jadran-Galenski/).fill('Test brand')
     await loggedInPage.getByRole('button', { name: /Создать черновик/ }).click()
     await expect(loggedInPage.getByText(/Кампания создана в черновиках/i)).toBeVisible()
-    // Modal закрылась
-    await expect(loggedInPage.getByText(/Сохраним черновик/i)).not.toBeVisible()
-    // Карточка появилась
-    await expect(loggedInPage.getByText(unique)).toBeVisible()
+    await expect(loggedInPage.getByRole('dialog', { name: /Новая кампания/ })).toHaveCount(0)
+    expect(submitted).toMatchObject({
+      title: unique,
+      status: 'draft',
+      medusaProductId: storefrontProduct.id,
+      productName: storefrontProduct.name,
+      barcode: storefrontProduct.barcode,
+      ipartId: storefrontProduct.ipartId,
+    })
   })
 })
 
 test.describe('Promo — Bug L regression: archive + restore', () => {
-  test('архивировать → подтверждение → toast', async ({ loggedInPage, request }) => {
-    const bearer = await getBearer(request)
-    const created = await request.post(`${BACKEND_URL}/api/admin/promo`, {
-      headers: { Authorization: bearer },
-      data: { title: `E2E-archive-${Date.now()}`, brand: 'Test', status: 'active', budget: 100 },
-    })
-    expect(created.ok()).toBe(true)
-    const promo = (await created.json()) as { id: string; title: string }
-
-    // Чистим cache, чтобы staleTime не закэшировал данные без нового промо
-    await loggedInPage.evaluate(() => localStorage.removeItem('epharm.query.cache'))
-    await loggedInPage.goto('/promo')
-    const card = loggedInPage.locator(`[data-testid="promo-card-${promo.id}"]`)
+  test('архивировать → подтверждение → toast', async ({ loggedInPage }) => {
+    const card = loggedInPage.getByTestId('promo-card-pr_001')
     await expect(card).toBeVisible({ timeout: 10_000 })
 
     loggedInPage.once('dialog', (d) => d.accept())
@@ -221,19 +260,14 @@ test.describe('Promo — Bug L regression: archive + restore', () => {
     request,
   }) => {
     const bearer = await getBearer(request)
-    const created = await request.post(`${BACKEND_URL}/api/admin/promo`, {
-      headers: { Authorization: bearer },
-      data: { title: `E2E-restore-${Date.now()}`, brand: 'Test', status: 'active', budget: 100 },
-    })
-    const promo = (await created.json()) as { id: string }
-    await request.post(`${BACKEND_URL}/api/admin/promo/${promo.id}/archive`, {
+    await request.post(`${BACKEND_URL}/api/admin/promo/pr_001/archive`, {
       headers: { Authorization: bearer },
     })
     await loggedInPage.evaluate(() => localStorage.removeItem('epharm.query.cache'))
     await loggedInPage.goto('/promo')
     await loggedInPage.locator('select').first().selectOption('archived')
 
-    const card = loggedInPage.locator(`[data-testid="promo-card-${promo.id}"]`)
+    const card = loggedInPage.getByTestId('promo-card-pr_001')
     await expect(card).toBeVisible({ timeout: 10_000 })
     await expect(card.getByRole('button', { name: /^Восстановить$/ })).toBeVisible()
     await expect(card.getByRole('button', { name: /Поставить на паузу/ })).toHaveCount(0)
@@ -241,19 +275,14 @@ test.describe('Promo — Bug L regression: archive + restore', () => {
 
   test('Restore → status переходит в draft + toast', async ({ loggedInPage, request }) => {
     const bearer = await getBearer(request)
-    const created = await request.post(`${BACKEND_URL}/api/admin/promo`, {
-      headers: { Authorization: bearer },
-      data: { title: `E2E-restore-do-${Date.now()}`, brand: 'Test', status: 'active', budget: 1 },
-    })
-    const promo = (await created.json()) as { id: string }
-    await request.post(`${BACKEND_URL}/api/admin/promo/${promo.id}/archive`, {
+    await request.post(`${BACKEND_URL}/api/admin/promo/pr_001/archive`, {
       headers: { Authorization: bearer },
     })
     await loggedInPage.evaluate(() => localStorage.removeItem('epharm.query.cache'))
     await loggedInPage.goto('/promo')
     await loggedInPage.locator('select').first().selectOption('archived')
 
-    const card = loggedInPage.locator(`[data-testid="promo-card-${promo.id}"]`)
+    const card = loggedInPage.getByTestId('promo-card-pr_001')
     await expect(card).toBeVisible({ timeout: 10_000 })
     await card.getByRole('button', { name: /^Восстановить$/ }).click()
     await expect(loggedInPage.getByText(/Кампания восстановлена/i)).toBeVisible()

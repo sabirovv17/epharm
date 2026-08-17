@@ -390,6 +390,7 @@ class DevDataSeeder {
             DevAccount("damir@jadran.com",     "damir2026",     "Дамир Нурланов",   AdminRole.BRAND_MANAGER, "Jadran"),
             DevAccount("aigerim@inkar.kz",     "aigerim2026",   "Айгерим Сарсенова", AdminRole.CATEGORY_LEAD, "Inkar / Ledex"),
             DevAccount("bauyrzhan@inkar.kz",   "bauyrzhan2026", "Бауыржан Тлеуов",  AdminRole.HQ_HEAD,       "Inkar"),
+            DevAccount("lms@epharm.kz",        "lms123",        "Руководитель обучения", AdminRole.TRAINING_MANAGER, "Inkar"),
         )
         var created = 0
         accounts.forEach { acc ->

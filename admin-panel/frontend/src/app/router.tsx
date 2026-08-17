@@ -7,6 +7,9 @@ import { AppShell } from './AppShell'
 import { RequireAuth } from './RequireAuth'
 import NotFoundPage from './NotFoundPage'
 import type { SectionId } from '@/mocks/fixtures'
+import { useUiStore } from './store'
+import { defaultPathForRole } from './accessPolicy'
+import { SectionRoute } from './SectionRoute'
 
 const LoginPage = lazy(() => import('@/features/auth/LoginPage'))
 const Dashboard = lazy(() => import('@/features/dashboard/DashboardPage'))
@@ -25,23 +28,6 @@ const LMS = lazy(() => import('@/features/lms/LMSPage'))
 const Settings = lazy(() => import('@/features/settings/SettingsPage'))
 const Storefront = lazy(() => import('@/features/storefront/StorefrontPage'))
 
-// path ↔ SectionId mapping. Используется и Sidebar (highlight) и router (path).
-export const SECTION_ROUTES: Record<SectionId, string> = {
-  dashboard: '/dashboard',
-  promo: '/promo',
-  rules: '/rules',
-  screens: '/screens',
-  pharmacies: '/pharmacies',
-  pharmacists: '/pharmacists',
-  reconcile: '/reconcile',
-  ai_exam: '/ai-exam',
-  finance: '/finance',
-  lift: '/lift',
-  lms: '/lms',
-  settings: '/settings',
-  storefront: '/storefront',
-}
-
 function PageFallback() {
   return (
     <div className="flex items-center justify-center py-20 text-[13px] text-ink-400">Загрузка…</div>
@@ -50,6 +36,15 @@ function PageFallback() {
 
 function withSuspense(node: React.ReactNode) {
   return <Suspense fallback={<PageFallback />}>{node}</Suspense>
+}
+
+function protectedPage(section: SectionId, page: React.ReactNode) {
+  return <SectionRoute section={section}>{withSuspense(page)}</SectionRoute>
+}
+
+function HomeRedirect() {
+  const user = useUiStore((state) => state.authedUser)
+  return <Navigate to={user ? defaultPathForRole(user.role) : '/login'} replace />
 }
 
 export function AppRouter() {
@@ -61,24 +56,24 @@ export function AppRouter() {
       {/* Private — всё за RequireAuth → AppShell с Sidebar + Topbar */}
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
-          <Route path="/dashboard" element={withSuspense(<Dashboard />)} />
-          <Route path="/promo" element={withSuspense(<Promo />)} />
-          <Route path="/promo/:id" element={withSuspense(<PromoDetail />)} />
-          <Route path="/rules" element={withSuspense(<Rules />)} />
-          <Route path="/screens" element={withSuspense(<Screens />)} />
+          <Route path="/dashboard" element={protectedPage('dashboard', <Dashboard />)} />
+          <Route path="/promo" element={protectedPage('promo', <Promo />)} />
+          <Route path="/promo/:id" element={protectedPage('promo', <PromoDetail />)} />
+          <Route path="/rules" element={protectedPage('rules', <Rules />)} />
+          <Route path="/screens" element={protectedPage('screens', <Screens />)} />
           {/* Баннеры переехали внутрь раздела «Экраны» (вкладка). Редирект для старых ссылок. */}
           <Route path="/banners" element={<Navigate to="/screens" replace />} />
-          <Route path="/pharmacies" element={withSuspense(<Pharmacies />)} />
-          <Route path="/pharmacies/:id" element={withSuspense(<PharmacyDetail />)} />
-          <Route path="/pharmacists" element={withSuspense(<Pharmacists />)} />
-          <Route path="/reconcile" element={withSuspense(<Reconcile />)} />
-          <Route path="/ai-exam" element={withSuspense(<AIExam />)} />
-          <Route path="/finance" element={withSuspense(<Finance />)} />
-          <Route path="/lift" element={withSuspense(<Lift />)} />
-          <Route path="/lms" element={withSuspense(<LMS />)} />
-          <Route path="/settings" element={withSuspense(<Settings />)} />
-          <Route path="/storefront" element={withSuspense(<Storefront />)} />
-          <Route path="/" element={<Navigate to="/rules" replace />} />
+          <Route path="/pharmacies" element={protectedPage('pharmacies', <Pharmacies />)} />
+          <Route path="/pharmacies/:id" element={protectedPage('pharmacies', <PharmacyDetail />)} />
+          <Route path="/pharmacists" element={protectedPage('pharmacists', <Pharmacists />)} />
+          <Route path="/reconcile" element={protectedPage('reconcile', <Reconcile />)} />
+          <Route path="/ai-exam" element={protectedPage('ai_exam', <AIExam />)} />
+          <Route path="/finance" element={protectedPage('finance', <Finance />)} />
+          <Route path="/lift" element={protectedPage('lift', <Lift />)} />
+          <Route path="/lms" element={protectedPage('lms', <LMS />)} />
+          <Route path="/settings" element={protectedPage('settings', <Settings />)} />
+          <Route path="/storefront" element={protectedPage('storefront', <Storefront />)} />
+          <Route path="/" element={<HomeRedirect />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Route>

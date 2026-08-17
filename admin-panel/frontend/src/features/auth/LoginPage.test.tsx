@@ -48,6 +48,7 @@ function renderLogin() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/rules" element={<div>RulesPage</div>} />
+        <Route path="/lms" element={<div>LearningPage</div>} />
       </Routes>
     </MemoryRouter>,
   )
@@ -115,6 +116,20 @@ describe('LoginPage — submit (с моком authApi)', () => {
     })
     expect(authApi.login).toHaveBeenCalledWith('damir@jadran.com', 'damir2026')
     expect(useUiStore.getState().authedUser?.id).toBe('damir')
+  })
+
+  it('руководитель обучения после входа попадает сразу в LMS', async () => {
+    authApi.login.mockResolvedValueOnce({ ...mockLoginResponse, user: USERS.lms })
+    const user = userEvent.setup()
+    renderLogin()
+    await user.type(screen.getByLabelText(/Email/i), 'lms@epharm.kz')
+    await user.type(screen.getByLabelText(/Пароль/i), 'lms123')
+    await user.click(screen.getByRole('button', { name: /Войти/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('LearningPage')).toBeInTheDocument()
+    })
+    expect(useUiStore.getState().authedUser?.role).toBe('TRAINING_MANAGER')
   })
 
   it('INVALID_CREDENTIALS → показывает ошибку, authedUser=null', async () => {

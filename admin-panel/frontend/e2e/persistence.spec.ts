@@ -1,7 +1,7 @@
 // E2E: Bug P regression — cache persistence через reload + stale data при error.
 // Самый важный flow по жалобе юзера.
 
-import { test, expect, BACKEND_URL } from './fixtures'
+import { test, expect } from './fixtures'
 
 test.describe('Bug P regression: Cmd+R сохраняет данные', () => {
   test('/promo: после reload данные показаны мгновенно (no loading)', async ({
@@ -117,12 +117,7 @@ test.describe('Bug Q regression: stale data при error refetch', () => {
     await expect(loggedInPage.getByText(/Загружаем кампании…/i)).toHaveCount(0)
   })
 
-  // ОСОЗНАННО skip (не seed-зависимый — globalSetup-reset тут не помогает):
-  // flaky из-за тайминга Playwright `route.abort` vs refetch order React Query.
-  // Путь cache/retry уже покрыт зелёными errors.spec.ts (JWT refresh + retry→fresh)
-  // и unit-тестом компонента. Включить когда заведём Playwright-MSW для
-  // контролируемого error-injection (детерминированный abort).
-  test.skip('reload + blocked API → cached data + warning banner (Bug Q)', async ({
+  test('reload + HTTP 503 → cached data + warning banner (Bug Q)', async ({
     loggedInPage,
   }) => {
     await loggedInPage.goto('/promo')
@@ -131,8 +126,15 @@ test.describe('Bug Q regression: stale data при error refetch', () => {
     ).toBeVisible({ timeout: 10_000 })
     await loggedInPage.waitForTimeout(500)
 
-    // Block before reload
-    await loggedInPage.route('**/api/admin/promo*', (route) => route.abort('failed'))
+    // Детерминированный HTTP-ответ надёжнее route.abort(): браузер завершает запрос,
+    // а React Query гарантированно получает обычную серверную ошибку.
+    await loggedInPage.route('**/api/admin/promo*', (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 'SERVICE_UNAVAILABLE', message: 'E2E controlled failure' }),
+      }),
+    )
     await loggedInPage.reload()
 
     // Persistent cache видна

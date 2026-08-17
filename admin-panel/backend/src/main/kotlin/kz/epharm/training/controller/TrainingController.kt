@@ -2,6 +2,8 @@ package kz.epharm.training.controller
 
 import jakarta.validation.Valid
 import kz.epharm.auth.security.AdminPrincipal
+import kz.epharm.pharmacists.dto.PharmacistDto
+import kz.epharm.pharmacists.service.PharmacistService
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import kz.epharm.training.domain.TrainingProgramStatus
@@ -51,6 +53,7 @@ import java.util.UUID
 @RequestMapping("/api/admin/training")
 class TrainingController(
     private val trainingService: TrainingService,
+    private val pharmacistService: PharmacistService,
 ) {
     @GetMapping("/dashboard")
     fun dashboard(@AuthenticationPrincipal principal: AdminPrincipal?): TrainingDashboardDto =
@@ -63,15 +66,20 @@ class TrainingController(
     @GetMapping("/programs/{id}")
     fun program(@PathVariable id: UUID): TrainingProgramDto = trainingService.getProgram(id)
 
+    /** Read-only roster for course/event assignment inside the training workspace. */
+    @GetMapping("/pharmacists")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HQ_HEAD','TRAINING_MANAGER','REGIONAL_MANAGER')")
+    fun pharmacists(): List<PharmacistDto> = pharmacistService.list()
+
     @PostMapping("/programs")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HQ_HEAD','TRAINING_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER')")
     fun createProgram(
         @Valid @RequestBody req: CreateTrainingProgramRequest,
         @AuthenticationPrincipal principal: AdminPrincipal?,
     ): TrainingProgramDto = trainingService.createProgram(req, requirePrincipal(principal))
 
     @PatchMapping("/programs/{id}")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HQ_HEAD','TRAINING_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER')")
     fun updateProgram(
         @PathVariable id: UUID,
         @Valid @RequestBody req: UpdateTrainingProgramRequest,
@@ -83,14 +91,14 @@ class TrainingController(
         trainingService.listEvents(requirePrincipal(principal))
 
     @PostMapping("/events")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HQ_HEAD','TRAINING_MANAGER','REGIONAL_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER','REGIONAL_MANAGER')")
     fun createEvent(
         @Valid @RequestBody req: CreateOfflineEventRequest,
         @AuthenticationPrincipal principal: AdminPrincipal?,
     ): OfflineEventDto = trainingService.createEvent(req, requirePrincipal(principal))
 
     @PatchMapping("/events/{eventId}")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HQ_HEAD','TRAINING_MANAGER','REGIONAL_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER','REGIONAL_MANAGER')")
     fun updateEvent(
         @PathVariable eventId: UUID,
         @Valid @RequestBody req: UpdateOfflineEventRequest,
@@ -112,7 +120,7 @@ class TrainingController(
     ): TrainingEventQrDto = trainingService.eventQr(eventId, requirePrincipal(principal))
 
     @PatchMapping("/events/{eventId}/participants/{participantId}")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HQ_HEAD','TRAINING_MANAGER','REGIONAL_MANAGER','TRAINER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER','REGIONAL_MANAGER','TRAINER')")
     fun markAttendance(
         @PathVariable eventId: UUID,
         @PathVariable participantId: UUID,
@@ -173,14 +181,14 @@ class TrainingController(
         .body(trainingService.exportAssignmentsCsv(requirePrincipal(principal), format, status, programId, query))
 
     @PostMapping("/assignments")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HQ_HEAD','TRAINING_MANAGER','REGIONAL_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER','REGIONAL_MANAGER')")
     fun createAssignments(
         @Valid @RequestBody req: CreateTrainingAssignmentsRequest,
         @AuthenticationPrincipal principal: AdminPrincipal?,
     ): MassAssignmentResultDto = trainingService.createAssignments(req, requirePrincipal(principal))
 
     @PatchMapping("/assignments/{assignmentId}/format")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HQ_HEAD','TRAINING_MANAGER','REGIONAL_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER','REGIONAL_MANAGER')")
     fun changeAssignmentFormat(
         @PathVariable assignmentId: UUID,
         @Valid @RequestBody req: ChangeAssignmentFormatRequest,
@@ -201,7 +209,7 @@ class TrainingController(
     )
 
     @PatchMapping("/assignments/{assignmentId}/stages/{stageId}/result")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HQ_HEAD','TRAINING_MANAGER','REGIONAL_MANAGER','TRAINER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER','REGIONAL_MANAGER','TRAINER')")
     fun recordAssessmentResult(
         @PathVariable assignmentId: UUID,
         @PathVariable stageId: UUID,
@@ -249,7 +257,7 @@ class TrainingController(
     )
 
     @PatchMapping("/pharmacists/{pharmacistId}/preference")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HQ_HEAD','TRAINING_MANAGER','REGIONAL_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER','REGIONAL_MANAGER')")
     fun changePreference(
         @PathVariable pharmacistId: String,
         @Valid @RequestBody req: ChangeTrainingPreferenceRequest,
@@ -261,7 +269,7 @@ class TrainingController(
     )
 
     @PatchMapping("/pharmacists/preferences")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HQ_HEAD','TRAINING_MANAGER','REGIONAL_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER','REGIONAL_MANAGER')")
     fun changePreferences(
         @Valid @RequestBody req: MassChangeTrainingPreferencesRequest,
         @AuthenticationPrincipal principal: AdminPrincipal?,

@@ -27,6 +27,8 @@ import {
 import { describeError } from '@/lib/describeError'
 import { formatNum } from '@/mocks/fixtures'
 import { useT } from '@/i18n'
+import { canManageAiExam } from '@/app/accessPolicy'
+import { useUiStore } from '@/app/store'
 
 type ExamTab = 'bank' | 'results' | 'certificates'
 
@@ -39,6 +41,8 @@ const KIND_KEY: Record<ExamQuestionKind, string> = {
 export default function AIExamPage() {
   const t = useT()
   const toast = useToast()
+  const role = useUiStore((state) => state.authedUser?.role)
+  const canManage = canManageAiExam(role)
   const [tab, setTab] = useState<ExamTab>('bank')
   const [createOpen, setCreateOpen] = useState(false)
 
@@ -57,14 +61,20 @@ export default function AIExamPage() {
         title={t('page.ai_exam.title')}
         subtitle={t('page.ai_exam.subtitle')}
         actions={
-          <Button
-            variant="primary"
-            size="md"
-            leading={<IconPlus size={14} />}
-            onClick={() => setCreateOpen(true)}
-          >
-            {t('ai.newQuestion')}
-          </Button>
+          canManage ? (
+            <Button
+              variant="primary"
+              size="md"
+              leading={<IconPlus size={14} />}
+              onClick={() => setCreateOpen(true)}
+            >
+              {t('ai.newQuestion')}
+            </Button>
+          ) : (
+            <span className="chip chip-ink" data-testid="ai-exam-read-only">
+              Только просмотр
+            </span>
+          )
         }
       />
 
@@ -111,15 +121,17 @@ export default function AIExamPage() {
                 body={t('ai.emptyBody')}
                 icon={<IconAIExam size={26} />}
                 action={
-                  <Button leading={<IconPlus size={14} />} onClick={() => setCreateOpen(true)}>
-                    {t('ai.newQuestion')}
-                  </Button>
+                  canManage ? (
+                    <Button leading={<IconPlus size={14} />} onClick={() => setCreateOpen(true)}>
+                      {t('ai.newQuestion')}
+                    </Button>
+                  ) : undefined
                 }
               />
             ) : (
               <ul className="flex flex-col" data-testid="exam-questions">
                 {questions.map((q) => (
-                  <QuestionRow key={q.id} q={q} />
+                  <QuestionRow key={q.id} q={q} canManage={canManage} />
                 ))}
               </ul>
             ))}
@@ -140,19 +152,21 @@ export default function AIExamPage() {
         </div>
       </div>
 
-      <CreateQuestionModal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        onCreated={() => {
-          toast.push(t('ai.addedToast'))
-          setCreateOpen(false)
-        }}
-      />
+      {canManage && (
+        <CreateQuestionModal
+          open={createOpen}
+          onClose={() => setCreateOpen(false)}
+          onCreated={() => {
+            toast.push(t('ai.addedToast'))
+            setCreateOpen(false)
+          }}
+        />
+      )}
     </div>
   )
 }
 
-function QuestionRow({ q }: { q: ExamQuestionDto }) {
+function QuestionRow({ q, canManage }: { q: ExamQuestionDto; canManage: boolean }) {
   const t = useT()
   const toast = useToast()
   const del = useDeleteExamQuestion()
@@ -178,16 +192,18 @@ function QuestionRow({ q }: { q: ExamQuestionDto }) {
           {q.keywords.length > 0 && ` · ${t('ai.keywords', { kw: q.keywords.join(', ') })}`}
         </div>
       </div>
-      <button
-        type="button"
-        onClick={handleDelete}
-        disabled={del.isPending}
-        aria-label={t('ai.delete')}
-        data-testid={`exam-question-delete-${q.id}`}
-        className="mt-0.5 flex-none text-ink-400 transition-colors hover:text-accent-danger disabled:opacity-40"
-      >
-        <IconTrash size={15} />
-      </button>
+      {canManage && (
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={del.isPending}
+          aria-label={t('ai.delete')}
+          data-testid={`exam-question-delete-${q.id}`}
+          className="mt-0.5 flex-none text-ink-400 transition-colors hover:text-accent-danger disabled:opacity-40"
+        >
+          <IconTrash size={15} />
+        </button>
+      )}
     </li>
   )
 }

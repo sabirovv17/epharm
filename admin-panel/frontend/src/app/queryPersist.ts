@@ -70,7 +70,10 @@ export function configureQueryPersistence(
         for (const e of env.entries) {
           // setQueryData принимает queryKey + data. Это создаёт записи в кэше.
           if (Array.isArray(e.queryKey) && e.data !== undefined) {
-            qc.setQueryData(e.queryKey, e.data)
+            // Показываем восстановленные данные сразу, но считаем их stale: после
+            // reload Query сам запустит фоновую перепроверку. Иначе setQueryData
+            // проставляет Date.now(), и backend не опрашивается ещё staleTime (30с).
+            qc.setQueryData(e.queryKey, e.data, { updatedAt: 0 })
           }
         }
       } else {

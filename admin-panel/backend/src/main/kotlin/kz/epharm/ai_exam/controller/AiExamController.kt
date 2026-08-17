@@ -10,6 +10,7 @@ import kz.epharm.auth.security.AdminPrincipal
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import org.springframework.http.HttpStatus
+import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController
 // Сессии/результаты/сертификаты — Этап 4.
 @RestController
 @RequestMapping("/api/admin/ai-exam/questions")
+@PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HQ_HEAD','TRAINING_MANAGER')")
 class AiExamController(private val questionService: ExamQuestionService) {
 
     @GetMapping
@@ -33,16 +35,19 @@ class AiExamController(private val questionService: ExamQuestionService) {
         questionService.list(kind = kind)
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER')")
     fun create(
         @Valid @RequestBody req: CreateExamQuestionRequest,
         @AuthenticationPrincipal principal: AdminPrincipal?,
     ): ExamQuestionDto = questionService.create(req, createdBy = requireUserId(principal))
 
     @PatchMapping("/{id}")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER')")
     fun update(@PathVariable id: String, @Valid @RequestBody req: UpdateExamQuestionRequest): ExamQuestionDto =
         questionService.update(id, req)
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun delete(@PathVariable id: String) = questionService.delete(id)
 

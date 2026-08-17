@@ -60,6 +60,7 @@ describe('Bug P REPRO — query cache persistence в localStorage', () => {
 
     const restored = qc2.getQueryData(['promo', 'list'])
     expect(restored).toEqual([{ id: 'pr_1', title: 'Кэшировано' }])
+    expect(qc2.getQueryState(['promo', 'list'])?.dataUpdatedAt).toBe(0)
   })
 
   it('clearPersistedCache очищает storage (вызывается из logout)', async () => {

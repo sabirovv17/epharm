@@ -3,7 +3,7 @@
 import { test, expect } from './fixtures'
 
 test.describe('Sidebar — навигация', () => {
-  test('12 пунктов меню кликабельны', async ({ loggedInPage }) => {
+  test('доступные Brand Manager разделы кликабельны', async ({ loggedInPage }) => {
     const sections = [
       { label: /Дашборд аналитики/, url: /\/dashboard/ },
       { label: /Промо-кампании/, url: /\/promo/ },
@@ -12,10 +12,8 @@ test.describe('Sidebar — навигация', () => {
       { label: /Сеть аптек/, url: /\/pharmacies/ },
       { label: /Фармацевты/, url: /\/pharmacists/ },
       { label: /Сверка чеков/, url: /\/reconcile/ },
-      { label: /AI-Экзаменация/, url: /\/ai-exam/ },
       { label: /Финансы \/ выплаты/, url: /\/finance/ },
       { label: /Аналитика lift/, url: /\/lift/ },
-      { label: /Обучение \/ LMS/, url: /\/lms/ },
       { label: /Настройки/, url: /\/settings/ },
     ]
     for (const s of sections) {
@@ -30,9 +28,9 @@ test.describe('Sidebar — навигация', () => {
     await expect(promoBtn).toHaveClass(/sidebar-active/)
   })
 
-  test('Bug J/K regression: Epharm wordmark с E зелёным', async ({ loggedInPage }) => {
-    const wordmark = loggedInPage.locator('text=Epharm').first()
-    await expect(wordmark).toBeVisible()
+  test('актуальный брендинг: логотип-глиф + Console · HQ', async ({ loggedInPage }) => {
+    await expect(loggedInPage.getByText(/Console · HQ/i)).toBeVisible()
+    await expect(loggedInPage.locator('aside svg').first()).toBeVisible()
   })
 })
 
@@ -126,10 +124,8 @@ test.describe('Empty sections (10 ещё не подключены к backend)',
     { url: '/pharmacies', title: /Сеть аптек/ },
     { url: '/pharmacists', title: /Фармацевты/ },
     { url: '/reconcile', title: /Сверка чеков/ },
-    { url: '/ai-exam', title: /AI-Экзаменация/ },
     { url: '/finance', title: /Финансы/ },
     { url: '/lift', title: /Аналитика lift/ },
-    { url: '/lms', title: /Обучение/ },
     { url: '/settings', title: /Настройки/ },
   ]
 

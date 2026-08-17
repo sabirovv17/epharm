@@ -75,7 +75,7 @@ class LmsIntegrationTest {
 
         adminUserRepository.save(
             AdminUserEntity(email = "damir@jadran.com", passwordHash = passwordEncoder.encode("damir2026"),
-                name = "Дамир", company = "Jadran").also { it.role = AdminRole.HQ_HEAD; it.status = AdminUserStatus.ACTIVE },
+                name = "Дамир", company = "Jadran").also { it.role = AdminRole.TRAINING_MANAGER; it.status = AdminUserStatus.ACTIVE },
         )
         bearer = "Bearer " + login().tokens.accessToken
     }

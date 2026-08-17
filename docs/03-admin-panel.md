@@ -42,8 +42,8 @@ Protected under `AppShell`:
 - `/settings`
 - `/storefront`
 
-`/` redirects to `/rules`. `/banners` redirects to `/screens` because banners are now a tab/panel in
-the Screens section.
+`/` redirects by role: business roles go to `/rules`, training roles go to `/lms`. `/banners`
+redirects to `/screens` because banners are now a tab/panel in the Screens section.
 
 ## Sections
 
@@ -101,6 +101,21 @@ Important layout rules:
 All routes except `/login` are protected by `RequireAuth`. The axios interceptor adds
 `Authorization: Bearer <accessToken>` and performs refresh on 401. If refresh fails as auth failure,
 the store is cleared and the user returns to login.
+
+Navigation and direct routes are role-aware:
+
+- `TRAINING_MANAGER` sees only `Training` and `AI Exam` and lands on `/lms` after login;
+- `REGIONAL_MANAGER` and `TRAINER` see only `Training`, with actions narrowed by backend capabilities;
+- `HQ_HEAD` keeps all operational sections and also sees `Training` and `AI Exam` in read-only mode;
+- other core business roles keep operational and analytics sections without training navigation;
+- `SYSTEM_ADMIN` retains full emergency access.
+
+This is not only a visual restriction. `SecurityConfig` separates `/api/admin/training/**`,
+`/api/admin/lms/**`, and `/api/admin/ai-exam/**` from the rest of `/api/admin/**`. A training token
+calling catalog, rules, screens, finance, settings, or other HQ APIs receives JSON `403 FORBIDDEN`.
+An `HQ_HEAD` token can read training data and export reports, while every training mutation returns
+JSON `403 FORBIDDEN`; the frontend mirrors this contract by hiding all editing controls.
+The LMS roster uses `/api/admin/training/pharmacists`, a read-only projection for assignments.
 
 ## Pharmacist Onboarding
 

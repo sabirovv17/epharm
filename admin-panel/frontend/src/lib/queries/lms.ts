@@ -16,6 +16,7 @@ import type {
   MassChangeTrainingPreferencesRequest,
   MassAssignmentResultDto,
   OfflineEventDto,
+  PharmacistDto,
   PharmacistTrainingProfileDto,
   RecordAssessmentResultRequest,
   TrainingAssessmentResultDto,
@@ -76,6 +77,7 @@ export const lmsKeys = {
     [...lmsKeys.training, 'preferences', pharmacistId, 'history'] as const,
   pharmacistProfile: (pharmacistId: string) =>
     [...lmsKeys.training, 'pharmacists', pharmacistId, 'profile'] as const,
+  pharmacists: () => [...lmsKeys.training, 'pharmacists', 'list'] as const,
 }
 
 export function useCourses(filter: CourseListFilter = {}) {
@@ -118,6 +120,14 @@ export function useTrainingDashboard() {
     queryKey: lmsKeys.dashboard(),
     queryFn: () =>
       api.get<TrainingDashboardDto>('/api/admin/training/dashboard').then((r) => r.data),
+  })
+}
+
+export function useTrainingPharmacists() {
+  return useQuery<PharmacistDto[]>({
+    queryKey: lmsKeys.pharmacists(),
+    queryFn: () =>
+      api.get<PharmacistDto[]>('/api/admin/training/pharmacists').then((response) => response.data),
   })
 }
 

@@ -4,7 +4,6 @@
 // у кого нет контракта показывается empty state без цифр).
 
 import {
-  SECTIONS,
   formatKzt,
   getUserContract,
   type Contract,
@@ -14,6 +13,7 @@ import {
 } from '@/mocks/fixtures'
 import { IconChevLeft, IconChevRight, IconShield } from '@/ui/icons'
 import { useT } from '@/i18n'
+import { isTrainingWorkspaceRole, sectionsForRole } from '@/app/accessPolicy'
 import { Logo } from './Logo'
 
 interface SidebarProps {
@@ -36,12 +36,14 @@ export function Sidebar({
   user,
 }: SidebarProps) {
   const t = useT()
-  const groups = SECTIONS.reduce<Record<string, Section[]>>((acc, s) => {
+  const availableSections = sectionsForRole(user.role)
+  const groups = availableSections.reduce<Record<string, Section[]>>((acc, s) => {
     ;(acc[s.group] = acc[s.group] || []).push(s)
     return acc
   }, {})
 
   const contract = getUserContract(user)
+  const trainingWorkspace = isTrainingWorkspaceRole(user.role)
 
   return (
     <aside
@@ -71,7 +73,7 @@ export function Sidebar({
             <div className="min-w-0 flex-1">
               {/* Текстовый wordmark «Epharm» убран — бренд = логотип-глиф слева. */}
               <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-white/45">
-                Console · HQ
+                Console · {trainingWorkspace ? 'Learning' : 'HQ'}
               </div>
             </div>
             <button
@@ -153,7 +155,9 @@ export function Sidebar({
       </nav>
 
       {/* Contract widget — рендерится всегда. Без контракта — empty state без цифр. */}
-      <ContractWidget contract={contract} collapsed={collapsed} onOpen={onContractOpen} />
+      {!trainingWorkspace && (
+        <ContractWidget contract={contract} collapsed={collapsed} onOpen={onContractOpen} />
+      )}
     </aside>
   )
 }

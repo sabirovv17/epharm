@@ -51,11 +51,13 @@ import {
   useTrainingCertificates,
   useTrainingDashboard,
   useTrainingPrograms,
+  useTrainingPharmacists,
   useUpdateTrainingProgram,
 } from '@/lib/queries/lms'
-import { usePharmacists } from '@/lib/queries/pharmacists'
 import { describeError } from '@/lib/describeError'
 import { formatKzt, formatNum } from '@/mocks/fixtures'
+import { isTrainingReadOnlyRole } from '@/app/accessPolicy'
+import { useUiStore } from '@/app/store'
 import {
   AssignTrainingModal,
   AssessmentResultModal,
@@ -103,12 +105,14 @@ const TABS: TabItem<TrainingTab>[] = [
 
 export default function LMSPage() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const role = useUiStore((state) => state.authedUser?.role)
+  const isReadOnly = isTrainingReadOnlyRole(role)
   const requestedPharmacistIds = useMemo(
     () => (searchParams.get('pharmacists') ?? '').split(',').filter(Boolean),
     [searchParams],
   )
   const requestedAssignment =
-    searchParams.get('action') === 'assign' && requestedPharmacistIds.length > 0
+    !isReadOnly && searchParams.get('action') === 'assign' && requestedPharmacistIds.length > 0
   const [tab, setTab] = useState<TrainingTab>(() =>
     requestedAssignment ? 'assignments' : 'overview',
   )
@@ -135,7 +139,7 @@ export default function LMSPage() {
   const eventsQuery = useOfflineEvents()
   const certificatesQuery = useTrainingCertificates()
   const coursesQuery = useCourses()
-  const pharmacistsQuery = usePharmacists()
+  const pharmacistsQuery = useTrainingPharmacists()
 
   const dashboard = dashboardQuery.data
   const programs = programsQuery.data ?? []
@@ -151,6 +155,13 @@ export default function LMSPage() {
   }
 
   const action = (() => {
+    if (isReadOnly) {
+      return (
+        <span className="chip chip-ink" data-testid="training-read-only">
+          Только просмотр
+        </span>
+      )
+    }
     if (tab === 'programs' && capabilities?.canManagePrograms) {
       return (
         <Button leading={<IconPlus size={15} />} onClick={() => setProgramModalOpen(true)}>
@@ -255,10 +266,10 @@ export default function LMSPage() {
         <TrainingSettingsTab capabilities={capabilities} />
       )}
 
-      {programModalOpen && (
+      {programModalOpen && capabilities?.canManagePrograms && (
         <CreateProgramModal open onClose={() => setProgramModalOpen(false)} courses={courses} />
       )}
-      {programTarget && (
+      {programTarget && capabilities?.canManagePrograms && (
         <CreateProgramModal
           key={`${programTarget.mode}-${programTarget.program.id}-${programTarget.program.version}`}
           open
@@ -268,7 +279,7 @@ export default function LMSPage() {
           mode={programTarget.mode}
         />
       )}
-      {assignmentModalOpen && (
+      {assignmentModalOpen && capabilities?.canManageAssignments && (
         <AssignTrainingModal
           key={requestedPharmacistIds.join(':') || 'manual-assignment'}
           open
@@ -279,10 +290,10 @@ export default function LMSPage() {
           initialPharmacistIds={requestedPharmacistIds}
         />
       )}
-      {eventModalOpen && (
+      {eventModalOpen && capabilities?.canManageEvents && (
         <CreateEventModal open onClose={() => setEventModalOpen(false)} programs={programs} />
       )}
-      {eventTarget && (
+      {eventTarget && capabilities?.canManageEvents && (
         <CreateEventModal
           key={`event-${eventTarget.id}-${eventTarget.updatedAt}`}
           open
@@ -291,11 +302,17 @@ export default function LMSPage() {
           event={eventTarget}
         />
       )}
-      <CreateCourseModal open={courseModalOpen} onClose={() => setCourseModalOpen(false)} />
-      <AttendanceModal event={attendanceEvent} onClose={() => setAttendanceEvent(null)} />
+      {capabilities?.canManagePrograms && (
+        <CreateCourseModal open={courseModalOpen} onClose={() => setCourseModalOpen(false)} />
+      )}
+      {capabilities?.canMarkAttendance && (
+        <AttendanceModal event={attendanceEvent} onClose={() => setAttendanceEvent(null)} />
+      )}
       <EventQrModal event={qrEvent} onClose={() => setQrEvent(null)} />
-      <AssessmentResultModal target={resultTarget} onClose={() => setResultTarget(null)} />
-      {formatTarget && (
+      {capabilities?.canRecordResults && (
+        <AssessmentResultModal target={resultTarget} onClose={() => setResultTarget(null)} />
+      )}
+      {formatTarget && capabilities?.canManageAssignments && (
         <ChangeAssignmentFormatModal
           key={formatTarget.id}
           assignment={formatTarget}

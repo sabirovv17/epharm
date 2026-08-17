@@ -5,6 +5,7 @@ import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
+import org.springframework.security.access.AccessDeniedException
 import org.springframework.web.ErrorResponseException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.MissingServletRequestParameterException
@@ -71,6 +72,15 @@ class GlobalExceptionHandler {
                 code = ErrorCode.CONFLICT,
                 message = "Конфликт целостности данных — запись связана или уже существует",
             ),
+        )
+    }
+
+    /** Method-level @PreAuthorize denial occurs after the security filter chain. */
+    @ExceptionHandler(AccessDeniedException::class)
+    fun handleAccessDenied(ex: AccessDeniedException): ResponseEntity<ApiErrorResponse> {
+        log.debug("Method authorization denied: {}", ex.message)
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
+            ApiErrorResponse(code = ErrorCode.FORBIDDEN, message = "Недостаточно прав"),
         )
     }
 

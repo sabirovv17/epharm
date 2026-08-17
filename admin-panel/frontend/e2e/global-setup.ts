@@ -30,7 +30,6 @@ export default async function globalSetup(_config: FullConfig): Promise<void> {
       )
     }
     const body = await res.json()
-    // eslint-disable-next-line no-console
     console.log('[e2e] dev-данные сброшены к seed-базису:', JSON.stringify(body))
   } finally {
     await ctx.dispose()

@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController
 // LMS — каталог обучающих курсов (ТЗ §3.2 / §3.4). Этап 3.6: list + get + create.
 @RestController
 @RequestMapping("/api/admin/lms/courses")
+@PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HQ_HEAD','TRAINING_MANAGER','REGIONAL_MANAGER','TRAINER')")
 class LmsController(private val courseService: CourseService) {
 
     @GetMapping
@@ -36,19 +37,19 @@ class LmsController(private val courseService: CourseService) {
     fun get(@PathVariable id: String): CourseDto = courseService.get(id)
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HQ_HEAD','TRAINING_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER')")
     fun create(
         @Valid @RequestBody req: CreateCourseRequest,
         @AuthenticationPrincipal principal: AdminPrincipal?,
     ): CourseDto = courseService.create(req, createdBy = requireUserId(principal))
 
     @PatchMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HQ_HEAD','TRAINING_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER')")
     fun update(@PathVariable id: String, @Valid @RequestBody req: UpdateCourseRequest): CourseDto =
         courseService.update(id, req)
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HQ_HEAD','TRAINING_MANAGER')")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun delete(@PathVariable id: String) = courseService.delete(id)
 

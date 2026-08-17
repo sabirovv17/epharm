@@ -5,6 +5,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Sidebar } from './Sidebar'
 import { SECTIONS, USERS } from '@/mocks/fixtures'
+import { sectionsForRole } from '@/app/accessPolicy'
 
 function setup(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
   const onSelect = vi.fn()
@@ -39,11 +40,41 @@ describe('Sidebar — брендинг', () => {
 })
 
 describe('Sidebar — навигация', () => {
-  it('рендерит все 12 пунктов из SECTIONS', () => {
+  it('для бизнес-роли без учебных полномочий рендерит только основные разделы', () => {
     setup()
-    SECTIONS.forEach((s) => {
+    sectionsForRole(USERS.damir.role).forEach((s) => {
       expect(screen.getByRole('button', { name: new RegExp(s.label, 'i') })).toBeInTheDocument()
     })
+    expect(screen.queryByRole('button', { name: /Обучение/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /AI-Экзаменация/i })).not.toBeInTheDocument()
+  })
+
+  it('для HQ_HEAD показывает основные разделы, обучение и AI-экзамены', () => {
+    setup({ user: USERS.bauyrzhan })
+
+    sectionsForRole(USERS.bauyrzhan.role).forEach((section) => {
+      expect(
+        screen.getByRole('button', { name: new RegExp(section.label, 'i') }),
+      ).toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: /Обучение/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /AI-Экзаменация/i })).toBeInTheDocument()
+  })
+
+  it('для руководителя обучения оставляет только LMS и AI-экзамены', () => {
+    setup({ user: USERS.lms, active: 'lms' })
+
+    expect(screen.getByText(/Console · Learning/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Обучение/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /AI-Экзаменация/i })).toBeInTheDocument()
+    SECTIONS.filter((section) => section.id !== 'lms' && section.id !== 'ai_exam').forEach(
+      (section) => {
+        expect(
+          screen.queryByRole('button', { name: new RegExp(section.label, 'i') }),
+        ).not.toBeInTheDocument()
+      },
+    )
+    expect(screen.queryByTestId('contract-widget-empty')).not.toBeInTheDocument()
   })
 
   it('активный пункт получает sidebar-active класс', () => {

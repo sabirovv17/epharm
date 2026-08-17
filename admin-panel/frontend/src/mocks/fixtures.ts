@@ -99,6 +99,13 @@ export const USERS: Record<string, UserDto> = {
     role: 'HQ_HEAD',
     company: 'Inkar',
   },
+  lms: {
+    id: 'lms',
+    email: 'lms@epharm.kz',
+    name: 'Руководитель обучения',
+    role: 'TRAINING_MANAGER',
+    company: 'Inkar',
+  },
 }
 
 /** Локализованный лейбл для AdminRole. Используется в Topbar / RoleSwitcher / Settings. */

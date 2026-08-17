@@ -9,7 +9,8 @@ import { Sidebar, Topbar, CommandPalette, RoleSwitcher, ContractModal } from '@/
 import { ToastHost } from '@/ui'
 import { useT } from '@/i18n'
 import { useUiStore } from './store'
-import { SECTION_ROUTES } from './router'
+import { SECTION_ROUTES } from './routes'
+import { canAccessSection, defaultSectionForRole, workspaceLabelForRole } from './accessPolicy'
 
 export function AppShell() {
   const navigate = useNavigate()
@@ -38,12 +39,14 @@ export function AppShell() {
     const entry = (Object.entries(SECTION_ROUTES) as [SectionId, string][]).find(([, path]) =>
       location.pathname.startsWith(path),
     )
-    return entry?.[0] ?? 'rules'
-  }, [location.pathname])
+    return entry?.[0] ?? defaultSectionForRole(authedUser?.role ?? 'HQ_HEAD')
+  }, [authedUser?.role, location.pathname])
 
   const activeLabel = t(`nav.${activeSection}`)
 
-  const onSelectSection = (id: SectionId) => navigate(SECTION_ROUTES[id])
+  const onSelectSection = (id: SectionId) => {
+    if (authedUser && canAccessSection(authedUser.role, id)) navigate(SECTION_ROUTES[id])
+  }
 
   // Global ⌘K / Ctrl+K — toggle command palette
   useEffect(() => {
@@ -87,6 +90,7 @@ export function AppShell() {
         <div className="flex min-w-0 flex-1 flex-col">
           <Topbar
             sectionLabel={activeLabel}
+            workspaceLabel={workspaceLabelForRole(authedUser.role)}
             role={authedUser}
             onRoleSwitch={roleSwitchEnabled ? openRoleSwitcher : undefined}
             onLogout={handleLogout}
@@ -108,7 +112,7 @@ export function AppShell() {
         )}
         <ContractModal open={contractModalOpen} onClose={closeContractModal} user={authedUser} />
         {commandPaletteOpen && (
-          <CommandPalette onClose={closeCommandPalette} onNav={onSelectSection} />
+          <CommandPalette user={authedUser} onClose={closeCommandPalette} onNav={onSelectSection} />
         )}
       </div>
     </ToastHost>

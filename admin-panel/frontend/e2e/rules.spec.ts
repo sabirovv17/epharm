@@ -1,4 +1,4 @@
-// E2E: Rules Engine — list, builder, toggle, archive/duplicate via row-menu.
+// E2E: Rules Engine — read-only list/builder + backend validation contracts.
 // Покрывает: Bug F (trigger shape), Bug G (PATCH archived), Bug H (self-ref).
 
 import { test, expect, BACKEND_URL, getBearer } from './fixtures'
@@ -13,7 +13,7 @@ test.beforeEach(async ({ loggedInPage }) => {
 test.describe('Rules — список', () => {
   test('seed-данные: substitution + crosssell + 0 archive', async ({ loggedInPage }) => {
     await expect(loggedInPage.getByRole('button', { name: /Замены/ })).toBeVisible()
-    await expect(loggedInPage.getByRole('button', { name: /Кросс-сейл/ })).toBeVisible()
+    await expect(loggedInPage.getByRole('button', { name: /Кросс-селл/ })).toBeVisible()
     await expect(loggedInPage.getByRole('button', { name: /Архив/ })).toBeVisible()
 
     const rows = loggedInPage.locator('[data-testid^="rule-row-"]')
@@ -31,8 +31,8 @@ test.describe('Rules — список', () => {
 })
 
 test.describe('Rules — табы', () => {
-  test('переключение «Кросс-сейл» меняет список', async ({ loggedInPage }) => {
-    await loggedInPage.getByRole('button', { name: /Кросс-сейл/ }).click()
+  test('переключение «Кросс-селл» меняет список', async ({ loggedInPage }) => {
+    await loggedInPage.getByRole('button', { name: /Кросс-селл/ }).click()
     // На пустом архиве показывается empty state OR rules. На кросс-сейл — 2 rules.
     const rows = loggedInPage.locator('[data-testid^="rule-row-"]')
     await expect(rows.first()).toBeVisible({ timeout: 5_000 })
@@ -64,60 +64,22 @@ test.describe('Rules — фильтр + поиск', () => {
   })
 })
 
-test.describe('Rules — Toggle Активно/Пауза', () => {
-  test('Bug D regression: toggle keyboard-accessible (Tab + Space)', async ({
-    loggedInPage,
-  }) => {
+test.describe('Rules — read-only контракт', () => {
+  test('детальная панель показывает статус без переключателя', async ({ loggedInPage }) => {
     await loggedInPage.locator('[data-testid^="rule-row-"]').first().click()
-    const toggle = loggedInPage.getByRole('switch')
-    await expect(toggle).toBeVisible()
-    // Toggle button должен быть focusable
-    await toggle.focus()
-    await expect(toggle).toBeFocused()
+    await expect(loggedInPage.getByTestId('rule-builder-panel')).toBeVisible()
+    await expect(loggedInPage.getByRole('switch')).toHaveCount(0)
   })
 
-  test('click toggle → status меняется без полного обновления страницы', async ({
-    loggedInPage,
-  }) => {
-    await loggedInPage.locator('[data-testid^="rule-row-"]').first().click()
-    const toggle = loggedInPage.getByRole('switch')
-    const before = await toggle.getAttribute('aria-checked')
-    await toggle.click()
-    // Ждём пока aria-checked поменяется (после mutation)
-    await expect.poll(() => toggle.getAttribute('aria-checked')).not.toBe(before)
-  })
-})
-
-test.describe('Rules — row-action menu (Bug L pattern)', () => {
-  test('клик «⋯» → меню с Дублировать + В архив', async ({ loggedInPage }) => {
-    const row = loggedInPage.locator('[data-testid^="rule-row-"]').first()
-    const ruleId = await row.getAttribute('data-testid')
-    if (!ruleId) throw new Error('No rule row found')
-    const id = ruleId.replace('rule-row-', '')
-    await loggedInPage.getByTestId(`row-menu-trigger-${id}`).click()
-    await expect(loggedInPage.getByRole('menuitem', { name: /Дублировать/ })).toBeVisible()
-    await expect(loggedInPage.getByRole('menuitem', { name: /В архив/ })).toBeVisible()
+  test('страница объясняет, что правила задаются из кампаний', async ({ loggedInPage }) => {
+    await expect(loggedInPage.getByTestId('rules-from-campaigns-banner')).toContainText(
+      /Промо-кампании/,
+    )
   })
 
-  test('Escape закрывает row-menu', async ({ loggedInPage }) => {
-    const row = loggedInPage.locator('[data-testid^="rule-row-"]').first()
-    const ruleId = (await row.getAttribute('data-testid'))!.replace('rule-row-', '')
-    await loggedInPage.getByTestId(`row-menu-trigger-${ruleId}`).click()
-    await expect(loggedInPage.getByRole('menu')).toBeVisible()
-    await loggedInPage.keyboard.press('Escape')
-    await expect(loggedInPage.getByRole('menu')).not.toBeVisible()
-  })
-
-  test('Дублировать → копия в draft появляется', async ({ loggedInPage }) => {
-    const row = loggedInPage.locator('[data-testid^="rule-row-"]').first()
-    const ruleId = (await row.getAttribute('data-testid'))!.replace('rule-row-', '')
-    const countBefore = await loggedInPage.locator('[data-testid^="rule-row-"]').count()
-    await loggedInPage.getByTestId(`row-menu-trigger-${ruleId}`).click()
-    await loggedInPage.getByRole('menuitem', { name: /Дублировать/ }).click()
-    await expect(loggedInPage.getByText(/Правило дублировано/i)).toBeVisible()
-    await expect
-      .poll(async () => await loggedInPage.locator('[data-testid^="rule-row-"]').count())
-      .toBeGreaterThan(countBefore)
+  test('в строках нет меню архивирования/дублирования', async ({ loggedInPage }) => {
+    await expect(loggedInPage.locator('[data-testid^="row-menu-trigger-"]')).toHaveCount(0)
+    await expect(loggedInPage.getByRole('menu')).toHaveCount(0)
   })
 })
 

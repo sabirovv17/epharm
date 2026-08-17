@@ -7,6 +7,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { ToastHost } from '@/ui'
 import type { ExamQuestionDto } from '@/lib/api-types'
+import { USERS } from '@/mocks/fixtures'
+import { useUiStore } from '@/app/store'
 import AIExamPage from './AIExamPage'
 
 const examHooks = vi.hoisted(() => ({
@@ -44,6 +46,7 @@ function setQuestions(list: ExamQuestionDto[] = [], extra: Record<string, unknow
 
 beforeEach(() => {
   vi.clearAllMocks()
+  useUiStore.setState({ authedUser: USERS.lms })
   setQuestions([])
   examHooks.useCreateExamQuestion.mockReturnValue({ mutate: vi.fn(), isPending: false })
   examHooks.useUpdateExamQuestion.mockReturnValue({ mutate: vi.fn(), isPending: false })
@@ -143,5 +146,17 @@ describe('AIExamPage — delete (Блок 2)', () => {
     renderPage()
     await user.click(screen.getByTestId('exam-question-delete-q_x'))
     expect(del).toHaveBeenCalledWith('q_x', expect.anything())
+  })
+
+  it('HQ_HEAD видит вопросы, но не видит ни создание, ни удаление', () => {
+    useUiStore.setState({ authedUser: USERS.bauyrzhan })
+    setQuestions([mkQ({ id: 'q_read_only' })])
+
+    renderPage()
+
+    expect(screen.getByTestId('ai-exam-read-only')).toHaveTextContent('Только просмотр')
+    expect(screen.getByTestId('exam-question-q_read_only')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Новый вопрос/ })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('exam-question-delete-q_read_only')).not.toBeInTheDocument()
   })
 })

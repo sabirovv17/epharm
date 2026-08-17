@@ -74,8 +74,8 @@ class AiExamIntegrationTest {
         questionRepository.save(ExamQuestionEntity(id = "q_scen", prompt = "Сценарий?", category = "B", keywords = listOf("три"), difficulty = 3).also { it.kind = ExamQuestionKind.scenario })
 
         adminUserRepository.save(
-            AdminUserEntity(email = "damir@jadran.com", passwordHash = passwordEncoder.encode("damir2026"),
-                name = "Дамир", company = "Jadran").also { it.role = AdminRole.BRAND_MANAGER; it.status = AdminUserStatus.ACTIVE },
+            AdminUserEntity(email = "lms@epharm.kz", passwordHash = passwordEncoder.encode("lms123"),
+                name = "Руководитель обучения", company = "Inkar").also { it.role = AdminRole.TRAINING_MANAGER; it.status = AdminUserStatus.ACTIVE },
         )
         bearer = "Bearer " + login().tokens.accessToken
     }
@@ -180,7 +180,7 @@ class AiExamIntegrationTest {
     }
 
     private fun login(): LoginResponse {
-        val req = LoginRequest(email = "damir@jadran.com", password = "damir2026")
+        val req = LoginRequest(email = "lms@epharm.kz", password = "lms123")
         val result = mockMvc.perform(
             post("/api/admin/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)

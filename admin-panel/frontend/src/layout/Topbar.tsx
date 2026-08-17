@@ -18,6 +18,7 @@ import { PeriodPicker } from './PeriodPicker'
 
 interface TopbarProps {
   sectionLabel: string
+  workspaceLabel: string
   role: User
   /** Демо-смена роли. undefined (прод) → пункт меню скрыт. */
   onRoleSwitch?: () => void
@@ -28,6 +29,7 @@ interface TopbarProps {
 
 export function Topbar({
   sectionLabel,
+  workspaceLabel,
   role,
   onRoleSwitch,
   onLogout,
@@ -46,7 +48,7 @@ export function Topbar({
           <IconCommand size={18} />
         </button>
         <div className="flex items-center gap-1.5 text-[13px] text-ink-500">
-          <span>HQ</span>
+          <span>{workspaceLabel}</span>
           <IconChevRight size={12} />
           <span className="font-bold text-ink-900">{sectionLabel}</span>
         </div>

@@ -19,6 +19,7 @@ export const ACCOUNTS = {
   damir: { email: 'damir@jadran.com', password: 'damir2026', name: 'Дамир Нурланов' },
   aigerim: { email: 'aigerim@inkar.kz', password: 'aigerim2026', name: 'Айгерим Сарсенова' },
   bauyrzhan: { email: 'bauyrzhan@inkar.kz', password: 'bauyrzhan2026', name: 'Бауыржан Тлеуов' },
+  lms: { email: 'lms@epharm.kz', password: 'lms123', name: 'Руководитель обучения' },
 } as const satisfies Record<string, DevAccount>
 
 /**

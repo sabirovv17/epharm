@@ -13,6 +13,8 @@ import type {
   TrainingDashboardDto,
   TrainingProgramDto,
 } from '@/lib/api-types'
+import { USERS } from '@/mocks/fixtures'
+import { useUiStore } from '@/app/store'
 import LMSPage from './LMSPage'
 
 const lmsHooks = vi.hoisted(() => ({
@@ -20,6 +22,7 @@ const lmsHooks = vi.hoisted(() => ({
   useCreateCourse: vi.fn(),
   useDeleteCourse: vi.fn(),
   useTrainingDashboard: vi.fn(),
+  useTrainingPharmacists: vi.fn(),
   useTrainingPrograms: vi.fn(),
   useTrainingAssignments: vi.fn(),
   useTrainingAssignmentPage: vi.fn(),
@@ -39,10 +42,7 @@ const lmsHooks = vi.hoisted(() => ({
   downloadTrainingAssignments: vi.fn(),
 }))
 
-const pharmacistHooks = vi.hoisted(() => ({ usePharmacists: vi.fn() }))
-
 vi.mock('@/lib/queries/lms', () => lmsHooks)
-vi.mock('@/lib/queries/pharmacists', () => pharmacistHooks)
 vi.mock('qrcode', () => ({
   default: { toCanvas: vi.fn().mockResolvedValue(undefined) },
 }))
@@ -211,6 +211,7 @@ const participant: EventParticipantDto = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  useUiStore.setState({ authedUser: USERS.lms })
   lmsHooks.useTrainingDashboard.mockReturnValue(queryResult(dashboard))
   lmsHooks.useTrainingPrograms.mockReturnValue(queryResult([program]))
   lmsHooks.useTrainingAssignments.mockReturnValue(queryResult([] as TrainingAssignmentDto[]))
@@ -234,7 +235,7 @@ beforeEach(() => {
       payload: 'epharm://training/check-in/8e23c62e-497c-49b3-ae84-35491fdf40a7',
     }),
   )
-  pharmacistHooks.usePharmacists.mockReturnValue(queryResult([pharmacist]))
+  lmsHooks.useTrainingPharmacists.mockReturnValue(queryResult([pharmacist]))
   lmsHooks.useCreateCourse.mockReturnValue(mutationResult())
   lmsHooks.useDeleteCourse.mockReturnValue(mutationResult())
   lmsHooks.useUpdateTrainingProgram.mockReturnValue(mutationResult())
@@ -281,10 +282,21 @@ describe('Обучение — операционный раздел', () => {
   })
 
   it('скрывает управляющие действия для роли только на чтение', async () => {
+    useUiStore.setState({ authedUser: USERS.bauyrzhan })
     lmsHooks.useTrainingDashboard.mockReturnValue(
       queryResult({
         ...dashboard,
-        capabilities: { ...dashboard.capabilities, canManagePrograms: false },
+        capabilities: {
+          ...dashboard.capabilities,
+          canManagePrograms: false,
+          canManageAssignments: false,
+          canManageEvents: false,
+          canMarkAttendance: false,
+          canAdjustRewards: false,
+          canRecordResults: false,
+          canManagePreferences: false,
+          canExport: true,
+        },
       }),
     )
     const user = userEvent.setup()
@@ -292,6 +304,31 @@ describe('Обучение — операционный раздел', () => {
     await user.click(screen.getByRole('button', { name: 'Программы' }))
     expect(screen.queryByRole('button', { name: 'Новая программа' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Приостановить' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('training-read-only')).toHaveTextContent('Только просмотр')
+  })
+
+  it('HQ_HEAD не может открыть модалку назначения через прямую ссылку', () => {
+    useUiStore.setState({ authedUser: USERS.bauyrzhan })
+    lmsHooks.useTrainingDashboard.mockReturnValue(
+      queryResult({
+        ...dashboard,
+        capabilities: {
+          ...dashboard.capabilities,
+          canManagePrograms: false,
+          canManageAssignments: false,
+          canManageEvents: false,
+          canMarkAttendance: false,
+          canAdjustRewards: false,
+          canRecordResults: false,
+          canManagePreferences: false,
+          canExport: true,
+        },
+      }),
+    )
+
+    renderPage('/lms?action=assign&pharmacists=ph-1')
+
+    expect(screen.queryByRole('dialog', { name: 'Назначить обучение' })).not.toBeInTheDocument()
   })
 
   it('создаёт программу с выбранным форматом', async () => {

@@ -120,7 +120,10 @@ function ProductSearchList({
         leading={<IconSearch size={15} />}
         autoFocus
       />
-      <div className="max-h-64 overflow-y-auto rounded-xl border border-ink-100">
+      <div
+        className="max-h-64 overflow-y-auto rounded-xl border border-ink-100"
+        data-testid="promo-product-results"
+      >
         {items.length === 0 ? (
           <div className="flex items-center justify-center gap-2 px-3 py-6 text-[13px] font-semibold text-ink-400">
             <IconBox size={15} />
@@ -133,6 +136,7 @@ function ProductSearchList({
               <button
                 key={p.id}
                 type="button"
+                data-testid={`promo-product-option-${p.id}`}
                 onClick={() => onPick(p)}
                 className="flex w-full items-center gap-3 border-b border-ink-50 px-3 py-2 text-left last:border-b-0 hover:bg-paper-input"
               >

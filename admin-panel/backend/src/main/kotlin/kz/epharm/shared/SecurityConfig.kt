@@ -24,7 +24,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 //   /api/posm/** — касса (Module 2) аутентифицируется device-key, не JWT
 //
 // Разграничение по authority (КРИТИЧНО — закрывает эскалацию pharmacist→admin):
-//   /api/admin/**  → только админ-роли (HQ_HEAD/CATEGORY_LEAD/BRAND_MANAGER/FINANCE_REVIEWER)
+//   /api/admin/{training,lms,ai-exam}/** → только роли учебного контура
+//   остальной /api/admin/** → только HQ/бизнес-роли
 //   /api/mobile/** → только ROLE_PHARMACIST
 //   /actuator/**   → только админ-роли (метрики/prometheus не наружу)
 // Тонкая сегрегация (напр. финансовый approve → FINANCE_REVIEWER) — через @PreAuthorize
@@ -85,10 +86,19 @@ class SecurityConfig(
                         // Публичный доступ нужен внешнему проверяющему без учётной записи ePharm.
                         "/api/public/training/certificates/**",
                     ).permitAll()
-                    // Метрики/prometheus — только для админ-консоли, не наружу.
-                    .requestMatchers("/actuator/**").hasAnyRole(*ADMIN_ROLES)
-                    // HQ-консоль — строго админ-роли. Мобильный pharmacist-токен → 403.
-                    .requestMatchers("/api/admin/**").hasAnyRole(*ADMIN_ROLES)
+                    // Профиль и logout нужны любой роли HQ-консоли.
+                    .requestMatchers("/api/admin/auth/me", "/api/admin/auth/logout")
+                    .hasAnyRole(*ADMIN_ROLES)
+                    // Учебный workspace. Права на конкретные мутации дополнительно
+                    // сужаются @PreAuthorize в контроллерах.
+                    .requestMatchers(
+                        "/api/admin/training/**",
+                        "/api/admin/lms/**",
+                        "/api/admin/ai-exam/**",
+                    ).hasAnyRole(*TRAINING_ROLES)
+                    // Метрики и остальная HQ-консоль не доступны учебным ролям.
+                    .requestMatchers("/actuator/**").hasAnyRole(*CORE_ADMIN_ROLES)
+                    .requestMatchers("/api/admin/**").hasAnyRole(*CORE_ADMIN_ROLES)
                     // Мобильное приложение — строго роль фармацевта. Admin-токен сюда → 403.
                     .requestMatchers("/api/mobile/**").hasRole("PHARMACIST")
                     .anyRequest().authenticated()
@@ -134,6 +144,22 @@ class SecurityConfig(
             "TRAINING_MANAGER",
             "REGIONAL_MANAGER",
             "TRAINER",
+            "CATEGORY_LEAD",
+            "BRAND_MANAGER",
+            "FINANCE_REVIEWER",
+        )
+
+        private val TRAINING_ROLES = arrayOf(
+            "SYSTEM_ADMIN",
+            "HQ_HEAD",
+            "TRAINING_MANAGER",
+            "REGIONAL_MANAGER",
+            "TRAINER",
+        )
+
+        private val CORE_ADMIN_ROLES = arrayOf(
+            "SYSTEM_ADMIN",
+            "HQ_HEAD",
             "CATEGORY_LEAD",
             "BRAND_MANAGER",
             "FINANCE_REVIEWER",

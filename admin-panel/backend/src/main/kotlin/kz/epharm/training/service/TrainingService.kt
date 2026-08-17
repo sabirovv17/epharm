@@ -312,19 +312,20 @@ class TrainingService(
     }
 
     fun capabilities(principal: AdminPrincipal): TrainingCapabilitiesDto {
-        val full = principal.role in setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD)
+        val systemAdmin = principal.role == AdminRole.SYSTEM_ADMIN
+        val hqViewer = principal.role == AdminRole.HQ_HEAD
         val manager = principal.role == AdminRole.TRAINING_MANAGER
         val regional = principal.role == AdminRole.REGIONAL_MANAGER
         val trainer = principal.role == AdminRole.TRAINER
         return TrainingCapabilitiesDto(
-            canManagePrograms = full || manager,
-            canManageAssignments = full || manager || regional,
-            canManageEvents = full || manager || regional,
-            canMarkAttendance = full || manager || regional || trainer,
-            canAdjustRewards = full,
-            canRecordResults = full || manager || regional || trainer,
-            canManagePreferences = full || manager || regional,
-            canExport = full || manager || regional || trainer,
+            canManagePrograms = systemAdmin || manager,
+            canManageAssignments = systemAdmin || manager || regional,
+            canManageEvents = systemAdmin || manager || regional,
+            canMarkAttendance = systemAdmin || manager || regional || trainer,
+            canAdjustRewards = systemAdmin,
+            canRecordResults = systemAdmin || manager || regional || trainer,
+            canManagePreferences = systemAdmin || manager || regional,
+            canExport = systemAdmin || hqViewer || manager || regional || trainer,
             regionalScope = if (regional) regionsFor(principal.userId) else emptyList(),
         )
     }

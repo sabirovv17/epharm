@@ -150,17 +150,18 @@ test.describe('Backend — Promo CRUD', () => {
     expect(((await r.json()) as unknown[]).length).toBeGreaterThanOrEqual(5)
   })
 
-  test('POST + PATCH + archive + restore cycle', async ({ request }) => {
+  test('POST draft + PATCH + archive + restore cycle', async ({ request }) => {
     const bearer = await getBearer(request)
 
-    // Create
+    // Товар обязателен только при включении кампании. CRUD жизненного цикла
+    // проверяем на валидном черновике без зависимости от внешней Medusa.
     const created = await request.post(`${BACKEND_URL}/api/admin/promo`, {
       headers: { Authorization: bearer },
-      data: { title: `E2E-cycle-${Date.now()}`, brand: 'Test', status: 'active', budget: 1000 },
+      data: { title: `E2E-cycle-${Date.now()}`, status: 'draft', budget: 1000 },
     })
     expect(created.ok()).toBe(true)
     const promo = (await created.json()) as { id: string; status: string }
-    expect(promo.status).toBe('active')
+    expect(promo.status).toBe('draft')
 
     // PATCH bonus
     const updated = await request.patch(`${BACKEND_URL}/api/admin/promo/${promo.id}`, {
