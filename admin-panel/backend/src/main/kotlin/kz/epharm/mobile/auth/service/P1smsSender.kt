@@ -5,14 +5,9 @@ import kz.epharm.shared.PhoneUtil
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.annotation.Value
-import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Configuration
 import org.springframework.http.MediaType
 import org.springframework.http.HttpStatus
-import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.web.client.RestClient
-import java.time.Duration
 
 /**
  * Отправка OTP через p1sms.kz (POST {base-url}/apiSms/create, см. apiInstruction.pdf).
@@ -81,49 +76,5 @@ class P1smsSender(
     data class P1smsResponse(val status: String? = null, val data: List<Item>? = null) {
         @JsonIgnoreProperties(ignoreUnknown = true)
         data class Item(val id: Long? = null, val status: String? = null, val phone: String? = null)
-    }
-}
-
-/**
- * Выбор реализации SmsSender ОДНИМ детерминированным местом: задан P1SMS_API_KEY → боевой
- * p1sms; пуст → лог-заглушка (dev/тесты). Фабричный бин вместо @Component-ов, чтобы не
- * зависеть от порядка сканирования при двух кандидатах одного типа.
- */
-@Configuration
-class SmsSenderConfig {
-
-    private val log = LoggerFactory.getLogger(SmsSenderConfig::class.java)
-
-    @Bean
-    fun smsSender(
-        @Value("\${app.sms.p1sms.base-url:https://admin.p1sms.kz}") baseUrl: String,
-        @Value("\${app.sms.p1sms.api-key:}") apiKey: String,
-        @Value("\${app.otp.dev-mode:true}") devMode: Boolean,
-        @Value("\${app.sms.p1sms.channel:digit}") channel: String,
-        @Value("\${app.sms.p1sms.sender:}") sender: String,
-        @Value("\${app.sms.p1sms.text-template:Код входа ePharm: {code}}") textTemplate: String,
-        @Value("\${app.sms.p1sms.timeout-ms:10000}") timeoutMs: Long,
-    ): SmsSender {
-        if (apiKey.isBlank()) {
-            check(devMode) {
-                "P1SMS_API_KEY must be configured when OTP_DEV_MODE=false"
-            }
-            log.info("SMS: P1SMS_API_KEY не задан → LoggingSmsSender (заглушка, SMS не уходят)")
-            return LoggingSmsSender()
-        }
-        if (channel == "char" && sender.isBlank()) {
-            log.warn("SMS: канал 'char' без P1SMS_SENDER — p1sms отклонит отправку; задай sender или канал digit")
-        }
-        log.info("SMS: p1sms активен (канал={}, sender='{}')", channel, sender)
-        // Таймауты — здесь (прод-путь); в тестах RestClient приходит уже с мок-фабрикой,
-        // и переопределение requestFactory её бы перетёрло.
-        val rest = RestClient.builder()
-            .baseUrl(baseUrl)
-            .requestFactory(SimpleClientHttpRequestFactory().apply {
-                setConnectTimeout(Duration.ofMillis(timeoutMs))
-                setReadTimeout(Duration.ofMillis(timeoutMs))
-            })
-            .build()
-        return P1smsSender(rest, apiKey, channel, sender, textTemplate)
     }
 }

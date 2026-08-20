@@ -91,8 +91,10 @@ allowed Medusa HTTP images.
 3. New user registration -> `POST /api/mobile/auth/register`.
 4. Tokens are stored in `flutter_secure_storage`; refresh uses `/api/mobile/auth/refresh`.
 
-`OTP_DEV_MODE=true` means the accepted code is `544544`. Real SMS integration is still an ops/product
-decision.
+In production, `OTP_PROVIDER=daribar` delegates both code generation/delivery and verification to
+Daribar. The mobile app never calls Daribar directly and never contains SMS credentials. It submits
+the phone/code to ePharm, which issues its own JWT after Daribar confirms the code. The fixed
+`544544` value exists only when `OTP_DEV_MODE=true` in local/test environments.
 
 ### Training Program -> Assignment -> Certificate
 
@@ -114,7 +116,7 @@ The complete contract and current MVP boundaries are documented in `13-training-
 | Medusa       | Product catalog, product images, barcode, category metadata, pharmacy stock locations. Backend proxies it; mobile/admin do not talk to Medusa directly. |
 | MinIO        | Receipt photos, screen media, APK/demo files. Current bucket is public-readable; privatizing receipt access remains a release hardening item.           |
 | Redis        | Infrastructure dependency; available for cache/rate-limit/session work.                                                                                 |
-| SMS provider | Not connected. Dev OTP is active in pilot/demo flows.                                                                                                   |
+| SMS provider | Daribar gateway via backend-only `/api/v2/sms` and `/api/v2/auth`; dev OTP is local/test only.                                                          |
 | OCR / OFD QR | Removed/cancelled by product decision. Receipt validation is POS log + Excel + manual moderation/photo evidence.                                        |
 
 ## Design Direction

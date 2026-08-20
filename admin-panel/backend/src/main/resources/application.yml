@@ -63,9 +63,13 @@ app:
     bucket-receipts: epharm-receipts
   otp:
     # dev-mode=true: код входа фармацевта всегда фиксированный (dev-fixed) и возвращается
-    # в ответе /sms/request (devCode) для curl/E2E. В prod профиле переопределяется в false
-    # → случайный 6-значный код + реальная отправка SMS (SmsSender).
+    # в ответе /sms/request (devCode) для curl/E2E. В prod профиле переопределяется в false,
+    # после чего кодом полностью управляет выбранный внешний провайдер.
     dev-mode: ${OTP_DEV_MODE:true}
+    # Боевой провайдер: daribar — код генерирует/проверяет внешний gateway; p1sms — ePharm
+    # генерирует код локально и передаёт его провайдеру для доставки. В dev-mode выбор
+    # игнорируется и используется фиксированный код без внешнего запроса.
+    provider: ${OTP_PROVIDER:daribar}
     # dev-fixed OTP, совпадает с моком в lib/features/auth/data/auth_repository.dart.
     dev-fixed: '544544'
     # TTL кода и анти-брутфорс. register-window — окно на /register после verify.
@@ -76,8 +80,14 @@ app:
     # (SMS платные). 0 = выключить. Мобилка держит такой же таймер на кнопке resend.
     resend-cooldown-seconds: ${OTP_RESEND_COOLDOWN_SECONDS:60}
   sms:
+    # Daribar Combined API (`swag.json`): POST /api/v2/sms + POST /api/v2/auth.
+    # Секреты SMS-агрегатора находятся внутри Daribar; ePharm и мобильное приложение
+    # отправляют только номер/код и никогда не получают ключ агрегатора.
+    daribar:
+      base-url: ${DARIBAR_OTP_BASE_URL:https://backoffice.daribar.com}
+      timeout-ms: ${DARIBAR_OTP_TIMEOUT_MS:10000}
     # Боевой SMS-провайдер p1sms.kz (apiInstruction.pdf). api-key ПУСТ → лог-заглушка
-    # (SMS не уходят). Ключ — в ЛК admin.p1sms.kz («Эмулятор запросов»/«Инструкция по API»).
+    # допустима только при OTP_DEV_MODE=true либо когда выбран Daribar.
     p1sms:
       base-url: ${P1SMS_BASE_URL:https://admin.p1sms.kz}
       api-key: ${P1SMS_API_KEY:}

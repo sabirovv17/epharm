@@ -63,6 +63,12 @@ Offline mocks remain available with `--dart-define=USE_API=false`.
 
 QR/OFD scanning was removed by product decision. Receipt validation is not based on OCR.
 
+In API mode, OTP is always requested and verified through ePharm (`/api/mobile/auth/sms/request` and
+`/api/mobile/auth/sms/verify`). Daribar is an internal backend dependency: its URL, implementation
+details and any provider credentials are not shipped in the iOS/Android binary. The fixed `544544`
+code is available only in offline mock mode or against a backend explicitly started with
+`OTP_DEV_MODE=true`.
+
 ## Data Layer
 
 Each domain keeps repository interfaces with API and mock implementations. Providers select by

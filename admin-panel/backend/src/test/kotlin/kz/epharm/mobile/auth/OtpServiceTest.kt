@@ -63,6 +63,7 @@ class OtpServiceTest {
         val r = otpService.request(phone)
         assertThat(r.devCode).isEqualTo("544544")
         assertThat(otpRepository.findById(phone)).isPresent
+        assertThat(otpRepository.findById(phone).get().verificationProvider).isEqualTo("dev")
     }
 
     @Test

@@ -75,7 +75,9 @@ Required non-default secrets:
 
 Important current values/policies:
 
-- `OTP_DEV_MODE=false` is the intended production setting, but pilots may still use dev OTP by decision.
+- Production OTP requires `OTP_DEV_MODE=false`, `OTP_PROVIDER=daribar`,
+  `DARIBAR_OTP_BASE_URL=https://backoffice.daribar.com` and a finite request timeout.
+- `OTP_DEV_MODE=true` exposes the shared fixed code and is permitted only for local/test environments.
 - `S3_PUBLIC_URL` must match the external Caddy route. It is `https://epharm.inkar.kz/s3`.
 - Medusa defaults in compose are publishable storefront ids, not admin/root secrets.
 - Live storefront/PIM/SSH credentials are documented in their existing credential files and must not be
@@ -145,7 +147,8 @@ Example cron:
 - Receipt photos are in a public-readable MinIO bucket. The release checklist tracks private bucket +
   presigned URL work.
 - Storefront/PIM/SSH credentials present in existing docs need rotation.
-- Real SMS provider is not connected.
+- Daribar is an external production dependency for OTP. Monitor request failures and keep the legacy
+  p1sms configuration disabled unless an explicit provider rollback is planned.
 - Single backend instance is assumed for payout scheduling unless a distributed lock is added.
 - Medusa still uses HTTP on raw IP; backend/browser image proxy mitigates mixed content for images, not
   the broader TLS/allowlist concern.

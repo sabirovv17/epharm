@@ -17,8 +17,8 @@ springdoc:
 
 app:
   otp:
-    # Прод: dev-mode по умолчанию ВЫКЛЮЧЕН → случайный 6-значный код + реальная отправка
-    # (SmsSender). Можно временно включить пилот без SMS через env OTP_DEV_MODE=true.
+    # Прод: dev-mode по умолчанию ВЫКЛЮЧЕН. OTP_PROVIDER определяет полный цикл кода:
+    # Daribar сам генерирует/отправляет/проверяет, p1sms только доставляет код ePharm.
     dev-mode: ${OTP_DEV_MODE:false}
   # Bootstrap первого админа HQ-консоли (см. ProdBootstrap). Без этих переменных
   # admin_users остаётся пустой и в консоль не войти.

@@ -123,11 +123,25 @@ blocking when the admin/mobile web views are served over HTTPS.
 ## Security Model
 
 - Admin auth uses bcrypt passwords, access JWT, hashed refresh tokens, and admin roles.
-- Mobile auth uses OTP and separate mobile refresh tokens.
+- Mobile auth uses Daribar OTP and separate ePharm mobile refresh tokens.
 - POSM uses a device key; comparison is constant-time.
 - `GlobalExceptionHandler` returns JSON `{code,message,fields?}` instead of stack traces.
 - Business errors should be `AppException(ErrorCode, message, HttpStatus)`.
 - Receipt/photo bucket access is still a hardening topic: current MinIO bucket is public-readable.
+
+## Mobile OTP
+
+The mobile application calls only ePharm endpoints. `OtpProvider` selects the implementation:
+
+- `OTP_DEV_MODE=true`: local fixed code for development/tests; no external request;
+- `OTP_DEV_MODE=false`, `OTP_PROVIDER=daribar`: Daribar generates, sends and verifies the code;
+- `OTP_PROVIDER=p1sms`: legacy fallback where ePharm generates the code and p1sms only delivers it.
+
+Daribar requests are backend-only: `POST /api/v2/sms` with `sms_type=auth`, followed by
+`POST /api/v2/auth` with `validation_code`. Daribar access/refresh tokens are deliberately discarded;
+after phone verification ePharm issues its own JWT pair. The database stores the provider id and an
+opaque nonce, never the external OTP. Per-phone resend cooldown, TTL and attempt limits remain local.
+See `docs/15-daribar-otp.md` for the extracted contract and operations.
 
 ## Medusa Integration
 

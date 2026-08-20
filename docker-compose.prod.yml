@@ -114,8 +114,12 @@ services:
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       # ВАЖНО для прода: выключить dev-OTP (иначе код входа всегда 544544).
       OTP_DEV_MODE: ${OTP_DEV_MODE:-false}
+      # Daribar = внешний полный OTP-цикл из Combined API; p1sms = локальный код + доставка.
+      OTP_PROVIDER: ${OTP_PROVIDER:-daribar}
+      DARIBAR_OTP_BASE_URL: ${DARIBAR_OTP_BASE_URL:-https://backoffice.daribar.com}
+      DARIBAR_OTP_TIMEOUT_MS: ${DARIBAR_OTP_TIMEOUT_MS:-10000}
       # SMS-провайдер p1sms.kz: ключ ПУСТ → SMS не уходят (лог-заглушка). Канал digit/char,
-      # sender нужен только для char (зарегистрированное в ЛК имя отправителя).
+      # sender нужен только для char. Эти поля используются лишь при OTP_PROVIDER=p1sms.
       P1SMS_API_KEY: ${P1SMS_API_KEY:-}
       P1SMS_CHANNEL: ${P1SMS_CHANNEL:-digit}
       P1SMS_SENDER: ${P1SMS_SENDER:-}

@@ -20,13 +20,13 @@ import java.time.Instant
  * requireVerified → окно на /register после успешной верификации; consume → удалить строку.
  *
  * dev-режим (app.otp.dev-mode=true): код всегда фиксированный (544544), совпадает с моком
- * Flutter (lib/features/auth/data/auth_repository.dart) — чтобы dev-вход был детерминирован.
- * prod-режим: случайный 6-значный код + реальная отправка через SmsSender.
+ * Flutter. В production провайдер может проверять локальный код (p1sms) или полностью владеть
+ * генерацией/проверкой (Daribar gateway); выбранный провайдер фиксируется в строке запроса.
  */
 @Service
 class OtpService(
     private val otpRepository: MobileOtpRepository,
-    private val smsSender: SmsSender,
+    private val otpProvider: OtpProvider,
     @Value("\${app.otp.dev-mode:true}") private val devMode: Boolean,
     @Value("\${app.otp.dev-fixed:544544}") private val devFixed: String,
     @Value("\${app.otp.ttl-seconds:300}") private val ttlSeconds: Long,
@@ -59,17 +59,23 @@ class OtpService(
             }
         }
 
-        val code = if (devMode) devFixed else generateCode()
+        val localCode = when (otpProvider.verificationMode) {
+            OtpVerificationMode.LOCAL -> if (devMode) devFixed else generateCode()
+            OtpVerificationMode.EXTERNAL -> null
+        }
         val entity = existing ?: MobileOtpEntity(phone = phone)
-        entity.codeHash = RefreshTokenService.hash(code)
+        // EXTERNAL-код ePharm не знает. Случайный nonce сохраняет NOT NULL-инвариант колонки,
+        // но никогда не участвует в проверке.
+        entity.codeHash = RefreshTokenService.hash(localCode ?: generateProviderNonce())
+        entity.verificationProvider = otpProvider.id
         entity.expiresAt = now.plus(Duration.ofSeconds(ttlSeconds))
         entity.attempts = 0
         entity.verifiedAt = null
         entity.createdAt = now
         otpRepository.save(entity)
 
-        if (!devMode) smsSender.sendOtp(phone, code)
-        return RequestedOtp(ttlSeconds = ttlSeconds, devCode = if (devMode) code else null)
+        otpProvider.requestOtp(phone, localCode)
+        return RequestedOtp(ttlSeconds = ttlSeconds, devCode = if (devMode) localCode else null)
     }
 
     /**
@@ -95,7 +101,31 @@ class OtpService(
                 HttpStatus.TOO_MANY_REQUESTS,
             )
         }
-        if (entity.codeHash != RefreshTokenService.hash(code)) {
+
+        if (entity.verificationProvider != otpProvider.id) {
+            throw AppException(
+                ErrorCode.OTP_NOT_REQUESTED,
+                "Способ отправки кода изменился — запросите новый код",
+                HttpStatus.BAD_REQUEST,
+            )
+        }
+
+        val verification = when (otpProvider.verificationMode) {
+            OtpVerificationMode.LOCAL -> {
+                if (entity.codeHash == RefreshTokenService.hash(code)) {
+                    OtpVerificationResult.VERIFIED
+                } else {
+                    OtpVerificationResult.INVALID
+                }
+            }
+
+            OtpVerificationMode.EXTERNAL -> otpProvider.verifyOtp(phone, code)
+        }
+
+        if (verification == OtpVerificationResult.EXPIRED) {
+            throw AppException(ErrorCode.OTP_EXPIRED, "Срок действия кода истёк", HttpStatus.BAD_REQUEST)
+        }
+        if (verification == OtpVerificationResult.INVALID) {
             entity.attempts += 1
             otpRepository.save(entity)
             throw AppException(ErrorCode.OTP_INVALID, "Неверный код", HttpStatus.BAD_REQUEST)
@@ -131,6 +161,9 @@ class OtpService(
     }
 
     private fun generateCode(): String = (random.nextInt(1_000_000)).toString().padStart(6, '0')
+
+    private fun generateProviderNonce(): String =
+        List(32) { random.nextInt(256).toString(16).padStart(2, '0') }.joinToString("")
 
     data class RequestedOtp(val ttlSeconds: Long, val devCode: String?)
 }

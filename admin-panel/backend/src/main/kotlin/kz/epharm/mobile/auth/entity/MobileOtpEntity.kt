@@ -8,7 +8,8 @@ import java.time.Instant
 
 /**
  * Одноразовый код подтверждения телефона. Один номер = одна строка (phone — PK).
- * Сам код в БД не хранится — только SHA-256 hash. TTL/попытки обслуживает OtpService.
+ * Сам код в БД не хранится — только SHA-256 hash. Для внешнего verifier это случайный nonce,
+ * поскольку реальный код ePharm не получает. TTL/попытки обслуживает OtpService.
  */
 @Entity
 @Table(name = "mobile_otps")
@@ -19,6 +20,9 @@ class MobileOtpEntity(
 
     @Column(name = "code_hash", nullable = false)
     var codeHash: String = "",
+
+    @Column(name = "verification_provider", nullable = false, length = 32)
+    var verificationProvider: String = "local",
 
     @Column(name = "expires_at", nullable = false)
     var expiresAt: Instant = Instant.now(),

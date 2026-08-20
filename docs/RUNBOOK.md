@@ -145,7 +145,8 @@ flutter analyze lib test
 flutter test
 ```
 
-OTP is `544544` while dev OTP mode is active.
+Production uses a real SMS code through Daribar. `544544` works only when the target backend was
+explicitly started with `OTP_DEV_MODE=true`; never enable that flag on the public environment.
 
 ## 5. Full Local Cycle
 

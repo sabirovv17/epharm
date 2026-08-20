@@ -58,6 +58,7 @@ public endpoint unless `.env.prod` and `Caddyfile` are changed together.
 | `12-posm-v1.0.44-firebird-auth.md`        | Боевой сбой авторизации Firebird и детерминированный приоритет `options.ini`.  |
 | `13-training-module.md`                   | Реализация блока обучения в backend, админке и мобильном приложении.           |
 | `14-screen-playlist-profiles.md`          | Общий эфир и индивидуальные экранные плейлисты по списку аптек.                |
+| `15-daribar-otp.md`                       | Извлечённый SMS/OTP-контракт Daribar, безопасность и production-операции.      |
 | `TRAINING-TEST-GUIDE.md`                  | Сквозная проверка обучения: админка, приложение, QR, сертификат и роли.        |
 | `RUNBOOK.md`                              | Day-to-day local startup, reset, tests, and production commands.               |
 | `DEV-ONBOARDING.md`                       | Run mobile app on Android/iPhone against shared backend.                       |

@@ -20,14 +20,14 @@ Priorities:
 
 ## P0
 
-| Item                                           | Owner        | Status / action                                                                                                                                                                    |
-| ---------------------------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Receipt photos in public-readable MinIO bucket | code/ops     | Move receipt photos behind authenticated/presigned URL access. Keep screen/broadcast media public or split buckets.                                                                |
-| Production secrets                             | ops          | Ensure `.env.prod` has generated `JWT_SECRET`, `POSM_DEVICE_KEY`, DB/MinIO passwords, admin bootstrap credentials.                                                                 |
-| Compromised storefront/PIM/SSH credentials     | ops          | Rotate credentials documented in existing credential files. Do not copy them into new docs.                                                                                        |
-| Postgres backup and restore                    | ops          | Cron/off-site backup exists; restore has been tested.                                                                                                                              |
-| POSM rollout for automated bonus loop          | ops          | Install scheduled tasks/watchdog and pharmacy/device config. Validate active-user extraction against the real Standard-N schema; do not bake a rotating employee into `posm.json`. |
-| SMS provider                                   | decision/ops | Real SMS provider not connected. If pilot keeps `OTP_DEV_MODE=true`, that is an explicit pilot-only decision.                                                                      |
+| Item                                           | Owner    | Status / action                                                                                                                                                                    |
+| ---------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Receipt photos in public-readable MinIO bucket | code/ops | Move receipt photos behind authenticated/presigned URL access. Keep screen/broadcast media public or split buckets.                                                                |
+| Production secrets                             | ops      | Ensure `.env.prod` has generated `JWT_SECRET`, `POSM_DEVICE_KEY`, DB/MinIO passwords, admin bootstrap credentials.                                                                 |
+| Compromised storefront/PIM/SSH credentials     | ops      | Rotate credentials documented in existing credential files. Do not copy them into new docs.                                                                                        |
+| Postgres backup and restore                    | ops      | Cron/off-site backup exists; restore has been tested.                                                                                                                              |
+| POSM rollout for automated bonus loop          | ops      | Install scheduled tasks/watchdog and pharmacy/device config. Validate active-user extraction against the real Standard-N schema; do not bake a rotating employee into `posm.json`. |
+| SMS provider                                   | code/ops | Daribar is integrated backend-to-backend. Keep `OTP_DEV_MODE=false`, verify live delivery, gateway latency/errors and resend limits before each mobile release.                    |
 
 ## P1
 
