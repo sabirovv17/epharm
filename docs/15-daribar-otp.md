@@ -9,7 +9,7 @@ it does not declare `host`, `basePath`, `schemes`, API-key security definitions 
 Daribar's web application and live endpoint checks identify the gateway origin as:
 
 ```text
-https://backoffice.daribar.com
+https://prod-backoffice.daribar.com
 ```
 
 The gateway owns OTP generation and delivery. ePharm does not need a p1sms key for this flow, and no
@@ -63,7 +63,7 @@ contains only a random nonce because ePharm never receives the real OTP.
 ```dotenv
 OTP_DEV_MODE=false
 OTP_PROVIDER=daribar
-DARIBAR_OTP_BASE_URL=https://backoffice.daribar.com
+DARIBAR_OTP_BASE_URL=https://prod-backoffice.daribar.com
 DARIBAR_OTP_TIMEOUT_MS=10000
 ```
 

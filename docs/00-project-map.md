@@ -93,7 +93,7 @@ PharmaPayV2/
 | Прод-сервер               | `adm-quasar@inkpim.inkar.kz`, каталог `/home/adm-quasar/epharm` | деплой = git archive + scp + compose build                                      |
 | Публичный хост            | `https://epharm.inkar.kz`                                       | `/api`→backend, `/s3`→MinIO, `/`→админка                                        |
 | Medusa (витрина inkar.kz) | `http://78.140.246.238:9000`                                    | каталог/цены/фото; ключи в application.yml                                      |
-| Daribar OTP gateway       | `https://backoffice.daribar.com/api/v2/{sms,auth}`              | SMS и проверка кода на стороне Daribar; ключи агрегатора в ePharm не передаются |
+| Daribar OTP gateway       | `https://prod-backoffice.daribar.com/api/v2/{sms,auth}`         | SMS и проверка кода на стороне Daribar; ключи агрегатора в ePharm не передаются |
 | p1sms (legacy fallback)   | `https://admin.p1sms.kz/apiSms/create`                          | используется только при явном `OTP_PROVIDER=p1sms`                              |
 | Стандарт-Н ДЕМО           | VM пользователя, `C:\Standart-N_DEMO`                           | Firebird `db/ztrade.fdb` (localhost, SYSDBA/masterkey), лог `Kassir/zkassa.log` |
 | Шара Mac↔VM               | Mac `~/Desktop/work` = VM `Z:\`                                 | `Z:\epharm-demo` — стейджинг POSM                                               |

@@ -76,7 +76,7 @@ Required non-default secrets:
 Important current values/policies:
 
 - Production OTP requires `OTP_DEV_MODE=false`, `OTP_PROVIDER=daribar`,
-  `DARIBAR_OTP_BASE_URL=https://backoffice.daribar.com` and a finite request timeout.
+  `DARIBAR_OTP_BASE_URL=https://prod-backoffice.daribar.com` and a finite request timeout.
 - `OTP_DEV_MODE=true` exposes the shared fixed code and is permitted only for local/test environments.
 - `S3_PUBLIC_URL` must match the external Caddy route. It is `https://epharm.inkar.kz/s3`.
 - Medusa defaults in compose are publishable storefront ids, not admin/root secrets.

@@ -84,7 +84,7 @@ app:
     # Секреты SMS-агрегатора находятся внутри Daribar; ePharm и мобильное приложение
     # отправляют только номер/код и никогда не получают ключ агрегатора.
     daribar:
-      base-url: ${DARIBAR_OTP_BASE_URL:https://backoffice.daribar.com}
+      base-url: ${DARIBAR_OTP_BASE_URL:https://prod-backoffice.daribar.com}
       timeout-ms: ${DARIBAR_OTP_TIMEOUT_MS:10000}
     # Боевой SMS-провайдер p1sms.kz (apiInstruction.pdf). api-key ПУСТ → лог-заглушка
     # допустима только при OTP_DEV_MODE=true либо когда выбран Daribar.

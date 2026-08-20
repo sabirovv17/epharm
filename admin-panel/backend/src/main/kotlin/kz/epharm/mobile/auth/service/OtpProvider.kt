@@ -59,7 +59,7 @@ class OtpProviderConfig {
         objectMapper: ObjectMapper,
         @Value("\${app.otp.dev-mode:true}") devMode: Boolean,
         @Value("\${app.otp.provider:daribar}") providerName: String,
-        @Value("\${app.sms.daribar.base-url:https://backoffice.daribar.com}") daribarBaseUrl: String,
+        @Value("\${app.sms.daribar.base-url:https://prod-backoffice.daribar.com}") daribarBaseUrl: String,
         @Value("\${app.sms.daribar.timeout-ms:10000}") daribarTimeoutMs: Long,
         @Value("\${app.sms.p1sms.base-url:https://admin.p1sms.kz}") p1smsBaseUrl: String,
         @Value("\${app.sms.p1sms.api-key:}") p1smsApiKey: String,
