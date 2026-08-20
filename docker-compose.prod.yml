@@ -112,7 +112,7 @@ services:
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_ACCESS_KEY: ${MINIO_ROOT_USER:-epharm}
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
-      # ВАЖНО для прода: выключить dev-OTP (иначе код входа всегда 544544).
+      # ВАЖНО для прода: выключить dev-OTP (иначе код входа всегда 5445).
       OTP_DEV_MODE: ${OTP_DEV_MODE:-false}
       # Daribar = внешний полный OTP-цикл из Combined API; p1sms = локальный код + доставка.
       OTP_PROVIDER: ${OTP_PROVIDER:-daribar}

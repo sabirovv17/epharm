@@ -19,7 +19,7 @@ import java.time.Instant
  * request → upsert код (hash) с TTL; verify → сверка + отметка verified_at;
  * requireVerified → окно на /register после успешной верификации; consume → удалить строку.
  *
- * dev-режим (app.otp.dev-mode=true): код всегда фиксированный (544544), совпадает с моком
+ * dev-режим (app.otp.dev-mode=true): код всегда фиксированный (5445), совпадает с моком
  * Flutter. В production провайдер может проверять локальный код (p1sms) или полностью владеть
  * генерацией/проверкой (Daribar gateway); выбранный провайдер фиксируется в строке запроса.
  */
@@ -28,7 +28,7 @@ class OtpService(
     private val otpRepository: MobileOtpRepository,
     private val otpProvider: OtpProvider,
     @Value("\${app.otp.dev-mode:true}") private val devMode: Boolean,
-    @Value("\${app.otp.dev-fixed:544544}") private val devFixed: String,
+    @Value("\${app.otp.dev-fixed:5445}") private val devFixed: String,
     @Value("\${app.otp.ttl-seconds:300}") private val ttlSeconds: Long,
     @Value("\${app.otp.max-attempts:5}") private val maxAttempts: Int,
     @Value("\${app.otp.register-window-seconds:900}") private val registerWindowSeconds: Long,
@@ -160,7 +160,7 @@ class OtpService(
         otpRepository.deleteById(phone)
     }
 
-    private fun generateCode(): String = (random.nextInt(1_000_000)).toString().padStart(6, '0')
+    private fun generateCode(): String = (random.nextInt(10_000)).toString().padStart(4, '0')
 
     private fun generateProviderNonce(): String =
         List(32) { random.nextInt(256).toString(16).padStart(2, '0') }.joinToString("")

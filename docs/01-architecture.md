@@ -94,7 +94,7 @@ allowed Medusa HTTP images.
 In production, `OTP_PROVIDER=daribar` delegates both code generation/delivery and verification to
 Daribar. The mobile app never calls Daribar directly and never contains SMS credentials. It submits
 the phone/code to ePharm, which issues its own JWT after Daribar confirms the code. The fixed
-`544544` value exists only when `OTP_DEV_MODE=true` in local/test environments.
+`5445` value exists only when `OTP_DEV_MODE=true` in local/test environments.
 
 ### Training Program -> Assignment -> Certificate
 

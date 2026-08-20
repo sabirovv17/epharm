@@ -66,7 +66,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     super.dispose();
   }
 
-  bool get _canSubmit => _code.length == 6 && !_busy;
+  bool get _canSubmit => _code.length == AuthRepository.otpCodeLength && !_busy;
 
   /// Повторная отправка кода (когда таймер дошёл до 0). Реальная SMS может потеряться /
   /// задержаться — без этой кнопки пользователь застревал на экране. Бэкенд держит свой
@@ -173,7 +173,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                         children: [
                           IconButton(
                             onPressed: () => context.go('/auth/phone'),
-                            icon: const Icon(Icons.arrow_back, color: Colors.white),
+                            icon: const Icon(Icons.arrow_back,
+                                color: Colors.white),
                           ),
                           const SizedBox(width: 4),
                           const PharmaLogo(size: 48),
@@ -217,13 +218,15 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                       child: Pinput(
                         controller: _controller,
                         focusNode: _focus,
-                        length: 6,
+                        length: AuthRepository.otpCodeLength,
                         enabled: !_busy, // блокируем ввод, пока проверяется код
                         defaultPinTheme: defaultPinTheme,
                         focusedPinTheme: focusedPinTheme,
                         separatorBuilder: (_) => const SizedBox(width: 8),
                         keyboardType: TextInputType.number,
-                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly
+                        ],
                         onChanged: (v) {
                           setState(() {
                             _code = v;
@@ -274,7 +277,9 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                           : TextButton(
                               onPressed: _resending ? null : _resend,
                               child: Text(
-                                _resending ? 'Отправляем…' : 'Отправить код ещё раз',
+                                _resending
+                                    ? 'Отправляем…'
+                                    : 'Отправить код ещё раз',
                                 style: const TextStyle(
                                   fontFamily: 'Manrope',
                                   fontSize: 14,

@@ -145,7 +145,7 @@ flutter analyze lib test
 flutter test
 ```
 
-Production uses a real SMS code through Daribar. `544544` works only when the target backend was
+Production uses a real SMS code through Daribar. `5445` works only when the target backend was
 explicitly started with `OTP_DEV_MODE=true`; never enable that flag on the public environment.
 
 ## 5. Full Local Cycle

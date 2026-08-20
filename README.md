@@ -118,7 +118,8 @@ flutter run --dart-define=USE_API=true --dart-define=API_BASE=http://10.0.2.2:80
 flutter run --dart-define=USE_API=false
 ```
 
-OTP is `544544` while `OTP_DEV_MODE=true`. Real SMS is intentionally not wired yet.
+OTP is `5445` while `OTP_DEV_MODE=true`. Production uses four-digit SMS codes issued and verified
+by Daribar through the ePharm backend.
 
 ## Quality Bar
 

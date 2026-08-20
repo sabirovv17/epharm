@@ -24,7 +24,7 @@ void main() {
       expect(req.url.path, '/api/mobile/auth/sms/request');
       expect(req.headers['Authorization'], isNull);
       expect(jsonDecode(req.body), {'phone': '+77771002030'});
-      return _json({'sent': true, 'devCode': '544544'}, 200);
+      return _json({'sent': true, 'devCode': '5445'}, 200);
     }));
     await repo.requestOtp(phone: '+77771002030');
     expect(hit, true);
@@ -37,7 +37,7 @@ void main() {
       return _json(
           {'registered': false, 'tokens': null, 'pharmacist': null}, 200);
     }));
-    final r = await repo.verifyOtp(phone: '+77770001122', code: '544544');
+    final r = await repo.verifyOtp(phone: '+77770001122', code: '5445');
     expect(r.registered, false);
     expect(r.user, isNull);
     expect(store.hasTokens, false);
@@ -58,7 +58,7 @@ void main() {
                 'balance': 42000,
               },
             }, 200)));
-    final r = await repo.verifyOtp(phone: '+77000000001', code: '544544');
+    final r = await repo.verifyOtp(phone: '+77000000001', code: '5445');
     expect(r.registered, true);
     expect(r.user!.fio, 'Иван');
     expect(r.user!.balanceKzt, 42000);

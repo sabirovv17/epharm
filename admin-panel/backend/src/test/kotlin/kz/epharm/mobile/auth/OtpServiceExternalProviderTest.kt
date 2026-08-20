@@ -72,7 +72,7 @@ class OtpServiceExternalProviderTest {
         val entity = pendingEntity().also { it.verificationProvider = "local" }
         every { repository.findById(PHONE) } returns Optional.of(entity)
 
-        assertThatThrownBy { service().verify(PHONE, "544544", NOW) }
+        assertThatThrownBy { service().verify(PHONE, "5445", NOW) }
             .isInstanceOf(AppException::class.java)
             .extracting("code").isEqualTo(ErrorCode.OTP_NOT_REQUESTED)
         verify(exactly = 0) { provider.verifyOtp(any(), any()) }
@@ -97,7 +97,7 @@ class OtpServiceExternalProviderTest {
         otpRepository = repository,
         otpProvider = provider,
         devMode = false,
-        devFixed = "544544",
+        devFixed = "5445",
         ttlSeconds = 300,
         maxAttempts = 5,
         registerWindowSeconds = 900,

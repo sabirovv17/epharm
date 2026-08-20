@@ -61,7 +61,7 @@ class OtpServiceTest {
     @Test
     fun `request в dev-режиме отдаёт фиксированный код и пишет строку`() {
         val r = otpService.request(phone)
-        assertThat(r.devCode).isEqualTo("544544")
+        assertThat(r.devCode).isEqualTo("5445")
         assertThat(otpRepository.findById(phone)).isPresent
         assertThat(otpRepository.findById(phone).get().verificationProvider).isEqualTo("dev")
     }
@@ -69,7 +69,7 @@ class OtpServiceTest {
     @Test
     fun `verify правильным кодом ставит verified_at`() {
         otpService.request(phone)
-        otpService.verify(phone, "544544")
+        otpService.verify(phone, "5445")
         assertThat(otpRepository.findById(phone).get().verifiedAt).isNotNull
     }
 
@@ -85,7 +85,7 @@ class OtpServiceTest {
 
     @Test
     fun `verify без request бросает OTP_NOT_REQUESTED`() {
-        assertThatThrownBy { otpService.verify(phone, "544544") }
+        assertThatThrownBy { otpService.verify(phone, "5445") }
             .isInstanceOf(AppException::class.java)
             .extracting("code").isEqualTo(ErrorCode.OTP_NOT_REQUESTED)
     }
@@ -95,7 +95,7 @@ class OtpServiceTest {
         val t0 = Instant.parse("2026-06-09T10:00:00Z")
         otpService.request(phone, now = t0)
         // ttl=300с → через 301с код истёк.
-        assertThatThrownBy { otpService.verify(phone, "544544", now = t0.plus(Duration.ofSeconds(301))) }
+        assertThatThrownBy { otpService.verify(phone, "5445", now = t0.plus(Duration.ofSeconds(301))) }
             .isInstanceOf(AppException::class.java)
             .extracting("code").isEqualTo(ErrorCode.OTP_EXPIRED)
     }
@@ -109,7 +109,7 @@ class OtpServiceTest {
                 .extracting("code").isEqualTo(ErrorCode.OTP_INVALID)
         }
         // 6-я — уже отбивается лимитом ДО сравнения кода.
-        assertThatThrownBy { otpService.verify(phone, "544544") }
+        assertThatThrownBy { otpService.verify(phone, "5445") }
             .isInstanceOf(AppException::class.java)
             .extracting("code").isEqualTo(ErrorCode.OTP_TOO_MANY_ATTEMPTS)
     }
@@ -118,7 +118,7 @@ class OtpServiceTest {
     fun `requireVerified ок в окне регистрации`() {
         val t0 = Instant.parse("2026-06-09T10:00:00Z")
         otpService.request(phone, now = t0)
-        otpService.verify(phone, "544544", now = t0)
+        otpService.verify(phone, "5445", now = t0)
         // В пределах окна (register-window=900с) — не бросает.
         otpService.requireVerified(phone, now = t0.plus(Duration.ofSeconds(300)))
     }
@@ -127,7 +127,7 @@ class OtpServiceTest {
     fun `requireVerified вне окна бросает OTP_NOT_VERIFIED`() {
         val t0 = Instant.parse("2026-06-09T10:00:00Z")
         otpService.request(phone, now = t0)
-        otpService.verify(phone, "544544", now = t0)
+        otpService.verify(phone, "5445", now = t0)
         assertThatThrownBy { otpService.requireVerified(phone, now = t0.plus(Duration.ofSeconds(901))) }
             .isInstanceOf(AppException::class.java)
             .extracting("code").isEqualTo(ErrorCode.OTP_NOT_VERIFIED)
@@ -165,14 +165,14 @@ class OtpServiceTest {
         val t0 = Instant.parse("2026-06-09T10:00:00Z")
         otpService.request(phone, now = t0)
         val r = otpService.request(phone, now = t0.plus(Duration.ofSeconds(61)))
-        assertThat(r.devCode).isEqualTo("544544")
+        assertThat(r.devCode).isEqualTo("5445")
     }
 
     @Test
     fun `после verify кулдаун не мешает новому циклу входа`() {
         val t0 = Instant.parse("2026-06-09T10:00:00Z")
         otpService.request(phone, now = t0)
-        otpService.verify(phone, "544544", now = t0)
+        otpService.verify(phone, "5445", now = t0)
         // Строка verified → повторный запрос сразу разрешён (новый вход).
         assertThatCode { otpService.request(phone, now = t0.plus(Duration.ofSeconds(5))) }
             .doesNotThrowAnyException()

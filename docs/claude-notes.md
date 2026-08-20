@@ -36,7 +36,7 @@ this file; use git history if an old decision needs forensic detail.
 | Feature             | Current behavior                                                                 |
 | ------------------- | -------------------------------------------------------------------------------- |
 | Splash/welcome      | Splash resolves tokens/onboarding before showing welcome.                        |
-| Auth                | Phone -> OTP -> register if needed. Dev OTP is `544544` while backend allows it. |
+| Auth                | Phone -> 4-digit OTP -> register if needed. Dev OTP is `5445`.                   |
 | Home                | Public banners/promotions, balance for logged-in user, filters/sort, scan FAB.   |
 | Promotions          | Active backend campaigns from `/api/mobile/promotions`.                          |
 | Product detail      | Detail sheet, image gallery, Q&A, bonus CTA, recommendations.                    |

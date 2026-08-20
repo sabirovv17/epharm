@@ -15,6 +15,9 @@ https://prod-backoffice.daribar.com
 The gateway owns OTP generation and delivery. ePharm does not need a p1sms key for this flow, and no
 provider secret is included in the Flutter application.
 
+Daribar issues a four-digit numeric OTP. The mobile UI, mock mode and local fallback provider use
+the same length so a code accepted by the gateway can always be entered in the application.
+
 ## Contract Used by ePharm
 
 Request an authentication code:
@@ -67,7 +70,7 @@ DARIBAR_OTP_BASE_URL=https://prod-backoffice.daribar.com
 DARIBAR_OTP_TIMEOUT_MS=10000
 ```
 
-`OTP_DEV_MODE=true` bypasses Daribar and enables fixed code `544544`; it is strictly for local/test
+`OTP_DEV_MODE=true` bypasses Daribar and enables fixed four-digit code `5445`; it is strictly for local/test
 use. `OTP_PROVIDER=p1sms` remains an explicit rollback option and requires its own API key.
 
 ## Operations and Security

@@ -3,18 +3,23 @@ import '../domain/user.dart';
 /// Контракт аутентификации фармацевта. Реализации: [MockAuthRepository] (офлайн-демо) и
 /// ApiAuthRepository (реальный backend `/api/mobile/auth/**`). Выбор — по ApiConfig.useApi.
 abstract interface class AuthRepository {
+  /// Длина OTP-кода в Daribar и во всех режимах ePharm.
+  static const int otpCodeLength = 4;
+
   /// Дефолтный dev-OTP. Совпадает с `app.otp.dev-fixed` на бэке (профиль dev/test).
   /// Используется для авто-подстановки в demo-режиме.
-  static const String defaultOtpCode = '544544';
+  static const String defaultOtpCode = '5445';
 
   /// Запросить SMS-код на номер.
   Future<void> requestOtp({required String phone});
 
   /// Подтвердить код. Результат говорит, нужна ли регистрация или вход уже выполнен.
-  Future<AuthVerifyResult> verifyOtp({required String phone, required String code});
+  Future<AuthVerifyResult> verifyOtp(
+      {required String phone, required String code});
 
   /// Завершить регистрацию нового фармацевта (ФИО + ИИН) → создаётся pending-аккаунт.
-  Future<User> register({required String phone, required String fio, required String iin});
+  Future<User> register(
+      {required String phone, required String fio, required String iin});
 }
 
 /// Итог подтверждения кода.

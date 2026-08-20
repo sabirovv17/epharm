@@ -71,7 +71,7 @@ app:
     # игнорируется и используется фиксированный код без внешнего запроса.
     provider: ${OTP_PROVIDER:daribar}
     # dev-fixed OTP, совпадает с моком в lib/features/auth/data/auth_repository.dart.
-    dev-fixed: '544544'
+    dev-fixed: '5445'
     # TTL кода и анти-брутфорс. register-window — окно на /register после verify.
     ttl-seconds: 300
     max-attempts: 5

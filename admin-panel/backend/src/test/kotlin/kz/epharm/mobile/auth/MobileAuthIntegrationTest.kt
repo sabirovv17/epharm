@@ -94,7 +94,7 @@ class MobileAuthIntegrationTest {
     @Test
     fun `новый номер verify возвращает registered=false без токенов`() {
         requestOtp("+7 (777) 100-20-30")
-        val resp = verify("+7 (777) 100-20-30", "544544")
+        val resp = verify("+7 (777) 100-20-30", "5445")
         assertThat(resp.registered).isFalse
         assertThat(resp.tokens).isNull()
     }
@@ -102,7 +102,7 @@ class MobileAuthIntegrationTest {
     @Test
     fun `register создаёт pending-фармацевта без аптеки и выдаёт токены`() {
         requestOtp("+7 (777) 100-20-30")
-        verify("+7 (777) 100-20-30", "544544")
+        verify("+7 (777) 100-20-30", "5445")
 
         val result = mockMvc.perform(
             post("/api/mobile/auth/register")
@@ -133,7 +133,7 @@ class MobileAuthIntegrationTest {
     @Test
     fun `register с невалидным ИИН (неверная контрольная сумма) отклоняется 400`() {
         requestOtp("+7 (777) 100-20-31")
-        verify("+7 (777) 100-20-31", "544544")
+        verify("+7 (777) 100-20-31", "5445")
         // 12 цифр, но контрольная сумма не сходится → @Iin отвергает до бизнес-логики.
         mockMvc.perform(
             post("/api/mobile/auth/register")
@@ -158,7 +158,7 @@ class MobileAuthIntegrationTest {
     @Test
     fun `register с занятым ИИН отклоняется CONFLICT`() {
         requestOtp("+77779990011")
-        verify("+77779990011", "544544")
+        verify("+77779990011", "5445")
         mockMvc.perform(
             post("/api/mobile/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -176,7 +176,7 @@ class MobileAuthIntegrationTest {
         val result = mockMvc.perform(
             post("/api/mobile/auth/sms/verify")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"phone":"$activePhone","code":"544544"}"""),
+                .content("""{"phone":"$activePhone","code":"5445"}"""),
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.registered").value(true))
@@ -193,7 +193,7 @@ class MobileAuthIntegrationTest {
         mockMvc.perform(
             post("/api/mobile/auth/sms/verify")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"phone":"$blockedPhone","code":"544544"}"""),
+                .content("""{"phone":"$blockedPhone","code":"5445"}"""),
         )
             .andExpect(status().isForbidden)
             .andExpect(jsonPath("$.code").value("PHARMACIST_BLOCKED"))
@@ -218,7 +218,7 @@ class MobileAuthIntegrationTest {
         mockMvc.perform(
             post("/api/mobile/auth/sms/verify")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"phone":"+77770002233","code":"544544"}"""),
+                .content("""{"phone":"+77770002233","code":"5445"}"""),
         )
             .andExpect(status().isBadRequest)
             .andExpect(jsonPath("$.code").value("OTP_NOT_REQUESTED"))
@@ -232,7 +232,7 @@ class MobileAuthIntegrationTest {
         val verifyResult = mockMvc.perform(
             post("/api/mobile/auth/sms/verify")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"phone":"$activePhone","code":"544544"}"""),
+                .content("""{"phone":"$activePhone","code":"5445"}"""),
         ).andExpect(status().isOk).andReturn()
         val verify = objectMapper.readValue(verifyResult.response.contentAsByteArray, VerifySmsResponse::class.java)
         val oldRefresh = verify.tokens!!.refreshToken
@@ -268,7 +268,7 @@ class MobileAuthIntegrationTest {
         val verifyResult = mockMvc.perform(
             post("/api/mobile/auth/sms/verify")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"phone":"$activePhone","code":"544544"}"""),
+                .content("""{"phone":"$activePhone","code":"5445"}"""),
         ).andExpect(status().isOk).andReturn()
         val verify = objectMapper.readValue(verifyResult.response.contentAsByteArray, VerifySmsResponse::class.java)
 
@@ -296,7 +296,7 @@ class MobileAuthIntegrationTest {
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.sent").value(true))
-            .andExpect(jsonPath("$.devCode").value("544544"))
+            .andExpect(jsonPath("$.devCode").value("5445"))
     }
 
     private fun verify(phone: String, code: String): VerifySmsResponse {

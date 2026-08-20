@@ -89,7 +89,7 @@ export PATH="/tmp/codesign_shim:$PATH"
 While dev OTP is active, the OTP code is:
 
 ```text
-544544
+5445
 ```
 
 Use any phone number for a pilot/dev registration unless a specific seeded user is needed.
