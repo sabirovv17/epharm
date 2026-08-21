@@ -599,10 +599,25 @@ export interface LiftSummaryDto {
 
 // ─── LMS (Этап 3.6) — обучающие курсы ───
 export type CourseStatus = 'published' | 'draft' | 'archived'
+export type CourseLessonKind = 'text' | 'video'
+
+export interface CourseLessonDto {
+  id: string
+  title: string
+  description: string
+  content: string
+  kind: CourseLessonKind
+  videoUrl: string | null
+  durationMin: number
+  order: number
+  createdAt: string
+  updatedAt: string
+}
 
 export interface CourseDto {
   id: string
   title: string
+  description: string
   status: CourseStatus
   category: string
   lessons: number
@@ -610,6 +625,7 @@ export interface CourseDto {
   enrolled: number
   completed: number
   bonus: number
+  lessonItems: CourseLessonDto[]
   createdAt: string
   updatedAt: string
 }
@@ -618,6 +634,7 @@ export interface CreateCourseRequest {
   title: string
   status?: CourseStatus
   category?: string
+  description?: string
   lessons?: number
   durationMin?: number
   bonus?: number
@@ -627,9 +644,27 @@ export interface UpdateCourseRequest {
   title?: string
   status?: CourseStatus
   category?: string
+  description?: string
   lessons?: number
   durationMin?: number
   bonus?: number
+}
+
+export interface CreateCourseLessonRequest {
+  title: string
+  description?: string
+  content?: string
+  kind?: CourseLessonKind
+  durationMin?: number
+}
+
+export interface UpdateCourseLessonRequest {
+  title?: string
+  description?: string
+  content?: string
+  kind?: CourseLessonKind
+  durationMin?: number
+  clearVideo?: boolean
 }
 
 // ─── Screens (Этап 3.6) — indoor-DOOH плейлисты + слайды (read-only; редактор в Этапе 5) ───

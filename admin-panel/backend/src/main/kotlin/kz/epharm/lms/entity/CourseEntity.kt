@@ -25,6 +25,9 @@ class CourseEntity(
     @Column(name = "title", nullable = false)
     var title: String = "",
 
+    @Column(name = "description", nullable = false, columnDefinition = "TEXT")
+    var description: String = "",
+
     @Column(name = "status", nullable = false, length = 32)
     var statusRaw: String = CourseStatus.draft.name,
 

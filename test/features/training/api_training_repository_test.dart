@@ -63,6 +63,27 @@ Map<String, dynamic> _assignmentJson({
           'status': 'available',
           'progressPct': progress,
           'attemptsUsed': 0,
+          'contentUrl': 'https://epharm.inkar.kz/s3/lesson.mp4',
+          'course': <String, dynamic>{
+            'id': 'course-1',
+            'title': 'Основы категории',
+            'description': 'Курс с видеоуроками',
+            'durationMin': 12,
+            'lessons': <Map<String, dynamic>>[
+              <String, dynamic>{
+                'id': 'lesson-1',
+                'title': 'Введение',
+                'description': 'Первый урок',
+                'content': 'Изучите основные понятия.',
+                'kind': 'video',
+                'videoUrl': 'https://epharm.inkar.kz/s3/lesson.mp4',
+                'durationMin': 12,
+                'order': 0,
+                'createdAt': '2026-08-01T10:00:00Z',
+                'updatedAt': '2026-08-01T10:00:00Z',
+              },
+            ],
+          },
         },
         <String, dynamic>{
           'id': 'stage-2',
@@ -140,6 +161,12 @@ void main() {
         TrainingAssignmentStatus.waitingOnline);
     expect(overview.assignments.single.stages.first.type,
         TrainingStageType.onlineCourse);
+    expect(overview.assignments.single.stages.first.course?.title,
+        'Основы категории');
+    expect(overview.assignments.single.stages.first.course?.lessons.single.title,
+        'Введение');
+    expect(overview.assignments.single.stages.first.course?.lessons.single.isVideo,
+        isTrue);
     expect(overview.upcomingEvents.single.address, 'Ауэзова 134');
     expect(overview.certificates.single.score, 92);
     expect(overview.notifications.single.id, 'notification-1');

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type {
   CourseDto,
+  CreateCourseLessonRequest,
   CourseStatus,
   ChangeAssignmentFormatRequest,
   ChangeTrainingPreferenceRequest,
@@ -32,6 +33,7 @@ import type {
   TrainingProgramDto,
   TrainingProgramStatus,
   UpdateCourseRequest,
+  UpdateCourseLessonRequest,
   UpdateOfflineEventRequest,
   UpdateTrainingProgramRequest,
 } from '@/lib/api-types'
@@ -55,6 +57,7 @@ export interface TrainingAssignmentPageFilter extends TrainingAssignmentFilter {
 export const lmsKeys = {
   all: ['lms'] as const,
   list: (filter?: CourseListFilter) => [...lmsKeys.all, 'list', filter ?? {}] as const,
+  detail: (id: string) => [...lmsKeys.all, 'detail', id] as const,
   training: ['training'] as const,
   dashboard: () => [...lmsKeys.training, 'dashboard'] as const,
   programs: (status?: TrainingProgramStatus) =>
@@ -88,6 +91,14 @@ export function useCourses(filter: CourseListFilter = {}) {
   })
 }
 
+export function useCourse(id: string | null) {
+  return useQuery<CourseDto>({
+    queryKey: lmsKeys.detail(id ?? ''),
+    queryFn: () => api.get<CourseDto>(`/api/admin/lms/courses/${id}`).then((r) => r.data),
+    enabled: !!id,
+  })
+}
+
 export function useCreateCourse() {
   const qc = useQueryClient()
   return useMutation({
@@ -111,6 +122,80 @@ export function useDeleteCourse() {
   return useMutation({
     mutationFn: (id: string) =>
       api.delete<void>(`/api/admin/lms/courses/${id}`).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: lmsKeys.all }),
+  })
+}
+
+export function useCreateCourseLesson() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ courseId, lesson }: { courseId: string; lesson: CreateCourseLessonRequest }) =>
+      api.post<CourseDto>(`/api/admin/lms/courses/${courseId}/lessons`, lesson).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: lmsKeys.all }),
+  })
+}
+
+export function useUpdateCourseLesson() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      courseId,
+      lessonId,
+      patch,
+    }: {
+      courseId: string
+      lessonId: string
+      patch: UpdateCourseLessonRequest
+    }) =>
+      api
+        .patch<CourseDto>(`/api/admin/lms/courses/${courseId}/lessons/${lessonId}`, patch)
+        .then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: lmsKeys.all }),
+  })
+}
+
+export function useDeleteCourseLesson() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ courseId, lessonId }: { courseId: string; lessonId: string }) =>
+      api
+        .delete<CourseDto>(`/api/admin/lms/courses/${courseId}/lessons/${lessonId}`)
+        .then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: lmsKeys.all }),
+  })
+}
+
+export function useReorderCourseLessons() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ courseId, lessonIds }: { courseId: string; lessonIds: string[] }) =>
+      api
+        .put<CourseDto>(`/api/admin/lms/courses/${courseId}/lessons/reorder`, { lessonIds })
+        .then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: lmsKeys.all }),
+  })
+}
+
+export function useUploadCourseLessonVideo() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      courseId,
+      lessonId,
+      file,
+    }: {
+      courseId: string
+      lessonId: string
+      file: File
+    }) => {
+      const form = new FormData()
+      form.append('file', file)
+      return api
+        .post<CourseDto>(`/api/admin/lms/courses/${courseId}/lessons/${lessonId}/video`, form, {
+          timeout: 120_000,
+        })
+        .then((r) => r.data)
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: lmsKeys.all }),
   })
 }

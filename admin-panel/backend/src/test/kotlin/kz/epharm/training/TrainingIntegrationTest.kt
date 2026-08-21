@@ -10,7 +10,10 @@ import kz.epharm.auth.entity.AdminUserEntity
 import kz.epharm.auth.repository.AdminUserRepository
 import kz.epharm.auth.service.JwtService
 import kz.epharm.lms.entity.CourseEntity
+import kz.epharm.lms.entity.CourseLessonEntity
+import kz.epharm.lms.entity.CourseLessonKind
 import kz.epharm.lms.entity.CourseStatus
+import kz.epharm.lms.repository.CourseLessonRepository
 import kz.epharm.lms.repository.CourseRepository
 import kz.epharm.pharmacies.entity.ChainEntity
 import kz.epharm.pharmacies.entity.PharmacyEntity
@@ -78,6 +81,7 @@ class TrainingIntegrationTest {
     @Autowired private lateinit var pharmacyRepository: PharmacyRepository
     @Autowired private lateinit var pharmacistRepository: PharmacistRepository
     @Autowired private lateinit var courseRepository: CourseRepository
+    @Autowired private lateinit var courseLessonRepository: CourseLessonRepository
     @Autowired private lateinit var certificateRepository: TrainingCertificateRepository
     @Autowired private lateinit var assessmentResultRepository: TrainingAssessmentResultRepository
     @Autowired private lateinit var rewardRepository: TrainingRewardRepository
@@ -123,9 +127,27 @@ class TrainingIntegrationTest {
             ).also { it.status = PharmacistStatus.active },
         )
         courseRepository.save(
-            CourseEntity(id = "crs_training", title = "Основы продукта", lessons = 4).also {
+            CourseEntity(
+                id = "crs_training",
+                title = "Основы продукта",
+                description = "Безопасная рекомендация категории",
+                lessons = 1,
+                durationMin = 8,
+            ).also {
                 it.status = CourseStatus.published
             },
+        )
+        courseLessonRepository.save(
+            CourseLessonEntity(
+                id = "cls_training_intro",
+                courseId = "crs_training",
+                title = "Введение",
+                description = "Основные понятия",
+                content = "Текст учебного материала",
+                videoUrl = "https://epharm.inkar.kz/s3/training-intro.mp4",
+                durationMin = 8,
+                order = 0,
+            ).also { it.kind = CourseLessonKind.video },
         )
         adminBearer = "Bearer " + login().tokens.accessToken
         pharmacistBearer = "Bearer " + jwtService.issuePharmacistToken(
@@ -194,6 +216,13 @@ class TrainingIntegrationTest {
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.status").value("waiting_online"))
+            .andExpect(jsonPath("$.stages[0].course.title").value("Основы продукта"))
+            .andExpect(jsonPath("$.stages[0].course.lessons[0].title").value("Введение"))
+            .andExpect(jsonPath("$.stages[0].course.lessons[0].kind").value("video"))
+            .andExpect(
+                jsonPath("$.stages[0].course.lessons[0].videoUrl")
+                    .value("https://epharm.inkar.kz/s3/training-intro.mp4"),
+            )
             .andReturn().response.contentAsString
         val startedJson = objectMapper.readTree(started)
         val onlineStage = startedJson["stages"].first { it["type"].asText() == "online_course" }

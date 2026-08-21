@@ -18,6 +18,7 @@ import kz.epharm.training.domain.TrainingPriority
 import kz.epharm.training.domain.TrainingProgramStatus
 import kz.epharm.training.domain.TrainingStageStatus
 import kz.epharm.training.domain.TrainingStageType
+import kz.epharm.lms.dto.CourseContentDto
 import java.time.Instant
 import java.util.UUID
 
@@ -341,6 +342,7 @@ data class TrainingAssignmentStageDto(
     val maxAttempts: Int?,
     val passingScore: Int?,
     val contentUrl: String?,
+    val course: CourseContentDto?,
     val startedAt: Instant?,
     val completedAt: Instant?,
 )

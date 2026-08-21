@@ -215,25 +215,32 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                       padding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.s24,
                       ),
-                      child: Pinput(
-                        controller: _controller,
-                        focusNode: _focus,
-                        length: AuthRepository.otpCodeLength,
-                        enabled: !_busy, // блокируем ввод, пока проверяется код
-                        defaultPinTheme: defaultPinTheme,
-                        focusedPinTheme: focusedPinTheme,
-                        separatorBuilder: (_) => const SizedBox(width: 8),
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly
-                        ],
-                        onChanged: (v) {
-                          setState(() {
-                            _code = v;
-                            _error = null;
-                          });
-                        },
-                        onCompleted: (_) => _submit(),
+                      child: Center(
+                        key: const Key('otp-pin-center'),
+                        child: SizedBox(
+                          width: 216,
+                          child: Pinput(
+                            controller: _controller,
+                            focusNode: _focus,
+                            length: AuthRepository.otpCodeLength,
+                            enabled: !_busy,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            defaultPinTheme: defaultPinTheme,
+                            focusedPinTheme: focusedPinTheme,
+                            separatorBuilder: (_) => const SizedBox(width: 8),
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly
+                            ],
+                            onChanged: (v) {
+                              setState(() {
+                                _code = v;
+                                _error = null;
+                              });
+                            },
+                            onCompleted: (_) => _submit(),
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 20),

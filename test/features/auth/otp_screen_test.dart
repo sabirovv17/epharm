@@ -20,6 +20,12 @@ void main() {
     expect(AuthRepository.otpCodeLength, 4);
     expect(AuthRepository.defaultOtpCode, hasLength(4));
 
+    final center = tester.widget<Center>(
+      find.byKey(const Key('otp-pin-center')),
+    );
+    expect(center.child, isA<SizedBox>());
+    expect((center.child! as SizedBox).width, 216);
+
     await tester.pumpWidget(const SizedBox.shrink());
   });
 }

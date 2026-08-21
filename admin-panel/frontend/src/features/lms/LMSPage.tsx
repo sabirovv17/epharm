@@ -1,5 +1,5 @@
 import { useDeferredValue, useMemo, useState } from 'react'
-import { QrCode } from 'lucide-react'
+import { Eye, QrCode } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import {
   Button,
@@ -77,6 +77,7 @@ import {
   dateOnly,
   dateTime,
 } from './training-ui'
+import { CourseEditorDrawer } from './CourseEditorDrawer'
 
 type TrainingTab =
   | 'overview'
@@ -125,6 +126,7 @@ export default function LMSPage() {
   const [eventModalOpen, setEventModalOpen] = useState(false)
   const [eventTarget, setEventTarget] = useState<OfflineEventDto | null>(null)
   const [courseModalOpen, setCourseModalOpen] = useState(false)
+  const [courseTargetId, setCourseTargetId] = useState<string | null>(null)
   const [attendanceEvent, setAttendanceEvent] = useState<OfflineEventDto | null>(null)
   const [qrEvent, setQrEvent] = useState<OfflineEventDto | null>(null)
   const [resultTarget, setResultTarget] = useState<{
@@ -246,6 +248,7 @@ export default function LMSPage() {
           courses={courses}
           loading={coursesQuery.isLoading}
           canManage={!!capabilities?.canManagePrograms}
+          onOpen={(course) => setCourseTargetId(course.id)}
         />
       ) : tab === 'results' ? (
         <ResultsTab
@@ -305,6 +308,13 @@ export default function LMSPage() {
       {capabilities?.canManagePrograms && (
         <CreateCourseModal open={courseModalOpen} onClose={() => setCourseModalOpen(false)} />
       )}
+      <CourseEditorDrawer
+        key={courseTargetId ?? 'closed-course-editor'}
+        courseId={courseTargetId}
+        fallbackCourse={courses.find((course) => course.id === courseTargetId)}
+        canManage={!!capabilities?.canManagePrograms}
+        onClose={() => setCourseTargetId(null)}
+      />
       {capabilities?.canMarkAttendance && (
         <AttendanceModal event={attendanceEvent} onClose={() => setAttendanceEvent(null)} />
       )}
@@ -958,10 +968,12 @@ function CoursesTab({
   courses,
   loading,
   canManage,
+  onOpen,
 }: {
   courses: CourseDto[]
   loading: boolean
   canManage: boolean
+  onOpen: (course: CourseDto) => void
 }) {
   if (loading) return <LoadingBlock label="Загружаем онлайн-курсы…" />
   return (
@@ -978,7 +990,7 @@ function CoursesTab({
         </thead>
         <tbody className="divide-y divide-ink-100">
           {courses.map((course) => (
-            <CourseRow key={course.id} course={course} canManage={canManage} />
+            <CourseRow key={course.id} course={course} canManage={canManage} onOpen={onOpen} />
           ))}
         </tbody>
       </table>
@@ -986,7 +998,15 @@ function CoursesTab({
   )
 }
 
-function CourseRow({ course, canManage }: { course: CourseDto; canManage: boolean }) {
+function CourseRow({
+  course,
+  canManage,
+  onOpen,
+}: {
+  course: CourseDto
+  canManage: boolean
+  onOpen: (course: CourseDto) => void
+}) {
   const toast = useToast()
   const remove = useDeleteCourse()
   const statusLabel: Record<CourseStatus, string> = {
@@ -997,7 +1017,13 @@ function CourseRow({ course, canManage }: { course: CourseDto; canManage: boolea
   return (
     <tr className="hover:bg-paper-hover">
       <td className="px-5 py-3">
-        <div className="font-extrabold text-ink-900">{course.title}</div>
+        <button
+          type="button"
+          className="text-left font-extrabold text-ink-900 hover:text-brand-green-700"
+          onClick={() => onOpen(course)}
+        >
+          {course.title}
+        </button>
         <div className="text-[11px] text-ink-500">{course.category || 'Без категории'}</div>
       </td>
       <td className="px-3 py-3 text-ink-700">
@@ -1010,23 +1036,32 @@ function CourseRow({ course, canManage }: { course: CourseDto; canManage: boolea
         <span className={`chip ${chipClass(course.status)}`}>{statusLabel[course.status]}</span>
       </td>
       <td className="px-5 py-3 text-right">
-        {canManage && course.status !== 'archived' && (
-          <button
-            type="button"
-            aria-label={`Архивировать курс ${course.title}`}
-            className="text-ink-400 hover:text-accent-danger"
-            onClick={() => {
-              if (!confirm(`Архивировать курс «${course.title}»? История обучения сохранится.`))
-                return
-              remove.mutate(course.id, {
-                onSuccess: () => toast.push('Курс архивирован'),
-                onError: (error) => toast.push(describeError(error)),
-              })
-            }}
+        <div className="flex items-center justify-end gap-1">
+          <IconButton
+            tip="Открыть курс"
+            aria-label={`Открыть курс ${course.title}`}
+            onClick={() => onOpen(course)}
           >
-            <IconArchive size={16} />
-          </button>
-        )}
+            <Eye size={16} />
+          </IconButton>
+          {canManage && course.status !== 'archived' && (
+            <button
+              type="button"
+              aria-label={`Архивировать курс ${course.title}`}
+              className="text-ink-400 hover:text-accent-danger"
+              onClick={() => {
+                if (!confirm(`Архивировать курс «${course.title}»? История обучения сохранится.`))
+                  return
+                remove.mutate(course.id, {
+                  onSuccess: () => toast.push('Курс архивирован'),
+                  onError: (error) => toast.push(describeError(error)),
+                })
+              }}
+            >
+              <IconArchive size={16} />
+            </button>
+          )}
+        </div>
       </td>
     </tr>
   )
@@ -1252,8 +1287,7 @@ function CreateCourseModal({ open, onClose }: { open: boolean; onClose: () => vo
   const create = useCreateCourse()
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState('')
-  const [lessons, setLessons] = useState('')
-  const [durationMin, setDurationMin] = useState('')
+  const [description, setDescription] = useState('')
   const [bonus, setBonus] = useState('')
   const [status, setStatus] = useState<CourseStatus>('draft')
   const [error, setError] = useState<string | null>(null)
@@ -1263,14 +1297,18 @@ function CreateCourseModal({ open, onClose }: { open: boolean; onClose: () => vo
       {
         title: title.trim(),
         category: category.trim(),
-        lessons: Number(lessons) || 0,
-        durationMin: Number(durationMin) || 0,
+        description: description.trim(),
         bonus: Number(bonus) || 0,
         status,
       },
       {
         onSuccess: () => {
           toast.push('Онлайн-курс создан')
+          setTitle('')
+          setCategory('')
+          setDescription('')
+          setBonus('')
+          setStatus('draft')
           onClose()
         },
         onError: (requestError) => setError(describeError(requestError)),
@@ -1306,23 +1344,14 @@ function CreateCourseModal({ open, onClose }: { open: boolean; onClose: () => vo
         <Field label="Категория" optional>
           <Input value={category} onChange={(event) => setCategory(event.target.value)} />
         </Field>
-        <div className="grid grid-cols-3 gap-3">
-          <Field label="Уроков">
-            <Input
-              type="number"
-              min={0}
-              value={lessons}
-              onChange={(event) => setLessons(event.target.value)}
-            />
-          </Field>
-          <Field label="Минут">
-            <Input
-              type="number"
-              min={0}
-              value={durationMin}
-              onChange={(event) => setDurationMin(event.target.value)}
-            />
-          </Field>
+        <Field label="Описание" optional>
+          <textarea
+            className="inp min-h-24"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
           <Field label="Бонус, ₸">
             <Input
               type="number"

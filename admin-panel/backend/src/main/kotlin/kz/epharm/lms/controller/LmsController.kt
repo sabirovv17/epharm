@@ -3,7 +3,10 @@ package kz.epharm.lms.controller
 import jakarta.validation.Valid
 import kz.epharm.auth.security.AdminPrincipal
 import kz.epharm.lms.dto.CourseDto
+import kz.epharm.lms.dto.CreateCourseLessonRequest
 import kz.epharm.lms.dto.CreateCourseRequest
+import kz.epharm.lms.dto.ReorderCourseLessonsRequest
+import kz.epharm.lms.dto.UpdateCourseLessonRequest
 import kz.epharm.lms.dto.UpdateCourseRequest
 import kz.epharm.lms.entity.CourseStatus
 import kz.epharm.lms.service.CourseService
@@ -17,11 +20,13 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.multipart.MultipartFile
 
 // LMS — каталог обучающих курсов (ТЗ §3.2 / §3.4). Этап 3.6: list + get + create.
 @RestController
@@ -47,6 +52,41 @@ class LmsController(private val courseService: CourseService) {
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER')")
     fun update(@PathVariable id: String, @Valid @RequestBody req: UpdateCourseRequest): CourseDto =
         courseService.update(id, req)
+
+    @PostMapping("/{id}/lessons")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER')")
+    fun createLesson(
+        @PathVariable id: String,
+        @Valid @RequestBody req: CreateCourseLessonRequest,
+    ): CourseDto = courseService.createLesson(id, req)
+
+    @PatchMapping("/{id}/lessons/{lessonId}")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER')")
+    fun updateLesson(
+        @PathVariable id: String,
+        @PathVariable lessonId: String,
+        @Valid @RequestBody req: UpdateCourseLessonRequest,
+    ): CourseDto = courseService.updateLesson(id, lessonId, req)
+
+    @DeleteMapping("/{id}/lessons/{lessonId}")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER')")
+    fun deleteLesson(@PathVariable id: String, @PathVariable lessonId: String): CourseDto =
+        courseService.deleteLesson(id, lessonId)
+
+    @PutMapping("/{id}/lessons/reorder")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER')")
+    fun reorderLessons(
+        @PathVariable id: String,
+        @Valid @RequestBody req: ReorderCourseLessonsRequest,
+    ): CourseDto = courseService.reorderLessons(id, req)
+
+    @PostMapping("/{id}/lessons/{lessonId}/video", consumes = ["multipart/form-data"])
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER')")
+    fun uploadLessonVideo(
+        @PathVariable id: String,
+        @PathVariable lessonId: String,
+        @RequestParam("file") file: MultipartFile,
+    ): CourseDto = courseService.uploadLessonVideo(id, lessonId, file)
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER')")

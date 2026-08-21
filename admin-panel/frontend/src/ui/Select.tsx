@@ -10,6 +10,7 @@ interface SelectProps {
   placeholder?: string
   className?: string
   ariaLabel?: string
+  disabled?: boolean
 }
 
 export function Select({
@@ -19,14 +20,16 @@ export function Select({
   placeholder = 'Выбрать',
   className = '',
   ariaLabel,
+  disabled = false,
 }: SelectProps) {
   return (
     <div className={`relative ${className}`}>
       <select
         aria-label={ariaLabel}
+        disabled={disabled}
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value)}
-        className="inp appearance-none cursor-pointer pr-9"
+        className="inp appearance-none cursor-pointer pr-9 disabled:cursor-default disabled:bg-paper-hover disabled:text-ink-500"
       >
         {!value && (
           <option value="" disabled>

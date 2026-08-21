@@ -10,6 +10,7 @@ import kz.epharm.auth.repository.AdminUserRepository
 import kz.epharm.lms.entity.CourseEntity
 import kz.epharm.lms.entity.CourseStatus
 import kz.epharm.lms.repository.CourseRepository
+import kz.epharm.lms.repository.CourseLessonRepository
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -25,6 +26,8 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put
+import org.springframework.mock.web.MockMultipartFile
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
@@ -60,6 +63,7 @@ class LmsIntegrationTest {
     @Autowired private lateinit var mockMvc: MockMvc
     @Autowired private lateinit var objectMapper: ObjectMapper
     @Autowired private lateinit var courseRepository: CourseRepository
+    @Autowired private lateinit var courseLessonRepository: CourseLessonRepository
     @Autowired private lateinit var adminUserRepository: AdminUserRepository
     @Autowired private lateinit var passwordEncoder: PasswordEncoder
 
@@ -67,6 +71,7 @@ class LmsIntegrationTest {
 
     @BeforeEach
     fun seed() {
+        courseLessonRepository.deleteAll()
         courseRepository.deleteAll()
         adminUserRepository.deleteAll()
 
@@ -179,6 +184,114 @@ class LmsIntegrationTest {
                 .content("""{"bonus":1}"""),
         )
             .andExpect(status().isUnauthorized)
+    }
+
+    @Test
+    fun `lesson CRUD recalculates course aggregates`() {
+        val created = mockMvc.perform(
+            post("/api/admin/lms/courses/crs_draft/lessons")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """{"title":"Первый урок","description":"Введение","content":"Материал","kind":"text","durationMin":12}""",
+                ),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.lessons").value(1))
+            .andExpect(jsonPath("$.durationMin").value(12))
+            .andExpect(jsonPath("$.lessonItems[0].title").value("Первый урок"))
+            .andReturn()
+        val lessonId = objectMapper.readTree(created.response.contentAsString)
+            .path("lessonItems").path(0).path("id").asText()
+
+        mockMvc.perform(
+            patch("/api/admin/lms/courses/crs_draft/lessons/$lessonId")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"title":"Обновлённый урок","durationMin":18}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.durationMin").value(18))
+            .andExpect(jsonPath("$.lessonItems[0].title").value("Обновлённый урок"))
+
+        mockMvc.perform(
+            delete("/api/admin/lms/courses/crs_draft/lessons/$lessonId")
+                .header("Authorization", bearer),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.lessons").value(0))
+            .andExpect(jsonPath("$.durationMin").value(0))
+            .andExpect(jsonPath("$.lessonItems.length()").value(0))
+    }
+
+    @Test
+    fun `video upload and lesson reorder preserve all content`() {
+        fun createLesson(title: String): String {
+            val result = mockMvc.perform(
+                post("/api/admin/lms/courses/crs_draft/lessons")
+                    .header("Authorization", bearer)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"title":"$title","kind":"video","durationMin":5}"""),
+            ).andExpect(status().isOk).andReturn()
+            val items = objectMapper.readTree(result.response.contentAsString).path("lessonItems")
+            return items.path(items.size() - 1).path("id").asText()
+        }
+
+        val firstId = createLesson("Первый")
+        val secondId = createLesson("Второй")
+        val video = MockMultipartFile("file", "lesson.mp4", "video/mp4", byteArrayOf(0, 1, 2, 3))
+        mockMvc.perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .multipart("/api/admin/lms/courses/crs_draft/lessons/$firstId/video")
+                .file(video)
+                .header("Authorization", bearer),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.lessonItems[0].kind").value("video"))
+            .andExpect(jsonPath("$.lessonItems[0].videoUrl").isNotEmpty)
+
+        mockMvc.perform(
+            put("/api/admin/lms/courses/crs_draft/lessons/reorder")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"lessonIds":["$secondId","$firstId"]}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.lessonItems[0].id").value(secondId))
+            .andExpect(jsonPath("$.lessonItems[1].id").value(firstId))
+    }
+
+    @Test
+    fun `lesson upload rejects non-video and archived course rejects edits`() {
+        val created = mockMvc.perform(
+            post("/api/admin/lms/courses/crs_draft/lessons")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"title":"Видео","kind":"video"}"""),
+        ).andExpect(status().isOk).andReturn()
+        val lessonId = objectMapper.readTree(created.response.contentAsString)
+            .path("lessonItems").path(0).path("id").asText()
+
+        val textFile = MockMultipartFile("file", "lesson.txt", "text/plain", "not video".toByteArray())
+        mockMvc.perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .multipart("/api/admin/lms/courses/crs_draft/lessons/$lessonId/video")
+                .file(textFile)
+                .header("Authorization", bearer),
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+
+        mockMvc.perform(delete("/api/admin/lms/courses/crs_draft").header("Authorization", bearer))
+            .andExpect(status().isNoContent)
+        mockMvc.perform(
+            patch("/api/admin/lms/courses/crs_draft/lessons/$lessonId")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"title":"Нельзя"}"""),
+        )
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.code").value("CONFLICT"))
     }
 
     private fun login(): LoginResponse {

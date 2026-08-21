@@ -19,8 +19,15 @@ import LMSPage from './LMSPage'
 
 const lmsHooks = vi.hoisted(() => ({
   useCourses: vi.fn(),
+  useCourse: vi.fn(),
   useCreateCourse: vi.fn(),
+  useUpdateCourse: vi.fn(),
   useDeleteCourse: vi.fn(),
+  useCreateCourseLesson: vi.fn(),
+  useUpdateCourseLesson: vi.fn(),
+  useDeleteCourseLesson: vi.fn(),
+  useReorderCourseLessons: vi.fn(),
+  useUploadCourseLessonVideo: vi.fn(),
   useTrainingDashboard: vi.fn(),
   useTrainingPharmacists: vi.fn(),
   useTrainingPrograms: vi.fn(),
@@ -55,7 +62,11 @@ const queryResult = <T,>(data: T) => ({
   refetch: vi.fn(),
 })
 
-const mutationResult = (mutate = vi.fn()) => ({ mutate, isPending: false })
+const mutationResult = (mutate = vi.fn(), mutateAsync = vi.fn().mockResolvedValue(undefined)) => ({
+  mutate,
+  mutateAsync,
+  isPending: false,
+})
 
 const dashboard: TrainingDashboardDto = {
   activePrograms: 2,
@@ -135,6 +146,7 @@ const program: TrainingProgramDto = {
 const course: CourseDto = {
   id: 'course-1',
   title: 'Основы категории',
+  description: 'Базовый курс по категории',
   status: 'published',
   category: 'Кардиология',
   lessons: 4,
@@ -142,6 +154,20 @@ const course: CourseDto = {
   enrolled: 10,
   completed: 3,
   bonus: 0,
+  lessonItems: [
+    {
+      id: 'lesson-1',
+      title: 'Введение',
+      description: 'Основные понятия',
+      content: 'Текст урока',
+      kind: 'video',
+      videoUrl: 'https://epharm.inkar.kz/s3/course.mp4',
+      durationMin: 8,
+      order: 0,
+      createdAt: '2026-08-01T08:00:00Z',
+      updatedAt: '2026-08-01T08:00:00Z',
+    },
+  ],
   createdAt: '2026-08-01T08:00:00Z',
   updatedAt: '2026-08-01T08:00:00Z',
 }
@@ -227,6 +253,7 @@ beforeEach(() => {
   lmsHooks.useOfflineEvents.mockReturnValue(queryResult([] as OfflineEventDto[]))
   lmsHooks.useTrainingCertificates.mockReturnValue(queryResult([]))
   lmsHooks.useCourses.mockReturnValue(queryResult([course]))
+  lmsHooks.useCourse.mockReturnValue(queryResult(course))
   lmsHooks.useEventParticipants.mockReturnValue(queryResult([]))
   lmsHooks.useTrainingEventQr.mockReturnValue(
     queryResult({
@@ -237,7 +264,13 @@ beforeEach(() => {
   )
   lmsHooks.useTrainingPharmacists.mockReturnValue(queryResult([pharmacist]))
   lmsHooks.useCreateCourse.mockReturnValue(mutationResult())
+  lmsHooks.useUpdateCourse.mockReturnValue(mutationResult())
   lmsHooks.useDeleteCourse.mockReturnValue(mutationResult())
+  lmsHooks.useCreateCourseLesson.mockReturnValue(mutationResult())
+  lmsHooks.useUpdateCourseLesson.mockReturnValue(mutationResult())
+  lmsHooks.useDeleteCourseLesson.mockReturnValue(mutationResult())
+  lmsHooks.useReorderCourseLessons.mockReturnValue(mutationResult())
+  lmsHooks.useUploadCourseLessonVideo.mockReturnValue(mutationResult())
   lmsHooks.useUpdateTrainingProgram.mockReturnValue(mutationResult())
   lmsHooks.useCreateTrainingProgram.mockReturnValue(mutationResult())
   lmsHooks.useCreateTrainingAssignments.mockReturnValue(mutationResult())
@@ -279,6 +312,39 @@ describe('Обучение — операционный раздел', () => {
     expect(screen.getByTestId('training-programs-table')).toBeInTheDocument()
     expect(screen.getByText('Кардиология: продукты INKAR')).toBeInTheDocument()
     expect(screen.getAllByText('Онлайн-курс')).not.toHaveLength(0)
+  })
+
+  it('открывает содержание онлайн-курса и показывает видеоуроки', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(screen.getByRole('button', { name: 'Онлайн-курсы' }))
+    await user.click(screen.getByRole('button', { name: 'Основы категории' }))
+
+    expect(screen.getByTestId('course-editor')).toBeInTheDocument()
+    expect(screen.getByText(/Введение/)).toBeInTheDocument()
+    expect(screen.getByText('Текст урока')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Добавить урок' })).toBeInTheDocument()
+  })
+
+  it('разрешает роли только на чтение открыть курс без кнопок редактирования', async () => {
+    useUiStore.setState({ authedUser: USERS.bauyrzhan })
+    lmsHooks.useTrainingDashboard.mockReturnValue(
+      queryResult({
+        ...dashboard,
+        capabilities: {
+          ...dashboard.capabilities,
+          canManagePrograms: false,
+        },
+      }),
+    )
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(screen.getByRole('button', { name: 'Онлайн-курсы' }))
+    await user.click(screen.getByRole('button', { name: 'Основы категории' }))
+
+    expect(screen.getByTestId('course-editor')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Добавить урок' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Сохранить курс' })).not.toBeInTheDocument()
   })
 
   it('скрывает управляющие действия для роли только на чтение', async () => {

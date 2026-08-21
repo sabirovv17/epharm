@@ -5,6 +5,8 @@ import kz.epharm.auth.domain.AdminRole
 import kz.epharm.auth.repository.AdminUserRepository
 import kz.epharm.auth.security.AdminPrincipal
 import kz.epharm.lms.repository.CourseRepository
+import kz.epharm.lms.repository.CourseLessonRepository
+import kz.epharm.lms.dto.CourseContentDto
 import kz.epharm.pharmacists.entity.PharmacistEntity
 import kz.epharm.pharmacists.entity.PharmacistStatus
 import kz.epharm.pharmacists.repository.PharmacistRepository
@@ -109,6 +111,7 @@ class TrainingService(
     private val pharmacistRepository: PharmacistRepository,
     private val adminUserRepository: AdminUserRepository,
     private val courseRepository: CourseRepository,
+    private val courseLessonRepository: CourseLessonRepository,
     private val jdbcTemplate: JdbcTemplate,
     private val objectMapper: ObjectMapper,
 ) {
@@ -1832,6 +1835,15 @@ class TrainingService(
         if (rows.isEmpty()) return emptyList()
         val versions = versionRepository.findAllById(rows.map { it.programVersionId }.distinct()).associateBy { it.id }
         val programs = programRepository.findAllById(versions.values.map { it.programId }.distinct()).associateBy { it.id }
+        val courses = courseRepository.findAllById(versions.values.mapNotNull { it.onlineCourseId }.distinct())
+            .associateBy { it.id }
+        val courseLessons = if (courses.isEmpty()) {
+            emptyMap()
+        } else {
+            courseLessonRepository
+                .findAllByCourseIdInOrderByCourseIdAscOrderAscCreatedAtAsc(courses.keys)
+                .groupBy { it.courseId }
+        }
         val pharmacists = pharmacistRepository.findAllById(rows.map { it.pharmacistId }.distinct()).associateBy { it.id }
         val events = eventRepository.findAllById(rows.mapNotNull { it.eventId }.distinct()).associateBy { it.id }
         val definitions = programStageRepository.findAllById(
@@ -1851,6 +1863,14 @@ class TrainingService(
                 .sortedBy { definitions[it.programStageId]?.orderNo ?: Int.MAX_VALUE }
                 .map { row ->
                     val definition = definitions.getValue(row.programStageId)
+                    val course = if (definition.type == TrainingStageType.online_course) {
+                        version.onlineCourseId?.let(courses::get)
+                    } else {
+                        null
+                    }
+                    val courseContent = course?.let {
+                        CourseContentDto.of(it, courseLessons[it.id].orEmpty())
+                    }
                     TrainingAssignmentStageDto(
                         id = row.id,
                         programStageId = row.programStageId,
@@ -1865,7 +1885,9 @@ class TrainingService(
                         attemptsUsed = row.attemptsUsed,
                         maxAttempts = definition.maxAttempts,
                         passingScore = definition.passingScore,
-                        contentUrl = definition.contentUrl,
+                        contentUrl = definition.contentUrl
+                            ?: courseContent?.lessons?.firstOrNull { it.videoUrl != null }?.videoUrl,
+                        course = courseContent,
                         startedAt = row.startedAt,
                         completedAt = row.completedAt,
                     )

@@ -2,14 +2,65 @@ package kz.epharm.lms.dto
 
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.NotEmpty
 import jakarta.validation.constraints.Size
 import kz.epharm.lms.entity.CourseEntity
+import kz.epharm.lms.entity.CourseLessonEntity
+import kz.epharm.lms.entity.CourseLessonKind
 import kz.epharm.lms.entity.CourseStatus
 import java.time.Instant
+
+data class CourseLessonDto(
+    val id: String,
+    val title: String,
+    val description: String,
+    val content: String,
+    val kind: CourseLessonKind,
+    val videoUrl: String?,
+    val durationMin: Int,
+    val order: Int,
+    val createdAt: Instant,
+    val updatedAt: Instant,
+) {
+    companion object {
+        fun of(entity: CourseLessonEntity): CourseLessonDto = CourseLessonDto(
+            id = entity.id,
+            title = entity.title,
+            description = entity.description,
+            content = entity.content,
+            kind = entity.kind,
+            videoUrl = entity.videoUrl,
+            durationMin = entity.durationMin,
+            order = entity.order,
+            createdAt = entity.createdAt,
+            updatedAt = entity.updatedAt,
+        )
+    }
+}
+
+/** Compact course payload embedded into a pharmacist's online-course stage. */
+data class CourseContentDto(
+    val id: String,
+    val title: String,
+    val description: String,
+    val durationMin: Int,
+    val lessons: List<CourseLessonDto>,
+) {
+    companion object {
+        fun of(entity: CourseEntity, lessons: List<CourseLessonEntity>): CourseContentDto = CourseContentDto(
+            id = entity.id,
+            title = entity.title,
+            description = entity.description,
+            durationMin = if (lessons.isEmpty()) entity.durationMin else lessons.sumOf { it.durationMin },
+            lessons = lessons.map(CourseLessonDto::of),
+        )
+    }
+}
 
 data class CourseDto(
     val id: String,
     val title: String,
+    val description: String,
     val status: CourseStatus,
     val category: String,
     val lessons: Int,
@@ -17,13 +68,15 @@ data class CourseDto(
     val enrolled: Int,
     val completed: Int,
     val bonus: Int,
+    val lessonItems: List<CourseLessonDto>,
     val createdAt: Instant,
     val updatedAt: Instant,
 ) {
     companion object {
-        fun of(e: CourseEntity): CourseDto = CourseDto(
+        fun of(e: CourseEntity, lessons: List<CourseLessonEntity> = emptyList()): CourseDto = CourseDto(
             id = e.id,
             title = e.title,
+            description = e.description,
             status = e.status,
             category = e.category,
             lessons = e.lessons,
@@ -31,6 +84,7 @@ data class CourseDto(
             enrolled = e.enrolled,
             completed = e.completed,
             bonus = e.bonus,
+            lessonItems = lessons.map(CourseLessonDto::of),
             createdAt = e.createdAt,
             updatedAt = e.updatedAt,
         )
@@ -44,6 +98,8 @@ data class CreateCourseRequest(
     val status: CourseStatus? = CourseStatus.draft,
     @field:Size(max = 128)
     val category: String = "",
+    @field:Size(max = 10_000)
+    val description: String = "",
     @field:Min(0)
     val lessons: Int = 0,
     @field:Min(0)
@@ -62,10 +118,43 @@ data class UpdateCourseRequest(
     val status: CourseStatus? = null,
     @field:Size(max = 128)
     val category: String? = null,
+    @field:Size(max = 10_000)
+    val description: String? = null,
     @field:Min(0)
     val lessons: Int? = null,
     @field:Min(0)
     val durationMin: Int? = null,
     @field:Min(0)
     val bonus: Int? = null,
+)
+
+data class CreateCourseLessonRequest(
+    @field:NotBlank
+    @field:Size(max = 255)
+    val title: String,
+    @field:Size(max = 1000)
+    val description: String = "",
+    @field:Size(max = 50_000)
+    val content: String = "",
+    val kind: CourseLessonKind = CourseLessonKind.text,
+    @field:Min(0)
+    val durationMin: Int = 0,
+)
+
+data class UpdateCourseLessonRequest(
+    @field:Size(max = 255)
+    val title: String? = null,
+    @field:Size(max = 1000)
+    val description: String? = null,
+    @field:Size(max = 50_000)
+    val content: String? = null,
+    val kind: CourseLessonKind? = null,
+    @field:Min(0)
+    val durationMin: Int? = null,
+    val clearVideo: Boolean = false,
+)
+
+data class ReorderCourseLessonsRequest(
+    @field:NotEmpty
+    val lessonIds: List<@NotBlank String>,
 )

@@ -28,7 +28,7 @@ export function Drawer({
       <div className="scrim absolute inset-0" />
       <div
         className="slide-in absolute bottom-0 right-0 top-0 flex flex-col bg-white shadow-elevated"
-        style={{ width }}
+        style={{ width, maxWidth: '100vw' }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="hairline flex items-start justify-between border-b px-5 pb-4 pt-5">

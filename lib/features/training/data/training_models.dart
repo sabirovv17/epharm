@@ -249,6 +249,7 @@ class TrainingStage {
     required this.maxAttempts,
     required this.passingScore,
     required this.contentUrl,
+    required this.course,
   });
 
   final String id;
@@ -264,6 +265,7 @@ class TrainingStage {
   final int? maxAttempts;
   final int? passingScore;
   final String? contentUrl;
+  final TrainingCourseContent? course;
 
   bool get isAvailable => status == TrainingStageStatus.available;
   bool get isInProgress => status == TrainingStageStatus.inProgress;
@@ -289,8 +291,69 @@ class TrainingStage {
       maxAttempts: maxAttemptsValue is num ? maxAttemptsValue.toInt() : null,
       passingScore: passingScoreValue is num ? passingScoreValue.toInt() : null,
       contentUrl: json['contentUrl'] as String?,
+      course: _map(json['course'])?.let(TrainingCourseContent.fromJson),
     );
   }
+}
+
+class TrainingCourseContent {
+  const TrainingCourseContent({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.durationMin,
+    required this.lessons,
+  });
+
+  final String id;
+  final String title;
+  final String description;
+  final int durationMin;
+  final List<TrainingLesson> lessons;
+
+  factory TrainingCourseContent.fromJson(Map<String, dynamic> json) =>
+      TrainingCourseContent(
+        id: json['id'] as String? ?? '',
+        title: json['title'] as String? ?? 'Онлайн-курс',
+        description: json['description'] as String? ?? '',
+        durationMin: _int(json['durationMin']),
+        lessons: _maps(json['lessons']).map(TrainingLesson.fromJson).toList(),
+      );
+}
+
+class TrainingLesson {
+  const TrainingLesson({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.content,
+    required this.kind,
+    required this.videoUrl,
+    required this.durationMin,
+    required this.order,
+  });
+
+  final String id;
+  final String title;
+  final String description;
+  final String content;
+  final String kind;
+  final String? videoUrl;
+  final int durationMin;
+  final int order;
+
+  bool get isVideo => kind == 'video';
+
+  factory TrainingLesson.fromJson(Map<String, dynamic> json) => TrainingLesson(
+        id: json['id'] as String? ?? '',
+        title: json['title'] as String? ?? 'Урок',
+        description: json['description'] as String? ?? '',
+        content: json['content'] as String? ?? '',
+        kind: json['kind'] as String? ?? 'text',
+        videoUrl: json['videoUrl'] as String?,
+        durationMin: _int(json['durationMin']),
+        order: _int(json['order']),
+      );
 }
 
 class TrainingEvent {

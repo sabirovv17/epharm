@@ -108,9 +108,11 @@ class _TrainingAssignmentScreenState
               child: _StageRow(
                 stage: stage,
                 busy: _busyAction == stage.id,
-                onOpen: stage.contentUrl == null
+                onOpen: stage.contentUrl == null ||
+                        (stage.course?.lessons.isNotEmpty ?? false)
                     ? null
                     : () => _openUrl(stage.contentUrl!),
+                onOpenUrl: _openUrl,
                 onComplete: stage.isCompletableInApp &&
                         (stage.isAvailable || stage.isInProgress) &&
                         !assignment.isCompleted
@@ -344,12 +346,14 @@ class _StageRow extends StatelessWidget {
     required this.stage,
     required this.busy,
     required this.onOpen,
+    required this.onOpenUrl,
     required this.onComplete,
   });
 
   final TrainingStage stage;
   final bool busy;
   final VoidCallback? onOpen;
+  final ValueChanged<String> onOpenUrl;
   final VoidCallback? onComplete;
 
   @override
@@ -404,6 +408,13 @@ class _StageRow extends StatelessWidget {
                   Text('Результат: ${stage.score}%',
                       style: AppTypography.caption()),
                 ],
+                if (stage.course != null) ...[
+                  const SizedBox(height: AppSpacing.s12),
+                  _CourseLessons(
+                    course: stage.course!,
+                    onOpenUrl: onOpenUrl,
+                  ),
+                ],
                 if (onOpen != null || onComplete != null) ...[
                   const SizedBox(height: AppSpacing.s12),
                   Wrap(
@@ -448,6 +459,107 @@ class _StageRow extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CourseLessons extends StatelessWidget {
+  const _CourseLessons({required this.course, required this.onOpenUrl});
+
+  final TrainingCourseContent course;
+  final ValueChanged<String> onOpenUrl;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpacing.s12),
+        decoration: BoxDecoration(
+          color: AppColors.paperInput,
+          borderRadius: AppRadii.brMd,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(course.title, style: AppTypography.bodyStrong()),
+            if (course.description.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.s4),
+              Text(course.description, style: AppTypography.caption()),
+            ],
+            if (course.lessons.isEmpty) ...[
+              const SizedBox(height: AppSpacing.s8),
+              Text(
+                'Материалы курса пока не опубликованы',
+                style: AppTypography.captionSmall(),
+              ),
+            ] else ...[
+              const SizedBox(height: AppSpacing.s8),
+              ...course.lessons.asMap().entries.map((entry) {
+                final lesson = entry.value;
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.s8),
+                  decoration: BoxDecoration(
+                    border: entry.key == 0
+                        ? null
+                        : const Border(
+                            top: BorderSide(color: AppColors.borderHairline),
+                          ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            lesson.isVideo
+                                ? Icons.play_circle_outline_rounded
+                                : Icons.article_outlined,
+                            size: 19,
+                            color: AppColors.brandGreen700,
+                          ),
+                          const SizedBox(width: AppSpacing.s8),
+                          Expanded(
+                            child: Text(
+                              '${entry.key + 1}. ${lesson.title}',
+                              style: AppTypography.bodyStrong(),
+                            ),
+                          ),
+                          if (lesson.durationMin > 0)
+                            Text(
+                              '${lesson.durationMin} мин.',
+                              style: AppTypography.captionSmall(),
+                            ),
+                        ],
+                      ),
+                      if (lesson.description.isNotEmpty) ...[
+                        const SizedBox(height: AppSpacing.s4),
+                        Text(lesson.description, style: AppTypography.caption()),
+                      ],
+                      if (lesson.content.isNotEmpty) ...[
+                        const SizedBox(height: AppSpacing.s8),
+                        Text(lesson.content, style: AppTypography.body14()),
+                      ],
+                      if (lesson.videoUrl != null) ...[
+                        const SizedBox(height: AppSpacing.s8),
+                        SizedBox(
+                          height: 38,
+                          child: OutlinedButton.icon(
+                            onPressed: () => onOpenUrl(lesson.videoUrl!),
+                            icon: const Icon(
+                              Icons.play_arrow_rounded,
+                              size: 18,
+                            ),
+                            label: const Text('Смотреть видео'),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ],
+        ),
+      );
 }
 
 class _EventDetails extends StatelessWidget {
