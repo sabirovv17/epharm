@@ -372,6 +372,63 @@ describe('ScreensPage — эфир (12 слотов)', () => {
       pharmacyIds: ['ph_1'],
     })
   })
+
+  it('показывает отдельно все и уже выбранные аптеки без потери выбора', async () => {
+    const user = userEvent.setup()
+    const pharmacy = (id: string, name: string, addr: string) => ({
+      id,
+      name,
+      chainId: 'ch_1',
+      chainName: 'Сеть',
+      city: 'Алматы',
+      district: '',
+      addr,
+      group: 'pilot' as const,
+      pharmacists: 0,
+      receipts30d: 0,
+      gmv30d: 0,
+      liftPct: 0,
+      rulesAccepted: 0,
+      active: true,
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    })
+    pharmacyHooks.usePharmacies.mockReturnValue({
+      data: [
+        pharmacy('ph_selected', 'Аптека Ауэзова', 'Ауэзова 134'),
+        pharmacy('ph_available', 'Аптека Достык', 'Достык 248а'),
+      ],
+      isLoading: false,
+      isError: false,
+    })
+    profiles.pl_broadcast_targeted = {
+      ...profiles.pl_broadcast_targeted,
+      assignedPharmacyIds: ['ph_selected'],
+    }
+
+    renderPage()
+    await user.click(screen.getByTestId('broadcast-profile-targeted'))
+    await user.click(screen.getByTestId('broadcast-profile-pharmacies'))
+
+    expect(screen.getByRole('button', { name: /Все аптеки.*2/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Уже выбраны.*1/i })).toBeInTheDocument()
+    expect(screen.getByText('Аптека Ауэзова')).toBeInTheDocument()
+    expect(screen.getByText('Аптека Достык')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Уже выбраны.*1/i }))
+    expect(screen.getByText('Аптека Ауэзова')).toBeInTheDocument()
+    expect(screen.queryByText('Аптека Достык')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Все аптеки.*2/i }))
+    await user.click(screen.getByTestId('broadcast-profile-pharmacy-ph_available'))
+    await user.click(screen.getByRole('button', { name: /Уже выбраны.*2/i }))
+    expect(screen.getByText('Аптека Ауэзова')).toBeInTheDocument()
+    expect(screen.getByText('Аптека Достык')).toBeInTheDocument()
+
+    await user.click(screen.getByTestId('broadcast-profile-pharmacy-ph_selected'))
+    expect(screen.queryByText('Аптека Ауэзова')).not.toBeInTheDocument()
+    expect(screen.getByText('Аптека Достык')).toBeInTheDocument()
+  })
 })
 
 describe('ScreensPage — вкладки', () => {

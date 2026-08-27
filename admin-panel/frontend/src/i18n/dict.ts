@@ -1122,11 +1122,14 @@ export const ru: Dict = {
   'scr.profileCancel': 'Отмена',
   'scr.profileSaving': 'Сохраняем…',
   'scr.profileSavePharmacies': 'Сохранить · {count}',
+  'scr.profilePharmaciesAll': 'Все аптеки',
+  'scr.profilePharmaciesSelectedTab': 'Уже выбраны',
   'scr.profilePharmaciesSearch': 'Адрес, город, сеть или ID аптеки',
   'scr.profileSelected': 'Выбрано: {count}',
   'scr.profileFound': 'Найдено: {count}',
   'scr.profilePharmaciesLoadError': 'Не удалось загрузить справочник аптек.',
   'scr.profileNothingFound': 'Аптеки не найдены',
+  'scr.profileNoSelected': 'В индивидуальный плейлист пока не добавлено ни одной аптеки',
   'scr.profilePharmaciesSaved': 'Индивидуальный плейлист назначен аптекам: {count}',
 }
 
@@ -2237,11 +2240,14 @@ export const kk: Dict = {
   'scr.profileCancel': 'Бас тарту',
   'scr.profileSaving': 'Сақталуда…',
   'scr.profileSavePharmacies': 'Сақтау · {count}',
+  'scr.profilePharmaciesAll': 'Барлық дәріханалар',
+  'scr.profilePharmaciesSelectedTab': 'Таңдалғандар',
   'scr.profilePharmaciesSearch': 'Мекенжай, қала, желі немесе дәріхана ID',
   'scr.profileSelected': 'Таңдалды: {count}',
   'scr.profileFound': 'Табылды: {count}',
   'scr.profilePharmaciesLoadError': 'Дәріханалар анықтамалығын жүктеу мүмкін болмады.',
   'scr.profileNothingFound': 'Дәріханалар табылмады',
+  'scr.profileNoSelected': 'Жеке плейлистке әзірше бірде-бір дәріхана қосылмаған',
   'scr.profilePharmaciesSaved': 'Жеке плейлист дәріханаларға тағайындалды: {count}',
 }
 

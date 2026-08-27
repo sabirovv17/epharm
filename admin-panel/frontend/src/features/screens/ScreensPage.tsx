@@ -36,6 +36,7 @@ const BROADCAST_SLOT_COUNT = 12
 const DEFAULT_PROFILE_ID = 'pl_broadcast'
 const TARGETED_PROFILE_ID = 'pl_broadcast_targeted'
 type BroadcastViewMode = 'grid' | 'list'
+type PharmacyPickerView = 'all' | 'selected'
 
 export default function ScreensPage() {
   const t = useT()
@@ -308,6 +309,7 @@ function BroadcastCard() {
               size="sm"
               leading={<IconUsers size={14} />}
               onClick={() => setAssignmentsOpen(true)}
+              disabled={profileQ.isLoading || !profile}
               data-testid="broadcast-profile-pharmacies"
             >
               {t('scr.profileManagePharmacies')}
@@ -612,13 +614,16 @@ function ProfilePharmaciesModal({
   const update = useSetBroadcastProfilePharmacies()
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<string>>(() => new Set(assignedIds))
+  const [view, setView] = useState<PharmacyPickerView>('all')
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase('ru-RU')
-    const rows = pharmaciesQ.data ?? []
+    const rows = (pharmaciesQ.data ?? []).filter(
+      (pharmacy) => view === 'all' || selected.has(pharmacy.id),
+    )
     if (!needle) return rows
     return rows.filter((pharmacy) => pharmacySearchText(pharmacy).includes(needle))
-  }, [pharmaciesQ.data, search])
+  }, [pharmaciesQ.data, search, selected, view])
 
   const toggle = (id: string) => {
     setSelected((current) => {
@@ -668,6 +673,23 @@ function ProfilePharmaciesModal({
       }
     >
       <div className="flex flex-col gap-3">
+        <Tabs<PharmacyPickerView>
+          items={[
+            {
+              value: 'all',
+              label: t('scr.profilePharmaciesAll'),
+              count: pharmaciesQ.data?.length ?? 0,
+            },
+            {
+              value: 'selected',
+              label: t('scr.profilePharmaciesSelectedTab'),
+              count: selected.size,
+            },
+          ]}
+          value={view}
+          onChange={setView}
+        />
+
         <SearchInput
           value={search}
           onChange={setSearch}
@@ -715,7 +737,9 @@ function ProfilePharmaciesModal({
             ))}
             {!pharmaciesQ.isLoading && filtered.length === 0 && (
               <div className="px-3 py-8 text-center text-[12px] text-ink-400">
-                {t('scr.profileNothingFound')}
+                {view === 'selected' && !search.trim()
+                  ? t('scr.profileNoSelected')
+                  : t('scr.profileNothingFound')}
               </div>
             )}
           </div>
