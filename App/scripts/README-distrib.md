@@ -107,27 +107,30 @@ dotnet run
 
 ## Config and Env
 
-| Config                    | Env                                | Default / meaning                                                                             |
-| ------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------- |
-| `Enabled`                 | `EPHARM_POSM_ENABLED`              | POSM backend integration.                                                                     |
-| `BackendBaseUrl`          | `EPHARM_BACKEND_URL`               | Backend host.                                                                                 |
-| `BackendFallbackBaseUrls` | `EPHARM_BACKEND_FALLBACK_URLS`     | Ordered temporary fallback origins; env values are separated by `;` or `,`.                   |
-| `DeviceKey`               | `EPHARM_POSM_KEY`                  | `X-Posm-Key`.                                                                                 |
-| `PharmacyId`              | `EPHARM_PHARMACY_ID`               | Pharmacy/screen id.                                                                           |
-| `PharmacistId`            | `EPHARM_PHARMACIST_ID`             | Pilot pharmacist id.                                                                          |
-| `ScreenMode`              | `EPHARM_SCREEN_MODE`               | `dev` or `prod`.                                                                              |
-| `VideoEnabled`            | `EPHARM_NO_VIDEO=true` disables    | Customer video.                                                                               |
-| `PlaylistPollSec`         | `EPHARM_PLAYLIST_POLL_SEC`         | Playlist polling interval.                                                                    |
-| `DebounceMs`              | `EPHARM_RECOMMEND_DEBOUNCE_MS`     | Scan debounce before `/api/posm/recommend`; default 150ms.                                    |
-| `RecommendRefreshSec`     | `EPHARM_RECOMMEND_REFRESH_SEC`     | Legacy; default 0. Recommendations are scan-triggered.                                        |
-| `MediaCacheDir`           | `EPHARM_MEDIA_CACHE_DIR`           | Local cache for admin-panel videos.                                                           |
-| `AppLogPath`              | `EPHARM_APP_LOG`                   | App log file path.                                                                            |
-| `StandardNDbEnabled`      | `EPHARM_STANDARDN_DB_ENABLED`      | Read active pharmacist/prices from local Standard-N Firebird DB. Default `true`.              |
-| `StandardNDbPath`         | `EPHARM_STANDARDN_DB_PATH`         | Optional path to `ztrade`; empty means POSM probes standard demo/prod paths.                  |
-| `StandardNReceiptPollMs`  | `EPHARM_STANDARDN_RECEIPT_POLL_MS` | Local active-receipt polling, 400ms default (200-5000ms).                                     |
-| `StandardNDbHost`         | `EPHARM_STANDARDN_DB_HOST`         | Explicit Firebird host; default is replaced by `[Connect] Server` from cashier `options.ini`. |
-| `StandardNDbPort`         | `EPHARM_STANDARDN_DB_PORT`         | Firebird port. Default `3050`.                                                                |
-| `StandardNLogPaths`       | `EPHARM_STANDARDN_LOG_PATHS`       | Optional explicit cash-log paths; env values are separated by `;`.                            |
+| Config                              | Env                                    | Default / meaning                                                                             |
+| ----------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `Enabled`                           | `EPHARM_POSM_ENABLED`                  | POSM backend integration.                                                                     |
+| `BackendBaseUrl`                    | `EPHARM_BACKEND_URL`                   | Backend host.                                                                                 |
+| `BackendFallbackBaseUrls`           | `EPHARM_BACKEND_FALLBACK_URLS`         | Ordered temporary fallback origins; env values are separated by `;` or `,`.                   |
+| `DeviceKey`                         | `EPHARM_POSM_KEY`                      | `X-Posm-Key`.                                                                                 |
+| `PharmacyId`                        | `EPHARM_PHARMACY_ID`                   | Pharmacy/screen id.                                                                           |
+| `PharmacistId`                      | `EPHARM_PHARMACIST_ID`                 | Pilot pharmacist id.                                                                          |
+| `ScreenMode`                        | `EPHARM_SCREEN_MODE`                   | `dev` or `prod`.                                                                              |
+| `VideoEnabled`                      | `EPHARM_NO_VIDEO=true` disables        | Customer video.                                                                               |
+| `PlaylistPollSec`                   | `EPHARM_PLAYLIST_POLL_SEC`             | Playlist polling interval.                                                                    |
+| `DebounceMs`                        | `EPHARM_RECOMMEND_DEBOUNCE_MS`         | Scan debounce before `/api/posm/recommend`; default 150ms.                                    |
+| `RecommendRefreshSec`               | `EPHARM_RECOMMEND_REFRESH_SEC`         | Legacy; default 0. Recommendations are scan-triggered.                                        |
+| `MediaCacheDir`                     | `EPHARM_MEDIA_CACHE_DIR`               | Local cache for admin-panel videos.                                                           |
+| `AppLogPath`                        | `EPHARM_APP_LOG`                       | App log file path.                                                                            |
+| `StandardNDbEnabled`                | `EPHARM_STANDARDN_DB_ENABLED`          | Read active pharmacist/prices from local Standard-N Firebird DB. Default `true`.              |
+| `StandardNDbPath`                   | `EPHARM_STANDARDN_DB_PATH`             | Optional path to `ztrade`; empty means POSM probes standard demo/prod paths.                  |
+| `StandardNReceiptPollMs`            | `EPHARM_STANDARDN_RECEIPT_POLL_MS`     | Local active-receipt polling, 400ms default (200-5000ms).                                     |
+| `ReceiptCaptureEnabled`             | `EPHARM_RECEIPT_CAPTURE_ENABLED`       | Local non-fiscal PNG/JSON evidence; default `true`.                                           |
+| `ReceiptCaptureDir`                 | `EPHARM_RECEIPT_CAPTURE_DIR`           | Epharm-only `active`/`pending`/`quarantine` root; default `C:\Epharm\receipts`.               |
+| `ReceiptCaptureActiveRetentionDays` | `EPHARM_RECEIPT_ACTIVE_RETENTION_DAYS` | Abandoned active-draft retention; default 2 days.                                             |
+| `StandardNDbHost`                   | `EPHARM_STANDARDN_DB_HOST`             | Explicit Firebird host; default is replaced by `[Connect] Server` from cashier `options.ini`. |
+| `StandardNDbPort`                   | `EPHARM_STANDARDN_DB_PORT`             | Firebird port. Default `3050`.                                                                |
+| `StandardNLogPaths`                 | `EPHARM_STANDARDN_LOG_PATHS`           | Optional explicit cash-log paths; env values are separated by `;`.                            |
 
 If `ztrade` is not found or Firebird is unavailable, POSM remains running and keeps recommendations/video
 working. In that case cashier identity and trusted prices are left empty in POSM logs/reports instead of

@@ -37,6 +37,14 @@ namespace CustomerDisplay.Config
         public string OutboxDbPath { get; set; } = @"C:\Epharm\outbox.db";
         public int OutboxFlushSec { get; set; } = 5;
         /// <summary>
+        /// Локальные Epharm-копии чеков. active хранит JSON-черновик открытого чека, pending —
+        /// PNG+JSON до подтверждения backend. Системные файлы Standard-N и Spooler не трогаются.
+        /// </summary>
+        public bool ReceiptCaptureEnabled { get; set; } = true;
+        public string ReceiptCaptureDir { get; set; } = @"C:\Epharm\receipts";
+        /// <summary>Сколько дней держать незавершённый active-черновик после аварии.</summary>
+        public int ReceiptCaptureActiveRetentionDays { get; set; } = 2;
+        /// <summary>
         /// Период опроса активного плейлиста (сек). Касса подхватывает смену видео из админки
         /// без перезапуска. 0 — выключить поллинг (env EPHARM_PLAYLIST_POLL_SEC).
         /// </summary>
@@ -158,6 +166,11 @@ namespace CustomerDisplay.Config
             cfg.DeviceKey = Env("EPHARM_POSM_KEY", cfg.DeviceKey);
             cfg.PharmacistId = Env("EPHARM_PHARMACIST_ID", cfg.PharmacistId);
             cfg.PharmacyId = Env("EPHARM_PHARMACY_ID", cfg.PharmacyId);
+            if (Env("EPHARM_RECEIPT_CAPTURE_ENABLED", cfg.ReceiptCaptureEnabled ? "true" : "false") == "false")
+                cfg.ReceiptCaptureEnabled = false;
+            cfg.ReceiptCaptureDir = Env("EPHARM_RECEIPT_CAPTURE_DIR", cfg.ReceiptCaptureDir);
+            if (int.TryParse(Env("EPHARM_RECEIPT_ACTIVE_RETENTION_DAYS", ""), out var receiptRetentionDays))
+                cfg.ReceiptCaptureActiveRetentionDays = Math.Clamp(receiptRetentionDays, 1, 30);
 
             // POSM включается при заданной аптеке. Фармацевт НЕ требуется в конфиге — он берётся
             // из лога кассы (токен kassir=), т.к. фармацевты работают посменно.

@@ -13,6 +13,7 @@ namespace CustomerDisplay
         private CancellationTokenSource? _standardNReceiptCts;
         private bool _standardNReceiptInitialized;
         private long? _standardNDocumentId;
+        private long? _lastFinalizedStandardNDocumentId;
         private int _standardNEmptyPolls;
 
         private void StartStandardNReceiptPolling()
@@ -74,11 +75,24 @@ namespace CustomerDisplay
                 // two authoritative empty reads prevents a one-poll gap from flashing the receipt.
                 if (_standardNDocumentId.HasValue && _standardNEmptyPolls >= 2)
                 {
-                    Log($"Активный чек Standard-N закрыт: doc={_standardNDocumentId.Value}");
+                    var closingDocumentId = _standardNDocumentId.Value;
+                    Log($"Активный чек Standard-N закрыт: doc={closingDocumentId}");
+                    var finalized = _lastFinalizedStandardNDocumentId == closingDocumentId;
+                    if (!finalized && ReceiptItems.Any())
+                    {
+                        finalized = OnReceiptFinalized("standardn-firebird-close", closingDocumentId);
+                        if (finalized) _lastFinalizedStandardNDocumentId = closingDocumentId;
+                    }
+                    if (!finalized)
+                    {
+                        // Пустой/отменённый чек не является продажей: удаляем только наш черновик.
+                        DiscardActiveReceiptDraft();
+                        ResetRecommendationUiState(closeWindows: true);
+                        StartNewCheckoutSession();
+                    }
                     _standardNDocumentId = null;
                     ReceiptItems.Clear();
                     RecalcTotal();
-                    OnCartChangedLocalOnly();
                 }
                 return;
             }
@@ -86,18 +100,43 @@ namespace CustomerDisplay
             _standardNEmptyPolls = 0;
             ApplyStandardNPharmacist(receipt.Pharmacist);
 
+            // Print-log marker can arrive slightly before DOCS stops exposing the active receipt.
+            // Do not repopulate the just-finalized cart while Firebird still returns that document.
+            if (_lastFinalizedStandardNDocumentId == receipt.DocumentId)
+            {
+                _standardNReceiptInitialized = true;
+                return;
+            }
+
             var wasInitialized = _standardNReceiptInitialized;
             var documentChanged = _standardNDocumentId != receipt.DocumentId;
             if (documentChanged)
             {
                 if (_standardNDocumentId.HasValue)
+                {
                     Log($"Standard-N переключил активный чек: {_standardNDocumentId.Value} -> {receipt.DocumentId}");
+                    var previousDocumentId = _standardNDocumentId.Value;
+                    var previousFinalized = _lastFinalizedStandardNDocumentId == previousDocumentId;
+                    if (!previousFinalized && ReceiptItems.Any())
+                    {
+                        previousFinalized = OnReceiptFinalized("standardn-document-switch", previousDocumentId);
+                        if (previousFinalized) _lastFinalizedStandardNDocumentId = previousDocumentId;
+                    }
+                    if (!previousFinalized)
+                    {
+                        DiscardActiveReceiptDraft();
+                        ResetRecommendationUiState(closeWindows: true);
+                        StartNewCheckoutSession();
+                    }
+                    ReceiptItems.Clear();
+                }
                 else
+                {
                     Log($"Standard-N открыл чек: doc={receipt.DocumentId}, session={receipt.SessionId}");
-
-                ReceiptItems.Clear();
-                ResetRecommendationUiState(closeWindows: true);
-                StartNewCheckoutSession();
+                    // Если лог успел увидеть первые товары раньше Firebird, это тот же чек. Меняем
+                    // только стабильный ключ черновика, не сбрасывая seller/session и корзину.
+                    if (ReceiptItems.Count > 0) DiscardActiveReceiptDraft();
+                }
                 _standardNDocumentId = receipt.DocumentId;
             }
 

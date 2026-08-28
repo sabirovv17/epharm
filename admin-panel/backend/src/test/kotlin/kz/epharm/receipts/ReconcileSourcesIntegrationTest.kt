@@ -152,6 +152,7 @@ class ReconcileSourcesIntegrationTest {
         // Касса присылает ШТРИХ-КОД (+ iPartID как диагностику), НЕ наш productId.
         val req = PosSaleRequest(
             saleId = "sale_bc", pharmacistId = "u_t", pharmacyId = "ph_t", fiscalId = "FBC",
+            sourceDocumentId = 91234, captureSource = "standardn-firebird-close", artifactFormat = "png",
             cashier = "Касса 1", totalAmount = 1_000, printedAt = Instant.now(),
             items = listOf(PosSaleItemDto(sku = "80309", barcode = "4600000000017", name = "Zen 30мл",
                 qty = 1.0, price = 1_000, total = 1_000)),
@@ -164,6 +165,13 @@ class ReconcileSourcesIntegrationTest {
         val r = receiptRepository.findAll().first { it.pendingBonusId == "pb_bc" }
         assertEquals(true, r.confirmedByLog)
         assertEquals("moderation_required", r.status.name) // один лог → ждём второй источник
+        val stored = posSaleRepository.findById("sale_bc").orElseThrow()
+        assertEquals("ph_t", stored.pharmacyId)
+        assertEquals(91234L, stored.sourceDocumentId)
+        assertEquals("standardn-firebird-close", stored.captureSource)
+        assertEquals("png", stored.artifactFormat)
+        assertEquals("80309", stored.items.single().sku)
+        assertEquals("p_zen", stored.items.single().productId)
     }
 
     @Test

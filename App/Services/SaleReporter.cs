@@ -8,19 +8,10 @@ using CustomerDisplay.Models.Posm;
 
 namespace CustomerDisplay.Services
 {
-    /// <summary>Единые опции JSON для обмена с backend (camelCase).</summary>
-    public static class EpharmJson
-    {
-        public static readonly JsonSerializerOptions Options = new()
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            PropertyNameCaseInsensitive = true,
-        };
-    }
-
     /// <summary>
-    /// Формирует отчёт о завершённом чеке (источник №1 сверки) из позиций кассы и кладёт в outbox
-    /// для гарантированной доставки. Вызывается при печати чека, до сброса сессии.
+    /// Формирует неизменяемый снимок завершённого чека и ставит его в outbox. Построение отделено
+    /// от постановки в очередь: ReceiptArtifactStore успевает атомарно сохранить локальную копию
+    /// до того, как фоновый flusher сможет получить подтверждение backend.
     /// </summary>
     public sealed class SaleReporter
     {
@@ -33,7 +24,12 @@ namespace CustomerDisplay.Services
             _outbox = outbox;
         }
 
-        public void Report(CheckoutSession session, IEnumerable<ReceiptItem> items)
+        public SaleReport? Build(
+            CheckoutSession session,
+            IEnumerable<ReceiptItem> items,
+            long? sourceDocumentId,
+            string captureSource,
+            DateTimeOffset completedAt)
         {
             var list = items
                 // Report only real Standard-N rows. Accepted recommendations are mirrored in UI
@@ -50,11 +46,11 @@ namespace CustomerDisplay.Services
                 })
                 .ToList();
 
-            if (list.Count == 0) return;
+            if (list.Count == 0) return null;
 
             var sale = new SaleReport
             {
-                SaleId = "sale_" + Guid.NewGuid().ToString("N").Substring(0, 16),
+                SaleId = ReceiptSaleId.Create(_cfg.PharmacyId, sourceDocumentId, session.SessionId),
                 // В боевом режиме фармацевт берётся из активного пользователя/сессии Стандарт-Н.
                 // Если БД включена, но недоступна/пуста, отправляем пусто, а не устаревший fallback.
                 PharmacistId = !string.IsNullOrWhiteSpace(session.PharmacistId)
@@ -63,12 +59,19 @@ namespace CustomerDisplay.Services
                 PharmacistName = session.PharmacistName,
                 PharmacyId = _cfg.PharmacyId,
                 SessionId = session.SessionId,
+                SourceDocumentId = sourceDocumentId,
+                CaptureSource = captureSource,
+                ArtifactFormat = "png",
                 // FiscalId / Cashier — из лога Стандарт-Н (формат уточняется пилотом, missing data #1).
                 TotalAmount = list.Sum(x => x.Total),
                 Items = list,
-                PrintedAt = DateTimeOffset.UtcNow,
+                PrintedAt = completedAt,
             };
+            return sale;
+        }
 
+        public void Enqueue(SaleReport sale)
+        {
             _outbox.Enqueue(sale.SaleId, "sale", JsonSerializer.Serialize(sale, EpharmJson.Options));
         }
     }

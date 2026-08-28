@@ -140,8 +140,9 @@ data class PosSaleItemDto(
 )
 
 /**
- * Чек, подтверждённый логом кассы (POSM-клиент шлёт после печати). saleId — client-GUID
- * для идемпотентности (повторная отправка из outbox не двоит данные).
+ * Завершённый чек Standard-N. POSM подтверждает его закрытием активного DOCS-документа
+ * или маркером печати в кассовом логе. saleId детерминирован по аптеке и DOCS.ID
+ * (fallback — по сессии чека), поэтому повторный сигнал и outbox-retry не двоят данные.
  */
 data class PosSaleRequest(
     @field:NotBlank
@@ -155,6 +156,12 @@ data class PosSaleRequest(
     @field:NotBlank
     val pharmacyId: String,
     val sessionId: String? = null,
+    /** Локальный DOCS.ID Standard-N; это не фискальный номер. */
+    val sourceDocumentId: Long? = null,
+    @field:Size(max = 64)
+    val captureSource: String? = null,
+    @field:Size(max = 16)
+    val artifactFormat: String? = null,
     val fiscalId: String? = null,
     val cashier: String? = null,
     val shift: String? = null,

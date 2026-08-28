@@ -17,7 +17,8 @@ namespace CustomerDisplay.Services
     /// <summary>
     /// Локальная SQLite-очередь гарантированной доставки на кассе (касса с нестабильным интернетом).
     /// Любое исходящее сначала пишется сюда, фоновый OutboxFlusher досылает с backoff. Идемпотентность —
-    /// каждое исходящее несёт client-GUID, backend апсертит по нему. Файл: C:\Epharm\outbox.db.
+    /// каждое исходящее имеет устойчивый id; для sale он детерминирован по аптеке и DOCS.ID.
+    /// Файл: C:\Epharm\outbox.db.
     /// </summary>
     public sealed class OfflineOutbox
     {

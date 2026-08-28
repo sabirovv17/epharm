@@ -25,13 +25,19 @@ namespace CustomerDisplay.Services
         private readonly Timer _timer;
         private readonly NetworkAddressChangedEventHandler _onNetAddr;
         private readonly NetworkAvailabilityChangedEventHandler _onNetAvail;
+        private readonly Action<OutboxItem>? _onDelivered;
         private int _busy;
         private int _disposed;
 
-        public OutboxFlusher(OfflineOutbox outbox, EpharmApiClient api, int periodSec = 5)
+        public OutboxFlusher(
+            OfflineOutbox outbox,
+            EpharmApiClient api,
+            int periodSec = 5,
+            Action<OutboxItem>? onDelivered = null)
         {
             _outbox = outbox;
             _api = api;
+            _onDelivered = onDelivered;
             var period = TimeSpan.FromSeconds(Math.Max(1, periodSec));
             // dueTime=2с — ранний первый flush на старте (drain backlog после оффлайна/перезапуска),
             // дальше — обычный период.
@@ -64,7 +70,12 @@ namespace CustomerDisplay.Services
                 foreach (var item in _outbox.DequeueReady())
                 {
                     var ok = await SendAsync(item).ConfigureAwait(false);
-                    if (ok) _outbox.Remove(item.Id);
+                    if (ok)
+                    {
+                        _outbox.Remove(item.Id);
+                        try { _onDelivered?.Invoke(item); }
+                        catch { /* ACK уже зафиксирован; cleanup не должен ломать flusher */ }
+                    }
                     else _outbox.Reschedule(item.Id, item.Attempts);
                 }
             }

@@ -34,6 +34,11 @@ class PosSaleService(
             return false
         }
 
+        // Резолвим до сохранения, чтобы pos_sales был полноценной базой соответствий:
+        // pharmacyId + локальный iPartID/EAN + внутренний catalog productId.
+        val cartItems = req.items.map { CartItemDto(sku = it.sku, barcode = it.barcode, name = it.name, qty = it.qty) }
+        val productIds = rulesEngineService.resolveToProductIds(cartItems)
+
         val sale = posSaleRepository.save(
             PosSaleEntity(
                 id = req.saleId,
@@ -44,11 +49,24 @@ class PosSaleService(
                 reportedPharmacistName = identity.reportedPharmacistName,
                 pharmacistSource = identity.source.wireValue,
                 pharmacyId = req.pharmacyId,
+                sourceDocumentId = req.sourceDocumentId,
+                captureSource = req.captureSource?.trim()?.takeIf { it.isNotEmpty() },
+                artifactFormat = req.artifactFormat?.trim()?.lowercase()?.takeIf { it.isNotEmpty() },
                 fiscalId = req.fiscalId,
                 cashier = req.cashier,
                 shift = req.shift,
                 totalAmount = req.totalAmount,
-                items = req.items.map { PosSaleItem(it.sku ?: "", it.barcode, it.name, it.qty, it.price, it.total) },
+                items = req.items.mapIndexed { index, item ->
+                    PosSaleItem(
+                        sku = item.sku ?: "",
+                        barcode = item.barcode,
+                        name = item.name,
+                        qty = item.qty,
+                        price = item.price,
+                        total = item.total,
+                        productId = productIds[index],
+                    )
+                },
                 printedAt = req.printedAt,
             ),
         )
@@ -61,12 +79,6 @@ class PosSaleService(
                 identity.reportedPharmacistName ?: "—",
             )
         }
-
-        // Резолвим позиции (штрих-код → имя) в наши productId — тем же матчером, что и /recommend.
-        // pending-бонус хранит recommendSku = productId, поэтому в сверку отдаём именно productId
-        // (а не iPartID кассы). Не разрезолвилось — отдаём исходный sku (в проде не сматчится → ок).
-        val cartItems = req.items.map { CartItemDto(sku = it.sku, barcode = it.barcode, name = it.name, qty = it.qty) }
-        val productIds = rulesEngineService.resolveToProductIds(cartItems)
 
         // Атрибуция показ→продажа (V032): закрываем рекомендации этой сессии, чей товар попал в чек.
         attributionService.attributeSale(sale, productIds.filterNotNull().toSet())

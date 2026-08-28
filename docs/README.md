@@ -59,6 +59,7 @@ public endpoint unless `.env.prod` and `Caddyfile` are changed together.
 | `13-training-module.md`                   | Реализация блока обучения в backend, админке и мобильном приложении.           |
 | `14-screen-playlist-profiles.md`          | Общий эфир и индивидуальные экранные плейлисты по списку аптек.                |
 | `15-daribar-otp.md`                       | Извлечённый SMS/OTP-контракт Daribar, безопасность и production-операции.      |
+| `16-posm-v1.0.47-receipt-capture.md`      | Безопасный захват состава чека, PNG, outbox/ACK и пилотные критерии.           |
 | `TRAINING-TEST-GUIDE.md`                  | Сквозная проверка обучения: админка, приложение, QR, сертификат и роли.        |
 | `RUNBOOK.md`                              | Day-to-day local startup, reset, tests, and production commands.               |
 | `DEV-ONBOARDING.md`                       | Run mobile app on Android/iPhone against shared backend.                       |

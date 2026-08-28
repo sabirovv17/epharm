@@ -25,6 +25,8 @@ namespace CustomerDisplay
         private OfflineOutbox? _outbox;
         private OutboxFlusher? _flusher;
         private SaleReporter? _saleReporter;
+        private ReceiptArtifactStore? _receiptArtifacts;
+        private string? _activeReceiptDraftId;
         private StandardNDbLookup? _standardNDb;
         private CheckoutSession _session = new();
 
@@ -101,7 +103,32 @@ namespace CustomerDisplay
                     // Источник №1 сверки: гарантированная доставка чеков/результатов через outbox.
                     _outbox = new OfflineOutbox(_posmConfig.OutboxDbPath);
                     _saleReporter = new SaleReporter(_posmConfig, _outbox);
-                    _flusher = new OutboxFlusher(_outbox, _epharm, _posmConfig.OutboxFlushSec);
+                    if (_posmConfig.ReceiptCaptureEnabled)
+                    {
+                        try
+                        {
+                            _receiptArtifacts = new ReceiptArtifactStore(
+                                _posmConfig.ReceiptCaptureDir,
+                                new ReceiptPngRenderer(),
+                                Log,
+                                _posmConfig.ReceiptCaptureActiveRetentionDays);
+                            var recovered = _receiptArtifacts.RecoverPending(_outbox);
+                            Log($"Захват чеков включён: {_posmConfig.ReceiptCaptureDir}; " +
+                                $"восстановлено pending={recovered}");
+                        }
+                        catch (Exception ex)
+                        {
+                            // Продажи всё равно должны попасть в outbox, даже если локальный диск
+                            // временно read-only/переполнен или PNG-рендер недоступен.
+                            _receiptArtifacts = null;
+                            Log($"Локальные PNG-копии чеков временно недоступны: {ex.GetBaseException().Message}");
+                        }
+                    }
+                    _flusher = new OutboxFlusher(
+                        _outbox,
+                        _epharm,
+                        _posmConfig.OutboxFlushSec,
+                        OnOutboxDelivered);
                     Log($"POSM включён: backend={string.Join(" -> ", _posmConfig.GetBackendBaseUris())}, аптека={_posmConfig.PharmacyId}");
                 }
                 else
@@ -127,9 +154,9 @@ namespace CustomerDisplay
         /// </summary>
         private void OnProductScanned(Models.ReceiptItem scannedItem)
         {
-            if (_epharm == null || _posmConfig == null) return;
-
             CaptureCurrentSellerForSession();
+            SaveActiveReceiptDraft();
+            if (_epharm == null || _posmConfig == null) return;
 
             _recoCts?.Cancel();
             _recoCts = new CancellationTokenSource();
@@ -160,10 +187,12 @@ namespace CustomerDisplay
             _recoCts?.Cancel();
             if (ReceiptItems.Count == 0)
             {
+                DiscardActiveReceiptDraft();
                 ResetRecommendationUiState(closeWindows: true);
                 StartNewCheckoutSession();
                 return;
             }
+            SaveActiveReceiptDraft();
             CloseStaleRecommendationWindowForCurrentCart();
             PruneShownStateForCurrentCart();
         }
@@ -587,7 +616,7 @@ namespace CustomerDisplay
         /// Вызывается при печати/завершении чека ДО очистки позиций. Фиксирует продажу (источник №1),
         /// закрывает popup, открывает новую сессию.
         /// </summary>
-        private void OnReceiptFinalized()
+        private bool OnReceiptFinalized(string captureSource, long? sourceDocumentId = null)
         {
             // If the first lookup failed, SellerCaptured remains false. Retry immediately before
             // queuing the completed receipt instead of permanently sending an empty seller.
@@ -596,9 +625,90 @@ namespace CustomerDisplay
                 RefreshCurrentPharmacistFromStandardNDb();
                 CaptureCurrentSellerForSession();
             }
-            _saleReporter?.Report(_session, ReceiptItems); // позиции ещё в чеке
+            var sale = _saleReporter?.Build(
+                _session,
+                ReceiptItems,
+                sourceDocumentId,
+                captureSource,
+                DateTimeOffset.UtcNow);
+            if (sale != null)
+            {
+                var rendered = false;
+                try
+                {
+                    rendered = _receiptArtifacts?.Complete(sale) == true;
+                }
+                catch (Exception ex)
+                {
+                    // Не блокируем гарантированную структурированную отправку из-за локального PNG.
+                    Log($"Локальная копия чека {sale.SaleId} не сохранена: {ex.GetBaseException().Message}");
+                }
+
+                _saleReporter?.Enqueue(sale);
+                var pngStatus = _receiptArtifacts == null
+                    ? "локальный захват недоступен"
+                    : rendered ? "готов" : "ожидает восстановления";
+                Log($"Чек поставлен в гарантированную очередь: id={sale.SaleId}, " +
+                    $"doc={sourceDocumentId?.ToString() ?? "—"}, items={sale.Items.Count}, " +
+                    $"total={sale.TotalAmount}, png={pngStatus}");
+            }
+            else
+            {
+                Log($"Завершение чека пропущено: нет реальных позиций Standard-N (source={captureSource})");
+            }
+
+            _activeReceiptDraftId = null;
             ResetRecommendationUiState(closeWindows: true);
             StartNewCheckoutSession();
+            return sale != null;
+        }
+
+        private void SaveActiveReceiptDraft()
+        {
+            if (_receiptArtifacts == null || _saleReporter == null || ReceiptItems.Count == 0) return;
+            try
+            {
+                CaptureCurrentSellerForSession();
+                var draft = _saleReporter.Build(
+                    _session,
+                    ReceiptItems,
+                    _standardNDocumentId,
+                    _standardNDocumentId.HasValue ? "standardn-active" : "cash-log-active",
+                    DateTimeOffset.UtcNow);
+                if (draft == null) return;
+                _receiptArtifacts.SaveDraft(draft);
+                if (!string.IsNullOrWhiteSpace(_activeReceiptDraftId) &&
+                    !string.Equals(_activeReceiptDraftId, draft.SaleId, StringComparison.Ordinal))
+                {
+                    // The first cash-log event can precede discovery of DOCS.ID. Once Firebird
+                    // supplies the stable document id, remove the obsolete session-keyed draft.
+                    _receiptArtifacts.DiscardDraft(_activeReceiptDraftId);
+                }
+                _activeReceiptDraftId = draft.SaleId;
+            }
+            catch (Exception ex)
+            {
+                Log($"Черновик активного чека временно не сохранён: {ex.GetBaseException().Message}");
+            }
+        }
+
+        private void DiscardActiveReceiptDraft()
+        {
+            if (_receiptArtifacts == null || string.IsNullOrWhiteSpace(_activeReceiptDraftId)) return;
+            _receiptArtifacts.DiscardDraft(_activeReceiptDraftId);
+            _activeReceiptDraftId = null;
+        }
+
+        private void OnOutboxDelivered(OutboxItem item)
+        {
+            if (!string.Equals(item.Kind, "sale", StringComparison.OrdinalIgnoreCase)) return;
+            try { _receiptArtifacts?.DeletePending(item.Id); }
+            catch (Exception ex)
+            {
+                // При следующем старте pending будет повторно отправлен идемпотентно и очищен.
+                Log($"ACK чека {item.Id} получен, но локальная копия пока не удалена: " +
+                    ex.GetBaseException().Message);
+            }
         }
 
         private void CaptureCurrentSellerForSession()

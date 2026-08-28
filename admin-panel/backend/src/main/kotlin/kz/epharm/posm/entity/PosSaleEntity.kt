@@ -16,11 +16,14 @@ data class PosSaleItem(
     val qty: Double = 1.0,
     val price: Long = 0,
     val total: Long = 0,
+    /** Внутренний catalog productId Epharm, разрешённый на backend; null при неоднозначном матче. */
+    val productId: String? = null,
 )
 
 /**
- * Источник №1 сверки — завершённый чек, подтверждённый логом кассы Стандарт-Н.
- * POSM-клиент шлёт после печати в /api/posm/sales. id = client-GUID (идемпотентность ретраев).
+ * Источник №1 сверки — завершённый чек Standard-N, подтверждённый закрытием активного
+ * DOCS-документа или маркером печати. id детерминирован по аптеке и DOCS.ID
+ * (fallback — по сессии чека), что обеспечивает идемпотентность сигналов и ретраев.
  */
 @Entity
 @Table(name = "pos_sales")
@@ -49,6 +52,15 @@ class PosSaleEntity(
 
     @Column(name = "pharmacy_id", nullable = false, length = 64)
     var pharmacyId: String = "",
+
+    @Column(name = "source_document_id")
+    var sourceDocumentId: Long? = null,
+
+    @Column(name = "capture_source", length = 64)
+    var captureSource: String? = null,
+
+    @Column(name = "artifact_format", length = 16)
+    var artifactFormat: String? = null,
 
     @Column(name = "fiscal_id", length = 128)
     var fiscalId: String? = null,

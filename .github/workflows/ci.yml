@@ -121,6 +121,27 @@ jobs:
           path: admin-panel/backend/build/reports/tests/test/
           retention-days: 7
 
+  # POSM core tests are platform-neutral; the WPF application itself is compiled on Windows.
+  posm-core-test:
+    name: posm / core tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet test App.Tests/CustomerDisplay.Core.Tests.csproj -c Release
+
+  posm-windows-build:
+    name: posm / windows build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet build App/CustomerDisplay.csproj -c Release -p:EnableWindowsTargeting=true
+
   # ────────────────────────────────────────────────────────────────
   # Repo-уровневые проверки (PR-only)
   # ────────────────────────────────────────────────────────────────

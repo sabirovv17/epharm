@@ -9,7 +9,7 @@ Build on Windows with .NET 10 SDK.
 ```powershell
 cd <repo>
 dotnet publish App\CustomerDisplay.csproj -c Release -r win-x64 --self-contained `
-  -p:Version=1.0.46 -o C:\Epharm\app
+  -p:Version=1.0.47 -o C:\Epharm\app
 ```
 
 Auto-update works with a published app folder containing `CustomerDisplay.exe`, dependencies, LibVLC,
@@ -35,6 +35,9 @@ config, and scripts. Do not deploy `dotnet run` as production.
   "UpdatePollSec": 300,
   "HeartbeatPath": "C:\\Epharm\\heartbeat.txt",
   "HeartbeatSec": 15,
+  "ReceiptCaptureEnabled": true,
+  "ReceiptCaptureDir": "C:\\Epharm\\receipts",
+  "ReceiptCaptureActiveRetentionDays": 2,
   "StandardNDbEnabled": true,
   "StandardNDbPath": "",
   "StandardNReceiptPollMs": 400
@@ -120,6 +123,30 @@ Release flow:
 
 The client downloads only HTTPS URLs and verifies SHA256 before applying.
 The download endpoint also requires the client's `X-Posm-Key` header.
+
+## Receipt Capture
+
+POSM v1.0.47 adds a read-only receipt evidence pipeline. It does not intercept, replace, delay, or
+delete the Standard-N fiscal print job:
+
+1. While the cart is open, POSM atomically updates
+   `C:\Epharm\receipts\active\<saleId>\sale.json`.
+2. A confirmed Standard-N document close, print-log marker, or document switch creates
+   `pending\<saleId>\sale.json` and a reconstructed `receipt.png` labelled as non-fiscal.
+3. The structured sale is written to `C:\Epharm\outbox.db` and retried after network or power loss.
+4. Backend stores the pharmacy id, Standard-N document id, local `iPartID`/EAN and resolved internal
+   Epharm `productId`.
+5. Only after an HTTP success response does POSM delete its own `pending\<saleId>` folder. Standard-N
+   database, cash log, fiscal document and Windows print queue are never modified.
+
+Unfinished drafts older than the configured retention are removed. Corrupt pending artifacts are
+moved to `C:\Epharm\receipts\quarantine` instead of being silently deleted. Set
+`EPHARM_RECEIPT_CAPTURE_ENABLED=false` for immediate rollback of PNG capture; sale outbox reporting
+continues independently.
+
+`receipt.png` is an Epharm evidence copy of the observed cart, not an official fiscal receipt. Exact
+fiscal QR/payment/RNM data requires a separately validated read-only KKM SDK, OFD API, or RAW spool
+capture contract and must not be inferred from the active cart.
 
 ## Recommendation Smoke
 

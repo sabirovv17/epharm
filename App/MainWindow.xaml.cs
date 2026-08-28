@@ -533,11 +533,14 @@ if (line.Contains("ChequeList.OnChange", StringComparison.OrdinalIgnoreCase))
 if (line.Contains("RunScriptByIndex", StringComparison.OrdinalIgnoreCase) &&
     line.Contains("После печати очереди чеков", StringComparison.OrdinalIgnoreCase))
 {
-    Log("Обнаружено завершение чека. Очищаем чек.");
+    Log("Обнаружено подтверждённое завершение чека в логе печати Standard-N.");
 
     Dispatcher.Invoke(() =>
     {
-        OnReceiptFinalized(); // сначала фиксируем продажу (источник №1), пока позиции ещё в чеке
+        var documentId = _standardNDocumentId;
+        var finalized = OnReceiptFinalized("standardn-print-log", documentId);
+        if (finalized && documentId.HasValue)
+            _lastFinalizedStandardNDocumentId = documentId.Value;
         ReceiptItems.Clear();
         RecalcTotal();
     });

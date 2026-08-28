@@ -4,7 +4,7 @@ Database: PostgreSQL 16.
 
 Migrations: Flyway files in `admin-panel/backend/src/main/resources/db/migration/`.
 
-Current migration range: V001-V039.
+Current migration range: V001-V041.
 
 ## Migrations
 
@@ -49,6 +49,8 @@ Current migration range: V001-V039.
 | V037    | `dashboard_journal_pagination_indexes` | Indexes for the paginated analytics journal.                                 |
 | V038    | `targeted_screen_playlists`            | Parent/child playlist inheritance and pharmacy-profile assignments.          |
 | V039    | `mobile_otp_provider`                  | Records which provider owns verification for each OTP request.               |
+| V040    | `lms_course_lessons`                   | Editable LMS lessons and uploaded video lesson metadata.                     |
+| V041    | `pos_sale_receipt_capture`             | Standard-N document/capture metadata and pharmacy/document lookup index.     |
 
 ## Domain Tables
 
@@ -78,3 +80,6 @@ Current migration range: V001-V039.
 - Test profile uses Testcontainers and avoids live Medusa calls.
 - Raw Standard-N id/name stays on `pos_sales` for audit. A trusted internal pharmacist is resolved
   only by a deterministic same-pharmacy match.
+- `pos_sales.items` keeps the original iPartID/EAN/name and the backend-resolved internal
+  `productId`; unresolved or ambiguous catalog matches remain `null` instead of being guessed.
+- `source_document_id` is the local Standard-N `DOCS.ID`, not an official fiscal receipt number.

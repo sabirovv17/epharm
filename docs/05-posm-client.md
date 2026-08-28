@@ -21,30 +21,34 @@ The POSM client runs on a Windows cash-desk machine:
    pharmacy-targeted profile, so changing assignments or videos does not require reinstalling POSM.
 9. Sends heartbeat with the current Windows monitor count so admin can count online cash desks and
    report whether a customer display is physically available.
-10. Stores outgoing non-real-time events in a local SQLite outbox and retries safely.
-11. Sends any cashier id/name found in Standard-N as an audit signal; the backend decides the trusted
+10. Persists an atomic active-receipt draft and a reconstructed PNG evidence copy until backend ACK.
+11. Stores outgoing non-real-time events in a local SQLite outbox and retries safely.
+12. Sends any cashier id/name found in Standard-N as an audit signal; the backend decides the trusted
     internal pharmacist used for bonuses.
 
 ## Important Files
 
-| Path                                  | Role                                               |
-| ------------------------------------- | -------------------------------------------------- |
-| `App/MainWindow.xaml[.cs]`            | WPF customer display and main integration shell.   |
-| `App/MainWindow.StandardNReceipt.cs`  | Live Standard-N receipt reconciliation loop.       |
-| `App/MainWindow.Recommendations.cs`   | Recommendation popup wiring.                       |
-| `App/MainWindow.Screen.cs`            | Customer screen/video playlist logic.              |
-| `App/MainWindow.Update.cs`            | App auto-update logic.                             |
-| `App/RecommendationWindow.xaml[.cs]`  | Pharmacist recommendation popup.                   |
-| `App/CdpForm.xaml[.cs]`               | POSM customer-phone/CDP form.                      |
-| `App/Config/EpharmConfig.cs`          | Config/env parsing.                                |
-| `App/Services/EpharmApiClient.cs`     | HTTP client with `X-Posm-Key`.                     |
-| `App/Services/CheckoutSession.cs`     | Current receipt/cart lifecycle.                    |
-| `App/Services/StandardNLogLocator.cs` | Bounded production cash-log discovery/cache.       |
-| `App/Services/StandardNDbLookup.cs`   | Workstation-bound Firebird receipt/cashier reader. |
-| `App/Services/SaleReporter.cs`        | Printed sale reporting.                            |
-| `App/Services/OfflineOutbox.cs`       | SQLite outbox.                                     |
-| `App/Services/OutboxFlusher.cs`       | Retry loop.                                        |
-| `Models/Posm/*`                       | DTOs shared by POSM requests/responses.            |
+| Path                                   | Role                                               |
+| -------------------------------------- | -------------------------------------------------- |
+| `App/MainWindow.xaml[.cs]`             | WPF customer display and main integration shell.   |
+| `App/MainWindow.StandardNReceipt.cs`   | Live Standard-N receipt reconciliation loop.       |
+| `App/MainWindow.Recommendations.cs`    | Recommendation popup wiring.                       |
+| `App/MainWindow.Screen.cs`             | Customer screen/video playlist logic.              |
+| `App/MainWindow.Update.cs`             | App auto-update logic.                             |
+| `App/RecommendationWindow.xaml[.cs]`   | Pharmacist recommendation popup.                   |
+| `App/CdpForm.xaml[.cs]`                | POSM customer-phone/CDP form.                      |
+| `App/Config/EpharmConfig.cs`           | Config/env parsing.                                |
+| `App/Services/EpharmApiClient.cs`      | HTTP client with `X-Posm-Key`.                     |
+| `App/Services/CheckoutSession.cs`      | Current receipt/cart lifecycle.                    |
+| `App/Services/StandardNLogLocator.cs`  | Bounded production cash-log discovery/cache.       |
+| `App/Services/StandardNDbLookup.cs`    | Workstation-bound Firebird receipt/cashier reader. |
+| `App/Services/SaleReporter.cs`         | Printed sale reporting.                            |
+| `App/Services/ReceiptArtifactStore.cs` | Atomic receipt draft/pending/recovery lifecycle.   |
+| `App/Services/ReceiptPngRenderer.cs`   | Non-fiscal PNG evidence renderer.                  |
+| `App/Services/ReceiptSaleId.cs`        | Stable pharmacy/document sale id.                  |
+| `App/Services/OfflineOutbox.cs`        | SQLite outbox.                                     |
+| `App/Services/OutboxFlusher.cs`        | Retry loop.                                        |
+| `Models/Posm/*`                        | DTOs shared by POSM requests/responses.            |
 
 ## Matching Contract
 
@@ -78,20 +82,23 @@ catalog product ids.
 
 `posm.json` keys can be overridden by environment variables:
 
-| Key                       | Env                                | Meaning                                                               |
-| ------------------------- | ---------------------------------- | --------------------------------------------------------------------- |
-| `Enabled`                 | `EPHARM_POSM_ENABLED`              | Enables backend integration.                                          |
-| `BackendBaseUrl`          | `EPHARM_BACKEND_URL`               | Preferred backend origin, e.g. `https://epharm.inkar.kz`.             |
-| `BackendFallbackBaseUrls` | `EPHARM_BACKEND_FALLBACK_URLS`     | Ordered backup origins; environment values use `;` or `,` separators. |
-| `DeviceKey`               | `EPHARM_POSM_KEY`                  | POSM device key for `X-Posm-Key`.                                     |
-| `PharmacyId`              | `EPHARM_PHARMACY_ID`               | Pharmacy/screen id.                                                   |
-| `PharmacistId`            | `EPHARM_PHARMACIST_ID`             | Diagnostic fallback only; do not use a fixed person in production.    |
-| `ScreenMode`              | `EPHARM_SCREEN_MODE`               | `dev` windowed or `prod` monitor behavior.                            |
-| `VideoEnabled`            | `EPHARM_NO_VIDEO=true` disables    | Customer video playback.                                              |
-| `PlaylistPollSec`         | `EPHARM_PLAYLIST_POLL_SEC`         | Playlist poll period.                                                 |
-| `AppLogPath`              | `EPHARM_APP_LOG`                   | POSM app log path.                                                    |
-| `StandardNLogPaths`       | `EPHARM_STANDARDN_LOG_PATHS`       | Optional explicit paths (`;`-separated in env).                       |
-| `StandardNReceiptPollMs`  | `EPHARM_STANDARDN_RECEIPT_POLL_MS` | Active receipt poll interval; default 400ms.                          |
+| Key                                 | Env                                    | Meaning                                                               |
+| ----------------------------------- | -------------------------------------- | --------------------------------------------------------------------- |
+| `Enabled`                           | `EPHARM_POSM_ENABLED`                  | Enables backend integration.                                          |
+| `BackendBaseUrl`                    | `EPHARM_BACKEND_URL`                   | Preferred backend origin, e.g. `https://epharm.inkar.kz`.             |
+| `BackendFallbackBaseUrls`           | `EPHARM_BACKEND_FALLBACK_URLS`         | Ordered backup origins; environment values use `;` or `,` separators. |
+| `DeviceKey`                         | `EPHARM_POSM_KEY`                      | POSM device key for `X-Posm-Key`.                                     |
+| `PharmacyId`                        | `EPHARM_PHARMACY_ID`                   | Pharmacy/screen id.                                                   |
+| `PharmacistId`                      | `EPHARM_PHARMACIST_ID`                 | Diagnostic fallback only; do not use a fixed person in production.    |
+| `ScreenMode`                        | `EPHARM_SCREEN_MODE`                   | `dev` windowed or `prod` monitor behavior.                            |
+| `VideoEnabled`                      | `EPHARM_NO_VIDEO=true` disables        | Customer video playback.                                              |
+| `PlaylistPollSec`                   | `EPHARM_PLAYLIST_POLL_SEC`             | Playlist poll period.                                                 |
+| `AppLogPath`                        | `EPHARM_APP_LOG`                       | POSM app log path.                                                    |
+| `StandardNLogPaths`                 | `EPHARM_STANDARDN_LOG_PATHS`           | Optional explicit paths (`;`-separated in env).                       |
+| `StandardNReceiptPollMs`            | `EPHARM_STANDARDN_RECEIPT_POLL_MS`     | Active receipt poll interval; default 400ms.                          |
+| `ReceiptCaptureEnabled`             | `EPHARM_RECEIPT_CAPTURE_ENABLED`       | Enables local receipt evidence; default true.                         |
+| `ReceiptCaptureDir`                 | `EPHARM_RECEIPT_CAPTURE_DIR`           | Root for active/pending/quarantine receipt artifacts.                 |
+| `ReceiptCaptureActiveRetentionDays` | `EPHARM_RECEIPT_ACTIVE_RETENTION_DAYS` | Retention for abandoned active drafts; 1-30 days.                     |
 
 POSM v1.0.43 uses the workstation-bound active Firebird receipt as the primary live-cart source. It
 still watches explicit and previously confirmed paths first, then the two legacy v1.0.23 paths:
@@ -102,6 +109,24 @@ running Standard-N/cashier processes and likely top-level installation folders. 
 cash-event marker is observed. The cache is `C:\Epharm\standardn-log-paths.txt`.
 
 `Enabled` is effective only when key identity fields are present.
+
+## Receipt Evidence Contract
+
+POSM v1.0.47 observes Standard-N in read-only mode. Every open receipt gets an atomically replaced
+JSON draft under `C:\Epharm\receipts\active`. A confirmed document close or print-log marker moves
+an immutable structured sale to `pending` and creates `receipt.png`. The same sale is inserted into
+the SQLite outbox before network delivery. A deterministic id based on `pharmacyId + DOCS.ID`
+deduplicates print-log, Firebird-close and retry signals.
+
+Backend resolves each local EAN/iPartID/name to an internal catalog `productId` and stores both the
+source identity and resolved identity with `pharmacyId`. A successful backend response is the only
+event that removes the corresponding Epharm `pending` directory. Restart recovery requeues valid
+pending sales; damaged directories are isolated in `quarantine`.
+
+The PNG is explicitly marked as a non-fiscal copy of the observed cart. POSM does not change the
+fiscal printer driver, Windows spooler, Standard-N database, cash log or original receipt. Capturing
+an exact official fiscal PDF/PNG with QR/payment/fiscal signs remains blocked until a documented,
+read-only KKM/OFD/RAW-spool interface is confirmed on a production cash desk.
 
 ## Pharmacist Attribution
 
