@@ -114,6 +114,8 @@ without `--no-deps`, Compose may recreate backend because frontend depends on it
 ## POSM Fleet Auto-update
 
 Existing POSM v1.0.46+ installations poll `GET /api/posm/app/version` at least every five minutes.
+Legacy v1.0.44 installations use the former 30-minute interval, so a fleet rollout must be observed
+for at least one full legacy interval before coverage is reported.
 Until the external INKAR HTTPS ingress is repaired, API metadata can arrive through
 `http://epharm.inkar.kz:8060`, but the executable archive itself must use HTTPS. Publish production
 archives in the public artifact-only repository `sabirovv17/epharm-posm-releases`; do not make the
@@ -123,11 +125,13 @@ Release gate:
 
 1. Build and test the Windows update/bridge archive.
 2. Confirm that it contains no `posm.json`, credentials, keys, pharmacy IDs, or source files.
-3. Upload it to a versioned GitHub release in the artifact repository.
-4. Download the release anonymously with redirects and a Range request; verify ZIP integrity, size,
-   and SHA-256.
-5. Back up the `app_releases` table, then register the HTTPS URL and exact SHA-256 as the current
-   `win-x64` release.
+3. Upload it to a versioned GitHub release and commit the same artifact to the artifact-only
+   repository. Pin the distribution URL to that exact commit through jsDelivr; do not use a mutable
+   branch URL for production.
+4. Download the final CDN URL anonymously with a Range request; verify ZIP integrity, size, and
+   SHA-256. Repeat the check against the GitHub release recovery asset.
+5. Back up the `app_releases` table, then register the commit-pinned HTTPS URL and exact SHA-256 as
+   the current `win-x64` release.
 6. Monitor backend `POSM update check` logs and Redis presence telemetry until active version-reporting
    devices move to the target version. Offline devices update at their next launch/network session.
 

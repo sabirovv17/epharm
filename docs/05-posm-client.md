@@ -202,12 +202,14 @@ cause instead of being mistaken for a confirmed one-monitor installation. v1.0.4
 polling at five minutes and resumes interrupted release downloads from a persistent partial file.
 
 Production binary releases are mirrored in the public, artifact-only repository
-`sabirovv17/epharm-posm-releases`. The source repository remains private. Release archives must never
-contain `posm.json`, device keys, credentials, pharmacy identifiers, or source code. The current
-bridge archive contains only the application executable, DLL, deps file, and runtime config. Before a
-release becomes current, verify an anonymous HTTPS download, Range resume, ZIP integrity, exact byte
-size, and SHA-256. The backend may remain reachable through the temporary HTTP `:8060` API fallback,
-but `AppUpdater` accepts the executable archive only over HTTPS and rejects a missing or mismatched
+`sabirovv17/epharm-posm-releases`. The source repository remains private. The production URL uses
+jsDelivr with an immutable artifact-repository commit, while the GitHub release asset remains an
+independent recovery source. Release archives must never contain `posm.json`, device keys,
+credentials, pharmacy identifiers, or source code. The current bridge archive contains only the
+application executable, DLL, deps file, and runtime config. Before a release becomes current, verify
+an anonymous HTTPS download, Range resume, ZIP integrity, exact byte size, and SHA-256 from the final
+CDN URL. The backend may remain reachable through the temporary HTTP `:8060` API fallback, but
+`AppUpdater` accepts the executable archive only over HTTPS and rejects a missing or mismatched
 SHA-256. Pharmacy-specific `C:\Epharm\posm.json` is preserved during the overlay update.
 
 ## Operations

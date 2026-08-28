@@ -106,5 +106,5 @@
 - [x] Backend сохраняет `pharmacyId`, source document/capture metadata и внутренний `productId`
       рядом с исходными iPartID/EAN/name; Flyway V041 проходит полный backend test suite.
 - [x] Восстановлен массовый канал POSM-обновлений: бинарный bridge v1.0.47 опубликован отдельно от
-      приватных исходников, анонимное HTTPS/Range-скачивание и SHA-256 проверены; production-метаданные
-      переключены на новый URL без изменения аптечных `posm.json`.
+      приватных исходников, production URL закреплён за immutable commit через jsDelivr, резервный
+      GitHub release, HTTPS/Range и SHA-256 проверены; аптечные `posm.json` не изменяются.
