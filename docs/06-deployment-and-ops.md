@@ -111,6 +111,29 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build --n
 
 without `--no-deps`, Compose may recreate backend because frontend depends on it.
 
+## POSM Fleet Auto-update
+
+Existing POSM v1.0.46+ installations poll `GET /api/posm/app/version` at least every five minutes.
+Until the external INKAR HTTPS ingress is repaired, API metadata can arrive through
+`http://epharm.inkar.kz:8060`, but the executable archive itself must use HTTPS. Publish production
+archives in the public artifact-only repository `sabirovv17/epharm-posm-releases`; do not make the
+private source repository public merely to distribute binaries.
+
+Release gate:
+
+1. Build and test the Windows update/bridge archive.
+2. Confirm that it contains no `posm.json`, credentials, keys, pharmacy IDs, or source files.
+3. Upload it to a versioned GitHub release in the artifact repository.
+4. Download the release anonymously with redirects and a Range request; verify ZIP integrity, size,
+   and SHA-256.
+5. Back up the `app_releases` table, then register the HTTPS URL and exact SHA-256 as the current
+   `win-x64` release.
+6. Monitor backend `POSM update check` logs and Redis presence telemetry until active version-reporting
+   devices move to the target version. Offline devices update at their next launch/network session.
+
+The updater deliberately preserves `C:\Epharm\posm.json`, so the pharmacy ID and device configuration
+do not come from the shared release and are not overwritten by fleet updates.
+
 ## Health Checks
 
 ```bash
@@ -144,6 +167,10 @@ Example cron:
 - External `epharm.inkar.kz:443` currently has the wrong expired certificate and returns gateway
   `404`; POSM can use `:8060` only from
   pharmacy networks that permit that outbound port.
+- The temporary HTTP metadata fallback is not a final trust boundary: an attacker able to alter both
+  release metadata and its SHA-256 could redirect an old client to another HTTPS archive. Repair the
+  external HTTPS ingress, remove the HTTP fallback, and add a pinned signing key for update manifests
+  before treating the update channel as fully hardened.
 - Receipt photos are in a public-readable MinIO bucket. The release checklist tracks private bucket +
   presigned URL work.
 - Storefront/PIM/SSH credentials present in existing docs need rotation.
