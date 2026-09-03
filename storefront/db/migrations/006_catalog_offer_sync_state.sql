@@ -15,3 +15,4 @@ CREATE TABLE IF NOT EXISTS catalog_offer_sync_state (
 
 CREATE INDEX IF NOT EXISTS catalog_offer_sync_state_attempt_idx
     ON catalog_offer_sync_state (last_attempt_at, product_id);
+

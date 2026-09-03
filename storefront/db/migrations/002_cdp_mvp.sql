@@ -87,3 +87,4 @@ CREATE TABLE IF NOT EXISTS cdp_dead_letters (
 
 CREATE INDEX IF NOT EXISTS cdp_dead_letters_open_idx
     ON cdp_dead_letters (received_at) WHERE resolved_at IS NULL;
+
