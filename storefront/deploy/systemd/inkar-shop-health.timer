@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Inkar storefront health check every minute
+
+[Timer]
+OnActiveSec=30s
+OnUnitActiveSec=60s
+AccuracySec=5s
+Persistent=false
+Unit=inkar-shop-health.service
+
+[Install]
+WantedBy=timers.target

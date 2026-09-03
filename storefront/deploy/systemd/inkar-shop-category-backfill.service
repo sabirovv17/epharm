@@ -1,0 +1,31 @@
+[Unit]
+Description=Resumable full Medusa top-category backfill for Inkar catalogue
+Wants=network-online.target
+After=network-online.target
+OnSuccess=inkar-shop-category-finalize.service
+ConditionPathExists=/var/www/inkar-shop/scripts/assign-medusa-top-categories.mjs
+ConditionPathExists=/var/lib/inkar-shop/temp-wares-category-map.json
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+WorkingDirectory=/var/backups/inkar-categories-20260722
+Environment=NODE_ENV=production
+EnvironmentFile=-/etc/inkar-shop/inkar-shop.env
+ExecStart=/usr/bin/node /var/www/inkar-shop/scripts/assign-medusa-top-categories.mjs --mapping /var/lib/inkar-shop/temp-wares-category-map.json --apply --full --resume /var/backups/inkar-categories-20260722/assignment.journal.jsonl --report /var/backups/inkar-categories-20260722/full.report.json
+
+# Medusa can temporarily stop responding. The importer is idempotent and its
+# append-only journal skips products whose PATCH+GET verification succeeded.
+TimeoutStartSec=infinity
+TimeoutStopSec=2min
+Restart=on-failure
+RestartSec=2min
+Nice=10
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/backups/inkar-categories-20260722
+
+# Deliberately no [Install] section: this is a one-time resumable backfill.

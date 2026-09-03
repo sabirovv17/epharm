@@ -36,14 +36,30 @@ namespace CustomerDisplay.Config
         public int PopupAutoCloseSec { get; set; } = 30;
         public string OutboxDbPath { get; set; } = @"C:\Epharm\outbox.db";
         public int OutboxFlushSec { get; set; } = 5;
+        /// <summary>Контур выдачи интернет-заказов. Backend также имеет независимый kill switch.</summary>
+        public bool FulfillmentEnabled { get; set; } = true;
+        public int FulfillmentPollSec { get; set; } = 10;
+        public string FulfillmentCredentialPath { get; set; } = @"C:\Epharm\fulfillment-device.dat";
+        public string FulfillmentCachePath { get; set; } = @"C:\Epharm\fulfillment-orders.json";
         /// <summary>
-        /// Локальные Epharm-копии чеков. active хранит JSON-черновик открытого чека, pending —
-        /// PNG+JSON до подтверждения backend. Системные файлы Standard-N и Spooler не трогаются.
+        /// Exact-only захват чеков. POSM принимает только оригинальный PDF/PNG из доверенного
+        /// read-only адаптера ККМ/OFD; реконструкция фискального документа запрещена.
         /// </summary>
         public bool ReceiptCaptureEnabled { get; set; } = true;
         public string ReceiptCaptureDir { get; set; } = @"C:\Epharm\receipts";
+        public string FiscalReceiptInboxDir { get; set; } = @"C:\Epharm\fiscal-inbox";
+        public List<string> FiscalReceiptTrustedSources { get; set; } = new()
+        {
+            "standardn-kkm-sdk",
+            "ofd-api",
+        };
+        public int FiscalReceiptPollSec { get; set; } = 2;
+        public int FiscalReceiptMaxClockSkewSec { get; set; } = 900;
+        public int FiscalReceiptMaxArtifactMb { get; set; } = 10;
         /// <summary>Сколько дней держать незавершённый active-черновик после аварии.</summary>
         public int ReceiptCaptureActiveRetentionDays { get; set; } = 2;
+        /// <summary>Сколько часов хранить оригинал после ACK фискальных метаданных.</summary>
+        public int FiscalReceiptCompletedRetentionHours { get; set; } = 24;
         /// <summary>
         /// Период опроса активного плейлиста (сек). Касса подхватывает смену видео из админки
         /// без перезапуска. 0 — выключить поллинг (env EPHARM_PLAYLIST_POLL_SEC).
@@ -166,11 +182,35 @@ namespace CustomerDisplay.Config
             cfg.DeviceKey = Env("EPHARM_POSM_KEY", cfg.DeviceKey);
             cfg.PharmacistId = Env("EPHARM_PHARMACIST_ID", cfg.PharmacistId);
             cfg.PharmacyId = Env("EPHARM_PHARMACY_ID", cfg.PharmacyId);
+            if (Env("EPHARM_FULFILLMENT_ENABLED", cfg.FulfillmentEnabled ? "true" : "false") == "false")
+                cfg.FulfillmentEnabled = false;
+            if (int.TryParse(Env("EPHARM_FULFILLMENT_POLL_SEC", ""), out var fulfillmentPollSec))
+                cfg.FulfillmentPollSec = Math.Clamp(fulfillmentPollSec, 5, 60);
+            cfg.FulfillmentCredentialPath = Env("EPHARM_FULFILLMENT_CREDENTIAL_PATH", cfg.FulfillmentCredentialPath);
+            cfg.FulfillmentCachePath = Env("EPHARM_FULFILLMENT_CACHE_PATH", cfg.FulfillmentCachePath);
             if (Env("EPHARM_RECEIPT_CAPTURE_ENABLED", cfg.ReceiptCaptureEnabled ? "true" : "false") == "false")
                 cfg.ReceiptCaptureEnabled = false;
             cfg.ReceiptCaptureDir = Env("EPHARM_RECEIPT_CAPTURE_DIR", cfg.ReceiptCaptureDir);
+            cfg.FiscalReceiptInboxDir = Env("EPHARM_FISCAL_RECEIPT_INBOX_DIR", cfg.FiscalReceiptInboxDir);
+            var trustedFiscalSources = Env("EPHARM_FISCAL_RECEIPT_TRUSTED_SOURCES", "");
+            if (!string.IsNullOrWhiteSpace(trustedFiscalSources))
+            {
+                cfg.FiscalReceiptTrustedSources = new List<string>(
+                    trustedFiscalSources.Split(
+                        new[] { ';', ',' },
+                        StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            }
+            cfg.FiscalReceiptTrustedSources ??= new List<string>();
+            if (int.TryParse(Env("EPHARM_FISCAL_RECEIPT_POLL_SEC", ""), out var fiscalPollSec))
+                cfg.FiscalReceiptPollSec = Math.Clamp(fiscalPollSec, 1, 60);
+            if (int.TryParse(Env("EPHARM_FISCAL_RECEIPT_MAX_CLOCK_SKEW_SEC", ""), out var fiscalClockSkewSec))
+                cfg.FiscalReceiptMaxClockSkewSec = Math.Clamp(fiscalClockSkewSec, 30, 3600);
+            if (int.TryParse(Env("EPHARM_FISCAL_RECEIPT_MAX_ARTIFACT_MB", ""), out var fiscalMaxArtifactMb))
+                cfg.FiscalReceiptMaxArtifactMb = Math.Clamp(fiscalMaxArtifactMb, 1, 50);
             if (int.TryParse(Env("EPHARM_RECEIPT_ACTIVE_RETENTION_DAYS", ""), out var receiptRetentionDays))
                 cfg.ReceiptCaptureActiveRetentionDays = Math.Clamp(receiptRetentionDays, 1, 30);
+            if (int.TryParse(Env("EPHARM_FISCAL_RECEIPT_RETENTION_HOURS", ""), out var fiscalRetentionHours))
+                cfg.FiscalReceiptCompletedRetentionHours = Math.Clamp(fiscalRetentionHours, 1, 168);
 
             // POSM включается при заданной аптеке. Фармацевт НЕ требуется в конфиге — он берётся
             // из лога кассы (токен kassir=), т.к. фармацевты работают посменно.

@@ -1,0 +1,26 @@
+[Unit]
+Description=Private SSH tunnel from the Inkar storefront to ClickHouse
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+ConditionPathExists=/opt/inkar-shop/current/deploy/inkar-server/clickhouse-tunnel.sh
+ConditionPathExists=/srv/inkar-shop/config/clickhouse-tunnel.env
+StartLimitIntervalSec=60s
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=adm-quasar
+Group=adm-quasar
+SupplementaryGroups=docker
+Environment=DOCKER_CONFIG=/srv/inkar-shop/state/docker-config
+ExecStart=/opt/inkar-shop/current/deploy/inkar-server/clickhouse-tunnel.sh
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target

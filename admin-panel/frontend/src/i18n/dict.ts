@@ -53,6 +53,7 @@ export const ru: Dict = {
   'nav.lms': 'Обучение',
   'nav.settings': 'Настройки',
   'nav.storefront': 'Витрина / Каталог',
+  'nav.fulfillment': 'Интернет-заказы',
 
   // ── Витрина / каталог (Medusa) ──────────────────────────────────────────
   'page.storefront.title': 'Витрина / Каталог',
@@ -1176,6 +1177,7 @@ export const kk: Dict = {
   'nav.lms': 'Оқыту / LMS',
   'nav.settings': 'Баптаулар',
   'nav.storefront': 'Дүкен / Каталог',
+  'nav.fulfillment': 'Интернет-тапсырыстар',
 
   // ── Витрина / каталог (Medusa) ──────────────────────────────────────────
   'page.storefront.title': 'Дүкен / Каталог',

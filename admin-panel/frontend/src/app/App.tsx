@@ -16,13 +16,7 @@ export function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter
-        future={{
-          // Opt-in в v7-поведение заранее, чтобы убрать console warnings.
-          v7_startTransition: true,
-          v7_relativeSplatPath: true,
-        }}
-      >
+      <BrowserRouter>
         <ErrorBoundary>
           <AppRouter />
         </ErrorBoundary>

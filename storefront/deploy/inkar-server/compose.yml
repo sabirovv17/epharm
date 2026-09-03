@@ -1,0 +1,210 @@
+name: inkar-shop
+
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '5'
+
+x-web-common: &web-common
+  restart: unless-stopped
+  logging: *default-logging
+  env_file:
+    - ${APP_ENV_FILE:?APP_ENV_FILE is required}
+  environment:
+    NODE_ENV: production
+    PORT: '3000'
+    HOSTNAME: 0.0.0.0
+    MEDUSA_CACHE_DIR: /var/cache/inkar-shop/medusa
+  command: ['node', 'server.js']
+  volumes:
+    - ${DATA_ROOT:?DATA_ROOT is required}/uploads:/app/public/uploads
+    - ${DATA_ROOT:?DATA_ROOT is required}/medusa-cache:/var/cache/inkar-shop/medusa
+    - ${DATA_ROOT:?DATA_ROOT is required}/runtime:/app/.data
+  networks: [frontend, backend]
+  depends_on:
+    postgres:
+      condition: service_healthy
+  healthcheck:
+    test:
+      [
+        'CMD',
+        'node',
+        '-e',
+        "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+      ]
+    interval: 15s
+    timeout: 5s
+    retries: 6
+    start_period: 30s
+  stop_grace_period: 30s
+  mem_limit: 1152m
+  cpus: 1.50
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    env_file:
+      - ${POSTGRES_ENV_FILE:?POSTGRES_ENV_FILE is required}
+    command:
+      - postgres
+      - -c
+      - max_connections=80
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - effective_cache_size=1536MB
+      - -c
+      - maintenance_work_mem=128MB
+      - -c
+      - work_mem=8MB
+      - -c
+      - wal_compression=on
+      - -c
+      - checkpoint_completion_target=0.9
+    volumes:
+      - ${DATA_ROOT:?DATA_ROOT is required}/postgres:/var/lib/postgresql/data
+    networks: [backend]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U inkar -d inkar_cms']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    shm_size: 256m
+    mem_limit: 1536m
+    cpus: 1.50
+
+  web-blue:
+    <<: *web-common
+    image: ${WEB_BLUE_IMAGE:?WEB_BLUE_IMAGE is required}
+
+  web-green:
+    <<: *web-common
+    image: ${WEB_GREEN_IMAGE:?WEB_GREEN_IMAGE is required}
+
+  epharm-order-worker:
+    image: ${DEPLOY_IMAGE:?DEPLOY_IMAGE is required}
+    restart: unless-stopped
+    logging: *default-logging
+    env_file:
+      - ${APP_ENV_FILE:?APP_ENV_FILE is required}
+    environment:
+      NODE_ENV: production
+    command: ['node', 'scripts/sync-epharm-orders.mjs']
+    networks: [backend]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "const fs=require('fs');const age=Date.now()-fs.statSync('/tmp/epharm-order-worker.heartbeat').mtimeMs;if(age>120000)process.exit(1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+    stop_grace_period: 30s
+    mem_limit: 256m
+    cpus: 0.50
+
+  operation:
+    profiles: ['operations']
+    image: ${DEPLOY_IMAGE:?DEPLOY_IMAGE is required}
+    logging: *default-logging
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    env_file:
+      - ${APP_ENV_FILE:?APP_ENV_FILE is required}
+    environment:
+      NODE_ENV: production
+      MEDUSA_CACHE_DIR: /var/cache/inkar-shop/medusa
+    volumes:
+      - ${DATA_ROOT:?DATA_ROOT is required}/uploads:/app/public/uploads
+      - ${DATA_ROOT:?DATA_ROOT is required}/medusa-cache:/var/cache/inkar-shop/medusa
+      - ${DATA_ROOT:?DATA_ROOT is required}/runtime:/app/.data
+    networks: [frontend, backend]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+    mem_limit: 1024m
+    cpus: 1.50
+
+  permissions:
+    profiles: ['operations']
+    image: ${DEPLOY_IMAGE:?DEPLOY_IMAGE is required}
+    logging: *default-logging
+    user: '0:0'
+    command:
+      - sh
+      - -ec
+      - |
+        uid="$$(id -u nextjs)"
+        gid="$$(id -g nextjs)"
+        chown -R "$${uid}:$${gid}" /app/public/uploads /var/cache/inkar-shop/medusa /app/.data
+        # nginx:1.28-alpine runs workers as numeric uid/gid 101. The persistent
+        # host directory is created with a restrictive umask, so grant the
+        # worker ownership before router startup to avoid truncated responses.
+        chown -R 101:101 /var/cache/nginx
+    volumes:
+      - ${DATA_ROOT:?DATA_ROOT is required}/uploads:/app/public/uploads
+      - ${DATA_ROOT:?DATA_ROOT is required}/medusa-cache:/var/cache/inkar-shop/medusa
+      - ${DATA_ROOT:?DATA_ROOT is required}/runtime:/app/.data
+      - ${DATA_ROOT:?DATA_ROOT is required}/proxy-cache:/var/cache/nginx
+    restart: 'no'
+
+  router:
+    image: nginx:1.28-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      NGINX_UPSTREAM: ${ACTIVE_WEB_UPSTREAM:?ACTIVE_WEB_UPSTREAM is required}
+      NGINX_ENVSUBST_FILTER: ^(NGINX_UPSTREAM)$
+    volumes:
+      - ./nginx-router.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ${DATA_ROOT:?DATA_ROOT is required}/proxy-cache:/var/cache/nginx
+      - ${DATA_ROOT:?DATA_ROOT is required}/uploads:/srv/inkar-static/uploads:ro
+    networks: [frontend]
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q -T 5 -O /dev/null http://127.0.0.1:8080/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    mem_limit: 256m
+    cpus: 0.50
+
+  edge:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:?SITE_DOMAIN is required}
+      SERVER_IP: ${SERVER_IP:?SERVER_IP is required}
+    ports: ['80:80', '443:443']
+    volumes:
+      - ${CADDYFILE_PATH:?CADDYFILE_PATH is required}:/etc/caddy/Caddyfile:ro
+      - ${DATA_ROOT:?DATA_ROOT is required}/caddy-data:/data
+      - ${DATA_ROOT:?DATA_ROOT is required}/caddy-config:/config
+    networks: [frontend]
+    depends_on:
+      router:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'caddy', 'validate', '--config', '/etc/caddy/Caddyfile']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    mem_limit: 256m
+    cpus: 0.50
+
+networks:
+  frontend:
+    internal: false
+  backend:
+    internal: true

@@ -1,0 +1,8 @@
+[Unit]
+Description=Recover an unresponsive Inkar storefront
+After=inkar-shop-health.service
+
+[Service]
+Type=oneshot
+TimeoutStartSec=30s
+ExecStart=/usr/bin/systemctl restart inkar-shop.service

@@ -1,0 +1,18 @@
+[Unit]
+Description=Create a compressed Inkar storefront PostgreSQL backup
+Requires=docker.service
+After=docker.service
+ConditionPathExists=/opt/inkar-shop/current/deploy/inkar-server/backup.sh
+
+[Service]
+Type=oneshot
+User=adm-quasar
+Group=adm-quasar
+SupplementaryGroups=docker
+Environment=DOCKER_CONFIG=/srv/inkar-shop/state/docker-config
+ExecStart=/opt/inkar-shop/current/deploy/inkar-server/backup.sh
+TimeoutStartSec=30min
+Nice=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true

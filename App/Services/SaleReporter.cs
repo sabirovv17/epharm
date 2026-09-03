@@ -61,8 +61,7 @@ namespace CustomerDisplay.Services
                 SessionId = session.SessionId,
                 SourceDocumentId = sourceDocumentId,
                 CaptureSource = captureSource,
-                ArtifactFormat = "png",
-                // FiscalId / Cashier — из лога Стандарт-Н (формат уточняется пилотом, missing data #1).
+                // Artifact/fiscal fields stay null until an authoritative KKM/OFD source is verified.
                 TotalAmount = list.Sum(x => x.Total),
                 Items = list,
                 PrintedAt = completedAt,

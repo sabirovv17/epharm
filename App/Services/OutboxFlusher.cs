@@ -98,6 +98,9 @@ namespace CustomerDisplay.Services
                     case "sale":
                         var sale = JsonSerializer.Deserialize<SaleReport>(item.Payload, EpharmJson.Options);
                         return sale != null && await _api.PostSaleAsync(sale).ConfigureAwait(false);
+                    case "fiscal-sale":
+                        var fiscalSale = JsonSerializer.Deserialize<SaleReport>(item.Payload, EpharmJson.Options);
+                        return fiscalSale != null && await _api.PostSaleAsync(fiscalSale).ConfigureAwait(false);
                     case "outcome":
                         var o = JsonSerializer.Deserialize<OutboxOutcomePayload>(item.Payload, EpharmJson.Options);
                         return o != null && await _api

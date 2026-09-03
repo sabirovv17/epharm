@@ -1,0 +1,21 @@
+[Unit]
+Description=Refresh local catalogue and start offer backfill after category assignment
+After=inkar-shop-category-backfill.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+
+# Pull the verified Medusa category links into PostgreSQL before the offer
+# worker takes the shared catalogue-sync advisory lock.
+ExecStart=/bin/systemctl start inkar-shop-catalog-sync.service
+ExecStart=/bin/systemctl reset-failed inkar-shop-offer-backfill.service
+ExecStart=/bin/systemctl start --no-block inkar-shop-offer-backfill.service
+
+TimeoutStartSec=infinity
+Restart=on-failure
+RestartSec=2min
+NoNewPrivileges=true
+ProtectHome=true
+
+# Deliberately no [Install] section: OnSuccess starts this one-time chain.

@@ -1,0 +1,17 @@
+node_modules
+.next
+.next-*
+.git
+.data
+.runtime-cache
+artifacts
+public/uploads
+*.log
+*.tar.gz
+tsconfig.tsbuildinfo
+.env.local
+.env.production
+deploy/certs
+Dockerfile
+docker-compose.yml
+DEPLOY.md

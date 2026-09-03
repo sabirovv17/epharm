@@ -9,7 +9,7 @@ namespace CustomerDisplay.Services
     public sealed class OutboxItem
     {
         public string Id { get; set; } = "";
-        public string Kind { get; set; } = "";       // "sale" | "outcome"
+        public string Kind { get; set; } = "";       // "sale" | "fiscal-sale" | "outcome" | "shown"
         public string Payload { get; set; } = "";     // JSON
         public int Attempts { get; set; }
     }

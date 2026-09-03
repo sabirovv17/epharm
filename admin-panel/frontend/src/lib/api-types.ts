@@ -1411,3 +1411,94 @@ export interface TrainingAssignmentFormatHistoryDto {
   changedByName: string
   changedAt: string
 }
+
+// ─── Storefront order fulfillment ───────────────────────────────────────
+
+export type FulfillmentStatus = 'submitted' | 'assembling' | 'ready' | 'completed' | 'cancelled'
+export type FulfillmentAction = 'assemble' | 'ready' | 'issue' | 'cancel'
+
+export interface FulfillmentFeatureStatusDto {
+  enabled: boolean
+  deviceRegistrationEnabled: boolean
+}
+
+export interface FulfillmentLineDto {
+  productId: string
+  sku: string
+  title: string
+  quantity: number
+  unitPrice: number | null
+}
+
+export interface FulfillmentOrderDto {
+  orderId: string
+  number: string
+  pharmacyExternalId: string
+  pharmacyId: string | null
+  pharmacyName: string | null
+  pharmacyAddress: string | null
+  createdAt: string
+  total: number
+  currency: string
+  delivery: string
+  paymentMethod: string
+  paymentStatus: string
+  demo: boolean
+  status: FulfillmentStatus
+  version: number
+  pickupAttempts: number
+  pickupLockedUntil: string | null
+  cancellationReason: string | null
+  completedAt: string | null
+  updatedAt: string
+  lines: FulfillmentLineDto[]
+}
+
+export interface FulfillmentOrderPageDto {
+  items: FulfillmentOrderDto[]
+  offset: number
+  limit: number
+  hasMore: boolean
+}
+
+export interface FulfillmentActionRequest {
+  action: FulfillmentAction
+  expectedVersion: number
+  code?: string
+  reason?: string
+  cashCollected?: boolean
+}
+
+export interface FulfillmentAssignRequest {
+  pharmacyId: string
+  expectedVersion: number
+}
+
+export interface FulfillmentPharmacyLinkRequest {
+  externalId: string
+  pharmacyId: string
+  crmBranchId?: string | null
+  active?: boolean
+}
+
+export interface FulfillmentPharmacyLinkDto {
+  externalId: string
+  pharmacyId: string
+  pharmacyName: string
+  pharmacyAddress: string
+  crmBranchId: string | null
+  active: boolean
+  updatedAt: string
+}
+
+export interface FulfillmentDeviceDto {
+  id: string
+  deviceId: string
+  pharmacyId: string
+  pharmacyName: string
+  active: boolean
+  secretHint: string
+  registeredAt: string
+  lastSeenAt: string
+  revokedAt: string | null
+}

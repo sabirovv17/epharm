@@ -1,0 +1,20 @@
+[Unit]
+Description=Incrementally synchronize Inkar pharmacy prices and stock
+Requires=docker.service inkar-shop-clickhouse-tunnel.service
+After=docker.service network-online.target inkar-shop-clickhouse-tunnel.service
+Wants=network-online.target
+ConditionPathExists=/opt/inkar-shop/current/deploy/inkar-server/deploy.sh
+
+[Service]
+Type=oneshot
+User=adm-quasar
+Group=adm-quasar
+SupplementaryGroups=docker
+Environment=DOCKER_CONFIG=/srv/inkar-shop/state/docker-config
+ExecStart=/opt/inkar-shop/current/deploy/inkar-server/deploy.sh sync-offers
+TimeoutStartSec=30min
+Nice=14
+IOSchedulingClass=idle
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true

@@ -62,8 +62,23 @@ class PosSaleEntity(
     @Column(name = "artifact_format", length = 16)
     var artifactFormat: String? = null,
 
+    @Column(name = "artifact_sha256", length = 64)
+    var artifactSha256: String? = null,
+
+    @Column(name = "artifact_source", length = 64)
+    var artifactSource: String? = null,
+
     @Column(name = "fiscal_id", length = 128)
     var fiscalId: String? = null,
+
+    @Column(name = "fiscal_sign", length = 128)
+    var fiscalSign: String? = null,
+
+    @Column(name = "cash_register_registration_number", length = 128)
+    var cashRegisterRegistrationNumber: String? = null,
+
+    @Column(name = "ofd_name")
+    var ofdName: String? = null,
 
     @Column(name = "cashier", length = 128)
     var cashier: String? = null,

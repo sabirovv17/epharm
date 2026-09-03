@@ -22,6 +22,7 @@ import {
   IconScreens,
   IconLMS,
   IconSettings,
+  IconList,
 } from '@/ui/icons'
 
 // ─── Formatters ───────────────────────────────────────────────────────────
@@ -43,6 +44,7 @@ export type SectionId =
   | 'lms'
   | 'settings'
   | 'storefront'
+  | 'fulfillment'
 
 export interface Section {
   id: SectionId
@@ -63,6 +65,7 @@ export const SECTIONS: Section[] = [
   { id: 'pharmacists', label: 'Фармацевты', group: 'Сеть', Icon: IconPharmacist },
   { id: 'storefront', label: 'Витрина / Каталог', group: 'Сеть', Icon: IconBox },
   { id: 'reconcile', label: 'Сверка чеков', group: 'Операции', Icon: IconReconcile },
+  { id: 'fulfillment', label: 'Интернет-заказы', group: 'Операции', Icon: IconList },
   { id: 'ai_exam', label: 'AI-Экзаменация', group: 'Операции', Icon: IconAIExam },
   { id: 'finance', label: 'Финансы / выплаты', group: 'Операции', Icon: IconFinance },
   { id: 'lift', label: 'Аналитика lift', group: 'Аналитика', Icon: IconLift },

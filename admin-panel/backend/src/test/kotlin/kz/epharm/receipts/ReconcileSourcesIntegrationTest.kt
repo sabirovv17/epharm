@@ -169,7 +169,10 @@ class ReconcileSourcesIntegrationTest {
         assertEquals("ph_t", stored.pharmacyId)
         assertEquals(91234L, stored.sourceDocumentId)
         assertEquals("standardn-firebird-close", stored.captureSource)
-        assertEquals("png", stored.artifactFormat)
+        // Legacy clients may still claim a reconstructed PNG. Without a hash and the complete
+        // fiscal provenance set it remains a valid structured sale, but never a fiscal artifact.
+        assertEquals(null, stored.artifactFormat)
+        assertEquals(null, stored.artifactSha256)
         assertEquals("80309", stored.items.single().sku)
         assertEquals("p_zen", stored.items.single().productId)
     }
@@ -201,13 +204,84 @@ class ReconcileSourcesIntegrationTest {
     @Test
     fun `повторный pos_sale идемпотентен (один и тот же saleId)`() {
         postSale("sale_5", fiscal = "F5", total = 1_000)
-        // второй раз тот же saleId → accepted=false, дубля сверки нет
+        // Повтор с тем же saleId дозаписывает только доказательные фискальные поля.
+        val exact = saleReq("sale_5", "F5", 1_000).copy(
+            artifactFormat = "pdf",
+            artifactSha256 = "a".repeat(64),
+            artifactSource = "ofd-api",
+            fiscalSign = "fiscal-sign-5",
+            cashRegisterRegistrationNumber = "kkm-5",
+            ofdName = "OFD test",
+        )
         mockMvc.perform(
             post("/api/posm/sales").header("X-Posm-Key", POSM_KEY)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(saleReq("sale_5", "F5", 1_000))),
+                .content(objectMapper.writeValueAsString(exact)),
         ).andExpect(status().isOk)
         assertEquals(1, posSaleRepository.count().toInt())
+        val stored = posSaleRepository.findById("sale_5").orElseThrow()
+        assertEquals("pdf", stored.artifactFormat)
+        assertEquals("a".repeat(64), stored.artifactSha256)
+        assertEquals("ofd-api", stored.artifactSource)
+        assertEquals("fiscal-sign-5", stored.fiscalSign)
+        assertEquals("kkm-5", stored.cashRegisterRegistrationNumber)
+        assertEquals("OFD test", stored.ofdName)
+
+        // A different binary can never replace immutable fiscal evidence for the same sale id.
+        mockMvc.perform(
+            post("/api/posm/sales").header("X-Posm-Key", POSM_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(exact.copy(artifactSha256 = "b".repeat(64)))),
+        ).andExpect(status().isConflict)
+        assertEquals("a".repeat(64), posSaleRepository.findById("sale_5").orElseThrow().artifactSha256)
+    }
+
+    @Test
+    fun `неполный фискальный артефакт отклоняется без записи`() {
+        val incomplete = saleReq("sale_incomplete", "F6", 1_000).copy(
+            artifactFormat = "pdf",
+            artifactSha256 = "c".repeat(64),
+            artifactSource = "ofd-api",
+            fiscalSign = null,
+            cashRegisterRegistrationNumber = "kkm-6",
+            ofdName = "OFD test",
+        )
+        mockMvc.perform(
+            post("/api/posm/sales").header("X-Posm-Key", POSM_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(incomplete)),
+        ).andExpect(status().isBadRequest)
+        assertEquals(false, posSaleRepository.existsById("sale_incomplete"))
+    }
+
+    @Test
+    fun `фискальный артефакт от недоверенного источника отклоняется`() {
+        val untrusted = saleReq("sale_untrusted", "F6U", 1_000).copy(
+            artifactFormat = "pdf",
+            artifactSha256 = "d".repeat(64),
+            artifactSource = "cashier-renderer",
+            fiscalSign = "fiscal-sign-6u",
+            cashRegisterRegistrationNumber = "kkm-6u",
+            ofdName = "OFD test",
+        )
+        mockMvc.perform(
+            post("/api/posm/sales").header("X-Posm-Key", POSM_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(untrusted)),
+        ).andExpect(status().isBadRequest)
+        assertEquals(false, posSaleRepository.existsById("sale_untrusted"))
+    }
+
+    @Test
+    fun `повтор saleId с другой идентичностью отклоняется`() {
+        postSale("sale_identity", fiscal = "F7", total = 1_000)
+        val conflicting = saleReq("sale_identity", "F7", 2_000)
+        mockMvc.perform(
+            post("/api/posm/sales").header("X-Posm-Key", POSM_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(conflicting)),
+        ).andExpect(status().isConflict)
+        assertEquals(1_000L, posSaleRepository.findById("sale_identity").orElseThrow().totalAmount)
     }
 
     @Test

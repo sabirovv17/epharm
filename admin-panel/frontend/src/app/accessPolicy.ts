@@ -4,7 +4,7 @@ import { SECTIONS, type Section, type SectionId } from '@/mocks/fixtures'
 const TRAINING_SECTION_IDS: readonly SectionId[] = ['lms', 'ai_exam']
 const TRAINING_READ_ONLY_SECTION_IDS: readonly SectionId[] = ['lms']
 const CORE_SECTION_IDS: readonly SectionId[] = SECTIONS.map((section) => section.id).filter(
-  (id) => !TRAINING_SECTION_IDS.includes(id),
+  (id) => !TRAINING_SECTION_IDS.includes(id) && id !== 'fulfillment',
 )
 
 const sectionById = new Map(SECTIONS.map((section) => [section.id, section]))

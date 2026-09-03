@@ -20,9 +20,12 @@
 
   <ItemGroup>
     <Compile Include="..\Models\Posm\SaleReport.cs" Link="Models\SaleReport.cs" />
+    <Compile Include="..\Models\Posm\Fulfillment.cs" Link="Models\Fulfillment.cs" />
     <Compile Include="..\App\Services\EpharmJson.cs" Link="Services\EpharmJson.cs" />
     <Compile Include="..\App\Services\OfflineOutbox.cs" Link="Services\OfflineOutbox.cs" />
+    <Compile Include="..\App\Services\FiscalReceiptInboxSource.cs" Link="Services\FiscalReceiptInboxSource.cs" />
     <Compile Include="..\App\Services\ReceiptArtifactStore.cs" Link="Services\ReceiptArtifactStore.cs" />
     <Compile Include="..\App\Services\ReceiptSaleId.cs" Link="Services\ReceiptSaleId.cs" />
+    <Compile Include="..\App\Services\FulfillmentOrderCache.cs" Link="Services\FulfillmentOrderCache.cs" />
   </ItemGroup>
 </Project>

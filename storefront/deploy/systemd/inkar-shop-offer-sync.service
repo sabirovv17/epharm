@@ -1,0 +1,21 @@
+[Unit]
+Description=Incrementally synchronize Inkar per-pharmacy prices from Medusa
+Wants=network-online.target
+After=network-online.target inkar-shop-catalog-sync.service
+ConditionPathExists=/var/www/inkar-shop/scripts/sync-medusa-pharmacy-offers.mjs
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/inkar-shop
+Environment=NODE_ENV=production
+EnvironmentFile=-/etc/inkar-shop/inkar-shop.env
+ExecStart=/usr/bin/node scripts/sync-medusa-pharmacy-offers.mjs --apply
+TimeoutStartSec=30min
+Nice=12
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true

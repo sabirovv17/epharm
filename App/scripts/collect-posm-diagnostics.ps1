@@ -158,7 +158,7 @@ try {
 $processes = @()
 try {
     $processes = @(Get-CimInstance Win32_Process | Where-Object {
-        $_.Name -match '(?i)customerdisplay|kass|standart|manager|apteka|firebird|fbserver|fbguard|sqlservr'
+        $_.Name -match '(?i)customerdisplay|kass|standart|manager|apteka|firebird|fbserver|fbguard|sqlservr|shtrih|drvfr|fptr|fiscal|kkm|ofd'
     })
     $processText = (
         $processes | Select-Object ProcessId, Name, ExecutablePath, CommandLine |
@@ -171,8 +171,8 @@ try {
 
 try {
     $services = Get-CimInstance Win32_Service | Where-Object {
-        $_.Name -match '(?i)firebird|interbase|mssql|sqlserver|standart|kass' -or
-        $_.DisplayName -match '(?i)firebird|interbase|sql server|standart|kass'
+        $_.Name -match '(?i)firebird|interbase|mssql|sqlserver|standart|kass|shtrih|fptr|fiscal|kkm|ofd' -or
+        $_.DisplayName -match '(?i)firebird|interbase|sql server|standart|kass|shtrih|fptr|fiscal|kkm|ofd'
     }
     $serviceText = (
         $services | Select-Object Name, DisplayName, State, StartMode, PathName |
@@ -181,6 +181,57 @@ try {
     Write-Utf8File (Join-Path $outputDir "relevant-services.txt") ((Redact-Text @($serviceText)) -join "`r`n")
 } catch {
     Write-Utf8File (Join-Path $outputDir "relevant-services.txt") $_.Exception.ToString()
+}
+
+# Read-only inventory only. Do not pause Spooler, open a COM port or instantiate a fiscal driver.
+try {
+    $printerRows = Get-CimInstance Win32_Printer | Select-Object `
+        Name, DriverName, PortName, PrintProcessor, SpoolEnabled, Direct, WorkOffline, Default, Local, Network
+    Write-Utf8File (Join-Path $outputDir "printers-and-ports.txt") `
+        ($printerRows | Format-List * | Out-String -Width 500)
+} catch {
+    Write-Utf8File (Join-Path $outputDir "printers-and-ports.txt") $_.Exception.ToString()
+}
+
+try {
+    $serialRows = Get-CimInstance Win32_SerialPort | Select-Object `
+        DeviceID, Name, Description, ProviderType, PNPDeviceID, Status
+    $fiscalDevices = Get-CimInstance Win32_PnPEntity | Where-Object {
+        $_.Name -match '(?i)shtrih|штрих|fiscal|фиск|kkm|ккм|ofd|атол|usb.serial|virtual com'
+    } | Select-Object Name, Manufacturer, PNPDeviceID, Status
+    $deviceText = @(
+        "SERIAL PORTS:",
+        ($serialRows | Format-List * | Out-String -Width 500),
+        "FISCAL-LIKE PNP DEVICES:",
+        ($fiscalDevices | Format-List * | Out-String -Width 500)
+    ) -join "`r`n"
+    Write-Utf8File (Join-Path $outputDir "fiscal-devices.txt") $deviceText
+} catch {
+    Write-Utf8File (Join-Path $outputDir "fiscal-devices.txt") $_.Exception.ToString()
+}
+
+try {
+    $comRows = foreach ($view in @("Registry::HKEY_CLASSES_ROOT", "HKLM:\SOFTWARE\Classes", "HKLM:\SOFTWARE\WOW6432Node\Classes")) {
+        if (!(Test-Path -LiteralPath $view)) { continue }
+        Get-ChildItem -LiteralPath $view -ErrorAction SilentlyContinue | Where-Object {
+            $_.PSChildName -match '(?i)shtrih|drvfr|fptr|fiscal|kkm|ofd'
+        } | ForEach-Object {
+            $defaultValue = $null
+            $clsid = $null
+            try { $defaultValue = $_.GetValue("") } catch { }
+            try { $clsid = (Get-Item -LiteralPath (Join-Path $_.PSPath "CLSID") -ErrorAction Stop).GetValue("") } catch { }
+            [PSCustomObject]@{
+                RegistryView = $view
+                ProgId = $_.PSChildName
+                Description = $defaultValue
+                Clsid = $clsid
+            }
+        }
+    }
+    Write-Utf8File (Join-Path $outputDir "fiscal-com-registrations.txt") `
+        ($comRows | Sort-Object ProgId -Unique | Format-Table -AutoSize | Out-String -Width 500)
+} catch {
+    Write-Utf8File (Join-Path $outputDir "fiscal-com-registrations.txt") $_.Exception.ToString()
 }
 
 try {
@@ -264,6 +315,7 @@ Write-Utf8File (Join-Path $outputDir "standardn-search-roots.txt") ($rootList -j
 $optionsFiles = New-Object System.Collections.Generic.List[string]
 $cashLogs = New-Object System.Collections.Generic.List[string]
 $databaseFiles = New-Object System.Collections.Generic.List[string]
+$fiscalDriverFiles = New-Object System.Collections.Generic.List[string]
 foreach ($root in $rootList) {
     try {
         foreach ($file in Get-ChildItem -LiteralPath $root -File -Recurse -ErrorAction SilentlyContinue) {
@@ -276,8 +328,37 @@ foreach ($root in $rootList) {
             if ($file.Name -match '(?i)^ztrade(?:\.(?:fdb|gdb))?$|\.(?:fdb|gdb|mdf|sdf)$') {
                 if (-not $databaseFiles.Contains($file.FullName)) { $databaseFiles.Add($file.FullName) }
             }
+            if ($file.Name -match '(?i)shtrih|drvfr|fptr|fiscal|kkm|ofd' -and
+                $file.Extension -match '(?i)^\.(dll|exe|ocx|tlb|ini|json|xml)$') {
+                if (-not $fiscalDriverFiles.Contains($file.FullName)) { $fiscalDriverFiles.Add($file.FullName) }
+            }
         }
     } catch { }
+}
+
+try {
+    $driverRows = foreach ($path in @($fiscalDriverFiles | Select-Object -First 300)) {
+        try {
+            $item = Get-Item -LiteralPath $path -ErrorAction Stop
+            $version = $item.VersionInfo
+            $hash = if ($item.Length -le 100MB) { (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash } else { "SKIPPED_GT_100MB" }
+            [PSCustomObject]@{
+                Path = $path
+                Size = $item.Length
+                Product = $version.ProductName
+                ProductVersion = $version.ProductVersion
+                FileVersion = $version.FileVersion
+                Company = $version.CompanyName
+                Sha256 = $hash
+            }
+        } catch {
+            [PSCustomObject]@{ Path = $path; Error = $_.Exception.Message }
+        }
+    }
+    Write-Utf8File (Join-Path $outputDir "fiscal-driver-files.txt") `
+        ($driverRows | Format-List * | Out-String -Width 500)
+} catch {
+    Write-Utf8File (Join-Path $outputDir "fiscal-driver-files.txt") $_.Exception.ToString()
 }
 
 $optionsDir = Join-Path $outputDir "options"
@@ -352,6 +433,36 @@ foreach ($scanLog in @("C:\Epharm\customerdisplay.log") + @($cashLogs)) {
 }
 Write-Utf8File (Join-Path $outputDir "scan-recommendation-evidence.txt") ((Redact-Text @($scanEvidence)) -join "`r`n")
 
+$fiscalPattern = '(?i)PrintCheque|Cheque[01]|GetFiscal|GetFDNumber|GetFNNumber|GetRNM|fiscal|фиск|ofd|оФД|QR|payment|оплат|Before cheque|After cheque'
+$fiscalEvidence = New-Object System.Collections.Generic.List[string]
+foreach ($fiscalLog in @("C:\Epharm\customerdisplay.log") + @($cashLogs)) {
+    try {
+        if (!(Test-Path -LiteralPath $fiscalLog -PathType Leaf)) { continue }
+        $fiscalEvidence.Add("===== SOURCE: $fiscalLog =====")
+        $matches = Get-Content -LiteralPath $fiscalLog -Encoding Default -Tail 50000 |
+            Select-String -Pattern $fiscalPattern |
+            Select-Object -Last 3000
+        foreach ($match in $matches) { $fiscalEvidence.Add($match.Line) }
+        $fiscalEvidence.Add("")
+    } catch {
+        $fiscalEvidence.Add("ERROR: $fiscalLog :: $($_.Exception.Message)")
+    }
+}
+Write-Utf8File (Join-Path $outputDir "fiscal-log-evidence.txt") ((Redact-Text @($fiscalEvidence)) -join "`r`n")
+
+try {
+    $receiptRows = foreach ($receiptRoot in @("C:\Epharm\receipts", "C:\Epharm\fiscal-inbox")) {
+        if (!(Test-Path -LiteralPath $receiptRoot -PathType Container)) { continue }
+        Get-ChildItem -LiteralPath $receiptRoot -File -Recurse -ErrorAction SilentlyContinue |
+            Select-Object -First 1000 |
+            Select-Object @{Name="Root";Expression={$receiptRoot}}, FullName, Length, LastWriteTimeUtc
+    }
+    Write-Utf8File (Join-Path $outputDir "fiscal-artifact-inventory.txt") `
+        ($receiptRows | Format-Table -AutoSize | Out-String -Width 500)
+} catch {
+    Write-Utf8File (Join-Path $outputDir "fiscal-artifact-inventory.txt") $_.Exception.ToString()
+}
+
 $databaseSummary = @("OPTIONS.INI:") + @($optionsFiles) +
     @("", "DATABASE FILES:") + @($databaseFiles) +
     @("", "CASH LOGS:") + @($cashLogs)
@@ -376,6 +487,7 @@ $summary.Add("Search roots: $($rootList.Count)")
 $summary.Add("options.ini files: $($optionsFiles.Count)")
 $summary.Add("zkassa.log files: $($cashLogs.Count)")
 $summary.Add("database candidates: $($databaseFiles.Count)")
+$summary.Add("fiscal driver candidates: $($fiscalDriverFiles.Count)")
 $summary.Add("")
 $summary.Add("Send the generated ZIP to the Epharm developer. Secrets are redacted by the collector.")
 Write-Utf8File (Join-Path $outputDir "SUMMARY.txt") ($summary -join "`r`n")

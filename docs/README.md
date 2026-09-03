@@ -60,6 +60,8 @@ public endpoint unless `.env.prod` and `Caddyfile` are changed together.
 | `14-screen-playlist-profiles.md`          | Общий эфир и индивидуальные экранные плейлисты по списку аптек.                |
 | `15-daribar-otp.md`                       | Извлечённый SMS/OTP-контракт Daribar, безопасность и production-операции.      |
 | `16-posm-v1.0.47-receipt-capture.md`      | Безопасный захват состава чека, PNG, outbox/ACK и пилотные критерии.           |
+| `17-posm-exact-fiscal-receipt.md`         | Exact-only контракт оригинала ККМ/OFD, валидация, retention и пилотный gate.   |
+| `19-order-fulfillment.md`                 | Надежная доставка интернет-заказов из витрины в Epharm/POSM и rollout.         |
 | `TRAINING-TEST-GUIDE.md`                  | Сквозная проверка обучения: админка, приложение, QR, сертификат и роли.        |
 | `RUNBOOK.md`                              | Day-to-day local startup, reset, tests, and production commands.               |
 | `DEV-ONBOARDING.md`                       | Run mobile app on Android/iPhone against shared backend.                       |

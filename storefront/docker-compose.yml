@@ -1,0 +1,68 @@
+# Прод-стек: сайт (Next.js standalone) + nginx (TLS) + Postgres.
+# Если используешь ОБЩУЮ базу Medusa или облачную БД — удали сервис `postgres`
+# и `depends_on: postgres` ниже, а в .env.production укажи внешний DATABASE_URL.
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    env_file: ${APP_ENV_FILE:-.env.production}
+    environment:
+      - PORT=3000
+    volumes:
+      - uploads:/app/public/uploads # загруженные баннеры/сторис переживают пересборку
+    expose:
+      - '3000'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 20s
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: inkar
+      POSTGRES_PASSWORD: '${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}'
+      POSTGRES_DB: inkar_cms
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/001_cms.sql:ro
+      - ./db/migrations/001_catalog_core.sql:/docker-entrypoint-initdb.d/010_catalog_core.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U inkar -d inkar_cms']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    environment:
+      SITE_DOMAIN: '${SITE_DOMAIN:?SITE_DOMAIN must be set}'
+      NGINX_UPSTREAM: 'web:3000'
+      NGINX_ENVSUBST_FILTER: '^(SITE_DOMAIN|NGINX_UPSTREAM)$'
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./deploy/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./deploy/certs:/etc/nginx/certs:ro # положи сюда fullchain.pem + privkey.pem
+    depends_on:
+      web:
+        condition: service_healthy
+
+volumes:
+  uploads:
+  pgdata:

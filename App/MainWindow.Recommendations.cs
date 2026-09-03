@@ -26,6 +26,8 @@ namespace CustomerDisplay
         private OutboxFlusher? _flusher;
         private SaleReporter? _saleReporter;
         private ReceiptArtifactStore? _receiptArtifacts;
+        private System.Threading.Timer? _fiscalReceiptTimer;
+        private int _fiscalReceiptPollBusy;
         private string? _activeReceiptDraftId;
         private StandardNDbLookup? _standardNDb;
         private CheckoutSession _session = new();
@@ -107,21 +109,32 @@ namespace CustomerDisplay
                     {
                         try
                         {
+                            var fiscalSource = new FiscalReceiptInboxSource(
+                                _posmConfig.FiscalReceiptInboxDir,
+                                _posmConfig.FiscalReceiptTrustedSources,
+                                _posmConfig.FiscalReceiptMaxClockSkewSec,
+                                _posmConfig.FiscalReceiptMaxArtifactMb);
                             _receiptArtifacts = new ReceiptArtifactStore(
                                 _posmConfig.ReceiptCaptureDir,
-                                new ReceiptPngRenderer(),
+                                fiscalSource,
                                 Log,
-                                _posmConfig.ReceiptCaptureActiveRetentionDays);
+                                _posmConfig.ReceiptCaptureActiveRetentionDays,
+                                _posmConfig.FiscalReceiptCompletedRetentionHours);
                             var recovered = _receiptArtifacts.RecoverPending(_outbox);
-                            Log($"Захват чеков включён: {_posmConfig.ReceiptCaptureDir}; " +
+                            _fiscalReceiptTimer = new System.Threading.Timer(
+                                _ => PollFiscalReceiptInbox(),
+                                null,
+                                TimeSpan.Zero,
+                                TimeSpan.FromSeconds(_posmConfig.FiscalReceiptPollSec));
+                            Log($"Exact-only захват фискальных чеков включён: " +
+                                $"inbox={_posmConfig.FiscalReceiptInboxDir}, store={_posmConfig.ReceiptCaptureDir}; " +
                                 $"восстановлено pending={recovered}");
                         }
                         catch (Exception ex)
                         {
-                            // Продажи всё равно должны попасть в outbox, даже если локальный диск
-                            // временно read-only/переполнен или PNG-рендер недоступен.
+                            // Structured sales still reach outbox if the isolated fiscal source fails.
                             _receiptArtifacts = null;
-                            Log($"Локальные PNG-копии чеков временно недоступны: {ex.GetBaseException().Message}");
+                            Log($"Захват фискального оригинала недоступен: {ex.GetBaseException().Message}");
                         }
                     }
                     _flusher = new OutboxFlusher(
@@ -633,24 +646,29 @@ namespace CustomerDisplay
                 DateTimeOffset.UtcNow);
             if (sale != null)
             {
-                var rendered = false;
+                FiscalReceiptCaptureResult? fiscalCapture = null;
                 try
                 {
-                    rendered = _receiptArtifacts?.Complete(sale) == true;
+                    fiscalCapture = _receiptArtifacts?.Complete(sale);
                 }
                 catch (Exception ex)
                 {
-                    // Не блокируем гарантированную структурированную отправку из-за локального PNG.
-                    Log($"Локальная копия чека {sale.SaleId} не сохранена: {ex.GetBaseException().Message}");
+                    // Fiscal evidence is isolated from the cashier and structured sale reporting.
+                    Log($"Фискальный оригинал {sale.SaleId} не поставлен на захват: {ex.GetBaseException().Message}");
                 }
 
                 _saleReporter?.Enqueue(sale);
-                var pngStatus = _receiptArtifacts == null
-                    ? "локальный захват недоступен"
-                    : rendered ? "готов" : "ожидает восстановления";
+                var fiscalStatus = _receiptArtifacts == null
+                    ? "захват недоступен"
+                    : fiscalCapture?.Status switch
+                    {
+                        FiscalReceiptCaptureStatus.Stored => "оригинал сохранён",
+                        FiscalReceiptCaptureStatus.Rejected => "источник отклонён",
+                        _ => "ожидается оригинал ККМ/OFD",
+                    };
                 Log($"Чек поставлен в гарантированную очередь: id={sale.SaleId}, " +
                     $"doc={sourceDocumentId?.ToString() ?? "—"}, items={sale.Items.Count}, " +
-                    $"total={sale.TotalAmount}, png={pngStatus}");
+                    $"total={sale.TotalAmount}, fiscal={fiscalStatus}");
             }
             else
             {
@@ -701,13 +719,49 @@ namespace CustomerDisplay
 
         private void OnOutboxDelivered(OutboxItem item)
         {
-            if (!string.Equals(item.Kind, "sale", StringComparison.OrdinalIgnoreCase)) return;
-            try { _receiptArtifacts?.DeletePending(item.Id); }
+            try
+            {
+                if (string.Equals(item.Kind, "sale", StringComparison.OrdinalIgnoreCase))
+                {
+                    _receiptArtifacts?.MarkSaleDelivered(item.Id);
+                    return;
+                }
+                if (string.Equals(item.Kind, "fiscal-sale", StringComparison.OrdinalIgnoreCase))
+                {
+                    var sale = JsonSerializer.Deserialize<SaleReport>(item.Payload, EpharmJson.Options);
+                    if (sale != null && !string.IsNullOrWhiteSpace(sale.ArtifactSha256))
+                        _receiptArtifacts?.MarkFiscalMetadataDelivered(sale.SaleId, sale.ArtifactSha256);
+                }
+            }
             catch (Exception ex)
             {
-                // При следующем старте pending будет повторно отправлен идемпотентно и очищен.
-                Log($"ACK чека {item.Id} получен, но локальная копия пока не удалена: " +
+                Log($"ACK outbox {item.Id} получен, но marker локального retention не записан: " +
                     ex.GetBaseException().Message);
+            }
+        }
+
+        private void PollFiscalReceiptInbox()
+        {
+            if (Interlocked.Exchange(ref _fiscalReceiptPollBusy, 1) != 0) return;
+            try
+            {
+                var store = _receiptArtifacts;
+                var outbox = _outbox;
+                if (store == null || outbox == null) return;
+                var result = store.RefreshFiscalArtifacts(outbox);
+                if (result.Captured > 0 || result.Cleaned > 0)
+                {
+                    Log($"Фискальные артефакты: сохранено={result.Captured}, " +
+                        $"удалено по retention={result.Cleaned}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"Фоновая проверка фискального inbox завершилась ошибкой: {ex.GetBaseException().Message}");
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _fiscalReceiptPollBusy, 0);
             }
         }
 

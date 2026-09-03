@@ -37,7 +37,13 @@ config, and scripts. Do not deploy `dotnet run` as production.
   "HeartbeatSec": 15,
   "ReceiptCaptureEnabled": true,
   "ReceiptCaptureDir": "C:\\Epharm\\receipts",
+  "FiscalReceiptInboxDir": "C:\\Epharm\\fiscal-inbox",
+  "FiscalReceiptTrustedSources": ["standardn-kkm-sdk", "ofd-api"],
+  "FiscalReceiptPollSec": 2,
+  "FiscalReceiptMaxClockSkewSec": 900,
+  "FiscalReceiptMaxArtifactMb": 10,
   "ReceiptCaptureActiveRetentionDays": 2,
+  "FiscalReceiptCompletedRetentionHours": 24,
   "StandardNDbEnabled": true,
   "StandardNDbPath": "",
   "StandardNReceiptPollMs": 400
@@ -124,29 +130,50 @@ Release flow:
 The client downloads only HTTPS URLs and verifies SHA256 before applying.
 The download endpoint also requires the client's `X-Posm-Key` header.
 
-## Receipt Capture
+## Internet Order Fulfillment
 
-POSM v1.0.47 adds a read-only receipt evidence pipeline. It does not intercept, replace, delay, or
-delete the Standard-N fiscal print job:
+This feature is independent from recommendations, sales capture and the customer display. It is
+disabled unless `fulfillmentEnabled=true` is present in the pharmacy's local `posm.json` and the
+backend feature flag is enabled.
+
+On first use POSM exchanges the fleet bootstrap key for a random per-device token and protects that
+token with Windows DPAPI for the current cash-desk user. Backend enrollment is closed by default:
+operations may set `FULFILLMENT_DEVICE_REGISTRATION_ENABLED=true` only for a controlled registration
+window, verify the expected `(pharmacyId, deviceId)` rows, and immediately set it back to `false`.
+Closing enrollment does not revoke existing tokens. Tokens can be revoked individually in HQ.
+
+The local queue is paginated and cached atomically. Another till can complete an order without
+leaving a stale open card: POSM resolves the terminal state of any card no longer returned by the
+active queue. A network failure leaves the last known queue visible as offline and never enables an
+action that has not been confirmed by backend optimistic locking.
+
+Production rollout and acceptance criteria are in `docs/19-order-fulfillment.md`.
+
+## Exact Fiscal Receipt Capture
+
+The current pipeline does not intercept, replace or delay the Standard-N fiscal print job:
 
 1. While the cart is open, POSM atomically updates
    `C:\Epharm\receipts\active\<saleId>\sale.json`.
-2. A confirmed Standard-N document close, print-log marker, or document switch creates
-   `pending\<saleId>\sale.json` and a reconstructed `receipt.png` labelled as non-fiscal.
-3. The structured sale is written to `C:\Epharm\outbox.db` and retried after network or power loss.
-4. Backend stores the pharmacy id, Standard-N document id, local `iPartID`/EAN and resolved internal
-   Epharm `productId`.
-5. Only after an HTTP success response does POSM delete its own `pending\<saleId>` folder. Standard-N
-   database, cash log, fiscal document and Windows print queue are never modified.
+2. A confirmed close/print signal creates `pending\<saleId>\sale.json`; no image is reconstructed.
+3. An approved read-only KKM/OFD adapter publishes the original PDF/PNG plus a manifest into
+   `C:\Epharm\fiscal-inbox` after fiscalization.
+4. POSM correlates and validates the source, then copies the file byte-for-byte as
+   `pending\<saleId>\fiscal-receipt.pdf` or `.png` and records its SHA-256.
+   The one-time inbox handoff is removed only after the durable copy passes a second hash check.
+5. The structured sale and later fiscal enrichment use separate durable outbox records. Backend
+   ignores legacy `artifactFormat=png` claims without a hash and rejects conflicting evidence.
+6. POSM deletes its own exact copy only after the dedicated fiscal-metadata ACK and retention period.
 
-Unfinished drafts older than the configured retention are removed. Corrupt pending artifacts are
-moved to `C:\Epharm\receipts\quarantine` instead of being silently deleted. Set
-`EPHARM_RECEIPT_CAPTURE_ENABLED=false` for immediate rollback of PNG capture; sale outbox reporting
-continues independently.
+Unfinished drafts older than the configured retention are removed. Damaged artifacts are moved to
+`C:\Epharm\receipts\quarantine`. Set `EPHARM_RECEIPT_CAPTURE_ENABLED=false` to disable this isolated
+capture path; structured sale reporting continues.
 
-`receipt.png` is an Epharm evidence copy of the observed cart, not an official fiscal receipt. Exact
-fiscal QR/payment/RNM data requires a separately validated read-only KKM SDK, OFD API, or RAW spool
-capture contract and must not be inferred from the active cart.
+The adapter is hardware-specific and must be accepted on one real cash desk before a fleet release.
+The current Auezova evidence shows direct `TFR_Shtrih.PrintCheque`, so Windows Spooler and the active
+Firebird cart cannot be treated as the fiscal original. The handoff directory must allow writes only
+from the approved adapter service and reads from POSM. Full contract and pilot matrix:
+`docs/17-posm-exact-fiscal-receipt.md`.
 
 ## Recommendation Smoke
 

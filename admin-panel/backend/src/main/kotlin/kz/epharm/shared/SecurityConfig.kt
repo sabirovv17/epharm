@@ -67,6 +67,9 @@ class SecurityConfig(
                         // dev-only reset (DevController существует только в profile=dev;
                         // в prod бина нет → путь отдаёт 404, permitAll безвреден).
                         "/api/admin/dev/**",
+                        // Storefront worker authenticates every request with HMAC-SHA256 over
+                        // timestamp/method/path/body. It has no admin JWT by design.
+                        "/api/integrations/storefront/**",
                         // POSM-клиент кассы (Module 2): аутентификация не JWT, а device-key
                         // (заголовок X-Posm-Key), проверяется в PosmController. JWT-фильтр пропускает.
                         "/api/posm/**",

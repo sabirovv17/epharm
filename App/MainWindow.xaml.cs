@@ -217,6 +217,7 @@ StartLogReader();
             // Heartbeat кассы (T4): отмечаемся «подключены» на backend сразу и каждые ~60с.
             // Независим от видео (работает и при EPHARM_NO_VIDEO); no-op без POSM.
             StartHeartbeatPolling();
+            StartFulfillment();
 
         }
 
@@ -928,6 +929,8 @@ ItemsList.Items.Refresh();
                 _mediaPlayer?.Dispose();
                 _currentMedia?.Dispose();
                 _libVLC?.Dispose();
+                _fiscalReceiptTimer?.Dispose();
+                StopFulfillment();
                 _flusher?.Dispose();
                 _appUpdater?.Dispose();
                 _epharm?.Dispose();

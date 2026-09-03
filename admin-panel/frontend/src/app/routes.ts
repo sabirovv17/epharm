@@ -15,4 +15,5 @@ export const SECTION_ROUTES: Record<SectionId, string> = {
   lms: '/lms',
   settings: '/settings',
   storefront: '/storefront',
+  fulfillment: '/fulfillment',
 }

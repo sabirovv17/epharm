@@ -28,14 +28,19 @@ namespace CustomerDisplay.Models.Posm
         public string? SessionId { get; set; }
         /// <summary>
         /// Локальный DOCS.ID открытого чека Standard-N. Это не фискальный номер: поле нужно
-        /// для идемпотентности, диагностики и связи локального PNG со структурированной продажей.
+        /// для идемпотентности, диагностики и связи оригинала ККМ/OFD со структурированной продажей.
         /// </summary>
         public long? SourceDocumentId { get; set; }
         /// <summary>Как POSM подтвердил завершение: Firebird close, print-log marker и т.п.</summary>
         public string? CaptureSource { get; set; }
-        /// <summary>Формат локальной временной копии состава чека.</summary>
+        /// <summary>Формат проверенного оригинального фискального артефакта: pdf/png.</summary>
         public string? ArtifactFormat { get; set; }
+        public string? ArtifactSha256 { get; set; }
+        public string? ArtifactSource { get; set; }
         public string? FiscalId { get; set; }
+        public string? FiscalSign { get; set; }
+        public string? CashRegisterRegistrationNumber { get; set; }
+        public string? OfdName { get; set; }
         public string? Cashier { get; set; }
         public string? Shift { get; set; }
         public long TotalAmount { get; set; }

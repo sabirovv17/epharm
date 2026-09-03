@@ -27,6 +27,7 @@ const Lift = lazy(() => import('@/features/lift/LiftPage'))
 const LMS = lazy(() => import('@/features/lms/LMSPage'))
 const Settings = lazy(() => import('@/features/settings/SettingsPage'))
 const Storefront = lazy(() => import('@/features/storefront/StorefrontPage'))
+const Fulfillment = lazy(() => import('@/features/fulfillment/FulfillmentPage'))
 
 function PageFallback() {
   return (
@@ -73,6 +74,7 @@ export function AppRouter() {
           <Route path="/lms" element={protectedPage('lms', <LMS />)} />
           <Route path="/settings" element={protectedPage('settings', <Settings />)} />
           <Route path="/storefront" element={protectedPage('storefront', <Storefront />)} />
+          <Route path="/fulfillment" element={protectedPage('fulfillment', <Fulfillment />)} />
           <Route path="/" element={<HomeRedirect />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>

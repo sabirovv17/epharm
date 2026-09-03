@@ -1,0 +1,20 @@
+[Unit]
+Description=Incrementally synchronize the Inkar catalog
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+ConditionPathExists=/opt/inkar-shop/current/deploy/inkar-server/deploy.sh
+
+[Service]
+Type=oneshot
+User=adm-quasar
+Group=adm-quasar
+SupplementaryGroups=docker
+Environment=DOCKER_CONFIG=/srv/inkar-shop/state/docker-config
+ExecStart=/opt/inkar-shop/current/deploy/inkar-server/deploy.sh sync-catalog
+TimeoutStartSec=45min
+Nice=12
+IOSchedulingClass=idle
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true

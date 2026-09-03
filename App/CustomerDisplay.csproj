@@ -14,7 +14,7 @@
     <EnableDefaultPageItems>false</EnableDefaultPageItems>
     <!-- Версия установленной сборки — с ней авто-апдейтер сравнивает релиз из админки.
          Бампать при каждом релизе (или задавать через -p:Version=x.y.z при publish). -->
-    <Version>1.0.47</Version>
+    <Version>1.0.51</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -31,6 +31,7 @@
     <!-- Offline-outbox сверки чеков (источник №1): локальная SQLite-очередь исходящих. -->
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
   </ItemGroup>
 
   <!--

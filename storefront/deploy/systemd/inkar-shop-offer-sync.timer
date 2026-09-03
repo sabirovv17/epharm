@@ -1,0 +1,13 @@
+[Unit]
+Description=Warm Inkar per-pharmacy price cache incrementally
+
+[Timer]
+OnBootSec=12min
+OnUnitActiveSec=10min
+RandomizedDelaySec=2min
+AccuracySec=30s
+Persistent=true
+Unit=inkar-shop-offer-sync.service
+
+[Install]
+WantedBy=timers.target

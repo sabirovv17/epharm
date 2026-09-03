@@ -1,0 +1,21 @@
+{
+    auto_https off
+    admin off
+}
+
+http://{$SITE_DOMAIN}, http://{$SERVER_IP} {
+    encode zstd gzip
+    header {
+        -Server
+        X-Content-Type-Options nosniff
+        Referrer-Policy strict-origin-when-cross-origin
+        X-Frame-Options SAMEORIGIN
+    }
+    reverse_proxy router:8080 {
+        header_up X-Forwarded-Proto http
+        transport http {
+            dial_timeout 5s
+            response_header_timeout 65s
+        }
+    }
+}

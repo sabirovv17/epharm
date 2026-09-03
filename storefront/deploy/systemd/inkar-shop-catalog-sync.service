@@ -1,0 +1,24 @@
+[Unit]
+Description=Synchronize the Inkar catalogue read model from Medusa
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=/var/www/inkar-shop/scripts/sync-medusa-catalog.mjs
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/inkar-shop
+Environment=NODE_ENV=production
+EnvironmentFile=-/etc/inkar-shop/inkar-shop.env
+ExecStart=/usr/bin/node scripts/sync-medusa-catalog.mjs --apply --page-size 1000 --mark-missing-inactive
+TimeoutStartSec=45min
+Nice=10
+
+# The sync process needs network access and DATABASE_URL, but no write access to
+# the application tree. The script itself uses a Postgres advisory lock, so a
+# manual run and a timer run cannot update the read model concurrently.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true

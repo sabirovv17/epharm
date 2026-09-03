@@ -2,7 +2,9 @@
 # nginx отдаёт SPA и проксирует /api/* на backend → единый origin, без CORS-боли.
 # Контекст сборки: admin-panel/frontend (см. docker-compose.prod.yml).
 
-FROM node:20-alpine AS build
+ARG NODE_VERSION=24.15.0
+
+FROM node:${NODE_VERSION}-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -12,7 +14,7 @@ ARG VITE_API_BASE_URL=""
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 RUN npm run build
 
-FROM nginx:alpine AS runtime
+FROM nginx:1.28-alpine AS runtime
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80

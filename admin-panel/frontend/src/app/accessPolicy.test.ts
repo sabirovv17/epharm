@@ -29,6 +29,14 @@ describe('политика доступа к разделам консоли', (
     expect(canManageAiExam('SYSTEM_ADMIN')).toBe(true)
   })
 
+  it('интернет-заказы доступны только системному администратору и HQ', () => {
+    expect(canAccessSection('SYSTEM_ADMIN', 'fulfillment')).toBe(true)
+    expect(canAccessSection('HQ_HEAD', 'fulfillment')).toBe(true)
+    expect(canAccessSection('CATEGORY_LEAD', 'fulfillment')).toBe(false)
+    expect(canAccessSection('BRAND_MANAGER', 'fulfillment')).toBe(false)
+    expect(canAccessSection('FINANCE_REVIEWER', 'fulfillment')).toBe(false)
+  })
+
   it('руководитель обучения может управлять банком AI-экзамена', () => {
     expect(canManageAiExam('TRAINING_MANAGER')).toBe(true)
     expect(isTrainingReadOnlyRole('TRAINING_MANAGER')).toBe(false)
