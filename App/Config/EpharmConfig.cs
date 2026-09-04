@@ -38,6 +38,13 @@ namespace CustomerDisplay.Config
         public int OutboxFlushSec { get; set; } = 5;
         /// <summary>Контур выдачи интернет-заказов. Backend также имеет независимый kill switch.</summary>
         public bool FulfillmentEnabled { get; set; } = true;
+        /// <summary>
+        /// Отдельный origin API выдачи заказов. Пустое значение наследует основной backend,
+        /// поэтому действующие аптечные конфиги продолжают работать без переустановки.
+        /// env EPHARM_FULFILLMENT_URL.
+        /// </summary>
+        public string FulfillmentBaseUrl { get; set; } = "";
+        public List<string> FulfillmentFallbackBaseUrls { get; set; } = new();
         public int FulfillmentPollSec { get; set; } = 10;
         public string FulfillmentCredentialPath { get; set; } = @"C:\Epharm\fulfillment-device.dat";
         public string FulfillmentCachePath { get; set; } = @"C:\Epharm\fulfillment-orders.json";
@@ -184,6 +191,16 @@ namespace CustomerDisplay.Config
             cfg.PharmacyId = Env("EPHARM_PHARMACY_ID", cfg.PharmacyId);
             if (Env("EPHARM_FULFILLMENT_ENABLED", cfg.FulfillmentEnabled ? "true" : "false") == "false")
                 cfg.FulfillmentEnabled = false;
+            cfg.FulfillmentBaseUrl = Env("EPHARM_FULFILLMENT_URL", cfg.FulfillmentBaseUrl);
+            var fulfillmentFallbackUrls = Env("EPHARM_FULFILLMENT_FALLBACK_URLS", "");
+            if (!string.IsNullOrWhiteSpace(fulfillmentFallbackUrls))
+            {
+                cfg.FulfillmentFallbackBaseUrls = new List<string>(
+                    fulfillmentFallbackUrls.Split(
+                        new[] { ';', ',' },
+                        StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            }
+            cfg.FulfillmentFallbackBaseUrls ??= new List<string>();
             if (int.TryParse(Env("EPHARM_FULFILLMENT_POLL_SEC", ""), out var fulfillmentPollSec))
                 cfg.FulfillmentPollSec = Math.Clamp(fulfillmentPollSec, 5, 60);
             cfg.FulfillmentCredentialPath = Env("EPHARM_FULFILLMENT_CREDENTIAL_PATH", cfg.FulfillmentCredentialPath);
@@ -283,6 +300,28 @@ namespace CustomerDisplay.Config
             var rawUrls = new List<string> { BackendBaseUrl };
             rawUrls.AddRange(BackendFallbackBaseUrls ?? new List<string>());
 
+            return ParseBaseUris(rawUrls, "POSM backend");
+        }
+
+        /// <summary>
+        /// API выдачи заказов может жить отдельно от админки. Если отдельный origin не задан,
+        /// наследуем текущие backend endpoints для обратной совместимости со всеми posm.json.
+        /// </summary>
+        public IReadOnlyList<Uri> GetFulfillmentBaseUris()
+        {
+            if (string.IsNullOrWhiteSpace(FulfillmentBaseUrl) &&
+                (FulfillmentFallbackBaseUrls == null || FulfillmentFallbackBaseUrls.Count == 0))
+            {
+                return GetBackendBaseUris();
+            }
+
+            var rawUrls = new List<string> { FulfillmentBaseUrl };
+            rawUrls.AddRange(FulfillmentFallbackBaseUrls ?? new List<string>());
+            return ParseBaseUris(rawUrls, "POSM fulfillment backend");
+        }
+
+        private static IReadOnlyList<Uri> ParseBaseUris(IEnumerable<string> rawUrls, string name)
+        {
             var endpoints = new List<Uri>();
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var raw in rawUrls)
@@ -299,7 +338,7 @@ namespace CustomerDisplay.Config
             }
 
             if (endpoints.Count == 0)
-                throw new InvalidOperationException("POSM backend URL must be an absolute HTTP(S) origin.");
+                throw new InvalidOperationException($"{name} URL must be an absolute HTTP(S) origin.");
 
             return endpoints;
         }

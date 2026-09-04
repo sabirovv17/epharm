@@ -17,6 +17,7 @@ import {
 const { Pool } = pg;
 const ADVISORY_LOCK_ID = 4_930_511_109;
 const HEARTBEAT = "/tmp/epharm-order-worker.heartbeat";
+const SUCCESS_HEARTBEAT = "/tmp/epharm-order-worker.success";
 const OUTBOUND_PATH = "/api/integrations/storefront/orders";
 const MAX_RESPONSE_BYTES = 512 * 1024;
 
@@ -74,6 +75,10 @@ function wait(milliseconds) {
 
 async function heartbeat() {
   await fs.writeFile(HEARTBEAT, new Date().toISOString(), { mode: 0o600 });
+}
+
+async function successfulCycleHeartbeat() {
+  await fs.writeFile(SUCCESS_HEARTBEAT, new Date().toISOString(), { mode: 0o600 });
 }
 
 async function responseText(response) {
@@ -359,6 +364,7 @@ async function main() {
       try {
         await outboundCycle(client, config);
         await inboundCycle(client, config);
+        await successfulCycleHeartbeat();
       } catch (error) {
         const message = safeError(error);
         console.error(`[epharm-orders] cycle failed: ${message}`);

@@ -51,7 +51,10 @@ grep -Fq -- '-o StrictHostKeyChecking=yes' "$TUNNEL_SSH_ARGS_LOG"
 grep -Fq -- '-L 172.17.0.1:18123:172.20.0.10:8123' "$TUNNEL_SSH_ARGS_LOG"
 grep -Fq -- 'adm-quasar@10.10.1.76' "$TUNNEL_SSH_ARGS_LOG"
 
-sed -i 's/REMOTE_CLICKHOUSE_HOST=172.20.0.10/REMOTE_CLICKHOUSE_HOST=replace_with_clickhouse_container_ip/' "$config"
+placeholder_config="${config}.placeholder"
+awk '{ sub(/^REMOTE_CLICKHOUSE_HOST=172\.20\.0\.10$/, "REMOTE_CLICKHOUSE_HOST=replace_with_clickhouse_container_ip"); print }' \
+  "$config" >"$placeholder_config"
+mv -f -- "$placeholder_config" "$config"
 if bash "${BUNDLE_DIR}/clickhouse-tunnel.sh" >"${TEST_ROOT}/placeholder.out" 2>&1; then
   printf 'placeholder tunnel target unexpectedly passed\n' >&2
   exit 1

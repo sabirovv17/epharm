@@ -20,6 +20,8 @@ namespace CustomerDisplay
         private FulfillmentCredentialStore? _fulfillmentCredentialStore;
         private FulfillmentOrderCache? _fulfillmentCache;
         private FulfillmentDeviceCredential? _fulfillmentCredential;
+        private readonly FulfillmentRetrySchedule _fulfillmentRegistrationRetry = new();
+        private readonly PharmacistNoticeCoordinator _pharmacistNotices = new();
         private FulfillmentNoticeWindow? _fulfillmentNotice;
         private FulfillmentQueueWindow? _fulfillmentQueue;
         private readonly Dictionary<string, FulfillmentOrderWindow> _fulfillmentCards = new(StringComparer.Ordinal);
@@ -51,6 +53,7 @@ namespace CustomerDisplay
                 _fulfillmentCts = new CancellationTokenSource();
                 _ = Task.Run(() => FulfillmentLoopAsync(_fulfillmentCts.Token));
                 Log($"Интернет-заказы POSM запущены: poll={_posmConfig.FulfillmentPollSec}с, " +
+                    $"backend={string.Join(" -> ", _posmConfig.GetFulfillmentBaseUris())}, " +
                     $"кэш={_posmConfig.FulfillmentCachePath}");
             }
             catch (Exception ex)
@@ -185,10 +188,16 @@ namespace CustomerDisplay
             _fulfillmentCredential ??= _fulfillmentCredentialStore.Load(deviceId, pharmacyId);
             if (_fulfillmentCredential != null) return _fulfillmentCredential;
 
+            var now = DateTimeOffset.UtcNow;
+            if (!_fulfillmentRegistrationRetry.CanAttempt(now)) return null;
+
             var registration = await _fulfillmentClient.RegisterAsync(deviceId, pharmacyId, ct).ConfigureAwait(false);
             if (!registration.IsSuccess || registration.Value == null)
             {
+                var configurationBlocked = registration.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.ServiceUnavailable;
+                var retryIn = _fulfillmentRegistrationRetry.RecordFailure(now, configurationBlocked);
                 HandleFulfillmentFailure(registration);
+                Log($"Повтор регистрации интернет-заказов через {retryIn.TotalSeconds:0}с.");
                 return null;
             }
             _fulfillmentCredential = new FulfillmentDeviceCredential
@@ -198,6 +207,7 @@ namespace CustomerDisplay
                 Token = registration.Value.Token,
             };
             _fulfillmentCredentialStore.Save(_fulfillmentCredential);
+            _fulfillmentRegistrationRetry.Reset();
             Log($"Устройство интернет-заказов зарегистрировано: device={deviceId}, pharmacy={pharmacyId}");
             return _fulfillmentCredential;
         }
@@ -244,14 +254,50 @@ namespace CustomerDisplay
 
         private void ShowFulfillmentNotice(int count)
         {
+            if (!_pharmacistNotices.TryShowFulfillment(count, out var visibleCount))
+            {
+                Log($"Уведомление о заказе отложено до закрытия рекомендации: новых={count}.");
+                return;
+            }
+
             _fulfillmentNotice?.Close();
-            var notice = new FulfillmentNoticeWindow(count, PharmacistScreen());
-            notice.OpenQueueRequested += ShowFulfillmentQueue;
-            notice.LaterRequested += () => Log("Уведомление о заказе скрыто; заказ остаётся в очереди.");
+            var notice = new FulfillmentNoticeWindow(visibleCount, PharmacistScreen());
+            notice.OpenQueueRequested += () =>
+            {
+                _pharmacistNotices.FulfillmentDismissed();
+                ShowFulfillmentQueue();
+            };
+            notice.LaterRequested += () =>
+            {
+                _pharmacistNotices.FulfillmentDismissed();
+                Log("Уведомление о заказе скрыто; заказ остаётся в очереди.");
+            };
             notice.Closed += (_, _) => { if (ReferenceEquals(_fulfillmentNotice, notice)) _fulfillmentNotice = null; };
             _fulfillmentNotice = notice;
-            notice.Show();
-            _fulfillmentTray?.ShowBalloonTip(4000, "Epharm", count == 1 ? "Новый интернет-заказ" : $"Новых заказов: {count}", System.Windows.Forms.ToolTipIcon.Info);
+            try
+            {
+                notice.Show();
+                _fulfillmentTray?.ShowBalloonTip(4000, "Epharm", visibleCount == 1 ? "Новый интернет-заказ" : $"Новых заказов: {visibleCount}", System.Windows.Forms.ToolTipIcon.Info);
+            }
+            catch (Exception ex)
+            {
+                if (ReferenceEquals(_fulfillmentNotice, notice)) _fulfillmentNotice = null;
+                _pharmacistNotices.FulfillmentDismissed();
+                Log($"Уведомление о новом заказе не удалось открыть: {ex.GetBaseException().Message}; заказ остаётся в очереди.");
+            }
+        }
+
+        private void BeginRecommendationNotice()
+        {
+            _pharmacistNotices.RecommendationStarting();
+            _fulfillmentNotice?.Close();
+            _fulfillmentNotice = null;
+        }
+
+        private void EndRecommendationNotice()
+        {
+            var pending = _pharmacistNotices.RecommendationClosed();
+            if (pending > 0) ShowFulfillmentNotice(pending);
         }
 
         private void ShowFulfillmentQueue()

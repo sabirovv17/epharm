@@ -94,7 +94,12 @@ services:
     environment:
       NODE_ENV: production
     command: ['node', 'scripts/sync-epharm-orders.mjs']
-    networks: [backend]
+    # The worker needs the private PostgreSQL network and a dedicated outbound
+    # path to the ePharm fulfillment API. Keeping it on backend only makes every
+    # signed request fail with ENETUNREACH because that network is internal.
+    # No service publishes a port on egress, and the worker does not join the
+    # public web/router network.
+    networks: [backend, egress]
     depends_on:
       postgres:
         condition: service_healthy
@@ -103,7 +108,7 @@ services:
         - CMD
         - node
         - -e
-        - "const fs=require('fs');const age=Date.now()-fs.statSync('/tmp/epharm-order-worker.heartbeat').mtimeMs;if(age>120000)process.exit(1)"
+        - "const fs=require('fs');const enabled=/^(true|1)$/i.test(process.env.EPHARM_ORDER_SYNC_ENABLED||process.env.EPHARM_FULFILLMENT_ENABLED||'false');const file=enabled?'/tmp/epharm-order-worker.success':'/tmp/epharm-order-worker.heartbeat';const age=Date.now()-fs.statSync(file).mtimeMs;if(age>120000)process.exit(1)"
       interval: 30s
       timeout: 5s
       retries: 3
@@ -208,3 +213,5 @@ networks:
     internal: false
   backend:
     internal: true
+  egress:
+    internal: false

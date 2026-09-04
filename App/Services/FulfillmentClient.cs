@@ -28,7 +28,7 @@ namespace CustomerDisplay.Services
 
         public FulfillmentClient(EpharmConfig config, Action<string>? log)
         {
-            var endpoints = config.GetBackendBaseUris();
+            var endpoints = config.GetFulfillmentBaseUris();
             _http = new HttpClient(new BackendFailoverHandler(endpoints, log))
             {
                 BaseAddress = endpoints[0],

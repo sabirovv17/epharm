@@ -27,5 +27,8 @@
     <Compile Include="..\App\Services\ReceiptArtifactStore.cs" Link="Services\ReceiptArtifactStore.cs" />
     <Compile Include="..\App\Services\ReceiptSaleId.cs" Link="Services\ReceiptSaleId.cs" />
     <Compile Include="..\App\Services\FulfillmentOrderCache.cs" Link="Services\FulfillmentOrderCache.cs" />
+    <Compile Include="..\App\Services\FulfillmentRetrySchedule.cs" Link="Services\FulfillmentRetrySchedule.cs" />
+    <Compile Include="..\App\Services\PharmacistNoticeCoordinator.cs" Link="Services\PharmacistNoticeCoordinator.cs" />
+    <Compile Include="..\App\Config\EpharmConfig.cs" Link="Config\EpharmConfig.cs" />
   </ItemGroup>
 </Project>

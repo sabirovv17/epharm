@@ -416,7 +416,8 @@ namespace CustomerDisplay
             Models.ReceiptItem? scannedItem = null)
         {
             if (recs == null || recs.Count == 0) return;
-            _recoWindow?.Close();
+            BeginRecommendationNotice();
+            var previous = _recoWindow;
 
             // autoCloseSec=0 → попап НЕ закрывается по таймауту, висит до ✕. Карточка
             // информационная: F9/Esc (принять/пропустить) убраны — факт продажи определяется
@@ -424,6 +425,8 @@ namespace CustomerDisplay
             // ApplyAcceptedToCheque, ни outcome-репорт отсюда не нужны.
             var target = PharmacistScreen();
             var win = new RecommendationWindow(recs, 0, target);
+            _recoWindow = win;
+            previous?.Close();
             var loaded = false;
             win.Loaded += (_, _) =>
             {
@@ -441,15 +444,23 @@ namespace CustomerDisplay
                 Log($"POSM popup monitor={target.DeviceName}, primary={target.Primary}, " +
                     $"bounds={target.Bounds}, window=({win.Left:0},{win.Top:0},{win.ActualWidth:0}x{win.ActualHeight:0})");
             };
-            win.Closed += (_, _) => { if (ReferenceEquals(_recoWindow, win)) _recoWindow = null; };
-            _recoWindow = win;
+            win.Closed += (_, _) =>
+            {
+                if (!ReferenceEquals(_recoWindow, win)) return;
+                _recoWindow = null;
+                EndRecommendationNotice();
+            };
             try
             {
                 win.Show();
             }
             catch (Exception ex)
             {
-                if (ReferenceEquals(_recoWindow, win)) _recoWindow = null;
+                if (ReferenceEquals(_recoWindow, win))
+                {
+                    _recoWindow = null;
+                    EndRecommendationNotice();
+                }
                 Log($"POSM popup не удалось открыть: {ex.Message}; следующий скан повторит показ");
             }
         }

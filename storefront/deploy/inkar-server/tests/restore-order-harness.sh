@@ -53,7 +53,15 @@ case "${1:-}" in
 esac
 exit 0
 MOCK
-chmod +x "${TEST_DIR}/bin/flock" "${TEST_DIR}/bin/systemctl"
+cat >"${TEST_DIR}/bin/stat" <<'MOCK'
+#!/usr/bin/env bash
+case "${2:-}" in
+  %a) printf '660\n' ;;
+  %g) printf '20\n' ;;
+  *) exit 1 ;;
+esac
+MOCK
+chmod +x "${TEST_DIR}/bin/flock" "${TEST_DIR}/bin/systemctl" "${TEST_DIR}/bin/stat"
 line_of() {
   local pattern="$1" line
   line="$(grep -nF -- "$pattern" "$DOCKER_LOG" | head -n 1 | cut -d: -f1)"

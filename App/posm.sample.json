@@ -3,6 +3,8 @@
   "enabled": true,
   "backendBaseUrl": "https://epharm.inkar.kz",
   "backendFallbackBaseUrls": ["http://epharm.inkar.kz:8060"],
+  "fulfillmentBaseUrl": "",
+  "fulfillmentFallbackBaseUrls": [],
   "deviceKey": "ВЫДАЁТСЯ-ПРИ-ОНБОРДИНГЕ-АПТЕКИ",
   "pharmacistId": "",
   "pharmacyId": "ph_xxx",

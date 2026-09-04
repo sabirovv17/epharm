@@ -9,7 +9,7 @@ Build on Windows with .NET 10 SDK.
 ```powershell
 cd <repo>
 dotnet publish App\CustomerDisplay.csproj -c Release -r win-x64 --self-contained `
-  -p:Version=1.0.47 -o C:\Epharm\app
+  -p:Version=1.0.51 -o C:\Epharm\app
 ```
 
 Auto-update works with a published app folder containing `CustomerDisplay.exe`, dependencies, LibVLC,
@@ -132,9 +132,17 @@ The download endpoint also requires the client's `X-Posm-Key` header.
 
 ## Internet Order Fulfillment
 
-This feature is independent from recommendations, sales capture and the customer display. It is
-disabled unless `fulfillmentEnabled=true` is present in the pharmacy's local `posm.json` and the
-backend feature flag is enabled.
+By default, fulfillment inherits `BackendBaseUrl` and `BackendFallbackBaseUrls`, so an auto-update
+does not require replacing pharmacy-specific `posm.json`. If the POSM-facing order API is moved to a
+separate trusted origin, set `FulfillmentBaseUrl`/`FulfillmentFallbackBaseUrls` (or
+`EPHARM_FULFILLMENT_URL`/`EPHARM_FULFILLMENT_FALLBACK_URLS`) without changing the recommendation,
+playlist, heartbeat, or updater routes.
+
+This feature is independent from recommendations, sales capture and the customer display. POSM
+v1.0.51 enables its local polling path by default so existing pharmacy-specific `posm.json` files do
+not need to be replaced. The backend feature flag and closed device-registration gate keep the
+feature dark until operations explicitly opens a controlled rollout. Set
+`fulfillmentEnabled=false` or `EPHARM_FULFILLMENT_ENABLED=false` for a local emergency disable.
 
 On first use POSM exchanges the fleet bootstrap key for a random per-device token and protects that
 token with Windows DPAPI for the current cash-desk user. Backend enrollment is closed by default:
