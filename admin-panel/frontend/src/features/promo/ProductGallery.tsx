@@ -20,10 +20,30 @@ import { Modal } from '@/ui'
 import { IconCheck, IconChevLeft, IconChevRight, IconLayers } from '@/ui/icons'
 import { useT } from '@/i18n'
 
+const identitySource = (url: string) => url
+
+function safeImageSource(value: string): string | null {
+  const candidate = value.trim()
+  if (!candidate) return null
+
+  // Relative paths stay on the current HTTP(S) origin. Absolute values are
+  // accepted only after URL parsing and an explicit protocol allow-list.
+  if (candidate.startsWith('/') || candidate.startsWith('./') || candidate.startsWith('../')) {
+    return candidate
+  }
+
+  try {
+    const parsed = new URL(candidate)
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.href : null
+  } catch {
+    return null
+  }
+}
+
 export function ProductGallery({
   images,
   effective,
-  resolveSrc = (u) => u,
+  resolveSrc = identitySource,
   onPickCover,
 }: {
   images: string[]
@@ -40,8 +60,20 @@ export function ProductGallery({
     [],
   )
 
+  // Resolve and validate every browser-facing URL once. Invalid/non-web schemes
+  // never reach an <img src>, even when image metadata is externally supplied.
+  const resolvedImages = useMemo(() => {
+    const entries = images
+      .map((src) => [src, safeImageSource(resolveSrc(src))] as const)
+      .filter((entry): entry is readonly [string, string] => entry[1] !== null)
+    return new Map(entries)
+  }, [images, resolveSrc])
+
   // Видимые (ещё не помеченные битыми) фото — в исходном порядке, без дублей.
-  const visible = useMemo(() => images.filter((s) => !broken.has(s)), [images, broken])
+  const visible = useMemo(
+    () => images.filter((src) => resolvedImages.has(src) && !broken.has(src)),
+    [images, resolvedImages, broken],
+  )
 
   // Выбор пользователя храним по src (а не по индексу): выпадение битого фото
   // из visible не сбивает выбор. Сам активный кадр — производный: если выбор
@@ -111,10 +143,10 @@ export function ProductGallery({
         {/* Скрытые пробники: дают onError шанс пометить ещё не проверенные
             ссылки битыми, даже когда визуально ничего не отрисовано. */}
         {images.map((src) =>
-          broken.has(src) ? null : (
+          broken.has(src) || !resolvedImages.has(src) ? null : (
             <img
               key={src}
-              src={resolveSrc(src)}
+              src={resolvedImages.get(src)}
               alt=""
               className="hidden"
               onError={() => markBroken(src)}
@@ -152,7 +184,7 @@ export function ProductGallery({
           className="block w-full cursor-zoom-in"
         >
           <img
-            src={resolveSrc(main)}
+            src={resolvedImages.get(main)}
             alt=""
             className="mx-auto max-h-[260px] w-auto select-none object-contain"
             draggable={false}
@@ -220,7 +252,7 @@ export function ProductGallery({
               }`}
             >
               <img
-                src={resolveSrc(src)}
+                src={resolvedImages.get(src)}
                 alt=""
                 className="h-full w-full object-cover"
                 draggable={false}
@@ -239,7 +271,7 @@ export function ProductGallery({
       <Modal open={zoom} onClose={() => setZoom(false)} title={t('pm.galleryTitle')} width={760}>
         <div className="relative">
           <img
-            src={resolveSrc(main)}
+            src={resolvedImages.get(main)}
             alt=""
             className="mx-auto max-h-[70vh] w-auto object-contain"
             data-testid="promo-gallery-zoom-img"

@@ -38,6 +38,14 @@ test("extracts unique Europharma product links", () => {
   assert.deepEqual(extractEuropharmaProductLinks(html, "https://oral.europharma.kz/ru"), ["https://oral.europharma.kz/medoklav"]);
 });
 
+test("decodes nested HTML entities only once", () => {
+  const html = '<a class="card-product__link" href="/medoklav?next=&amp;quot;admin">A</a>';
+  const [url] = extractEuropharmaProductLinks(html, "https://oral.europharma.kz/ru");
+
+  assert.equal(url, "https://oral.europharma.kz/medoklav?next=&quot;admin");
+  assert.equal(url.includes('"'), false);
+});
+
 test("parses Europharma metadata only with an exact barcode", () => {
   const html = '<meta itemprop="name" content="Медоклав 156,25 мг"><meta itemprop="image" content="https://st.europharma.kz/image.webp"><meta itemprop="brand" content="Медокеми"><meta itemprop="sku" content="123"><meta itemprop="mpn" content="5290931000926">';
   assert.deepEqual(parseEuropharmaProductHtml(html), {

@@ -43,12 +43,17 @@ Apply requires DATABASE_URL and never replaces an existing thumbnail.
 }
 
 function decodeXml(value) {
-  return String(value || "")
-    .replaceAll("&amp;", "&")
-    .replaceAll("&quot;", '"')
-    .replaceAll("&apos;", "'")
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">");
+  const entities = {
+    "&amp;": "&",
+    "&quot;": '"',
+    "&apos;": "'",
+    "&lt;": "<",
+    "&gt;": ">",
+  };
+  return String(value || "").replace(
+    /&(amp|quot|apos|lt|gt);/g,
+    (entity) => entities[entity],
+  );
 }
 
 async function readAurmaSitemaps(directory) {
