@@ -42,7 +42,15 @@ class SecurityConfig(
     @Bean
     fun filterChain(http: HttpSecurity): SecurityFilterChain {
         http
-            .csrf { it.disable() }
+            // Authentication is bearer JWT, HMAC or device-key based and never uses a
+            // browser cookie. Ignore CSRF only for those stateless API surfaces; keep
+            // Spring's protection enabled for any future browser endpoint by default.
+            .csrf { csrf ->
+                csrf.ignoringRequestMatchers(
+                    "/api/**",
+                    "/actuator/**",
+                )
+            }
             .cors { it.configurationSource(corsConfigurationSource()) }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .httpBasic { it.disable() }

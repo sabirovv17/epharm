@@ -108,14 +108,25 @@ describe('ProductGallery', () => {
     expect(mainSrc()).toContain('/proxy?u=')
   })
 
-  it('не передаёт в DOM опасные и не-web схемы изображений', () => {
+  it('не передаёт active-content URL в DOM', () => {
+    render(
+      <ProductGallery
+        images={['https://m/safe.jpg', 'javascript:alert(1)']}
+        effective="javascript:alert(1)"
+      />,
+    )
+    expect(mainSrc()).toContain('safe.jpg')
+    expect(screen.queryByTestId('promo-gallery-thumb-1')).not.toBeInTheDocument()
+    expect(document.querySelector('img[src^="javascript:"]')).not.toBeInTheDocument()
+  })
+
+  it('не создаёт img, когда безопасных URL нет', () => {
     const { container } = render(
       <ProductGallery
         images={['javascript:alert(1)', 'data:image/svg+xml,<svg onload="alert(1)"/>']}
         effective={null}
       />,
     )
-
     expect(screen.getByTestId('promo-gallery-empty')).toBeInTheDocument()
     expect(container.querySelectorAll('img')).toHaveLength(0)
   })

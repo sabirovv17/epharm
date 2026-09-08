@@ -4,6 +4,7 @@ import {
   aurmaHandleScore,
   barcodeFromOpenFactsKey,
   canonicalHandleScore,
+  decodeHtmlEntitiesOnce,
   distinctiveHandleTokens,
   extractEuropharmaProductLinks,
   normalizeBarcode,
@@ -14,6 +15,11 @@ import {
   stableImageUuid,
   titleSimilarity,
 } from "../scripts/lib/product-image-enrichment.mjs";
+
+test("decodes HTML entities exactly once", () => {
+  assert.equal(decodeHtmlEntitiesOnce("A &amp; B &quot;C&quot;"), 'A & B "C"');
+  assert.equal(decodeHtmlEntitiesOnce("&amp;lt;script&amp;gt;"), "&lt;script&gt;");
+});
 
 test("parses AptekaPlus product card with its exact visible barcode", () => {
   const html = '<h1 class="title">\u041e\u0419\u041b\u0415\u0421\u0415\u041d 10 \u043c\u043b</h1><span>\u0428\u0442\u0440\u0438\u0445\u043a\u043e\u0434: </span><span>7640153061799</span><img src="https://bitrix.aptekaplus.kz/cdn/?q=/upload/iblock/3b6/oylesen.jpg">';

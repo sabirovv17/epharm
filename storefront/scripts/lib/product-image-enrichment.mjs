@@ -148,19 +148,24 @@ export function selectCandidate(current, incoming) {
   return incomingScore > currentScore ? incoming : current;
 }
 
-function decodeHtmlAttribute(value) {
-  const entities = {
-    "&amp;": "&",
-    "&quot;": '"',
-    "&#039;": "'",
-    "&apos;": "'",
-    "&lt;": "<",
-    "&gt;": ">",
-  };
+const HTML_ENTITY_VALUES = Object.freeze({
+  amp: "&",
+  quot: '"',
+  "#039": "'",
+  apos: "'",
+  lt: "<",
+  gt: ">",
+});
+
+export function decodeHtmlEntitiesOnce(value) {
   return String(value || "").replace(
     /&(amp|quot|#039|apos|lt|gt);/g,
-    (entity) => entities[entity],
+    (entity, name) => HTML_ENTITY_VALUES[name] ?? entity,
   );
+}
+
+function decodeHtmlAttribute(value) {
+  return decodeHtmlEntitiesOnce(value);
 }
 
 export function extractEuropharmaProductLinks(html, baseUrl) {
