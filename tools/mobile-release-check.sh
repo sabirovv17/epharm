@@ -40,11 +40,21 @@ fi
 "$FLUTTER_BIN" test
 
 if [[ "${BUILD_IOS_SIMULATOR:-false}" == true ]]; then
+  # Flutter 3.27 can miss CocoaPods' aggregate target on the first cold Xcode
+  # invocation. A config-only pass performs the supported project preflight.
+  "$FLUTTER_BIN" build ios --debug --simulator --config-only \
+    --dart-define="RELEASE_ID=${release_id:-local-check}" \
+    --dart-define=APP_ENVIRONMENT=ci \
+    --dart-define="SENTRY_DSN=${SENTRY_MOBILE_DSN:-}"
   "$FLUTTER_BIN" build ios --debug --simulator \
     --dart-define="RELEASE_ID=${release_id:-local-check}" \
     --dart-define=APP_ENVIRONMENT=ci \
     --dart-define="SENTRY_DSN=${SENTRY_MOBILE_DSN:-}"
 elif [[ "${BUILD_IOS_NO_CODESIGN:-false}" == true ]]; then
+  "$FLUTTER_BIN" build ios --release --config-only \
+    --dart-define="RELEASE_ID=${release_id:-local-check}" \
+    --dart-define=APP_ENVIRONMENT=production \
+    --dart-define="SENTRY_DSN=${SENTRY_MOBILE_DSN:-}"
   "$FLUTTER_BIN" build ios --release --no-codesign \
     --dart-define="RELEASE_ID=${release_id:-local-check}" \
     --dart-define=APP_ENVIRONMENT=production \

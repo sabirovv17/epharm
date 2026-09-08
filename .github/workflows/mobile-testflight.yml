@@ -99,6 +99,13 @@ jobs:
           with open('ios/ExportOptions.plist', 'wb') as handle:
               plistlib.dump(options, handle)
           PY
+          flutter build ios --release --config-only \
+            --build-name "$VERSION" \
+            --build-number "$BUILD_NUMBER" \
+            --dart-define="RELEASE_ID=$RELEASE_ID" \
+            --dart-define=APP_ENVIRONMENT=production \
+            --dart-define="SENTRY_DSN=$SENTRY_MOBILE_DSN" \
+            --dart-define=SENTRY_TRACES_SAMPLE_RATE=0.05
           flutter build ipa --release \
             --build-name "$VERSION" \
             --build-number "$BUILD_NUMBER" \

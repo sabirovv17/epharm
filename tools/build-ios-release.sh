@@ -30,6 +30,9 @@ sed "s/ABCDE12345/${team_id}/g" \
 
 cd "$repo_root"
 "$flutter_bin" pub get
+"$flutter_bin" build ios --release --config-only \
+  --dart-define=USE_API=true \
+  --dart-define="API_BASE=${api_base}"
 "$flutter_bin" build ipa --release \
   --export-options-plist="$export_options" \
   --dart-define=USE_API=true \
