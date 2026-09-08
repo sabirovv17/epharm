@@ -360,9 +360,12 @@ jobs:
         working-directory: admin-panel/backend
         # CodeQL must observe the Kotlin compiler in this process tree. The
         # default out-of-process Kotlin daemon can wait indefinitely while the
-        # CodeQL tracer is preloaded on GitHub-hosted runners.
+        # CodeQL tracer is preloaded on GitHub-hosted runners. The in-process
+        # compiler shares this Gradle heap, so size it for extraction without
+        # changing memory settings for ordinary builds.
         run: >-
           ./gradlew --no-daemon --max-workers=2
+          '-Dorg.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8'
           -Pkotlin.compiler.execution.strategy=in-process
           clean classes
       - uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
