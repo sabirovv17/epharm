@@ -4,9 +4,9 @@
 // лайтбокс по клику. Текущая обложка (effective) помечается бейджем.
 //
 // `images`/`effective` — ИСХОДНЫЕ URL (как в БД). Для тега <img> прогоняем через
-// `resolveSrc` (по умолчанию — без изменений; в админке — proxyMedia: http→https-
-// прокси против mixed content). Так значение обложки остаётся «чистым» URL Medusa,
-// а отображение идёт через прокси.
+// `resolveSrc` (в админке — proxyMedia: http→https-прокси против mixed content),
+// затем через общую allowlist URL-схем. Так значение обложки остаётся «чистым»
+// URL Medusa, а в DOM попадает только безопасный адрес отображения.
 //
 // Битые ссылки (404/CDN-мусор) ловятся через onError и тихо выпадают из галереи —
 // никаких браузерных «сломанных» иконок. Если не загрузилось ни одно фото — чистое
@@ -19,26 +19,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Modal } from '@/ui'
 import { IconCheck, IconChevLeft, IconChevRight, IconLayers } from '@/ui/icons'
 import { useT } from '@/i18n'
+import { safeImageSrc } from '@/lib/media'
 
 const identitySource = (url: string) => url
-
-function safeImageSource(value: string): string | null {
-  const candidate = value.trim()
-  if (!candidate) return null
-
-  // Relative paths stay on the current HTTP(S) origin. Absolute values are
-  // accepted only after URL parsing and an explicit protocol allow-list.
-  if (candidate.startsWith('/') || candidate.startsWith('./') || candidate.startsWith('../')) {
-    return candidate
-  }
-
-  try {
-    const parsed = new URL(candidate)
-    return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.href : null
-  } catch {
-    return null
-  }
-}
 
 export function ProductGallery({
   images,
@@ -60,19 +43,13 @@ export function ProductGallery({
     [],
   )
 
-  // Resolve and validate every browser-facing URL once. Invalid/non-web schemes
-  // never reach an <img src>, even when image metadata is externally supplied.
-  const resolvedImages = useMemo(() => {
-    const entries = images
-      .map((src) => [src, safeImageSource(resolveSrc(src))] as const)
-      .filter((entry): entry is readonly [string, string] => entry[1] !== null)
-    return new Map(entries)
-  }, [images, resolveSrc])
+  const renderSrc = useCallback((source: string) => safeImageSrc(resolveSrc(source)), [resolveSrc])
 
-  // Видимые (ещё не помеченные битыми) фото — в исходном порядке, без дублей.
+  // Видимые (ещё не помеченные битыми) фото — в исходном порядке. Небезопасные
+  // URL отбрасываем до присваивания DOM-атрибуту src.
   const visible = useMemo(
-    () => images.filter((src) => resolvedImages.has(src) && !broken.has(src)),
-    [images, resolvedImages, broken],
+    () => images.filter((source) => !broken.has(source) && renderSrc(source) !== undefined),
+    [images, broken, renderSrc],
   )
 
   // Выбор пользователя храним по src (а не по индексу): выпадение битого фото
@@ -143,10 +120,10 @@ export function ProductGallery({
         {/* Скрытые пробники: дают onError шанс пометить ещё не проверенные
             ссылки битыми, даже когда визуально ничего не отрисовано. */}
         {images.map((src) =>
-          broken.has(src) || !resolvedImages.has(src) ? null : (
+          broken.has(src) || renderSrc(src) === undefined ? null : (
             <img
               key={src}
-              src={resolvedImages.get(src)}
+              src={renderSrc(src)}
               alt=""
               className="hidden"
               onError={() => markBroken(src)}
@@ -184,7 +161,7 @@ export function ProductGallery({
           className="block w-full cursor-zoom-in"
         >
           <img
-            src={resolvedImages.get(main)}
+            src={renderSrc(main)}
             alt=""
             className="mx-auto max-h-[260px] w-auto select-none object-contain"
             draggable={false}
@@ -252,7 +229,7 @@ export function ProductGallery({
               }`}
             >
               <img
-                src={resolvedImages.get(src)}
+                src={renderSrc(src)}
                 alt=""
                 className="h-full w-full object-cover"
                 draggable={false}
@@ -271,7 +248,7 @@ export function ProductGallery({
       <Modal open={zoom} onClose={() => setZoom(false)} title={t('pm.galleryTitle')} width={760}>
         <div className="relative">
           <img
-            src={resolvedImages.get(main)}
+            src={renderSrc(main)}
             alt=""
             className="mx-auto max-h-[70vh] w-auto object-contain"
             data-testid="promo-gallery-zoom-img"

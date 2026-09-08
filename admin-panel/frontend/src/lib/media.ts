@@ -11,18 +11,45 @@ import { BASE_URL } from './api'
 
 const EPHARM_MEDIA_HOST = 'epharm.inkar.kz'
 const EPHARM_MEDIA_PATH = '/s3/epharm-receipts/'
+const SAFE_RELATIVE_ORIGIN = 'https://relative-media.invalid'
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
 
 /**
- * URL для `<img src>`: http-картинка Medusa → наш HTTPS-прокси, остальное (https,
- * data:, относительные) — без изменений. Пустое/недоступное → ''.
+ * Restrict values assigned to media URL attributes. Relative URLs stay on the
+ * current origin, remote media must use HTTPS, and HTTP is accepted only for
+ * a local development backend. Active-content schemes (javascript:, data:,
+ * blob:, file:) and malformed URLs are rejected.
+ */
+export function safeImageSrc(url?: string | null): string | undefined {
+  const raw = url?.trim()
+  if (!raw || raw.startsWith('//')) return undefined
+
+  try {
+    const parsed = new URL(raw, SAFE_RELATIVE_ORIGIN)
+    if (parsed.origin === SAFE_RELATIVE_ORIGIN) return raw
+    if (parsed.protocol === 'https:') return parsed.toString()
+    if (parsed.protocol === 'http:' && LOOPBACK_HOSTS.has(parsed.hostname)) {
+      return parsed.toString()
+    }
+  } catch {
+    // Invalid URLs must never reach a DOM URL attribute.
+  }
+  return undefined
+}
+
+/**
+ * URL для `<img src>`: http-картинка Medusa → наш HTTPS-прокси; HTTPS and
+ * same-origin relative URLs pass through the common URL policy.
  */
 export function proxyMedia(url?: string | null): string {
   const u = url?.trim()
   if (!u) return ''
   // Только голый http проксируем (именно он ломает mixed content). Бэкенд-прокси
   // дополнительно ограничивает хост (SSRF-guard) — чужой http вернёт 400 и отвалится.
-  if (u.startsWith('http://')) return `${BASE_URL}/api/media/img?u=${encodeURIComponent(u)}`
-  return u
+  if (u.startsWith('http://')) {
+    return safeImageSrc(`${BASE_URL}/api/media/img?u=${encodeURIComponent(u)}`) ?? ''
+  }
+  return safeImageSrc(u) ?? ''
 }
 
 /**

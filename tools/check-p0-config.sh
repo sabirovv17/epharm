@@ -34,6 +34,9 @@ fi
 if grep -R -n -- 'epharm\.inkar\.kz:8060' lib android ios; then
   fail "mobile production runtime must not fall back to public cleartext HTTP"
 fi
+if grep -R -n -F -- '.csrf { it.disable() }' admin-panel/backend/src/main; then
+  fail "backend must not disable CSRF globally; exempt only explicitly stateless API paths"
+fi
 grep -Fq 'dev-mode: ${OTP_DEV_MODE:false}' \
   admin-panel/backend/src/main/resources/application-prod.yml \
   || fail "production OTP must default to dev-mode=false"

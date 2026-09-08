@@ -1,5 +1,32 @@
 import { describe, expect, it } from 'vitest'
-import { resolveEpharmMediaUrl } from './media'
+import { resolveEpharmMediaUrl, safeImageSrc } from './media'
+
+describe('safeImageSrc', () => {
+  it('accepts same-origin relative and remote HTTPS images', () => {
+    expect(safeImageSrc('/api/media/img?u=encoded')).toBe('/api/media/img?u=encoded')
+    expect(safeImageSrc('assets/product.webp')).toBe('assets/product.webp')
+    expect(safeImageSrc('https://cdn.example/product.webp')).toBe(
+      'https://cdn.example/product.webp',
+    )
+  })
+
+  it('allows HTTP only for loopback development hosts', () => {
+    expect(safeImageSrc('http://localhost:8080/image.webp')).toBe(
+      'http://localhost:8080/image.webp',
+    )
+    expect(safeImageSrc('http://cdn.example/image.webp')).toBeUndefined()
+  })
+
+  it.each([
+    'javascript:alert(1)',
+    'data:image/svg+xml,<svg onload=alert(1)>',
+    'blob:https://example.test/id',
+    '//cdn.example/image.webp',
+    'file:///etc/passwd',
+  ])('rejects active-content or ambiguous source %s', (source) => {
+    expect(safeImageSrc(source)).toBeUndefined()
+  })
+})
 
 describe('resolveEpharmMediaUrl', () => {
   const storedVideo =

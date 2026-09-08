@@ -10,6 +10,7 @@ import {
   aurmaHandleScore,
   barcodeFromOpenFactsKey,
   canonicalHandleScore,
+  decodeHtmlEntitiesOnce,
   distinctiveCanonicalHandleTokens,
   distinctiveHandleTokens,
   extractEuropharmaProductLinks,
@@ -43,17 +44,7 @@ Apply requires DATABASE_URL and never replaces an existing thumbnail.
 }
 
 function decodeXml(value) {
-  const entities = {
-    "&amp;": "&",
-    "&quot;": '"',
-    "&apos;": "'",
-    "&lt;": "<",
-    "&gt;": ">",
-  };
-  return String(value || "").replace(
-    /&(amp|quot|apos|lt|gt);/g,
-    (entity) => entities[entity],
-  );
+  return decodeHtmlEntitiesOnce(value);
 }
 
 async function readAurmaSitemaps(directory) {
