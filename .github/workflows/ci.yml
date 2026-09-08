@@ -17,7 +17,7 @@ permissions:
 
 env:
   NODE_VERSION: 24.15.0
-  FLUTTER_VERSION: 3.27.1
+  FLUTTER_REVISION: 17025dd88227cd9532c33fa78f5250d548d87e9a # 3.27.1
 
 jobs:
   repo-quality:
@@ -253,14 +253,19 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+      - name: Checkout pinned Flutter SDK
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
+          repository: flutter/flutter
+          ref: ${{ env.FLUTTER_REVISION }}
+          path: .flutter-sdk
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Add Flutter SDK to PATH
+        run: printf '%s\n' "$GITHUB_WORKSPACE/.flutter-sdk/bin" >> "$GITHUB_PATH"
       - name: Run mobile static and unit gate
         env:
-          FLUTTER_BIN: ${{ env.FLUTTER_ROOT }}/bin/flutter
+          FLUTTER_BIN: ${{ github.workspace }}/.flutter-sdk/bin/flutter
         run: ./tools/mobile-release-check.sh
       - name: Compile Android debug artifact
         run: >-
@@ -274,15 +279,20 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+      - name: Checkout pinned Flutter SDK
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
+          repository: flutter/flutter
+          ref: ${{ env.FLUTTER_REVISION }}
+          path: .flutter-sdk
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Add Flutter SDK to PATH
+        run: printf '%s\n' "$GITHUB_WORKSPACE/.flutter-sdk/bin" >> "$GITHUB_PATH"
       - name: Run mobile gate and compile iOS
         env:
           BUILD_IOS_SIMULATOR: "true"
-          FLUTTER_BIN: ${{ env.FLUTTER_ROOT }}/bin/flutter
+          FLUTTER_BIN: ${{ github.workspace }}/.flutter-sdk/bin/flutter
           RELEASE_ID: ci-${{ github.sha }}
         run: ./tools/mobile-release-check.sh
 

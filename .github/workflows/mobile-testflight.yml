@@ -15,6 +15,9 @@ name: Mobile TestFlight
 permissions:
   contents: read
 
+env:
+  FLUTTER_REVISION: 17025dd88227cd9532c33fa78f5250d548d87e9a # 3.27.1
+
 concurrency:
   group: mobile-testflight-${{ inputs.release_tag }}-${{ inputs.build_number }}
   cancel-in-progress: false
@@ -39,11 +42,16 @@ jobs:
           [[ "$BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]]
           ./tools/release/verify-contract.sh "$RELEASE_TAG"
 
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+      - name: Checkout pinned Flutter SDK
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          flutter-version: '3.27.1'
-          channel: stable
-          cache: true
+          repository: flutter/flutter
+          ref: ${{ env.FLUTTER_REVISION }}
+          path: .flutter-sdk
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Add Flutter SDK to PATH
+        run: printf '%s\n' "$GITHUB_WORKSPACE/.flutter-sdk/bin" >> "$GITHUB_PATH"
 
       - name: Import distribution certificate
         env:
@@ -74,7 +82,7 @@ jobs:
 
       - name: Static and unit release gate
         env:
-          FLUTTER_BIN: ${{ env.FLUTTER_ROOT }}/bin/flutter
+          FLUTTER_BIN: ${{ github.workspace }}/.flutter-sdk/bin/flutter
           REQUIRE_STORE_VERSION: 'true'
         run: ./tools/mobile-release-check.sh
 
