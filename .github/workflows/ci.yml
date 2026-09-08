@@ -323,7 +323,7 @@ jobs:
   codeql:
     name: security / CodeQL (${{ matrix.language }})
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: ${{ matrix.timeout_minutes }}
     permissions:
       actions: read
       contents: read
@@ -335,10 +335,13 @@ jobs:
         include:
           - language: csharp
             build_mode: none
+            timeout_minutes: 30
           - language: java-kotlin
             build_mode: manual
+            timeout_minutes: 60
           - language: javascript-typescript
             build_mode: none
+            timeout_minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - if: matrix.language == 'java-kotlin'
@@ -355,7 +358,13 @@ jobs:
       - if: matrix.language == 'java-kotlin'
         name: Compile backend for CodeQL
         working-directory: admin-panel/backend
-        run: ./gradlew --no-daemon clean classes
+        # CodeQL must observe the Kotlin compiler in this process tree. The
+        # default out-of-process Kotlin daemon can wait indefinitely while the
+        # CodeQL tracer is preloaded on GitHub-hosted runners.
+        run: >-
+          ./gradlew --no-daemon --max-workers=2
+          -Pkotlin.compiler.execution.strategy=in-process
+          clean classes
       - uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
         with:
           category: /language:${{ matrix.language }}
