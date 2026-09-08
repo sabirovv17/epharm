@@ -1,4 +1,4 @@
-const DEFAULT_MEDUSA_URL = "http://78.140.246.238:9000";
+import { secureMedusaBaseUrl } from "./medusaUrl.ts";
 
 export const MEDIA_CACHE_CONTROL = "public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000";
 export const MEDIA_TIMEOUT_MS = 12_000;
@@ -63,16 +63,15 @@ function hasUnsafePathEncoding(path: string): boolean {
     .some((segment) => segment === "." || segment === "..");
 }
 
-export function resolveMedusaStaticUrl(rawPath: string, baseUrl = DEFAULT_MEDUSA_URL): URL | null {
+export function resolveMedusaStaticUrl(rawPath: string, baseUrl?: string): URL | null {
   if (!rawPath.startsWith("/static/") || rawPath.length > MAX_PATH_LENGTH || hasUnsafePathEncoding(rawPath)) {
     return null;
   }
 
   try {
-    const backend = new URL(baseUrl);
-    if ((backend.protocol !== "http:" && backend.protocol !== "https:") || backend.username || backend.password) {
-      return null;
-    }
+    const safeBaseUrl = secureMedusaBaseUrl(baseUrl);
+    if (!safeBaseUrl) return null;
+    const backend = new URL(safeBaseUrl);
 
     const queryIndex = rawPath.search(/[?#]/);
     const pathOnly = queryIndex === -1 ? rawPath : rawPath.slice(0, queryIndex);
@@ -114,7 +113,7 @@ export async function proxyMedusaMedia(
   options: ProxyOptions = {},
 ): Promise<Response> {
   const rawPath = new URL(request.url).searchParams.get("path") || "";
-  const upstream = resolveMedusaStaticUrl(rawPath, options.baseUrl ?? process.env.MEDUSA_URL ?? DEFAULT_MEDUSA_URL);
+  const upstream = resolveMedusaStaticUrl(rawPath, options.baseUrl ?? process.env.MEDUSA_URL);
   if (!upstream) return errorResponse("invalid_media_path", 400, method);
 
   const controller = new AbortController();

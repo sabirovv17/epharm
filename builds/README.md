@@ -6,17 +6,16 @@ Current app metadata:
 
 | Field                  | Value             |
 | ---------------------- | ----------------- |
-| `pubspec.yaml` version | `0.1.1+2`         |
+| `pubspec.yaml` version | `0.1.2+4`         |
 | iOS bundle id          | `kz.pharmacy.app` |
 | Android application id | `kz.pharmacy.app` |
 | Display name           | `Epharm`          |
 
 Generated APK/IPA/app zip artifacts should not be committed unless there is an explicit release handoff.
 
-The current device build is `Epharm-iOS-0.1.1+2-Runner.app.zip`. It is signed with the
-development profile for the registered pilot iPhone and was verified with
-`codesign --verify --deep --strict` after extracting the ZIP. A development profile is
-device-specific and short-lived; rebuild it before the profile expires or when adding another iPhone.
+The legacy device build `Epharm-iOS-0.1.1+2-Runner.app.zip` is a Personal Team development artifact
+whose stated profile expiry was 2026-08-24. It is expired and must not be distributed. Use TestFlight
+and the paid-team procedure in `docs/IOS-DISTRIBUTION.md` for real users.
 
 ## Important API_BASE Rule
 
@@ -48,12 +47,11 @@ API_BASE=https://epharm.inkar.kz bash builds/build_all.sh
 
 The script:
 
-1. recreates `/tmp/codesign_shim`;
-2. runs `flutter clean`;
-3. runs `flutter pub get`;
-4. builds Android release APK with `USE_API=true`;
-5. builds iOS release app bundle with `--no-codesign`;
-6. writes artifacts to `builds/`.
+1. runs `flutter clean`;
+2. runs `flutter pub get`;
+3. builds Android release APK with `USE_API=true` and requires the private release keystore;
+4. builds an unsigned iOS review bundle with `--no-codesign`;
+5. writes review artifacts to `builds/`.
 
 ## Manual Android Build
 
@@ -75,12 +73,11 @@ flutter build ios --release --no-codesign \
   --dart-define=API_BASE=https://epharm.inkar.kz
 ```
 
-Distribution IPA requires paid Apple Developer account and provisioning:
+Distribution IPA requires the paid-team setup from `docs/IOS-DISTRIBUTION.md`:
 
 ```bash
-flutter build ipa --release \
-  --dart-define=USE_API=true \
-  --dart-define=API_BASE=https://epharm.inkar.kz
+export APPLE_DEVELOPMENT_TEAM=ABCDE12345
+API_BASE=https://epharm.inkar.kz ./tools/build-ios-release.sh
 ```
 
 ## iOS xattr / iCloud Note
@@ -91,16 +88,8 @@ This workspace is under Desktop/iCloud on the main machine. If codesign fails wi
 resource fork, Finder information, or similar detritus not allowed
 ```
 
-recreate the shim:
-
-```bash
-mkdir -p /tmp/codesign_shim
-printf '#!/bin/sh\nexec /usr/bin/codesign --no-strict "$@"\n' > /tmp/codesign_shim/codesign
-chmod +x /tmp/codesign_shim/codesign
-export PATH="/tmp/codesign_shim:$PATH"
-```
-
-or keep build output outside iCloud-synced folders.
+move the checkout/build output outside iCloud-synced folders and rebuild from clean source. Never
+weaken signature validation with `--no-strict`.
 
 ## Install
 
@@ -110,13 +99,12 @@ Android:
 - allow install from source;
 - open APK.
 
-iOS unsigned `.app`:
+iOS unsigned `.app` is for build inspection only and cannot be installed as a release artifact.
+For a developer-only device run:
 
-- open Xcode;
-- Window -> Devices and Simulators;
-- select device;
-- drag `Runner.app` into Installed Apps;
-- trust developer profile on device if needed.
+- open `ios/Runner.xcworkspace` in Xcode;
+- select a development team and a registered device;
+- run the `Runner` scheme.
 
 TestFlight/App Store:
 

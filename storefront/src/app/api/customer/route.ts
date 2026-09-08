@@ -37,7 +37,7 @@ const SECRET = process.env.CUSTOMER_AUTH_SECRET || "";
 const EMAIL_DOMAIN = "phone.darihana.kz";
 const COOKIE = "ms_cust";
 const DEMO_COOKIE = "inkar_demo_session";
-const MEDUSA_ON = Boolean(BASE && PK) && process.env.MEDUSA_ENABLED !== "false";
+const MEDUSA_ON = Boolean(BASE && PK) && process.env.MEDUSA_ENABLED === "true";
 const AUTH_MODE = customerAuthMode();
 
 function derivePassword(digits: string): string {

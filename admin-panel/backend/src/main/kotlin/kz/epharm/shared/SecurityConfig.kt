@@ -52,7 +52,11 @@ class SecurityConfig(
                     .requestMatchers(
                         "/api/health",
                         "/actuator/health",
+                        "/actuator/health/**",
                         "/actuator/info",
+                        // Prometheus reaches this only through the private Docker network;
+                        // Caddy exposes /api/* and cannot route /actuator/* publicly.
+                        "/actuator/prometheus",
                         "/v3/api-docs/**",
                         "/swagger-ui/**",
                         "/swagger-ui.html",

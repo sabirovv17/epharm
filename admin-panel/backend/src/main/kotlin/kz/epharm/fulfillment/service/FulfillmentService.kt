@@ -44,8 +44,18 @@ class FulfillmentService(
     @Value("\${app.fulfillment.enabled:false}") private val enabled: Boolean,
     @Value("\${app.fulfillment.device-registration-enabled:false}")
     private val deviceRegistrationEnabled: Boolean,
+    @Value("\${app.posm.legacy-device-key-enabled:true}")
+    private val legacyPosmKeyEnabled: Boolean,
+    @Value("\${app.fulfillment.trusted-card-payment-authorities:}")
+    trustedCardPaymentAuthoritiesRaw: String,
 ) {
     private val random = SecureRandom()
+    private val trustedCardPaymentAuthorities = trustedCardPaymentAuthoritiesRaw
+        .split(',')
+        .map(String::trim)
+        .filter(String::isNotEmpty)
+        .map(String::lowercase)
+        .toSet()
 
     fun ingest(rawBody: ByteArray, request: StorefrontOrderCreatedRequest): StorefrontOrderAck {
         ensureEnabled()
@@ -77,13 +87,16 @@ class FulfillmentService(
             }
 
             val pharmacyId = resolveActivePharmacy(request.pharmacyExternalId)
+            val paymentAuthority = request.paymentAuthority?.trim()?.lowercase()?.takeIf(String::isNotEmpty)
+            val effectivePaymentStatus = effectivePaymentStatus(request, paymentAuthority)
             jdbc.update(
                 """
                 INSERT INTO fulfillment_orders (
                     order_id, event_id, order_number, request_sha256,
                     pharmacy_external_id, pharmacy_id, created_at, total, currency,
-                    delivery, payment_method, payment_status, is_demo, pickup_code_hmac
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    delivery, payment_method, payment_status, payment_status_claimed,
+                    payment_authority, is_demo, pickup_code_hmac
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent(),
                 request.orderId,
                 eventId,
@@ -96,7 +109,9 @@ class FulfillmentService(
                 request.currency,
                 request.delivery,
                 request.paymentMethod,
+                effectivePaymentStatus,
                 request.paymentStatus,
+                paymentAuthority,
                 request.demo,
                 crypto.pickupCodeHmac(request.orderId, request.pickupCode),
             )
@@ -121,7 +136,13 @@ class FulfillmentService(
                 "storefront",
                 request.eventId,
                 "order_ingested",
-                mapOf("assigned" to (pharmacyId != null), "externalPharmacyId" to request.pharmacyExternalId),
+                mapOf(
+                    "assigned" to (pharmacyId != null),
+                    "externalPharmacyId" to request.pharmacyExternalId,
+                    "paymentStatusClaimed" to request.paymentStatus,
+                    "paymentStatusAccepted" to effectivePaymentStatus,
+                    "paymentAuthority" to paymentAuthority,
+                ),
             )
             ack(requireOrder(request.orderId), accepted = true)
         }!!
@@ -163,6 +184,26 @@ class FulfillmentService(
     fun registerDevice(deviceIdRaw: String, pharmacyIdRaw: String): RegisterFulfillmentDeviceResponse {
         ensureEnabled()
         if (!deviceRegistrationEnabled) forbidden("Fulfillment device registration is disabled")
+        return issueDeviceCredential(deviceIdRaw, pharmacyIdRaw, "posm", bounded(deviceIdRaw, "deviceId", 128))
+    }
+
+    /**
+     * HQ-controlled provisioning is the production enrollment path. The raw token is returned once;
+     * only its SHA-256 and short diagnostic hint are retained. Reissuing rotates the old credential.
+     */
+    fun provisionDevice(
+        deviceIdRaw: String,
+        pharmacyIdRaw: String,
+        adminId: String,
+    ): RegisterFulfillmentDeviceResponse =
+        issueDeviceCredential(deviceIdRaw, pharmacyIdRaw, "hq", adminId)
+
+    private fun issueDeviceCredential(
+        deviceIdRaw: String,
+        pharmacyIdRaw: String,
+        actorType: String,
+        actorId: String,
+    ): RegisterFulfillmentDeviceResponse {
         val deviceId = bounded(deviceIdRaw, "deviceId", 128)
         val pharmacyId = bounded(pharmacyIdRaw, "pharmacyId", 64)
         val pharmacyExists = jdbc.queryForObject(
@@ -196,7 +237,13 @@ class FulfillmentService(
                 tokenHash,
                 token.takeLast(8),
             )
-            audit(null, "posm", deviceId, "device_registered", mapOf("pharmacyId" to pharmacyId))
+            audit(
+                null,
+                actorType,
+                actorId,
+                "device_credential_issued",
+                mapOf("pharmacyId" to pharmacyId, "deviceId" to deviceId),
+            )
         }
         return RegisterFulfillmentDeviceResponse(deviceId, pharmacyId, token)
     }
@@ -263,7 +310,11 @@ class FulfillmentService(
         return dto(requireOrder(orderId))
     }
 
-    fun featureStatus() = FulfillmentFeatureStatusDto(enabled, deviceRegistrationEnabled)
+    fun featureStatus() = FulfillmentFeatureStatusDto(
+        enabled = enabled,
+        deviceRegistrationEnabled = deviceRegistrationEnabled,
+        legacyPosmKeyEnabled = legacyPosmKeyEnabled,
+    )
 
     fun actAsDevice(
         orderId: String,
@@ -643,6 +694,8 @@ class FulfillmentService(
             delivery = rs.getString("delivery"),
             paymentMethod = rs.getString("payment_method"),
             paymentStatus = rs.getString("payment_status"),
+            paymentStatusClaimed = rs.getString("payment_status_claimed"),
+            paymentAuthority = rs.getString("payment_authority"),
             demo = rs.getBoolean("is_demo"),
             status = FulfillmentStatus.valueOf(rs.getString("status")),
             version = rs.getLong("version"),
@@ -666,6 +719,8 @@ class FulfillmentService(
         delivery = order.delivery,
         paymentMethod = order.paymentMethod,
         paymentStatus = order.paymentStatus,
+        paymentStatusClaimed = order.paymentStatusClaimed,
+        paymentAuthority = order.paymentAuthority,
         demo = order.demo,
         status = order.status.name,
         version = order.version,
@@ -731,6 +786,9 @@ class FulfillmentService(
         if (request.delivery !in setOf("pickup", "pharmacy")) invalid("delivery must target a pharmacy")
         if (request.paymentMethod !in setOf("cash", "card", "kaspi", "halyk")) invalid("paymentMethod is unsupported")
         if (request.paymentStatus !in setOf("pending", "paid", "demo_no_charge")) invalid("paymentStatus is unsupported")
+        request.paymentAuthority?.let { authority ->
+            if (authority.isBlank() || authority.length > 128) invalid("paymentAuthority must contain 1..128 characters")
+        }
         if (request.demo != (request.paymentStatus == "demo_no_charge")) {
             invalid("demo and paymentStatus are inconsistent")
         }
@@ -745,6 +803,12 @@ class FulfillmentService(
                 }
             }
         }
+    }
+
+    private fun effectivePaymentStatus(request: StorefrontOrderCreatedRequest, paymentAuthority: String?): String {
+        if (request.paymentStatus != "paid") return request.paymentStatus
+        if (request.paymentMethod == "cash") return "pending"
+        return if (paymentAuthority != null && paymentAuthority in trustedCardPaymentAuthorities) "paid" else "pending"
     }
 
     private fun parseStatus(value: String): FulfillmentStatus = runCatching {

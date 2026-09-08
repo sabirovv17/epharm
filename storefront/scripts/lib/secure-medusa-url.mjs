@@ -1,5 +1,4 @@
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
-const LEGACY_HTTP_ORIGIN = "http://78.140.246.238:9000";
 
 export function secureMedusaUrl(rawValue) {
   const raw = String(rawValue || "").trim();
@@ -16,12 +15,11 @@ export function secureMedusaUrl(rawValue) {
   }
   const loopbackHttp = url.protocol === "http:"
     && LOOPBACK_HOSTS.has(url.hostname.toLowerCase());
-  const legacyHttp = url.protocol === "http:"
-    && process.env.MEDUSA_ALLOW_INSECURE_LEGACY_HTTP === "true"
-    && url.origin === LEGACY_HTTP_ORIGIN
-    && url.pathname === "/";
-  if (url.protocol !== "https:" && !loopbackHttp && !legacyHttp) {
-    throw new Error("MEDUSA_URL must use HTTPS; HTTP requires loopback or the explicit legacy origin opt-in");
+  if (url.protocol !== "https:" && !loopbackHttp) {
+    throw new Error("MEDUSA_URL must use HTTPS; HTTP is allowed only for loopback development");
+  }
+  if (url.pathname !== "/") {
+    throw new Error("MEDUSA_URL must be an origin without a path");
   }
   if (url.search || url.hash) {
     throw new Error("MEDUSA_URL must not contain a query string or fragment");

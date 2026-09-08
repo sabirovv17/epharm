@@ -3,9 +3,8 @@
 /// ПРОД (по умолчанию): `USE_API=true`, `API_BASE=https://epharm.inkar.kz`.
 /// Релизная сборка без флагов идёт на прод (fail-safe) — на localhost она бы 100%
 /// не работала на реальном устройстве.
-/// Если HTTPS-вход временно недоступен, клиент повторяет только сетевой сбой через
-/// строго заданный fallback `http://epharm.inkar.kz:8060`. Это временная мера до
-/// исправления ingress: HTTP не должен становиться постоянным production-каналом.
+/// Production-сборка не имеет cleartext fallback. Резервный origin можно передать
+/// через `API_FALLBACK_BASE_URL`, но для релиза он также должен быть HTTPS.
 ///
 /// Для боевой сборки можно явно переопределить адрес через `API_BASE`.
 ///
@@ -26,11 +25,11 @@ class ApiConfig {
   static const String baseUrl = String.fromEnvironment('API_BASE',
       defaultValue: 'https://epharm.inkar.kz');
 
-  /// Временный запасной origin. Его можно отключить в отдельной сборке пустым
-  /// `API_FALLBACK_BASE_URL`; произвольный HTTP-host через UI не принимается.
+  /// Запасной origin выключен по умолчанию. CI/release-процесс не задаёт его,
+  /// пока не появится второй проверенный HTTPS ingress.
   static const String fallbackBaseUrl = String.fromEnvironment(
     'API_FALLBACK_BASE_URL',
-    defaultValue: 'http://epharm.inkar.kz:8060',
+    defaultValue: '',
   );
 
   static List<String> get fallbackBaseUrls {

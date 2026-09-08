@@ -1,0 +1,41 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /admin-panel/frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      admin-production:
+        dependency-type: production
+      admin-development:
+        dependency-type: development
+
+  - package-ecosystem: npm
+    directory: /storefront
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      storefront-production:
+        dependency-type: production
+      storefront-development:
+        dependency-type: development
+
+  - package-ecosystem: gradle
+    directory: /admin-panel/backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: pub
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

@@ -20,6 +20,7 @@ namespace CustomerDisplay
         private FulfillmentCredentialStore? _fulfillmentCredentialStore;
         private FulfillmentOrderCache? _fulfillmentCache;
         private FulfillmentDeviceCredential? _fulfillmentCredential;
+        private bool _configuredDeviceCredentialRejected;
         private readonly FulfillmentRetrySchedule _fulfillmentRegistrationRetry = new();
         private readonly PharmacistNoticeCoordinator _pharmacistNotices = new();
         private FulfillmentNoticeWindow? _fulfillmentNotice;
@@ -188,6 +189,20 @@ namespace CustomerDisplay
             _fulfillmentCredential ??= _fulfillmentCredentialStore.Load(deviceId, pharmacyId);
             if (_fulfillmentCredential != null) return _fulfillmentCredential;
 
+            // Production DeviceKey is already the individually provisioned POSM token and is
+            // accepted by both recommendation and fulfillment APIs. Try it once before invoking
+            // the transitional fleet-key registration endpoint used by old pilot installs.
+            if (!_configuredDeviceCredentialRejected && _posmConfig.DeviceKey.Trim().Length >= 32)
+            {
+                _fulfillmentCredential = new FulfillmentDeviceCredential
+                {
+                    DeviceId = deviceId,
+                    PharmacyId = pharmacyId,
+                    Token = _posmConfig.DeviceKey.Trim(),
+                };
+                return _fulfillmentCredential;
+            }
+
             var now = DateTimeOffset.UtcNow;
             if (!_fulfillmentRegistrationRetry.CanAttempt(now)) return null;
 
@@ -217,6 +232,8 @@ namespace CustomerDisplay
             lock (_fulfillmentSync) _fulfillmentOnline = false;
             if (result.IsUnauthorized)
             {
+                if (_posmConfig != null && _fulfillmentCredential?.Token == _posmConfig.DeviceKey.Trim())
+                    _configuredDeviceCredentialRejected = true;
                 _fulfillmentCredentialStore?.Delete();
                 _fulfillmentCredential = null;
             }

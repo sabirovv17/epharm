@@ -76,9 +76,8 @@ Medusa credentials. Edit:
   ClickHouse container address reachable from the PIM host;
 - `/srv/inkar-shop/config/image-import.env`: only for reviewed SKU image import.
 
-For the one explicitly supported legacy Medusa HTTP endpoint, use that exact URL
-with `MEDUSA_ALLOW_INSECURE_LEGACY_HTTP=true`; never enable this for another host
-and remove it as soon as Medusa receives TLS.
+Do not enable Medusa until operations provide a reachable HTTPS origin and the
+publishable key, sales channel and region pass the repository smoke test.
 
 ### Private ClickHouse tunnel
 

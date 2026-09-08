@@ -15,7 +15,8 @@ import org.springframework.stereotype.Component
 
 /**
  * Прод-инициализация (только профиль prod):
- *  1) fail-fast: не стартуем на дефолтных dev-секретах (JWT_SECRET / POSM_DEVICE_KEY) —
+ *  1) fail-fast: не стартуем на дефолтных dev-секретах (JWT_SECRET и переходный
+ *     POSM_DEVICE_KEY, только когда legacy enrollment явно включён) —
  *     иначе кто угодно может подделать токены/прикинуться кассой;
  *  2) bootstrap первого admin-аккаунта HQ-консоли из env, если таблица пуста —
  *     иначе в прод-консоль вообще не войти (DevDataSeeder только под profile=dev).
@@ -30,6 +31,7 @@ class ProdBootstrap(
     private val passwordEncoder: PasswordEncoder,
     @Value("\${app.jwt.secret}") private val jwtSecret: String,
     @Value("\${app.posm.device-key}") private val posmDeviceKey: String,
+    @Value("\${app.posm.legacy-device-key-enabled:false}") private val legacyPosmKeyEnabled: Boolean,
     @Value("\${app.bootstrap.admin-email:}") private val bootstrapEmail: String,
     @Value("\${app.bootstrap.admin-password:}") private val bootstrapPassword: String,
     @Value("\${app.bootstrap.admin-name:HQ Admin}") private val bootstrapName: String,
@@ -44,7 +46,7 @@ class ProdBootstrap(
             "JWT_SECRET не задан (используется dev-дефолт). Сгенерируй уникальный " +
                 "(openssl rand -base64 48) и задай в .env.prod."
         }
-        require(posmDeviceKey != DEV_POSM_DEFAULT) {
+        require(!legacyPosmKeyEnabled || posmDeviceKey != DEV_POSM_DEFAULT) {
             "POSM_DEVICE_KEY не задан (используется dev-дефолт). Задай уникальный в .env.prod."
         }
 

@@ -4,7 +4,7 @@ Database: PostgreSQL 16.
 
 Migrations: Flyway files in `admin-panel/backend/src/main/resources/db/migration/`.
 
-Current migration range: V001-V041.
+Current migration range: V001-V046.
 
 ## Migrations
 
@@ -51,6 +51,11 @@ Current migration range: V001-V041.
 | V039    | `mobile_otp_provider`                  | Records which provider owns verification for each OTP request.               |
 | V040    | `lms_course_lessons`                   | Editable LMS lessons and uploaded video lesson metadata.                     |
 | V041    | `pos_sale_receipt_capture`             | Standard-N document/capture metadata and pharmacy/document lookup index.     |
+| V042    | `pos_sale_fiscal_artifact_metadata`    | Exact fiscal artifact manifest, hash and trusted-source metadata.            |
+| V043    | `order_fulfillment`                    | Storefront order queue, mappings, devices, audit and monotonic update feed.  |
+| V044    | `standardn_pharmacist_mapping`         | Explicit pharmacy/external USER_ID mapping plus immutable change audit.      |
+| V045    | `signed_posm_update_manifest`          | ECDSA manifest signature stored with every POSM release.                     |
+| V046    | `fulfillment_payment_authority`        | Claimed vs trusted payment status and server-side payment authority.         |
 
 ## Domain Tables
 

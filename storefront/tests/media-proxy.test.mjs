@@ -8,7 +8,7 @@ import {
   resolveMedusaStaticUrl,
 } from "../src/lib/medusa-media-proxy.ts";
 
-const BASE = "http://medusa.internal:9000";
+const BASE = "https://medusa.example.test";
 const STATIC_PATH = "/static/1784545609759-19F5DBA7-C3FD-4502-BFE4-0876F4E50569.jpg";
 
 function mediaRequest(path = STATIC_PATH) {
@@ -56,6 +56,7 @@ test("GET streams image bytes with bounded request and safe cache headers", asyn
     });
   };
   process.env.MEDUSA_URL = BASE;
+  process.env.MEDUSA_ENABLED = "true";
   try {
     const response = await GET(mediaRequest());
     assert.equal(response.status, 200);
@@ -70,6 +71,7 @@ test("GET streams image bytes with bounded request and safe cache headers", asyn
   } finally {
     globalThis.fetch = originalFetch;
     delete process.env.MEDUSA_URL;
+    delete process.env.MEDUSA_ENABLED;
   }
 });
 
@@ -83,6 +85,7 @@ test("HEAD uses upstream HEAD and returns headers without a body", async () => {
     });
   };
   process.env.MEDUSA_URL = BASE;
+  process.env.MEDUSA_ENABLED = "true";
   try {
     const response = await HEAD(mediaRequest());
     assert.equal(response.status, 200);
@@ -92,6 +95,7 @@ test("HEAD uses upstream HEAD and returns headers without a body", async () => {
   } finally {
     globalThis.fetch = originalFetch;
     delete process.env.MEDUSA_URL;
+    delete process.env.MEDUSA_ENABLED;
   }
 });
 
@@ -122,8 +126,15 @@ test("timeout aborts upstream fetch and HEAD errors never include a body", async
   assert.equal(timeout.status, 504);
   assert.deepEqual(await timeout.json(), { error: "media_timeout" });
 
-  const invalidHead = await HEAD(mediaRequest("https://evil.example/static/a.jpg"));
-  assert.equal(invalidHead.status, 400);
-  assert.equal(invalidHead.body, null);
-  assert.equal(invalidHead.headers.get("cache-control"), "no-store");
+  process.env.MEDUSA_URL = BASE;
+  process.env.MEDUSA_ENABLED = "true";
+  try {
+    const invalidHead = await HEAD(mediaRequest("https://evil.example/static/a.jpg"));
+    assert.equal(invalidHead.status, 400);
+    assert.equal(invalidHead.body, null);
+    assert.equal(invalidHead.headers.get("cache-control"), "no-store");
+  } finally {
+    delete process.env.MEDUSA_URL;
+    delete process.env.MEDUSA_ENABLED;
+  }
 });

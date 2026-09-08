@@ -12,6 +12,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
+import org.springframework.web.servlet.resource.NoResourceFoundException
 
 /**
  * Единая точка превращения исключений в JSON `ApiErrorResponse` с машинным ErrorCode.
@@ -85,8 +86,20 @@ class GlobalExceptionHandler {
     }
 
     /**
-     * Все стандартные Spring-MVC исключения (404 NoResourceFound, 405 MethodNotSupported,
-     * 415 MediaTypeNotSupported, ResponseStatusException, …) — единый супертип в Spring 6.
+     * Неизвестный MVC/static-resource route. NoResourceFoundException реализует ErrorResponse,
+     * но не наследует ErrorResponseException, поэтому без отдельной ветки попадал в catch-all 500.
+     */
+    @ExceptionHandler(NoResourceFoundException::class)
+    fun handleNoResource(ex: NoResourceFoundException): ResponseEntity<ApiErrorResponse> {
+        log.debug("No resource for {} {}", ex.httpMethod, ex.resourcePath)
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+            ApiErrorResponse(code = ErrorCode.NOT_FOUND, message = "Маршрут не найден"),
+        )
+    }
+
+    /**
+     * Стандартные Spring-MVC исключения-наследники этого типа (405 MethodNotSupported,
+     * 415 MediaTypeNotSupported, …). MVC 404 обрабатывается отдельной веткой выше.
      * Сохраняем их HTTP-статус, маппим в наш код по семейству.
      */
     @ExceptionHandler(ErrorResponseException::class)

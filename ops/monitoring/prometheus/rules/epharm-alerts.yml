@@ -1,0 +1,177 @@
+groups:
+  - name: epharm-availability
+    rules:
+      - alert: EpharmPublicEndpointDown
+        expr: probe_success{job="blackbox"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Epharm public endpoint is unavailable'
+          description: '{{ $labels.instance }} has failed external probes for more than 2 minutes.'
+
+      - alert: EpharmBackendDown
+        expr: up{job="backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Epharm backend is not scrapeable'
+          description: 'Prometheus cannot reach backend metrics for more than 1 minute.'
+
+      - alert: EpharmPostgresDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Epharm PostgreSQL is unavailable'
+          description: 'postgres_exporter cannot query the production database.'
+
+      - alert: EpharmRedisDown
+        expr: redis_up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Epharm Redis is unavailable'
+          description: 'redis_exporter cannot query Redis.'
+
+      - alert: EpharmMinioDown
+        expr: up{job="minio"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Epharm MinIO metrics endpoint is unavailable'
+          description: 'Prometheus cannot reach the MinIO cluster metrics endpoint.'
+
+  - name: epharm-api-slo
+    rules:
+      - alert: EpharmApiHighErrorRate
+        expr: |
+          (
+            sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+            /
+            clamp_min(sum(rate(http_server_requests_seconds_count[5m])), 0.001)
+          ) > 0.05
+          and sum(rate(http_server_requests_seconds_count[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Epharm API 5xx rate exceeds 5%'
+          description: 'The backend 5xx ratio has remained above 5% for 10 minutes.'
+
+      - alert: EpharmApiP95LatencyHigh
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(http_server_requests_seconds_bucket[5m]))
+          ) > 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Epharm API p95 latency exceeds 1 second'
+          description: 'Server-side p95 latency has remained above 1 second for 15 minutes.'
+
+  - name: epharm-capacity
+    rules:
+      - alert: EpharmHostDiskSpaceLow
+        expr: |
+          (
+            node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"}
+            /
+            node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs"}
+          ) < 0.15
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Epharm host filesystem has less than 15% free space'
+          description: '{{ $labels.mountpoint }} on {{ $labels.instance }} is running low on space.'
+
+      - alert: EpharmHostDiskSpaceCritical
+        expr: |
+          (
+            node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"}
+            /
+            node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs"}
+          ) < 0.07
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Epharm host filesystem has less than 7% free space'
+          description: '{{ $labels.mountpoint }} on {{ $labels.instance }} is critically low on space.'
+
+      - alert: EpharmPostgresConnectionsHigh
+        expr: sum(pg_stat_activity_count) / clamp_min(sum(pg_settings_max_connections), 1) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'PostgreSQL connection utilization exceeds 80%'
+          description: 'Connection headroom is low; inspect the Hikari pool and long-running sessions.'
+
+      - alert: EpharmMinioCapacityLow
+        expr: |
+          minio_cluster_capacity_usable_free_bytes
+          /
+          clamp_min(minio_cluster_capacity_usable_total_bytes, 1) < 0.15
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'MinIO has less than 15% usable capacity remaining'
+          description: 'Object storage capacity is low; expand or clean the MinIO data volume.'
+
+      - alert: EpharmContainerRestarting
+        expr: increase(container_start_time_seconds{name=~"epharm-.+"}[15m]) > 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Epharm container is repeatedly restarting'
+          description: '{{ $labels.name }} restarted more than once in 15 minutes.'
+
+  - name: epharm-backups
+    rules:
+      - alert: EpharmBackupMetricsMissing
+        expr: |
+          absent(epharm_backup_last_success_timestamp_seconds{component="postgres"})
+          or absent(epharm_backup_last_success_timestamp_seconds{component="minio"})
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Required backup metrics are missing'
+          description: 'The PostgreSQL or MinIO backup job has not published a success metric.'
+
+      - alert: EpharmBackupStale
+        expr: time() - epharm_backup_last_success_timestamp_seconds > 129600
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Epharm {{ $labels.component }} backup is stale'
+          description: 'No successful backup has been recorded for more than 36 hours.'
+
+      - alert: EpharmRestoreTestMetricsMissing
+        expr: absent(epharm_restore_test_last_success_timestamp_seconds)
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Restore-test metric is missing'
+          description: 'No isolated restore-test success metric has been published.'
+
+      - alert: EpharmRestoreTestStale
+        expr: time() - epharm_restore_test_last_success_timestamp_seconds > 691200
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Epharm restore-test is stale'
+          description: 'No successful isolated restore-test has been recorded for more than 8 days.'

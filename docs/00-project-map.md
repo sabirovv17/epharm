@@ -45,7 +45,7 @@ PharmaPayV2/
 
 | Модуль          | Код                                              | Тесты                      | Ключевые файлы                                                                                                                           |
 | --------------- | ------------------------------------------------ | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| **Backend**     | `admin-panel/backend/src/main/kotlin/kz/epharm/` | `src/test/kotlin/`         | `application.yml` (вся конфигурация + env-переменные); Flyway: `src/main/resources/db/migration/` (V001–V039)                            |
+| **Backend**     | `admin-panel/backend/src/main/kotlin/kz/epharm/` | `src/test/kotlin/`         | `application.yml` (вся конфигурация + env-переменные); Flyway: `src/main/resources/db/migration/` (V001–V046)                            |
 | **Админ-фронт** | `admin-panel/frontend/src/`                      | `*.test.tsx` рядом с кодом | `features/*/Page.tsx` (12 разделов), `lib/api-types.ts`, `lib/queries/*`, `i18n/dict.ts` (ru+kk)                                         |
 | **Мобилка**     | `lib/`                                           | `test/`                    | `core/config/api_config.dart` (USE_API/API_BASE), `core/network/api_client.dart`, `features/*/{data,application,presentation}`           |
 | **POSM**        | `App/` + `Models/`                               | ручное на VM               | `MainWindow.xaml.cs` (лог кассы), `MainWindow.Recommendations.cs`, `Services/` (Api/Outbox/MediaCache/Updater), `Config/EpharmConfig.cs` |
@@ -92,7 +92,7 @@ PharmaPayV2/
 | ------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | Прод-сервер               | `adm-quasar@inkpim.inkar.kz`, каталог `/home/adm-quasar/epharm` | деплой = git archive + scp + compose build                                      |
 | Публичный хост            | `https://epharm.inkar.kz`                                       | `/api`→backend, `/s3`→MinIO, `/`→админка                                        |
-| Medusa (витрина inkar.kz) | `http://78.140.246.238:9000`                                    | каталог/цены/фото; ключи в application.yml                                      |
+| Medusa (витрина inkar.kz) | новый HTTPS-origin ожидается от ops                             | каталог/цены/фото; отключён fail-closed до smoke-test                           |
 | Daribar OTP gateway       | `https://prod-backoffice.daribar.com/api/v2/{sms,auth}`         | SMS и проверка кода на стороне Daribar; ключи агрегатора в ePharm не передаются |
 | p1sms (legacy fallback)   | `https://admin.p1sms.kz/apiSms/create`                          | используется только при явном `OTP_PROVIDER=p1sms`                              |
 | Стандарт-Н ДЕМО           | VM пользователя, `C:\Standart-N_DEMO`                           | Firebird `db/ztrade.fdb` (localhost, SYSDBA/masterkey), лог `Kassir/zkassa.log` |

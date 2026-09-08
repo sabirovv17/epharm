@@ -67,7 +67,8 @@ Required non-default secrets:
 - `POSTGRES_PASSWORD`;
 - `MINIO_ROOT_PASSWORD`;
 - `JWT_SECRET`;
-- `POSM_DEVICE_KEY`;
+- `POSM_UPDATE_PUBLIC_KEY_SPKI` (public, but pinned and release-controlled);
+- `POSM_DEVICE_KEY` only during an explicitly enabled legacy enrollment window;
 - `ADMIN_BOOTSTRAP_EMAIL`;
 - `ADMIN_BOOTSTRAP_PASSWORD`;
 - `ACME_EMAIL`;
@@ -83,9 +84,11 @@ Important current values/policies:
 - Live storefront/PIM/SSH credentials are documented in their existing credential files and must not be
   copied elsewhere.
 
-## Deploy From Git
+## Immutable deploy and rollback
 
-The server deploy dir is not necessarily a git checkout. The reproducible deploy pattern is:
+The deployable source snapshot may still be copied to a non-git server directory, but application
+images must be built once under an immutable git tag and then started without rebuilding. The full
+contract is in `20-reliability-and-release.md`.
 
 ```bash
 git archive --format=tar.gz -o /tmp/epharm-deploy.tar.gz HEAD \
@@ -94,30 +97,26 @@ git archive --format=tar.gz -o /tmp/epharm-deploy.tar.gz HEAD \
 scp /tmp/epharm-deploy.tar.gz adm-quasar@inkpim.inkar.kz:/tmp/
 ```
 
-On the server:
+After copying the tagged snapshot and creating the same tag in the server checkout/build workspace:
 
 ```bash
 cd /home/adm-quasar/epharm
-tar xzf /tmp/epharm-deploy.tar.gz admin-panel/backend admin-panel/frontend Caddyfile
-bash tools/pg-backup.sh
-docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build backend frontend caddy
+tar xzf /tmp/epharm-deploy.tar.gz
+./tools/release/prepare.sh v1.0.0
+./tools/release/deploy.sh v1.0.0
 ```
 
-When deploying only frontend, prefer:
-
-```bash
-docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build --no-deps frontend
-```
-
-without `--no-deps`, Compose may recreate backend because frontend depends on it.
+Do not perform frontend-only mutable production builds. Backend and frontend share one release id so
+health, Sentry and rollback evidence always identify a coherent deployment. Use
+`./tools/release/rollback.sh <previous-tag>` for application rollback.
 
 ## POSM Fleet Auto-update
 
 Existing POSM v1.0.46+ installations poll `GET /api/posm/app/version` at least every five minutes.
 Legacy v1.0.44 installations use the former 30-minute interval, so a fleet rollout must be observed
 for at least one full legacy interval before coverage is reported.
-Until the external INKAR HTTPS ingress is repaired, API metadata can arrive through
-`http://epharm.inkar.kz:8060`, but the executable archive itself must use HTTPS. Publish production
+Current POSM rejects the old remote HTTP `:8060` route, so a working public HTTPS ingress is a hard
+rollout prerequisite. Publish production
 archives in the public artifact-only repository `sabirovv17/epharm-posm-releases`; do not make the
 private source repository public merely to distribute binaries.
 
@@ -130,9 +129,11 @@ Release gate:
    branch URL for production.
 4. Download the final CDN URL anonymously with a Range request; verify ZIP integrity, size, and
    SHA-256. Repeat the check against the GitHub release recovery asset.
-5. Back up the `app_releases` table, then register the commit-pinned HTTPS URL and exact SHA-256 as
-   the current `win-x64` release.
-6. Monitor backend `POSM update check` logs and Redis presence telemetry until active version-reporting
+5. Run `tools/sign-posm-release.sh` with the offline P-256 key. Confirm its public SPKI matches the
+   backend environment and the independently provisioned POSM config.
+6. Back up `app_releases`, then register the HTTPS URL, exact SHA-256 and manifest signature as the
+   current `win-x64` release. Tampered URL/hash/signature must fail acceptance.
+7. Monitor backend `POSM update check` logs and Redis presence telemetry until active version-reporting
    devices move to the target version. Offline devices update at their next launch/network session.
 
 The updater deliberately preserves `C:\Epharm\posm.json`, so the pharmacy ID and device configuration
@@ -157,14 +158,12 @@ docker logs epharm-caddy --tail 100
 
 ## Backups
 
-`tools/pg-backup.sh` creates compressed Postgres dumps. Before migrations/deploys, run it manually.
-Production should also have a cron/off-site backup and a tested restore procedure.
-
-Example cron:
-
-```cron
-0 3 * * * /home/adm-quasar/epharm/tools/pg-backup.sh >> /home/adm-quasar/epharm/backups/backup.log 2>&1
-```
+`tools/backup-all.sh` creates atomic, checksummed PostgreSQL and MinIO artifacts and then copies them
+to an encrypted restic repository with independent retention. systemd runs it daily. A weekly
+`tools/restore-test.sh` restores into isolated disposable containers and exports success metrics.
+Installation, failure semantics and restore acceptance are documented in
+`20-reliability-and-release.md`. A backup is not accepted until both local and off-site copies plus a
+recent restore-test are visible in monitoring.
 
 ## Known Operational Risks
 

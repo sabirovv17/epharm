@@ -11,19 +11,32 @@ import java.time.Instant
  */
 data class AppVersionDto(
     val current: Boolean,
+    val platform: String,
     val version: String,
     val url: String,
     val sha256: String,
+    val manifestSignature: String,
     val mandatory: Boolean,
     val notes: String,
 ) {
     companion object {
-        fun none() = AppVersionDto(current = false, version = "", url = "", sha256 = "", mandatory = false, notes = "")
+        fun none() = AppVersionDto(
+            current = false,
+            platform = "",
+            version = "",
+            url = "",
+            sha256 = "",
+            manifestSignature = "",
+            mandatory = false,
+            notes = "",
+        )
         fun of(e: AppReleaseEntity) = AppVersionDto(
             current = true,
+            platform = e.platform,
             version = e.version,
             url = e.url,
             sha256 = e.sha256,
+            manifestSignature = e.manifestSignature,
             mandatory = e.mandatory,
             notes = e.notes,
         )
@@ -40,6 +53,8 @@ data class RegisterReleaseRequest(
     val platform: String = "win-x64",
     @field:Size(max = 128)
     val sha256: String = "",
+    @field:NotBlank @field:Size(max = 256)
+    val manifestSignature: String,
     val mandatory: Boolean = false,
     @field:Size(max = 1024)
     val notes: String = "",
@@ -51,6 +66,7 @@ data class AppReleaseDto(
     val version: String,
     val url: String,
     val sha256: String,
+    val manifestSignature: String,
     val mandatory: Boolean,
     val notes: String,
     val isCurrent: Boolean,
@@ -59,6 +75,7 @@ data class AppReleaseDto(
     companion object {
         fun of(e: AppReleaseEntity) = AppReleaseDto(
             id = e.id, platform = e.platform, version = e.version, url = e.url, sha256 = e.sha256,
+            manifestSignature = e.manifestSignature,
             mandatory = e.mandatory, notes = e.notes, isCurrent = e.isCurrent, createdAt = e.createdAt,
         )
     }

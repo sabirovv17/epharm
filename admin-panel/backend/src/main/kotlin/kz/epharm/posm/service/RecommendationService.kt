@@ -114,8 +114,9 @@ class RecommendationService(
      * (no-op без ошибки), чтобы outbox-пинг не зацикливался на 404, если событие не дошло.
      */
     @Transactional
-    fun markDisplayed(eventId: String, shownAt: Instant) {
+    fun markDisplayed(eventId: String, shownAt: Instant, expectedPharmacyId: String? = null) {
         val event = eventRepository.findById(eventId).orElse(null) ?: return
+        if (expectedPharmacyId != null && event.pharmacyId != expectedPharmacyId) return
         if (event.displayedAt == null) {
             event.displayedAt = shownAt
             eventRepository.save(event)
@@ -123,9 +124,12 @@ class RecommendationService(
     }
 
     @Transactional
-    fun recordOutcome(eventId: String, req: OutcomeRequest): OutcomeResponse {
+    fun recordOutcome(eventId: String, req: OutcomeRequest, expectedPharmacyId: String? = null): OutcomeResponse {
         val event = eventRepository.findById(eventId).orElseThrow {
             AppException(ErrorCode.NOT_FOUND, "Recommendation $eventId not found", HttpStatus.NOT_FOUND)
+        }
+        if (expectedPharmacyId != null && event.pharmacyId != expectedPharmacyId) {
+            throw AppException(ErrorCode.NOT_FOUND, "Recommendation $eventId not found", HttpStatus.NOT_FOUND)
         }
         // Идемпотентность: решение уже зафиксировано — возвращаем как есть.
         if (event.outcome != RecommendationOutcome.shown) {

@@ -29,8 +29,9 @@ dotnet run -r win-x64
 {
   "Enabled": true,
   "BackendBaseUrl": "https://epharm.inkar.kz",
-  "BackendFallbackBaseUrls": ["http://epharm.inkar.kz:8060"],
-  "DeviceKey": "<POSM_DEVICE_KEY>",
+  "BackendFallbackBaseUrls": [],
+  "UpdateManifestPublicKeySpki": "<BASE64_DER_ECDSA_P256_PUBLIC_KEY>",
+  "DeviceKey": "<INDIVIDUAL_DEVICE_TOKEN>",
   "PharmacistId": "u_smoke",
   "PharmacyId": "ph_smoke",
   "ScreenMode": "dev",
@@ -38,10 +39,9 @@ dotnet run -r win-x64
 }
 ```
 
-The first URL is preferred. POSM automatically falls back to `http://epharm.inkar.kz:8060` only when
-the HTTPS gateway does not respond correctly, then probes HTTPS again every five minutes. Keep this
-value as an origin, without `/login`; POSM makes API calls under `/api/posm/*`. Remove the HTTP
-fallback when the external HTTPS gateway is live.
+The first URL is preferred. Only HTTPS remote fallbacks are accepted; remote plain HTTP (including
+the former `:8060` route) is rejected. Keep origins without `/login`; POSM makes API calls under
+`/api/posm/*`. HTTP remains available only for localhost development.
 
 Use local backend with:
 
@@ -115,7 +115,7 @@ Check for:
 | Symptom                    | Check                                                                           |
 | -------------------------- | ------------------------------------------------------------------------------- |
 | No popup                   | Log line read? Barcode present? Active campaign/rule exists? Backend reachable? |
-| 401 from POSM API          | Wrong `DeviceKey`.                                                              |
+| 401 from POSM API          | Token missing/revoked or issued to another device/pharmacy.                     |
 | Empty customer screen      | No active broadcast playlist or POSM disabled.                                  |
 | Video black in VM          | Disable video or use physical/GPU-backed Windows.                               |
 | Broken Cyrillic item names | Log was not written as cp1251.                                                  |

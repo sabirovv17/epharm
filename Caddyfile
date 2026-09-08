@@ -22,19 +22,12 @@
 		reverse_proxy minio:9000
 	}
 
-	# Архивы POSM содержат исполняемый код и доступны только клиентам с валидным
-	# device key. AppUpdater отправляет X-Posm-Key при каждом скачивании.
-	@authorized_posm_download {
-		path /downloads/*
-		header X-Posm-Key {$POSM_DEVICE_KEY}
-	}
-	handle @authorized_posm_download {
-		uri strip_prefix /downloads
+	# Архивы POSM не содержат секретов и могут кешироваться как статические файлы.
+	# Доверие обеспечивается не общим fleet-key, а pinned ECDSA-подписью manifest и
+	# SHA-256, которые клиент проверяет до установки. Приватный signing key сюда не попадает.
+	handle_path /downloads/* {
 		root * /srv/epharm-downloads
 		file_server
-	}
-	handle /downloads/* {
-		respond 404
 	}
 
 	# API для касс (/api/posm), телефонов (/api/mobile) и самой админки.

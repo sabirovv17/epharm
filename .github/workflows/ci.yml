@@ -1,163 +1,414 @@
 name: CI
 
-# 'on' в кавычках — YAML 1.1 интерпретирует bare on как boolean True.
 "on":
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
   pull-requests: read
 
+env:
+  NODE_VERSION: 24.15.0
+  FLUTTER_VERSION: 3.27.1
+
 jobs:
-  # ────────────────────────────────────────────────────────────────
-  # Admin frontend (React 19 + Vite + TS + Tailwind)
-  # ────────────────────────────────────────────────────────────────
-  frontend-lint:
-    name: frontend / lint
+  repo-quality:
+    name: repo / workflow and shell lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Lint GitHub Actions workflows
+        uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 # v2.2.0
+        with:
+          version: 1.7.12
+      - name: Lint repository shell scripts
+        run: >-
+          find tools ops load-tests -type f \( -name '*.sh' -o -name '*.bash' \) -print0
+          | xargs -0 shellcheck --severity=warning
+
+  ops-contract:
+    name: ops / config contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Validate shell syntax and executable bits
+        run: |
+          find tools ops load-tests -type f \( -name '*.sh' -o -name '*.bash' \) -print0 | xargs -0 -n1 bash -n
+          if find tools ops load-tests -type f \( -name '*.sh' -o -name '*.bash' \) ! -perm -111 -print -quit | grep -q .; then
+            echo 'Every shell script must be executable.' >&2
+            exit 1
+          fi
+      - name: Validate production Compose model
+        env:
+          POSTGRES_PASSWORD: ci-postgres-password
+          MINIO_ROOT_PASSWORD: ci-minio-password
+          JWT_SECRET: ci-jwt-secret-at-least-thirty-two-characters
+          POSM_DEVICE_KEY: ci-posm-device-key
+          POSM_UPDATE_PUBLIC_KEY_SPKI: ci-posm-update-public-key
+          FULFILLMENT_SHARED_SECRET: ${{ format('ci-fulfillment-{0}-at-least-32-characters', github.run_id) }}
+          ADMIN_BOOTSTRAP_EMAIL: ci@example.invalid
+          ADMIN_BOOTSTRAP_PASSWORD: ci-admin-password
+          S3_PUBLIC_URL: https://example.invalid/s3
+          ACME_EMAIL: ci@example.invalid
+          API_DOMAIN: example.invalid
+          ADMIN_DOMAIN: admin.example.invalid
+          S3_DOMAIN: s3.example.invalid
+        run: docker compose --env-file .env.prod.example -f docker-compose.prod.yml --profile monitoring config --quiet
+      - name: Validate monitoring and Apple metadata
+        run: |
+          docker run --rm --entrypoint promtool -v "$PWD/ops/monitoring/prometheus:/etc/prometheus:ro" prom/prometheus:v3.5.0 check config /etc/prometheus/prometheus.yml
+          python3 -m json.tool ops/monitoring/grafana/dashboards/epharm-overview.json >/dev/null
+          python3 - <<'PY'
+          import plistlib
+          for path in ('ios/Runner/Info.plist', 'ios/Runner/PrivacyInfo.xcprivacy'):
+              with open(path, 'rb') as handle:
+                  plistlib.load(handle)
+          PY
+
+  p0-config:
+    name: P0 / config policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: ./tools/check-p0-config.sh
+
+  admin:
+    name: admin / lint, typecheck, test and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: admin-panel/frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '22'
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: admin-panel/frontend/package-lock.json
       - run: npm ci
+      - run: npm audit --audit-level=low
       - run: npm run lint
-
-  frontend-typecheck:
-    name: frontend / typecheck
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: admin-panel/frontend
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: admin-panel/frontend/package-lock.json
-      - run: npm ci
-      - run: npx tsc --noEmit
-
-  frontend-test:
-    name: frontend / test
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: admin-panel/frontend
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: admin-panel/frontend/package-lock.json
-      - run: npm ci
+      - run: npm exec -- tsc --noEmit
       - run: npm test
-
-  frontend-build:
-    name: frontend / build
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: admin-panel/frontend
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: admin-panel/frontend/package-lock.json
-      - run: npm ci
       - run: npm run build
 
-  # ────────────────────────────────────────────────────────────────
-  # Backend (Kotlin 2.0 + Spring Boot 3.3)
-  # ────────────────────────────────────────────────────────────────
-  backend-build:
-    name: backend / build
+  storefront:
+    name: storefront / lint, test and build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
-        working-directory: admin-panel/backend
+        working-directory: storefront
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          distribution: temurin
-          java-version: '22'
-      - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew build -x test
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: storefront/package-lock.json
+      - run: npm ci
+      - run: npm audit --audit-level=low
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
 
-  backend-test:
-    name: backend / test
+  backend:
+    name: backend / unit, integration and build
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     defaults:
       run:
         working-directory: admin-panel/backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
         with:
           distribution: temurin
-          java-version: '22'
-      - uses: gradle/actions/setup-gradle@v4
-      # Backend integration tests запускают свой Postgres через Testcontainers — Docker
-      # уже доступен в ubuntu-latest, отдельный service не нужен.
-      - run: ./gradlew test
-      - name: Upload test reports
+          java-version: "22"
+      - uses: gradle/actions/setup-gradle@67621b124fd2e251c5e8a0e6e3b91318f2287669 # v6.3.0
+      - run: ./gradlew --no-daemon clean build
+      - name: Upload backend test reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: backend-test-reports
           path: admin-panel/backend/build/reports/tests/test/
+          if-no-files-found: ignore
           retention-days: 7
 
-  # POSM core tests are platform-neutral; the WPF application itself is compiled on Windows.
-  posm-core-test:
+  admin-e2e:
+    name: admin / browser e2e against backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      E2E_BACKEND_URL: http://127.0.0.1:18080
+      SERVER_PORT: 18080
+      SPRING_DEVTOOLS_RESTART_ENABLED: "false"
+      VITE_API_BASE_URL: http://127.0.0.1:18080
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: "22"
+      - uses: gradle/actions/setup-gradle@67621b124fd2e251c5e8a0e6e3b91318f2287669 # v6.3.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: admin-panel/frontend/package-lock.json
+      - name: Start development infrastructure
+        run: |
+          docker compose up -d --wait postgres redis minio
+          docker compose run --rm minio-init
+      - name: Start backend and wait for readiness
+        env:
+          SPRING_PROFILES_ACTIVE: dev
+        run: |
+          nohup admin-panel/backend/gradlew --no-daemon -p admin-panel/backend bootRun >"$RUNNER_TEMP/backend.log" 2>&1 &
+          echo $! >"$RUNNER_TEMP/backend.pid"
+          for _attempt in {1..90}; do
+            if curl --fail --silent "$E2E_BACKEND_URL/api/health" >/dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$(cat "$RUNNER_TEMP/backend.pid")" 2>/dev/null; then
+              cat "$RUNNER_TEMP/backend.log" >&2
+              exit 1
+            fi
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/backend.log" >&2
+          exit 1
+      - name: Install browser dependencies
+        working-directory: admin-panel/frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Run Playwright suite
+        working-directory: admin-panel/frontend
+        run: npm run test:e2e
+      - name: Upload E2E evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: admin-e2e-evidence
+          path: |
+            admin-panel/frontend/playwright-report/
+            admin-panel/frontend/test-results/
+            ${{ runner.temp }}/backend.log
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Stop E2E infrastructure
+        if: always()
+        run: |
+          if [[ -f "$RUNNER_TEMP/backend.pid" ]]; then
+            kill "$(cat "$RUNNER_TEMP/backend.pid")" 2>/dev/null || true
+          fi
+          docker compose down --volumes --remove-orphans
+
+  containers:
+    name: container / ${{ matrix.name }} production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend
+            context: admin-panel/backend
+          - name: admin
+            context: admin-panel/frontend
+          - name: storefront
+            context: storefront
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build production image
+        env:
+          IMAGE_NAME: epharm-ci-${{ matrix.name }}
+          BUILD_CONTEXT: ${{ matrix.context }}
+        run: docker build --pull --tag "$IMAGE_NAME:${GITHUB_SHA::12}" "$BUILD_CONTEXT"
+
+  mobile-android:
+    name: mobile / analyze, test and Android build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Run mobile static and unit gate
+        env:
+          FLUTTER_BIN: ${{ env.FLUTTER_ROOT }}/bin/flutter
+        run: ./tools/mobile-release-check.sh
+      - name: Compile Android debug artifact
+        run: >-
+          flutter build apk --debug
+          --dart-define=USE_API=true
+          --dart-define=API_BASE=https://epharm.inkar.kz
+
+  mobile-ios:
+    name: mobile / iOS simulator build
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Run mobile gate and compile iOS
+        env:
+          BUILD_IOS_SIMULATOR: "true"
+          FLUTTER_BIN: ${{ env.FLUTTER_ROOT }}/bin/flutter
+          RELEASE_ID: ci-${{ github.sha }}
+        run: ./tools/mobile-release-check.sh
+
+  posm-core:
     name: posm / core tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: 10.0.x
       - run: dotnet test App.Tests/CustomerDisplay.Core.Tests.csproj -c Release
 
-  posm-windows-build:
-    name: posm / windows build
+  posm-windows:
+    name: posm / Windows production build
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: 10.0.x
       - run: dotnet build App/CustomerDisplay.csproj -c Release -p:EnableWindowsTargeting=true
 
-  # ────────────────────────────────────────────────────────────────
-  # Repo-уровневые проверки (PR-only)
-  # ────────────────────────────────────────────────────────────────
-  commitlint:
-    name: commitlint
+  codeql:
+    name: security / CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [csharp, java-kotlin, javascript-typescript]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+      - uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
+        with:
+          category: /language:${{ matrix.language }}
+
+  dependency-review:
+    name: security / dependency review
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: low
+
+  commitlint:
+    name: repo / PR title
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '22'
-      - run: npm install --no-save @commitlint/cli@19 @commitlint/config-conventional@19
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
       - name: Validate PR title (Conventional Commits)
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
-        run: echo "$PR_TITLE" | npx --no -- commitlint --config commitlint.config.cjs
+        run: printf '%s\n' "$PR_TITLE" | npm exec -- commitlint --config commitlint.config.cjs
+
+  p0-gate:
+    name: P0 / merge gate
+    if: always()
+    needs:
+      - repo-quality
+      - ops-contract
+      - p0-config
+      - admin
+      - storefront
+      - backend
+      - admin-e2e
+      - containers
+      - mobile-android
+      - mobile-ios
+      - posm-core
+      - posm-windows
+      - codeql
+      - dependency-review
+      - commitlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every applicable check
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REPO_QUALITY: ${{ needs.repo-quality.result }}
+          OPS_CONTRACT: ${{ needs.ops-contract.result }}
+          P0_CONFIG: ${{ needs.p0-config.result }}
+          ADMIN: ${{ needs.admin.result }}
+          STOREFRONT: ${{ needs.storefront.result }}
+          BACKEND: ${{ needs.backend.result }}
+          ADMIN_E2E: ${{ needs.admin-e2e.result }}
+          CONTAINERS: ${{ needs.containers.result }}
+          MOBILE_ANDROID: ${{ needs.mobile-android.result }}
+          MOBILE_IOS: ${{ needs.mobile-ios.result }}
+          POSM_CORE: ${{ needs.posm-core.result }}
+          POSM_WINDOWS: ${{ needs.posm-windows.result }}
+          CODEQL: ${{ needs.codeql.result }}
+          DEPENDENCY_REVIEW: ${{ needs.dependency-review.result }}
+          COMMITLINT: ${{ needs.commitlint.result }}
+        run: |
+          required=(
+            "$REPO_QUALITY" "$OPS_CONTRACT" "$P0_CONFIG" "$ADMIN" "$STOREFRONT"
+            "$BACKEND" "$ADMIN_E2E" "$CONTAINERS" "$MOBILE_ANDROID" "$MOBILE_IOS"
+            "$POSM_CORE" "$POSM_WINDOWS" "$CODEQL"
+          )
+          for result in "${required[@]}"; do
+            test "$result" = success || exit 1
+          done
+          if [[ "$EVENT_NAME" = pull_request ]]; then
+            test "$DEPENDENCY_REVIEW" = success
+            test "$COMMITLINT" = success
+          else
+            test "$DEPENDENCY_REVIEW" = skipped
+            test "$COMMITLINT" = skipped
+          fi

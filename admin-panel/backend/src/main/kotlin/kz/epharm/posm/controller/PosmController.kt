@@ -1,7 +1,6 @@
 package kz.epharm.posm.controller
 
 import jakarta.validation.Valid
-import java.security.MessageDigest
 import kz.epharm.cdp.dto.CdpLookupRequest
 import kz.epharm.cdp.dto.CdpLookupResponse
 import kz.epharm.cdp.dto.CdpProfileDto
@@ -19,15 +18,12 @@ import kz.epharm.posm.dto.PosSaleResponse
 import kz.epharm.posm.dto.RecommendRequest
 import kz.epharm.posm.dto.RecommendResponse
 import kz.epharm.posm.service.DevicePresenceService
+import kz.epharm.posm.service.PosmDeviceAuthenticationService
 import kz.epharm.posm.service.PosmPharmacistIdentityService
 import kz.epharm.posm.service.PosSaleService
 import kz.epharm.posm.service.RecommendationService
 import kz.epharm.screens.dto.ActivePlaylistDto
 import kz.epharm.screens.service.ScreenService
-import kz.epharm.shared.error.AppException
-import kz.epharm.shared.error.ErrorCode
-import org.springframework.beans.factory.annotation.Value
-import org.springframework.http.HttpStatus
 import org.slf4j.LoggerFactory
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -42,8 +38,9 @@ import org.springframework.web.bind.annotation.RestController
  * Module 2 (POSM в Стандарт-Н) — API кассового клиента (ТЗ §4).
  *
  * Аутентификация устройства — заголовок `X-Posm-Key`. Пути под `api/posm` в SecurityConfig
- * permitAll (JWT-фильтр пропускает), реальная защита — проверка ключа здесь. На MVP ключ
- * общий из конфига; в prod — ключ-на-устройство в БД (Stage 4).
+ * permitAll (JWT-фильтр пропускает), реальная защита — проверка ключа здесь. В production
+ * принимаются только индивидуальные отзываемые ключи устройств; fleet key оставлен как
+ * отключаемое переходное окно регистрации.
  */
 @RestController
 @RequestMapping("/api/posm")
@@ -55,7 +52,7 @@ class PosmController(
     private val appReleaseService: AppReleaseService,
     private val devicePresenceService: DevicePresenceService,
     private val pharmacistIdentityService: PosmPharmacistIdentityService,
-    @Value("\${app.posm.device-key:dev-posm-key}") private val deviceKey: String,
+    private val deviceAuthentication: PosmDeviceAuthenticationService,
 ) {
     private val log = LoggerFactory.getLogger(PosmController::class.java)
 
@@ -64,7 +61,7 @@ class PosmController(
         @RequestHeader(name = "X-Posm-Key", required = false) key: String?,
         @Valid @RequestBody req: RecommendRequest,
     ): RecommendResponse {
-        requireDeviceKey(key)
+        deviceAuthentication.authenticate(key, claimedPharmacyId = req.pharmacyId)
         val identity = pharmacistIdentityService.resolve(
             pharmacyId = req.pharmacyId,
             reportedPharmacistId = req.pharmacistId,
@@ -79,8 +76,8 @@ class PosmController(
         @RequestHeader(name = "X-Posm-Key", required = false) key: String?,
         @Valid @RequestBody req: OutcomeRequest,
     ): OutcomeResponse {
-        requireDeviceKey(key)
-        return recommendationService.recordOutcome(eventId, req)
+        val device = deviceAuthentication.authenticate(key)
+        return recommendationService.recordOutcome(eventId, req, device.pharmacyId)
     }
 
     /**
@@ -93,8 +90,8 @@ class PosmController(
         @RequestHeader(name = "X-Posm-Key", required = false) key: String?,
         @Valid @RequestBody req: MarkShownRequest,
     ): MarkShownResponse {
-        requireDeviceKey(key)
-        recommendationService.markDisplayed(eventId, req.shownAt)
+        val device = deviceAuthentication.authenticate(key)
+        recommendationService.markDisplayed(eventId, req.shownAt, device.pharmacyId)
         return MarkShownResponse(eventId = eventId, ok = true)
     }
 
@@ -104,7 +101,7 @@ class PosmController(
         @RequestHeader(name = "X-Posm-Key", required = false) key: String?,
         @Valid @RequestBody req: PosSaleRequest,
     ): PosSaleResponse {
-        requireDeviceKey(key)
+        deviceAuthentication.authenticate(key, claimedPharmacyId = req.pharmacyId)
         val identity = pharmacistIdentityService.resolve(
             pharmacyId = req.pharmacyId,
             reportedPharmacistId = req.pharmacistId,
@@ -124,8 +121,8 @@ class PosmController(
         @RequestHeader(name = "X-Posm-Key", required = false) key: String?,
         @RequestParam(required = false) pharmacyId: String?,
     ): ActivePlaylistDto {
-        requireDeviceKey(key)
-        return screenService.activePlaylistForScreen(pharmacyId)
+        val device = deviceAuthentication.authenticate(key, claimedPharmacyId = pharmacyId)
+        return screenService.activePlaylistForScreen(pharmacyId ?: device.pharmacyId)
     }
 
     /**
@@ -139,7 +136,7 @@ class PosmController(
         @RequestParam(required = false) deviceId: String?,
         @RequestParam(required = false) currentVersion: String?,
     ): AppVersionDto {
-        requireDeviceKey(key)
+        deviceAuthentication.authenticate(key, claimedDeviceId = deviceId, touchLastSeen = true)
         val release = appReleaseService.currentFor(platform)
         log.info(
             "POSM update check: deviceId={}, currentVersion={}, targetVersion={}, platform={}",
@@ -163,14 +160,19 @@ class PosmController(
         @RequestParam(required = false) monitorCount: Int?,
         @RequestParam(required = false) appVersion: String?,
     ): HeartbeatResponse {
-        requireDeviceKey(key)
-        // deviceId необязателен — на MVP fallback на сам ключ (одно устройство).
-        val id = deviceId?.takeIf { it.isNotBlank() } ?: "posm"
+        val device = deviceAuthentication.authenticate(
+            key,
+            claimedPharmacyId = pharmacyId,
+            claimedDeviceId = deviceId,
+            touchLastSeen = true,
+        )
+        val id = deviceId?.takeIf { it.isNotBlank() } ?: device.deviceId ?: "posm"
+        val effectivePharmacyId = pharmacyId?.takeIf { it.isNotBlank() } ?: device.pharmacyId
         // Старые клиенты не передают monitorCount. Некорректное значение игнорируем, чтобы
         // heartbeat оставался fail-safe и касса не выпадала из online-списка.
         devicePresenceService.heartbeat(
             id,
-            pharmacyId,
+            effectivePharmacyId,
             monitorCount = monitorCount?.takeIf { it in 1..16 },
             appVersion = appVersion
                 ?.trim()
@@ -185,7 +187,7 @@ class PosmController(
         @RequestHeader(name = "X-Posm-Key", required = false) key: String?,
         @Valid @RequestBody req: CdpLookupRequest,
     ): CdpLookupResponse {
-        requireDeviceKey(key)
+        deviceAuthentication.authenticate(key)
         return cdpService.lookup(req.phone)
     }
 
@@ -195,17 +197,8 @@ class PosmController(
         @RequestHeader(name = "X-Posm-Key", required = false) key: String?,
         @Valid @RequestBody req: CdpRegisterRequest,
     ): CdpProfileDto {
-        requireDeviceKey(key)
+        deviceAuthentication.authenticate(key)
         return cdpService.register(req)
     }
 
-    private fun requireDeviceKey(key: String?) {
-        // Сравнение в постоянное время (MessageDigest.isEqual) — не даёт подобрать ключ
-        // по таймингу. Длины могут различаться → сравниваем как байты, isEqual это терпит.
-        if (key.isNullOrBlank() ||
-            !MessageDigest.isEqual(key.toByteArray(Charsets.UTF_8), deviceKey.toByteArray(Charsets.UTF_8))
-        ) {
-            throw AppException(ErrorCode.UNAUTHORIZED, "Invalid or missing POSM device key", HttpStatus.UNAUTHORIZED)
-        }
-    }
 }

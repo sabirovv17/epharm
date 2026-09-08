@@ -28,25 +28,36 @@ import org.springframework.web.client.RestClient
  */
 @Component
 class MedusaClient(
-    @Value("\${app.medusa.enabled:true}") private val enabled: Boolean,
+    @Value("\${app.medusa.enabled:false}") private val enabled: Boolean,
     @Value("\${app.medusa.base-url:}") private val baseUrl: String,
     @Value("\${app.medusa.publishable-key:}") private val publishableKey: String,
     @Value("\${app.medusa.sales-channel-id:}") private val salesChannelId: String,
     @Value("\${app.medusa.region-id:}") private val regionId: String,
-    @Value("\${app.medusa.timeout-ms:6000}") private val timeoutMs: Int,
+    @Value("\${app.medusa.connect-timeout-ms:2000}") private val connectTimeoutMs: Int,
+    @Value("\${app.medusa.read-timeout-ms:6000}") private val readTimeoutMs: Int,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    /** Клиент активен только при заданных URL + ключе и enabled=true. */
-    val active: Boolean = enabled && baseUrl.isNotBlank() && publishableKey.isNotBlank()
+    private val normalizedBaseUrl = MedusaEndpointPolicy.validate(
+        enabled = enabled,
+        rawBaseUrl = baseUrl,
+        publishableKey = publishableKey,
+        salesChannelId = salesChannelId,
+        regionId = regionId,
+        connectTimeoutMs = connectTimeoutMs,
+        readTimeoutMs = readTimeoutMs,
+    )
+
+    /** Disabled means an immediate empty-catalog response; enabled misconfiguration aborts startup. */
+    val active: Boolean = normalizedBaseUrl != null
 
     private val rest: RestClient by lazy {
         val factory = SimpleClientHttpRequestFactory().apply {
-            setConnectTimeout(timeoutMs)
-            setReadTimeout(timeoutMs)
+            setConnectTimeout(connectTimeoutMs)
+            setReadTimeout(readTimeoutMs)
         }
         RestClient.builder()
-            .baseUrl(baseUrl.trimEnd('/'))
+            .baseUrl(checkNotNull(normalizedBaseUrl))
             .requestFactory(factory)
             .defaultHeader("x-publishable-api-key", publishableKey)
             .build()

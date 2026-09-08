@@ -25,10 +25,9 @@ Intended shared environment:
 https://epharm.inkar.kz
 ```
 
-As of 2026-07-21 the external corporate gateway presents an expired `*.inteq.kz` certificate and
-returns `404` for `/api/health`; the trusted
-`http://epharm.inkar.kz:8060/api/health` upstream returns `200`. Public 443 must not be considered
-healthy until IT fixes Host/SNI routing. POSM temporarily retains the `:8060` API fallback.
+The 2026-07-21 gateway inspection found an expired certificate and a working private HTTP upstream.
+That is historical diagnostics, not an accepted client route: current POSM rejects every remote HTTP
+origin, including `:8060`. Public HTTPS must pass health/SNI verification before rollout.
 
 It is one public host behind Caddy:
 
@@ -62,6 +61,8 @@ public endpoint unless `.env.prod` and `Caddyfile` are changed together.
 | `16-posm-v1.0.47-receipt-capture.md`      | Безопасный захват состава чека, PNG, outbox/ACK и пилотные критерии.           |
 | `17-posm-exact-fiscal-receipt.md`         | Exact-only контракт оригинала ККМ/OFD, валидация, retention и пилотный gate.   |
 | `19-order-fulfillment.md`                 | Надежная доставка интернет-заказов из витрины в Epharm/POSM и rollout.         |
+| `20-reliability-and-release.md`           | Backup/restore, monitoring, Sentry, releases, load testing and TestFlight.     |
+| `20-production-acceptance.md`             | Единый доказательный P1 runbook: обучение, POSM, mapping и fulfillment pilot.  |
 | `TRAINING-TEST-GUIDE.md`                  | Сквозная проверка обучения: админка, приложение, QR, сертификат и роли.        |
 | `RUNBOOK.md`                              | Day-to-day local startup, reset, tests, and production commands.               |
 | `DEV-ONBOARDING.md`                       | Run mobile app on Android/iPhone against shared backend.                       |

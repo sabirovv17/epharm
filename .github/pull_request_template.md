@@ -9,7 +9,7 @@
   ci(scope): CI-конфиг
   perf(scope): производительность
 
-scope = admin | backend | mobile | posm | infra | repo
+scope = admin | backend | storefront | mobile | posm | ops | infra | repo
 -->
 
 ## Что изменилось
@@ -32,8 +32,10 @@ scope = admin | backend | mobile | posm | infra | repo
 
 - [ ] Тесты добавлены / обновлены (unit / integration / e2e)
 - [ ] `npm run lint && npx tsc --noEmit` зелёное (если затронут frontend)
+- [ ] `npm run lint && npm test && npm run build` зелёное (если затронут storefront)
 - [ ] `./gradlew build test` зелёное (если затронут backend)
 - [ ] `flutter analyze && flutter test` зелёное (если затронут lib/)
+- [ ] Production Docker/Compose и browser E2E проверки зелёные
 - [ ] `admin-panel/claude-admin-notes.md` или `docs/claude-notes.md` обновлён, если решение нетривиальное
 - [ ] Нет секретов (`.env`, keystore, API-ключей) в diff'е
 - [ ] PR — атомарный (одна фича / один баг), не сборная солянка

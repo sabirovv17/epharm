@@ -1,0 +1,18 @@
+{
+  "releaseId": "v1.0.0-build.1",
+  "testFlightBuild": "1.0.0 (1)",
+  "testedAt": "2026-09-08T12:00:00Z",
+  "testedBy": "replace-with-reviewer-name",
+  "device": "replace-with-physical-iPhone-model-and-iOS-version",
+  "checks": {
+    "testFlightInstalled": false,
+    "privacyReportReviewed": false,
+    "cameraReceiptCapture": false,
+    "qrTrainingScan": false,
+    "deepLinkColdStart": false,
+    "deepLinkWarmStart": false,
+    "sessionRestoredAfterProcessKill": false,
+    "httpsEndpointUnavailableHandled": false
+  },
+  "notes": "Attach App Store Connect build URL and issue links in the release ticket. Do not put secrets or personal data here."
+}

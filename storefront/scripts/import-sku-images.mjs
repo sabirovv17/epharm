@@ -25,6 +25,7 @@ import {
 } from "node:fs/promises";
 import { basename, dirname, extname, relative, resolve } from "node:path";
 import process from "node:process";
+import { secureMedusaUrl } from "./lib/secure-medusa-url.mjs";
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 const PRODUCT_PAGE_SIZE = 100;
@@ -569,13 +570,7 @@ async function main() {
   const imagesInfo = await stat(imagesDir);
   if (!imagesInfo.isDirectory()) throw new Error("--images-dir must point to a directory");
 
-  const medusaUrlObject = new URL(requiredEnvironment("MEDUSA_URL"));
-  if (!["http:", "https:"].includes(medusaUrlObject.protocol)) {
-    throw new Error("MEDUSA_URL must use http:// or https://");
-  }
-  if (medusaUrlObject.username || medusaUrlObject.password) {
-    throw new Error("Do not embed credentials in MEDUSA_URL");
-  }
+  const medusaUrlObject = secureMedusaUrl(requiredEnvironment("MEDUSA_URL"));
   const medusaUrl = medusaUrlObject.toString().replace(/\/$/, "");
   const email = requiredEnvironment("MEDUSA_ADMIN_EMAIL");
   const password = requiredEnvironment("MEDUSA_ADMIN_PASSWORD");

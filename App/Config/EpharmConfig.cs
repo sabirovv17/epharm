@@ -16,13 +16,17 @@ namespace CustomerDisplay.Config
         public bool Enabled { get; set; } = false;
         public string BackendBaseUrl { get; set; } = "http://localhost:8080";
         /// <summary>
-        /// Резервные origin URL backend по приоритету. Нужны, когда основной публичный HTTPS
-        /// ingress ещё настраивается: POSM продолжает работать через доверенный HTTP fallback.
+        /// Резервные HTTPS origin URL backend по приоритету.
         /// Путь здесь не указывается: API-клиент сам добавляет /api/posm/*.
         /// env EPHARM_BACKEND_FALLBACK_URLS: URL через ; или ,.
         /// </summary>
         public List<string> BackendFallbackBaseUrls { get; set; } = new();
         public string DeviceKey { get; set; } = "dev-posm-key";
+        /// <summary>
+        /// Base64 DER SubjectPublicKeyInfo independently provisioned with the POSM installation.
+        /// Empty means every remote update is rejected (fail-closed).
+        /// </summary>
+        public string UpdateManifestPublicKeySpki { get; set; } = "";
         public string PharmacistId { get; set; } = "";
         public string PharmacyId { get; set; } = "";
         public int RecommendTimeoutMs { get; set; } = 5000;
@@ -187,6 +191,9 @@ namespace CustomerDisplay.Config
             }
             cfg.BackendFallbackBaseUrls ??= new List<string>();
             cfg.DeviceKey = Env("EPHARM_POSM_KEY", cfg.DeviceKey);
+            cfg.UpdateManifestPublicKeySpki = Env(
+                "EPHARM_UPDATE_PUBLIC_KEY_SPKI",
+                cfg.UpdateManifestPublicKeySpki);
             cfg.PharmacistId = Env("EPHARM_PHARMACIST_ID", cfg.PharmacistId);
             cfg.PharmacyId = Env("EPHARM_PHARMACY_ID", cfg.PharmacyId);
             if (Env("EPHARM_FULFILLMENT_ENABLED", cfg.FulfillmentEnabled ? "true" : "false") == "false")
@@ -294,7 +301,7 @@ namespace CustomerDisplay.Config
             return cfg;
         }
 
-        /// <summary>Список HTTP(S) origin для failover без path/query/fragment и без дублей.</summary>
+        /// <summary>HTTPS origins (plus loopback HTTP for development) without path/query/fragment.</summary>
         public IReadOnlyList<Uri> GetBackendBaseUris()
         {
             var rawUrls = new List<string> { BackendBaseUrl };
@@ -328,7 +335,8 @@ namespace CustomerDisplay.Config
             {
                 if (string.IsNullOrWhiteSpace(raw) ||
                     !Uri.TryCreate(raw.Trim(), UriKind.Absolute, out var parsed) ||
-                    (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps))
+                    (parsed.Scheme != Uri.UriSchemeHttps &&
+                     !(parsed.Scheme == Uri.UriSchemeHttp && parsed.IsLoopback)))
                 {
                     continue;
                 }
@@ -338,7 +346,8 @@ namespace CustomerDisplay.Config
             }
 
             if (endpoints.Count == 0)
-                throw new InvalidOperationException($"{name} URL must be an absolute HTTP(S) origin.");
+                throw new InvalidOperationException(
+                    $"{name} URL must be an absolute HTTPS origin (HTTP is allowed only on loopback).");
 
             return endpoints;
         }

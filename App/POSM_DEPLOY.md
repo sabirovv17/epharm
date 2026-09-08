@@ -23,8 +23,9 @@ config, and scripts. Do not deploy `dotnet run` as production.
 {
   "Enabled": true,
   "BackendBaseUrl": "https://epharm.inkar.kz",
-  "BackendFallbackBaseUrls": ["http://epharm.inkar.kz:8060"],
-  "DeviceKey": "<POSM_DEVICE_KEY>",
+  "BackendFallbackBaseUrls": [],
+  "UpdateManifestPublicKeySpki": "<BASE64_DER_ECDSA_P256_PUBLIC_KEY>",
+  "DeviceKey": "<INDIVIDUAL_DEVICE_TOKEN>",
   "PharmacistId": "",
   "PharmacyId": "ph_smoke",
   "ScreenMode": "prod",
@@ -53,10 +54,10 @@ config, and scripts. Do not deploy `dotnet run` as production.
 Every key can be overridden by env variables. See `App/scripts/README-distrib.md`.
 
 `BackendBaseUrl` is the preferred public HTTPS origin. `BackendFallbackBaseUrls` is an ordered list
-of temporary alternatives: the client switches to it after a gateway/network failure and retries the
-HTTPS origin every five minutes. Specify an origin only, never `/login`: POSM appends `/api/posm/*`
-itself. The `:8060` fallback is plain HTTP and must be removed after the HTTPS gateway is available.
-It is not used for automatic application updates: release ZIP downloads remain HTTPS-only.
+of HTTPS alternatives: the client switches after a gateway/network failure and retries the primary
+origin every five minutes. Specify an origin only, never `/login`: POSM appends `/api/posm/*`
+itself. Remote HTTP origins, including the former `:8060` fallback, are rejected. HTTP is accepted
+only for loopback development.
 
 ## One-Click Pharmacy Install
 
@@ -123,12 +124,22 @@ Release flow:
 
 1. Publish new version with bumped `-p:Version=...`.
 2. Zip the published folder without `posm.json`; pharmacy configuration must remain local.
-3. Upload zip to a URL reachable by cash desks.
-4. Calculate SHA256.
-5. Register via admin API `/api/admin/app-releases`.
+3. Upload zip to a public HTTPS URL reachable by cash desks. It must contain no secret or `posm.json`.
+4. Sign the exact manifest with the offline ECDSA P-256 private key:
 
-The client downloads only HTTPS URLs and verifies SHA256 before applying.
-The download endpoint also requires the client's `X-Posm-Key` header.
+   ```bash
+   tools/sign-posm-release.sh private-key.pem win-x64 1.0.52 \
+     https://epharm.inkar.kz/downloads/epharm-1.0.52.zip release.zip false
+   ```
+
+5. Register `platform`, `version`, `url`, `sha256`, `mandatory` and `manifestSignature` via
+   `/api/admin/app-releases`. The public SPKI printed by the tool must independently match both
+   `POSM_UPDATE_PUBLIC_KEY_SPKI` on backend and `UpdateManifestPublicKeySpki` on every cash desk.
+
+The private key stays offline and must never enter the repository, server or cash desk. The client
+downloads only HTTPS, verifies the pinned signature over URL/hash/version/platform, then verifies the
+ZIP SHA-256 before applying. Release files are public/cacheable; the individual device token is never
+sent to their origin.
 
 ## Internet Order Fulfillment
 
@@ -144,11 +155,12 @@ not need to be replaced. The backend feature flag and closed device-registration
 feature dark until operations explicitly opens a controlled rollout. Set
 `fulfillmentEnabled=false` or `EPHARM_FULFILLMENT_ENABLED=false` for a local emergency disable.
 
-On first use POSM exchanges the fleet bootstrap key for a random per-device token and protects that
-token with Windows DPAPI for the current cash-desk user. Backend enrollment is closed by default:
-operations may set `FULFILLMENT_DEVICE_REGISTRATION_ENABLED=true` only for a controlled registration
-window, verify the expected `(pharmacyId, deviceId)` rows, and immediately set it back to `false`.
-Closing enrollment does not revoke existing tokens. Tokens can be revoked individually in HQ.
+Before installation, HQ provisions the approved `(pharmacyId, deviceId)` in **Исполнение → Кассы**.
+The one-time token is copied into that cash desk's `DeviceKey`; POSM protects the fulfillment copy
+with Windows DPAPI. The same token is scoped to that pharmacy across POSM endpoints and can be revoked
+individually in HQ. Fleet-key exchange remains only as an explicitly enabled migration window:
+operations may temporarily set both legacy/key registration switches, reconcile the resulting rows,
+then close them immediately. It is not the normal rollout path.
 
 The local queue is paginated and cached atomically. Another till can complete an order without
 leaving a stale open card: POSM resolves the terminal state of any card no longer returned by the
@@ -232,9 +244,8 @@ from a persistent `.part` file after a network interruption, retry four times, v
 SHA-256, and poll for the next release at least every five minutes. Update apply diagnostics are kept
 in `C:\Epharm\update.log`.
 
-Bootstrap releases must be downloadable from the same pharmacy networks that call the version API.
-An old client can reach the API through the HTTP `:8060` fallback while still being unable to fetch
-an `https://epharm.inkar.kz/...` package URL. For v1.0.46 the compact, credential-free bridge is also
+Bootstrap releases must be downloadable over HTTPS from the pharmacy networks that call the version
+API. For v1.0.46 the compact, credential-free bridge is also
 published as a GitHub Release asset and that HTTPS asset is used as the current release URL. Keep the
 identical ZIP on the application server as an operational mirror, verify both copies against the
 registered SHA-256, and never include `posm.json`, a device key, or pharmacy-specific data in a public

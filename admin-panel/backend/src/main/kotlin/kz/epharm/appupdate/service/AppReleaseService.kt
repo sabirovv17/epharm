@@ -12,6 +12,7 @@ import java.util.UUID
 @Service
 class AppReleaseService(
     private val appReleaseRepository: AppReleaseRepository,
+    private val manifestVerifier: AppUpdateManifestVerifier,
 ) {
 
     /** Текущий релиз для платформы (для кассы). Нет — AppVersionDto.none(). */
@@ -31,6 +32,7 @@ class AppReleaseService(
      */
     @Transactional
     fun register(req: RegisterReleaseRequest): AppReleaseDto {
+        manifestVerifier.validate(req)
         appReleaseRepository.findAllByPlatformAndIsCurrentTrue(req.platform).forEach {
             it.isCurrent = false
             appReleaseRepository.save(it)
@@ -42,6 +44,7 @@ class AppReleaseService(
                 version = req.version.trim(),
                 url = req.url.trim(),
                 sha256 = req.sha256.trim(),
+                manifestSignature = req.manifestSignature.trim(),
                 mandatory = req.mandatory,
                 notes = req.notes.trim(),
                 isCurrent = true,

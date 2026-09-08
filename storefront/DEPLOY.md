@@ -43,7 +43,7 @@ module.exports = {
         NODE_ENV: 'production',
         PORT: 3000,
         HOSTNAME: '127.0.0.1',
-        MEDUSA_URL: 'http://78.140.246.238:9000',
+        MEDUSA_URL: 'https://medusa.example.kz',
         MEDUSA_PUBLISHABLE_KEY: '<set-in-secrets-env>',
         MEDUSA_SALES_CHANNEL: 'sc_01KRXGQFYXMJN3FD1WJ7S83WME',
         MEDUSA_REGION: 'reg_01KSBNEH2D4GVJN8EATK79WNSH',
@@ -88,7 +88,10 @@ sudo nginx -t && sudo systemctl reload nginx
 ```bash
 curl -I http://127.0.0.1:3000        # локально жив
 curl -I http://SERVER_IP             # через Nginx
-curl -s http://78.140.246.238:9000/health   # доступен ли Medusa с этого сервера
+MEDUSA_BASE_URL="$MEDUSA_URL" \
+MEDUSA_SALES_CHANNEL_ID="$MEDUSA_SALES_CHANNEL" \
+MEDUSA_REGION_ID="$MEDUSA_REGION" \
+../tools/smoke-medusa.sh                         # HTTPS, auth и минимальный каталог
 curl -fsS http://127.0.0.1:3000/api/health          # liveness, без внешних запросов
 curl -fsS http://127.0.0.1:3000/api/health?deep=1   # readiness: Medusa + Postgres + миграции
 ```

@@ -3,18 +3,40 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'app.dart';
 import 'core/network/card_store.dart';
 import 'core/network/image_cache_config.dart';
 
-void main() {
-  // Глобальный перехват необработанных ошибок (async/zone). Логируем —
-  // НЕ подменяя UI: отдельные экраны показывают свои ошибки сами (snackbar/inline).
-  // TODO(P1): отправлять в Sentry.
-  runZonedGuarded(_bootstrap, (error, stack) {
-    debugPrint('Необработанная ошибка: $error\n$stack');
-  });
+Future<void> main() async {
+  await SentryFlutter.init(
+    (options) {
+      options
+        ..dsn = const String.fromEnvironment('SENTRY_DSN')
+        ..environment = const String.fromEnvironment(
+          'APP_ENVIRONMENT',
+          defaultValue: 'development',
+        )
+        ..release =
+            'epharm-mobile@${const String.fromEnvironment('RELEASE_ID', defaultValue: 'dev')}'
+        ..tracesSampleRate = _sentryTracesSampleRate()
+        ..sendDefaultPii = false
+        ..enableAutoSessionTracking = true
+        // Receipt photos can contain personal data; never attach UI screenshots.
+        ..attachScreenshot = false;
+    },
+    appRunner: _bootstrap,
+  );
+}
+
+double _sentryTracesSampleRate() {
+  const raw = String.fromEnvironment(
+    'SENTRY_TRACES_SAMPLE_RATE',
+    defaultValue: '0.05',
+  );
+  final value = double.tryParse(raw);
+  return value != null && value >= 0 && value <= 1 ? value : 0.05;
 }
 
 void _bootstrap() {
@@ -24,10 +46,14 @@ void _bootstrap() {
   // лагов скролла — в MediaImage/MediaCache).
   tuneImageCache();
 
-  // Ошибки фреймворка (build/layout/paint) — в консоль (в release не валят приложение).
+  // Keep the handler installed by Sentry and preserve Flutter's console diagnostics.
+  final sentryFlutterErrorHandler = FlutterError.onError;
   FlutterError.onError = (FlutterErrorDetails details) {
-    FlutterError.presentError(details);
-    debugPrint('FlutterError: ${details.exceptionAsString()}');
+    if (sentryFlutterErrorHandler != null) {
+      sentryFlutterErrorHandler(details);
+    } else {
+      FlutterError.presentError(details);
+    }
   };
 
   final container = ProviderContainer();
@@ -38,5 +64,6 @@ void _bootstrap() {
   // SplashScreen через appStartProvider: он читает персистнутые токены ДО показа
   // онбординга, поэтому залогиненный его не увидит (фикс гонки восстановления сессии).
 
-  runApp(UncontrolledProviderScope(container: container, child: const PharmacyApp()));
+  runApp(UncontrolledProviderScope(
+      container: container, child: const PharmacyApp()));
 }

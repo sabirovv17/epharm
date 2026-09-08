@@ -29,6 +29,8 @@ dependencies {
     implementation(libs.spring.boot.starter.data.redis)
     implementation(libs.spring.boot.starter.validation)
     implementation(libs.spring.boot.starter.actuator)
+    implementation(libs.micrometer.registry.prometheus)
+    implementation(libs.sentry.spring.boot)
 
     implementation(libs.kotlin.reflect)
     implementation(libs.jackson.module.kotlin)

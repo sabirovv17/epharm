@@ -48,6 +48,8 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-epharm}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env.prod}
+      # Metrics stay private on the Docker network; Caddy never routes /minio/*.
+      MINIO_PROMETHEUS_AUTH_TYPE: public
     command: server /data --console-address ":9001"
     expose:
       - '9000' # S3 API — наружу не публикуем, отдаётся через Caddy (s3-домен, TLS)
@@ -79,8 +81,12 @@ services:
     restart: 'no'
 
   backend:
+    image: epharm/backend:${RELEASE_ID:-dev}
     build:
       context: ./admin-panel/backend
+      args:
+        RELEASE_ID: ${RELEASE_ID:-dev}
+        RELEASE_COMMIT: ${RELEASE_COMMIT:-unknown}
     container_name: epharm-backend
     restart: always
     # JVM в контейнере: ограничиваем память, чтобы backend не съел весь RAM сервера
@@ -95,6 +101,11 @@ services:
         condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      APP_ENVIRONMENT: production
+      RELEASE_ID: ${RELEASE_ID:-dev}
+      RELEASE_COMMIT: ${RELEASE_COMMIT:-unknown}
+      SENTRY_DSN: ${SENTRY_BACKEND_DSN:-}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.05}
       # Heap relative к mem_limit контейнера (см. mem_limit: 2g выше).
       JAVA_TOOL_OPTIONS: '-XX:MaxRAMPercentage=65.0'
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-epharm}
@@ -123,38 +134,47 @@ services:
       P1SMS_API_KEY: ${P1SMS_API_KEY:-}
       P1SMS_CHANNEL: ${P1SMS_CHANNEL:-digit}
       P1SMS_SENDER: ${P1SMS_SENDER:-}
-      POSM_DEVICE_KEY: ${POSM_DEVICE_KEY:?set POSM_DEVICE_KEY in .env.prod}
+      # Used only while the explicitly enabled legacy enrollment window is open.
+      POSM_DEVICE_KEY: ${POSM_DEVICE_KEY:-legacy-enrollment-disabled}
+      POSM_LEGACY_DEVICE_KEY_ENABLED: ${POSM_LEGACY_DEVICE_KEY_ENABLED:-false}
+      POSM_UPDATE_PUBLIC_KEY_SPKI: ${POSM_UPDATE_PUBLIC_KEY_SPKI:?set the pinned POSM update public key}
       FULFILLMENT_ENABLED: ${FULFILLMENT_ENABLED:-false}
       FULFILLMENT_SHARED_SECRET: ${FULFILLMENT_SHARED_SECRET:?set FULFILLMENT_SHARED_SECRET (32+ random characters)}
       FULFILLMENT_SIGNATURE_SKEW_SECONDS: ${FULFILLMENT_SIGNATURE_SKEW_SECONDS:-300}
       FULFILLMENT_DEVICE_REGISTRATION_ENABLED: ${FULFILLMENT_DEVICE_REGISTRATION_ENABLED:-false}
+      FULFILLMENT_TRUSTED_CARD_PAYMENT_AUTHORITIES: ${FULFILLMENT_TRUSTED_CARD_PAYMENT_AUTHORITIES:-}
       # Bootstrap первого admin-аккаунта HQ-консоли (ProdBootstrap, profile=prod).
       # Без них admin_users пуста → в консоль не войти.
       ADMIN_BOOTSTRAP_EMAIL: ${ADMIN_BOOTSTRAP_EMAIL:?set ADMIN_BOOTSTRAP_EMAIL in .env.prod}
       ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:?set ADMIN_BOOTSTRAP_PASSWORD in .env.prod}
       ADMIN_BOOTSTRAP_NAME: ${ADMIN_BOOTSTRAP_NAME:-HQ Admin}
       ADMIN_BOOTSTRAP_COMPANY: ${ADMIN_BOOTSTRAP_COMPANY:-Inkar}
-      # Внешняя витрина inkar.kz (Medusa, Module 3) — источник реального каталога.
-      # Бэкенд проксирует /store/* в /api/mobile/catalog/*. Значения по умолчанию заданы
-      # в application.yml; здесь только переопределяем под прод (если витрина переедет на
-      # https://api.inkar.kz). MEDUSA_ENABLED=false полностью выключает каталог в мобилке.
-      # Дефолты = публичные идентификаторы витрины (как в application.yml). НЕ пустые:
-      # пустая строка из env перекрыла бы дефолт Spring и выключила каталог.
-      MEDUSA_ENABLED: ${MEDUSA_ENABLED:-true}
-      MEDUSA_BASE_URL: ${MEDUSA_BASE_URL:-http://78.140.246.238:9000}
-      MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-pk_ed9c35a59066b45de7d9e12510468ca27af16b6d0170b0910c03746545da4525}
-      MEDUSA_SALES_CHANNEL_ID: ${MEDUSA_SALES_CHANNEL_ID:-sc_01KRXGQFYXMJN3FD1WJ7S83WME}
-      MEDUSA_REGION_ID: ${MEDUSA_REGION_ID:-reg_01KSBNEH2D4GVJN8EATK79WNSH}
+      # Внешний Medusa-каталог. Пока новый HTTPS-origin не выдан, интеграция
+      # отключена и отвечает сразу, не ожидая мёртвый legacy IP. При включении
+      # backend валидирует URL/идентификаторы и завершает старт при ошибке.
+      MEDUSA_ENABLED: ${MEDUSA_ENABLED:-false}
+      MEDUSA_BASE_URL: ${MEDUSA_BASE_URL:-}
+      MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-}
+      MEDUSA_SALES_CHANNEL_ID: ${MEDUSA_SALES_CHANNEL_ID:-}
+      MEDUSA_REGION_ID: ${MEDUSA_REGION_ID:-}
+      MEDUSA_CONNECT_TIMEOUT_MS: ${MEDUSA_CONNECT_TIMEOUT_MS:-2000}
+      MEDUSA_READ_TIMEOUT_MS: ${MEDUSA_READ_TIMEOUT_MS:-6000}
     # Наружу не публикуем — доступ только через Caddy (TLS). Внутри сети backend:8080.
     expose:
       - '8080'
 
   frontend:
+    image: epharm/frontend:${RELEASE_ID:-dev}
     build:
       context: ./admin-panel/frontend
       args:
         # Пусто → фронт делает относительные /api запросы, их проксирует nginx на backend.
         VITE_API_BASE_URL: ''
+        VITE_RELEASE_ID: ${RELEASE_ID:-dev}
+        VITE_RELEASE_COMMIT: ${RELEASE_COMMIT:-unknown}
+        VITE_APP_ENVIRONMENT: production
+        VITE_SENTRY_DSN: ${SENTRY_FRONTEND_DSN:-}
+        VITE_SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.05}
     container_name: epharm-frontend
     restart: always
     depends_on:
@@ -183,7 +203,6 @@ services:
       API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN (напр. epharm.inkar.kz) in .env.prod}
       ADMIN_DOMAIN: ${ADMIN_DOMAIN:?set ADMIN_DOMAIN (напр. epharm.inkar.kz) in .env.prod}
       S3_DOMAIN: ${S3_DOMAIN:?set S3_DOMAIN (напр. epharm.inkar.kz) in .env.prod}
-      POSM_DEVICE_KEY: ${POSM_DEVICE_KEY:?set POSM_DEVICE_KEY in .env.prod}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ${TLS_CERT_DIR:-./tls}:/etc/caddy/tls:ro
@@ -191,9 +210,132 @@ services:
       - caddy_data:/data # служебные данные Caddy (переживают рестарт)
       - caddy_config:/config
 
+  # Optional production observability profile:
+  # docker compose --env-file .env.prod --env-file .release.env \
+  #   -f docker-compose.prod.yml --profile monitoring up -d
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: epharm-prometheus
+    restart: always
+    profiles: [monitoring]
+    depends_on:
+      - backend
+      - alertmanager
+      - postgres-exporter
+      - redis-exporter
+      - node-exporter
+      - cadvisor
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}
+      - --web.enable-lifecycle
+    volumes:
+      - ./ops/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./ops/monitoring/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    ports:
+      - '127.0.0.1:${PROMETHEUS_PORT:-9090}:9090'
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    container_name: epharm-alertmanager
+    restart: always
+    profiles: [monitoring]
+    environment:
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+    entrypoint: ['/bin/sh', '/etc/alertmanager/render-and-run.sh']
+    volumes:
+      - ./ops/monitoring/alertmanager/render-and-run.sh:/etc/alertmanager/render-and-run.sh:ro
+      - alertmanager_data:/alertmanager
+    ports:
+      - '127.0.0.1:${ALERTMANAGER_PORT:-9093}:9093'
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.27.0
+    container_name: epharm-blackbox-exporter
+    restart: always
+    profiles: [monitoring]
+    command: ['--config.file=/etc/blackbox_exporter/config.yml']
+    volumes:
+      - ./ops/monitoring/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.17.1
+    container_name: epharm-postgres-exporter
+    restart: always
+    profiles: [monitoring]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATA_SOURCE_URI: postgres:5432/${POSTGRES_DB:-epharm}?sslmode=disable
+      DATA_SOURCE_USER: ${POSTGRES_USER:-epharm}
+      DATA_SOURCE_PASS: ${POSTGRES_PASSWORD}
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.77.0
+    container_name: epharm-redis-exporter
+    restart: always
+    profiles: [monitoring]
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_ADDR: redis://redis:6379
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    container_name: epharm-node-exporter
+    restart: always
+    profiles: [monitoring]
+    command:
+      - --path.rootfs=/host
+      - --collector.textfile.directory=/var/lib/node_exporter/textfile_collector
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+      - ${BACKUP_ROOT:-/var/backups/epharm}/metrics:/var/lib/node_exporter/textfile_collector:ro
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.52.1
+    container_name: epharm-cadvisor
+    restart: always
+    profiles: [monitoring]
+    privileged: true
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    container_name: epharm-grafana
+    restart: always
+    profiles: [monitoring]
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change-me-before-production}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_AUTH_ANONYMOUS_ENABLED: 'false'
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./ops/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./ops/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - '127.0.0.1:${GRAFANA_PORT:-3000}:3000'
+
 volumes:
   postgres_data:
   redis_data:
   minio_data:
   caddy_data:
   caddy_config:
+  prometheus_data:
+  alertmanager_data:
+  grafana_data:

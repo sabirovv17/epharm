@@ -35,6 +35,7 @@ import {
   useFulfillmentFeatureStatus,
   useFulfillmentLinks,
   useFulfillmentOrders,
+  useProvisionPosmDevice,
   useRevokeFulfillmentDevice,
   useSaveFulfillmentLink,
 } from '@/lib/queries/fulfillment'
@@ -74,12 +75,16 @@ function paymentLabel(order: FulfillmentOrderDto) {
     cash_collected: 'наличные получены',
     pending: 'ожидает оплаты',
   }
+  if (order.paymentStatusClaimed === 'paid' && order.paymentStatus !== 'paid') {
+    return `${method[order.paymentMethod] ?? order.paymentMethod} · нет доверенного подтверждения`
+  }
   return `${method[order.paymentMethod] ?? order.paymentMethod} · ${state[order.paymentStatus] ?? order.paymentStatus}`
 }
 
 export default function FulfillmentPage() {
   const [tab, setTab] = useState<PageTab>('orders')
   const statusQ = useFulfillmentFeatureStatus()
+  const pharmaciesQ = usePharmacies()
   const tabs: TabItem<PageTab>[] = [
     { value: 'orders', label: 'Заказы' },
     { value: 'links', label: 'Связи аптек' },
@@ -113,7 +118,11 @@ export default function FulfillmentPage() {
         {tab === 'orders' && <OrdersPanel />}
         {tab === 'links' && <LinksPanel />}
         {tab === 'devices' && (
-          <DevicesPanel registrationEnabled={statusQ.data?.deviceRegistrationEnabled ?? false} />
+          <DevicesPanel
+            registrationEnabled={statusQ.data?.deviceRegistrationEnabled ?? false}
+            legacyKeyEnabled={statusQ.data?.legacyPosmKeyEnabled ?? false}
+            pharmacies={pharmaciesQ.data ?? []}
+          />
         )}
       </div>
     </div>
@@ -660,24 +669,41 @@ function LinksPanel() {
   )
 }
 
-function DevicesPanel({ registrationEnabled }: { registrationEnabled: boolean }) {
+function DevicesPanel({
+  registrationEnabled,
+  legacyKeyEnabled,
+  pharmacies,
+}: {
+  registrationEnabled: boolean
+  legacyKeyEnabled: boolean
+  pharmacies: PharmacyDto[]
+}) {
   const toast = useToast()
   const devicesQ = useFulfillmentDevices()
   const revoke = useRevokeFulfillmentDevice()
+  const provision = useProvisionPosmDevice()
   const devices = devicesQ.data ?? []
+  const [provisioning, setProvisioning] = useState(false)
+  const [issuedToken, setIssuedToken] = useState<string | null>(null)
   return (
     <div>
       <div className="hairline flex items-center justify-between border-b px-5 py-3 text-[12px] text-ink-500">
-        <span>
-          Токены хранятся только в виде хэша. В интерфейсе видна последняя часть для диагностики.
-        </span>
-        <span
-          className={
-            registrationEnabled ? 'font-bold text-accent-success' : 'font-bold text-accent-warning'
-          }
-        >
-          Регистрация {registrationEnabled ? 'открыта' : 'закрыта'}
-        </span>
+        <span>Индивидуальные токены хранятся только в виде хэша и подходят для всех POSM API.</span>
+        <div className="flex items-center gap-3">
+          <span
+            className={
+              registrationEnabled || legacyKeyEnabled
+                ? 'font-bold text-accent-warning'
+                : 'font-bold text-accent-success'
+            }
+          >
+            Fleet-key {legacyKeyEnabled ? 'включён' : 'выключен'} · self-enrollment{' '}
+            {registrationEnabled ? 'открыт' : 'закрыт'}
+          </span>
+          <Button size="sm" onClick={() => setProvisioning(true)}>
+            Выдать ключ кассе
+          </Button>
+        </div>
       </div>
       {devicesQ.isError ? (
         <Empty
@@ -718,12 +744,19 @@ function DevicesPanel({ registrationEnabled }: { registrationEnabled: boolean })
                       variant="danger"
                       size="sm"
                       disabled={revoke.isPending}
-                      onClick={() =>
+                      onClick={() => {
+                        if (
+                          !window.confirm(
+                            `Отозвать доступ кассы ${device.deviceId}? POSM API сразу начнут возвращать 401.`,
+                          )
+                        ) {
+                          return
+                        }
                         revoke.mutate(device.id, {
                           onSuccess: () => toast.push('Доступ кассы отозван'),
                           onError: (error) => toast.push(describeError(error), { kind: 'error' }),
                         })
-                      }
+                      }}
                     >
                       Отозвать
                     </Button>
@@ -738,6 +771,127 @@ function DevicesPanel({ registrationEnabled }: { registrationEnabled: boolean })
           </tbody>
         </table>
       )}
+      {provisioning && (
+        <ProvisionDeviceModal
+          pharmacies={pharmacies}
+          pending={provision.isPending}
+          onClose={() => setProvisioning(false)}
+          onSubmit={(request) => {
+            const existing = devices.find(
+              (device) =>
+                device.active &&
+                device.deviceId.toLowerCase() === request.deviceId.trim().toLowerCase() &&
+                device.pharmacyId === request.pharmacyId,
+            )
+            if (
+              existing &&
+              !window.confirm(
+                `Для ${existing.deviceId} уже есть активный ключ. Выпустить новый и немедленно отозвать старый?`,
+              )
+            ) {
+              return
+            }
+            provision.mutate(request, {
+              onSuccess: (credential) => {
+                setProvisioning(false)
+                setIssuedToken(credential.token)
+              },
+              onError: (error) => toast.push(describeError(error), { kind: 'error' }),
+            })
+          }}
+        />
+      )}
+      {issuedToken && (
+        <IssuedDeviceTokenModal token={issuedToken} onClose={() => setIssuedToken(null)} />
+      )}
     </div>
+  )
+}
+
+function ProvisionDeviceModal({
+  pharmacies,
+  pending,
+  onClose,
+  onSubmit,
+}: {
+  pharmacies: PharmacyDto[]
+  pending: boolean
+  onClose: () => void
+  onSubmit: (request: { deviceId: string; pharmacyId: string }) => void
+}) {
+  const [deviceId, setDeviceId] = useState('')
+  const [pharmacyId, setPharmacyId] = useState('')
+  return (
+    <Modal
+      open
+      onClose={pending ? () => undefined : onClose}
+      title="Выдать индивидуальный POSM key"
+      subtitle="Повторная выдача для той же кассы немедленно отзовёт предыдущий ключ."
+      width={560}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose} disabled={pending}>
+            Отмена
+          </Button>
+          <Button
+            disabled={!deviceId.trim() || !pharmacyId || pending}
+            onClick={() => onSubmit({ deviceId: deviceId.trim(), pharmacyId })}
+          >
+            {pending ? 'Выдаём…' : 'Выдать ключ'}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <Field label="Имя компьютера / deviceId">
+          <Input
+            value={deviceId}
+            onChange={(event) => setDeviceId(event.target.value)}
+            placeholder="KASSA-01"
+          />
+        </Field>
+        <Field label="Аптека">
+          <select
+            className="input"
+            value={pharmacyId}
+            onChange={(event) => setPharmacyId(event.target.value)}
+          >
+            <option value="">Выберите аптеку</option>
+            {pharmacies
+              .filter((item) => item.active)
+              .map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.city} · {item.name}
+                </option>
+              ))}
+          </select>
+        </Field>
+      </div>
+    </Modal>
+  )
+}
+
+function IssuedDeviceTokenModal({ token, onClose }: { token: string; onClose: () => void }) {
+  const toast = useToast()
+  const copy = async () => {
+    await navigator.clipboard.writeText(token)
+    toast.push('Ключ скопирован')
+  }
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="POSM key выдан"
+      subtitle="Скопируйте ключ сейчас: backend хранит только SHA-256 и больше не сможет его показать."
+      width={640}
+      footer={<Button onClick={onClose}>Я сохранил ключ</Button>}
+    >
+      <div className="flex items-center gap-2 rounded-lg bg-ink-900 p-3 text-white">
+        <code className="min-w-0 flex-1 break-all text-[12px]">{token}</code>
+        <Button size="sm" variant="outline" onClick={copy}>
+          Копировать
+        </Button>
+      </div>
+    </Modal>
   )
 }

@@ -7,7 +7,7 @@ import {
   type APIRequestContext,
 } from '@playwright/test'
 
-export const BACKEND_URL = 'http://localhost:8080'
+export const BACKEND_URL = process.env.E2E_BACKEND_URL ?? 'http://localhost:8080'
 
 export interface DevAccount {
   email: string
@@ -42,7 +42,7 @@ export async function assertBackendUp(request: APIRequestContext): Promise<void>
   const r = await request.get(`${BACKEND_URL}/api/health`).catch(() => null)
   if (!r || !r.ok()) {
     throw new Error(
-      'Backend (http://localhost:8080) недоступен. Запусти `./gradlew bootRun` ' +
+      `Backend (${BACKEND_URL}) недоступен. Запусти \`./gradlew bootRun\` ` +
         'из admin-panel/backend перед E2E тестами.',
     )
   }

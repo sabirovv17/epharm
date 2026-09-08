@@ -40,8 +40,9 @@ import javax.imageio.ImageIO
 @RestController
 @RequestMapping("/api/media")
 class MediaProxyController(
-    @Value("\${app.medusa.base-url:http://78.140.246.238:9000}") medusaBaseUrl: String,
-    @Value("\${app.medusa.timeout-ms:6000}") timeoutMs: Int,
+    @Value("\${app.medusa.base-url:}") medusaBaseUrl: String,
+    @Value("\${app.medusa.connect-timeout-ms:2000}") connectTimeoutMs: Int,
+    @Value("\${app.medusa.read-timeout-ms:6000}") readTimeoutMs: Int,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -52,8 +53,8 @@ class MediaProxyController(
     private val rest: RestClient = RestClient.builder()
         .requestFactory(
             SimpleClientHttpRequestFactory().apply {
-                setConnectTimeout(timeoutMs)
-                setReadTimeout(timeoutMs)
+                setConnectTimeout(connectTimeoutMs)
+                setReadTimeout(readTimeoutMs)
             },
         )
         .build()

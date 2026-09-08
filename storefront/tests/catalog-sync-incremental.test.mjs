@@ -102,22 +102,11 @@ test("catalog synchronization rejects remote cleartext origins", () => {
   }
 });
 
-test("catalog synchronization permits only the exact legacy origin opt-in", () => {
-  const previous = process.env.MEDUSA_ALLOW_INSECURE_LEGACY_HTTP;
-  process.env.MEDUSA_ALLOW_INSECURE_LEGACY_HTTP = "true";
-  try {
-    assert.equal(
-      secureMedusaUrl("http://78.140.246.238:9000").href,
-      "http://78.140.246.238:9000/",
-    );
-    assert.throws(
-      () => secureMedusaUrl("http://78.140.246.238:9000/store"),
-      /MEDUSA_URL/,
-    );
-  } finally {
-    if (previous === undefined) delete process.env.MEDUSA_ALLOW_INSECURE_LEGACY_HTTP;
-    else process.env.MEDUSA_ALLOW_INSECURE_LEGACY_HTTP = previous;
-  }
+test("catalog synchronization requires an origin without a path", () => {
+  assert.throws(
+    () => secureMedusaUrl("https://medusa.example.test/store"),
+    /MEDUSA_URL/,
+  );
 });
 
 test("checkpoint advances only from a completed eligible run", async () => {

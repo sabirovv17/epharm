@@ -196,11 +196,8 @@ validate_environment() {
   [[ "$medusa_enabled" == "true" || "$medusa_enabled" == "false" ]] \
     || die "MEDUSA_ENABLED must be true or false"
   if [[ "$medusa_enabled" == "true" ]]; then
-    [[ "$medusa_url" =~ ^https:// ]] || {
-      [[ "$medusa_url" == "http://78.140.246.238:9000" \
-        && "$(file_value "$APP_ENV_FILE" MEDUSA_ALLOW_INSECURE_LEGACY_HTTP)" == "true" ]] \
-        || die "MEDUSA_URL must use HTTPS (legacy HTTP requires its exact compatibility opt-in)"
-    }
+    [[ "$medusa_url" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?/?$ ]] \
+      || die "MEDUSA_URL must be an HTTPS origin without credentials, path, query or fragment"
     require_non_placeholder MEDUSA_PUBLISHABLE_KEY 12
     require_non_placeholder MEDUSA_SALES_CHANNEL 8
     require_non_placeholder MEDUSA_REGION 8

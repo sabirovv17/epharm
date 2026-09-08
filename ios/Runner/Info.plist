@@ -16,6 +16,18 @@
 	<string>pharmacy</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<!-- Custom-scheme deep links use triple slash, e.g. epharm:///home. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>kz.pharmacy.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>epharm</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleShortVersionString</key>
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
@@ -55,9 +67,8 @@
 	<!-- Photo library — для загрузки чеков из галереи. -->
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Epharm использует доступ к фото для загрузки изображений чеков из вашей галереи.</string>
-	<!-- HTTPS остаётся основным каналом. До исправления corporate ingress iOS может
-	     использовать ровно один временный fallback http://epharm.inkar.kz:8060.
-	     Другие HTTP-домены запрещены; исключение удалить после принятия HTTPS. -->
+	<!-- Production-трафик работает только через HTTPS. Локальная сеть разрешена
+	     для dev-сборок без cleartext-исключения для production-домена. -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<!-- DEV: http к бэкенду в локальной сети (физический iPhone → IP мака). Прод —
@@ -66,11 +77,6 @@
 		<true/>
 		<key>NSExceptionDomains</key>
 		<dict>
-			<key>epharm.inkar.kz</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-			</dict>
 			<key>localhost</key>
 			<dict>
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>

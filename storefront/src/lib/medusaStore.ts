@@ -4,9 +4,10 @@ import { secureMedusaBaseUrl } from "@/lib/medusaUrl";
 const BASE = secureMedusaBaseUrl(process.env.MEDUSA_URL);
 const PK = process.env.MEDUSA_PUBLISHABLE_KEY || "";
 
-export const MEDUSA_REGION = process.env.MEDUSA_REGION || "reg_01KSBNEH2D4GVJN8EATK79WNSH";
-export const MEDUSA_SALES_CHANNEL = process.env.MEDUSA_SALES_CHANNEL || "sc_01KRXGQFYXMJN3FD1WJ7S83WME";
-export const MEDUSA_STORE_ON = Boolean(BASE && PK) && process.env.MEDUSA_ENABLED !== "false";
+export const MEDUSA_REGION = process.env.MEDUSA_REGION || "";
+export const MEDUSA_SALES_CHANNEL = process.env.MEDUSA_SALES_CHANNEL || "";
+export const MEDUSA_STORE_ON = Boolean(BASE && PK && MEDUSA_REGION && MEDUSA_SALES_CHANNEL)
+  && process.env.MEDUSA_ENABLED === "true";
 
 export class MedusaStoreError extends Error {
   status: number;

@@ -13,8 +13,9 @@ import org.springframework.http.HttpStatus
 class MediaProxyControllerTest {
 
     private val controller = MediaProxyController(
-        medusaBaseUrl = "http://78.140.246.238:9000",
-        timeoutMs = 1000,
+        medusaBaseUrl = "https://medusa.example.kz",
+        connectTimeoutMs = 1000,
+        readTimeoutMs = 1000,
     )
 
     @Test
@@ -40,7 +41,7 @@ class MediaProxyControllerTest {
     @Test
     fun `тот же хост но другой порт отвергается`() {
         val ex = assertThrows(AppException::class.java) {
-            controller.img("http://78.140.246.238:9999/static/x.jpg")
+            controller.img("https://medusa.example.kz:9999/static/x.jpg")
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.status)
     }

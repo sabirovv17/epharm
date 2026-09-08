@@ -10,6 +10,8 @@ import kz.epharm.fulfillment.dto.FulfillmentOrderDto
 import kz.epharm.fulfillment.dto.FulfillmentOrderPageDto
 import kz.epharm.fulfillment.dto.FulfillmentPharmacyLinkDto
 import kz.epharm.fulfillment.dto.FulfillmentPharmacyLinkRequest
+import kz.epharm.fulfillment.dto.RegisterFulfillmentDeviceRequest
+import kz.epharm.fulfillment.dto.RegisterFulfillmentDeviceResponse
 import kz.epharm.fulfillment.service.FulfillmentService
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
@@ -70,6 +72,16 @@ class AdminFulfillmentController(private val fulfillment: FulfillmentService) {
 
     @GetMapping("/devices")
     fun devices(): List<FulfillmentDeviceDto> = fulfillment.listDevices()
+
+    @PostMapping("/devices")
+    fun provisionDevice(
+        @RequestBody request: RegisterFulfillmentDeviceRequest,
+        @AuthenticationPrincipal principal: AdminPrincipal?,
+    ): RegisterFulfillmentDeviceResponse = fulfillment.provisionDevice(
+        request.deviceId,
+        request.pharmacyId,
+        actor(principal),
+    )
 
     @DeleteMapping("/devices/{id}")
     fun revoke(

@@ -1,0 +1,52 @@
+name: Release observability artifacts
+
+"on":
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  admin-source-maps:
+    name: Admin / upload private Sentry source maps
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: admin-panel/frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Verify immutable release contract
+        working-directory: .
+        run: ./tools/release/verify-contract.sh "$GITHUB_REF_NAME"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.15.0
+          cache: npm
+          cache-dependency-path: admin-panel/frontend/package-lock.json
+      - run: npm ci
+      - name: Build and upload hidden source maps
+        env:
+          VITE_API_BASE_URL: ''
+          VITE_RELEASE_ID: ${{ github.ref_name }}
+          VITE_RELEASE_COMMIT: ${{ github.sha }}
+          VITE_APP_ENVIRONMENT: production
+          VITE_SENTRY_DSN: ${{ secrets.SENTRY_FRONTEND_DSN }}
+          VITE_SENTRY_TRACES_SAMPLE_RATE: '0.05'
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_FRONTEND_PROJECT }}
+        run: |
+          : "${VITE_SENTRY_DSN:?missing SENTRY_FRONTEND_DSN secret}"
+          : "${SENTRY_AUTH_TOKEN:?missing SENTRY_AUTH_TOKEN secret}"
+          : "${SENTRY_ORG:?missing SENTRY_ORG secret}"
+          : "${SENTRY_PROJECT:?missing SENTRY_FRONTEND_PROJECT secret}"
+          npm run build
+          if find dist -type f -name '*.map' -print -quit | grep -q .; then
+            echo 'Private source maps were not removed after upload.' >&2
+            exit 1
+          fi

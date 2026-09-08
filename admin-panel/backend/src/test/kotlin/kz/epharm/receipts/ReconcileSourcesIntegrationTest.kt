@@ -20,6 +20,8 @@ import kz.epharm.pharmacists.repository.PharmacistRepository
 import kz.epharm.posm.dto.PosSaleItemDto
 import kz.epharm.posm.dto.PosSaleRequest
 import kz.epharm.posm.repository.PosSaleRepository
+import kz.epharm.posm.entity.PosmPharmacistMappingEntity
+import kz.epharm.posm.repository.PosmPharmacistMappingRepository
 import kz.epharm.receipts.entity.PendingBonusEntity
 import kz.epharm.receipts.repository.ExcelImportRepository
 import kz.epharm.receipts.repository.PendingBonusRepository
@@ -78,6 +80,7 @@ class ReconcileSourcesIntegrationTest {
     @Autowired private lateinit var receiptRepository: ReceiptRepository
     @Autowired private lateinit var pendingBonusRepository: PendingBonusRepository
     @Autowired private lateinit var posSaleRepository: PosSaleRepository
+    @Autowired private lateinit var posmPharmacistMappingRepository: PosmPharmacistMappingRepository
     @Autowired private lateinit var excelImportRepository: ExcelImportRepository
     @Autowired private lateinit var pharmacistRepository: PharmacistRepository
     @Autowired private lateinit var productRepository: ProductRepository
@@ -175,6 +178,35 @@ class ReconcileSourcesIntegrationTest {
         assertEquals(null, stored.artifactSha256)
         assertEquals("80309", stored.items.single().sku)
         assertEquals("p_zen", stored.items.single().productId)
+    }
+
+    @Test
+    fun `явное Standard-N USER_ID правило безопасно резолвит внутреннего фармацевта`() {
+        posmPharmacistMappingRepository.save(
+            PosmPharmacistMappingEntity(
+                pharmacyId = "ph_t",
+                externalUserId = "33",
+                externalUserName = "Продавец 33",
+                pharmacistId = "u_t",
+            ),
+        )
+        val request = saleReq("sale_standardn_33", "FSN33", 1_000).copy(
+            pharmacistId = "33",
+            pharmacistName = "Имя из кассы не используется как доверенное",
+        )
+
+        mockMvc.perform(
+            post("/api/posm/sales").header("X-Posm-Key", POSM_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)),
+        ).andExpect(status().isOk)
+
+        val stored = posSaleRepository.findById("sale_standardn_33").orElseThrow()
+        assertEquals("u_t", stored.pharmacistId)
+        assertEquals("Тест Фарм", stored.pharmacistName)
+        assertEquals("33", stored.reportedPharmacistId)
+        assertEquals("standardn_explicit_mapping", stored.pharmacistSource)
+        assertEquals(true, receiptForPending().confirmedByLog)
     }
 
     @Test

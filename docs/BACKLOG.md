@@ -1,18 +1,18 @@
 # Бэклог
 
 Актуальный список технических рисков и работ до полноценного промышленного запуска.
-Обновлено: 2026-09-04.
+Обновлено: 2026-09-08.
 
 ## Текущее состояние
 
-| Слой                           | Проверка                                           | Production                                                  |
-| ------------------------------ | -------------------------------------------------- | ----------------------------------------------------------- |
-| Backend (Kotlin)               | 412/412 тестов                                     | Daribar OTP, exact fiscal receipt, fulfillment; Flyway V043 |
-| Админ-фронт (React)            | 399/399, lint и production build успешны           | обучение, эфир и управление заказами                        |
-| Мобильное приложение (Flutter) | analyze: 0 issues, 108/108 тестов                  | iOS 0.1.2+4 подписан и установлен на iPhone                 |
-| POSM (C#)                      | 29/29 core tests, Windows build без предупреждений | exact-only consumer и очередь заказов готовы к пилоту       |
-| Витрина (Next.js)              | 171/171, lint и production build успешны           | durable outbox/worker заказов готовы к dark-launch          |
-| OTP                            | Daribar provider + error/rollback tests            | 4-значный реальный SMS-код; `5445` только для dev/test      |
+| Слой                           | Проверка                                           | Production                                             |
+| ------------------------------ | -------------------------------------------------- | ------------------------------------------------------ |
+| Backend (Kotlin)               | clean build, 422/422 теста                         | Daribar OTP, exact receipt, fulfillment; Flyway V046   |
+| Админ-фронт (React)            | 399/399, lint и production build успешны           | обучение, эфир и управление заказами                   |
+| Мобильное приложение (Flutter) | analyze: 0 issues, 109/109 тестов                  | iOS 0.1.2+4 подписан и установлен на iPhone            |
+| POSM (C#)                      | 37/37 core tests, Windows build без предупреждений | exact-only consumer и очередь заказов готовы к пилоту  |
+| Витрина (Next.js)              | 171/171, lint и production build успешны           | durable outbox/worker заказов готовы к dark-launch     |
+| OTP                            | Daribar provider + error/rollback tests            | 4-значный реальный SMS-код; `5445` только для dev/test |
 
 Существующие production-данные после релиза сохранены: кампании, правила, плейлисты,
 слайды и администратор не изменены. На 2026-08-04 в базе есть один фармацевт в статусе
@@ -24,15 +24,22 @@
 - [x] **Вернуть безопасный OTP.** Daribar генерирует, отправляет и проверяет код через backend;
       `OTP_DEV_MODE=false`, `devCode` отсутствует в production-ответе, ключи не попадают в приложение.
 - [ ] **Настроить промышленный Apple signing.** Тестовая сборка `kz.pharmacy.app` подписана
-      Personal Team, установлена на iPhone и действует до 2026-08-24. Для тиражирования и работы
-      без еженедельной переустановки нужен платный Apple Developer account, TestFlight или MDM.
+      Personal Team и истекла 2026-08-24. Репозиторий отвязан от Personal Team, удалён небезопасный
+      `--no-strict`, добавлены fail-closed export config и `tools/build-ios-release.sh`. Для выпуска
+      всё ещё нужен платный Apple Developer team, владеющий App ID, и первый TestFlight smoke-test.
 - [ ] **Заменить недоступный Medusa origin.** Production всё ещё ссылается на
-      `http://78.140.246.238:9000`; старый сервер выведен из эксплуатации. Нужен актуальный URL,
-      ключи и smoke-тест каталога, иначе холодные запросы каталога будут зависать/падать.
+      внешний каталог, но retired HTTP-origin удалён из runtime-конфигурации. До выдачи нового HTTPS
+      URL/ключа/канала/региона интеграция по умолчанию выключена и не зависает; включение валидируется
+      fail-fast. После получения реквизитов обязателен `tools/smoke-medusa.sh` и application smoke.
 - [x] **Закрыть frontend dependency vulnerabilities.** Зависимости админки и витрины обновлены;
       полный `npm audit --audit-level=low` сообщает 0 уязвимостей, regression-тесты и build зелёные.
-- [ ] **Разблокировать GitHub Actions.** Все jobs PR сейчас не стартуют из-за billing lock
-      аккаунта GitHub. После разблокировки сделать checks обязательными перед merge в `main`.
+- [x] **Проверить GitHub Actions после billing lock.** После pre-job failures 2026-09-03 полный CI-run
+      `33877476994` успешно завершился 2026-09-04, поэтому прежний lock больше не подтверждается.
+- [ ] **Получить первый зелёный `P0 / merge gate`.** Расширенный workflow уже покрывает
+      backend/admin/storefront/mobile/POSM/ops/security, а `main` защищён этим required check. После
+      push текущей ветки дождаться зелёного gate для точного PR head; обходить защиту нельзя.
+- [x] **Запретить debug-signing production Android.** `assembleRelease` теперь fail-closed без полного
+      `android/key.properties` и private release keystore; автоматический fallback на debug key удалён.
 
 ## P1 — эксплуатационная готовность
 
@@ -44,19 +51,24 @@
       повторное назначение и проверку RBAC каждой административной роли.
 - [ ] **Настроить сопоставление Standard-N продавцов.** В production приходят внешние USER_ID
       (например `33`), но активного сопоставленного фармацевта пока нет. Активировать профили и
-      создать явное mapping-правило, иначе продажа видна, но бонус нельзя безопасно закрепить за человеком.
+      создать правило через новый UI. Код уже хранит pharmacy-scoped mapping и immutable audit,
+      проверяет active/same-pharmacy и применяет его раньше эвристик имени; production-данные не менялись.
 - [ ] **Провести POSM acceptance на реальной кассе.** Проверить рекомендацию, удаление триггера,
       чек на клиентском экране, 12-роликовый эфир, offline-outbox, reboot/watchdog, presence и
       новый receipt-capture lifecycle `active -> pending -> backend ACK -> delete`.
 - [ ] **Провести fulfillment-пилот на двух кассах одной аптеки.** До включения связать аптеку
       витрины со стабильным `pharmacyId`, зафиксировать `EPHARM_ORDER_START_AT`, проверить
       идемпотентность, offline/retry, выдачу по коду, частичную выдачу, отмену и обновление статуса
-      в кабинете покупателя. Массовое включение до пилота запрещено.
+      в кабинете покупателя. Частичная выдача пока отдельный продуктовый blocker: нет утверждённой
+      модели строк, перерасчёта и возврата оплаты, поэтому текущая выдача атомарна. Массовое
+      включение до решения и пилота запрещено.
 - [ ] **Определить доверенный источник статуса карточной оплаты.** Заказы с картой fail-closed и
-      не должны попадать на кассу как оплаченные по данным браузера или клиента.
-- [ ] **Заменить временный enrollment касс.** Окно регистрации через общий legacy POSM key
-      допустимо только для пилота; для тиражирования нужны предварительно одобренные устройства
-      или уникальные bootstrap credentials с ротацией и отзывом.
+      не должны попадать на кассу как оплаченные по данным браузера или клиента. Backend уже хранит
+      claimed/accepted отдельно и понижает неизвестный `paid` до `pending`; осталось выбрать и
+      принять подписанный server-to-server webhook/API производителя оплаты.
+- [x] **Заменить временный enrollment касс.** HQ предварительно выдаёт одноразовый индивидуальный
+      token для точной пары device/pharmacy, хранится только SHA-256, повторная выдача ротирует,
+      отзыв немедленно даёт 401. Fleet-key и self-enrollment по умолчанию выключены в production.
 - [ ] **Реализовать и принять официальный producer фискального чека.** POSM больше не строит
       нефискальную PNG-копию и принимает только побайтовый PDF/PNG с полным manifest + SHA-256.
       Нужен hardware-specific read-only адаптер установленного `TFR_Shtrih`/OFD, закрытый ACL inbox
@@ -65,27 +77,44 @@
       независимых сигнала (print-log и Firebird close). Если Windows аварийно выключится после
       печати, но до обоих сигналов, active-черновик намеренно не считается продажей автоматически,
       чтобы не начислять бонусы по отменённым корзинам. Нужен подтверждённый closed-receipt source.
-- [ ] **Выдавать отдельный POSM key на устройство.** Общий `POSM_DEVICE_KEY` не подходит для
-      500 касс: нужна выдача/ротация/отзыв ключей и аудит устройства.
-- [ ] **Закрыть доверенную цепочку POSM-обновлений.** Временный `:8060` позволяет получать
-      метаданные релиза по HTTP. Даже при HTTPS ZIP и SHA-256 это не защищает от одновременной подмены
-      URL и хеша. Нужны исправленный внешний HTTPS ingress, удаление HTTP fallback и проверка
-      манифеста отдельным встроенным публичным ключом.
-- [ ] **Исправить обработку неизвестных API-маршрутов.** `NoResourceFoundException` сейчас
-      попадает в generic handler и возвращает 500 вместо 404, создавая ложные production errors.
-- [ ] **Убрать шум Spring Data Redis/JPA при старте.** Явно разделить repository scan packages;
-      сейчас каждый JPA repository проверяется как кандидат Redis.
+- [x] **Выдавать отдельный POSM key на устройство.** Все POSM endpoints принимают индивидуальный
+      отзываемый token, проверяют pharmacy/device scope; общий ключ остался только как отключённая
+      совместимость для контролируемой миграции.
+- [x] **Закрыть доверенную цепочку POSM-обновлений.** Remote HTTP origins удалены, manifest
+      подписывается offline ECDSA P-256 ключом и проверяется pinned SPKI до скачивания; URL, SHA,
+      platform, version и mandatory связаны подписью. ZIP затем независимо проверяется по SHA-256.
+- [x] **Исправить обработку неизвестных API-маршрутов.** `NoResourceFoundException` получает
+      стабильный JSON 404/`NOT_FOUND`, покрытый integration test.
+- [x] **Убрать шум Spring Data Redis/JPA при старте.** Redis repository scan явно выключен,
+      потому что приложение использует `StringRedisTemplate`; JPA остаётся единственным repository store.
 
 ## P2 — надёжность и сопровождение
 
-- [ ] Автоматизировать PostgreSQL и MinIO backup, retention и регулярный restore-test.
-- [ ] Добавить uptime, error-rate, latency, disk/DB/MinIO monitoring и оповещения.
-- [ ] Подключить Sentry или аналог для backend, admin frontend и мобильного приложения.
-- [ ] Ввести immutable release id/tag, changelog и проверяемый rollback для каждого деплоя.
+- [x] Автоматизировать PostgreSQL и MinIO backup, retention и регулярный restore-test. Код, systemd,
+      encrypted off-site restic и метрики готовы; production acceptance требует заполнить backup.env.
+- [x] Добавить uptime, error-rate, latency, disk/DB/MinIO monitoring и оповещения. Compose-профиль,
+      dashboard и alerts готовы; ops должен подключить реальный `ALERT_WEBHOOK_URL` и test alert.
+- [x] Подключить Sentry или аналог для backend, admin frontend и мобильного приложения. SDK и release
+      identity готовы; нужны три DSN и staging test events.
+- [x] Ввести immutable release id/tag, changelog и проверяемый rollback для каждого деплоя. Добавлены
+      release contract, manifest, smoke и automatic/explicit rollback; включить protected `v*` tags.
 - [ ] Провести нагрузочный тест сценариев 500 касс: heartbeat, playlist polling, offline sync,
-      продажи, рекомендации и массовая загрузка роликов.
+      продажи, рекомендации и массовая загрузка роликов. k6 suite готов; нужен staging размером с prod,
+      production-like dataset и сохранённый отчёт capacity run.
 - [ ] Завершить mobile release checklist: TestFlight, privacy manifests, QR/камера на реальном
-      устройстве, deep links, восстановление сессии и обработка недоступного fallback `:8060`.
+      устройстве, deep links, восстановление сессии и корректная обработка недоступного HTTPS endpoint.
+
+## Выполнено 2026-09-08
+
+- [x] Добавлены production-grade Standard-N mapping с HQ UI, same-pharmacy/active guard и audit.
+- [x] Введена единая per-device POSM authentication, предварительная HQ-выдача, rotation/revoke
+      и production default без legacy fleet-key.
+- [x] POSM update chain переведена на HTTPS + offline ECDSA manifest signature + SHA-256;
+      добавлен `tools/sign-posm-release.sh`, негативные tamper-тесты и запрет утечки device token.
+- [x] Карточный payment claim отделён от доверенного состояния; до выбора authority выдача закрыта.
+- [x] Исправлены API 404 и Redis/JPA startup scan; подготовлен `docs/20-production-acceptance.md`.
+      Автоматизированная часть готова; TestFlight/камера/QR/privacy report требуют Apple credentials и
+      физического iPhone по `docs/mobile-release-evidence.example.json`.
 
 ## Выполнено 2026-08-04
 

@@ -75,14 +75,8 @@ If signing fails:
 4. If using a free Personal Team, change bundle id to a unique one.
 5. Trust the developer profile on the iPhone after install.
 
-If macOS/iCloud xattrs break codesign, recreate the shim:
-
-```bash
-mkdir -p /tmp/codesign_shim
-printf '#!/bin/sh\nexec /usr/bin/codesign --no-strict "$@"\n' > /tmp/codesign_shim/codesign
-chmod +x /tmp/codesign_shim/codesign
-export PATH="/tmp/codesign_shim:$PATH"
-```
+If macOS/iCloud xattrs break codesign, use a checkout and build directory outside synced folders.
+Never use `--no-strict`; production IPA instructions are in `docs/IOS-DISTRIBUTION.md`.
 
 ## Login
 

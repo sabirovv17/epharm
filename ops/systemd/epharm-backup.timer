@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Epharm backup timer
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+RandomizedDelaySec=15m
+Persistent=true
+Unit=epharm-backup.service
+
+[Install]
+WantedBy=timers.target

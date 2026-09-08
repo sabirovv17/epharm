@@ -1,0 +1,142 @@
+name: Mobile TestFlight
+
+"on":
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing immutable git tag (vX.Y.Z)
+        required: true
+        type: string
+      build_number:
+        description: Monotonically increasing App Store build number
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-testflight-${{ inputs.release_tag }}-${{ inputs.build_number }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-upload:
+    name: Build, sign and upload iOS
+    runs-on: macos-15
+    environment: mobile-production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.release_tag }}
+          fetch-depth: 0
+
+      - name: Verify immutable release contract
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
+          [[ "$BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]]
+          ./tools/release/verify-contract.sh "$RELEASE_TAG"
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: '3.27.1'
+          channel: stable
+          cache: true
+
+      - name: Import distribution certificate
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/epharm-signing.keychain-db"
+          CERTIFICATE_PATH="$RUNNER_TEMP/epharm-distribution.p12"
+          printf '%s' "$CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+      - name: Install App Store provisioning profile
+        env:
+          PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          PROFILE_DIR="$RUNNER_TEMP/provisioning-profiles"
+          mkdir -p "$PROFILE_DIR"
+          printf '%s' "$PROFILE_BASE64" | base64 --decode > "$PROFILE_DIR/epharm.mobileprovision"
+          PROFILE_UUID=$(security cms -D -i "$PROFILE_DIR/epharm.mobileprovision" | plutil -extract UUID raw -)
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$PROFILE_DIR/epharm.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+
+      - name: Static and unit release gate
+        env:
+          FLUTTER_BIN: ${{ env.FLUTTER_ROOT }}/bin/flutter
+          REQUIRE_STORE_VERSION: 'true'
+        run: ./tools/mobile-release-check.sh
+
+      - name: Build signed IPA
+        env:
+          SENTRY_MOBILE_DSN: ${{ secrets.SENTRY_MOBILE_DSN }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
+        run: |
+          VERSION="$RELEASE_TAG"
+          VERSION="${VERSION#v}"
+          RELEASE_ID="$RELEASE_TAG-build.$BUILD_NUMBER"
+          printf 'APPLE_DEVELOPMENT_TEAM = %s\n' "$APPLE_DEVELOPMENT_TEAM" > ios/Flutter/Signing.xcconfig
+          python3 - "$APPLE_DEVELOPMENT_TEAM" <<'PY'
+          import plistlib
+          import sys
+
+          with open('ios/ExportOptions.plist.example', 'rb') as handle:
+              options = plistlib.load(handle)
+          options['teamID'] = sys.argv[1]
+          with open('ios/ExportOptions.plist', 'wb') as handle:
+              plistlib.dump(options, handle)
+          PY
+          flutter build ipa --release \
+            --build-name "$VERSION" \
+            --build-number "$BUILD_NUMBER" \
+            --dart-define="RELEASE_ID=$RELEASE_ID" \
+            --dart-define=APP_ENVIRONMENT=production \
+            --dart-define="SENTRY_DSN=$SENTRY_MOBILE_DSN" \
+            --dart-define=SENTRY_TRACES_SAMPLE_RATE=0.05 \
+            --export-options-plist=ios/ExportOptions.plist
+
+      - name: Upload dSYMs to Sentry
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_MOBILE_PROJECT }}
+        run: |
+          if [[ -n "$SENTRY_AUTH_TOKEN" ]]; then
+            npx --yes @sentry/cli@3.7.0 debug-files upload build/ios/archive/Runner.xcarchive/dSYMs
+          else
+            echo 'Sentry auth is not configured; skipping dSYM upload.'
+          fi
+
+      - name: Upload to TestFlight
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY_P8 }}
+        run: |
+          PRIVATE_KEYS_DIR="$HOME/.appstoreconnect/private_keys"
+          mkdir -p "$PRIVATE_KEYS_DIR"
+          printf '%s' "$ASC_PRIVATE_KEY" > "$PRIVATE_KEYS_DIR/AuthKey_$ASC_KEY_ID.p8"
+          IPA_PATH=$(find build/ios/ipa -maxdepth 1 -name '*.ipa' -print -quit)
+          test -n "$IPA_PATH"
+          xcrun altool --upload-app --type ios --file "$IPA_PATH" --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+
+      - name: Retain IPA for release audit
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: epharm-ios-${{ inputs.release_tag }}-${{ inputs.build_number }}
+          path: build/ios/ipa/*.ipa
+          if-no-files-found: error
+          retention-days: 30

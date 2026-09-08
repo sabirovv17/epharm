@@ -24,10 +24,10 @@ function configuredMedusaBaseUrl() {
 
 const BASE = configuredMedusaBaseUrl();
 const PK = process.env.MEDUSA_PUBLISHABLE_KEY || "";
-const SC = process.env.MEDUSA_SALES_CHANNEL || "sc_01KRXGQFYXMJN3FD1WJ7S83WME";
-const REG = process.env.MEDUSA_REGION || "reg_01KSBNEH2D4GVJN8EATK79WNSH";
+const SC = process.env.MEDUSA_SALES_CHANNEL || "";
+const REG = process.env.MEDUSA_REGION || "";
 
-export const MEDUSA_ON = Boolean(BASE && PK) && process.env.MEDUSA_ENABLED !== "false";
+export const MEDUSA_ON = Boolean(BASE && PK && SC && REG) && process.env.MEDUSA_ENABLED === "true";
 
 // Листингу не нужны тяжёлые description/images. Полные поля запрашиваем только
 // для страницы конкретного товара — это сокращает основной ответ в несколько раз.

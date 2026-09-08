@@ -43,7 +43,9 @@ import { describeError } from '@/lib/describeError'
 import { formatKzt, formatNum } from '@/mocks/fixtures'
 import { useT } from '@/i18n'
 import { ActivatePharmacistModal } from './ActivatePharmacistModal'
+import { StandardNSellerMappingsModal } from './StandardNSellerMappingsModal'
 import { ASSIGNMENT_STATUS_LABEL, FORMAT_LABEL, dateTime } from '@/features/lms/training-ui'
+import { useUiStore } from '@/app/store'
 
 type PhTab = 'all' | PharmacistStatus
 
@@ -65,6 +67,9 @@ export default function PharmacistsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [preferenceTargets, setPreferenceTargets] = useState<PharmacistDto[] | null>(null)
   const [trainingProfileId, setTrainingProfileId] = useState<string | null>(null)
+  const [standardNMappingsOpen, setStandardNMappingsOpen] = useState(false)
+  const adminRole = useUiStore((state) => state.authedUser?.role)
+  const canManageStandardN = adminRole === 'SYSTEM_ADMIN' || adminRole === 'HQ_HEAD'
 
   const { data: pharmacists = [], isLoading, isError, error, refetch } = usePharmacists()
   const { data: pharmacies = [] } = usePharmacies()
@@ -177,7 +182,17 @@ export default function PharmacistsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title={t('page.pharmacists.title')} subtitle={t('page.pharmacists.subtitle')} />
+      <PageHeader
+        title={t('page.pharmacists.title')}
+        subtitle={t('page.pharmacists.subtitle')}
+        actions={
+          canManageStandardN ? (
+            <Button variant="outline" onClick={() => setStandardNMappingsOpen(true)}>
+              Продавцы Standard-N
+            </Button>
+          ) : undefined
+        }
+      />
 
       <div className="grid grid-cols-4 gap-4">
         <Metric
@@ -465,6 +480,12 @@ export default function PharmacistsPage() {
         <PharmacistTrainingProfileModal
           pharmacistId={trainingProfileId}
           onClose={() => setTrainingProfileId(null)}
+        />
+      )}
+      {standardNMappingsOpen && (
+        <StandardNSellerMappingsModal
+          pharmacists={pharmacists}
+          onClose={() => setStandardNMappingsOpen(false)}
         />
       )}
     </div>

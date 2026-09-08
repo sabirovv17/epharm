@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: Epharm
+    orgId: 1
+    folder: Epharm
+    type: file
+    disableDeletion: true
+    editable: false
+    options:
+      path: /var/lib/grafana/dashboards
