@@ -149,13 +149,18 @@ export function selectCandidate(current, incoming) {
 }
 
 function decodeHtmlAttribute(value) {
-  return String(value || "")
-    .replaceAll("&amp;", "&")
-    .replaceAll("&quot;", '"')
-    .replaceAll("&#039;", "'")
-    .replaceAll("&apos;", "'")
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">");
+  const entities = {
+    "&amp;": "&",
+    "&quot;": '"',
+    "&#039;": "'",
+    "&apos;": "'",
+    "&lt;": "<",
+    "&gt;": ">",
+  };
+  return String(value || "").replace(
+    /&(amp|quot|#039|apos|lt|gt);/g,
+    (entity) => entities[entity],
+  );
 }
 
 export function extractEuropharmaProductLinks(html, baseUrl) {

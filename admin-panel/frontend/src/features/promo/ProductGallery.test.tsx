@@ -108,6 +108,18 @@ describe('ProductGallery', () => {
     expect(mainSrc()).toContain('/proxy?u=')
   })
 
+  it('не передаёт в DOM опасные и не-web схемы изображений', () => {
+    const { container } = render(
+      <ProductGallery
+        images={['javascript:alert(1)', 'data:image/svg+xml,<svg onload="alert(1)"/>']}
+        effective={null}
+      />,
+    )
+
+    expect(screen.getByTestId('promo-gallery-empty')).toBeInTheDocument()
+    expect(container.querySelectorAll('img')).toHaveLength(0)
+  })
+
   it('onPickCover: метка обложки на текущей, «Сделать обложкой» — на остальных', async () => {
     const user = userEvent.setup()
     const onPick = vi.fn()
