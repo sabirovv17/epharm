@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly Epharm isolated restore-test timer
+
+[Timer]
+OnCalendar=Sun *-*-* 05:30:00
+RandomizedDelaySec=30m
+Persistent=true
+Unit=epharm-restore-test.service
+
+[Install]
+WantedBy=timers.target

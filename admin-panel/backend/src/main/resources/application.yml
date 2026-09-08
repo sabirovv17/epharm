@@ -3,6 +3,12 @@ spring:
     name: epharm-backend
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+  data:
+    redis:
+      # Redis здесь используется через StringRedisTemplate, не как repository store.
+      # Явное отключение исключает ошибочную проверку всех JPA repository как Redis-кандидатов.
+      repositories:
+        enabled: false
   jpa:
     open-in-view: false
     hibernate:
@@ -33,6 +39,32 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+      probes:
+        enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      environment: ${APP_ENVIRONMENT:development}
+      release: ${RELEASE_ID:dev}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      slo:
+        http.server.requests: 100ms,250ms,500ms,1s,2s,5s
+
+# Empty DSN disables export while preserving one production-ready integration path.
+sentry:
+  dsn: ${SENTRY_DSN:}
+  environment: ${APP_ENVIRONMENT:development}
+  release: epharm-backend@${RELEASE_ID:dev}
+  traces-sample-rate: ${SENTRY_TRACES_SAMPLE_RATE:0.05}
+  send-default-pii: false
+  in-app-includes: kz.epharm
 
 springdoc:
   api-docs:
@@ -41,7 +73,8 @@ springdoc:
     path: /swagger-ui.html
 
 app:
-  version: 0.1.0
+  version: ${RELEASE_ID:dev}
+  commit: ${RELEASE_COMMIT:unknown}
   # Канонический публичный origin для QR-проверки сертификатов.
   public-base-url: ${APP_PUBLIC_BASE_URL:https://epharm.inkar.kz}
   cors:
@@ -99,8 +132,13 @@ app:
       timeout-ms: 10000
   posm:
     # Ключ устройства кассы (Module 2). POSM-клиент шлёт его в заголовке X-Posm-Key.
-    # На MVP — общий ключ; в prod каждой кассе выдаётся свой (Stage 4).
+    # Переходный fleet-key; production POSM endpoints используют индивидуальные tokens.
     device-key: ${POSM_DEVICE_KEY:dev-posm-key}
+    # Transitional fleet credential. Production is fail-closed and accepts only individually
+    # provisioned/revocable device tokens; keep true only in dev/tests or a controlled migration.
+    legacy-device-key-enabled: ${POSM_LEGACY_DEVICE_KEY_ENABLED:true}
+    # Base64 DER SubjectPublicKeyInfo for ECDSA P-256 update-manifest signatures.
+    update-manifest-public-key-spki: ${POSM_UPDATE_PUBLIC_KEY_SPKI:}
     # Accepted producers of exact fiscal PDF/PNG metadata. Must match the POSM-side allowlist.
     fiscal-artifact-trusted-sources: ${POSM_FISCAL_ARTIFACT_TRUSTED_SOURCES:standardn-kkm-sdk,ofd-api}
     # Сколько секунд пульс кассы считается «живым» (T4, GET /screens/connected).
@@ -115,6 +153,9 @@ app:
     # Enrollment uses the legacy fleet key only during an explicitly controlled window.
     # Existing per-device tokens continue to work after this switch is closed.
     device-registration-enabled: ${FULFILLMENT_DEVICE_REGISTRATION_ENABLED:false}
+    # Comma-separated server-side payment producers allowed to assert a non-cash
+    # payment as paid. Empty is intentionally fail-closed; browser claims remain pending.
+    trusted-card-payment-authorities: ${FULFILLMENT_TRUSTED_CARD_PAYMENT_AUTHORITIES:}
   promo:
     # Ежедневный рефреш цен из Medusa (T1). Cron в TZ Asia/Almaty (зафиксирована в коде):
     # 06:00 — перед открытием аптек, чтобы к рабочему дню цены и блок рекомендаций были свежими.
@@ -128,17 +169,19 @@ app:
     # Внешняя витрина inkar.kz на Medusa v2 (Module 3) — источник реального каталога.
     # Бэкенд ходит туда server-to-server и проксирует товары в мобильное приложение
     # (/api/mobile/catalog/*), чтобы publishable-ключ не попадал в бинарь телефона, а
-    # телефон общался только с нашим HTTPS (Medusa пока на голом HTTP).
+    # телефон общался только с нашим HTTPS.
     #
     # base-url / sales-channel / region / publishable-key — клиентские (не секретные)
     # идентификаторы витрины: ключ Medusa по дизайну публикуемый (как в любом storefront).
-    # В prod переопределяются env'ом (см. .env.prod.example). Реальные секреты (SSH/admin)
-    # из docs/STOREFRONT-CREDENTIALS.md в код НЕ попадают.
-    enabled: ${MEDUSA_ENABLED:true}
-    base-url: ${MEDUSA_BASE_URL:http://78.140.246.238:9000}
-    publishable-key: ${MEDUSA_PUBLISHABLE_KEY:pk_ed9c35a59066b45de7d9e12510468ca27af16b6d0170b0910c03746545da4525}
-    sales-channel-id: ${MEDUSA_SALES_CHANNEL_ID:sc_01KRXGQFYXMJN3FD1WJ7S83WME}
-    region-id: ${MEDUSA_REGION_ID:reg_01KSBNEH2D4GVJN8EATK79WNSH}
-    timeout-ms: ${MEDUSA_TIMEOUT_MS:15000}
+    # Интеграция fail-closed: без явного включения каталог немедленно деградирует в
+    # пустой ответ. При MEDUSA_ENABLED=true URL и все идентификаторы обязательны;
+    # удалённый origin принимается только по HTTPS, иначе приложение не стартует.
+    enabled: ${MEDUSA_ENABLED:false}
+    base-url: ${MEDUSA_BASE_URL:}
+    publishable-key: ${MEDUSA_PUBLISHABLE_KEY:}
+    sales-channel-id: ${MEDUSA_SALES_CHANNEL_ID:}
+    region-id: ${MEDUSA_REGION_ID:}
+    connect-timeout-ms: ${MEDUSA_CONNECT_TIMEOUT_MS:2000}
+    read-timeout-ms: ${MEDUSA_READ_TIMEOUT_MS:6000}
     # TTL кэша смаппленного каталога (сек). 0 — выключить кэш.
     cache-ttl-seconds: ${MEDUSA_CACHE_TTL:300}

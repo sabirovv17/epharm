@@ -28,16 +28,16 @@ void main() {
       expect(res['ok'], true);
     });
 
-    test('сетевая ошибка HTTPS → повтор через временный :8060 fallback',
+    test('сетевая ошибка HTTPS → повтор через резервный HTTPS origin',
         () async {
       final requestedOrigins = <String>[];
       final client = ApiClient(
         TokenStore(),
         baseUrl: 'https://epharm.inkar.kz',
-        fallbackBaseUrls: const ['http://epharm.inkar.kz:8060'],
+        fallbackBaseUrls: const ['https://backup.epharm.inkar.kz'],
         client: MockClient((req) async {
           requestedOrigins.add(req.url.origin);
-          if (req.url.scheme == 'https') {
+          if (req.url.host == 'epharm.inkar.kz') {
             throw http.ClientException('TLS handshake failed');
           }
           return _json({'ok': true}, 200);
@@ -49,15 +49,15 @@ void main() {
       expect(response['ok'], true);
       expect(requestedOrigins, [
         'https://epharm.inkar.kz',
-        'http://epharm.inkar.kz:8060',
+        'https://backup.epharm.inkar.kz',
       ]);
 
       // Успешный fallback становится активным для следующих запросов сессии.
       await client.getJson('/api/mobile/promotions', auth: false);
-      expect(requestedOrigins.last, 'http://epharm.inkar.kz:8060');
+      expect(requestedOrigins.last, 'https://backup.epharm.inkar.kz');
       expect(
         client.resolveUrl('/api/public/training/certificates/token/pdf'),
-        'http://epharm.inkar.kz:8060/api/public/training/certificates/token/pdf',
+        'https://backup.epharm.inkar.kz/api/public/training/certificates/token/pdf',
       );
       expect(
         client.resolveUrl('https://cdn.example.kz/certificate.pdf'),
@@ -70,7 +70,7 @@ void main() {
       final client = ApiClient(
         TokenStore(),
         baseUrl: 'https://epharm.inkar.kz',
-        fallbackBaseUrls: const ['http://epharm.inkar.kz:8060'],
+        fallbackBaseUrls: const ['https://backup.epharm.inkar.kz'],
         client: MockClient((req) async {
           requestedOrigins.add(req.url.origin);
           return _json(
@@ -84,6 +84,34 @@ void main() {
             isA<ApiException>().having((e) => e.statusCode, 'statusCode', 400)),
       );
       expect(requestedOrigins, ['https://epharm.inkar.kz']);
+    });
+
+    test(
+        'основной и резервный HTTPS origin недоступны → сетевая ошибка без цикла',
+        () async {
+      final requestedOrigins = <String>[];
+      final client = ApiClient(
+        TokenStore(),
+        baseUrl: 'https://epharm.inkar.kz',
+        fallbackBaseUrls: const ['https://backup.epharm.inkar.kz'],
+        client: MockClient((req) async {
+          requestedOrigins.add(req.url.origin);
+          throw http.ClientException('endpoint unavailable');
+        }),
+      );
+
+      await expectLater(
+        () => client.getJson('/api/mobile/promotions', auth: false),
+        throwsA(
+          isA<ApiException>()
+              .having((e) => e.code, 'code', isNull)
+              .having((e) => e.statusCode, 'statusCode', isNull),
+        ),
+      );
+      expect(requestedOrigins, [
+        'https://epharm.inkar.kz',
+        'https://backup.epharm.inkar.kz',
+      ]);
     });
 
     test('ошибка с {code,message} → ApiException с кодом', () async {

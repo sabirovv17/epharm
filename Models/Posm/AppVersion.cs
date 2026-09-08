@@ -7,9 +7,11 @@ namespace CustomerDisplay.Models.Posm
     public sealed class AppVersionInfo
     {
         public bool Current { get; set; }
+        public string Platform { get; set; } = "win-x64";
         public string Version { get; set; } = "";
         public string Url { get; set; } = "";
         public string Sha256 { get; set; } = "";
+        public string ManifestSignature { get; set; } = "";
         public bool Mandatory { get; set; }
         public string Notes { get; set; } = "";
     }

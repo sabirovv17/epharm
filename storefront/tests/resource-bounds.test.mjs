@@ -22,6 +22,7 @@ async function waitFor(predicate, timeoutMs = 1_000) {
 test("public Medusa GET proxy bounds distinct upstream work and rejects overflow", async () => {
   const originalFetch = globalThis.fetch;
   const previousEnvironment = {
+    MEDUSA_ENABLED: process.env.MEDUSA_ENABLED,
     MEDUSA_URL: process.env.MEDUSA_URL,
     MEDUSA_PUBLISHABLE_KEY: process.env.MEDUSA_PUBLISHABLE_KEY,
     MEDUSA_PROXY_GET_CONCURRENCY: process.env.MEDUSA_PROXY_GET_CONCURRENCY,
@@ -34,6 +35,7 @@ test("public Medusa GET proxy bounds distinct upstream work and rejects overflow
   let calls = 0;
   let maxActive = 0;
 
+  process.env.MEDUSA_ENABLED = "true";
   process.env.MEDUSA_URL = "https://medusa.example";
   process.env.MEDUSA_PUBLISHABLE_KEY = "pk_test";
   process.env.MEDUSA_PROXY_GET_CONCURRENCY = "2";

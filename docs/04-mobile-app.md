@@ -12,6 +12,7 @@ Stack:
 - `camera`, `image_picker`;
 - `cached_network_image` + `flutter_cache_manager`;
 - `flutter_svg`, `url_launcher`, `pinput`.
+- `sentry_flutter` (disabled when `SENTRY_DSN` is empty).
 
 The app defaults to the real backend:
 
@@ -87,6 +88,17 @@ Examples:
 Tokens and onboarding/card defaults use secure storage. `ApiClient` handles refresh and distinguishes
 auth failures from transient refresh failures.
 
+## Release hardening
+
+`ios/Runner/PrivacyInfo.xcprivacy` declares app-owned collection of name, phone, IIN/sensitive data,
+receipt images and payment-card data; plugin-owned APIs remain declared by each plugin bundle. The
+`epharm` URL scheme is registered on iOS and Android and `go_router` accepts paths such as
+`epharm:///home`. Session restoration and HTTPS failover have automated tests, including the
+both-origins-unavailable branch. Production has no public cleartext fallback.
+
+TestFlight is built only from an existing immutable tag through `.github/workflows/mobile-testflight.yml`.
+The automated gate and physical-device evidence contract are in `20-reliability-and-release.md`.
+
 ## Images and Performance
 
 Scrollable product/banner images use a shared `MediaImage`/cache pipeline:
@@ -141,9 +153,9 @@ API_BASE=https://epharm.inkar.kz bash builds/build_all.sh
 
 ## iOS Build Gotchas
 
-The repo lives under Desktop/iCloud on the main workstation. iCloud xattrs can break codesign. The
-current project includes `ios/fix_build.sh`; if `/tmp/codesign_shim` disappears after reboot, recreate it
-before iOS builds or use the build script.
+The repo lives under Desktop/iCloud on the main workstation. iCloud xattrs can break codesign. Use a
+clean checkout outside synced folders for production archives and follow `docs/IOS-DISTRIBUTION.md`;
+do not bypass strict signature validation.
 
 Do not run the Flutter build pipeline directly from Xcode before `flutter pub get`/`flutter run` has
 generated artifacts. Prefer `flutter run` with `ios/Runner.xcworkspace` only for signing inspection.

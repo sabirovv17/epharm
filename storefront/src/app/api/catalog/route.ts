@@ -130,7 +130,7 @@ export async function GET(request: Request) {
     return response;
   }
 
-  if (process.env.MEDUSA_ENABLED === "false") {
+  if (process.env.MEDUSA_ENABLED !== "true") {
     return NextResponse.json(
       {
         products: [],

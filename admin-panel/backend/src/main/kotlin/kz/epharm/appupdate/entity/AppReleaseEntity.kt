@@ -30,6 +30,9 @@ class AppReleaseEntity(
     @Column(name = "sha256", nullable = false, length = 128)
     var sha256: String = "",
 
+    @Column(name = "manifest_signature", nullable = false, length = 256)
+    var manifestSignature: String = "",
+
     @Column(name = "mandatory", nullable = false)
     var mandatory: Boolean = false,
 

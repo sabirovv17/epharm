@@ -18,11 +18,13 @@ function restoreEnvironment(previous) {
 test("Medusa proxy rejects an oversized response before consuming its stream", async () => {
   const originalFetch = globalThis.fetch;
   const previous = preserveEnvironment(
+    "MEDUSA_ENABLED",
     "MEDUSA_URL",
     "MEDUSA_PUBLISHABLE_KEY",
     "MEDUSA_PROXY_MAX_RESPONSE_BYTES",
   );
   let cancelled = false;
+  process.env.MEDUSA_ENABLED = "true";
   process.env.MEDUSA_URL = "https://medusa-size.example";
   process.env.MEDUSA_PUBLISHABLE_KEY = "pk_test";
   process.env.MEDUSA_PROXY_MAX_RESPONSE_BYTES = "1024";
@@ -55,11 +57,13 @@ test("Medusa proxy rejects an oversized response before consuming its stream", a
 test("Medusa proxy stops a chunked response as soon as it crosses the byte limit", async () => {
   const originalFetch = globalThis.fetch;
   const previous = preserveEnvironment(
+    "MEDUSA_ENABLED",
     "MEDUSA_URL",
     "MEDUSA_PUBLISHABLE_KEY",
     "MEDUSA_PROXY_MAX_RESPONSE_BYTES",
   );
   let cancelled = false;
+  process.env.MEDUSA_ENABLED = "true";
   process.env.MEDUSA_URL = "https://medusa-chunked.example";
   process.env.MEDUSA_PUBLISHABLE_KEY = "pk_test";
   process.env.MEDUSA_PROXY_MAX_RESPONSE_BYTES = "1024";
@@ -93,11 +97,13 @@ test("Medusa proxy stops a chunked response as soon as it crosses the byte limit
 test("Medusa proxy rejects an oversized request before calling upstream", async () => {
   const originalFetch = globalThis.fetch;
   const previous = preserveEnvironment(
+    "MEDUSA_ENABLED",
     "MEDUSA_URL",
     "MEDUSA_PUBLISHABLE_KEY",
     "MEDUSA_PROXY_MAX_BODY_BYTES",
   );
   let calls = 0;
+  process.env.MEDUSA_ENABLED = "true";
   process.env.MEDUSA_URL = "https://medusa-write.example";
   process.env.MEDUSA_PUBLISHABLE_KEY = "pk_test";
   process.env.MEDUSA_PROXY_MAX_BODY_BYTES = "1024";
@@ -127,8 +133,9 @@ test("Medusa proxy rejects an oversized request before calling upstream", async 
 
 test("Medusa proxy fails closed for a remote cleartext origin", async () => {
   const originalFetch = globalThis.fetch;
-  const previous = preserveEnvironment("MEDUSA_URL", "MEDUSA_PUBLISHABLE_KEY");
+  const previous = preserveEnvironment("MEDUSA_ENABLED", "MEDUSA_URL", "MEDUSA_PUBLISHABLE_KEY");
   let calls = 0;
+  process.env.MEDUSA_ENABLED = "true";
   process.env.MEDUSA_URL = "http://medusa.example:9000";
   process.env.MEDUSA_PUBLISHABLE_KEY = "pk_test";
   globalThis.fetch = async () => {

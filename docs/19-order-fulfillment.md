@@ -49,15 +49,15 @@ submitted -> assembling -> ready -> completed
   кода в БД Epharm нет, одинаковые коды разных заказов не коррелируют.
 - POSM token генерируется отдельно для пары `(pharmacyId, deviceId)`, в backend
   хранится только SHA-256, на Windows token защищается DPAPI CurrentUser.
-- Регистрация устройств по legacy `POSM_DEVICE_KEY` закрыта по умолчанию.
-  Для первичного enrollment ее открывают на короткое контролируемое окно и снова
-  закрывают; уже выданные device tokens продолжают работать.
+- Нормальный enrollment — предварительная выдача HQ одноразового token для одобренной пары
+  `(pharmacyId, deviceId)`. Регистрация по legacy `POSM_DEVICE_KEY` закрыта по умолчанию и
+  остаётся только для короткого контролируемого переходного окна.
 - Администрирование доступно только `SYSTEM_ADMIN` и `HQ_HEAD`.
 - Production-секреты не входят в Git, image, ZIP POSM или логи.
 
-Оставшийся риск: общий legacy ключ уже установлен на кассах. До массового включения
-нужно заменить временный enrollment на предварительное одобрение устройства или
-уникальный bootstrap credential. Текущее окно регистрации допустимо только для пилота.
+Оставшийся rollout-риск: старые кассы могут всё ещё содержать общий legacy key. Перед массовым
+включением каждой кассе выдают индивидуальный token через HQ, проверяют scope и отзыв, после чего
+fleet-key удаляют из локальной конфигурации.
 
 ## Переменные Epharm
 
@@ -66,6 +66,7 @@ FULFILLMENT_ENABLED=false
 FULFILLMENT_SHARED_SECRET=<random-48-byte-base64>
 FULFILLMENT_SIGNATURE_SKEW_SECONDS=300
 FULFILLMENT_DEVICE_REGISTRATION_ENABLED=false
+FULFILLMENT_TRUSTED_CARD_PAYMENT_AUTHORITIES=
 ```
 
 `FULFILLMENT_ENABLED=false` оставляет admin read/mapping доступными, но закрывает
@@ -95,8 +96,8 @@ HTTP запрещен. Старые строки outbox до `EPHARM_ORDER_START
 3. Заполнить точные pharmacy links по стабильным ID, не по названию/нечеткому поиску.
 4. Включить worker при выключенном backend feature нельзя: сначала согласовать
    единое время включения и убедиться, что `EPHARM_ORDER_START_AT` задано.
-5. На одной тестовой аптеке открыть enrollment, получить tokens двух касс и сразу
-   закрыть enrollment.
+5. Через HQ предварительно выдать tokens двум одобренным кассам одной аптеки; legacy enrollment
+   не открывать. Проверить scope и отзыв каждого token.
 6. Провести пилот только на cash/demo или с подтвержденным trusted paid source.
 7. После приемки отдельно расширять список аптек. Массовое включение запрещено.
 

@@ -11,10 +11,24 @@ def keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
+def releaseSigningKeys = ["keyAlias", "keyPassword", "storeFile", "storePassword"]
+def releaseSigningReady = keystorePropertiesFile.exists() &&
+    releaseSigningKeys.every { key -> keystoreProperties[key]?.toString()?.trim() }
+def releaseRequested = gradle.startParameter.taskNames.any { taskName ->
+    taskName.toLowerCase(Locale.ROOT).contains("release")
+}
+if (releaseRequested && !releaseSigningReady) {
+    throw new GradleException(
+        "Release signing is not configured. Provide android/key.properties and a private release keystore; " +
+        "debug-key fallback is forbidden."
+    )
+}
 
 android {
     namespace = "kz.pharmacy.app"
-    compileSdk = flutter.compileSdkVersion
+    // flutter_secure_storage 10.x compiles against API 36. compileSdk is
+    // backward-compatible and independent from the runtime target/min SDK.
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -38,7 +52,7 @@ android {
 
     signingConfigs {
         release {
-            if (keystorePropertiesFile.exists()) {
+            if (releaseSigningReady) {
                 keyAlias = keystoreProperties["keyAlias"]
                 keyPassword = keystoreProperties["keyPassword"]
                 storeFile = keystoreProperties["storeFile"] ? file(keystoreProperties["storeFile"]) : null
@@ -49,12 +63,8 @@ android {
 
     buildTypes {
         release {
-            // Используем release-keystore если key.properties существует,
-            // иначе fallback на debug — чтобы `flutter run --release` работал
-            // даже на свежей машине без настроенного keystore.
-            signingConfig = keystorePropertiesFile.exists()
-                ? signingConfigs.release
-                : signingConfigs.debug
+            // Production artifacts must never be signed with the shared debug key.
+            if (releaseSigningReady) signingConfig = signingConfigs.release
         }
     }
 }

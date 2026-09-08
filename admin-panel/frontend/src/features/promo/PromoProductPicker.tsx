@@ -47,12 +47,16 @@ function ProductSearchList({
 
   // Дебаунс ввода — не дёргаем бэкенд на каждый символ; новый запрос → стр. 0.
   useEffect(() => {
+    const nextQuery = raw.trim()
+    // На первом рендере raw и q уже пустые. Не ставим лишний таймер, иначе он
+    // может сбросить page обратно в 0 после быстрого клика «Показать ещё».
+    if (nextQuery === q) return
     const id = setTimeout(() => {
-      setQ(raw.trim())
+      setQ(nextQuery)
       setPage(0)
     }, 300)
     return () => clearTimeout(id)
-  }, [raw])
+  }, [raw, q])
 
   const { data, isFetching } = useStorefront(q, page * PAGE, PAGE)
 

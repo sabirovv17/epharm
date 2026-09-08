@@ -20,7 +20,7 @@ function bearer(req: Request): string | null {
 export async function customerSession(req: Request): Promise<CustomerSession> {
   const token = bearer(req) || (await cookies()).get(CUSTOMER_COOKIE)?.value || null;
   if (!token) return { status: "anonymous" };
-  if (!BASE || !PK || process.env.MEDUSA_ENABLED === "false") return { status: "unavailable" };
+  if (!BASE || !PK || process.env.MEDUSA_ENABLED !== "true") return { status: "unavailable" };
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8_000);

@@ -61,6 +61,15 @@ class AuthErrorContractTest {
     @Autowired private lateinit var jwtService: JwtService
 
     @Test
+    fun `неизвестный публичный API-маршрут возвращает 404 JSON вместо 500`() {
+        mockMvc.perform(get("/api/posm/route-that-does-not-exist"))
+            .andExpect(status().isNotFound)
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+            .andExpect(jsonPath("$.message").value("Маршрут не найден"))
+    }
+
+    @Test
     fun `защищённый mobile-эндпоинт без токена → 401 + JSON {code,message}`() {
         mockMvc.perform(get("/api/mobile/receipts"))
             .andExpect(status().isUnauthorized)

@@ -19,8 +19,7 @@ enum _RefreshOutcome { ok, authFailed, transient }
 /// Возможности:
 ///  - префикс baseUrl + JSON-кодирование;
 ///  - Bearer-токен из TokenStore на защищённых запросах;
-///  - endpoint failover: HTTPS остаётся основным, а при сетевом/TLS-сбое запрос
-///    повторяется через временный `:8060` fallback;
+///  - endpoint failover на явно настроенный резервный HTTPS origin;
 ///  - **JWT-refresh interceptor**: на 401 пытается обновить пару через
 ///    `/api/mobile/auth/refresh` и повторяет запрос один раз. Refresh
 ///    дедуплицируется (single-flight): конкурентные 401 (напр. /me + /promotions

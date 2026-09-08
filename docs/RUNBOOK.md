@@ -283,6 +283,6 @@ Do not restore three identical site blocks: Caddy will crash with `ambiguous sit
 | Port 5173 busy                                      | use another Vite port or kill the old process.                                     |
 | Flyway checksum mismatch                            | Do not edit applied migrations. For local-only reset use `docker compose down -v`. |
 | Mobile cannot reach local backend on physical phone | Use Mac LAN IP, not `localhost`.                                                   |
-| iOS codesign xattr error                            | Recreate `/tmp/codesign_shim` or keep build output outside iCloud-synced paths.    |
+| iOS codesign xattr error                            | Build from a clean non-synced checkout; never bypass strict codesign validation.   |
 | Admin session odd after backend restart             | Refresh page; axios should refresh token. If refresh fails, log in again.          |
 | Medusa images blocked in browser                    | Use `proxyMedia`/`/api/media/img`, not raw HTTP image URLs.                        |

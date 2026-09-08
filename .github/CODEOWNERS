@@ -2,14 +2,21 @@
 # Формат: <path>  <github-user>
 # Документация: https://docs.github.com/en/repositories/managing-your-repositories-settings-and-customizations/customizing-your-repository/about-code-owners
 
-# Дефолтный owner всего репо
-*                                @sabirovv17
+# Дефолтный owner всего репо.
+*                                   @sabirovv17
 
-# Зоны (раздадим членам команды, когда они появятся)
-/lib/                            @sabirovv17  # Flutter mobile app
-/admin-panel/backend/            @sabirovv17  # Kotlin + Spring Boot backend
-/admin-panel/frontend/           @sabirovv17  # React admin console
-/posm-sidecar/                   @sabirovv17  # Electron POSM client (Этап 5)
-/.github/                        @sabirovv17  # CI / repo metadata
+# Зоны (раздадим членам команды, когда они появятся).
+/.github/                           @sabirovv17
+/admin-panel/backend/               @sabirovv17
+/admin-panel/frontend/              @sabirovv17
+/storefront/                        @sabirovv17
+/lib/                               @sabirovv17
+/android/                           @sabirovv17
+/ios/                               @sabirovv17
+/App/                               @sabirovv17
+/App.Tests/                         @sabirovv17
+/Models/                            @sabirovv17
+/ops/                               @sabirovv17
+/tools/                             @sabirovv17
 /admin-panel/design-tokens-admin.md @sabirovv17
-/_reference/design-tokens.md     @sabirovv17
+/_reference/design-tokens.md        @sabirovv17

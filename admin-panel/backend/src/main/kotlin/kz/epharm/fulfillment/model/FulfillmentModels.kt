@@ -37,6 +37,8 @@ data class FulfillmentOrderRecord(
     val delivery: String,
     val paymentMethod: String,
     val paymentStatus: String,
+    val paymentStatusClaimed: String,
+    val paymentAuthority: String?,
     val demo: Boolean,
     val status: FulfillmentStatus,
     val version: Long,

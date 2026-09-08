@@ -140,6 +140,38 @@ class FulfillmentIntegrationTest {
     }
 
     @Test
+    fun `untrusted browser card claim is persisted as pending and cannot be issued`() {
+        link("ch:84", "ph_1")
+        val body = orderBody(
+            orderId = "order_untrusted_card",
+            eventId = "88888888-8888-4888-8888-888888888888",
+            externalId = "ch:84",
+            paymentMethod = "card",
+            paymentStatus = "paid",
+            paymentAuthority = "browser",
+        )
+
+        performSignedPost(body)
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.accepted").value(true))
+
+        val order = service.getForAdmin("order_untrusted_card")
+        assertThat(order.paymentStatus).isEqualTo("pending")
+        assertThat(order.paymentStatusClaimed).isEqualTo("paid")
+        assertThat(order.paymentAuthority).isEqualTo("browser")
+
+        val cashBody = orderBody(
+            orderId = "order_cash_claimed_paid",
+            eventId = "99999999-9999-4999-8999-999999999999",
+            externalId = "ch:84",
+            paymentMethod = "cash",
+            paymentStatus = "paid",
+        )
+        performSignedPost(cashBody).andExpect(status().isOk)
+        assertThat(service.getForAdmin("order_cash_claimed_paid").paymentStatus).isEqualTo("pending")
+    }
+
+    @Test
     fun `strict JSON contract rejects unknown customer fields`() {
         val body = orderBody("order_pii", "22222222-2222-4222-8222-222222222222", "ch:84")
             .dropLast(1) + ",\"phone\":\"+77000000000\"}"
@@ -263,6 +295,34 @@ class FulfillmentIntegrationTest {
     }
 
     @Test
+    fun `individually provisioned key authenticates all POSM APIs and is pharmacy scoped`() {
+        val credential = service.provisionDevice("KASSA-POSM", "ph_1", "hq-test")
+
+        mockMvc.perform(
+            get("/api/posm/playlists/active")
+                .param("pharmacyId", "ph_1")
+                .header("X-Posm-Key", credential.token),
+        ).andExpect(status().isOk)
+
+        mockMvc.perform(
+            get("/api/posm/playlists/active")
+                .param("pharmacyId", "ph_2")
+                .header("X-Posm-Key", credential.token),
+        ).andExpect(status().isUnauthorized)
+
+        val id = jdbc.queryForObject(
+            "SELECT id FROM fulfillment_devices WHERE device_id = 'KASSA-POSM'",
+            java.util.UUID::class.java,
+        )!!
+        service.revokeDevice(id, "hq-test")
+        mockMvc.perform(
+            get("/api/posm/playlists/active")
+                .param("pharmacyId", "ph_1")
+                .header("X-Posm-Key", credential.token),
+        ).andExpect(status().isUnauthorized)
+    }
+
+    @Test
     fun `pickup failures persist and lock after five attempts`() {
         val token = readyCashOrder("order_lock", "44444444-4444-4444-8444-444444444444")
         repeat(4) {
@@ -370,6 +430,8 @@ class FulfillmentIntegrationTest {
         eventId: String,
         externalId: String,
         paymentMethod: String = "cash",
+        paymentStatus: String = "pending",
+        paymentAuthority: String? = null,
         unitPrice: Any? = 1590,
     ): String = objectMapper.writeValueAsString(
         linkedMapOf<String, Any?>(
@@ -382,7 +444,8 @@ class FulfillmentIntegrationTest {
             "currency" to "KZT",
             "delivery" to "pickup",
             "paymentMethod" to paymentMethod,
-            "paymentStatus" to "pending",
+            "paymentStatus" to paymentStatus,
+            "paymentAuthority" to paymentAuthority,
             "demo" to false,
             "pickupCode" to "123456",
             "lines" to listOf(

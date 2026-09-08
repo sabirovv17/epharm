@@ -134,16 +134,9 @@ Submit sends multipart photo and optional `promoIds`.
 
 ## iOS Build Gotchas
 
-Project under Desktop/iCloud can get xattrs that break codesign.
-
-Recreate shim after reboot:
-
-```bash
-mkdir -p /tmp/codesign_shim
-printf '#!/bin/sh\nexec /usr/bin/codesign --no-strict "$@"\n' > /tmp/codesign_shim/codesign
-chmod +x /tmp/codesign_shim/codesign
-export PATH="/tmp/codesign_shim:$PATH"
-```
+Project under Desktop/iCloud can get xattrs that break codesign. Build production IPA from a clean,
+non-synced checkout; never weaken signature validation with `--no-strict`. See
+`docs/IOS-DISTRIBUTION.md`.
 
 Prefer `flutter run` / `flutter build`; do not rely on raw Xcode Run before Flutter artifacts exist.
 

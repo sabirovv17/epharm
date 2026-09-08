@@ -15,6 +15,7 @@ public sealed class FulfillmentConfigurationTests
             BackendFallbackBaseUrls = new() { "http://epharm.inkar.kz:8060" },
         };
 
+        Assert.Equal(new[] { "https://epharm.inkar.kz/" }, config.GetBackendBaseUris().Select(x => x.AbsoluteUri));
         Assert.Equal(config.GetBackendBaseUris(), config.GetFulfillmentBaseUris());
     }
 
@@ -31,7 +32,7 @@ public sealed class FulfillmentConfigurationTests
 
         Assert.Equal("https://epharm.inkar.kz/", config.GetBackendBaseUris().First().AbsoluteUri);
         Assert.Equal(
-            new[] { "https://orders.inkar.kz/", "http://10.10.1.80:8080/" },
+            new[] { "https://orders.inkar.kz/" },
             config.GetFulfillmentBaseUris().Select(x => x.AbsoluteUri));
     }
 
@@ -45,6 +46,16 @@ public sealed class FulfillmentConfigurationTests
         };
 
         Assert.Throws<InvalidOperationException>(() => config.GetFulfillmentBaseUris());
+    }
+
+    [Fact]
+    public void RemoteHttpOnlyEndpointFailsClosedButLoopbackRemainsAvailableForDevelopment()
+    {
+        var remote = new EpharmConfig { BackendBaseUrl = "http://epharm.inkar.kz:8060" };
+        Assert.Throws<InvalidOperationException>(() => remote.GetBackendBaseUris());
+
+        var local = new EpharmConfig { BackendBaseUrl = "http://localhost:8080" };
+        Assert.Equal("http://localhost:8080/", local.GetBackendBaseUris().Single().AbsoluteUri);
     }
 
     [Fact]

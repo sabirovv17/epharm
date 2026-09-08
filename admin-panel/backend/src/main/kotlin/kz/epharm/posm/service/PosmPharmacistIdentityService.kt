@@ -2,11 +2,13 @@ package kz.epharm.posm.service
 
 import kz.epharm.pharmacists.entity.PharmacistStatus
 import kz.epharm.pharmacists.repository.PharmacistRepository
+import kz.epharm.posm.repository.PosmPharmacistMappingRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 enum class PharmacistIdentitySource(val wireValue: String) {
     POSM_INTERNAL("posm_internal"),
+    STANDARDN_EXPLICIT_MAPPING("standardn_explicit_mapping"),
     STANDARDN_NAME_MATCH("standardn_name_match"),
     STANDARDN_UNMAPPED("standardn_unmapped"),
     UNRESOLVED("unresolved"),
@@ -31,6 +33,7 @@ data class PosmPharmacistIdentity(
 @Service
 class PosmPharmacistIdentityService(
     private val pharmacistRepository: PharmacistRepository,
+    private val mappingRepository: PosmPharmacistMappingRepository,
 ) {
     @Transactional(readOnly = true)
     fun resolve(
@@ -40,6 +43,20 @@ class PosmPharmacistIdentityService(
     ): PosmPharmacistIdentity {
         val reportedId = reportedPharmacistId.clean()
         val reportedName = reportedPharmacistName.clean()
+
+        val explicitlyMapped = reportedId
+            ?.let { mappingRepository.findByPharmacyIdAndExternalUserIdAndActiveTrue(pharmacyId, it) }
+            ?.let { pharmacistRepository.findById(it.pharmacistId).orElse(null) }
+            ?.takeIf { it.status == PharmacistStatus.active && it.pharmacyId == pharmacyId }
+        if (explicitlyMapped != null) {
+            return PosmPharmacistIdentity(
+                pharmacistId = explicitlyMapped.id,
+                pharmacistName = explicitlyMapped.name,
+                source = PharmacistIdentitySource.STANDARDN_EXPLICIT_MAPPING,
+                reportedPharmacistId = reportedId,
+                reportedPharmacistName = reportedName,
+            )
+        }
 
         val internal = reportedId?.let { pharmacistRepository.findById(it).orElse(null) }
         if (internal != null && internal.status == PharmacistStatus.active && internal.pharmacyId == pharmacyId) {

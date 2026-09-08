@@ -7,7 +7,10 @@ import type {
   CreatePharmacistRequest,
   PharmacistDto,
   PharmacistStatus,
+  PosmPharmacistMappingDto,
+  UnmappedPosmSellerDto,
   UpdatePharmacistRequest,
+  UpsertPosmPharmacistMappingRequest,
 } from '@/lib/api-types'
 
 export interface PharmacistListFilter {
@@ -19,6 +22,53 @@ export const pharmacistKeys = {
   all: ['pharmacists'] as const,
   list: (filter?: PharmacistListFilter) => [...pharmacistKeys.all, 'list', filter ?? {}] as const,
   detail: (id: string) => [...pharmacistKeys.all, 'detail', id] as const,
+  standardNMappings: ['posm', 'pharmacist-mappings'] as const,
+  unmappedStandardNSellers: ['posm', 'pharmacist-mappings', 'unmapped'] as const,
+}
+
+export function useStandardNPharmacistMappings() {
+  return useQuery<PosmPharmacistMappingDto[]>({
+    queryKey: pharmacistKeys.standardNMappings,
+    queryFn: () =>
+      api
+        .get<PosmPharmacistMappingDto[]>('/api/admin/posm/pharmacist-mappings')
+        .then((r) => r.data),
+  })
+}
+
+export function useUnmappedStandardNSellers() {
+  return useQuery<UnmappedPosmSellerDto[]>({
+    queryKey: pharmacistKeys.unmappedStandardNSellers,
+    queryFn: () =>
+      api
+        .get<UnmappedPosmSellerDto[]>('/api/admin/posm/pharmacist-mappings/unmapped')
+        .then((r) => r.data),
+  })
+}
+
+export function useUpsertStandardNPharmacistMapping() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (req: UpsertPosmPharmacistMappingRequest) =>
+      api
+        .post<PosmPharmacistMappingDto>('/api/admin/posm/pharmacist-mappings', req)
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: pharmacistKeys.standardNMappings })
+      qc.invalidateQueries({ queryKey: pharmacistKeys.unmappedStandardNSellers })
+    },
+  })
+}
+
+export function useRevokeStandardNPharmacistMapping() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/api/admin/posm/pharmacist-mappings/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: pharmacistKeys.standardNMappings })
+      qc.invalidateQueries({ queryKey: pharmacistKeys.unmappedStandardNSellers })
+    },
+  })
 }
 
 export function usePharmacists(filter: PharmacistListFilter = {}) {

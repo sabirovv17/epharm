@@ -290,6 +290,14 @@ function RecommendationsSection() {
                           {t('recan.sellerNameMatch')}
                         </div>
                       )}
+                      {e.type === 'sale' && e.pharmacistSource === 'standardn_explicit_mapping' && (
+                        <span
+                          className="chip chip-green"
+                          title="Явное правило HQ для USER_ID Standard-N"
+                        >
+                          Standard-N: правило
+                        </span>
+                      )}
                       {e.type === 'sale' && e.pharmacistSource === 'standardn_unmapped' && (
                         <div className="text-[11px] font-semibold text-amber-700">
                           {t('recan.sellerUnmapped')}

@@ -80,8 +80,14 @@ describe('PromoProductPicker — пагинация (T6)', () => {
     expect(screen.getByText('Товар 0')).toBeInTheDocument()
     expect(screen.queryByText('Товар 60')).not.toBeInTheDocument()
     await user.click(screen.getByTestId('pp-load-more'))
-    await waitFor(() => expect(screen.getByText(/Показано 100 из 120/)).toBeInTheDocument())
-    // Товар из второй страницы теперь доступен — все товары достижимы
+    await waitFor(() => {
+      expect(screen.getByText(/Показано 100 из 120/)).toBeInTheDocument()
+      // Товар из второй страницы теперь доступен — все товары достижимы.
+      expect(screen.getByText('Товар 60')).toBeInTheDocument()
+    })
+    // Начальный debounce не должен отложенно сбрасывать уже открытую страницу.
+    await new Promise((resolve) => setTimeout(resolve, 350))
+    expect(screen.getByText(/Показано 100 из 120/)).toBeInTheDocument()
     expect(screen.getByText('Товар 60')).toBeInTheDocument()
   })
 

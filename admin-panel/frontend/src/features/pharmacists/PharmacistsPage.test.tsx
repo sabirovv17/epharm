@@ -17,6 +17,10 @@ const pharmacistHooks = vi.hoisted(() => ({
   useActivatePharmacist: vi.fn(),
   useBlockPharmacist: vi.fn(),
   useUnblockPharmacist: vi.fn(),
+  useStandardNPharmacistMappings: vi.fn(),
+  useUnmappedStandardNSellers: vi.fn(),
+  useUpsertStandardNPharmacistMapping: vi.fn(),
+  useRevokeStandardNPharmacistMapping: vi.fn(),
 }))
 
 vi.mock('@/lib/queries/pharmacists', () => pharmacistHooks)

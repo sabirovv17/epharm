@@ -332,6 +332,36 @@ export interface ActivatePharmacistRequest {
   pharmacyId: string
 }
 
+export interface PosmPharmacistMappingDto {
+  id: string
+  pharmacyId: string
+  pharmacyName: string
+  externalUserId: string
+  externalUserName: string | null
+  pharmacistId: string
+  pharmacistName: string
+  active: boolean
+  createdAt: string
+  updatedAt: string
+  revokedAt: string | null
+}
+
+export interface UnmappedPosmSellerDto {
+  pharmacyId: string
+  pharmacyName: string
+  externalUserId: string
+  externalUserName: string | null
+  salesCount: number
+  lastSeenAt: string
+}
+
+export interface UpsertPosmPharmacistMappingRequest {
+  pharmacyId: string
+  externalUserId: string
+  externalUserName?: string | null
+  pharmacistId: string
+}
+
 // ─── Promo (Этап 3.3) ────────────────────────────────────────────────────
 // Зеркало kz.epharm.promo.dto.* + PromoStatus.
 
@@ -554,6 +584,7 @@ export interface LogEntryDto {
   pharmacistSource?:
     | 'legacy'
     | 'posm_internal'
+    | 'standardn_explicit_mapping'
     | 'standardn_name_match'
     | 'standardn_unmapped'
     | 'unresolved'
@@ -1420,6 +1451,7 @@ export type FulfillmentAction = 'assemble' | 'ready' | 'issue' | 'cancel'
 export interface FulfillmentFeatureStatusDto {
   enabled: boolean
   deviceRegistrationEnabled: boolean
+  legacyPosmKeyEnabled: boolean
 }
 
 export interface FulfillmentLineDto {
@@ -1443,6 +1475,8 @@ export interface FulfillmentOrderDto {
   delivery: string
   paymentMethod: string
   paymentStatus: string
+  paymentStatusClaimed: string
+  paymentAuthority: string | null
   demo: boolean
   status: FulfillmentStatus
   version: number
@@ -1501,4 +1535,13 @@ export interface FulfillmentDeviceDto {
   registeredAt: string
   lastSeenAt: string
   revokedAt: string | null
+}
+
+export interface ProvisionPosmDeviceRequest {
+  deviceId: string
+  pharmacyId: string
+}
+
+export interface ProvisionPosmDeviceResponse extends ProvisionPosmDeviceRequest {
+  token: string
 }

@@ -27,24 +27,9 @@ test("offer synchronization retains localhost development support", () => {
   );
 });
 
-test("offer synchronization allows only the explicitly opted-in legacy origin", () => {
-  const previous = process.env.MEDUSA_ALLOW_INSECURE_LEGACY_HTTP;
-  process.env.MEDUSA_ALLOW_INSECURE_LEGACY_HTTP = "true";
-  try {
-    assert.equal(
-      secureMedusaUrl("http://78.140.246.238:9000").href,
-      "http://78.140.246.238:9000/",
-    );
-    assert.throws(
-      () => secureMedusaUrl("http://78.140.246.238:9001"),
-      /MEDUSA_URL/,
-    );
-    assert.throws(
-      () => secureMedusaUrl("http://78.140.246.238:9000/store"),
-      /MEDUSA_URL/,
-    );
-  } finally {
-    if (previous === undefined) delete process.env.MEDUSA_ALLOW_INSECURE_LEGACY_HTTP;
-    else process.env.MEDUSA_ALLOW_INSECURE_LEGACY_HTTP = previous;
-  }
+test("offer synchronization rejects paths on the configured origin", () => {
+  assert.throws(
+    () => secureMedusaUrl("https://medusa.example.kz/store"),
+    /MEDUSA_URL/,
+  );
 });

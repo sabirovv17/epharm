@@ -141,6 +141,7 @@ secrets/
 /.audit-screens/
 /output/
 /tmp/
+/_artifacts/
 
 # Локальный полный Swagger стороннего Daribar API. В проекте хранится только извлечённый
 # OTP-контракт (`docs/15-daribar-otp.md`), без лишней поверхности внешнего API.
@@ -158,6 +159,7 @@ tools/build_icons/
 /epharm-posm/
 /epharm-posm.zip
 /test-results/
+/load-tests/results/
 App/bin/
 App/obj/
 App.Tests/bin/
@@ -165,6 +167,9 @@ App.Tests/obj/
 
 # Прод-секреты (compose --env-file) — НЕ коммитить
 .env.prod
+.release.env
+/backups/
+/releases/
 
 # Доступы к витрине inkar.kz (Module 3): содержат ЖИВЫЕ секреты — SSH root-пароль,
 # admin-пароли Medusa/PIM. В репозиторий НЕ коммитить (ротировать — см. claude-admin-notes.md).

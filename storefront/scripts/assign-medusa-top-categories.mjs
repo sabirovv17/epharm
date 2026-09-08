@@ -35,6 +35,7 @@ import {
   validateRequiredTaxonomy,
   equalIdSets,
 } from "./lib/medusa-top-category-plan.mjs";
+import { secureMedusaUrl } from "./lib/secure-medusa-url.mjs";
 
 const PRODUCT_PAGE_SIZE = 100;
 const CATEGORY_PAGE_SIZE = 100;
@@ -144,10 +145,7 @@ function requiredEnvironment(name) {
 }
 
 function medusaBaseUrl() {
-  const parsed = new URL(requiredEnvironment("MEDUSA_URL"));
-  if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("MEDUSA_URL must use http or https");
-  if (parsed.username || parsed.password) throw new Error("Do not embed credentials in MEDUSA_URL");
-  return parsed.origin;
+  return secureMedusaUrl(requiredEnvironment("MEDUSA_URL")).origin;
 }
 
 function safeError(error) {

@@ -19,7 +19,7 @@ function configuredBaseUrl() {
 
 const BASE = configuredBaseUrl();
 const PK = process.env.MEDUSA_PUBLISHABLE_KEY || "";
-const MEDUSA_PROXY_ON = process.env.MEDUSA_ENABLED !== "false";
+const MEDUSA_PROXY_ON = process.env.MEDUSA_ENABLED === "true";
 const MAX_BODY_BYTES = clampInt(process.env.MEDUSA_PROXY_MAX_BODY_BYTES, 1_000_000, 1_024, 8_000_000);
 const MAX_RESPONSE_BYTES = clampInt(
   process.env.MEDUSA_PROXY_MAX_RESPONSE_BYTES,

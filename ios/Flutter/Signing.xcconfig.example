@@ -1,0 +1,3 @@
+// Copy to Signing.xcconfig or use tools/build-ios-release.sh.
+// Team IDs are not secrets, but the repository must not be tied to a Personal Team.
+APPLE_DEVELOPMENT_TEAM = ABCDE12345

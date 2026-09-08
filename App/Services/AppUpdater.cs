@@ -43,7 +43,6 @@ namespace CustomerDisplay.Services
             // Отдельный HttpClient с большим таймаутом — у основного клиента таймаут ~700мс
             // (под рекомендации), для скачивания zip это мало.
             _downloadHttp = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-            _downloadHttp.DefaultRequestHeaders.Add("X-Posm-Key", cfg.DeviceKey);
         }
 
         /// <summary>Установленная версия (из сборки). Сравнивается с релизом из админки.</summary>
@@ -76,6 +75,12 @@ namespace CustomerDisplay.Services
                 if (remote <= local)
                 {
                     return false; // уже актуально
+                }
+
+                if (!UpdateManifestVerifier.Verify(info, _cfg.UpdateManifestPublicKeySpki))
+                {
+                    _log("update: подпись манифеста отсутствует или не прошла проверку — обновление отклонено");
+                    return false;
                 }
 
                 _log($"update: доступна версия {remote} (установлена {local}) — качаю {info.Url}");
@@ -158,6 +163,9 @@ namespace CustomerDisplay.Services
                     ct.ThrowIfCancellationRequested();
                     var existingLength = File.Exists(partPath) ? new FileInfo(partPath).Length : 0L;
                     using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                    // The package is a public cacheable artifact. Authentication and integrity
+                    // come from the pinned manifest signature + SHA-256, so a per-device token
+                    // must never be exposed to a download origin or intermediary.
                     if (existingLength > 0)
                         request.Headers.Range = new RangeHeaderValue(existingLength, null);
 

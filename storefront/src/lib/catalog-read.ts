@@ -40,7 +40,7 @@ export async function getCatalogReadProducts(limit = 250): Promise<Product[]> {
       return await getLocalProductsPage(safeLimit);
     } catch (error) {
       console.error("[catalog] bounded postgres read unavailable", error);
-      if (process.env.MEDUSA_ENABLED === "false") return [];
+      if (process.env.MEDUSA_ENABLED !== "true") return [];
     }
   }
   try {

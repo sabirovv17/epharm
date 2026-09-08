@@ -67,19 +67,20 @@ class AppReleaseIntegrationTest {
     @Test
     fun `зарегистрированный релиз отдаётся кассе`() {
         appReleaseService.register(
-            RegisterReleaseRequest(version = "1.2.0", url = "http://minio/app/epharm-1.2.0.zip", sha256 = "abc"),
+            release("1.2.0", "https://cdn.example/app/epharm-1.2.0.zip"),
         )
         val resp = getVersion()
         assertTrue(resp.current)
         assertEquals("1.2.0", resp.version)
-        assertEquals("http://minio/app/epharm-1.2.0.zip", resp.url)
-        assertEquals("abc", resp.sha256)
+        assertEquals("https://cdn.example/app/epharm-1.2.0.zip", resp.url)
+        assertEquals("a".repeat(64), resp.sha256)
+        assertEquals("AQID", resp.manifestSignature)
     }
 
     @Test
     fun `register делает текущим ровно один релиз на платформу`() {
-        appReleaseService.register(RegisterReleaseRequest(version = "1.0.0", url = "http://minio/v1.zip"))
-        appReleaseService.register(RegisterReleaseRequest(version = "1.1.0", url = "http://minio/v11.zip"))
+        appReleaseService.register(release("1.0.0", "https://cdn.example/v1.zip"))
+        appReleaseService.register(release("1.1.0", "https://cdn.example/v11.zip"))
         // текущий — последний; ровно один current
         val current = appReleaseRepository.findAllByPlatformAndIsCurrentTrue("win-x64")
         assertEquals(1, current.size)
@@ -98,4 +99,11 @@ class AppReleaseIntegrationTest {
             .andReturn().response.getContentAsString(Charsets.UTF_8)
         return objectMapper.readValue(body, AppVersionDto::class.java)
     }
+
+    private fun release(version: String, url: String) = RegisterReleaseRequest(
+        version = version,
+        url = url,
+        sha256 = "a".repeat(64),
+        manifestSignature = "AQID",
+    )
 }

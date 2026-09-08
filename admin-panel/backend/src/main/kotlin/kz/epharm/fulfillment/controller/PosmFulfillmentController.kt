@@ -1,17 +1,12 @@
 package kz.epharm.fulfillment.controller
 
-import java.nio.charset.StandardCharsets
-import java.security.MessageDigest
 import kz.epharm.fulfillment.dto.FulfillmentActionRequest
 import kz.epharm.fulfillment.dto.FulfillmentOrderDto
 import kz.epharm.fulfillment.dto.FulfillmentOrderPageDto
 import kz.epharm.fulfillment.dto.RegisterFulfillmentDeviceRequest
 import kz.epharm.fulfillment.dto.RegisterFulfillmentDeviceResponse
 import kz.epharm.fulfillment.service.FulfillmentService
-import kz.epharm.shared.error.AppException
-import kz.epharm.shared.error.ErrorCode
-import org.springframework.beans.factory.annotation.Value
-import org.springframework.http.HttpStatus
+import kz.epharm.posm.service.PosmDeviceAuthenticationService
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -25,14 +20,14 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/api/posm/fulfillment")
 class PosmFulfillmentController(
     private val fulfillment: FulfillmentService,
-    @Value("\${app.posm.device-key:dev-posm-key}") private val legacyPosmKey: String,
+    private val deviceAuthentication: PosmDeviceAuthenticationService,
 ) {
     @PostMapping("/devices/register")
     fun register(
         @RequestHeader(name = "X-Posm-Key", required = false) key: String?,
         @RequestBody request: RegisterFulfillmentDeviceRequest,
     ): RegisterFulfillmentDeviceResponse {
-        requireLegacyPosmKey(key)
+        deviceAuthentication.requireLegacyBootstrap(key)
         return fulfillment.registerDevice(request.deviceId, request.pharmacyId)
     }
 
@@ -64,17 +59,5 @@ class PosmFulfillmentController(
     ): FulfillmentOrderDto {
         val device = fulfillment.authenticateDevice(token)
         return fulfillment.actAsDevice(orderId, request, device)
-    }
-
-    private fun requireLegacyPosmKey(key: String?) {
-        val supplied = key?.toByteArray(StandardCharsets.UTF_8) ?: ByteArray(0)
-        val expected = legacyPosmKey.toByteArray(StandardCharsets.UTF_8)
-        if (key.isNullOrBlank() || !MessageDigest.isEqual(supplied, expected)) {
-            throw AppException(
-                ErrorCode.UNAUTHORIZED,
-                "Invalid or missing POSM device key",
-                HttpStatus.UNAUTHORIZED,
-            )
-        }
     }
 }

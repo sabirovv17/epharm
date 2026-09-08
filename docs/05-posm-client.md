@@ -150,8 +150,9 @@ consumer boundary, not a universal adapter for unknown cash-register drivers. Se
 Pharmacist attribution comes exclusively from the active Standard-N user on the workstation:
 
 1. POSM reads the active Standard-N id and full name and captures them once for the receipt.
-2. Backend accepts an internal id only when it belongs to an active pharmacist assigned to the same
-   pharmacy. It can also use an exact unique full-name match within that pharmacy.
+2. Backend first applies an explicit HQ rule `(pharmacy, external USER_ID) -> pharmacist`. The target
+   must be active and assigned to that pharmacy. Only then can it use a valid internal id or exact
+   unique full-name match within the pharmacy.
 3. Any other Standard-N id/name is marked `standardn_unmapped`, stored verbatim, and shown in the
    dashboard instead of being discarded.
 4. Missing identity is marked `unresolved`. Unmapped/unresolved sales do not enter automatic bonus
@@ -164,12 +165,9 @@ attribute another cash desk's receipt or pharmacist. Other Standard-N releases r
 schema/connection failure preserves the last known UI state and the log compatibility path continues.
 
 POSM sends API requests to `BackendBaseUrl` first. On public-gateway `404/502/503/504` or a connection
-failure it retries the configured fallback origin. A non-final endpoint gets a two-second attempt
-budget, so a hanging gateway cannot consume the whole recommendation timeout before `:8060` is tried.
-The client probes the preferred origin again every five
-minutes. Origins must not include `/login`; the client adds `/api/posm/*`. The temporary
-`http://epharm.inkar.kz:8060` fallback is for POSM API traffic only and should be removed once the
-HTTPS gateway works. Application-release downloads stay HTTPS-only.
+failure it retries configured HTTPS fallbacks within a bounded attempt budget and probes the primary
+again every five minutes. Origins must not include `/login`; the client adds `/api/posm/*`. Remote
+HTTP origins are rejected; only loopback development may use HTTP.
 
 ## Screen Modes
 
@@ -225,9 +223,9 @@ independent recovery source. Release archives must never contain `posm.json`, de
 credentials, pharmacy identifiers, or source code. The current bridge archive contains only the
 application executable, DLL, deps file, and runtime config. Before a release becomes current, verify
 an anonymous HTTPS download, Range resume, ZIP integrity, exact byte size, and SHA-256 from the final
-CDN URL. The backend may remain reachable through the temporary HTTP `:8060` API fallback, but
-`AppUpdater` accepts the executable archive only over HTTPS and rejects a missing or mismatched
-SHA-256. Pharmacy-specific `C:\Epharm\posm.json` is preserved during the overlay update.
+CDN URL. Register only a manifest signed by the offline ECDSA P-256 key. `AppUpdater` verifies the
+independently pinned SPKI over platform/version/URL/hash/mandatory before download and then verifies
+the ZIP SHA-256. Pharmacy-specific `C:\Epharm\posm.json` is preserved during the overlay update.
 
 ## Operations
 

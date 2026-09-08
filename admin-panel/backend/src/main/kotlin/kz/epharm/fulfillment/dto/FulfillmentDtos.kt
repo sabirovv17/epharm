@@ -22,6 +22,7 @@ data class StorefrontOrderCreatedRequest(
     val delivery: String,
     val paymentMethod: String,
     val paymentStatus: String,
+    val paymentAuthority: String? = null,
     val demo: Boolean = false,
     val pickupCode: String,
     val lines: List<StorefrontOrderLineRequest>,
@@ -82,6 +83,8 @@ data class FulfillmentOrderDto(
     val delivery: String,
     val paymentMethod: String,
     val paymentStatus: String,
+    val paymentStatusClaimed: String,
+    val paymentAuthority: String?,
     val demo: Boolean,
     val status: String,
     val version: Long,
@@ -145,4 +148,5 @@ data class FulfillmentDeviceDto(
 data class FulfillmentFeatureStatusDto(
     val enabled: Boolean,
     val deviceRegistrationEnabled: Boolean,
+    val legacyPosmKeyEnabled: Boolean,
 )

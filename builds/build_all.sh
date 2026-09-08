@@ -14,16 +14,6 @@ API_BASE="${API_BASE:-https://epharm.inkar.kz}"
 DART_DEFINES="--dart-define=USE_API=true --dart-define=API_BASE=${API_BASE}"
 echo "▶ Building Epharm v${VERSION}  (API_BASE=${API_BASE})"
 
-# Воссоздать codesign shim (после reboot Mac /tmp обнуляется → shim пропадает,
-# и Flutter не может подписать Flutter.framework для simulator/iCloud-папки).
-# См. docs/claude-notes.md → раздел «iOS codesign fix».
-mkdir -p /tmp/codesign_shim
-cat > /tmp/codesign_shim/codesign << 'SHIM'
-#!/bin/sh
-exec /usr/bin/codesign --no-strict "$@"
-SHIM
-chmod +x /tmp/codesign_shim/codesign
-
 flutter clean
 flutter pub get
 

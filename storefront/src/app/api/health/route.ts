@@ -46,7 +46,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const medusaEnabled = process.env.MEDUSA_ENABLED !== "false";
+  const medusaEnabled = process.env.MEDUSA_ENABLED === "true";
   const warmed = warm
     ? await Promise.allSettled([getCatalogReadProducts(100), getCatalogReadCategoryTree()])
     : null;

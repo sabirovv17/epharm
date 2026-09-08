@@ -10,6 +10,8 @@ import type {
   FulfillmentPharmacyLinkDto,
   FulfillmentPharmacyLinkRequest,
   FulfillmentStatus,
+  ProvisionPosmDeviceRequest,
+  ProvisionPosmDeviceResponse,
 } from '@/lib/api-types'
 
 export interface FulfillmentOrderFilter {
@@ -102,6 +104,17 @@ export function useFulfillmentDevices() {
     queryFn: () =>
       api.get<FulfillmentDeviceDto[]>('/api/admin/fulfillment/devices').then((r) => r.data),
     refetchInterval: 30_000,
+  })
+}
+
+export function useProvisionPosmDevice() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (request: ProvisionPosmDeviceRequest) =>
+      api
+        .post<ProvisionPosmDeviceResponse>('/api/admin/fulfillment/devices', request)
+        .then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: fulfillmentKeys.devices() }),
   })
 }
 
