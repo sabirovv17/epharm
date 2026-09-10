@@ -15,7 +15,7 @@ dependencies:
   flutter_riverpod: ^2.6.1
 
   # Navigation
-  go_router: ^14.6.2
+  go_router: ^18.0.1
 
   # SVG (Receipt Stamp logo)
   flutter_svg: ^2.0.16
