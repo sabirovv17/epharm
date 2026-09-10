@@ -200,6 +200,56 @@ export function useUploadCourseLessonVideo() {
   })
 }
 
+export function useUploadCourseLessonAttachment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      courseId,
+      lessonId,
+      file,
+      title,
+    }: {
+      courseId: string
+      lessonId: string
+      file: File
+      title?: string
+    }) => {
+      const form = new FormData()
+      form.append('file', file)
+      if (title?.trim()) form.append('title', title.trim())
+      return api
+        .post<CourseDto>(
+          `/api/admin/lms/courses/${courseId}/lessons/${lessonId}/attachments`,
+          form,
+          { timeout: 120_000 },
+        )
+        .then((r) => r.data)
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: lmsKeys.all }),
+  })
+}
+
+export function useDeleteCourseLessonAttachment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      courseId,
+      lessonId,
+      attachmentId,
+    }: {
+      courseId: string
+      lessonId: string
+      attachmentId: string
+    }) =>
+      api
+        .delete<CourseDto>(
+          `/api/admin/lms/courses/${courseId}/lessons/${lessonId}/attachments/${attachmentId}`,
+        )
+        .then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: lmsKeys.all }),
+  })
+}
+
 export function useTrainingDashboard() {
   return useQuery<TrainingDashboardDto>({
     queryKey: lmsKeys.dashboard(),

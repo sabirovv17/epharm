@@ -30,6 +30,11 @@
   #root {
     min-width: 1280px;
   }
+
+  /* The learner portal is also used from phones and must not inherit the HQ desktop floor. */
+  body.learner-portal #root {
+    min-width: 0;
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────────

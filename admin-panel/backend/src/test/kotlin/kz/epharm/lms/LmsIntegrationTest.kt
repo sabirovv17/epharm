@@ -10,6 +10,7 @@ import kz.epharm.auth.repository.AdminUserRepository
 import kz.epharm.lms.entity.CourseEntity
 import kz.epharm.lms.entity.CourseStatus
 import kz.epharm.lms.repository.CourseRepository
+import kz.epharm.lms.repository.CourseLessonAttachmentRepository
 import kz.epharm.lms.repository.CourseLessonRepository
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -64,6 +65,7 @@ class LmsIntegrationTest {
     @Autowired private lateinit var objectMapper: ObjectMapper
     @Autowired private lateinit var courseRepository: CourseRepository
     @Autowired private lateinit var courseLessonRepository: CourseLessonRepository
+    @Autowired private lateinit var courseLessonAttachmentRepository: CourseLessonAttachmentRepository
     @Autowired private lateinit var adminUserRepository: AdminUserRepository
     @Autowired private lateinit var passwordEncoder: PasswordEncoder
 
@@ -71,6 +73,7 @@ class LmsIntegrationTest {
 
     @BeforeEach
     fun seed() {
+        courseLessonAttachmentRepository.deleteAll()
         courseLessonRepository.deleteAll()
         courseRepository.deleteAll()
         adminUserRepository.deleteAll()
@@ -292,6 +295,81 @@ class LmsIntegrationTest {
         )
             .andExpect(status().isConflict)
             .andExpect(jsonPath("$.code").value("CONFLICT"))
+    }
+
+    @Test
+    fun `lesson attachment upload is returned and can be deleted`() {
+        val created = mockMvc.perform(
+            post("/api/admin/lms/courses/crs_draft/lessons")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"title":"Памятка","kind":"text"}"""),
+        ).andExpect(status().isOk).andReturn()
+        val lessonId = objectMapper.readTree(created.response.contentAsString)
+            .path("lessonItems").path(0).path("id").asText()
+        val handout = MockMultipartFile(
+            "file",
+            "handout.pdf",
+            "application/pdf",
+            "%PDF-1.7 test".toByteArray(),
+        )
+
+        val uploaded = mockMvc.perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .multipart("/api/admin/lms/courses/crs_draft/lessons/$lessonId/attachments")
+                .file(handout)
+                .param("title", "Памятка фармацевта")
+                .header("Authorization", bearer),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.lessonItems[0].attachments.length()").value(1))
+            .andExpect(jsonPath("$.lessonItems[0].attachments[0].title").value("Памятка фармацевта"))
+            .andExpect(jsonPath("$.lessonItems[0].attachments[0].fileName").value("handout.pdf"))
+            .andExpect(jsonPath("$.lessonItems[0].attachments[0].kind").value("document"))
+            .andReturn()
+        val attachmentId = objectMapper.readTree(uploaded.response.contentAsString)
+            .path("lessonItems").path(0).path("attachments").path(0).path("id").asText()
+
+        mockMvc.perform(
+            delete("/api/admin/lms/courses/crs_draft/lessons/$lessonId/attachments/$attachmentId")
+                .header("Authorization", bearer),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.lessonItems[0].attachments.length()").value(0))
+    }
+
+    @Test
+    fun `lesson attachment rejects executable content and requires authentication`() {
+        val created = mockMvc.perform(
+            post("/api/admin/lms/courses/crs_draft/lessons")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"title":"Материал","kind":"text"}"""),
+        ).andExpect(status().isOk).andReturn()
+        val lessonId = objectMapper.readTree(created.response.contentAsString)
+            .path("lessonItems").path(0).path("id").asText()
+        val executable = MockMultipartFile(
+            "file",
+            "payload.html",
+            "text/html",
+            "<script>alert(1)</script>".toByteArray(),
+        )
+
+        mockMvc.perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .multipart("/api/admin/lms/courses/crs_draft/lessons/$lessonId/attachments")
+                .file(executable)
+                .header("Authorization", bearer),
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+
+        val handout = MockMultipartFile("file", "handout.pdf", "application/pdf", "pdf".toByteArray())
+        mockMvc.perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .multipart("/api/admin/lms/courses/crs_draft/lessons/$lessonId/attachments")
+                .file(handout),
+        ).andExpect(status().isUnauthorized)
     }
 
     private fun login(): LoginResponse {

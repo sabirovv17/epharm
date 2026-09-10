@@ -8,10 +8,12 @@ import kz.epharm.lms.dto.ReorderCourseLessonsRequest
 import kz.epharm.lms.dto.UpdateCourseLessonRequest
 import kz.epharm.lms.dto.UpdateCourseRequest
 import kz.epharm.lms.entity.CourseEntity
+import kz.epharm.lms.entity.CourseLessonAttachmentEntity
 import kz.epharm.lms.entity.CourseLessonEntity
 import kz.epharm.lms.entity.CourseLessonKind
 import kz.epharm.lms.entity.CourseStatus
 import kz.epharm.lms.repository.CourseLessonRepository
+import kz.epharm.lms.repository.CourseLessonAttachmentRepository
 import kz.epharm.lms.repository.CourseRepository
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
@@ -28,6 +30,7 @@ import java.util.UUID
 class CourseService(
     private val courseRepository: CourseRepository,
     private val lessonRepository: CourseLessonRepository,
+    private val attachmentRepository: CourseLessonAttachmentRepository,
     private val mediaStorage: MediaStorage,
 ) {
 
@@ -39,16 +42,20 @@ class CourseService(
             courseRepository.findAllByOrderByUpdatedAtDesc()
         }
         if (rows.isEmpty()) return emptyList()
-        val lessonsByCourse = lessonRepository
+        val allLessons = lessonRepository
             .findAllByCourseIdInOrderByCourseIdAscOrderAscCreatedAtAsc(rows.map { it.id })
-            .groupBy { it.courseId }
-        return rows.map { CourseDto.of(it, lessonsByCourse[it.id].orEmpty()) }
+        val lessonsByCourse = allLessons.groupBy { it.courseId }
+        val attachmentsByLesson = attachmentsByLesson(allLessons)
+        return rows.map {
+            CourseDto.of(it, lessonsByCourse[it.id].orEmpty(), attachmentsByLesson)
+        }
     }
 
     @Transactional(readOnly = true)
     fun get(id: String): CourseDto {
         val course = loadOrThrow(id)
-        return CourseDto.of(course, lessons(id))
+        val rows = lessons(id)
+        return CourseDto.of(course, rows, attachmentsByLesson(rows))
     }
 
     @Transactional
@@ -83,7 +90,8 @@ class CourseService(
         req.lessons?.let { entity.lessons = it }
         req.durationMin?.let { entity.durationMin = it }
         req.bonus?.let { entity.bonus = it }
-        return CourseDto.of(courseRepository.save(entity), structuredLessons)
+        courseRepository.save(entity)
+        return get(id)
     }
 
     @Transactional
@@ -140,6 +148,9 @@ class CourseService(
         editableCourse(courseId)
         val lesson = loadLessonOrThrow(courseId, lessonId)
         val obsoleteVideo = lesson.videoUrl
+        val obsoleteAttachments = attachmentRepository
+            .findAllByLessonIdOrderByCreatedAtAsc(lessonId)
+            .map { it.mediaUrl }
         lessonRepository.delete(lesson)
         lessons(courseId).filter { it.id != lessonId }.forEachIndexed { index, row ->
             if (row.order != index) {
@@ -149,6 +160,7 @@ class CourseService(
         }
         syncAggregates(courseId)
         obsoleteVideo?.let(::registerAfterCommitCleanup)
+        obsoleteAttachments.forEach(::registerAfterCommitCleanup)
         return get(courseId)
     }
 
@@ -187,6 +199,51 @@ class CourseService(
         return get(courseId)
     }
 
+    @Transactional
+    fun uploadLessonAttachment(
+        courseId: String,
+        lessonId: String,
+        file: MultipartFile,
+        title: String,
+    ): CourseDto {
+        editableCourse(courseId)
+        loadLessonOrThrow(courseId, lessonId)
+        validateAttachment(file)
+        val fileName = file.originalFilename.orEmpty()
+            .substringAfterLast('/')
+            .substringAfterLast('\\')
+            .take(255)
+            .ifBlank { "material" }
+        val contentType = file.contentType.orEmpty().lowercase()
+            .ifBlank { "application/octet-stream" }
+        val url = mediaStorage.upload(file.bytes, contentType, fileName)
+        registerRollbackCleanup(url)
+        attachmentRepository.save(
+            CourseLessonAttachmentEntity(
+                id = "cla_${UUID.randomUUID().toString().replace("-", "").take(16)}",
+                lessonId = lessonId,
+                title = title.trim().take(255).ifBlank { fileName },
+                fileName = fileName,
+                contentType = contentType,
+                mediaUrl = url,
+                sizeBytes = file.size,
+            ),
+        )
+        return get(courseId)
+    }
+
+    @Transactional
+    fun deleteLessonAttachment(courseId: String, lessonId: String, attachmentId: String): CourseDto {
+        editableCourse(courseId)
+        loadLessonOrThrow(courseId, lessonId)
+        val attachment = attachmentRepository.findById(attachmentId).orElse(null)
+            ?.takeIf { it.lessonId == lessonId }
+            ?: throw AppException(ErrorCode.NOT_FOUND, "Материал не найден", HttpStatus.NOT_FOUND)
+        attachmentRepository.delete(attachment)
+        registerAfterCommitCleanup(attachment.mediaUrl)
+        return get(courseId)
+    }
+
     private fun syncAggregates(courseId: String) {
         val course = loadOrThrow(courseId)
         val rows = lessons(courseId)
@@ -197,6 +254,16 @@ class CourseService(
 
     private fun lessons(courseId: String): List<CourseLessonEntity> =
         lessonRepository.findAllByCourseIdOrderByOrderAscCreatedAtAsc(courseId)
+
+    private fun attachmentsByLesson(
+        lessons: List<CourseLessonEntity>,
+    ): Map<String, List<CourseLessonAttachmentEntity>> = if (lessons.isEmpty()) {
+        emptyMap()
+    } else {
+        attachmentRepository
+            .findAllByLessonIdInOrderByLessonIdAscCreatedAtAsc(lessons.map { it.id })
+            .groupBy { it.lessonId }
+    }
 
     private fun editableCourse(id: String): CourseEntity = loadOrThrow(id).also {
         if (it.status == CourseStatus.archived) {
@@ -226,6 +293,18 @@ class CourseService(
         }
     }
 
+    private fun validateAttachment(file: MultipartFile) {
+        if (file.isEmpty) invalid("Файл пуст")
+        if (file.size > MAX_ATTACHMENT_BYTES) invalid("Размер материала не должен превышать 25 МБ")
+        val extension = file.originalFilename.orEmpty().substringAfterLast('.', "").lowercase()
+        val contentType = file.contentType.orEmpty().lowercase()
+        if (extension !in SUPPORTED_ATTACHMENT_EXTENSIONS ||
+            (contentType.isNotBlank() && contentType !in SUPPORTED_ATTACHMENT_TYPES)
+        ) {
+            invalid("Поддерживаются изображения, PDF, Word, Excel, PowerPoint и текстовые файлы")
+        }
+    }
+
     private fun registerRollbackCleanup(newUrl: String) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) return
         TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
@@ -250,7 +329,22 @@ class CourseService(
 
     private companion object {
         const val MAX_VIDEO_BYTES = 60L * 1024 * 1024
+        const val MAX_ATTACHMENT_BYTES = 25L * 1024 * 1024
         val SUPPORTED_VIDEO_TYPES = setOf("video/mp4", "video/webm")
         val SUPPORTED_VIDEO_EXTENSIONS = setOf("mp4", "webm")
+        val SUPPORTED_ATTACHMENT_EXTENSIONS = setOf(
+            "jpg", "jpeg", "png", "webp", "gif", "pdf", "doc", "docx",
+            "xls", "xlsx", "ppt", "pptx", "txt", "csv",
+        )
+        val SUPPORTED_ATTACHMENT_TYPES = setOf(
+            "image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-powerpoint",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "text/plain", "text/csv", "application/octet-stream",
+        )
     }
 }

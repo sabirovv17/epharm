@@ -12,6 +12,7 @@ import { defaultPathForRole } from './accessPolicy'
 import { SectionRoute } from './SectionRoute'
 
 const LoginPage = lazy(() => import('@/features/auth/LoginPage'))
+const LearnerTraining = lazy(() => import('@/features/learner/LearnerTrainingPage'))
 const Dashboard = lazy(() => import('@/features/dashboard/DashboardPage'))
 const Promo = lazy(() => import('@/features/promo/PromoPage'))
 const PromoDetail = lazy(() => import('@/features/promo/PromoDetailPage'))
@@ -53,6 +54,12 @@ export function AppRouter() {
     <Routes>
       {/* Public — login screen без AppShell */}
       <Route path="/login" element={withSuspense(<LoginPage />)} />
+      <Route path="/learn" element={withSuspense(<LearnerTraining />)} />
+      <Route path="/learn/course/:assignmentId" element={withSuspense(<LearnerTraining />)} />
+      <Route
+        path="/learn/course/:assignmentId/lesson/:lessonId"
+        element={withSuspense(<LearnerTraining />)}
+      />
 
       {/* Private — всё за RequireAuth → AppShell с Sidebar + Topbar */}
       <Route element={<RequireAuth />}>

@@ -6,6 +6,7 @@ import kz.epharm.auth.repository.AdminUserRepository
 import kz.epharm.auth.security.AdminPrincipal
 import kz.epharm.lms.repository.CourseRepository
 import kz.epharm.lms.repository.CourseLessonRepository
+import kz.epharm.lms.repository.CourseLessonAttachmentRepository
 import kz.epharm.lms.dto.CourseContentDto
 import kz.epharm.pharmacists.entity.PharmacistEntity
 import kz.epharm.pharmacists.entity.PharmacistStatus
@@ -112,6 +113,7 @@ class TrainingService(
     private val adminUserRepository: AdminUserRepository,
     private val courseRepository: CourseRepository,
     private val courseLessonRepository: CourseLessonRepository,
+    private val courseLessonAttachmentRepository: CourseLessonAttachmentRepository,
     private val jdbcTemplate: JdbcTemplate,
     private val objectMapper: ObjectMapper,
 ) {
@@ -1844,6 +1846,15 @@ class TrainingService(
                 .findAllByCourseIdInOrderByCourseIdAscOrderAscCreatedAtAsc(courses.keys)
                 .groupBy { it.courseId }
         }
+        val courseAttachments = if (courseLessons.isEmpty()) {
+            emptyMap()
+        } else {
+            courseLessonAttachmentRepository
+                .findAllByLessonIdInOrderByLessonIdAscCreatedAtAsc(
+                    courseLessons.values.flatten().map { it.id },
+                )
+                .groupBy { it.lessonId }
+        }
         val pharmacists = pharmacistRepository.findAllById(rows.map { it.pharmacistId }.distinct()).associateBy { it.id }
         val events = eventRepository.findAllById(rows.mapNotNull { it.eventId }.distinct()).associateBy { it.id }
         val definitions = programStageRepository.findAllById(
@@ -1869,7 +1880,11 @@ class TrainingService(
                         null
                     }
                     val courseContent = course?.let {
-                        CourseContentDto.of(it, courseLessons[it.id].orEmpty())
+                        CourseContentDto.of(
+                            it,
+                            courseLessons[it.id].orEmpty(),
+                            courseAttachments,
+                        )
                     }
                     TrainingAssignmentStageDto(
                         id = row.id,

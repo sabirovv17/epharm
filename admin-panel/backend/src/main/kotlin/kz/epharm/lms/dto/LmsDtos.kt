@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotEmpty
 import jakarta.validation.constraints.Size
 import kz.epharm.lms.entity.CourseEntity
+import kz.epharm.lms.entity.CourseLessonAttachmentEntity
 import kz.epharm.lms.entity.CourseLessonEntity
 import kz.epharm.lms.entity.CourseLessonKind
 import kz.epharm.lms.entity.CourseStatus
@@ -17,24 +18,59 @@ data class CourseLessonDto(
     val content: String,
     val kind: CourseLessonKind,
     val videoUrl: String?,
+    val attachments: List<CourseLessonAttachmentDto>,
     val durationMin: Int,
     val order: Int,
     val createdAt: Instant,
     val updatedAt: Instant,
 ) {
     companion object {
-        fun of(entity: CourseLessonEntity): CourseLessonDto = CourseLessonDto(
+        fun of(
+            entity: CourseLessonEntity,
+            attachments: List<CourseLessonAttachmentEntity> = emptyList(),
+        ): CourseLessonDto = CourseLessonDto(
             id = entity.id,
             title = entity.title,
             description = entity.description,
             content = entity.content,
             kind = entity.kind,
             videoUrl = entity.videoUrl,
+            attachments = attachments.map(CourseLessonAttachmentDto::of),
             durationMin = entity.durationMin,
             order = entity.order,
             createdAt = entity.createdAt,
             updatedAt = entity.updatedAt,
         )
+    }
+}
+
+data class CourseLessonAttachmentDto(
+    val id: String,
+    val title: String,
+    val fileName: String,
+    val contentType: String,
+    val mediaUrl: String,
+    val sizeBytes: Long,
+    val createdAt: Instant,
+) {
+    val kind: String
+        get() = when {
+            contentType.startsWith("image/") -> "image"
+            contentType.startsWith("video/") -> "video"
+            else -> "document"
+        }
+
+    companion object {
+        fun of(entity: CourseLessonAttachmentEntity): CourseLessonAttachmentDto =
+            CourseLessonAttachmentDto(
+                id = entity.id,
+                title = entity.title,
+                fileName = entity.fileName,
+                contentType = entity.contentType,
+                mediaUrl = entity.mediaUrl,
+                sizeBytes = entity.sizeBytes,
+                createdAt = entity.createdAt,
+            )
     }
 }
 
@@ -47,12 +83,16 @@ data class CourseContentDto(
     val lessons: List<CourseLessonDto>,
 ) {
     companion object {
-        fun of(entity: CourseEntity, lessons: List<CourseLessonEntity>): CourseContentDto = CourseContentDto(
+        fun of(
+            entity: CourseEntity,
+            lessons: List<CourseLessonEntity>,
+            attachmentsByLesson: Map<String, List<CourseLessonAttachmentEntity>> = emptyMap(),
+        ): CourseContentDto = CourseContentDto(
             id = entity.id,
             title = entity.title,
             description = entity.description,
             durationMin = if (lessons.isEmpty()) entity.durationMin else lessons.sumOf { it.durationMin },
-            lessons = lessons.map(CourseLessonDto::of),
+            lessons = lessons.map { CourseLessonDto.of(it, attachmentsByLesson[it.id].orEmpty()) },
         )
     }
 }
@@ -73,7 +113,11 @@ data class CourseDto(
     val updatedAt: Instant,
 ) {
     companion object {
-        fun of(e: CourseEntity, lessons: List<CourseLessonEntity> = emptyList()): CourseDto = CourseDto(
+        fun of(
+            e: CourseEntity,
+            lessons: List<CourseLessonEntity> = emptyList(),
+            attachmentsByLesson: Map<String, List<CourseLessonAttachmentEntity>> = emptyMap(),
+        ): CourseDto = CourseDto(
             id = e.id,
             title = e.title,
             description = e.description,
@@ -84,7 +128,7 @@ data class CourseDto(
             enrolled = e.enrolled,
             completed = e.completed,
             bonus = e.bonus,
-            lessonItems = lessons.map(CourseLessonDto::of),
+            lessonItems = lessons.map { CourseLessonDto.of(it, attachmentsByLesson[it.id].orEmpty()) },
             createdAt = e.createdAt,
             updatedAt = e.updatedAt,
         )

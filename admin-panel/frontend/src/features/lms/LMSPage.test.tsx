@@ -28,6 +28,8 @@ const lmsHooks = vi.hoisted(() => ({
   useDeleteCourseLesson: vi.fn(),
   useReorderCourseLessons: vi.fn(),
   useUploadCourseLessonVideo: vi.fn(),
+  useUploadCourseLessonAttachment: vi.fn(),
+  useDeleteCourseLessonAttachment: vi.fn(),
   useTrainingDashboard: vi.fn(),
   useTrainingPharmacists: vi.fn(),
   useTrainingPrograms: vi.fn(),
@@ -162,6 +164,18 @@ const course: CourseDto = {
       content: 'Текст урока',
       kind: 'video',
       videoUrl: 'https://epharm.inkar.kz/s3/course.mp4',
+      attachments: [
+        {
+          id: 'attachment-1',
+          title: 'Памятка фармацевта',
+          fileName: 'handout.pdf',
+          contentType: 'application/pdf',
+          mediaUrl: 'https://epharm.inkar.kz/s3/handout.pdf',
+          sizeBytes: 2048,
+          createdAt: '2026-08-01T08:00:00Z',
+          kind: 'document',
+        },
+      ],
       durationMin: 8,
       order: 0,
       createdAt: '2026-08-01T08:00:00Z',
@@ -271,6 +285,8 @@ beforeEach(() => {
   lmsHooks.useDeleteCourseLesson.mockReturnValue(mutationResult())
   lmsHooks.useReorderCourseLessons.mockReturnValue(mutationResult())
   lmsHooks.useUploadCourseLessonVideo.mockReturnValue(mutationResult())
+  lmsHooks.useUploadCourseLessonAttachment.mockReturnValue(mutationResult())
+  lmsHooks.useDeleteCourseLessonAttachment.mockReturnValue(mutationResult())
   lmsHooks.useUpdateTrainingProgram.mockReturnValue(mutationResult())
   lmsHooks.useCreateTrainingProgram.mockReturnValue(mutationResult())
   lmsHooks.useCreateTrainingAssignments.mockReturnValue(mutationResult())
@@ -324,6 +340,22 @@ describe('Обучение — операционный раздел', () => {
     expect(screen.getByText(/Введение/)).toBeInTheDocument()
     expect(screen.getByText('Текст урока')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Добавить урок' })).toBeInTheDocument()
+    expect(screen.getByText('1 вложений')).toBeInTheDocument()
+  })
+
+  it('показывает прикрепленные материалы в редакторе урока', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(screen.getByRole('button', { name: 'Онлайн-курсы' }))
+    await user.click(screen.getByRole('button', { name: 'Основы категории' }))
+    await user.click(screen.getByRole('button', { name: /1\. Введение/ }))
+
+    expect(screen.getByText('Уже прикреплено')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Памятка фармацевта' })).toHaveAttribute(
+      'href',
+      'https://epharm.inkar.kz/s3/handout.pdf',
+    )
+    expect(screen.getByRole('button', { name: 'Удалить материал Памятка фармацевта' })).toBeInTheDocument()
   })
 
   it('разрешает роли только на чтение открыть курс без кнопок редактирования', async () => {

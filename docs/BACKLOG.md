@@ -1,14 +1,14 @@
 # Бэклог
 
 Актуальный список технических рисков и работ до полноценного промышленного запуска.
-Обновлено: 2026-09-08.
+Обновлено: 2026-09-10.
 
 ## Текущее состояние
 
 | Слой                           | Проверка                                           | Production                                             |
 | ------------------------------ | -------------------------------------------------- | ------------------------------------------------------ |
-| Backend (Kotlin)               | clean build, 422/422 теста                         | Daribar OTP, exact receipt, fulfillment; Flyway V046   |
-| Админ-фронт (React)            | 399/399, lint и production build успешны           | обучение, эфир и управление заказами                   |
+| Backend (Kotlin)               | clean build, 424/424 теста                         | Daribar OTP, exact receipt, fulfillment; Flyway V047   |
+| Админ-фронт (React)            | 411/411, lint и production build успешны           | обучение, эфир и управление заказами                   |
 | Мобильное приложение (Flutter) | analyze: 0 issues, 109/109 тестов                  | iOS 0.1.2+4 подписан и установлен на iPhone            |
 | POSM (C#)                      | 37/37 core tests, Windows build без предупреждений | exact-only consumer и очередь заказов готовы к пилоту  |
 | Витрина (Next.js)              | 171/171, lint и production build успешны           | durable outbox/worker заказов готовы к dark-launch     |
