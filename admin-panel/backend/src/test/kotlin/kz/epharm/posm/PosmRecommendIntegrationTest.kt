@@ -36,6 +36,7 @@ import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
@@ -316,6 +317,55 @@ class PosmRecommendIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(reqByBarcode("s5", listOf(barBio)))),
         ).andExpect(status().isUnauthorized)
+    }
+
+    @Test
+    fun `task bridge authenticates POSM and fails closed while integration is disabled`() {
+        mockMvc.perform(
+            get("/api/posm/tasks")
+                .header("X-Posm-Key", POSM_KEY)
+                .param("pharmacyId", "ph_t"),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.task").isEmpty)
+
+        mockMvc.perform(
+            get("/api/posm/tasks")
+                .param("pharmacyId", "ph_t"),
+        ).andExpect(status().isUnauthorized)
+    }
+
+    @Test
+    fun `task acknowledgement validates identifiers before forwarding`() {
+        mockMvc.perform(
+            post("/api/posm/tasks/shown")
+                .header("X-Posm-Key", POSM_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """{
+                      "dispatchId":"dispatch-1",
+                      "pharmacyId":"ph_t",
+                      "deviceId":"POS-02",
+                      "deliveryToken":"delivery-token"
+                    }""".trimIndent(),
+                ),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.accepted").value(false))
+
+        mockMvc.perform(
+            post("/api/posm/tasks/shown")
+                .header("X-Posm-Key", POSM_KEY)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """{
+                      "dispatchId":"dispatch-1",
+                      "pharmacyId":"ph_t",
+                      "deviceId":"POS-02",
+                      "deliveryToken":"invalid token with spaces"
+                    }""".trimIndent(),
+                ),
+        ).andExpect(status().isBadRequest)
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

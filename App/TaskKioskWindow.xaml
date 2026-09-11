@@ -1,0 +1,204 @@
+<Window x:Class="CustomerDisplay.TaskKioskWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Задания аптеки — Фармапей" Width="460" Height="624"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="NoResize" Topmost="True" ShowActivated="False"
+        FontFamily="Segoe UI" FontSize="14" Foreground="#F7FBF8"
+        UseLayoutRounding="True" SnapsToDevicePixels="True">
+  <Window.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Assets/Fluent/Icons.xaml" />
+      </ResourceDictionary.MergedDictionaries>
+      <SolidColorBrush x:Key="Accent" Color="#65DEAD" />
+      <SolidColorBrush x:Key="Muted" Color="#B2CCC2" />
+      <Style x:Key="QuietButton" TargetType="Button">
+        <Setter Property="Foreground" Value="{StaticResource Accent}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="#46A98A" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="Button">
+              <Border x:Name="Frame" Background="{TemplateBinding Background}"
+                      BorderBrush="{TemplateBinding BorderBrush}"
+                      BorderThickness="{TemplateBinding BorderThickness}"
+                      CornerRadius="5" Padding="{TemplateBinding Padding}">
+                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                  <Setter TargetName="Frame" Property="Background" Value="#155846" />
+                </Trigger>
+                <Trigger Property="IsKeyboardFocused" Value="True">
+                  <Setter TargetName="Frame" Property="BorderBrush" Value="#FFFFFF" />
+                  <Setter TargetName="Frame" Property="BorderThickness" Value="2" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                  <Setter TargetName="Frame" Property="Background" Value="#206B54" />
+                </Trigger>
+              </ControlTemplate.Triggers>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+      </Style>
+      <Style x:Key="TitleButton" TargetType="Button" BasedOn="{StaticResource QuietButton}">
+        <Setter Property="Foreground" Value="#E4F0EB" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Width" Value="36" />
+        <Setter Property="Height" Value="36" />
+        <Setter Property="Padding" Value="9" />
+      </Style>
+      <Style TargetType="ComboBoxItem">
+        <Setter Property="Foreground" Value="#F7FFF8" />
+        <Setter Property="Padding" Value="12,10" />
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="ComboBoxItem">
+              <Border x:Name="ItemFrame" Background="Transparent">
+                <ContentPresenter Margin="{TemplateBinding Padding}" />
+              </Border>
+              <ControlTemplate.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                  <Setter TargetName="ItemFrame" Property="Background" Value="#216852" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                  <Setter TargetName="ItemFrame" Property="Background" Value="#185D48" />
+                </Trigger>
+              </ControlTemplate.Triggers>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+      </Style>
+      <Style x:Key="TaskSelector" TargetType="ComboBox">
+        <Setter Property="Foreground" Value="#F7FBF8" />
+        <Setter Property="FontSize" Value="20" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="MaxDropDownHeight" Value="240" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="ComboBox">
+              <Grid>
+                <ToggleButton Focusable="False"
+                              IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                  <ToggleButton.Template>
+                    <ControlTemplate TargetType="ToggleButton">
+                      <Border x:Name="SelectionFrame" Background="Transparent" CornerRadius="4" Padding="0,4">
+                        <Grid>
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition Width="24" />
+                          </Grid.ColumnDefinitions>
+                          <ContentPresenter Content="{Binding SelectionBoxItem, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                            ContentTemplate="{Binding SelectionBoxItemTemplate, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                            Margin="0,0,12,0" VerticalAlignment="Center" />
+                          <Path Grid.Column="1" Data="{StaticResource FluentChevronRight}" Width="18" Height="18"
+                                Fill="#F7FBF8" Stretch="Uniform" VerticalAlignment="Center" />
+                        </Grid>
+                      </Border>
+                      <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                          <Setter TargetName="SelectionFrame" Property="Background" Value="#155846" />
+                        </Trigger>
+                      </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                  </ToggleButton.Template>
+                </ToggleButton>
+                <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom"
+                       AllowsTransparency="True" Focusable="False" PopupAnimation="Fade">
+                  <Border Background="#0B493A" BorderBrush="#46A98A" BorderThickness="1" CornerRadius="6"
+                          MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" MaxWidth="400">
+                    <ScrollViewer CanContentScroll="True" MaxHeight="240">
+                      <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
+                    </ScrollViewer>
+                  </Border>
+                </Popup>
+              </Grid>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+      </Style>
+    </ResourceDictionary>
+  </Window.Resources>
+  <Border Background="#073E32" BorderBrush="#27594A" BorderThickness="1" CornerRadius="14">
+    <Grid>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="38" />
+        <RowDefinition />
+        <RowDefinition Height="86" />
+      </Grid.RowDefinitions>
+      <Border BorderBrush="#2B5A4D" BorderThickness="0,0,0,1" MouseLeftButtonDown="TitleBarDrag">
+        <DockPanel LastChildFill="True" Margin="14,0,8,0">
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+            <Button Style="{StaticResource TitleButton}" Click="MinimizeClick"
+                    AutomationProperties.Name="Свернуть" ToolTip="Свернуть">
+              <Path Data="{StaticResource FluentSubtract}" Stretch="Uniform" Width="16" Height="16" Fill="#E4F0EB" />
+            </Button>
+            <Button Style="{StaticResource TitleButton}" Click="LaterClick"
+                    AutomationProperties.Name="Закрыть и напомнить позже" ToolTip="Напомнить через 10 минут">
+              <Path Data="{StaticResource FluentDismiss}" Stretch="Uniform" Width="18" Height="18" Fill="#E4F0EB" />
+            </Button>
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <Path Data="{StaticResource FluentAdd}" Width="18" Height="18" Stretch="Uniform" Fill="#F7FBF8" />
+            <TextBlock Text="Фармапей" FontWeight="SemiBold" Margin="8,0,0,0" />
+          </StackPanel>
+        </DockPanel>
+      </Border>
+      <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                    Padding="38,14,38,0">
+        <StackPanel>
+          <TextBlock x:Name="BranchText" Foreground="{StaticResource Accent}" TextWrapping="Wrap" FontSize="12" />
+          <TextBlock x:Name="Headline" Text="Сканируйте и выполните" FontSize="21" FontWeight="SemiBold"
+                     TextWrapping="Wrap" Margin="0,12,0,4" />
+          <TextBlock x:Name="HelpText" Text="Задание откроется на телефоне." Foreground="#D4E5DD"
+                     TextWrapping="Wrap" FontSize="14" />
+          <Border x:Name="QrFrame" Background="White" Width="230" Height="230"
+                  HorizontalAlignment="Center" Margin="0,16,0,16">
+            <Image x:Name="QrImage" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor"
+                   AutomationProperties.Name="QR-код задания" />
+          </Border>
+          <TextBlock x:Name="ConnectionText" Visibility="Collapsed" TextWrapping="Wrap"
+                     Foreground="#D4E5DD" Margin="0,12,0,12" />
+          <StackPanel x:Name="TaskDetails">
+            <Border Height="1" Background="#376757" Margin="0,0,0,14" />
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,7">
+              <TextBlock Text="ЗАДАНИЕ" Foreground="{StaticResource Accent}" FontWeight="SemiBold" FontSize="12" />
+              <TextBlock x:Name="CountText" Foreground="{StaticResource Muted}" Margin="14,0,0,0" FontSize="12" />
+            </StackPanel>
+            <ComboBox x:Name="Tasks" Style="{StaticResource TaskSelector}" AutomationProperties.Name="Выбрать задание"
+                      SelectionChanged="TaskSelectionChanged">
+              <ComboBox.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding Title}" TextWrapping="Wrap" Foreground="#F7FBF8"
+                             FontSize="20" FontWeight="SemiBold" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+              <Path x:Name="PriorityDot" Data="{StaticResource FluentCircle}" Width="10" Height="10"
+                    Fill="#FFB020" Stretch="Uniform" VerticalAlignment="Center" />
+              <TextBlock x:Name="PriorityText" Margin="8,0,0,0" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+              <Path Data="{StaticResource FluentCalendar}" Width="15" Height="15" Fill="#64B89A"
+                    Stretch="Uniform" VerticalAlignment="Center" />
+              <TextBlock x:Name="DueText" Margin="8,0,0,0" Foreground="{StaticResource Muted}" FontSize="13" />
+            </StackPanel>
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+      <StackPanel Grid.Row="2" Margin="34,10,34,12">
+        <Button Style="{StaticResource QuietButton}" Height="42" Click="LaterClick" FontSize="15"
+                FontWeight="SemiBold" Content="Позже · 10 минут"
+                AutomationProperties.Name="Позже · напомнить через 10 минут" />
+        <TextBlock Text="Закрытие окна не завершает задание" Foreground="{StaticResource Muted}"
+                   FontSize="11" HorizontalAlignment="Center" Margin="0,8,0,0" />
+      </StackPanel>
+    </Grid>
+  </Border>
+</Window>

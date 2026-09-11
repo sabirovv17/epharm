@@ -31,6 +31,7 @@
     <Compile Include="..\App\Services\FulfillmentRetrySchedule.cs" Link="Services\FulfillmentRetrySchedule.cs" />
     <Compile Include="..\App\Services\PharmacistNoticeCoordinator.cs" Link="Services\PharmacistNoticeCoordinator.cs" />
     <Compile Include="..\App\Services\UpdateManifestVerifier.cs" Link="Services\UpdateManifestVerifier.cs" />
+    <Compile Include="..\App\Services\TaskKioskClient.cs" Link="Services\TaskKioskClient.cs" />
     <Compile Include="..\App\Config\EpharmConfig.cs" Link="Config\EpharmConfig.cs" />
   </ItemGroup>
 </Project>

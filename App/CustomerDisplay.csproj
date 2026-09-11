@@ -14,7 +14,7 @@
     <EnableDefaultPageItems>false</EnableDefaultPageItems>
     <!-- Версия установленной сборки — с ней авто-апдейтер сравнивает релиз из админки.
          Бампать при каждом релизе (или задавать через -p:Version=x.y.z при publish). -->
-    <Version>1.0.51</Version>
+    <Version>1.0.52</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,6 +22,8 @@
     <Page Include="MainWindow.xaml" />
     <Page Include="RecommendationWindow.xaml" />
     <Page Include="CdpForm.xaml" />
+    <Page Include="TaskKioskWindow.xaml" />
+    <Page Include="Assets\Fluent\Icons.xaml" />
   </ItemGroup>
 
   <ItemGroup>
@@ -32,6 +34,12 @@
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
+    <PackageReference Include="QRCoder" Version="1.7.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Assets\Fluent\LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Assets\Fluent\SOURCE.md" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!--

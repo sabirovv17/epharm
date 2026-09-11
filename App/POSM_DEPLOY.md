@@ -9,7 +9,7 @@ Build on Windows with .NET 10 SDK.
 ```powershell
 cd <repo>
 dotnet publish App\CustomerDisplay.csproj -c Release -r win-x64 --self-contained `
-  -p:Version=1.0.51 -o C:\Epharm\app
+  -p:Version=1.0.52 -o C:\Epharm\app
 ```
 
 Auto-update works with a published app folder containing `CustomerDisplay.exe`, dependencies, LibVLC,
@@ -58,6 +58,20 @@ of HTTPS alternatives: the client switches after a gateway/network failure and r
 origin every five minutes. Specify an origin only, never `/login`: POSM appends `/api/posm/*`
 itself. Remote HTTP origins, including the former `:8060` fallback, are rejected. HTTP is accepted
 only for loopback development.
+
+## Merchandising task kiosk
+
+POSM v1.0.52 polls `/api/posm/tasks` in the background for the configured `PharmacyId`. An active
+task opens a compact always-on-top QR window on the pharmacist screen; closing it snoozes the same
+delivery token for ten minutes without completing the task. The client sends a receipt only while
+the QR is actually visible. Network failures never block the cash desk and leave the task window in
+an explicit offline state.
+
+The cash desk uses its existing individual `DeviceKey`. The CRM integration key exists only in the
+backend environment. Configure the server with `MERCH_TASKS_BASE_URL`,
+`MERCH_TASKS_INTEGRATION_KEY`, and `MERCH_PORTAL_UPSTREAM`, verify the public `/merch/` portal, then
+set `MERCH_TASKS_ENABLED=true`. Keep it `false` until the server-to-server API and a real task have
+passed smoke testing. Never put the CRM key or a task delivery token in `posm.json` or a release ZIP.
 
 ## One-Click Pharmacy Install
 
