@@ -20,6 +20,11 @@ type Tokens = {
   refreshToken: string
 }
 
+type TokenLifecycle = {
+  onRefreshed: (tokens: Tokens) => void
+  onExpired: () => void
+}
+
 type Pharmacist = {
   id: string
   name: string
@@ -132,8 +137,20 @@ function messageFrom(error: unknown) {
   return 'Не удалось выполнить запрос'
 }
 
-async function request<T>(path: string, init: RequestInit = {}, tokens?: Tokens | null): Promise<T> {
-  const response = await fetch(path, {
+class LearnerApiError extends Error {
+  readonly status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'LearnerApiError'
+    this.status = status
+  }
+}
+
+let refreshInFlight: Promise<Tokens> | null = null
+
+async function fetchResponse(path: string, init: RequestInit, tokens?: Tokens | null) {
+  return fetch(path, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
@@ -141,12 +158,55 @@ async function request<T>(path: string, init: RequestInit = {}, tokens?: Tokens 
       ...init.headers,
     },
   })
+}
+
+async function decodeResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const body = await response.json().catch(() => null) as { message?: string } | null
-    throw new Error(body?.message || `Сервер вернул ошибку ${response.status}`)
+    throw new LearnerApiError(
+      body?.message || `Сервер вернул ошибку ${response.status}`,
+      response.status,
+    )
   }
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
+}
+
+async function refreshTokens(refreshToken: string): Promise<Tokens> {
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      const response = await fetchResponse('/api/mobile/auth/refresh', {
+        method: 'POST',
+        body: JSON.stringify({ refreshToken }),
+      })
+      const result = await decodeResponse<{ tokens: Tokens }>(response)
+      return result.tokens
+    })().finally(() => {
+      refreshInFlight = null
+    })
+  }
+  return refreshInFlight
+}
+
+async function request<T>(
+  path: string,
+  init: RequestInit = {},
+  tokens?: Tokens | null,
+  lifecycle?: TokenLifecycle,
+): Promise<T> {
+  let response = await fetchResponse(path, init, tokens)
+  if (response.status === 401 && tokens?.refreshToken && lifecycle) {
+    try {
+      const refreshed = await refreshTokens(tokens.refreshToken)
+      lifecycle.onRefreshed(refreshed)
+      response = await fetchResponse(path, init, refreshed)
+    } catch (error) {
+      if (error instanceof LearnerApiError && error.status === 401) lifecycle.onExpired()
+      throw error
+    }
+  }
+  if (response.status === 401 && lifecycle) lifecycle.onExpired()
+  return decodeResponse<T>(response)
 }
 
 const statusLabel: Record<string, string> = {
@@ -182,6 +242,24 @@ export default function LearnerTrainingPage() {
   const [loading, setLoading] = useState(Boolean(tokens))
   const [error, setError] = useState('')
 
+  const clearSession = useCallback(() => {
+    sessionStorage.removeItem(TOKEN_KEY)
+    setTokens(null)
+    setPharmacist(null)
+    setOverview(null)
+    setSelected(null)
+  }, [])
+
+  const persistTokens = useCallback((nextTokens: Tokens) => {
+    sessionStorage.setItem(TOKEN_KEY, JSON.stringify(nextTokens))
+    setTokens(nextTokens)
+  }, [])
+
+  const tokenLifecycle = useMemo<TokenLifecycle>(() => ({
+    onRefreshed: persistTokens,
+    onExpired: clearSession,
+  }), [clearSession, persistTokens])
+
   useEffect(() => {
     document.body.classList.add('learner-portal')
     return () => document.body.classList.remove('learner-portal')
@@ -190,36 +268,45 @@ export default function LearnerTrainingPage() {
   const loadPortal = useCallback(async (activeTokens: Tokens) => {
     try {
       const [me, training] = await Promise.all([
-        request<Pharmacist>('/api/mobile/auth/me', {}, activeTokens),
-        request<Overview>('/api/mobile/training', {}, activeTokens),
+        request<Pharmacist>('/api/mobile/auth/me', {}, activeTokens, tokenLifecycle),
+        request<Overview>('/api/mobile/training', {}, activeTokens, tokenLifecycle),
       ])
       setPharmacist(me)
       setOverview(training)
     } catch (loadError) {
-      sessionStorage.removeItem(TOKEN_KEY)
-      setTokens(null)
       setError(messageFrom(loadError))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [tokenLifecycle])
 
+  const authenticated = tokens !== null
   useEffect(() => {
-    if (!tokens) return
-    const timer = window.setTimeout(() => void loadPortal(tokens), 0)
+    if (!authenticated) return
+    const timer = window.setTimeout(() => {
+      const activeTokens = readTokens()
+      if (activeTokens) void loadPortal(activeTokens)
+      else clearSession()
+    }, 0)
     return () => window.clearTimeout(timer)
-  }, [loadPortal, tokens])
+  }, [authenticated, clearSession, loadPortal])
 
   const loadAssignment = useCallback(async (id: string, activeTokens: Tokens) => {
     setBusy(true)
     setError('')
     try {
-      let detail = await request<Assignment>(`/api/mobile/training/assignments/${id}`, {}, activeTokens)
+      let detail = await request<Assignment>(
+        `/api/mobile/training/assignments/${id}`,
+        {},
+        activeTokens,
+        tokenLifecycle,
+      )
       if (!detail.startedAt && detail.status !== 'completed' && detail.status !== 'cancelled') {
         detail = await request<Assignment>(
           `/api/mobile/training/assignments/${id}/start`,
           { method: 'POST' },
           activeTokens,
+          tokenLifecycle,
         )
       }
       setSelected(detail)
@@ -228,7 +315,7 @@ export default function LearnerTrainingPage() {
     } finally {
       setBusy(false)
     }
-  }, [])
+  }, [tokenLifecycle])
 
   useEffect(() => {
     if (!tokens || !assignmentId) return
@@ -271,9 +358,8 @@ export default function LearnerTrainingPage() {
       if (!result.registered || !result.tokens) {
         throw new Error('Номер ещё не привязан к активному фармацевту. Обратитесь к администратору.')
       }
-      sessionStorage.setItem(TOKEN_KEY, JSON.stringify(result.tokens))
+      persistTokens(result.tokens)
       setPharmacist(result.pharmacist)
-      setTokens(result.tokens)
     } catch (verifyError) {
       setError(messageFrom(verifyError))
     } finally {
@@ -294,9 +380,10 @@ export default function LearnerTrainingPage() {
         `/api/mobile/training/assignments/${selected.id}/stages/${stage.id}`,
         { method: 'PATCH', body: JSON.stringify({ progressPct: 100 }) },
         tokens,
+        tokenLifecycle,
       )
       setSelected(updated)
-      const refreshed = await request<Overview>('/api/mobile/training', {}, tokens)
+      const refreshed = await request<Overview>('/api/mobile/training', {}, tokens, tokenLifecycle)
       setOverview(refreshed)
     } catch (completeError) {
       setError(messageFrom(completeError))
@@ -305,15 +392,20 @@ export default function LearnerTrainingPage() {
     }
   }
 
-  function logout() {
-    sessionStorage.removeItem(TOKEN_KEY)
-    setTokens(null)
-    setPharmacist(null)
-    setOverview(null)
-    setSelected(null)
-    setStep('phone')
-    setCode('')
-    navigate('/learn')
+  async function logout() {
+    const activeTokens = tokens
+    try {
+      if (activeTokens) {
+        await request('/api/mobile/auth/logout', { method: 'POST' }, activeTokens, tokenLifecycle)
+      }
+    } catch {
+      // Local logout must always succeed even when the server is unavailable.
+    } finally {
+      clearSession()
+      setStep('phone')
+      setCode('')
+      navigate('/learn')
+    }
   }
 
   if (!tokens) {
@@ -396,7 +488,7 @@ export default function LearnerTrainingPage() {
               </p>
             )}
           </div>
-          <button className="btn btn-outline btn-md shrink-0" onClick={logout}>
+          <button className="btn btn-outline btn-md shrink-0" onClick={() => void logout()}>
             <LogOut size={17} /> <span className="hidden sm:inline">Выйти</span>
           </button>
         </header>

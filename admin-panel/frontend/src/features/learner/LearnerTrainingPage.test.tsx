@@ -119,4 +119,55 @@ describe('learner training portal', () => {
       )
     })
   })
+
+  it('refreshes an expired access token once for concurrent portal requests', async () => {
+    sessionStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
+    const refreshedTokens = { accessToken: 'fresh-access-token', refreshToken: 'fresh-refresh-token' }
+    let refreshCalls = 0
+    const protectedCalls: Array<{ path: string; authorization: string | null }> = []
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const path = String(input)
+      const authorization = new Headers(init?.headers).get('Authorization')
+
+      if (path === '/api/mobile/auth/refresh') {
+        refreshCalls += 1
+        expect(init?.method).toBe('POST')
+        expect(JSON.parse(String(init?.body))).toEqual({ refreshToken: tokens.refreshToken })
+        return json({ tokens: refreshedTokens })
+      }
+
+      if (path === '/api/mobile/auth/me' || path === '/api/mobile/training') {
+        protectedCalls.push({ path, authorization })
+        if (authorization === `Bearer ${tokens.accessToken}`) {
+          return json({ message: 'Токен истёк' }, 401)
+        }
+        expect(authorization).toBe(`Bearer ${refreshedTokens.accessToken}`)
+        if (path === '/api/mobile/auth/me') {
+          return json({
+            id: 'ph-1',
+            name: 'Айжан',
+            phone: '+77070000000',
+            pharmacyName: 'Ауэзова 134',
+            city: 'Алматы',
+          })
+        }
+        return json({ total: 0, inProgress: 0, completed: 0, overdue: 0, assignments: [] })
+      }
+
+      return json({ message: `Unexpected request: ${path}` }, 500)
+    })
+
+    renderPortal()
+
+    expect(await screen.findByRole('heading', { name: 'Здравствуйте, Айжан' })).toBeInTheDocument()
+    expect(refreshCalls).toBe(1)
+    expect(JSON.parse(sessionStorage.getItem('epharm.learner.tokens') || '{}')).toEqual(refreshedTokens)
+    expect(protectedCalls).toEqual(expect.arrayContaining([
+      { path: '/api/mobile/auth/me', authorization: `Bearer ${tokens.accessToken}` },
+      { path: '/api/mobile/training', authorization: `Bearer ${tokens.accessToken}` },
+      { path: '/api/mobile/auth/me', authorization: `Bearer ${refreshedTokens.accessToken}` },
+      { path: '/api/mobile/training', authorization: `Bearer ${refreshedTokens.accessToken}` },
+    ]))
+    expect(fetchMock).toHaveBeenCalledTimes(5)
+  })
 })
