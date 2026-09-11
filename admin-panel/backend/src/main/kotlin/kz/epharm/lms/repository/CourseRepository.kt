@@ -2,6 +2,7 @@ package kz.epharm.lms.repository
 
 import kz.epharm.lms.entity.CourseEntity
 import kz.epharm.lms.entity.CourseLessonEntity
+import kz.epharm.lms.entity.CourseLessonAttachmentEntity
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.stereotype.Repository
 
@@ -15,4 +16,10 @@ interface CourseRepository : JpaRepository<CourseEntity, String> {
 interface CourseLessonRepository : JpaRepository<CourseLessonEntity, String> {
     fun findAllByCourseIdOrderByOrderAscCreatedAtAsc(courseId: String): List<CourseLessonEntity>
     fun findAllByCourseIdInOrderByCourseIdAscOrderAscCreatedAtAsc(courseIds: Collection<String>): List<CourseLessonEntity>
+}
+
+@Repository
+interface CourseLessonAttachmentRepository : JpaRepository<CourseLessonAttachmentEntity, String> {
+    fun findAllByLessonIdOrderByCreatedAtAsc(lessonId: String): List<CourseLessonAttachmentEntity>
+    fun findAllByLessonIdInOrderByLessonIdAscCreatedAtAsc(lessonIds: Collection<String>): List<CourseLessonAttachmentEntity>
 }

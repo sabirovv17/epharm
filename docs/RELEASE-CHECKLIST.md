@@ -12,7 +12,7 @@ Priorities:
 
 | Area           | Status                                                                                      |
 | -------------- | ------------------------------------------------------------------------------------------- |
-| Backend        | Functional monolith, migrations V001-V046, prod stack builds.                               |
+| Backend        | Functional monolith, migrations V001-V047, prod stack builds.                               |
 | Admin          | Functional HQ console on real API.                                                          |
 | Mobile         | Functional Flutter app with real API default and offline mock fallback.                     |
 | POSM           | C#/WPF implementation exists; production rollout needs Windows build/install per cash desk. |

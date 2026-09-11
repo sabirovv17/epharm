@@ -88,6 +88,23 @@ class LmsController(private val courseService: CourseService) {
         @RequestParam("file") file: MultipartFile,
     ): CourseDto = courseService.uploadLessonVideo(id, lessonId, file)
 
+    @PostMapping("/{id}/lessons/{lessonId}/attachments", consumes = ["multipart/form-data"])
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER')")
+    fun uploadLessonAttachment(
+        @PathVariable id: String,
+        @PathVariable lessonId: String,
+        @RequestParam("file") file: MultipartFile,
+        @RequestParam(required = false, defaultValue = "") title: String,
+    ): CourseDto = courseService.uploadLessonAttachment(id, lessonId, file, title)
+
+    @DeleteMapping("/{id}/lessons/{lessonId}/attachments/{attachmentId}")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER')")
+    fun deleteLessonAttachment(
+        @PathVariable id: String,
+        @PathVariable lessonId: String,
+        @PathVariable attachmentId: String,
+    ): CourseDto = courseService.deleteLessonAttachment(id, lessonId, attachmentId)
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER')")
     @ResponseStatus(HttpStatus.NO_CONTENT)

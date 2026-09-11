@@ -5,6 +5,8 @@ import {
   BookOpen,
   Clock3,
   FileText,
+  Image,
+  Paperclip,
   Pencil,
   PlayCircle,
   Plus,
@@ -17,10 +19,12 @@ import {
   useCourse,
   useCreateCourseLesson,
   useDeleteCourseLesson,
+  useDeleteCourseLessonAttachment,
   useReorderCourseLessons,
   useUpdateCourse,
   useUpdateCourseLesson,
   useUploadCourseLessonVideo,
+  useUploadCourseLessonAttachment,
 } from '@/lib/queries/lms'
 import { describeError } from '@/lib/describeError'
 
@@ -235,6 +239,11 @@ export function CourseEditorDrawer({
                               {lesson.description}
                             </p>
                           )}
+                          {(lesson.attachments?.length ?? 0) > 0 && (
+                            <div className="mt-2 inline-flex items-center gap-1 text-[12px] font-semibold text-brand-green-700">
+                              <Paperclip size={13} /> {lesson.attachments.length} вложений
+                            </div>
+                          )}
                         </button>
                         <div className="flex shrink-0 items-center gap-0.5">
                           {editable && (
@@ -333,21 +342,31 @@ function LessonEditorModal({
   const create = useCreateCourseLesson()
   const update = useUpdateCourseLesson()
   const upload = useUploadCourseLessonVideo()
+  const uploadAttachment = useUploadCourseLessonAttachment()
+  const deleteAttachment = useDeleteCourseLessonAttachment()
   const [title, setTitle] = useState(lesson?.title ?? '')
   const [description, setDescription] = useState(lesson?.description ?? '')
   const [content, setContent] = useState(lesson?.content ?? '')
   const [kind, setKind] = useState<CourseLessonKind>(lesson?.kind ?? 'text')
   const [durationMin, setDurationMin] = useState(String(lesson?.durationMin ?? 0))
   const [file, setFile] = useState<File | null>(null)
+  const [attachmentFiles, setAttachmentFiles] = useState<File[]>([])
   const [persistedId, setPersistedId] = useState(lesson?.id ?? null)
   const [error, setError] = useState<string | null>(null)
-  const pending = create.isPending || update.isPending || upload.isPending
+  const pending =
+    create.isPending ||
+    update.isPending ||
+    upload.isPending ||
+    uploadAttachment.isPending ||
+    deleteAttachment.isPending
 
   const submit = async () => {
     if (!canManage) return
     if (!title.trim()) return setError('Введите название урока')
     if (file && file.size > 60 * 1024 * 1024)
       return setError('Размер видео не должен превышать 60 МБ')
+    if (attachmentFiles.some((attachment) => attachment.size > 25 * 1024 * 1024))
+      return setError('Размер каждого вложения не должен превышать 25 МБ')
     setError(null)
     try {
       let lessonId = persistedId
@@ -372,6 +391,13 @@ function LessonEditorModal({
       }
       if (kind === 'video' && file) {
         await upload.mutateAsync({ courseId: course.id, lessonId, file })
+      }
+      for (const attachment of attachmentFiles) {
+        await uploadAttachment.mutateAsync({
+          courseId: course.id,
+          lessonId,
+          file: attachment,
+        })
       }
       toast.push(lesson ? 'Урок сохранён' : 'Урок добавлен')
       onClose()
@@ -475,9 +501,87 @@ function LessonEditorModal({
             src={lesson.videoUrl}
           />
         )}
+        <Field
+          label="Материалы урока"
+          optional
+          hint="Изображения, PDF, Word, Excel, PowerPoint или текст; до 25 МБ каждый"
+        >
+          <label className="flex min-h-20 cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-ink-300 bg-paper-hover px-4 text-[13px] font-semibold text-ink-600 hover:border-brand-green-600">
+            <Paperclip size={18} />
+            <span className="truncate">
+              {attachmentFiles.length > 0
+                ? `Выбрано файлов: ${attachmentFiles.length}`
+                : 'Прикрепить файлы'}
+            </span>
+            <input
+              className="sr-only"
+              type="file"
+              multiple
+              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv"
+              disabled={!canManage}
+              onChange={(event) => setAttachmentFiles(Array.from(event.target.files ?? []))}
+            />
+          </label>
+        </Field>
+        {attachmentFiles.length > 0 && (
+          <div className="space-y-1 rounded-md bg-paper-hover p-3">
+            {attachmentFiles.map((attachment) => (
+              <div key={`${attachment.name}-${attachment.size}`} className="flex items-center gap-2 text-[12px] text-ink-600">
+                {attachment.type.startsWith('image/') ? <Image size={14} /> : <FileText size={14} />}
+                <span className="min-w-0 flex-1 truncate">{attachment.name}</span>
+                <span>{formatBytes(attachment.size)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {lesson && (lesson.attachments?.length ?? 0) > 0 && (
+          <div className="space-y-2">
+            <div className="text-[12px] font-bold text-ink-700">Уже прикреплено</div>
+            {(lesson.attachments ?? []).map((attachment) => (
+              <div key={attachment.id} className="flex items-center gap-2 rounded-md border border-ink-100 px-3 py-2">
+                {attachment.kind === 'image' ? <Image size={16} /> : <FileText size={16} />}
+                <a
+                  className="min-w-0 flex-1 truncate text-[12px] font-semibold text-brand-green-700"
+                  href={attachment.mediaUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {attachment.title}
+                </a>
+                {canManage && (
+                  <IconButton
+                    tip="Удалить материал"
+                    aria-label={`Удалить материал ${attachment.title}`}
+                    disabled={pending}
+                    onClick={() =>
+                      deleteAttachment.mutate(
+                        {
+                          courseId: course.id,
+                          lessonId: lesson.id,
+                          attachmentId: attachment.id,
+                        },
+                        {
+                          onSuccess: () => toast.push('Материал удалён'),
+                          onError: (requestError) => setError(describeError(requestError)),
+                        },
+                      )
+                    }
+                  >
+                    <Trash2 size={15} />
+                  </IconButton>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </Modal>
   )
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} КБ`
+  return `${(bytes / 1024 / 1024).toFixed(1)} МБ`
 }
 
 function ErrorBanner({ message }: { message: string }) {

@@ -632,6 +632,17 @@ export interface LiftSummaryDto {
 export type CourseStatus = 'published' | 'draft' | 'archived'
 export type CourseLessonKind = 'text' | 'video'
 
+export interface CourseLessonAttachmentDto {
+  id: string
+  title: string
+  fileName: string
+  contentType: string
+  mediaUrl: string
+  sizeBytes: number
+  createdAt: string
+  kind: 'image' | 'video' | 'document'
+}
+
 export interface CourseLessonDto {
   id: string
   title: string
@@ -639,6 +650,7 @@ export interface CourseLessonDto {
   content: string
   kind: CourseLessonKind
   videoUrl: string | null
+  attachments: CourseLessonAttachmentDto[]
   durationMin: number
   order: number
   createdAt: string
