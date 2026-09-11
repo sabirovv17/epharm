@@ -1,0 +1,12 @@
+[Unit]
+Description=Refresh Standard N expiry projection at midnight in Kazakhstan
+
+[Timer]
+OnCalendar=*-*-* 00:00:05 Asia/Almaty
+Persistent=true
+AccuracySec=1s
+RandomizedDelaySec=0
+Unit=pim-catalog-rollover.service
+
+[Install]
+WantedBy=timers.target

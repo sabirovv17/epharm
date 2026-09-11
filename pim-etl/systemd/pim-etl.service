@@ -1,0 +1,34 @@
+[Unit]
+Description=Validate and atomically publish the latest Standard N snapshot
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+StartLimitIntervalSec=900
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/epharm/pim-etl
+Environment=PYTHONDONTWRITEBYTECODE=1
+EnvironmentFile=/etc/pim-dashboard/pim-etl.env
+ExecStart=/usr/bin/python3 /opt/epharm/pim-etl/load_files.py --latest 1
+TimeoutStartSec=4h
+Restart=on-failure
+RestartSec=60
+UMask=0077
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+ReadOnlyPaths=/etc/pim-dashboard /opt/epharm/pim-etl
+ReadWritePaths=/var/lib/pim-dashboard
+RestrictRealtime=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native

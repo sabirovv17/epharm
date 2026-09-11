@@ -1,0 +1,7 @@
+{
+  "host": "receiver.example.invalid",
+  "user": "standardn-ingest",
+  "port": 22,
+  "known_hosts": "/etc/pim-dashboard/receiver-known-hosts",
+  "identity_file": "/etc/pim-dashboard/receiver-key"
+}
