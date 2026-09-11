@@ -90,6 +90,20 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: ./tools/check-p0-config.sh
 
+  pim-etl:
+    name: pim / ETL safety tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: pim-etl
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Compile Python sources
+        run: python3 -m compileall -q .
+      - name: Run validation, publication, rollover and delivery tests
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+
   admin:
     name: admin / lint, typecheck, test and build
     runs-on: ubuntu-latest
@@ -411,6 +425,7 @@ jobs:
       - repo-quality
       - ops-contract
       - p0-config
+      - pim-etl
       - admin
       - storefront
       - backend
@@ -432,6 +447,7 @@ jobs:
           REPO_QUALITY: ${{ needs.repo-quality.result }}
           OPS_CONTRACT: ${{ needs.ops-contract.result }}
           P0_CONFIG: ${{ needs.p0-config.result }}
+          PIM_ETL: ${{ needs.pim-etl.result }}
           ADMIN: ${{ needs.admin.result }}
           STOREFRONT: ${{ needs.storefront.result }}
           BACKEND: ${{ needs.backend.result }}
@@ -448,6 +464,7 @@ jobs:
           required=(
             "$REPO_QUALITY" "$OPS_CONTRACT" "$P0_CONFIG" "$ADMIN" "$STOREFRONT"
             "$BACKEND" "$ADMIN_E2E" "$CONTAINERS" "$MOBILE_ANDROID" "$MOBILE_IOS"
+            "$PIM_ETL"
             "$POSM_CORE" "$POSM_WINDOWS" "$CODEQL"
           )
           for result in "${required[@]}"; do

@@ -1,0 +1,12 @@
+[Unit]
+Description=Check the Standard N source every hour
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1h
+RandomizedDelaySec=2min
+Persistent=true
+Unit=pim-etl.service
+
+[Install]
+WantedBy=timers.target

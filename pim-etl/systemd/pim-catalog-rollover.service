@@ -1,0 +1,33 @@
+[Unit]
+Description=Recalculate published Standard N sellability after local midnight
+After=docker.service network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/epharm/pim-etl
+Environment=PYTHONDONTWRITEBYTECODE=1
+EnvironmentFile=/etc/pim-dashboard/pim-etl.env
+ExecStart=/usr/bin/python3 /opt/epharm/pim-etl/load_files.py --refresh-published-only
+TimeoutStartSec=10min
+Restart=on-failure
+RestartSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+ReadOnlyPaths=/etc/pim-dashboard /opt/epharm/pim-etl
+ReadWritePaths=/var/lib/pim-dashboard
+RestrictRealtime=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native
