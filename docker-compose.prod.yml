@@ -138,6 +138,10 @@ services:
       POSM_DEVICE_KEY: ${POSM_DEVICE_KEY:-legacy-enrollment-disabled}
       POSM_LEGACY_DEVICE_KEY_ENABLED: ${POSM_LEGACY_DEVICE_KEY_ENABLED:-false}
       POSM_UPDATE_PUBLIC_KEY_SPKI: ${POSM_UPDATE_PUBLIC_KEY_SPKI:?set the pinned POSM update public key}
+      MERCH_TASKS_ENABLED: ${MERCH_TASKS_ENABLED:-false}
+      MERCH_TASKS_BASE_URL: ${MERCH_TASKS_BASE_URL:-}
+      MERCH_TASKS_INTEGRATION_KEY: ${MERCH_TASKS_INTEGRATION_KEY:-}
+      MERCH_TASKS_TIMEOUT_MS: ${MERCH_TASKS_TIMEOUT_MS:-7000}
       FULFILLMENT_ENABLED: ${FULFILLMENT_ENABLED:-false}
       FULFILLMENT_SHARED_SECRET: ${FULFILLMENT_SHARED_SECRET:?set FULFILLMENT_SHARED_SECRET (32+ random characters)}
       FULFILLMENT_SIGNATURE_SKEW_SECONDS: ${FULFILLMENT_SIGNATURE_SKEW_SECONDS:-300}
@@ -203,6 +207,7 @@ services:
       API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN (напр. epharm.inkar.kz) in .env.prod}
       ADMIN_DOMAIN: ${ADMIN_DOMAIN:?set ADMIN_DOMAIN (напр. epharm.inkar.kz) in .env.prod}
       S3_DOMAIN: ${S3_DOMAIN:?set S3_DOMAIN (напр. epharm.inkar.kz) in .env.prod}
+      MERCH_PORTAL_UPSTREAM: ${MERCH_PORTAL_UPSTREAM:-10.10.1.80:8080}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ${TLS_CERT_DIR:-./tls}:/etc/caddy/tls:ro

@@ -73,6 +73,11 @@ springdoc:
     path: /swagger-ui.html
 
 app:
+  merch-tasks:
+    enabled: ${MERCH_TASKS_ENABLED:false}
+    base-url: ${MERCH_TASKS_BASE_URL:}
+    integration-key: ${MERCH_TASKS_INTEGRATION_KEY:}
+    timeout-ms: ${MERCH_TASKS_TIMEOUT_MS:7000}
   version: ${RELEASE_ID:dev}
   commit: ${RELEASE_COMMIT:unknown}
   # Канонический публичный origin для QR-проверки сертификатов.

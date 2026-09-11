@@ -227,6 +227,20 @@ CDN URL. Register only a manifest signed by the offline ECDSA P-256 key. `AppUpd
 independently pinned SPKI over platform/version/URL/hash/mandatory before download and then verifies
 the ZIP SHA-256. Pharmacy-specific `C:\Epharm\posm.json` is preserved during the overlay update.
 
+## Merchandising task QR
+
+Starting with v1.0.52, the same authenticated POSM channel can retrieve an active merchandising task
+for the device's pharmacy and acknowledge a QR only when it is visible. Backend authentication binds
+individual device tokens to both `pharmacyId` and `deviceId`; the server-to-server CRM credential is
+never returned to the cash desk. The client accepts HTTPS task links (plus loopback HTTP in local
+development), deduplicates acknowledgements by delivery token, and retries after transient failures.
+
+The public task portal is routed by Caddy under `/merch/*`. Production values live in `.env.prod`:
+`MERCH_TASKS_ENABLED`, `MERCH_TASKS_BASE_URL`, `MERCH_TASKS_INTEGRATION_KEY`,
+`MERCH_TASKS_TIMEOUT_MS`, and `MERCH_PORTAL_UPSTREAM`. Roll out with the bridge disabled first, check
+the internal active-task API and public portal, enable the bridge, then confirm one end-to-end task on
+a provisioned device before publishing v1.0.52 as current.
+
 ## Operations
 
 Useful docs:

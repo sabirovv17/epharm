@@ -218,6 +218,7 @@ StartLogReader();
             // Независим от видео (работает и при EPHARM_NO_VIDEO); no-op без POSM.
             StartHeartbeatPolling();
             StartFulfillment();
+            StartTaskKiosk();
 
         }
 
@@ -917,6 +918,7 @@ ItemsList.Items.Refresh();
         {
             try
             {
+                StopTaskKiosk();
                 _logCts?.Cancel();
                 _standardNReceiptCts?.Cancel();
                 _playlistPollCts?.Cancel();

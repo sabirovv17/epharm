@@ -1,5 +1,6 @@
 package kz.epharm.posm.controller
 
+import com.fasterxml.jackson.databind.JsonNode
 import jakarta.validation.Valid
 import kz.epharm.cdp.dto.CdpLookupRequest
 import kz.epharm.cdp.dto.CdpLookupResponse
@@ -8,6 +9,8 @@ import kz.epharm.cdp.dto.CdpRegisterRequest
 import kz.epharm.appupdate.dto.AppVersionDto
 import kz.epharm.appupdate.service.AppReleaseService
 import kz.epharm.cdp.service.CdpService
+import kz.epharm.merchtasks.dto.MerchTaskShownRequest
+import kz.epharm.merchtasks.service.MerchTaskClient
 import kz.epharm.posm.dto.HeartbeatResponse
 import kz.epharm.posm.dto.MarkShownRequest
 import kz.epharm.posm.dto.MarkShownResponse
@@ -53,6 +56,7 @@ class PosmController(
     private val devicePresenceService: DevicePresenceService,
     private val pharmacistIdentityService: PosmPharmacistIdentityService,
     private val deviceAuthentication: PosmDeviceAuthenticationService,
+    private val merchTaskClient: MerchTaskClient,
 ) {
     private val log = LoggerFactory.getLogger(PosmController::class.java)
 
@@ -179,6 +183,36 @@ class PosmController(
                 ?.takeIf { it.matches(Regex("[0-9A-Za-z.+-]{1,32}")) },
         )
         return HeartbeatResponse(ok = true, deviceId = id)
+    }
+
+    /** Active merchandising task for the authenticated device's pharmacy. */
+    @GetMapping("/tasks")
+    fun activeMerchTask(
+        @RequestHeader(name = "X-Posm-Key", required = false) key: String?,
+        @RequestParam pharmacyId: String,
+    ): JsonNode {
+        val device = deviceAuthentication.authenticate(key, claimedPharmacyId = pharmacyId)
+        return merchTaskClient.activeTask(device.pharmacyId ?: pharmacyId.trim())
+    }
+
+    /** Confirms that a task QR code was actually visible on a specific authenticated device. */
+    @PostMapping("/tasks/shown")
+    fun markMerchTaskShown(
+        @RequestHeader(name = "X-Posm-Key", required = false) key: String?,
+        @Valid @RequestBody payload: MerchTaskShownRequest,
+    ): JsonNode {
+        val device = deviceAuthentication.authenticate(
+            key,
+            claimedPharmacyId = payload.pharmacyId,
+            claimedDeviceId = payload.deviceId,
+            touchLastSeen = true,
+        )
+        return merchTaskClient.markShown(
+            payload.copy(
+                pharmacyId = device.pharmacyId ?: payload.pharmacyId.trim(),
+                deviceId = device.deviceId ?: payload.deviceId.trim(),
+            ),
+        )
     }
 
     /** CDP (§5.6): поиск клиента лояльности по телефону. */

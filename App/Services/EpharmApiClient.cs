@@ -14,7 +14,7 @@ namespace CustomerDisplay.Services
     /// возвращают null/false и НЕ бросают — касса не должна тормозить или падать из-за backend.
     /// Аутентификация устройства — заголовок X-Posm-Key.
     /// </summary>
-    public sealed class EpharmApiClient : IDisposable
+    public sealed class EpharmApiClient : IMerchTaskApi, IDisposable
     {
         private readonly HttpClient _http;
         private readonly BackendFailoverHandler _failover;
@@ -256,6 +256,64 @@ namespace CustomerDisplay.Services
                 LastHeartbeatError = desc;
                 if (ShouldLog(ref _lastHeartbeatErrorLog, ref _lastHeartbeatErrorKey, desc))
                     _log?.Invoke($"heartbeat: временно не доставлен ({desc}); повторю по таймеру");
+                return false;
+            }
+        }
+
+        /// <summary>Current merchandising task for a pharmacy, proxied by ePharm.</summary>
+        public async Task<MerchTaskDto?> GetActiveMerchTaskAsync(
+            string pharmacyId,
+            CancellationToken ct = default)
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(_playlistTimeout);
+            try
+            {
+                var url = "/api/posm/tasks?pharmacyId=" + Uri.EscapeDataString(pharmacyId);
+                var envelope = await _http
+                    .GetFromJsonAsync<MerchTaskEnvelope>(url, JsonOpts, cts.Token)
+                    .ConfigureAwait(false);
+                return envelope?.Task;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>Records that a QR task was actually displayed on a pharmacy device.</summary>
+        public async Task<bool> AcknowledgeMerchTaskAsync(
+            string dispatchId,
+            string pharmacyId,
+            string deviceId,
+            string deliveryToken,
+            CancellationToken ct = default)
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(_playlistTimeout);
+            try
+            {
+                using var response = await _http.PostAsJsonAsync(
+                    "/api/posm/tasks/shown",
+                    new { dispatchId, pharmacyId, deviceId, deliveryToken },
+                    JsonOpts,
+                    cts.Token).ConfigureAwait(false);
+                if (!response.IsSuccessStatusCode) return false;
+                var result = await response.Content
+                    .ReadFromJsonAsync<MerchTaskDeliveryResult>(JsonOpts, cts.Token)
+                    .ConfigureAwait(false);
+                return result?.Accepted == true;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
                 return false;
             }
         }

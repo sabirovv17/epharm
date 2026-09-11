@@ -30,6 +30,19 @@
 		file_server
 	}
 
+	# Public HTTPS portal opened by merchandising QR codes. handle_path removes
+	# /merch before proxying so the upstream SPA and its relative API routes share
+	# the trusted ePharm origin. The server-to-server key is never sent here.
+	@private_merch path /merch/api/integrations/* /merch/actuator/* /merch/v3/api-docs* /merch/swagger-ui/*
+	handle @private_merch {
+		respond 404
+	}
+	handle_path /merch/* {
+		reverse_proxy {$MERCH_PORTAL_UPSTREAM:10.10.1.80:8080} {
+			header_up -X-Pharmapay-Key
+		}
+	}
+
 	# API для касс (/api/posm), телефонов (/api/mobile) и самой админки.
 	handle /api/* {
 		reverse_proxy backend:8080
@@ -50,6 +63,11 @@
 # Внешний ingress INKAR завершает wildcard TLS и проксирует epharm.inkar.kz
 # обычным HTTP на 10.10.1.76:8060. Отдельный listener исключает redirect-loop.
 http://{$ADMIN_DOMAIN}:8060 {
+	# Direct origin traffic has no trusted HTTPS forwarding header. Redirect it
+	# to the canonical public URL while allowing the INKAR TLS ingress through.
+	@direct_http not header X-Forwarded-Proto https
+	redir @direct_http https://{$ADMIN_DOMAIN}{uri} 308
+
 	import epharm_routes
 }
 
