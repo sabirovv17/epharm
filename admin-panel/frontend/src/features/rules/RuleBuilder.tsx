@@ -258,7 +258,7 @@ export function RulePreview({ rule }: { rule: Rule }) {
   return (
     <div className="flex flex-col gap-3">
       <ComingSoonBanner title={t('rules.pvTitle')} body={t('rules.pvBody')} />
-      <div className="card-soft border-brand-green-200/60 bg-gradient-to-br from-brand-green-50 to-white p-4">
+      <div className="card-soft border border-brand-green-200/60 bg-brand-green-50/60 p-4">
         <div className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-brand-green-700">
           <IconSpark size={12} />
           {t('rules.pvHint')}

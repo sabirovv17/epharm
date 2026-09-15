@@ -43,7 +43,7 @@ export function Topbar({
       <div className="flex min-w-0 items-center gap-2">
         <button
           onClick={onMenu}
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-ink-500 hover:bg-ink-100 md:hidden"
+          className="flex h-9 w-9 items-center justify-center rounded-md text-ink-500 hover:bg-ink-100 md:hidden"
         >
           <IconCommand size={18} />
         </button>
@@ -58,7 +58,7 @@ export function Topbar({
       <div className="mx-auto hidden max-w-[480px] flex-1 md:block">
         <button
           onClick={onCommand}
-          className="flex h-9 w-full items-center gap-2 rounded-lg bg-paper-input px-3 text-[13px] font-semibold text-ink-500 transition hover:bg-ink-100"
+          className="flex h-9 w-full items-center gap-2 rounded-md border border-ink-200 bg-paper-card px-3 text-[13px] font-medium text-ink-500 transition hover:border-ink-300 hover:bg-paper-hover"
         >
           <IconSearch size={15} />
           <span className="flex-1 text-left">{t('topbar.search')}</span>
@@ -111,13 +111,13 @@ function RolePill({ role, onRoleSwitch, onLogout }: RolePillProps) {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex h-10 items-center gap-2.5 rounded-xl pl-1 pr-3 transition hover:bg-ink-100"
+        className="flex h-10 items-center gap-2.5 rounded-md pl-1 pr-3 transition hover:bg-ink-100"
         aria-haspopup="menu"
         aria-expanded={open}
       >
         <Avatar name={role.name} size={32} />
         <div className="hidden text-left sm:block">
-          <div className="text-[13px] font-extrabold leading-tight text-ink-900">{role.name}</div>
+          <div className="text-[13px] font-bold leading-tight text-ink-900">{role.name}</div>
           <div className="text-[11px] font-semibold leading-tight text-ink-500">
             {roleLabel(role.role)} · {role.company}
           </div>

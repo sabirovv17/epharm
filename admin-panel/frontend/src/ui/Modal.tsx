@@ -46,7 +46,7 @@ export function Modal({
       >
         <div className="hairline flex items-start justify-between border-b px-5 pb-3 pt-5">
           <div>
-            <div id={titleId} className="text-[16px] font-extrabold text-ink-900">
+            <div id={titleId} className="text-[16px] font-bold text-ink-900">
               {title}
             </div>
             {subtitle && <div className="mt-0.5 text-[13px] text-ink-500">{subtitle}</div>}
@@ -57,7 +57,7 @@ export function Modal({
         </div>
         <div className="scrollbar-thin max-h-[70vh] overflow-auto px-5 py-4">{children}</div>
         {footer && (
-          <div className="hairline flex items-center justify-end gap-2 rounded-b-2xl border-t bg-paper-hover px-5 py-3">
+          <div className="hairline flex items-center justify-end gap-2 rounded-b-xl border-t bg-paper-hover px-5 py-3">
             {footer}
           </div>
         )}

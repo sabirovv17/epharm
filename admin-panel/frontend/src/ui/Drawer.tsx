@@ -33,7 +33,7 @@ export function Drawer({
       >
         <div className="hairline flex items-start justify-between border-b px-5 pb-4 pt-5">
           <div className="min-w-0 flex-1">
-            <div className="text-[16px] font-extrabold text-ink-900">{title}</div>
+            <div className="text-[16px] font-bold text-ink-900">{title}</div>
             {subtitle && <div className="mt-0.5 truncate text-[13px] text-ink-500">{subtitle}</div>}
           </div>
           <IconButton onClick={onClose} tip="Закрыть">

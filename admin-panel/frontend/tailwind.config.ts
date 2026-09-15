@@ -9,49 +9,49 @@ export default {
     extend: {
       colors: {
         brand: {
-          // Коралл Claude orange (бренд, замена зелёного; стопы по светлоте).
+          // Сдержанный терракотовый коралл: один акцент для действий и active-state.
           // Имена классов brand-green-* НЕ переименованы — поменяны только значения.
           green: {
-            50: '#FBF3EE',
-            100: '#F8E7DD',
-            200: '#F0C8B4',
-            300: '#E4A485',
-            400: '#E0916B',
-            500: '#DB7F57',
-            600: '#D97757',
-            700: '#BE5A38',
-            800: '#9A4427',
+            50: '#FBF5F2',
+            100: '#F6E7E0',
+            200: '#EBC9BC',
+            300: '#DBA18B',
+            400: '#CC7A5C',
+            500: '#C26747',
+            600: '#B95336',
+            700: '#9C4029',
+            800: '#7C3222',
           },
           // Акцент-коралл (моно-бренд, чуть глубже). Класс brand-blue-* сохранён.
           blue: {
-            100: '#F8E7DD',
-            200: '#F0C8B4',
-            300: '#E4A485',
-            400: '#E0916B',
-            500: '#DB7F57',
-            600: '#BE5A38',
-            700: '#A8472A',
+            100: '#F6E7E0',
+            200: '#EBC9BC',
+            300: '#DBA18B',
+            400: '#CC7A5C',
+            500: '#C26747',
+            600: '#B95336',
+            700: '#9C4029',
           },
         },
-        // Тёплая нейтральная шкала (бывшая холодно-серая ink).
+        // Нейтральный тёплый графит без коричневого визуального шума.
         ink: {
-          50: '#F6F3EE',
-          100: '#EFEAE2',
-          200: '#E2DCD2',
-          300: '#D4CCC0',
-          400: '#9D9388',
-          500: '#6F665B',
-          600: '#514A40',
-          700: '#423B32',
-          800: '#2E2820',
-          900: '#221C16',
+          50: '#F5F5F3',
+          100: '#ECECE9',
+          200: '#DDDDD8',
+          300: '#C8C7C1',
+          400: '#96938D',
+          500: '#6B6862',
+          600: '#4D4A45',
+          700: '#373531',
+          800: '#272522',
+          900: '#1C1B19',
         },
-        // Кремовые поверхности вместо холодно-серых.
+        // Спокойные рабочие поверхности: canvas отличается от карточки на один шаг.
         paper: {
-          DEFAULT: '#FAF7F2',
+          DEFAULT: '#F7F7F5',
           card: '#FFFFFF',
-          input: '#F3EEE7',
-          hover: '#F5F1EA',
+          input: '#F3F3F0',
+          hover: '#F1F1EE',
         },
         accent: {
           success: '#16C97A',
@@ -74,27 +74,26 @@ export default {
       },
       fontSize: {
         // Роли из design-tokens-admin §3 (admin spec). Используй классы напрямую где удобно.
-        'h1': ['24px', { lineHeight: '30px', fontWeight: '800' }],
-        'h2': ['15px', { lineHeight: '22px', fontWeight: '800' }],
-        'kpi': ['28px', { lineHeight: '28px', fontWeight: '800', letterSpacing: '-0.02em' }],
+        'h1': ['22px', { lineHeight: '28px', fontWeight: '700' }],
+        'h2': ['14px', { lineHeight: '20px', fontWeight: '700' }],
+        'kpi': ['26px', { lineHeight: '28px', fontWeight: '700', letterSpacing: '-0.015em' }],
         'th': ['11px', { lineHeight: '14px', fontWeight: '600', letterSpacing: '0.04em' }],
       },
       borderRadius: {
         xs: '4px',
         sm: '6px',
-        md: '10px',
-        lg: '12px',
-        xl: '16px',
-        '2xl': '20px',
+        md: '8px',
+        lg: '10px',
+        xl: '12px',
+        '2xl': '16px',
       },
       boxShadow: {
-        // Тени на тёплом ink-900 (34,28,22). Свечение FAB — мягкий коралл, ниже интенсивность.
-        card: '0 1px 2px rgba(34,28,22,0.04), 0 4px 16px rgba(34,28,22,0.06)',
-        elevated: '0 4px 8px rgba(34,28,22,0.06), 0 12px 32px rgba(34,28,22,0.10)',
-        fab: '0 8px 20px rgba(217,119,87,0.28)',
-        sidebar: 'inset -1px 0 0 rgba(34,28,22,0.06)',
-        kbd: '0 1px 0 rgba(34,28,22,0.12), inset 0 -1px 0 rgba(34,28,22,0.08)',
-        'sidebar-tab': '4px 0 12px rgba(34,28,22,0.18)',
+        card: '0 1px 2px rgba(28,27,25,0.025), 0 0 0 1px rgba(28,27,25,0.075)',
+        elevated: '0 12px 32px rgba(28,27,25,0.12), 0 0 0 1px rgba(28,27,25,0.08)',
+        fab: '0 1px 2px rgba(28,27,25,0.16)',
+        sidebar: 'inset -1px 0 0 rgba(255,255,255,0.04)',
+        kbd: 'inset 0 0 0 1px rgba(28,27,25,0.10)',
+        'sidebar-tab': '4px 0 12px rgba(28,27,25,0.18)',
       },
       spacing: {
         // Sidebar geometry — design-tokens-admin §4.

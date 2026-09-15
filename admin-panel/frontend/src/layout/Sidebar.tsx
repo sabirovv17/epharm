@@ -1,5 +1,5 @@
 // Sidebar — admin §7.1
-// Тёмный фон (sidebar-bg radial-gradient), 12 пунктов сгруппированы по 6 категориям.
+// Сплошной тёмный фон, 12 пунктов сгруппированы по 6 категориям.
 // Collapsed: 72px. Expanded: 260px + Contract widget внизу (для всех пользователей —
 // у кого нет контракта показывается empty state без цифр).
 
@@ -71,13 +71,13 @@ export function Sidebar({
           <button
             onClick={onToggle}
             title="Развернуть"
-            className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-white/10 transition hover:bg-white/15"
+            className="flex h-10 w-10 flex-none items-center justify-center rounded-md bg-white/[0.07] transition hover:bg-white/10"
           >
             <Logo size={22} />
           </button>
         ) : (
           <>
-            <span className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-white/10">
+            <span className="flex h-9 w-9 flex-none items-center justify-center rounded-md bg-white/[0.07]">
               <Logo size={22} />
             </span>
             <div className="min-w-0 flex-1">
@@ -128,7 +128,7 @@ export function Sidebar({
                       <li key={s.id}>
                         <button
                           onClick={() => onSelect(s.id)}
-                          className={`sidebar-hover flex h-10 w-full items-center gap-3 rounded-lg px-2.5 ${
+                          className={`sidebar-hover flex h-10 w-full items-center gap-3 rounded-md px-2.5 ${
                             isActive ? 'sidebar-active text-white' : 'text-white/75'
                           } ${collapsed ? 'justify-center' : ''}`}
                           title={collapsed ? t(`nav.${s.id}`) : ''}
@@ -182,7 +182,7 @@ export function Sidebar({
                         <button
                           type="button"
                           onClick={() => onSelectTrainingTab?.(item.value)}
-                          className={`sidebar-hover flex min-h-10 w-full items-center gap-3 rounded-lg px-2.5 py-2 ${
+                          className={`sidebar-hover flex min-h-10 w-full items-center gap-3 rounded-md px-2.5 py-2 ${
                             isActive ? 'sidebar-active text-white' : 'text-white/75'
                           } ${collapsed ? 'justify-center' : ''}`}
                           title={collapsed ? item.sidebarLabel : ''}
@@ -266,7 +266,7 @@ function ContractWidget({ contract, collapsed, onOpen }: ContractWidgetProps) {
         aria-label={t('sidebar.contractActive')}
         data-testid="contract-widget-empty"
       >
-        <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] p-3">
+        <div className="rounded-md border border-dashed border-white/10 bg-white/[0.02] p-3">
           <div className="flex items-center gap-2">
             <span className="flex h-7 w-7 flex-none items-center justify-center rounded-lg bg-white/5 text-white/35">
               <IconShield size={14} />
@@ -275,7 +275,7 @@ function ContractWidget({ contract, collapsed, onOpen }: ContractWidgetProps) {
               <div className="truncate text-[11px] font-bold uppercase tracking-[0.06em] text-white/40">
                 {t('sidebar.contract')}
               </div>
-              <div className="truncate text-[13px] font-extrabold text-white/55">
+              <div className="truncate text-[13px] font-bold text-white/55">
                 {t('sidebar.contractNone')}
               </div>
             </div>
@@ -297,7 +297,7 @@ function ContractWidget({ contract, collapsed, onOpen }: ContractWidgetProps) {
     >
       <button
         onClick={onOpen}
-        className="w-full rounded-xl border border-white/5 bg-gradient-to-br from-brand-green-700/40 to-brand-green-700/10 p-3 text-left transition hover:from-brand-green-700/55"
+        className="w-full rounded-md border border-brand-green-400/20 bg-brand-green-700/20 p-3 text-left transition hover:bg-brand-green-700/30"
       >
         <div className="mb-2 flex items-center gap-2">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-green-600">
@@ -307,7 +307,7 @@ function ContractWidget({ contract, collapsed, onOpen }: ContractWidgetProps) {
             <div className="text-[11px] font-bold uppercase tracking-[0.06em] text-white/55">
               Активный контракт
             </div>
-            <div className="truncate text-[13px] font-extrabold text-white">{contract.brand}</div>
+            <div className="truncate text-[13px] font-bold text-white">{contract.brand}</div>
           </div>
           <IconChevRight size={14} className="text-white/40" />
         </div>

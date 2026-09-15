@@ -162,10 +162,12 @@ function fmtWhen(iso: string): string {
 
 function MiniKpi({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className="hairline rounded-xl border p-3">
-      <div className="text-[11px] font-bold uppercase tracking-[0.04em] text-ink-500">{label}</div>
+    <div className="hairline rounded-md border bg-paper-card p-3">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-ink-500">
+        {label}
+      </div>
       <div
-        className={`num mt-1 text-[18px] font-extrabold ${accent ? 'text-brand-green-700' : 'text-ink-900'}`}
+        className={`num mt-1 text-[18px] font-bold ${accent ? 'text-brand-green-700' : 'text-ink-900'}`}
       >
         {value}
       </div>
