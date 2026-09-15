@@ -6,6 +6,7 @@ import kz.epharm.screens.dto.AssignSlideRequest
 import kz.epharm.screens.dto.BroadcastProfileDto
 import kz.epharm.screens.dto.BroadcastProfileSummaryDto
 import kz.epharm.screens.dto.ConnectedRegistersDto
+import kz.epharm.screens.dto.ConnectedRegistersSummaryDto
 import kz.epharm.screens.dto.CreatePlaylistRequest
 import kz.epharm.screens.dto.PlaylistDto
 import kz.epharm.screens.dto.SlideDto
@@ -42,6 +43,13 @@ class ScreenController(
     private val screenService: ScreenService,
     private val screenPresenceService: ScreenPresenceService,
 ) {
+
+    /**
+     * Лёгкий Redis-only endpoint для числа онлайн-касс. Детальный /connected остаётся
+     * отдельным, потому что ему нужен справочник аптек из PostgreSQL.
+     */
+    @GetMapping("/connected/summary")
+    fun connectedSummary(): ConnectedRegistersSummaryDto = screenPresenceService.connectedSummary()
 
     /**
      * Сколько касс сейчас онлайн (T4) — пульсы за последний TTL. Для каждой кассы резолвим

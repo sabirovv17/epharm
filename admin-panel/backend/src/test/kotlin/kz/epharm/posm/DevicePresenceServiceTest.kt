@@ -108,4 +108,25 @@ class DevicePresenceServiceTest {
         assertEquals(2, restored.single().monitorCount)
         assertEquals("1.0.46.0", restored.single().appVersion)
     }
+
+    @Test
+    fun `count reads only active redis keys without loading device metadata`() {
+        val provider = mockk<ObjectProvider<StringRedisTemplate>>()
+        val redis = mockk<StringRedisTemplate>()
+        val zset = mockk<ZSetOperations<String, String>>()
+        every { provider.getIfAvailable() } returns redis
+        every { redis.opsForZSet() } returns zset
+        every {
+            zset.rangeByScore(
+                "epharm:posm:presence:last-seen",
+                t0.minusSeconds(90).toEpochMilli().toDouble(),
+                Double.POSITIVE_INFINITY,
+            )
+        } returns setOf("ph_a\u001Fkassa-1", "ph_b\u001Fkassa-2")
+
+        val count = DevicePresenceService(ttlSeconds = 90, redisProvider = provider).count(t0)
+
+        assertEquals(2, count)
+        verify(exactly = 0) { redis.opsForHash<String, String>() }
+    }
 }

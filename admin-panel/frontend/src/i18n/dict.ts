@@ -1082,6 +1082,7 @@ export const ru: Dict = {
   // ── Screens additions (T3/T4) ──────────────────────────────────────────
   'scr.connectedLabel': 'Подключено касс',
   'scr.connectedLive': 'live · обновляется',
+  'scr.connectedUnavailable': 'данные временно недоступны',
   'scr.connectedNoPharm': 'без аптеки',
   'scr.exportExcel': 'Скачать Excel',
   'scr.exportingExcel': 'Формируем…',
@@ -2202,6 +2203,7 @@ export const kk: Dict = {
   // ── Screens additions (T3/T4) ──────────────────────────────────────────
   'scr.connectedLabel': 'Қосылған кассалар',
   'scr.connectedLive': 'live · жаңарып тұр',
+  'scr.connectedUnavailable': 'деректер уақытша қолжетімсіз',
   'scr.connectedNoPharm': 'дәріханасыз',
   'scr.exportExcel': 'Excel жүктеу',
   'scr.exportingExcel': 'Дайындалуда…',

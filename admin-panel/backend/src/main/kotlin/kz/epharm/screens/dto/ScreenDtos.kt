@@ -114,6 +114,15 @@ data class ConnectedRegistersDto(
     val devices: List<RegisterPresenceDto>,
 )
 
+/**
+ * Лёгкий live-срез для счётчика в админке. В отличие от ConnectedRegistersDto не требует
+ * обращения к PostgreSQL и не передаёт сотни карточек устройств каждые 30 секунд.
+ */
+data class ConnectedRegistersSummaryDto(
+    val total: Int,
+    val observedAt: Instant,
+)
+
 data class RegisterPresenceDto(
     val deviceId: String,
     val pharmacyId: String?,

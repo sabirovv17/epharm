@@ -13,6 +13,7 @@ import ScreensPage from './ScreensPage'
 const screenHooks = vi.hoisted(() => ({
   downloadConnectedScreensReport: vi.fn(),
   useConnectedScreens: vi.fn(),
+  useConnectedScreensSummary: vi.fn(),
   useBroadcastProfiles: vi.fn(),
   useBroadcastProfile: vi.fn(),
   useUploadBroadcastProfileSlot: vi.fn(),
@@ -52,6 +53,12 @@ beforeEach(() => {
   screenHooks.useConnectedScreens.mockReturnValue({
     data: { total: 0, devices: [] },
     isLoading: false,
+    isError: false,
+  })
+  screenHooks.useConnectedScreensSummary.mockReturnValue({
+    data: { total: 0, observedAt: '2026-09-15T15:00:00Z' },
+    isLoading: false,
+    isError: false,
   })
   profiles = {
     pl_broadcast: {
@@ -144,6 +151,11 @@ describe('ScreensPage — онлайн-кассы', () => {
   })
 
   it('показывает онлайн-кассы (total + устройства)', () => {
+    screenHooks.useConnectedScreensSummary.mockReturnValue({
+      data: { total: 2, observedAt: '2026-09-15T15:00:00Z' },
+      isLoading: false,
+      isError: false,
+    })
     screenHooks.useConnectedScreens.mockReturnValue({
       data: {
         total: 2,
@@ -175,6 +187,7 @@ describe('ScreensPage — онлайн-кассы', () => {
         ],
       },
       isLoading: false,
+      isError: false,
     })
     renderPage()
     const w = screen.getByTestId('connected-registers')
@@ -187,6 +200,46 @@ describe('ScreensPage — онлайн-кассы', () => {
     expect(screen.getByTestId('connected-kassa-1')).toHaveTextContent('v1.0.46.0')
     // касса без аптеки → «без аптеки»
     expect(screen.getByTestId('connected-kassa-2')).toHaveTextContent('без аптеки')
+  })
+
+  it('показывает быстрый Redis-счётчик, даже если детализация не успела загрузиться', () => {
+    screenHooks.useConnectedScreensSummary.mockReturnValue({
+      data: { total: 388, observedAt: '2026-09-15T15:00:00Z' },
+      isLoading: false,
+      isError: false,
+    })
+    screenHooks.useConnectedScreens.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+    })
+
+    renderPage()
+
+    const card = screen.getByTestId('connected-registers')
+    expect(card).toHaveTextContent('388')
+    expect(card).toHaveTextContent('live · обновляется')
+    expect(card).not.toHaveTextContent('данные временно недоступны')
+  })
+
+  it('не выдаёт сбой за live-состояние, если оба запроса недоступны', () => {
+    screenHooks.useConnectedScreensSummary.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+    })
+    screenHooks.useConnectedScreens.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+    })
+
+    renderPage()
+
+    const card = screen.getByTestId('connected-registers')
+    expect(card).toHaveTextContent('—')
+    expect(card).toHaveTextContent('данные временно недоступны')
+    expect(card).not.toHaveTextContent('live · обновляется')
   })
 
   it('скачивает Excel-отчёт по кнопке', async () => {
