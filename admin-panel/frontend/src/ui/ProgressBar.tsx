@@ -6,7 +6,7 @@ interface ProgressBarProps {
   height?: number
 }
 
-export function ProgressBar({ value, max = 100, color = '#D97757', height = 6 }: ProgressBarProps) {
+export function ProgressBar({ value, max = 100, color = '#B95336', height = 6 }: ProgressBarProps) {
   const pct = Math.min(100, (value / max) * 100)
   return (
     <div className="w-full overflow-hidden rounded-full bg-ink-100" style={{ height }}>

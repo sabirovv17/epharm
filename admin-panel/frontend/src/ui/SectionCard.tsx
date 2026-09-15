@@ -21,9 +21,9 @@ export function SectionCard({
   return (
     <div className={`card ${className}`}>
       {(title || action) && (
-        <div className="hairline flex items-center justify-between border-b px-5 py-4">
+        <div className="hairline flex items-center justify-between border-b px-5 py-3.5">
           <div>
-            {title && <div className="text-[15px] font-extrabold text-ink-900">{title}</div>}
+            {title && <div className="text-sm font-bold text-ink-900">{title}</div>}
             {subtitle && <div className="mt-0.5 text-[13px] text-ink-500">{subtitle}</div>}
           </div>
           {action}

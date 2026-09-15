@@ -14,32 +14,27 @@ interface MetricProps {
   meta?: ReactNode
 }
 
-const TINT: Record<Accent, { bg: string; fg: string }> = {
-  // Бренд-плитки — коралл (бывшие зелёная/синяя). amber/purple — семантика, без изменений.
-  green: { bg: '#F8E7DD', fg: '#BE5A38' },
-  blue: { bg: '#F8E7DD', fg: '#BE5A38' },
-  amber: { bg: '#FEF3C7', fg: '#B45309' },
-  purple: { bg: '#F3E8FF', fg: '#7C3AED' },
-  ink: { bg: '#EFEAE2', fg: '#221C16' },
+const TINT: Record<Accent, string> = {
+  green: 'border-brand-green-100 bg-brand-green-50 text-brand-green-700',
+  blue: 'border-brand-blue-100 bg-brand-green-50 text-brand-blue-700',
+  amber: 'border-amber-200 bg-amber-50 text-amber-700',
+  purple: 'border-purple-200 bg-purple-50 text-purple-700',
+  ink: 'border-ink-200 bg-ink-50 text-ink-700',
 }
 
 export function Metric({ label, value, sub, delta, icon, accent = 'green', meta }: MetricProps) {
-  const tint = TINT[accent]
   return (
-    <div className="card flex flex-col gap-3 p-5">
+    <div className="card flex flex-col gap-2.5 p-4">
       <div className="flex items-start justify-between">
-        <span className="text-[13px] font-semibold text-ink-500">{label}</span>
+        <span className="text-[12px] font-semibold leading-5 text-ink-500">{label}</span>
         {icon && (
-          <span
-            className="flex h-9 w-9 items-center justify-center rounded-xl"
-            style={{ background: tint.bg, color: tint.fg }}
-          >
+          <span className={`flex h-8 w-8 items-center justify-center rounded-md border ${TINT[accent]}`}>
             {icon}
           </span>
         )}
       </div>
       <div className="flex items-baseline gap-2">
-        <span className="num text-[28px] font-extrabold leading-none tracking-tight text-ink-900">
+        <span className="num text-[26px] font-bold leading-none tracking-[-0.015em] text-ink-900">
           {value}
         </span>
         {sub && <span className="text-sm font-semibold text-ink-500">{sub}</span>}

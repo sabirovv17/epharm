@@ -26,6 +26,10 @@
     font-feature-settings: 'cv11', 'ss01';
   }
 
+  ::selection {
+    @apply bg-brand-green-100 text-ink-900;
+  }
+
   /* Минимальная ширина для админ-консоли — design-tokens-admin §4. */
   #root {
     min-width: 1280px;
@@ -46,8 +50,8 @@
   /* ── Buttons §8.1 ─────────────────────────────────────────────── */
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-md font-semibold whitespace-nowrap
-           transition-[background-color,color,border-color,box-shadow,transform]
-           duration-100 active:scale-[0.985] select-none;
+           transition-[background-color,color,border-color,box-shadow]
+           duration-100 select-none;
   }
   .btn:disabled,
   .btn[aria-disabled='true'] {
@@ -68,7 +72,7 @@
   }
 
   .btn-primary {
-    @apply bg-brand-green-600 text-white shadow-fab hover:bg-brand-green-700;
+    @apply border border-brand-green-700/30 bg-brand-green-600 text-white shadow-fab hover:bg-brand-green-700;
   }
   .btn-ink {
     @apply bg-ink-900 text-white hover:bg-ink-800;
@@ -108,12 +112,12 @@
 
   /* ── Hairline (1px тонкий разделитель ink-900 @ 6%) ──────────── */
   .hairline {
-    border-color: rgba(34, 28, 22, 0.06);
+    border-color: rgba(28, 27, 25, 0.08);
   }
 
   /* ── Chips §9.2 ───────────────────────────────────────────────── */
   .chip {
-    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap;
+    @apply inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold whitespace-nowrap;
   }
   .chip-dot {
     @apply inline-block w-1.5 h-1.5 rounded-full;
@@ -164,9 +168,7 @@
 
   /* ── Modal backdrop §11.1 ─────────────────────────────────────── */
   .scrim {
-    background: rgba(34, 28, 22, 0.45);
-    backdrop-filter: blur(2px);
-    -webkit-backdrop-filter: blur(2px);
+    background: rgba(28, 27, 25, 0.48);
   }
 
   /* ── Slide-in animation §11.1 ─────────────────────────────────── */
@@ -189,36 +191,34 @@
   }
 
   /* ── Sidebar / Topbar surfaces ────────────────────────────────── */
-  /* Тёплый тёмный sidebar (ink-900 #221c16 + тёплый акцент в углу). */
+  /* Solid navigation surface: no decorative gradients in a work console. */
   .sidebar-bg {
-    background: radial-gradient(120% 80% at 0% 0%, #2e2820 0%, #221c16 60%) #221c16;
+    background: #1c1b19;
+    box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.04);
   }
   .topbar-bg {
     @apply bg-paper-card;
-    border-bottom: 1px solid rgba(34, 28, 22, 0.06);
+    border-bottom: 1px solid rgba(28, 27, 25, 0.08);
   }
   .sidebar-hover:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: rgba(255, 255, 255, 0.055);
   }
-  /* Active row — мягкий коралловый лифт + коралловая риска вместо зелёной. */
+  /* Active row is communicated by contrast and one restrained accent rule. */
   .sidebar-active {
-    background: linear-gradient(180deg, rgba(217, 119, 87, 0.18), rgba(217, 119, 87, 0.08));
-    box-shadow: inset 2px 0 0 #d97757;
+    background: rgba(255, 255, 255, 0.085);
+    box-shadow: inset 2px 0 0 #cc7a5c;
   }
 
   /* ── Key-cap (kbd) §3 ─────────────────────────────────────────── */
   .kbd {
     @apply inline-flex h-5 min-w-[20px] items-center justify-center rounded-sm
            px-1 font-mono text-[11px] font-semibold text-ink-600 num;
-    background: #f6f3ee;
-    box-shadow:
-      0 1px 0 rgba(34, 28, 22, 0.12),
-      inset 0 -1px 0 rgba(34, 28, 22, 0.08);
+    @apply border border-ink-200 bg-paper-card;
   }
 
   /* ── divide-hairline (ul / list separator §6) ────────────────── */
   .divide-hairline > * + * {
-    border-top: 1px solid rgba(34, 28, 22, 0.06);
+    border-top: 1px solid rgba(28, 27, 25, 0.08);
   }
 
   /* ── Drag indication §12 ──────────────────────────────────────── */
@@ -226,7 +226,7 @@
     opacity: 0.4;
   }
   .drop-over {
-    box-shadow: inset 0 2px 0 #d97757;
+    box-shadow: inset 0 2px 0 #b95336;
   }
   .drag-handle {
     cursor: grab;
@@ -238,19 +238,33 @@
   /* ── Thin scrollbar (panes / lists) ───────────────────────────── */
   .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: rgba(34, 28, 22, 0.18) transparent;
+    scrollbar-color: rgba(28, 27, 25, 0.2) transparent;
   }
   .scrollbar-thin::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: rgba(34, 28, 22, 0.18);
+    background-color: rgba(28, 27, 25, 0.2);
     border-radius: 999px;
   }
   .scrollbar-thin::-webkit-scrollbar-track {
     background: transparent;
   }
+}
+
+/* Shared density and hierarchy for both HQ and Learning admin tables. */
+.admin-console main table thead {
+  background: #f7f7f5;
+}
+
+.admin-console main table th {
+  font-weight: 600;
+  letter-spacing: 0.045em;
+}
+
+.admin-console main table tbody tr {
+  transition: background-color 100ms ease;
 }
 
 /* ─────────────────────────────────────────────────────────────────

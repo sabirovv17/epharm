@@ -53,13 +53,13 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-paper px-6 py-12">
       <div className="w-full max-w-[420px]">
         {/* Header */}
-        <div className="mb-8 flex flex-col items-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-ink-900 shadow-elevated">
+        <div className="mb-7 flex flex-col items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-ink-900 shadow-card">
             <Logo size={32} />
           </div>
           <div className="text-center">
-            <div className="text-[24px] font-extrabold leading-tight text-ink-900">Console</div>
-            <div className="mt-1 text-[13px] font-semibold text-ink-500">
+            <div className="text-[22px] font-bold leading-tight text-ink-900">Console</div>
+            <div className="mt-1 text-[13px] font-medium text-ink-500">
               Вход для HQ Inkar и категорийной команды
             </div>
           </div>
@@ -68,7 +68,7 @@ export default function LoginPage() {
         {/* Form */}
         <form
           onSubmit={onSubmit}
-          className="card flex flex-col gap-4 p-6 shadow-card"
+          className="card flex flex-col gap-4 p-6"
           aria-label="Форма входа"
           noValidate
         >
