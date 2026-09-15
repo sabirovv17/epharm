@@ -18,8 +18,9 @@ pluginManagement {
 
 plugins {
     id "dev.flutter.flutter-plugin-loader" version "1.0.0"
-    // sentry_flutter 9.6 requires Android Gradle Plugin 8.1.4 or newer.
-    id "com.android.application" version "8.1.4" apply false
+    // AGP 8.5.1+ packages uncompressed native libraries with 16 KB alignment,
+    // which is required by current Android devices and Google Play releases.
+    id "com.android.application" version "8.5.2" apply false
     id "org.jetbrains.kotlin.android" version "1.8.22" apply false
 }
 

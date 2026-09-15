@@ -72,3 +72,10 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // mobile_scanner 5.x still requests ML Kit 17.2.0. Pin Google's current
+    // bundled scanner so QR scanning remains available offline and its native
+    // libraries support Android devices with 16 KB memory pages.
+    implementation "com.google.mlkit:barcode-scanning:17.3.0"
+}
