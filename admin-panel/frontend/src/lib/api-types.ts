@@ -810,6 +810,11 @@ export interface ConnectedScreensDto {
   devices: ConnectedDeviceDto[]
 }
 
+export interface ConnectedScreensSummaryDto {
+  total: number
+  observedAt: string
+}
+
 // ─── AI-Exam (Этап 3.6) — банк вопросов (результаты/сертификаты в Этапе 4) ───
 export type ExamQuestionKind = 'factual' | 'comparative' | 'scenario'
 

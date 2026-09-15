@@ -99,11 +99,7 @@ class DevicePresenceService(
     /** Живые устройства (пульс не старше TTL). Заодно чистим протухшие записи (лог об отключении). */
     fun connected(now: Instant = Instant.now()): List<Presence> {
         val cutoff = now.minusSeconds(ttlSeconds)
-        seen.entries.removeIf { e ->
-            val expired = e.value.lastSeen.isBefore(cutoff)
-            if (expired) log.info("POSM: касса ОТКЛЮЧИЛАСЬ (нет пульса) — deviceId={}", e.value.deviceId)
-            expired
-        }
+        evictExpiredLocal(cutoff)
 
         val combined = HashMap<String, Presence>()
         readRedisPresence(cutoff).forEach { combined[it.storageKey] = it }
@@ -122,7 +118,44 @@ class DevicePresenceService(
         return combined.values.sortedWith(compareBy<Presence>({ it.pharmacyId ?: "" }, { it.deviceId }))
     }
 
-    fun count(now: Instant = Instant.now()): Int = connected(now).size
+    /**
+     * Быстрый путь для live-счётчика: читаем только ключи активного ZSET. Метаданные устройств
+     * и справочник аптек для одного числа не нужны. Локальные ключи добавляются в union, чтобы
+     * сохранить корректный fallback во время кратковременной недоступности Redis.
+     */
+    fun count(now: Instant = Instant.now()): Int {
+        val cutoff = now.minusSeconds(ttlSeconds)
+        evictExpiredLocal(cutoff)
+        return buildSet {
+            addAll(readRedisPresenceKeys(cutoff))
+            addAll(seen.keys)
+        }.size
+    }
+
+    private fun evictExpiredLocal(cutoff: Instant) {
+        seen.entries.removeIf { entry ->
+            val expired = entry.value.lastSeen.isBefore(cutoff)
+            if (expired) {
+                log.info(
+                    "POSM: касса ОТКЛЮЧИЛАСЬ (нет пульса) — deviceId={}",
+                    entry.value.deviceId,
+                )
+            }
+            expired
+        }
+    }
+
+    private fun readRedisPresenceKeys(cutoff: Instant): Set<String> {
+        var result = emptySet<String>()
+        withRedis { redis ->
+            result = redis.opsForZSet().rangeByScore(
+                LAST_SEEN_KEY,
+                cutoff.toEpochMilli().toDouble(),
+                Double.POSITIVE_INFINITY,
+            ).orEmpty()
+        }
+        return result
+    }
 
     private fun readRedisPresence(cutoff: Instant): List<Presence> {
         var result = emptyList<Presence>()

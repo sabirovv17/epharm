@@ -432,6 +432,12 @@ class ScreensIntegrationTest {
         ).andExpect(status().isOk)
         devicePresenceService.heartbeat("kassa-orphan", "ph_missing")
 
+        mockMvc.perform(get("/api/admin/screens/connected/summary").header("Authorization", bearer))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.total").value(2))
+            .andExpect(jsonPath("$.observedAt").isNotEmpty)
+            .andExpect(jsonPath("$.devices").doesNotExist())
+
         mockMvc.perform(get("/api/admin/screens/connected").header("Authorization", bearer))
             .andExpect(status().isOk)
             // известная аптека → имя + «город, адрес»

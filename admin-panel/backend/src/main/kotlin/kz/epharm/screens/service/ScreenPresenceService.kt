@@ -3,6 +3,7 @@ package kz.epharm.screens.service
 import kz.epharm.pharmacies.repository.PharmacyRepository
 import kz.epharm.posm.service.DevicePresenceService
 import kz.epharm.screens.dto.ConnectedRegistersDto
+import kz.epharm.screens.dto.ConnectedRegistersSummaryDto
 import kz.epharm.screens.dto.RegisterPresenceDto
 import org.apache.poi.ss.usermodel.BorderStyle
 import org.apache.poi.ss.usermodel.FillPatternType
@@ -13,6 +14,7 @@ import org.apache.poi.ss.util.CellRangeAddress
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.springframework.stereotype.Service
 import java.io.ByteArrayOutputStream
+import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -24,6 +26,17 @@ class ScreenPresenceService(
 ) {
     private val almatyZone = ZoneId.of("Asia/Almaty")
     private val timestampFormat = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss")
+
+    /**
+     * Быстрый путь для live-счётчика: только heartbeat storage (Redis + in-memory fallback).
+     * Он намеренно не резолвит справочник аптек, чтобы счётчик оставался доступен при очереди
+     * соединений PostgreSQL во время массовой синхронизации продаж.
+     */
+    fun connectedSummary(now: Instant = Instant.now()): ConnectedRegistersSummaryDto =
+        ConnectedRegistersSummaryDto(
+            total = devicePresenceService.count(now),
+            observedAt = now,
+        )
 
     fun connected(): ConnectedRegistersDto {
         val devices = devicePresenceService.connected()

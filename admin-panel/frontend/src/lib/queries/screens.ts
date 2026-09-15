@@ -10,6 +10,7 @@ import type {
   BroadcastProfileDto,
   BroadcastProfileSummaryDto,
   ConnectedScreensDto,
+  ConnectedScreensSummaryDto,
   CreatePlaylistRequest,
   PlaylistDto,
   PlaylistStatus,
@@ -193,6 +194,22 @@ export function useConnectedScreens() {
   return useQuery<ConnectedScreensDto>({
     queryKey: screensKeys.connected(),
     queryFn: () => api.get<ConnectedScreensDto>('/api/admin/screens/connected').then((r) => r.data),
+    // Детализация требует batch lookup в PostgreSQL. Обновляем её реже, чем лёгкий счётчик.
+    refetchInterval: 60_000,
+  })
+}
+
+/**
+ * Redis-only live-счётчик. Не зависит от PostgreSQL и не скачивает полный список касс,
+ * поэтому остаётся быстрым во время массовой синхронизации POS-продаж.
+ */
+export function useConnectedScreensSummary() {
+  return useQuery<ConnectedScreensSummaryDto>({
+    queryKey: [...screensKeys.connected(), 'summary'],
+    queryFn: () =>
+      api
+        .get<ConnectedScreensSummaryDto>('/api/admin/screens/connected/summary')
+        .then((r) => r.data),
     refetchInterval: 30_000,
   })
 }

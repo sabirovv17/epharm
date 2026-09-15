@@ -21,6 +21,7 @@ import {
   useBroadcastProfile,
   useBroadcastProfiles,
   useConnectedScreens,
+  useConnectedScreensSummary,
   useRemoveBroadcastProfileSlot,
   useSetBroadcastProfilePharmacies,
   useUploadBroadcastProfileSlot,
@@ -85,9 +86,12 @@ function ConnectedRegistersCard() {
   const t = useT()
   const toast = useToast()
   const [exporting, setExporting] = useState(false)
-  const { data, isLoading, isError } = useConnectedScreens()
-  const total = data?.total ?? 0
-  const devices = data?.devices ?? []
+  const details = useConnectedScreens()
+  const summary = useConnectedScreensSummary()
+  const total = summary.data?.total ?? details.data?.total
+  const devices = details.data?.devices ?? []
+  const loading = total === undefined && (summary.isLoading || details.isLoading)
+  const unavailable = total === undefined && !loading
 
   const exportExcel = async () => {
     setExporting(true)
@@ -117,9 +121,9 @@ function ConnectedRegistersCard() {
             {t('scr.connectedLabel')}
           </div>
           <div className="num mt-1 text-[28px] font-extrabold text-ink-900">
-            {/* Ошибка ≠ «0 подключено»: при сбое запроса показываем «—», иначе
+            {/* Ошибка ≠ «0 подключено»: при сбое обоих источников показываем «—», иначе
                 фармацевт читал бы ложный ноль как «касс нет». */}
-            {isError && !data ? '—' : isLoading && !data ? '…' : total}
+            {unavailable ? '—' : loading ? '…' : total ?? '—'}
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -133,7 +137,9 @@ function ConnectedRegistersCard() {
           >
             {exporting ? t('scr.exportingExcel') : t('scr.exportExcel')}
           </Button>
-          <span className="chip chip-green">{t('scr.connectedLive')}</span>
+          <span className={`chip ${unavailable ? 'chip-red' : 'chip-green'}`}>
+            {unavailable ? t('scr.connectedUnavailable') : t('scr.connectedLive')}
+          </span>
         </div>
       </div>
       {devices.length > 0 && (
