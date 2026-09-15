@@ -56,8 +56,14 @@ import {
 } from '@/lib/queries/lms'
 import { describeError } from '@/lib/describeError'
 import { formatKzt, formatNum } from '@/mocks/fixtures'
-import { isTrainingReadOnlyRole } from '@/app/accessPolicy'
+import { isTrainingReadOnlyRole, isTrainingWorkspaceRole } from '@/app/accessPolicy'
 import { useUiStore } from '@/app/store'
+import {
+  TRAINING_NAVIGATION,
+  trainingItem,
+  trainingTabFromSearch,
+  type TrainingTab,
+} from '@/app/trainingNavigation'
 import {
   AssignTrainingModal,
   AssessmentResultModal,
@@ -79,50 +85,38 @@ import {
 } from './training-ui'
 import { CourseEditorDrawer } from './CourseEditorDrawer'
 
-type TrainingTab =
-  | 'overview'
-  | 'programs'
-  | 'courses'
-  | 'events'
-  | 'assignments'
-  | 'attendance'
-  | 'results'
-  | 'certificates'
-  | 'analytics'
-  | 'settings'
-
-const TABS: TabItem<TrainingTab>[] = [
-  { value: 'overview', label: 'Дашборд' },
-  { value: 'programs', label: 'Программы' },
-  { value: 'courses', label: 'Онлайн-курсы' },
-  { value: 'events', label: 'Офлайн-мероприятия' },
-  { value: 'assignments', label: 'Назначения' },
-  { value: 'attendance', label: 'Посещаемость' },
-  { value: 'results', label: 'Результаты и экзамены' },
-  { value: 'certificates', label: 'Сертификаты' },
-  { value: 'analytics', label: 'Аналитика' },
-  { value: 'settings', label: 'Настройки' },
-]
+const TABS: TabItem<TrainingTab>[] = TRAINING_NAVIGATION.map(({ value, label }) => ({
+  value,
+  label,
+}))
 
 export default function LMSPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const role = useUiStore((state) => state.authedUser?.role)
   const isReadOnly = isTrainingReadOnlyRole(role)
+  const trainingWorkspace = role ? isTrainingWorkspaceRole(role) : false
   const requestedPharmacistIds = useMemo(
     () => (searchParams.get('pharmacists') ?? '').split(',').filter(Boolean),
     [searchParams],
   )
   const requestedAssignment =
     !isReadOnly && searchParams.get('action') === 'assign' && requestedPharmacistIds.length > 0
-  const [tab, setTab] = useState<TrainingTab>(() =>
-    requestedAssignment ? 'assignments' : 'overview',
-  )
+  const tab = trainingTabFromSearch(searchParams, requestedAssignment)
+  const currentSection = trainingItem(tab)
+  const setTab = (nextTab: TrainingTab) => {
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('action')
+    nextParams.delete('pharmacists')
+    if (nextTab === 'overview') nextParams.delete('tab')
+    else nextParams.set('tab', nextTab)
+    setSearchParams(nextParams)
+  }
   const [programModalOpen, setProgramModalOpen] = useState(false)
   const [programTarget, setProgramTarget] = useState<{
     program: TrainingProgramDto
     mode: 'edit' | 'duplicate'
   } | null>(null)
-  const [assignmentModalOpen, setAssignmentModalOpen] = useState(requestedAssignment)
+  const [assignmentModalOpen, setAssignmentModalOpen] = useState(false)
   const [eventModalOpen, setEventModalOpen] = useState(false)
   const [eventTarget, setEventTarget] = useState<OfflineEventDto | null>(null)
   const [courseModalOpen, setCourseModalOpen] = useState(false)
@@ -153,7 +147,13 @@ export default function LMSPage() {
   const capabilities = dashboard?.capabilities
   const closeAssignmentModal = () => {
     setAssignmentModalOpen(false)
-    if (requestedAssignment) setSearchParams({}, { replace: true })
+    if (requestedAssignment) {
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.delete('action')
+      nextParams.delete('pharmacists')
+      nextParams.set('tab', 'assignments')
+      setSearchParams(nextParams, { replace: true })
+    }
   }
 
   const action = (() => {
@@ -198,16 +198,22 @@ export default function LMSPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="Обучение"
-        subtitle="Программы, назначения, очные события, контроль прохождения и сертификаты фармацевтов"
+        title={trainingWorkspace ? currentSection.title : 'Обучение'}
+        subtitle={
+          trainingWorkspace
+            ? currentSection.subtitle
+            : 'Программы, назначения, очные события, контроль прохождения и сертификаты фармацевтов'
+        }
         actions={action}
       />
 
-      <div className="card overflow-x-auto px-5 pt-1">
-        <div className="min-w-max">
-          <Tabs items={TABS} value={tab} onChange={setTab} />
+      {!trainingWorkspace && (
+        <div className="card overflow-x-auto px-5 pt-1">
+          <div className="min-w-max">
+            <Tabs items={TABS} value={tab} onChange={setTab} />
+          </div>
         </div>
-      </div>
+      )}
 
       {dashboardQuery.isError && !dashboard ? (
         <Empty
@@ -282,7 +288,7 @@ export default function LMSPage() {
           mode={programTarget.mode}
         />
       )}
-      {assignmentModalOpen && capabilities?.canManageAssignments && (
+      {(assignmentModalOpen || requestedAssignment) && capabilities?.canManageAssignments && (
         <AssignTrainingModal
           key={requestedPharmacistIds.join(':') || 'manual-assignment'}
           open

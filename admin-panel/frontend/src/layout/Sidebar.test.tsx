@@ -9,6 +9,7 @@ import { sectionsForRole } from '@/app/accessPolicy'
 
 function setup(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
   const onSelect = vi.fn()
+  const onSelectTrainingTab = vi.fn()
   const onToggle = vi.fn()
   const onContractOpen = vi.fn()
   const utils = render(
@@ -18,11 +19,13 @@ function setup(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
       collapsed={false}
       onToggle={onToggle}
       onContractOpen={onContractOpen}
+      activeTrainingTab="overview"
+      onSelectTrainingTab={onSelectTrainingTab}
       user={USERS.damir}
       {...overrides}
     />,
   )
-  return { onSelect, onToggle, onContractOpen, ...utils }
+  return { onSelect, onSelectTrainingTab, onToggle, onContractOpen, ...utils }
 }
 
 describe('Sidebar — брендинг', () => {
@@ -61,20 +64,47 @@ describe('Sidebar — навигация', () => {
     expect(screen.getByRole('button', { name: /AI-Экзаменация/i })).toBeInTheDocument()
   })
 
-  it('для руководителя обучения оставляет только LMS и AI-экзамены', () => {
-    setup({ user: USERS.lms, active: 'lms' })
+  it('для руководителя обучения переносит разделы LMS в sidebar без общего пункта', () => {
+    setup({ user: USERS.lms, active: 'lms', activeTrainingTab: 'courses' })
 
     expect(screen.getByText(/Console · Learning/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Обучение/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Обучение$/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /AI-Экзаменация/i })).toBeInTheDocument()
-    SECTIONS.filter((section) => section.id !== 'lms' && section.id !== 'ai_exam').forEach(
+    ;[
+      'Дашборд',
+      'Программы',
+      'Онлайн-курсы',
+      'Офлайн-мероприятия',
+      'Назначения',
+      'Посещаемость',
+      'Результаты и экзамены',
+      'Сертификаты',
+      'Аналитика',
+      'Настройки обучения',
+    ].forEach((label) => {
+      expect(screen.getByRole('button', { name: label })).toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: 'Онлайн-курсы' })).toHaveClass('sidebar-active')
+    SECTIONS.filter(
+      (section) => section.id !== 'lms' && section.id !== 'ai_exam' && section.id !== 'settings',
+    ).forEach(
       (section) => {
         expect(
           screen.queryByRole('button', { name: new RegExp(section.label, 'i') }),
         ).not.toBeInTheDocument()
       },
     )
+    expect(screen.queryByRole('button', { name: /^Настройки$/i })).not.toBeInTheDocument()
     expect(screen.queryByTestId('contract-widget-empty')).not.toBeInTheDocument()
+  })
+
+  it('учебный пункт вызывает отдельную навигацию по вкладке', async () => {
+    const user = userEvent.setup()
+    const { onSelectTrainingTab } = setup({ user: USERS.lms, active: 'lms' })
+
+    await user.click(screen.getByRole('button', { name: 'Результаты и экзамены' }))
+
+    expect(onSelectTrainingTab).toHaveBeenCalledWith('results')
   })
 
   it('активный пункт получает sidebar-active класс', () => {

@@ -104,8 +104,11 @@ the store is cleared and the user returns to login.
 
 Navigation and direct routes are role-aware:
 
-- `TRAINING_MANAGER` sees only `Training` and `AI Exam` and lands on `/lms` after login;
-- `REGIONAL_MANAGER` and `TRAINER` see only `Training`, with actions narrowed by backend capabilities;
+- `TRAINING_MANAGER` gets the dedicated training workspace plus `AI Exam` and lands on `/lms` after login;
+- `REGIONAL_MANAGER` and `TRAINER` get the training workspace with actions narrowed by backend capabilities;
+- in the dedicated training workspace, dashboard, programs, courses, offline events, assignments,
+  attendance, results, certificates, analytics, and training settings are first-class sidebar items;
+  the redundant generic `Training` item and the duplicate horizontal LMS tab bar are hidden;
 - `HQ_HEAD` keeps all operational sections and also sees `Training` and `AI Exam` in read-only mode;
 - other core business roles keep operational and analytics sections without training navigation;
 - `SYSTEM_ADMIN` retains full emergency access.

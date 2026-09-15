@@ -10,7 +10,18 @@ import { ToastHost } from '@/ui'
 import { useT } from '@/i18n'
 import { useUiStore } from './store'
 import { SECTION_ROUTES } from './routes'
-import { canAccessSection, defaultSectionForRole, workspaceLabelForRole } from './accessPolicy'
+import {
+  canAccessSection,
+  defaultSectionForRole,
+  isTrainingWorkspaceRole,
+  workspaceLabelForRole,
+} from './accessPolicy'
+import {
+  trainingItem,
+  trainingPath,
+  trainingTabFromSearch,
+  type TrainingTab,
+} from './trainingNavigation'
 
 export function AppShell() {
   const navigate = useNavigate()
@@ -42,10 +53,25 @@ export function AppShell() {
     return entry?.[0] ?? defaultSectionForRole(authedUser?.role ?? 'HQ_HEAD')
   }, [authedUser?.role, location.pathname])
 
-  const activeLabel = t(`nav.${activeSection}`)
+  const activeTrainingTab = useMemo(
+    () =>
+      trainingTabFromSearch(
+        location.search,
+        authedUser ? isTrainingWorkspaceRole(authedUser.role) : false,
+      ),
+    [authedUser, location.search],
+  )
+  const activeLabel =
+    activeSection === 'lms' && authedUser && isTrainingWorkspaceRole(authedUser.role)
+      ? trainingItem(activeTrainingTab).sidebarLabel
+      : t(`nav.${activeSection}`)
 
   const onSelectSection = (id: SectionId) => {
     if (authedUser && canAccessSection(authedUser.role, id)) navigate(SECTION_ROUTES[id])
+  }
+
+  const onSelectTrainingTab = (tab: TrainingTab) => {
+    if (authedUser && canAccessSection(authedUser.role, 'lms')) navigate(trainingPath(tab))
   }
 
   // Global ⌘K / Ctrl+K — toggle command palette
@@ -86,6 +112,8 @@ export function AppShell() {
           onToggle={toggleSidebar}
           onContractOpen={openContractModal}
           user={authedUser}
+          activeTrainingTab={activeTrainingTab}
+          onSelectTrainingTab={onSelectTrainingTab}
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <Topbar

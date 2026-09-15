@@ -251,7 +251,9 @@ const participant: EventParticipantDto = {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  useUiStore.setState({ authedUser: USERS.lms })
+  // Component-level scenarios exercise the legacy HQ tab bar. The dedicated
+  // training-workspace behavior is covered separately below and in Sidebar/E2E.
+  useUiStore.setState({ authedUser: { ...USERS.lms, role: 'SYSTEM_ADMIN' } })
   lmsHooks.useTrainingDashboard.mockReturnValue(queryResult(dashboard))
   lmsHooks.useTrainingPrograms.mockReturnValue(queryResult([program]))
   lmsHooks.useTrainingAssignments.mockReturnValue(queryResult([] as TrainingAssignmentDto[]))
@@ -319,6 +321,27 @@ describe('Обучение — операционный раздел', () => {
     expect(screen.getByText('Активные программы')).toBeInTheDocument()
     expect(screen.getByText('30%')).toBeInTheDocument()
     expect(screen.getByText('2 250 ₸')).toBeInTheDocument()
+  })
+
+  it('в учебном workspace получает активный раздел из URL и не дублирует sidebar вкладками', () => {
+    useUiStore.setState({ authedUser: USERS.lms })
+
+    renderPage('/lms?tab=programs')
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Программы' })).toBeInTheDocument()
+    expect(screen.getByTestId('training-programs-table')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Программы' })).not.toBeInTheDocument()
+  })
+
+  it('неизвестный учебный URL безопасно возвращает на дашборд', () => {
+    useUiStore.setState({ authedUser: USERS.lms })
+
+    renderPage('/lms?tab=unknown')
+
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Дашборд обучения' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Активные программы')).toBeInTheDocument()
   })
 
   it('открывает реестр программ и показывает маршрут', async () => {
