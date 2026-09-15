@@ -39,13 +39,43 @@ test.describe('Role access — обучение и AI-экзамены', () => {
     await loginForRole(freshPage, ACCOUNTS.lms, '/lms')
 
     await expect(freshPage.getByText(ACCOUNTS.lms.name)).toBeVisible()
-    await expect(freshPage.getByRole('button', { name: /^Обучение/i })).toBeVisible()
+    await expect(freshPage.getByRole('button', { name: /^Обучение$/i })).toHaveCount(0)
     await expect(freshPage.getByRole('button', { name: /AI-Экзаменация/i })).toBeVisible()
     await expect(freshPage.getByRole('button', { name: /Дашборд аналитики/i })).toHaveCount(0)
     await expect(freshPage.getByRole('button', { name: /Rules Engine/i })).toHaveCount(0)
 
+    for (const section of [
+      'Дашборд',
+      'Программы',
+      'Онлайн-курсы',
+      'Офлайн-мероприятия',
+      'Назначения',
+      'Посещаемость',
+      'Результаты и экзамены',
+      'Сертификаты',
+      'Аналитика',
+      'Настройки обучения',
+    ]) {
+      await expect(freshPage.getByRole('button', { name: section })).toBeVisible()
+    }
+
     await freshPage.getByRole('button', { name: 'Программы' }).click()
+    await expect(freshPage).toHaveURL(/\/lms\?tab=programs$/)
+    await expect(freshPage.getByRole('heading', { level: 1, name: 'Программы' })).toBeVisible()
+    await expect(freshPage.getByRole('button', { name: 'Программы' })).toHaveClass(
+      /sidebar-active/,
+    )
     await expect(freshPage.getByRole('button', { name: 'Новая программа' })).toBeVisible()
+    await expect(freshPage.locator('main .tab')).toHaveCount(0)
+
+    await freshPage.getByRole('button', { name: 'Онлайн-курсы' }).click()
+    await expect(freshPage).toHaveURL(/\/lms\?tab=courses$/)
+    await expect(freshPage.getByRole('heading', { level: 1, name: 'Онлайн-курсы' })).toBeVisible()
+    await freshPage.goBack()
+    await expect(freshPage).toHaveURL(/\/lms\?tab=programs$/)
+    await expect(freshPage.getByRole('button', { name: 'Программы' })).toHaveClass(
+      /sidebar-active/,
+    )
 
     await freshPage.getByRole('button', { name: /AI-Экзаменация/i }).click()
     await expect(freshPage).toHaveURL(/\/ai-exam$/)

@@ -14,6 +14,11 @@ import {
 import { IconChevLeft, IconChevRight, IconShield } from '@/ui/icons'
 import { useT } from '@/i18n'
 import { isTrainingWorkspaceRole, sectionsForRole } from '@/app/accessPolicy'
+import {
+  TRAINING_NAVIGATION,
+  TRAINING_NAVIGATION_GROUPS,
+  type TrainingTab,
+} from '@/app/trainingNavigation'
 import { Logo } from './Logo'
 
 interface SidebarProps {
@@ -23,6 +28,8 @@ interface SidebarProps {
   onToggle: () => void
   onContractOpen: () => void
   user: User
+  activeTrainingTab?: TrainingTab
+  onSelectTrainingTab?: (tab: TrainingTab) => void
 }
 
 const GROUP_ORDER = ['Обзор', 'Кампании', 'Сеть', 'Операции', 'Аналитика', 'Система'] as const
@@ -34,21 +41,24 @@ export function Sidebar({
   onToggle,
   onContractOpen,
   user,
+  activeTrainingTab = 'overview',
+  onSelectTrainingTab,
 }: SidebarProps) {
   const t = useT()
-  const availableSections = sectionsForRole(user.role)
+  const trainingWorkspace = isTrainingWorkspaceRole(user.role)
+  const availableSections = sectionsForRole(user.role).filter(
+    (section) => !trainingWorkspace || section.id !== 'lms',
+  )
   const groups = availableSections.reduce<Record<string, Section[]>>((acc, s) => {
     ;(acc[s.group] = acc[s.group] || []).push(s)
     return acc
   }, {})
 
   const contract = getUserContract(user)
-  const trainingWorkspace = isTrainingWorkspaceRole(user.role)
-
   return (
     <aside
       className={`sidebar-bg relative flex flex-none flex-col text-white transition-[width] duration-200 ${
-        collapsed ? 'w-[72px]' : 'w-[260px]'
+        collapsed ? 'w-[72px]' : trainingWorkspace ? 'w-[280px]' : 'w-[260px]'
       }`}
     >
       {/* Logo header */}
@@ -152,6 +162,53 @@ export function Sidebar({
               </div>
             ),
         )}
+
+        {trainingWorkspace &&
+          TRAINING_NAVIGATION_GROUPS.map((group) => {
+            const items = TRAINING_NAVIGATION.filter((item) => item.group === group)
+            return (
+              <div key={group} className="mb-3">
+                {!collapsed && (
+                  <div className="mb-1.5 px-4 text-[10px] font-bold uppercase tracking-[0.1em] text-white/40">
+                    {group}
+                  </div>
+                )}
+                <ul className="flex flex-col gap-0.5 px-2">
+                  {items.map((item) => {
+                    const Icon = item.Icon
+                    const isActive = active === 'lms' && activeTrainingTab === item.value
+                    return (
+                      <li key={item.value}>
+                        <button
+                          type="button"
+                          onClick={() => onSelectTrainingTab?.(item.value)}
+                          className={`sidebar-hover flex min-h-10 w-full items-center gap-3 rounded-lg px-2.5 py-2 ${
+                            isActive ? 'sidebar-active text-white' : 'text-white/75'
+                          } ${collapsed ? 'justify-center' : ''}`}
+                          title={collapsed ? item.sidebarLabel : ''}
+                          aria-current={isActive ? 'page' : undefined}
+                          data-training-tab={item.value}
+                        >
+                          <span
+                            className={`flex-none ${
+                              isActive ? 'text-brand-green-400' : 'text-white/65'
+                            }`}
+                          >
+                            <Icon size={19} />
+                          </span>
+                          {!collapsed && (
+                            <span className="min-w-0 flex-1 text-left text-[13px] font-semibold leading-4">
+                              {item.sidebarLabel}
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            )
+          })}
       </nav>
 
       {/* Contract widget — рендерится всегда. Без контракта — empty state без цифр. */}
