@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using CustomerDisplay.Config;
 using CustomerDisplay.Models.Posm;
 using CustomerDisplay.Services;
 using Xunit;
@@ -39,5 +40,25 @@ public sealed class UpdateManifestVerifierTests
     public void MissingPinnedKeyFailsClosed()
     {
         Assert.False(UpdateManifestVerifier.Verify(new AppVersionInfo(), ""));
+    }
+
+    [Fact]
+    public void LegacyInstallUsesValidEmbeddedProductionTrustAnchor()
+    {
+        var resolved = EpharmConfig.ResolveUpdateManifestPublicKeySpki("  ");
+        Assert.Equal(EpharmConfig.EmbeddedUpdateManifestPublicKeySpki, resolved);
+
+        var keyBytes = Convert.FromBase64String(resolved);
+        using var verifier = ECDsa.Create();
+        verifier.ImportSubjectPublicKeyInfo(keyBytes, out var bytesRead);
+
+        Assert.Equal(keyBytes.Length, bytesRead);
+        Assert.Equal(256, verifier.KeySize);
+    }
+
+    [Fact]
+    public void ExplicitTrustAnchorOverridesEmbeddedKey()
+    {
+        Assert.Equal("custom-key", EpharmConfig.ResolveUpdateManifestPublicKeySpki(" custom-key "));
     }
 }

@@ -30,7 +30,7 @@ dotnet run -r win-x64
   "Enabled": true,
   "BackendBaseUrl": "https://epharm.inkar.kz",
   "BackendFallbackBaseUrls": [],
-  "UpdateManifestPublicKeySpki": "<BASE64_DER_ECDSA_P256_PUBLIC_KEY>",
+  "UpdateManifestPublicKeySpki": "<OPTIONAL_BASE64_DER_ECDSA_P256_PUBLIC_KEY_OVERRIDE>",
   "DeviceKey": "<INDIVIDUAL_DEVICE_TOKEN>",
   "PharmacistId": "u_smoke",
   "PharmacyId": "ph_smoke",
