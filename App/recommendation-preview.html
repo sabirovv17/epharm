@@ -1,159 +1,241 @@
 <!doctype html>
-<!--
-  Статичный превью popup рекомендации (RecommendationWindow.xaml) — чтобы увидеть дизайн
-  на Mac/в браузере без сборки WPF. Цвета/раскладка 1:1 с XAML. Это макет, не рабочий код.
-  Открыть: open App/recommendation-preview.html
--->
+<!-- Static browser preview of RecommendationWindow.xaml for design review on non-Windows hosts. -->
 <html lang="ru">
   <head>
     <meta charset="utf-8" />
-    <title>Epharm — превью рекомендации</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Epharm — multi-offer preview</title>
     <style>
-      * {
-        box-sizing: border-box;
+      * { box-sizing: border-box; }
+      :root {
+        font-family: "Segoe UI", Arial, sans-serif;
+        color: #211d19;
       }
       body {
         margin: 0;
         min-height: 100vh;
-        font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
-        /* фон = тёмный «второй монитор» кассы, popup всплывает в правом нижнем углу */
-        background: #0b0b0d;
         display: flex;
         align-items: flex-end;
         justify-content: flex-end;
-        padding: 24px;
+        padding: 20px;
+        background:
+          linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px) 0 0 / 28px 28px,
+          #151516;
       }
-      .hint {
+      .desktop-note {
         position: fixed;
-        top: 20px;
-        left: 24px;
-        color: #8a8f98;
+        top: 28px;
+        left: 32px;
+        max-width: 430px;
+        color: #aaa5a0;
         font-size: 13px;
-        max-width: 360px;
+        line-height: 1.55;
       }
-      .hint b {
-        color: #d97757;
-      }
-      /* ── карточка popup (Border CornerRadius=16, BorderBrush=#D97757 2px, DropShadow) ── */
-      .card {
-        width: 432px;
+      .desktop-note strong { color: #e1d7d0; }
+      .popup {
+        width: 368px;
+        overflow: hidden;
         background: #fff;
-        border: 2px solid #d97757;
-        border-radius: 16px;
-        padding: 18px 22px;
-        box-shadow: 0 6px 28px rgba(0, 0, 0, 0.28);
+        border: 1px solid #d8d1c7;
+        border-radius: 13px;
+        box-shadow: 0 8px 28px rgba(0,0,0,.36);
       }
-      .row {
+      .header {
+        height: 57px;
+        display: grid;
+        grid-template-columns: 22px 1fr 26px;
+        align-items: center;
+        gap: 9px;
+        padding: 10px 10px 10px 14px;
+        border-bottom: 1px solid #e8e2da;
+      }
+      .icon {
+        width: 22px;
+        height: 22px;
+        display: grid;
+        place-items: center;
+        border-radius: 6px;
+        background: #8b432d;
+        color: white;
+        font-weight: 700;
+        font-size: 13px;
+      }
+      .title { font-weight: 700; font-size: 15px; line-height: 17px; }
+      .subtitle { margin-top: 2px; color: #847b72; font-size: 10.5px; font-weight: 600; }
+      .close {
+        width: 26px;
+        height: 26px;
+        display: grid;
+        place-items: center;
+        border: 0;
+        border-radius: 6px;
+        background: #f1eee9;
+        color: #6f665b;
+      }
+      .scroller {
+        max-height: 552px;
+        overflow-y: auto;
+        padding: 10px 11px 5px 14px;
+        scrollbar-color: #b7aea5 #f5f2ee;
+        scrollbar-width: thin;
+      }
+      .section { margin-bottom: 9px; }
+      .section-head {
         display: flex;
         align-items: center;
         justify-content: space-between;
-      }
-      .badge-kind {
-        background: #e7fbf1;
-        color: #0e9f6e;
+        margin-bottom: 7px;
+        color: #8b432d;
         font-weight: 700;
-        font-size: 12px;
-        padding: 4px 10px;
+        font-size: 11px;
+      }
+      .section.cross .section-head { color: #42604f; }
+      .count {
+        padding: 2px 7px;
         border-radius: 8px;
+        background: #efe4de;
+        font-size: 10.5px;
       }
-      .badge-bonus {
-        background: #d97757;
-        color: #fff;
-        font-weight: 700;
-        font-size: 14px;
-        padding: 4px 10px;
-        border-radius: 8px;
-      }
-      .recommend {
-        font-size: 22px;
-        font-weight: 700;
-        color: #0b1f17;
-        margin: 14px 0 4px;
-      }
+      .cross .count { background: #e6efe9; }
       .trigger {
-        font-size: 13px;
-        color: #6b7280;
-      }
-      .script {
-        background: #f4f6fa;
-        border-radius: 10px;
-        padding: 12px;
-        margin-top: 14px;
-        font-size: 14px;
-        color: #1f2937;
-        line-height: 20px;
-      }
-      .adv {
-        margin-top: 12px;
-      }
-      .adv div {
-        display: flex;
-        align-items: center;
-        font-size: 13px;
-        color: #374151;
-        margin: 4px 0;
-      }
-      .adv .dot {
-        color: #d97757;
-        font-weight: 700;
-        margin-right: 8px;
-      }
-      .btns {
-        display: grid;
-        grid-template-columns: 1fr 12px 1fr;
-        margin-top: 18px;
-      }
-      .btn {
-        height: 44px;
-        border: 0;
+        margin-bottom: 7px;
+        padding: 7px 9px;
         border-radius: 8px;
-        font-size: 14px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        background: #f4f1ec;
       }
-      .btn-skip {
-        background: #eef1f5;
-        color: #374151;
-      }
-      .btn-accept {
-        background: #d97757;
-        color: #fff;
+      .eyebrow, .offer-label {
+        color: #91877e;
+        font-size: 9.5px;
         font-weight: 700;
+        letter-spacing: .02em;
+      }
+      .trigger-name { margin-top: 2px; color: #302a25; font-size: 12px; font-weight: 600; }
+      .offer-label { margin-bottom: 6px; }
+      .offer {
+        display: grid;
+        grid-template-columns: 24px minmax(0, 1fr) auto;
+        gap: 7px;
+        margin-bottom: 7px;
+        padding: 10px;
+        border: 1px solid #e8e2da;
+        border-radius: 9px;
+        background: #faf8f5;
+      }
+      .number {
+        width: 20px;
+        height: 20px;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        background: #efe4de;
+        color: #8b432d;
+        font-size: 10.5px;
+        font-weight: 700;
+      }
+      .name { font-size: 13.5px; line-height: 17px; font-weight: 700; }
+      .meta { margin-top: 2px; color: #766e65; font-size: 10.5px; font-weight: 600; }
+      .detail {
+        display: -webkit-box;
+        margin-top: 3px;
+        overflow: hidden;
+        color: #615950;
+        font-size: 10.5px;
+        line-height: 14px;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+      }
+      .money { text-align: right; white-space: nowrap; }
+      .price { font-size: 12.5px; font-weight: 700; }
+      .bonus { margin-top: 3px; color: #a24c30; font-size: 10px; font-weight: 700; }
+      .footer {
+        padding: 8px 14px;
+        border-top: 1px solid #e8e2da;
+        background: #fcfbf9;
+        color: #91877e;
+        text-align: center;
+        font-size: 9.5px;
       }
     </style>
   </head>
   <body>
-    <div class="hint">
-      Это статичный макет popup-рекомендации (точно как <b>RecommendationWindow.xaml</b>).<br />
-      В самом C#-приложении на Windows: запусти и нажми клавишу <b>D</b> — увидишь живой popup.
+    <div class="desktop-note">
+      <strong>Демо POSM на компьютере фармацевта.</strong><br />
+      Окно закреплено справа снизу поверх кассы, не перехватывает фокус сканера.
+      Внутри можно прокручивать до 5 замен и до 5 допродаж колесом мыши.
     </div>
 
-    <div class="card">
-      <div class="row">
-        <span class="badge-kind">ЗАМЕНА</span>
-        <span class="badge-bonus">+650 ₸</span>
-      </div>
+    <article class="popup" aria-label="Рекомендации Epharm">
+      <header class="header">
+        <span class="icon">i</span>
+        <div>
+          <div class="title">Рекомендации</div>
+          <div class="subtitle">8 предложений · цены в тенге</div>
+        </div>
+        <button class="close" aria-label="Закрыть">✕</button>
+      </header>
 
-      <div class="recommend">SelfieLab Zen</div>
-      <div class="trigger">вместо «Bioderma»</div>
+      <main class="scroller">
+        <section class="section">
+          <div class="section-head"><span>ЗАМЕНА</span><span class="count">5/5</span></div>
+          <div class="trigger">
+            <div class="eyebrow">ПОКУПАТЕЛЬ ПОПРОСИЛ</div>
+            <div class="trigger-name">Аквалор Норм спрей · 150 мл</div>
+          </div>
+          <div class="offer-label">ПРЕДЛОЖИТЕ ВМЕСТО</div>
 
-      <div class="script">
-        Аналог Bioderma из акции — мягкое очищение, выгодная замена. Бонус аптеке.
-      </div>
+          <div class="offer">
+            <span class="number">1</span>
+            <div><div class="name">Аквамарис Норм спрей</div><div class="meta">Jadran Galenski · 150 мл</div><div class="detail">Мягко распыляет и подходит для ежедневной гигиены.</div></div>
+            <div class="money"><div class="price">2 890 ₸</div><div class="bonus">+520 ₸ вам</div></div>
+          </div>
+          <div class="offer">
+            <span class="number">2</span>
+            <div><div class="name">Аквамарис Стронг</div><div class="meta">Jadran Galenski · 150 мл</div><div class="detail">Для выраженной заложенности — более интенсивное орошение.</div></div>
+            <div class="money"><div class="price">3 490 ₸</div><div class="bonus">+580 ₸ вам</div></div>
+          </div>
+          <div class="offer">
+            <span class="number">3</span>
+            <div><div class="name">Линаква спрей</div><div class="meta">Grotex · 150 мл</div><div class="detail">Более доступный вариант с мягким распылением.</div></div>
+            <div class="money"><div class="price">2 390 ₸</div><div class="bonus">+420 ₸ вам</div></div>
+          </div>
+          <div class="offer">
+            <span class="number">4</span>
+            <div><div class="name">Маример беби</div><div class="meta">Gilbert · 150 мл</div><div class="detail">Подходит для ежедневной гигиены носа ребёнка.</div></div>
+            <div class="money"><div class="price">2 750 ₸</div><div class="bonus">+450 ₸ вам</div></div>
+          </div>
+          <div class="offer">
+            <span class="number">5</span>
+            <div><div class="name">Физиомер Нормал джет</div><div class="meta">Laboratoires de la Mer · 150 мл</div><div class="detail">Насадка-душ для равномерного орошения.</div></div>
+            <div class="money"><div class="price">3 190 ₸</div><div class="bonus">+500 ₸ вам</div></div>
+          </div>
+        </section>
 
-      <div class="adv">
-        <div><span class="dot">•</span>Тот же класс средства</div>
-        <div><span class="dot">•</span>Активное промо Inkar</div>
-        <div><span class="dot">•</span>Бонус фармацевту 650 ₸</div>
-      </div>
+        <section class="section cross">
+          <div class="section-head"><span>ДОПРОДАЖА</span><span class="count">3/5</span></div>
+          <div class="trigger">
+            <div class="eyebrow">УЖЕ В ЧЕКЕ</div>
+            <div class="trigger-name">Аквамарис Норм спрей · 150 мл</div>
+          </div>
+          <div class="offer-label">ДОБАВЬТЕ К ПОКУПКЕ</div>
+          <div class="offer">
+            <span class="number">1</span>
+            <div><div class="name">Хьюмер аспиратор назальный</div><div class="meta">Laboratoires URGO</div><div class="detail">Сочетается с солевым спреем, подходит детям с рождения.</div></div>
+            <div class="money"><div class="price">3 200 ₸</div><div class="bonus">+300 ₸ вам</div></div>
+          </div>
+          <div class="offer">
+            <span class="number">2</span>
+            <div><div class="name">Салфетки детские влажные</div><div class="meta">Inkar</div><div class="detail">Удобно для гигиены после промывания.</div></div>
+            <div class="money"><div class="price">690 ₸</div><div class="bonus">+120 ₸ вам</div></div>
+          </div>
+          <div class="offer">
+            <span class="number">3</span>
+            <div><div class="name">Бальзам для носа</div><div class="meta">Inkar</div><div class="detail">Уход за кожей вокруг носа.</div></div>
+            <div class="money"><div class="price">1 290 ₸</div><div class="bonus">+180 ₸ вам</div></div>
+          </div>
+        </section>
+      </main>
 
-      <div class="btns">
-        <button class="btn btn-skip">Пропустить (Esc)</button>
-        <span></span>
-        <button class="btn btn-accept">Заменить (F9)</button>
-      </div>
-    </div>
+      <footer class="footer">Колесо мыши — прокрутить список</footer>
+    </article>
   </body>
 </html>

@@ -25,7 +25,7 @@ import java.util.UUID
 /**
  * Оркестрация POSM-рекомендаций (ТЗ §4):
  *  - подбор и ранжирование делегируется RulesEngineService;
- *  - здесь: фильтр «не показывать отклонённое в этом чеке», лимит top-2,
+ *  - здесь: фильтр «не показывать отклонённое в этом чеке», лимит до 5 на тип,
  *    идемпотентная фиксация показа, фиксация результата, создание pending_bonus при accepted.
  */
 @Service
@@ -38,8 +38,8 @@ class RecommendationService(
     private val log = LoggerFactory.getLogger(RecommendationService::class.java)
 
     companion object {
-        // ТЗ §4: «не больше 2 рекомендаций на чек».
-        private const val MAX_RECOMMENDATIONS = 2
+        /** UX-контракт popup: максимум пять замен и пять cross-sell одновременно. */
+        private const val MAX_RECOMMENDATIONS_PER_KIND = 5
     }
 
     @Transactional
@@ -51,9 +51,11 @@ class RecommendationService(
             .toSet()
 
         val matchResult = rulesEngine.match(req.cart)
-        val ranked = matchResult.matches
-            .filter { it.recommend.id !in rejectedSkus }
-            .take(MAX_RECOMMENDATIONS)
+        val eligible = matchResult.matches.filter { it.recommend.id !in rejectedSkus }
+        val ranked = eligible.filter { it.rule.type == kz.epharm.rules.entity.RuleType.substitution }
+            .take(MAX_RECOMMENDATIONS_PER_KIND) +
+            eligible.filter { it.rule.type == kz.epharm.rules.entity.RuleType.crosssell }
+                .take(MAX_RECOMMENDATIONS_PER_KIND)
 
         // Начало текущего месяца — период для счётчика цели «N/target».
         val periodStart = java.time.YearMonth.now()
@@ -75,6 +77,8 @@ class RecommendationService(
                 triggerBarcode = m.triggerProduct?.barcode?.ifBlank { null },
                 recommendSku = m.recommend.id,
                 recommendName = m.recommend.name,
+                recommendVendor = m.recommend.vendor.ifBlank { null },
+                recommendVolume = m.recommend.volume.ifBlank { null },
                 recommendPrice = m.recommend.price,
                 recommendBarcode = m.recommend.barcode?.ifBlank { null },
                 partnerLabel = card?.partnerLabel?.ifBlank { null },

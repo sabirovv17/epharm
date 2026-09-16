@@ -22,6 +22,8 @@
     <Compile Include="..\Models\Posm\SaleReport.cs" Link="Models\SaleReport.cs" />
     <Compile Include="..\Models\Posm\Fulfillment.cs" Link="Models\Fulfillment.cs" />
     <Compile Include="..\Models\Posm\AppVersion.cs" Link="Models\AppVersion.cs" />
+    <Compile Include="..\Models\Posm\PosmDtos.cs" Link="Models\PosmDtos.cs" />
+    <Compile Include="..\Models\Posm\RecommendationPopupModel.cs" Link="Models\RecommendationPopupModel.cs" />
     <Compile Include="..\App\Services\EpharmJson.cs" Link="Services\EpharmJson.cs" />
     <Compile Include="..\App\Services\OfflineOutbox.cs" Link="Services\OfflineOutbox.cs" />
     <Compile Include="..\App\Services\FiscalReceiptInboxSource.cs" Link="Services\FiscalReceiptInboxSource.cs" />

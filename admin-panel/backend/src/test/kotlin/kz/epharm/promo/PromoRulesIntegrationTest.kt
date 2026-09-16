@@ -171,6 +171,60 @@ class PromoRulesIntegrationTest {
     }
 
     @Test
+    fun `одна пара сохраняет и возвращает до пяти вариантов замены`() {
+        val body = """
+            {"replacements":[{
+               "medusaProductId":"prod_comp1","name":"Аквалор Норм","script":"Предложите подходящий аналог",
+               "additionalRecommendations":[
+                 {"medusaProductId":"prod_alt1","name":"Аналог 1","brand":"Brand 1","price":1100},
+                 {"medusaProductId":"prod_alt2","name":"Аналог 2","brand":"Brand 2","price":1200},
+                 {"medusaProductId":"prod_alt3","name":"Аналог 3","brand":"Brand 3","price":1300},
+                 {"medusaProductId":"prod_alt4","name":"Аналог 4","brand":"Brand 4","price":1400}
+               ]}],
+             "crossSells":[]}
+        """.trimIndent()
+
+        mockMvc.perform(
+            put("/api/admin/promo/pr_camp/rules").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(body),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.ruleCount").value(5))
+            .andExpect(jsonPath("$.activeCount").value(5))
+            .andExpect(jsonPath("$.config.replacements.length()").value(1))
+            .andExpect(jsonPath("$.config.replacements[0].additionalRecommendations.length()").value(4))
+            .andExpect(
+                jsonPath("$.config.replacements[0].additionalRecommendations[3].medusaProductId")
+                    .value("prod_alt4"),
+            )
+
+        val rules = ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc("pr_camp")
+        assertThat(rules).hasSize(5)
+        assertThat(rules.map { it.recommend })
+            .containsExactlyInAnyOrder("prod_promoted", "prod_alt1", "prod_alt2", "prod_alt3", "prod_alt4")
+        assertThat(rules.map { it.trigger.value }).containsOnly("prod_comp1")
+        assertThat(rules).allSatisfy { assertThat(it.script).isEqualTo("Предложите подходящий аналог") }
+    }
+
+    @Test
+    fun `более пяти вариантов в одной паре отклоняются валидацией`() {
+        val extras = (1..5).joinToString(",") { index ->
+            """{"medusaProductId":"prod_alt$index","name":"Аналог $index"}"""
+        }
+        val body = """
+            {"replacements":[{"medusaProductId":"prod_comp1","name":"Аквалор",
+              "additionalRecommendations":[$extras]}],"crossSells":[]}
+        """.trimIndent()
+
+        mockMvc.perform(
+            put("/api/admin/promo/pr_camp/rules").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(body),
+        ).andExpect(status().isBadRequest)
+
+        assertThat(ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc("pr_camp")).isEmpty()
+    }
+
+    @Test
     fun `per-pair скрипт сохраняется в правило и возвращается по паре`() {
         // У каждой пары — СВОЙ скрипт. Должен попасть в rules.script именно её правила
         // (это поле уходит на кассу) и вернуться в GET по соответствующей паре.

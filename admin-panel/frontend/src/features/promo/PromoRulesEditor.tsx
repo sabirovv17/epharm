@@ -1,7 +1,7 @@
 // PromoRulesEditor (T2 + per-pair карточка) — секция «Замены и кросс-селл».
 //
 // Модель: 1 кампания = 1 продвигаемый товар (выбран при создании, тут НЕ меняется).
-// Каждая пара (замена/кросс-селл) = ОДНА рекомендация на кассе и несёт СВОИ поля,
+// Каждая пара (замена/кросс-селл) = до пяти вариантов на кассе и несёт свои поля,
 // которые на ней показываются: скрипт «что сказать и почему», преимущества, метка
 // партнёра, таблица-сравнение, цель. Товары добавляются по кнопке «Добавить» (модалка).
 
@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react'
 import { Button, Field, Input, Modal, Toggle, useToast } from '@/ui'
 import { IconChevDown, IconClose, IconPlus } from '@/ui/icons'
 import type {
+  PromoOfferProductRef,
   PromoRuleProductRef,
   PromoRulesConfigDto,
   RuleComparisonRowDto,
@@ -21,6 +22,8 @@ import { MultiProductPicker } from './PromoProductPicker'
 
 type ListKey = 'replacements' | 'crossSells'
 type PairKind = 'replacement' | 'crossSell'
+
+const MAX_OFFERS_PER_PAIR = 5
 
 const EMPTY_CONFIG: PromoRulesConfigDto = {
   replacements: [],
@@ -47,7 +50,20 @@ function toRef(p: StorefrontProductDto): PromoRuleProductRef {
     advantages: [],
     partnerLabel: null,
     comparison: [],
+    additionalRecommendations: [],
     active: true,
+  }
+}
+
+function toOffer(p: StorefrontProductDto): PromoOfferProductRef {
+  return {
+    medusaProductId: p.id,
+    name: p.name,
+    brand: p.brand,
+    mnn: p.mnn,
+    price: p.price,
+    barcode: p.barcode,
+    ipartId: p.ipartId ?? null,
   }
 }
 
@@ -62,6 +78,7 @@ export function PromoRulesEditor({
   promoId,
   bonus = 0,
   disabled = false,
+  promotedProductId,
   promotedName,
   promotedPrice,
 }: {
@@ -69,6 +86,8 @@ export function PromoRulesEditor({
   /** Бонус фармацевту за продажу (из кампании) — для превью карточки кассы. */
   bonus?: number
   disabled?: boolean
+  /** Основной вариант каждой пары; дополнительные варианты выбираются рядом с ним. */
+  promotedProductId?: string
   /** Продвигаемый товар кампании — рекомендация для замены и кросс-селла в превью. */
   promotedName?: string
   promotedPrice?: number | null
@@ -119,6 +138,22 @@ export function PromoRulesEditor({
     advantages: (r.advantages ?? []).map((a) => a.trim()).filter((a) => a.length > 0),
     comparison: (r.comparison ?? []).filter((row) => row.label.trim().length > 0),
     partnerLabel: r.partnerLabel?.trim() || null,
+    additionalRecommendations: [
+      ...new Map(
+        (r.additionalRecommendations ?? []).map((offer) => [offer.medusaProductId, offer]),
+      ).values(),
+    ]
+      .filter(
+        (offer) =>
+          offer.medusaProductId !== promotedProductId &&
+          offer.medusaProductId !== r.medusaProductId,
+      )
+      .slice(0, MAX_OFFERS_PER_PAIR - 1)
+      .map((offer) => ({
+        ...offer,
+        barcode: offer.barcode?.trim() || null,
+        ipartId: offer.ipartId?.trim() || null,
+      })),
     active: r.active !== false,
   })
 
@@ -186,6 +221,7 @@ export function PromoRulesEditor({
             bonus={bonus}
             goal={goal}
             promotedName={promotedName}
+            promotedProductId={promotedProductId}
             promotedPrice={promotedPrice}
             onToggle={toggleIn('replacements')}
             onRemove={(idp) => removeFrom('replacements', idp)}
@@ -202,6 +238,7 @@ export function PromoRulesEditor({
             bonus={bonus}
             goal={goal}
             promotedName={promotedName}
+            promotedProductId={promotedProductId}
             promotedPrice={promotedPrice}
             onToggle={toggleIn('crossSells')}
             onRemove={(idp) => removeFrom('crossSells', idp)}
@@ -279,6 +316,7 @@ function RuleSection({
   bonus,
   goal,
   promotedName,
+  promotedProductId,
   promotedPrice,
   onToggle,
   onRemove,
@@ -293,6 +331,7 @@ function RuleSection({
   bonus: number
   goal: CampaignGoal
   promotedName?: string
+  promotedProductId?: string
   promotedPrice?: number | null
   onToggle: (p: StorefrontProductDto) => void
   onRemove: (medusaProductId: string) => void
@@ -301,9 +340,8 @@ function RuleSection({
   const t = useT()
   const [pickerOpen, setPickerOpen] = useState(false)
   const kind: PairKind = sectionKey === 'replacements' ? 'replacement' : 'crossSell'
-
   return (
-    <Field label={t(titleKey)} hint={t(hintKey)}>
+    <Field label={`${t(titleKey)} · ${items.length}`} hint={t(hintKey)}>
       {items.length === 0 ? (
         <div className="text-[12px] font-semibold text-ink-400">{t('pr.noneChosen')}</div>
       ) : (
@@ -317,6 +355,7 @@ function RuleSection({
               bonus={bonus}
               goal={goal}
               promotedName={promotedName}
+              promotedProductId={promotedProductId}
               promotedPrice={promotedPrice}
               onRemove={() => onRemove(r.medusaProductId)}
               onPatch={(p) => onPatch(r.medusaProductId, p)}
@@ -342,7 +381,7 @@ function RuleSection({
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         title={t(addLabelKey)}
-        subtitle={t('pr.pickerSub')}
+        subtitle={t('pr.pickerSubLimit')}
         width={560}
         footer={
           <Button variant="primary" onClick={() => setPickerOpen(false)}>
@@ -367,6 +406,7 @@ function PairCard({
   bonus,
   goal,
   promotedName,
+  promotedProductId,
   promotedPrice,
   onRemove,
   onPatch,
@@ -377,6 +417,7 @@ function PairCard({
   bonus: number
   goal: CampaignGoal
   promotedName?: string
+  promotedProductId?: string
   promotedPrice?: number | null
   onRemove: () => void
   onPatch: (patch: Partial<PromoRuleProductRef>) => void
@@ -386,6 +427,26 @@ function PairCard({
   const cmp = r.comparison ?? []
   const setComparison = (rows: RuleComparisonRowDto[]) => onPatch({ comparison: rows })
   const pairActive = r.active !== false
+  const offers = r.additionalRecommendations ?? []
+  const [offerPickerOpen, setOfferPickerOpen] = useState(false)
+  const atOfferLimit = offers.length >= MAX_OFFERS_PER_PAIR - 1
+  const toggleOffer = (p: StorefrontProductDto) => {
+    const exists = offers.some((offer) => offer.medusaProductId === p.id)
+    if (exists) {
+      onPatch({
+        additionalRecommendations: offers.filter((offer) => offer.medusaProductId !== p.id),
+      })
+      return
+    }
+    if (atOfferLimit || p.id === promotedProductId || p.id === r.medusaProductId) return
+    onPatch({ additionalRecommendations: [...offers, toOffer(p)] })
+  }
+  const removeOffer = (medusaProductId: string) =>
+    onPatch({
+      additionalRecommendations: offers.filter(
+        (offer) => offer.medusaProductId !== medusaProductId,
+      ),
+    })
 
   return (
     <li
@@ -462,6 +523,101 @@ function PairCard({
           data-testid={`pr-script-${r.medusaProductId}`}
           onChange={(e) => onPatch({ script: e.target.value })}
         />
+
+        <div className="hairline rounded-lg border bg-paper-input p-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-[0.04em] text-ink-400">
+                {t('pr.offersOnRegister')}
+              </div>
+              <div className="text-[12px] font-semibold text-ink-500">
+                {t('pr.offersCount', { n: offers.length + 1, max: MAX_OFFERS_PER_PAIR })}
+              </div>
+            </div>
+            {!disabled && (
+              <Button
+                variant="outline"
+                disabled={atOfferLimit}
+                onClick={() => setOfferPickerOpen(true)}
+                leading={<IconPlus size={13} />}
+                data-testid={`pr-add-offer-${r.medusaProductId}`}
+              >
+                {atOfferLimit ? t('pr.limitReached') : t('pr.addOffer')}
+              </Button>
+            )}
+          </div>
+
+          <ul className="divide-hairline overflow-hidden rounded-lg border bg-white">
+            <li className="flex items-center gap-2 px-3 py-2">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[12px] font-bold text-ink-900">
+                  {promotedName || t('pr.previewNoName')}
+                </div>
+                <div className="text-[10px] font-semibold text-brand-green-700">
+                  {t('pr.primaryOffer')}
+                </div>
+              </div>
+              {promotedPrice != null && (
+                <span className="num text-[12px] font-extrabold text-ink-900">
+                  {promotedPrice.toLocaleString('ru-RU')} ₸
+                </span>
+              )}
+            </li>
+            {offers.map((offer) => (
+              <li
+                key={offer.medusaProductId}
+                className="flex items-center gap-2 px-3 py-2"
+                data-testid={`pr-offer-${r.medusaProductId}-${offer.medusaProductId}`}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[12px] font-bold text-ink-900">{offer.name}</div>
+                  {offer.brand && (
+                    <div className="truncate text-[10px] font-semibold text-ink-400">
+                      {offer.brand}
+                    </div>
+                  )}
+                </div>
+                {offer.price != null && (
+                  <span className="num text-[12px] font-extrabold text-ink-900">
+                    {offer.price.toLocaleString('ru-RU')} ₸
+                  </span>
+                )}
+                {!disabled && (
+                  <button
+                    type="button"
+                    onClick={() => removeOffer(offer.medusaProductId)}
+                    aria-label={t('pr.removeOffer')}
+                    className="text-ink-400 hover:text-accent-danger"
+                  >
+                    <IconClose size={13} />
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <Modal
+          open={offerPickerOpen}
+          onClose={() => setOfferPickerOpen(false)}
+          title={t('pr.addOffer')}
+          subtitle={t('pr.offerPickerSub')}
+          width={560}
+          footer={
+            <Button variant="primary" onClick={() => setOfferPickerOpen(false)}>
+              {t('pr.pickerDone')}
+            </Button>
+          }
+        >
+          <MultiProductPicker
+            selectedIds={[
+              ...(promotedProductId ? [promotedProductId] : []),
+              r.medusaProductId,
+              ...offers.map((offer) => offer.medusaProductId),
+            ]}
+            onPick={toggleOffer}
+          />
+        </Modal>
 
         {/* Поля, которые показываются в блоке рекомендации на кассе (per-pair). */}
         <button
@@ -600,8 +756,8 @@ function PairCard({
 
 /**
  * Живое превью карточки рекомендации, повторяющее POSM-окно на кассе
- * (App/RecommendationWindow.xaml): шапка, предложение, сравнение/преимущества,
- * скрипт, низ с бонусом и кнопками. Статичное (без интерактива) — это превью.
+ * (App/RecommendationWindow.xaml): фиксированная шапка, исходный товар и компактный
+ * прокручиваемый список вариантов. Статичное (без интерактива) — это превью.
  */
 function RecommendationPreview({
   r,
@@ -620,11 +776,9 @@ function RecommendationPreview({
 }) {
   const t = useT()
   const advantages = (r.advantages ?? []).map((a) => a.trim()).filter((a) => a.length > 0)
-  const comparison = (r.comparison ?? []).filter((row) => row.label.trim().length > 0)
   const fmtPrice = (p?: number | null) => (p != null ? `${p.toLocaleString('ru-RU')} ₸` : null)
   const isReplace = kind === 'replacement'
   const title = isReplace ? t('pr.previewReplace') : t('pr.previewCross')
-  const actionLabel = isReplace ? t('pr.previewActReplace') : t('pr.previewActAdd')
 
   // Семантика как на кассе (backend PromoRulesService):
   //  • замена   — триггер = заменяемый товар (r), ПРЕДЛОЖИТЕ ВМЕСТО = товар кампании;
@@ -635,7 +789,22 @@ function RecommendationPreview({
   const triggerBarcode = r.barcode
   const offerLabel = isReplace ? t('pr.previewOfferInstead') : t('pr.previewOfferAdd')
   const offerName = promotedName
-  const offerPrice = fmtPrice(promotedPrice)
+  const offers = [
+    {
+      id: 'primary',
+      name: offerName || t('pr.previewNoName'),
+      brand: null as string | null,
+      price: promotedPrice,
+      primary: true,
+    },
+    ...(r.additionalRecommendations ?? []).map((offer) => ({
+      id: offer.medusaProductId,
+      name: offer.name,
+      brand: offer.brand ?? null,
+      price: offer.price,
+      primary: false,
+    })),
+  ].slice(0, MAX_OFFERS_PER_PAIR)
 
   const goalText =
     goal.label && goal.target != null ? `0/${goal.target} ${goal.label}` : goal.label || null
@@ -645,13 +814,13 @@ function RecommendationPreview({
       <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.05em] text-ink-400">
         {t('pr.previewTitle')}
       </div>
-      <div className="overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-ink-200 bg-white shadow-sm">
         {/* Шапка */}
         <div className="flex items-center gap-2 bg-[#9A4427] px-3.5 py-2.5 text-white">
           <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-[12px] font-bold">
             i
           </span>
-          <span className="text-[13px] font-extrabold">{title}</span>
+          <span className="text-[13px] font-extrabold">{t('pr.previewOffers')}</span>
           <span className="ml-auto text-[15px] leading-none text-white/60">×</span>
         </div>
 
@@ -669,89 +838,46 @@ function RecommendationPreview({
           </div>
         )}
 
-        {/* Предложение: ПРЕДЛОЖИТЕ ВМЕСТО / ДОБАВЬТЕ К ПОКУПКЕ */}
-        <div
-          className="mt-1.5 bg-[#F8E7DD] px-3.5 py-3"
+        <div className="bg-[#F8E7DD] px-3.5 py-2 text-[10px] font-bold uppercase tracking-wide text-[#9A4427]">
+          {offerLabel} · {offers.length}/{MAX_OFFERS_PER_PAIR}
+        </div>
+        <ul
+          className="scrollbar-thin max-h-[300px] divide-y divide-ink-100 overflow-y-auto"
           data-testid={`pr-preview-offer-${r.medusaProductId}`}
         >
-          <div className="flex items-start justify-between gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-wide text-[#BE5A38]">
-              {offerLabel}
-            </span>
-            {r.partnerLabel && (
-              <span className="inline-block rounded-md bg-[#9A4427] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-                {r.partnerLabel}
-              </span>
-            )}
-          </div>
-          <div className="mt-1 text-[15px] font-extrabold leading-tight text-ink-900">
-            {offerName || t('pr.previewNoName')}
-          </div>
-          {offerPrice && (
-            <div className="mt-0.5 text-[15px] font-extrabold text-[#9A4427]">{offerPrice}</div>
-          )}
-        </div>
-
-        {/* Сравнение ИЛИ преимущества */}
-        {comparison.length > 0 ? (
-          <table className="w-full border-collapse text-[12px]">
-            <tbody>
-              {comparison.map((row, i) => (
-                <tr key={i} className="border-b border-ink-100 last:border-0">
-                  <td className="px-3 py-1.5 font-semibold text-ink-500">{row.label}</td>
-                  <td className="px-2 py-1.5 text-ink-400 line-through">{row.triggerValue}</td>
-                  <td
-                    className={`px-3 py-1.5 text-right font-bold ${
-                      row.recommendHighlight ? 'text-[#BE5A38]' : 'text-ink-700'
-                    }`}
-                  >
-                    {row.recommendValue}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : advantages.length > 0 ? (
-          <ul className="flex flex-col gap-1 px-3.5 py-2.5">
-            {advantages.map((a, i) => (
-              <li key={i} className="flex items-start gap-2 text-[12px] text-ink-700">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#D97757]" />
-                {a}
-              </li>
-            ))}
-          </ul>
-        ) : null}
-
-        {/* Скрипт */}
-        {r.script?.trim() && (
-          <div className="mx-3 my-2 flex items-start gap-2 rounded-lg bg-[#FAF7F2] px-3 py-2">
-            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-[#9A4427] text-[10px] font-bold text-white">
-              А
-            </span>
-            <span className="text-[12px] italic text-ink-600">{r.script.trim()}</span>
+          {offers.map((offer) => (
+            <li key={offer.id} className="flex items-start gap-2 px-3.5 py-2.5">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate text-[13px] font-extrabold text-ink-900">
+                    {offer.name}
+                  </span>
+                  {offer.primary && (
+                    <span className="rounded bg-[#F8E7DD] px-1.5 py-0.5 text-[9px] font-bold text-[#9A4427]">
+                      {t('pr.primaryOffer')}
+                    </span>
+                  )}
+                </div>
+                <div className="truncate text-[10px] font-semibold text-ink-400">
+                  {offer.brand || r.script?.trim() || advantages[0] || title}
+                </div>
+              </div>
+              <div className="flex-none text-right">
+                <div className="num text-[12px] font-extrabold text-ink-900">
+                  {fmtPrice(offer.price) || '—'}
+                </div>
+                <div className="num text-[10px] font-bold text-[#BE5A38]">
+                  +{bonus.toLocaleString('ru-RU')} ₸ {t('pr.previewBonus')}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+        {goalText && (
+          <div className="hairline border-t px-3.5 py-2 text-[10px] font-semibold text-ink-400">
+            {goalText}
           </div>
         )}
-
-        {/* Низ: бонус + цель + кнопки */}
-        <div className="flex flex-col gap-2 px-3.5 pb-3 pt-1">
-          <div className="flex items-center gap-2">
-            <span className="rounded-lg bg-[#F8E7DD] px-2.5 py-1 text-center text-[12px] font-bold text-[#BE5A38]">
-              +{bonus.toLocaleString('ru-RU')} ₸
-              <span className="ml-1 text-[10px] font-semibold text-[#BE5A38]/80">
-                {t('pr.previewBonusYou')}
-              </span>
-            </span>
-            {goalText && <span className="text-[11px] font-semibold text-ink-400">{goalText}</span>}
-          </div>
-          <div className="flex gap-2">
-            <span className="flex-1 rounded-lg bg-ink-100 py-1.5 text-center text-[12px] font-bold text-ink-500">
-              {t('pr.previewSkip')}
-            </span>
-            <span className="flex-1 rounded-lg bg-[#9A4427] py-1.5 text-center text-[12px] font-bold text-white">
-              {actionLabel}
-            </span>
-          </div>
-        </div>
       </div>
     </div>
   )

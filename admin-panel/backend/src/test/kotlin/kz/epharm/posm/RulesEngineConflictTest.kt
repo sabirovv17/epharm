@@ -18,7 +18,8 @@ import org.junit.jupiter.api.Test
 import java.util.Optional
 
 /**
- * Детект конфликтов правил (T2): неоднозначная замена и противоречие замена↔кросс-селл.
+ * Детект конфликтов правил (T2): несколько аналогов — валидный multi-offer,
+ * конфликтом остаётся только противоречие замена↔кросс-селл для одной пары.
  * Репозитории замоканы — без БД. Корзина матчится по штрих-коду (barcode == EAN-13).
  */
 class RulesEngineConflictTest {
@@ -59,22 +60,20 @@ class RulesEngineConflictTest {
         products.map { CartItemDto(barcode = it.barcode) }
 
     @Test
-    fun `неоднозначная замена — два разных рекомендованных на один триггер → конфликт, рекомендаций нет`() {
+    fun `два аналога на один триггер проходят как multi-offer по бонусу`() {
         val x = product("X"); val y = product("Y"); val z = product("Z")
         stub(
             rules = listOf(
-                rule("r1", RuleType.substitution, triggerProduct = "X", recommend = "Y"),
-                rule("r2", RuleType.substitution, triggerProduct = "X", recommend = "Z"),
+                rule("r1", RuleType.substitution, triggerProduct = "X", recommend = "Y", bonus = 100),
+                rule("r2", RuleType.substitution, triggerProduct = "X", recommend = "Z", bonus = 200),
             ),
             cartProducts = listOf(x), recommends = listOf(y, z),
         )
 
         val res = engine.match(cart(x))
 
-        assertTrue(res.matches.isEmpty(), "обе замены подавлены конфликтом")
-        assertEquals(1, res.conflicts.size)
-        assertEquals("ambiguous_substitution", res.conflicts[0].kind)
-        assertTrue(res.conflicts[0].ruleIds.containsAll(listOf("r1", "r2")))
+        assertEquals(listOf("Z", "Y"), res.matches.map { it.recommend.id })
+        assertTrue(res.conflicts.isEmpty())
     }
 
     @Test

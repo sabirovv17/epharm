@@ -461,6 +461,18 @@ export interface UpdatePromoRequest {
 // ─── Campaign rules (T2) — авторинг правил замены/кросс-селла из кампании ──────
 // Зеркало backend PromoRulesViewDto / PromoRulesConfigDto / PromoRuleProductRef.
 
+/** Дополнительный препарат в multi-offer списке POSM. */
+export interface PromoOfferProductRef {
+  medusaProductId: string
+  name: string
+  brand?: string | null
+  mnn?: string | null
+  volume?: string | null
+  price?: number | null
+  barcode?: string | null
+  ipartId?: string | null
+}
+
 /** Ссылка на товар витрины внутри правила кампании (снимок имени/бренда/цены). */
 export interface PromoRuleProductRef {
   medusaProductId: string
@@ -482,6 +494,8 @@ export interface PromoRuleProductRef {
   partnerLabel?: string | null
   /** Таблица-сравнение «было/стало». */
   comparison?: RuleComparisonRowDto[]
+  /** До четырёх альтернатив к основному товару кампании — итого максимум пять. */
+  additionalRecommendations?: PromoOfferProductRef[]
   /** Статус ЭТОЙ пары: true=«Активно», false=«Черновик». */
   active?: boolean
 }

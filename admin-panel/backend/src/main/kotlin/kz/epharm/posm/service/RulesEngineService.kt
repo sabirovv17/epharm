@@ -27,7 +27,6 @@ data class RuleMatch(
 
 /**
  * Конфликт правил — почему замену/кросс-селл показать нельзя (T2).
- *  - ambiguous_substitution — на один товар настроено несколько РАЗНЫХ замен (какую выбрать?);
  *  - contradiction — один и тот же товар одновременно и заменяется, и допродаётся (противоречие).
  */
 data class RuleConflict(
@@ -49,10 +48,10 @@ data class RuleMatchResult(
  *
  *   1. substitution: trigger матчит товар X в корзине, recommend(Y) ещё НЕ в корзине.
  *   2. crosssell:    trigger матчит корзину (A), recommend(B) ещё НЕ в корзине.
- *   3. КОНФЛИКТЫ (T2): неоднозначная замена / противоречие замена↔кросс-селл — такие правила
+ *   3. КОНФЛИКТЫ (T2): противоречие замена↔кросс-селл — такие правила
  *      НЕ показываем, а возвращаем как conflicts (касса покажет «замена/кросс-селл невозможны»).
  *   4. порядок выживших: сначала ВСЕ substitution (бонус DESC), затем crosssell (бонус DESC).
- *   5. dedup по recommend-товару (первый победил).
+ *   5. dedup по типу+recommend-товару (первый победил).
  *
  * РЕЗОЛВ корзины → наш productId: касса Стандарт-Н шлёт позиции с локальным PARTS.ID (sku),
  * EAN/GTIN (barcode) и/или названием (name). Матчим:
@@ -61,7 +60,7 @@ data class RuleMatchResult(
  *   (3) иначе по имени (name) — нормализованное совпадение с ProductEntity.name (fallback);
  *   (4) иначе позиция не резолвится (в матчинге не участвует).
  *
- * Фильтр «не показывать отклонённое в этом чеке» и лимит top-2 — в RecommendationService.
+ * Фильтр «не показывать отклонённое в этом чеке» и лимит top-5 на тип — в RecommendationService.
  */
 @Service
 class RulesEngineService(
@@ -109,23 +108,8 @@ class RulesEngineService(
         val conflicts = mutableListOf<RuleConflict>()
         val suppressed = mutableSetOf<String>() // id правил, которые из-за конфликта не показываем
 
-        // A) Неоднозначная замена: один товар-триггер → несколько РАЗНЫХ замен.
-        raw.filter { it.rule.type.name == "substitution" && it.triggerSku != null }
-            .groupBy { it.triggerSku }
-            .filterValues { ms -> ms.map { it.recommend.id }.distinct().size >= 2 }
-            .forEach { (sku, ms) ->
-                conflicts += RuleConflict(
-                    kind = "ambiguous_substitution",
-                    triggerSku = sku,
-                    triggerName = ms.first().triggerName,
-                    reason = "Замена невозможна: на товар «${ms.first().triggerName ?: sku}» " +
-                        "настроено несколько разных замен",
-                    ruleIds = ms.map { it.rule.id },
-                )
-                suppressed += ms.map { it.rule.id }
-            }
-
-        // B) Противоречие: одна и та же пара (триггер → рекомендация) и как замена, и как кросс-селл.
+        // Одна исходная позиция может иметь несколько альтернатив: это основной multi-offer сценарий.
+        // Конфликтом остаётся только одна и та же пара, одновременно заведённая как замена и cross-sell.
         raw.groupBy { it.triggerSku to it.recommend.id }
             .filterValues { ms -> ms.map { it.rule.type.name }.distinct().size >= 2 }
             .forEach { (pair, ms) ->
@@ -146,9 +130,11 @@ class RulesEngineService(
                 compareBy(
                     { if (it.rule.type.name == "substitution") 0 else 1 }, // substitution раньше crosssell
                     { -it.rule.bonus },                                     // больший бонус выше
+                    { it.rule.card?.offerRank ?: Int.MAX_VALUE },            // порядок из админки
+                    { it.rule.id },                                          // детерминированный fallback
                 ),
             )
-            .distinctBy { it.recommend.id }
+            .distinctBy { it.rule.type to it.recommend.id }
 
         return RuleMatchResult(survivors, conflicts)
     }

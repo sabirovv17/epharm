@@ -30,6 +30,30 @@ data class PromoComparisonRowDto(
 )
 
 /**
+ * Дополнительный препарат, который POSM может предложить для той же пары.
+ * Основным вариантом остаётся товар кампании; вместе с ним допускается не более
+ * четырёх дополнительных вариантов — итого до пяти строк в секции popup.
+ */
+data class PromoOfferProductRefDto(
+    @field:NotBlank
+    @field:Size(max = 64)
+    val medusaProductId: String,
+    @field:Size(max = 255)
+    val name: String = "",
+    @field:Size(max = 128)
+    val brand: String? = null,
+    @field:Size(max = 128)
+    val mnn: String? = null,
+    @field:Size(max = 64)
+    val volume: String? = null,
+    @field:Size(max = 32)
+    val barcode: String? = null,
+    @field:Size(max = 64)
+    val ipartId: String? = null,
+    val price: Int? = null,
+)
+
+/**
  * Пара кампании (продвигаемый ↔ данный товар) = ОДНА рекомендация на кассе.
  * Несёт всё, что показывается в блоке рекомендации именно для этой пары.
  * Пустые поля → берётся общий дефолт из [PromoRulesConfigDto] (обратная совместимость).
@@ -64,6 +88,10 @@ data class PromoRuleProductRefDto(
     /** Таблица-сравнение «было/стало» для этой пары. */
     @field:Valid
     val comparison: List<PromoComparisonRowDto> = emptyList(),
+    /** Дополнительные варианты к основному товару кампании; максимум 4 (всего 5). */
+    @field:Valid
+    @field:Size(max = 4)
+    val additionalRecommendations: List<PromoOfferProductRefDto> = emptyList(),
     /**
      * Статус именно этой пары: true = «Активно», false = «Черновик».
      * Правило встанет active только если И кампания active, И пара active.

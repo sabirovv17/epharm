@@ -95,7 +95,7 @@ namespace CustomerDisplay.Models.Posm
         public List<string> RuleIds { get; set; } = new();
     }
 
-    /// <summary>Ответ Rules Engine: до 2 рекомендаций (замены раньше cross-sell, по бонусу DESC).</summary>
+    /// <summary>Ответ Rules Engine: до 5 замен и до 5 cross-sell (внутри типа — по бонусу DESC).</summary>
     public sealed class RecommendResponse
     {
         public string SessionId { get; set; } = "";

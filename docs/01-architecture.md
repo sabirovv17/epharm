@@ -63,8 +63,9 @@ allowed Medusa HTTP images.
    a deterministic same-pharmacy id or unique full-name match.
 6. Backend resolves products primarily by barcode, then by normalized name. Ambiguous barcode/name
    matches are rejected rather than guessed.
-7. Rules Engine returns up to two recommendations from active campaign rules.
-8. POSM shows the recommendation on the pharmacist screen.
+7. Rules Engine returns up to five replacements and five cross-sell offers from active campaign rules.
+8. POSM shows the exact returned counts in two compact sections on the pharmacist screen; the list
+   scrolls without taking focus from Standard-N or the barcode scanner.
 9. POSM later sends sale data to `POST /api/posm/sales`; managers can also import Standard-N Excel
    data via admin.
 10. Reconcile service compares POS sale, Excel row, and mobile/manual evidence:

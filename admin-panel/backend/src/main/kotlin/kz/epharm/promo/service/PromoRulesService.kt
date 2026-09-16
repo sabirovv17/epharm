@@ -4,6 +4,7 @@ import kz.epharm.catalog.entity.ProductEntity
 import kz.epharm.catalog.repository.ProductRepository
 import kz.epharm.medusa.service.MedusaPriceService
 import kz.epharm.promo.dto.PromoComparisonRowDto
+import kz.epharm.promo.dto.PromoOfferProductRefDto
 import kz.epharm.promo.dto.PromoRuleProductRefDto
 import kz.epharm.promo.dto.PromoRulesConfigDto
 import kz.epharm.promo.dto.PromoRulesViewDto
@@ -59,25 +60,9 @@ class PromoRulesService(
         // (скрипт/преимущества/партнёр/сравнение/цель) из самого правила.
         // Если товар удалён из каталога — НЕ теряем правило: показываем минимальный ref
         // (id + поля карточки), чтобы админ всё равно видел/мог отредактировать/убрать пару.
-        val replacements = subs.mapNotNull { r ->
-            (r.trigger.value as? String)?.let { id ->
-                reconstructRef(productRef(id) ?: PromoRuleProductRefDto(medusaProductId = id, name = id), r)
-            }
-        }
-        val crossSells = cross.mapNotNull { r ->
-            val triggerId = r.trigger.value as? String
-            // Новая семантика: crossSell ref = trigger. Совместимость со старыми правилами,
-            // где trigger был promoted, а ref лежал в recommend.
-            val refId = when {
-                triggerId == null -> r.recommend
-                triggerId == promo.medusaProductId -> r.recommend
-                else -> triggerId
-            }
-            reconstructRef(
-                productRef(refId) ?: PromoRuleProductRefDto(medusaProductId = refId, name = refId),
-                r,
-            )
-        }
+        val promotedId = promo.medusaProductId
+        val replacements = reconstructGroups(subs, promotedId, legacyCrossSell = false)
+        val crossSells = reconstructGroups(cross, promotedId, legacyCrossSell = true)
 
         // Цель — на уровне кампании (источник истины — promos.*), а не из правил:
         // так она не теряется, даже если у кампании пока нет ни одной пары.
@@ -140,17 +125,23 @@ class PromoRulesService(
             .distinctBy { it.medusaProductId }
             .forEach { ref ->
                 val trig = upsertProduct(ref)
-                created += RuleEntity(
-                    id = generateRuleId(RuleType.substitution),
-                    recommend = promoted.id,
-                    bonus = bonus,
-                    // Поля карточки кассы — per-pair; пусто → общий дефолт из config.
-                    script = ref.script.ifBlank { config.script },
-                    advantages = ref.advantages.ifEmpty { config.advantages },
-                    card = cardFor(ref, config),
-                    trigger = RuleTrigger(kind = "product", value = trig.id),
-                    createdBy = createdBy,
-                ).also { it.type = RuleType.substitution; it.status = effectiveStatus(ref); it.promoId = promoId }
+                recommendationsFor(ref, promoted).forEachIndexed { offerRank, recommend ->
+                    created += RuleEntity(
+                        id = generateRuleId(RuleType.substitution),
+                        recommend = recommend.id,
+                        bonus = bonus,
+                        // Поля карточки кассы — per-pair; пусто → общий дефолт из config.
+                        script = ref.script.ifBlank { config.script },
+                        advantages = ref.advantages.ifEmpty { config.advantages },
+                        card = cardFor(ref, config, offerRank),
+                        trigger = RuleTrigger(kind = "product", value = trig.id),
+                        createdBy = createdBy,
+                    ).also {
+                        it.type = RuleType.substitution
+                        it.status = effectiveStatus(ref)
+                        it.promoId = promoId
+                    }
+                }
             }
 
         // Кросс-селл: триггер — товар уже в чеке, рекомендация — продвигаемый товар кампании.
@@ -159,17 +150,23 @@ class PromoRulesService(
             .distinctBy { it.medusaProductId }
             .forEach { ref ->
                 val companion = upsertProduct(ref)
-                created += RuleEntity(
-                    id = generateRuleId(RuleType.crosssell),
-                    recommend = promoted.id,
-                    bonus = bonus,
-                    // Поля карточки кассы — per-pair; пусто → общий дефолт из config.
-                    script = ref.script.ifBlank { config.script },
-                    advantages = ref.advantages.ifEmpty { config.advantages },
-                    card = cardFor(ref, config),
-                    trigger = RuleTrigger(kind = "product", value = companion.id),
-                    createdBy = createdBy,
-                ).also { it.type = RuleType.crosssell; it.status = effectiveStatus(ref); it.promoId = promoId }
+                recommendationsFor(ref, promoted).forEachIndexed { offerRank, recommend ->
+                    created += RuleEntity(
+                        id = generateRuleId(RuleType.crosssell),
+                        recommend = recommend.id,
+                        bonus = bonus,
+                        // Поля карточки кассы — per-pair; пусто → общий дефолт из config.
+                        script = ref.script.ifBlank { config.script },
+                        advantages = ref.advantages.ifEmpty { config.advantages },
+                        card = cardFor(ref, config, offerRank),
+                        trigger = RuleTrigger(kind = "product", value = companion.id),
+                        createdBy = createdBy,
+                    ).also {
+                        it.type = RuleType.crosssell
+                        it.status = effectiveStatus(ref)
+                        it.promoId = promoId
+                    }
+                }
             }
 
         ruleRepository.saveAll(created)
@@ -187,7 +184,11 @@ class PromoRulesService(
      * Карточка кассы для ПАРЫ: поля берутся из самой пары, пустые — из общего config-дефолта.
      * Если в итоге нечего показывать (всё пусто) → null (карточки на кассе не будет).
      */
-    private fun cardFor(ref: PromoRuleProductRefDto, config: PromoRulesConfigDto): RuleCard? {
+    private fun cardFor(
+        ref: PromoRuleProductRefDto,
+        config: PromoRulesConfigDto,
+        offerRank: Int? = null,
+    ): RuleCard? {
         val partner = (ref.partnerLabel ?: config.partnerLabel)?.takeIf { it.isNotBlank() }
         val rows = ref.comparison.ifEmpty { config.comparison }
         val comparison = rows.map {
@@ -201,7 +202,7 @@ class PromoRulesService(
         // Намерение по статусу пары храним только когда «черновик» (false); активная — дефолт.
         val pairDraft = !ref.active
         val hasAny = partner != null || comparison.isNotEmpty() || goalLabel != null ||
-            goalTarget != null || goalBonus != null || pairDraft
+            goalTarget != null || goalBonus != null || pairDraft || offerRank != null
         return if (hasAny) {
             RuleCard(
                 partnerLabel = partner,
@@ -209,6 +210,7 @@ class PromoRulesService(
                 goalLabel = goalLabel,
                 goalTarget = goalTarget,
                 goalBonus = goalBonus,
+                offerRank = offerRank,
                 pairActive = if (pairDraft) false else null,
             )
         } else {
@@ -233,6 +235,57 @@ class PromoRulesService(
             },
             active = card?.pairActive != false,
         )
+    }
+
+    /**
+     * В БД одна строка rules = один предложенный препарат. Для админки собираем строки
+     * с одинаковым trigger обратно в одну пару: товар кампании + до четырёх альтернатив.
+     * Старый cross-sell (trigger=promoted, recommend=companion) нормализуем без потери данных.
+     */
+    private fun reconstructGroups(
+        rules: List<RuleEntity>,
+        promotedId: String?,
+        legacyCrossSell: Boolean,
+    ): List<PromoRuleProductRefDto> {
+        data class Normalized(val triggerId: String, val recommendId: String, val rule: RuleEntity)
+
+        val normalized = rules.mapNotNull { rule ->
+            val rawTrigger = rule.trigger.value as? String ?: return@mapNotNull null
+            if (legacyCrossSell && promotedId != null && rawTrigger == promotedId) {
+                Normalized(triggerId = rule.recommend, recommendId = promotedId, rule = rule)
+            } else {
+                Normalized(triggerId = rawTrigger, recommendId = rule.recommend, rule = rule)
+            }
+        }
+
+        return normalized.groupBy { it.triggerId }.map { (triggerId, group) ->
+            val ordered = group.sortedWith(
+                compareBy<Normalized> { it.rule.card?.offerRank ?: Int.MAX_VALUE }
+                    .thenBy { it.rule.id },
+            )
+            val first = ordered.first().rule
+            val base = productRef(triggerId)
+                ?: PromoRuleProductRefDto(medusaProductId = triggerId, name = triggerId)
+            val extras = ordered.asSequence()
+                .map { it.recommendId }
+                .filter { it != promotedId }
+                .distinct()
+                .mapNotNull(::offerRef)
+                .take(4)
+                .toList()
+            reconstructRef(base, first).copy(additionalRecommendations = extras)
+        }
+    }
+
+    /** Основной товар кампании + дополнительные варианты, всего не более пяти. */
+    private fun recommendationsFor(ref: PromoRuleProductRefDto, promoted: ProductEntity): List<ProductEntity> {
+        val extras = ref.additionalRecommendations.asSequence()
+            .filter { it.medusaProductId != promoted.id && it.medusaProductId != ref.medusaProductId }
+            .distinctBy { it.medusaProductId }
+            .take(4)
+            .map(::upsertOfferProduct)
+            .toList()
+        return listOf(promoted) + extras
     }
 
     /** Локальный товар под продвигаемый (id = medusaProductId; имя/цена из кампании/Medusa). */
@@ -281,9 +334,45 @@ class PromoRulesService(
         return productRepository.save(p)
     }
 
+    private fun upsertOfferProduct(ref: PromoOfferProductRefDto): ProductEntity {
+        val id = ref.medusaProductId
+        val existing = productRepository.findById(id).orElse(null)
+        val price = medusaPriceService.priceOf(id)?.toInt()
+            ?: existing?.price?.takeIf { it > 0 }
+            ?: ref.price
+            ?: 0
+        val p = existing ?: ProductEntity(id = id)
+        p.name = ref.name.ifBlank { existing?.name?.ifBlank { null } ?: id }
+        p.brand = ref.brand?.takeIf { it.isNotBlank() } ?: existing?.brand ?: ""
+        p.vendor = existing?.vendor?.ifBlank { null } ?: (ref.brand ?: "")
+        p.mnn = ref.mnn?.takeIf { it.isNotBlank() } ?: existing?.mnn ?: ""
+        p.price = price
+        p.volume = ref.volume?.takeIf { it.isNotBlank() } ?: existing?.volume ?: ""
+        p.medusaProductId = id
+        p.barcode = ref.barcode?.trim()?.takeIf { it.isNotBlank() }
+            ?: medusaPriceService.snapshotOf(id)?.barcode?.trim()?.takeIf { it.isNotBlank() }
+            ?: existing?.barcode
+        p.ipartId = ref.ipartId?.trim()?.takeIf { it.isNotBlank() } ?: existing?.ipartId
+        return productRepository.save(p)
+    }
+
     private fun productRef(productId: String): PromoRuleProductRefDto? {
         val p = productRepository.findById(productId).orElse(null) ?: return null
         return PromoRuleProductRefDto(
+            medusaProductId = p.medusaProductId ?: p.id,
+            name = p.name,
+            brand = p.brand.takeIf { it.isNotBlank() },
+            mnn = p.mnn.takeIf { it.isNotBlank() },
+            volume = p.volume.takeIf { it.isNotBlank() },
+            barcode = p.barcode?.takeIf { it.isNotBlank() },
+            ipartId = p.ipartId?.takeIf { it.isNotBlank() },
+            price = p.price.takeIf { it > 0 },
+        )
+    }
+
+    private fun offerRef(productId: String): PromoOfferProductRefDto? {
+        val p = productRepository.findById(productId).orElse(null) ?: return null
+        return PromoOfferProductRefDto(
             medusaProductId = p.medusaProductId ?: p.id,
             name = p.name,
             brand = p.brand.takeIf { it.isNotBlank() },

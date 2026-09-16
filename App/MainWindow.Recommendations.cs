@@ -260,7 +260,12 @@ namespace CustomerDisplay
                 var recommendations = resp.Recommendations ?? new List<Recommendation>();
                 var responseConflicts = resp.Conflicts ?? new List<Conflict>();
                 Log($"POSM recommend response ({reason}): recs={recommendations.Count}, conflicts={responseConflicts.Count}");
-                foreach (var rec in recommendations.Take(2))
+                foreach (var rec in recommendations
+                    .Where(r => r.IsSubstitution)
+                    .Take(RecommendationPopupModelBuilder.MaxPerKind)
+                    .Concat(recommendations
+                        .Where(r => !r.IsSubstitution)
+                        .Take(RecommendationPopupModelBuilder.MaxPerKind)))
                 {
                     Log($"POSM recommend candidate: rule={rec.RuleId}, event={rec.EventId}, kind={rec.Kind}, " +
                         $"triggerProductId={rec.TriggerSku ?? "—"}, triggerIpartId={rec.TriggerIpartId ?? "—"}, " +
@@ -278,7 +283,11 @@ namespace CustomerDisplay
                     .Where(c => c != null && !ConflictShown(c))
                     .ToList());
                 var recs = await Dispatcher.InvokeAsync(() => recommendations
-                    .Take(2)
+                    .Where(r => r.IsSubstitution)
+                    .Take(RecommendationPopupModelBuilder.MaxPerKind)
+                    .Concat(recommendations
+                        .Where(r => !r.IsSubstitution)
+                        .Take(RecommendationPopupModelBuilder.MaxPerKind))
                     .Where(r => !RecommendationShown(r))
                     .ToList());
 
@@ -364,11 +373,70 @@ namespace CustomerDisplay
             },
         };
 
-        /// <summary>Полный демо-набор: замена + допродажа (показывает табы в карточке).</summary>
+        private static Recommendation DemoReplacementVariant(
+            string eventId,
+            string name,
+            string vendor,
+            int price,
+            int bonus,
+            string script) => new Recommendation
+        {
+            EventId = eventId,
+            Kind = "substitution",
+            TriggerName = "Аквалор Норм спрей",
+            TriggerVolume = "150 мл",
+            RecommendSku = eventId,
+            RecommendName = name,
+            RecommendVendor = vendor,
+            RecommendVolume = "150 мл",
+            RecommendPrice = price,
+            Bonus = bonus,
+            Script = script,
+        };
+
+        private static Recommendation DemoCrossSellVariant(
+            string eventId,
+            string name,
+            string vendor,
+            int price,
+            int bonus,
+            string script) => new Recommendation
+        {
+            EventId = eventId,
+            Kind = "crosssell",
+            TriggerName = "Аквамарис Норм спрей",
+            TriggerVolume = "150 мл",
+            RecommendSku = eventId,
+            RecommendName = name,
+            RecommendVendor = vendor,
+            RecommendPrice = price,
+            Bonus = bonus,
+            Script = script,
+        };
+
+        /// <summary>Полный демо-набор: замена + допродажа в едином прокручиваемом списке.</summary>
         private static List<Recommendation> DemoRecommendations() => new List<Recommendation>
         {
             DemoRecommendation(),
+            DemoReplacementVariant(
+                "demo-sub-2", "Аквамарис Стронг", "Jadran Galenski", 3_490, 580,
+                "Для выраженной заложенности — более интенсивное орошение."),
+            DemoReplacementVariant(
+                "demo-sub-3", "Линаква спрей", "Grotex", 2_390, 420,
+                "Более доступный вариант с мягким распылением."),
+            DemoReplacementVariant(
+                "demo-sub-4", "Маример беби", "Gilbert", 2_750, 450,
+                "Подходит для ежедневной гигиены носа ребёнка."),
+            DemoReplacementVariant(
+                "demo-sub-5", "Физиомер Нормал джет", "Laboratoires de la Mer", 3_190, 500,
+                "Насадка-душ для равномерного орошения."),
             DemoCrossSell(),
+            DemoCrossSellVariant(
+                "demo-cross-2", "Салфетки детские влажные", "Inkar", 690, 120,
+                "Удобно для гигиены после промывания."),
+            DemoCrossSellVariant(
+                "demo-cross-3", "Бальзам для носа", "Inkar", 1_290, 180,
+                "Помогает ухаживать за кожей вокруг носа."),
         };
 
         /// <summary>
@@ -407,8 +475,7 @@ namespace CustomerDisplay
             ShowRecommendations(new List<Recommendation> { rec });
 
         /// <summary>
-        /// Показать рекомендации (замена и/или cross-sell) одной карточкой с табами. Outcome
-        /// фиксируется по ТЕКУЩЕЙ показанной (win.Current) — фармацевт мог переключить таб.
+        /// Показать рекомендации (замена и/или cross-sell) одной компактной прокручиваемой карточкой.
         /// popup ВСЕГДА на экран фармацевта (не клиентский киоск). Бонус — не для клиента.
         /// </summary>
         private void ShowRecommendations(
@@ -514,7 +581,7 @@ namespace CustomerDisplay
         /// </summary>
         private void EnqueueShownPing(string eventId)
         {
-            if (_outbox == null || eventId == "demo" || eventId == "demo-cross") return;
+            if (_outbox == null || eventId.StartsWith("demo", StringComparison.OrdinalIgnoreCase)) return;
             try
             {
                 var payload = new OutboxShownPayload { EventId = eventId, ShownAt = DateTimeOffset.UtcNow };
