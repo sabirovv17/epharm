@@ -13,7 +13,7 @@
 
 param(
   [string]$ConfigPath = "C:\Epharm\posm.json",
-  [string]$Version = "1.0.54",
+  [string]$Version = "1.0.55",
   [string]$OutputDir = "",
   [switch]$KeepPackageFolder
 )
@@ -281,8 +281,9 @@ $updateSizeMb = [math]::Round((Get-Item $updateZip).Length / 1MB, 1)
 $updateSha256 = (Get-FileHash -Path $updateZip -Algorithm SHA256).Hash.ToLowerInvariant()
 Set-Content -Path "$updateZip.sha256" -Value "$updateSha256  $updateZipName" -Encoding ASCII
 
-# Переходный пакет для уже установленных v1.0.44/v1.0.45. На кассах уже есть одинаковый
-# self-contained .NET/VLC runtime, поэтому достаточно заменить четыре файла приложения.
+# Переходный пакет для уже установленных версий. На кассах уже есть одинаковый
+# self-contained .NET/VLC runtime, поэтому достаточно заменить файлы приложения и
+# новые управляемые зависимости, которых могло не быть в старом дистрибутиве.
 # Это уменьшает первое массовое обновление примерно со 160 МБ до нескольких мегабайт.
 $bridgePackageName = "Epharm-POSM-bridge-v$Version-win-x64"
 $bridgeOut = Join-Path $buildRoot $bridgePackageName
@@ -291,7 +292,8 @@ foreach ($bridgeFile in @(
   "CustomerDisplay.exe",
   "CustomerDisplay.dll",
   "CustomerDisplay.deps.json",
-  "CustomerDisplay.runtimeconfig.json"
+  "CustomerDisplay.runtimeconfig.json",
+  "QRCoder.dll"
 )) {
   $bridgeSource = Join-Path $out $bridgeFile
   if (!(Test-Path $bridgeSource)) { throw "Bridge package: не найден $bridgeFile" }
@@ -321,5 +323,5 @@ Write-Host "Внутри: CustomerDisplay.exe + рантайм + libvlc, posm.js
 Write-Host ("AUTO-UPDATE ZIP: {0}  ({1} МБ), SHA256={2}" -f $updateZip, $updateSizeMb, $updateSha256) -ForegroundColor Green
 Write-Host "Auto-update ZIP не содержит posm.json и безопасен для общего релиза через /downloads/." -ForegroundColor Green
 Write-Host ("BRIDGE ZIP: {0}  ({1} МБ), SHA256={2}" -f $bridgeZip, $bridgeSizeMb, $bridgeSha256) -ForegroundColor Green
-Write-Host "Bridge ZIP предназначен для быстрого перехода установленных v1.0.44/v1.0.45 на новый устойчивый updater." -ForegroundColor Green
+Write-Host "Bridge ZIP предназначен для быстрого перехода установленных старых версий на новый устойчивый updater." -ForegroundColor Green
 Write-Host "Для первичной установки распакуй установочный ZIP целиком и запусти setup-autostart.bat либо run.bat для ручного теста." -ForegroundColor Green
