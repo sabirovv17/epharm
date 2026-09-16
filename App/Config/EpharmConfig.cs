@@ -13,6 +13,13 @@ namespace CustomerDisplay.Config
     /// </summary>
     public sealed class EpharmConfig
     {
+        // Public trust anchor for signed POSM releases. This is intentionally embedded in the
+        // executable so installations upgraded from the legacy SHA-only updater acquire the
+        // signing key without copying a new posm.json to every cash desk. It is a public key,
+        // not a secret; the matching private key never ships with the application or backend.
+        public const string EmbeddedUpdateManifestPublicKeySpki =
+            "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEd/4WWaCXDSf/Vc4dW8cLpJwy/5X8PwPsc87fHgOrAKNTkf3locuDh89KDGzhoB905myQwq9o15vFAeyvyPrLyQ==";
+
         public bool Enabled { get; set; } = false;
         public string BackendBaseUrl { get; set; } = "http://localhost:8080";
         /// <summary>
@@ -23,10 +30,10 @@ namespace CustomerDisplay.Config
         public List<string> BackendFallbackBaseUrls { get; set; } = new();
         public string DeviceKey { get; set; } = "dev-posm-key";
         /// <summary>
-        /// Base64 DER SubjectPublicKeyInfo independently provisioned with the POSM installation.
-        /// Empty means every remote update is rejected (fail-closed).
+        /// Base64 DER SubjectPublicKeyInfo used to verify signed POSM update manifests.
+        /// A non-empty per-installation value can override the embedded trust anchor.
         /// </summary>
-        public string UpdateManifestPublicKeySpki { get; set; } = "";
+        public string UpdateManifestPublicKeySpki { get; set; } = EmbeddedUpdateManifestPublicKeySpki;
         public string PharmacistId { get; set; } = "";
         public string PharmacyId { get; set; } = "";
         public int RecommendTimeoutMs { get; set; } = 5000;
@@ -194,6 +201,8 @@ namespace CustomerDisplay.Config
             cfg.UpdateManifestPublicKeySpki = Env(
                 "EPHARM_UPDATE_PUBLIC_KEY_SPKI",
                 cfg.UpdateManifestPublicKeySpki);
+            cfg.UpdateManifestPublicKeySpki = ResolveUpdateManifestPublicKeySpki(
+                cfg.UpdateManifestPublicKeySpki);
             cfg.PharmacistId = Env("EPHARM_PHARMACIST_ID", cfg.PharmacistId);
             cfg.PharmacyId = Env("EPHARM_PHARMACY_ID", cfg.PharmacyId);
             if (Env("EPHARM_FULFILLMENT_ENABLED", cfg.FulfillmentEnabled ? "true" : "false") == "false")
@@ -300,6 +309,11 @@ namespace CustomerDisplay.Config
 
             return cfg;
         }
+
+        internal static string ResolveUpdateManifestPublicKeySpki(string? configured) =>
+            string.IsNullOrWhiteSpace(configured)
+                ? EmbeddedUpdateManifestPublicKeySpki
+                : configured.Trim();
 
         /// <summary>HTTPS origins (plus loopback HTTP for development) without path/query/fragment.</summary>
         public IReadOnlyList<Uri> GetBackendBaseUris()
