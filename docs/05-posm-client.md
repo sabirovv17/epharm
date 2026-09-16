@@ -13,7 +13,8 @@ The POSM client runs on a Windows cash-desk machine:
    local `zkassa` workstation session. It auto-reads server/path/login from the cashier `options.ini`.
 2. Tails detailed cp1251 `zkassa.log` events as a compatibility fallback for older Standard-N builds.
 3. Sends cart data to `POST /api/posm/recommend`.
-4. Shows replacement/cross-sell recommendations to the pharmacist.
+4. Shows up to five replacement and five cross-sell recommendations to the pharmacist in one compact,
+   mouse-scrollable popup. Prices are formatted in Kazakhstan tenge (`₸`).
 5. Sends accepted/rejected outcomes.
 6. Reports printed sales to `POST /api/posm/sales`.
 7. Mirrors receipt and broadcast media on the customer display.
@@ -175,6 +176,10 @@ HTTP origins are rejected; only loopback development may use HTTP.
 - `prod`: with two monitors, customer display opens fullscreen on the second monitor and popup stays
   on the pharmacist/cashier screen; with one monitor, customer display is suppressed and recommendations
   can still work.
+
+The pharmacist popup is informational and does not steal keyboard focus from Standard-N. It displays
+the exact recommendation count returned by the backend, keeps its header fixed, and scrolls only the
+offer list when the content exceeds the compact window height.
 
 ## Build
 

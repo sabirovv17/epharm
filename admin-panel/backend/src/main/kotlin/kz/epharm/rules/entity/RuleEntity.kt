@@ -65,6 +65,7 @@ data class RuleComparisonRow(
  *  - partnerLabel — бейдж «ПАРТНЁР EPHARM»;
  *  - comparison — таблица сравнения;
  *  - goalLabel/goalTarget/goalBonus — цель «N/target замен <label>», прогресс считается динамически.
+ *  - offerRank — порядок варианта в multi-offer popup (0 = основной).
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class RuleCard(
@@ -73,6 +74,7 @@ data class RuleCard(
     val goalLabel: String? = null,
     val goalTarget: Int? = null,
     val goalBonus: Int? = null,
+    val offerRank: Int? = null,
     /**
      * Намерение админа по статусу пары замены/кросс-селла: false = «Черновик».
      * null/отсутствует = «Активно» (дефолт). Эффективный статус правила гейтится

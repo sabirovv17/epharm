@@ -90,7 +90,7 @@ determined from the actual printed sale during reconciliation, not from a key pr
 | Key   | Action                                                       |
 | ----- | ------------------------------------------------------------ |
 | `D`   | Demo recommendation popup if supported by the current build. |
-| `Tab` | Switch Substitution / Cross-sell tabs (when both are shown). |
+| Wheel | Scroll up to five replacements and five cross-sell offers.   |
 | `Q`   | Dev exit in demo builds.                                     |
 
 ## Logs

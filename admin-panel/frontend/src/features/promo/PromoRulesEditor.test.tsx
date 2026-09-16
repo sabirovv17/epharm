@@ -78,8 +78,21 @@ beforeEach(() => {
           ipartId: null,
           category: null,
         },
+        {
+          id: 'prod_c',
+          name: 'Аналог 2',
+          brand: 'Inkar',
+          mnn: null,
+          rxOtc: null,
+          price: 1250,
+          currency: 'KZT',
+          imageUrl: null,
+          barcode: '4870000000002',
+          ipartId: null,
+          category: null,
+        },
       ],
-      total: 1,
+      total: 2,
       limit: 50,
       offset: 0,
     },
@@ -92,7 +105,12 @@ function renderEditor() {
   return render(
     <QueryClientProvider client={qc}>
       <ToastHost>
-        <PromoRulesEditor promoId="pr_1" promotedName="Эпигам спрей" promotedPrice={1990} />
+        <PromoRulesEditor
+          promoId="pr_1"
+          promotedProductId="prod_promoted"
+          promotedName="Эпигам спрей"
+          promotedPrice={1990}
+        />
       </ToastHost>
     </QueryClientProvider>,
   )
@@ -191,6 +209,56 @@ describe('PromoRulesEditor — per-pair скрипт + «Добавить»', ()
     // Общий скрипт больше не используется — пустой.
     expect(arg.config.script).toBe('')
   })
+
+  it('добавляет альтернативу в ту же пару и сохраняет её в payload', async () => {
+    const user = userEvent.setup()
+    renderEditor()
+
+    await user.click(screen.getByTestId('pr-add-offer-prod_a'))
+    await user.click(await screen.findByTestId('promo-product-option-prod_b'))
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByTestId('promo-rules-save'))
+
+    const replacement = mutate.mock.calls[0][0].config.replacements[0]
+    expect(replacement.additionalRecommendations).toEqual([
+      expect.objectContaining({
+        medusaProductId: 'prod_b',
+        name: 'Платочки',
+        price: 500,
+        barcode: '4604249789012',
+      }),
+    ])
+  })
+
+  it('строго ограничивает пару пятью предложениями вместе с основным', () => {
+    rulesHooks.usePromoRules.mockReturnValue({
+      data: mkView({
+        replacements: [
+          {
+            medusaProductId: 'prod_a',
+            name: 'Аквалор Норм',
+            additionalRecommendations: [1, 2, 3, 4].map((n) => ({
+              medusaProductId: `alt_${n}`,
+              name: `Аналог ${n}`,
+              price: 1000 + n * 100,
+            })),
+          },
+        ],
+      }),
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    renderEditor()
+
+    expect(screen.getByTestId('pr-add-offer-prod_a')).toBeDisabled()
+    const preview = screen.getByTestId('pr-preview-offer-prod_a')
+    expect(preview.children).toHaveLength(5)
+    expect(preview).toHaveClass('overflow-y-auto')
+    expect(within(preview).getByText('1 100 ₸')).toBeInTheDocument()
+  })
 })
 
 describe('PromoRulesEditor — превью кассы (структура как на реальной кассе)', () => {
@@ -199,11 +267,14 @@ describe('PromoRulesEditor — превью кассы (структура ка�
     // По семантике backend: для замены ПОКУПАТЕЛЬ ПОПРОСИЛ заменяемый (r),
     // а ПРЕДЛОЖИТЕ ВМЕСТО — продвигаемый товар кампании.
     expect(screen.getByText('ПОКУПАТЕЛЬ ПОПРОСИЛ')).toBeInTheDocument()
-    expect(screen.getByText('ПРЕДЛОЖИТЕ ВМЕСТО')).toBeInTheDocument()
+    expect(screen.getByText(/^ПРЕДЛОЖИТЕ ВМЕСТО/)).toBeInTheDocument()
     // Заменяемый товар (триггер) — в превью.
     expect(screen.getAllByText('Аквалор Норм').length).toBeGreaterThanOrEqual(1)
     // Предлагаемый = товар кампании.
-    expect(screen.getByText('Эпигам спрей')).toBeInTheDocument()
+    const preview = screen.getByTestId('pr-preview-offer-prod_a')
+    expect(preview.children).toHaveLength(1)
+    expect(within(preview).getByText('Эпигам спрей')).toBeInTheDocument()
+    expect(within(preview).getByText('1 990 ₸')).toBeInTheDocument()
   })
 
   it('кросс-селл: триггер = выбранный товар в чеке, предложение = товар кампании', () => {
@@ -219,7 +290,7 @@ describe('PromoRulesEditor — превью кассы (структура ка�
     })
     renderEditor()
     expect(screen.getByText('УЖЕ В ЧЕКЕ')).toBeInTheDocument()
-    expect(screen.getByText('ДОБАВЬТЕ К ПОКУПКЕ')).toBeInTheDocument()
+    expect(screen.getByText(/^ДОБАВЬТЕ К ПОКУПКЕ/)).toBeInTheDocument()
     // Триггер = выбранный товар, предложение = товар кампании.
     expect(
       within(screen.getByTestId('pr-preview-trigger-prod_c')).getByText('Платочки Zewa'),

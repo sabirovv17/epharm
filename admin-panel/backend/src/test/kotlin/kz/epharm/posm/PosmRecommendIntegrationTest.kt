@@ -131,10 +131,10 @@ class PosmRecommendIntegrationTest {
     }
 
     @Test
-    fun `замены раньше cross-sell, отсортированы по бонусу, лимит 2`() {
+    fun `замены раньше cross-sell и все подходящие видны`() {
         val resp = recommendByBarcode("s1", listOf(barBio, barOlda, barFood))
-        assertEquals(2, resp.recommendations.size, "лимит top-2")
-        // Обе замены впереди, cross-sell (320) выброшен лимитом.
+        assertEquals(3, resp.recommendations.size)
+        // Обе замены впереди, затем cross-sell.
         assertEquals("substitution", resp.recommendations[0].kind)
         assertEquals("p_zen", resp.recommendations[0].recommendSku)
         assertEquals(650, resp.recommendations[0].bonus)
@@ -142,7 +142,39 @@ class PosmRecommendIntegrationTest {
         assertEquals("substitution", resp.recommendations[1].kind)
         assertEquals("p_zen2", resp.recommendations[1].recommendSku)
         assertEquals(500, resp.recommendations[1].bonus)
+        assertEquals("crosssell", resp.recommendations[2].kind)
+        assertEquals("p_cream", resp.recommendations[2].recommendSku)
         assertEquals("Bioderma", resp.recommendations[0].triggerName)
+    }
+
+    @Test
+    fun `backend возвращает не более пяти замен и пяти cross-sell`() {
+        val trigger = product("p_cap", "Товар-триггер", 1_000, "4870000000099")
+        productRepository.save(trigger)
+        (1..6).forEach { index ->
+            val substitution = product("p_cap_s_$index", "Аналог $index", 1_000 + index, null)
+                .also { it.volume = "$index уп." }
+            val crossSell = product("p_cap_x_$index", "Допродажа $index", 2_000 + index, null)
+                .also { it.volume = "$index шт." }
+            productRepository.saveAll(listOf(substitution, crossSell))
+            ruleRepository.save(
+                rule("r_cap_s_$index", RuleType.substitution, trigger("p_cap"), substitution.id, 700 - index),
+            )
+            ruleRepository.save(
+                rule("r_cap_x_$index", RuleType.crosssell, trigger("p_cap"), crossSell.id, 600 - index),
+            )
+        }
+
+        val resp = recommendByBarcode("s-cap", listOf("4870000000099"))
+        val substitutions = resp.recommendations.filter { it.kind == "substitution" }
+        val crossSells = resp.recommendations.filter { it.kind == "crosssell" }
+
+        assertEquals(5, substitutions.size)
+        assertEquals(5, crossSells.size)
+        assertEquals((1..5).map { "p_cap_s_$it" }, substitutions.map { it.recommendSku })
+        assertEquals((1..5).map { "p_cap_x_$it" }, crossSells.map { it.recommendSku })
+        assertEquals("V", substitutions.first().recommendVendor)
+        assertEquals("1 уп.", substitutions.first().recommendVolume)
     }
 
     @Test
@@ -155,9 +187,9 @@ class PosmRecommendIntegrationTest {
     }
 
     @Test
-    fun `замена и cross-sell приходят ВМЕСТЕ (замена первой) — для табов на кассе`() {
+    fun `замена и cross-sell приходят вместе для двух секций popup`() {
         // Корзина даёт ровно одну замену (p_bio→p_zen) и один cross-sell (p_food→p_cream).
-        // На кассе это две вкладки «Замена | Допродажа» в одной карточке.
+        // На кассе это две секции «Замена» и «Допродажа» в одной карточке.
         val resp = recommendByBarcode("s7", listOf(barBio, barFood))
         assertEquals(2, resp.recommendations.size)
         assertEquals("substitution", resp.recommendations[0].kind) // замена впереди

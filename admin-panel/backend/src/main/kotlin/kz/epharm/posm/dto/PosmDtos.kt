@@ -68,6 +68,8 @@ data class RecommendationDto(
     val triggerBarcode: String?,    // EAN-13 исходного товара (для лога кассы)
     val recommendSku: String,
     val recommendName: String,
+    val recommendVendor: String?,
+    val recommendVolume: String?,
     val recommendPrice: Int,
     val recommendBarcode: String?,  // EAN-13 рекомендованного товара (касса логирует + кладёт в чек)
     val partnerLabel: String?,
@@ -84,14 +86,14 @@ data class RecommendationDto(
  * Зеркалит C# Conflict. Касса показывает баннер «невозможно» вместо рекомендации.
  */
 data class ConflictDto(
-    val kind: String,           // "ambiguous_substitution" | "contradiction"
+    val kind: String,           // "contradiction"
     val triggerName: String?,
     val reason: String,
     val ruleIds: List<String>,
 )
 
 /**
- * Ответ Rules Engine: до 2 рекомендаций (substitution раньше crosssell, по бонусу DESC)
+ * Ответ Rules Engine: до 5 замен и до 5 cross-sell (внутри типа — по бонусу DESC)
  * + список конфликтов (если есть — касса сообщает о невозможности замены/кросс-селла).
  */
 data class RecommendResponse(
