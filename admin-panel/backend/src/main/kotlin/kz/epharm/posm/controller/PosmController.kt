@@ -140,7 +140,7 @@ class PosmController(
         @RequestParam(required = false) deviceId: String?,
         @RequestParam(required = false) currentVersion: String?,
     ): AppVersionDto {
-        deviceAuthentication.authenticate(key, claimedDeviceId = deviceId, touchLastSeen = true)
+        deviceAuthentication.authenticateForUpdate(key, claimedDeviceId = deviceId)
         val release = appReleaseService.currentFor(platform)
         log.info(
             "POSM update check: deviceId={}, currentVersion={}, targetVersion={}, platform={}",

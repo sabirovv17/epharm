@@ -44,10 +44,7 @@ class ScreenController(
     private val screenPresenceService: ScreenPresenceService,
 ) {
 
-    /**
-     * Лёгкий Redis-only endpoint для числа онлайн-касс. Детальный /connected остаётся
-     * отдельным, потому что ему нужен справочник аптек из PostgreSQL.
-     */
+    /** Лёгкий endpoint для числа онлайн-касс без резолва полного справочника аптек. */
     @GetMapping("/connected/summary")
     fun connectedSummary(): ConnectedRegistersSummaryDto = screenPresenceService.connectedSummary()
 
