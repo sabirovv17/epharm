@@ -9,8 +9,11 @@ import org.springframework.data.redis.core.DefaultTypedTuple
 import org.springframework.data.redis.core.HashOperations
 import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.data.redis.core.ZSetOperations
+import org.springframework.jdbc.core.JdbcTemplate
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import org.springframework.jdbc.core.RowMapper
+import java.sql.Timestamp
 import java.time.Instant
 
 /** Подсчёт подключённых касс (T4): пульсы, дедуп по аптеке + устройству, протухание по TTL. */
@@ -128,5 +131,57 @@ class DevicePresenceServiceTest {
 
         assertEquals(2, count)
         verify(exactly = 0) { redis.opsForHash<String, String>() }
+    }
+
+    @Test
+    fun `recent per-device database activity keeps register online without redis heartbeat`() {
+        val jdbc = mockk<JdbcTemplate>()
+        every {
+            jdbc.query(
+                any<String>(),
+                any<RowMapper<DevicePresenceService.Presence>>(),
+                any<Timestamp>(),
+            )
+        } returns listOf(
+            DevicePresenceService.Presence(
+                deviceId = "kassa-durable",
+                pharmacyId = "ph_durable",
+                lastSeen = t0.minusSeconds(5),
+            ),
+        )
+
+        val service = DevicePresenceService(ttlSeconds = 90, jdbc = jdbc)
+
+        assertEquals(1, service.count(t0))
+        assertEquals("kassa-durable", service.connected(t0).single().deviceId)
+    }
+
+    @Test
+    fun `redis and database activity for same register are counted once`() {
+        val provider = mockk<ObjectProvider<StringRedisTemplate>>()
+        val redis = mockk<StringRedisTemplate>()
+        val zset = mockk<ZSetOperations<String, String>>()
+        val jdbc = mockk<JdbcTemplate>()
+        val key = "ph_a\u001Fkassa-1"
+        every { provider.getIfAvailable() } returns redis
+        every { redis.opsForZSet() } returns zset
+        every { zset.rangeByScore(any(), any(), any()) } returns setOf(key)
+        every {
+            jdbc.query(
+                any<String>(),
+                any<RowMapper<DevicePresenceService.Presence>>(),
+                any<Timestamp>(),
+            )
+        } returns listOf(
+            DevicePresenceService.Presence(
+                deviceId = "kassa-1",
+                pharmacyId = "ph_a",
+                lastSeen = t0.minusSeconds(5),
+            ),
+        )
+
+        val service = DevicePresenceService(ttlSeconds = 90, redisProvider = provider, jdbc = jdbc)
+
+        assertEquals(1, service.count(t0))
     }
 }

@@ -4,7 +4,9 @@ import org.springframework.beans.factory.ObjectProvider
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.data.redis.core.StringRedisTemplate
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
+import java.sql.Timestamp
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
@@ -26,10 +28,12 @@ import java.util.concurrent.atomic.AtomicLong
 class DevicePresenceService(
     @Value("\${app.posm.heartbeat-ttl-seconds:90}") private val ttlSeconds: Long,
     private val redisProvider: ObjectProvider<StringRedisTemplate>? = null,
+    private val jdbc: JdbcTemplate? = null,
 ) {
     private val seen = ConcurrentHashMap<String, Presence>()
     private val log = LoggerFactory.getLogger(DevicePresenceService::class.java)
     private val lastRedisWarningAt = AtomicLong(0)
+    private val lastDatabaseWarningAt = AtomicLong(0)
 
     companion object {
         private const val LAST_SEEN_KEY = "epharm:posm:presence:last-seen"
@@ -102,19 +106,24 @@ class DevicePresenceService(
         evictExpiredLocal(cutoff)
 
         val combined = HashMap<String, Presence>()
-        readRedisPresence(cutoff).forEach { combined[it.storageKey] = it }
-        seen.values.forEach { local ->
-            val stored = combined[local.storageKey]
+        fun merge(candidate: Presence) {
+            val stored = combined[candidate.storageKey]
             if (stored == null) {
-                combined[local.storageKey] = local
+                combined[candidate.storageKey] = candidate
             } else {
-                val latest = if (stored.lastSeen.isBefore(local.lastSeen)) local else stored
-                combined[local.storageKey] = latest.copy(
-                    monitorCount = local.monitorCount ?: stored.monitorCount,
-                    appVersion = local.appVersion ?: stored.appVersion,
+                val latest = if (stored.lastSeen.isBefore(candidate.lastSeen)) candidate else stored
+                combined[candidate.storageKey] = latest.copy(
+                    monitorCount = candidate.monitorCount ?: stored.monitorCount,
+                    appVersion = candidate.appVersion ?: stored.appVersion,
                 )
             }
         }
+        // fulfillment_devices.last_seen_at is refreshed by every successfully authenticated
+        // per-device fulfillment poll. It is the durable safety net when a legacy POSM build
+        // cannot deliver the dedicated Redis heartbeat after the shared fleet key is disabled.
+        readDatabasePresence(cutoff).forEach(::merge)
+        readRedisPresence(cutoff).forEach(::merge)
+        seen.values.forEach(::merge)
         return combined.values.sortedWith(compareBy<Presence>({ it.pharmacyId ?: "" }, { it.deviceId }))
     }
 
@@ -127,6 +136,7 @@ class DevicePresenceService(
         val cutoff = now.minusSeconds(ttlSeconds)
         evictExpiredLocal(cutoff)
         return buildSet {
+            addAll(readDatabasePresence(cutoff).map(Presence::storageKey))
             addAll(readRedisPresenceKeys(cutoff))
             addAll(seen.keys)
         }.size
@@ -205,6 +215,31 @@ class DevicePresenceService(
         return result
     }
 
+    private fun readDatabasePresence(cutoff: Instant): List<Presence> {
+        val template = jdbc ?: return emptyList()
+        return try {
+            template.query(
+                """
+                SELECT d.device_id, d.pharmacy_id, d.last_seen_at
+                FROM fulfillment_devices d
+                JOIN pharmacies p ON p.id = d.pharmacy_id AND p.active = true
+                WHERE d.active = true AND d.last_seen_at >= ?
+                """.trimIndent(),
+                { rs, _ ->
+                    Presence(
+                        deviceId = rs.getString("device_id"),
+                        pharmacyId = rs.getString("pharmacy_id"),
+                        lastSeen = rs.getTimestamp("last_seen_at").toInstant(),
+                    )
+                },
+                Timestamp.from(cutoff),
+            )
+        } catch (ex: Exception) {
+            warnDatabase(ex)
+            emptyList()
+        }
+    }
+
     private inline fun withRedis(block: (StringRedisTemplate) -> Unit) {
         val redis = try {
             redisProvider?.getIfAvailable()
@@ -225,6 +260,14 @@ class DevicePresenceService(
         val previous = lastRedisWarningAt.get()
         if (now - previous >= REDIS_WARNING_INTERVAL_MS && lastRedisWarningAt.compareAndSet(previous, now)) {
             log.warn("POSM presence Redis temporarily unavailable; using in-memory fallback: {}", ex.message)
+        }
+    }
+
+    private fun warnDatabase(ex: Exception) {
+        val now = System.currentTimeMillis()
+        val previous = lastDatabaseWarningAt.get()
+        if (now - previous >= REDIS_WARNING_INTERVAL_MS && lastDatabaseWarningAt.compareAndSet(previous, now)) {
+            log.warn("POSM durable device activity temporarily unavailable; using heartbeat stores: {}", ex.message)
         }
     }
 

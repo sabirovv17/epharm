@@ -18,6 +18,7 @@ import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
 import org.testcontainers.containers.PostgreSQLContainer
@@ -46,6 +47,7 @@ class AppReleaseIntegrationTest {
             reg.add("spring.datasource.url") { postgres.jdbcUrl }
             reg.add("spring.datasource.username") { postgres.username }
             reg.add("spring.datasource.password") { postgres.password }
+            reg.add("app.posm.legacy-device-key-enabled") { "false" }
         }
     }
 
@@ -91,6 +93,22 @@ class AppReleaseIntegrationTest {
     @Test
     fun `без device-key → 401`() {
         mockMvc.perform(get("/api/posm/app/version")).andExpect(status().isUnauthorized)
+    }
+
+    @Test
+    fun `retired fleet key is accepted only by signed update manifest route`() {
+        mockMvc.perform(
+            get("/api/posm/app/version")
+                .header("X-Posm-Key", POSM_KEY)
+                .param("deviceId", "legacy-register"),
+        ).andExpect(status().isOk)
+
+        mockMvc.perform(
+            post("/api/posm/heartbeat")
+                .header("X-Posm-Key", POSM_KEY)
+                .param("deviceId", "legacy-register")
+                .param("pharmacyId", "ph_legacy"),
+        ).andExpect(status().isUnauthorized)
     }
 
     private fun getVersion(): AppVersionDto {

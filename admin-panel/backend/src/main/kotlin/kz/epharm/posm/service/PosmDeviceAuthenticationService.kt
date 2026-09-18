@@ -33,6 +33,33 @@ class PosmDeviceAuthenticationService(
         claimedPharmacyId: String? = null,
         claimedDeviceId: String? = null,
         touchLastSeen: Boolean = false,
+    ): PosmDeviceIdentity = authenticateInternal(
+        token = token,
+        claimedPharmacyId = claimedPharmacyId,
+        claimedDeviceId = claimedDeviceId,
+        touchLastSeen = touchLastSeen,
+        allowLegacyKey = legacyEnabled,
+    )
+
+    /**
+     * The update manifest and archive are public and cryptographically signed. Existing pilot
+     * clients still need one read-only route that accepts the retired fleet key so they can obtain
+     * the credential-migration release. This exception is deliberately scoped to app/version;
+     * recommendations, sales, heartbeats and fulfillment keep requiring a per-device credential.
+     */
+    fun authenticateForUpdate(token: String?, claimedDeviceId: String?): PosmDeviceIdentity = authenticateInternal(
+        token = token,
+        claimedDeviceId = claimedDeviceId,
+        touchLastSeen = false,
+        allowLegacyKey = true,
+    )
+
+    private fun authenticateInternal(
+        token: String?,
+        claimedPharmacyId: String? = null,
+        claimedDeviceId: String? = null,
+        touchLastSeen: Boolean,
+        allowLegacyKey: Boolean,
     ): PosmDeviceIdentity {
         val normalized = token?.trim()?.takeIf { it.isNotEmpty() }
             ?: unauthorized()
@@ -69,7 +96,7 @@ class PosmDeviceAuthenticationService(
             }
         }
 
-        if (legacyEnabled && constantTimeEquals(normalized, legacyDeviceKey)) {
+        if (allowLegacyKey && constantTimeEquals(normalized, legacyDeviceKey)) {
             return PosmDeviceIdentity(
                 deviceId = claimedDeviceId?.trim()?.takeIf { it.isNotEmpty() },
                 pharmacyId = claimedPharmacyId?.trim()?.takeIf { it.isNotEmpty() },

@@ -101,6 +101,27 @@ namespace CustomerDisplay
                 _standardNDb = new StandardNDbLookup(_posmConfig, Log);
                 if (_posmConfig.Enabled)
                 {
+                    // Pilot installations registered an individual device credential for the
+                    // fulfillment API while posm.json still contained the retired fleet key.
+                    // Promote the DPAPI-protected credential in memory before creating any API
+                    // client, so recommendations, sales, heartbeat and updater all use the same
+                    // revocable per-device identity. posm.json is intentionally left untouched.
+                    var deviceId = Environment.MachineName.Trim();
+                    var pharmacyId = _posmConfig.PharmacyId.Trim();
+                    var storedCredential = new FulfillmentCredentialStore(_posmConfig.FulfillmentCredentialPath)
+                        .Load(deviceId, pharmacyId);
+                    var resolvedDeviceKey = PosmDeviceCredentialResolver.Resolve(
+                        _posmConfig.DeviceKey,
+                        deviceId,
+                        pharmacyId,
+                        storedCredential?.DeviceId,
+                        storedCredential?.PharmacyId,
+                        storedCredential?.Token);
+                    if (!string.Equals(resolvedDeviceKey, _posmConfig.DeviceKey, StringComparison.Ordinal))
+                    {
+                        _posmConfig.DeviceKey = resolvedDeviceKey;
+                        Log("Индивидуальный ключ POSM восстановлен из защищённого хранилища устройства.");
+                    }
                     _epharm = new EpharmApiClient(_posmConfig, Log);
                     // Источник №1 сверки: гарантированная доставка чеков/результатов через outbox.
                     _outbox = new OfflineOutbox(_posmConfig.OutboxDbPath);

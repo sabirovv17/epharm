@@ -28,9 +28,9 @@ class ScreenPresenceService(
     private val timestampFormat = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss")
 
     /**
-     * Быстрый путь для live-счётчика: только heartbeat storage (Redis + in-memory fallback).
-     * Он намеренно не резолвит справочник аптек, чтобы счётчик оставался доступен при очереди
-     * соединений PostgreSQL во время массовой синхронизации продаж.
+     * Live-счётчик объединяет Redis heartbeat и свежую индивидуально аутентифицированную
+     * активность устройства из PostgreSQL. Так рестарт backend или клиент на переходном
+     * credential-flow не обнуляет реальное число работающих касс.
      */
     fun connectedSummary(now: Instant = Instant.now()): ConnectedRegistersSummaryDto =
         ConnectedRegistersSummaryDto(
