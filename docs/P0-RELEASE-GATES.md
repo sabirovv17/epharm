@@ -5,21 +5,23 @@ account owners can provide. A release is blocked until every gate below is green
 
 ## 1. Medusa catalogue
 
-Safe repository state:
+Current repository state:
 
-- the retired cleartext origin is not a runtime default;
-- `MEDUSA_ENABLED=false` is the production default, so catalogue calls return immediately;
-- enabling Medusa with an incomplete or non-HTTPS configuration aborts backend startup;
-- connect/read deadlines default to 2/6 seconds;
-- storefront reads, media proxy and mutation scripts reject remote HTTP origins.
+- the live catalogue is enabled by default; the 2026-09-18 smoke reported 28,503 products;
+- the backend accepts HTTPS origins, loopback development, and exactly the current
+  `http://78.140.246.238:9000` legacy origin; arbitrary remote HTTP remains rejected;
+- enabling Medusa with incomplete identifiers aborts backend startup;
+- connect/read deadlines default to 2/15 seconds and the listing uses a measured lightweight projection;
+- successful catalogue responses refresh every five minutes and remain available for one hour when a refresh fails;
+- linked promo/POSM prices, images and barcodes refresh hourly at `:05` in `Asia/Almaty`.
 
-Inputs required from Medusa operations:
+Current public Store API identifiers (not administrator credentials):
 
 ```text
-MEDUSA_BASE_URL=https://<reachable-origin>
-MEDUSA_PUBLISHABLE_KEY=<publishable-store-key>
-MEDUSA_SALES_CHANNEL_ID=<sales-channel-id>
-MEDUSA_REGION_ID=<region-id>
+MEDUSA_BASE_URL=http://78.140.246.238:9000
+MEDUSA_PUBLISHABLE_KEY=pk_ed9c35a59066b45de7d9e12510468ca27af16b6d0170b0910c03746545da4525
+MEDUSA_SALES_CHANNEL_ID=sc_01KRXGQFYXMJN3FD1WJ7S83WME
+MEDUSA_REGION_ID=reg_01KSBNEH2D4GVJN8EATK79WNSH
 ```
 
 Validate from the production network before enabling it:
@@ -31,10 +33,10 @@ set +a
 ./tools/smoke-medusa.sh
 ```
 
-The smoke test must report a numeric catalogue count and a sample product id. Then set
-`MEDUSA_ENABLED=true`, deploy, and verify the mobile catalogue list, one product detail, one image
-through `/api/media/img`, and one pharmacy-price response. Do not enable the flag if the smoke test
-fails or requires an HTTP/TLS bypass.
+The smoke test must report a numeric catalogue count and a sample product id. Deploy only if it
+passes, then verify the admin product picker, mobile catalogue list, one product detail, one image
+through `/api/media/img`, and one pharmacy-price response. Moving the origin behind HTTPS remains
+an operations hardening task; do not add a general-purpose insecure-HTTP bypass.
 
 ## 2. Apple distribution and TestFlight
 

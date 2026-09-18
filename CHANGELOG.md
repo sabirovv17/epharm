@@ -14,6 +14,14 @@ All notable production changes to Epharm are recorded here. The format follows
 - A k6 workload model for a 500-cash-desk fleet.
 - Automated mobile release gates, privacy manifest and deep-link declarations.
 
+## [0.1.1] - 2026-09-18
+
+### Fixed
+
+- Restored the live Medusa catalogue for admin, mobile and promotion workflows.
+- Reduced Medusa listing latency, added last-known-good cache fallback and hourly linked-product refresh.
+- Added release smoke gates that reject an empty production catalogue.
+
 ## [0.1.0] - 2026-09-08
 
 ### Added

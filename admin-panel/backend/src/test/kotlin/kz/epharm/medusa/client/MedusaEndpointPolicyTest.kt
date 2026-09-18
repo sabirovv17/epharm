@@ -16,6 +16,12 @@ class MedusaEndpointPolicyTest {
     }
 
     @Test
+    fun `enabled integration accepts only the pinned legacy HTTP origin`() {
+        assertThat(validate(baseUrl = "http://78.140.246.238:9000/"))
+            .isEqualTo("http://78.140.246.238:9000")
+    }
+
+    @Test
     fun `enabled integration fails closed on missing identifiers`() {
         assertThatThrownBy { validate(baseUrl = "https://medusa.example.kz", publishableKey = "") }
             .isInstanceOf(IllegalStateException::class.java)
@@ -25,7 +31,8 @@ class MedusaEndpointPolicyTest {
     @Test
     fun `remote cleartext and non-origin URLs are rejected`() {
         listOf(
-            "http://78.140.246.238:9000",
+            "http://78.140.246.238",
+            "http://78.140.246.238:9001",
             "http://medusa.example.kz",
             "https://user:password@medusa.example.kz",
             "https://medusa.example.kz/store",

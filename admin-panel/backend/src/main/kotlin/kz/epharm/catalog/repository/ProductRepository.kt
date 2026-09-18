@@ -10,7 +10,7 @@ interface ProductRepository : JpaRepository<ProductEntity, String> {
     fun findAllByBrandOrderByNameAsc(brand: String): List<ProductEntity>
     fun findAllByMnnOrderByNameAsc(mnn: String): List<ProductEntity>
 
-    /** Товары каталога, привязанные к Medusa — для ежедневного рефреша цены планировщиком. */
+    /** Товары каталога, привязанные к Medusa — для регулярного рефреша цены планировщиком. */
     fun findAllByMedusaProductIdIsNotNull(): List<ProductEntity>
 
     /** Товары по списку iPartID Стандарт-Н — точный матчинг корзины POSM-кассы. */
