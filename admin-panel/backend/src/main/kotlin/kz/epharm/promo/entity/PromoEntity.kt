@@ -146,7 +146,7 @@ class PromoEntity(
 
     /**
      * Цена товара (read-only, из Medusa). Хранится в первом ценовом пороге;
-     * обновляется планировщиком [kz.epharm.promo.service.PromoPriceScheduler] раз в день.
+     * обновляется планировщиком [kz.epharm.promo.service.PromoPriceScheduler] каждый час.
      */
     val price: Long
         get() = tiers.firstOrNull()?.price ?: 0

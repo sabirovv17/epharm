@@ -1,6 +1,6 @@
 // CreatePromoModal — создание товарной акции: выбор ОДНОГО товара из витрины
 // Medusa + диапазон дат + единый бонус фармацевту. Цена товара read-only из
-// Medusa (обновляется ежедневно). Опционально — override фото/описания (поверх PIM).
+// Medusa (обновляется каждый час). Опционально — override фото/описания (поверх PIM).
 // Бренд берётся из выбранного товара. Многоуровневые пороги убраны (T1).
 
 import { useEffect, useMemo, useState } from 'react'
@@ -216,7 +216,7 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
           </div>
         )}
 
-        {/* Цена из Medusa — read-only (обновляется ежедневно). */}
+        {/* Цена из Medusa — read-only (обновляется каждый час). */}
         {form.product && (
           <Field label={t('pm.fldPrice')} hint={t('pm.priceHint')}>
             <div

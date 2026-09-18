@@ -81,6 +81,9 @@ Important current values/policies:
 - `OTP_DEV_MODE=true` exposes the shared fixed code and is permitted only for local/test environments.
 - `S3_PUBLIC_URL` must match the external Caddy route. It is `https://epharm.inkar.kz/s3`.
 - Medusa defaults in compose are publishable storefront ids, not admin/root secrets.
+- Release preparation requires `MEDUSA_ENABLED=true` and runs `tools/smoke-medusa.sh` from the
+  deployment host. Post-deploy smoke also requires a non-empty `/api/mobile/catalog/products`
+  response, so a disabled/broken catalogue triggers the normal automatic application rollback.
 - Live storefront/PIM/SSH credentials are documented in their existing credential files and must not be
   copied elsewhere.
 

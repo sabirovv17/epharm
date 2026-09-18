@@ -20,18 +20,18 @@ Priorities:
 
 ## P0
 
-| Item                                           | Owner    | Status / action                                                                                                                                                                    |
-| ---------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Receipt photos in public-readable MinIO bucket | code/ops | Move receipt photos behind authenticated/presigned URL access. Keep screen/broadcast media public or split buckets.                                                                |
-| Production secrets                             | ops      | Ensure `.env.prod` has generated JWT/DB/MinIO secrets, admin bootstrap credentials and pinned POSM update SPKI. A fleet POSM key exists only during a controlled legacy window.    |
-| Compromised storefront/PIM/SSH credentials     | ops      | Rotate credentials documented in existing credential files. Do not copy them into new docs.                                                                                        |
-| Postgres backup and restore                    | ops      | Cron/off-site backup exists; restore has been tested.                                                                                                                              |
-| POSM rollout for automated bonus loop          | ops      | Install scheduled tasks/watchdog and pharmacy/device config. Validate active-user extraction against the real Standard-N schema; do not bake a rotating employee into `posm.json`. |
-| SMS provider                                   | code/ops | Daribar is integrated backend-to-backend. Keep `OTP_DEV_MODE=false`, verify live delivery, gateway latency/errors and resend limits before each mobile release.                    |
-| Medusa catalogue                               | ops      | Keep disabled until a reachable HTTPS origin, publishable key, sales channel and region pass `tools/smoke-medusa.sh` from the production network.                                  |
-| iOS distribution                               | owner    | Personal Team build is expired. Enroll the paid team, install Apple Distribution signing, upload through TestFlight and complete physical-device acceptance.                       |
-| GitHub merge gate                              | owner    | Billing recovered by the successful 2026-09-04 run. `main` is protected by `P0 / merge gate`; require its first green run for the exact new PR head before merge.                  |
-| Mobile transport                               | code/ops | Production defaults to HTTPS and no longer permits the public cleartext `:8060` fallback. Verify loss-of-network behavior on a physical device.                                    |
+| Item                                           | Owner    | Status / action                                                                                                                                                                                                            |
+| ---------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Receipt photos in public-readable MinIO bucket | code/ops | Move receipt photos behind authenticated/presigned URL access. Keep screen/broadcast media public or split buckets.                                                                                                        |
+| Production secrets                             | ops      | Ensure `.env.prod` has generated JWT/DB/MinIO secrets, admin bootstrap credentials and pinned POSM update SPKI. A fleet POSM key exists only during a controlled legacy window.                                            |
+| Compromised storefront/PIM/SSH credentials     | ops      | Rotate credentials documented in existing credential files. Do not copy them into new docs.                                                                                                                                |
+| Postgres backup and restore                    | ops      | Cron/off-site backup exists; restore has been tested.                                                                                                                                                                      |
+| POSM rollout for automated bonus loop          | ops      | Install scheduled tasks/watchdog and pharmacy/device config. Validate active-user extraction against the real Standard-N schema; do not bake a rotating employee into `posm.json`.                                         |
+| SMS provider                                   | code/ops | Daribar is integrated backend-to-backend. Keep `OTP_DEV_MODE=false`, verify live delivery, gateway latency/errors and resend limits before each mobile release.                                                            |
+| Medusa catalogue                               | code/ops | Enabled against the live pinned legacy origin; lightweight list/detail requests, five-minute refresh, one-hour stale-on-error and hourly linked-product refresh are configured. Run `tools/smoke-medusa.sh` before deploy. |
+| iOS distribution                               | owner    | Personal Team build is expired. Enroll the paid team, install Apple Distribution signing, upload through TestFlight and complete physical-device acceptance.                                                               |
+| GitHub merge gate                              | owner    | Billing recovered by the successful 2026-09-04 run. `main` is protected by `P0 / merge gate`; require its first green run for the exact new PR head before merge.                                                          |
+| Mobile transport                               | code/ops | Production defaults to HTTPS and no longer permits the public cleartext `:8060` fallback. Verify loss-of-network behavior on a physical device.                                                                            |
 
 ## P1
 
@@ -79,5 +79,5 @@ Runtime checks:
 - A fresh database can apply all Flyway migrations through the current highest version.
 - Backup and restore procedure has been tested.
 - `P0 / merge gate` is green for the exact release commit.
-- Medusa is either explicitly disabled or passes `tools/smoke-medusa.sh` from the production network.
+- Medusa passes `tools/smoke-medusa.sh` from the production network and the admin product picker returns results.
 - iOS distribution uses Apple Distribution/TestFlight; Android uses the private release keystore.

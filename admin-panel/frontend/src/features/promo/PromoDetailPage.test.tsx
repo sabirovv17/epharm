@@ -230,7 +230,7 @@ describe('PromoDetailPage — редактирование', () => {
       {
         id: 'pr_1',
         patch: expect.objectContaining({
-          // описание не трогали → совпадает с Medusa → null (сохраняем ежедневный фоллбэк)
+          // описание не трогали → совпадает с Medusa → null (сохраняем автоматический фоллбэк)
           overrideDescription: null,
           overrideCharacteristics: 'Своя характеристика',
         }),

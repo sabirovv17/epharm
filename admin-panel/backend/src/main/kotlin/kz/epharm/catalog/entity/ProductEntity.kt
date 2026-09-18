@@ -36,7 +36,7 @@ class ProductEntity(
 
     /**
      * Id товара витрины Medusa, если этот товар каталога — позиция витрины.
-     * По нему [kz.epharm.promo.service.PromoPriceScheduler] обновляет [price] раз в день,
+     * По нему [kz.epharm.promo.service.PromoPriceScheduler] обновляет [price] каждый час,
      * чтобы блок рекомендаций фармацевта всегда показывал актуальную цену. NULL у ручных товаров.
      */
     @Column(name = "medusa_product_id", length = 64)

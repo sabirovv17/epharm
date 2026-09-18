@@ -399,7 +399,7 @@ export interface PromoDto {
   overrideDescription: string | null
   /** Ручной override характеристик (по строке; поверх keyFacts Medusa). null — нет. */
   overrideCharacteristics: string | null
-  /** Цена товара из Medusa (read-only, обновляется ежедневно — НЕ редактируется в админке). */
+  /** Цена товара из Medusa (read-only, обновляется каждый час — НЕ редактируется в админке). */
   price: number
   /** Единый бонус фармацевту за продажу (заменил многоуровневые пороги). */
   pharmacistBonus: number

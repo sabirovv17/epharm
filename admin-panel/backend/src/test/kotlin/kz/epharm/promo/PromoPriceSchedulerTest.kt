@@ -13,7 +13,7 @@ import kz.epharm.promo.service.PromoPriceScheduler
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
-/** Ежедневный рефреш цен из Medusa (T1): цена промо-порога и товара обновляются, бонус сохраняется. */
+/** Регулярный рефреш из Medusa (T1): цена промо-порога и товара обновляются, бонус сохраняется. */
 class PromoPriceSchedulerTest {
 
     private val promoRepo = mockk<PromoRepository>()

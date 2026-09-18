@@ -3,7 +3,7 @@
 // (PATCH /promo/:id) + статус-действия (пауза/возобновить/архив/восстановить).
 // Archived нельзя редактировать (backend → 409), поэтому форма read-only.
 //
-// T1: один товар Medusa, цена read-only (из Medusa, ежедневный рефреш), единый
+// T1: один товар Medusa, цена read-only (из Medusa, почасовой рефреш), единый
 //     бонус фармацевту, опц. override фото/описания. Порогов больше нет.
 // T2: секция «Замены и кросс-селл» — авторинг правил из кампании (см. PromoRulesEditor).
 
@@ -205,7 +205,7 @@ export default function PromoDetailPage() {
     // создании (1 кампания = 1 товар) и здесь НЕ редактируется — в patch его не кладём.
     //
     // Описание/характеристики предзаполнены из Medusa. Чтобы НЕ «замораживать» товар
-    // снимком (и сохранить ежедневный рефреш): если значение не меняли и оно совпадает
+    // снимком (и сохранить почасовой рефреш): если значение не меняли и оно совпадает
     // с тем, что отдаёт Medusa, и своего override раньше не было — шлём null (фоллбэк).
     const descVal = form.overrideDescription.trim()
     const hadDescOverride = !!promo.overrideDescription?.trim()
@@ -385,7 +385,7 @@ export default function PromoDetailPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              {/* Цена из Medusa — read-only (обновляется ежедневно, не редактируется). */}
+              {/* Цена из Medusa — read-only (обновляется каждый час, не редактируется). */}
               <Field label={t('pm.fldPrice')} hint={t('pm.priceHint')}>
                 <div
                   className="inp flex items-center bg-paper-input font-bold text-ink-700"

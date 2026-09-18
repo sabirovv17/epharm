@@ -162,9 +162,9 @@ app:
     # payment as paid. Empty is intentionally fail-closed; browser claims remain pending.
     trusted-card-payment-authorities: ${FULFILLMENT_TRUSTED_CARD_PAYMENT_AUTHORITIES:}
   promo:
-    # Ежедневный рефреш цен из Medusa (T1). Cron в TZ Asia/Almaty (зафиксирована в коде):
-    # 06:00 — перед открытием аптек, чтобы к рабочему дню цены и блок рекомендаций были свежими.
-    price-refresh-cron: ${PROMO_PRICE_REFRESH_CRON:0 0 6 * * *}
+    # Почасовой рефреш цен/фото/штрихкодов связанных акций и POSM-товаров.
+    # Cron в TZ Asia/Almaty (зафиксирована в коде), запуск в :05 каждого часа.
+    price-refresh-cron: ${PROMO_PRICE_REFRESH_CRON:0 5 * * * *}
   analytics:
     # Окно (дни) для агрегации Dashboard/Lift из recommendation_events.
     window-days: ${ANALYTICS_WINDOW_DAYS:90}
@@ -178,15 +178,17 @@ app:
     #
     # base-url / sales-channel / region / publishable-key — клиентские (не секретные)
     # идентификаторы витрины: ключ Medusa по дизайну публикуемый (как в любом storefront).
-    # Интеграция fail-closed: без явного включения каталог немедленно деградирует в
-    # пустой ответ. При MEDUSA_ENABLED=true URL и все идентификаторы обязательны;
-    # удалённый origin принимается только по HTTPS, иначе приложение не стартует.
-    enabled: ${MEDUSA_ENABLED:false}
-    base-url: ${MEDUSA_BASE_URL:}
-    publishable-key: ${MEDUSA_PUBLISHABLE_KEY:}
-    sales-channel-id: ${MEDUSA_SALES_CHANNEL_ID:}
-    region-id: ${MEDUSA_REGION_ID:}
+    # Текущий каталог доступен только на legacy HTTP-origin. Политика клиента разрешает
+    # ровно этот IP:port (и loopback для dev); любой другой удалённый HTTP отклоняется.
+    # После появления HTTPS достаточно заменить MEDUSA_BASE_URL — код менять не нужно.
+    enabled: ${MEDUSA_ENABLED:true}
+    base-url: ${MEDUSA_BASE_URL:http://78.140.246.238:9000}
+    publishable-key: ${MEDUSA_PUBLISHABLE_KEY:pk_ed9c35a59066b45de7d9e12510468ca27af16b6d0170b0910c03746545da4525}
+    sales-channel-id: ${MEDUSA_SALES_CHANNEL_ID:sc_01KRXGQFYXMJN3FD1WJ7S83WME}
+    region-id: ${MEDUSA_REGION_ID:reg_01KSBNEH2D4GVJN8EATK79WNSH}
     connect-timeout-ms: ${MEDUSA_CONNECT_TIMEOUT_MS:2000}
-    read-timeout-ms: ${MEDUSA_READ_TIMEOUT_MS:6000}
+    read-timeout-ms: ${MEDUSA_READ_TIMEOUT_MS:15000}
     # TTL кэша смаппленного каталога (сек). 0 — выключить кэш.
     cache-ttl-seconds: ${MEDUSA_CACHE_TTL:300}
+    # При временном сбое ещё час отдаём последний успешный снимок, пока пробуем обновиться.
+    cache-stale-if-error-seconds: ${MEDUSA_CACHE_STALE_IF_ERROR_SECONDS:3600}

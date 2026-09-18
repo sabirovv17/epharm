@@ -5,6 +5,8 @@ import java.net.URI
 /** Fail-closed validation for the external Medusa Store API origin. */
 internal object MedusaEndpointPolicy {
     private val loopbackHosts = setOf("localhost", "127.0.0.1", "::1")
+    private const val LEGACY_MEDUSA_HOST = "78.140.246.238"
+    private const val LEGACY_MEDUSA_PORT = 9000
 
     fun validate(
         enabled: Boolean,
@@ -38,9 +40,11 @@ internal object MedusaEndpointPolicy {
             "MEDUSA_BASE_URL must be an origin without credentials, query or fragment"
         }
         check(path.isEmpty() || path == "/") { "MEDUSA_BASE_URL must not contain a path" }
+        val isHttp = uri.scheme.equals("http", ignoreCase = true)
+        val pinnedLegacyOrigin = isHttp && host == LEGACY_MEDUSA_HOST && uri.port == LEGACY_MEDUSA_PORT
         check(uri.scheme.equals("https", ignoreCase = true) ||
-            (uri.scheme.equals("http", ignoreCase = true) && host in loopbackHosts)) {
-            "MEDUSA_BASE_URL must use HTTPS; HTTP is allowed only for loopback development"
+            (isHttp && (host in loopbackHosts || pinnedLegacyOrigin))) {
+            "MEDUSA_BASE_URL must use HTTPS; HTTP is allowed only for loopback or the pinned legacy Medusa origin"
         }
 
         return rawBaseUrl.trim().trimEnd('/')

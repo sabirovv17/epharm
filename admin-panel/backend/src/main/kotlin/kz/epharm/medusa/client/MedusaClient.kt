@@ -4,6 +4,7 @@ import kz.epharm.medusa.dto.MedusaCategoryListResponse
 import kz.epharm.medusa.dto.MedusaProduct
 import kz.epharm.medusa.dto.MedusaProductPharmaciesResponse
 import kz.epharm.medusa.dto.MedusaProductListResponse
+import kz.epharm.medusa.dto.MedusaProductWrapper
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import org.slf4j.LoggerFactory
@@ -34,7 +35,7 @@ class MedusaClient(
     @Value("\${app.medusa.sales-channel-id:}") private val salesChannelId: String,
     @Value("\${app.medusa.region-id:}") private val regionId: String,
     @Value("\${app.medusa.connect-timeout-ms:2000}") private val connectTimeoutMs: Int,
-    @Value("\${app.medusa.read-timeout-ms:6000}") private val readTimeoutMs: Int,
+    @Value("\${app.medusa.read-timeout-ms:15000}") private val readTimeoutMs: Int,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -95,19 +96,17 @@ class MedusaClient(
         }
     }
 
-    /** Один товар по medusa-id (через list-by-id — переиспользуем парсер и набор полей). */
+    /** Один товар по medusa-id через быстрый detail endpoint, без тяжёлого list-by-id. */
     fun getProduct(id: String): MedusaProduct? {
         if (!active || id.isBlank()) return null
         return try {
             rest.get().uri { uri ->
-                uri.path("/store/products")
+                uri.path("/store/products/{id}")
                     .queryParam("sales_channel_id", salesChannelId)
                     .queryParam("fields", DETAIL_FIELDS)
-                    .queryParam("limit", 1)
-                    .queryParam("id[]", id)
                 if (regionId.isNotBlank()) uri.queryParam("region_id", regionId)
-                uri.build()
-            }.retrieve().body(MedusaProductListResponse::class.java)?.products?.firstOrNull()
+                uri.build(id)
+            }.retrieve().body(MedusaProductWrapper::class.java)?.product
         } catch (e: Exception) {
             log.warn("Medusa getProduct({}) failed: {}", id, e.message)
             throw upstream(e)
@@ -153,12 +152,18 @@ class MedusaClient(
         AppException(ErrorCode.UPSTREAM_UNAVAILABLE, "Каталог временно недоступен", HttpStatus.BAD_GATEWAY, e)
 
     companion object {
-        // Лёгкий набор полей для листинга (без description/tags — экономим трафик).
+        // Лёгкий набор полей для листинга. Нельзя добавлять здесь одновременно
+        // `*variants` и вложенные variants-поля: на текущей Medusa это превращает
+        // запрос 50 товаров в десятки секунд. Проекция проверена live smoke-test'ом.
         private const val LIST_FIELDS =
-            "id,title,subtitle,handle,thumbnail,status,*images,*categories,*variants.calculated_price,*variants,metadata"
+            "id,title,thumbnail,variants.id,variants.sku,variants.barcode," +
+                "*variants.calculated_price,*categories,images.url,images.metadata.gallery," +
+                "metadata.brand_name,metadata.brand_raw,metadata.corporation,metadata.manufacturer," +
+                "metadata.mnn,metadata.rx_otc,metadata.category,metadata.barcode"
 
-        // Полный набор для карточки товара.
+        // Полный набор запрашивается только быстрым /store/products/{id}.
         private const val DETAIL_FIELDS =
-            "id,title,subtitle,description,handle,thumbnail,status,*images,*categories,*tags,*variants.calculated_price,*variants,metadata"
+            "id,title,handle,thumbnail,subtitle,description,variants.id,variants.title," +
+                "variants.sku,variants.barcode,*variants.calculated_price,*categories,*images,+metadata"
     }
 }

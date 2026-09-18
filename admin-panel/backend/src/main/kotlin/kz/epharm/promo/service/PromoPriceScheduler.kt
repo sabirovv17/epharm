@@ -10,9 +10,9 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 /**
- * Ежедневное обновление цен из Medusa (T1).
+ * Регулярное обновление цен из Medusa (T1).
  *
- * Требование: «цены на все товары обновлять раз в день из Medusa, чтобы в блоке
+ * Требование: «цены на все товары обновлять из Medusa, чтобы в блоке
  * рекомендаций всегда была актуальная инфа». Обновляем два источника:
  *  - promos.tiers[0].price — цена в мобильной ленте акций (бонус не трогаем);
  *  - products.price — цена в POSM-карточке рекомендации (замена/кросс-селл).
@@ -21,8 +21,7 @@ import org.springframework.transaction.annotation.Transactional
  * или у товара нет цены — оставляем прошлое значение (не обнуляем). Один инстанс бэка
  * в проде → без распределённой блокировки.
  *
- * Cron: `app.promo.price-refresh-cron` (по умолчанию 06:00 Asia/Almaty — перед
- * открытием аптек, чтобы к началу рабочего дня цены и блок рекомендаций были свежими).
+ * Cron: `app.promo.price-refresh-cron` (по умолчанию каждый час в :05 Asia/Almaty).
  */
 @Service
 class PromoPriceScheduler(
@@ -33,12 +32,12 @@ class PromoPriceScheduler(
     private val log = LoggerFactory.getLogger(javaClass)
 
     // Таймзона зафиксирована Asia/Almaty: иначе @Scheduled берёт TZ JVM/контейнера
-    // (в проде UTC) и рефреш «уезжает» на 5 ч. По умолчанию 06:00 — перед открытием аптек.
-    @Scheduled(cron = "\${app.promo.price-refresh-cron:0 0 6 * * *}", zone = "Asia/Almaty")
+    // (в проде UTC) и рефреш «уезжает» на 5 ч. По умолчанию — каждый час в :05.
+    @Scheduled(cron = "\${app.promo.price-refresh-cron:0 5 * * * *}", zone = "Asia/Almaty")
     fun scheduledRefresh() {
         val summary = refreshNow()
         log.info(
-            "Ежедневный рефреш цен Medusa: промо обновлено {}/{}, товаров {}/{}",
+            "Периодический рефреш цен Medusa: промо обновлено {}/{}, товаров {}/{}",
             summary.promosUpdated, summary.promosTotal, summary.productsUpdated, summary.productsTotal,
         )
     }

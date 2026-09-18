@@ -27,10 +27,10 @@
       Personal Team и истекла 2026-08-24. Репозиторий отвязан от Personal Team, удалён небезопасный
       `--no-strict`, добавлены fail-closed export config и `tools/build-ios-release.sh`. Для выпуска
       всё ещё нужен платный Apple Developer team, владеющий App ID, и первый TestFlight smoke-test.
-- [ ] **Заменить недоступный Medusa origin.** Production всё ещё ссылается на
-      внешний каталог, но retired HTTP-origin удалён из runtime-конфигурации. До выдачи нового HTTPS
-      URL/ключа/канала/региона интеграция по умолчанию выключена и не зависает; включение валидируется
-      fail-fast. После получения реквизитов обязателен `tools/smoke-medusa.sh` и application smoke.
+- [x] **Восстановить Medusa-каталог.** Действующий legacy origin снова включён как точечно
+      разрешённый IP:port, произвольный удалённый HTTP остаётся запрещён. Листинг и detail облегчены,
+      таймаут измерен по live API, добавлены пяти минутное обновление, stale-on-error и почасовой
+      рефреш связанных акций/POSM-товаров. Переезд Medusa на HTTPS остаётся отдельным P1 hardening.
 - [x] **Закрыть frontend dependency vulnerabilities.** Зависимости админки и витрины обновлены;
       полный `npm audit --audit-level=low` сообщает 0 уязвимостей, regression-тесты и build зелёные.
 - [x] **Проверить GitHub Actions после billing lock.** После pre-job failures 2026-09-03 полный CI-run
