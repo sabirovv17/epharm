@@ -192,3 +192,12 @@ app:
     cache-ttl-seconds: ${MEDUSA_CACHE_TTL:300}
     # При временном сбое ещё час отдаём последний успешный снимок, пока пробуем обновиться.
     cache-stale-if-error-seconds: ${MEDUSA_CACHE_STALE_IF_ERROR_SECONDS:3600}
+    # Полный каталог синхронизируется постранично в PostgreSQL. HTTP list/search
+    # обслуживаются из последнего завершённого снимка и не зависят от latency Medusa.
+    snapshot-page-size: ${MEDUSA_SNAPSHOT_PAGE_SIZE:500}
+    snapshot-fetch-workers: ${MEDUSA_SNAPSHOT_FETCH_WORKERS:1}
+    snapshot-read-timeout-ms: ${MEDUSA_SNAPSHOT_READ_TIMEOUT_MS:60000}
+    snapshot-refresh-seconds: ${MEDUSA_SNAPSHOT_REFRESH_SECONDS:3600}
+    snapshot-retry-seconds: ${MEDUSA_SNAPSHOT_RETRY_SECONDS:300}
+    snapshot-initial-delay-ms: ${MEDUSA_SNAPSHOT_INITIAL_DELAY_MS:5000}
+    snapshot-poll-ms: ${MEDUSA_SNAPSHOT_POLL_MS:60000}

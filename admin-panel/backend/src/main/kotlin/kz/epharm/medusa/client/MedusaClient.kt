@@ -10,9 +10,12 @@ import kz.epharm.shared.error.ErrorCode
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
+import org.springframework.http.client.JdkClientHttpRequestFactory
 import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
+import java.net.http.HttpClient
+import java.time.Duration
 
 /**
  * Тонкий HTTP-клиент к Medusa Store API (витрина inkar.kz, Module 3).
@@ -36,6 +39,7 @@ class MedusaClient(
     @Value("\${app.medusa.region-id:}") private val regionId: String,
     @Value("\${app.medusa.connect-timeout-ms:2000}") private val connectTimeoutMs: Int,
     @Value("\${app.medusa.read-timeout-ms:15000}") private val readTimeoutMs: Int,
+    @Value("\${app.medusa.snapshot-read-timeout-ms:60000}") private val snapshotReadTimeoutMs: Int,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -52,10 +56,36 @@ class MedusaClient(
     /** Disabled means an immediate empty-catalog response; enabled misconfiguration aborts startup. */
     val active: Boolean = normalizedBaseUrl != null
 
-    private val rest: RestClient by lazy {
+    init {
+        if (enabled) {
+            check(snapshotReadTimeoutMs in 1_000..120_000) {
+                "MEDUSA_SNAPSHOT_READ_TIMEOUT_MS must be between 1000 and 120000"
+            }
+        }
+    }
+
+    private fun buildRest(readTimeout: Int): RestClient {
         val factory = SimpleClientHttpRequestFactory().apply {
             setConnectTimeout(connectTimeoutMs)
-            setReadTimeout(readTimeoutMs)
+            setReadTimeout(readTimeout)
+        }
+        return RestClient.builder()
+            .baseUrl(checkNotNull(normalizedBaseUrl))
+            .requestFactory(factory)
+            .defaultHeader("x-publishable-api-key", publishableKey)
+            .build()
+    }
+
+    private val rest: RestClient by lazy { buildRest(readTimeoutMs) }
+    private val snapshotRest: RestClient by lazy {
+        // JDK HttpClient applies HttpRequest.timeout to the whole exchange. The
+        // URLConnection read timeout above is an idle-socket timeout and can be
+        // kept alive forever by a broken origin trickling a few JSON bytes.
+        val http = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofMillis(connectTimeoutMs.toLong()))
+            .build()
+        val factory = JdkClientHttpRequestFactory(http).apply {
+            setReadTimeout(Duration.ofMillis(snapshotReadTimeoutMs.toLong()))
         }
         RestClient.builder()
             .baseUrl(checkNotNull(normalizedBaseUrl))
@@ -92,6 +122,31 @@ class MedusaClient(
                 ?: MedusaProductListResponse(limit = limit, offset = offset)
         } catch (e: Exception) {
             log.warn("Medusa listProducts failed (q={}, cat={}): {}", q, categoryId, e.message)
+            throw upstream(e)
+        }
+    }
+
+    /**
+     * Lightweight page for the durable local search index. Price calculation,
+     * galleries and category joins are deliberately omitted: doing those for all
+     * ~28k products makes a single page exceed the synchronous request deadline.
+     * Found admin rows still receive the bounded per-pharmacy price fallback.
+     */
+    fun listProductsForSnapshot(limit: Int, offset: Int): MedusaProductListResponse {
+        if (!active) return MedusaProductListResponse(limit = limit, offset = offset)
+        return try {
+            snapshotRest.get().uri { uri ->
+                uri.path("/store/products")
+                    .queryParam("sales_channel_id", salesChannelId)
+                    .queryParam("fields", SNAPSHOT_FIELDS)
+                    .queryParam("limit", limit)
+                    .queryParam("offset", offset)
+                if (regionId.isNotBlank()) uri.queryParam("region_id", regionId)
+                uri.build()
+            }.retrieve().body(MedusaProductListResponse::class.java)
+                ?: MedusaProductListResponse(limit = limit, offset = offset)
+        } catch (e: Exception) {
+            log.warn("Medusa snapshot page failed (offset={}, limit={}): {}", offset, limit, e.message)
             throw upstream(e)
         }
     }
@@ -160,6 +215,12 @@ class MedusaClient(
                 "*variants.calculated_price,*categories,images.url,images.metadata.gallery," +
                 "metadata.brand_name,metadata.brand_raw,metadata.corporation,metadata.manufacturer," +
                 "metadata.mnn,metadata.rx_otc,metadata.category,metadata.barcode"
+
+        private const val SNAPSHOT_FIELDS =
+            "id,title,thumbnail,variants.sku,variants.barcode," +
+                "metadata.brand_name,metadata.brand_raw,metadata.corporation,metadata.manufacturer," +
+                "metadata.manufacturer_official,metadata.mnn,metadata.rx_otc,metadata.category," +
+                "metadata.barcode,metadata.generic_name,metadata.alternative_names"
 
         // Полный набор запрашивается только быстрым /store/products/{id}.
         private const val DETAIL_FIELDS =

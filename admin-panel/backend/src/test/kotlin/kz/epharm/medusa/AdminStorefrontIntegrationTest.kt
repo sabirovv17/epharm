@@ -5,6 +5,9 @@ import kz.epharm.auth.domain.AdminUserStatus
 import kz.epharm.auth.entity.AdminUserEntity
 import kz.epharm.auth.repository.AdminUserRepository
 import kz.epharm.auth.service.JwtService
+import kz.epharm.medusa.dto.MedusaCategory
+import kz.epharm.medusa.dto.MedusaProduct
+import kz.epharm.medusa.dto.MedusaVariant
 import kz.epharm.pharmacists.entity.PharmacistEntity
 import kz.epharm.pharmacists.entity.PharmacistStatus
 import kz.epharm.pharmacists.repository.PharmacistRepository
@@ -22,6 +25,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
+import java.util.UUID
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
@@ -59,6 +63,7 @@ class AdminStorefrontIntegrationTest {
     @Autowired private lateinit var adminUserRepository: AdminUserRepository
     @Autowired private lateinit var pharmacistRepository: PharmacistRepository
     @Autowired private lateinit var passwordEncoder: PasswordEncoder
+    @Autowired private lateinit var snapshot: MedusaCatalogSnapshotRepository
 
     private lateinit var adminToken: String
     private lateinit var pharmacistToken: String
@@ -88,6 +93,53 @@ class AdminStorefrontIntegrationTest {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.total").value(0))
             .andExpect(jsonPath("$.items.length()").value(0))
+    }
+
+    @Test
+    fun `поиск каталога и промо-пикера обслуживается из локального снимка без Medusa`() {
+        val syncId = UUID.randomUUID()
+        snapshot.beginSync()
+        snapshot.upsertPage(
+            listOf(
+                MedusaProduct(
+                    id = "prod_ibufen",
+                    title = "Ибуфен суспензия для детей",
+                    metadata = mapOf("brand_name" to "Polpharma", "mnn" to "Ибупрофен"),
+                    categories = listOf(MedusaCategory(id = "pcat_cold", name = "Простуда")),
+                    variants = listOf(MedusaVariant(id = "var_1", barcode = "5903060613907")),
+                ),
+                MedusaProduct(
+                    id = "prod_vitamin",
+                    title = "Витамин C 1000 мг",
+                    metadata = mapOf("brand_name" to "Now Foods"),
+                ),
+            ),
+            offset = 0,
+            syncId = syncId,
+        )
+        snapshot.completeSync(syncId, expectedCount = 2)
+
+        mockMvc.perform(
+            get("/api/admin/storefront/products")
+                .header("Authorization", adminToken)
+                .param("q", "ибуфен")
+                .param("limit", "50"),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.total").value(1))
+            .andExpect(jsonPath("$.items.length()").value(1))
+            .andExpect(jsonPath("$.items[0].id").value("prod_ibufen"))
+            .andExpect(jsonPath("$.items[0].brand").value("Polpharma"))
+
+        // Тот же endpoint используется в PromoProductPicker; ищутся также МНН и EAN.
+        mockMvc.perform(
+            get("/api/admin/storefront/products")
+                .header("Authorization", adminToken)
+                .param("q", "5903060613907"),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.total").value(1))
+            .andExpect(jsonPath("$.items[0].name").value("Ибуфен суспензия для детей"))
     }
 
     @Test

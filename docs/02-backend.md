@@ -156,6 +156,12 @@ Mobile/admin receive normalized DTOs from this backend, not raw Medusa responses
 
 Important behavior:
 
+- A background crawler stores a complete, versioned Medusa list snapshot in PostgreSQL. Catalogue
+  browsing and search use that local read model; the remote `q` endpoint is never on the normal
+  request path after the first successful synchronization.
+- Search covers product name, brand/manufacturer, MNN, category, SKU, barcode and alternative names.
+  A trigram index keeps partial Cyrillic/Latin searches fast. Failed or partial refreshes retain the
+  last complete generation and retry automatically.
 - `metadata` placeholders such as `-`, `_`, `none`, `n/a`, `н/д` are treated as empty.
 - Prices may be missing in Medusa; UI must degrade to "Цена в аптеке".
 - Product images may be HTTP; UI should display them through `/api/media/img`.
