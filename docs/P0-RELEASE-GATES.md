@@ -12,7 +12,10 @@ Current repository state:
   `http://78.140.246.238:9000` legacy origin; arbitrary remote HTTP remains rejected;
 - enabling Medusa with incomplete identifiers aborts backend startup;
 - connect/read deadlines default to 2/15 seconds and the listing uses a measured lightweight projection;
-- successful catalogue responses refresh every five minutes and remain available for one hour when a refresh fails;
+- a complete catalogue snapshot is persisted in PostgreSQL and refreshed hourly; incomplete/failed
+  refreshes keep the last complete generation, while first-sync failures retry every five minutes;
+- browsing and partial search (name/brand/MNN/SKU/EAN/category) run against the local trigram-indexed
+  snapshot instead of Medusa's slow remote `q` filter;
 - linked promo/POSM prices, images and barcodes refresh hourly at `:05` in `Asia/Almaty`.
 
 Current public Store API identifiers (not administrator credentials):
@@ -33,8 +36,9 @@ set +a
 ./tools/smoke-medusa.sh
 ```
 
-The smoke test must report a numeric catalogue count and a sample product id. Deploy only if it
-passes, then verify the admin product picker, mobile catalogue list, one product detail, one image
+The smoke test must report a numeric catalogue count, a sample product id and a successful exact-name
+search from the persisted snapshot. Deploy only if it passes, then verify the admin product picker,
+mobile catalogue list, one product detail, one image
 through `/api/media/img`, and one pharmacy-price response. Moving the origin behind HTTPS remains
 an operations hardening task; do not add a general-purpose insecure-HTTP bypass.
 

@@ -14,6 +14,20 @@ All notable production changes to Epharm are recorded here. The format follows
 - A k6 workload model for a 500-cash-desk fleet.
 - Automated mobile release gates, privacy manifest and deep-link declarations.
 
+## [0.1.3] - 2026-09-18
+
+### Fixed
+
+- Replaced slow, failure-prone remote Medusa search with an automatically refreshed PostgreSQL snapshot.
+- Kept catalogue browsing and promotion product search available during Medusa outages.
+- Added release smoke coverage for snapshot readiness and exact-name catalogue search.
+
+## [0.1.2] - 2026-09-18
+
+### Fixed
+
+- Restored secure per-device POSM presence and the live register count during the credential migration.
+
 ## [0.1.1] - 2026-09-18
 
 ### Fixed

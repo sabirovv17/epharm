@@ -83,7 +83,9 @@ Important current values/policies:
 - Medusa defaults in compose are publishable storefront ids, not admin/root secrets.
 - Release preparation requires `MEDUSA_ENABLED=true` and runs `tools/smoke-medusa.sh` from the
   deployment host. Post-deploy smoke also requires a non-empty `/api/mobile/catalog/products`
-  response, so a disabled/broken catalogue triggers the normal automatic application rollback.
+  response and an exact-name search from the completed PostgreSQL catalogue snapshot. On the first
+  snapshot-enabled release it waits up to `CATALOG_SNAPSHOT_WAIT_SECONDS` (default 1800); a
+  disabled/broken catalogue triggers the normal automatic application rollback.
 - Live storefront/PIM/SSH credentials are documented in their existing credential files and must not be
   copied elsewhere.
 

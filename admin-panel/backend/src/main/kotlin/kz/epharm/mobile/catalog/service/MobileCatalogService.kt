@@ -1,6 +1,7 @@
 package kz.epharm.mobile.catalog.service
 
 import kz.epharm.medusa.MedusaCatalogCache
+import kz.epharm.medusa.MedusaCatalogSnapshotRepository
 import kz.epharm.medusa.client.MedusaClient
 import kz.epharm.medusa.dto.MedusaProduct
 import kz.epharm.medusa.dto.MedusaRetailPriceSummary
@@ -44,6 +45,7 @@ class MobileCatalogService(
     private val cache: MedusaCatalogCache,
     private val promoRepository: PromoRepository,
     private val ruleRepository: RuleRepository,
+    private val snapshot: MedusaCatalogSnapshotRepository? = null,
 ) {
     private val retailPriceExecutor = Executors.newFixedThreadPool(RETAIL_PRICE_WORKERS) { runnable ->
         Thread(runnable, "medusa-retail-price").apply { isDaemon = true }
@@ -60,10 +62,33 @@ class MobileCatalogService(
         val safeOffset = offset.coerceAtLeast(0)
         val key = "list|q=${q?.trim()?.lowercase().orEmpty()}|cat=${category.orEmpty()}|l=$safeLimit|o=$safeOffset|retail=$includeRetailFallbackPrices"
         return cache.get(key) {
-            val resp = medusa.listProducts(q = q, categoryId = category, ids = null, limit = safeLimit, offset = safeOffset)
+            // Search/list is served from a complete PostgreSQL snapshot whenever one
+            // exists.  This avoids Medusa's slow remote `q` path and keeps the picker
+            // available during storefront outages.  Before the first successful crawl
+            // we retain the direct call so a fresh installation still works immediately.
+            // The lightweight snapshot intentionally does not expand category-id
+            // relations; explicit category browsing remains a direct Medusa request.
+            val local = snapshot?.takeIf { category.isNullOrBlank() && it.hasCompleteSnapshot() }
+                ?.search(q = q, categoryId = category, limit = safeLimit, offset = safeOffset)
+            val products: List<MedusaProduct>
+            val total: Int
+            if (local != null) {
+                products = local.products
+                total = local.total
+            } else {
+                val remote = medusa.listProducts(
+                    q = q,
+                    categoryId = category,
+                    ids = null,
+                    limit = safeLimit,
+                    offset = safeOffset,
+                )
+                products = remote.products
+                total = remote.count
+            }
             MobileCatalogPageDto(
-                items = cards(resp.products, includeRetailFallbackPrices),
-                total = resp.count,
+                items = cards(products, includeRetailFallbackPrices),
+                total = total,
                 limit = safeLimit,
                 offset = safeOffset,
             )
