@@ -34,7 +34,7 @@ dependencies:
   cached_network_image: ^3.4.1
   # Транзитив cached_network_image, но импортируем напрямую (общий CacheManager
   # с лимитами в image_cache_config.dart) → объявляем прямой зависимостью.
-  flutter_cache_manager: ^3.4.1
+  flutter_cache_manager: ^3.4.2
 
   # Открытие внешних ссылок (YouTube video-инструкция, WhatsApp поддержка).
   url_launcher: ^6.3.1
