@@ -382,6 +382,26 @@ class PromoRulesIntegrationTest {
     }
 
     @Test
+    fun `PUT возвращает точный путь вложенного невалидного поля`() {
+        val body = """
+            {"replacements":[{"medusaProductId":"prod_comp1","name":"Аквалор Норм",
+               "barcode":"123456789012345678901234567890123"}],
+             "crossSells":[]}
+        """.trimIndent()
+
+        mockMvc.perform(
+            put("/api/admin/promo/pr_camp/rules").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(body),
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$['fields']['replacements[0].barcode']").exists())
+
+        // Validation happens before replace semantics: existing rules are untouched.
+        assertThat(ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc("pr_camp")).isEmpty()
+    }
+
+    @Test
     fun `PUT для кампании без товара → 400`() {
         promoRepository.save(
             PromoEntity(id = "pr_noprod", title = "Без товара").also { it.status = PromoStatus.draft },
