@@ -86,6 +86,10 @@ write_metric() {
   local file_name="$2"
   shift 2
   mkdir -p "$metric_dir"
+  # Backup scripts run with umask 077, while node-exporter reads the textfile
+  # collector as an unprivileged user. Keep only the directory and published
+  # metric files world-readable; backup artifacts and credentials stay private.
+  chmod 0755 "$metric_dir"
   local tmp="$metric_dir/.${file_name}.$$"
   printf '%s\n' "$@" > "$tmp"
   chmod 644 "$tmp"
