@@ -14,6 +14,17 @@ All notable production changes to Epharm are recorded here. The format follows
 - A k6 workload model for a 500-cash-desk fleet.
 - Automated mobile release gates, privacy manifest and deep-link declarations.
 
+## [0.1.4] - 2026-09-19
+
+### Fixed
+
+- Replaced the generic promotion-rule save error with field-level, accessible validation and an
+  actionable error summary.
+- Normalized read-only Medusa product snapshots before saving so external catalog text cannot block
+  campaign rule authoring.
+- Added conditional validation for campaign goals and comparison rows while keeping barcode,
+  iPartID and an unused goal optional.
+
 ## [0.1.3] - 2026-09-18
 
 ### Fixed

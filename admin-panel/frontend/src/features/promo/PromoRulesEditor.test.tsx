@@ -4,6 +4,7 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import axios from 'axios'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ToastHost } from '@/ui'
 import type { PromoRulesViewDto } from '@/lib/api-types'
@@ -54,6 +55,7 @@ const mutate = vi.fn()
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mutate.mockReset()
   rulesHooks.usePromoRules.mockReturnValue({
     data: mkView(),
     isLoading: false,
@@ -258,6 +260,142 @@ describe('PromoRulesEditor — per-pair скрипт + «Добавить»', ()
     expect(preview.children).toHaveLength(5)
     expect(preview).toHaveClass('overflow-y-auto')
     expect(within(preview).getByText('1 100 ₸')).toBeInTheDocument()
+  })
+
+  it('не отправляет форму и показывает ошибку прямо у слишком длинного поля', async () => {
+    const user = userEvent.setup()
+    rulesHooks.usePromoRules.mockReturnValue({
+      data: mkView({
+        replacements: [
+          {
+            medusaProductId: 'prod_a',
+            name: 'Аквалор Норм',
+            script: 'Я'.repeat(2001),
+          },
+        ],
+      }),
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    renderEditor()
+    await user.click(screen.getByTestId('promo-rules-save'))
+
+    expect(mutate).not.toHaveBeenCalled()
+    expect(screen.getByTestId('pr-script-prod_a')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByText('Не больше 2000 символов')).toBeInTheDocument()
+    expect(screen.getByTestId('promo-rules-validation-summary')).toHaveTextContent(
+      'Найдено ошибок: 1',
+    )
+  })
+
+  it('показывает условно обязательное количество, если заполнена цель', async () => {
+    const user = userEvent.setup()
+    rulesHooks.usePromoRules.mockReturnValue({
+      data: mkView({ goalLabel: 'Продажи', goalTarget: null }),
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    renderEditor()
+    await user.click(screen.getByTestId('promo-rules-save'))
+
+    expect(mutate).not.toHaveBeenCalled()
+    expect(screen.getByTestId('pr-goal-target')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByText('Укажите количество для цели')).toBeInTheDocument()
+  })
+
+  it('показывает вложенную серверную ошибку у нужного поля', async () => {
+    const user = userEvent.setup()
+    const error = new axios.AxiosError(
+      'bad request',
+      undefined,
+      undefined,
+      undefined,
+      {
+        status: 400,
+        statusText: 'Bad Request',
+        headers: {},
+        config: {} as never,
+        data: {
+          code: 'VALIDATION_FAILED',
+          message: 'Проверьте корректность данных',
+          timestamp: '2026-09-19T00:00:00Z',
+          fields: { 'replacements[0].barcode': 'size must be between 0 and 32' },
+        },
+      },
+    )
+    mutate.mockImplementation((_payload, options) => options.onError(error))
+
+    renderEditor()
+    await user.click(screen.getByTestId('promo-rules-save'))
+
+    expect(await screen.findByText('Не больше 32 символов')).toBeInTheDocument()
+    expect(screen.getByTestId('pr-barcode-prod_a')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByTestId('promo-rules-validation-summary')).toBeInTheDocument()
+  })
+
+  it('раскрывает необязательную секцию, если сервер нашёл ошибку внутри неё', async () => {
+    const user = userEvent.setup()
+    const error = new axios.AxiosError(
+      'bad request',
+      undefined,
+      undefined,
+      undefined,
+      {
+        status: 400,
+        statusText: 'Bad Request',
+        headers: {},
+        config: {} as never,
+        data: {
+          code: 'VALIDATION_FAILED',
+          message: 'Проверьте корректность данных',
+          timestamp: '2026-09-19T00:00:00Z',
+          fields: { 'replacements[0].partnerLabel': 'size must be between 0 and 64' },
+        },
+      },
+    )
+    mutate.mockImplementation((_payload, options) => options.onError(error))
+
+    renderEditor()
+    await user.click(screen.getByTestId('promo-rules-save'))
+
+    expect(await screen.findByPlaceholderText('ПАРТНЁР EPHARM')).toHaveAttribute(
+      'aria-invalid',
+      'true',
+    )
+    expect(screen.getByTestId('pr-card-toggle-prod_a')).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('нормализует длинные снимки Medusa, которые нельзя исправить в форме', async () => {
+    const user = userEvent.setup()
+    rulesHooks.usePromoRules.mockReturnValue({
+      data: mkView({
+        replacements: [
+          {
+            medusaProductId: 'prod_a',
+            name: 'Н'.repeat(300),
+            brand: 'Б'.repeat(150),
+          },
+        ],
+      }),
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    renderEditor()
+    await user.click(screen.getByTestId('promo-rules-save'))
+
+    expect(mutate).toHaveBeenCalledOnce()
+    const replacement = mutate.mock.calls[0][0].config.replacements[0]
+    expect(replacement.name).toHaveLength(255)
+    expect(replacement.brand).toHaveLength(128)
   })
 })
 

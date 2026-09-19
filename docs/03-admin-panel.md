@@ -63,6 +63,13 @@ redirects to `/screens` because banners are now a tab/panel in the Screens secti
 | Storefront  | Read-only Medusa catalog as seen through backend proxy.                                                           |
 | Settings    | Language/timezone/session settings.                                                                               |
 
+Campaign rule authoring validates the editable request contract before saving. Optional barcode, iPartID and goal
+fields may remain empty. Once a goal or a comparison row is started, its conditionally required fields are marked
+inline. Backend `fields` paths are mapped back to the exact pair/input; a hidden recommendation section opens
+automatically, the first invalid control receives focus, and the form keeps an accessible error summary. Read-only
+Medusa name/brand/MNN snapshots are bounded to the backend contract during request normalization so external catalog
+metadata cannot leave the editor in an error state the user has no way to repair.
+
 ## State and Data
 
 The connected-cash-desk card is a live view, not a permanent installation registry. Its Excel button

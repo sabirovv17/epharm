@@ -1086,6 +1086,16 @@ export const ru: Dict = {
   'pr.previewBonusYou': 'вам',
   'pr.save': 'Сохранить правила',
   'pr.savedToast': 'Правила кампании сохранены',
+  'pr.validationTitle': 'Не удалось сохранить правила',
+  'pr.validationSummary': 'Исправьте отмеченные поля',
+  'pr.validationCount': 'Найдено ошибок: {count}. Первая ошибка выделена на форме.',
+  'pr.validationRequired': 'Обязательное поле',
+  'pr.validationMaxLength': 'Не больше {max} символов',
+  'pr.validationPositiveInteger': 'Укажите целое число больше нуля',
+  'pr.validationNonNegativeInteger': 'Укажите целое число не меньше нуля',
+  'pr.validationInvalidProduct': 'Некорректный идентификатор товара — удалите и добавьте товар заново',
+  'pr.validationGoalLabelRequired': 'Укажите название цели',
+  'pr.validationGoalTargetRequired': 'Укажите количество для цели',
   'pr.standaloneBanner':
     'Правила теперь в основном задаются из кампаний (раздел «Промо-кампании» → «Замены и кросс-селл»). Эта страница — для просмотра и точечных правок.',
 
@@ -2217,6 +2227,16 @@ export const kk: Dict = {
   'pr.previewBonusYou': 'сізге',
   'pr.save': 'Ережелерді сақтау',
   'pr.savedToast': 'Науқан ережелері сақталды',
+  'pr.validationTitle': 'Ережелерді сақтау мүмкін болмады',
+  'pr.validationSummary': 'Белгіленген өрістерді түзетіңіз',
+  'pr.validationCount': 'Қате саны: {count}. Бірінші қате формада белгіленді.',
+  'pr.validationRequired': 'Міндетті өріс',
+  'pr.validationMaxLength': '{max} таңбадан аспауы керек',
+  'pr.validationPositiveInteger': 'Нөлден үлкен бүтін санды көрсетіңіз',
+  'pr.validationNonNegativeInteger': 'Нөлден кем емес бүтін санды көрсетіңіз',
+  'pr.validationInvalidProduct': 'Тауар идентификаторы қате — тауарды өшіріп, қайта қосыңыз',
+  'pr.validationGoalLabelRequired': 'Мақсат атауын көрсетіңіз',
+  'pr.validationGoalTargetRequired': 'Мақсат санын көрсетіңіз',
   'pr.standaloneBanner':
     'Ережелер енді негізінен науқандардан беріледі («Промо-науқандар» → «Алмастырулар және кросс-селл»). Бұл бет — қарау мен нүктелік түзетулерге.',
 
