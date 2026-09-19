@@ -14,14 +14,19 @@ frontend="$(curl --fail --silent --show-error --max-time 15 "$base_url/release.j
 
 # The first release with the durable Medusa read model needs one complete crawl
 # before catalogue/search can be accepted. Subsequent releases reuse the persisted
-# snapshot and pass immediately. The pre-deploy Medusa smoke prevents waiting on a
-# known-dead origin.
+# snapshot and pass immediately. Older rollback targets do not expose
+# catalogSnapshot at all; their live catalogue/search checks below remain the
+# compatibility gate instead of making an explicit rollback wait for 30 minutes.
+# The pre-deploy Medusa smoke prevents waiting on a known-dead origin.
 snapshot_wait_seconds="${CATALOG_SNAPSHOT_WAIT_SECONDS:-1800}"
 snapshot_deadline=$((SECONDS + snapshot_wait_seconds))
 while ! python3 - "$health" <<'PY'
 import json
 import sys
-snapshot = json.loads(sys.argv[1]).get("catalogSnapshot", {})
+payload = json.loads(sys.argv[1])
+if "catalogSnapshot" not in payload:
+    raise SystemExit(0)
+snapshot = payload.get("catalogSnapshot", {})
 raise SystemExit(0 if snapshot.get("ready") is True and snapshot.get("products", 0) > 0 else 1)
 PY
 do
