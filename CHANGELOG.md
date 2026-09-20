@@ -13,6 +13,13 @@ All notable production changes to Epharm are recorded here. The format follows
 - Immutable release identity, deploy verification and rollback tooling.
 - A k6 workload model for a 500-cash-desk fleet.
 - Automated mobile release gates, privacy manifest and deep-link declarations.
+- Reproducible pharmacy-specific POSM package generation with exact catalog matching, per-device
+  credentials and secret-free rollout manifests.
+
+### Fixed
+
+- Added a stable provisioned POSM device identity so packages prepared before installation can use
+  heartbeat, recommendations and signed remote updates without a shared bootstrap key.
 
 ## [0.1.6] - 2026-09-20
 

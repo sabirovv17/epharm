@@ -153,15 +153,16 @@ namespace CustomerDisplay
         /// Heartbeat кассы (T4): шлёт «я жив» на backend сразу и далее каждые 30с, чтобы админка
         /// считала число подключённых касс (backend хранит last-seen в Redis). Транспорт — тот же
         /// HTTP-поллинг, что и плейлист: каждый удар независим, устойчив к обрывам сети, fail-safe
-        /// (EpharmApiClient.HeartbeatAsync проглатывает ошибки). deviceId = Environment.MachineName
-        /// (стабилен на машине), pharmacyId — из конфига. Вызывается на старте рядом с поллингом
+        /// (EpharmApiClient.HeartbeatAsync проглатывает ошибки). deviceId — стабильный id из
+        /// конфига (с fallback на Environment.MachineName), pharmacyId — из конфига. Вызывается рядом с поллингом
         /// плейлиста; работает даже при EPHARM_NO_VIDEO (касса всё равно «подключена»).
         /// </summary>
         private void StartHeartbeatPolling()
         {
             if (_epharm == null || _posmConfig == null) return;
-            var deviceId = Environment.MachineName;
-            var pharmacyId = _posmConfig.PharmacyId;
+            var config = _posmConfig;
+            var deviceId = config.ResolveDeviceId();
+            var pharmacyId = config.PharmacyId;
 
             // Первый удар сразу — касса появляется в счётчике без задержки.
             _ = SendHeartbeatOnceAsync(deviceId, pharmacyId);

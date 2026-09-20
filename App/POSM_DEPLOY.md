@@ -9,7 +9,7 @@ Build on Windows with .NET 10 SDK.
 ```powershell
 cd <repo>
 dotnet publish App\CustomerDisplay.csproj -c Release -r win-x64 --self-contained `
-  -p:Version=1.0.56 -o C:\Epharm\app
+  -p:Version=1.0.57 -o C:\Epharm\app
 ```
 
 Auto-update works with a published app folder containing `CustomerDisplay.exe`, dependencies, LibVLC,
@@ -26,6 +26,7 @@ config, and scripts. Do not deploy `dotnet run` as production.
   "BackendFallbackBaseUrls": [],
   "UpdateManifestPublicKeySpki": "<OPTIONAL_BASE64_DER_ECDSA_P256_PUBLIC_KEY_OVERRIDE>",
   "DeviceKey": "<INDIVIDUAL_DEVICE_TOKEN>",
+  "DeviceId": "<INDIVIDUAL_STABLE_DEVICE_ID>",
   "PharmacistId": "",
   "PharmacyId": "ph_smoke",
   "ScreenMode": "prod",
@@ -51,7 +52,9 @@ config, and scripts. Do not deploy `dotnet run` as production.
 }
 ```
 
-Every key can be overridden by env variables. See `App/scripts/README-distrib.md`.
+Every key can be overridden by env variables. `DeviceId` is the stable identity provisioned by HQ;
+when omitted for an older installation, POSM remains backward compatible and uses the Windows
+machine name. See `App/scripts/README-distrib.md`.
 
 `BackendBaseUrl` is the preferred public HTTPS origin. `BackendFallbackBaseUrls` is an ordered list
 of HTTPS alternatives: the client switches after a gateway/network failure and retries the primary
@@ -142,8 +145,8 @@ Release flow:
 4. Sign the exact manifest with the offline ECDSA P-256 private key:
 
    ```bash
-   tools/sign-posm-release.sh private-key.pem win-x64 1.0.56 \
-     https://epharm.inkar.kz/downloads/epharm-posm-1.0.56-compat.zip release.zip false
+   tools/sign-posm-release.sh private-key.pem win-x64 1.0.57 \
+     https://epharm.inkar.kz/downloads/epharm-posm-1.0.57-win-x64.zip release.zip false
    ```
 
 5. Register `platform`, `version`, `url`, `sha256`, `mandatory` and `manifestSignature` via
@@ -161,6 +164,11 @@ DPAPI-protected fulfillment store and uses that token in memory for recommendati
 heartbeat, playlists and subsequent update checks. The pharmacy-specific `posm.json` is not changed.
 The backend accepts the retired key only on the public, signed `app/version` route so these clients
 can receive the migration build; all operational POSM routes continue to reject it.
+
+POSM v1.0.57 supports an HQ-provisioned stable `DeviceId` in each pharmacy package. This lets HQ
+issue the individual credential before the Windows hostname is known while keeping heartbeat,
+recommendations, fulfillment and signed update checks bound to the same revocable device identity.
+Existing installations without `DeviceId` remain compatible and continue using the Windows hostname.
 
 ## Internet Order Fulfillment
 

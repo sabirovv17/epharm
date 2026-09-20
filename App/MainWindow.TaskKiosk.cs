@@ -24,12 +24,13 @@ public partial class MainWindow
 
     private void StartTaskKiosk()
     {
-        var pharmacyId = _posmConfig?.PharmacyId;
-        if (_epharm == null || string.IsNullOrWhiteSpace(pharmacyId)) return;
+        var config = _posmConfig;
+        var pharmacyId = config?.PharmacyId;
+        if (_epharm == null || config == null || string.IsNullOrWhiteSpace(pharmacyId)) return;
 
         try
         {
-            _taskKiosk = new TaskKioskClient(_epharm, pharmacyId, Environment.MachineName);
+            _taskKiosk = new TaskKioskClient(_epharm, pharmacyId, config.ResolveDeviceId());
             _taskKioskTray = new System.Windows.Forms.NotifyIcon
             {
                 Icon = System.Drawing.SystemIcons.Information,

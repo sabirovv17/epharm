@@ -113,6 +113,7 @@ dotnet run
 | `BackendBaseUrl`                       | `EPHARM_BACKEND_URL`                       | Backend host.                                                                                 |
 | `BackendFallbackBaseUrls`              | `EPHARM_BACKEND_FALLBACK_URLS`             | Ordered temporary fallback origins; env values are separated by `;` or `,`.                   |
 | `DeviceKey`                            | `EPHARM_POSM_KEY`                          | `X-Posm-Key`.                                                                                 |
+| `DeviceId`                             | `EPHARM_DEVICE_ID`                         | Stable HQ-provisioned device identity; Windows hostname is the backward-compatible fallback.  |
 | `PharmacyId`                           | `EPHARM_PHARMACY_ID`                       | Pharmacy/screen id.                                                                           |
 | `PharmacistId`                         | `EPHARM_PHARMACIST_ID`                     | Pilot pharmacist id.                                                                          |
 | `ScreenMode`                           | `EPHARM_SCREEN_MODE`                       | `dev` or `prod`.                                                                              |

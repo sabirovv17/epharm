@@ -185,7 +185,7 @@ namespace CustomerDisplay
         private async Task<FulfillmentDeviceCredential?> EnsureFulfillmentCredentialAsync(CancellationToken ct)
         {
             if (_fulfillmentClient == null || _fulfillmentCredentialStore == null || _posmConfig == null) return null;
-            var deviceId = Environment.MachineName.Trim();
+            var deviceId = _posmConfig.ResolveDeviceId();
             var pharmacyId = _posmConfig.PharmacyId.Trim();
             _fulfillmentCredential ??= _fulfillmentCredentialStore.Load(deviceId, pharmacyId);
             if (_fulfillmentCredential != null) return _fulfillmentCredential;
