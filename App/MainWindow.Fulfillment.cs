@@ -30,6 +30,7 @@ namespace CustomerDisplay
         private bool _fulfillmentOnline;
         private string? _lastFulfillmentError;
         private DateTimeOffset _lastFulfillmentErrorAt;
+        private int _credentialMigrationRestartScheduled;
 
         private void StartFulfillment()
         {
@@ -224,7 +225,40 @@ namespace CustomerDisplay
             _fulfillmentCredentialStore.Save(_fulfillmentCredential);
             _fulfillmentRegistrationRetry.Reset();
             Log($"Устройство интернет-заказов зарегистрировано: device={deviceId}, pharmacy={pharmacyId}");
+            ScheduleRestartAfterCredentialMigration();
             return _fulfillmentCredential;
+        }
+
+        /// <summary>
+        /// Регистрация выполняется уже после создания recommendation/sales/heartbeat клиентов.
+        /// Однократный restart сразу поднимает весь POSM с новым DPAPI-ключом; без него текущий
+        /// процесс продолжал бы отправлять рекомендации со старым fleet key до ручного перезапуска.
+        /// На следующем старте credential resolver найдёт сохранённый ключ, поэтому цикла нет.
+        /// </summary>
+        private void ScheduleRestartAfterCredentialMigration()
+        {
+            if (Interlocked.Exchange(ref _credentialMigrationRestartScheduled, 1) != 0) return;
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                try
+                {
+                    var executable = Environment.ProcessPath;
+                    if (string.IsNullOrWhiteSpace(executable))
+                        throw new InvalidOperationException("Не удалось определить путь POSM executable.");
+                    Log("Индивидуальный ключ сохранён. Выполняется однократный перезапуск POSM.");
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(executable)
+                    {
+                        UseShellExecute = true,
+                        WorkingDirectory = AppContext.BaseDirectory,
+                    });
+                    Application.Current.Shutdown();
+                }
+                catch (Exception ex)
+                {
+                    Interlocked.Exchange(ref _credentialMigrationRestartScheduled, 0);
+                    Log($"Не удалось автоматически перезапустить POSM после регистрации: {ex.GetBaseException().Message}");
+                }
+            }));
         }
 
         private void HandleFulfillmentFailure<T>(FulfillmentApiResult<T> result)

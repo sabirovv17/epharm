@@ -7,6 +7,10 @@ import kz.epharm.auth.dto.LoginRequest
 import kz.epharm.auth.dto.LoginResponse
 import kz.epharm.auth.entity.AdminUserEntity
 import kz.epharm.auth.repository.AdminUserRepository
+import kz.epharm.pharmacies.entity.ChainEntity
+import kz.epharm.pharmacies.entity.PharmacyEntity
+import kz.epharm.pharmacies.repository.ChainRepository
+import kz.epharm.pharmacies.repository.PharmacyRepository
 import kz.epharm.promo.dto.CreatePromoRequest
 import kz.epharm.promo.dto.UpdatePromoRequest
 import kz.epharm.promo.entity.PromoEntity
@@ -64,6 +68,8 @@ class PromoIntegrationTest {
     @Autowired private lateinit var promoRepository: PromoRepository
     @Autowired private lateinit var adminUserRepository: AdminUserRepository
     @Autowired private lateinit var passwordEncoder: PasswordEncoder
+    @Autowired private lateinit var chainRepository: ChainRepository
+    @Autowired private lateinit var pharmacyRepository: PharmacyRepository
 
     private lateinit var bearer: String
 
@@ -71,6 +77,17 @@ class PromoIntegrationTest {
     fun seed() {
         promoRepository.deleteAll()
         adminUserRepository.deleteAll()
+        chainRepository.save(ChainEntity(id = "ch_promo_coverage", name = "Сеть", color = "#000"))
+        pharmacyRepository.save(
+            PharmacyEntity(
+                id = "ph_promo_coverage",
+                name = "Аптека",
+                chainId = "ch_promo_coverage",
+                chainName = "Сеть",
+                city = "Алматы",
+                addr = "Жумабаева 30/1",
+            ),
+        )
 
         promoRepository.save(
             PromoEntity(
@@ -106,6 +123,10 @@ class PromoIntegrationTest {
         mockMvc.perform(get("/api/admin/promo").header("Authorization", bearer))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.length()").value(2))
+            // Кампании глобальны: legacy-значение promos.pharmacies=100 не является
+            // targeting. API отдаёт фактическое число активных аптек в справочнике.
+            .andExpect(jsonPath("$[0].pharmacies").value(1))
+            .andExpect(jsonPath("$[1].pharmacies").value(1))
     }
 
     @Test
@@ -123,6 +144,7 @@ class PromoIntegrationTest {
             .andExpect(jsonPath("$.title").value("Майская кампания"))
             .andExpect(jsonPath("$.budget").value(1_000_000))
             .andExpect(jsonPath("$.kpi").value("1000 рек."))
+            .andExpect(jsonPath("$.pharmacies").value(1))
     }
 
     @Test

@@ -1,6 +1,7 @@
 package kz.epharm.promo.service
 
 import kz.epharm.medusa.service.MedusaPriceService
+import kz.epharm.pharmacies.repository.PharmacyRepository
 import kz.epharm.promo.dto.CreatePromoRequest
 import kz.epharm.promo.dto.PromoDto
 import kz.epharm.promo.dto.UpdatePromoRequest
@@ -31,6 +32,7 @@ class PromoService(
     private val promoRepository: PromoRepository,
     private val medusaPriceService: MedusaPriceService,
     private val ruleRepository: RuleRepository,
+    private val pharmacyRepository: PharmacyRepository,
 ) {
 
     @Transactional(readOnly = true)
@@ -40,11 +42,12 @@ class PromoService(
         } else {
             promoRepository.findAllByOrderByUpdatedAtDesc()
         }
-        return rows.map(PromoDto::of)
+        val coverage = activePharmacyCount()
+        return rows.map { PromoDto.of(it, coverage) }
     }
 
     @Transactional(readOnly = true)
-    fun get(id: String): PromoDto = PromoDto.of(loadOrThrow(id))
+    fun get(id: String): PromoDto = dto(loadOrThrow(id))
 
     @Transactional
     fun create(req: CreatePromoRequest, createdBy: String): PromoDto {
@@ -78,7 +81,7 @@ class PromoService(
         validatePromo(entity)
         val saved = promoRepository.save(entity)
         if (req.status != null) syncGeneratedRuleStatuses(saved)
-        return PromoDto.of(saved)
+        return dto(saved)
     }
 
     @Transactional
@@ -132,17 +135,17 @@ class PromoService(
         validatePromo(entity)
         val saved = promoRepository.save(entity)
         if (req.status != null) syncGeneratedRuleStatuses(saved)
-        return PromoDto.of(saved)
+        return dto(saved)
     }
 
     @Transactional
     fun archive(id: String): PromoDto {
         val entity = loadOrThrow(id)
-        if (entity.status == PromoStatus.archived) return PromoDto.of(entity)
+        if (entity.status == PromoStatus.archived) return dto(entity)
         entity.status = PromoStatus.archived
         val saved = promoRepository.save(entity)
         syncGeneratedRuleStatuses(saved)
-        return PromoDto.of(saved)
+        return dto(saved)
     }
 
     /**
@@ -152,14 +155,25 @@ class PromoService(
     @Transactional
     fun restore(id: String): PromoDto {
         val entity = loadOrThrow(id)
-        if (entity.status != PromoStatus.archived) return PromoDto.of(entity)
+        if (entity.status != PromoStatus.archived) return dto(entity)
         entity.status = PromoStatus.draft
         val saved = promoRepository.save(entity)
         syncGeneratedRuleStatuses(saved)
-        return PromoDto.of(saved)
+        return dto(saved)
     }
 
     // ── Internals ─────────────────────────────────────────────────────────
+
+    /**
+     * Все активные кампании глобальны: Rules Engine применяет их на любой
+     * авторизованной POSM-кассе. Поэтому API возвращает реальный размер целевой
+     * сети, а не никогда не обновлявшееся денормализованное `promos.pharmacies`.
+     */
+    private fun dto(entity: PromoEntity): PromoDto = PromoDto.of(entity, activePharmacyCount())
+
+    private fun activePharmacyCount(): Int = pharmacyRepository.countByActiveTrue()
+        .coerceAtMost(Int.MAX_VALUE.toLong())
+        .toInt()
 
     /**
      * Синхронизирует единственный ценовой порог кампании:

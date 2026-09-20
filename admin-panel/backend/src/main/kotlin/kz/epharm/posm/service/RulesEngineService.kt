@@ -72,11 +72,6 @@ class RulesEngineService(
 
     @Transactional(readOnly = true)
     fun match(cart: List<CartItemDto>): RuleMatchResult {
-        // Резолвим позиции корзины в productId (штрих-код → iPartID → имя), собираем уникальные товары.
-        val cartProducts: Map<String, ProductEntity> = resolveCart(cart)
-        val cartSkus: Set<String> = cartProducts.keys
-        if (cartSkus.isEmpty()) return RuleMatchResult(emptyList(), emptyList())
-
         val activeRules = ruleRepository.findAllByStatusRawOrderByUpdatedAtDesc(RuleStatus.active.name)
         // Кампания — мастер-выключатель: правило из неактивной кампании НЕ показываем,
         // даже если оно осталось active в БД (смена статуса кампании не пересохраняет правила).
@@ -89,12 +84,22 @@ class RulesEngineService(
                 .map { it.id }
                 .toSet()
         val active = activeRules.filter { it.promoId == null || it.promoId in activePromoIds }
+        if (active.isEmpty()) return RuleMatchResult(emptyList(), emptyList())
+
+        // Для online-рекомендаций не загружаем и не нормализуем весь каталог Medusa (28k+ строк)
+        // на каждый скан. Нужны только товары из действующих правил: это одновременно быстрее и
+        // безопаснее для fuzzy-fallback — нерелевантный товар каталога не может стать триггером.
+        val relevantProducts = relevantProducts(active)
+        val relevantById = relevantProducts.associateBy(ProductEntity::id)
+        val cartProducts: Map<String, ProductEntity> = resolveCart(cart, relevantProducts)
+        val cartSkus: Set<String> = cartProducts.keys
+        if (cartSkus.isEmpty()) return RuleMatchResult(emptyList(), emptyList())
 
         val raw = active.mapNotNull { rule ->
             val triggerSku = matchTrigger(rule.trigger, cartSkus, cartProducts) ?: return@mapNotNull null
             // recommend не должен уже лежать в корзине
             if (rule.recommend in cartSkus) return@mapNotNull null
-            val recProduct = productRepository.findById(rule.recommend).orElse(null) ?: return@mapNotNull null
+            val recProduct = relevantById[rule.recommend] ?: return@mapNotNull null
             RuleMatch(
                 rule = rule,
                 triggerSku = triggerSku,
@@ -150,13 +155,17 @@ class RulesEngineService(
      * такой ключ считаем неоднозначным и НЕ матчим (с warn в лог) — лучше не показать рекомендацию,
      * чем показать рекомендацию чужого товара. Уникальность гарантируется только данными PIM.
      */
-    private fun resolveCart(cart: List<CartItemDto>): Map<String, ProductEntity> {
-        val byBarcode = barcodeIndex(cart)
-        val byIpart = ipartIndex(cart)
-        val byName = nameIndex(cart, byBarcode, byIpart)
+    private fun resolveCart(
+        cart: List<CartItemDto>,
+        candidates: List<ProductEntity>? = null,
+    ): Map<String, ProductEntity> {
+        val byBarcode = barcodeIndex(cart, candidates)
+        val byIpart = ipartIndex(cart, candidates)
+        val byName = nameIndex(cart, byBarcode, byIpart, candidates)
         val resolved = LinkedHashMap<String, ProductEntity>()
         cart.forEach { item ->
-            resolveOne(item, byIpart, byBarcode, byName)?.let { resolved.putIfAbsent(it.id, it) }
+            resolveOne(item, byIpart, byBarcode, byName, candidates)
+                ?.let { resolved.putIfAbsent(it.id, it) }
         }
         return resolved
     }
@@ -175,10 +184,15 @@ class RulesEngineService(
     }
 
     /** Индекс iPartID Стандарт-Н → товар: только однозначные ключи (коллизия → warn + пропуск). */
-    private fun ipartIndex(cart: List<CartItemDto>): Map<String, ProductEntity> {
+    private fun ipartIndex(
+        cart: List<CartItemDto>,
+        candidates: List<ProductEntity>? = null,
+    ): Map<String, ProductEntity> {
         val ipartIds = cart.mapNotNull { it.sku?.trim()?.takeIf { id -> id.isNotEmpty() } }.distinct()
         if (ipartIds.isEmpty()) return emptyMap()
-        return productRepository.findAllByIpartIdIn(ipartIds)
+        val products = candidates?.filter { it.ipartId?.trim() in ipartIds }
+            ?: productRepository.findAllByIpartIdIn(ipartIds)
+        return products
             .filter { !it.ipartId.isNullOrBlank() }
             .groupBy { it.ipartId!!.trim() }
             .mapNotNull { (id, products) -> uniqueOrWarn(id, products, "iPartID")?.let { id to it } }
@@ -186,10 +200,15 @@ class RulesEngineService(
     }
 
     /** Индекс штрих-код → товар: только однозначные ключи (коллизия → warn + пропуск). */
-    private fun barcodeIndex(cart: List<CartItemDto>): Map<String, ProductEntity> {
+    private fun barcodeIndex(
+        cart: List<CartItemDto>,
+        candidates: List<ProductEntity>? = null,
+    ): Map<String, ProductEntity> {
         val barcodes = cart.mapNotNull { it.barcode?.trim()?.takeIf { b -> b.isNotEmpty() } }.distinct()
         if (barcodes.isEmpty()) return emptyMap()
-        return productRepository.findAllByBarcodeIn(barcodes)
+        val products = candidates?.filter { it.barcode?.trim() in barcodes }
+            ?: productRepository.findAllByBarcodeIn(barcodes)
+        return products
             .filter { !it.barcode.isNullOrBlank() }
             .groupBy { it.barcode!!.trim() }
             .mapNotNull { (bc, products) -> uniqueOrWarn(bc, products, "штрих-код")?.let { bc to it } }
@@ -204,6 +223,7 @@ class RulesEngineService(
         cart: List<CartItemDto>,
         byBarcode: Map<String, ProductEntity>,
         byIpart: Map<String, ProductEntity>,
+        candidates: List<ProductEntity>? = null,
     ): Map<String, ProductEntity> {
         val needName = cart.any { item ->
             val ipart = item.sku?.trim()?.takeIf { it.isNotEmpty() }
@@ -213,7 +233,7 @@ class RulesEngineService(
                 !item.name.isNullOrBlank()
         }
         if (!needName) return emptyMap()
-        return productRepository.findAllByOrderByNameAsc()
+        return (candidates ?: productRepository.findAllByOrderByNameAsc())
             .filter { it.name.isNotBlank() }
             .groupBy { normalizeName(it.name) }
             .mapNotNull { (norm, products) -> uniqueOrWarn(norm, products, "имя")?.let { norm to it } }
@@ -226,12 +246,91 @@ class RulesEngineService(
         byIpart: Map<String, ProductEntity>,
         byBarcode: Map<String, ProductEntity>,
         byName: Map<String, ProductEntity>,
+        candidates: List<ProductEntity>? = null,
     ): ProductEntity? {
         val ipart = item.sku?.trim()?.takeIf { it.isNotEmpty() }
         val bc = item.barcode?.trim()?.takeIf { it.isNotEmpty() }
         return bc?.let { byBarcode[it] }
             ?: ipart?.let { byIpart[it] }
             ?: item.name?.takeIf { it.isNotBlank() }?.let { byName[normalizeName(it)] }
+            ?: item.name?.takeIf { it.isNotBlank() }
+                ?.let { fuzzyNameCandidate(it, candidates.orEmpty()) }
+    }
+
+    /**
+     * Загружает минимальный набор товаров, способных участвовать в действующих правилах.
+     * По product/product_any берём trigger ids, по mnn — все товары указанного МНН;
+     * recommend нужен и для ответа, и для проверки «уже в корзине».
+     */
+    private fun relevantProducts(rules: List<RuleEntity>): List<ProductEntity> {
+        val productIds = LinkedHashSet<String>()
+        val mnns = LinkedHashSet<String>()
+        rules.forEach { rule ->
+            productIds += rule.recommend
+            when (rule.trigger.kind) {
+                "product" -> (rule.trigger.value as? String)?.let(productIds::add)
+                "product_any" -> (rule.trigger.value as? List<*>)
+                    ?.mapNotNull { it as? String }
+                    ?.let(productIds::addAll)
+                "mnn" -> (rule.trigger.value as? String)?.let(mnns::add)
+            }
+        }
+        return buildList {
+            productIds.mapNotNullTo(this) { productRepository.findById(it).orElse(null) }
+            mnns.flatMapTo(this) { productRepository.findAllByMnnOrderByNameAsc(it) }
+        }.distinctBy(ProductEntity::id)
+    }
+
+    /**
+     * Консервативный fallback для реальных касс Стандарт-Н, где EAN часто заменён внутренним
+     * штрих-кодом, а название отличается порядком слов/сокращениями. Сравниваем только товары
+     * активных правил, требуем одинаковые числа/дозировки и критичные квалификаторы (например,
+     * детский/форте), высокий Jaccard и отрыв от второго кандидата. Неоднозначность = no match.
+     */
+    private fun fuzzyNameCandidate(raw: String, candidates: List<ProductEntity>): ProductEntity? {
+        if (candidates.isEmpty()) return null
+        val source = nameFingerprint(raw)
+        if (source.tokens.size < 3) return null
+
+        val ranked = candidates.asSequence()
+            .filter { it.name.isNotBlank() }
+            .map { it to nameFingerprint(it.name) }
+            .filter { (_, target) ->
+                source.numbers == target.numbers && source.qualifiers == target.qualifiers
+            }
+            .map { (product, target) ->
+                val intersection = source.tokens.intersect(target.tokens).size.toDouble()
+                val union = source.tokens.union(target.tokens).size.toDouble()
+                product to if (union == 0.0) 0.0 else intersection / union
+            }
+            .sortedByDescending { it.second }
+            .take(2)
+            .toList()
+        val best = ranked.firstOrNull() ?: return null
+        val secondScore = ranked.getOrNull(1)?.second
+        if (best.second < FUZZY_NAME_THRESHOLD ||
+            (secondScore != null && best.second - secondScore < FUZZY_NAME_MARGIN)
+        ) return null
+
+        log.debug("POSM resolveCart: имя '{}' безопасно сопоставлено с productId={}", raw, best.first.id)
+        return best.first
+    }
+
+    private fun nameFingerprint(raw: String): NameFingerprint {
+        val tokens = WORD_OR_NUMBER.findAll(raw.lowercase())
+            .map(MatchResult::value)
+            .map { it.replace(',', '.') }
+            .map { TOKEN_ALIASES[it] ?: it }
+            .filterNot { it in NAME_STOP_WORDS }
+            .toSet()
+        return NameFingerprint(
+            tokens = tokens,
+            numbers = NUMBER.findAll(raw.lowercase())
+                .map(MatchResult::value)
+                .map { it.replace(',', '.') }
+                .toSet(),
+            qualifiers = tokens.filterTo(linkedSetOf()) { it in SAFETY_QUALIFIERS },
+        )
     }
 
     /**
@@ -288,5 +387,31 @@ class RulesEngineService(
 
     private companion object {
         private val WHITESPACE = Regex("\\s+")
+        private val NUMBER = Regex("\\d+(?:[.,]\\d+)?")
+        private val WORD_OR_NUMBER = Regex("[\\p{L}]+|\\d+(?:[.,]\\d+)?")
+        private const val FUZZY_NAME_THRESHOLD = 0.82
+        private const val FUZZY_NAME_MARGIN = 0.08
+        private val NAME_STOP_WORDS = setOf("для", "применения", "прим", "лица")
+        private val SAFETY_QUALIFIERS = setOf(
+            "детский", "форте", "плюс", "макс", "лайт", "ночной", "дневной",
+        )
+        private val TOKEN_ALIASES = mapOf(
+            "дет" to "детский",
+            "детс" to "детский",
+            "детей" to "детский",
+            "детская" to "детский",
+            "детское" to "детский",
+            "таб" to "таблетка",
+            "табл" to "таблетка",
+            "таблетки" to "таблетка",
+            "капс" to "капсула",
+            "капсулы" to "капсула",
+        )
     }
+
+    private data class NameFingerprint(
+        val tokens: Set<String>,
+        val numbers: Set<String>,
+        val qualifiers: Set<String>,
+    )
 }

@@ -14,6 +14,7 @@ import type {
   CreatePlaylistRequest,
   PlaylistDto,
   PlaylistStatus,
+  PosmCoverageDto,
   SlideDto,
   UpdatePlaylistRequest,
 } from '@/lib/api-types'
@@ -30,6 +31,7 @@ export const screensKeys = {
     [...screensKeys.all, 'playlists', filter ?? {}] as const,
   slides: () => [...screensKeys.all, 'slides'] as const,
   connected: () => [...screensKeys.all, 'connected'] as const,
+  coverage: () => [...screensKeys.all, 'coverage'] as const,
   broadcast: () => [...screensKeys.all, 'broadcast'] as const,
   broadcastProfiles: () => [...screensKeys.all, 'broadcast-profiles'] as const,
   broadcastProfile: (id: string) => [...screensKeys.broadcastProfiles(), id] as const,
@@ -211,6 +213,15 @@ export function useConnectedScreensSummary() {
         .get<ConnectedScreensSummaryDto>('/api/admin/screens/connected/summary')
         .then((r) => r.data),
     refetchInterval: 30_000,
+  })
+}
+
+/** Deployment-охват: активные аптеки vs аптеки с индивидуальной POSM-учёткой. */
+export function usePosmCoverage() {
+  return useQuery<PosmCoverageDto>({
+    queryKey: screensKeys.coverage(),
+    queryFn: () => api.get<PosmCoverageDto>('/api/admin/screens/coverage').then((r) => r.data),
+    refetchInterval: 60_000,
   })
 }
 

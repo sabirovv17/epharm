@@ -22,6 +22,7 @@ import {
   useBroadcastProfiles,
   useConnectedScreens,
   useConnectedScreensSummary,
+  usePosmCoverage,
   useRemoveBroadcastProfileSlot,
   useSetBroadcastProfilePharmacies,
   useUploadBroadcastProfileSlot,
@@ -88,6 +89,7 @@ function ConnectedRegistersCard() {
   const [exporting, setExporting] = useState(false)
   const details = useConnectedScreens()
   const summary = useConnectedScreensSummary()
+  const coverage = usePosmCoverage()
   const total = summary.data?.total ?? details.data?.total
   const devices = details.data?.devices ?? []
   const loading = total === undefined && (summary.isLoading || details.isLoading)
@@ -142,6 +144,24 @@ function ConnectedRegistersCard() {
           </span>
         </div>
       </div>
+      {coverage.data && (
+        <div
+          className={`rounded-lg px-3 py-2 text-[12px] ${
+            coverage.data.unprovisionedPharmacies.length === 0
+              ? 'bg-emerald-50 text-emerald-800'
+              : 'bg-amber-50 text-amber-900'
+          }`}
+          data-testid="posm-coverage"
+        >
+          <span className="font-extrabold">
+            POSM настроен: {coverage.data.provisionedPharmacies} из{' '}
+            {coverage.data.activePharmacies} аптек.
+          </span>{' '}
+          {coverage.data.unprovisionedPharmacies.length === 0
+            ? 'Вся сеть готова получать кассовые рекомендации.'
+            : `${coverage.data.unprovisionedPharmacies.length} аптек требуют установки или перевыпуска ключа.`}
+        </div>
+      )}
       {devices.length > 0 && (
         <ul className="hairline flex flex-col divide-y divide-ink-100 border-t pt-1">
           {devices.map((d) => (

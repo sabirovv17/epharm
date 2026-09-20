@@ -14,6 +14,7 @@ const screenHooks = vi.hoisted(() => ({
   downloadConnectedScreensReport: vi.fn(),
   useConnectedScreens: vi.fn(),
   useConnectedScreensSummary: vi.fn(),
+  usePosmCoverage: vi.fn(),
   useBroadcastProfiles: vi.fn(),
   useBroadcastProfile: vi.fn(),
   useUploadBroadcastProfileSlot: vi.fn(),
@@ -57,6 +58,23 @@ beforeEach(() => {
   })
   screenHooks.useConnectedScreensSummary.mockReturnValue({
     data: { total: 0, observedAt: '2026-09-15T15:00:00Z' },
+    isLoading: false,
+    isError: false,
+  })
+  screenHooks.usePosmCoverage.mockReturnValue({
+    data: {
+      activePharmacies: 532,
+      provisionedPharmacies: 371,
+      onlinePharmacies: 360,
+      onlineRegisters: 378,
+      unprovisionedPharmacies: Array.from({ length: 161 }, (_, index) => ({
+        pharmacyId: `ph_gap_${index}`,
+        pharmacyName: `Аптека ${index}`,
+        city: 'Алматы',
+        address: `Адрес ${index}`,
+      })),
+      observedAt: '2026-09-20T11:40:00Z',
+    },
     isLoading: false,
     isError: false,
   })
@@ -200,6 +218,14 @@ describe('ScreensPage — онлайн-кассы', () => {
     expect(screen.getByTestId('connected-kassa-1')).toHaveTextContent('v1.0.46.0')
     // касса без аптеки → «без аптеки»
     expect(screen.getByTestId('connected-kassa-2')).toHaveTextContent('без аптеки')
+  })
+
+  it('отделяет целевой охват от фактически настроенных POSM-аптек', () => {
+    renderPage()
+
+    const coverage = screen.getByTestId('posm-coverage')
+    expect(coverage).toHaveTextContent('POSM настроен: 371 из 532 аптек')
+    expect(coverage).toHaveTextContent('161 аптек требуют установки или перевыпуска ключа')
   })
 
   it('показывает быстрый Redis-счётчик, даже если детализация не успела загрузиться', () => {

@@ -30,7 +30,10 @@ data class PromoTierDto(
  * Полный DTO промо-кампании. С T1 модель упрощена: 1 кампания = 1 товар Medusa,
  * цена read-only (из Medusa, обновляется планировщиком), бонус фармацевту задаётся в админке,
  * фото/описание можно переопределить вручную (override-поля).
- * Старые campaign-поля (brand/period/budget/spent/kpi/cover/pharmacies) — для совместимости.
+ * Старые campaign-поля (brand/period/budget/spent/kpi/cover) — для совместимости.
+ * `pharmacies` — эффективный глобальный охват: число активных аптек на момент ответа.
+ * Rules Engine не имеет поаптечного targeting, поэтому хранимый legacy-счётчик нельзя
+ * показывать как охват кампании.
  */
 data class PromoDto(
     val id: String,
@@ -69,13 +72,13 @@ data class PromoDto(
     val updatedAt: Instant,
 ) {
     companion object {
-        fun of(e: PromoEntity): PromoDto = PromoDto(
+        fun of(e: PromoEntity, effectivePharmacies: Int = e.pharmacies): PromoDto = PromoDto(
             id = e.id,
             title = e.title,
             status = e.status,
             brand = e.brand,
             period = e.period,
-            pharmacies = e.pharmacies,
+            pharmacies = effectivePharmacies,
             budget = e.budget,
             spent = e.spent,
             kpi = e.kpi,

@@ -829,6 +829,22 @@ export interface ConnectedScreensSummaryDto {
   observedAt: string
 }
 
+export interface PosmCoverageGapDto {
+  pharmacyId: string
+  pharmacyName: string
+  city: string
+  address: string
+}
+
+export interface PosmCoverageDto {
+  activePharmacies: number
+  provisionedPharmacies: number
+  onlinePharmacies: number
+  onlineRegisters: number
+  unprovisionedPharmacies: PosmCoverageGapDto[]
+  observedAt: string
+}
+
 // ─── AI-Exam (Этап 3.6) — банк вопросов (результаты/сертификаты в Этапе 4) ───
 export type ExamQuestionKind = 'factual' | 'comparative' | 'scenario'
 
