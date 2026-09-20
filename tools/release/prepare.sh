@@ -27,8 +27,21 @@ if [[ -e "$manifest" ]]; then
   exit 1
 fi
 
-write_release_env "$release_id" "$commit"
-compose_prod build --pull backend frontend
+# Build with the candidate release coordinates without changing the file that
+# records the currently active production release.  deploy.sh reads
+# .release.env before switching images so it can create the rollback pointer;
+# mutating it here makes a freshly prepared release look already deployed.
+build_release_env="$(mktemp "$RELEASE_ROOT/.release.prepare.XXXXXX")"
+cleanup_build_release_env() {
+  rm -f "$build_release_env"
+}
+trap cleanup_build_release_env EXIT
+write_release_env "$release_id" "$commit" "$build_release_env"
+docker compose \
+  --env-file "$RELEASE_ROOT/.env.prod" \
+  --env-file "$build_release_env" \
+  -f "$RELEASE_ROOT/docker-compose.prod.yml" \
+  build --pull backend frontend
 ensure_release_images "$release_id"
 
 backend_image_id="$(docker image inspect --format '{{.Id}}' "epharm/backend:$release_id")"
