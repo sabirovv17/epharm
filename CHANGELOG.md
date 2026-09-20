@@ -5,13 +5,6 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
-### Fixed
-
-- Replaced the stale `0 pharmacies` campaign counter with the current global active-pharmacy target.
-- Added an auditable POSM rollout coverage endpoint and admin warning for unprovisioned pharmacies.
-- Made recommendation matching fast and resilient to local cash-register barcodes and safe name variants.
-- Restart POSM once after device enrollment so every API immediately uses the new per-device credential.
-
 ### Added
 
 - Production-grade PostgreSQL and MinIO backup, retention, isolated restore testing and backup metrics.
@@ -20,6 +13,15 @@ All notable production changes to Epharm are recorded here. The format follows
 - Immutable release identity, deploy verification and rollback tooling.
 - A k6 workload model for a 500-cash-desk fleet.
 - Automated mobile release gates, privacy manifest and deep-link declarations.
+
+## [0.1.6] - 2026-09-20
+
+### Fixed
+
+- Replaced the stale `0 pharmacies` campaign counter with the current global active-pharmacy target.
+- Added an auditable POSM rollout coverage endpoint and admin warning for unprovisioned pharmacies.
+- Made recommendation matching fast and resilient to local cash-register barcodes and safe name variants.
+- Restart POSM once after device enrollment so every API immediately uses the new per-device credential.
 
 ## [0.1.4] - 2026-09-19
 
