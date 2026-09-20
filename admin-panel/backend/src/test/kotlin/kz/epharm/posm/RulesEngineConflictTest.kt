@@ -108,4 +108,61 @@ class RulesEngineConflictTest {
         assertEquals("Y", res.matches[0].recommend.id)
         assertTrue(res.conflicts.isEmpty())
     }
+
+    @Test
+    fun `кассовое сокращение детского товара безопасно матчится по имени`() {
+        val trigger = product("CHILD").also {
+            it.name = "Жидкий уголь Комплекс с пектином для детей саше 7г №10"
+        }
+        val recommend = product("REC")
+        stub(
+            rules = listOf(rule("r1", RuleType.substitution, triggerProduct = trigger.id, recommend = recommend.id)),
+            cartProducts = listOf(trigger),
+            recommends = listOf(recommend),
+        )
+
+        val result = engine.match(
+            listOf(CartItemDto(name = "Жидкий уголь комплекс с пектином саше детс 7г №10")),
+        )
+
+        assertEquals(listOf("REC"), result.matches.map { it.recommend.id })
+    }
+
+    @Test
+    fun `взрослый товар не матчится на детское правило по похожему имени`() {
+        val trigger = product("CHILD").also {
+            it.name = "Жидкий уголь Комплекс с пектином для детей саше 7г №10"
+        }
+        val recommend = product("REC")
+        stub(
+            rules = listOf(rule("r1", RuleType.substitution, triggerProduct = trigger.id, recommend = recommend.id)),
+            cartProducts = listOf(trigger),
+            recommends = listOf(recommend),
+        )
+
+        val result = engine.match(
+            listOf(CartItemDto(name = "Жидкий уголь комплекс с пектином саше 7г №10")),
+        )
+
+        assertTrue(result.matches.isEmpty())
+    }
+
+    @Test
+    fun `фасовка без пробела и необязательное слово формы не ломают матч`() {
+        val trigger = product("WATER").also {
+            it.name = "Ivatherm Термальная вода Геркулан спрей 100мл"
+        }
+        val recommend = product("REC")
+        stub(
+            rules = listOf(rule("r1", RuleType.crosssell, triggerProduct = trigger.id, recommend = recommend.id)),
+            cartProducts = listOf(trigger),
+            recommends = listOf(recommend),
+        )
+
+        val result = engine.match(
+            listOf(CartItemDto(name = "Ivatherm Термальная вода Геркулан 100 мл")),
+        )
+
+        assertEquals(listOf("REC"), result.matches.map { it.recommend.id })
+    }
 }

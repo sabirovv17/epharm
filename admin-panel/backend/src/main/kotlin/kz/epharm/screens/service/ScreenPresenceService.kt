@@ -4,6 +4,8 @@ import kz.epharm.pharmacies.repository.PharmacyRepository
 import kz.epharm.posm.service.DevicePresenceService
 import kz.epharm.screens.dto.ConnectedRegistersDto
 import kz.epharm.screens.dto.ConnectedRegistersSummaryDto
+import kz.epharm.screens.dto.PosmCoverageDto
+import kz.epharm.screens.dto.PosmCoverageGapDto
 import kz.epharm.screens.dto.RegisterPresenceDto
 import org.apache.poi.ss.usermodel.BorderStyle
 import org.apache.poi.ss.usermodel.FillPatternType
@@ -12,6 +14,7 @@ import org.apache.poi.ss.usermodel.IndexedColors
 import org.apache.poi.ss.usermodel.VerticalAlignment
 import org.apache.poi.ss.util.CellRangeAddress
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
 import java.io.ByteArrayOutputStream
 import java.time.Instant
@@ -23,6 +26,7 @@ import java.time.format.DateTimeFormatter
 class ScreenPresenceService(
     private val devicePresenceService: DevicePresenceService,
     private val pharmacyRepository: PharmacyRepository,
+    private val jdbc: JdbcTemplate,
 ) {
     private val almatyZone = ZoneId.of("Asia/Almaty")
     private val timestampFormat = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss")
@@ -37,6 +41,48 @@ class ScreenPresenceService(
             total = devicePresenceService.count(now),
             observedAt = now,
         )
+
+    /**
+     * Полнота rollout: все активные аптеки сравниваются с активными индивидуальными
+     * device credentials. Live-число считается отдельно: зарегистрированная, но выключенная
+     * касса не исчезает из deployment-инвентаря.
+     */
+    fun coverage(now: Instant = Instant.now()): PosmCoverageDto {
+        val active = pharmacyRepository.findAllByActiveTrueOrderByNameAsc()
+        val provisionedIds = jdbc.queryForList(
+            """
+            SELECT DISTINCT d.pharmacy_id
+            FROM fulfillment_devices d
+            JOIN pharmacies p ON p.id = d.pharmacy_id
+            WHERE d.active = true AND p.active = true
+            """.trimIndent(),
+            String::class.java,
+        ).toSet()
+        val online = devicePresenceService.connected(now)
+        val activeIds = active.mapTo(hashSetOf()) { it.id }
+        val onlineActive = online.filter { it.pharmacyId in activeIds }
+        val onlinePharmacyIds = onlineActive.mapNotNull { it.pharmacyId }.toSet()
+        val gaps = active
+            .asSequence()
+            .filterNot { it.id in provisionedIds }
+            .map {
+                PosmCoverageGapDto(
+                    pharmacyId = it.id,
+                    pharmacyName = it.name,
+                    city = it.city,
+                    address = it.addr,
+                )
+            }
+            .toList()
+        return PosmCoverageDto(
+            activePharmacies = active.size,
+            provisionedPharmacies = provisionedIds.size,
+            onlinePharmacies = onlinePharmacyIds.size,
+            onlineRegisters = onlineActive.size,
+            unprovisionedPharmacies = gaps,
+            observedAt = now,
+        )
+    }
 
     fun connected(): ConnectedRegistersDto {
         val devices = devicePresenceService.connected()

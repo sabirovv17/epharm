@@ -123,6 +123,27 @@ data class ConnectedRegistersSummaryDto(
     val observedAt: Instant,
 )
 
+/**
+ * Операционный охват POSM. Кампании целятся во все активные аптеки, но показ
+ * рекомендации технически возможен только там, где зарегистрирована POSM-касса.
+ * Этот DTO не смешивает целевой охват с live-heartbeat и даёт операциям точный gap-list.
+ */
+data class PosmCoverageDto(
+    val activePharmacies: Int,
+    val provisionedPharmacies: Int,
+    val onlinePharmacies: Int,
+    val onlineRegisters: Int,
+    val unprovisionedPharmacies: List<PosmCoverageGapDto>,
+    val observedAt: Instant,
+)
+
+data class PosmCoverageGapDto(
+    val pharmacyId: String,
+    val pharmacyName: String,
+    val city: String,
+    val address: String,
+)
+
 data class RegisterPresenceDto(
     val deviceId: String,
     val pharmacyId: String?,

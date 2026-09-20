@@ -27,6 +27,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
@@ -47,6 +48,7 @@ import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import java.io.ByteArrayInputStream
+import java.util.UUID
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -83,6 +85,7 @@ class ScreensIntegrationTest {
     @Autowired private lateinit var chainRepository: ChainRepository
     @Autowired private lateinit var devicePresenceService: DevicePresenceService
     @Autowired private lateinit var passwordEncoder: PasswordEncoder
+    @Autowired private lateinit var jdbc: JdbcTemplate
 
     private lateinit var bearer: String
 
@@ -410,7 +413,44 @@ class ScreensIntegrationTest {
         ).containsExactly("ph_target_1", "ph_target_2")
     }
 
-    // ── Подключённые кассы: резолв названия+адреса аптеки по pharmacyId ────
+    // ── Покрытие и подключённые кассы ──────────────────────────────────────
+
+    @Test
+    fun `GET coverage → отделяет целевые аптеки от provisioned и online`() {
+        chainRepository.save(ChainEntity(id = "ch_coverage", name = "Сеть coverage", color = "#000"))
+        pharmacyRepository.save(
+            PharmacyEntity(
+                id = "ph_ready", name = "Готовая аптека", chainId = "ch_coverage",
+                chainName = "Сеть coverage", city = "Алматы", addr = "Абая 1",
+            ),
+        )
+        pharmacyRepository.save(
+            PharmacyEntity(
+                id = "ph_gap", name = "Аптека без POSM", chainId = "ch_coverage",
+                chainName = "Сеть coverage", city = "Алматы", addr = "Жумабаева 30/1",
+            ),
+        )
+        pharmacyRepository.flush()
+        jdbc.update(
+            """
+            INSERT INTO fulfillment_devices
+                (id, device_id, pharmacy_id, secret_sha256, secret_hint, active)
+            VALUES (?, ?, ?, ?, ?, true)
+            """.trimIndent(),
+            UUID.randomUUID(), "kassa-ready", "ph_ready", "a".repeat(64), "test-key",
+        )
+        mockMvc.perform(get("/api/admin/screens/coverage").header("Authorization", bearer))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.activePharmacies").value(2))
+            .andExpect(jsonPath("$.provisionedPharmacies").value(1))
+            // Presence живёт вне SQL-транзакции теста и может содержать пульсы соседних тестов;
+            // здесь проверяем контракт полей, точный live-счётчик покрыт unit-тестами presence.
+            .andExpect(jsonPath("$.onlinePharmacies").isNumber)
+            .andExpect(jsonPath("$.onlineRegisters").isNumber)
+            .andExpect(jsonPath("$.unprovisionedPharmacies.length()").value(1))
+            .andExpect(jsonPath("$.unprovisionedPharmacies[0].pharmacyId").value("ph_gap"))
+            .andExpect(jsonPath("$.unprovisionedPharmacies[0].address").value("Жумабаева 30/1"))
+    }
 
     @Test
     fun `GET connected → название и адрес аптеки резолвятся из справочника`() {

@@ -9,6 +9,7 @@ import kz.epharm.screens.dto.ConnectedRegistersDto
 import kz.epharm.screens.dto.ConnectedRegistersSummaryDto
 import kz.epharm.screens.dto.CreatePlaylistRequest
 import kz.epharm.screens.dto.PlaylistDto
+import kz.epharm.screens.dto.PosmCoverageDto
 import kz.epharm.screens.dto.SlideDto
 import kz.epharm.screens.dto.SetBroadcastProfilePharmaciesRequest
 import kz.epharm.screens.dto.UpdatePlaylistRequest
@@ -47,6 +48,10 @@ class ScreenController(
     /** Лёгкий endpoint для числа онлайн-касс без резолва полного справочника аптек. */
     @GetMapping("/connected/summary")
     fun connectedSummary(): ConnectedRegistersSummaryDto = screenPresenceService.connectedSummary()
+
+    /** Целевой охват сети vs фактически зарегистрированные/online POSM-кассы. */
+    @GetMapping("/coverage")
+    fun coverage(): PosmCoverageDto = screenPresenceService.coverage()
 
     /**
      * Сколько касс сейчас онлайн (T4) — пульсы за последний TTL. Для каждой кассы резолвим
