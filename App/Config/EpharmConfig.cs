@@ -34,6 +34,12 @@ namespace CustomerDisplay.Config
         /// A non-empty per-installation value can override the embedded trust anchor.
         /// </summary>
         public string UpdateManifestPublicKeySpki { get; set; } = EmbeddedUpdateManifestPublicKeySpki;
+        /// <summary>
+        /// Stable server-side identity issued together with the per-device credential.
+        /// Pharmacy deployment packages set it before the Windows hostname is known; older
+        /// installations keep using Environment.MachineName when the value is empty.
+        /// </summary>
+        public string DeviceId { get; set; } = "";
         public string PharmacistId { get; set; } = "";
         public string PharmacyId { get; set; } = "";
         public int RecommendTimeoutMs { get; set; } = 5000;
@@ -203,6 +209,7 @@ namespace CustomerDisplay.Config
                 cfg.UpdateManifestPublicKeySpki);
             cfg.UpdateManifestPublicKeySpki = ResolveUpdateManifestPublicKeySpki(
                 cfg.UpdateManifestPublicKeySpki);
+            cfg.DeviceId = Env("EPHARM_DEVICE_ID", cfg.DeviceId ?? "").Trim();
             cfg.PharmacistId = Env("EPHARM_PHARMACIST_ID", cfg.PharmacistId);
             cfg.PharmacyId = Env("EPHARM_PHARMACY_ID", cfg.PharmacyId);
             if (Env("EPHARM_FULFILLMENT_ENABLED", cfg.FulfillmentEnabled ? "true" : "false") == "false")
@@ -314,6 +321,18 @@ namespace CustomerDisplay.Config
             string.IsNullOrWhiteSpace(configured)
                 ? EmbeddedUpdateManifestPublicKeySpki
                 : configured.Trim();
+
+        public string ResolveDeviceId(string? machineName = null)
+        {
+            var configured = DeviceId?.Trim();
+            if (!string.IsNullOrWhiteSpace(configured))
+                return configured.Length <= 128 ? configured : configured[..128];
+
+            var fallback = (machineName ?? Environment.MachineName)?.Trim();
+            if (string.IsNullOrWhiteSpace(fallback))
+                return "posm";
+            return fallback.Length <= 128 ? fallback : fallback[..128];
+        }
 
         /// <summary>HTTPS origins (plus loopback HTTP for development) without path/query/fragment.</summary>
         public IReadOnlyList<Uri> GetBackendBaseUris()

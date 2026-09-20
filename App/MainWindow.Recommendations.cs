@@ -106,7 +106,7 @@ namespace CustomerDisplay
                     // Promote the DPAPI-protected credential in memory before creating any API
                     // client, so recommendations, sales, heartbeat and updater all use the same
                     // revocable per-device identity. posm.json is intentionally left untouched.
-                    var deviceId = Environment.MachineName.Trim();
+                    var deviceId = _posmConfig.ResolveDeviceId();
                     var pharmacyId = _posmConfig.PharmacyId.Trim();
                     var storedCredential = new FulfillmentCredentialStore(_posmConfig.FulfillmentCredentialPath)
                         .Load(deviceId, pharmacyId);

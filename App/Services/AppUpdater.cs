@@ -61,7 +61,7 @@ namespace CustomerDisplay.Services
                 var local = CurrentVersion();
                 var info = await _api.GetAppVersionAsync(
                     platform: "win-x64",
-                    deviceId: Environment.MachineName,
+                    deviceId: _cfg.ResolveDeviceId(),
                     currentVersion: local.ToString(),
                     ct: ct).ConfigureAwait(false);
                 if (info == null || !info.Current || string.IsNullOrWhiteSpace(info.Url))

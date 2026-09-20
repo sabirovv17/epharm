@@ -7,6 +7,7 @@
   "fulfillmentBaseUrl": "",
   "fulfillmentFallbackBaseUrls": [],
   "deviceKey": "ВЫДАЁТСЯ-ПРИ-ОНБОРДИНГЕ-АПТЕКИ",
+  "deviceId": "POSM-ВЫДАЁТСЯ-ПРИ-ОНБОРДИНГЕ-АПТЕКИ",
   "pharmacistId": "",
   "pharmacyId": "ph_xxx",
   "recommendTimeoutMs": 5000,
