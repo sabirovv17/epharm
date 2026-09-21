@@ -515,22 +515,21 @@ namespace CustomerDisplay
             var win = new RecommendationWindow(recs, 0, target);
             _recoWindow = win;
             previous?.Close();
-            var loaded = false;
-            win.Loaded += (_, _) =>
+            var displayed = false;
+            win.Displayed += diagnostics =>
             {
-                if (loaded) return;
-                loaded = true;
+                if (displayed) return;
+                displayed = true;
                 foreach (var r in recs)
                 {
-                    // Mark shown only after WPF confirms that the window is actually loaded.
-                    // A construction/Show failure must remain retryable and must not pollute analytics.
+                    // Mark shown only after native coordinates, visibility and topmost state were
+                    // verified on the pharmacist monitor. Loaded alone can be off-screen under DPI scaling.
                     MarkRecommendationShown(r, scannedItem);
                     var kind = r.IsSubstitution ? "замена" : "кросс-селл";
                     Log($"POSM popup показан: {kind} → {r.RecommendName} " +
                         $"(EAN {r.RecommendBarcode ?? "—"}), бонус {r.Bonus} ₸");
                 }
-                Log($"POSM popup monitor={target.DeviceName}, primary={target.Primary}, " +
-                    $"bounds={target.Bounds}, window=({win.Left:0},{win.Top:0},{win.ActualWidth:0}x{win.ActualHeight:0})");
+                Log($"POSM popup verified: {diagnostics}");
             };
             win.Closed += (_, _) =>
             {

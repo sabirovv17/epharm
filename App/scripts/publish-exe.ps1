@@ -13,7 +13,7 @@
 
 param(
   [string]$ConfigPath = "C:\Epharm\posm.json",
-  [string]$Version = "1.0.57",
+  [string]$Version = "1.0.58",
   [string]$OutputDir = "",
   [switch]$KeepPackageFolder
 )
