@@ -20,6 +20,10 @@ All notable production changes to Epharm are recorded here. The format follows
 
 - Added a stable provisioned POSM device identity so packages prepared before installation can use
   heartbeat, recommendations and signed remote updates without a shared bootstrap key.
+- Kept the pharmacist recommendation card fully on-screen at 100-200% Windows scaling and above
+  Standard-N without stealing scanner or keyboard focus.
+- Changed recommendation `displayed_at` acknowledgement to require a rendered, native-topmost window
+  whose physical bounds are verified inside the pharmacist monitor.
 
 ## [0.1.6] - 2026-09-20
 
