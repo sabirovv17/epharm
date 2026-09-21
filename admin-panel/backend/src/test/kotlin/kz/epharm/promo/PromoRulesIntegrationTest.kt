@@ -8,12 +8,14 @@ import kz.epharm.auth.dto.LoginRequest
 import kz.epharm.auth.dto.LoginResponse
 import kz.epharm.auth.entity.AdminUserEntity
 import kz.epharm.auth.repository.AdminUserRepository
+import kz.epharm.catalog.entity.ProductEntity
 import kz.epharm.catalog.repository.ProductRepository
 import kz.epharm.promo.entity.PromoEntity
 import kz.epharm.promo.entity.PromoStatus
 import kz.epharm.promo.entity.PromoTier
 import kz.epharm.promo.repository.PromoRepository
 import kz.epharm.rules.entity.RuleStatus
+import kz.epharm.rules.entity.RuleTrigger
 import kz.epharm.rules.entity.RuleType
 import kz.epharm.rules.repository.RuleRepository
 import org.assertj.core.api.Assertions.assertThat
@@ -168,6 +170,55 @@ class PromoRulesIntegrationTest {
             .andExpect(jsonPath("$.config.replacements[0].script").value("Скрипт"))
             .andExpect(jsonPath("$.config.script").value(""))
             .andExpect(jsonPath("$.ruleCount").value(1))
+    }
+
+    @Test
+    fun `product_any round-trips through campaign editor without losing trigger products`() {
+        val initial = """
+            {"replacements":[{"medusaProductId":"prod_comp1","name":"Жидкий уголь детский"}],
+             "crossSells":[],"script":"Предложите замену"}
+        """.trimIndent()
+        mockMvc.perform(
+            put("/api/admin/promo/pr_camp/rules").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(initial),
+        ).andExpect(status().isOk)
+
+        productRepository.save(
+            ProductEntity(id = "prod_comp2").also {
+                it.name = "Жидкий уголь взрослый"
+                it.barcode = "4601164003157"
+            },
+        )
+        val stored = ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc("pr_camp").single()
+        stored.trigger = RuleTrigger(kind = "product_any", value = listOf("prod_comp1", "prod_comp2"))
+        ruleRepository.saveAndFlush(stored)
+        entityManager.clear()
+
+        val response = mockMvc.perform(
+            get("/api/admin/promo/pr_camp/rules").header("Authorization", bearer),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.ruleCount").value(1))
+            .andExpect(jsonPath("$.config.replacements.length()").value(2))
+            .andExpect(
+                jsonPath("$.config.replacements[*].medusaProductId")
+                    .value(org.hamcrest.Matchers.containsInAnyOrder("prod_comp1", "prod_comp2")),
+            )
+            .andReturn().response.contentAsString
+
+        val config = objectMapper.readTree(response).get("config").toString()
+        mockMvc.perform(
+            put("/api/admin/promo/pr_camp/rules").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(config),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.config.replacements.length()").value(2))
+
+        val rewritten = ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc("pr_camp")
+        assertThat(rewritten).hasSize(2)
+        assertThat(rewritten.map { it.trigger.kind }).containsOnly("product")
+        assertThat(rewritten.map { it.trigger.value })
+            .containsExactlyInAnyOrder("prod_comp1", "prod_comp2")
     }
 
     @Test

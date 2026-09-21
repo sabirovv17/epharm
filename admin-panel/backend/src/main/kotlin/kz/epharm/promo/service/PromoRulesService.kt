@@ -249,12 +249,20 @@ class PromoRulesService(
     ): List<PromoRuleProductRefDto> {
         data class Normalized(val triggerId: String, val recommendId: String, val rule: RuleEntity)
 
-        val normalized = rules.mapNotNull { rule ->
-            val rawTrigger = rule.trigger.value as? String ?: return@mapNotNull null
-            if (legacyCrossSell && promotedId != null && rawTrigger == promotedId) {
-                Normalized(triggerId = rule.recommend, recommendId = promotedId, rule = rule)
-            } else {
-                Normalized(triggerId = rawTrigger, recommendId = rule.recommend, rule = rule)
+        val normalized = rules.flatMap { rule ->
+            val triggerIds = when (rule.trigger.kind) {
+                "product" -> listOfNotNull(rule.trigger.value as? String)
+                "product_any" -> (rule.trigger.value as? List<*>)
+                    ?.mapNotNull { it as? String }
+                    .orEmpty()
+                else -> emptyList()
+            }
+            triggerIds.distinct().map { rawTrigger ->
+                if (legacyCrossSell && promotedId != null && rawTrigger == promotedId) {
+                    Normalized(triggerId = rule.recommend, recommendId = promotedId, rule = rule)
+                } else {
+                    Normalized(triggerId = rawTrigger, recommendId = rule.recommend, rule = rule)
+                }
             }
         }
 
