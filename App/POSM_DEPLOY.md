@@ -139,9 +139,12 @@ GET /api/posm/app/version?platform=win-x64
 
 Release flow:
 
-1. Publish new version with bumped `-p:Version=...`.
-2. Zip the published folder without `posm.json`; pharmacy configuration must remain local.
-3. Upload zip to a public HTTPS URL reachable by cash desks. It must contain no secret or `posm.json`.
+1. Bump the POSM project version and merge only after the Windows production build is green.
+2. Download the `epharm-posm-<full-commit>` artifact from the exact `main` CI run. Verify that
+   `provenance.json` names that commit, that the adjacent SHA-256 matches the ZIP, and that the ZIP
+   contains exactly the five approved bridge files. Do not rebuild it from another checkout.
+3. Upload that unchanged ZIP to a public HTTPS URL reachable by cash desks. It must contain no secret
+   or `posm.json`; pharmacy configuration remains local.
 4. Sign the exact manifest with the offline ECDSA P-256 private key:
 
    ```bash

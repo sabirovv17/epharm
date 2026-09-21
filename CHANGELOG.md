@@ -17,6 +17,8 @@ All notable production changes to Epharm are recorded here. The format follows
   being acknowledged as displayed.
 - Excluded active promotion rules before their start date and after their end date using the
   Kazakhstan pharmacy calendar.
+- Produced each POSM update bridge on Windows CI with its exact source commit and SHA-256 provenance,
+  preventing a stale binary from being published under a newer version label.
 
 ## [0.1.7] - 2026-09-21
 
