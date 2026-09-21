@@ -12,6 +12,8 @@ import kz.epharm.rules.repository.RuleRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * Результат матчинга правила к корзине: само правило + что в корзине его триггернуло
@@ -75,12 +77,19 @@ class RulesEngineService(
         val activeRules = ruleRepository.findAllByStatusRawOrderByUpdatedAtDesc(RuleStatus.active.name)
         // Кампания — мастер-выключатель: правило из неактивной кампании НЕ показываем,
         // даже если оно осталось active в БД (смена статуса кампании не пересохраняет правила).
+        // Границы дат включительны и считаются в часовом поясе аптек Казахстана: активный статус
+        // не должен оживлять ещё не начавшуюся или уже завершившуюся кампанию.
         // Правила без promoId (legacy ручные) проходят как есть.
         val promoIds = activeRules.mapNotNull { it.promoId }.toSet()
+        val today = LocalDate.now(CAMPAIGN_ZONE)
         val activePromoIds =
             if (promoIds.isEmpty()) emptySet()
             else promoRepository.findAllById(promoIds)
-                .filter { it.status == PromoStatus.active }
+                .filter {
+                    it.status == PromoStatus.active &&
+                        (it.dateStart == null || !today.isBefore(it.dateStart)) &&
+                        (it.dateEnd == null || !today.isAfter(it.dateEnd))
+                }
                 .map { it.id }
                 .toSet()
         val active = activeRules.filter { it.promoId == null || it.promoId in activePromoIds }
@@ -386,6 +395,7 @@ class RulesEngineService(
     }
 
     private companion object {
+        private val CAMPAIGN_ZONE: ZoneId = ZoneId.of("Asia/Almaty")
         private val WHITESPACE = Regex("\\s+")
         private val NUMBER = Regex("\\d+(?:[.,]\\d+)?")
         private val WORD_OR_NUMBER = Regex("[\\p{L}]+|\\d+(?:[.,]\\d+)?")

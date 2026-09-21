@@ -108,7 +108,6 @@ namespace CustomerDisplay
                 return;
             }
 
-            var wasInitialized = _standardNReceiptInitialized;
             var documentChanged = _standardNDocumentId != receipt.DocumentId;
             if (documentChanged)
             {
@@ -142,12 +141,16 @@ namespace CustomerDisplay
 
             var targetPartIds = receipt.Lines.Select(line => line.PartId).ToHashSet();
             var changed = documentChanged;
+            var recommendationAction = ReceiptRecommendationAction.None;
             foreach (var stale in ReceiptItems
                          .Where(item => item.PartId > 0 && !targetPartIds.Contains(item.PartId))
                          .ToList())
             {
                 ReceiptItems.Remove(stale);
                 changed = true;
+                recommendationAction = ReceiptRecommendationChange.Combine(
+                    recommendationAction,
+                    ReceiptRecommendationAction.CancelPending);
                 Log($"БД Standard-N: позиция удалена из чека (PartId={stale.PartId})");
             }
 
@@ -159,12 +162,24 @@ namespace CustomerDisplay
                 var incoming = new ReceiptItem
                 {
                     PartId = line.PartId,
-                    Barcode = line.Barcode,
-                    Name = line.Name,
+                    // The log and Firebird projections do not always expose the same optional
+                    // identity columns. A blank secondary observation must not create a synthetic
+                    // change every 400 ms or erase data already used by an in-flight request.
+                    Barcode = ReceiptRecommendationChange.MergeIdentity(line.Barcode, existing?.Barcode),
+                    Name = ReceiptRecommendationChange.MergeIdentity(line.Name, existing?.Name) ?? "",
                     Price = line.Price,
                     Qty = line.Qty,
                     DiscountPercent = line.DiscountPercent,
                 };
+
+                var lineAction = ReceiptRecommendationChange.ClassifyLine(
+                    existed: existing != null,
+                    previousQty: existing?.Qty ?? 0m,
+                    previousBarcode: existing?.Barcode,
+                    previousName: existing?.Name,
+                    nextQty: incoming.Qty,
+                    nextBarcode: incoming.Barcode,
+                    nextName: incoming.Name);
 
                 var lineChanged = existing == null ||
                                   existing.Qty != incoming.Qty ||
@@ -176,7 +191,8 @@ namespace CustomerDisplay
 
                 var increased = UpsertItemSetQty(incoming);
                 changed = true;
-                if (increased && line.LineId >= scannedLineId)
+                recommendationAction = ReceiptRecommendationChange.Combine(recommendationAction, lineAction);
+                if ((increased || lineAction == ReceiptRecommendationAction.Refresh) && line.LineId >= scannedLineId)
                 {
                     scanned = incoming;
                     scannedLineId = line.LineId;
@@ -187,11 +203,13 @@ namespace CustomerDisplay
             if (!changed) return;
 
             RecalcTotal();
-            OnCartChangedLocalOnly();
+            OnCartChangedLocalOnly(
+                cancelPendingRecommendation: recommendationAction != ReceiptRecommendationAction.None);
 
-            // Do not reopen popups for products that were already in the receipt when POSM itself
-            // started. Every later new/increased database line is a real cashier cart change.
-            if (wasInitialized && scanned != null)
+            // Evaluate an already-open receipt once after a POSM restart as well. This recovers the
+            // popup after a crash/update instead of permanently missing the scan that happened while
+            // the client was down. Duplicate log+Firebird observations are classified as None above.
+            if (scanned != null)
             {
                 LogScannedItemContext(scanned, "активный чек БД Standard-N");
                 OnProductScanned(scanned);

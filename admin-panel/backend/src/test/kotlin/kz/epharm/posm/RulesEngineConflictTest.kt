@@ -5,6 +5,8 @@ import io.mockk.mockk
 import kz.epharm.catalog.entity.ProductEntity
 import kz.epharm.catalog.repository.ProductRepository
 import kz.epharm.posm.dto.CartItemDto
+import kz.epharm.promo.entity.PromoEntity
+import kz.epharm.promo.entity.PromoStatus
 import kz.epharm.promo.repository.PromoRepository
 import kz.epharm.posm.service.RulesEngineService
 import kz.epharm.rules.entity.RuleEntity
@@ -15,6 +17,8 @@ import kz.epharm.rules.repository.RuleRepository
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.Optional
 
 /**
@@ -35,16 +39,35 @@ class RulesEngineConflictTest {
     private fun product(id: String) =
         ProductEntity(id = id, name = "Товар $id", price = 100).also { it.barcode = "bar-$id" }
 
-    private fun rule(id: String, type: RuleType, triggerProduct: String, recommend: String, bonus: Int = 100) =
+    private fun rule(
+        id: String,
+        type: RuleType,
+        triggerProduct: String,
+        recommend: String,
+        bonus: Int = 100,
+        promoId: String? = null,
+    ) =
         RuleEntity(
             id = id,
             recommend = recommend,
             bonus = bonus,
             trigger = RuleTrigger(kind = "product", value = triggerProduct),
-        ).also { it.type = type; it.status = RuleStatus.active }
+        ).also {
+            it.type = type
+            it.status = RuleStatus.active
+            it.promoId = promoId
+        }
 
-    private fun stub(rules: List<RuleEntity>, cartProducts: List<ProductEntity>, recommends: List<ProductEntity>) {
+    private fun stub(
+        rules: List<RuleEntity>,
+        cartProducts: List<ProductEntity>,
+        recommends: List<ProductEntity>,
+        promos: List<PromoEntity> = emptyList(),
+    ) {
         every { ruleRepo.findAllByStatusRawOrderByUpdatedAtDesc("active") } returns rules
+        if (rules.any { it.promoId != null }) {
+            every { promoRepo.findAllById(any<Iterable<String>>()) } returns promos
+        }
         // Резолв корзины идёт по штрих-коду.
         every { productRepo.findAllByBarcodeIn(any()) } answers {
             val wanted = firstArg<Collection<String>>().toSet()
@@ -164,5 +187,58 @@ class RulesEngineConflictTest {
         )
 
         assertEquals(listOf("REC"), result.matches.map { it.recommend.id })
+    }
+
+    @Test
+    fun `активный статус не обходит даты кампании`() {
+        val today = LocalDate.now(ZoneId.of("Asia/Almaty"))
+        val trigger = product("LIQUID_COAL")
+        val current = product("CURRENT")
+        val expired = product("EXPIRED")
+        val future = product("FUTURE")
+
+        fun promo(id: String, start: LocalDate?, end: LocalDate?) =
+            PromoEntity(id = id).also {
+                it.status = PromoStatus.active
+                it.dateStart = start
+                it.dateEnd = end
+            }
+
+        stub(
+            rules = listOf(
+                rule(
+                    "r-current",
+                    RuleType.substitution,
+                    trigger.id,
+                    current.id,
+                    promoId = "p-current",
+                ),
+                rule(
+                    "r-expired",
+                    RuleType.substitution,
+                    trigger.id,
+                    expired.id,
+                    promoId = "p-expired",
+                ),
+                rule(
+                    "r-future",
+                    RuleType.substitution,
+                    trigger.id,
+                    future.id,
+                    promoId = "p-future",
+                ),
+            ),
+            cartProducts = listOf(trigger),
+            recommends = listOf(current, expired, future),
+            promos = listOf(
+                promo("p-current", today, today),
+                promo("p-expired", today.minusDays(10), today.minusDays(1)),
+                promo("p-future", today.plusDays(1), today.plusDays(10)),
+            ),
+        )
+
+        val result = engine.match(cart(trigger))
+
+        assertEquals(listOf(current.id), result.matches.map { it.recommend.id })
     }
 }

@@ -5,6 +5,17 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Kept a recommendation request alive when zkassa.log and the Standard-N Firebird receipt observe
+  the same scan, and retriggered recommendations after a POSM restart with an already-open receipt.
+- Anchored the pharmacist popup to the visible Standard-N window and moved the customer advertising
+  kiosk to the other monitor, including when Standard-N starts after POSM.
+- Bound each multi-item response to its real local trigger and prevented transparent windows from
+  being acknowledged as displayed.
+- Excluded active promotion rules before their start date and after their end date using the
+  Kazakhstan pharmacy calendar.
+
 ## [0.1.7] - 2026-09-21
 
 ### Added
