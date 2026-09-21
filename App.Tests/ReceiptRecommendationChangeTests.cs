@@ -20,6 +20,21 @@ public sealed class ReceiptRecommendationChangeTests
         Assert.Equal(ReceiptRecommendationAction.None, action);
     }
 
+    [Fact]
+    public void ExplicitLogEventRefreshesEvenWhenPartQuantityAndIdentityAreUnchanged()
+    {
+        var action = ReceiptRecommendationChange.ClassifyExplicitAdd(
+            existed: true,
+            previousQty: 1,
+            previousBarcode: "4601164003164",
+            previousName: "Жидкий уголь комплекс с пектином саше детс 7г №10",
+            nextQty: 1,
+            nextBarcode: "4601164003164",
+            nextName: "Жидкий уголь комплекс с пектином саше детс 7г №10");
+
+        Assert.Equal(ReceiptRecommendationAction.Refresh, action);
+    }
+
     [Theory]
     [InlineData(false, 0, 1)]
     [InlineData(true, 1, 2)]
@@ -106,5 +121,20 @@ public sealed class ReceiptRecommendationChangeTests
         Assert.Equal(
             ReceiptRecommendationAction.CancelPending,
             ReceiptRecommendationChange.ClassifyRemoval(actuallyRemoved: true));
+    }
+
+    [Fact]
+    public void ExplicitLogDecreasePreservesExistingCancellationSemantics()
+    {
+        var action = ReceiptRecommendationChange.ClassifyExplicitAdd(
+            existed: true,
+            previousQty: 2,
+            previousBarcode: "4601164003164",
+            previousName: "Жидкий уголь",
+            nextQty: 1,
+            nextBarcode: "4601164003164",
+            nextName: "Жидкий уголь");
+
+        Assert.Equal(ReceiptRecommendationAction.CancelPending, action);
     }
 }

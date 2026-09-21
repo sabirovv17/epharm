@@ -586,7 +586,7 @@ if (line.Contains("ChequeList.OnChange", StringComparison.OrdinalIgnoreCase))
         !line.Contains("(delete)", StringComparison.OrdinalIgnoreCase))
 {
     RefreshCurrentPharmacistFromStandardNDb();
-    var item = TryParseAdd2Cheque(line);
+    var item = StandardNLogParser.TryParseAdd2Cheque(line);
     if (item == null)
     {
         Log("POSM scan parse failed: строка Add2Cheque не содержит корректные iPartID/quant; см. предыдущую строку лога");
@@ -598,7 +598,7 @@ if (line.Contains("ChequeList.OnChange", StringComparison.OrdinalIgnoreCase))
     Dispatcher.Invoke(() =>
     {
         var existing = ReceiptItems.FirstOrDefault(x => x.PartId == item.PartId);
-        var recommendationAction = ReceiptRecommendationChange.ClassifyLine(
+        var recommendationAction = ReceiptRecommendationChange.ClassifyExplicitAdd(
             existed: existing != null,
             previousQty: existing?.Qty ?? 0m,
             previousBarcode: existing?.Barcode,
@@ -691,43 +691,6 @@ private bool UpsertItemSetQty(ReceiptItem incoming)
     return incoming.Qty > previousQty;
 }
 
-
-private ReceiptItem? TryParseAdd2Cheque(string line)
-{
-    try
-    {
-        // iPartID кассы — ведущие цифры после "iPartID=" (разделитель может быть "(", ";" или ",").
-        var partIdStr = ExtractPartId(line);
-        var name = ExtractBetween(line, "sname=", ";")?.Trim();
-        var priceStr = ExtractBetween(line, "price=", ";")?.Trim();
-        var qtyStr = ExtractBetween(line, "quant=", ";")?.Trim();
-
-        if (string.IsNullOrWhiteSpace(partIdStr) ||
-            string.IsNullOrWhiteSpace(qtyStr))
-            return null;
-
-        var partId = int.Parse(partIdStr);
-        var price = string.IsNullOrWhiteSpace(priceStr) ? 0m : ParseDecimalSmart(priceStr);
-        var qty = ParseDecimalSmart(qtyStr);
-
-        // EAN-13 — ключ матчинга на backend. Извлекаем робастно (реальный формат zkassa.log неизвестен).
-        var barcode = ExtractBarcode(line, partIdStr);
-
-        return new ReceiptItem
-        {
-            PartId = partId,
-            Barcode = barcode,
-            Name = name ?? "",
-            Price = price,
-            Qty = qty,
-            DiscountPercent = 0m
-        };
-    }
-    catch
-    {
-        return null;
-    }
-}
 
 private void RefreshCurrentPharmacistFromStandardNDb()
 {
@@ -822,67 +785,6 @@ private static string FormatMoneyForLog(decimal value) =>
     value > 0m ? $"{value:0.##} тг" : "—";
 
 /// <summary>
-/// Робастное извлечение EAN/GTIN из строки лога кассы:
-///   (1) явное поле barcode/barcode1/ean/ean13/bcode/штрихкод (без учёта регистра);
-///   (2) значение в скобках  iPartID=&lt;id&gt;(&lt;inner&gt;)  — если inner это 8/12/13/14 цифр И НЕ совпадает
-///       с внутренним id (как в синтетическом примере 80309(80309), где это просто дубль id);
-///   (3) иначе null (сработает fallback-матчинг по Name на backend).
-/// </summary>
-private static string? ExtractBarcode(string line, string partIdStr)
-{
-    // Standard-N releases use different field labels and separators. Restrict the value to digits
-    // so a following field cannot accidentally become part of the barcode.
-    var explicitMatch = Regex.Match(
-        line,
-        @"(?:barcode1?|bar_?code|ean(?:13)?|bcode|shtrih|штрих(?:код)?)\s*[:=]\s*[""']?(?<value>\d{8,14})",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-    if (explicitMatch.Success)
-    {
-        var value = explicitMatch.Groups["value"].Value;
-        if (IsBarcode(value)) return value;
-    }
-
-    // (2) value specifically attached to iPartID=<id>(<inner>), not an unrelated pair of brackets.
-    var ipartMatch = Regex.Match(
-        line,
-        @"iPartID\s*=\s*\d+\s*\(\s*(?<value>\d{8,14})\s*\)",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-    var inner = ipartMatch.Success ? ipartMatch.Groups["value"].Value : null;
-    if (IsBarcode(inner) && !string.Equals(inner, partIdStr?.Trim(), StringComparison.Ordinal))
-        return inner;
-
-    // (3) штрих-кода нет — backend сматчит по имени
-    return null;
-}
-
-/// <summary>EAN-подобный код: непустой, только цифры, длина 8/12/13/14.</summary>
-private static bool IsBarcode(string? s)
-{
-    if (string.IsNullOrWhiteSpace(s)) return false;
-    var len = s.Length;
-    if (len != 8 && len != 12 && len != 13 && len != 14) return false;
-    foreach (var ch in s)
-        if (ch < '0' || ch > '9') return false;
-    return true;
-}
-
-/// <summary>
-/// iPartID кассы — ведущие цифры сразу после "iPartID=". Реальный разделитель неизвестен,
-/// поэтому НЕ привязываемся к "(": берём цифры до первого не-цифрового символа. Работает для
-/// "iPartID=80309(80309)", "iPartID=80309;sname=…", "iPartID=80306,". null если цифр нет.
-/// </summary>
-private static string? ExtractPartId(string line)
-{
-    const string key = "iPartID=";
-    var i = line.IndexOf(key, StringComparison.OrdinalIgnoreCase);
-    if (i < 0) return null;
-    i += key.Length;
-    var start = i;
-    while (i < line.Length && line[i] >= '0' && line[i] <= '9') i++;
-    return i > start ? line.Substring(start, i - start) : null;
-}
-
-/// <summary>
 /// Explicit cashier/operator marker from a Standard-N log line. This is a fallback for
 /// installations where Firebird is temporarily unavailable; the database remains authoritative.
 /// </summary>
@@ -915,17 +817,8 @@ private static string? ExtractBetween(string s, string start, string? end)
 
 private int? TryParsePartIdFromDelete(string line)
 {
-    try
-    {
-        // iPartID=80306, — берём те же ведущие цифры, что и add-парсер (единый разбор).
-        var partIdStr = ExtractPartId(line);
-        if (string.IsNullOrWhiteSpace(partIdStr)) return null;
-        return int.Parse(partIdStr);
-    }
-    catch
-    {
-        return null;
-    }
+    // Add/delete use the same tolerant iPartID parser.
+    return StandardNLogParser.TryExtractPartId(line);
 }
 
 private bool RemoveItemByPartId(int partId)

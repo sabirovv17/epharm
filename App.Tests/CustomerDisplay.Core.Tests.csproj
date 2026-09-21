@@ -37,6 +37,7 @@
     <Compile Include="..\App\Services\RecommendationTriggerBinding.cs" Link="Services\RecommendationTriggerBinding.cs" />
     <Compile Include="..\App\Services\ReceiptRecommendationChange.cs" Link="Services\ReceiptRecommendationChange.cs" />
     <Compile Include="..\App\Services\StandardNWindowIdentity.cs" Link="Services\StandardNWindowIdentity.cs" />
+    <Compile Include="..\App\Services\StandardNLogParser.cs" Link="Services\StandardNLogParser.cs" />
     <Compile Include="..\App\Services\PosmDeviceCredentialResolver.cs" Link="Services\PosmDeviceCredentialResolver.cs" />
     <Compile Include="..\App\Services\UpdateManifestVerifier.cs" Link="Services\UpdateManifestVerifier.cs" />
     <Compile Include="..\App\Services\TaskKioskClient.cs" Link="Services\TaskKioskClient.cs" />
