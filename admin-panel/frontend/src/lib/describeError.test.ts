@@ -8,7 +8,7 @@ function mkAxiosError(over: {
   code?: string
   message?: string
   status?: number
-  data?: { code?: string; message?: string }
+  data?: { code?: string; message?: string; fields?: Record<string, string> }
 }) {
   const e = new axios.AxiosError(
     over.message ?? '',
@@ -64,6 +64,18 @@ describe('describeError', () => {
       data: { code: 'VALIDATION_FAILED', message: 'title is required' },
     })
     expect(describeError(err)).toBe('title is required')
+  })
+
+  it('ApiErrorCode=VALIDATION_FAILED → показывает конкретные поля', () => {
+    const err = mkAxiosError({
+      status: 400,
+      data: {
+        code: 'VALIDATION_FAILED',
+        message: 'Проверьте корректность данных',
+        fields: { barcode: 'size must be between 0 and 32' },
+      },
+    })
+    expect(describeError(err)).toContain('barcode: size must be between 0 and 32')
   })
 
   it('ApiErrorCode=NOT_FOUND → backend message', () => {

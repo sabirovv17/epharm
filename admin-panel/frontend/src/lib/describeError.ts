@@ -33,11 +33,20 @@ export function describeError(err: unknown): string {
     const status = e.response?.status
     const apiCode = e.response?.data?.code
     const apiMsg = e.response?.data?.message
+    const apiFields = e.response?.data?.fields
+    const fieldDetails = apiFields
+      ? Object.entries(apiFields)
+          .map(([field, reason]) => `${field}: ${reason}`)
+          .join('; ')
+      : ''
 
     // Domain ErrorCode — самый точный
     if (apiCode === 'INVALID_CREDENTIALS') return tr('err.invalidCreds')
     if (apiCode === 'INVALID_REFRESH_TOKEN') return tr('err.sessionExpired')
-    if (apiCode === 'VALIDATION_FAILED') return apiMsg ?? tr('err.validation')
+    if (apiCode === 'VALIDATION_FAILED') {
+      const summary = apiMsg ?? tr('err.validation')
+      return fieldDetails ? `${summary} (${fieldDetails})` : summary
+    }
     if (apiCode === 'NOT_FOUND') return apiMsg ?? tr('err.notFound')
     if (apiCode === 'CONFLICT') return apiMsg ?? tr('err.conflict')
     if (apiCode === 'FORBIDDEN' || apiCode === 'UNAUTHORIZED') {

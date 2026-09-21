@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Size
 import kz.epharm.promo.entity.PromoEntity
 import kz.epharm.promo.entity.PromoStatus
 import kz.epharm.promo.entity.PromoTier
+import kz.epharm.shared.validation.BarcodeNormalizer
 import java.time.Instant
 import java.time.LocalDate
 
@@ -133,7 +134,8 @@ data class CreatePromoRequest(
     @field:Size(max = 1024)
     val productImage: String? = null,
     /** Штрих-код EAN-13 продвигаемого товара (из Medusa, для матчинга кассы). */
-    @field:Size(max = 32)
+    // Medusa can return several GTINs joined by `_`; service canonicalizes the first one.
+    @field:Size(max = BarcodeNormalizer.MAX_INPUT_LENGTH)
     val barcode: String? = null,
     /** iPartID продвигаемого товара в кассе Стандарт-Н (ручной ключ матчинга). */
     @field:Size(max = 64)
@@ -174,7 +176,8 @@ data class UpdatePromoRequest(
     @field:Size(max = 1024)
     val productImage: String? = null,
     /** Штрих-код EAN-13 продвигаемого товара (из Medusa, для матчинга кассы). */
-    @field:Size(max = 32)
+    // Medusa can return several GTINs joined by `_`; service canonicalizes the first one.
+    @field:Size(max = BarcodeNormalizer.MAX_INPUT_LENGTH)
     val barcode: String? = null,
     /** iPartID продвигаемого товара в кассе Стандарт-Н (ручной ключ матчинга). */
     @field:Size(max = 64)

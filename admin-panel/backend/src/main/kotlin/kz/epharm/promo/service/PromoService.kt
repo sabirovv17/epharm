@@ -13,6 +13,7 @@ import kz.epharm.rules.entity.RuleStatus
 import kz.epharm.rules.repository.RuleRepository
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
+import kz.epharm.shared.validation.BarcodeNormalizer
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -63,7 +64,7 @@ class PromoService(
             medusaProductId = medusaProductId,
             productName = req.productName.trim(),
             productImage = req.productImage?.trim()?.takeIf { it.isNotBlank() },
-            barcode = req.barcode?.trim()?.takeIf { it.isNotBlank() },
+            barcode = normalizeBarcode(req.barcode),
             ipartId = req.ipartId?.trim()?.takeIf { it.isNotBlank() },
             overrideImage = req.overrideImage?.trim()?.takeIf { it.isNotBlank() },
             overrideDescription = req.overrideDescription?.trim()?.takeIf { it.isNotBlank() },
@@ -114,7 +115,7 @@ class PromoService(
         req.medusaProductId?.let { entity.medusaProductId = it.trim().takeIf { s -> s.isNotBlank() } }
         req.productName?.let { entity.productName = it.trim() }
         req.productImage?.let { entity.productImage = it.trim().takeIf { s -> s.isNotBlank() } }
-        req.barcode?.let { entity.barcode = it.trim().takeIf { s -> s.isNotBlank() } }
+        req.barcode?.let { entity.barcode = normalizeBarcode(it) }
         req.ipartId?.let { entity.ipartId = it.trim().takeIf { s -> s.isNotBlank() } }
         // Override: пустая строка = очистить, иначе установить.
         req.overrideImage?.let { entity.overrideImage = it.trim().takeIf { s -> s.isNotBlank() } }
@@ -241,6 +242,19 @@ class PromoService(
         }
 
     private fun generateId(): String = "pr_${UUID.randomUUID().toString().substring(0, 8)}"
+
+    /**
+     * Accepts Medusa's occasional multi-GTIN value but never lets an oversized,
+     * unusable identifier reach the varchar(32) campaign/product columns.
+     */
+    private fun normalizeBarcode(raw: String?): String? {
+        val value = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        return BarcodeNormalizer.first(value) ?: throw AppException(
+            ErrorCode.VALIDATION_FAILED,
+            "Штрих-код должен быть одним GTIN/EAN длиной до ${BarcodeNormalizer.MAX_STORED_LENGTH} символов",
+            HttpStatus.BAD_REQUEST,
+        )
+    }
 
     /**
      * Бизнес-валидация: даты согласованы; активная кампания обязана иметь товар (1:1);

@@ -149,6 +149,26 @@ class MobileCatalogServiceTest {
     }
 
     @Test
+    fun `составной barcode Medusa нормализуется до первого EAN для промо-пикера`() {
+        stubList(
+            MedusaProduct(
+                id = "prod_teraflu",
+                title = "Терафлю",
+                variants = listOf(
+                    MedusaVariant(
+                        id = "v1",
+                        barcode = "4607045191357_4870223140649_4870223140694",
+                    ),
+                ),
+            ),
+        )
+
+        val card = service.search(q = null, category = null, limit = 24, offset = 0).items.single()
+
+        assertEquals("4607045191357", card.barcode)
+    }
+
+    @Test
     fun `admin fallback подтягивает retail-цену из pharmacy pricing когда calculated_price пустой`() {
         stubList(
             MedusaProduct(

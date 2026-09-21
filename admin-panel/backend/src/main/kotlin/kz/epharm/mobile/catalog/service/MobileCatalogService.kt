@@ -23,6 +23,7 @@ import kz.epharm.rules.entity.RuleType
 import kz.epharm.rules.repository.RuleRepository
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
+import kz.epharm.shared.validation.BarcodeNormalizer
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import java.util.concurrent.CompletableFuture
@@ -473,8 +474,8 @@ class MobileCatalogService(
         p.variants.firstNotNullOfOrNull { it.calculatedPrice?.currencyCode }?.uppercase() ?: "KZT"
 
     private fun barcodeOf(p: MedusaProduct): String? =
-        p.variants.firstOrNull { !it.barcode.isNullOrBlank() }?.barcode?.trim()
-            ?: metaStr(p, "barcode")
+        p.variants.firstNotNullOfOrNull { BarcodeNormalizer.first(it.barcode) }
+            ?: BarcodeNormalizer.first(metaStr(p, "barcode"))
 
     private fun imageOf(p: MedusaProduct): String? =
         p.thumbnail?.trim()?.takeIf { it.isNotBlank() }
