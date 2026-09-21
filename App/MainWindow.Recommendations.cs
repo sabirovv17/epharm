@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -73,6 +75,7 @@ namespace CustomerDisplay
         /// Рекомендации сюда НЕ показываем — только на экран фармацевта.
         /// </summary>
         internal System.Windows.Forms.Screen? CustomerScreen { get; set; }
+        private string _lastScreenRoleLog = "";
 
         /// <summary>
         /// Экран ФАРМАЦЕВТА = монитор, который НЕ занят клиентским киоском. Если монитор один
@@ -82,13 +85,84 @@ namespace CustomerDisplay
         private System.Windows.Forms.Screen PharmacistScreen()
         {
             var screens = System.Windows.Forms.Screen.AllScreens;
-            // Standard-N runs on the primary display in production. Prefer it explicitly instead
-            // of relying on Screen.AllScreens ordering, which is not guaranteed by Windows.
+            var standardNScreen = TryGetStandardNScreen(out var source);
+            if (standardNScreen != null)
+            {
+                EnsureCustomerDisplaySeparateFrom(standardNScreen, source);
+                LogScreenRoles(standardNScreen, source);
+                return standardNScreen;
+            }
+
+            // Legacy fallback for unusual Standard-N builds whose top-level window cannot be
+            // enumerated. Never rely on Screen.AllScreens ordering, which is not a Windows API
+            // contract; prefer primary unless it is already reserved for the customer kiosk.
             var pharmacist = screens.FirstOrDefault(s =>
                 s.Primary && (CustomerScreen == null || !s.Bounds.Equals(CustomerScreen.Bounds)));
             pharmacist ??= screens.FirstOrDefault(s =>
                 CustomerScreen == null || !s.Bounds.Equals(CustomerScreen.Bounds));
-            return pharmacist ?? System.Windows.Forms.Screen.PrimaryScreen!;
+            pharmacist ??= System.Windows.Forms.Screen.PrimaryScreen ?? screens[0];
+            LogScreenRoles(pharmacist, "fallback: primary/non-customer");
+            return pharmacist;
+        }
+
+        private System.Windows.Forms.Screen? TryGetStandardNScreen(out string source)
+        {
+            source = "Standard-N window not found";
+            try
+            {
+                using var currentProcess = Process.GetCurrentProcess();
+                var currentSessionId = currentProcess.SessionId;
+                var candidates = new List<(int Score, int ProcessId, string Process, string Title, IntPtr Handle)>();
+                foreach (var process in Process.GetProcesses())
+                {
+                    using (process)
+                    {
+                        try
+                        {
+                            if (process.Id == Environment.ProcessId || process.SessionId != currentSessionId) continue;
+                            var handle = process.MainWindowHandle;
+                            if (handle == IntPtr.Zero || !IsWindowVisible(handle)) continue;
+                            var processName = process.ProcessName;
+                            var title = process.MainWindowTitle;
+                            var score = StandardNWindowIdentity.Score(processName, title);
+                            if (score < 60) continue;
+                            candidates.Add((score, process.Id, processName, title, handle));
+                        }
+                        catch
+                        {
+                            // Protected/system processes are expected during desktop enumeration.
+                        }
+                    }
+                }
+
+                var best = candidates
+                    .OrderByDescending(candidate => candidate.Score)
+                    .ThenBy(candidate => candidate.ProcessId)
+                    .FirstOrDefault();
+                if (best.Handle == IntPtr.Zero) return null;
+
+                var screen = System.Windows.Forms.Screen.FromHandle(best.Handle);
+                source = $"Standard-N hwnd: pid={best.ProcessId}, process={best.Process}, title={best.Title}";
+                return screen;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool IsWindowVisible(IntPtr hWnd);
+
+        private void LogScreenRoles(System.Windows.Forms.Screen pharmacist, string source)
+        {
+            var customer = CustomerScreen?.DeviceName ?? "—";
+            var signature = $"{pharmacist.DeviceName}|{customer}|{source}";
+            if (string.Equals(_lastScreenRoleLog, signature, StringComparison.Ordinal)) return;
+            _lastScreenRoleLog = signature;
+            Log($"Роли экранов: фармацевт={pharmacist.DeviceName} {pharmacist.Bounds}; " +
+                $"клиент={customer}; источник={source}");
         }
 
         /// <summary>Вызывается из конструктора MainWindow. Поднимает клиент, если интеграция включена.</summary>
@@ -213,19 +287,21 @@ namespace CustomerDisplay
 
         /// <summary>
         /// Локальное изменение корзины без сетевого запроса: удаление позиции, очистка чека,
-        /// пересчёт скидки. Нужен только чтобы убрать "уже показано" для удалённых триггеров.
+        /// пересчёт скидки. Дубликат наблюдения от второго источника передаёт false и сохраняет
+        /// активный запрос; реальное изменение корзины отменяет устаревший snapshot.
         /// </summary>
-        private void OnCartChangedLocalOnly()
+        private void OnCartChangedLocalOnly(bool cancelPendingRecommendation = true)
         {
             if (_posmConfig == null) return;
-            _recoCts?.Cancel();
             if (ReceiptItems.Count == 0)
             {
+                _recoCts?.Cancel();
                 DiscardActiveReceiptDraft();
                 ResetRecommendationUiState(closeWindows: true);
                 StartNewCheckoutSession();
                 return;
             }
+            if (cancelPendingRecommendation) _recoCts?.Cancel();
             SaveActiveReceiptDraft();
             CloseStaleRecommendationWindowForCurrentCart();
             PruneShownStateForCurrentCart();
@@ -581,10 +657,16 @@ namespace CustomerDisplay
         private void MarkRecommendationShown(Recommendation rec, Models.ReceiptItem? scannedItem)
         {
             if (string.IsNullOrWhiteSpace(rec.EventId)) return;
+            var localTrigger = RecommendationTriggerBinding.Resolve(
+                ReceiptItems,
+                scannedItem,
+                rec.TriggerIpartId,
+                rec.TriggerBarcode,
+                rec.TriggerName);
             _shownRecommendations[rec.EventId] = new ShownRecommendationState
             {
                 EventId = rec.EventId,
-                LocalTrigger = RecommendationTriggerBinding.FromReceiptItem(scannedItem),
+                LocalTrigger = localTrigger,
                 TriggerSku = rec.TriggerSku,
                 TriggerIpartId = rec.TriggerIpartId,
                 TriggerBarcode = rec.TriggerBarcode,
@@ -680,33 +762,25 @@ namespace CustomerDisplay
 
         private bool CartContainsTrigger(string? sku, string? barcode, string? name, string? ipartId = null)
         {
-            return ReceiptItems.Where(IsRealCashItem).Any(item =>
-                (!string.IsNullOrWhiteSpace(sku) &&
-                 string.Equals(item.PartId.ToString(), sku.Trim(), StringComparison.OrdinalIgnoreCase))
-                || (!string.IsNullOrWhiteSpace(ipartId) &&
-                 string.Equals(item.PartId.ToString(), ipartId.Trim(), StringComparison.OrdinalIgnoreCase))
-                || (!string.IsNullOrWhiteSpace(barcode) &&
-                 string.Equals(item.Barcode?.Trim(), barcode.Trim(), StringComparison.OrdinalIgnoreCase))
-                || NamesLikelyMatch(item.Name, name));
+            if (RecommendationTriggerBinding.Resolve(
+                    ReceiptItems,
+                    lastScanned: null,
+                    triggerIpartId: ipartId,
+                    triggerBarcode: barcode,
+                    triggerName: name) != null)
+                return true;
+
+            // Compatibility for old backends that used triggerSku for the local iPartID rather
+            // than the catalog product id and omitted all explicit trigger identity fields.
+            return string.IsNullOrWhiteSpace(ipartId) &&
+                string.IsNullOrWhiteSpace(barcode) &&
+                string.IsNullOrWhiteSpace(name) &&
+                !string.IsNullOrWhiteSpace(sku) &&
+                ReceiptItems.Where(IsRealCashItem).Any(item =>
+                    string.Equals(item.PartId.ToString(), sku.Trim(), StringComparison.OrdinalIgnoreCase));
         }
 
         private static bool IsRealCashItem(Models.ReceiptItem item) => item.PartId > 0;
-
-        private static bool NamesLikelyMatch(string? a, string? b)
-        {
-            if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b)) return false;
-            var x = NormalizeName(a);
-            var y = NormalizeName(b);
-            return x == y || x.Contains(y, StringComparison.OrdinalIgnoreCase) || y.Contains(x, StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static string NormalizeName(string raw)
-        {
-            var chars = raw.ToLowerInvariant()
-                .Select(ch => char.IsLetterOrDigit(ch) || char.IsWhiteSpace(ch) ? ch : ' ')
-                .ToArray();
-            return string.Join(" ", new string(chars).Split(' ', StringSplitOptions.RemoveEmptyEntries));
-        }
 
         private void ResetRecommendationUiState(bool closeWindows)
         {

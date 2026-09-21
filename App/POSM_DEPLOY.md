@@ -9,7 +9,7 @@ Build on Windows with .NET 10 SDK.
 ```powershell
 cd <repo>
 dotnet publish App\CustomerDisplay.csproj -c Release -r win-x64 --self-contained `
-  -p:Version=1.0.58 -o C:\Epharm\app
+  -p:Version=1.0.59 -o C:\Epharm\app
 ```
 
 Auto-update works with a published app folder containing `CustomerDisplay.exe`, dependencies, LibVLC,
@@ -139,14 +139,17 @@ GET /api/posm/app/version?platform=win-x64
 
 Release flow:
 
-1. Publish new version with bumped `-p:Version=...`.
-2. Zip the published folder without `posm.json`; pharmacy configuration must remain local.
-3. Upload zip to a public HTTPS URL reachable by cash desks. It must contain no secret or `posm.json`.
+1. Bump the POSM project version and merge only after the Windows production build is green.
+2. Download the `epharm-posm-<full-commit>` artifact from the exact `main` CI run. Verify that
+   `provenance.json` names that commit, that the adjacent SHA-256 matches the ZIP, and that the ZIP
+   contains exactly the five approved bridge files. Do not rebuild it from another checkout.
+3. Upload that unchanged ZIP to a public HTTPS URL reachable by cash desks. It must contain no secret
+   or `posm.json`; pharmacy configuration remains local.
 4. Sign the exact manifest with the offline ECDSA P-256 private key:
 
    ```bash
-   tools/sign-posm-release.sh private-key.pem win-x64 1.0.58 \
-     https://epharm.inkar.kz/downloads/epharm-posm-1.0.58-win-x64.zip release.zip false
+   tools/sign-posm-release.sh private-key.pem win-x64 1.0.59 \
+     https://epharm.inkar.kz/downloads/epharm-posm-1.0.59-win-x64.zip release.zip false
    ```
 
 5. Register `platform`, `version`, `url`, `sha256`, `mandatory` and `manifestSignature` via
@@ -174,6 +177,12 @@ POSM v1.0.58 positions recommendation popups with native physical-pixel coordina
 card to the pharmacist monitor at 100-200% Windows scaling and reasserts the topmost z-order without
 taking scanner or keyboard focus from Standard-N. A recommendation is acknowledged as displayed only
 after the rendered native window is verified fully on-screen.
+
+POSM v1.0.59 reconciles duplicate observations of the same scan from zkassa.log and Firebird without
+cancelling the recommendation request, evaluates an already-open receipt once after a POSM restart,
+and anchors the pharmacist/customer monitor roles to the visible Standard-N window. The customer
+display keeps its cached/admin playlist on the other monitor while recommendations remain local to
+the pharmacist screen.
 
 ## Internet Order Fulfillment
 

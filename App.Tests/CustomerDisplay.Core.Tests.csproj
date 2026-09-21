@@ -24,6 +24,7 @@
     <Compile Include="..\Models\Posm\AppVersion.cs" Link="Models\AppVersion.cs" />
     <Compile Include="..\Models\Posm\PosmDtos.cs" Link="Models\PosmDtos.cs" />
     <Compile Include="..\Models\Posm\RecommendationPopupModel.cs" Link="Models\RecommendationPopupModel.cs" />
+    <Compile Include="..\Models\ReceiptItem.cs" Link="Models\ReceiptItem.cs" />
     <Compile Include="..\App\Services\EpharmJson.cs" Link="Services\EpharmJson.cs" />
     <Compile Include="..\App\Services\OfflineOutbox.cs" Link="Services\OfflineOutbox.cs" />
     <Compile Include="..\App\Services\FiscalReceiptInboxSource.cs" Link="Services\FiscalReceiptInboxSource.cs" />
@@ -33,6 +34,9 @@
     <Compile Include="..\App\Services\FulfillmentRetrySchedule.cs" Link="Services\FulfillmentRetrySchedule.cs" />
     <Compile Include="..\App\Services\PharmacistNoticeCoordinator.cs" Link="Services\PharmacistNoticeCoordinator.cs" />
     <Compile Include="..\App\Services\PopupWindowPlacement.cs" Link="Services\PopupWindowPlacement.cs" />
+    <Compile Include="..\App\Services\RecommendationTriggerBinding.cs" Link="Services\RecommendationTriggerBinding.cs" />
+    <Compile Include="..\App\Services\ReceiptRecommendationChange.cs" Link="Services\ReceiptRecommendationChange.cs" />
+    <Compile Include="..\App\Services\StandardNWindowIdentity.cs" Link="Services\StandardNWindowIdentity.cs" />
     <Compile Include="..\App\Services\PosmDeviceCredentialResolver.cs" Link="Services\PosmDeviceCredentialResolver.cs" />
     <Compile Include="..\App\Services\UpdateManifestVerifier.cs" Link="Services\UpdateManifestVerifier.cs" />
     <Compile Include="..\App\Services\TaskKioskClient.cs" Link="Services\TaskKioskClient.cs" />

@@ -125,12 +125,18 @@ namespace CustomerDisplay
                 ApplyTargetScreenConstraints();
                 UpdateLayout();
                 PositionAndElevate();
-                Opacity = 1;
-                _topmostGuard.Start();
             }
             catch
             {
-                // The guard retries after the first render. The cash application must keep running.
+                // The cash application must keep running. The guard started below retries native
+                // placement after the first render even if this initial attempt failed.
+            }
+            finally
+            {
+                // Never leave the XAML's startup opacity at zero: native visibility alone is not
+                // proof that a pharmacist can see the card.
+                Opacity = 1;
+                _topmostGuard.Start();
             }
         }
 
@@ -238,7 +244,8 @@ namespace CustomerDisplay
                 return false;
             }
 
-            var visible = NativeMethods.IsWindowVisible(_hwnd) && PopupWindowPlacement.IsFullyVisible(
+            var visible = Opacity > 0.01 &&
+                NativeMethods.IsWindowVisible(_hwnd) && PopupWindowPlacement.IsFullyVisible(
                 new PixelRect(after.Left, after.Top, after.Width, after.Height),
                 new PixelRect(area.Left, area.Top, area.Width, area.Height));
             var dpi = TargetDpiScale(screen);

@@ -163,6 +163,7 @@ this.Focus();
 
             LogStartupBanner();
             ApplyScreenMode();
+            StartScreenRoleReconciliation();
 
             // Видео можно отключить (env EPHARM_NO_VIDEO=true). Нужно для VM без GPU, где VLC
             // не рендерит видео и подвешивает окно (Q перестаёт работать, т.к. видео-контрол
@@ -260,19 +261,19 @@ private void PositionWindowToTopRightQuarter()
             {
                 if (screens.Length >= 2)
                 {
-                    // The customer display is the non-primary screen. Screen.AllScreens ordering
-                    // is not a contract and differs between video drivers/docking stations.
-                    var target = screens.FirstOrDefault(s => !s.Primary) ?? screens[1];
-                    CustomerScreen = target; // popup рекомендаций пойдёт на ДРУГОЙ (фармацевта)
-                    Topmost = true;
-                    WindowStyle = WindowStyle.None;
-                    ResizeMode = ResizeMode.NoResize;
-                    Left = target.Bounds.Left;
-                    Top = target.Bounds.Top;
-                    Width = target.Bounds.Width;
-                    Height = target.Bounds.Height;
-                    WindowState = WindowState.Maximized;
-                    Log($"PROD: клиентский экран — монитор #2 ({target.Bounds.Width}x{target.Bounds.Height}).");
+                    // Anchor the roles to the actual Standard-N top-level window. Some pharmacies
+                    // configure the cashier display as non-primary; blindly choosing non-primary
+                    // for the customer kiosk would cover Standard-N and send its popup to customers.
+                    var cashierScreen = TryGetStandardNScreen(out var screenSource)
+                        ?? screens.FirstOrDefault(s => s.Primary)
+                        ?? screens[0];
+                    var target = screens.FirstOrDefault(s =>
+                        !string.Equals(s.DeviceName, cashierScreen.DeviceName, StringComparison.OrdinalIgnoreCase))
+                        ?? screens.FirstOrDefault(s => !s.Bounds.Equals(cashierScreen.Bounds))
+                        ?? screens[1];
+                    PlaceCustomerDisplayOn(target); // popup рекомендаций пойдёт на ДРУГОЙ (фармацевта)
+                    Log($"PROD: экран фармацевта={cashierScreen.DeviceName} {cashierScreen.Bounds}; " +
+                        $"клиентский экран={target.DeviceName} {target.Bounds}; источник={screenSource}.");
                 }
                 else
                 {
@@ -301,6 +302,80 @@ private void PositionWindowToTopRightQuarter()
             CustomerScreen = null;
             Title = "Epharm POSM — DEV (окно слева)";
             Log("DEV: оконце слева-сверху (рядом терминал/лог).");
+        }
+
+        private void EnsureCustomerDisplaySeparateFrom(Screen pharmacistScreen, string source)
+        {
+            if (ResolveScreenMode() != "prod" || _customerHidden || Screen.AllScreens.Length < 2) return;
+            if (CustomerScreen == null ||
+                !string.Equals(
+                    CustomerScreen.DeviceName,
+                    pharmacistScreen.DeviceName,
+                    StringComparison.OrdinalIgnoreCase))
+                return;
+
+            var replacement = Screen.AllScreens.FirstOrDefault(screen =>
+                !string.Equals(
+                    screen.DeviceName,
+                    pharmacistScreen.DeviceName,
+                    StringComparison.OrdinalIgnoreCase));
+            if (replacement == null) return;
+
+            void Repair()
+            {
+                PlaceCustomerDisplayOn(replacement);
+                Log($"PROD: роли экранов исправлены после появления Standard-N: " +
+                    $"фармацевт={pharmacistScreen.DeviceName}, клиент={replacement.DeviceName}; источник={source}.");
+            }
+
+            if (Dispatcher.CheckAccess()) Repair();
+            else Dispatcher.Invoke(Repair);
+        }
+
+        private void PlaceCustomerDisplayOn(Screen target)
+        {
+            CustomerScreen = target;
+            Topmost = true;
+            WindowStyle = WindowStyle.None;
+            ResizeMode = ResizeMode.NoResize;
+            // WPF otherwise keeps a maximized window attached to its previous monitor.
+            WindowState = WindowState.Normal;
+            Left = target.Bounds.Left;
+            Top = target.Bounds.Top;
+            Width = target.Bounds.Width;
+            Height = target.Bounds.Height;
+            WindowState = WindowState.Maximized;
+        }
+
+        private System.Windows.Threading.DispatcherTimer? _screenRoleTimer;
+
+        private void StartScreenRoleReconciliation()
+        {
+            if (ResolveScreenMode() != "prod" || Screen.AllScreens.Length < 2) return;
+
+            _screenRoleTimer?.Stop();
+            var misses = 0;
+            _screenRoleTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(2),
+            };
+            _screenRoleTimer.Tick += (_, _) =>
+            {
+                var pharmacist = TryGetStandardNScreen(out var source);
+                if (pharmacist == null)
+                {
+                    // Keep a short retry while POSM/Standard-N are starting together, then reduce
+                    // process-enumeration overhead while still handling a later cashier restart.
+                    if (++misses >= 30) _screenRoleTimer.Interval = TimeSpan.FromSeconds(10);
+                    return;
+                }
+
+                misses = 0;
+                EnsureCustomerDisplaySeparateFrom(pharmacist, source);
+                LogScreenRoles(pharmacist, source);
+                _screenRoleTimer.Interval = TimeSpan.FromSeconds(10);
+            };
+            _screenRoleTimer.Start();
         }
 
         // Баннер старта: одним блоком в логе — куда пишется лог, какой backend/аптека, включён ли
@@ -522,12 +597,22 @@ if (line.Contains("ChequeList.OnChange", StringComparison.OrdinalIgnoreCase))
 
     Dispatcher.Invoke(() =>
     {
+        var existing = ReceiptItems.FirstOrDefault(x => x.PartId == item.PartId);
+        var recommendationAction = ReceiptRecommendationChange.ClassifyLine(
+            existed: existing != null,
+            previousQty: existing?.Qty ?? 0m,
+            previousBarcode: existing?.Barcode,
+            previousName: existing?.Name,
+            nextQty: item.Qty,
+            nextBarcode: item.Barcode,
+            nextName: item.Name);
         var shouldAskBackend = UpsertItemSetQty(item);
         RecalcTotal();
-        if (shouldAskBackend)
+        if (shouldAskBackend || recommendationAction == ReceiptRecommendationAction.Refresh)
             OnProductScanned(item); // → запрос рекомендаций только после скана/добавления товара
         else
-            OnCartChangedLocalOnly();
+            OnCartChangedLocalOnly(
+                cancelPendingRecommendation: recommendationAction == ReceiptRecommendationAction.CancelPending);
     });
     return;
 }
@@ -558,9 +643,11 @@ if (line.Contains("Add2Cheque", StringComparison.OrdinalIgnoreCase) &&
 
     Dispatcher.Invoke(() =>
     {
-        RemoveItemByPartId(partId.Value);
-        RecalcTotal();
-        OnCartChangedLocalOnly();
+        var removalAction = ReceiptRecommendationChange.ClassifyRemoval(
+            RemoveItemByPartId(partId.Value));
+        if (removalAction != ReceiptRecommendationAction.None) RecalcTotal();
+        OnCartChangedLocalOnly(
+            cancelPendingRecommendation: removalAction == ReceiptRecommendationAction.CancelPending);
     });
 
     return;
@@ -588,7 +675,9 @@ private bool UpsertItemSetQty(ReceiptItem incoming)
     // обновляем поля + ставим новое количество
     var idx = ReceiptItems.IndexOf(existing);
     var previousQty = existing.Qty;
-    existing.Name = incoming.Name;
+    // A duplicate observation from the other Standard-N source can omit presentation fields.
+    // Preserve already resolved identity so it cannot cancel or degrade a valid backend request.
+    if (!string.IsNullOrWhiteSpace(incoming.Name)) existing.Name = incoming.Name;
     // Не затираем уже пойманный штрих-код, если повторная строка лога (qty-bump/скидка) его не несёт.
     if (!string.IsNullOrWhiteSpace(incoming.Barcode)) existing.Barcode = incoming.Barcode;
     existing.Price = incoming.Price;
@@ -839,17 +928,18 @@ private int? TryParsePartIdFromDelete(string line)
     }
 }
 
-private void RemoveItemByPartId(int partId)
+private bool RemoveItemByPartId(int partId)
 {
     var existing = ReceiptItems.FirstOrDefault(x => x.PartId == partId);
     if (existing == null)
     {
         Log($"(delete) Позиция не найдена в UI. PartId={partId}");
-        return;
+        return false;
     }
 
     ReceiptItems.Remove(existing);
     Log($"(delete) Удалили позицию из UI. PartId={partId}, Name={existing.Name}");
+    return true;
 }
 
 
@@ -927,6 +1017,7 @@ ItemsList.Items.Refresh();
                 _heartbeatTimer?.Stop();
                 _videoWatchdog?.Stop();
                 _updateTimer?.Stop();
+                _screenRoleTimer?.Stop();
                 _mediaPlayer?.Stop();
                 _mediaPlayer?.Dispose();
                 _currentMedia?.Dispose();
