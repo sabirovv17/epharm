@@ -5,6 +5,8 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-09-21
+
 ### Fixed
 
 - Kept a recommendation request alive when zkassa.log and the Standard-N Firebird receipt observe
