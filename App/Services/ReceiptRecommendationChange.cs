@@ -42,6 +42,34 @@ internal static class ReceiptRecommendationChange
             : ReceiptRecommendationAction.Refresh;
     }
 
+    /// <summary>
+    /// A newly consumed Add2Cheque record is an explicit cashier event, not just a cart snapshot.
+    /// Equal state can therefore be a genuine repeated scan (several Standard-N builds keep
+    /// quant=1). Preserve all existing increase/decrease/delete/enrichment semantics and upgrade
+    /// only the otherwise-indistinguishable equal-state observation to Refresh.
+    /// </summary>
+    public static ReceiptRecommendationAction ClassifyExplicitAdd(
+        bool existed,
+        decimal previousQty,
+        string? previousBarcode,
+        string? previousName,
+        decimal nextQty,
+        string? nextBarcode,
+        string? nextName)
+    {
+        var stateAction = ClassifyLine(
+            existed,
+            previousQty,
+            previousBarcode,
+            previousName,
+            nextQty,
+            nextBarcode,
+            nextName);
+        return stateAction == ReceiptRecommendationAction.None && nextQty > 0
+            ? ReceiptRecommendationAction.Refresh
+            : stateAction;
+    }
+
     public static ReceiptRecommendationAction Combine(
         ReceiptRecommendationAction current,
         ReceiptRecommendationAction next)
