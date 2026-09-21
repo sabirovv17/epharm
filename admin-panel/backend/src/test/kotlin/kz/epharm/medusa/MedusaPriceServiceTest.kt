@@ -35,4 +35,21 @@ class MedusaPriceServiceTest {
 
         assertEquals(5775L, service.priceOf("prod_1"))
     }
+
+    @Test
+    fun `snapshot normalizes compound Medusa barcode before promo persistence`() {
+        every { medusa.active } returns true
+        every { medusa.getProduct("prod_teraflu") } returns MedusaProduct(
+            id = "prod_teraflu",
+            variants = listOf(
+                MedusaVariant(
+                    id = "v1",
+                    barcode = "4607045191357_4870223140649_4870223140694",
+                ),
+            ),
+        )
+        every { medusa.getProductPharmacies("prod_teraflu") } returns null
+
+        assertEquals("4607045191357", service.snapshotOf("prod_teraflu")?.barcode)
+    }
 }

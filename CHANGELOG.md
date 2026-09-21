@@ -5,6 +5,8 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-09-21
+
 ### Added
 
 - Production-grade PostgreSQL and MinIO backup, retention, isolated restore testing and backup metrics.
@@ -24,6 +26,10 @@ All notable production changes to Epharm are recorded here. The format follows
   Standard-N without stealing scanner or keyboard focus.
 - Changed recommendation `displayed_at` acknowledgement to require a rendered, native-topmost window
   whose physical bounds are verified inside the pharmacist monitor.
+- Normalized Medusa products containing several GTINs in one barcode field so promotion campaigns
+  can be created and matched by the first canonical EAN.
+- Included field-level backend validation details in admin error messages instead of showing only
+  the generic “check the data” response.
 
 ## [0.1.6] - 2026-09-20
 

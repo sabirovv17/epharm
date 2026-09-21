@@ -185,6 +185,30 @@ class PromoIntegrationTest {
     }
 
     @Test
+    fun `POST create accepts compound Medusa barcode and stores first EAN`() {
+        val req = CreatePromoRequest(
+            title = "Терафлю от гриппа и простуды лимон пор пак №10",
+            status = PromoStatus.draft,
+            medusaProductId = "prod_01KSB3XKRJ8RYA6ZE5NVQFN6HB",
+            productName = "Терафлю от гриппа и простуды лимон пор пак №10",
+            barcode = "4607045191357_4870223140649_4870223140694",
+            pharmacistBonus = 200,
+        )
+
+        mockMvc.perform(
+            post("/api/admin/promo")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.barcode").value("4607045191357"))
+
+        val saved = promoRepository.findAllByMedusaProductId(req.medusaProductId!!).single()
+        assertThat(saved.barcode).isEqualTo("4607045191357")
+    }
+
+    @Test
     fun `POST create with blank title returns 400 VALIDATION_FAILED`() {
         val payload = """{"title":"","brand":"Jadran","budget":1000}"""
         mockMvc.perform(

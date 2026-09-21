@@ -3,6 +3,7 @@ package kz.epharm.medusa.service
 import kz.epharm.medusa.client.MedusaClient
 import kz.epharm.medusa.dto.MedusaProduct
 import kz.epharm.medusa.dto.toRetailPriceSummary
+import kz.epharm.shared.validation.BarcodeNormalizer
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import kotlin.math.roundToLong
@@ -81,7 +82,7 @@ class MedusaPriceService(
      * для матчинга кассы нужен именно EAN-13 из variant.barcode.
      */
     private fun barcodeOf(product: MedusaProduct): String? =
-        product.variants.firstOrNull { !it.barcode.isNullOrBlank() }?.barcode?.trim()
+        product.variants.firstNotNullOfOrNull { BarcodeNormalizer.first(it.barcode) }
 
     /** Снимок витрины: цена (тенге) + URL обложки + штрих-код. Любое поле может быть null. */
     data class MedusaSnapshot(val price: Long?, val cover: String?, val barcode: String?)
