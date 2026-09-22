@@ -1,5 +1,6 @@
 package kz.epharm.merchtasks.service
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.MeterRegistry
 import java.net.URI
@@ -12,6 +13,7 @@ import kz.epharm.shared.error.ErrorCode
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
@@ -23,6 +25,7 @@ import org.springframework.web.client.RestClientResponseException
  */
 @Component
 class MerchTaskClient(
+    private val objectMapper: ObjectMapper,
     @Value("\${app.merch-tasks.enabled:false}") private val enabled: Boolean,
     @Value("\${app.merch-tasks.base-url:}") private val baseUrl: String,
     @Value("\${app.merch-tasks.integration-key:}") private val integrationKey: String,
@@ -78,9 +81,14 @@ class MerchTaskClient(
         if (!enabled) return MerchTaskDeliveryResult()
         if (!configured) return MerchTaskDeliveryResult(available = false)
         return upstream("shown", MerchTaskDeliveryResult(available = false)) {
+            // The fallback merchandising service uses Python's BaseHTTPRequestHandler, which
+            // consumes bodies by Content-Length and does not decode HTTP chunked bodies. An
+            // explicit byte array keeps this contract deterministic on both deployment targets.
+            val body = objectMapper.writeValueAsBytes(payload)
             rest.post()
                 .uri("/api/integrations/pharmapay/tasks/shown")
-                .body(payload)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
                 .retrieve()
                 .body(MerchTaskDeliveryResult::class.java)
                 ?: MerchTaskDeliveryResult()

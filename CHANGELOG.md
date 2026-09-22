@@ -5,6 +5,14 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-09-22
+
+### Fixed
+
+- Merchandising QR delivery receipts now use an explicit JSON byte body with `Content-Length`,
+  keeping the ePharm bridge compatible with the fallback Python service while preserving the
+  fail-open isolation of recommendations, heartbeats, sales and other POSM schedules.
+
 ## [0.1.8] - 2026-09-22
 
 ### Added
