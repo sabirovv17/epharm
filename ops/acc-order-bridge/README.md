@@ -46,6 +46,11 @@ checksums and backs up both scripts and the environment before replacing code.
    `node scripts/probe-epharm-orders.mjs` to verify a signed, read-only feed.
 4. Set `EPHARM_ORDER_PHARMACY_IDS` to the pilot pharmacy and
    `EPHARM_ORDER_START_AT` to an explicit UTC timestamp after old orders.
+   `scripts/configure-pilot.mjs prepare <sloc-id> <backend-secret-sha256>
+   <root-only-secret-file>` verifies the fingerprint, backs up the root-only
+   env file, and sets the allowlist while leaving sync disabled. After the
+   signed probe, `scripts/configure-pilot.mjs enable <sloc-id>
+   <backend-secret-sha256>` sets the current UTC cutoff and enables sync.
 5. Enable `EPHARM_ORDER_SYNC_ENABLED=true`, start the systemd timer and make
    a demo or cash-on-pickup order for the pilot location. Verify assignment,
    POSM display, state transitions, and return status to the ACC customer view.
