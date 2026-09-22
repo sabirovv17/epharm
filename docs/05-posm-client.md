@@ -239,12 +239,17 @@ for the device's pharmacy and acknowledge a QR only when it is visible. Backend 
 individual device tokens to both `pharmacyId` and `deviceId`; the server-to-server CRM credential is
 never returned to the cash desk. The client accepts HTTPS task links (plus loopback HTTP in local
 development), deduplicates acknowledgements by delivery token, and retries after transient failures.
+Current clients also send `X-Device-Id`; legacy clients without the header remain compatible. The
+backend treats merchandising as an optional dependency: timeout, invalid payload, or a 5xx response
+returns HTTP 200 with `available=false` instead of a gateway error. POSM applies an isolated bounded
+backoff (30 seconds, one, two, then five minutes), marks only the task window offline, and keeps the
+recommendation, heartbeat, and sales channel on its normal backend route.
 
 The public task portal is routed by Caddy under `/merch/*`. Production values live in `.env.prod`:
 `MERCH_TASKS_ENABLED`, `MERCH_TASKS_BASE_URL`, `MERCH_TASKS_INTEGRATION_KEY`,
 `MERCH_TASKS_TIMEOUT_MS`, and `MERCH_PORTAL_UPSTREAM`. Roll out with the bridge disabled first, check
 the internal active-task API and public portal, enable the bridge, then confirm one end-to-end task on
-a provisioned device before publishing v1.0.52 as current.
+a provisioned device before publishing a POSM release as current.
 
 ## Operations
 

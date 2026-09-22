@@ -1,7 +1,7 @@
 package kz.epharm.merchtasks
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.sun.net.httpserver.HttpServer
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import java.net.InetSocketAddress
 import java.util.concurrent.atomic.AtomicReference
 import kz.epharm.merchtasks.dto.MerchTaskShownRequest
@@ -34,7 +34,7 @@ class MerchTaskClientTest {
                 seenKey.set(exchange.requestHeaders.getFirst("X-Pharmapay-Key"))
                 seenBody.set(exchange.requestBody.bufferedReader().readText())
                 val body = if (exchange.requestMethod == "GET") {
-                    """{"task":{"id":"dispatch-1","publicUrl":"https://epharm.inkar.kz/merch/staff"}}"""
+                    """{"task":{"id":"dispatch-1","publicUrl":"https://epharm.inkar.kz/merch/staff","deliveryToken":"delivery-token"}}"""
                 } else {
                     """{"accepted":true}"""
                 }.toByteArray()
@@ -48,7 +48,8 @@ class MerchTaskClientTest {
 
         val active = client.activeTask(" pharmacy-7 ")
 
-        assertThat(active.path("task").path("id").asText()).isEqualTo("dispatch-1")
+        assertThat(active.available).isTrue()
+        assertThat(active.task?.id).isEqualTo("dispatch-1")
         assertThat(seenMethod.get()).isEqualTo("GET")
         assertThat(seenPath.get()).isEqualTo(
             "/api/integrations/pharmapay/tasks/active?pharmacyId=pharmacy-7",
@@ -64,7 +65,8 @@ class MerchTaskClientTest {
             ),
         )
 
-        assertThat(shown.path("accepted").asBoolean()).isTrue()
+        assertThat(shown.accepted).isTrue()
+        assertThat(shown.available).isTrue()
         assertThat(seenMethod.get()).isEqualTo("POST")
         assertThat(seenPath.get()).isEqualTo("/api/integrations/pharmapay/tasks/shown")
         assertThat(seenKey.get()).isEqualTo("server-secret")
@@ -77,19 +79,25 @@ class MerchTaskClientTest {
     }
 
     @Test
-    fun `disabled or incompletely configured gateway fails closed without network access`() {
-        val disabled = MerchTaskClient(jacksonObjectMapper(), false, "", "", 7_000)
-        val missingKey = MerchTaskClient(jacksonObjectMapper(), true, "http://127.0.0.1:1", "", 7_000)
+    fun `disabled gateway stays quiet while incomplete configuration reports unavailable`() {
+        val disabled = clientWithoutServer(enabled = false, baseUrl = "", integrationKey = "")
+        val missingKey = clientWithoutServer(
+            enabled = true,
+            baseUrl = "http://127.0.0.1:1",
+            integrationKey = "",
+        )
         val receipt = MerchTaskShownRequest("dispatch-1", "pharmacy-7", "POS-02", "delivery-token")
 
-        assertThat(disabled.activeTask("pharmacy-7").path("task").isNull).isTrue()
-        assertThat(disabled.markShown(receipt).path("accepted").asBoolean()).isFalse()
-        assertThat(missingKey.activeTask("pharmacy-7").path("task").isNull).isTrue()
+        assertThat(disabled.activeTask("pharmacy-7").available).isTrue()
+        assertThat(disabled.activeTask("pharmacy-7").task).isNull()
+        assertThat(disabled.markShown(receipt).accepted).isFalse()
+        assertThat(disabled.markShown(receipt).available).isTrue()
+        assertThat(missingKey.activeTask("pharmacy-7").available).isFalse()
     }
 
     @Test
     fun `invalid pharmacy identifier is rejected before contacting upstream`() {
-        val client = MerchTaskClient(jacksonObjectMapper(), false, "", "", 7_000)
+        val client = clientWithoutServer(enabled = false, baseUrl = "", integrationKey = "")
 
         assertThatThrownBy { client.activeTask("pharmacy\nspoof") }
             .isInstanceOf(AppException::class.java)
@@ -98,7 +106,7 @@ class MerchTaskClientTest {
     }
 
     @Test
-    fun `upstream failures use the stable unavailable error contract`() {
+    fun `upstream failures fail open without returning a gateway error to POSM`() {
         server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
             createContext("/") { exchange ->
                 exchange.sendResponseHeaders(503, -1)
@@ -108,20 +116,53 @@ class MerchTaskClientTest {
         }
         val client = client(enabled = true, integrationKey = "server-secret")
 
-        assertThatThrownBy { client.activeTask("pharmacy-7") }
-            .isInstanceOf(AppException::class.java)
-            .extracting("code")
-            .isEqualTo(ErrorCode.UPSTREAM_UNAVAILABLE)
+        val result = client.activeTask("pharmacy-7")
+
+        assertThat(result.available).isFalse()
+        assertThat(result.task).isNull()
+    }
+
+    @Test
+    fun `untrusted public task link is rejected without exposing an upstream failure`() {
+        server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
+            createContext("/") { exchange ->
+                val body = """{"task":{"id":"dispatch-1","publicUrl":"https://evil.example/merch/staff","deliveryToken":"token-1"}}"""
+                    .toByteArray()
+                exchange.responseHeaders.add("Content-Type", "application/json")
+                exchange.sendResponseHeaders(200, body.size.toLong())
+                exchange.responseBody.use { it.write(body) }
+            }
+            start()
+        }
+
+        val result = client(enabled = true, integrationKey = "server-secret").activeTask("pharmacy-7")
+
+        assertThat(result.available).isFalse()
+        assertThat(result.task).isNull()
     }
 
     private fun client(enabled: Boolean, integrationKey: String): MerchTaskClient {
         val port = requireNotNull(server).address.port
         return MerchTaskClient(
-            objectMapper = jacksonObjectMapper(),
             enabled = enabled,
             baseUrl = "http://127.0.0.1:$port",
             integrationKey = integrationKey,
             timeoutMs = 1_000,
+            publicBaseUrl = "https://epharm.inkar.kz",
+            meterRegistry = SimpleMeterRegistry(),
         )
     }
+
+    private fun clientWithoutServer(
+        enabled: Boolean,
+        baseUrl: String,
+        integrationKey: String,
+    ) = MerchTaskClient(
+        enabled = enabled,
+        baseUrl = baseUrl,
+        integrationKey = integrationKey,
+        timeoutMs = 1_000,
+        publicBaseUrl = "https://epharm.inkar.kz",
+        meterRegistry = SimpleMeterRegistry(),
+    )
 }

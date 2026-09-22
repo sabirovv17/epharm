@@ -25,6 +25,7 @@ namespace CustomerDisplay.Services
         // лучше дать сети восстановиться, чем регулярно считать живой backend "таймаутом".
         private readonly TimeSpan _playlistTimeout = TimeSpan.FromSeconds(20);
         private readonly TimeSpan _heartbeatTimeout = TimeSpan.FromSeconds(20);
+        private readonly TimeSpan _merchTaskTimeout = TimeSpan.FromSeconds(8);
         private DateTime _lastHeartbeatErrorLog = DateTime.MinValue;
         private string? _lastHeartbeatErrorKey;
 
@@ -263,26 +264,22 @@ namespace CustomerDisplay.Services
         /// <summary>Current merchandising task for a pharmacy, proxied by ePharm.</summary>
         public async Task<MerchTaskDto?> GetActiveMerchTaskAsync(
             string pharmacyId,
+            string deviceId,
             CancellationToken ct = default)
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(_playlistTimeout);
-            try
-            {
-                var url = "/api/posm/tasks?pharmacyId=" + Uri.EscapeDataString(pharmacyId);
-                var envelope = await _http
-                    .GetFromJsonAsync<MerchTaskEnvelope>(url, JsonOpts, cts.Token)
-                    .ConfigureAwait(false);
-                return envelope?.Task;
-            }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch
-            {
-                return null;
-            }
+            cts.CancelAfter(_merchTaskTimeout);
+            var url = "/api/posm/tasks?pharmacyId=" + Uri.EscapeDataString(pharmacyId);
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.TryAddWithoutValidation("X-Device-Id", deviceId);
+            using var response = await _http.SendAsync(request, cts.Token).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            var envelope = await response.Content
+                .ReadFromJsonAsync<MerchTaskEnvelope>(JsonOpts, cts.Token)
+                .ConfigureAwait(false)
+                ?? throw new HttpRequestException("Empty merchandising task response.");
+            if (!envelope.Available) throw new MerchTaskUnavailableException();
+            return envelope.Task;
         }
 
         /// <summary>Records that a QR task was actually displayed on a pharmacy device.</summary>
@@ -294,7 +291,7 @@ namespace CustomerDisplay.Services
             CancellationToken ct = default)
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(_playlistTimeout);
+            cts.CancelAfter(_merchTaskTimeout);
             try
             {
                 using var response = await _http.PostAsJsonAsync(

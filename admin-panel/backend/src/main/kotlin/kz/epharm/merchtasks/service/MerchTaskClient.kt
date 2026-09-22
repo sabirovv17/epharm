@@ -1,7 +1,11 @@
 package kz.epharm.merchtasks.service
 
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
+import io.micrometer.core.instrument.Counter
+import io.micrometer.core.instrument.MeterRegistry
+import java.net.URI
+import kz.epharm.merchtasks.dto.MerchTaskDeliveryResult
+import kz.epharm.merchtasks.dto.MerchTaskDto
+import kz.epharm.merchtasks.dto.MerchTaskEnvelope
 import kz.epharm.merchtasks.dto.MerchTaskShownRequest
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
@@ -11,6 +15,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
+import org.springframework.web.client.RestClientResponseException
 
 /**
  * Protected server-to-server gateway from ePharm to the merchandising service.
@@ -18,15 +23,19 @@ import org.springframework.web.client.RestClient
  */
 @Component
 class MerchTaskClient(
-    private val objectMapper: ObjectMapper,
     @Value("\${app.merch-tasks.enabled:false}") private val enabled: Boolean,
     @Value("\${app.merch-tasks.base-url:}") private val baseUrl: String,
     @Value("\${app.merch-tasks.integration-key:}") private val integrationKey: String,
     @Value("\${app.merch-tasks.timeout-ms:7000}") timeoutMs: Int,
+    @Value("\${app.public-base-url:https://epharm.inkar.kz}") publicBaseUrl: String,
+    meterRegistry: MeterRegistry,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val requestTimeoutMs = timeoutMs.coerceIn(MIN_TIMEOUT_MS, MAX_TIMEOUT_MS)
-    private val active get() = enabled && baseUrl.isNotBlank() && integrationKey.isNotBlank()
+    private val configured get() = baseUrl.isNotBlank() && integrationKey.isNotBlank()
+    private val trustedPortal = URI.create(publicBaseUrl.trimEnd('/') + "/merch/")
+    private val counters = mutableMapOf<Pair<String, String>, Counter>()
+    private val registry = meterRegistry
 
     private val rest: RestClient by lazy {
         val factory = SimpleClientHttpRequestFactory().apply {
@@ -40,7 +49,7 @@ class MerchTaskClient(
             .build()
     }
 
-    fun activeTask(pharmacyId: String): JsonNode {
+    fun activeTask(pharmacyId: String): MerchTaskEnvelope {
         val normalizedPharmacyId = pharmacyId.trim()
         if (normalizedPharmacyId.isEmpty() ||
             normalizedPharmacyId.length > 128 ||
@@ -52,39 +61,72 @@ class MerchTaskClient(
                 HttpStatus.BAD_REQUEST,
             )
         }
-        if (!active) return objectMapper.createObjectNode().putNull("task")
-        return upstream("active task") {
+        if (!enabled) return MerchTaskEnvelope()
+        if (!configured) return MerchTaskEnvelope(available = false)
+        return upstream("active", MerchTaskEnvelope(available = false)) {
             rest.get().uri { builder ->
                 builder.path("/api/integrations/pharmapay/tasks/active")
                     .queryParam("pharmacyId", normalizedPharmacyId)
                     .build()
-            }.retrieve().body(JsonNode::class.java)
-                ?: objectMapper.createObjectNode().putNull("task")
+            }.retrieve().body(MerchTaskEnvelope::class.java)
+                ?.also { response -> response.task?.let(::validateTask) }
+                ?: MerchTaskEnvelope()
         }
     }
 
-    fun markShown(payload: MerchTaskShownRequest): JsonNode {
-        if (!active) return objectMapper.createObjectNode().put("accepted", false)
-        return upstream("delivery receipt") {
+    fun markShown(payload: MerchTaskShownRequest): MerchTaskDeliveryResult {
+        if (!enabled) return MerchTaskDeliveryResult()
+        if (!configured) return MerchTaskDeliveryResult(available = false)
+        return upstream("shown", MerchTaskDeliveryResult(available = false)) {
             rest.post()
                 .uri("/api/integrations/pharmapay/tasks/shown")
                 .body(payload)
                 .retrieve()
-                .body(JsonNode::class.java)
-                ?: objectMapper.createObjectNode().put("accepted", false)
+                .body(MerchTaskDeliveryResult::class.java)
+                ?: MerchTaskDeliveryResult()
         }
     }
 
-    private fun <T> upstream(action: String, call: () -> T): T = try {
-        call()
+    private fun validateTask(task: MerchTaskDto) {
+        require(task.id.length in 1..128 && task.id.matches(SAFE_ID)) { "invalid task id" }
+        require(task.deliveryToken.length in 1..2048 && task.deliveryToken.matches(SAFE_TOKEN)) {
+            "invalid delivery token"
+        }
+        require(task.title.length <= 512) { "task title is too long" }
+        require(task.priority == null || task.priority.length <= 32) { "task priority is too long" }
+
+        val publicUrl = URI.create(task.publicUrl)
+        require(
+            publicUrl.scheme.equals(trustedPortal.scheme, ignoreCase = true) &&
+                publicUrl.host.equals(trustedPortal.host, ignoreCase = true) &&
+                effectivePort(publicUrl) == effectivePort(trustedPortal) &&
+                publicUrl.path.startsWith(trustedPortal.path),
+        ) { "untrusted task public URL" }
+    }
+
+    private fun <T> upstream(operation: String, fallback: T, call: () -> T): T = try {
+        call().also { counter(operation, "success").increment() }
     } catch (e: Exception) {
-        log.warn("Merchandising {} failed: {}", action, e.message)
-        throw AppException(
-            ErrorCode.UPSTREAM_UNAVAILABLE,
-            "Сервис заданий временно недоступен",
-            HttpStatus.BAD_GATEWAY,
-            e,
-        )
+        counter(operation, "failure").increment()
+        log.warn("Merchandising operation={} failed-open: {}", operation, failureSummary(e))
+        log.debug("Merchandising failure details for operation={}", operation, e)
+        fallback
+    }
+
+    private fun failureSummary(error: Exception): String = when (error) {
+        is RestClientResponseException -> "HTTP ${error.statusCode.value()}"
+        is IllegalArgumentException -> "invalid upstream payload"
+        else -> error.javaClass.simpleName
+    }
+
+    private fun counter(operation: String, outcome: String): Counter = synchronized(counters) {
+        counters.getOrPut(operation to outcome) {
+            Counter.builder("epharm.merch.tasks.requests")
+                .description("Calls from ePharm to the optional merchandising task service")
+                .tag("operation", operation)
+                .tag("outcome", outcome)
+                .register(registry)
+        }
     }
 
     private companion object {
@@ -92,5 +134,13 @@ class MerchTaskClient(
         const val MIN_TIMEOUT_MS = 250
         const val MAX_TIMEOUT_MS = 30_000
         val SAFE_PHARMACY_ID = Regex("[0-9A-Za-z._:+@/-]+")
+        val SAFE_ID = Regex("[0-9A-Za-z._:+@/-]+")
+        val SAFE_TOKEN = Regex("[0-9A-Za-z._~+/=-]+")
+
+        fun effectivePort(uri: URI): Int = when {
+            uri.port >= 0 -> uri.port
+            uri.scheme.equals("https", ignoreCase = true) -> 443
+            else -> 80
+        }
     }
 }

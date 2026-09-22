@@ -28,6 +28,7 @@ public sealed class TaskKioskClientTests
         Assert.Equal("Аптека pharmacy-7", item.BranchName);
         Assert.Equal("https://epharm.inkar.kz/merch/staff?token=opaque", item.QrUrl);
         Assert.Equal("pharmacy-7", api.RequestedPharmacyId);
+        Assert.Equal("POS-02", api.RequestedDeviceId);
 
         Assert.True(await client.AcknowledgeAsync(item, CancellationToken.None));
         Assert.Equal(("dispatch-1", "pharmacy-7", "POS-02", "delivery-token"), api.Acknowledgement);
@@ -85,17 +86,35 @@ public sealed class TaskKioskClientTests
         Assert.Single(await client.ListAsync(CancellationToken.None));
     }
 
+    [Fact]
+    public void PollBackoffIsBoundedAndResetsAfterRecovery()
+    {
+        var schedule = new TaskKioskPollSchedule();
+
+        Assert.Equal(TimeSpan.FromSeconds(10), schedule.Initial);
+        Assert.Equal(TimeSpan.FromSeconds(30), schedule.RecordFailure());
+        Assert.Equal(TimeSpan.FromMinutes(1), schedule.RecordFailure());
+        Assert.Equal(TimeSpan.FromMinutes(2), schedule.RecordFailure());
+        Assert.Equal(TimeSpan.FromMinutes(5), schedule.RecordFailure());
+        Assert.Equal(TimeSpan.FromMinutes(5), schedule.RecordFailure());
+        Assert.Equal(TimeSpan.FromSeconds(10), schedule.RecordSuccess());
+        Assert.Equal(TimeSpan.FromSeconds(30), schedule.RecordFailure());
+    }
+
     private sealed class FakeMerchTaskApi : IMerchTaskApi
     {
         public MerchTaskDto? Response { get; init; }
         public string? RequestedPharmacyId { get; private set; }
+        public string? RequestedDeviceId { get; private set; }
         public (string DispatchId, string PharmacyId, string DeviceId, string DeliveryToken)? Acknowledgement { get; private set; }
 
         public Task<MerchTaskDto?> GetActiveMerchTaskAsync(
             string pharmacyId,
+            string deviceId,
             CancellationToken ct = default)
         {
             RequestedPharmacyId = pharmacyId;
+            RequestedDeviceId = deviceId;
             return System.Threading.Tasks.Task.FromResult(Response);
         }
 
