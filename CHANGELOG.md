@@ -5,7 +5,13 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
-## [0.1.8] - 2026-09-21
+## [0.1.8] - 2026-09-22
+
+### Added
+
+- Integrated pharmacy merchandising assignments with POSM through an authenticated, fail-open
+  task bridge: a configured pharmacy receives the task QR without blocking recommendations when
+  the merchandising service is unavailable.
 
 ### Fixed
 
