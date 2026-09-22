@@ -21,7 +21,10 @@ public sealed record TaskKioskItem(
 
 public interface IMerchTaskApi
 {
-    Task<MerchTaskDto?> GetActiveMerchTaskAsync(string pharmacyId, CancellationToken ct = default);
+    Task<MerchTaskDto?> GetActiveMerchTaskAsync(
+        string pharmacyId,
+        string deviceId,
+        CancellationToken ct = default);
 
     Task<bool> AcknowledgeMerchTaskAsync(
         string dispatchId,
@@ -52,7 +55,9 @@ public sealed class TaskKioskClient : IDisposable
 
     public async Task<List<TaskKioskItem>> ListAsync(CancellationToken cancellation)
     {
-        var task = await _api.GetActiveMerchTaskAsync(_pharmacyId, cancellation).ConfigureAwait(false);
+        var task = await _api
+            .GetActiveMerchTaskAsync(_pharmacyId, _deviceId, cancellation)
+            .ConfigureAwait(false);
         if (task == null) return [];
 
         if (!Uri.TryCreate(task.PublicUrl, UriKind.Absolute, out var qr) ||
@@ -103,7 +108,7 @@ public sealed class TaskKioskClient : IDisposable
     }
 }
 
-public sealed record MerchTaskEnvelope(MerchTaskDto? Task);
+public sealed record MerchTaskEnvelope(MerchTaskDto? Task, bool Available = true);
 
 public sealed record MerchTaskDto(
     string Id,
@@ -114,4 +119,43 @@ public sealed record MerchTaskDto(
     string PublicUrl,
     string DeliveryToken);
 
-public sealed record MerchTaskDeliveryResult(bool Accepted);
+public sealed record MerchTaskDeliveryResult(bool Accepted, bool Available = true);
+
+public sealed class MerchTaskUnavailableException : Exception
+{
+    public MerchTaskUnavailableException()
+        : base("The optional merchandising task service is temporarily unavailable.") { }
+}
+
+/// <summary>
+/// Backoff is isolated to the optional merchandising poller. It never changes recommendation,
+/// heartbeat, fulfillment, or sales schedules.
+/// </summary>
+public sealed class TaskKioskPollSchedule
+{
+    private static readonly TimeSpan HealthyInterval = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan[] FailureIntervals =
+    [
+        TimeSpan.FromSeconds(30),
+        TimeSpan.FromMinutes(1),
+        TimeSpan.FromMinutes(2),
+        TimeSpan.FromMinutes(5),
+    ];
+
+    private int _failureCount;
+
+    public TimeSpan Initial => HealthyInterval;
+
+    public TimeSpan RecordSuccess()
+    {
+        _failureCount = 0;
+        return HealthyInterval;
+    }
+
+    public TimeSpan RecordFailure()
+    {
+        var index = Math.Min(_failureCount, FailureIntervals.Length - 1);
+        _failureCount++;
+        return FailureIntervals[index];
+    }
+}

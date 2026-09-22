@@ -352,14 +352,20 @@ class PosmRecommendIntegrationTest {
     }
 
     @Test
-    fun `task bridge authenticates POSM and fails closed while integration is disabled`() {
+    fun `disabled task bridge stays empty and cannot affect recommendations`() {
         mockMvc.perform(
             get("/api/posm/tasks")
                 .header("X-Posm-Key", POSM_KEY)
+                .header("X-Device-Id", "POS-02")
                 .param("pharmacyId", "ph_t"),
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.task").isEmpty)
+            .andExpect(jsonPath("$.available").value(true))
+
+        val recommendation = recommend("s-merch-isolation", listOf(CartItemDto(barcode = barBio)))
+        assertEquals(1, recommendation.recommendations.size)
+        assertEquals("p_zen", recommendation.recommendations[0].recommendSku)
 
         mockMvc.perform(
             get("/api/posm/tasks")
@@ -384,6 +390,7 @@ class PosmRecommendIntegrationTest {
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.accepted").value(false))
+            .andExpect(jsonPath("$.available").value(true))
 
         mockMvc.perform(
             post("/api/posm/tasks/shown")

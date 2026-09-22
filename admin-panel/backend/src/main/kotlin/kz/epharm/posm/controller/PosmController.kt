@@ -1,6 +1,5 @@
 package kz.epharm.posm.controller
 
-import com.fasterxml.jackson.databind.JsonNode
 import jakarta.validation.Valid
 import kz.epharm.cdp.dto.CdpLookupRequest
 import kz.epharm.cdp.dto.CdpLookupResponse
@@ -10,6 +9,8 @@ import kz.epharm.appupdate.dto.AppVersionDto
 import kz.epharm.appupdate.service.AppReleaseService
 import kz.epharm.cdp.service.CdpService
 import kz.epharm.merchtasks.dto.MerchTaskShownRequest
+import kz.epharm.merchtasks.dto.MerchTaskDeliveryResult
+import kz.epharm.merchtasks.dto.MerchTaskEnvelope
 import kz.epharm.merchtasks.service.MerchTaskClient
 import kz.epharm.posm.dto.HeartbeatResponse
 import kz.epharm.posm.dto.MarkShownRequest
@@ -189,9 +190,14 @@ class PosmController(
     @GetMapping("/tasks")
     fun activeMerchTask(
         @RequestHeader(name = "X-Posm-Key", required = false) key: String?,
+        @RequestHeader(name = "X-Device-Id", required = false) deviceId: String?,
         @RequestParam pharmacyId: String,
-    ): JsonNode {
-        val device = deviceAuthentication.authenticate(key, claimedPharmacyId = pharmacyId)
+    ): MerchTaskEnvelope {
+        val device = deviceAuthentication.authenticate(
+            key,
+            claimedPharmacyId = pharmacyId,
+            claimedDeviceId = deviceId,
+        )
         return merchTaskClient.activeTask(device.pharmacyId ?: pharmacyId.trim())
     }
 
@@ -200,7 +206,7 @@ class PosmController(
     fun markMerchTaskShown(
         @RequestHeader(name = "X-Posm-Key", required = false) key: String?,
         @Valid @RequestBody payload: MerchTaskShownRequest,
-    ): JsonNode {
+    ): MerchTaskDeliveryResult {
         val device = deviceAuthentication.authenticate(
             key,
             claimedPharmacyId = payload.pharmacyId,

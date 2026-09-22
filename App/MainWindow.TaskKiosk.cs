@@ -19,8 +19,10 @@ public partial class MainWindow
     private List<TaskKioskItem> _taskKioskItems = [];
     private bool _taskKioskPolling;
     private bool _taskKioskOnline;
+    private bool _taskKioskHadFailure;
     private readonly HashSet<string> _taskKioskAcknowledged = [];
     private readonly HashSet<string> _taskKioskAcknowledging = [];
+    private readonly TaskKioskPollSchedule _taskKioskPollSchedule = new();
 
     private void StartTaskKiosk()
     {
@@ -42,7 +44,7 @@ public partial class MainWindow
             _taskKioskTray.ContextMenuStrip = menu;
             _taskKioskTray.DoubleClick += (_, _) => OpenTaskKiosk(activate: true);
 
-            _taskKioskTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
+            _taskKioskTimer = new DispatcherTimer { Interval = _taskKioskPollSchedule.Initial };
             _taskKioskTimer.Tick += async (_, _) => await PollTaskKiosk();
             _taskKioskTimer.Start();
             _ = PollTaskKiosk();
@@ -90,6 +92,13 @@ public partial class MainWindow
 
             _taskKioskItems = items;
             _taskKioskOnline = true;
+            if (_taskKioskTimer != null)
+                _taskKioskTimer.Interval = _taskKioskPollSchedule.RecordSuccess();
+            if (_taskKioskHadFailure)
+            {
+                Log("Задания аптек: связь восстановлена.");
+                _taskKioskHadFailure = false;
+            }
             var liveLinks = items.Select(item => item.LinkId ?? item.NotificationKey).ToHashSet();
             _taskKioskAcknowledged.RemoveWhere(key => !liveLinks.Contains(key));
             var keys = items.Select(item => item.NotificationKey).ToHashSet();
@@ -109,12 +118,16 @@ public partial class MainWindow
         {
             // Normal application shutdown.
         }
-        catch
+        catch (Exception ex)
         {
             if (_taskKioskStop.IsCancellationRequested) return;
             _taskKioskOnline = false;
+            _taskKioskHadFailure = true;
+            var retryAfter = _taskKioskPollSchedule.RecordFailure();
+            if (_taskKioskTimer != null) _taskKioskTimer.Interval = retryAfter;
             _taskKioskWindow?.SetOffline();
             if (_taskKioskTray != null) _taskKioskTray.Text = "Задания аптеки — нет связи с CRM";
+            Log($"Задания аптек: временно недоступны ({ex.Message}); повтор через {retryAfter.TotalSeconds:0} с.");
         }
         finally
         {

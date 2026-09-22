@@ -70,6 +70,12 @@ delivery token for ten minutes without completing the task. The client sends a r
 the QR is actually visible. Network failures never block the cash desk and leave the task window in
 an explicit offline state.
 
+The poll request includes the provisioned `X-Device-Id`. Merchandising is an optional dependency:
+the ePharm gateway converts CRM timeout, invalid payload, or upstream 5xx into an HTTP 200 envelope
+with `available=false`. POSM backs off task polling from 30 seconds to a maximum of five minutes and
+does not feed that failure into the shared backend failover handler. Recommendations, heartbeat, and
+sales delivery therefore continue through their existing route while only the task window is offline.
+
 The cash desk uses its existing individual `DeviceKey`. The CRM integration key exists only in the
 backend environment. Configure the server with `MERCH_TASKS_BASE_URL`,
 `MERCH_TASKS_INTEGRATION_KEY`, and `MERCH_PORTAL_UPSTREAM`, verify the public `/merch/` portal, then
