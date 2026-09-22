@@ -76,6 +76,31 @@ creating a synthetic database order would bypass that contract and must not be
 used as evidence of end-to-end acceptance. Card-payment authority and the
 second independent cash desk remain separate rollout gates.
 
+## Explicit network rollout request, 2026-09-22
+
+The operator clarified that overnight offline tills are expected after pharmacy
+closing time and explicitly requested distribution to the fleet before the
+physical pilot. POSM `1.0.63` is already the mandatory signed Windows release;
+the public ZIP matches the registered SHA-256, and all 111 currently connected
+registers report `1.0.63.0`. Publishing an identical new POSM binary would not
+change those clients. The remaining release action is the ACC order worker.
+
+`rollout-2026-09-22.json` is an audited allowlist of 477 pharmacies with all
+three prerequisites: active ACC catalog row, exact active ePharm `ch:` link,
+and an active individual POSM device. It covers all 111 registers online at
+the audit time. The other 26 provisioned pharmacy IDs do not have a verified
+active ACC mapping and must remain excluded; no fuzzy matching is allowed.
+
+Run `configure-rollout.mjs <manifest.json> <backend-secret-sha256> --check`
+on the ACC server before changing state. The script rejects an old/duplicate
+manifest, altered ACC catalog mappings, a wrong secret or origin, and an active
+worker. After rechecking ePharm links, run it without `--check` to back up the
+root-only env, set an explicit current UTC cutoff, and enable only those 477
+IDs. Start the timer separately, inspect the first cycles and preserve the
+backup path. This is a deployment authorization, **not** evidence of end-to-end
+pharmacist acceptance; a real order and status round-trip still need a staffed
+pharmacy, and untrusted card payments remain pending until authority is set.
+
 Rollback: stop the ACC timer and service, set `EPHARM_ORDER_SYNC_ENABLED=false`,
 then, if necessary, set `FULFILLMENT_ENABLED=false` in ePharm. Restore the two
 worker files from the deployment backup only while the timer is stopped. Keep
