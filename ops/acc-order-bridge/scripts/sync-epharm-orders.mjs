@@ -3,7 +3,7 @@ import pg from "pg";
 import { pathToFileURL } from "node:url";
 import {
   buildOrder, exactEpharmPharmacyId, parsePharmacyAllowlist, signature, stableJson,
-  STATUS_LABELS, validateFeed, validateOrigin,
+  STATUS_LABELS, validateFeed, validateOrderAck, validateOrigin,
 } from "./lib/epharm-contract.mjs";
 
 const LOCK = 4930511130;
@@ -111,11 +111,7 @@ export async function runOnce(env = process.env) {
             [event.id, JSON.stringify(input)],
           );
         }
-        const ack = await request("POST", OUTBOUND_PATH, input);
-        if (String(ack.orderId || "") !== input.orderId || !Number.isInteger(ack.version) || ack.version < 1
-            || ack.assigned !== true) {
-          throw new Error("invalid_epharm_ack");
-        }
+        validateOrderAck(await request("POST", OUTBOUND_PATH, input), input.orderId);
         await db.query(`
           UPDATE integration_outbox
           SET status='sent', sent_at=now(), locked_at=NULL, last_error=NULL, updated_at=now()

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildOrder, exactEpharmPharmacyId, parsePharmacyAllowlist, signature, stableJson,
-  validateFeed, validateOrigin,
+  validateFeed, validateOrderAck, validateOrigin,
 } from "../scripts/lib/epharm-contract.mjs";
 
 const event = () => ({
@@ -81,4 +81,13 @@ test("pilot allowlist is explicit and rejects malformed or duplicate locations",
   assert.throws(() => parsePharmacyAllowlist(""), /invalid_epharm_pharmacy_allowlist/);
   assert.throws(() => parsePharmacyAllowlist(`${id},${id}`), /invalid_epharm_pharmacy_allowlist/);
   assert.throws(() => parsePharmacyAllowlist("sloc_bad"), /invalid_epharm_pharmacy_allowlist/);
+});
+
+test("outbox is not marked sent until ePharm confirms an assigned order", () => {
+  const orderId = "order-1";
+  const ack = { orderId, version: 1, assigned: true };
+  assert.deepEqual(validateOrderAck(ack, orderId), ack);
+  assert.throws(() => validateOrderAck({ ...ack, assigned: false }, orderId), /invalid_epharm_ack/);
+  assert.throws(() => validateOrderAck({ ...ack, orderId: "other" }, orderId), /invalid_epharm_ack/);
+  assert.throws(() => validateOrderAck({ ...ack, version: 0 }, orderId), /invalid_epharm_ack/);
 });

@@ -57,6 +57,14 @@ export function exactEpharmPharmacyId(localPharmacyId, catalogPharmacy) {
   return `ch:${catalogPharmacy.external_id}`;
 }
 
+export function validateOrderAck(ack, orderId) {
+  if (!ack || ack.orderId !== orderId || !Number.isInteger(ack.version)
+      || ack.version < 1 || ack.assigned !== true) {
+    throw new Error("invalid_epharm_ack");
+  }
+  return ack;
+}
+
 export function buildOrder(event, catalog, pharmacyExternalId) {
   const payload = event.payload;
   if (!payload || payload.status_code !== "submitted" || !/^\d{6}$/.test(payload.pickup_code || "")) {

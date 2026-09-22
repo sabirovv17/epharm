@@ -42,7 +42,8 @@ checksums and backs up both scripts and the environment before replacing code.
    server. Retain the reported backup directory.
 3. Compare SHA-256 fingerprints of `FULFILLMENT_SHARED_SECRET` on ePharm and
    `EPHARM_FULFILLMENT_SHARED_SECRET` on ACC. Copy the ePharm value to ACC if
-   needed. Verify a signed, read-only `GET /api/integrations/storefront/order-updates`.
+   needed. Load the root-only ACC env and run
+   `node scripts/probe-epharm-orders.mjs` to verify a signed, read-only feed.
 4. Set `EPHARM_ORDER_PHARMACY_IDS` to the pilot pharmacy and
    `EPHARM_ORDER_START_AT` to an explicit UTC timestamp after old orders.
 5. Enable `EPHARM_ORDER_SYNC_ENABLED=true`, start the systemd timer and make

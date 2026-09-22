@@ -54,6 +54,7 @@ jobs:
       - name: Test ACC order bridge contract
         run: |
           node --check ops/acc-order-bridge/scripts/sync-epharm-orders.mjs
+          node --check ops/acc-order-bridge/scripts/probe-epharm-orders.mjs
           node --test ops/acc-order-bridge/tests/epharm-contract.test.mjs
       - name: Validate shell syntax and executable bits
         run: |
