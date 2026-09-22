@@ -58,6 +58,24 @@ checksums and backs up both scripts and the environment before replacing code.
    feed remains healthy for a full shift, expand the allowlist. Resolve the
    33 mapping exceptions before using `*`.
 
+## Pilot status, 2026-09-22 20:20 UTC
+
+The audited bridge code is installed on ACC, its HMAC fingerprint matches the
+existing ePharm backend, and a signed read-only status-feed probe passed. The
+worker ran once with `sent=0`, `failed=0`, `updated=0`; there were no new ACC
+outbox orders after the cutover time. It was then **disabled again** because
+the only registered POSM device at Абая 150/230 last polled ePharm at
+18:55 UTC, over an hour earlier. Other ePharm devices remained online, so
+this is a location-specific pilot blocker rather than a backend outage.
+
+Do not re-enable the timer merely because the software tests pass. First
+confirm a fresh heartbeat and a pharmacist-visible POSM session at the exact
+location, then conduct a coordinated real or clearly labelled test pickup.
+The site checkout requires a real Daribar-authenticated commercial order;
+creating a synthetic database order would bypass that contract and must not be
+used as evidence of end-to-end acceptance. Card-payment authority and the
+second independent cash desk remain separate rollout gates.
+
 Rollback: stop the ACC timer and service, set `EPHARM_ORDER_SYNC_ENABLED=false`,
 then, if necessary, set `FULFILLMENT_ENABLED=false` in ePharm. Restore the two
 worker files from the deployment backup only while the timer is stopped. Keep
