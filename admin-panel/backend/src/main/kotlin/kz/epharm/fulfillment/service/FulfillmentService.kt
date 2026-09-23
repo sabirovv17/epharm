@@ -284,7 +284,7 @@ class FulfillmentService(
             )
             else -> invalid("Unsupported POSM order status filter")
         }
-        return listOrders(device.pharmacyId, statuses, assigned = true, offsetRaw, limitRaw.coerceAtMost(50))
+        return listOrders(device.pharmacyId, statuses, assigned = true, offsetRaw, limitRaw.coerceAtMost(50), deviceOnly = true)
     }
 
     fun listForAdmin(
@@ -302,7 +302,7 @@ class FulfillmentService(
 
     fun getForDevice(orderId: String, device: FulfillmentDeviceContext): FulfillmentOrderDto {
         val order = requireOrder(orderId)
-        if (order.pharmacyId != device.pharmacyId) notFound("Order was not found")
+        if (order.pharmacyId != device.pharmacyId || !order.isPickupCash()) notFound("Order was not found")
         return dto(order)
     }
 
@@ -435,6 +435,7 @@ class FulfillmentService(
         assigned: Boolean?,
         offsetRaw: Int,
         limitRaw: Int,
+        deviceOnly: Boolean = false,
     ): FulfillmentOrderPageDto {
         val offset = offsetRaw.coerceAtLeast(0)
         val limit = limitRaw.coerceIn(1, 200)
@@ -452,6 +453,10 @@ class FulfillmentService(
             true -> clauses += "o.pharmacy_id IS NOT NULL"
             false -> clauses += "o.pharmacy_id IS NULL"
             null -> Unit
+        }
+        if (deviceOnly) {
+            // Filter in SQL before pagination, not after mapping a page.
+            clauses += "o.delivery = 'pickup' AND o.payment_method = 'cash' AND o.is_demo = false AND o.payment_status <> 'demo_no_charge'"
         }
         val where = if (clauses.isEmpty()) "" else "WHERE ${clauses.joinToString(" AND ")}"
         args += limit + 1
@@ -492,6 +497,9 @@ class FulfillmentService(
             if (requiredPharmacyId != null && current.pharmacyId != requiredPharmacyId) {
                 return@execute ActionResult(error = AppException(ErrorCode.NOT_FOUND, "Order was not found", HttpStatus.NOT_FOUND))
             }
+            if (actorType == "posm" && !current.isPickupCash()) {
+                return@execute ActionResult(error = AppException(ErrorCode.NOT_FOUND, "Order was not found", HttpStatus.NOT_FOUND))
+            }
             if (current.pharmacyId == null && actorType == "posm") {
                 return@execute ActionResult(error = AppException(ErrorCode.NOT_FOUND, "Order was not found", HttpStatus.NOT_FOUND))
             }
@@ -499,6 +507,9 @@ class FulfillmentService(
                 return@execute ActionResult(error = AppException(ErrorCode.CONFLICT, "Order version is stale", HttpStatus.CONFLICT))
             }
             if (action != FulfillmentAction.cancel) {
+                if (!current.isPickupCash()) {
+                    return@execute ActionResult(error = AppException(ErrorCode.CONFLICT, "Only pickup orders paid in cash can be processed", HttpStatus.CONFLICT))
+                }
                 val pharmacyId = current.pharmacyId ?: return@execute ActionResult(
                     error = AppException(ErrorCode.CONFLICT, "Order must be assigned before processing", HttpStatus.CONFLICT),
                 )
@@ -627,6 +638,9 @@ class FulfillmentService(
         txResult.error?.let { throw it }
         return txResult.order!!
     }
+
+    private fun FulfillmentOrderRecord.isPickupCash(): Boolean =
+        delivery == "pickup" && paymentMethod == "cash" && !demo && paymentStatus != "demo_no_charge"
 
     private fun paymentIssueError(order: FulfillmentOrderRecord, cashCollected: Boolean): AppException? {
         if (order.demo) {

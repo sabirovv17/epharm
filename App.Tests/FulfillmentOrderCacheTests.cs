@@ -123,8 +123,8 @@ public sealed class FulfillmentOrderCacheTests : IDisposable
     [InlineData("cash", "pending", false, "123456", true, true)]
     [InlineData("cash", "paid", false, "123456", false, true)]
     [InlineData("card", "pending", false, "123456", true, false)]
-    [InlineData("card", "paid", false, "123456", false, true)]
-    [InlineData("cash", "demo_no_charge", true, "123456", false, true)]
+    [InlineData("card", "paid", false, "123456", false, false)]
+    [InlineData("cash", "demo_no_charge", true, "123456", false, false)]
     [InlineData("cash", "pending", false, "12345", true, false)]
     [InlineData("cash", "pending", false, "12A456", true, false)]
     public void IssueRequiresExactCodeAndTrustedPayment(
@@ -138,12 +138,35 @@ public sealed class FulfillmentOrderCacheTests : IDisposable
         var order = new FulfillmentOrder
         {
             Status = "ready",
+            Delivery = "pickup",
             PaymentMethod = method,
             PaymentStatus = paymentStatus,
             Demo = demo,
         };
 
         Assert.Equal(expected, FulfillmentRules.CanIssue(order, code, cashCollected));
+    }
+
+    [Theory]
+    [InlineData("pickup", "cash", false, "pending", true)]
+    [InlineData("pharmacy", "cash", false, "pending", false)]
+    [InlineData("courier", "cash", false, "pending", false)]
+    [InlineData("pickup", "card", false, "paid", false)]
+    [InlineData("pickup", "cash", true, "demo_no_charge", false)]
+    [InlineData("", "cash", false, "pending", false)]
+    public void TillEligibilityFailsClosedForOtherDeliveryAndPayment(
+        string delivery, string payment, bool demo, string paymentStatus, bool eligible)
+    {
+        var order = new FulfillmentOrder
+        {
+            Delivery = delivery,
+            PaymentMethod = payment,
+            PaymentStatus = paymentStatus,
+            Demo = demo,
+            Status = "ready",
+        };
+        Assert.Equal(eligible, order.IsPickupCash);
+        Assert.Equal(eligible, FulfillmentRules.CanIssue(order, "123456", cashCollected: true));
     }
 
     public void Dispose()

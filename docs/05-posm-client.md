@@ -27,6 +27,9 @@ The POSM client runs on a Windows cash-desk machine:
 11. Stores outgoing non-real-time events in a local SQLite outbox and retries safely.
 12. Sends any cashier id/name found in Standard-N as an audit signal; the backend decides the trusted
     internal pharmacist used for bonuses.
+13. Shows and processes only non-demo pickup orders with cash payment. Missing delivery or payment
+    fields fail closed. Cached orders are rechecked on startup; server-removed cards close after the
+    next successful poll. Recommendations remain on a separate path.
 
 ## Important Files
 

@@ -38,6 +38,7 @@ The backend is a modular monolith under package `kz.epharm`.
 | `banners`                             | Admin-managed mobile banners.                                           |
 | `medusa`                              | Storefront client/proxy and admin read-only catalog.                    |
 | `posm`                                | POSM recommendations, outcomes, sales, playlists, heartbeat, CDP.       |
+| `fulfillment`                         | Signed storefront order ingest, pharmacist cash-pickup queue and actions. |
 | `appupdate`                           | POSM app release metadata and auto-update endpoint.                     |
 | `training`                            | Programs, routes, assignments, events, attendance, results and awards.  |
 | `lms`, `ai_exam`, `lift`, `dashboard` | Admin sections and reporting.                                           |
