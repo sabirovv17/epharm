@@ -26,6 +26,9 @@ import kz.epharm.pharmacists.repository.PharmacistRepository
 import kz.epharm.training.repository.TrainingCertificateRepository
 import kz.epharm.training.repository.TrainingAssessmentResultRepository
 import kz.epharm.training.repository.TrainingRewardRepository
+import kz.epharm.training.repository.TrainingAssignmentStageRepository
+import kz.epharm.training.repository.TrainingLessonProgressRepository
+import kz.epharm.training.domain.TrainingStageStatus
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -38,6 +41,7 @@ import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
@@ -47,6 +51,8 @@ import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import java.time.Instant
+import java.time.temporal.ChronoUnit
+import java.util.UUID
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -85,6 +91,8 @@ class TrainingIntegrationTest {
     @Autowired private lateinit var certificateRepository: TrainingCertificateRepository
     @Autowired private lateinit var assessmentResultRepository: TrainingAssessmentResultRepository
     @Autowired private lateinit var rewardRepository: TrainingRewardRepository
+    @Autowired private lateinit var assignmentStageRepository: TrainingAssignmentStageRepository
+    @Autowired private lateinit var lessonProgressRepository: TrainingLessonProgressRepository
 
     private lateinit var adminBearer: String
     private lateinit var pharmacistBearer: String
@@ -233,14 +241,42 @@ class TrainingIntegrationTest {
         val startedJson = objectMapper.readTree(started)
         val onlineStage = startedJson["stages"].first { it["type"].asText() == "online_course" }
 
-        val afterOnline = mockMvc.perform(
+        mockMvc.perform(
             patch("/api/mobile/training/assignments/$assignmentId/stages/${onlineStage["id"].asText()}")
                 .header("Authorization", pharmacistBearer)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""{"progressPct":100}"""),
         )
+            .andExpect(status().isConflict)
+
+        val lessonPath = "/api/mobile/training/assignments/$assignmentId/stages/${onlineStage["id"].asText()}/lessons/cls_training_intro"
+        mockMvc.perform(
+            patch(lessonPath)
+                .header("Authorization", pharmacistBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"progressPct":0}"""),
+        ).andExpect(status().isOk)
+        val lessonProgress = lessonProgressRepository.findByAssignmentStageIdAndLessonId(
+            UUID.fromString(onlineStage["id"].asText()),
+            "cls_training_intro",
+        )!!
+        lessonProgress.startedAt = Instant.now().minus(10, ChronoUnit.MINUTES)
+        lessonProgressRepository.saveAndFlush(lessonProgress)
+
+        mockMvc.perform(
+            delete("/api/admin/lms/courses/crs_training/lessons/cls_training_intro")
+                .header("Authorization", adminBearer),
+        ).andExpect(status().isConflict)
+
+        val afterOnline = mockMvc.perform(
+            patch(lessonPath)
+                .header("Authorization", pharmacistBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"progressPct":100,"positionSeconds":480}"""),
+        )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.status").value("waiting_test"))
+            .andExpect(jsonPath("$.stages[0].course.lessons[0].progressPct").value(100))
             .andReturn().response.contentAsString
         val testStage = objectMapper.readTree(afterOnline)["stages"].first { it["type"].asText() == "test" }
 
@@ -511,6 +547,71 @@ class TrainingIntegrationTest {
                     "Этап course: привяжите онлайн-курс или укажите ссылку на материал",
                 ),
             )
+    }
+
+    @Test
+    fun `completed legacy online course without lesson rows retains visible completion`() {
+        val programId = createPublishedProgram()["id"].asText()
+        val assignment = objectMapper.readTree(
+            mockMvc.perform(
+                post("/api/admin/training/assignments")
+                    .header("Authorization", adminBearer)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"programId":"$programId","pharmacistIds":["ph_training"],"format":"online"}"""),
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+        )["assignments"][0]
+        val assignmentId = assignment["id"].asText()
+        val onlineStageId = UUID.fromString(assignment["stages"][0]["id"].asText())
+        val onlineStage = assignmentStageRepository.findById(onlineStageId).orElseThrow()
+        onlineStage.status = TrainingStageStatus.completed
+        onlineStage.progressPct = 100
+        onlineStage.completedAt = Instant.now()
+        assignmentStageRepository.saveAndFlush(onlineStage)
+
+        mockMvc.perform(
+            get("/api/mobile/training/assignments/$assignmentId")
+                .header("Authorization", pharmacistBearer),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.stages[0].course.lessons[0].progressPct").value(100))
+            .andExpect(jsonPath("$.stages[0].course.lessons[0].completedAt").isNotEmpty)
+    }
+
+    @Test
+    fun `legacy url only online course can still be completed`() {
+        val program = objectMapper.readTree(
+            mockMvc.perform(
+                post("/api/admin/training/programs")
+                    .header("Authorization", adminBearer)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """{"name":"Ссылка на обучение","allowedFormats":["online"],"status":"published", "stages":[{"key":"course","type":"online_course","title":"Курс по ссылке","order":0,"applicableFormats":["online"],"contentUrl":"https://example.org/course"}]}""",
+                    ),
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+        )
+        val assignment = objectMapper.readTree(
+            mockMvc.perform(
+                post("/api/admin/training/assignments")
+                    .header("Authorization", adminBearer)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"programId":"${program["id"].asText()}","pharmacistIds":["ph_training"],"format":"online"}"""),
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+        )["assignments"][0]
+        val assignmentId = assignment["id"].asText()
+        val stageId = assignment["stages"][0]["id"].asText()
+        mockMvc.perform(
+            post("/api/mobile/training/assignments/$assignmentId/start")
+                .header("Authorization", pharmacistBearer),
+        ).andExpect(status().isOk)
+        mockMvc.perform(
+            patch("/api/mobile/training/assignments/$assignmentId/stages/$stageId")
+                .header("Authorization", pharmacistBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"progressPct":100}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("completed"))
+            .andExpect(jsonPath("$.stages[0].progressPct").value(100))
     }
 
     @Test

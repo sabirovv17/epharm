@@ -27,6 +27,10 @@ data class CourseLessonDto(
     val order: Int,
     val createdAt: Instant,
     val updatedAt: Instant,
+    val progressPct: Int? = null,
+    val lastPositionSeconds: Int? = null,
+    val startedAt: Instant? = null,
+    val completedAt: Instant? = null,
 ) {
     companion object {
         fun of(
@@ -186,7 +190,7 @@ data class CreateCourseLessonRequest(
     val title: String,
     @field:Size(max = 1000)
     val description: String = "",
-    @field:Size(max = 50_000)
+    @field:Size(max = 10_000)
     val content: String = "",
     val kind: CourseLessonKind = CourseLessonKind.text,
     @field:Size(max = 2000)
@@ -204,7 +208,7 @@ data class UpdateCourseLessonRequest(
     val title: String? = null,
     @field:Size(max = 1000)
     val description: String? = null,
-    @field:Size(max = 50_000)
+    @field:Size(max = 10_000)
     val content: String? = null,
     val kind: CourseLessonKind? = null,
     @field:Size(max = 2000)

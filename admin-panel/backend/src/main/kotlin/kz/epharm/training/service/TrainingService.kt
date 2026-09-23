@@ -8,6 +8,7 @@ import kz.epharm.lms.repository.CourseRepository
 import kz.epharm.lms.repository.CourseLessonRepository
 import kz.epharm.lms.repository.CourseLessonAttachmentRepository
 import kz.epharm.lms.dto.CourseContentDto
+import kz.epharm.lms.entity.CourseLessonKind
 import kz.epharm.pharmacists.entity.PharmacistEntity
 import kz.epharm.pharmacists.entity.PharmacistStatus
 import kz.epharm.pharmacists.repository.PharmacistRepository
@@ -30,6 +31,7 @@ import kz.epharm.training.dto.CreateTrainingProgramRequest
 import kz.epharm.training.dto.CreateTrainingStageRequest
 import kz.epharm.training.dto.EventParticipantDto
 import kz.epharm.training.dto.MarkAttendanceRequest
+import kz.epharm.training.dto.LessonProgressRequest
 import kz.epharm.training.dto.MassChangeTrainingPreferencesRequest
 import kz.epharm.training.dto.MassAssignmentResultDto
 import kz.epharm.training.dto.MobileTrainingOverviewDto
@@ -64,6 +66,7 @@ import kz.epharm.training.entity.TrainingAssessmentResultEntity
 import kz.epharm.training.entity.TrainingAuditLogEntity
 import kz.epharm.training.entity.TrainingCertificateEntity
 import kz.epharm.training.entity.TrainingNotificationEntity
+import kz.epharm.training.entity.TrainingLessonProgressEntity
 import kz.epharm.training.entity.TrainingProgramEntity
 import kz.epharm.training.entity.TrainingProgramStageEntity
 import kz.epharm.training.entity.TrainingProgramVersionEntity
@@ -78,6 +81,7 @@ import kz.epharm.training.repository.TrainingAssessmentResultRepository
 import kz.epharm.training.repository.TrainingAuditLogRepository
 import kz.epharm.training.repository.TrainingCertificateRepository
 import kz.epharm.training.repository.TrainingNotificationRepository
+import kz.epharm.training.repository.TrainingLessonProgressRepository
 import kz.epharm.training.repository.TrainingProgramRepository
 import kz.epharm.training.repository.TrainingProgramStageRepository
 import kz.epharm.training.repository.TrainingProgramVersionRepository
@@ -88,6 +92,7 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
+import java.time.Duration
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -102,6 +107,7 @@ class TrainingService(
     private val assignmentRepository: TrainingAssignmentRepository,
     private val assignmentFormatHistoryRepository: TrainingAssignmentFormatHistoryRepository,
     private val assignmentStageRepository: TrainingAssignmentStageRepository,
+    private val lessonProgressRepository: TrainingLessonProgressRepository,
     private val assessmentResultRepository: TrainingAssessmentResultRepository,
     private val participantRepository: EventParticipantRepository,
     private val preferenceRepository: PharmacistTrainingPreferenceRepository,
@@ -122,6 +128,7 @@ class TrainingService(
         TrainingAssignmentStatus.completed.name,
         TrainingAssignmentStatus.cancelled.name,
     )
+    private val videoProgressGraceSeconds = 15L
 
     // Programs
 
@@ -1108,7 +1115,13 @@ class TrainingService(
         if (assignmentStage.assignmentId != assignmentId) badRequest("Этап относится к другому назначению")
         if (assignmentStage.status == TrainingStageStatus.locked) conflict("Предыдущий обязательный этап ещё не завершён")
         val programStage = programStageRepository.findById(assignmentStage.programStageId).orElseThrow()
-        if (programStage.type !in setOf(TrainingStageType.material, TrainingStageType.online_course)) {
+        val legacyUrlOnlyCourse = programStage.type == TrainingStageType.online_course &&
+            versionRepository.findById(assignment.programVersionId).orElseThrow().onlineCourseId == null &&
+            !programStage.contentUrl.isNullOrBlank()
+        if (programStage.type == TrainingStageType.online_course && !legacyUrlOnlyCourse) {
+            conflict("Прогресс онлайн-курса обновляется по каждому уроку")
+        }
+        if (programStage.type != TrainingStageType.material && !legacyUrlOnlyCourse) {
             forbidden("Результат теста, экзамена или очного этапа фиксируется доверенным административным контуром")
         }
         val now = Instant.now()
@@ -1137,6 +1150,109 @@ class TrainingService(
         )
         return mapAssignments(listOf(assignment)).single()
     }
+
+    @Transactional
+    fun updateLessonProgress(
+        pharmacistId: String,
+        assignmentId: UUID,
+        stageId: UUID,
+        lessonId: String,
+        req: LessonProgressRequest,
+    ): TrainingAssignmentDto {
+        val assignment = loadOwnedAssignment(pharmacistId, assignmentId)
+        if (assignment.status in setOf(TrainingAssignmentStatus.completed, TrainingAssignmentStatus.cancelled)) {
+            conflict("Завершённое или отменённое назначение нельзя изменять")
+        }
+        val assignmentStage = assignmentStageRepository.findById(stageId).orElseThrow {
+            AppException(ErrorCode.NOT_FOUND, "Этап назначения не найден", HttpStatus.NOT_FOUND)
+        }
+        if (assignmentStage.assignmentId != assignmentId) badRequest("Этап относится к другому назначению")
+        if (assignmentStage.status == TrainingStageStatus.locked) {
+            conflict("Предыдущий обязательный этап ещё не завершён")
+        }
+        val programStage = programStageRepository.findById(assignmentStage.programStageId).orElseThrow()
+        if (programStage.type != TrainingStageType.online_course) {
+            badRequest("Прогресс урока доступен только для этапа онлайн-курса")
+        }
+        val version = versionRepository.findById(assignment.programVersionId).orElseThrow()
+        val courseId = version.onlineCourseId ?: conflict("К программе не привязан онлайн-курс")
+        val lesson = courseLessonRepository.findById(lessonId).orElseThrow {
+            AppException(ErrorCode.NOT_FOUND, "Урок не найден", HttpStatus.NOT_FOUND)
+        }
+        if (lesson.courseId != courseId) badRequest("Урок относится к другому курсу")
+
+        val lessons = courseLessonRepository.findAllByCourseIdOrderByOrderAscCreatedAtAsc(courseId)
+        val progressByLesson = lessonProgressRepository.findAllByAssignmentStageIdIn(listOf(stageId))
+            .associateBy { it.lessonId }
+            .toMutableMap()
+        val blockedBy = lessons.firstOrNull { previous ->
+            previous.requiredLesson && previous.order < lesson.order &&
+                progressByLesson[previous.id]?.completedAt == null
+        }
+        if (blockedBy != null) {
+            conflict("Сначала завершите урок «${blockedBy.title}»")
+        }
+
+        val now = Instant.now()
+        val progress = progressByLesson[lesson.id] ?: TrainingLessonProgressEntity(
+            assignmentId = assignment.id,
+            assignmentStageId = assignmentStage.id,
+            lessonId = lesson.id,
+            startedAt = now,
+        )
+        val requestedProgress = maxOf(progress.progressPct, req.progressPct)
+        if (lesson.kind == CourseLessonKind.video && lesson.durationMin > 0 && requestedProgress > progress.progressPct) {
+            val elapsedSeconds = Duration.between(progress.startedAt, now).seconds.coerceAtLeast(0)
+            val durationSeconds = lesson.durationMin.toLong() * 60L
+            val allowedProgress = (((elapsedSeconds + videoProgressGraceSeconds) * 100L) / durationSeconds)
+                .toInt()
+                .coerceIn(0, 100)
+            if (requestedProgress > allowedProgress) {
+                conflict("Видео ещё не просмотрено: сейчас можно сохранить до $allowedProgress%")
+            }
+        }
+        progress.progressPct = requestedProgress
+        progress.lastPositionSeconds = maxOf(progress.lastPositionSeconds, req.positionSeconds)
+        val completionThreshold = lessonCompletionThreshold(lesson.kind, lesson.minimumWatchPct)
+        if (progress.progressPct >= completionThreshold && progress.completedAt == null) {
+            progress.completedAt = now
+        }
+        lessonProgressRepository.save(progress)
+        progressByLesson[lesson.id] = progress
+
+        val requiredLessons = lessons.filter { it.requiredLesson }
+        if (requiredLessons.isEmpty()) conflict("В онлайн-курсе нет обязательных уроков")
+        assignmentStage.progressPct = requiredLessons.map { requiredLesson ->
+            val threshold = lessonCompletionThreshold(requiredLesson.kind, requiredLesson.minimumWatchPct)
+            val saved = progressByLesson[requiredLesson.id]?.progressPct ?: 0
+            ((saved * 100) / threshold.coerceAtLeast(1)).coerceIn(0, 100)
+        }.average().roundToInt()
+        val allComplete = requiredLessons.all { progressByLesson[it.id]?.completedAt != null }
+        assignmentStage.status = when {
+            allComplete && programStage.manualReview -> TrainingStageStatus.waiting_review
+            allComplete -> TrainingStageStatus.completed
+            assignmentStage.progressPct > 0 -> TrainingStageStatus.in_progress
+            else -> TrainingStageStatus.available
+        }
+        assignmentStage.completedAt = if (allComplete && !programStage.manualReview) now else null
+        if (assignment.startedAt == null) assignment.startedAt = now
+        if (assignmentStage.startedAt == null) assignmentStage.startedAt = now
+        assignmentStageRepository.save(assignmentStage)
+        unlockDependentStages(assignment, programStage.stageKey)
+        recalculateAssignment(assignment)
+        audit(
+            pharmacistId,
+            "pharmacist",
+            "lesson_progress_updated",
+            "training_lesson_progress",
+            progress.id.toString(),
+            mapOf("lessonId" to lesson.id, "progress" to progress.progressPct),
+        )
+        return mapAssignments(listOf(assignment)).single()
+    }
+
+    private fun lessonCompletionThreshold(kind: CourseLessonKind, configured: Int?): Int =
+        if (kind == CourseLessonKind.video) (configured ?: 80).coerceIn(1, 100) else 100
 
     @Transactional
     fun recordAssessmentResult(
@@ -1862,6 +1978,10 @@ class TrainingService(
         ).associateBy { it.id }
         val rowIds = rows.map { it.id }
         val assignmentStages = assignmentStageRepository.findAllByAssignmentIdIn(rowIds).groupBy { it.assignmentId }
+        val lessonProgress = lessonProgressRepository.findAllByAssignmentStageIdIn(
+            assignmentStages.values.flatten().map { it.id },
+        ).groupBy { it.assignmentStageId }
+            .mapValues { (_, values) -> values.associateBy { it.lessonId } }
         val certificates = certificateRepository.findAllByAssignmentIdIn(rowIds).associateBy { it.assignmentId }
         val rewards = rewardRepository.findAllByAssignmentIdIn(rowIds).associateBy { it.assignmentId }
         return rows.map { assignment ->
@@ -1880,10 +2000,24 @@ class TrainingService(
                         null
                     }
                     val courseContent = course?.let {
-                        CourseContentDto.of(
+                        val base = CourseContentDto.of(
                             it,
                             courseLessons[it.id].orEmpty(),
                             courseAttachments,
+                        )
+                        val progressByLesson = lessonProgress[row.id].orEmpty()
+                        val completedLegacyStage = row.status == TrainingStageStatus.completed &&
+                            progressByLesson.isEmpty()
+                        base.copy(
+                            lessons = base.lessons.map { lesson ->
+                                val progress = progressByLesson[lesson.id]
+                                lesson.copy(
+                                    progressPct = progress?.progressPct ?: if (completedLegacyStage) 100 else 0,
+                                    lastPositionSeconds = progress?.lastPositionSeconds ?: 0,
+                                    startedAt = progress?.startedAt ?: if (completedLegacyStage) row.startedAt else null,
+                                    completedAt = progress?.completedAt ?: if (completedLegacyStage) row.completedAt ?: row.updatedAt else null,
+                                )
+                            },
                         )
                     }
                     TrainingAssignmentStageDto(
@@ -1939,16 +2073,25 @@ class TrainingService(
         }
     }
 
-    private fun eventSummary(event: OfflineEventEntity) = OfflineEventSummaryDto(
-        id = event.id,
-        title = event.title,
-        startsAt = event.startsAt,
-        endsAt = event.endsAt,
-        timezone = event.timezone,
-        city = event.city,
-        address = event.address,
-        status = event.status,
-    )
+    private fun eventSummary(event: OfflineEventEntity): OfflineEventSummaryDto {
+        val occupied = participantRepository.countByEventIdAndStatusRawIn(
+            event.id,
+            activeParticipantStatusNames(),
+        )
+        return OfflineEventSummaryDto(
+            id = event.id,
+            title = event.title,
+            startsAt = event.startsAt,
+            endsAt = event.endsAt,
+            timezone = event.timezone,
+            city = event.city,
+            address = event.address,
+            mapUrl = event.mapUrl,
+            capacity = event.capacity,
+            occupied = occupied,
+            status = event.status,
+        )
+    }
 
     private fun certificateDto(row: TrainingCertificateEntity): TrainingCertificateDto {
         val pharmacist = loadPharmacist(row.pharmacistId)

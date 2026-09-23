@@ -11,6 +11,7 @@ import kz.epharm.training.entity.TrainingAssessmentResultEntity
 import kz.epharm.training.entity.TrainingAuditLogEntity
 import kz.epharm.training.entity.TrainingCertificateEntity
 import kz.epharm.training.entity.TrainingNotificationEntity
+import kz.epharm.training.entity.TrainingLessonProgressEntity
 import kz.epharm.training.entity.TrainingProgramEntity
 import kz.epharm.training.entity.TrainingProgramStageEntity
 import kz.epharm.training.entity.TrainingProgramVersionEntity
@@ -82,6 +83,20 @@ interface TrainingAssignmentStageRepository : JpaRepository<TrainingAssignmentSt
     fun findAllByAssignmentIdOrderByProgramStageIdAsc(assignmentId: UUID): List<TrainingAssignmentStageEntity>
     fun findAllByAssignmentIdIn(assignmentIds: Collection<UUID>): List<TrainingAssignmentStageEntity>
     fun findByAssignmentIdAndProgramStageId(assignmentId: UUID, programStageId: UUID): TrainingAssignmentStageEntity?
+}
+
+@Repository
+interface TrainingLessonProgressRepository : JpaRepository<TrainingLessonProgressEntity, UUID> {
+    fun existsByLessonId(lessonId: String): Boolean
+
+    fun findByAssignmentStageIdAndLessonId(
+        assignmentStageId: UUID,
+        lessonId: String,
+    ): TrainingLessonProgressEntity?
+
+    fun findAllByAssignmentStageIdIn(
+        assignmentStageIds: Collection<UUID>,
+    ): List<TrainingLessonProgressEntity>
 }
 
 @Repository

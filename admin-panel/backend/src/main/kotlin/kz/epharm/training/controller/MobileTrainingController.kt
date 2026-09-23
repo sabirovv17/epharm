@@ -6,6 +6,7 @@ import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import kz.epharm.training.dto.MobileTrainingOverviewDto
 import kz.epharm.training.dto.OfflineEventDto
+import kz.epharm.training.dto.LessonProgressRequest
 import kz.epharm.training.dto.StageProgressRequest
 import kz.epharm.training.dto.TrainingAssignmentDto
 import kz.epharm.training.dto.TrainingNotificationDto
@@ -72,6 +73,21 @@ class MobileTrainingController(
         requirePrincipal(principal).pharmacistId,
         assignmentId,
         stageId,
+        req,
+    )
+
+    @PatchMapping("/assignments/{assignmentId}/stages/{stageId}/lessons/{lessonId}")
+    fun updateLesson(
+        @PathVariable assignmentId: UUID,
+        @PathVariable stageId: UUID,
+        @PathVariable lessonId: String,
+        @Valid @RequestBody req: LessonProgressRequest,
+        @AuthenticationPrincipal principal: PharmacistPrincipal?,
+    ): TrainingAssignmentDto = trainingService.updateLessonProgress(
+        requirePrincipal(principal).pharmacistId,
+        assignmentId,
+        stageId,
+        lessonId,
         req,
     )
 

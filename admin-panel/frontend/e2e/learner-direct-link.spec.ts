@@ -21,6 +21,8 @@ for (const target of [
       required: true,
       durationMin: 5,
       order: 0,
+      progressPct: 0,
+      completedAt: null as string | null,
       attachments: [],
     }
     const assignment = {
@@ -82,7 +84,7 @@ for (const target of [
       }
       if (path === '/api/mobile/training/assignments/assignment-link') return json(assignment)
       if (
-        path === '/api/mobile/training/assignments/assignment-link/stages/stage-link' &&
+        path === '/api/mobile/training/assignments/assignment-link/stages/stage-link/lessons/lesson-link' &&
         request.method() === 'PATCH'
       ) {
         stageCompleted = true
@@ -90,6 +92,8 @@ for (const target of [
         assignment.progressPct = 100
         assignment.stages[0].status = 'completed'
         assignment.stages[0].progressPct = 100
+        lesson.progressPct = 100
+        lesson.completedAt = new Date().toISOString()
         return json(assignment)
       }
       if (path === '/api/mobile/training') {

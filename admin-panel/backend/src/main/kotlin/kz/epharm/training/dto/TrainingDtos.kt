@@ -393,6 +393,9 @@ data class OfflineEventSummaryDto(
     val timezone: String,
     val city: String,
     val address: String,
+    val mapUrl: String?,
+    val capacity: Int,
+    val occupied: Long,
     val status: OfflineEventStatus,
 )
 
@@ -443,6 +446,13 @@ data class TrainingAssignmentFormatHistoryDto(
 data class StageProgressRequest(
     @field:Min(0) @field:Max(100)
     val progressPct: Int,
+)
+
+data class LessonProgressRequest(
+    @field:Min(0) @field:Max(100)
+    val progressPct: Int,
+    @field:Min(0)
+    val positionSeconds: Int = 0,
 )
 
 data class RecordAssessmentResultRequest(

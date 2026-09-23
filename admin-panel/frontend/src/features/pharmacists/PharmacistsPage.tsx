@@ -17,7 +17,7 @@ import {
   useToast,
   type TabItem,
 } from '@/ui'
-import { IconPharmacist, IconUsers } from '@/ui/icons'
+import { IconPharmacist, IconPlus, IconUsers } from '@/ui/icons'
 import type {
   PharmacistDto,
   PharmacistStatus,
@@ -27,6 +27,7 @@ import type {
 import {
   useActivatePharmacist,
   useBlockPharmacist,
+  useCreatePharmacist,
   usePharmacists,
   useUnblockPharmacist,
 } from '@/lib/queries/pharmacists'
@@ -43,6 +44,7 @@ import { describeError } from '@/lib/describeError'
 import { formatKzt, formatNum } from '@/mocks/fixtures'
 import { useT } from '@/i18n'
 import { ActivatePharmacistModal } from './ActivatePharmacistModal'
+import { CreatePharmacistModal } from './CreatePharmacistModal'
 import { StandardNSellerMappingsModal } from './StandardNSellerMappingsModal'
 import { ASSIGNMENT_STATUS_LABEL, FORMAT_LABEL, dateTime } from '@/features/lms/training-ui'
 import { useUiStore } from '@/app/store'
@@ -63,6 +65,8 @@ export default function PharmacistsPage() {
   const [tab, setTab] = useState<PhTab>('all')
   const [q, setQ] = useState('')
   const [activating, setActivating] = useState<PharmacistDto | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
   const [formatFilter, setFormatFilter] = useState<TrainingFormat | 'all' | 'unset'>('all')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [preferenceTargets, setPreferenceTargets] = useState<PharmacistDto[] | null>(null)
@@ -76,6 +80,7 @@ export default function PharmacistsPage() {
   const preferencesQuery = useTrainingPreferences()
   const trainingDashboardQuery = useTrainingDashboard()
   const activatePharmacist = useActivatePharmacist()
+  const createPharmacist = useCreatePharmacist()
   const blockPharmacist = useBlockPharmacist()
   const unblockPharmacist = useUnblockPharmacist()
   const preferenceByPharmacist = useMemo(
@@ -186,11 +191,22 @@ export default function PharmacistsPage() {
         title={t('page.pharmacists.title')}
         subtitle={t('page.pharmacists.subtitle')}
         actions={
-          canManageStandardN ? (
-            <Button variant="outline" onClick={() => setStandardNMappingsOpen(true)}>
-              Продавцы Standard-N
+          <div className="flex flex-wrap items-center gap-2">
+            {canManageStandardN && (
+              <Button variant="outline" onClick={() => setStandardNMappingsOpen(true)}>
+                Продавцы Standard-N
+              </Button>
+            )}
+            <Button
+              leading={<IconPlus size={14} />}
+              onClick={() => {
+                setCreateError(null)
+                setCreateOpen(true)
+              }}
+            >
+              Добавить фармацевта
             </Button>
-          ) : undefined
+          </div>
         }
       />
 
@@ -458,6 +474,26 @@ export default function PharmacistsPage() {
           pending={activatePharmacist.isPending}
           onClose={() => setActivating(null)}
           onActivate={handleActivate}
+        />
+      )}
+      {createOpen && (
+        <CreatePharmacistModal
+          open
+          pharmacies={pharmacies}
+          pending={createPharmacist.isPending}
+          initialPhone="+77470799353"
+          error={createError}
+          onClose={() => setCreateOpen(false)}
+          onCreate={(request) => {
+            setCreateError(null)
+            createPharmacist.mutate(request, {
+              onSuccess: (created) => {
+                setCreateOpen(false)
+                toast.push(`Фармацевт ${created.name} создан`)
+              },
+              onError: (createRequestError) => setCreateError(describeError(createRequestError)),
+            })
+          }}
         />
       )}
       {preferenceTargets && (

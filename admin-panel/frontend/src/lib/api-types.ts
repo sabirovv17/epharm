@@ -684,6 +684,10 @@ export interface CourseLessonDto {
   order: number
   createdAt: string
   updatedAt: string
+  progressPct?: number | null
+  lastPositionSeconds?: number | null
+  startedAt?: string | null
+  completedAt?: string | null
 }
 
 export interface CourseDto {
