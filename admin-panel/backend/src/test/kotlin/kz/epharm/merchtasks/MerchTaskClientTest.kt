@@ -103,6 +103,19 @@ class MerchTaskClientTest {
     }
 
     @Test
+    fun `public HTTP upstream fails closed before sending the server key`() {
+        val publicHttp = clientWithoutServer(
+            enabled = true,
+            baseUrl = "http://203.0.113.10:8080",
+            integrationKey = "server-secret",
+        )
+        val receipt = MerchTaskShownRequest("dispatch-1", "pharmacy-7", "POS-02", "delivery-token")
+
+        assertThat(publicHttp.activeTask("pharmacy-7").available).isFalse()
+        assertThat(publicHttp.markShown(receipt).available).isFalse()
+    }
+
+    @Test
     fun `invalid pharmacy identifier is rejected before contacting upstream`() {
         val client = clientWithoutServer(enabled = false, baseUrl = "", integrationKey = "")
 

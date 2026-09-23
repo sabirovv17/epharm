@@ -35,7 +35,7 @@ class MerchTaskClient(
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val requestTimeoutMs = timeoutMs.coerceIn(MIN_TIMEOUT_MS, MAX_TIMEOUT_MS)
-    private val configured get() = baseUrl.isNotBlank() && integrationKey.isNotBlank()
+    private val configured get() = baseUrl.isNotBlank() && integrationKey.isNotBlank() && trustedTransport(baseUrl)
     private val trustedPortal = URI.create(publicBaseUrl.trimEnd('/') + "/merch/")
     private val counters = mutableMapOf<Pair<String, String>, Counter>()
     private val registry = meterRegistry
@@ -144,6 +144,31 @@ class MerchTaskClient(
         val SAFE_PHARMACY_ID = Regex("[0-9A-Za-z._:+@/-]+")
         val SAFE_ID = Regex("[0-9A-Za-z._:+@/-]+")
         val SAFE_TOKEN = Regex("[0-9A-Za-z._~+/=-]+")
+
+        /** A server credential must never cross the public Internet over plain HTTP. */
+        fun trustedTransport(rawBaseUrl: String): Boolean {
+            return try {
+                val uri = URI.create(rawBaseUrl)
+                val host = uri.host ?: return false
+                if (uri.userInfo != null || uri.rawQuery != null || uri.rawFragment != null ||
+                    (uri.rawPath != null && uri.rawPath !in setOf("", "/"))
+                ) return false
+                when (uri.scheme?.lowercase()) {
+                    "https" -> true
+                    "http" -> host.equals("localhost", ignoreCase = true) ||
+                        host == "127.0.0.1" || host == "[::1]" ||
+                        host.split('.').mapNotNull { it.toIntOrNull() }.let { octets ->
+                            octets.size == 4 && octets.all { it in 0..255 } &&
+                                (octets[0] == 10 ||
+                                    octets[0] == 172 && octets[1] in 16..31 ||
+                                    octets[0] == 192 && octets[1] == 168)
+                        }
+                    else -> false
+                }
+            } catch (_: IllegalArgumentException) {
+                false
+            }
+        }
 
         fun effectivePort(uri: URI): Int = when {
             uri.port >= 0 -> uri.port
