@@ -346,6 +346,14 @@ class FulfillmentIntegrationTest {
         }
         mockMvc.perform(get("/api/posm/fulfillment/orders/order_demo_no_charge")
             .header("X-Fulfillment-Device", token)).andExpect(status().isNotFound)
+        assertThatThrownBy {
+            service.actAsAdmin("order_pickup_card", FulfillmentActionRequest("assemble", 1), "hq-test")
+        }.hasMessageContaining("Only pickup orders paid in cash")
+        assertThat(service.actAsAdmin(
+            "order_pickup_card",
+            FulfillmentActionRequest("cancel", 1, reason = "Not a cashier order"),
+            "hq-test",
+        ).status).isEqualTo("cancelled")
         action("order_pickup_cash", token, "assemble", 1).andExpect(status().isOk)
     }
 
