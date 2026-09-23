@@ -62,6 +62,9 @@ jobs:
         run: |
           node --check ops/merch-portal-patches/strip-demo-autofill.mjs
           node --check ops/merch-portal-patches/test-caddy-routes.mjs
+          node --check ops/merch-portal-patches/preserve-dist-sidecars.mjs
+          node --test ops/merch-portal-patches/test-preserve-dist-sidecars.mjs
+          python3 ops/merch-portal-patches/test-exchange-dist.py
           docker run --rm \
             -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" \
             -e ADMIN_DOMAIN=epharm.example.test \

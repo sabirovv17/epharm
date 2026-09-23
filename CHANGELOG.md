@@ -5,6 +5,21 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-09-23
+
+### Fixed
+
+- Corrected the public merchandising QR portal's `/merch/staff` asset, task API and media paths;
+  limited the ePharm proxy to staff-only routes and required a trusted transport for its service key.
+- Bound the POSM offline fulfillment cache to the pharmacy and device so a reassigned cash desk cannot
+  display another pharmacy's cached orders. POSM source is versioned 1.0.64 for a separately signed release.
+- Validated POSM installer HTTPS and release trust-anchor settings before completing installation.
+
+### Operations
+
+- Added reproducible checks for preserving merchandising photo sidecars across a frontend build,
+  atomic `dist` exchange and rollback, and immutable application release preparation.
+
 ## [0.1.9] - 2026-09-22
 
 ### Fixed
