@@ -1,156 +1,75 @@
-# Epharm / PharmaPayV2
+# Epharm
 
-Epharm is the current product name. `PharmaPayV2`, `pharmacy`, and `PharmaPay` remain in code,
-bundle ids, historical references, and design handoff files.
+Epharm — система для аптечной сети Inkar: HQ-админка, мобильное приложение фармацевта, POSM-модуль на кассах и интеграции с витриной и Medusa. Историческое имя `PharmaPayV2` по-прежнему встречается в путях и идентификаторах; переименовывать его при настройке проекта не нужно.
 
-The repository is the working monorepo for the Ledex x Inkar pharmacist-motivation ecosystem:
+Рабочий публичный адрес: [epharm.inkar.kz](https://epharm.inkar.kz). Через один HTTPS-хост доступны админка (`/`), backend (`/api/*`) и медиа (`/s3/*`). Текущее состояние среды проверяется по [`/api/health`](https://epharm.inkar.kz/api/health), а открытые задачи и критерии приёмки — по [бэклогу](docs/BACKLOG.md) и [release checklist](docs/RELEASE-CHECKLIST.md). Наличие реализации или зелёных тестов не означает, что сценарий уже принят на реальной кассе.
 
-- a Flutter mobile app for pharmacists;
-- a Kotlin/Spring Boot backend;
-- a React/Vite HQ admin console;
-- a C#/WPF POSM client for Standard-N cash desks;
-- integration with the external Medusa storefront/PIM used as a product and pharmacy source.
+## Что находится в репозитории
 
-## Current Runtime
+| Компонент                 | Где искать                                                       | Назначение                                                                                                                                         |
+| ------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backend                   | [`admin-panel/backend/`](admin-panel/backend/)                   | Kotlin/Spring Boot API, PostgreSQL/Flyway, Redis, S3, авторизация, рекомендации, обучение, заказы и интеграции.                                    |
+| HQ-админка                | [`admin-panel/frontend/`](admin-panel/frontend/)                 | React/Vite: кампании и правила, аптеки, кассы, экраны, обучение, заказы и операционные разделы.                                                    |
+| POSM                      | [`App/`](App/), [`Models/`](Models/), [`App.Tests/`](App.Tests/) | Windows/.NET 10 клиент Standard-N: рекомендации, клиентский экран, QR-задания мерчендайзинга, очередь заказов, heartbeat и подписанные обновления. |
+| Мобильное приложение      | [`lib/`](lib/), [`android/`](android/), [`ios/`](ios/)           | Flutter-приложение фармацевта: кампании, обучение, чеки и баланс.                                                                                  |
+| Витрина                   | [`storefront/`](storefront/)                                     | Next.js магазин и самовывоз; отдельный transactional outbox доставляет заказы в Epharm.                                                            |
+| Интеграции и эксплуатация | [`ops/`](ops/), [`pim-etl/`](pim-etl/), [`tools/`](tools/)       | Мост заказов ACC, PIM ETL, мониторинг, резервное копирование, релизы и rollback.                                                                   |
+| Документация              | [`docs/`](docs/)                                                 | [Карта документов](docs/README.md), архитектура, контракты, runbook и приёмка.                                                                     |
 
-The shared demo environment is:
+Medusa — внешний источник товаров, штрихкодов и аптек; её сервер не входит в этот репозиторий. Backend хранит локальный снимок каталога и продолжает отдавать последний полный снимок при временной ошибке источника. Поток интернет-заказов идёт отдельно: витрина/ACC → подписанный outbox → Epharm → касса POSM → статусы обратно в витрину. QR-задания мерчендайзинга поступают через отдельный необязательный bridge; его сбой не должен прерывать рекомендации. Подробности: [архитектура](docs/01-architecture.md), [заказы](docs/19-order-fulfillment.md), [POSM](docs/05-posm-client.md).
 
-```text
-https://epharm.inkar.kz
-```
+## Локальный запуск backend и админки
 
-Caddy serves one public host and routes by path:
-
-- `/api/*` -> backend;
-- `/s3/*` -> MinIO;
-- `/` -> admin frontend.
-
-The active public environment is `epharm.inkar.kz`; API and S3 use its `/api/*` and `/s3/*` paths.
-
-## Modules
-
-| Module         | Path                       | Stack                                                                            | Current state                                                                                                        |
-| -------------- | -------------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Mobile app     | `lib/`, `ios/`, `android/` | Flutter 3.27 / Dart 3.6, Riverpod, go_router, http, secure storage               | Real API is the default. Offline mocks remain behind `--dart-define=USE_API=false`.                                  |
-| Backend        | `admin-panel/backend/`     | Kotlin 2.0.21, Spring Boot 3.3.5, JVM 22, PostgreSQL 16, Flyway, Redis, MinIO/S3 | Monolith with admin, mobile, POSM, Medusa proxy, media proxy, banners, payouts. Migrations V001-V030.                |
-| Admin console  | `admin-panel/frontend/`    | React 19, Vite 8, TypeScript 6, Tailwind 3, TanStack Query, Zustand, axios       | 13 protected sections on real API. Promo has grid/list view, product gallery, banners live under Screens.            |
-| POSM client    | `App/`, `Models/`          | C# / WPF / .NET 10, LibVLCSharp, SQLite outbox                                   | Windows-only client for Standard-N logs, barcode recommendations, customer display, heartbeat, auto-update.          |
-| Storefront/PIM | external Medusa            | Medusa v2.15.2                                                                   | External source for catalog, images, barcodes, categories, and pharmacy stock locations. This repo only consumes it. |
-
-## Repository Map
-
-```text
-PharmaPayV2/
-├── lib/                     # Flutter mobile app
-├── android/ ios/ macos/     # Flutter platform projects
-├── assets/                  # fonts/images/icons for mobile
-├── builds/                  # build_all.sh and review artifacts
-├── admin-panel/
-│   ├── backend/             # Kotlin/Spring backend
-│   ├── frontend/            # React/Vite admin frontend
-│   ├── references/          # historical JSX admin prototype
-│   ├── design-tokens-admin.md
-│   └── claude-admin-notes.md
-├── App/                     # C#/WPF POSM app
-├── Models/                  # shared POSM DTOs
-├── docs/                    # maintained technical docs
-├── _reference/              # mobile design references and historical handoff
-├── tools/                   # prod env, backup, icon helpers
-├── docker-compose.yml       # local Postgres/Redis/MinIO
-├── docker-compose.prod.yml  # full production stack
-├── Caddyfile                # current one-host path routing + internal VPN host
-└── docs/                    # вся документация (см. docs/README.md)
-```
-
-## Fast Local Start
-
-Backend/admin local development uses Docker for infrastructure, `bootRun` for backend, and Vite for
-frontend.
+Нужны Docker, JDK 22, Node.js 24, npm и свободные порты `5433`, `6379`, `9000`, `9001`, `8080`, `5173`. Команды ниже выполняются из корня репозитория. Убедитесь, что `java -version` показывает JDK 22; абсолютный `JAVA_HOME` зависит от вашей машины.
 
 ```bash
-# from repo root
-docker compose up -d
+docker compose up -d --wait postgres redis minio
+docker compose run --rm minio-init
+```
 
+В двух отдельных терминалах:
+
+```bash
 cd admin-panel/backend
-export JAVA_HOME=/Users/amir/Library/Java/JavaVirtualMachines/temurin-22.0.2/Contents/Home
 ./gradlew bootRun
+```
 
-cd ../frontend
-npm install
+```bash
+cd admin-panel/frontend
+npm ci
 npm run dev
 ```
 
-Useful URLs:
+Админка откроется на <http://localhost:5173>, backend — на <http://localhost:8080/api/health>, Swagger UI — на <http://localhost:8080/swagger-ui.html>. Профиль `dev` включён по умолчанию; локальные учётные записи и настройка среды описаны в [RUNBOOK](docs/RUNBOOK.md). Не используйте dev-аккаунты, фиксированный OTP или локальные ключи в production.
 
-- backend health: `http://localhost:8080/api/health`;
-- admin: `http://localhost:5173`;
-- Swagger UI in dev: `http://localhost:8080/swagger-ui.html`;
-- MinIO console: `http://localhost:9001`.
+## Мобильное приложение и витрина
 
-Dev admin users are seeded by the backend dev profile:
-
-| Email                | Password        | Role          |
-| -------------------- | --------------- | ------------- |
-| `damir@jadran.com`   | `damir2026`     | Brand Manager |
-| `aigerim@inkar.kz`   | `aigerim2026`   | Category Lead |
-| `bauyrzhan@inkar.kz` | `bauyrzhan2026` | HQ Head       |
-
-## Mobile Start
-
-Against the shared demo backend:
+Для Flutter нужен SDK из [CI-конфигурации](.github/workflows/ci.yml) (сейчас 3.27.1). После `flutter pub get` приложение можно запустить против локального backend:
 
 ```bash
-flutter run \
-  --dart-define=USE_API=true \
-  --dart-define=API_BASE=https://epharm.inkar.kz
-```
-
-Against a local backend:
-
-```bash
-# iOS simulator
 flutter run --dart-define=USE_API=true --dart-define=API_BASE=http://localhost:8080
-
-# Android emulator
-flutter run --dart-define=USE_API=true --dart-define=API_BASE=http://10.0.2.2:8080
-
-# offline demo
-flutter run --dart-define=USE_API=false
 ```
 
-OTP is `5445` while `OTP_DEV_MODE=true`. Production uses four-digit SMS codes issued and verified
-by Daribar through the ePharm backend.
+Для Android-эмулятора вместо `localhost` используйте `10.0.2.2`. `USE_API=false` включает офлайн-демо, не production-поток. На публичном backend OTP создаёт и проверяет Daribar; dev-код допустим только при явно включённом `OTP_DEV_MODE=true` в локальной среде. Подробнее: [мобильный runbook](docs/04-mobile-app.md) и [OTP](docs/15-daribar-otp.md).
 
-## Quality Bar
+Витрина запускается отдельно из `storefront/` через `npm ci` и `npm run dev`; ей нужны собственные переменные окружения и источник каталога. См. [её README](storefront/README.md). POSM собирается и тестируется на Windows; конфигурация кассы и диагностика — в [Windows runbook](App/WINDOWS_RUNBOOK.md).
 
-Project working rule:
+## Проверки перед PR
 
-- reproduce bugs with a failing test first when feasible;
-- fix root cause with the smallest scoped change;
-- keep frontend DTOs aligned with backend DTOs;
-- use `AppException(ErrorCode, message, status)` for backend business errors;
-- update `docs/claude-notes.md` or `admin-panel/claude-admin-notes.md` after non-trivial decisions;
-- run the relevant suite before calling work done.
-
-Common checks:
+Запускайте проверки затронутых компонентов. Для полного release-кандидата используйте [release checklist](docs/RELEASE-CHECKLIST.md) и обязательный GitHub Actions check `P0 / merge gate` на точном head PR.
 
 ```bash
-cd admin-panel/backend && ./gradlew test
-cd admin-panel/frontend && npm test && npm run build
+(cd admin-panel/backend && ./gradlew build)
+(cd admin-panel/frontend && npm ci && npm run lint && npm test && npm run build)
+(cd storefront && npm ci && npm run lint && npm test && npm run build)
 flutter analyze lib test && flutter test
+./tools/check-p0-config.sh
 ```
 
-## Security Notes
+Отдельно CI проверяет браузерные E2E, POSM/.NET, PIM ETL, контракты ACC bridge, shell/Compose и dependency audit. Перед включением изменений в аптеках нужны целевые smoke-тесты и приёмка на реальном устройстве: тесты кода не подтверждают наличие товара в конкретной аптеке, корректность кассового скана или успешную выдачу заказа.
 
-Secrets and live credentials currently remain in the files where they already exist, per project
-practice for this workspace. Do not copy them into new docs, commits, logs, screenshots, or issue
-bodies. The current release checklist still tracks rotation of storefront/PIM/SSH credentials and
-privatization of receipt storage as important hardening work.
+## Выпуск и безопасность
 
-## Maintained Docs
+Production-развёртывание и rollback выполняются по [release/runbook](docs/20-reliability-and-release.md) и [инструкции эксплуатации](docs/06-deployment-and-ops.md), а не из локальной команды `docker compose up --build`. POSM-релизы подписываются и проверяются перед массовым обновлением. Секреты, device tokens, SSH-доступы, ключи подписи и production `.env` не должны попадать в Git, README, логи или артефакты сборки.
 
-- `docs/RUNBOOK.md` - local startup, resets, tests, production stack operations.
-- `docs/` - architecture, backend/admin/mobile/POSM/deployment/database.
-- `docs/DEV-ONBOARDING.md` - launching the mobile app on a real phone against the shared demo backend.
-- `docs/RELEASE-CHECKLIST.md` - current release blockers and hardening items.
-- `admin-panel/claude-admin-notes.md` and `docs/claude-notes.md` - working memory and latest decisions.
+Главные незакрытые приёмочные вопросы перечислены в [бэклоге](docs/BACKLOG.md): промышленная iOS-подпись/TestFlight, реальные сценарии заказов на двух кассах, полный POSM/QR smoke и официальный источник фискального чека. Правила рекомендаций могут содержать до пяти вариантов замены и cross-sell; перед их публикацией проверяйте остатки по аптекам — текущая выдача не скрывает автоматически отсутствующие локально товары.
