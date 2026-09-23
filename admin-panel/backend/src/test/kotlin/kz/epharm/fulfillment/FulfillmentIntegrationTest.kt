@@ -295,6 +295,69 @@ class FulfillmentIntegrationTest {
     }
 
     @Test
+    fun `cash pickup alone reaches the POSM queue while historical other orders remain auditable`() {
+        link("ch:84", "ph_1")
+        val cases = listOf(
+            Triple("order_pickup_cash", "pickup", "cash"),
+            Triple("order_courier_cash", "pharmacy", "cash"),
+            Triple("order_pickup_card", "pickup", "card"),
+            Triple("order_pickup_kaspi", "pickup", "kaspi"),
+            Triple("order_pickup_halyk", "pickup", "halyk"),
+        )
+        cases.forEachIndexed { index, (id, delivery, payment) ->
+            val body = orderBody(
+                id,
+                "10000000-0000-4000-8000-${(index + 1).toString().padStart(12, '0')}",
+                "ch:84",
+                paymentMethod = payment,
+                delivery = delivery,
+            )
+            performSignedPost(body).andExpect(status().isOk)
+            if (id != "order_pickup_cash") {
+                // Old events are still acknowledged idempotently, not turned into poison retries.
+                performSignedPost(body).andExpect(status().isOk)
+                    .andExpect(jsonPath("$.accepted").value(false))
+                assertThat(service.getForAdmin(id).orderId).isEqualTo(id)
+            }
+        }
+        performSignedPost(orderBody(
+            "order_pickup_cash_second", "10000000-0000-4000-8000-000000000006", "ch:84",
+        )).andExpect(status().isOk)
+        performSignedPost(orderBody(
+            "order_demo_no_charge", "10000000-0000-4000-8000-000000000007", "ch:84",
+            paymentStatus = "demo_no_charge", demo = true,
+        )).andExpect(status().isOk)
+        val token = service.registerDevice("KASSA-ELIGIBILITY", "ph_1").token
+        mockMvc.perform(get("/api/posm/fulfillment/orders").param("status", "active")
+            .header("X-Fulfillment-Device", token))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items.length()").value(2))
+            .andExpect(jsonPath("$.items[0].orderId").value("order_pickup_cash"))
+        mockMvc.perform(get("/api/posm/fulfillment/orders").param("status", "active")
+            .param("offset", "1").param("limit", "1")
+            .header("X-Fulfillment-Device", token))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.items.length()").value(1))
+            .andExpect(jsonPath("$.items[0].orderId").value("order_pickup_cash_second"))
+        for ((id, _, _) in cases.drop(1)) {
+            mockMvc.perform(get("/api/posm/fulfillment/orders/$id")
+                .header("X-Fulfillment-Device", token)).andExpect(status().isNotFound)
+            action(id, token, "assemble", 1).andExpect(status().isNotFound)
+        }
+        mockMvc.perform(get("/api/posm/fulfillment/orders/order_demo_no_charge")
+            .header("X-Fulfillment-Device", token)).andExpect(status().isNotFound)
+        assertThatThrownBy {
+            service.actAsAdmin("order_pickup_card", FulfillmentActionRequest("assemble", 1), "hq-test")
+        }.hasMessageContaining("Only pickup orders paid in cash")
+        assertThat(service.actAsAdmin(
+            "order_pickup_card",
+            FulfillmentActionRequest("cancel", 1, reason = "Not a cashier order"),
+            "hq-test",
+        ).status).isEqualTo("cancelled")
+        action("order_pickup_cash", token, "assemble", 1).andExpect(status().isOk)
+    }
+
+    @Test
     fun `individually provisioned key authenticates all POSM APIs and is pharmacy scoped`() {
         val credential = service.provisionDevice("KASSA-POSM", "ph_1", "hq-test")
 
@@ -362,7 +425,7 @@ class FulfillmentIntegrationTest {
     }
 
     @Test
-    fun `card order cannot be issued before trusted paid status`() {
+    fun `card order cannot be processed at the cash till`() {
         link("ch:84", "ph_1")
         performSignedPost(
             orderBody(
@@ -373,10 +436,7 @@ class FulfillmentIntegrationTest {
             ),
         ).andExpect(status().isOk)
         val token = service.registerDevice("KASSA-CARD", "ph_1").token
-        action("order_card", token, "assemble", 1).andExpect(status().isOk)
-        action("order_card", token, "ready", 2).andExpect(status().isOk)
-        action("order_card", token, "issue", 3, code = "123456")
-            .andExpect(status().isConflict)
+        action("order_card", token, "assemble", 1).andExpect(status().isNotFound)
     }
 
     private fun readyCashOrder(orderId: String, eventId: String): String {
@@ -433,6 +493,8 @@ class FulfillmentIntegrationTest {
         paymentStatus: String = "pending",
         paymentAuthority: String? = null,
         unitPrice: Any? = 1590,
+        delivery: String = "pickup",
+        demo: Boolean = false,
     ): String = objectMapper.writeValueAsString(
         linkedMapOf<String, Any?>(
             "eventId" to if (eventId.startsWith("event")) "77777777-7777-4777-8777-777777777777" else eventId,
@@ -442,11 +504,11 @@ class FulfillmentIntegrationTest {
             "createdAt" to "2026-09-03T10:00:00Z",
             "total" to 1590,
             "currency" to "KZT",
-            "delivery" to "pickup",
+            "delivery" to delivery,
             "paymentMethod" to paymentMethod,
             "paymentStatus" to paymentStatus,
             "paymentAuthority" to paymentAuthority,
-            "demo" to false,
+            "demo" to demo,
             "pickupCode" to "123456",
             "lines" to listOf(
                 linkedMapOf(

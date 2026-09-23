@@ -49,7 +49,7 @@ namespace CustomerDisplay
                     _posmConfig.FulfillmentCachePath,
                     _posmConfig.PharmacyId,
                     _posmConfig.ResolveDeviceId());
-                foreach (var order in _fulfillmentCache.Load().Where(x => x.IsActive))
+                foreach (var order in _fulfillmentCache.Load().Where(x => x.IsActive && x.IsPickupCash))
                 {
                     _fulfillmentOrders[order.OrderId] = order;
                     if (order.Status == "submitted") _knownSubmittedOrders.Add(order.OrderId);
@@ -103,25 +103,32 @@ namespace CustomerDisplay
             lock (_fulfillmentSync)
             {
                 newOrders = submitted.Value
+                    .Where(x => x.IsPickupCash)
                     .Where(x => !_knownSubmittedOrders.Contains(x.OrderId))
                     .Take(20)
                     .ToList();
-                foreach (var order in submitted.Value) _knownSubmittedOrders.Add(order.OrderId);
+                foreach (var order in submitted.Value.Where(x => x.IsPickupCash)) _knownSubmittedOrders.Add(order.OrderId);
                 _fulfillmentOrders.Clear();
-                foreach (var order in active.Value) _fulfillmentOrders[order.OrderId] = order;
+                foreach (var order in active.Value.Where(x => x.IsPickupCash)) _fulfillmentOrders[order.OrderId] = order;
                 _fulfillmentCache?.Save(_fulfillmentOrders.Values);
                 _fulfillmentOnline = true;
             }
 
-            var activeIds = active.Value.Select(x => x.OrderId).ToHashSet(StringComparer.Ordinal);
+            var activeIds = active.Value.Where(x => x.IsPickupCash).Select(x => x.OrderId).ToHashSet(StringComparer.Ordinal);
             var openIds = await Dispatcher.InvokeAsync(() => _fulfillmentCards.Keys
                 .Where(id => !activeIds.Contains(id))
                 .ToList());
             var terminalCards = new List<FulfillmentOrder>();
+            var ineligibleCards = new List<string>();
             foreach (var orderId in openIds)
             {
                 var actual = await _fulfillmentClient.GetAsync(credential.Token, orderId, ct).ConfigureAwait(false);
-                if (actual.IsSuccess && actual.Value != null) terminalCards.Add(actual.Value);
+                if (actual.IsSuccess && actual.Value != null)
+                {
+                    if (actual.Value.IsPickupCash) terminalCards.Add(actual.Value);
+                    else ineligibleCards.Add(orderId);
+                }
+                else if (actual.StatusCode == HttpStatusCode.NotFound) ineligibleCards.Add(orderId);
             }
 
             await Dispatcher.InvokeAsync(() =>
@@ -130,6 +137,10 @@ namespace CustomerDisplay
                 {
                     if (_fulfillmentCards.TryGetValue(order.OrderId, out var card))
                         card.Update(order, online: true);
+                }
+                foreach (var orderId in ineligibleCards)
+                {
+                    if (_fulfillmentCards.TryGetValue(orderId, out var card)) card.Close();
                 }
                 RefreshFulfillmentWindows();
                 if (newOrders.Count > 0) ShowFulfillmentNotice(newOrders.Count);
@@ -303,7 +314,7 @@ namespace CustomerDisplay
 
         private List<FulfillmentOrder> FulfillmentSnapshot()
         {
-            lock (_fulfillmentSync) return _fulfillmentOrders.Values.Where(x => x.IsActive).ToList();
+            lock (_fulfillmentSync) return _fulfillmentOrders.Values.Where(x => x.IsActive && x.IsPickupCash).ToList();
         }
 
         private void ShowFulfillmentNotice(int count)
@@ -371,6 +382,7 @@ namespace CustomerDisplay
 
         private void ShowFulfillmentOrder(FulfillmentOrder order)
         {
+            if (!order.IsPickupCash) return;
             if (_fulfillmentCards.TryGetValue(order.OrderId, out var existing))
             {
                 existing.Update(order, _fulfillmentOnline);
@@ -388,6 +400,8 @@ namespace CustomerDisplay
             FulfillmentOrder current,
             FulfillmentActionRequest action)
         {
+            if (!current.IsPickupCash)
+                return new FulfillmentApiResult<FulfillmentOrder> { Message = "Для выдачи доступны только заказы с самовывозом и оплатой наличными." };
             if (_fulfillmentClient == null || _fulfillmentCredential == null || !_fulfillmentOnline)
                 return new FulfillmentApiResult<FulfillmentOrder> { Message = "Нет связи с сервером." };
 
@@ -421,7 +435,7 @@ namespace CustomerDisplay
         {
             lock (_fulfillmentSync)
             {
-                if (order.IsActive) _fulfillmentOrders[order.OrderId] = order;
+                if (order.IsActive && order.IsPickupCash) _fulfillmentOrders[order.OrderId] = order;
                 else _fulfillmentOrders.Remove(order.OrderId);
                 _fulfillmentCache?.Save(_fulfillmentOrders.Values);
             }

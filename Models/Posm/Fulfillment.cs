@@ -37,7 +37,7 @@ namespace CustomerDisplay.Models.Posm
         public DateTimeOffset CreatedAt { get; set; }
         public decimal Total { get; set; }
         public string Currency { get; set; } = "KZT";
-        public string Delivery { get; set; } = "pickup";
+        public string Delivery { get; set; } = "";
         public string PaymentMethod { get; set; } = "";
         public string PaymentStatus { get; set; } = "";
         public bool Demo { get; set; }
@@ -51,6 +51,8 @@ namespace CustomerDisplay.Models.Posm
         public List<FulfillmentLine> Lines { get; set; } = new();
 
         public bool IsActive => Status is "submitted" or "assembling" or "ready";
+        public bool IsPickupCash => Delivery == "pickup" && PaymentMethod == "cash"
+            && !Demo && PaymentStatus != "demo_no_charge";
     }
 
     public sealed class FulfillmentOrderPage
@@ -74,11 +76,8 @@ namespace CustomerDisplay.Models.Posm
     {
         public static bool CanIssue(FulfillmentOrder order, string? code, bool cashCollected)
         {
-            if (order.Status != "ready" || code?.Length != 6 || !code.All(char.IsDigit)) return false;
-            if (order.Demo) return order.PaymentStatus == "demo_no_charge";
-            if (order.PaymentMethod.Equals("cash", StringComparison.OrdinalIgnoreCase))
-                return order.PaymentStatus is "paid" or "cash_collected" || cashCollected;
-            return order.PaymentStatus == "paid";
+            if (!order.IsPickupCash || order.Status != "ready" || code?.Length != 6 || !code.All(char.IsDigit)) return false;
+            return order.PaymentStatus is "paid" or "cash_collected" || cashCollected;
         }
     }
 }
