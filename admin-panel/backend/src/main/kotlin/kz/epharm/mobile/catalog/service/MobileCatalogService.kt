@@ -114,7 +114,7 @@ class MobileCatalogService(
             // to the live storefront only before the first successful crawl keeps
             // product details available while Medusa is down.
             val local = snapshot?.takeIf { it.hasCompleteSnapshot() }
-            val p = if (local != null) local.findById(id) else medusa.getProduct(id)
+            val p = (if (local != null) local.findById(id) else medusa.getProduct(id))
                 ?: throw AppException(ErrorCode.NOT_FOUND, "Товар не найден", HttpStatus.NOT_FOUND)
             val detail = withRetailPriceFallback(
                 detailOf(p),

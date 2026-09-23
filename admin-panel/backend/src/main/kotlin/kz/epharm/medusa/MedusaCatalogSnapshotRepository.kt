@@ -237,7 +237,7 @@ class MedusaCatalogSnapshotRepository(
          ORDER BY category ->> 'id', category ->> 'name'
         """.trimIndent(),
         { rs, _ -> objectMapper.readValue(rs.getString(1), MedusaCategory::class.java) },
-    ).sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name }.thenBy { it.id })
+    ).sortedWith(compareBy<MedusaCategory> { it.name.lowercase(Locale.ROOT) }.thenBy { it.id })
 
     private fun searchDocument(product: MedusaProduct): String {
         val values = mutableListOf<Any?>()
