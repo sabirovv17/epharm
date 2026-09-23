@@ -25,6 +25,8 @@ All notable production changes to Epharm are recorded here. The format follows
 
 - Cashiers receive and can act on internet orders only for explicitly selected pickup with cash
   payment; existing delivery, online-paid and demo orders remain available for HQ audit.
+- POSM 1.0.66 ships the cashier-side eligibility guard with the same signed auto-update channel;
+  its offline cache no longer exposes non-cash or non-pickup orders from older releases.
 - Reconciled the production training portal, lesson-progress persistence and SPA caching fix with
   the GitHub mainline so the next deployment preserves the live training experience.
 

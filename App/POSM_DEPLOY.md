@@ -9,7 +9,7 @@ Build on Windows with .NET 10 SDK.
 ```powershell
 cd <repo>
 dotnet publish App\CustomerDisplay.csproj -c Release -r win-x64 --self-contained `
-  -p:Version=1.0.65 -o C:\Epharm\app
+  -p:Version=1.0.66 -o C:\Epharm\app
 ```
 
 Auto-update works with a published app folder containing `CustomerDisplay.exe`, dependencies, LibVLC,
@@ -159,8 +159,8 @@ Release flow:
 4. Sign the exact manifest with the offline ECDSA P-256 private key:
 
    ```bash
-   tools/sign-posm-release.sh private-key.pem win-x64 1.0.65 \
-     https://epharm.inkar.kz/downloads/epharm-posm-1.0.65-win-x64.zip release.zip false
+   tools/sign-posm-release.sh private-key.pem win-x64 1.0.66 \
+     https://epharm.inkar.kz/downloads/epharm-posm-1.0.66-win-x64.zip release.zip false
    ```
 
 5. Register `platform`, `version`, `url`, `sha256`, `mandatory` and `manifestSignature` via
