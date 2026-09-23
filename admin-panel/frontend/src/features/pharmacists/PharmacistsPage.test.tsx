@@ -101,6 +101,7 @@ beforeEach(() => {
     ],
   })
   pharmacistHooks.useActivatePharmacist.mockReturnValue({ mutate: vi.fn(), isPending: false })
+  pharmacistHooks.useCreatePharmacist.mockReturnValue({ mutate: vi.fn(), isPending: false })
   pharmacistHooks.useBlockPharmacist.mockReturnValue({ mutate: vi.fn(), isPending: false })
   pharmacistHooks.useUnblockPharmacist.mockReturnValue({ mutate: vi.fn(), isPending: false })
   lmsHooks.useTrainingPreferences.mockReturnValue({
@@ -205,6 +206,17 @@ describe('PharmacistsPage — рендер', () => {
   it('Empty state на пустом списке', () => {
     renderPage()
     expect(screen.getByText(/Фармацевтов пока нет/i)).toBeInTheDocument()
+  })
+
+  it('форма создания открывается с тестовым номером', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(screen.getByRole('button', { name: 'Добавить фармацевта' }))
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Телефон' })).toHaveValue('+77470799353')
+    expect(screen.getByRole('textbox', { name: 'ФИО' })).toHaveValue('Тестовый фармацевт')
   })
 })
 

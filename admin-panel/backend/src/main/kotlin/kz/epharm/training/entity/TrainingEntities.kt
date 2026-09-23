@@ -314,6 +314,32 @@ class TrainingAssignmentStageEntity(
 }
 
 @Entity
+@Table(name = "training_lesson_progress")
+class TrainingLessonProgressEntity(
+    @Id
+    var id: UUID = UUID.randomUUID(),
+    @Column(name = "assignment_id", nullable = false)
+    var assignmentId: UUID = UUID.randomUUID(),
+    @Column(name = "assignment_stage_id", nullable = false)
+    var assignmentStageId: UUID = UUID.randomUUID(),
+    @Column(name = "lesson_id", nullable = false, length = 64)
+    var lessonId: String = "",
+    @Column(name = "progress_pct", nullable = false)
+    var progressPct: Int = 0,
+    @Column(name = "last_position_seconds", nullable = false)
+    var lastPositionSeconds: Int = 0,
+    @Column(name = "started_at", nullable = false)
+    var startedAt: Instant = Instant.now(),
+    @Column(name = "completed_at")
+    var completedAt: Instant? = null,
+    @Column(name = "updated_at", nullable = false)
+    var updatedAt: Instant = Instant.now(),
+) {
+    @PreUpdate
+    fun onUpdate() { updatedAt = Instant.now() }
+}
+
+@Entity
 @Table(name = "training_assessment_results")
 class TrainingAssessmentResultEntity(
     @Id

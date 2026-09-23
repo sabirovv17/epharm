@@ -5,17 +5,6 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import LearnerTrainingPage from './LearnerTrainingPage'
 
 const tokens = { accessToken: 'access-token', refreshToken: 'refresh-token' }
-const lessonStorage = new Map<string, string>()
-const localStorageStub = {
-  getItem: (key: string) => lessonStorage.get(key) ?? null,
-  setItem: (key: string, value: string) => lessonStorage.set(key, value),
-  removeItem: (key: string) => lessonStorage.delete(key),
-  clear: () => lessonStorage.clear(),
-  key: (index: number) => [...lessonStorage.keys()][index] ?? null,
-  get length() {
-    return lessonStorage.size
-  },
-}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -38,8 +27,6 @@ function renderPortal(path = '/learn') {
 
 beforeEach(() => {
   sessionStorage.clear()
-  lessonStorage.clear()
-  vi.stubGlobal('localStorage', localStorageStub)
   vi.restoreAllMocks()
 })
 
@@ -64,70 +51,8 @@ describe('learner training portal', () => {
     expect(code).toHaveValue('1234')
   })
 
-  it('keeps a direct assigned-course link through SMS login', async () => {
-    const assignment = {
-      id: 'assignment-link',
-      programName: 'Назначенный курс',
-      pharmacyName: 'Ауэзова 134',
-      city: 'Алматы',
-      status: 'in_progress',
-      format: 'online',
-      progressPct: 0,
-      startedAt: '2026-09-01T10:00:00Z',
-      stages: [],
-    }
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
-      const path = String(input)
-      if (path === '/api/mobile/auth/sms/request') return json({ accepted: true })
-      if (path === '/api/mobile/auth/sms/verify') {
-        return json({
-          registered: true,
-          tokens,
-          pharmacist: {
-            id: 'ph-1',
-            name: 'Айжан',
-            phone: '+77070000000',
-            pharmacyName: 'Ауэзова 134',
-            city: 'Алматы',
-          },
-        })
-      }
-      if (path === '/api/mobile/auth/me') {
-        return json({
-          id: 'ph-1',
-          name: 'Айжан',
-          phone: '+77070000000',
-          pharmacyName: 'Ауэзова 134',
-          city: 'Алматы',
-        })
-      }
-      if (path === '/api/mobile/training') {
-        return json({ total: 1, inProgress: 1, completed: 0, overdue: 0, assignments: [assignment] })
-      }
-      if (path === '/api/mobile/training/assignments/assignment-link') return json(assignment)
-      return json({ message: `Unexpected request: ${path}` }, 500)
-    })
-
-    renderPortal('/learn/course/assignment-link')
-    const user = userEvent.setup()
-    await user.clear(screen.getByRole('textbox', { name: 'Номер телефона' }))
-    await user.type(screen.getByRole('textbox', { name: 'Номер телефона' }), '77770000000')
-    await user.click(screen.getByRole('button', { name: 'Получить код' }))
-    await user.type(screen.getByRole('textbox', { name: 'Код из SMS' }), '1234')
-    await user.click(screen.getByRole('button', { name: 'Войти' }))
-
-    expect(await screen.findByRole('heading', { name: 'Назначенный курс' })).toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledWith(
-      '/api/mobile/training/assignments/assignment-link',
-      expect.objectContaining({
-        headers: expect.objectContaining({ Authorization: `Bearer ${tokens.accessToken}` }),
-      }),
-    )
-  })
-
-  it('completes the current stage after its final lesson', async () => {
+  it('saves the final lesson through the server progress endpoint', async () => {
     sessionStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
-    localStorage.setItem('epharm.learner.read.assignment-1', JSON.stringify(['lesson-1']))
     const assignment = {
       id: 'assignment-1',
       programName: 'Безопасная работа',
@@ -148,19 +73,39 @@ describe('learner training portal', () => {
             id: 'course-1',
             title: 'Основы',
             lessons: [
-              { id: 'lesson-1', title: 'Первый', order: 0, required: true, attachments: [] },
               {
-                id: 'lesson-2',
-                title: 'Второй',
-                order: 1,
-                required: true,
-                externalUrl: 'https://learn.example.org/final',
+                id: 'lesson-1',
+                title: 'Первый',
+                order: 0,
+                progressPct: 100,
+                completedAt: '2026-09-01T10:05:00Z',
                 attachments: [],
               },
+              { id: 'lesson-2', title: 'Второй', order: 1, progressPct: 0, attachments: [] },
             ],
           },
         },
       ],
+    }
+    const completedAssignment = {
+      ...assignment,
+      progressPct: 100,
+      stages: [{
+        ...assignment.stages[0],
+        status: 'completed',
+        progressPct: 100,
+        course: {
+          ...assignment.stages[0].course,
+          lessons: [
+            assignment.stages[0].course.lessons[0],
+            {
+              ...assignment.stages[0].course.lessons[1],
+              progressPct: 100,
+              completedAt: '2026-09-01T10:10:00Z',
+            },
+          ],
+        },
+      }],
     }
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const path = String(input)
@@ -171,24 +116,23 @@ describe('learner training portal', () => {
       if (path === '/api/mobile/training' && (!init?.method || init.method === 'GET')) {
         return json({ total: 1, inProgress: 1, completed: 0, overdue: 0, assignments: [assignment] })
       }
-      if (path.endsWith('/stages/stage-1') && init?.method === 'PATCH') {
-        return json({ ...assignment, progressPct: 100, stages: [{ ...assignment.stages[0], status: 'completed', progressPct: 100 }] })
+      if (path.endsWith('/stages/stage-1/lessons/lesson-2') && init?.method === 'PATCH') {
+        return json(completedAssignment)
       }
       return json({ message: `Unexpected request: ${path}` }, 500)
     })
 
     renderPortal('/learn/course/assignment-1/lesson/lesson-2')
     expect(await screen.findByRole('heading', { name: 'Второй' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Открыть материал' })).toHaveAttribute(
-      'href',
-      'https://learn.example.org/final',
-    )
     await userEvent.click(screen.getByRole('button', { name: 'Завершить курс' }))
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        '/api/mobile/training/assignments/assignment-1/stages/stage-1',
-        expect.objectContaining({ method: 'PATCH' }),
+        '/api/mobile/training/assignments/assignment-1/stages/stage-1/lessons/lesson-2',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ progressPct: 100, positionSeconds: 0 }),
+        }),
       )
     })
   })

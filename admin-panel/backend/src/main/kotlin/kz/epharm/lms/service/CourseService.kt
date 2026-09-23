@@ -113,7 +113,7 @@ class CourseService(
             content = req.content.trim(),
             externalUrl = req.externalUrl?.trim()?.takeIf(String::isNotEmpty),
             requiredLesson = req.required,
-            minimumWatchPct = req.minimumWatchPct.takeIf { req.kind == CourseLessonKind.video },
+            minimumWatchPct = (req.minimumWatchPct ?: 80).takeIf { req.kind == CourseLessonKind.video },
             durationMin = req.durationMin,
             order = current.size,
         ).also { it.kind = req.kind }

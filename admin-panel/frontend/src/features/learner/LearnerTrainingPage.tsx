@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -7,10 +7,11 @@ import {
   ChevronDown,
   Clock3,
   Download,
-  FileText,
   ExternalLink,
+  FileText,
   Headphones,
   Image,
+  Lock,
   LogOut,
   PlayCircle,
   RefreshCw,
@@ -47,6 +48,9 @@ type Lesson = {
   minimumWatchPct?: number | null
   durationMin?: number
   order?: number
+  progressPct?: number | null
+  lastPositionSeconds?: number | null
+  completedAt?: string | null
   attachments?: Array<{
     id: string
     title: string
@@ -102,22 +106,14 @@ type Overview = {
 
 const TOKEN_KEY = 'epharm.learner.tokens'
 
-function readLessonKey(assignmentId: string) {
-  return `epharm.learner.read.${assignmentId}`
+function lessonThreshold(lesson: Lesson) {
+  return lesson.kind === 'video' || !!lesson.videoUrl
+    ? Math.min(100, Math.max(1, lesson.minimumWatchPct ?? 80))
+    : 100
 }
 
-function readCompletedLessons(assignmentId: string) {
-  try {
-    return new Set<string>(JSON.parse(localStorage.getItem(readLessonKey(assignmentId)) || '[]'))
-  } catch {
-    return new Set<string>()
-  }
-}
-
-function saveCompletedLesson(assignmentId: string, lessonId: string) {
-  const completed = readCompletedLessons(assignmentId)
-  completed.add(lessonId)
-  localStorage.setItem(readLessonKey(assignmentId), JSON.stringify([...completed]))
+function lessonCompleted(lesson: Lesson) {
+  return !!lesson.completedAt || (lesson.progressPct ?? 0) >= lessonThreshold(lesson)
 }
 
 function normalizePhone(value: string) {
@@ -267,7 +263,7 @@ export default function LearnerTrainingPage() {
 
   useEffect(() => {
     const previousTitle = document.title
-    document.title = 'Обучение ePharm'
+    document.title = 'ePharm — Обучение'
     document.body.classList.add('learner-portal')
     return () => {
       document.title = previousTitle
@@ -402,6 +398,39 @@ export default function LearnerTrainingPage() {
     }
   }
 
+  async function saveLessonProgress(
+    stage: Stage,
+    lesson: Lesson,
+    progressPct: number,
+    positionSeconds: number,
+    refreshOverview = false,
+  ) {
+    if (!tokens || !selected) return null
+    try {
+      const updated = await request<Assignment>(
+        `/api/mobile/training/assignments/${selected.id}/stages/${stage.id}/lessons/${lesson.id}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            progressPct: Math.min(100, Math.max(0, Math.round(progressPct))),
+            positionSeconds: Math.max(0, Math.round(positionSeconds)),
+          }),
+        },
+        tokens,
+        tokenLifecycle,
+      )
+      setSelected(updated)
+      if (refreshOverview) {
+        const refreshed = await request<Overview>('/api/mobile/training', {}, tokens, tokenLifecycle)
+        setOverview(refreshed)
+      }
+      return updated
+    } catch (progressError) {
+      setError(messageFrom(progressError))
+      return null
+    }
+  }
+
   async function logout() {
     const activeTokens = tokens
     try {
@@ -517,7 +546,7 @@ export default function LearnerTrainingPage() {
             onOpenLesson={(nextLessonId) =>
               navigate(`/learn/course/${selected.id}/lesson/${nextLessonId}`)
             }
-            onComplete={completeStage}
+            onSaveProgress={saveLessonProgress}
           />
         ) : selected ? (
           <AssignmentView
@@ -656,7 +685,6 @@ function AssignmentView({
         {assignment.stages.map((stage) => (
           <StageCard
             key={stage.id}
-            assignmentId={assignment.id}
             stage={stage}
             busy={busy}
             onOpenLesson={onOpenLesson}
@@ -669,13 +697,11 @@ function AssignmentView({
 }
 
 function StageCard({
-  assignmentId,
   stage,
   busy,
   onOpenLesson,
   onComplete,
 }: {
-  assignmentId: string
   stage: Stage
   busy: boolean
   onOpenLesson: (lessonId: string) => void
@@ -685,11 +711,9 @@ function StageCard({
     () => [...(stage.course?.lessons ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
     [stage.course?.lessons],
   )
-  const readLessons = readCompletedLessons(assignmentId)
-  const requiredLessons = lessons.filter((lesson) => lesson.required !== false)
-  const completedLessonCount = requiredLessons.filter((lesson) => readLessons.has(lesson.id)).length
+  const completedLessonCount = lessons.filter(lessonCompleted).length
   const completed = stage.status === 'completed' || stage.progressPct >= 100
-  const canComplete = !completed && requiredLessons.every((lesson) => readLessons.has(lesson.id))
+  const canCompleteDirectly = !completed && lessons.length === 0 && stage.type === 'material'
 
   return (
     <section className="overflow-hidden rounded-2xl bg-white shadow-card">
@@ -715,7 +739,10 @@ function StageCard({
             key={lesson.id}
             lesson={lesson}
             number={index + 1}
-            read={readLessons.has(lesson.id)}
+            read={lessonCompleted(lesson)}
+            disabled={stage.status === 'locked' || lessons
+              .slice(0, index)
+              .some((previous) => (previous.required ?? true) && !lessonCompleted(previous))}
             onOpen={() => onOpenLesson(lesson.id)}
           />
         ))}
@@ -726,14 +753,18 @@ function StageCard({
         )}
       </div>
 
-      {!completed && (
+      {!completed && lessons.length > 0 && (
+        <div className="border-t border-ink-100 bg-paper-hover p-5 text-xs font-semibold text-ink-500">
+          Завершайте обязательные уроки по порядку. Прогресс сохраняется на сервере автоматически: {completedLessonCount} из {lessons.length}.
+        </div>
+      )}
+
+      {canCompleteDirectly && (
         <div className="border-t border-ink-100 bg-paper-hover p-5 sm:flex sm:items-center sm:justify-between sm:gap-4">
           <p className="mb-3 text-xs font-semibold text-ink-500 sm:mb-0">
-            {requiredLessons.length > 0 && completedLessonCount < requiredLessons.length
-              ? `Изучите обязательные уроки: ${completedLessonCount} из ${requiredLessons.length}`
-              : 'После подтверждения прогресс сохранится в ePharm.'}
+            После подтверждения прогресс сохранится в ePharm.
           </p>
-          <button className="btn btn-primary btn-md w-full sm:w-auto" disabled={busy || !canComplete} onClick={onComplete}>
+          <button className="btn btn-primary btn-md w-full sm:w-auto" disabled={busy} onClick={onComplete}>
             <Check size={17} /> Завершить этап
           </button>
         </div>
@@ -748,14 +779,20 @@ function LessonPage({
   busy,
   onBack,
   onOpenLesson,
-  onComplete,
+  onSaveProgress,
 }: {
   assignment: Assignment
   lessonId: string
   busy: boolean
   onBack: () => void
   onOpenLesson: (lessonId: string) => void
-  onComplete: (stage: Stage) => Promise<void>
+  onSaveProgress: (
+    stage: Stage,
+    lesson: Lesson,
+    progressPct: number,
+    positionSeconds: number,
+    refreshOverview?: boolean,
+  ) => Promise<Assignment | null>
 }) {
   const stage = assignment.stages.find((candidate) =>
     candidate.course?.lessons.some((lesson) => lesson.id === lessonId),
@@ -764,7 +801,11 @@ function LessonPage({
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
   const index = lessons.findIndex((lesson) => lesson.id === lessonId)
   const lesson = lessons[index]
-  const read = readCompletedLessons(assignment.id).has(lessonId)
+  const [watchedProgress, setWatchedProgress] = useState<Record<string, number>>({})
+  const [saving, setSaving] = useState(false)
+  const currentPositions = useRef<Record<string, number>>({})
+  const lastSyncedProgress = useRef<Record<string, number>>({})
+  const progressInFlight = useRef<Set<string>>(new Set())
 
   if (!stage || !lesson) {
     return (
@@ -779,18 +820,84 @@ function LessonPage({
   const previous = lessons[index - 1]
   const next = lessons[index + 1]
   const attachments = lesson.attachments ?? []
+  const read = lessonCompleted(lesson)
+  const videoLesson = lesson.kind === 'video' || !!lesson.videoUrl
+  const threshold = lessonThreshold(lesson)
+  const effectiveProgress = Math.max(watchedProgress[lesson.id] ?? 0, lesson.progressPct ?? 0)
+  const blockedByPrevious = lessons
+    .slice(0, index)
+    .find((previousLesson) => (previousLesson.required ?? true) && !lessonCompleted(previousLesson))
+
+  if (stage.status === 'locked' || blockedByPrevious) {
+    return (
+      <div className="rounded-2xl bg-white p-8 text-center shadow-card">
+        <Lock className="mx-auto text-ink-300" size={36} />
+        <h2 className="mt-3 text-lg font-extrabold text-ink-900">Урок пока недоступен</h2>
+        <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-ink-500">
+          {blockedByPrevious
+            ? `Сначала завершите обязательный урок «${blockedByPrevious.title}».`
+            : 'Сначала завершите предыдущий обязательный этап обучения.'}
+        </p>
+        <button className="btn btn-outline btn-md mt-5" onClick={onBack}>Вернуться к курсу</button>
+      </div>
+    )
+  }
+
+  async function persistVideoProgress(progressPct: number, positionSeconds: number) {
+    if (progressInFlight.current.has(lesson.id) || read) return
+    progressInFlight.current.add(lesson.id)
+    try {
+      const saved = await onSaveProgress(currentStage, lesson, progressPct, positionSeconds)
+      if (saved) {
+        lastSyncedProgress.current[lesson.id] = Math.max(
+          lastSyncedProgress.current[lesson.id] ?? lesson.progressPct ?? 0,
+          progressPct,
+        )
+      }
+    } finally {
+      progressInFlight.current.delete(lesson.id)
+    }
+  }
+
+  function updateVideoProgress(element: HTMLVideoElement) {
+    if (!Number.isFinite(element.duration) || element.duration <= 0) return
+    const progressPct = Math.min(100, Math.floor((element.currentTime / element.duration) * 100))
+    const positionSeconds = Math.floor(element.currentTime)
+    currentPositions.current[lesson.id] = positionSeconds
+    setWatchedProgress((current) => ({
+      ...current,
+      [lesson.id]: Math.max(current[lesson.id] ?? 0, progressPct),
+    }))
+    const lastSynced = Math.max(
+      lastSyncedProgress.current[lesson.id] ?? 0,
+      lesson.progressPct ?? 0,
+    )
+    if (progressPct >= lastSynced + 5 || progressPct >= threshold) {
+      void persistVideoProgress(progressPct, positionSeconds)
+    }
+  }
 
   async function finishLesson() {
-    saveCompletedLesson(assignment.id, lesson.id)
+    if (!read) {
+      if (videoLesson && effectiveProgress < threshold) return
+      setSaving(true)
+      const saved = await onSaveProgress(
+        currentStage,
+        lesson,
+        videoLesson ? effectiveProgress : 100,
+        Math.max(
+          currentPositions.current[lesson.id] ?? 0,
+          lesson.lastPositionSeconds ?? 0,
+        ),
+        !next,
+      )
+      setSaving(false)
+      if (!saved) return
+    }
     if (next) {
       onOpenLesson(next.id)
       return
     }
-    const completedLessons = readCompletedLessons(assignment.id)
-    const allRequiredComplete = lessons
-      .filter((item) => item.required !== false)
-      .every((item) => completedLessons.has(item.id))
-    if (allRequiredComplete) await onComplete(currentStage)
     onBack()
   }
 
@@ -809,10 +916,6 @@ function LessonPage({
           <div className="mt-4 flex flex-wrap gap-2">
             <span className="chip chip-ink"><Clock3 size={14} /> {lesson.durationMin ?? 0} мин</span>
             {lesson.videoUrl && <span className="chip chip-green"><PlayCircle size={14} /> Видеоурок</span>}
-            <span className="chip chip-ink">{lesson.required === false ? 'Необязательный' : 'Обязательный'}</span>
-            {lesson.minimumWatchPct != null && (
-              <span className="chip chip-blue">Просмотр от {lesson.minimumWatchPct}%</span>
-            )}
             {attachments.length > 0 && <span className="chip chip-blue"><FileText size={14} /> {attachments.length} материалов</span>}
           </div>
         </header>
@@ -821,14 +924,33 @@ function LessonPage({
           {lesson.videoUrl && (
             <section>
               <h3 className="mb-3 text-base font-extrabold text-ink-900">Видео урока</h3>
-              <video controls preload="metadata" className="aspect-video w-full rounded-2xl bg-ink-900" src={lesson.videoUrl} />
-            </section>
-          )}
-
-          {lesson.content && (
-            <section>
-              <h3 className="mb-3 text-base font-extrabold text-ink-900">Материал урока</h3>
-              <div className="whitespace-pre-wrap text-[15px] leading-8 text-ink-700">{lesson.content}</div>
+              <video
+                controls
+                preload="metadata"
+                className="aspect-video w-full rounded-2xl bg-ink-900"
+                src={lesson.videoUrl}
+                onLoadedMetadata={(event) => {
+                  const resumeAt = lesson.lastPositionSeconds ?? 0
+                  if (resumeAt > 0 && resumeAt < event.currentTarget.duration) {
+                    event.currentTarget.currentTime = resumeAt
+                  }
+                }}
+                onPlay={(event) => {
+                  void persistVideoProgress(
+                    Math.max(
+                      lastSyncedProgress.current[lesson.id] ?? 0,
+                      lesson.progressPct ?? 0,
+                    ),
+                    Math.floor(event.currentTarget.currentTime),
+                  )
+                }}
+                onTimeUpdate={(event) => updateVideoProgress(event.currentTarget)}
+                onPause={(event) => updateVideoProgress(event.currentTarget)}
+              />
+              <div className="mt-3 flex items-center justify-between gap-3 text-xs font-semibold text-ink-500">
+                <span>Просмотрено {effectiveProgress}%</span>
+                <span>Для завершения нужно {threshold}%</span>
+              </div>
             </section>
           )}
 
@@ -836,13 +958,20 @@ function LessonPage({
             <section>
               <h3 className="mb-3 text-base font-extrabold text-ink-900">Внешний материал</h3>
               <a
-                className="btn btn-outline btn-md w-full sm:w-auto"
+                className="btn btn-outline btn-md"
                 href={lesson.externalUrl}
                 target="_blank"
                 rel="noreferrer"
               >
-                <ExternalLink size={18} /> Открыть материал
+                <ExternalLink size={17} /> Открыть материал
               </a>
+            </section>
+          )}
+
+          {lesson.content && (
+            <section>
+              <h3 className="mb-3 text-base font-extrabold text-ink-900">Материал урока</h3>
+              <div className="whitespace-pre-wrap text-[15px] leading-8 text-ink-700">{lesson.content}</div>
             </section>
           )}
 
@@ -889,8 +1018,19 @@ function LessonPage({
           <div className="mb-3 flex gap-2 sm:mb-0">
             {previous && <button className="btn btn-outline btn-md" onClick={() => onOpenLesson(previous.id)}><ArrowLeft size={17} /> Назад</button>}
           </div>
-          <button className="btn btn-primary btn-md w-full sm:w-auto" disabled={busy} onClick={finishLesson}>
-            <Check size={17} /> {next ? (read ? 'Следующий урок' : 'Урок изучен — далее') : 'Завершить курс'}
+          <button
+            className="btn btn-primary btn-md w-full sm:w-auto"
+            disabled={busy || saving || (videoLesson && !read && effectiveProgress < threshold)}
+            onClick={finishLesson}
+          >
+            <Check size={17} />{' '}
+            {videoLesson && !read && effectiveProgress < threshold
+              ? `Просмотрите ещё ${threshold - effectiveProgress}%`
+              : next
+                ? read
+                  ? 'Следующий урок'
+                  : 'Урок изучен — далее'
+                : 'Завершить курс'}
           </button>
         </footer>
       </div>
@@ -907,27 +1047,34 @@ function LessonRow({
   lesson,
   number,
   read,
+  disabled,
   onOpen,
 }: {
   lesson: Lesson
   number: number
   read: boolean
+  disabled: boolean
   onOpen: () => void
 }) {
   return (
     <article>
-      <button className="flex w-full items-center gap-3 p-5 text-left hover:bg-paper-hover" onClick={onOpen}>
-        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-extrabold ${read ? 'bg-brand-green-600 text-white' : 'bg-brand-green-100 text-brand-green-700'}`}>
-          {read ? <Check size={18} /> : number}
+      <button
+        className="flex w-full items-center gap-3 p-5 text-left hover:bg-paper-hover disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:bg-white"
+        disabled={disabled}
+        onClick={onOpen}
+      >
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-extrabold ${read ? 'bg-brand-green-600 text-white' : disabled ? 'bg-ink-100 text-ink-400' : 'bg-brand-green-100 text-brand-green-700'}`}>
+          {read ? <Check size={18} /> : disabled ? <Lock size={16} /> : number}
         </span>
         <span className="min-w-0 flex-1">
           <span className="block font-extrabold text-ink-900">{lesson.title}</span>
           <span className="mt-1 block text-xs font-semibold text-ink-400">
-            {lesson.durationMin ? `${lesson.durationMin} мин` : 'Учебный материал'}
-            {lesson.required === false ? ' · необязательный' : ''}
+            {disabled ? 'Сначала завершите предыдущий урок' : lesson.durationMin ? `${lesson.durationMin} мин` : 'Учебный материал'}
           </span>
         </span>
-        <ChevronDown className="-rotate-90 shrink-0 text-ink-400" size={20} />
+        {disabled
+          ? <Lock className="shrink-0 text-ink-300" size={18} />
+          : <ChevronDown className="-rotate-90 shrink-0 text-ink-400" size={20} />}
       </button>
     </article>
   )
