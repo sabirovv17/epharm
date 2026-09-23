@@ -9,8 +9,44 @@ release_id="${1:-$(read_release_env_value "$RELEASE_ROOT/.release.env" RELEASE_I
 [[ -n "$release_id" ]] || { echo "ERROR: release id is missing" >&2; exit 1; }
 base_url="${SMOKE_BASE_URL:-https://epharm.inkar.kz}"
 
-health="$(curl --fail --silent --show-error --max-time 15 "$base_url/api/health")"
-frontend="$(curl --fail --silent --show-error --max-time 15 "$base_url/release.json")"
+# Compose can report the containers as started before the frontend listener and
+# Caddy route are ready. A transient 502 at this point must not roll back a
+# healthy release. Wait for both routes to serve the *candidate* release; a
+# persistent error or stale version still fails the deployment within a bound.
+readiness_wait_seconds="${RELEASE_READINESS_WAIT_SECONDS:-120}"
+[[ "$readiness_wait_seconds" =~ ^[0-9]+$ ]] || {
+  echo "ERROR: RELEASE_READINESS_WAIT_SECONDS must be a nonnegative integer" >&2
+  exit 2
+}
+readiness_deadline=$((SECONDS + readiness_wait_seconds))
+while true; do
+  health="$(curl --fail --silent --connect-timeout 3 --max-time 10 "$base_url/api/health" || true)"
+  frontend="$(curl --fail --silent --connect-timeout 3 --max-time 10 "$base_url/release.json" || true)"
+  if python3 - "$release_id" "$health" "$frontend" <<'PY'
+import json
+import sys
+
+expected = sys.argv[1]
+try:
+    health = json.loads(sys.argv[2])
+    frontend = json.loads(sys.argv[3])
+except (ValueError, TypeError):
+    raise SystemExit(1)
+if not isinstance(health, dict) or not isinstance(frontend, dict):
+    raise SystemExit(1)
+raise SystemExit(0 if health.get("status") == "ok"
+    and health.get("releaseId") == expected
+    and frontend.get("releaseId") == expected else 1)
+PY
+  then
+    break
+  fi
+  if (( SECONDS >= readiness_deadline )); then
+    echo "ERROR: backend and frontend did not report $release_id within ${readiness_wait_seconds}s" >&2
+    exit 1
+  fi
+  sleep 2
+done
 
 # The first release with the durable Medusa read model needs one complete crawl
 # before catalogue/search can be accepted. Subsequent releases reuse the persisted

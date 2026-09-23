@@ -102,6 +102,9 @@ OCI labels/Sentry/app health and writes a content-addressed local manifest. `dep
 missing images, performs PostgreSQL + MinIO + off-site backup, updates `.release.env`, starts without
 rebuilding and verifies both `/api/health` and `/release.json` report the expected id. A failed smoke
 automatically returns to the previous images.
+The initial route check tolerates brief 502/connection failures while containers start, but both
+routes must report the new release id within 120 seconds (configurable through
+`RELEASE_READINESS_WAIT_SECONDS`). A persistent error or an old release id still triggers rollback.
 
 Explicit rollback:
 

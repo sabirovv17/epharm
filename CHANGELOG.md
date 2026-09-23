@@ -19,6 +19,16 @@ All notable production changes to Epharm are recorded here. The format follows
 - POSM 1.0.65 spreads healthy QR-task polling over 24–36 seconds per device, reducing
   synchronized load on the merchandising fallback without changing recommendations or orders.
 
+## [0.1.14] - 2026-09-23
+
+### Fixed
+
+- The immutable release smoke gate now waits for backend and frontend to report the candidate
+  release after a rolling restart. A transient startup 502 no longer triggers a false rollback;
+  stale or unavailable routes still fail within a bounded interval.
+- Carries forward the application changes prepared in v0.1.13, whose production attempt was
+  automatically rolled back before this readiness correction.
+
 ## [0.1.13] - 2026-09-23
 
 ### Changed
