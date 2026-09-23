@@ -1115,10 +1115,13 @@ class TrainingService(
         if (assignmentStage.assignmentId != assignmentId) badRequest("Этап относится к другому назначению")
         if (assignmentStage.status == TrainingStageStatus.locked) conflict("Предыдущий обязательный этап ещё не завершён")
         val programStage = programStageRepository.findById(assignmentStage.programStageId).orElseThrow()
-        if (programStage.type == TrainingStageType.online_course) {
+        val legacyUrlOnlyCourse = programStage.type == TrainingStageType.online_course &&
+            versionRepository.findById(assignment.programVersionId).orElseThrow().onlineCourseId == null &&
+            !programStage.contentUrl.isNullOrBlank()
+        if (programStage.type == TrainingStageType.online_course && !legacyUrlOnlyCourse) {
             conflict("Прогресс онлайн-курса обновляется по каждому уроку")
         }
-        if (programStage.type != TrainingStageType.material) {
+        if (programStage.type != TrainingStageType.material && !legacyUrlOnlyCourse) {
             forbidden("Результат теста, экзамена или очного этапа фиксируется доверенным административным контуром")
         }
         val now = Instant.now()
@@ -2003,14 +2006,16 @@ class TrainingService(
                             courseAttachments,
                         )
                         val progressByLesson = lessonProgress[row.id].orEmpty()
+                        val completedLegacyStage = row.status == TrainingStageStatus.completed &&
+                            progressByLesson.isEmpty()
                         base.copy(
                             lessons = base.lessons.map { lesson ->
                                 val progress = progressByLesson[lesson.id]
                                 lesson.copy(
-                                    progressPct = progress?.progressPct ?: 0,
+                                    progressPct = progress?.progressPct ?: if (completedLegacyStage) 100 else 0,
                                     lastPositionSeconds = progress?.lastPositionSeconds ?: 0,
-                                    startedAt = progress?.startedAt,
-                                    completedAt = progress?.completedAt,
+                                    startedAt = progress?.startedAt ?: if (completedLegacyStage) row.startedAt else null,
+                                    completedAt = progress?.completedAt ?: if (completedLegacyStage) row.completedAt ?: row.updatedAt else null,
                                 )
                             },
                         )

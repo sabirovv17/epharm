@@ -137,6 +137,103 @@ describe('learner training portal', () => {
     })
   })
 
+  it('keeps all lessons of a completed legacy course accessible without lesson progress rows', async () => {
+    sessionStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
+    const assignment = {
+      id: 'assignment-1',
+      programName: 'Безопасная работа',
+      pharmacyName: 'Ауэзова 134',
+      city: 'Алматы',
+      status: 'completed',
+      format: 'online',
+      progressPct: 100,
+      stages: [{
+        id: 'stage-1',
+        title: 'Основы',
+        type: 'online_course',
+        status: 'completed',
+        progressPct: 100,
+        course: {
+          id: 'course-1',
+          title: 'Основы',
+          lessons: [
+            { id: 'lesson-1', title: 'Первый', order: 0, attachments: [] },
+            { id: 'lesson-2', title: 'Второй', order: 1, attachments: [] },
+          ],
+        },
+      }],
+    }
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const path = String(input)
+      if (path === '/api/mobile/auth/me') {
+        return json({ id: 'ph-1', name: 'Айжан', phone: '+77070000000', pharmacyName: 'Ауэзова 134', city: 'Алматы' })
+      }
+      if (path === '/api/mobile/training/assignments/assignment-1') return json(assignment)
+      if (path === '/api/mobile/training') {
+        return json({ total: 1, inProgress: 0, completed: 1, overdue: 0, assignments: [assignment] })
+      }
+      return json({ message: `Unexpected request: ${path}` }, 500)
+    })
+
+    renderPortal('/learn/course/assignment-1')
+    const secondLesson = await screen.findByRole('button', { name: /Второй/ })
+    expect(secondLesson).toBeEnabled()
+    await userEvent.click(secondLesson)
+    expect(await screen.findByRole('heading', { name: 'Второй' })).toBeInTheDocument()
+    expect(screen.queryByText('Урок пока недоступен')).not.toBeInTheDocument()
+    expect(fetchMock.mock.calls.every(([, init]) => init?.method !== 'PATCH')).toBe(true)
+  })
+
+  it('lets a content-URL-only online course complete through the stage endpoint', async () => {
+    sessionStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
+    const assignment = {
+      id: 'assignment-1',
+      programName: 'Безопасная работа',
+      pharmacyName: 'Ауэзова 134',
+      city: 'Алматы',
+      status: 'waiting_online',
+      format: 'online',
+      progressPct: 0,
+      startedAt: '2026-09-01T10:00:00Z',
+      stages: [{
+        id: 'stage-1',
+        title: 'Внешний онлайн-курс',
+        type: 'online_course',
+        status: 'available',
+        progressPct: 0,
+        contentUrl: 'https://example.org/course',
+        course: null,
+      }],
+    }
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const path = String(input)
+      if (path === '/api/mobile/auth/me') {
+        return json({ id: 'ph-1', name: 'Айжан', phone: '+77070000000', pharmacyName: 'Ауэзова 134', city: 'Алматы' })
+      }
+      if (path === '/api/mobile/training/assignments/assignment-1') return json(assignment)
+      if (path === '/api/mobile/training') {
+        return json({ total: 1, inProgress: 1, completed: 0, overdue: 0, assignments: [assignment] })
+      }
+      if (path === '/api/mobile/training/assignments/assignment-1/stages/stage-1' && init?.method === 'PATCH') {
+        return json({ ...assignment, stages: [{ ...assignment.stages[0], status: 'completed', progressPct: 100 }] })
+      }
+      return json({ message: `Unexpected request: ${path}` }, 500)
+    })
+
+    renderPortal('/learn/course/assignment-1')
+    expect(await screen.findByRole('link', { name: 'Открыть материал' })).toHaveAttribute('href', 'https://example.org/course')
+    await userEvent.click(screen.getByRole('button', { name: 'Завершить этап' }))
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/mobile/training/assignments/assignment-1/stages/stage-1',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ progressPct: 100 }),
+        }),
+      )
+    })
+  })
+
   it('refreshes an expired access token once for concurrent portal requests', async () => {
     sessionStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
     const refreshedTokens = { accessToken: 'fresh-access-token', refreshToken: 'fresh-refresh-token' }

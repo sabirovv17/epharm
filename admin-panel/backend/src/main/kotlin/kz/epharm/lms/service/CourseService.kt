@@ -18,6 +18,7 @@ import kz.epharm.lms.repository.CourseRepository
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import kz.epharm.shared.storage.MediaStorage
+import kz.epharm.training.repository.TrainingLessonProgressRepository
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -31,6 +32,7 @@ class CourseService(
     private val courseRepository: CourseRepository,
     private val lessonRepository: CourseLessonRepository,
     private val attachmentRepository: CourseLessonAttachmentRepository,
+    private val lessonProgressRepository: TrainingLessonProgressRepository,
     private val mediaStorage: MediaStorage,
 ) {
 
@@ -157,6 +159,13 @@ class CourseService(
     fun deleteLesson(courseId: String, lessonId: String): CourseDto {
         editableCourse(courseId)
         val lesson = loadLessonOrThrow(courseId, lessonId)
+        if (lessonProgressRepository.existsByLessonId(lessonId)) {
+            throw AppException(
+                ErrorCode.CONFLICT,
+                "Урок уже изучался фармацевтами; архивируйте курс вместо удаления урока",
+                HttpStatus.CONFLICT,
+            )
+        }
         val obsoleteVideo = lesson.videoUrl
         val obsoleteAttachments = attachmentRepository
             .findAllByLessonIdOrderByCreatedAtAsc(lessonId)

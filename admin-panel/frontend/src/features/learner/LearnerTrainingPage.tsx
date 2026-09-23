@@ -713,7 +713,9 @@ function StageCard({
   )
   const completedLessonCount = lessons.filter(lessonCompleted).length
   const completed = stage.status === 'completed' || stage.progressPct >= 100
-  const canCompleteDirectly = !completed && lessons.length === 0 && stage.type === 'material'
+  const canCompleteDirectly = !completed && lessons.length === 0 && (
+    stage.type === 'material' || (stage.type === 'online_course' && !stage.course && !!stage.contentUrl)
+  )
 
   return (
     <section className="overflow-hidden rounded-2xl bg-white shadow-card">
@@ -739,10 +741,10 @@ function StageCard({
             key={lesson.id}
             lesson={lesson}
             number={index + 1}
-            read={lessonCompleted(lesson)}
-            disabled={stage.status === 'locked' || lessons
+            read={stage.status === 'completed' || lessonCompleted(lesson)}
+            disabled={stage.status === 'locked' || (stage.status !== 'completed' && lessons
               .slice(0, index)
-              .some((previous) => (previous.required ?? true) && !lessonCompleted(previous))}
+              .some((previous) => (previous.required ?? true) && !lessonCompleted(previous)))}
             onOpen={() => onOpenLesson(lesson.id)}
           />
         ))}
@@ -820,7 +822,7 @@ function LessonPage({
   const previous = lessons[index - 1]
   const next = lessons[index + 1]
   const attachments = lesson.attachments ?? []
-  const read = lessonCompleted(lesson)
+  const read = stage.status === 'completed' || lessonCompleted(lesson)
   const videoLesson = lesson.kind === 'video' || !!lesson.videoUrl
   const threshold = lessonThreshold(lesson)
   const effectiveProgress = Math.max(watchedProgress[lesson.id] ?? 0, lesson.progressPct ?? 0)
@@ -828,7 +830,7 @@ function LessonPage({
     .slice(0, index)
     .find((previousLesson) => (previousLesson.required ?? true) && !lessonCompleted(previousLesson))
 
-  if (stage.status === 'locked' || blockedByPrevious) {
+  if (stage.status === 'locked' || (stage.status !== 'completed' && blockedByPrevious)) {
     return (
       <div className="rounded-2xl bg-white p-8 text-center shadow-card">
         <Lock className="mx-auto text-ink-300" size={36} />

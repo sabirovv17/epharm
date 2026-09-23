@@ -87,6 +87,8 @@ interface TrainingAssignmentStageRepository : JpaRepository<TrainingAssignmentSt
 
 @Repository
 interface TrainingLessonProgressRepository : JpaRepository<TrainingLessonProgressEntity, UUID> {
+    fun existsByLessonId(lessonId: String): Boolean
+
     fun findByAssignmentStageIdAndLessonId(
         assignmentStageId: UUID,
         lessonId: String,

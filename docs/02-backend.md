@@ -94,6 +94,11 @@ Authenticated pharmacist:
 - `POST /api/mobile/receipts` multipart.
 - `/api/mobile/training/**` for the authenticated pharmacist's assignments, events and notifications.
 
+Structured online courses use per-lesson progress. A completed stage created before lesson tracking
+projects its lessons as completed without rewriting history. Legacy URL-only online stages still
+accept stage-level progress, while linked courses require the lesson endpoint. Lessons with recorded
+progress cannot be deleted (HTTP 409); archiving the course preserves referential integrity.
+
 Public training verification:
 
 - `GET /api/public/training/certificates/{qrToken}`
