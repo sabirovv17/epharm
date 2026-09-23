@@ -32,7 +32,8 @@ class ExchangeDistTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.project = Path(self.temporary.name) / "pharmacy-crm-demo"
         self.project.mkdir()
-        (self.project / "api_server.py").write_text("# project marker\n")
+        (self.project / "scripts").mkdir()
+        (self.project / "scripts" / "api_server.py").write_text("# project marker\n")
         (self.project / "package.json").write_text('{"name":"test"}\n')
         self.live = self.project / "dist"
         self.candidate = self.project / "dist.candidate-test-1"
@@ -134,9 +135,9 @@ class ExchangeDistTests(unittest.TestCase):
         self.assertNotEqual(self.call("--dry-run", candidate=wrong_name).returncode, 0)
 
     def test_refuses_missing_project_marker_and_candidate_checksum(self):
-        (self.project / "api_server.py").unlink()
+        (self.project / "scripts" / "api_server.py").unlink()
         self.assertNotEqual(self.call("--dry-run").returncode, 0)
-        (self.project / "api_server.py").write_text("# restored\n")
+        (self.project / "scripts" / "api_server.py").write_text("# restored\n")
         (self.candidate / "index.html").write_bytes(b"wrong release")
         self.assertNotEqual(self.call("--dry-run").returncode, 0)
 

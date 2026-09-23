@@ -184,10 +184,19 @@ def run(args):
     try:
         fcntl.flock(parent_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         parent = os.fstat(parent_fd)
-        for marker in ("api_server.py", "package.json"):
-            entry = os.stat(marker, dir_fd=parent_fd, follow_symlinks=False)
-            if not stat.S_ISREG(entry.st_mode):
-                raise ReleaseError(f"project marker {marker} is not a regular file")
+        package = os.stat("package.json", dir_fd=parent_fd, follow_symlinks=False)
+        if not stat.S_ISREG(package.st_mode):
+            raise ReleaseError("project marker package.json is not a regular file")
+        scripts = os.stat("scripts", dir_fd=parent_fd, follow_symlinks=False)
+        if not stat.S_ISDIR(scripts.st_mode):
+            raise ReleaseError("project marker scripts is not a directory")
+        scripts_fd = os.open("scripts", DIR_FLAGS, dir_fd=parent_fd)
+        try:
+            server = os.stat("api_server.py", dir_fd=scripts_fd, follow_symlinks=False)
+            if not stat.S_ISREG(server.st_mode):
+                raise ReleaseError("project marker scripts/api_server.py is not a regular file")
+        finally:
+            os.close(scripts_fd)
 
         def plan():
             current_live = snapshot_dist(parent_fd, live.name, parent.st_dev)
