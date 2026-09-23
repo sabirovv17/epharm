@@ -247,6 +247,9 @@ backend treats merchandising as an optional dependency: timeout, invalid payload
 returns HTTP 200 with `available=false` instead of a gateway error. POSM applies an isolated bounded
 backoff (30 seconds, one, two, then five minutes), marks only the task window offline, and keeps the
 recommendation, heartbeat, and sales channel on its normal backend route.
+From POSM 1.0.65, healthy assignment polls use a fresh 24–36-second jitter instead of a fixed
+10-second interval. This reduces load and synchronized bursts across the fleet; task visibility may
+therefore take up to roughly 36 seconds under healthy connectivity.
 
 The public task portal is routed by Caddy through exact `/merch/staff` and allowlisted task/media
 paths; CRM admin/auth routes must stay unavailable there. The server-to-server base URL must use
