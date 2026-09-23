@@ -76,6 +76,8 @@ jobs:
             | node ops/merch-portal-patches/test-caddy-routes.mjs
       - name: Verify immutable release handoff
         run: bash tools/release/tests/prepare-deploy-contract.sh
+      - name: Verify release route readiness and bounded failure
+        run: bash tools/release/tests/smoke-readiness.sh
       - name: Validate shell syntax and executable bits
         run: |
           find tools ops load-tests -type f \( -name '*.sh' -o -name '*.bash' \) -print0 | xargs -0 -n1 bash -n
