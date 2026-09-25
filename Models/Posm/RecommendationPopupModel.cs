@@ -29,9 +29,12 @@ namespace CustomerDisplay.Models.Posm
         public string Name { get; init; } = "";
         public string Meta { get; init; } = "";
         public string Detail { get; init; } = "";
+        public string DetailLabel { get; init; } = "";
+        public bool HasDetail => !string.IsNullOrWhiteSpace(Detail);
         public string TriggerContext { get; init; } = "";
         public string Price { get; init; } = "—";
-        public string Bonus { get; init; } = "";
+        public string Bonus { get; init; } = "Без вознаграждения";
+        public bool HasBonus { get; init; }
         public string PartnerLabel { get; init; } = "";
     }
 
@@ -69,11 +72,15 @@ namespace CustomerDisplay.Models.Posm
                 Detail = FirstNonBlank(
                     recommendation.Script,
                     recommendation.Advantages?.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))),
+                DetailLabel = substitution ? "Почему: " : "Скажите: ",
                 TriggerContext = string.IsNullOrWhiteSpace(sharedTrigger)
                     ? TriggerPrefix(substitution) + TriggerName(recommendation)
                     : "",
                 Price = Money(recommendation.RecommendPrice),
-                Bonus = recommendation.Bonus > 0 ? $"+{Money(recommendation.Bonus)} вам" : "",
+                Bonus = recommendation.Bonus > 0
+                    ? $"Вознаграждение +{Money(recommendation.Bonus)}"
+                    : "Без вознаграждения",
+                HasBonus = recommendation.Bonus > 0,
                 PartnerLabel = recommendation.PartnerLabel?.Trim() ?? "",
             }).ToList();
 

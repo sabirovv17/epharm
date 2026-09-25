@@ -1,7 +1,7 @@
 <Window x:Class="CustomerDisplay.RecommendationWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Epharm"
+        Title="Рекомендации Epharm"
         WindowStyle="None"
         ResizeMode="NoResize"
         Topmost="True"
@@ -13,55 +13,104 @@
         Opacity="0"
         WindowStartupLocation="Manual"
         SizeToContent="Height"
-        Width="392"
-        MaxHeight="700">
+        Width="500"
+        MaxHeight="900">
 
     <Window.Resources>
+        <!-- Colour follows the bonus on this offer, never the rule or the other offers. -->
         <DataTemplate x:Key="OfferRowTemplate">
-            <Border Background="#FAF8F5" BorderBrush="#E8E2DA" BorderThickness="1"
-                    CornerRadius="9" Padding="10" Margin="0,0,0,7">
+            <Border x:Name="OfferCard" BorderThickness="1" CornerRadius="10" Padding="11,10"
+                    Margin="0,0,0,7">
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="24"/>
+                        <ColumnDefinition Width="44"/>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="164"/>
                     </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
 
-                    <Border Grid.Column="0" Width="20" Height="20" CornerRadius="10"
-                            Background="#EFE4DE" VerticalAlignment="Top">
-                        <TextBlock Text="{Binding Number}" Foreground="#8B432D" FontSize="10.5"
-                                   FontWeight="Bold" HorizontalAlignment="Center"
+                    <Border x:Name="RankCircle" Grid.Column="0" Width="38" Height="38"
+                            CornerRadius="19" VerticalAlignment="Top">
+                        <TextBlock x:Name="RankText" Text="{Binding Number}"
+                                   FontSize="18" FontWeight="Bold" HorizontalAlignment="Center"
                                    VerticalAlignment="Center"/>
                     </Border>
 
-                    <StackPanel Grid.Column="1" Margin="7,0,10,0">
-                        <TextBlock Text="{Binding Name}" Foreground="#211D19" FontSize="13.5"
-                                   FontWeight="Bold" TextWrapping="Wrap" LineHeight="17"/>
-                        <TextBlock Text="{Binding Meta}" Foreground="#766E65" FontSize="10.5"
-                                   FontWeight="SemiBold" Margin="0,2,0,0"/>
-                        <TextBlock Text="{Binding TriggerContext}" Foreground="#9A4427" FontSize="10.5"
-                                   FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,2,0,0"/>
-                        <TextBlock Text="{Binding Detail}" Foreground="#615950" FontSize="10.5"
-                                   TextWrapping="Wrap" MaxHeight="30" Margin="0,3,0,0"/>
-                        <TextBlock Text="{Binding PartnerLabel}" Foreground="#8B432D" FontSize="9.5"
-                                   FontWeight="Bold" Margin="0,3,0,0"/>
+                    <StackPanel Grid.Column="1" Margin="4,0,8,0">
+                        <TextBlock x:Name="NameText" Text="{Binding Name}"
+                                   FontSize="18" FontWeight="Bold" TextWrapping="Wrap"
+                                   LineHeight="21"/>
+                        <TextBlock x:Name="MetaText" Text="{Binding Meta}"
+                                   FontSize="15" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                        <TextBlock x:Name="TriggerText" Text="{Binding TriggerContext}"
+                                   FontSize="13" FontWeight="SemiBold"
+                                   TextWrapping="Wrap" Margin="0,3,0,0"/>
                     </StackPanel>
 
                     <StackPanel Grid.Column="2" HorizontalAlignment="Right">
-                        <TextBlock Text="{Binding Price}" Foreground="#211D19" FontSize="12.5"
-                                   FontWeight="Bold" HorizontalAlignment="Right"/>
-                        <TextBlock Text="{Binding Bonus}" Foreground="#A24C30" FontSize="10"
-                                   FontWeight="Bold" HorizontalAlignment="Right" Margin="0,3,0,0"/>
+                        <TextBlock x:Name="PriceText" Text="{Binding Price}"
+                                   FontSize="23" FontWeight="Bold" HorizontalAlignment="Right"
+                                   TextAlignment="Right" TextWrapping="Wrap"/>
+                        <TextBlock x:Name="BonusText" Text="{Binding Bonus}"
+                                   FontSize="12.5" FontWeight="SemiBold" HorizontalAlignment="Right"
+                                   TextAlignment="Right" TextWrapping="NoWrap" Margin="0,4,0,0"/>
                     </StackPanel>
+
+                    <TextBlock x:Name="DetailText" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
+                               FontSize="17" FontWeight="SemiBold"
+                               TextWrapping="Wrap" LineHeight="21" Margin="4,5,0,0">
+                        <Run x:Name="DetailPrefix" Text="{Binding DetailLabel}" FontWeight="Bold"/>
+                        <Run Text="{Binding Detail}"/>
+                    </TextBlock>
                 </Grid>
             </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding HasBonus}" Value="False">
+                    <Setter TargetName="OfferCard" Property="Background" Value="White"/>
+                    <Setter TargetName="OfferCard" Property="BorderBrush" Value="#D7DCE4"/>
+                    <Setter TargetName="RankCircle" Property="Background" Value="#EEF0F2"/>
+                    <Setter TargetName="RankText" Property="Foreground" Value="#111627"/>
+                    <Setter TargetName="NameText" Property="Foreground" Value="#171A2F"/>
+                    <Setter TargetName="MetaText" Property="Foreground" Value="#677083"/>
+                    <Setter TargetName="TriggerText" Property="Foreground" Value="#677083"/>
+                    <Setter TargetName="PriceText" Property="Foreground" Value="#171A2F"/>
+                    <Setter TargetName="BonusText" Property="Foreground" Value="#596274"/>
+                    <Setter TargetName="DetailText" Property="Foreground" Value="#20263A"/>
+                    <Setter TargetName="DetailPrefix" Property="Foreground" Value="#9F1329"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding HasBonus}" Value="True">
+                    <Setter TargetName="OfferCard" Property="Background" Value="#087B39"/>
+                    <Setter TargetName="OfferCard" Property="BorderBrush" Value="#056E32"/>
+                    <Setter TargetName="RankCircle" Property="Background" Value="#32975F"/>
+                    <Setter TargetName="RankText" Property="Foreground" Value="White"/>
+                    <Setter TargetName="NameText" Property="Foreground" Value="White"/>
+                    <Setter TargetName="MetaText" Property="Foreground" Value="#D6EFE0"/>
+                    <Setter TargetName="TriggerText" Property="Foreground" Value="#D6EFE0"/>
+                    <Setter TargetName="PriceText" Property="Foreground" Value="White"/>
+                    <Setter TargetName="BonusText" Property="Foreground" Value="#D7EFAD"/>
+                    <Setter TargetName="DetailText" Property="Foreground" Value="#F5FFF8"/>
+                    <Setter TargetName="DetailPrefix" Property="Foreground" Value="White"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding HasDetail}" Value="False">
+                    <Setter TargetName="DetailText" Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Meta}" Value="">
+                    <Setter TargetName="MetaText" Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding TriggerContext}" Value="">
+                    <Setter TargetName="TriggerText" Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </DataTemplate.Triggers>
         </DataTemplate>
     </Window.Resources>
 
-    <Border CornerRadius="13" Background="White" Margin="12"
-            BorderBrush="#D8D1C7" BorderThickness="1">
+    <Border CornerRadius="17" Background="White" Margin="12"
+            BorderBrush="#D7DCE4" BorderThickness="1">
         <Border.Effect>
-            <DropShadowEffect Color="#000000" Opacity="0.22" BlurRadius="22" ShadowDepth="5"/>
+            <DropShadowEffect Color="#141B2A" Opacity="0.25" BlurRadius="34" ShadowDepth="6"/>
         </Border.Effect>
 
         <Grid>
@@ -72,95 +121,65 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <Grid Grid.Row="0" Margin="14,12,10,10">
+            <Grid Grid.Row="0" Margin="18,12,14,9">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <Border Grid.Column="0" Background="#8B432D" CornerRadius="6" Width="22" Height="22"
-                        VerticalAlignment="Center">
-                    <TextBlock Text="i" Foreground="White" FontWeight="Bold" FontSize="13"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                </Border>
-                <StackPanel Grid.Column="1" Margin="9,0,0,0">
-                    <TextBlock Text="Рекомендации" Foreground="#211D19" FontWeight="Bold" FontSize="15"/>
-                    <TextBlock x:Name="TbHeaderCount" Foreground="#847B72" FontSize="10.5"
-                               FontWeight="SemiBold" Margin="0,1,0,0"/>
-                </StackPanel>
-                <Button Grid.Column="2" Content="✕" Width="26" Height="26" FontSize="12"
-                        Foreground="#6F665B" Background="#F1EEE9" BorderThickness="0"
-                        Cursor="Hand" Click="OnCloseClick"/>
+                <TextBlock Text="Рекомендации" Foreground="#171A2F"
+                           FontSize="28" FontWeight="Bold" VerticalAlignment="Center"/>
+                <Button Grid.Column="1" Content="×" Width="42" Height="42" FontSize="28"
+                        FontWeight="Light" Foreground="#171B2E" Background="#F0F1F3"
+                        BorderThickness="0" Cursor="Hand" Click="OnCloseClick"
+                        ToolTip="Закрыть рекомендации"/>
             </Grid>
 
-            <Border Grid.Row="1" Height="1" Background="#E8E2DA"/>
+            <Border x:Name="TopTriggerContext" Grid.Row="1" Background="#F1F2F4"
+                    CornerRadius="10" Margin="15,0,15,8" Padding="13,9">
+                <StackPanel>
+                    <TextBlock x:Name="TbTopTriggerLabel" Text="ПОКУПАТЕЛЬ ПОПРОСИЛ"
+                               Foreground="#70788A" FontSize="12" FontWeight="Bold"/>
+                    <TextBlock x:Name="TbTopTrigger" Foreground="#171A2F" FontSize="16"
+                               FontWeight="Bold" TextWrapping="Wrap" LineHeight="19"
+                               Margin="0,3,0,0"/>
+                </StackPanel>
+            </Border>
 
-            <ScrollViewer Grid.Row="2" MaxHeight="552" VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalFirst"
-                          CanContentScroll="True" Padding="0,0,3,0">
-                <StackPanel Margin="14,10,11,5">
-                    <StackPanel x:Name="PanelSubstitutions" Margin="0,0,0,9">
-                        <Grid Margin="0,0,0,7">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="ЗАМЕНА" Foreground="#8B432D" FontSize="11"
-                                       FontWeight="Bold" VerticalAlignment="Center"/>
-                            <Border Grid.Column="1" Background="#EFE4DE" CornerRadius="8" Padding="7,2">
-                                <TextBlock x:Name="TbSubstitutionCount" Foreground="#8B432D"
-                                           FontSize="10.5" FontWeight="Bold"/>
-                            </Border>
-                        </Grid>
-                        <Border x:Name="SubstitutionTrigger" Background="#F4F1EC" CornerRadius="8"
-                                Padding="9,7" Margin="0,0,0,7">
-                            <StackPanel>
-                                <TextBlock Text="ПОКУПАТЕЛЬ ПОПРОСИЛ" Foreground="#91877E"
-                                           FontSize="9.5" FontWeight="Bold"/>
-                                <TextBlock x:Name="TbSubstitutionTrigger" Foreground="#302A25"
-                                           FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap"
-                                           Margin="0,2,0,0"/>
-                            </StackPanel>
-                        </Border>
-                        <TextBlock Text="ПРЕДЛОЖИТЕ ВМЕСТО" Foreground="#91877E" FontSize="9.5"
-                                   FontWeight="Bold" Margin="0,0,0,6"/>
-                        <ItemsControl x:Name="SubstitutionList" ItemTemplate="{StaticResource OfferRowTemplate}"/>
+            <ScrollViewer Grid.Row="2" MaxHeight="700" MinHeight="0"
+                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                          PanningMode="VerticalFirst" CanContentScroll="True"
+                          Padding="0,0,3,0">
+                <StackPanel Margin="15,0,12,5">
+                    <StackPanel x:Name="PanelSubstitutions" Margin="0,0,0,12">
+                        <TextBlock x:Name="TbSubstitutionCount" Foreground="#9F1329"
+                                   FontSize="22" FontWeight="Bold" Margin="0,0,0,7"/>
+                        <ItemsControl x:Name="SubstitutionList"
+                                      ItemTemplate="{StaticResource OfferRowTemplate}"/>
                     </StackPanel>
 
                     <StackPanel x:Name="PanelCrossSells">
-                        <Grid Margin="0,0,0,7">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="ДОПРОДАЖА" Foreground="#42604F" FontSize="11"
-                                       FontWeight="Bold" VerticalAlignment="Center"/>
-                            <Border Grid.Column="1" Background="#E6EFE9" CornerRadius="8" Padding="7,2">
-                                <TextBlock x:Name="TbCrossSellCount" Foreground="#42604F"
-                                           FontSize="10.5" FontWeight="Bold"/>
-                            </Border>
-                        </Grid>
-                        <Border x:Name="CrossSellTrigger" Background="#F4F1EC" CornerRadius="8"
-                                Padding="9,7" Margin="0,0,0,7">
+                        <TextBlock x:Name="TbCrossSellCount" Foreground="#9F1329"
+                                   FontSize="22" FontWeight="Bold" Margin="0,0,0,7"/>
+                        <Border x:Name="CrossSellTrigger" Background="#F1F2F4"
+                                CornerRadius="9" Padding="9,7" Margin="0,0,0,7">
                             <StackPanel>
-                                <TextBlock Text="УЖЕ В ЧЕКЕ" Foreground="#91877E"
-                                           FontSize="9.5" FontWeight="Bold"/>
-                                <TextBlock x:Name="TbCrossSellTrigger" Foreground="#302A25"
-                                           FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap"
-                                           Margin="0,2,0,0"/>
+                                <TextBlock Text="УЖЕ В ЧЕКЕ" Foreground="#70788A"
+                                           FontSize="11.5" FontWeight="Bold"/>
+                                <TextBlock x:Name="TbCrossSellTrigger" Foreground="#171A2F"
+                                           FontSize="14" FontWeight="SemiBold"
+                                           TextWrapping="Wrap" Margin="0,2,0,0"/>
                             </StackPanel>
                         </Border>
-                        <TextBlock Text="ДОБАВЬТЕ К ПОКУПКЕ" Foreground="#91877E" FontSize="9.5"
-                                   FontWeight="Bold" Margin="0,0,0,6"/>
-                        <ItemsControl x:Name="CrossSellList" ItemTemplate="{StaticResource OfferRowTemplate}"/>
+                        <ItemsControl x:Name="CrossSellList"
+                                      ItemTemplate="{StaticResource OfferRowTemplate}"/>
                     </StackPanel>
                 </StackPanel>
             </ScrollViewer>
 
-            <Border Grid.Row="3" BorderBrush="#E8E2DA" BorderThickness="0,1,0,0"
-                    Padding="14,8" Background="#FCFBF9" CornerRadius="0,0,13,13">
-                <TextBlock Text="Колесо мыши — прокрутить список" Foreground="#91877E"
-                           FontSize="9.5" HorizontalAlignment="Center"/>
+            <Border Grid.Row="3" BorderBrush="#E3E6EB" BorderThickness="0,1,0,0"
+                    Padding="15,9" Background="White" CornerRadius="0,0,17,17">
+                <TextBlock Text="Колесо мыши — прокрутить список" Foreground="#5D6576"
+                           FontSize="12.5"/>
             </Border>
         </Grid>
     </Border>

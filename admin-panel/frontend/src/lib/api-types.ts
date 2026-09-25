@@ -465,6 +465,8 @@ export interface UpdatePromoRequest {
 export interface PromoOfferProductRef {
   medusaProductId: string
   name: string
+  /** Explicit reward for this offer; null/omitted inherits the legacy campaign reward. */
+  bonus?: number | null
   brand?: string | null
   mnn?: string | null
   volume?: string | null
@@ -477,6 +479,8 @@ export interface PromoOfferProductRef {
 export interface PromoRuleProductRef {
   medusaProductId: string
   name: string
+  /** Reward for the promoted campaign product in this pair (0 = no reward). */
+  bonus?: number | null
   brand?: string | null
   mnn?: string | null
   volume?: string | null

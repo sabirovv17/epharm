@@ -48,6 +48,7 @@ function toRef(p: StorefrontProductDto): PromoRuleProductRef {
   return {
     medusaProductId: p.id,
     name: p.name,
+    bonus: 0,
     brand: p.brand,
     mnn: p.mnn,
     price: p.price,
@@ -66,6 +67,7 @@ function toOffer(p: StorefrontProductDto): PromoOfferProductRef {
   return {
     medusaProductId: p.id,
     name: p.name,
+    bonus: 0,
     brand: p.brand,
     mnn: p.mnn,
     price: p.price,
@@ -105,6 +107,54 @@ function InlineValidatedField({
       })}
       {error && (
         <span id={errorId} className="mt-1 block text-[11px] font-semibold text-accent-danger">
+          {error}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function OfferBonusInput({
+  id,
+  value,
+  fallback,
+  disabled,
+  path,
+  error,
+  onChange,
+}: {
+  id: string
+  value?: number | null
+  fallback: number
+  disabled: boolean
+  path: string
+  error?: string
+  onChange: (bonus: number) => void
+}) {
+  const t = useT()
+  return (
+    <div className="min-w-0" data-validation-path={path}>
+      <label htmlFor={id} className="mb-1 block text-[11px] font-semibold text-ink-600">
+        {t('pr.offerBonus')}
+      </label>
+      <Input
+        id={id}
+        type="number"
+        min={0}
+        max={PROMO_RULE_LIMITS.maxInt}
+        step={1}
+        inputMode="numeric"
+        value={value ?? fallback}
+        disabled={disabled}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? validationErrorId(path) : undefined}
+        data-testid={id}
+        className={`num w-full max-w-[150px] ${error ? 'border-accent-danger' : ''}`}
+        onChange={(event) => onChange(event.target.value === '' ? 0 : Number(event.target.value))}
+      />
+      <span className="ml-2 text-[11px] text-ink-500">{t('pr.offerBonusZeroHint')}</span>
+      {error && (
+        <span id={validationErrorId(path)} className="mt-1 block text-[11px] text-accent-danger">
           {error}
         </span>
       )}
@@ -744,7 +794,7 @@ function PairCard({
           </div>
 
           <ul className="divide-hairline overflow-hidden rounded-lg border bg-white">
-            <li className="flex items-center gap-2 px-3 py-2">
+            <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 py-2">
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[12px] font-bold text-ink-900">
                   {promotedName || t('pr.previewNoName')}
@@ -758,6 +808,20 @@ function PairCard({
                   {promotedPrice.toLocaleString('ru-RU')} ₸
                 </span>
               )}
+              <div className="col-span-2">
+                <OfferBonusInput
+                  id={`pr-bonus-primary-${r.medusaProductId}`}
+                  value={r.bonus}
+                  fallback={bonus}
+                  disabled={disabled}
+                  path={`${pathPrefix}.bonus`}
+                  error={errors[`${pathPrefix}.bonus`]}
+                  onChange={(next) => {
+                    onClearError(`${pathPrefix}.bonus`)
+                    onPatch({ bonus: next })
+                  }}
+                />
+              </div>
             </li>
             {offers.map((offer, offerIndex) => {
               const offerPath = `${pathPrefix}.additionalRecommendations[${offerIndex}].medusaProductId`
@@ -765,7 +829,7 @@ function PairCard({
               return (
               <li
                 key={offer.medusaProductId}
-                className={`flex items-center gap-2 px-3 py-2 ${offerError ? 'bg-accent-danger/5' : ''}`}
+                className={`grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 px-3 py-2 ${offerError ? 'bg-accent-danger/5' : ''}`}
                 data-testid={`pr-offer-${r.medusaProductId}-${offer.medusaProductId}`}
                 data-validation-path={offerPath}
                 tabIndex={offerError ? -1 : undefined}
@@ -797,6 +861,26 @@ function PairCard({
                     <IconClose size={13} />
                   </button>
                 )}
+                <div className="col-span-3">
+                  <OfferBonusInput
+                    id={`pr-bonus-${r.medusaProductId}-${offer.medusaProductId}`}
+                    value={offer.bonus}
+                    fallback={bonus}
+                    disabled={disabled}
+                    path={`${pathPrefix}.additionalRecommendations[${offerIndex}].bonus`}
+                    error={errors[`${pathPrefix}.additionalRecommendations[${offerIndex}].bonus`]}
+                    onChange={(next) => {
+                      onClearError(`${pathPrefix}.additionalRecommendations[${offerIndex}].bonus`)
+                      onPatch({
+                        additionalRecommendations: offers.map((current) =>
+                          current.medusaProductId === offer.medusaProductId
+                            ? { ...current, bonus: next }
+                            : current,
+                        ),
+                      })
+                    }}
+                  />
+                </div>
               </li>
               )
             })}
@@ -1030,7 +1114,6 @@ function RecommendationPreview({
   const triggerName = r.name
   // EAN-13 триггера: выбранный товар пары является trigger и для замены, и для кросс-селла.
   const triggerBarcode = r.barcode
-  const offerLabel = isReplace ? t('pr.previewOfferInstead') : t('pr.previewOfferAdd')
   const offerName = promotedName
   const offers = [
     {
@@ -1038,14 +1121,14 @@ function RecommendationPreview({
       name: offerName || t('pr.previewNoName'),
       brand: null as string | null,
       price: promotedPrice,
-      primary: true,
+      bonus: r.bonus ?? bonus,
     },
     ...(r.additionalRecommendations ?? []).map((offer) => ({
       id: offer.medusaProductId,
       name: offer.name,
       brand: offer.brand ?? null,
       price: offer.price,
-      primary: false,
+      bonus: offer.bonus ?? bonus,
     })),
   ].slice(0, MAX_OFFERS_PER_PAIR)
 
@@ -1057,62 +1140,72 @@ function RecommendationPreview({
       <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.05em] text-ink-400">
         {t('pr.previewTitle')}
       </div>
-      <div className="overflow-hidden rounded-xl border border-ink-200 bg-white shadow-sm">
-        {/* Шапка */}
-        <div className="flex items-center gap-2 bg-[#9A4427] px-3.5 py-2.5 text-white">
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-[12px] font-bold">
-            i
-          </span>
-          <span className="text-[13px] font-extrabold">{t('pr.previewOffers')}</span>
-          <span className="ml-auto text-[15px] leading-none text-white/60">×</span>
+      <div className="overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-elevated">
+        <div className="flex items-center justify-between px-4 py-3 text-recommendation-ink">
+          <span className="text-[20px] font-extrabold">{t('pr.previewOffers')}</span>
+          <span className="rounded-lg bg-ink-50 px-2 py-0.5 text-[20px] leading-none">×</span>
         </div>
 
-        {/* Триггер: УЖЕ В ЧЕКЕ / ПОКУПАТЕЛЬ ПОПРОСИЛ */}
         {triggerName && (
           <div
-            className="px-3.5 pb-1 pt-2.5"
+            className="mx-3 rounded-lg bg-ink-50 px-3 py-2"
             data-testid={`pr-preview-trigger-${r.medusaProductId}`}
           >
-            <div className="text-[10px] font-bold uppercase tracking-wide text-ink-400">
+            <div className="text-[10px] font-bold uppercase tracking-wide text-ink-500">
               {triggerLabel}
             </div>
-            <div className="text-[13px] font-extrabold text-ink-900">{triggerName}</div>
-            {triggerBarcode && <div className="num text-[10px] text-ink-400">{triggerBarcode}</div>}
+            <div className="text-[13px] font-extrabold leading-tight text-recommendation-ink">{triggerName}</div>
+            {triggerBarcode && <span className="sr-only">{triggerBarcode}</span>}
           </div>
         )}
 
-        <div className="bg-[#F8E7DD] px-3.5 py-2 text-[10px] font-bold uppercase tracking-wide text-[#9A4427]">
-          {offerLabel} · {offers.length}/{MAX_OFFERS_PER_PAIR}
+        <div
+          className="px-3 pb-1 pt-3 text-[16px] font-extrabold uppercase leading-none text-recommendation-burgundy"
+          data-testid={`pr-preview-section-${r.medusaProductId}`}
+        >
+          {isReplace ? t('pr.previewReplace') : t('pr.previewCross')} · {offers.length}
         </div>
         <ul
-          className="scrollbar-thin max-h-[300px] divide-y divide-ink-100 overflow-y-auto"
+          className="scrollbar-thin flex max-h-[330px] flex-col gap-1.5 overflow-y-auto px-3 pb-3"
           data-testid={`pr-preview-offer-${r.medusaProductId}`}
         >
-          {offers.map((offer) => (
-            <li key={offer.id} className="flex items-start gap-2 px-3.5 py-2.5">
+          {offers.map((offer, index) => (
+            <li
+              key={offer.id}
+              className={`grid grid-cols-[24px_minmax(0,1fr)_auto] gap-x-2 rounded-lg border px-2 py-2 ${
+                offer.bonus > 0
+                  ? 'border-recommendation-green-dark bg-recommendation-green text-white'
+                  : 'border-ink-200 bg-white text-recommendation-ink'
+              }`}
+              data-testid={`pr-preview-card-${r.medusaProductId}-${offer.id}`}
+            >
+              <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[12px] font-extrabold ${
+                offer.bonus > 0 ? 'bg-white/20 text-white' : 'bg-ink-100 text-recommendation-ink'
+              }`}>{index + 1}</span>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="truncate text-[13px] font-extrabold text-ink-900">
-                    {offer.name}
-                  </span>
-                  {offer.primary && (
-                    <span className="rounded bg-[#F8E7DD] px-1.5 py-0.5 text-[9px] font-bold text-[#9A4427]">
-                      {t('pr.primaryOffer')}
-                    </span>
-                  )}
-                </div>
-                <div className="truncate text-[10px] font-semibold text-ink-400">
-                  {offer.brand || r.script?.trim() || advantages[0] || title}
+                <div className="text-[13px] font-extrabold leading-tight">{offer.name}</div>
+                <div className={`text-[11px] ${offer.bonus > 0 ? 'text-white/80' : 'text-ink-500'}`}>
+                  {offer.brand || title}
                 </div>
               </div>
               <div className="flex-none text-right">
-                <div className="num text-[12px] font-extrabold text-ink-900">
+                <div className="num whitespace-nowrap text-[15px] font-extrabold">
                   {fmtPrice(offer.price) || '—'}
                 </div>
-                <div className="num text-[10px] font-bold text-[#BE5A38]">
-                  +{bonus.toLocaleString('ru-RU')} ₸ {t('pr.previewBonus')}
+                <div className={`whitespace-nowrap text-[10px] ${offer.bonus > 0 ? 'text-white/90' : 'text-ink-500'}`}>
+                  {offer.bonus > 0
+                    ? `${t('pr.previewReward')} +${offer.bonus.toLocaleString('ru-RU')} ₸`
+                    : t('pr.previewNoReward')}
                 </div>
               </div>
+              {(r.script?.trim() || advantages[0]) && (
+                <div className="col-start-2 col-end-4 text-[12px] font-semibold leading-tight">
+                  <span className={offer.bonus > 0 ? 'text-white' : 'text-recommendation-burgundy'}>
+                    {isReplace ? t('pr.previewWhy') : t('pr.previewSay')}:
+                  </span>{' '}
+                  {r.script?.trim() || advantages[0]}
+                </div>
+              )}
             </li>
           ))}
         </ul>

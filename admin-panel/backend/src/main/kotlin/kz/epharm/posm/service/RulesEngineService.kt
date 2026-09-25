@@ -52,7 +52,8 @@ data class RuleMatchResult(
  *   2. crosssell:    trigger матчит корзину (A), recommend(B) ещё НЕ в корзине.
  *   3. КОНФЛИКТЫ (T2): противоречие замена↔кросс-селл — такие правила
  *      НЕ показываем, а возвращаем как conflicts (касса покажет «замена/кросс-селл невозможны»).
- *   4. порядок выживших: сначала ВСЕ substitution (бонус DESC), затем crosssell (бонус DESC).
+ *   4. порядок выживших: сначала substitution, затем crosssell; внутри multi-offer
+ *      порядок из админки (offerRank), а для legacy-правил — бонус DESC.
  *   5. dedup по типу+recommend-товару (первый победил).
  *
  * РЕЗОЛВ корзины → наш productId: касса Стандарт-Н шлёт позиции с локальным PARTS.ID (sku),
@@ -143,8 +144,8 @@ class RulesEngineService(
             .sortedWith(
                 compareBy(
                     { if (it.rule.type.name == "substitution") 0 else 1 }, // substitution раньше crosssell
-                    { -it.rule.bonus },                                     // больший бонус выше
                     { it.rule.card?.offerRank ?: Int.MAX_VALUE },            // порядок из админки
+                    { -it.rule.bonus },                                     // legacy и равные rank — больший бонус выше
                     { it.rule.id },                                          // детерминированный fallback
                 ),
             )

@@ -94,6 +94,23 @@ describe('promo rules validation contract', () => {
     expect(validatePromoRulesConfig(config(), messages)).toEqual({})
   })
 
+  it('accepts zero bonus but rejects negative and fractional per-offer bonuses', () => {
+    const errors = validatePromoRulesConfig(
+      config({
+        replacements: [{
+          medusaProductId: 'prod_a', name: 'Товар', bonus: 0,
+          additionalRecommendations: [{ medusaProductId: 'prod_b', name: 'Аналог', bonus: -1 }],
+        }],
+        crossSells: [{ medusaProductId: 'prod_c', name: 'Товар', bonus: 1.5 }],
+      }),
+      messages,
+    )
+    expect(errors).toEqual({
+      'replacements[0].additionalRecommendations[0].bonus': 'non-negative-int',
+      'crossSells[0].bonus': 'non-negative-int',
+    })
+  })
+
   it('preserves Spring field paths and localizes standard constraint messages', () => {
     const error = new axios.AxiosError(
       'bad request',

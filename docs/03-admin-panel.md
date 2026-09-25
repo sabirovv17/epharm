@@ -70,6 +70,14 @@ automatically, the first invalid control receives focus, and the form keeps an a
 Medusa name/brand/MNN snapshots are bounded to the backend contract during request normalization so external catalog
 metadata cannot leave the editor in an error state the user has no way to repair.
 
+In each replacement or cross-sell pair, the campaign product and up to four additional offered
+products have independent pharmacist reward amounts. New offers start at `0` (no reward); an
+explicit positive KZT amount makes only that offer's POSM card green. Old rules without an
+individual amount retain their previously inherited campaign reward until edited. The preview
+uses the same green/white distinction and preserves the configured offer order. Saving the
+campaign's general reward alone does not rewrite existing rule rewards: edit and save the
+corresponding pair to change what POSM displays.
+
 ## State and Data
 
 The connected-cash-desk card is a live view, not a permanent installation registry. Its Excel button

@@ -60,6 +60,13 @@ export default {
           danger: '#E5484D',
           purple: '#8B5CF6',
         },
+        // Pharmacist POSM recommendation reference, shared with the admin preview.
+        recommendation: {
+          green: '#087B39',
+          'green-dark': '#056E32',
+          burgundy: '#9F1329',
+          ink: '#171A2F',
+        },
         // Inline-blocks для red/amber surfaces из design-tokens-admin §2.5.
         surface: {
           danger: '#FEE2E2',

@@ -107,7 +107,9 @@ class PromoRulesService(
         promo.goalBonus = if (goalTarget != null) config.goalBonus?.takeIf { it >= 0 } else null
         promoRepository.save(promo)
 
-        val bonus = promo.pharmacistBonus.toInt()
+        // Старые клиенты не передают per-offer bonus и сохраняют бонус кампании.
+        // Явный 0 в новом редакторе означает «без бонуса» для конкретного препарата.
+        val campaignBonus = promo.pharmacistBonus.toInt()
         // Кампания — мастер-выключатель: правило active только если И кампания active,
         // И сама пара active (ref.active). Иначе — draft.
         val campaignActive = promo.status == PromoStatus.active
@@ -125,11 +127,11 @@ class PromoRulesService(
             .distinctBy { it.medusaProductId }
             .forEach { ref ->
                 val trig = upsertProduct(ref)
-                recommendationsFor(ref, promoted).forEachIndexed { offerRank, recommend ->
+                recommendationsFor(ref, promoted).forEachIndexed { offerRank, offer ->
                     created += RuleEntity(
                         id = generateRuleId(RuleType.substitution),
-                        recommend = recommend.id,
-                        bonus = bonus,
+                        recommend = offer.product.id,
+                        bonus = offer.bonus ?: campaignBonus,
                         // Поля карточки кассы — per-pair; пусто → общий дефолт из config.
                         script = ref.script.ifBlank { config.script },
                         advantages = ref.advantages.ifEmpty { config.advantages },
@@ -150,11 +152,11 @@ class PromoRulesService(
             .distinctBy { it.medusaProductId }
             .forEach { ref ->
                 val companion = upsertProduct(ref)
-                recommendationsFor(ref, promoted).forEachIndexed { offerRank, recommend ->
+                recommendationsFor(ref, promoted).forEachIndexed { offerRank, offer ->
                     created += RuleEntity(
                         id = generateRuleId(RuleType.crosssell),
-                        recommend = recommend.id,
-                        bonus = bonus,
+                        recommend = offer.product.id,
+                        bonus = offer.bonus ?: campaignBonus,
                         // Поля карточки кассы — per-pair; пусто → общий дефолт из config.
                         script = ref.script.ifBlank { config.script },
                         advantages = ref.advantages.ifEmpty { config.advantages },
@@ -275,25 +277,28 @@ class PromoRulesService(
             val base = productRef(triggerId)
                 ?: PromoRuleProductRefDto(medusaProductId = triggerId, name = triggerId)
             val extras = ordered.asSequence()
-                .map { it.recommendId }
-                .filter { it != promotedId }
-                .distinct()
-                .mapNotNull(::offerRef)
+                .filter { it.recommendId != promotedId }
+                .distinctBy { it.recommendId }
+                .mapNotNull { offer ->
+                    offerRef(offer.recommendId)?.copy(bonus = offer.rule.bonus)
+                }
                 .take(4)
                 .toList()
-            reconstructRef(base, first).copy(additionalRecommendations = extras)
+            reconstructRef(base, first).copy(bonus = first.bonus, additionalRecommendations = extras)
         }
     }
 
+    private data class OfferRecommendation(val product: ProductEntity, val bonus: Int?)
+
     /** Основной товар кампании + дополнительные варианты, всего не более пяти. */
-    private fun recommendationsFor(ref: PromoRuleProductRefDto, promoted: ProductEntity): List<ProductEntity> {
+    private fun recommendationsFor(ref: PromoRuleProductRefDto, promoted: ProductEntity): List<OfferRecommendation> {
         val extras = ref.additionalRecommendations.asSequence()
             .filter { it.medusaProductId != promoted.id && it.medusaProductId != ref.medusaProductId }
             .distinctBy { it.medusaProductId }
             .take(4)
-            .map(::upsertOfferProduct)
+            .map { offer -> OfferRecommendation(upsertOfferProduct(offer), offer.bonus) }
             .toList()
-        return listOf(promoted) + extras
+        return listOf(OfferRecommendation(promoted, ref.bonus)) + extras
     }
 
     /** Локальный товар под продвигаемый (id = medusaProductId; имя/цена из кампании/Medusa). */
