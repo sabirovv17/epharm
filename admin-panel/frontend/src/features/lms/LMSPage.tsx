@@ -54,6 +54,7 @@ import {
   useTrainingPharmacists,
   useUpdateTrainingProgram,
 } from '@/lib/queries/lms'
+import { usePharmacies } from '@/lib/queries/pharmacies'
 import { describeError } from '@/lib/describeError'
 import { formatKzt, formatNum } from '@/mocks/fixtures'
 import { isTrainingReadOnlyRole, isTrainingWorkspaceRole } from '@/app/accessPolicy'
@@ -136,6 +137,7 @@ export default function LMSPage() {
   const certificatesQuery = useTrainingCertificates()
   const coursesQuery = useCourses()
   const pharmacistsQuery = useTrainingPharmacists()
+  const pharmaciesQuery = usePharmacies()
 
   const dashboard = dashboardQuery.data
   const programs = programsQuery.data ?? []
@@ -144,6 +146,7 @@ export default function LMSPage() {
   const certificates = certificatesQuery.data ?? []
   const courses = coursesQuery.data ?? []
   const pharmacists = pharmacistsQuery.data ?? []
+  const pharmacies = pharmaciesQuery.data ?? []
   const capabilities = dashboard?.capabilities
   const closeAssignmentModal = () => {
     setAssignmentModalOpen(false)
@@ -296,6 +299,7 @@ export default function LMSPage() {
           programs={programs}
           events={events}
           pharmacists={pharmacists}
+          pharmacies={pharmacies}
           initialPharmacistIds={requestedPharmacistIds}
         />
       )}

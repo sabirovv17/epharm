@@ -55,6 +55,10 @@ export function AppRouter() {
       {/* Public — login screen без AppShell */}
       <Route path="/login" element={withSuspense(<LoginPage />)} />
       <Route path="/learn" element={withSuspense(<LearnerTraining />)} />
+      <Route path="/learn/catalog" element={withSuspense(<LearnerTraining />)} />
+      <Route path="/learn/receipts" element={withSuspense(<LearnerTraining />)} />
+      <Route path="/learn/training" element={withSuspense(<LearnerTraining />)} />
+      <Route path="/learn/profile" element={withSuspense(<LearnerTraining />)} />
       <Route path="/learn/course/:assignmentId" element={withSuspense(<LearnerTraining />)} />
       <Route
         path="/learn/course/:assignmentId/lesson/:lessonId"

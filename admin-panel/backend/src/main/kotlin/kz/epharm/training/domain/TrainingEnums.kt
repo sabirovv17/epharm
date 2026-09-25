@@ -32,7 +32,7 @@ enum class TrainingStageStatus { locked, available, in_progress, waiting_review,
 
 enum class EventParticipantStatus { registered, confirmed, attended, late, no_show, excused, cancelled, waitlisted }
 
-enum class AttendanceMethod { manual, qr }
+enum class AttendanceMethod { manual, qr, code }
 
 enum class CertificateStatus { valid, expired, revoked, replaced }
 

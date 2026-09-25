@@ -97,6 +97,15 @@ class MobileTrainingController(
         @AuthenticationPrincipal principal: PharmacistPrincipal?,
     ): TrainingAssignmentDto = trainingService.checkInEvent(requirePrincipal(principal).pharmacistId, qrToken)
 
+    @PostMapping("/events/check-in-code/{code}")
+    fun checkInByCode(
+        @PathVariable code: String,
+        @AuthenticationPrincipal principal: PharmacistPrincipal?,
+    ): TrainingAssignmentDto = trainingService.checkInEventByCode(
+        requirePrincipal(principal).pharmacistId,
+        code,
+    )
+
     @PatchMapping("/notifications/{notificationId}/read")
     fun markNotificationRead(
         @PathVariable notificationId: UUID,

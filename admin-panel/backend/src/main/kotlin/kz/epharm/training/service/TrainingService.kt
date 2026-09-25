@@ -129,6 +129,15 @@ class TrainingService(
         TrainingAssignmentStatus.cancelled.name,
     )
     private val videoProgressGraceSeconds = 15L
+    private val secureRandom = java.security.SecureRandom()
+
+    private fun generateCheckInCode(): String {
+        repeat(30) {
+            val candidate = secureRandom.nextInt(900_000).plus(100_000).toString()
+            if (!eventRepository.existsByCheckInCode(candidate)) return candidate
+        }
+        conflict("Не удалось сформировать уникальный код мероприятия")
+    }
 
     // Programs
 
@@ -378,6 +387,7 @@ class TrainingService(
             registrationDeadline = req.registrationDeadline,
             materialsUrl = req.materialsUrl?.trim()?.takeIf(String::isNotEmpty),
             comment = req.comment.trim(),
+            checkInCode = generateCheckInCode(),
             createdBy = principal.userId,
         ).also { it.status = req.status }
         val saved = eventRepository.save(event)
@@ -515,6 +525,7 @@ class TrainingService(
             eventId = event.id,
             token = event.qrToken,
             payload = "epharm://training/check-in/${event.qrToken}",
+            checkInCode = event.checkInCode,
         )
     }
 
@@ -1342,14 +1353,44 @@ class TrainingService(
     fun checkInEvent(pharmacistId: String, qrToken: UUID): TrainingAssignmentDto {
         val event = eventRepository.findByQrToken(qrToken)
             ?: throw AppException(ErrorCode.NOT_FOUND, "QR-код события не найден", HttpStatus.NOT_FOUND)
+        return confirmEventAttendance(
+            pharmacistId,
+            event,
+            kz.epharm.training.domain.AttendanceMethod.qr,
+        )
+    }
+
+    @Transactional
+    fun checkInEventByCode(pharmacistId: String, rawCode: String): TrainingAssignmentDto {
+        val code = rawCode.filter(Char::isDigit)
+        if (code.length != 6) badRequest("Код мероприятия состоит из 6 цифр")
+        val event = eventRepository.findByCheckInCode(code)
+            ?: throw AppException(ErrorCode.NOT_FOUND, "Код мероприятия не найден", HttpStatus.NOT_FOUND)
+        return confirmEventAttendance(
+            pharmacistId,
+            event,
+            kz.epharm.training.domain.AttendanceMethod.code,
+        )
+    }
+
+    private fun confirmEventAttendance(
+        pharmacistId: String,
+        event: OfflineEventEntity,
+        method: kz.epharm.training.domain.AttendanceMethod,
+    ): TrainingAssignmentDto {
         val now = Instant.now()
         if (now.isBefore(event.startsAt.minusSeconds(7_200)) || now.isAfter(event.endsAt.plusSeconds(3_600))) {
             conflict("Отметка доступна за 2 часа до начала и до часа после завершения события")
         }
         val participant = participantRepository.findByEventIdAndPharmacistId(event.id, pharmacistId)
             ?: forbidden("Фармацевт не зарегистрирован на это событие")
+        // A repeated scan or manual-code retry must not reissue rewards/notifications or
+        // overwrite the method that actually confirmed attendance first.
+        if (participant.status == EventParticipantStatus.attended && participant.checkedInAt != null) {
+            return mapAssignments(listOf(loadOwnedAssignment(pharmacistId, participant.assignmentId))).single()
+        }
         participant.status = EventParticipantStatus.attended
-        participant.checkMethod = kz.epharm.training.domain.AttendanceMethod.qr
+        participant.checkMethod = method
         participant.checkedInAt = now
         participantRepository.save(participant)
         val assignment = loadOwnedAssignment(pharmacistId, participant.assignmentId)
@@ -1362,7 +1403,14 @@ class TrainingService(
             eventType = "training_attendance_confirmed",
             payload = mapOf("event" to event.title),
         )
-        audit(pharmacistId, "pharmacist", "event_qr_check_in", "offline_event", event.id.toString())
+        audit(
+            pharmacistId,
+            "pharmacist",
+            "event_check_in",
+            "offline_event",
+            event.id.toString(),
+            mapOf("method" to method.name),
+        )
         return mapAssignments(listOf(assignment)).single()
     }
 

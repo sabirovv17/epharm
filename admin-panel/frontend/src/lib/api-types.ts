@@ -1263,6 +1263,7 @@ export interface TrainingEventQrDto {
   eventId: string
   token: string
   payload: string
+  checkInCode: string
 }
 
 export interface CreateOfflineEventRequest {

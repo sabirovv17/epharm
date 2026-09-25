@@ -46,6 +46,8 @@ interface OfflineEventRepository : JpaRepository<OfflineEventEntity, UUID> {
     fun findAllByRegionInOrderByStartsAtDesc(regions: Collection<String>): List<OfflineEventEntity>
     fun findAllByTrainerIdOrderByStartsAtDesc(trainerId: UUID): List<OfflineEventEntity>
     fun findByQrToken(qrToken: UUID): OfflineEventEntity?
+    fun findByCheckInCode(checkInCode: String): OfflineEventEntity?
+    fun existsByCheckInCode(checkInCode: String): Boolean
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select e from OfflineEventEntity e where e.id = :id")

@@ -727,6 +727,8 @@ class TrainingIntegrationTest {
             .andExpect(jsonPath("$.payload").value(org.hamcrest.Matchers.startsWith("epharm://training/check-in/")))
             .andReturn().response.contentAsString
         val qrToken = objectMapper.readTree(qrResponse)["token"].asText()
+        val checkInCode = objectMapper.readTree(qrResponse)["checkInCode"].asText()
+        assert(checkInCode.matches(Regex("[0-9]{6}")))
 
         mockMvc.perform(
             post("/api/mobile/training/events/check-in/$qrToken")
@@ -743,6 +745,20 @@ class TrainingIntegrationTest {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$[0].pharmacistId").value("ph_training"))
             .andExpect(jsonPath("$[0].status").value("attended"))
+            .andExpect(jsonPath("$[0].checkMethod").value("qr"))
+
+        mockMvc.perform(
+            post("/api/mobile/training/events/check-in-code/$checkInCode")
+                .header("Authorization", pharmacistBearer),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.event.id").value(eventId))
+
+        mockMvc.perform(
+            get("/api/admin/training/events/$eventId/participants")
+                .header("Authorization", adminBearer),
+        )
+            .andExpect(status().isOk)
             .andExpect(jsonPath("$[0].checkMethod").value("qr"))
 
         val participantResponse = mockMvc.perform(
@@ -778,6 +794,61 @@ class TrainingIntegrationTest {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.status").value("waiting_online"))
             .andExpect(jsonPath("$.event").doesNotExist())
+    }
+
+    @Test
+    fun `pharmacist can check in by six digit code and retry remains idempotent`() {
+        val programId = createPublishedProgram()["id"].asText()
+        val startsAt = Instant.now().plusSeconds(3_600)
+        val endsAt = startsAt.plusSeconds(3_600)
+        val eventId = objectMapper.readTree(
+            mockMvc.perform(
+                post("/api/admin/training/events")
+                    .header("Authorization", adminBearer)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """{"programId":"$programId","title":"Практикум по коду","startsAt":"$startsAt","endsAt":"$endsAt","city":"Алматы","capacity":10,"status":"registration"}""",
+                    ),
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+        )["id"].asText()
+        val assignmentId = objectMapper.readTree(
+            mockMvc.perform(
+                post("/api/admin/training/assignments")
+                    .header("Authorization", adminBearer)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"programId":"$programId","pharmacistIds":["ph_training"],"format":"hybrid"}"""),
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+        )["assignments"][0]["id"].asText()
+        mockMvc.perform(
+            post("/api/mobile/training/assignments/$assignmentId/events/$eventId")
+                .header("Authorization", pharmacistBearer),
+        ).andExpect(status().isOk)
+
+        val qr = objectMapper.readTree(
+            mockMvc.perform(
+                get("/api/admin/training/events/$eventId/qr")
+                    .header("Authorization", adminBearer),
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+        )
+        val code = qr["checkInCode"].asText()
+        assert(code.matches(Regex("[0-9]{6}")))
+        assert(code != "000000")
+
+        repeat(2) {
+            mockMvc.perform(
+                post("/api/mobile/training/events/check-in-code/$code")
+                    .header("Authorization", pharmacistBearer),
+            )
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$.event.id").value(eventId))
+        }
+        mockMvc.perform(
+            get("/api/admin/training/events/$eventId/participants")
+                .header("Authorization", adminBearer),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$[0].status").value("attended"))
+            .andExpect(jsonPath("$[0].checkMethod").value("code"))
     }
 
     @Test

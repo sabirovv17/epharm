@@ -237,6 +237,7 @@ data class TrainingEventQrDto(
     val eventId: UUID,
     val token: UUID,
     val payload: String,
+    val checkInCode: String,
 )
 
 data class CreateOfflineEventRequest(
