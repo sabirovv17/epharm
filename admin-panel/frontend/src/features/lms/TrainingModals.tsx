@@ -9,6 +9,7 @@ import type {
   EventParticipantStatus,
   OfflineEventDto,
   PharmacistDto,
+  PharmacyDto,
   TrainingFormat,
   TrainingAssignmentDto,
   TrainingAssignmentStageDto,
@@ -1079,11 +1080,13 @@ export function AssignTrainingModal({
   programs,
   events,
   pharmacists,
+  pharmacies,
   initialPharmacistIds = [],
 }: CommonModalProps & {
   programs: TrainingProgramDto[]
   events: OfflineEventDto[]
   pharmacists: PharmacistDto[]
+  pharmacies: PharmacyDto[]
   initialPharmacistIds?: string[]
 }) {
   const toast = useToast()
@@ -1116,27 +1119,30 @@ export function AssignTrainingModal({
     () =>
       Array.from(
         new Set(
-          pharmacists
-            .filter((pharmacist) => pharmacist.status === 'active' && pharmacist.city)
-            .map((pharmacist) => pharmacist.city),
+          [
+            ...pharmacies.filter((pharmacy) => pharmacy.active && pharmacy.city).map((pharmacy) => pharmacy.city),
+            ...pharmacists
+              .filter((pharmacist) => pharmacist.status === 'active' && pharmacist.city)
+              .map((pharmacist) => pharmacist.city),
+          ],
         ),
       ).sort(),
-    [pharmacists],
+    [pharmacists, pharmacies],
   )
   const pharmacyOptions = useMemo(
     () =>
       Array.from(
         new Map(
-          pharmacists
+          pharmacies
             .filter(
-              (pharmacist) =>
-                pharmacist.status === 'active' &&
-                (cityFilter === '__all__' || pharmacist.city === cityFilter),
+              (pharmacy) =>
+                pharmacy.active &&
+                (cityFilter === '__all__' || pharmacy.city === cityFilter),
             )
-            .map((pharmacist) => [pharmacist.pharmacyId, pharmacist.pharmacyName]),
+            .map((pharmacy) => [pharmacy.id, pharmacy.name]),
         ).entries(),
       ).sort((left, right) => left[1].localeCompare(right[1], 'ru')),
-    [cityFilter, pharmacists],
+    [cityFilter, pharmacies],
   )
   const visiblePharmacists = useMemo(() => {
     const normalized = query.trim().toLowerCase()
@@ -1155,6 +1161,17 @@ export function AssignTrainingModal({
   const selectAllVisible = () => {
     const ids = visiblePharmacists.map((pharmacist) => pharmacist.id)
     setSelected((current) => Array.from(new Set([...current, ...ids])))
+  }
+
+  const selectedVisibleCount = visiblePharmacists.filter((pharmacist) => selected.includes(pharmacist.id)).length
+  const allVisibleSelected = visiblePharmacists.length > 0 && selectedVisibleCount === visiblePharmacists.length
+  const toggleAllVisible = () => {
+    const ids = new Set(visiblePharmacists.map((pharmacist) => pharmacist.id))
+    if (allVisibleSelected) {
+      setSelected((current) => current.filter((id) => !ids.has(id)))
+    } else {
+      selectAllVisible()
+    }
   }
 
   const submit = () => {
@@ -1246,7 +1263,14 @@ export function AssignTrainingModal({
             <Select
               ariaLabel="Очное событие"
               value={eventId}
-              onChange={setEventId}
+              onChange={(value) => {
+                setEventId(value)
+                const nextEvent = eligibleEvents.find((event) => event.id === value)
+                if (nextEvent) {
+                  setStartsAt(isoToLocalDateTime(nextEvent.startsAt))
+                  setDueAt(isoToLocalDateTime(nextEvent.endsAt))
+                }
+              }}
               options={eligibleEvents.map((event) => ({
                 value: event.id,
                 label: `${event.title} · ${dateTime(event.startsAt)} · ${event.occupied}/${event.capacity}`,
@@ -1342,10 +1366,11 @@ export function AssignTrainingModal({
             />
             <button
               type="button"
-              onClick={selectAllVisible}
+              onClick={toggleAllVisible}
+              disabled={visiblePharmacists.length === 0}
               className="text-[12px] font-bold text-brand-green-700"
             >
-              Выбрать найденных
+              {allVisibleSelected ? 'Снять найденных' : `Выбрать найденных (${visiblePharmacists.length})`}
             </button>
           </div>
           <div className="scrollbar-thin max-h-56 divide-y divide-ink-100 overflow-auto">
@@ -1832,8 +1857,10 @@ export function EventQrModal({
   const copyPayload = async () => {
     if (!qrQuery.data?.payload) return
     try {
-      await navigator.clipboard.writeText(qrQuery.data.payload)
-      toast.push('Ссылка регистрации скопирована')
+      await navigator.clipboard.writeText(
+        `${qrQuery.data.payload}\nКод мероприятия: ${qrQuery.data.checkInCode}`,
+      )
+      toast.push('Ссылка и код посещения скопированы')
     } catch {
       toast.push('Не удалось скопировать ссылку')
     }
@@ -1852,7 +1879,7 @@ export function EventQrModal({
             Закрыть
           </Button>
           <Button variant="outline" disabled={!qrQuery.data} onClick={copyPayload}>
-            Скопировать ссылку
+            Скопировать данные
           </Button>
         </>
       }
@@ -1870,9 +1897,17 @@ export function EventQrModal({
             className="h-80 w-80 max-w-full"
             aria-label="QR-код регистрации на мероприятии"
           />
+          <div className="rounded-xl bg-paper-hover px-6 py-4 text-center">
+            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-ink-400">
+              Код мероприятия
+            </div>
+            <div className="mt-1 font-mono text-3xl font-extrabold tracking-[0.28em] text-ink-900">
+              {qrQuery.data?.checkInCode}
+            </div>
+          </div>
           <p className="max-w-sm text-center text-[12px] text-ink-500">
-            Фармацевт сканирует код в мобильном разделе обучения. Сервер сверяет назначение, событие
-            и статус участника до фиксации посещения.
+            Фармацевт сканирует QR или вводит 6-значный код в разделе обучения. Код действует только
+            в окне мероприятия; сервер проверяет регистрацию участника до фиксации посещения.
           </p>
         </div>
       )}

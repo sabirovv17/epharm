@@ -234,6 +234,116 @@ describe('learner training portal', () => {
     })
   })
 
+  it('shows notifications, events, filters, certificates and the QR attendance flow from the app', async () => {
+    sessionStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
+    const active = {
+      id: 'assignment-active',
+      programName: 'Активный курс',
+      pharmacyName: 'Ауэзова 134',
+      city: 'Алматы',
+      status: 'in_progress',
+      format: 'hybrid',
+      progressPct: 40,
+      startedAt: '2026-09-23T10:00:00Z',
+      stages: [],
+    }
+    const completed = {
+      ...active,
+      id: 'assignment-completed',
+      programName: 'Завершённый курс',
+      status: 'completed',
+      progressPct: 100,
+    }
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const path = String(input)
+      if (path === '/api/mobile/auth/me') {
+        return json({ id: 'ph-1', name: 'Айжан', phone: '+77070000000', pharmacyName: 'Ауэзова 134', city: 'Алматы', balance: 1500 })
+      }
+      if (path === '/api/mobile/training') {
+        return json({
+          total: 2,
+          inProgress: 1,
+          completed: 1,
+          overdue: 0,
+          defaultFormat: 'hybrid',
+          assignments: [active, completed],
+          upcomingEvents: [{ id: 'event-1', title: 'Практикум', startsAt: '2026-09-24T11:00:00Z', city: 'Алматы', address: 'Учебный центр', capacity: 20, occupied: 12, status: 'scheduled' }],
+          notifications: [{ id: 'notification-1', eventType: 'reminder', title: 'Напоминание', message: 'Курс ждёт завершения', read: false, scheduledAt: '2026-09-23T11:00:00Z' }],
+          certificates: [{ id: 'certificate-1', number: 'EPH-1', assignmentId: 'assignment-completed', programName: 'Завершённый курс', format: 'online', issuedAt: '2026-09-23T11:00:00Z', status: 'valid', pdfUrl: '/certificate.pdf' }],
+        })
+      }
+      if (path === '/api/mobile/promotions') {
+        return json([{
+          id: 'promo-1',
+          productId: 'product-1',
+          name: 'Ренни апельсин жев таб №24',
+          brand: 'Bayer',
+          mnn: 'Кальция карбонат + Магния карбонат',
+          rxOtc: 'OTC',
+          category: 'Лекарственное средство',
+          barcode: '4250369504480',
+          tiers: [{ minQty: 1, price: 1740, bonus: 100 }],
+        }])
+      }
+      return json({ message: `Unexpected request: ${path}` }, 500)
+    })
+
+    renderPortal()
+
+    expect(await screen.findByRole('heading', { name: 'Уведомления' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Ближайшие события' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Препараты и бонусы' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Сертификаты' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Активный курс/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Завершённый курс/ })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Завершённые' }))
+    expect(screen.getByRole('button', { name: /Завершённый курс/ })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Отметить посещение по QR' }))
+    expect(screen.getByRole('dialog', { name: 'Отметить посещение' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Сканировать QR камерой' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('Браузер не поддерживает доступ к камере')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Отмена' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Открыть препарат Ренни апельсин жев таб №24' }))
+    expect(screen.getByRole('dialog', { name: 'Ренни апельсин жев таб №24' })).toBeInTheDocument()
+    expect(screen.getAllByText('Бонус 100 ₸')).toHaveLength(2)
+  })
+
+  it('selects an offline event through the same mobile training endpoint', async () => {
+    sessionStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
+    const trainingEvent = {
+      id: 'event-1', title: 'Практикум', startsAt: '2026-09-24T11:00:00Z',
+      city: 'Алматы', address: 'Учебный центр', capacity: 20, occupied: 12, status: 'scheduled',
+    }
+    const assignment = {
+      id: 'assignment-1', programName: 'Гибридный курс', pharmacyName: 'Ауэзова 134', city: 'Алматы',
+      status: 'waiting_event_selection', format: 'hybrid', progressPct: 0, startedAt: '2026-09-23T10:00:00Z', event: null, stages: [],
+    }
+    const selectedAssignment = { ...assignment, status: 'in_progress', event: trainingEvent }
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const path = String(input)
+      if (path === '/api/mobile/auth/me') return json({ id: 'ph-1', name: 'Айжан', phone: '+77070000000', pharmacyName: 'Ауэзова 134', city: 'Алматы' })
+      if (path === '/api/mobile/training/assignments/assignment-1' && (!init?.method || init.method === 'GET')) return json(assignment)
+      if (path === '/api/mobile/training/assignments/assignment-1/events' && (!init?.method || init.method === 'GET')) return json([trainingEvent])
+      if (path === '/api/mobile/training/assignments/assignment-1/events/event-1' && init?.method === 'POST') return json(selectedAssignment)
+      if (path === '/api/mobile/training') return json({ total: 1, inProgress: 1, completed: 0, overdue: 0, assignments: [selectedAssignment] })
+      return json({ message: `Unexpected request: ${path}` }, 500)
+    })
+
+    renderPortal('/learn/course/assignment-1')
+    await userEvent.click(await screen.findByRole('button', { name: 'Выбрать мероприятие' }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/mobile/training/assignments/assignment-1/events/event-1',
+        expect.objectContaining({ method: 'POST' }),
+      )
+    })
+    expect(await screen.findByText('Отметить посещение по QR')).toBeInTheDocument()
+  })
+
   it('refreshes an expired access token once for concurrent portal requests', async () => {
     sessionStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
     const refreshedTokens = { accessToken: 'fresh-access-token', refreshToken: 'fresh-refresh-token' }
@@ -282,6 +392,6 @@ describe('learner training portal', () => {
       { path: '/api/mobile/auth/me', authorization: `Bearer ${refreshedTokens.accessToken}` },
       { path: '/api/mobile/training', authorization: `Bearer ${refreshedTokens.accessToken}` },
     ]))
-    expect(fetchMock).toHaveBeenCalledTimes(5)
+    expect(fetchMock).toHaveBeenCalledTimes(6)
   })
 })

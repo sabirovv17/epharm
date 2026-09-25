@@ -208,6 +208,8 @@ class OfflineEventEntity(
     var comment: String = "",
     @Column(name = "qr_token", nullable = false)
     var qrToken: UUID = UUID.randomUUID(),
+    @Column(name = "check_in_code", nullable = false, length = 6)
+    var checkInCode: String = "000000",
     @Column(name = "created_by", nullable = false)
     var createdBy: UUID = UUID.randomUUID(),
     @Column(name = "created_at", nullable = false)
