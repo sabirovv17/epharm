@@ -222,8 +222,10 @@ jobs:
           cache-dependency-path: admin-panel/frontend/package-lock.json
       - name: Start development infrastructure
         run: |
-          docker compose up -d --wait postgres redis minio
-          docker compose run --rm minio-init
+          # Browser specs exercise auth, rules, training and navigation; none uploads
+          # media. Keep this gate independent of the unavailable legacy MinIO
+          # image registry. Media/S3 behavior needs its own integration gate.
+          docker compose up -d --wait postgres redis
       - name: Start backend and wait for readiness
         env:
           SPRING_PROFILES_ACTIVE: dev
