@@ -78,6 +78,8 @@ heartbeat and the customer-screen state. `Есть` means Windows reports at lea
 means one monitor, and `Не определено` means the POSM client has not yet rolled forward to a version
 that sends monitor topology. The last state becomes known automatically through POSM auto-update;
 reinstalling pharmacy packages is not required.
+The detailed live-device list starts collapsed and has an accessible expand/collapse control; the
+summary, coverage warning and Excel export remain visible while the long list is collapsed.
 
 - `src/app/store.ts` owns UI/session state: auth user/tokens, period, language, sidebar state,
   command palette, role switcher, contract modal.

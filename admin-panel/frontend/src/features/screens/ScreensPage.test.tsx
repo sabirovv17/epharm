@@ -168,7 +168,8 @@ describe('ScreensPage — онлайн-кассы', () => {
     expect(screen.getByTestId('connected-registers')).toHaveTextContent('Подключено касс')
   })
 
-  it('показывает онлайн-кассы (total + устройства)', () => {
+  it('показывает онлайн-кассы (total + устройства)', async () => {
+    const user = userEvent.setup()
     screenHooks.useConnectedScreensSummary.mockReturnValue({
       data: { total: 2, observedAt: '2026-09-15T15:00:00Z' },
       isLoading: false,
@@ -210,6 +211,7 @@ describe('ScreensPage — онлайн-кассы', () => {
     renderPage()
     const w = screen.getByTestId('connected-registers')
     expect(w).toHaveTextContent('2')
+    await user.click(screen.getByTestId('connected-registers-toggle'))
     expect(screen.getByTestId('connected-kassa-1')).toBeInTheDocument()
     expect(screen.getByTestId('connected-kassa-2')).toBeInTheDocument()
     // касса с известной аптекой → название + адрес (а не сырой id)
@@ -218,6 +220,66 @@ describe('ScreensPage — онлайн-кассы', () => {
     expect(screen.getByTestId('connected-kassa-1')).toHaveTextContent('v1.0.46.0')
     // касса без аптеки → «без аптеки»
     expect(screen.getByTestId('connected-kassa-2')).toHaveTextContent('без аптеки')
+  })
+
+  it('сворачивает и разворачивает длинный список подключённых касс', async () => {
+    const user = userEvent.setup()
+    screenHooks.useConnectedScreensSummary.mockReturnValue({
+      data: { total: 2, observedAt: '2026-09-15T15:00:00Z' },
+      isLoading: false,
+      isError: false,
+    })
+    screenHooks.useConnectedScreens.mockReturnValue({
+      data: {
+        total: 2,
+        devices: [
+          {
+            deviceId: 'kassa-1',
+            pharmacyId: 'ph_1',
+            pharmacyName: 'Аптека 1',
+            pharmacyAddress: 'Адрес 1',
+            pharmacyCity: 'Алматы',
+            pharmacyStreetAddress: 'Адрес 1',
+            monitorCount: 2,
+            hasClientScreen: true,
+            appVersion: '1.0.66.0',
+            lastSeen: '2026-09-25T12:00:00Z',
+          },
+          {
+            deviceId: 'kassa-2',
+            pharmacyId: 'ph_2',
+            pharmacyName: 'Аптека 2',
+            pharmacyAddress: 'Адрес 2',
+            pharmacyCity: 'Алматы',
+            pharmacyStreetAddress: 'Адрес 2',
+            monitorCount: 2,
+            hasClientScreen: true,
+            appVersion: '1.0.66.0',
+            lastSeen: '2026-09-25T12:00:01Z',
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    })
+
+    renderPage()
+
+    const toggle = screen.getByTestId('connected-registers-toggle')
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(toggle).toHaveTextContent('Развернуть список')
+    expect(screen.queryByTestId('connected-kassa-1')).not.toBeInTheDocument()
+    expect(screen.getByTestId('posm-coverage')).toBeInTheDocument()
+
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(toggle).toHaveTextContent('Свернуть список')
+    expect(screen.getByTestId('connected-kassa-1')).toBeInTheDocument()
+    expect(screen.getByTestId('connected-kassa-2')).toBeInTheDocument()
+
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByTestId('connected-kassa-1')).not.toBeInTheDocument()
   })
 
   it('отделяет целевой охват от фактически настроенных POSM-аптек', () => {
