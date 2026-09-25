@@ -9,6 +9,7 @@ import kz.epharm.promo.entity.PromoEntity
 import kz.epharm.promo.entity.PromoStatus
 import kz.epharm.promo.repository.PromoRepository
 import kz.epharm.posm.service.RulesEngineService
+import kz.epharm.rules.entity.RuleCard
 import kz.epharm.rules.entity.RuleEntity
 import kz.epharm.rules.entity.RuleStatus
 import kz.epharm.rules.entity.RuleTrigger
@@ -46,6 +47,7 @@ class RulesEngineConflictTest {
         recommend: String,
         bonus: Int = 100,
         promoId: String? = null,
+        offerRank: Int? = null,
     ) =
         RuleEntity(
             id = id,
@@ -56,6 +58,7 @@ class RulesEngineConflictTest {
             it.type = type
             it.status = RuleStatus.active
             it.promoId = promoId
+            if (offerRank != null) it.card = RuleCard(offerRank = offerRank)
         }
 
     private fun stub(
@@ -97,6 +100,28 @@ class RulesEngineConflictTest {
 
         assertEquals(listOf("Z", "Y"), res.matches.map { it.recommend.id })
         assertTrue(res.conflicts.isEmpty())
+    }
+
+    @Test
+    fun `порядок вариантов из админки важнее размера бонуса`() {
+        val trigger = product("X")
+        val primary = product("Y")
+        val noBonus = product("Z")
+        val higherBonus = product("W")
+        stub(
+            rules = listOf(
+                rule("r3", RuleType.substitution, "X", "W", bonus = 400, offerRank = 2),
+                rule("r2", RuleType.substitution, "X", "Z", bonus = 0, offerRank = 1),
+                rule("r1", RuleType.substitution, "X", "Y", bonus = 100, offerRank = 0),
+            ),
+            cartProducts = listOf(trigger),
+            recommends = listOf(primary, noBonus, higherBonus),
+        )
+
+        val result = engine.match(cart(trigger))
+
+        assertEquals(listOf("Y", "Z", "W"), result.matches.map { it.recommend.id })
+        assertTrue(result.conflicts.isEmpty())
     }
 
     @Test

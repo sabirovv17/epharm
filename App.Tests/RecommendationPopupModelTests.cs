@@ -35,7 +35,9 @@ public sealed class RecommendationPopupModelTests
         Assert.Equal("Исходный · 20 мг", model.Substitutions.TriggerText);
         Assert.All(model.Substitutions.Rows, row => Assert.Equal("", row.TriggerContext));
         Assert.Equal("12 490 ₸", model.Substitutions.Rows[0].Price);
-        Assert.Equal("+350 ₸ вам", model.Substitutions.Rows[0].Bonus);
+        Assert.Equal("Вознаграждение +350 ₸", model.Substitutions.Rows[0].Bonus);
+        Assert.True(model.Substitutions.Rows[0].HasBonus);
+        Assert.Equal("Почему: ", model.Substitutions.Rows[0].DetailLabel);
     }
 
     [Fact]
@@ -50,6 +52,49 @@ public sealed class RecommendationPopupModelTests
         Assert.False(model.CrossSells.HasSharedTrigger);
         Assert.Equal("К товару: Товар A · 20 мг", model.CrossSells.Rows[0].TriggerContext);
         Assert.Equal("К товару: Товар B · 20 мг", model.CrossSells.Rows[1].TriggerContext);
+        Assert.Equal("Скажите: ", model.CrossSells.Rows[0].DetailLabel);
+    }
+
+    [Fact]
+    public void Build_OnlyPositiveBonusMakesItsOwnOfferRewarded()
+    {
+        var withoutBonus = Recommendation("substitution", "Аналог без бонуса", "Товар", 900);
+        withoutBonus.Bonus = 0;
+        var withBonus = Recommendation("substitution", "Аналог с бонусом", "Товар", 1_200);
+        withBonus.Bonus = 400;
+        var crossSellWithoutBonus = Recommendation("crosssell", "Допродажа без бонуса", "Товар", 500);
+        crossSellWithoutBonus.Bonus = 0;
+
+        var model = RecommendationPopupModelBuilder.Build(new[]
+        {
+            withoutBonus, withBonus, crossSellWithoutBonus,
+        });
+
+        Assert.False(model.Substitutions.Rows[0].HasBonus);
+        Assert.Equal("Без вознаграждения", model.Substitutions.Rows[0].Bonus);
+        Assert.True(model.Substitutions.Rows[1].HasBonus);
+        Assert.Equal("Вознаграждение +400 ₸", model.Substitutions.Rows[1].Bonus);
+        Assert.False(model.CrossSells.Rows[0].HasBonus);
+        Assert.Equal("Без вознаграждения", model.CrossSells.Rows[0].Bonus);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(5)]
+    public void Build_KeepsExactOfferCountForEachSection(int count)
+    {
+        var source = Enumerable.Range(1, count)
+            .Select(i => Recommendation("substitution", $"Замена {i}", "Товар", 1_000 + i))
+            .Concat(Enumerable.Range(1, count)
+                .Select(i => Recommendation("crosssell", $"Допродажа {i}", "Товар", 2_000 + i)));
+
+        var model = RecommendationPopupModelBuilder.Build(source);
+
+        Assert.Equal(count, model.Substitutions.Rows.Count);
+        Assert.Equal(count, model.CrossSells.Rows.Count);
+        Assert.Equal(count * 2, model.TotalCount);
     }
 
     private static Recommendation Recommendation(string kind, string name, string trigger, int price) => new()

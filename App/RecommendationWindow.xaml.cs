@@ -83,39 +83,32 @@ namespace CustomerDisplay
 
         private void Bind(RecommendationPopupModel model)
         {
-            TbHeaderCount.Text = model.TotalCount == 1
-                ? "1 предложение · цена в тенге"
-                : $"{model.TotalCount} предложений · цены в тенге";
+            var hasSubstitutions = model.Substitutions.Rows.Count > 0;
+            var hasCrossSells = model.CrossSells.Rows.Count > 0;
+            var topSubstitutionTrigger = hasSubstitutions && model.Substitutions.HasSharedTrigger;
+            var topCrossSellTrigger = !hasSubstitutions && hasCrossSells && model.CrossSells.HasSharedTrigger;
+            var crossSellMatchesTop = topSubstitutionTrigger && string.Equals(
+                model.CrossSells.TriggerText,
+                model.Substitutions.TriggerText,
+                StringComparison.OrdinalIgnoreCase);
 
-            BindSection(
-                model.Substitutions,
-                PanelSubstitutions,
-                SubstitutionTrigger,
-                TbSubstitutionTrigger,
-                TbSubstitutionCount,
-                SubstitutionList);
-            BindSection(
-                model.CrossSells,
-                PanelCrossSells,
-                CrossSellTrigger,
-                TbCrossSellTrigger,
-                TbCrossSellCount,
-                CrossSellList);
-        }
+            TopTriggerContext.Visibility = topSubstitutionTrigger || topCrossSellTrigger
+                ? Visibility.Visible : Visibility.Collapsed;
+            TbTopTriggerLabel.Text = topSubstitutionTrigger ? "ПОКУПАТЕЛЬ ПОПРОСИЛ" : "УЖЕ В ЧЕКЕ";
+            TbTopTrigger.Text = topSubstitutionTrigger
+                ? model.Substitutions.TriggerText : model.CrossSells.TriggerText;
 
-        private static void BindSection(
-            RecommendationPopupSection section,
-            FrameworkElement panel,
-            FrameworkElement triggerPanel,
-            System.Windows.Controls.TextBlock triggerText,
-            System.Windows.Controls.TextBlock countText,
-            System.Windows.Controls.ItemsControl list)
-        {
-            panel.Visibility = section.Rows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-            triggerPanel.Visibility = section.HasSharedTrigger ? Visibility.Visible : Visibility.Collapsed;
-            triggerText.Text = section.TriggerText;
-            countText.Text = $"{section.Rows.Count}/5";
-            list.ItemsSource = section.Rows;
+            PanelSubstitutions.Visibility = hasSubstitutions ? Visibility.Visible : Visibility.Collapsed;
+            TbSubstitutionCount.Text = $"ЗАМЕНА · {model.Substitutions.Rows.Count}";
+            SubstitutionList.ItemsSource = model.Substitutions.Rows;
+
+            PanelCrossSells.Visibility = hasCrossSells ? Visibility.Visible : Visibility.Collapsed;
+            TbCrossSellCount.Text = $"ДОПРОДАЖА · {model.CrossSells.Rows.Count}";
+            CrossSellTrigger.Visibility = hasCrossSells && model.CrossSells.HasSharedTrigger &&
+                !topCrossSellTrigger && !crossSellMatchesTop
+                ? Visibility.Visible : Visibility.Collapsed;
+            TbCrossSellTrigger.Text = model.CrossSells.TriggerText;
+            CrossSellList.ItemsSource = model.CrossSells.Rows;
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
@@ -191,8 +184,8 @@ namespace CustomerDisplay
                 new PixelRect(area.Left, area.Top, area.Width, area.Height),
                 dpi.X,
                 dpi.Y,
-                desiredWidthDip: 392,
-                desiredMaxHeightDip: 700);
+                desiredWidthDip: 500,
+                desiredMaxHeightDip: 900);
             Width = constraints.Width;
             MaxHeight = constraints.MaxHeight;
         }
@@ -219,7 +212,7 @@ namespace CustomerDisplay
                 return false;
             }
 
-            var point = PopupWindowPlacement.BottomRight(
+            var point = PopupWindowPlacement.TopRight(
                 new PixelRect(area.Left, area.Top, area.Width, area.Height),
                 before.Width,
                 before.Height);

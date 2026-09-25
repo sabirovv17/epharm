@@ -193,3 +193,12 @@ Header actions should be limited to a primary action and one secondary/more menu
 - Do not abbreviate money.
 - Do not add mobile layouts to admin pages.
 - Do not add separate image URL proxy logic; use the existing `proxyMedia`/backend media proxy.
+
+## POSM Recommendation Preview
+
+The campaign-rule preview mirrors the pharmacist's POSM recommendation surface, not the general HQ
+console palette. Its named `recommendation` tokens in `frontend/tailwind.config.ts` use the approved
+cash-desk reference: deep green `#087B39` (`#056E32` border), burgundy `#9F1329` section headings,
+and ink `#171A2F`. A card is green only when that specific offered product has a positive reward;
+zero-reward cards remain white. Do not use the compatibility `brand-green-*` classes for this state:
+those classes are coral in the HQ theme.

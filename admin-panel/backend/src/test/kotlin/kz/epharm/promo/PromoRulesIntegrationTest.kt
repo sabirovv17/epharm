@@ -255,6 +255,72 @@ class PromoRulesIntegrationTest {
             .containsExactlyInAnyOrder("prod_promoted", "prod_alt1", "prod_alt2", "prod_alt3", "prod_alt4")
         assertThat(rules.map { it.trigger.value }).containsOnly("prod_comp1")
         assertThat(rules).allSatisfy { assertThat(it.script).isEqualTo("Предложите подходящий аналог") }
+        assertThat(rules).allSatisfy { assertThat(it.bonus).isEqualTo(300) }
+    }
+
+    @Test
+    fun `бонус каждого предлагаемого препарата сохраняется независимо и round-trip проходит без потери`() {
+        val body = """
+            {"replacements":[{"medusaProductId":"prod_comp1","name":"Аквалор Норм","bonus":400,
+               "additionalRecommendations":[
+                 {"medusaProductId":"prod_alt1","name":"Аналог без бонуса","bonus":0},
+                 {"medusaProductId":"prod_alt2","name":"Аналог с бонусом","bonus":150}
+               ]}],
+             "crossSells":[{"medusaProductId":"prod_cross1","name":"Платочки","bonus":0,
+               "additionalRecommendations":[
+                 {"medusaProductId":"prod_alt3","name":"Другой допродажный товар","bonus":250}
+               ]}]}
+        """.trimIndent()
+
+        val saved = mockMvc.perform(
+            put("/api/admin/promo/pr_camp/rules").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(body),
+        ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.ruleCount").value(5))
+            .andExpect(jsonPath("$.config.replacements[0].bonus").value(400))
+            .andExpect(jsonPath("$.config.replacements[0].additionalRecommendations[0].bonus").value(0))
+            .andExpect(jsonPath("$.config.replacements[0].additionalRecommendations[1].bonus").value(150))
+            .andExpect(jsonPath("$.config.crossSells[0].bonus").value(0))
+            .andExpect(jsonPath("$.config.crossSells[0].additionalRecommendations[0].bonus").value(250))
+            .andReturn().response.contentAsString
+
+        val rules = ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc("pr_camp")
+        assertThat(rules.associate { (it.type to it.recommend) to it.bonus }).containsAllEntriesOf(
+            mapOf(
+                (RuleType.substitution to "prod_promoted") to 400,
+                (RuleType.substitution to "prod_alt1") to 0,
+                (RuleType.substitution to "prod_alt2") to 150,
+                (RuleType.crosssell to "prod_promoted") to 0,
+                (RuleType.crosssell to "prod_alt3") to 250,
+            ),
+        )
+
+        // Редактор отправляет обратно прочитанную конфигурацию: бонусы не должны
+        // возвращаться к общему значению кампании (300 ₸) после повторного сохранения.
+        val returnedConfig = objectMapper.readTree(saved).get("config").toString()
+        mockMvc.perform(
+            put("/api/admin/promo/pr_camp/rules").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(returnedConfig),
+        ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.config.replacements[0].additionalRecommendations[0].bonus").value(0))
+            .andExpect(jsonPath("$.config.crossSells[0].additionalRecommendations[0].bonus").value(250))
+    }
+
+    @Test
+    fun `отрицательный бонус у дополнительного препарата отклоняется до перезаписи правил`() {
+        val body = """
+            {"replacements":[{"medusaProductId":"prod_comp1","name":"Аквалор Норм",
+               "additionalRecommendations":[
+                 {"medusaProductId":"prod_alt1","name":"Аналог","bonus":-1}
+               ]}],"crossSells":[]}
+        """.trimIndent()
+
+        mockMvc.perform(
+            put("/api/admin/promo/pr_camp/rules").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(body),
+        ).andExpect(status().isBadRequest)
+
+        assertThat(ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc("pr_camp")).isEmpty()
     }
 
     @Test

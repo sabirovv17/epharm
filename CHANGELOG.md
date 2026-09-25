@@ -19,6 +19,22 @@ All notable production changes to Epharm are recorded here. The format follows
 - POSM 1.0.65 spreads healthy QR-task polling over 24–36 seconds per device, reducing
   synchronized load on the merchandising fallback without changing recommendations or orders.
 
+## [0.1.17] - 2026-09-25
+
+### Changed
+
+- Redesigned the pharmacist recommendation window for legible replacement and cross-sell lists,
+  with up to five products in each section and mouse-wheel scrolling. POSM 1.0.67 preserves
+  scanner focus and the existing recommendation trigger and acknowledgement behavior.
+- Administrators can set an optional reward separately for every recommended product. Only
+  products with a positive reward receive the green highlight; a zero reward is displayed without
+  bonus. Existing rules keep their campaign-level reward unless explicitly changed.
+
+### Fixed
+
+- Preserved the production training portal and code-based event check-in in the versioned source
+  before this release, including legacy course access and idempotent attendance checks.
+
 ## [0.1.14] - 2026-09-23
 
 ### Fixed

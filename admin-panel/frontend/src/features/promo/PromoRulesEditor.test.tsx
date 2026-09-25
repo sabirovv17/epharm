@@ -102,13 +102,14 @@ beforeEach(() => {
   })
 })
 
-function renderEditor() {
+function renderEditor(campaignBonus = 0) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
       <ToastHost>
         <PromoRulesEditor
           promoId="pr_1"
+          bonus={campaignBonus}
           promotedProductId="prod_promoted"
           promotedName="Эпигам спрей"
           promotedPrice={1990}
@@ -230,6 +231,46 @@ describe('PromoRulesEditor — per-pair скрипт + «Добавить»', ()
         barcode: '4604249789012',
       }),
     ])
+    expect(replacement.additionalRecommendations[0].bonus).toBe(0)
+  })
+
+  it('задаёт бонус индивидуально для каждой позиции и подсвечивает только оплачиваемую', async () => {
+    const user = userEvent.setup()
+    rulesHooks.usePromoRules.mockReturnValue({
+      data: mkView({
+        replacements: [{
+          medusaProductId: 'prod_a', name: 'Аквалор Норм', bonus: 0,
+          additionalRecommendations: [{ medusaProductId: 'prod_b', name: 'Платочки', bonus: 250 }],
+        }],
+      }),
+      isLoading: false, isError: false, error: null, refetch: vi.fn(),
+    })
+    renderEditor(400)
+
+    const primary = screen.getByTestId('pr-preview-card-prod_a-primary')
+    const alternative = screen.getByTestId('pr-preview-card-prod_a-prod_b')
+    expect(primary).not.toHaveClass('bg-recommendation-green')
+    expect(alternative).toHaveClass('bg-recommendation-green')
+    expect(screen.getByTestId('pr-bonus-primary-prod_a')).toHaveValue(0)
+    expect(screen.getByTestId('pr-bonus-prod_a-prod_b')).toHaveValue(250)
+
+    await user.clear(screen.getByTestId('pr-bonus-primary-prod_a'))
+    await user.type(screen.getByTestId('pr-bonus-primary-prod_a'), '150')
+    await user.clear(screen.getByTestId('pr-bonus-prod_a-prod_b'))
+    await user.type(screen.getByTestId('pr-bonus-prod_a-prod_b'), '0')
+    expect(primary).toHaveClass('bg-recommendation-green')
+    expect(alternative).not.toHaveClass('bg-recommendation-green')
+
+    await user.click(screen.getByTestId('promo-rules-save'))
+    const ref = mutate.mock.calls[0][0].config.replacements[0]
+    expect(ref.bonus).toBe(150)
+    expect(ref.additionalRecommendations[0].bonus).toBe(0)
+  })
+
+  it('сохраняет совместимость: старые позиции без bonus наследуют бонус кампании', () => {
+    renderEditor(200)
+    expect(screen.getByTestId('pr-bonus-primary-prod_a')).toHaveValue(200)
+    expect(screen.getByTestId('pr-preview-card-prod_a-primary')).toHaveClass('bg-recommendation-green')
   })
 
   it('строго ограничивает пару пятью предложениями вместе с основным', () => {
@@ -402,10 +443,10 @@ describe('PromoRulesEditor — per-pair скрипт + «Добавить»', ()
 describe('PromoRulesEditor — превью кассы (структура как на реальной кассе)', () => {
   it('замена: триггер = заменяемый товар, предложение = товар кампании', () => {
     renderEditor()
-    // По семантике backend: для замены ПОКУПАТЕЛЬ ПОПРОСИЛ заменяемый (r),
-    // а ПРЕДЛОЖИТЕ ВМЕСТО — продвигаемый товар кампании.
+    // По семантике backend: для замены покупатель попросил заменяемый товар (r),
+    // а в секции замены показан продвигаемый товар кампании.
     expect(screen.getByText('ПОКУПАТЕЛЬ ПОПРОСИЛ')).toBeInTheDocument()
-    expect(screen.getByText(/^ПРЕДЛОЖИТЕ ВМЕСТО/)).toBeInTheDocument()
+    expect(screen.getByTestId('pr-preview-section-prod_a')).toHaveTextContent('Замена · 1')
     // Заменяемый товар (триггер) — в превью.
     expect(screen.getAllByText('Аквалор Норм').length).toBeGreaterThanOrEqual(1)
     // Предлагаемый = товар кампании.
@@ -428,7 +469,7 @@ describe('PromoRulesEditor — превью кассы (структура ка�
     })
     renderEditor()
     expect(screen.getByText('УЖЕ В ЧЕКЕ')).toBeInTheDocument()
-    expect(screen.getByText(/^ДОБАВЬТЕ К ПОКУПКЕ/)).toBeInTheDocument()
+    expect(screen.getByTestId('pr-preview-section-prod_c')).toHaveTextContent('Кросс-селл · 1')
     // Триггер = выбранный товар, предложение = товар кампании.
     expect(
       within(screen.getByTestId('pr-preview-trigger-prod_c')).getByText('Платочки Zewa'),

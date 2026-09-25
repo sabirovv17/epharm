@@ -56,6 +56,22 @@ internal static class PopupWindowPlacement
         return new PixelPoint(Math.Max(workArea.Left, x), Math.Max(workArea.Top, y));
     }
 
+    public static PixelPoint TopRight(
+        PixelRect workArea,
+        int windowWidth,
+        int windowHeight,
+        int marginPixels = DefaultMarginPixels)
+    {
+        marginPixels = Math.Max(0, marginPixels);
+        windowWidth = Math.Max(1, windowWidth);
+        windowHeight = Math.Max(1, windowHeight);
+
+        var x = workArea.Right - windowWidth - marginPixels;
+        var y = workArea.Top + marginPixels;
+        return new PixelPoint(Math.Max(workArea.Left, x),
+            Math.Min(y, Math.Max(workArea.Top, workArea.Bottom - windowHeight)));
+    }
+
     public static bool IsFullyVisible(PixelRect window, PixelRect workArea) =>
         window.Width > 0 &&
         window.Height > 0 &&

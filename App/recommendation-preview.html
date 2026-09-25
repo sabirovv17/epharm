@@ -1,241 +1,69 @@
 <!doctype html>
-<!-- Static browser preview of RecommendationWindow.xaml for design review on non-Windows hosts. -->
+<!-- Static visual companion to RecommendationWindow.xaml; it does not represent live inventory. -->
 <html lang="ru">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Epharm — multi-offer preview</title>
-    <style>
-      * { box-sizing: border-box; }
-      :root {
-        font-family: "Segoe UI", Arial, sans-serif;
-        color: #211d19;
-      }
-      body {
-        margin: 0;
-        min-height: 100vh;
-        display: flex;
-        align-items: flex-end;
-        justify-content: flex-end;
-        padding: 20px;
-        background:
-          linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px) 0 0 / 28px 28px,
-          #151516;
-      }
-      .desktop-note {
-        position: fixed;
-        top: 28px;
-        left: 32px;
-        max-width: 430px;
-        color: #aaa5a0;
-        font-size: 13px;
-        line-height: 1.55;
-      }
-      .desktop-note strong { color: #e1d7d0; }
-      .popup {
-        width: 368px;
-        overflow: hidden;
-        background: #fff;
-        border: 1px solid #d8d1c7;
-        border-radius: 13px;
-        box-shadow: 0 8px 28px rgba(0,0,0,.36);
-      }
-      .header {
-        height: 57px;
-        display: grid;
-        grid-template-columns: 22px 1fr 26px;
-        align-items: center;
-        gap: 9px;
-        padding: 10px 10px 10px 14px;
-        border-bottom: 1px solid #e8e2da;
-      }
-      .icon {
-        width: 22px;
-        height: 22px;
-        display: grid;
-        place-items: center;
-        border-radius: 6px;
-        background: #8b432d;
-        color: white;
-        font-weight: 700;
-        font-size: 13px;
-      }
-      .title { font-weight: 700; font-size: 15px; line-height: 17px; }
-      .subtitle { margin-top: 2px; color: #847b72; font-size: 10.5px; font-weight: 600; }
-      .close {
-        width: 26px;
-        height: 26px;
-        display: grid;
-        place-items: center;
-        border: 0;
-        border-radius: 6px;
-        background: #f1eee9;
-        color: #6f665b;
-      }
-      .scroller {
-        max-height: 552px;
-        overflow-y: auto;
-        padding: 10px 11px 5px 14px;
-        scrollbar-color: #b7aea5 #f5f2ee;
-        scrollbar-width: thin;
-      }
-      .section { margin-bottom: 9px; }
-      .section-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 7px;
-        color: #8b432d;
-        font-weight: 700;
-        font-size: 11px;
-      }
-      .section.cross .section-head { color: #42604f; }
-      .count {
-        padding: 2px 7px;
-        border-radius: 8px;
-        background: #efe4de;
-        font-size: 10.5px;
-      }
-      .cross .count { background: #e6efe9; }
-      .trigger {
-        margin-bottom: 7px;
-        padding: 7px 9px;
-        border-radius: 8px;
-        background: #f4f1ec;
-      }
-      .eyebrow, .offer-label {
-        color: #91877e;
-        font-size: 9.5px;
-        font-weight: 700;
-        letter-spacing: .02em;
-      }
-      .trigger-name { margin-top: 2px; color: #302a25; font-size: 12px; font-weight: 600; }
-      .offer-label { margin-bottom: 6px; }
-      .offer {
-        display: grid;
-        grid-template-columns: 24px minmax(0, 1fr) auto;
-        gap: 7px;
-        margin-bottom: 7px;
-        padding: 10px;
-        border: 1px solid #e8e2da;
-        border-radius: 9px;
-        background: #faf8f5;
-      }
-      .number {
-        width: 20px;
-        height: 20px;
-        display: grid;
-        place-items: center;
-        border-radius: 50%;
-        background: #efe4de;
-        color: #8b432d;
-        font-size: 10.5px;
-        font-weight: 700;
-      }
-      .name { font-size: 13.5px; line-height: 17px; font-weight: 700; }
-      .meta { margin-top: 2px; color: #766e65; font-size: 10.5px; font-weight: 600; }
-      .detail {
-        display: -webkit-box;
-        margin-top: 3px;
-        overflow: hidden;
-        color: #615950;
-        font-size: 10.5px;
-        line-height: 14px;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-      }
-      .money { text-align: right; white-space: nowrap; }
-      .price { font-size: 12.5px; font-weight: 700; }
-      .bonus { margin-top: 3px; color: #a24c30; font-size: 10px; font-weight: 700; }
-      .footer {
-        padding: 8px 14px;
-        border-top: 1px solid #e8e2da;
-        background: #fcfbf9;
-        color: #91877e;
-        text-align: center;
-        font-size: 9.5px;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="desktop-note">
-      <strong>Демо POSM на компьютере фармацевта.</strong><br />
-      Окно закреплено справа снизу поверх кассы, не перехватывает фокус сканера.
-      Внутри можно прокручивать до 5 замен и до 5 допродаж колесом мыши.
-    </div>
-
-    <article class="popup" aria-label="Рекомендации Epharm">
-      <header class="header">
-        <span class="icon">i</span>
-        <div>
-          <div class="title">Рекомендации</div>
-          <div class="subtitle">8 предложений · цены в тенге</div>
-        </div>
-        <button class="close" aria-label="Закрыть">✕</button>
-      </header>
-
-      <main class="scroller">
-        <section class="section">
-          <div class="section-head"><span>ЗАМЕНА</span><span class="count">5/5</span></div>
-          <div class="trigger">
-            <div class="eyebrow">ПОКУПАТЕЛЬ ПОПРОСИЛ</div>
-            <div class="trigger-name">Аквалор Норм спрей · 150 мл</div>
-          </div>
-          <div class="offer-label">ПРЕДЛОЖИТЕ ВМЕСТО</div>
-
-          <div class="offer">
-            <span class="number">1</span>
-            <div><div class="name">Аквамарис Норм спрей</div><div class="meta">Jadran Galenski · 150 мл</div><div class="detail">Мягко распыляет и подходит для ежедневной гигиены.</div></div>
-            <div class="money"><div class="price">2 890 ₸</div><div class="bonus">+520 ₸ вам</div></div>
-          </div>
-          <div class="offer">
-            <span class="number">2</span>
-            <div><div class="name">Аквамарис Стронг</div><div class="meta">Jadran Galenski · 150 мл</div><div class="detail">Для выраженной заложенности — более интенсивное орошение.</div></div>
-            <div class="money"><div class="price">3 490 ₸</div><div class="bonus">+580 ₸ вам</div></div>
-          </div>
-          <div class="offer">
-            <span class="number">3</span>
-            <div><div class="name">Линаква спрей</div><div class="meta">Grotex · 150 мл</div><div class="detail">Более доступный вариант с мягким распылением.</div></div>
-            <div class="money"><div class="price">2 390 ₸</div><div class="bonus">+420 ₸ вам</div></div>
-          </div>
-          <div class="offer">
-            <span class="number">4</span>
-            <div><div class="name">Маример беби</div><div class="meta">Gilbert · 150 мл</div><div class="detail">Подходит для ежедневной гигиены носа ребёнка.</div></div>
-            <div class="money"><div class="price">2 750 ₸</div><div class="bonus">+450 ₸ вам</div></div>
-          </div>
-          <div class="offer">
-            <span class="number">5</span>
-            <div><div class="name">Физиомер Нормал джет</div><div class="meta">Laboratoires de la Mer · 150 мл</div><div class="detail">Насадка-душ для равномерного орошения.</div></div>
-            <div class="money"><div class="price">3 190 ₸</div><div class="bonus">+500 ₸ вам</div></div>
-          </div>
-        </section>
-
-        <section class="section cross">
-          <div class="section-head"><span>ДОПРОДАЖА</span><span class="count">3/5</span></div>
-          <div class="trigger">
-            <div class="eyebrow">УЖЕ В ЧЕКЕ</div>
-            <div class="trigger-name">Аквамарис Норм спрей · 150 мл</div>
-          </div>
-          <div class="offer-label">ДОБАВЬТЕ К ПОКУПКЕ</div>
-          <div class="offer">
-            <span class="number">1</span>
-            <div><div class="name">Хьюмер аспиратор назальный</div><div class="meta">Laboratoires URGO</div><div class="detail">Сочетается с солевым спреем, подходит детям с рождения.</div></div>
-            <div class="money"><div class="price">3 200 ₸</div><div class="bonus">+300 ₸ вам</div></div>
-          </div>
-          <div class="offer">
-            <span class="number">2</span>
-            <div><div class="name">Салфетки детские влажные</div><div class="meta">Inkar</div><div class="detail">Удобно для гигиены после промывания.</div></div>
-            <div class="money"><div class="price">690 ₸</div><div class="bonus">+120 ₸ вам</div></div>
-          </div>
-          <div class="offer">
-            <span class="number">3</span>
-            <div><div class="name">Бальзам для носа</div><div class="meta">Inkar</div><div class="detail">Уход за кожей вокруг носа.</div></div>
-            <div class="money"><div class="price">1 290 ₸</div><div class="bonus">+180 ₸ вам</div></div>
-          </div>
-        </section>
-      </main>
-
-      <footer class="footer">Колесо мыши — прокрутить список</footer>
-    </article>
-  </body>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Epharm — рекомендации фармацевту</title>
+  <style>
+    :root { font-family: "Segoe UI", Arial, sans-serif; color: #171a2f; background: #dfe6e8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; overflow: hidden; }
+    .cash-demo { min-height: 100vh; padding: 14px; opacity: .54; filter: blur(1px); }
+    .cash-toolbar { height: 35px; background: #078fae; border-radius: 4px; }
+    .cash-grid { margin-top: 18px; width: 65%; height: 72vh; background: repeating-linear-gradient(#edf3f7 0 38px, #b7cedb 39px 40px); border: 1px solid #9cb9c8; }
+    .popup { position: fixed; top: 20px; right: 20px; width: min(500px, calc(100vw - 40px)); max-height: calc(100vh - 40px); display: flex; flex-direction: column; overflow: hidden; background: #fff; border: 1px solid #d7dce4; border-radius: 17px; box-shadow: 0 18px 50px rgba(20,27,42,.28); }
+    .header { display: flex; justify-content: space-between; align-items: center; min-height: 65px; padding: 12px 14px 9px 18px; }
+    .header h1 { margin: 0; font-size: 28px; line-height: 1.1; }
+    .close { width: 42px; height: 42px; border: 0; border-radius: 8px; color: #171b2e; background: #f0f1f3; font: 300 28px/1 "Segoe UI", sans-serif; cursor: pointer; }
+    .context { display: grid; gap: 3px; margin: 0 15px 8px; padding: 9px 13px; border-radius: 10px; background: #f1f2f4; }
+    .context span { color: #70788a; font-size: 12px; font-weight: 700; }
+    .context strong { font-size: 16px; line-height: 1.2; }
+    .scroll { min-height: 0; overflow-y: auto; padding: 0 15px 5px; scrollbar-width: thin; scrollbar-color: #aab1bc transparent; }
+    section + section { margin-top: 12px; }
+    h2 { margin: 0 0 7px; color: #9f1329; font-size: 22px; line-height: 1.1; }
+    .offer { display: grid; grid-template-columns: 44px minmax(0, 1fr) 164px; column-gap: 4px; padding: 10px 11px; margin-bottom: 7px; border: 1px solid #d7dce4; border-radius: 10px; background: #fff; }
+    .offer.rewarded { color: #fff; background: #087b39; border-color: #056e32; }
+    .rank { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; color: #111627; background: #eef0f2; font-size: 18px; font-weight: 700; }
+    .rewarded .rank { color: #fff; background: #32975f; }
+    .copy { min-width: 0; padding-right: 8px; }
+    .copy strong { display: block; font-size: 18px; line-height: 21px; }
+    .meta { display: block; margin-top: 3px; color: #677083; font-size: 15px; line-height: 1.2; }
+    .rewarded .meta { color: #d6efe0; }
+    .money { text-align: right; }
+    .money strong { display: block; font-size: 23px; line-height: 1.05; }
+    .money span { display: block; margin-top: 4px; color: #596274; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+    .rewarded .money span { color: #d7efad; }
+    .detail { grid-column: 2 / 4; margin: 5px 0 0 4px; color: #20263a; font-size: 17px; font-weight: 600; line-height: 21px; }
+    .detail b { color: #9f1329; }
+    .rewarded .detail { color: #f5fff8; }
+    .rewarded .detail b { color: #fff; }
+    .footer { flex: none; padding: 9px 15px; border-top: 1px solid #e3e6eb; color: #5d6576; font-size: 12.5px; }
+    @media (max-width: 460px) { .offer { grid-template-columns: 40px minmax(0, 1fr); } .money { grid-column: 2; text-align: left; margin-top: 6px; } .detail { grid-column: 2; } }
+  </style>
+</head>
+<body>
+  <div class="cash-demo" aria-hidden="true"><div class="cash-toolbar"></div><div class="cash-grid"></div></div>
+  <aside class="popup" aria-label="Пример окна рекомендаций">
+    <header class="header"><h1>Рекомендации</h1><button class="close" aria-label="Закрыть">×</button></header>
+    <div class="context"><span>ПОКУПАТЕЛЬ ПОПРОСИЛ</span><strong>Жидкий уголь комплекс с пектином для детей саше 7 г №10</strong></div>
+    <main class="scroll">
+      <section aria-label="Замена">
+        <h2>ЗАМЕНА · 5</h2>
+        <article class="offer rewarded"><div class="rank">1</div><div class="copy"><strong>Энтеросгель паста для приема внутрь 225 г</strong><span class="meta">Силма, Россия</span></div><div class="money"><strong>4 650 ₸</strong><span>Вознаграждение +400 ₸</span></div><p class="detail"><b>Почему:</b> аналогичное действие, подходит детям</p></article>
+        <article class="offer"><div class="rank">2</div><div class="copy"><strong>Смекта пор. д/приг. сусп. пак. 3 г №10</strong><span class="meta">IPSEN, Франция</span></div><div class="money"><strong>3 890 ₸</strong><span>Без вознаграждения</span></div><p class="detail"><b>Почему:</b> удобнее принимать, доступнее по цене</p></article>
+        <article class="offer rewarded"><div class="rank">3</div><div class="copy"><strong>Полисорб МП порошок 12 г №10</strong><span class="meta">Полисорб, Россия</span></div><div class="money"><strong>4 120 ₸</strong><span>Вознаграждение +400 ₸</span></div><p class="detail"><b>Почему:</b> быстрое действие, подходит детям</p></article>
+        <article class="offer"><div class="rank">4</div><div class="copy"><strong>Энтерофурил капс. 200 мг №16</strong><span class="meta">Bosnalijek, Босния и Герцеговина</span></div><div class="money"><strong>2 960 ₸</strong><span>Без вознаграждения</span></div><p class="detail"><b>Почему:</b> при кишечных инфекциях</p></article>
+        <article class="offer"><div class="rank">5</div><div class="copy"><strong>Активированный уголь таб. 250 мг №10</strong><span class="meta">Уралбиофарм, Россия</span></div><div class="money"><strong>480 ₸</strong><span>Без вознаграждения</span></div><p class="detail"><b>Почему:</b> доступное решение</p></article>
+      </section>
+      <section aria-label="Допродажа">
+        <h2>ДОПРОДАЖА · 3</h2>
+        <article class="offer rewarded"><div class="rank">1</div><div class="copy"><strong>Ибупрофен 400 мг таб. п/о №50</strong><span class="meta">Teva, Израиль</span></div><div class="money"><strong>3 540 ₸</strong><span>Вознаграждение +250 ₸</span></div><p class="detail"><b>Скажите:</b> Можно добавить при повышенной температуре</p></article>
+        <article class="offer"><div class="rank">2</div><div class="copy"><strong>Регидрон Био пор. д/приг. р-ра саше №20</strong><span class="meta">ORION, Финляндия</span></div><div class="money"><strong>5 280 ₸</strong><span>Без вознаграждения</span></div><p class="detail"><b>Скажите:</b> Поможет поддержать водный баланс</p></article>
+        <article class="offer rewarded"><div class="rank">3</div><div class="copy"><strong>Линекс Форте капс. №14</strong><span class="meta">Sandoz, Словения</span></div><div class="money"><strong>4 330 ₸</strong><span>Вознаграждение +250 ₸</span></div><p class="detail"><b>Скажите:</b> Поддержит микрофлору во время лечения</p></article>
+      </section>
+    </main>
+    <footer class="footer">Колесо мыши — прокрутить список</footer>
+  </aside>
+</body>
 </html>

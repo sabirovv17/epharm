@@ -177,6 +177,7 @@ function validateOffer(
   }
   validateLength(errors, `${path}.barcode`, offer.barcode, PROMO_RULE_LIMITS.barcode, messages)
   validateLength(errors, `${path}.ipartId`, offer.ipartId, PROMO_RULE_LIMITS.ipartId, messages)
+  validateInteger(errors, `${path}.bonus`, offer.bonus, 0, messages.nonNegativeInteger)
 }
 
 function validateRef(
@@ -191,6 +192,7 @@ function validateRef(
   validateLength(errors, `${path}.barcode`, ref.barcode, PROMO_RULE_LIMITS.barcode, messages)
   validateLength(errors, `${path}.ipartId`, ref.ipartId, PROMO_RULE_LIMITS.ipartId, messages)
   validateLength(errors, `${path}.script`, ref.script, PROMO_RULE_LIMITS.script, messages)
+  validateInteger(errors, `${path}.bonus`, ref.bonus, 0, messages.nonNegativeInteger)
   validateLength(
     errors,
     `${path}.partnerLabel`,

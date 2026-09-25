@@ -51,6 +51,9 @@ data class PromoOfferProductRefDto(
     @field:Size(max = 64)
     val ipartId: String? = null,
     val price: Int? = null,
+    /** Бонус за продажу именно этого варианта: 0 = без бонуса, null = legacy-дефолт кампании. */
+    @field:Min(0)
+    val bonus: Int? = null,
 )
 
 /**
@@ -77,6 +80,9 @@ data class PromoRuleProductRefDto(
     @field:Size(max = 64)
     val ipartId: String? = null,
     val price: Int? = null,
+    /** Бонус за основной товар кампании в этой паре; 0 отключает бонус, null наследует кампанию. */
+    @field:Min(0)
+    val bonus: Int? = null,
     /** Скрипт пары: что сказать фармацевту и почему. → rules.script (видно на кассе). */
     @field:Size(max = 2000)
     val script: String = "",
