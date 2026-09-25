@@ -7,6 +7,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { Button, Modal, PageHeader, SearchInput, SectionCard, Tabs, useToast } from '@/ui'
 import {
+  IconChevDown,
   IconDownload,
   IconGrid,
   IconList,
@@ -87,6 +88,7 @@ function ConnectedRegistersCard() {
   const t = useT()
   const toast = useToast()
   const [exporting, setExporting] = useState(false)
+  const [devicesExpanded, setDevicesExpanded] = useState(false)
   const details = useConnectedScreens()
   const summary = useConnectedScreensSummary()
   const coverage = usePosmCoverage()
@@ -129,6 +131,26 @@ function ConnectedRegistersCard() {
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
+          {devices.length > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              leading={
+                <IconChevDown
+                  size={14}
+                  aria-hidden="true"
+                  className={`transition-transform ${devicesExpanded ? 'rotate-180' : ''}`}
+                />
+              }
+              onClick={() => setDevicesExpanded((expanded) => !expanded)}
+              aria-expanded={devicesExpanded}
+              aria-controls="connected-registers-list"
+              data-testid="connected-registers-toggle"
+            >
+              {devicesExpanded ? t('scr.connectedCollapse') : t('scr.connectedExpand')}
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -162,8 +184,11 @@ function ConnectedRegistersCard() {
             : `${coverage.data.unprovisionedPharmacies.length} аптек требуют установки или перевыпуска ключа.`}
         </div>
       )}
-      {devices.length > 0 && (
-        <ul className="hairline flex flex-col divide-y divide-ink-100 border-t pt-1">
+      {devices.length > 0 && devicesExpanded && (
+        <ul
+          id="connected-registers-list"
+          className="hairline flex flex-col divide-y divide-ink-100 border-t pt-1"
+        >
           {devices.map((d) => (
             <li
               key={`${d.pharmacyId ?? 'no-pharmacy'}:${d.deviceId}`}
