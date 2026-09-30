@@ -7,6 +7,8 @@ import kz.epharm.shared.error.ErrorCode
 import kz.epharm.training.dto.MobileTrainingOverviewDto
 import kz.epharm.training.dto.OfflineEventDto
 import kz.epharm.training.dto.LessonProgressRequest
+import kz.epharm.training.dto.QuizSubmissionRequest
+import kz.epharm.training.dto.QuizSubmissionResultDto
 import kz.epharm.training.dto.StageProgressRequest
 import kz.epharm.training.dto.TrainingAssignmentDto
 import kz.epharm.training.dto.TrainingNotificationDto
@@ -84,6 +86,21 @@ class MobileTrainingController(
         @Valid @RequestBody req: LessonProgressRequest,
         @AuthenticationPrincipal principal: PharmacistPrincipal?,
     ): TrainingAssignmentDto = trainingService.updateLessonProgress(
+        requirePrincipal(principal).pharmacistId,
+        assignmentId,
+        stageId,
+        lessonId,
+        req,
+    )
+
+    @PostMapping("/assignments/{assignmentId}/stages/{stageId}/lessons/{lessonId}/quiz")
+    fun submitQuiz(
+        @PathVariable assignmentId: UUID,
+        @PathVariable stageId: UUID,
+        @PathVariable lessonId: String,
+        @Valid @RequestBody req: QuizSubmissionRequest,
+        @AuthenticationPrincipal principal: PharmacistPrincipal?,
+    ): QuizSubmissionResultDto = trainingService.submitLessonQuiz(
         requirePrincipal(principal).pharmacistId,
         assignmentId,
         stageId,

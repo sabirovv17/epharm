@@ -38,7 +38,7 @@ test.describe('Role access — обучение и AI-экзамены', () => {
   }) => {
     await loginForRole(freshPage, ACCOUNTS.lms, '/lms')
 
-    await expect(freshPage.getByText(ACCOUNTS.lms.name)).toBeVisible()
+    await expect(freshPage.getByRole('banner').getByRole('button', { name: new RegExp(ACCOUNTS.lms.name) })).toBeVisible()
     await expect(freshPage.getByRole('button', { name: /^Обучение$/i })).toHaveCount(0)
     await expect(freshPage.getByRole('button', { name: /AI-Экзаменация/i })).toBeVisible()
     await expect(freshPage.getByRole('button', { name: /Дашборд аналитики/i })).toHaveCount(0)

@@ -4,11 +4,18 @@ import jakarta.validation.Valid
 import kz.epharm.auth.dto.RefreshRequest
 import kz.epharm.auth.dto.RefreshResponse
 import kz.epharm.mobile.auth.dto.MeDto
+import kz.epharm.mobile.auth.dto.ActivationSmsRequest
+import kz.epharm.mobile.auth.dto.ActivationStatusRequest
+import kz.epharm.mobile.auth.dto.ActivationStatusResponse
+import kz.epharm.mobile.auth.dto.ActivationVerifyRequest
+import kz.epharm.mobile.auth.dto.ActivationVerifyResponse
+import kz.epharm.mobile.auth.dto.IinPasswordLoginRequest
 import kz.epharm.mobile.auth.dto.MobileAuthResponse
 import kz.epharm.mobile.auth.dto.RegisterRequest
 import kz.epharm.mobile.auth.dto.SmsRequestRequest
 import kz.epharm.mobile.auth.dto.SmsRequestResponse
 import kz.epharm.mobile.auth.dto.SmsVerifyRequest
+import kz.epharm.mobile.auth.dto.SetInitialPasswordRequest
 import kz.epharm.mobile.auth.dto.VerifySmsResponse
 import kz.epharm.mobile.auth.security.PharmacistPrincipal
 import kz.epharm.mobile.auth.service.MobileAuthService
@@ -34,6 +41,26 @@ import org.springframework.web.bind.annotation.RestController
 class MobileAuthController(
     private val mobileAuthService: MobileAuthService,
 ) {
+
+    @PostMapping("/login")
+    fun login(@Valid @RequestBody req: IinPasswordLoginRequest): MobileAuthResponse =
+        mobileAuthService.login(req.iin, req.password)
+
+    @PostMapping("/activation/status")
+    fun activationStatus(@Valid @RequestBody req: ActivationStatusRequest): ActivationStatusResponse =
+        mobileAuthService.activationStatus(req.iin)
+
+    @PostMapping("/activation/sms/request")
+    fun requestActivationSms(@Valid @RequestBody req: ActivationSmsRequest): SmsRequestResponse =
+        mobileAuthService.requestActivationSms(req.iin, req.phone)
+
+    @PostMapping("/activation/sms/verify")
+    fun verifyActivationSms(@Valid @RequestBody req: ActivationVerifyRequest): ActivationVerifyResponse =
+        mobileAuthService.verifyActivationSms(req.iin, req.phone, req.code)
+
+    @PostMapping("/activation/password")
+    fun setInitialPassword(@Valid @RequestBody req: SetInitialPasswordRequest): MobileAuthResponse =
+        mobileAuthService.setInitialPassword(req.iin, req.phone, req.password)
 
     @PostMapping("/sms/request")
     fun requestSms(@Valid @RequestBody req: SmsRequestRequest): SmsRequestResponse =

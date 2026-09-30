@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { USERS } from '@/mocks/fixtures'
 import NotFoundPage from './NotFoundPage'
 import { useUiStore } from './store'
 
 afterEach(() => {
-  useUiStore.setState({ authedUser: null, tokens: null })
+  act(() => useUiStore.setState({ authedUser: null, tokens: null }))
 })
 
 describe('NotFoundPage', () => {

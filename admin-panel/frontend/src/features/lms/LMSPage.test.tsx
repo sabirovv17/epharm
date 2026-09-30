@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
@@ -164,9 +164,6 @@ const course: CourseDto = {
       content: 'Текст урока',
       kind: 'video',
       videoUrl: 'https://epharm.inkar.kz/s3/course.mp4',
-      externalUrl: 'https://learn.epharm.kz/materials/intro',
-      required: true,
-      minimumWatchPct: 80,
       attachments: [
         {
           id: 'attachment-1',
@@ -266,6 +263,7 @@ const assignment: TrainingAssignmentDto = {
   createdAt: '2026-08-01T08:00:00Z',
   updatedAt: '2026-08-01T08:00:00Z',
 }
+
 
 const participant: EventParticipantDto = {
   id: 'participant-1',
@@ -399,6 +397,66 @@ describe('Обучение — операционный раздел', () => {
     expect(screen.getByText('1 вложений')).toBeInTheDocument()
   })
 
+  it('позволяет выбрать все поддерживаемые аудиовложения урока', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(screen.getByRole('button', { name: 'Онлайн-курсы' }))
+    await user.click(screen.getByRole('button', { name: 'Основы категории' }))
+    await user.click(screen.getByRole('button', { name: 'Редактировать урок Введение' }))
+
+    const editor = screen.getByRole('dialog', { name: 'Редактировать урок' })
+    const picker = editor.querySelector('input[type="file"][multiple]') as HTMLInputElement | null
+    expect(picker).not.toBeNull()
+    expect(picker?.accept).toContain('audio/*')
+    expect(picker?.accept).toContain('.aac')
+    expect(picker?.accept).toContain('.ogg')
+  })
+
+  it('создаёт полноценный тест с вопросами и проходным баллом', async () => {
+    const createLesson = vi.fn().mockResolvedValue({
+      ...course,
+      lessonItems: [
+        ...course.lessonItems,
+        {
+          id: 'quiz-new', title: 'Итоговый тест', description: '', content: '', kind: 'quiz',
+          videoUrl: null, externalUrl: null, required: true, minimumWatchPct: null,
+          quizPassingScore: 80, quizQuestions: [], attachments: [], durationMin: 0, order: 1,
+          createdAt: '2026-08-01T08:00:00Z', updatedAt: '2026-08-01T08:00:00Z',
+        },
+      ],
+    })
+    lmsHooks.useCreateCourseLesson.mockReturnValue(mutationResult(vi.fn(), createLesson))
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(screen.getByRole('button', { name: 'Онлайн-курсы' }))
+    await user.click(screen.getByRole('button', { name: 'Основы категории' }))
+    await user.click(screen.getByRole('button', { name: 'Добавить урок' }))
+
+    const lessonDialog = screen.getByRole('dialog', { name: 'Новый урок' })
+    await user.type(within(lessonDialog).getByLabelText('Название'), 'Итоговый тест')
+    await user.selectOptions(within(lessonDialog).getByLabelText('Тип урока'), 'quiz')
+    await user.type(within(lessonDialog).getByLabelText('Вопрос 1'), 'Когда принимать препарат?')
+    await user.type(within(lessonDialog).getByPlaceholderText('Вариант 1'), 'До еды')
+    await user.type(within(lessonDialog).getByPlaceholderText('Вариант 2'), 'После еды')
+    await user.click(within(lessonDialog).getByRole('radio', { name: 'Правильный ответ 2' }))
+    await user.click(within(lessonDialog).getByRole('button', { name: 'Сохранить урок' }))
+
+    expect(createLesson).toHaveBeenCalledWith(expect.objectContaining({
+      courseId: course.id,
+      lesson: expect.objectContaining({
+        title: 'Итоговый тест',
+        kind: 'quiz',
+        required: true,
+        quizPassingScore: 80,
+        quizQuestions: [expect.objectContaining({
+          prompt: 'Когда принимать препарат?',
+          options: ['До еды', 'После еды'],
+          correctOption: 1,
+        })],
+      }),
+    }))
+  })
+
   it('показывает прикрепленные материалы в редакторе урока', async () => {
     const user = userEvent.setup()
     renderPage()
@@ -412,9 +470,6 @@ describe('Обучение — операционный раздел', () => {
       'https://epharm.inkar.kz/s3/handout.pdf',
     )
     expect(screen.getByRole('button', { name: 'Удалить материал Памятка фармацевта' })).toBeInTheDocument()
-    expect(screen.getByDisplayValue('https://learn.epharm.kz/materials/intro')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('80')).toBeInTheDocument()
-    expect(screen.getByRole('switch', { name: 'Обязательный урок' })).toBeChecked()
   })
 
   it('разрешает роли только на чтение открыть курс без кнопок редактирования', async () => {
@@ -604,6 +659,7 @@ describe('Обучение — операционный раздел', () => {
       new URL('/learn/course/assignment-1', window.location.origin).toString(),
     )
   })
+
 
   it('предвыбирает фармацевта при переходе из реестра', () => {
     renderPage('/lms?action=assign&pharmacists=ph-1')

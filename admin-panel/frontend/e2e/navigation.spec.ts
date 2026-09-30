@@ -28,8 +28,9 @@ test.describe('Sidebar — навигация', () => {
     await expect(promoBtn).toHaveClass(/sidebar-active/)
   })
 
-  test('актуальный брендинг: логотип-глиф + Console · HQ', async ({ loggedInPage }) => {
-    await expect(loggedInPage.getByText(/Console · HQ/i)).toBeVisible()
+  test('актуальный брендинг: логотип-глиф + ePharm workspace', async ({ loggedInPage }) => {
+    await expect(loggedInPage.locator('aside[aria-label="Основная навигация"]').getByText('ePharm', { exact: true })).toBeVisible()
+    await expect(loggedInPage.getByText('Операционный центр', { exact: true })).toBeVisible()
     await expect(loggedInPage.locator('aside svg').first()).toBeVisible()
   })
 })
@@ -52,8 +53,9 @@ test.describe('Sidebar — Contract widget', () => {
 
 test.describe('Topbar — role-pill и logout', () => {
   test('role-pill показывает имя + роль', async ({ loggedInPage }) => {
-    await expect(loggedInPage.getByText(/Дамир Нурланов/)).toBeVisible()
-    await expect(loggedInPage.getByText(/Brand Manager/i)).toBeVisible()
+    const rolePill = loggedInPage.getByRole('banner').getByRole('button', { name: /Дамир Нурланов/ })
+    await expect(rolePill).toBeVisible()
+    await expect(rolePill).toContainText(/Brand Manager/i)
   })
 
   test('клик по role-pill → dropdown с «Сменить роль» + «Выйти»', async ({
@@ -110,7 +112,7 @@ test.describe('Sidebar — collapse/expand', () => {
   test('expand button разворачивает обратно', async ({ loggedInPage }) => {
     await loggedInPage.locator('aside button[title="Свернуть"]').click()
     await loggedInPage.waitForTimeout(300)
-    await loggedInPage.locator('aside button[title="Развернуть"]').first().click()
+    await loggedInPage.locator('aside button[title="Развернуть сайдбар"]').click()
     await loggedInPage.waitForTimeout(300)
     const width = (await loggedInPage.locator('aside').first().boundingBox())?.width ?? 0
     expect(width).toBeGreaterThan(200)

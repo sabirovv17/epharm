@@ -456,6 +456,28 @@ data class LessonProgressRequest(
     val positionSeconds: Int = 0,
 )
 
+data class QuizSubmissionRequest(
+    @field:Size(min = 1, max = 50)
+    val answers: Map<String, @Min(0) Int>,
+)
+
+data class QuizQuestionResultDto(
+    val questionId: String,
+    val correct: Boolean,
+    val correctOption: Int,
+    val explanation: String,
+)
+
+data class QuizSubmissionResultDto(
+    val score: Int,
+    val passed: Boolean,
+    val correctAnswers: Int,
+    val totalQuestions: Int,
+    val attempt: Int,
+    val questions: List<QuizQuestionResultDto>,
+    val assignment: TrainingAssignmentDto,
+)
+
 data class RecordAssessmentResultRequest(
     @field:Min(0) @field:Max(100)
     val score: Int,

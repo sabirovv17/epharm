@@ -2,6 +2,7 @@ package kz.epharm.lms.service
 
 import kz.epharm.lms.dto.CourseDto
 import kz.epharm.lms.dto.CourseLessonDto
+import kz.epharm.lms.dto.CourseQuizQuestionRequest
 import kz.epharm.lms.dto.CreateCourseLessonRequest
 import kz.epharm.lms.dto.CreateCourseRequest
 import kz.epharm.lms.dto.ReorderCourseLessonsRequest
@@ -11,6 +12,7 @@ import kz.epharm.lms.entity.CourseEntity
 import kz.epharm.lms.entity.CourseLessonAttachmentEntity
 import kz.epharm.lms.entity.CourseLessonEntity
 import kz.epharm.lms.entity.CourseLessonKind
+import kz.epharm.lms.entity.CourseQuizQuestion
 import kz.epharm.lms.entity.CourseStatus
 import kz.epharm.lms.repository.CourseLessonRepository
 import kz.epharm.lms.repository.CourseLessonAttachmentRepository
@@ -107,15 +109,30 @@ class CourseService(
     fun createLesson(courseId: String, req: CreateCourseLessonRequest): CourseDto {
         editableCourse(courseId)
         val current = lessons(courseId)
+        if (current.size >= MAX_LESSONS_PER_COURSE) {
+            invalid("В одном курсе может быть не более $MAX_LESSONS_PER_COURSE уроков")
+        }
+        val quizQuestions = normalizeQuizQuestions(req.kind, req.quizQuestions)
+        validateLessonPayload(
+            req.kind,
+            req.durationMin,
+            req.content,
+            req.externalUrl,
+            quizQuestions,
+            req.quizPassingScore,
+        )
         val lesson = CourseLessonEntity(
             id = "cls_${UUID.randomUUID().toString().replace("-", "").take(16)}",
             courseId = courseId,
             title = req.title.trim(),
             description = req.description.trim(),
             content = req.content.trim(),
-            externalUrl = req.externalUrl?.trim()?.takeIf(String::isNotEmpty),
-            requiredLesson = req.required,
-            minimumWatchPct = (req.minimumWatchPct ?: 80).takeIf { req.kind == CourseLessonKind.video },
+            externalUrl = req.externalUrl?.trim()?.takeIf(String::isNotBlank),
+            required = req.required,
+            minimumWatchPct = req.minimumWatchPct
+                ?: if (req.kind == CourseLessonKind.video) 80 else null,
+            quizQuestions = quizQuestions,
+            quizPassingScore = req.quizPassingScore,
             durationMin = req.durationMin,
             order = current.size,
         ).also { it.kind = req.kind }
@@ -134,21 +151,45 @@ class CourseService(
         }
         req.description?.let { lesson.description = it.trim() }
         req.content?.let { lesson.content = it.trim() }
-        req.externalUrl?.let { lesson.externalUrl = it.trim().takeIf(String::isNotEmpty) }
-        req.required?.let { lesson.requiredLesson = it }
-        if (req.clearMinimumWatchPct) lesson.minimumWatchPct = null
-        req.minimumWatchPct?.let { lesson.minimumWatchPct = it }
         req.durationMin?.let { lesson.durationMin = it }
+        req.required?.let { lesson.required = it }
+        if (req.clearExternalUrl) {
+            lesson.externalUrl = null
+        } else {
+            req.externalUrl?.let { lesson.externalUrl = it.trim().takeIf(String::isNotBlank) }
+        }
+        if (req.clearMinimumWatchPct) {
+            lesson.minimumWatchPct = null
+        } else {
+            req.minimumWatchPct?.let { lesson.minimumWatchPct = it }
+        }
 
         var obsoleteVideo: String? = null
         if (req.clearVideo || (req.kind != null && req.kind != CourseLessonKind.video)) {
             obsoleteVideo = lesson.videoUrl
             lesson.videoUrl = null
         }
+        val nextKind = req.kind ?: lesson.kind
         req.kind?.let {
             lesson.kind = it
-            if (it != CourseLessonKind.video) lesson.minimumWatchPct = null
+            if (it == CourseLessonKind.video && lesson.minimumWatchPct == null) {
+                lesson.minimumWatchPct = 80
+            }
         }
+        if (req.clearQuiz || nextKind !in QUIZ_KINDS) {
+            lesson.quizQuestions = emptyList()
+        } else {
+            req.quizQuestions?.let { lesson.quizQuestions = normalizeQuizQuestions(nextKind, it) }
+        }
+        req.quizPassingScore?.let { lesson.quizPassingScore = it }
+        validateLessonPayload(
+            lesson.kind,
+            lesson.durationMin,
+            lesson.content,
+            lesson.externalUrl,
+            lesson.quizQuestions,
+            lesson.quizPassingScore,
+        )
         lessonRepository.save(lesson)
         syncAggregates(courseId)
         obsoleteVideo?.let(::registerAfterCommitCleanup)
@@ -213,6 +254,7 @@ class CourseService(
         val previousUrl = lesson.videoUrl
         lesson.videoUrl = newUrl
         lesson.kind = CourseLessonKind.video
+        if (lesson.minimumWatchPct == null) lesson.minimumWatchPct = 80
         lessonRepository.save(lesson)
         previousUrl?.takeIf { it != newUrl }?.let(::registerAfterCommitCleanup)
         return get(courseId)
@@ -227,6 +269,9 @@ class CourseService(
     ): CourseDto {
         editableCourse(courseId)
         loadLessonOrThrow(courseId, lessonId)
+        if (attachmentRepository.findAllByLessonIdOrderByCreatedAtAsc(lessonId).size >= MAX_ATTACHMENTS_PER_LESSON) {
+            invalid("К одному уроку можно прикрепить не более $MAX_ATTACHMENTS_PER_LESSON файлов")
+        }
         validateAttachment(file)
         val fileName = file.originalFilename.orEmpty()
             .substringAfterLast('/')
@@ -324,6 +369,59 @@ class CourseService(
         }
     }
 
+    private fun validateLessonPayload(
+        kind: CourseLessonKind,
+        durationMin: Int,
+        content: String,
+        externalUrl: String?,
+        quizQuestions: List<CourseQuizQuestion>,
+        quizPassingScore: Int,
+    ) {
+        if (content.length > MAX_TEXT_LENGTH) {
+            invalid("Текст урока не должен превышать $MAX_TEXT_LENGTH символов")
+        }
+        // A video lesson may be drafted before its file and duration are supplied.
+        if (kind == CourseLessonKind.video && durationMin !in 0..MAX_VIDEO_DURATION_MIN) {
+            invalid("Длительность видеоурока должна быть от 0 до $MAX_VIDEO_DURATION_MIN минут")
+        }
+        if (kind in setOf(CourseLessonKind.link, CourseLessonKind.interactive) && externalUrl.isNullOrBlank()) {
+            invalid("Для ссылки или интерактива укажите адрес материала")
+        }
+        if (kind in QUIZ_KINDS) {
+            if (quizQuestions.isEmpty()) invalid("Добавьте хотя бы один вопрос теста")
+            if (quizPassingScore !in 1..100) invalid("Проходной балл должен быть от 1 до 100")
+            quizQuestions.forEachIndexed { index, question ->
+                if (question.prompt.isBlank()) invalid("Введите текст вопроса ${index + 1}")
+                if (question.options.size !in 2..8) {
+                    invalid("У вопроса ${index + 1} должно быть от 2 до 8 вариантов ответа")
+                }
+                if (question.options.any(String::isBlank)) {
+                    invalid("Заполните все варианты ответа у вопроса ${index + 1}")
+                }
+                if (question.correctOption !in question.options.indices) {
+                    invalid("Выберите правильный ответ у вопроса ${index + 1}")
+                }
+            }
+        }
+    }
+
+    private fun normalizeQuizQuestions(
+        kind: CourseLessonKind,
+        questions: List<CourseQuizQuestionRequest>,
+    ): List<CourseQuizQuestion> {
+        if (kind !in QUIZ_KINDS) return emptyList()
+        return questions.map { question ->
+            CourseQuizQuestion(
+                id = question.id?.trim()?.takeIf(String::isNotBlank)
+                    ?: "q_${UUID.randomUUID().toString().replace("-", "").take(12)}",
+                prompt = question.prompt.trim(),
+                options = question.options.map(String::trim),
+                correctOption = question.correctOption,
+                explanation = question.explanation.trim(),
+            )
+        }
+    }
+
     private fun registerRollbackCleanup(newUrl: String) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) return
         TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
@@ -349,6 +447,11 @@ class CourseService(
     private companion object {
         const val MAX_VIDEO_BYTES = 60L * 1024 * 1024
         const val MAX_ATTACHMENT_BYTES = 25L * 1024 * 1024
+        const val MAX_VIDEO_DURATION_MIN = 30
+        const val MAX_TEXT_LENGTH = 10_000
+        const val MAX_LESSONS_PER_COURSE = 100
+        const val MAX_ATTACHMENTS_PER_LESSON = 10
+        val QUIZ_KINDS = setOf(CourseLessonKind.quiz, CourseLessonKind.test)
         val SUPPORTED_VIDEO_TYPES = setOf("video/mp4", "video/webm")
         val SUPPORTED_VIDEO_EXTENSIONS = setOf("mp4", "webm")
         val SUPPORTED_ATTACHMENT_EXTENSIONS = setOf(

@@ -37,16 +37,16 @@ export function Modal({
       onClick={onClose}
     >
       <div
-        className="card slide-in w-full shadow-elevated"
+        className="card slide-in w-full overflow-hidden rounded-2xl shadow-elevated"
         style={{ maxWidth: width }}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
       >
-        <div className="hairline flex items-start justify-between border-b px-5 pb-3 pt-5">
+        <div className="hairline flex items-start justify-between border-b px-6 pb-4 pt-5">
           <div>
-            <div id={titleId} className="text-[16px] font-bold text-ink-900">
+            <div id={titleId} className="text-[18px] font-extrabold tracking-[-0.015em] text-ink-900">
               {title}
             </div>
             {subtitle && <div className="mt-0.5 text-[13px] text-ink-500">{subtitle}</div>}
@@ -55,9 +55,9 @@ export function Modal({
             <IconClose size={18} />
           </IconButton>
         </div>
-        <div className="scrollbar-thin max-h-[70vh] overflow-auto px-5 py-4">{children}</div>
+        <div className="scrollbar-thin max-h-[72vh] overflow-auto px-6 py-4">{children}</div>
         {footer && (
-          <div className="hairline flex items-center justify-end gap-2 rounded-b-xl border-t bg-paper-hover px-5 py-3">
+          <div className="hairline flex items-center justify-end gap-2 border-t bg-paper-input px-6 py-3">
             {footer}
           </div>
         )}

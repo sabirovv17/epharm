@@ -30,6 +30,57 @@ data class SmsVerifyRequest(
     val code: String,
 )
 
+data class IinPasswordLoginRequest(
+    @field:NotBlank
+    @field:Iin
+    val iin: String,
+    @field:NotBlank
+    @field:Size(min = 6, max = 128)
+    val password: String,
+)
+
+data class ActivationStatusRequest(
+    @field:NotBlank
+    @field:Iin
+    val iin: String,
+)
+
+data class ActivationSmsRequest(
+    @field:NotBlank
+    @field:Iin
+    val iin: String,
+    @field:NotBlank
+    @field:Size(max = 32)
+    @field:Pattern(regexp = "[+0-9 ()\\-]{6,32}", message = "Некорректный номер телефона")
+    val phone: String,
+)
+
+data class ActivationVerifyRequest(
+    @field:NotBlank
+    @field:Iin
+    val iin: String,
+    @field:NotBlank
+    @field:Size(max = 32)
+    @field:Pattern(regexp = "[+0-9 ()\\-]{6,32}", message = "Некорректный номер телефона")
+    val phone: String,
+    @field:NotBlank
+    @field:Pattern(regexp = "\\d{4,8}", message = "Код состоит из 4-8 цифр")
+    val code: String,
+)
+
+data class SetInitialPasswordRequest(
+    @field:NotBlank
+    @field:Iin
+    val iin: String,
+    @field:NotBlank
+    @field:Size(max = 32)
+    @field:Pattern(regexp = "[+0-9 ()\\-]{6,32}", message = "Некорректный номер телефона")
+    val phone: String,
+    @field:NotBlank
+    @field:Size(min = 8, max = 128, message = "Пароль должен содержать от 8 до 128 символов")
+    val password: String,
+)
+
 data class RegisterRequest(
     @field:NotBlank
     @field:Size(max = 32)
@@ -51,6 +102,16 @@ data class SmsRequestResponse(
     val phoneMasked: String,
     val ttlSeconds: Long,
     val devCode: String?,
+)
+
+data class ActivationStatusResponse(
+    val passwordSet: Boolean,
+    val phoneMasked: String,
+)
+
+data class ActivationVerifyResponse(
+    val verified: Boolean,
+    val phoneMasked: String,
 )
 
 /**

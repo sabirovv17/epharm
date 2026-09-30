@@ -6,6 +6,8 @@ import jakarta.persistence.Id
 import jakarta.persistence.PrePersist
 import jakarta.persistence.PreUpdate
 import jakarta.persistence.Table
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
 import java.time.Instant
 
 enum class CourseLessonKind {
@@ -22,6 +24,14 @@ enum class CourseLessonKind {
     practice,
     assignment,
 }
+
+data class CourseQuizQuestion(
+    val id: String = "",
+    val prompt: String = "",
+    val options: List<String> = emptyList(),
+    val correctOption: Int = 0,
+    val explanation: String = "",
+)
 
 @Entity
 @Table(name = "course_lessons")
@@ -52,10 +62,17 @@ class CourseLessonEntity(
     var externalUrl: String? = null,
 
     @Column(name = "required_lesson", nullable = false)
-    var requiredLesson: Boolean = true,
+    var required: Boolean = true,
 
     @Column(name = "minimum_watch_pct")
     var minimumWatchPct: Int? = null,
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "quiz_questions", nullable = false, columnDefinition = "jsonb")
+    var quizQuestions: List<CourseQuizQuestion> = emptyList(),
+
+    @Column(name = "quiz_passing_score", nullable = false)
+    var quizPassingScore: Int = 80,
 
     @Column(name = "duration_min", nullable = false)
     var durationMin: Int = 0,

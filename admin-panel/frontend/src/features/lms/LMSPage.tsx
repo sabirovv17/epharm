@@ -36,6 +36,7 @@ import type {
   TrainingAssignmentStageDto,
   TrainingAssignmentStatus,
   TrainingCapabilitiesDto,
+  TrainingDashboardDto,
   TrainingFormat,
   TrainingProgramDto,
   TrainingProgramStatus,
@@ -237,6 +238,7 @@ export default function LMSPage() {
         />
       ) : tab === 'assignments' ? (
         <AssignmentsTab
+          dashboard={dashboard}
           programs={programs}
           canManage={!!capabilities?.canManageAssignments}
           canExport={!!capabilities?.canExport}
@@ -590,11 +592,13 @@ function ProgramsTab({
 }
 
 function AssignmentsTab({
+  dashboard,
   programs,
   canManage,
   canExport,
   onChangeFormat,
 }: {
+  dashboard: TrainingDashboardDto | undefined
   programs: TrainingProgramDto[]
   canManage: boolean
   canExport: boolean
@@ -618,6 +622,15 @@ function AssignmentsTab({
   })
   const pageData = pageQuery.data
   const visible = pageData?.items ?? []
+  const totalAssignments = dashboard?.totalAssignments ?? pageData?.total ?? 0
+  const inProgressAssignments = dashboard?.inProgress ?? visible.filter((item) => item.status === 'in_progress').length
+  const completedAssignments = dashboard?.completed ?? visible.filter((item) => item.status === 'completed').length
+  const overdueAssignments = dashboard?.overdue ?? visible.filter((item) => item.status === 'overdue').length
+  const todayLabel = new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date())
 
   const exportCsv = async () => {
     setExporting(true)
@@ -656,9 +669,37 @@ function AssignmentsTab({
 
   if (pageQuery.isLoading) return <LoadingBlock label="Загружаем назначения…" />
   return (
-    <TableSection
-      search={
-        <div className="flex flex-wrap items-center justify-end gap-2">
+    <div className="flex flex-col gap-4">
+      <section className="card grid grid-cols-[repeat(4,minmax(0,1fr))_190px] overflow-hidden" data-testid="assignment-summary">
+        <AssignmentSummaryMetric label="Всего назначений" value={totalAssignments} />
+        <AssignmentSummaryMetric
+          label="В процессе"
+          value={inProgressAssignments}
+          progress={totalAssignments ? (inProgressAssignments / totalAssignments) * 100 : 0}
+        />
+        <AssignmentSummaryMetric
+          label="Завершено"
+          value={completedAssignments}
+          progress={totalAssignments ? (completedAssignments / totalAssignments) * 100 : 0}
+          tone="success"
+        />
+        <AssignmentSummaryMetric
+          label="Просрочено"
+          value={overdueAssignments}
+          progress={totalAssignments ? (overdueAssignments / totalAssignments) * 100 : 0}
+          tone="danger"
+        />
+        <div className="flex items-center border-l border-ink-100 px-5 py-3">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-ink-400">Сегодня</div>
+            <div className="mt-1 text-[13px] font-extrabold capitalize text-ink-800">{todayLabel}</div>
+          </div>
+        </div>
+      </section>
+
+      <TableSection
+        search={
+          <div className="flex w-full flex-wrap items-center gap-2">
           <SearchInput
             value={query}
             onChange={(value) => {
@@ -666,7 +707,7 @@ function AssignmentsTab({
               setPage(0)
             }}
             placeholder="Фармацевт, аптека или программа"
-            className="!h-9 w-[320px]"
+            className="!h-9 min-w-[260px] flex-1"
           />
           <Select
             value={programId}
@@ -718,11 +759,11 @@ function AssignmentsTab({
               {exporting ? 'Экспорт…' : 'CSV'}
             </Button>
           )}
-        </div>
-      }
-      empty={visible.length === 0}
-      emptyLabel="Назначений пока нет"
-    >
+          </div>
+        }
+        empty={visible.length === 0}
+        emptyLabel="Назначений пока нет"
+      >
       <table className="w-full text-[13px]" data-testid="training-assignments-table">
         <thead className="hairline border-b text-left text-[11px] font-bold uppercase text-ink-500">
           <tr>
@@ -809,7 +850,36 @@ function AssignmentsTab({
           </div>
         </div>
       )}
-    </TableSection>
+      </TableSection>
+    </div>
+  )
+}
+
+function AssignmentSummaryMetric({
+  label,
+  value,
+  progress,
+  tone = 'primary',
+}: {
+  label: string
+  value: number
+  progress?: number
+  tone?: 'primary' | 'success' | 'danger'
+}) {
+  const fill = tone === 'success' ? 'bg-accent-success' : tone === 'danger' ? 'bg-accent-danger' : 'bg-brand-green-500'
+  return (
+    <div className="border-r border-ink-100 px-5 py-3 last:border-r-0">
+      <div className="flex items-baseline justify-between gap-3">
+        <div className="num text-[22px] font-extrabold tracking-[-0.02em] text-ink-900">{formatNum(value)}</div>
+        {progress !== undefined && <span className="num text-[10px] font-bold text-ink-400">{Math.round(progress)}%</span>}
+      </div>
+      <div className="mt-0.5 text-[11px] font-semibold text-ink-500">{label}</div>
+      {progress !== undefined && (
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink-100">
+          <div className={`h-full rounded-full ${fill}`} style={{ width: `${Math.min(100, progress)}%` }} />
+        </div>
+      )}
+    </div>
   )
 }
 

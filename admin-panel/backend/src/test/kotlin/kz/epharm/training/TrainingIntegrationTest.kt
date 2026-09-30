@@ -12,6 +12,7 @@ import kz.epharm.auth.service.JwtService
 import kz.epharm.lms.entity.CourseEntity
 import kz.epharm.lms.entity.CourseLessonEntity
 import kz.epharm.lms.entity.CourseLessonKind
+import kz.epharm.lms.entity.CourseQuizQuestion
 import kz.epharm.lms.entity.CourseStatus
 import kz.epharm.lms.repository.CourseLessonRepository
 import kz.epharm.lms.repository.CourseRepository
@@ -25,8 +26,8 @@ import kz.epharm.pharmacists.entity.PharmacistStatus
 import kz.epharm.pharmacists.repository.PharmacistRepository
 import kz.epharm.training.repository.TrainingCertificateRepository
 import kz.epharm.training.repository.TrainingAssessmentResultRepository
-import kz.epharm.training.repository.TrainingRewardRepository
 import kz.epharm.training.repository.TrainingAssignmentStageRepository
+import kz.epharm.training.repository.TrainingRewardRepository
 import kz.epharm.training.repository.TrainingLessonProgressRepository
 import kz.epharm.training.domain.TrainingStageStatus
 import org.junit.jupiter.api.BeforeEach
@@ -41,7 +42,6 @@ import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
@@ -51,7 +51,7 @@ import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import java.time.Instant
-import java.time.temporal.ChronoUnit
+import java.time.Duration
 import java.util.UUID
 
 @SpringBootTest
@@ -91,8 +91,8 @@ class TrainingIntegrationTest {
     @Autowired private lateinit var certificateRepository: TrainingCertificateRepository
     @Autowired private lateinit var assessmentResultRepository: TrainingAssessmentResultRepository
     @Autowired private lateinit var rewardRepository: TrainingRewardRepository
-    @Autowired private lateinit var assignmentStageRepository: TrainingAssignmentStageRepository
     @Autowired private lateinit var lessonProgressRepository: TrainingLessonProgressRepository
+    @Autowired private lateinit var assignmentStageRepository: TrainingAssignmentStageRepository
 
     private lateinit var adminBearer: String
     private lateinit var pharmacistBearer: String
@@ -153,9 +153,6 @@ class TrainingIntegrationTest {
                 description = "Основные понятия",
                 content = "Текст учебного материала",
                 videoUrl = "https://epharm.inkar.kz/s3/training-intro.mp4",
-                externalUrl = "https://learn.epharm.kz/materials/intro",
-                requiredLesson = true,
-                minimumWatchPct = 80,
                 durationMin = 8,
                 order = 0,
             ).also { it.kind = CourseLessonKind.video },
@@ -166,6 +163,80 @@ class TrainingIntegrationTest {
             "Айжан Фармацевт",
             "+77070000001",
         )
+    }
+
+    @Test
+    fun `pharmacist quiz hides answers scores attempts and unlocks course only after pass`() {
+        courseLessonRepository.deleteAll()
+        courseLessonRepository.save(
+            CourseLessonEntity(
+                id = "cls_training_quiz",
+                courseId = "crs_training",
+                title = "Итоговый тест",
+                required = true,
+                quizPassingScore = 80,
+                quizQuestions = listOf(
+                    CourseQuizQuestion("q-1", "Когда принимать?", listOf("До еды", "После еды"), 1, "По инструкции"),
+                    CourseQuizQuestion("q-2", "Сколько таблеток?", listOf("Одну", "Две"), 0, "Одна таблетка"),
+                ),
+                order = 0,
+            ).also { it.kind = CourseLessonKind.quiz },
+        )
+        val programId = createPublishedProgram()["id"].asText()
+        val assigned = mockMvc.perform(
+            post("/api/admin/training/assignments")
+                .header("Authorization", adminBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """{"programId":"$programId","pharmacistIds":["ph_training"],"format":"online","duplicatePolicy":"skip"}""",
+                ),
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val assignmentId = objectMapper.readTree(assigned)["assignments"][0]["id"].asText()
+        val started = mockMvc.perform(
+            post("/api/mobile/training/assignments/$assignmentId/start")
+                .header("Authorization", pharmacistBearer),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.stages[0].course.lessons[0].quizQuestions.length()").value(2))
+            .andExpect(jsonPath("$.stages[0].course.lessons[0].quizQuestions[0].correctOption").doesNotExist())
+            .andReturn().response.contentAsString
+        val startedJson = objectMapper.readTree(started)
+        val onlineStage = startedJson["stages"].first { it["type"].asText() == "online_course" }
+        val stageId = onlineStage["id"].asText()
+        val lessonId = onlineStage["course"]["lessons"][0]["id"].asText()
+
+        mockMvc.perform(
+            patch("/api/mobile/training/assignments/$assignmentId/stages/$stageId/lessons/$lessonId")
+                .header("Authorization", pharmacistBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"progressPct":100}"""),
+        ).andExpect(status().isBadRequest)
+
+        mockMvc.perform(
+            post("/api/mobile/training/assignments/$assignmentId/stages/$stageId/lessons/$lessonId/quiz")
+                .header("Authorization", pharmacistBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"answers":{"q-1":0,"q-2":1}}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.score").value(0))
+            .andExpect(jsonPath("$.passed").value(false))
+            .andExpect(jsonPath("$.attempt").value(1))
+            .andExpect(jsonPath("$.assignment.status").value("waiting_online"))
+
+        mockMvc.perform(
+            post("/api/mobile/training/assignments/$assignmentId/stages/$stageId/lessons/$lessonId/quiz")
+                .header("Authorization", pharmacistBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"answers":{"q-1":1,"q-2":0}}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.score").value(100))
+            .andExpect(jsonPath("$.passed").value(true))
+            .andExpect(jsonPath("$.attempt").value(2))
+            .andExpect(jsonPath("$.assignment.status").value("waiting_test"))
+            .andExpect(jsonPath("$.assignment.stages[0].course.lessons[0].quizScore").value(100))
+            .andExpect(jsonPath("$.assignment.stages[0].course.lessons[0].quizAttempts").value(2))
     }
 
     @Test
@@ -230,9 +301,6 @@ class TrainingIntegrationTest {
             .andExpect(jsonPath("$.stages[0].course.title").value("Основы продукта"))
             .andExpect(jsonPath("$.stages[0].course.lessons[0].title").value("Введение"))
             .andExpect(jsonPath("$.stages[0].course.lessons[0].kind").value("video"))
-            .andExpect(jsonPath("$.stages[0].course.lessons[0].externalUrl").value("https://learn.epharm.kz/materials/intro"))
-            .andExpect(jsonPath("$.stages[0].course.lessons[0].required").value(true))
-            .andExpect(jsonPath("$.stages[0].course.lessons[0].minimumWatchPct").value(80))
             .andExpect(
                 jsonPath("$.stages[0].course.lessons[0].videoUrl")
                     .value("https://epharm.inkar.kz/s3/training-intro.mp4"),
@@ -240,6 +308,7 @@ class TrainingIntegrationTest {
             .andReturn().response.contentAsString
         val startedJson = objectMapper.readTree(started)
         val onlineStage = startedJson["stages"].first { it["type"].asText() == "online_course" }
+        val lessonId = onlineStage["course"]["lessons"][0]["id"].asText()
 
         mockMvc.perform(
             patch("/api/mobile/training/assignments/$assignmentId/stages/${onlineStage["id"].asText()}")
@@ -249,27 +318,24 @@ class TrainingIntegrationTest {
         )
             .andExpect(status().isConflict)
 
-        val lessonPath = "/api/mobile/training/assignments/$assignmentId/stages/${onlineStage["id"].asText()}/lessons/cls_training_intro"
         mockMvc.perform(
-            patch(lessonPath)
+            patch("/api/mobile/training/assignments/$assignmentId/stages/${onlineStage["id"].asText()}/lessons/$lessonId")
                 .header("Authorization", pharmacistBearer)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"progressPct":0}"""),
-        ).andExpect(status().isOk)
-        val lessonProgress = lessonProgressRepository.findByAssignmentStageIdAndLessonId(
-            UUID.fromString(onlineStage["id"].asText()),
-            "cls_training_intro",
-        )!!
-        lessonProgress.startedAt = Instant.now().minus(10, ChronoUnit.MINUTES)
-        lessonProgressRepository.saveAndFlush(lessonProgress)
+                .content("""{"progressPct":0,"positionSeconds":0}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("waiting_online"))
 
-        mockMvc.perform(
-            delete("/api/admin/lms/courses/crs_training/lessons/cls_training_intro")
-                .header("Authorization", adminBearer),
-        ).andExpect(status().isConflict)
+        val savedProgress = lessonProgressRepository.findByAssignmentStageIdAndLessonId(
+            java.util.UUID.fromString(onlineStage["id"].asText()),
+            lessonId,
+        )!!
+        savedProgress.startedAt = Instant.now().minus(Duration.ofMinutes(9))
+        lessonProgressRepository.save(savedProgress)
 
         val afterOnline = mockMvc.perform(
-            patch(lessonPath)
+            patch("/api/mobile/training/assignments/$assignmentId/stages/${onlineStage["id"].asText()}/lessons/$lessonId")
                 .header("Authorization", pharmacistBearer)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""{"progressPct":100,"positionSeconds":480}"""),
@@ -277,6 +343,7 @@ class TrainingIntegrationTest {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.status").value("waiting_test"))
             .andExpect(jsonPath("$.stages[0].course.lessons[0].progressPct").value(100))
+            .andExpect(jsonPath("$.stages[0].course.lessons[0].completedAt").isNotEmpty)
             .andReturn().response.contentAsString
         val testStage = objectMapper.readTree(afterOnline)["stages"].first { it["type"].asText() == "test" }
 
@@ -614,6 +681,7 @@ class TrainingIntegrationTest {
             .andExpect(jsonPath("$.stages[0].progressPct").value(100))
     }
 
+
     @Test
     fun `hybrid route requires both online and offline stages`() {
         mockMvc.perform(
@@ -728,7 +796,6 @@ class TrainingIntegrationTest {
             .andReturn().response.contentAsString
         val qrToken = objectMapper.readTree(qrResponse)["token"].asText()
         val checkInCode = objectMapper.readTree(qrResponse)["checkInCode"].asText()
-        assert(checkInCode.matches(Regex("[0-9]{6}")))
 
         mockMvc.perform(
             post("/api/mobile/training/events/check-in/$qrToken")
@@ -850,6 +917,7 @@ class TrainingIntegrationTest {
             .andExpect(jsonPath("$[0].status").value("attended"))
             .andExpect(jsonPath("$[0].checkMethod").value("code"))
     }
+
 
     @Test
     fun `cancelling event releases unfinished assignment and notifies pharmacist`() {

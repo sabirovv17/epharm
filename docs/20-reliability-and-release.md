@@ -102,6 +102,10 @@ OCI labels/Sentry/app health and writes a content-addressed local manifest. `dep
 missing images, performs PostgreSQL + MinIO + off-site backup, updates `.release.env`, starts without
 rebuilding and verifies both `/api/health` and `/release.json` report the expected id. A failed smoke
 automatically returns to the previous images.
+For an exceptional backend-only release, use the separate, tested archive-host transaction in
+`06-deployment-and-ops.md`; it persists distinct backend/frontend tags and commits and requires a
+fresh verified rollback bundle **in addition to**, not instead of, encrypted off-site backup and a
+recent restore-test. The generic two-image release scripts remain backward-compatible.
 The initial route check tolerates brief 502/connection failures while containers start, but both
 routes must report the new release id within 120 seconds (configurable through
 `RELEASE_READINESS_WAIT_SECONDS`). A persistent error or an old release id still triggers rollback.

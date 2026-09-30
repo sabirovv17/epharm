@@ -73,11 +73,24 @@ springdoc:
     path: /swagger-ui.html
 
 app:
+  standardn-directory:
+    # Read-only mirror of Standard-N USERS. Enable only on the internal production network.
+    enabled: ${STANDARDN_DIRECTORY_ENABLED:false}
+    host: ${STANDARDN_HOST:INKSTDN}
+    port: ${STANDARDN_PORT:3050}
+    database: '${STANDARDN_DATABASE:C:\Standart-N\base_g\ZTRADE_G.FDB}'
+    user: ${STANDARDN_USER:}
+    password: ${STANDARDN_PASSWORD:}
+    sync-delay-ms: ${STANDARDN_SYNC_DELAY_MS:21600000}
+    initial-delay-ms: ${STANDARDN_INITIAL_DELAY_MS:30000}
   merch-tasks:
     enabled: ${MERCH_TASKS_ENABLED:false}
     base-url: ${MERCH_TASKS_BASE_URL:}
     integration-key: ${MERCH_TASKS_INTEGRATION_KEY:}
     timeout-ms: ${MERCH_TASKS_TIMEOUT_MS:7000}
+    max-concurrent: ${MERCH_TASKS_MAX_CONCURRENT:16}
+    # Exact HTTPS page used by QR links from the merchandising service.
+    public-staff-url: ${MERCH_TASKS_STAFF_URL:}
   version: ${RELEASE_ID:dev}
   commit: ${RELEASE_COMMIT:unknown}
   # Канонический публичный origin для QR-проверки сертификатов.

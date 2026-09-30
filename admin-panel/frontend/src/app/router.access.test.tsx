@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { USERS } from '@/mocks/fixtures'
 import { useUiStore } from './store'
 import { SectionRoute } from './SectionRoute'
 
 afterEach(() => {
-  useUiStore.setState({ authedUser: null, tokens: null })
+  act(() => useUiStore.setState({ authedUser: null, tokens: null }))
 })
 
 describe('защита прямых URL по роли', () => {

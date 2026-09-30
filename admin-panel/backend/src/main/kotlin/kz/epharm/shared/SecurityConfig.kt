@@ -74,6 +74,8 @@ class SecurityConfig(
                         // /logout и /me требуют токен → НЕ в permitAll.
                         "/api/mobile/auth/sms/request",
                         "/api/mobile/auth/sms/verify",
+                        "/api/mobile/auth/login",
+                        "/api/mobile/auth/activation/**",
                         "/api/mobile/auth/register",
                         "/api/mobile/auth/refresh",
                         // dev-only reset (DevController существует только в profile=dev;

@@ -26,8 +26,8 @@ test('HQ shell uses the restrained shared visual system', async ({ page }) => {
   const card = page.locator('main .card').first()
   const search = page.getByRole('button', { name: /Найти правило/i })
 
-  await expect(sidebar).toHaveCSS('background-image', 'none')
-  await expect(sidebar).toHaveCSS('background-color', 'rgb(28, 27, 25)')
+  await expect(sidebar).toHaveCSS('background-image', /linear-gradient/)
+  await expect(sidebar).toHaveCSS('background-color', 'rgb(7, 63, 70)')
   await expect(card).toHaveCSS('border-radius', '12px')
   await expect(search).toHaveCSS('border-radius', '8px')
   await expect(search).toHaveCSS('border-top-style', 'solid')
@@ -46,5 +46,5 @@ test('Learning admin inherits the same system and keeps its navigation', async (
   const primary = page.getByRole('button', { name: 'Новый курс' })
   await expect(primary).toHaveCSS('background-color', 'rgb(185, 83, 54)')
   await expect(primary).toHaveCSS('border-radius', '8px')
-  await expect(page.locator('aside')).toHaveCSS('background-image', 'none')
+  await expect(page.locator('aside')).toHaveCSS('background-image', /linear-gradient/)
 })
