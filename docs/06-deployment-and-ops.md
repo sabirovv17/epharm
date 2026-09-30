@@ -127,6 +127,78 @@ Do not perform frontend-only mutable production builds. Backend and frontend sha
 health, Sentry and rollback evidence always identify a coherent deployment. Use
 `./tools/release/rollback.sh <previous-tag>` for application rollback.
 
+### Backend-only bridge release on an archive-based host
+
+The normal `deploy.sh` is for coherent two-image releases from a Git checkout. It must **not** be
+used for a backend-only CRM/POSM bridge change on a host whose frontend has a different live tag or
+whose deployment directory lacks `.git`. `docker-compose.prod.yml` accepts persistent
+`BACKEND_RELEASE_ID`/`BACKEND_RELEASE_COMMIT` and `FRONTEND_RELEASE_ID`/
+`FRONTEND_RELEASE_COMMIT` overrides; absent overrides, the existing `RELEASE_ID` contract remains
+unchanged. Do not merely run `docker compose up backend` with a temporary shell override: a later
+Compose operation would silently select the old image.
+
+After PR merge and exact-HEAD CI, stage the merged source archive without touching `.env.prod`,
+the running frontend image, database volumes, or POSM release. Build a uniquely tagged backend
+image once from that archive with `RELEASE_ID=<backend-tag>` and
+`RELEASE_COMMIT=<merged-commit>` build arguments. Record its Docker image ID; compare its OCI
+version/revision labels to the merged commit. Install the **same audited** Compose file and release
+scripts into the production deployment directory. Update the protected `.env.prod` only after
+verifying the private CRM endpoint and public staff page: enable the task bridge to
+`10.10.1.80:8080` (or its verified HTTPS origin), set the exact
+`MERCH_TASKS_STAFF_URL=https://crm.inkar.kz/staff`, set a bounded concurrency limit, and point
+`MERCH_PORTAL_UPSTREAM` away from the obsolete `.90` origin. Reload Caddy and verify the legacy
+route's HTML/assets against `.80` separately; new QR codes go directly to the CRM fragment URL and
+must not depend on the legacy route. Do not assert old QR links remain valid: rescan a refreshed QR.
+
+Before changing the backend, require a recent successful encrypted off-site backup and isolated
+restore-test per this document. A local checksum bundle **does not replace** that policy. Create
+the additional local rollback bundle _after_ final env/Compose/Caddy edits, so its config hashes
+match the files being deployed. The example path is a dedicated root-owned, mode-0700 directory;
+the helper refuses a differently owned existing root rather than changing its permissions:
+
+```bash
+sudo ./tools/release/prepare-backend-only-backup.sh \
+  <running-backend-tag> <running-frontend-tag> /home/adm-quasar/epharm-backend-only-backups
+```
+
+The helper creates a mode-0700 directory with a custom-format PostgreSQL dump, protected env and
+Compose/Caddy snapshots, exact running backend/frontend Docker image archives and a verified SHA-256
+manifest. It validates the dump archive and both gzip files. Keep the returned absolute directory;
+the deploy script refuses a stale, altered or wrong-version bundle. Never add these files to Git.
+
+Use the exact reviewed Compose SHA-256 and candidate image ID, not a mutable tag alone:
+
+```bash
+sudo ./tools/release/deploy-backend-only.sh \
+  <backend-tag> <merged-commit-sha> <backend-image-sha256-id> \
+  <running-frontend-tag> <verified-backup-directory> <reviewed-compose-sha256>
+```
+
+This transaction checks the merged Compose checksum, candidate image ID/OCI labels, previous image,
+unchanged frontend image **and container**, exact CRM bridge configuration, recent backup and rendered
+Compose model. It changes only the backend container, persists distinct component identities in
+`.release.env`, and smoke-tests `/api/health`, the unchanged frontend `/release.json`, catalogue and
+search. Failure during the switch restores the previous backend image and pinned frontend identity;
+an unverified rollback emits `CRITICAL` and needs immediate operator action. No task/QR record is
+created by the release scripts. Accept merchandising only after a real task's QR opens and `.80`
+records a successful shown ACK; also confirm an invalid token is denied and recommendation/fulfilment
+latency/error rates remain unchanged.
+
+For a delayed regression after successful deployment, use the saved transaction directory from
+`releases/backend-only/active-transaction` with the dedicated helper (not generic `rollback.sh`):
+
+```bash
+sudo ./tools/release/rollback-backend-only.sh \
+  <saved-transaction-directory> /home/adm-quasar/epharm-backend-only-backups
+```
+
+It first makes a fresh backup of the _current_ backend, checks the transaction's previous image and
+frontend pin, then atomically restores the previous release env, changes backend only and smoke-tests
+both versions. It restores the candidate if that rollback fails. If the previous image tag was
+pruned, reload it from the verified version-specific archive before retrying. Flyway migrations are
+forward-only; confirm the previous backend remains schema-compatible before any rollback. The
+existing full-release scripts remain the path for ordinary two-image releases.
+
 ## POSM Fleet Auto-update
 
 Existing POSM v1.0.46+ installations poll `GET /api/posm/app/version` at least every five minutes.

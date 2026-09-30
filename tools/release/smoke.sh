@@ -5,8 +5,11 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=tools/release/lib.sh
 source "$SCRIPT_DIR/lib.sh"
 
-release_id="${1:-$(read_release_env_value "$RELEASE_ROOT/.release.env" RELEASE_ID || true)}"
+release_id="${1:-$(read_release_env_value "$RELEASE_ROOT/.release.env" BACKEND_RELEASE_ID || true)}"
+release_id="${release_id:-$(read_release_env_value "$RELEASE_ROOT/.release.env" RELEASE_ID || true)}"
 [[ -n "$release_id" ]] || { echo "ERROR: release id is missing" >&2; exit 1; }
+frontend_release_id="${2:-$(read_release_env_value "$RELEASE_ROOT/.release.env" FRONTEND_RELEASE_ID || true)}"
+frontend_release_id="${frontend_release_id:-$release_id}"
 base_url="${SMOKE_BASE_URL:-https://epharm.inkar.kz}"
 
 # Compose can report the containers as started before the frontend listener and
@@ -22,27 +25,27 @@ readiness_deadline=$((SECONDS + readiness_wait_seconds))
 while true; do
   health="$(curl --fail --silent --connect-timeout 3 --max-time 10 "$base_url/api/health" || true)"
   frontend="$(curl --fail --silent --connect-timeout 3 --max-time 10 "$base_url/release.json" || true)"
-  if python3 - "$release_id" "$health" "$frontend" <<'PY'
+  if python3 - "$release_id" "$frontend_release_id" "$health" "$frontend" <<'PY'
 import json
 import sys
 
-expected = sys.argv[1]
+expected_backend, expected_frontend = sys.argv[1:3]
 try:
-    health = json.loads(sys.argv[2])
-    frontend = json.loads(sys.argv[3])
+    health = json.loads(sys.argv[3])
+    frontend = json.loads(sys.argv[4])
 except (ValueError, TypeError):
     raise SystemExit(1)
 if not isinstance(health, dict) or not isinstance(frontend, dict):
     raise SystemExit(1)
 raise SystemExit(0 if health.get("status") == "ok"
-    and health.get("releaseId") == expected
-    and frontend.get("releaseId") == expected else 1)
+    and health.get("releaseId") == expected_backend
+    and frontend.get("releaseId") == expected_frontend else 1)
 PY
   then
     break
   fi
   if (( SECONDS >= readiness_deadline )); then
-    echo "ERROR: backend and frontend did not report $release_id within ${readiness_wait_seconds}s" >&2
+    echo "ERROR: backend/frontend did not report $release_id/$frontend_release_id within ${readiness_wait_seconds}s" >&2
     exit 1
   fi
   sleep 2
@@ -90,21 +93,21 @@ search="$(curl --fail --silent --show-error --max-time 15 --get \
   --data-urlencode "q=$sample_name" --data-urlencode 'limit=50' --data-urlencode 'offset=0' \
   "$base_url/api/mobile/catalog/products")"
 
-python3 - "$release_id" "$health" "$frontend" "$catalog" "$search" <<'PY'
+python3 - "$release_id" "$frontend_release_id" "$health" "$frontend" "$catalog" "$search" <<'PY'
 import json
 import sys
 
-expected = sys.argv[1]
-health = json.loads(sys.argv[2])
-frontend = json.loads(sys.argv[3])
-catalog = json.loads(sys.argv[4])
-search = json.loads(sys.argv[5])
+expected_backend, expected_frontend = sys.argv[1:3]
+health = json.loads(sys.argv[3])
+frontend = json.loads(sys.argv[4])
+catalog = json.loads(sys.argv[5])
+search = json.loads(sys.argv[6])
 if health.get("status") != "ok":
     raise SystemExit(f"backend health is not ok: {health}")
-if health.get("releaseId") != expected:
-    raise SystemExit(f"backend release mismatch: expected {expected}, got {health.get('releaseId')}")
-if frontend.get("releaseId") != expected:
-    raise SystemExit(f"frontend release mismatch: expected {expected}, got {frontend.get('releaseId')}")
+if health.get("releaseId") != expected_backend:
+    raise SystemExit(f"backend release mismatch: expected {expected_backend}, got {health.get('releaseId')}")
+if frontend.get("releaseId") != expected_frontend:
+    raise SystemExit(f"frontend release mismatch: expected {expected_frontend}, got {frontend.get('releaseId')}")
 items = catalog.get("items")
 total = catalog.get("total")
 sample = items[0] if isinstance(items, list) and items else None
@@ -116,7 +119,7 @@ search_ids = [item.get("id") for item in search.get("items", []) if isinstance(i
 if sample["id"] not in search_ids:
     raise SystemExit(f"Catalogue search did not return its exact sample product: {search}")
 print(
-    f"Smoke OK: backend/frontend report {expected}; "
+    f"Smoke OK: backend/frontend report {expected_backend}/{expected_frontend}; "
     f"catalogue snapshot total={total} sample={sample['id']}; search=ok"
 )
 PY

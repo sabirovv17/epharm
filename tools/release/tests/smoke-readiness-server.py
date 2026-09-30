@@ -2,6 +2,7 @@
 """Deterministic HTTP fixture: transient 5xx, then coherent release responses."""
 
 import json
+import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlsplit
 
@@ -16,7 +17,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_response(503 if path == "/api/health" else 502)
                 self.end_headers()
                 return
-            payload = {"releaseId": "v0.1.14"}
+            payload = {"releaseId": (os.environ.get("FRONTEND_FIXTURE_RELEASE_ID", "v0.1.14")
+                                    if path == "/release.json" else "v0.1.14")}
             if path == "/api/health":
                 payload.update({"status": "ok", "catalogSnapshot": {"ready": True, "products": 1}})
         elif path == "/api/mobile/catalog/products":

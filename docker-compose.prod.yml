@@ -81,12 +81,12 @@ services:
     restart: 'no'
 
   backend:
-    image: epharm/backend:${RELEASE_ID:-dev}
+    image: epharm/backend:${BACKEND_RELEASE_ID:-${RELEASE_ID:-dev}}
     build:
       context: ./admin-panel/backend
       args:
-        RELEASE_ID: ${RELEASE_ID:-dev}
-        RELEASE_COMMIT: ${RELEASE_COMMIT:-unknown}
+        RELEASE_ID: ${BACKEND_RELEASE_ID:-${RELEASE_ID:-dev}}
+        RELEASE_COMMIT: ${BACKEND_RELEASE_COMMIT:-${RELEASE_COMMIT:-unknown}}
     container_name: epharm-backend
     restart: always
     # JVM в контейнере: ограничиваем память, чтобы backend не съел весь RAM сервера
@@ -102,8 +102,8 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       APP_ENVIRONMENT: production
-      RELEASE_ID: ${RELEASE_ID:-dev}
-      RELEASE_COMMIT: ${RELEASE_COMMIT:-unknown}
+      RELEASE_ID: ${BACKEND_RELEASE_ID:-${RELEASE_ID:-dev}}
+      RELEASE_COMMIT: ${BACKEND_RELEASE_COMMIT:-${RELEASE_COMMIT:-unknown}}
       SENTRY_DSN: ${SENTRY_BACKEND_DSN:-}
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.05}
       # Heap relative к mem_limit контейнера (см. mem_limit: 2g выше).
@@ -179,14 +179,14 @@ services:
       - '8080'
 
   frontend:
-    image: epharm/frontend:${RELEASE_ID:-dev}
+    image: epharm/frontend:${FRONTEND_RELEASE_ID:-${RELEASE_ID:-dev}}
     build:
       context: ./admin-panel/frontend
       args:
         # Пусто → фронт делает относительные /api запросы, их проксирует nginx на backend.
         VITE_API_BASE_URL: ''
-        VITE_RELEASE_ID: ${RELEASE_ID:-dev}
-        VITE_RELEASE_COMMIT: ${RELEASE_COMMIT:-unknown}
+        VITE_RELEASE_ID: ${FRONTEND_RELEASE_ID:-${RELEASE_ID:-dev}}
+        VITE_RELEASE_COMMIT: ${FRONTEND_RELEASE_COMMIT:-${RELEASE_COMMIT:-unknown}}
         VITE_APP_ENVIRONMENT: production
         VITE_SENTRY_DSN: ${SENTRY_FRONTEND_DSN:-}
         VITE_SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.05}
