@@ -38,7 +38,7 @@ export function Topbar({
 }: TopbarProps) {
   const t = useT()
   return (
-    <header className="topbar-bg sticky top-0 z-30 flex h-16 flex-none items-center gap-4 px-6">
+    <header className="topbar-bg sticky top-0 z-30 flex h-[58px] flex-none items-center gap-4 px-5">
       {/* Left: hamburger (mobile-only) + breadcrumb */}
       <div className="flex min-w-0 items-center gap-2">
         <button
@@ -47,7 +47,7 @@ export function Topbar({
         >
           <IconCommand size={18} />
         </button>
-        <div className="flex items-center gap-1.5 text-[13px] text-ink-500">
+        <div className="hidden items-center gap-1.5 text-[12px] text-ink-500 xl:flex">
           <span>{workspaceLabel}</span>
           <IconChevRight size={12} />
           <span className="font-bold text-ink-900">{sectionLabel}</span>
@@ -55,10 +55,10 @@ export function Topbar({
       </div>
 
       {/* Center: fake-search input → opens command palette */}
-      <div className="mx-auto hidden max-w-[480px] flex-1 md:block">
+      <div className="mx-auto hidden max-w-[720px] flex-1 md:block">
         <button
           onClick={onCommand}
-          className="flex h-9 w-full items-center gap-2 rounded-md border border-ink-200 bg-paper-card px-3 text-[13px] font-medium text-ink-500 transition hover:border-ink-300 hover:bg-paper-hover"
+          className="flex h-9 w-full items-center gap-2 rounded-md border border-ink-200 bg-paper-input px-3 text-[13px] font-medium text-ink-500 transition hover:border-brand-green-300 hover:bg-white"
         >
           <IconSearch size={15} />
           <span className="flex-1 text-left">{t('topbar.search')}</span>
@@ -111,7 +111,7 @@ function RolePill({ role, onRoleSwitch, onLogout }: RolePillProps) {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex h-10 items-center gap-2.5 rounded-md pl-1 pr-3 transition hover:bg-ink-100"
+        className="flex h-10 items-center gap-2.5 rounded-md pl-1 pr-2 transition hover:bg-ink-100"
         aria-haspopup="menu"
         aria-expanded={open}
       >

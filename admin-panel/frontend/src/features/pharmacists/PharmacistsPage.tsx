@@ -29,6 +29,7 @@ import {
   useBlockPharmacist,
   useCreatePharmacist,
   usePharmacists,
+  useUpdatePharmacist,
   useUnblockPharmacist,
 } from '@/lib/queries/pharmacists'
 import { usePharmacies } from '@/lib/queries/pharmacies'
@@ -67,6 +68,9 @@ export default function PharmacistsPage() {
   const [activating, setActivating] = useState<PharmacistDto | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+  const [passwordTarget, setPasswordTarget] = useState<PharmacistDto | null>(null)
+  const [passwordValue, setPasswordValue] = useState('')
+  const [passwordError, setPasswordError] = useState<string | null>(null)
   const [formatFilter, setFormatFilter] = useState<TrainingFormat | 'all' | 'unset'>('all')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [preferenceTargets, setPreferenceTargets] = useState<PharmacistDto[] | null>(null)
@@ -81,6 +85,7 @@ export default function PharmacistsPage() {
   const trainingDashboardQuery = useTrainingDashboard()
   const activatePharmacist = useActivatePharmacist()
   const createPharmacist = useCreatePharmacist()
+  const updatePharmacist = useUpdatePharmacist()
   const blockPharmacist = useBlockPharmacist()
   const unblockPharmacist = useUnblockPharmacist()
   const preferenceByPharmacist = useMemo(
@@ -425,6 +430,17 @@ export default function PharmacistsPage() {
                         >
                           Обучение
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPasswordTarget(p)
+                            setPasswordValue('')
+                            setPasswordError(null)
+                          }}
+                          className={`text-[12px] font-bold hover:underline ${p.hasPassword ? 'text-ink-500' : 'text-accent-warning'}`}
+                        >
+                          {p.hasPassword ? 'Сменить пароль' : 'Задать пароль'}
+                        </button>
                         {p.status === 'pending' && (
                           <button
                             type="button"
@@ -481,7 +497,6 @@ export default function PharmacistsPage() {
           open
           pharmacies={pharmacies}
           pending={createPharmacist.isPending}
-          initialPhone="+77470799353"
           error={createError}
           onClose={() => setCreateOpen(false)}
           onCreate={(request) => {
@@ -495,6 +510,63 @@ export default function PharmacistsPage() {
             })
           }}
         />
+      )}
+      {passwordTarget && (
+        <Modal
+          open
+          onClose={() => setPasswordTarget(null)}
+          title={passwordTarget.hasPassword ? 'Сменить пароль' : 'Задать пароль'}
+          subtitle={`${passwordTarget.name} · ИИН ${passwordTarget.iin}`}
+          width={460}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setPasswordTarget(null)}>Отмена</Button>
+              <Button
+                variant="primary"
+                disabled={updatePharmacist.isPending || passwordValue.length < 6}
+                onClick={() => {
+                  setPasswordError(null)
+                  updatePharmacist.mutate(
+                    { id: passwordTarget.id, patch: { password: passwordValue } },
+                    {
+                      onSuccess: () => {
+                        toast.push(`Пароль для ${passwordTarget.name} сохранён`)
+                        setPasswordTarget(null)
+                        setPasswordValue('')
+                      },
+                      onError: (passwordRequestError) => setPasswordError(describeError(passwordRequestError)),
+                    },
+                  )
+                }}
+              >
+                {updatePharmacist.isPending ? 'Сохраняем…' : 'Сохранить пароль'}
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-3">
+            {passwordError && (
+              <div className="rounded-lg bg-surface-danger px-3 py-2 text-[12px] font-semibold text-accent-danger">
+                {passwordError}
+              </div>
+            )}
+            <Field label="Новый пароль">
+              <Input
+                type="password"
+                value={passwordValue}
+                minLength={6}
+                maxLength={128}
+                autoComplete="new-password"
+                onChange={(event) => setPasswordValue(event.target.value)}
+                placeholder="Минимум 6 символов"
+                autoFocus
+              />
+            </Field>
+            <p className="text-[11px] leading-5 text-ink-500">
+              Передайте пароль фармацевту безопасным способом. В интерфейсе он больше не отображается.
+            </p>
+          </div>
+        </Modal>
       )}
       {preferenceTargets && (
         <TrainingPreferenceModal

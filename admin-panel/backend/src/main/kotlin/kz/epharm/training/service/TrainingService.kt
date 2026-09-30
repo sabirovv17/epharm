@@ -37,6 +37,9 @@ import kz.epharm.training.dto.MassAssignmentResultDto
 import kz.epharm.training.dto.MobileTrainingOverviewDto
 import kz.epharm.training.dto.OfflineEventDto
 import kz.epharm.training.dto.OfflineEventSummaryDto
+import kz.epharm.training.dto.QuizQuestionResultDto
+import kz.epharm.training.dto.QuizSubmissionRequest
+import kz.epharm.training.dto.QuizSubmissionResultDto
 import kz.epharm.training.dto.RecordAssessmentResultRequest
 import kz.epharm.training.dto.StageProgressRequest
 import kz.epharm.training.dto.TrainingAssessmentResultDto
@@ -1169,6 +1172,22 @@ class TrainingService(
         stageId: UUID,
         lessonId: String,
         req: LessonProgressRequest,
+    ): TrainingAssignmentDto = updateLessonProgressInternal(
+        pharmacistId,
+        assignmentId,
+        stageId,
+        lessonId,
+        req,
+        allowQuizCompletion = false,
+    )
+
+    private fun updateLessonProgressInternal(
+        pharmacistId: String,
+        assignmentId: UUID,
+        stageId: UUID,
+        lessonId: String,
+        req: LessonProgressRequest,
+        allowQuizCompletion: Boolean,
     ): TrainingAssignmentDto {
         val assignment = loadOwnedAssignment(pharmacistId, assignmentId)
         if (assignment.status in setOf(TrainingAssignmentStatus.completed, TrainingAssignmentStatus.cancelled)) {
@@ -1191,13 +1210,18 @@ class TrainingService(
             AppException(ErrorCode.NOT_FOUND, "Урок не найден", HttpStatus.NOT_FOUND)
         }
         if (lesson.courseId != courseId) badRequest("Урок относится к другому курсу")
+        if (lesson.kind in setOf(CourseLessonKind.quiz, CourseLessonKind.test) &&
+            req.progressPct >= 100 && !allowQuizCompletion
+        ) {
+            badRequest("Для завершения теста отправьте ответы на вопросы")
+        }
 
         val lessons = courseLessonRepository.findAllByCourseIdOrderByOrderAscCreatedAtAsc(courseId)
         val progressByLesson = lessonProgressRepository.findAllByAssignmentStageIdIn(listOf(stageId))
             .associateBy { it.lessonId }
             .toMutableMap()
         val blockedBy = lessons.firstOrNull { previous ->
-            previous.requiredLesson && previous.order < lesson.order &&
+            previous.required && previous.order < lesson.order &&
                 progressByLesson[previous.id]?.completedAt == null
         }
         if (blockedBy != null) {
@@ -1231,7 +1255,7 @@ class TrainingService(
         lessonProgressRepository.save(progress)
         progressByLesson[lesson.id] = progress
 
-        val requiredLessons = lessons.filter { it.requiredLesson }
+        val requiredLessons = lessons.filter { it.required }
         if (requiredLessons.isEmpty()) conflict("В онлайн-курсе нет обязательных уроков")
         assignmentStage.progressPct = requiredLessons.map { requiredLesson ->
             val threshold = lessonCompletionThreshold(requiredLesson.kind, requiredLesson.minimumWatchPct)
@@ -1260,6 +1284,105 @@ class TrainingService(
             mapOf("lessonId" to lesson.id, "progress" to progress.progressPct),
         )
         return mapAssignments(listOf(assignment)).single()
+    }
+
+    @Transactional
+    fun submitLessonQuiz(
+        pharmacistId: String,
+        assignmentId: UUID,
+        stageId: UUID,
+        lessonId: String,
+        req: QuizSubmissionRequest,
+    ): QuizSubmissionResultDto {
+        val assignment = loadOwnedAssignment(pharmacistId, assignmentId)
+        if (assignment.status in setOf(TrainingAssignmentStatus.completed, TrainingAssignmentStatus.cancelled)) {
+            conflict("Завершённое или отменённое назначение нельзя изменять")
+        }
+        val assignmentStage = assignmentStageRepository.findById(stageId).orElseThrow {
+            AppException(ErrorCode.NOT_FOUND, "Этап назначения не найден", HttpStatus.NOT_FOUND)
+        }
+        if (assignmentStage.assignmentId != assignmentId) badRequest("Этап относится к другому назначению")
+        if (assignmentStage.status == TrainingStageStatus.locked) {
+            conflict("Предыдущий обязательный этап ещё не завершён")
+        }
+        val programStage = programStageRepository.findById(assignmentStage.programStageId).orElseThrow()
+        if (programStage.type != TrainingStageType.online_course) {
+            badRequest("Тест урока доступен только для этапа онлайн-курса")
+        }
+        val version = versionRepository.findById(assignment.programVersionId).orElseThrow()
+        val courseId = version.onlineCourseId ?: conflict("К программе не привязан онлайн-курс")
+        val lesson = courseLessonRepository.findById(lessonId).orElseThrow {
+            AppException(ErrorCode.NOT_FOUND, "Урок не найден", HttpStatus.NOT_FOUND)
+        }
+        if (lesson.courseId != courseId) badRequest("Урок относится к другому курсу")
+        if (lesson.kind !in setOf(CourseLessonKind.quiz, CourseLessonKind.test)) {
+            badRequest("Этот урок не является тестом")
+        }
+        if (lesson.quizQuestions.isEmpty()) conflict("В тесте нет вопросов")
+
+        val questionIds = lesson.quizQuestions.map { it.id }.toSet()
+        if (req.answers.keys != questionIds) badRequest("Ответьте на все вопросы теста")
+        lesson.quizQuestions.forEach { question ->
+            val answer = req.answers.getValue(question.id)
+            if (answer !in question.options.indices) badRequest("Некорректный вариант ответа")
+        }
+
+        val questionResults = lesson.quizQuestions.map { question ->
+            QuizQuestionResultDto(
+                questionId = question.id,
+                correct = req.answers.getValue(question.id) == question.correctOption,
+                correctOption = question.correctOption,
+                explanation = question.explanation,
+            )
+        }
+        val correctAnswers = questionResults.count { it.correct }
+        val score = ((correctAnswers * 100.0) / lesson.quizQuestions.size).roundToInt()
+        val passed = score >= lesson.quizPassingScore
+        val now = Instant.now()
+        val progress = lessonProgressRepository.findByAssignmentStageIdAndLessonId(stageId, lessonId)
+            ?: TrainingLessonProgressEntity(
+                assignmentId = assignment.id,
+                assignmentStageId = assignmentStage.id,
+                lessonId = lesson.id,
+                startedAt = now,
+            )
+        progress.quizAttempts += 1
+        progress.quizScore = maxOf(progress.quizScore ?: 0, score)
+        lessonProgressRepository.save(progress)
+        if (assignment.startedAt == null) assignment.startedAt = now
+        if (assignmentStage.startedAt == null) assignmentStage.startedAt = now
+        assignmentRepository.save(assignment)
+        assignmentStageRepository.save(assignmentStage)
+
+        val updatedAssignment = if (passed) {
+            updateLessonProgressInternal(
+                pharmacistId,
+                assignmentId,
+                stageId,
+                lessonId,
+                LessonProgressRequest(progressPct = 100),
+                allowQuizCompletion = true,
+            )
+        } else {
+            mapAssignments(listOf(assignment)).single()
+        }
+        audit(
+            pharmacistId,
+            "pharmacist",
+            "lesson_quiz_submitted",
+            "training_lesson_progress",
+            progress.id.toString(),
+            mapOf("lessonId" to lesson.id, "score" to score, "passed" to passed),
+        )
+        return QuizSubmissionResultDto(
+            score = score,
+            passed = passed,
+            correctAnswers = correctAnswers,
+            totalQuestions = lesson.quizQuestions.size,
+            attempt = progress.quizAttempts,
+            questions = questionResults,
+            assignment = updatedAssignment,
+        )
     }
 
     private fun lessonCompletionThreshold(kind: CourseLessonKind, configured: Int?): Int =
@@ -1384,8 +1507,7 @@ class TrainingService(
         }
         val participant = participantRepository.findByEventIdAndPharmacistId(event.id, pharmacistId)
             ?: forbidden("Фармацевт не зарегистрирован на это событие")
-        // A repeated scan or manual-code retry must not reissue rewards/notifications or
-        // overwrite the method that actually confirmed attendance first.
+        // Repeated QR scans and manual-code retries must not reissue notifications or rewards.
         if (participant.status == EventParticipantStatus.attended && participant.checkedInAt != null) {
             return mapAssignments(listOf(loadOwnedAssignment(pharmacistId, participant.assignmentId))).single()
         }
@@ -2064,6 +2186,8 @@ class TrainingService(
                                     lastPositionSeconds = progress?.lastPositionSeconds ?: 0,
                                     startedAt = progress?.startedAt ?: if (completedLegacyStage) row.startedAt else null,
                                     completedAt = progress?.completedAt ?: if (completedLegacyStage) row.completedAt ?: row.updatedAt else null,
+                                    quizScore = progress?.quizScore,
+                                    quizAttempts = progress?.quizAttempts ?: 0,
                                 )
                             },
                         )

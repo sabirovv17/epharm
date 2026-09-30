@@ -330,6 +330,10 @@ class TrainingLessonProgressEntity(
     var progressPct: Int = 0,
     @Column(name = "last_position_seconds", nullable = false)
     var lastPositionSeconds: Int = 0,
+    @Column(name = "quiz_score")
+    var quizScore: Int? = null,
+    @Column(name = "quiz_attempts", nullable = false)
+    var quizAttempts: Int = 0,
     @Column(name = "started_at", nullable = false)
     var startedAt: Instant = Instant.now(),
     @Column(name = "completed_at")

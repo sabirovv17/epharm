@@ -73,11 +73,11 @@ describe('LoginPage — рендер', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('бренд = логотип-глиф + Console (текст Epharm убран); нет PharmaPay', () => {
+  it('показывает аптечный бренд ePharm Console без легаси PharmaPay', () => {
     const { container } = renderLogin()
     expect(container.querySelector('svg')).toBeInTheDocument() // логотип-глиф
-    expect(screen.getByText('Console')).toBeInTheDocument()
-    expect(container.innerHTML).not.toMatch(/Epharm/i)
+    expect(screen.getByText('ePharm')).toBeInTheDocument()
+    expect(screen.getByText(/Фармацевтическая операционная/i)).toBeInTheDocument()
     expect(container.innerHTML).not.toMatch(/PharmaPay/i)
   })
 })

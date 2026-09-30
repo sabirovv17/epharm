@@ -59,6 +59,7 @@ function mkPharmacist(over: Partial<PharmacistDto> = {}): PharmacistDto {
     coursesDone: 3,
     coursesTotal: 9,
     status: 'active',
+    hasPassword: true,
     joinedAt: '2026-01-15',
     createdAt: '2026-01-15T00:00:00Z',
     updatedAt: '2026-01-15T00:00:00Z',
@@ -102,6 +103,7 @@ beforeEach(() => {
   })
   pharmacistHooks.useActivatePharmacist.mockReturnValue({ mutate: vi.fn(), isPending: false })
   pharmacistHooks.useCreatePharmacist.mockReturnValue({ mutate: vi.fn(), isPending: false })
+  pharmacistHooks.useUpdatePharmacist.mockReturnValue({ mutate: vi.fn(), isPending: false })
   pharmacistHooks.useBlockPharmacist.mockReturnValue({ mutate: vi.fn(), isPending: false })
   pharmacistHooks.useUnblockPharmacist.mockReturnValue({ mutate: vi.fn(), isPending: false })
   lmsHooks.useTrainingPreferences.mockReturnValue({
@@ -208,15 +210,16 @@ describe('PharmacistsPage — рендер', () => {
     expect(screen.getByText(/Фармацевтов пока нет/i)).toBeInTheDocument()
   })
 
-  it('форма создания открывается с тестовым номером', async () => {
+  it('форма создания открывается без чужих персональных данных', async () => {
     const user = userEvent.setup()
     renderPage()
 
     await user.click(screen.getByRole('button', { name: 'Добавить фармацевта' }))
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Телефон' })).toHaveValue('+77470799353')
-    expect(screen.getByRole('textbox', { name: 'ФИО' })).toHaveValue('Тестовый фармацевт')
+    expect(screen.getByRole('textbox', { name: 'Телефон' })).toHaveValue('')
+    expect(screen.getByRole('textbox', { name: 'ФИО' })).toHaveValue('')
+    expect(screen.getByLabelText('Пароль для входа')).toBeInTheDocument()
   })
 })
 
@@ -280,6 +283,23 @@ describe('PharmacistsPage — список и actions', () => {
     renderPage()
     await user.click(screen.getByRole('button', { name: /Разблок\./ }))
     expect(mutate).toHaveBeenCalledWith('u_b', expect.any(Object))
+  })
+
+  it('администратор может задать новый пароль фармацевту', async () => {
+    const mutate = vi.fn()
+    pharmacistHooks.useUpdatePharmacist.mockReturnValue({ mutate, isPending: false })
+    setPharmacists([mkPharmacist({ id: 'u_password', hasPassword: false })])
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(screen.getByRole('button', { name: 'Задать пароль' }))
+    await user.type(screen.getByLabelText('Новый пароль'), 'Farm123!')
+    await user.click(screen.getByRole('button', { name: 'Сохранить пароль' }))
+
+    expect(mutate).toHaveBeenCalledWith(
+      { id: 'u_password', patch: { password: 'Farm123!' } },
+      expect.any(Object),
+    )
   })
 
   it('pending фармацевта можно назначить аптеке и активировать', async () => {

@@ -26,6 +26,11 @@
     font-feature-settings: 'cv11', 'ss01';
   }
 
+  input[type='checkbox'],
+  input[type='radio'] {
+    accent-color: #07877f;
+  }
+
   ::selection {
     @apply bg-brand-green-100 text-ink-900;
   }
@@ -72,7 +77,7 @@
   }
 
   .btn-primary {
-    @apply border border-brand-green-700/30 bg-brand-green-600 text-white shadow-fab hover:bg-brand-green-700;
+    @apply border border-brand-green-700/25 bg-brand-green-600 text-white shadow-fab hover:bg-brand-green-700;
   }
   .btn-ink {
     @apply bg-ink-900 text-white hover:bg-ink-800;
@@ -168,7 +173,8 @@
 
   /* ── Modal backdrop §11.1 ─────────────────────────────────────── */
   .scrim {
-    background: rgba(28, 27, 25, 0.48);
+    background: rgba(8, 35, 42, 0.54);
+    backdrop-filter: blur(1px);
   }
 
   /* ── Slide-in animation §11.1 ─────────────────────────────────── */
@@ -191,22 +197,43 @@
   }
 
   /* ── Sidebar / Topbar surfaces ────────────────────────────────── */
-  /* Solid navigation surface: no decorative gradients in a work console. */
+  /* Cursor-like application rail in the selected pharmacy-teal direction. */
   .sidebar-bg {
-    background: #1c1b19;
-    box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.04);
+    background:
+      linear-gradient(180deg, rgba(16, 94, 96, 0.2), transparent 28%),
+      #073f46;
+    box-shadow: inset -1px 0 0 rgba(171, 232, 226, 0.09);
+  }
+  .cursor-sidebar {
+    contain: layout paint;
+  }
+  .cursor-sidebar__nav {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(171, 232, 226, 0.18) transparent;
+  }
+  .cursor-sidebar__nav::-webkit-scrollbar {
+    width: 4px;
+  }
+  .cursor-sidebar__nav::-webkit-scrollbar-thumb {
+    background: rgba(171, 232, 226, 0.18);
+    border-radius: 999px;
   }
   .topbar-bg {
     @apply bg-paper-card;
-    border-bottom: 1px solid rgba(28, 27, 25, 0.08);
+    border-bottom: 1px solid rgba(16, 43, 51, 0.09);
   }
   .sidebar-hover:hover {
-    background: rgba(255, 255, 255, 0.055);
+    background: rgba(171, 232, 226, 0.075);
   }
-  /* Active row is communicated by contrast and one restrained accent rule. */
+  .cursor-sidebar__item {
+    transition:
+      background-color 120ms ease,
+      color 120ms ease;
+  }
+  /* Active row: Cursor-like low-contrast fill with an ePharm mint rail. */
   .sidebar-active {
-    background: rgba(255, 255, 255, 0.085);
-    box-shadow: inset 2px 0 0 #cc7a5c;
+    background: rgba(171, 232, 226, 0.12);
+    box-shadow: inset 2px 0 0 #64d1c7;
   }
 
   /* ── Key-cap (kbd) §3 ─────────────────────────────────────────── */
@@ -255,7 +282,7 @@
 
 /* Shared density and hierarchy for both HQ and Learning admin tables. */
 .admin-console main table thead {
-  background: #f7f7f5;
+  background: #f2f7f7;
 }
 
 .admin-console main table th {
@@ -265,6 +292,227 @@
 
 .admin-console main table tbody tr {
   transition: background-color 100ms ease;
+}
+
+.admin-console main table tbody tr:hover {
+  background: #eff8f7;
+}
+
+.admin-console main {
+  background-color: #f2f7f7;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   LEARNER PORTAL — responsive pharmacy workspace
+   Keeps the mobile product flow while sharing the selected admin
+   direction: deep teal navigation, hygienic surfaces and calm density.
+   ───────────────────────────────────────────────────────────────── */
+body.learner-portal {
+  background: #eef5f5;
+}
+
+.learner-auth-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #eef5f5;
+}
+
+.learner-auth-card {
+  display: grid;
+  width: min(1080px, 100%);
+  min-height: 650px;
+  overflow: hidden;
+  border: 1px solid rgba(16, 43, 51, 0.09);
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(9, 55, 60, 0.13);
+}
+
+.learner-auth-brand-panel {
+  display: none;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 42px;
+  background: #073f46;
+}
+
+.learner-auth-form-panel {
+  display: flex;
+  align-items: center;
+  padding: 40px clamp(24px, 6vw, 72px);
+}
+
+.learner-app-frame {
+  width: 100%;
+  max-width: 1480px;
+  margin-inline: auto;
+}
+
+.learner-navigation {
+  position: fixed;
+  z-index: 40;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding: 8px 8px max(8px, env(safe-area-inset-bottom));
+  border-top: 1px solid #dce8e8;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 -8px 28px rgba(13, 56, 62, 0.08);
+  backdrop-filter: blur(14px);
+}
+
+.learner-nav-item {
+  display: flex;
+  min-width: 0;
+  min-height: 48px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: 11px;
+  padding: 5px 2px;
+  color: #829a9e;
+  font-size: 10px;
+  font-weight: 800;
+  transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+.learner-nav-item:hover {
+  background: #ecf4f4;
+  color: #304a51;
+}
+
+.learner-nav-item.is-active {
+  background: #ddf5f2;
+  color: #066c67;
+}
+
+.learner-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 6px 2px 14px;
+  border-bottom: 1px solid rgba(16, 43, 51, 0.08);
+}
+
+.learner-portal .btn,
+.learner-portal .inp {
+  border-radius: 10px;
+}
+
+.learner-portal .btn-primary {
+  box-shadow: 0 5px 14px rgba(7, 135, 127, 0.17);
+}
+
+.learner-portal .btn-primary:hover {
+  box-shadow: 0 7px 18px rgba(7, 135, 127, 0.23);
+}
+
+.learner-portal .shadow-card {
+  box-shadow: 0 1px 2px rgba(7, 84, 81, 0.025), 0 0 0 1px rgba(16, 43, 51, 0.08);
+}
+
+.learner-portal button:focus-visible,
+.learner-portal a:focus-visible,
+.learner-portal input:focus-visible {
+  outline: 3px solid rgba(50, 188, 175, 0.3);
+  outline-offset: 2px;
+}
+
+@media (min-width: 768px) {
+  .learner-auth-card {
+    grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  }
+
+  .learner-auth-brand-panel {
+    display: flex;
+  }
+}
+
+@media (min-width: 1024px) {
+  .learner-app-frame {
+    display: grid;
+    grid-template-columns: 232px minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+
+  .learner-navigation {
+    position: sticky;
+    top: 20px;
+    display: flex;
+    min-height: calc(100vh - 40px);
+    flex-direction: column;
+    padding: 18px 12px;
+    border: 0;
+    border-radius: 18px;
+    background: #073f46;
+    box-shadow: inset -1px 0 0 rgba(171, 232, 226, 0.1), 0 14px 36px rgba(6, 63, 70, 0.14);
+    backdrop-filter: none;
+  }
+
+  .learner-nav-item {
+    min-height: 44px;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 0 12px;
+    color: rgba(255, 255, 255, 0.66);
+    font-size: 13px;
+  }
+
+  .learner-nav-item:hover {
+    background: rgba(126, 222, 213, 0.085);
+    color: #fff;
+  }
+
+  .learner-nav-item.is-active {
+    background: rgba(95, 208, 198, 0.14);
+    color: #fff;
+    box-shadow: inset 3px 0 0 #32bcaf;
+  }
+
+  .learner-page-header {
+    min-height: 74px;
+    margin-bottom: 22px;
+    padding: 8px 4px 16px;
+  }
+}
+
+@media (max-width: 767px) {
+  .learner-auth-shell {
+    align-items: stretch;
+    padding: 0;
+    background: #fff;
+  }
+
+  .learner-auth-card {
+    min-height: 100vh;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .learner-auth-form-panel {
+    align-items: flex-start;
+    padding-top: max(68px, env(safe-area-inset-top));
+  }
+
+  .learner-page-header {
+    margin-right: -16px;
+    margin-left: -16px;
+    padding: 8px 16px 16px;
+    background: rgba(255, 255, 255, 0.78);
+    backdrop-filter: blur(12px);
+  }
+
+  .learner-portal .btn-md {
+    min-height: 44px;
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────────

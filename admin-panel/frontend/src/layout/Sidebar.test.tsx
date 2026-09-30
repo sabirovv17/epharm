@@ -29,11 +29,11 @@ function setup(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
 }
 
 describe('Sidebar — брендинг', () => {
-  it('в expanded — логотип-глиф + Console · HQ (текстовый wordmark Epharm убран)', () => {
+  it('в expanded — логотип и аптечный wordmark ePharm', () => {
     const { container } = setup()
     expect(container.querySelector('svg')).toBeInTheDocument() // бренд = SVG-логотип
-    expect(screen.getByText(/Console · HQ/i)).toBeInTheDocument()
-    expect(screen.queryByText('E')).not.toBeInTheDocument() // нет зелёной монограммы «E»
+    expect(screen.getByText('ePharm')).toBeInTheDocument()
+    expect(screen.getByText(/Операционный центр/i)).toBeInTheDocument()
   })
 
   it('в expanded — нет упоминания старого бренда PharmaPay', () => {
@@ -67,7 +67,7 @@ describe('Sidebar — навигация', () => {
   it('для руководителя обучения переносит разделы LMS в sidebar без общего пункта', () => {
     setup({ user: USERS.lms, active: 'lms', activeTrainingTab: 'courses' })
 
-    expect(screen.getByText(/Console · Learning/i)).toBeInTheDocument()
+    expect(screen.getByText(/Центр обучения/i)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Обучение$/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /AI-Экзаменация/i })).toBeInTheDocument()
     ;[
@@ -136,7 +136,7 @@ describe('Sidebar — collapse', () => {
     expect(onToggle).toHaveBeenCalledOnce()
   })
 
-  it('в collapsed — floating expand-tab показан и вызывает onToggle', async () => {
+  it('в collapsed — кнопка логотипа разворачивает сайдбар', async () => {
     const user = userEvent.setup()
     const { onToggle } = setup({ collapsed: true })
     await user.click(screen.getByTitle(/Развернуть сайдбар/i))

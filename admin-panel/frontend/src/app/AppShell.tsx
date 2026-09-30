@@ -104,7 +104,7 @@ export function AppShell() {
 
   return (
     <ToastHost>
-      <div className="admin-console flex h-screen bg-paper" style={{ minWidth: 1280 }}>
+      <div className="admin-console flex h-screen min-w-[1024px] overflow-hidden bg-paper">
         <Sidebar
           active={activeSection}
           onSelect={onSelectSection}
@@ -125,7 +125,7 @@ export function AppShell() {
             onMenu={toggleSidebar}
             onCommand={openCommandPalette}
           />
-          <main className="scrollbar-thin flex-1 overflow-auto px-6 pb-10 pt-5">
+          <main className="scrollbar-thin flex-1 overflow-auto px-5 pb-8 pt-4">
             <Outlet />
           </main>
         </div>

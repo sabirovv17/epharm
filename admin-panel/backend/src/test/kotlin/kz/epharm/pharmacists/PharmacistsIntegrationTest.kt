@@ -151,7 +151,7 @@ class PharmacistsIntegrationTest {
     @Test
     fun `POST create — успешный`() {
         val payload = """
-            {"name":"Бауыржан Тлеуов","iin":"900115300023","phone":"+7 (701) 100-10-99","pharmacyId":"europharma_0"}
+            {"name":"Бауыржан Тлеуов","iin":"900115300023","phone":"+7 (701) 100-10-99","password":"Farm123!","pharmacyId":"europharma_0"}
         """.trimIndent()
         mockMvc.perform(
             post("/api/admin/pharmacists")
@@ -169,7 +169,7 @@ class PharmacistsIntegrationTest {
     @Test
     fun `POST create с дубликатом IIN → 409 CONFLICT`() {
         val payload = """
-            {"name":"X","iin":"830909300014","phone":"+7 (701) 999-99-99","pharmacyId":"europharma_0"}
+            {"name":"X","iin":"830909300014","phone":"+7 (701) 999-99-99","password":"Farm123!","pharmacyId":"europharma_0"}
         """.trimIndent()
         mockMvc.perform(
             post("/api/admin/pharmacists")
@@ -184,7 +184,7 @@ class PharmacistsIntegrationTest {
     @Test
     fun `POST create с дубликатом phone → 409 CONFLICT`() {
         val payload = """
-            {"name":"X","iin":"850615400026","phone":"+7 (701) 100-10-20","pharmacyId":"europharma_0"}
+            {"name":"X","iin":"850615400026","phone":"+7 (701) 100-10-20","password":"Farm123!","pharmacyId":"europharma_0"}
         """.trimIndent()
         mockMvc.perform(
             post("/api/admin/pharmacists")
@@ -198,7 +198,7 @@ class PharmacistsIntegrationTest {
     @Test
     fun `POST create с невалидным IIN → 400 VALIDATION_FAILED`() {
         val payload = """
-            {"name":"X","iin":"not-digits","phone":"+7 (700) 000-00-00","pharmacyId":"europharma_0"}
+            {"name":"X","iin":"not-digits","phone":"+7 (700) 000-00-00","password":"Farm123!","pharmacyId":"europharma_0"}
         """.trimIndent()
         mockMvc.perform(
             post("/api/admin/pharmacists")

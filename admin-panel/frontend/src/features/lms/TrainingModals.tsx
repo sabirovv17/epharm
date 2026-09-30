@@ -1105,6 +1105,7 @@ export function AssignTrainingModal({
     ),
   )
   const [query, setQuery] = useState('')
+  const [targetMode, setTargetMode] = useState<'network' | 'people'>('network')
   const [cityFilter, setCityFilter] = useState('__all__')
   const [pharmacyFilter, setPharmacyFilter] = useState('__all__')
   const [error, setError] = useState<string | null>(null)
@@ -1212,20 +1213,35 @@ export function AssignTrainingModal({
       onClose={onClose}
       title="Назначить обучение"
       subtitle="Массовое назначение с защитой от дублей"
-      width={760}
+      width={820}
       footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>
-            Отмена
-          </Button>
-          <Button disabled={assign.isPending} onClick={submit}>
-            Назначить ({selected.length})
-          </Button>
-        </>
+        <div className="flex w-full items-center justify-between gap-4">
+          <div className="text-left">
+            <div className="num text-[13px] font-extrabold text-ink-900">Выбрано: {selected.length}</div>
+            <div className="text-[11px] text-ink-500">Сотрудники получат уведомление о назначении</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={onClose}>
+              Отмена
+            </Button>
+            <Button disabled={assign.isPending} onClick={submit}>
+              Назначить ({selected.length})
+            </Button>
+          </div>
+        </div>
       }
     >
       <div className="flex flex-col gap-4">
         {error && <ErrorBanner message={error} />}
+        {priority === 'critical' && (
+          <div className="flex items-start justify-between gap-4 rounded-lg border border-red-200 bg-surface-danger px-3 py-2.5">
+            <div>
+              <div className="text-[12px] font-extrabold text-surface-danger-strong">Критический приоритет</div>
+              <div className="mt-0.5 text-[11px] text-surface-danger-strong/80">Проверьте срок завершения и выбранную аудиторию перед назначением.</div>
+            </div>
+            <span className="rounded-md bg-white/70 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-surface-danger-strong">Важно</span>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <Field label="Программа">
             <Select
@@ -1329,49 +1345,80 @@ export function AssignTrainingModal({
             Обязательное обучение
           </label>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Город" optional>
-            <Select
-              ariaLabel="Город"
-              value={cityFilter}
-              onChange={(value) => {
-                setCityFilter(value)
-                setPharmacyFilter('__all__')
-              }}
-              options={[
-                { value: '__all__', label: 'Все города' },
-                ...cityOptions.map((city) => ({ value: city, label: city })),
-              ]}
-            />
-          </Field>
-          <Field label="Аптека" optional>
-            <Select
-              ariaLabel="Аптека"
-              value={pharmacyFilter}
-              onChange={setPharmacyFilter}
-              options={[
-                { value: '__all__', label: 'Все аптеки' },
-                ...pharmacyOptions.map(([value, label]) => ({ value, label })),
-              ]}
-            />
-          </Field>
+        <div className="border-b border-ink-100">
+          <div className="flex items-center gap-6" role="tablist" aria-label="Способ выбора аудитории">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={targetMode === 'network'}
+              onClick={() => setTargetMode('network')}
+              className={`border-b-2 px-1 pb-2 text-[13px] font-extrabold transition ${targetMode === 'network' ? 'border-brand-green-600 text-brand-green-700' : 'border-transparent text-ink-500 hover:text-ink-800'}`}
+            >
+              По городам и аптекам
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={targetMode === 'people'}
+              onClick={() => setTargetMode('people')}
+              className={`border-b-2 px-1 pb-2 text-[13px] font-extrabold transition ${targetMode === 'people' ? 'border-brand-green-600 text-brand-green-700' : 'border-transparent text-ink-500 hover:text-ink-800'}`}
+            >
+              По сотрудникам
+            </button>
+          </div>
         </div>
+        {targetMode === 'network' && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Город" optional>
+              <Select
+                ariaLabel="Город"
+                value={cityFilter}
+                onChange={(value) => {
+                  setCityFilter(value)
+                  setPharmacyFilter('__all__')
+                }}
+                options={[
+                  { value: '__all__', label: 'Все города' },
+                  ...cityOptions.map((city) => ({ value: city, label: city })),
+                ]}
+              />
+            </Field>
+            <Field label="Аптека" optional>
+              <Select
+                ariaLabel="Аптека"
+                value={pharmacyFilter}
+                onChange={setPharmacyFilter}
+                options={[
+                  { value: '__all__', label: 'Все аптеки' },
+                  ...pharmacyOptions.map(([value, label]) => ({ value, label })),
+                ]}
+              />
+            </Field>
+          </div>
+        )}
         <div className="hairline overflow-hidden rounded-lg border">
-          <div className="flex items-center justify-between gap-3 border-b border-ink-100 bg-paper-hover px-3 py-2">
+          <div className="flex items-center justify-between gap-3 border-b border-ink-100 bg-brand-green-50 px-3 py-2.5">
             <SearchInput
               value={query}
               onChange={setQuery}
-              placeholder="Фармацевт, аптека, город"
+              placeholder={targetMode === 'people' ? 'ФИО фармацевта' : 'Фармацевт, аптека, город'}
               className="!h-9 flex-1"
             />
-            <button
-              type="button"
-              onClick={toggleAllVisible}
-              disabled={visiblePharmacists.length === 0}
-              className="text-[12px] font-bold text-brand-green-700"
-            >
-              {allVisibleSelected ? 'Снять найденных' : `Выбрать найденных (${visiblePharmacists.length})`}
-            </button>
+            <div className="text-right">
+              <div className="text-[11px] font-semibold text-ink-500">Найдено {visiblePharmacists.length} сотрудников</div>
+              <button
+                type="button"
+                onClick={toggleAllVisible}
+                disabled={visiblePharmacists.length === 0}
+                className="mt-0.5 text-[12px] font-extrabold text-brand-green-700"
+              >
+                {allVisibleSelected ? 'Снять найденных' : `Выбрать найденных (${visiblePharmacists.length})`}
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center justify-between border-b border-ink-100 bg-paper-input px-3 py-2 text-[10px] font-bold uppercase tracking-[0.06em] text-ink-400">
+            <span>Сотрудник</span>
+            <span>Аптека · город</span>
           </div>
           <div className="scrollbar-thin max-h-56 divide-y divide-ink-100 overflow-auto">
             {visiblePharmacists.map((pharmacist) => (
@@ -1390,11 +1437,11 @@ export function AssignTrainingModal({
                     )
                   }
                 />
-                <span className="min-w-0 flex-1">
+                <span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(180px,0.8fr)] items-center gap-4">
                   <span className="block truncate text-[13px] font-bold text-ink-900">
                     {pharmacist.name}
                   </span>
-                  <span className="block truncate text-[11px] text-ink-500">
+                  <span className="block truncate text-right text-[11px] text-ink-500">
                     {pharmacist.pharmacyName} · {pharmacist.city}
                   </span>
                 </span>

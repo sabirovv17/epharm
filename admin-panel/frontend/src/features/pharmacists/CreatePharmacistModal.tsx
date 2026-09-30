@@ -13,7 +13,6 @@ interface Props {
   open: boolean
   pharmacies: PharmacyDto[]
   pending?: boolean
-  initialPhone?: string
   error?: string | null
   onClose: () => void
   onCreate: (request: CreatePharmacistRequest) => void
@@ -23,15 +22,17 @@ interface FormState {
   name: string
   iin: string
   phone: string
+  password: string
   pharmacyId: string
   tier: PharmacistTier
   status: PharmacistStatus
 }
 
-const initialForm = (phone: string): FormState => ({
-  name: 'Тестовый фармацевт',
+const initialForm = (): FormState => ({
+  name: '',
   iin: '',
-  phone,
+  phone: '',
+  password: '',
   pharmacyId: '',
   tier: 'Silver',
   status: 'pending',
@@ -51,22 +52,23 @@ export function CreatePharmacistModal({
   open,
   pharmacies,
   pending,
-  initialPhone = '',
   error,
   onClose,
   onCreate,
 }: Props) {
-  const [form, setForm] = useState<FormState>(() => initialForm(initialPhone))
+  const [form, setForm] = useState<FormState>(initialForm)
   const [attempted, setAttempted] = useState(false)
 
   const normalizedPhone = useMemo(() => normalizePhone(form.phone), [form.phone])
   const phoneValid = /^\+7\d{10}$/.test(normalizedPhone)
   const iinValid = isValidIin(form.iin)
+  const passwordValid = form.password.length >= 6 && form.password.length <= 128
   const valid =
     form.name.trim().length > 0 &&
     form.name.trim().length <= 255 &&
     iinValid &&
     phoneValid &&
+    passwordValid &&
     !!form.pharmacyId
 
   const set = (patch: Partial<FormState>) => setForm((current) => ({ ...current, ...patch }))
@@ -77,6 +79,7 @@ export function CreatePharmacistModal({
       name: form.name.trim(),
       iin: form.iin.trim(),
       phone: normalizedPhone,
+      password: form.password,
       pharmacyId: form.pharmacyId,
       tier: form.tier,
       status: form.status,
@@ -148,7 +151,7 @@ export function CreatePharmacistModal({
               maxLength={32}
               onChange={(event) => set({ phone: event.target.value })}
               onBlur={() => set({ phone: normalizedPhone })}
-              placeholder="+7 747 079 93 53"
+              placeholder="+7 7XX XXX XX XX"
             />
             {attempted && !phoneValid && (
               <div className="mt-1 text-[11px] font-semibold text-accent-danger">
@@ -157,6 +160,22 @@ export function CreatePharmacistModal({
             )}
           </Field>
         </div>
+        <Field label="Пароль для входа">
+          <Input
+            type="password"
+            value={form.password}
+            minLength={6}
+            maxLength={128}
+            autoComplete="new-password"
+            onChange={(event) => set({ password: event.target.value })}
+            placeholder="Минимум 6 символов"
+          />
+          {attempted && !passwordValid && (
+            <div className="mt-1 text-[11px] font-semibold text-accent-danger">
+              Пароль должен содержать минимум 6 символов.
+            </div>
+          )}
+        </Field>
         <Field label="Аптека">
           <Select
             value={form.pharmacyId || undefined}

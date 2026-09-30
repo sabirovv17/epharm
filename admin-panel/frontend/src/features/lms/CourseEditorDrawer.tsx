@@ -13,7 +13,7 @@ import {
   Trash2,
   Upload,
 } from 'lucide-react'
-import { Button, Drawer, Empty, Field, IconButton, Input, Modal, Select, Toggle, useToast } from '@/ui'
+import { Button, Drawer, Empty, Field, IconButton, Input, Modal, Select, useToast } from '@/ui'
 import type { CourseDto, CourseLessonDto, CourseLessonKind, CourseStatus } from '@/lib/api-types'
 import {
   useCourse,
@@ -28,28 +28,44 @@ import {
 } from '@/lib/queries/lms'
 import { describeError } from '@/lib/describeError'
 
-const lessonKindOptions: { value: CourseLessonKind; label: string }[] = [
-  { value: 'text', label: 'Текстовый материал' },
-  { value: 'video', label: 'Видеоурок' },
-  { value: 'pdf', label: 'PDF' },
-  { value: 'presentation', label: 'Презентация' },
-  { value: 'image', label: 'Изображение' },
-  { value: 'audio', label: 'Аудио' },
-  { value: 'link', label: 'Внешняя ссылка' },
-  { value: 'interactive', label: 'Интерактив' },
-  { value: 'quiz', label: 'Внешний тест' },
-  { value: 'practice', label: 'Практическое задание' },
-]
-
-function lessonKindLabel(kind: CourseLessonKind) {
-  return lessonKindOptions.find((option) => option.value === kind)?.label ?? 'Материал'
-}
-
 interface CourseEditorDrawerProps {
   courseId: string | null
   fallbackCourse?: CourseDto
   canManage: boolean
   onClose: () => void
+}
+
+const lessonKindLabels: Record<CourseLessonKind, string> = {
+  text: 'Текстовый материал',
+  video: 'Видеоурок',
+  pdf: 'PDF',
+  presentation: 'Презентация',
+  image: 'Изображение',
+  audio: 'Аудио',
+  link: 'Внешняя ссылка',
+  interactive: 'Интерактив',
+  quiz: 'Контрольные вопросы',
+  test: 'Итоговый тест',
+  practice: 'Практическое задание',
+  assignment: 'Задание',
+}
+
+type QuizQuestionDraft = {
+  id: string
+  prompt: string
+  options: string[]
+  correctOption: number
+  explanation: string
+}
+
+function newQuizQuestion(): QuizQuestionDraft {
+  return {
+    id: `q_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+    prompt: '',
+    options: ['', ''],
+    correctOption: 0,
+    explanation: '',
+  }
 }
 
 export function CourseEditorDrawer({
@@ -248,7 +264,7 @@ export function CourseEditorDrawer({
                             {index + 1}. {lesson.title}
                           </div>
                           <div className="mt-0.5 text-[12px] text-ink-500">
-                            {lessonKindLabel(lesson.kind)} · {lesson.durationMin} мин.
+                            {lessonKindLabels[lesson.kind]} · {lesson.durationMin} мин.
                           </div>
                           {lesson.description && (
                             <p className="mt-2 line-clamp-2 text-[12px] leading-5 text-ink-600">
@@ -365,9 +381,21 @@ function LessonEditorModal({
   const [content, setContent] = useState(lesson?.content ?? '')
   const [kind, setKind] = useState<CourseLessonKind>(lesson?.kind ?? 'text')
   const [externalUrl, setExternalUrl] = useState(lesson?.externalUrl ?? '')
-  const [requiredLesson, setRequiredLesson] = useState(lesson?.required ?? true)
+  const [required, setRequired] = useState(lesson?.required ?? true)
   const [minimumWatchPct, setMinimumWatchPct] = useState(
-    lesson?.minimumWatchPct == null ? '' : String(lesson.minimumWatchPct),
+    String(lesson?.minimumWatchPct ?? 80),
+  )
+  const [quizPassingScore, setQuizPassingScore] = useState(
+    String(lesson?.quizPassingScore ?? 80),
+  )
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestionDraft[]>(() =>
+    (lesson?.quizQuestions ?? []).map((question) => ({
+      id: question.id,
+      prompt: question.prompt,
+      options: [...question.options],
+      correctOption: question.correctOption ?? 0,
+      explanation: question.explanation,
+    })),
   )
   const [durationMin, setDurationMin] = useState(String(lesson?.durationMin ?? 0))
   const [file, setFile] = useState<File | null>(null)
@@ -380,6 +408,7 @@ function LessonEditorModal({
     upload.isPending ||
     uploadAttachment.isPending ||
     deleteAttachment.isPending
+  const quizMode = kind === 'quiz' || kind === 'test'
 
   const submit = async () => {
     if (!canManage) return
@@ -388,15 +417,17 @@ function LessonEditorModal({
       return setError('Размер видео не должен превышать 60 МБ')
     if (attachmentFiles.some((attachment) => attachment.size > 25 * 1024 * 1024))
       return setError('Размер каждого вложения не должен превышать 25 МБ')
-    const parsedMinimumWatchPct = minimumWatchPct === '' ? null : Number(minimumWatchPct)
-    if (
-      kind === 'video' &&
-      parsedMinimumWatchPct != null &&
-      (!Number.isInteger(parsedMinimumWatchPct) ||
-        parsedMinimumWatchPct < 0 ||
-        parsedMinimumWatchPct > 100)
-    ) {
-      return setError('Минимальный просмотр должен быть целым числом от 0 до 100')
+    if (quizMode) {
+      if (quizQuestions.length === 0) return setError('Добавьте хотя бы один вопрос теста')
+      const invalidQuestion = quizQuestions.findIndex(
+        (question) =>
+          !question.prompt.trim() ||
+          question.options.length < 2 ||
+          question.options.some((option) => !option.trim()) ||
+          question.correctOption < 0 ||
+          question.correctOption >= question.options.length,
+      )
+      if (invalidQuestion >= 0) return setError(`Проверьте вопрос ${invalidQuestion + 1} и варианты ответа`)
     }
     setError(null)
     try {
@@ -406,10 +437,19 @@ function LessonEditorModal({
         description: description.trim(),
         content: content.trim(),
         kind,
-        externalUrl: externalUrl.trim(),
-        required: requiredLesson,
+        externalUrl: externalUrl.trim() || null,
+        required,
         minimumWatchPct:
-          kind === 'video' && parsedMinimumWatchPct != null ? parsedMinimumWatchPct : undefined,
+          kind === 'video' ? Math.min(100, Math.max(1, Number(minimumWatchPct) || 80)) : null,
+        quizQuestions: quizMode
+          ? quizQuestions.map((question) => ({
+              ...question,
+              prompt: question.prompt.trim(),
+              options: question.options.map((option) => option.trim()),
+              explanation: question.explanation.trim(),
+            }))
+          : [],
+        quizPassingScore: Math.min(100, Math.max(1, Number(quizPassingScore) || 80)),
         durationMin: Number(durationMin) || 0,
       }
       if (lessonId) {
@@ -419,7 +459,9 @@ function LessonEditorModal({
           patch: {
             ...payload,
             clearVideo: kind !== 'video',
-            clearMinimumWatchPct: kind !== 'video' || minimumWatchPct === '',
+            clearExternalUrl: !externalUrl.trim(),
+            clearMinimumWatchPct: kind !== 'video',
+            clearQuiz: !quizMode,
           },
         })
       } else {
@@ -480,26 +522,51 @@ function LessonEditorModal({
             <Select
               value={kind}
               disabled={!canManage}
-              onChange={(value) => setKind(value as CourseLessonKind)}
-              options={lessonKindOptions}
+              onChange={(value) => {
+                const nextKind = value as CourseLessonKind
+                setKind(nextKind)
+                if ((nextKind === 'quiz' || nextKind === 'test') && quizQuestions.length === 0) {
+                  setQuizQuestions([newQuizQuestion()])
+                }
+              }}
+              options={[
+                { value: 'text', label: 'Текстовый материал' },
+                { value: 'video', label: 'Видеоурок' },
+                { value: 'pdf', label: 'PDF' },
+                { value: 'presentation', label: 'Презентация' },
+                { value: 'image', label: 'Изображение' },
+                { value: 'audio', label: 'Аудио' },
+                { value: 'link', label: 'Внешняя ссылка' },
+                { value: 'interactive', label: 'Интерактив' },
+                { value: 'quiz', label: 'Контрольные вопросы' },
+                { value: 'test', label: 'Итоговый тест' },
+                { value: 'practice', label: 'Практическое задание' },
+                { value: 'assignment', label: 'Задание' },
+              ]}
             />
           </Field>
           <Field label="Длительность, минут">
             <Input
               type="number"
-              min={0}
+              min={kind === 'video' ? 1 : 0}
+              max={kind === 'video' ? 30 : undefined}
               value={durationMin}
               disabled={!canManage}
               onChange={(event) => setDurationMin(event.target.value)}
             />
           </Field>
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field
-            label="Внешняя ссылка"
-            optional
-            hint="Для ссылки, интерактива, внешнего теста или материала"
-          >
+        <label className="flex items-center gap-2 text-[13px] font-semibold text-ink-700">
+          <input
+            type="checkbox"
+            checked={required}
+            disabled={!canManage}
+            onChange={(event) => setRequired(event.target.checked)}
+          />
+          Обязательный урок
+        </label>
+        {(kind === 'link' || kind === 'interactive') && (
+          <Field label="Ссылка">
             <Input
               type="url"
               value={externalUrl}
@@ -508,51 +575,186 @@ function LessonEditorModal({
               onChange={(event) => setExternalUrl(event.target.value)}
             />
           </Field>
-          {kind === 'video' ? (
-            <Field label="Минимальный просмотр, %" optional>
-              <Input
-                type="number"
-                min={0}
-                max={100}
-                value={minimumWatchPct}
-                disabled={!canManage}
-                onChange={(event) => setMinimumWatchPct(event.target.value)}
-              />
-            </Field>
-          ) : (
-            <div className="flex items-end pb-2">
-              <Toggle
-                on={requiredLesson}
-                onChange={setRequiredLesson}
-                label="Обязательный урок"
-                disabled={!canManage}
-              />
-            </div>
-          )}
-        </div>
+        )}
         {kind === 'video' && (
-          <Toggle
-            on={requiredLesson}
-            onChange={setRequiredLesson}
-            label="Обязательный урок"
-            disabled={!canManage}
-          />
+          <Field label="Минимальный просмотр, %">
+            <Input
+              type="number"
+              min={1}
+              max={100}
+              value={minimumWatchPct}
+              disabled={!canManage}
+              onChange={(event) => setMinimumWatchPct(event.target.value)}
+            />
+          </Field>
+        )}
+        {quizMode && (
+          <section className="rounded-lg border border-ink-100 bg-paper-hover p-4">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <Field label="Проходной балл, %">
+                <Input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={quizPassingScore}
+                  disabled={!canManage}
+                  onChange={(event) => setQuizPassingScore(event.target.value)}
+                />
+              </Field>
+              {canManage && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  leading={<Plus size={15} />}
+                  onClick={() => setQuizQuestions((current) => [...current, newQuizQuestion()])}
+                >
+                  Добавить вопрос
+                </Button>
+              )}
+            </div>
+            <div className="mt-4 space-y-4">
+              {quizQuestions.map((question, questionIndex) => (
+                <article key={question.id} className="rounded-lg border border-ink-100 bg-white p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="min-w-0 flex-1">
+                      <Field label={`Вопрос ${questionIndex + 1}`}>
+                        <Input
+                          value={question.prompt}
+                          disabled={!canManage}
+                          placeholder="Введите текст вопроса"
+                          onChange={(event) =>
+                            setQuizQuestions((current) =>
+                              current.map((item) =>
+                                item.id === question.id ? { ...item, prompt: event.target.value } : item,
+                              ),
+                            )
+                          }
+                        />
+                      </Field>
+                    </div>
+                    {canManage && quizQuestions.length > 1 && (
+                      <IconButton
+                        tip="Удалить вопрос"
+                        aria-label={`Удалить вопрос ${questionIndex + 1}`}
+                        onClick={() =>
+                          setQuizQuestions((current) => current.filter((item) => item.id !== question.id))
+                        }
+                      >
+                        <Trash2 size={16} />
+                      </IconButton>
+                    )}
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {question.options.map((option, optionIndex) => (
+                      <div key={`${question.id}-${optionIndex}`} className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name={`correct-${question.id}`}
+                          checked={question.correctOption === optionIndex}
+                          disabled={!canManage}
+                          aria-label={`Правильный ответ ${optionIndex + 1}`}
+                          onChange={() =>
+                            setQuizQuestions((current) =>
+                              current.map((item) =>
+                                item.id === question.id ? { ...item, correctOption: optionIndex } : item,
+                              ),
+                            )
+                          }
+                        />
+                        <Input
+                          value={option}
+                          disabled={!canManage}
+                          placeholder={`Вариант ${optionIndex + 1}`}
+                          onChange={(event) =>
+                            setQuizQuestions((current) =>
+                              current.map((item) => {
+                                if (item.id !== question.id) return item
+                                const options = [...item.options]
+                                options[optionIndex] = event.target.value
+                                return { ...item, options }
+                              }),
+                            )
+                          }
+                        />
+                        {canManage && question.options.length > 2 && (
+                          <IconButton
+                            tip="Удалить вариант"
+                            aria-label={`Удалить вариант ${optionIndex + 1}`}
+                            onClick={() =>
+                              setQuizQuestions((current) =>
+                                current.map((item) => {
+                                  if (item.id !== question.id) return item
+                                  const options = item.options.filter((_, index) => index !== optionIndex)
+                                  const correctOption = item.correctOption === optionIndex
+                                    ? 0
+                                    : item.correctOption > optionIndex
+                                      ? item.correctOption - 1
+                                      : item.correctOption
+                                  return { ...item, options, correctOption }
+                                }),
+                              )
+                            }
+                          >
+                            <Trash2 size={14} />
+                          </IconButton>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {canManage && question.options.length < 8 && (
+                    <button
+                      type="button"
+                      className="mt-2 text-[12px] font-bold text-brand-green-700 hover:underline"
+                      onClick={() =>
+                        setQuizQuestions((current) =>
+                          current.map((item) =>
+                            item.id === question.id ? { ...item, options: [...item.options, ''] } : item,
+                          ),
+                        )
+                      }
+                    >
+                      + Добавить вариант
+                    </button>
+                  )}
+                  <Field label="Пояснение после ответа" optional>
+                    <textarea
+                      className="inp mt-2 min-h-16"
+                      value={question.explanation}
+                      maxLength={2000}
+                      disabled={!canManage}
+                      onChange={(event) =>
+                        setQuizQuestions((current) =>
+                          current.map((item) =>
+                            item.id === question.id ? { ...item, explanation: event.target.value } : item,
+                          ),
+                        )
+                      }
+                    />
+                  </Field>
+                </article>
+              ))}
+            </div>
+          </section>
         )}
         <Field label="Краткое описание" optional>
           <textarea
             className="inp min-h-20"
             value={description}
+            maxLength={1000}
             disabled={!canManage}
             onChange={(event) => setDescription(event.target.value)}
           />
+          <div className="mt-1 text-right text-[11px] text-ink-500">{description.length}/1000</div>
         </Field>
         <Field label="Текст урока" optional>
           <textarea
             className="inp min-h-36"
             value={content}
+            maxLength={10000}
             disabled={!canManage}
             onChange={(event) => setContent(event.target.value)}
           />
+          <div className="mt-1 text-right text-[11px] text-ink-500">{content.length}/10000</div>
         </Field>
         {kind === 'video' && (
           <Field
@@ -584,7 +786,7 @@ function LessonEditorModal({
         <Field
           label="Материалы урока"
           optional
-          hint="Изображения, аудио, PDF, Word, Excel, PowerPoint или текст; до 25 МБ каждый"
+          hint="До 10 файлов: изображения, аудио, PDF, Word, Excel, PowerPoint или текст; до 25 МБ каждый"
         >
           <label className="flex min-h-20 cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-ink-300 bg-paper-hover px-4 text-[13px] font-semibold text-ink-600 hover:border-brand-green-600">
             <Paperclip size={18} />
@@ -597,9 +799,9 @@ function LessonEditorModal({
               className="sr-only"
               type="file"
               multiple
-              accept="image/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.mp3,.m4a,.aac,.wav,.ogg"
+              accept="image/*,audio/*,.mp3,.m4a,.aac,.wav,.ogg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv"
               disabled={!canManage}
-              onChange={(event) => setAttachmentFiles(Array.from(event.target.files ?? []))}
+              onChange={(event) => setAttachmentFiles(Array.from(event.target.files ?? []).slice(0, 10))}
             />
           </label>
         </Field>

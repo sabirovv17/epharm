@@ -305,6 +305,7 @@ export interface PharmacistDto {
   coursesDone: number
   coursesTotal: number
   status: PharmacistStatus
+  hasPassword: boolean
   joinedAt: string
   createdAt: string
   updatedAt: string
@@ -314,6 +315,7 @@ export interface CreatePharmacistRequest {
   name: string
   iin: string
   phone: string
+  password: string
   pharmacyId: string
   tier?: PharmacistTier
   status?: PharmacistStatus
@@ -322,6 +324,7 @@ export interface CreatePharmacistRequest {
 export interface UpdatePharmacistRequest {
   name?: string
   phone?: string
+  password?: string
   tier?: PharmacistTier
   balance?: number
   coursesDone?: number
@@ -662,6 +665,14 @@ export type CourseLessonKind =
   | 'practice'
   | 'assignment'
 
+export interface CourseQuizQuestionDto {
+  id: string
+  prompt: string
+  options: string[]
+  correctOption: number | null
+  explanation: string
+}
+
 export interface CourseLessonAttachmentDto {
   id: string
   title: string
@@ -683,6 +694,10 @@ export interface CourseLessonDto {
   externalUrl: string | null
   required: boolean
   minimumWatchPct: number | null
+  quizQuestions: CourseQuizQuestionDto[]
+  quizPassingScore: number
+  quizScore?: number | null
+  quizAttempts?: number
   attachments: CourseLessonAttachmentDto[]
   durationMin: number
   order: number
@@ -735,9 +750,17 @@ export interface CreateCourseLessonRequest {
   description?: string
   content?: string
   kind?: CourseLessonKind
-  externalUrl?: string
+  externalUrl?: string | null
   required?: boolean
-  minimumWatchPct?: number
+  minimumWatchPct?: number | null
+  quizQuestions?: Array<{
+    id?: string | null
+    prompt: string
+    options: string[]
+    correctOption: number
+    explanation?: string
+  }>
+  quizPassingScore?: number
   durationMin?: number
 }
 
@@ -746,10 +769,14 @@ export interface UpdateCourseLessonRequest {
   description?: string
   content?: string
   kind?: CourseLessonKind
-  externalUrl?: string
+  externalUrl?: string | null
+  clearExternalUrl?: boolean
   required?: boolean
-  minimumWatchPct?: number
+  minimumWatchPct?: number | null
   clearMinimumWatchPct?: boolean
+  quizQuestions?: CreateCourseLessonRequest['quizQuestions']
+  quizPassingScore?: number
+  clearQuiz?: boolean
   durationMin?: number
   clearVideo?: boolean
 }

@@ -28,6 +28,9 @@ class PharmacistEntity(
     @Column(name = "phone", nullable = false, length = 32)
     var phone: String = "",
 
+    @Column(name = "password_hash", length = 255)
+    var passwordHash: String? = null,
+
     // Nullable: саморегистрированный pending-фармацевт ещё не привязан к аптеке (V019).
     // Активный фармацевт всегда имеет аптеку — её назначает админ при активации.
     @Column(name = "pharmacy_id", nullable = true, length = 64)
