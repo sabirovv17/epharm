@@ -16,12 +16,11 @@ test.describe('Auth — /login форма', () => {
     await expect(freshPage.getByLabel(/Email/i)).toBeFocused()
   })
 
-  test('актуальный брендинг: логотип-глиф + Console, без старых wordmark', async ({ freshPage }) => {
+  test('актуальный брендинг: логотип-глиф + ePharm', async ({ freshPage }) => {
     await freshPage.goto('/login')
-    await expect(freshPage.getByText('Console', { exact: true })).toBeVisible()
+    await expect(freshPage.getByText('ePharm', { exact: true })).toBeVisible()
     await expect(freshPage.locator('svg').first()).toBeVisible()
     const bodyText = await freshPage.locator('body').textContent()
-    expect(bodyText ?? '').not.toMatch(/Epharm Console/)
     expect(bodyText ?? '').not.toMatch(/PharmaPay/)
   })
 })
@@ -49,7 +48,7 @@ test.describe('Auth — submit', () => {
     await freshPage.getByLabel(/Пароль/i).fill(ACCOUNTS.damir.password)
     await freshPage.getByRole('button', { name: /^Войти/i }).click()
     await expect(freshPage).toHaveURL(/\/rules$/)
-    await expect(freshPage.getByText(ACCOUNTS.damir.name)).toBeVisible()
+    await expect(freshPage.getByRole('banner').getByRole('button', { name: new RegExp(ACCOUNTS.damir.name) })).toBeVisible()
   })
 
   test('неверный пароль → INVALID_CREDENTIALS message', async ({ freshPage }) => {
@@ -112,24 +111,24 @@ test.describe('Auth — logout', () => {
 test.describe('Auth — Bug J regression: Cmd+R не разлогинивает', () => {
   test('reload на /rules → юзер остаётся залогинен', async ({ loggedInPage }) => {
     await loggedInPage.goto('/rules')
-    await expect(loggedInPage.getByText(ACCOUNTS.damir.name)).toBeVisible()
+    await expect(loggedInPage.getByRole('banner').getByRole('button', { name: new RegExp(ACCOUNTS.damir.name) })).toBeVisible()
     await loggedInPage.reload()
     await expect(loggedInPage).toHaveURL(/\/rules$/)
-    await expect(loggedInPage.getByText(ACCOUNTS.damir.name)).toBeVisible()
+    await expect(loggedInPage.getByRole('banner').getByRole('button', { name: new RegExp(ACCOUNTS.damir.name) })).toBeVisible()
   })
 
   test('reload на /promo → URL и user сохраняются', async ({ loggedInPage }) => {
     await loggedInPage.goto('/promo')
     await loggedInPage.reload()
     await expect(loggedInPage).toHaveURL(/\/promo$/)
-    await expect(loggedInPage.getByText(ACCOUNTS.damir.name)).toBeVisible()
+    await expect(loggedInPage.getByRole('banner').getByRole('button', { name: new RegExp(ACCOUNTS.damir.name) })).toBeVisible()
   })
 })
 
 test.describe('Auth — switching между учётками', () => {
   test('login as aigerim → name в Topbar обновляется', async ({ freshPage }) => {
     await loginViaUI(freshPage, ACCOUNTS.aigerim)
-    await expect(freshPage.getByText(ACCOUNTS.aigerim.name)).toBeVisible()
+    await expect(freshPage.getByRole('banner').getByRole('button', { name: new RegExp(ACCOUNTS.aigerim.name) })).toBeVisible()
     await expect(freshPage).toHaveURL(/\/rules$/)
   })
 
@@ -140,7 +139,7 @@ test.describe('Auth — switching между учётками', () => {
     await freshPage.getByRole('button', { name: new RegExp(ACCOUNTS.damir.name) }).click()
     await freshPage.getByRole('menuitem', { name: /Выйти/i }).click()
     await loginViaUI(freshPage, ACCOUNTS.aigerim)
-    await expect(freshPage.getByText(ACCOUNTS.aigerim.name)).toBeVisible()
-    await expect(freshPage.getByText(ACCOUNTS.damir.name)).not.toBeVisible()
+    await expect(freshPage.getByRole('banner').getByRole('button', { name: new RegExp(ACCOUNTS.aigerim.name) })).toBeVisible()
+    await expect(freshPage.getByRole('banner').getByRole('button', { name: new RegExp(ACCOUNTS.damir.name) })).toHaveCount(0)
   })
 })

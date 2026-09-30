@@ -59,10 +59,15 @@ for (const target of [
       const json = (body: unknown, status = 200) =>
         route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
 
-      if (path === '/api/mobile/auth/sms/request') return json({ accepted: true })
-      if (path === '/api/mobile/auth/sms/verify') {
+      if (path === '/api/mobile/auth/activation/status') {
+        return json({ passwordSet: true, phoneMasked: '+7 (700) ***-**-01' })
+      }
+      if (path === '/api/mobile/auth/login') {
+        const credentials = request.postDataJSON() as { iin?: string; password?: string }
+        if (credentials.iin !== '000101500011' || credentials.password !== 'TestPass123!') {
+          return json({ message: 'Invalid test credentials' }, 401)
+        }
         return json({
-          registered: true,
           tokens,
           pharmacist: {
             id: 'ph-link',
@@ -109,9 +114,9 @@ for (const target of [
     })
 
     await page.goto('/learn/course/assignment-link')
-    await page.getByRole('textbox', { name: 'Номер телефона' }).fill('77070000001')
-    await page.getByRole('button', { name: 'Получить код' }).click()
-    await page.getByRole('textbox', { name: 'Код из SMS' }).fill('1234')
+    await page.getByRole('textbox', { name: 'ИИН' }).fill('000101500011')
+    await page.getByRole('button', { name: 'Продолжить' }).click()
+    await page.getByRole('textbox', { name: /^Пароль/ }).fill('TestPass123!')
     await page.getByRole('button', { name: 'Войти' }).click()
 
     await expect(page.getByRole('heading', { name: 'Персональный курс' }).first()).toBeVisible()
