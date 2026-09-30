@@ -42,13 +42,17 @@ Current `Caddyfile` intentionally uses one site block for `{$ADMIN_DOMAIN}` and 
 
 - `/s3/*` -> MinIO with prefix stripped;
 - `/api/*` -> backend;
-- exact `/merch/staff`, allowlisted staff assets, task API and media -> merchandising portal;
+- exact `GET /merch/staff` -> temporary 302 redirect to the fixed CRM `/staff` page,
+  preserving only the incoming legacy query; allowlisted old asset/task/media routes -> CRM;
 - everything else -> frontend.
 
-For QR migration, the backend's `MERCH_TASKS_STAFF_URL` pins the exact primary CRM staff page;
-the old `/merch/staff` path is a temporary exact-match compatibility route. Deploy and test the
-dual-URL backend before changing the CRM-generated public task URL, then verify actual shown ACKs
-are accepted. A healthy page alone does not prove the dispatch bridge works.
+For QR migration, the backend's `MERCH_TASKS_STAFF_URL` pins the exact primary CRM staff page.
+The old `/merch/staff` path is an exact-match, GET-only redirect to that fixed HTTPS host;
+it keeps a legacy query token solely to let an already-issued link reach the CRM. It sets
+`Referrer-Policy: no-referrer` and `Cache-Control: no-store`. New QR links put their bearer in a
+fragment instead. First deploy and verify this redirect, then deploy the dual-URL backend, and
+only then change the CRM-generated public task URL. Verify actual shown ACKs are accepted: a
+healthy page alone does not prove the dispatch bridge works.
 The primary assignment source and QR issuer is the internal CRM on 10.10.1.80, exposed to staff
 as `https://crm.inkar.kz/staff`; the historical fallback is not an active assignment source.
 The CRM must filter overdue assignments before returning active tasks. After the CRM URL switch,
@@ -146,9 +150,14 @@ scripts into the production deployment directory. Update the protected `.env.pro
 verifying the private CRM endpoint and public staff page: enable the task bridge to
 `10.10.1.80:8080` (or its verified HTTPS origin), set the exact
 `MERCH_TASKS_STAFF_URL=https://crm.inkar.kz/staff`, set a bounded concurrency limit, and point
-`MERCH_PORTAL_UPSTREAM` away from the obsolete `.90` origin. Reload Caddy and verify the legacy
-route's HTML/assets against `.80` separately; new QR codes go directly to the CRM fragment URL and
-must not depend on the legacy route. Do not assert old QR links remain valid: rescan a refreshed QR.
+`MERCH_PORTAL_UPSTREAM` away from the obsolete `.90` origin. Before switching the backend, validate
+the audited Caddyfile, recreate only Caddy, and verify that `/merch/staff?task=<harmless-probe>`
+returns 302 to `https://crm.inkar.kz/staff?task=<harmless-probe>` with `no-referrer`/`no-store`,
+while CRM `/staff` HTML and its root `/assets` load over HTTPS. The redirect is essential because
+CRM's HTML uses root-absolute assets that do not work under an ePharm `/merch` reverse proxy.
+Also verify public `/api/health`, admin UI, and recommendation traffic; restore the previous Caddy
+config/container if these checks fail. New QR codes go directly to the CRM fragment URL and must
+not depend on the legacy route. Do not assert old QR links remain valid: rescan a refreshed QR.
 
 Before changing the backend, require a recent successful encrypted off-site backup and isolated
 restore-test per this document. A local checksum bundle **does not replace** that policy. Create

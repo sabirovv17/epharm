@@ -147,6 +147,15 @@ else
   shasum -a 256 "$@"
 fi
 STUB
+cat > "$test_root/bin/curl" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${TEST_BAD_CADDY_REDIRECT:-false}" == true ]]; then
+  printf 'HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n'
+else
+  printf 'HTTP/1.1 302 Found\r\nLocation: https://crm.inkar.kz/staff?task=bridge-probe\r\nReferrer-Policy: no-referrer\r\nCache-Control: no-store\r\n\r\n'
+fi
+STUB
 cat > "$test_root/tools/release/smoke.sh" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -158,11 +167,13 @@ grep -Fxq 'FRONTEND_RELEASE_ID=v0.1.22' "$TEST_WORKSPACE_ROOT/.release.env"
 printf 'smoke:%s/%s\n' "$1" "$2" >> "$TEST_EVENTS"
 [[ "${TEST_FAIL_SMOKE:-false}" != true || "$1" == v0.1.20 ]]
 STUB
-chmod +x "$test_root/bin/docker" "$test_root/bin/flock" "$test_root/bin/sha256sum" "$test_root/tools/release/smoke.sh"
+chmod +x "$test_root/bin/docker" "$test_root/bin/flock" "$test_root/bin/sha256sum" \
+  "$test_root/bin/curl" "$test_root/tools/release/smoke.sh"
 export TEST_WORKSPACE_ROOT="$test_root"
 export TEST_BACKEND_IMAGE_FILE="$test_root/backend-image"
 export TEST_FRONTEND_IMAGE_FILE="$test_root/frontend-image"
 export TEST_EVENTS="$test_root/events"
+: > "$TEST_EVENTS"
 export PATH="$test_root/bin:$PATH"
 commit="$(printf 'a%.0s' {1..40})"
 candidate_image="sha256:$(printf '%064d' 4)"
@@ -174,6 +185,12 @@ if "$test_root/tools/release/deploy-backend-only.sh" v0.1.21 "$commit" \
   echo 'Backend-only deploy accepted a wrong image ID' >&2; exit 1
 fi
 [[ "$(cat "$test_root/backend-image")" == "sha256:$(printf '%064d' 2)" ]]
+before_events="$(wc -l < "$TEST_EVENTS")"
+if TEST_BAD_CADDY_REDIRECT=true "$test_root/tools/release/deploy-backend-only.sh" \
+  v0.1.21 "$commit" "$candidate_image" v0.1.22 "$test_root/backup" "$compose_sha" >/dev/null 2>&1; then
+  echo 'Backend-only deploy accepted a non-redirecting legacy staff route' >&2; exit 1
+fi
+[[ "$(wc -l < "$TEST_EVENTS")" == "$before_events" ]]
 "$test_root/tools/release/deploy-backend-only.sh" v0.1.21 "$commit" \
   "$candidate_image" v0.1.22 "$test_root/backup" "$compose_sha"
 grep -Fxq 'BACKEND_RELEASE_ID=v0.1.21' "$test_root/.release.env"

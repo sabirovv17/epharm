@@ -40,6 +40,15 @@ for (const server of servers) {
     for (const [index, [method, paths]] of allowed.entries()) {
       assert.deepEqual(staffRoutes[index].match, [{ method: [method], path: paths }]);
       const handlers = staffRoutes[index].handle?.[0]?.routes?.[0]?.handle ?? [];
+      if (index === 0) {
+        assert.deepEqual(handlers.map(({ handler }) => handler), ["headers", "headers", "static_response"]);
+        assert.deepEqual(handlers[0].response?.set?.["Referrer-Policy"], ["no-referrer"]);
+        assert.deepEqual(handlers[1].response?.set?.["Cache-Control"], ["no-store"]);
+        assert.equal(handlers[2].status_code, 302);
+        assert.deepEqual(handlers[2].headers?.Location,
+          ["https://crm.inkar.kz/staff{http.request.uri.prefixed_query}"]);
+        continue;
+      }
       assert.equal(handlers[0]?.strip_path_prefix, "/merch");
       assert.equal(handlers[1]?.handler, "reverse_proxy");
       assert.deepEqual(handlers[1]?.headers?.request?.delete, ["X-Pharmapay-Key"]);
@@ -52,4 +61,4 @@ for (const server of servers) {
 }
 
 assert.equal(checked, 2, "both public TLS and INKAR ingress routes must protect merchandising");
-console.log("Merch Caddy routes: HTTPS upstream, exact allowlist and default deny in both listeners.");
+console.log("Merch Caddy routes: fixed CRM staff redirect, HTTPS proxy allowlist and default deny in both listeners.");

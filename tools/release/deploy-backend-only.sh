@@ -36,6 +36,7 @@ require_command docker
 require_command python3
 require_command flock
 require_command gzip
+require_command curl
 [[ -r "$RELEASE_ROOT/.env.prod" && -r "$RELEASE_ROOT/.release.env" ]] || {
   echo 'ERROR: production env/release metadata is missing' >&2; exit 1;
 }
@@ -139,8 +140,7 @@ frontend_commit="$(docker image inspect --format '{{index .Config.Labels "org.op
   echo 'ERROR: pinned frontend image has no safe revision label' >&2; exit 1;
 }
 
-transaction_dir="$RELEASE_ROOT/releases/backend-only/${candidate_tag}-$(date -u +%Y%m%dT%H%M%SZ)"
-mkdir -m 700 "$transaction_dir"
+transaction_dir="$(mktemp -d "$RELEASE_ROOT/releases/backend-only/${candidate_tag}-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXXXX")"
 cp -p "$RELEASE_ROOT/.release.env" "$transaction_dir/previous.release.env"
 cp -p "$RELEASE_ROOT/docker-compose.prod.yml" "$transaction_dir/previous.docker-compose.prod.yml"
 printf 'RELEASE_ID=%s\nRELEASE_COMMIT=%s\nBACKEND_RELEASE_ID=%s\nBACKEND_RELEASE_COMMIT=%s\nFRONTEND_RELEASE_ID=%s\nFRONTEND_RELEASE_COMMIT=%s\n' \
@@ -183,6 +183,38 @@ running_caddy_upstream="$(docker inspect --format '{{range .Config.Env}}{{printl
 [[ "$running_caddy_upstream" == '10.10.1.80:8080' \
    || "$running_caddy_upstream" == 'https://crm.inkar.kz' ]] || {
   echo 'ERROR: running Caddy still targets an obsolete merchandising upstream' >&2; exit 1;
+}
+# Verify the *running* Caddy route, not only the on-disk config. An old proxy
+# would return HTML with root-absolute CRM assets under the ePharm host, breaking
+# the legacy QR page even though /staff itself responds 200.
+legacy_staff_headers="$(curl --silent --show-error --connect-timeout 3 --max-time 10 \
+  --dump-header - --output /dev/null \
+  --header 'Host: epharm.inkar.kz' --header 'X-Forwarded-Proto: https' \
+  'http://127.0.0.1:8060/merch/staff?task=bridge-probe')" || {
+  echo 'ERROR: running Caddy legacy staff route is unreachable' >&2; exit 1;
+}
+python3 - "$legacy_staff_headers" <<'PY' || {
+import sys
+
+headers = sys.argv[1].replace('\r\n', '\n').split('\n')
+status = next((line for line in headers if line.startswith('HTTP/')), '')
+fields = {}
+for line in headers:
+    if ':' in line:
+        key, value = line.split(':', 1)
+        fields[key.lower()] = value.strip()
+expected = 'https://crm.inkar.kz/staff?task=bridge-probe'
+if not status.startswith(('HTTP/1.1 302 ', 'HTTP/2 302 ')):
+    raise SystemExit(1)
+if fields.get('location') != expected:
+    raise SystemExit(1)
+if fields.get('referrer-policy') != 'no-referrer':
+    raise SystemExit(1)
+if 'no-store' not in fields.get('cache-control', '').lower():
+    raise SystemExit(1)
+PY
+  echo 'ERROR: running Caddy does not redirect legacy staff QR to fixed CRM origin' >&2
+  exit 1
 }
 rollback_ready="$(mktemp "$RELEASE_ROOT/.release.rollback-ready.XXXXXX")"
 cp -p "$transaction_dir/rollback.release.env" "$rollback_ready"

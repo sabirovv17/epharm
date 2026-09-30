@@ -33,10 +33,9 @@ scanner keeps focus. It shows up to five replacements and five cross-sell offers
 mouse-wheel-scrollable sections. Text and prices are deliberately larger than the legacy popup.
 Only an offer with a positive individual reward is green; a zero-reward offer stays white and says
 it has no reward. Closing the popup does not accept or reject a recommendation, and the panel does
-not promise an Esc shortcut because it cannot take keyboard focus from Standard-N.
-13. Shows and processes only non-demo pickup orders with cash payment. Missing delivery or payment
-    fields fail closed. Cached orders are rechecked on startup; server-removed cards close after the
-    next successful poll. Recommendations remain on a separate path.
+not promise an Esc shortcut because it cannot take keyboard focus from Standard-N. 13. Shows and processes only non-demo pickup orders with cash payment. Missing delivery or payment
+fields fail closed. Cached orders are rechecked on startup; server-removed cards close after the
+next successful poll. Recommendations remain on a separate path.
 
 ## Important Files
 
@@ -266,19 +265,20 @@ therefore take up to roughly 36 seconds under healthy connectivity.
 The primary public QR destination is the CRM's exact HTTPS `/staff` page. During migration the
 backend accepts only that configured page and the legacy exact ePharm `/merch/staff` page; it rejects
 arbitrary hosts, paths, and insecure URLs. New CRM links use a fixed `?task=1` query marker and put
-the bearer token in the `#task=` fragment, keeping it out of ordinary HTTP request logs. The legacy portal remains routed by Caddy
-through allowlisted staff assets and task/media paths; CRM admin/auth routes must stay unavailable
-there. The server-to-server base URL must use
+the bearer token in the `#task=` fragment, keeping it out of ordinary HTTP request logs. Caddy
+redirects only `GET /merch/staff` from an already-issued legacy QR to the fixed CRM staff page;
+it preserves that legacy query and disables referrer/caching. Other old task/media proxy paths stay
+allowlisted; CRM admin/auth routes remain unavailable through ePharm. The server-to-server base URL must use
 verified HTTPS when the merchandising service is outside the private INKAR network. Production values live in `.env.prod`:
 `MERCH_TASKS_ENABLED`, `MERCH_TASKS_BASE_URL`, `MERCH_TASKS_INTEGRATION_KEY`,
 `MERCH_TASKS_TIMEOUT_MS`, `MERCH_TASKS_MAX_CONCURRENT`, `MERCH_TASKS_STAFF_URL`, and
 `MERCH_PORTAL_UPSTREAM`. A bounded CRM-only bulkhead rejects excess assignment polls immediately
 with `available=false` if the upstream stalls; it does not reserve threads from recommendation or
-order handling. Deploy the dual-URL
-backend with fail-open task/ACK responses first; verify legacy links are still accepted by the
-backend, but do not assume an old QR page remains usable without a browser/token test. Then switch
-the CRM's public app base URL to `https://crm.inkar.kz`, verify its `/staff` HTML/assets and one
-accepted shown receipt from a provisioned device, and only afterward retire the legacy proxy path.
+order handling. Validate the legacy Caddy redirect and CRM HTML/assets first, then deploy the
+dual-URL backend with fail-open task/ACK responses; verify legacy links are still accepted by the
+backend, but do not assume an old QR token remains valid without a browser/token test. Only then
+switch the CRM's public app base URL to `https://crm.inkar.kz` and verify one accepted shown
+receipt from a provisioned device. Retire the old proxy paths after the canary.
 Do not call an assignment `GET /tasks/active` as a read-only probe: CRM may issue/extend a task link.
 After cutover, rescan a refreshed CRM QR instead of reusing a previously issued legacy QR.
 The shown-ACK request is serialized to a byte array so HTTP carries a fixed `Content-Length`;
