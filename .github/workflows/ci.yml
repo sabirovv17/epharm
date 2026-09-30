@@ -100,7 +100,10 @@ jobs:
           API_DOMAIN: example.invalid
           ADMIN_DOMAIN: admin.example.invalid
           S3_DOMAIN: s3.example.invalid
-        run: docker compose --env-file .env.prod.example -f docker-compose.prod.yml --profile monitoring config --quiet
+        run: |
+          docker compose --env-file .env.prod.example -f docker-compose.prod.yml --profile monitoring config --quiet
+          docker compose --env-file .env.prod.example -f docker-compose.prod.yml config --format json \
+            | node -e 'const e=JSON.parse(require("fs").readFileSync(0,"utf8")).services.backend.environment; if(e.MERCH_TASKS_STAFF_URL!=="https://crm.inkar.kz/staff"||e.MERCH_TASKS_MAX_CONCURRENT!=="16") process.exit(1)'
       - name: Validate monitoring and Apple metadata
         run: |
           docker run --rm --entrypoint promtool -v "$PWD/ops/monitoring/prometheus:/etc/prometheus:ro" prom/prometheus:v3.5.0 check config /etc/prometheus/prometheus.yml
