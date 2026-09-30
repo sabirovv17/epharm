@@ -56,9 +56,19 @@ assert headers.get('location') == 'https://crm.inkar.kz/staff?task=legacy-probe%
 assert headers.get('referrer-policy') == 'no-referrer'
 assert 'no-store' in headers.get('cache-control', '').lower()
 PY
+echo 'Caddy legacy query redirect: OK'
 
 request GET '/merch/staff'
-grep -iq '^Location: https://crm.inkar.kz/staff\r\?$' "$test_dir/headers"
+python3 - "$test_dir/headers" <<'PY'
+import sys
+
+lines = open(sys.argv[1], encoding='latin-1').read().replace('\r\n', '\n').split('\n')
+headers = dict(line.split(':', 1) for line in lines if ':' in line)
+headers = {key.lower(): value.strip() for key, value in headers.items()}
+assert lines[0].startswith('HTTP/1.1 302 '), lines[0]
+assert headers.get('location') == 'https://crm.inkar.kz/staff'
+PY
+echo 'Caddy queryless redirect: OK'
 request POST '/merch/staff?task=legacy-probe'
 grep -q '^HTTP/1.1 404 ' "$test_dir/headers"
 request GET '/merch/admin'
