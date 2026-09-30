@@ -258,7 +258,16 @@ compose() {
   require_state
   select_caddyfile
   export APP_ENV_FILE POSTGRES_ENV_FILE DATA_ROOT BACKUP_ROOT IMPORT_ROOT MANIFEST_ROOT
-  docker compose --project-name "$PROJECT_NAME" --env-file "$STATE_FILE" --file "$COMPOSE_FILE" "$@"
+  local -a compose_files=(--file "$COMPOSE_FILE")
+  case "$(state_value CRM_INTERNAL_TLS_ENABLED)" in
+    ''|false) ;;
+    true)
+      [[ "$(state_value TLS_MODE)" == http ]] || die "CRM internal TLS requires the shop HTTP edge mode"
+      compose_files+=(--file "${SCRIPT_DIR}/compose.crm-internal-tls.yml")
+      ;;
+    *) die "CRM_INTERNAL_TLS_ENABLED must be true or false" ;;
+  esac
+  docker compose --project-name "$PROJECT_NAME" --env-file "$STATE_FILE" "${compose_files[@]}" "$@"
 }
 
 preflight() {
@@ -545,6 +554,8 @@ rollback() {
 
 enable_tls() {
   preflight
+  [[ "$(state_value CRM_INTERNAL_TLS_ENABLED)" != true ]] \
+    || die "disable CRM internal TLS before switching the shop edge to ACME TLS"
   local domain attempt ready=0
   domain="$(state_value SITE_DOMAIN)"; set_state TLS_MODE tls
   if compose up -d --no-deps --force-recreate edge; then
@@ -559,6 +570,70 @@ enable_tls() {
     die "TLS was not activated; verify DNS A/AAAA, NAT/firewall 80+443 and outbound ACME"
   fi
   note "TLS is active for ${domain}"
+}
+
+crm_http_probe() {
+  curl --fail --silent --show-error --max-time 10 \
+    --header 'Host: crm.inkar.kz' http://127.0.0.1/api/health >/dev/null \
+    && curl --fail --silent --show-error --max-time 10 \
+      --header "Host: $(state_value SITE_DOMAIN)" http://127.0.0.1/api/health >/dev/null
+}
+
+crm_https_probe() {
+  curl --fail --silent --show-error --max-time 10 \
+    --resolve crm.inkar.kz:443:127.0.0.1 https://crm.inkar.kz/api/health >/dev/null \
+    && curl --fail --silent --show-error --max-time 10 \
+      --resolve crm.inkar.kz:443:127.0.0.1 'https://crm.inkar.kz/staff?task=1' >/dev/null \
+    && curl --fail --silent --show-error --max-time 10 \
+      --header "Host: $(state_value SITE_DOMAIN)" http://127.0.0.1/api/health >/dev/null
+}
+
+enable_crm_internal_tls() {
+  require_state
+  [[ "$(state_value TLS_MODE)" == http ]] || die "CRM internal TLS requires the shop HTTP edge mode"
+  [[ "$(state_value CRM_INTERNAL_TLS_ENABLED)" != true ]] || die "CRM internal TLS is already enabled"
+
+  # The bind mounts fail closed if a file is absent. Neither key nor certificate
+  # is copied into Git, Caddy data, the application container or a log.
+  docker run --rm --network none \
+    -e "SITE_DOMAIN=$(state_value SITE_DOMAIN)" -e "SERVER_IP=$(state_value SERVER_IP)" \
+    --mount "type=bind,src=${SCRIPT_DIR}/Caddyfile.crm-internal-tls,dst=/etc/caddy/Caddyfile,readonly" \
+    --mount 'type=bind,src=/etc/inkar-shop/tls/crm.fullchain.pem,dst=/etc/caddy/tls/crm.fullchain.pem,readonly' \
+    --mount 'type=bind,src=/etc/inkar-shop/tls/crm.key,dst=/etc/caddy/tls/crm.key,readonly' \
+    caddy:2.10-alpine caddy validate --config /etc/caddy/Caddyfile >/dev/null
+
+  set_state CRM_INTERNAL_TLS_ENABLED true
+  local attempt ready=0
+  if compose up -d --no-deps --force-recreate edge; then
+    for ((attempt = 0; attempt < 6; attempt++)); do
+      if crm_https_probe; then ready=1; break; fi
+      sleep 2
+    done
+  fi
+  if [[ "$ready" != 1 ]]; then
+    set_state CRM_INTERNAL_TLS_ENABLED false
+    compose up -d --no-deps --force-recreate edge \
+      || die "CRM HTTPS failed and the previous HTTP edge could not be restored"
+    crm_http_probe || die "CRM HTTPS failed; HTTP edge was restored but its health probe failed"
+    die "CRM HTTPS was not activated; the previous HTTP edge was restored"
+  fi
+  note "CRM internal HTTPS is active; confirm from the pharmacy network before issuing QR tasks"
+}
+
+disable_crm_internal_tls() {
+  require_state
+  [[ "$(state_value CRM_INTERNAL_TLS_ENABLED)" == true ]] || die "CRM internal TLS is not enabled"
+  set_state CRM_INTERNAL_TLS_ENABLED false
+  if compose up -d --no-deps --force-recreate edge && crm_http_probe; then
+    note "CRM internal HTTPS disabled; the previous HTTP edge is healthy"
+    return
+  fi
+  set_state CRM_INTERNAL_TLS_ENABLED true
+  compose up -d --no-deps --force-recreate edge \
+    || die "HTTP rollback failed and the HTTPS edge could not be restored"
+  crm_https_probe \
+    || die "HTTP rollback failed; the HTTPS edge was recreated but its health probe failed"
+  die "HTTP rollback failed; the HTTPS edge was restored"
 }
 
 images_dry_run() {
@@ -593,6 +668,7 @@ usage() {
   cat <<'EOF'
 Usage: deploy.sh COMMAND
   prepare | preflight | bootstrap | bootstrap-seed | release | rollback | enable-tls | backup
+  enable-crm-internal-tls | disable-crm-internal-tls
   sync-catalog | sync-catalog-full | sync-offers | sync-offers-full
   images-dry-run | images-canary | images-apply
 EOF
@@ -609,6 +685,8 @@ case "$command" in
   bootstrap-seed) acquire_operation_lock; bootstrap_seed ;;
   release) acquire_operation_lock; release ;;
   rollback) acquire_operation_lock; rollback ;; enable-tls) acquire_operation_lock; enable_tls ;; backup) backup ;;
+  enable-crm-internal-tls) acquire_operation_lock; enable_crm_internal_tls ;;
+  disable-crm-internal-tls) acquire_operation_lock; disable_crm_internal_tls ;;
   sync-catalog) acquire_operation_lock; preflight; sync_catalog ;;
   sync-catalog-full) acquire_operation_lock; preflight; sync_catalog_full ;;
   sync-offers) acquire_operation_lock; preflight; sync_offers ;;

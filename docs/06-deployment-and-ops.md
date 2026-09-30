@@ -55,6 +55,12 @@ only then change the CRM-generated public task URL. Verify actual shown ACKs are
 healthy page alone does not prove the dispatch bridge works.
 The primary assignment source and QR issuer is the internal CRM on 10.10.1.80, exposed to staff
 as `https://crm.inkar.kz/staff`; the historical fallback is not an active assignment source.
+Corporate DNS can resolve that hostname directly to 10.10.1.80, bypassing the public HTTPS
+gateway. Therefore a trusted TLS listener on the CRM host itself is a release prerequisite:
+verify `crm.inkar.kz:443` from the ePharm host and a pharmacy network with normal certificate
+verification before enabling a direct QR redirect or changing the QR origin. The isolated Caddy
+vhost and rollback procedure are described in
+[`storefront/deploy/inkar-server/README.md`](../storefront/deploy/inkar-server/README.md).
 The CRM must filter overdue assignments before returning active tasks. After the CRM URL switch,
 scan a newly issued QR in a browser; old cached legacy QR links are not a compatibility guarantee.
 

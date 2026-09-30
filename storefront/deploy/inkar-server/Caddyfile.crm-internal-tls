@@ -3,6 +3,7 @@
     admin off
 }
 
+# Keep the existing HTTP virtual host for the Inkar Shop gateway unchanged.
 http://{$SITE_DOMAIN}, http://{$SERVER_IP} {
     encode zstd gzip
     header {
@@ -20,7 +21,8 @@ http://{$SITE_DOMAIN}, http://{$SERVER_IP} {
     }
 }
 
-# The public gateway terminates TLS and forwards CRM HTTP to this host.
+# Preserve the gateway's existing HTTP upstream while internal clients move to
+# trusted HTTPS. The upstream is the CRM app on this host, not the old .90 demo.
 http://crm.inkar.kz {
     encode zstd gzip
     header {
@@ -33,6 +35,28 @@ http://crm.inkar.kz {
         header_up Host {host}
         header_up X-Forwarded-Host {host}
         header_up X-Forwarded-Proto http
+        transport http {
+            dial_timeout 5s
+            response_header_timeout 65s
+        }
+    }
+}
+
+# Corporate DNS resolves crm.inkar.kz directly to 10.10.1.80. The public
+# gateway's TLS termination is therefore bypassed on pharmacy networks.
+https://crm.inkar.kz {
+    tls /etc/caddy/tls/crm.fullchain.pem /etc/caddy/tls/crm.key
+    encode zstd gzip
+    header {
+        -Server
+        X-Content-Type-Options nosniff
+        Referrer-Policy strict-origin-when-cross-origin
+        X-Frame-Options DENY
+    }
+    reverse_proxy 10.10.1.80:8080 {
+        header_up Host {host}
+        header_up X-Forwarded-Host {host}
+        header_up X-Forwarded-Proto https
         transport http {
             dial_timeout 5s
             response_header_timeout 65s
