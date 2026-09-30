@@ -1,0 +1,23 @@
+# Apply only on 10.10.1.80 after installing the trusted certificate and key.
+# The base Compose file, public HTTP gateway, and CRM app remain unchanged.
+services:
+  edge:
+    volumes:
+      - type: bind
+        source: ./Caddyfile.crm-internal-tls
+        target: /etc/caddy/Caddyfile
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /etc/inkar-shop/tls/crm.fullchain.pem
+        target: /etc/caddy/tls/crm.fullchain.pem
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /etc/inkar-shop/tls/crm.key
+        target: /etc/caddy/tls/crm.key
+        read_only: true
+        bind:
+          create_host_path: false

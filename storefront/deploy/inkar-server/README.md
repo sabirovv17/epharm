@@ -143,6 +143,44 @@ curl -fsS 'https://inkeshopapteka.inkar.kz/api/health?deep=1'
 The command restores the HTTP Caddyfile if the HTTPS probe fails. Certificate
 state persists under `/srv/inkar-shop/data/caddy-*`.
 
+### CRM HTTPS for internal pharmacy DNS
+
+The public `crm.inkar.kz` gateway terminates TLS outside this host, but corporate
+DNS may resolve the same name directly to `10.10.1.80`. The base edge then serves
+only HTTP, so pharmacy QR links fail TLS even while the public site is healthy.
+`Caddyfile.crm-internal-tls` adds a separate, trusted HTTPS CRM vhost while
+retaining the shop HTTP vhost and the existing CRM HTTP route used by the public
+gateway. The optional Compose override mounts only that Caddyfile and the CRM
+certificate/key. It does not expose PostgreSQL or change the CRM application.
+
+The certificate must cover `crm.inkar.kz`; install its complete chain at
+`/etc/inkar-shop/tls/crm.fullchain.pem` and matching key at
+`/etc/inkar-shop/tls/crm.key`. Own the directory and files as root, with modes
+`0700` and `0600` respectively. Never put the key in Git, Docker image layers,
+CI artifacts, or the general application backup. Maintain a separate custodian
+and renewal procedure before the certificate expires.
+
+Before activation, capture the active Compose file, Caddyfile, release state,
+and edge image ID in a protected local snapshot plus encrypted off-host copy.
+Deploy the reviewed `Caddyfile.http`, `Caddyfile.crm-internal-tls`, Compose
+override, and `deploy.sh` together in the current immutable release. The base
+`Caddyfile.http` now explicitly includes the existing CRM HTTP gateway route,
+so disabling internal TLS does not remove that route. Keep `TLS_MODE=http` for
+the shop; `CRM_INTERNAL_TLS_ENABLED` defaults to `false` and is recorded in the
+release state when enabled.
+
+After offline Caddy validation and a maintenance gate, run only
+`./deploy/inkar-server/deploy.sh enable-crm-internal-tls` from the reviewed
+release. It recreates only the edge, verifies trusted CRM HTTPS plus shop HTTP,
+and automatically restores the previous HTTP edge if either probe fails. Confirm
+the same HTTPS hostname from the ePharm host and a pharmacy network before
+issuing QR assignments. To roll back a healthy activation, run
+`./deploy/inkar-server/deploy.sh disable-crm-internal-tls`; this recreates only
+the edge and verifies both HTTP routes. The flag is honored by subsequent shop
+releases, preventing them from silently dropping the CRM HTTPS vhost. The shop's
+separate `enable-tls` ACME flow is intentionally blocked while this CRM mode is
+active; coordinate any future combined TLS configuration explicitly.
+
 ## Release, rollback, backup
 
 ```bash
