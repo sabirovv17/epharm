@@ -52,10 +52,12 @@
 				method GET
 			}
 			handle @merch_staff {
-				uri strip_prefix /merch
-				reverse_proxy {$MERCH_PORTAL_UPSTREAM:10.10.1.80:8080} {
-					header_up -X-Pharmapay-Key
-				}
+				# Legacy QR only. Move the browser to CRM so its root-absolute
+				# /assets and /api requests stay on the CRM host. New QR codes use
+				# the fragment-token URL directly and never traverse this redirect.
+				header Referrer-Policy no-referrer
+				header Cache-Control no-store
+				redir https://crm.inkar.kz/staff{?query} 302
 			}
 			handle @merch_assets {
 				uri strip_prefix /merch

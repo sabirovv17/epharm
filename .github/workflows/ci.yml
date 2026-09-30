@@ -74,6 +74,7 @@ jobs:
             -e MERCH_PORTAL_UPSTREAM=https://merch.example.test:8443 \
             caddy:2-alpine caddy adapt --config /etc/caddy/Caddyfile \
             | node ops/merch-portal-patches/test-caddy-routes.mjs
+          bash ops/merch-portal-patches/test-caddy-redirect.sh
       - name: Verify immutable release handoff
         run: bash tools/release/tests/prepare-deploy-contract.sh
       - name: Verify backend-only release and rollback
