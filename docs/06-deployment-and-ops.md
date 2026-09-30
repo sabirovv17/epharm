@@ -45,6 +45,15 @@ Current `Caddyfile` intentionally uses one site block for `{$ADMIN_DOMAIN}` and 
 - exact `/merch/staff`, allowlisted staff assets, task API and media -> merchandising portal;
 - everything else -> frontend.
 
+For QR migration, the backend's `MERCH_TASKS_STAFF_URL` pins the exact primary CRM staff page;
+the old `/merch/staff` path is a temporary exact-match compatibility route. Deploy and test the
+dual-URL backend before changing the CRM-generated public task URL, then verify actual shown ACKs
+are accepted. A healthy page alone does not prove the dispatch bridge works.
+The primary assignment source and QR issuer is the internal CRM on 10.10.1.80, exposed to staff
+as `https://crm.inkar.kz/staff`; the historical fallback is not an active assignment source.
+The CRM must filter overdue assignments before returning active tasks. After the CRM URL switch,
+scan a newly issued QR in a browser; old cached legacy QR links are not a compatibility guarantee.
+
 The merchandising server credential must use HTTPS when the upstream is outside the private
 INKAR network. The public QR portal is a separate browser route with a deny-by-default allowlist;
 it must never proxy CRM admin/auth endpoints or carry `X-Pharmapay-Key` from a browser.

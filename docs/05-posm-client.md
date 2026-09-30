@@ -257,17 +257,33 @@ backend treats merchandising as an optional dependency: timeout, invalid payload
 returns HTTP 200 with `available=false` instead of a gateway error. POSM applies an isolated bounded
 backoff (30 seconds, one, two, then five minutes), marks only the task window offline, and keeps the
 recommendation, heartbeat, and sales channel on its normal backend route.
+The CRM does not issue an overdue assignment to a cash desk once its due time has passed; a stale
+locally visible QR must not be treated as a new assignment.
 From POSM 1.0.65, healthy assignment polls use a fresh 24–36-second jitter instead of a fixed
 10-second interval. This reduces load and synchronized bursts across the fleet; task visibility may
 therefore take up to roughly 36 seconds under healthy connectivity.
 
-The public task portal is routed by Caddy through exact `/merch/staff` and allowlisted task/media
-paths; CRM admin/auth routes must stay unavailable there. The server-to-server base URL must use
+The primary public QR destination is the CRM's exact HTTPS `/staff` page. During migration the
+backend accepts only that configured page and the legacy exact ePharm `/merch/staff` page; it rejects
+arbitrary hosts, paths, and insecure URLs. New CRM links use a fixed `?task=1` query marker and put
+the bearer token in the `#task=` fragment, keeping it out of ordinary HTTP request logs. The legacy portal remains routed by Caddy
+through allowlisted staff assets and task/media paths; CRM admin/auth routes must stay unavailable
+there. The server-to-server base URL must use
 verified HTTPS when the merchandising service is outside the private INKAR network. Production values live in `.env.prod`:
 `MERCH_TASKS_ENABLED`, `MERCH_TASKS_BASE_URL`, `MERCH_TASKS_INTEGRATION_KEY`,
-`MERCH_TASKS_TIMEOUT_MS`, and `MERCH_PORTAL_UPSTREAM`. Roll out with the bridge disabled first, check
-the internal active-task API and public portal, enable the bridge, then confirm one end-to-end task on
-a provisioned device before publishing a POSM release as current.
+`MERCH_TASKS_TIMEOUT_MS`, `MERCH_TASKS_MAX_CONCURRENT`, `MERCH_TASKS_STAFF_URL`, and
+`MERCH_PORTAL_UPSTREAM`. A bounded CRM-only bulkhead rejects excess assignment polls immediately
+with `available=false` if the upstream stalls; it does not reserve threads from recommendation or
+order handling. Deploy the dual-URL
+backend with fail-open task/ACK responses first; verify legacy links are still accepted by the
+backend, but do not assume an old QR page remains usable without a browser/token test. Then switch
+the CRM's public app base URL to `https://crm.inkar.kz`, verify its `/staff` HTML/assets and one
+accepted shown receipt from a provisioned device, and only afterward retire the legacy proxy path.
+Do not call an assignment `GET /tasks/active` as a read-only probe: CRM may issue/extend a task link.
+After cutover, rescan a refreshed CRM QR instead of reusing a previously issued legacy QR.
+The shown-ACK request is serialized to a byte array so HTTP carries a fixed `Content-Length`;
+the existing CRM handler did not read chunked request bodies and would reject a valid UUID as
+missing. A successful QR display is not complete until CRM returns an accepted receipt.
 
 ## Operations
 

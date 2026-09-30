@@ -381,10 +381,10 @@ class PosmRecommendIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """{
-                      "dispatchId":"dispatch-1",
+                      "dispatchId":"123e4567-e89b-42d3-a456-426614174000",
                       "pharmacyId":"ph_t",
                       "deviceId":"POS-02",
-                      "deliveryToken":"delivery-token"
+                      "deliveryToken":"test-opaque-delivery-token-00000001"
                     }""".trimIndent(),
                 ),
         )
@@ -398,7 +398,7 @@ class PosmRecommendIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """{
-                      "dispatchId":"dispatch-1",
+                      "dispatchId":"123e4567-e89b-42d3-a456-426614174000",
                       "pharmacyId":"ph_t",
                       "deviceId":"POS-02",
                       "deliveryToken":"invalid token with spaces"
