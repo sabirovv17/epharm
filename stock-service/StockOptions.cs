@@ -7,11 +7,10 @@ public sealed class StockOptions
     public string FirebirdPath { get; init; } = "";
     public string FirebirdUser { get; init; } = "";
     public string FirebirdPassword { get; init; } = "";
-    public string WebUser { get; init; } = "";
-    public string WebPassword { get; init; } = "";
     public string ApiKey { get; init; } = "";
     public string DataPath { get; init; } = "/app/data/stocks.sqlite";
     public int RefreshSeconds { get; init; } = 180;
+    public int SweepIntervalSeconds { get; init; } = 1800;
     public int QueryTimeoutSeconds { get; init; } = 25;
 
     public static StockOptions FromEnvironment() => new()
@@ -21,11 +20,10 @@ public sealed class StockOptions
         FirebirdPath = Required("STOCK_FB_PATH"),
         FirebirdUser = Required("STOCK_FB_USER"),
         FirebirdPassword = Required("STOCK_FB_PASSWORD"),
-        WebUser = Required("STOCK_WEB_USER"),
-        WebPassword = Required("STOCK_WEB_PASSWORD"),
         ApiKey = Required("STOCK_API_KEY"),
         DataPath = Environment.GetEnvironmentVariable("STOCK_DATA_PATH") ?? "/app/data/stocks.sqlite",
         RefreshSeconds = Math.Max(60, Int("STOCK_REFRESH_SECONDS", 180)),
+        SweepIntervalSeconds = Math.Max(180, Int("STOCK_SWEEP_INTERVAL_SECONDS", 1800)),
         QueryTimeoutSeconds = Math.Clamp(Int("STOCK_QUERY_TIMEOUT_SECONDS", 25), 5, 120),
     };
 

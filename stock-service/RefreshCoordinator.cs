@@ -1,94 +1,73 @@
-using System.Collections.Concurrent;
+using System.Diagnostics;
 using Epharm.StockService.Source;
 
 namespace Epharm.StockService;
 
 public sealed class RefreshCoordinator(
-    StockOptions options,
     StockRepository repository,
-    StandardNSource source,
+    IStockSource source,
     ILogger<RefreshCoordinator> logger)
 {
-    private readonly SemaphoreSlim _sourceGate = new(1, 1);
-    private readonly ConcurrentDictionary<long, SemaphoreSlim> _profileGates = new();
-    private DateTimeOffset _profilesUpdatedAt = DateTimeOffset.MinValue;
-
-    public async Task SyncProfilesAsync(CancellationToken cancellationToken)
+    // A single worker owns this coordinator. Source reads never overlap; the
+    // cashier database sees only one read-only query at a time.
+    public async Task RunCycleAsync(CancellationToken cancellationToken)
     {
-        if (DateTimeOffset.UtcNow - _profilesUpdatedAt < TimeSpan.FromHours(1)) return;
-        await _sourceGate.WaitAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        var timer = Stopwatch.StartNew();
+        var runId = repository.StartRun(0);
+        var interrupted = false;
         try
         {
-            if (DateTimeOffset.UtcNow - _profilesUpdatedAt < TimeSpan.FromHours(1)) return;
             var pharmacies = await Task.Run(source.ReadPharmacies, cancellationToken);
+            if (pharmacies.Count == 0)
+                throw new InvalidDataException("Standard-N returned no pharmacy profiles");
             repository.UpsertPharmacies(pharmacies);
-            _profilesUpdatedAt = DateTimeOffset.UtcNow;
-            logger.LogInformation("Standard-N pharmacy profiles synchronized: {Count}", pharmacies.Count);
-        }
-        finally
-        {
-            _sourceGate.Release();
-        }
-    }
-
-    public async Task<bool> EnsureFreshAsync(long profileId, CancellationToken cancellationToken)
-    {
-        var pharmacy = repository.GetPharmacy(profileId);
-        if (pharmacy is null) return false;
-        repository.MarkRequested(profileId);
-        if (IsFresh(pharmacy)) return true;
-        if (InBackoff(pharmacy)) return pharmacy.LastUpdatedAt is not null;
-
-        var gate = _profileGates.GetOrAdd(profileId, _ => new SemaphoreSlim(1, 1));
-        await gate.WaitAsync(cancellationToken);
-        try
-        {
-            pharmacy = repository.GetPharmacy(profileId);
-            if (pharmacy is null) return false;
-            if (IsFresh(pharmacy)) return true;
-            if (InBackoff(pharmacy)) return pharmacy.LastUpdatedAt is not null;
-
-            await _sourceGate.WaitAsync(cancellationToken);
-            try
+            var ids = repository.ListActiveProfileIds();
+            repository.SetRunTotal(runId, ids.Count);
+            logger.LogInformation("Stock collection started: run={RunId}, profiles={Count}", runId, ids.Count);
+            foreach (var id in ids)
             {
-                var rows = await Task.Run(() => source.ReadStock(profileId), cancellationToken);
-                repository.ReplaceSnapshot(profileId, rows);
-                logger.LogInformation("Standard-N stock refreshed: profile={ProfileId}, rows={Count}", profileId, rows.Count);
-            }
-            catch (Exception exception)
-            {
-                try { repository.MarkError(profileId, exception.GetType().Name); }
-                catch (Exception cacheError)
+                if (cancellationToken.IsCancellationRequested)
                 {
-                    logger.LogError("Could not store stock refresh error for profile {ProfileId}: {ErrorType}",
-                        profileId, cacheError.GetType().Name);
+                    interrupted = true;
+                    break;
                 }
-                logger.LogWarning("Standard-N stock refresh failed for profile {ProfileId}: {ErrorType}",
-                    profileId, exception.GetType().Name);
+                try
+                {
+                    var rows = await Task.Run(() => source.ReadStock(id), cancellationToken);
+                    repository.ReplaceSnapshot(id, rows);
+                    repository.RecordRunResult(runId, succeeded: true);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    interrupted = true;
+                    break;
+                }
+                catch (Exception exception)
+                {
+                    repository.MarkError(id, exception.GetType().Name);
+                    repository.RecordRunResult(runId, succeeded: false);
+                    logger.LogWarning(exception, "Stock collection failed: run={RunId}, profile={ProfileId}", runId, id);
+                }
             }
-            finally
-            {
-                _sourceGate.Release();
-            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            interrupted = true;
         }
         finally
         {
-            gate.Release();
+            repository.CompleteRun(runId, interrupted);
+            var status = repository.GetCollectionStatus();
+            logger.LogInformation(
+                "Stock collection finished: run={RunId}, status={Status}, succeeded={Succeeded}, failed={Failed}, elapsedMs={ElapsedMs}",
+                runId, status.RunStatus, status.RunSucceeded, status.RunFailed, timer.ElapsedMilliseconds);
         }
-        return repository.GetPharmacy(profileId)?.LastUpdatedAt is not null;
     }
-
-    private bool IsFresh(PharmacyRow pharmacy) =>
-        pharmacy.LastUpdatedAt is { } captured &&
-        DateTimeOffset.UtcNow - captured < TimeSpan.FromSeconds(options.RefreshSeconds);
-
-    private static bool InBackoff(PharmacyRow pharmacy) =>
-        pharmacy.LastErrorAt is { } error &&
-        DateTimeOffset.UtcNow - error < TimeSpan.FromMinutes(2);
 }
 
 public sealed class RefreshWorker(
-    StockRepository repository,
+    StockOptions options,
     RefreshCoordinator refresh,
     ILogger<RefreshWorker> logger) : BackgroundService
 {
@@ -96,11 +75,10 @@ public sealed class RefreshWorker(
     {
         while (!stoppingToken.IsCancellationRequested)
         {
+            var started = Stopwatch.StartNew();
             try
             {
-                await refresh.SyncProfilesAsync(stoppingToken);
-                foreach (var id in repository.DueRecentlyRequested(4))
-                    await refresh.EnsureFreshAsync(id, stoppingToken);
+                await refresh.RunCycleAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -108,16 +86,15 @@ public sealed class RefreshWorker(
             }
             catch (Exception exception)
             {
-                logger.LogWarning(exception, "Stock background refresh failed; cached data remains available");
+                logger.LogError(exception, "Stock collection cycle could not start or finish");
             }
-            try
-            {
-                await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
+
+            // Start-to-start cadence. An overlong sweep is reported through the
+            // status API; it is never overlapped with another source read.
+            var remaining = TimeSpan.FromSeconds(options.SweepIntervalSeconds) - started.Elapsed;
+            var delay = remaining > TimeSpan.FromSeconds(180) ? remaining : TimeSpan.FromSeconds(180);
+            try { await Task.Delay(delay, stoppingToken); }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
         }
     }
 }

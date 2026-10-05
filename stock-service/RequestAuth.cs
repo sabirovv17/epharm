@@ -20,38 +20,20 @@ public sealed class RequestAuth(RequestDelegate next, StockOptions options)
         context.Response.Headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'";
 
         var authorization = context.Request.Headers.Authorization.ToString();
-        if (ValidBearer(authorization) || ValidBasic(authorization))
+        if (ValidBearer(authorization))
         {
             await next(context);
             return;
         }
 
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-        context.Response.Headers["WWW-Authenticate"] = "Basic realm=\"Pharmacy stock\", charset=\"UTF-8\"";
+        context.Response.Headers["WWW-Authenticate"] = "Bearer";
         await context.Response.WriteAsJsonAsync(new { error = "unauthorized" });
     }
 
     private bool ValidBearer(string authorization) =>
         authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) &&
         SecureEquals(authorization[7..].Trim(), options.ApiKey);
-
-    private bool ValidBasic(string authorization)
-    {
-        if (!authorization.StartsWith("Basic ", StringComparison.OrdinalIgnoreCase) || authorization.Length > 2048)
-            return false;
-        try
-        {
-            var decoded = Encoding.UTF8.GetString(Convert.FromBase64String(authorization[6..].Trim()));
-            var split = decoded.IndexOf(':');
-            return split > 0 &&
-                   SecureEquals(decoded[..split], options.WebUser) &&
-                   SecureEquals(decoded[(split + 1)..], options.WebPassword);
-        }
-        catch (FormatException)
-        {
-            return false;
-        }
-    }
 
     private static bool SecureEquals(string supplied, string expected) =>
         CryptographicOperations.FixedTimeEquals(

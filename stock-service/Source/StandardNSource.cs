@@ -16,6 +16,7 @@ public sealed record SourcePharmacy(
 // expiry dates or series must not be collapsed into one product here.
 public sealed record SourceStock(
     long ProfileId,
+    string SourceId,
     long PartId,
     string Name,
     string? ManufacturerBarcode,
@@ -30,7 +31,13 @@ public sealed record SourceStock(
 /// Bounded, read-only access to the Standard-N group database. The account must
 /// also have SELECT-only grants; the transaction mode is a second safeguard.
 /// </summary>
-public sealed class StandardNSource
+public interface IStockSource
+{
+    IReadOnlyList<SourcePharmacy> ReadPharmacies();
+    IReadOnlyList<SourceStock> ReadStock(long profileId);
+}
+
+public sealed class StandardNSource : IStockSource
 {
     private const FbTransactionBehavior ReadBehavior =
         FbTransactionBehavior.Read |
@@ -130,7 +137,7 @@ public sealed class StandardNSource
             command.CommandTimeout = _timeoutSeconds;
             command.FetchSize = 4096;
             command.CommandText = """
-                SELECT PART_ID, G$PROFILE_ID, SNAME, BCODE_IZG, BARCODE,
+                SELECT D$UUID, PART_ID, G$PROFILE_ID, SNAME, BCODE_IZG, BARCODE,
                        QUANT, PRICE, GODENDO, SERIA, EDIZM
                 FROM WAREBASE_G
                 WHERE G$PROFILE_ID = @profileId AND QUANT > 0
@@ -143,16 +150,17 @@ public sealed class StandardNSource
                 while (reader.Read())
                 {
                     stocks.Add(new SourceStock(
+                        RequiredInt64(reader, 2),
+                        Text(reader, 0) ?? throw new InvalidDataException("WAREBASE_G.D$UUID is empty"),
                         RequiredInt64(reader, 1),
-                        RequiredInt64(reader, 0),
-                        Text(reader, 2) ?? string.Empty,
-                        Text(reader, 3),
+                        Text(reader, 3) ?? string.Empty,
                         Text(reader, 4),
-                        RequiredDecimal(reader, 5),
-                        OptionalDecimal(reader, 6),
-                        OptionalDateTime(reader, 7),
-                        Text(reader, 8),
-                        Text(reader, 9)));
+                        Text(reader, 5),
+                        RequiredDecimal(reader, 6),
+                        OptionalDecimal(reader, 7),
+                        OptionalDateTime(reader, 8),
+                        Text(reader, 9),
+                        Text(reader, 10)));
                 }
             }
 

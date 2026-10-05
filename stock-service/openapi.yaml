@@ -1,0 +1,190 @@
+openapi: 3.0.3
+info:
+  title: Epharm Standard-N stock snapshots
+  version: 1.0.0
+  description: >
+    Read-only cache of Standard-N pharmacy stock. Check status and asOf before
+    using data. A three-minute full-network freshness SLA is not guaranteed.
+servers:
+  - url: https://inkeshopapteka.inkar.kz/stocks
+    description: Corporate-network HTTPS gateway
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/status:
+    get:
+      summary: Collection progress and freshness
+      responses:
+        '200':
+          description: Current collection state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionStatus'
+  /api/v1/cities:
+    get:
+      summary: Active profile counts by city
+      responses:
+        '200':
+          description: Cities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [city, count]
+                  properties:
+                    city: { type: string }
+                    count: { type: integer }
+  /api/v1/pharmacies:
+    get:
+      summary: Active pharmacy profiles
+      parameters:
+        - in: query
+          name: city
+          schema: { type: string }
+          description: Exact city value from /cities
+      responses:
+        '200':
+          description: Pharmacy profiles
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Pharmacy' }
+  /api/v1/pharmacies/{id}:
+    get:
+      summary: One active pharmacy profile
+      parameters:
+        - $ref: '#/components/parameters/ProfileId'
+      responses:
+        '200':
+          description: Pharmacy
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Pharmacy' }
+        '404': { description: Unknown or inactive profile }
+  /api/v1/pharmacies/{id}/stocks:
+    get:
+      summary: Paginated warehouse rows from the last complete pharmacy snapshot
+      parameters:
+        - $ref: '#/components/parameters/ProfileId'
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, maximum: 1000000, default: 0 }
+        - in: query
+          name: q
+          schema: { type: string, maxLength: 100 }
+          description: Name or barcode search
+        - in: query
+          name: snapshot
+          schema: { type: string }
+          description: snapshotId returned by the first page
+      responses:
+        '200':
+          description: Snapshot page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StockPage' }
+        '400': { description: Invalid search or pagination }
+        '404': { description: Unknown or inactive profile }
+        '409':
+          description: Snapshot changed during pagination; restart from offset 0
+        '503':
+          description: First snapshot has not been captured
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  parameters:
+    ProfileId:
+      in: path
+      name: id
+      required: true
+      schema: { type: integer, format: int64, minimum: 1 }
+  schemas:
+    CollectionStatus:
+      type: object
+      required:
+        - freshnessTargetSeconds
+        - sweepIntervalSeconds
+        - pharmacyCount
+        - freshCount
+        - staleCount
+        - pendingCount
+        - errorCount
+        - runTotal
+        - runSucceeded
+        - runFailed
+      properties:
+        freshnessTargetSeconds: { type: integer }
+        sweepIntervalSeconds: { type: integer }
+        pharmacyCount: { type: integer }
+        freshCount: { type: integer }
+        staleCount: { type: integer }
+        pendingCount: { type: integer }
+        errorCount: { type: integer }
+        runId: { type: integer, format: int64, nullable: true }
+        runStatus:
+          type: string
+          nullable: true
+          enum: [running, succeeded, partial, failed, interrupted, null]
+        runStartedAt: { type: string, format: date-time, nullable: true }
+        runCompletedAt: { type: string, format: date-time, nullable: true }
+        lastSuccessfulRunAt: { type: string, format: date-time, nullable: true }
+        runTotal: { type: integer }
+        runSucceeded: { type: integer }
+        runFailed: { type: integer }
+    Pharmacy:
+      type: object
+      required:
+        - id
+        - name
+        - city
+        - address
+        - pharmacyNumber
+        - status
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        city: { type: string }
+        address: { type: string }
+        pharmacyNumber: { type: string }
+        stockCount: { type: integer, nullable: true }
+        lastUpdatedAt: { type: string, format: date-time, nullable: true }
+        lastErrorAt: { type: string, format: date-time, nullable: true }
+        status:
+          type: string
+          enum: [pending, fresh, stale, error]
+    StockPage:
+      type: object
+      required: [pharmacy, items, total, limit, offset, asOf, snapshotId]
+      properties:
+        pharmacy: { $ref: '#/components/schemas/Pharmacy' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/StockRow' }
+        total: { type: integer }
+        limit: { type: integer }
+        offset: { type: integer }
+        asOf: { type: string, format: date-time }
+        snapshotId: { type: string }
+    StockRow:
+      type: object
+      required: [sourceId, partId, name, quantity]
+      properties:
+        sourceId: { type: string, description: WAREBASE_G.D$UUID }
+        partId: { type: integer, format: int64 }
+        name: { type: string }
+        manufacturerBarcode: { type: string, nullable: true }
+        barcode: { type: string, nullable: true }
+        quantity: { type: number }
+        price: { type: number, nullable: true }
+        expiryDate: { type: string, format: date, nullable: true }
+        series: { type: string, nullable: true }
+        unit: { type: string, nullable: true }

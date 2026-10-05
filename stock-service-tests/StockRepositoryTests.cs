@@ -1,10 +1,57 @@
 using Epharm.StockService;
 using Epharm.StockService.Source;
+using Microsoft.Data.Sqlite;
 
 namespace stock_service_tests;
 
 public class StockRepositoryTests
 {
+    [Fact]
+    public void ExistingCacheIsReadableAfterSchemaUpgrade()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"stock-test-{Guid.NewGuid():N}.sqlite");
+        try
+        {
+            using (var connection = new SqliteConnection($"Data Source={path}"))
+            {
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText = """
+                    CREATE TABLE pharmacies (
+                      id INTEGER PRIMARY KEY, name TEXT NOT NULL, city TEXT NOT NULL,
+                      address TEXT NOT NULL, pharmacy_number TEXT NOT NULL,
+                      stock_count INTEGER, last_updated_at TEXT, last_requested_at TEXT,
+                      last_error_at TEXT, last_error TEXT);
+                    CREATE TABLE stocks (
+                      profile_id INTEGER NOT NULL, part_id INTEGER NOT NULL,
+                      name TEXT NOT NULL, manufacturer_barcode TEXT, barcode TEXT,
+                      quantity TEXT NOT NULL, price TEXT, expiry_date TEXT, series TEXT,
+                      unit TEXT, PRIMARY KEY(profile_id, part_id));
+                    INSERT INTO pharmacies(id, name, city, address, pharmacy_number,
+                      stock_count, last_updated_at)
+                    VALUES (7, 'Старая аптека', 'Алматы', '', '7', 1,
+                      '2026-10-05T00:00:00.0000000+00:00');
+                    INSERT INTO stocks(profile_id, part_id, name, quantity)
+                    VALUES (7, 11, 'Старая партия', '2.5');
+                    """;
+                command.ExecuteNonQuery();
+            }
+            var repository = new StockRepository(new StockOptions { DataPath = path });
+            repository.Initialize();
+            var page = repository.GetStocks(7, null, 100, 0)!;
+            Assert.Equal(1, page.Total);
+            Assert.Equal("legacy:11", Assert.Single(page.Items).SourceId);
+            repository.ReplaceSnapshot(7, [Stock(7, 11, "Новая партия")]);
+            Assert.Equal("00000000-0000-0000-0000-000000000011",
+                Assert.Single(repository.GetStocks(7, null, 100, 0)!.Items).SourceId);
+        }
+        finally
+        {
+            foreach (var candidate in new[] { path, path + "-wal", path + "-shm" })
+                if (File.Exists(candidate)) File.Delete(candidate);
+        }
+    }
+
     [Fact]
     public void FailedReplacementKeepsPreviousCompleteSnapshot()
     {
@@ -64,5 +111,5 @@ public class StockRepositoryTests
     }
 
     private static SourceStock Stock(long profile, long part, string name) =>
-        new(profile, part, name, "123", "456", 2.5m, 100m, null, null, "шт");
+        new(profile, $"00000000-0000-0000-0000-{part:D12}", part, name, "123", "456", 2.5m, 100m, null, null, "шт");
 }

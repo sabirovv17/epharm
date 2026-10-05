@@ -5,7 +5,7 @@ var builder = WebApplication.CreateBuilder(args);
 var options = StockOptions.FromEnvironment();
 builder.Services.AddSingleton(options);
 builder.Services.AddSingleton<StockRepository>();
-builder.Services.AddSingleton(_ => new StandardNSource(
+builder.Services.AddSingleton<IStockSource>(_ => new StandardNSource(
     options.FirebirdHost, options.FirebirdPort, options.FirebirdPath,
     options.FirebirdUser, options.FirebirdPassword, options.QueryTimeoutSeconds));
 builder.Services.AddSingleton<RefreshCoordinator>();
@@ -14,10 +14,11 @@ builder.Services.AddHostedService<RefreshWorker>();
 var app = builder.Build();
 app.Services.GetRequiredService<StockRepository>().Initialize();
 app.UseMiddleware<RequestAuth>();
-app.UseDefaultFiles();
-app.UseStaticFiles();
 
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
+
+app.MapGet("/api/v1/status", (StockRepository repository) =>
+    Results.Ok(repository.GetCollectionStatus()));
 
 app.MapGet("/api/v1/cities", (StockRepository repository) =>
     Results.Ok(repository.ListCities()));
@@ -30,9 +31,8 @@ app.MapGet("/api/v1/pharmacies/{id:long}", (long id, StockRepository repository)
         ? Results.Ok(pharmacy)
         : Results.NotFound(new { error = "pharmacy_not_found" }));
 
-app.MapGet("/api/v1/pharmacies/{id:long}/stocks", async Task<IResult> (
-    long id, HttpRequest request, StockRepository repository,
-    RefreshCoordinator refresh, CancellationToken cancellationToken) =>
+app.MapGet("/api/v1/pharmacies/{id:long}/stocks", IResult (
+    long id, HttpRequest request, StockRepository repository) =>
 {
     if (repository.GetPharmacy(id) is null)
         return Results.NotFound(new { error = "pharmacy_not_found" });
@@ -46,9 +46,6 @@ app.MapGet("/api/v1/pharmacies/{id:long}/stocks", async Task<IResult> (
         return Results.BadRequest(new { error = "invalid_pagination" });
 
     var expectedSnapshot = request.Query["snapshot"].ToString();
-    if (expectedSnapshot.Length == 0 && !await refresh.EnsureFreshAsync(id, cancellationToken))
-        return Results.Problem("Снимок пока недоступен", statusCode: StatusCodes.Status503ServiceUnavailable);
-
     var page = repository.GetStocks(id, q, limit, offset)!;
     if (expectedSnapshot.Length > 0 &&
         !string.Equals(expectedSnapshot, page.AsOf?.ToString("O"), StringComparison.Ordinal))
@@ -56,23 +53,6 @@ app.MapGet("/api/v1/pharmacies/{id:long}/stocks", async Task<IResult> (
     if (page.AsOf is null)
         return Results.Problem("Снимок пока недоступен", statusCode: StatusCodes.Status503ServiceUnavailable);
     return Results.Ok(page);
-});
-
-app.MapGet("/api/v1/pharmacies/{id:long}/stocks.xlsx", async Task<IResult> (
-    long id, StockRepository repository, RefreshCoordinator refresh,
-    CancellationToken cancellationToken) =>
-{
-    if (repository.GetPharmacy(id) is null)
-        return Results.NotFound(new { error = "pharmacy_not_found" });
-    if (!await refresh.EnsureFreshAsync(id, cancellationToken))
-        return Results.Problem("Снимок пока недоступен", statusCode: StatusCodes.Status503ServiceUnavailable);
-    var snapshot = repository.ExportSnapshot(id)!.Value;
-    var pharmacy = snapshot.Pharmacy;
-    var bytes = XlsxExport.Create(pharmacy, snapshot.Rows);
-    return Results.File(
-        bytes,
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        $"stocks-pharmacy-{id}-{pharmacy.LastUpdatedAt:yyyyMMdd-HHmmss}.xlsx");
 });
 
 app.Run();
