@@ -127,6 +127,11 @@ docker compose ps
 Caddyfile, а при несовместимости схемы — сохранённую копию `data/`.
 Маршрут Caddy живёт в конфигурации релиза магазина; его нужно сохранять при
 смене релиза (версии шаблонов лежат в `storefront/deploy/inkar-server/`).
+Активный путь Caddyfile на сервере можно получить без догадок:
+
+```bash
+docker inspect inkar-shop-edge-1 --format '{{range .Mounts}}{{if eq .Destination "/etc/caddy/Caddyfile"}}{{.Source}}{{end}}{{end}}'
+```
 
 Локальные проверки:
 
