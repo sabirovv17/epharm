@@ -5,7 +5,7 @@ services:
     container_name: epharm-stock-service
     env_file: .env
     volumes:
-      - ./data:/app/data
+      - ${STOCK_HOST_DATA_DIR:-./data}:/app/data
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=64m

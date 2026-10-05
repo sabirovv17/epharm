@@ -88,10 +88,12 @@ curl -H 'Authorization: Bearer <api-key>' \
 
 ## Развёртывание, проверка и откат
 
-На сервере рабочий каталог `/home/adm-quasar/stock-service` содержит код,
-`compose.yml`, `.env` и `data/stocks.sqlite`. Git-ветка
+На сервере Git checkout — `/home/adm-quasar/epharm-stock-code`, Compose запускается
+из его `stock-service/`. Локальная база остаётся в
+`/home/adm-quasar/stock-service/data/stocks.sqlite` и подключается переменной
+`STOCK_HOST_DATA_DIR` из checkout `.env`. Git-ветка
 `codex/pharmacy-stock-service` — передаваемый исходник. `.env` (права
-`0600`) и `data/` не попадают в Git; владельцу интеграции нужно получить
+`0600`) и SQLite не попадают в Git; владельцу интеграции нужно получить
 Bearer-ключ через администратора сервера. Образ собирается через
 `docker compose build`, запускается через `docker compose up -d`. Контейнер
 работает без root, с read-only файловой системой, ограничениями CPU/RAM и без
