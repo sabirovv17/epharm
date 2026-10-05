@@ -80,10 +80,9 @@ public sealed class RefreshWorker(
     {
         if (previousStart is null) return TimeSpan.Zero;
         var nextStart = previousStart.Value.AddSeconds(intervalSeconds);
-        if (previousEnd is { } end)
+        if (previousEnd is { } end && end >= nextStart)
         {
-            var afterCooldown = end.AddSeconds(180);
-            if (afterCooldown > nextStart) nextStart = afterCooldown;
+            nextStart = end.AddSeconds(180);
         }
         var delay = nextStart - now;
         return delay > TimeSpan.Zero ? delay : TimeSpan.Zero;

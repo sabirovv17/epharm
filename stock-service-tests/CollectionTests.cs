@@ -15,6 +15,8 @@ public class CollectionTests
             RefreshWorker.DelayBeforeNextRun(now.AddMinutes(-5), now, 1800, now));
         Assert.Equal(TimeSpan.FromMinutes(3),
             RefreshWorker.DelayBeforeNextRun(now.AddMinutes(-31), now, 1800, now));
+        Assert.Equal(TimeSpan.FromMinutes(1),
+            RefreshWorker.DelayBeforeNextRun(now.AddMinutes(-2), now, 180, now));
     }
 
     [Fact]
