@@ -367,6 +367,22 @@ jobs:
           dotnet-version: 10.0.x
       - run: dotnet test App.Tests/CustomerDisplay.Core.Tests.csproj -c Release
 
+  stock-service:
+    name: stock / tests and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: dotnet test stock-service-tests/stock-service-tests.csproj -c Release
+      - run: dotnet publish stock-service/StockService.csproj -c Release
+      - run: node --check stock-service/wwwroot/app.js
+
   posm-windows:
     name: posm / Windows production build
     runs-on: windows-latest
@@ -545,6 +561,7 @@ jobs:
       - mobile-android
       - mobile-ios
       - posm-core
+      - stock-service
       - posm-windows
       - codeql
       - dependency-review
@@ -567,6 +584,7 @@ jobs:
           MOBILE_ANDROID: ${{ needs.mobile-android.result }}
           MOBILE_IOS: ${{ needs.mobile-ios.result }}
           POSM_CORE: ${{ needs.posm-core.result }}
+          STOCK_SERVICE: ${{ needs.stock-service.result }}
           POSM_WINDOWS: ${{ needs.posm-windows.result }}
           CODEQL: ${{ needs.codeql.result }}
           DEPENDENCY_REVIEW: ${{ needs.dependency-review.result }}
@@ -576,7 +594,7 @@ jobs:
             "$REPO_QUALITY" "$OPS_CONTRACT" "$P0_CONFIG" "$ADMIN" "$STOREFRONT"
             "$BACKEND" "$ADMIN_E2E" "$CONTAINERS" "$MOBILE_ANDROID" "$MOBILE_IOS"
             "$PIM_ETL"
-            "$POSM_CORE" "$POSM_WINDOWS" "$CODEQL"
+            "$POSM_CORE" "$STOCK_SERVICE" "$POSM_WINDOWS" "$CODEQL"
           )
           for result in "${required[@]}"; do
             test "$result" = success || exit 1
