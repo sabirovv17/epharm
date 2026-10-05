@@ -7,6 +7,17 @@ namespace stock_service_tests;
 public class CollectionTests
 {
     [Fact]
+    public void RestartKeepsSweepCadenceAndCooldown()
+    {
+        var now = new DateTimeOffset(2026, 10, 5, 15, 0, 0, TimeSpan.Zero);
+        Assert.Equal(TimeSpan.Zero, RefreshWorker.DelayBeforeNextRun(null, null, 1800, now));
+        Assert.Equal(TimeSpan.FromMinutes(25),
+            RefreshWorker.DelayBeforeNextRun(now.AddMinutes(-5), now, 1800, now));
+        Assert.Equal(TimeSpan.FromMinutes(3),
+            RefreshWorker.DelayBeforeNextRun(now.AddMinutes(-31), now, 1800, now));
+    }
+
+    [Fact]
     public async Task FullCycleRefreshesEveryProfileAndArchivesMissingOnes()
     {
         var path = Path.Combine(Path.GetTempPath(), $"stock-cycle-{Guid.NewGuid():N}.sqlite");

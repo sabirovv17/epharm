@@ -68,14 +68,40 @@ public sealed class RefreshCoordinator(
 
 public sealed class RefreshWorker(
     StockOptions options,
+    StockRepository repository,
     RefreshCoordinator refresh,
     ILogger<RefreshWorker> logger) : BackgroundService
 {
+    public static TimeSpan DelayBeforeNextRun(
+        DateTimeOffset? previousStart,
+        DateTimeOffset? previousEnd,
+        int intervalSeconds,
+        DateTimeOffset now)
+    {
+        if (previousStart is null) return TimeSpan.Zero;
+        var nextStart = previousStart.Value.AddSeconds(intervalSeconds);
+        if (previousEnd is { } end)
+        {
+            var afterCooldown = end.AddSeconds(180);
+            if (afterCooldown > nextStart) nextStart = afterCooldown;
+        }
+        var delay = nextStart - now;
+        return delay > TimeSpan.Zero ? delay : TimeSpan.Zero;
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            var started = Stopwatch.StartNew();
+            var previous = repository.GetCollectionStatus();
+            var delay = DelayBeforeNextRun(
+                previous.RunStartedAt, previous.RunCompletedAt,
+                options.SweepIntervalSeconds, DateTimeOffset.UtcNow);
+            if (delay > TimeSpan.Zero)
+            {
+                try { await Task.Delay(delay, stoppingToken); }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
+            }
             try
             {
                 await refresh.RunCycleAsync(stoppingToken);
@@ -87,14 +113,9 @@ public sealed class RefreshWorker(
             catch (Exception exception)
             {
                 logger.LogError(exception, "Stock collection cycle could not start or finish");
+                try { await Task.Delay(TimeSpan.FromMinutes(3), stoppingToken); }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
             }
-
-            // Start-to-start cadence. An overlong sweep is reported through the
-            // status API; it is never overlapped with another source read.
-            var remaining = TimeSpan.FromSeconds(options.SweepIntervalSeconds) - started.Elapsed;
-            var delay = remaining > TimeSpan.FromSeconds(180) ? remaining : TimeSpan.FromSeconds(180);
-            try { await Task.Delay(delay, stoppingToken); }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
         }
     }
 }
