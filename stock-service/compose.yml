@@ -1,0 +1,28 @@
+services:
+  stock:
+    build: .
+    image: epharm-stock-service:local
+    container_name: epharm-stock-service
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 1g
+    cpus: 1.5
+    restart: unless-stopped
+    networks:
+      frontend:
+        aliases:
+          - epharm-stock-service
+
+networks:
+  frontend:
+    external: true
+    name: inkar-shop_frontend

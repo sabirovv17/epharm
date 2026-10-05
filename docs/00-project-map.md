@@ -30,6 +30,9 @@ PharmaPayV2/
 │   ├── POSM_DEPLOY.md, WINDOWS_RUNBOOK.md  ← модульные доки POSM
 ├── Models/                  ← общие C#-модели (POSM DTO)
 │
+├── stock-service/           ← отдельный сервис остатков Standard-N, API и веб-страница
+├── stock-service-tests/     ← тесты снимков и Excel
+│
 ├── docker-compose.yml       ← dev-инфра (Postgres 16, Redis, MinIO)
 ├── docker-compose.prod.yml  ← прод-стек (+ backend, frontend, Caddy)
 ├── Caddyfile                ← reverse-proxy прод (/api, /s3, staff-only /merch, /)
@@ -50,6 +53,7 @@ PharmaPayV2/
 | **Админ-фронт** | `admin-panel/frontend/src/`                      | `*.test.tsx` рядом с кодом | `features/*/Page.tsx` (12 разделов), `lib/api-types.ts`, `lib/queries/*`, `i18n/dict.ts` (ru+kk)                                         |
 | **Мобилка**     | `lib/`                                           | `test/`                    | `core/config/api_config.dart` (USE_API/API_BASE), `core/network/api_client.dart`, `features/*/{data,application,presentation}`           |
 | **POSM**        | `App/` + `Models/`                               | `App.Tests/` + VM          | `MainWindow.xaml.cs` (лог кассы), `MainWindow.Recommendations.cs`, `Services/` (Api/Outbox/MediaCache/Updater), `Config/EpharmConfig.cs` |
+| **Остатки**     | `stock-service/`                                 | `stock-service-tests/`     | `Source/StandardNSource.cs`, `StockRepository.cs`, `Program.cs`, `wwwroot/`; контракт `docs/22-stock-service.md` |
 | **Merch QR**    | внешний сервис; patch в `ops/merch-portal-patches/` | patch tests + Caddy smoke | `Caddyfile`, `MerchTaskClient.kt`, `App/MainWindow.TaskKiosk.cs`                                                     |
 | **Заказы**     | `ops/acc-order-bridge/`, backend `fulfillment/`, POSM | `App.Tests/`, backend tests, bridge tests | `FulfillmentService.kt`, `App/MainWindow.Fulfillment.cs`                                              |
 
