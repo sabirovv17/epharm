@@ -18,6 +18,9 @@ http://{$SITE_DOMAIN}, http://{$SERVER_IP} {
     handle /stocks/* {
         respond "Not Found" 404
     }
+    handle /stocks {
+        respond "Not Found" 404
+    }
     handle {
         reverse_proxy router:8080 {
             header_up X-Forwarded-Proto http

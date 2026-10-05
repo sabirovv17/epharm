@@ -41,9 +41,13 @@ public class StockRepositoryTests
             var page = repository.GetStocks(7, null, 100, 0)!;
             Assert.Equal(1, page.Total);
             Assert.Equal("legacy:11", Assert.Single(page.Items).SourceId);
+            Assert.Null(page.AsOf);
+            Assert.Equal("pending", page.Pharmacy.Status);
             repository.ReplaceSnapshot(7, [Stock(7, 11, "Новая партия")]);
+            var refreshed = repository.GetStocks(7, null, 100, 0)!;
+            Assert.NotNull(refreshed.AsOf);
             Assert.Equal("00000000-0000-0000-0000-000000000011",
-                Assert.Single(repository.GetStocks(7, null, 100, 0)!.Items).SourceId);
+                Assert.Single(refreshed.Items).SourceId);
         }
         finally
         {

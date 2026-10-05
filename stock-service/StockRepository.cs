@@ -90,6 +90,10 @@ public sealed class StockRepository(StockOptions options)
                 succeeded INTEGER NOT NULL DEFAULT 0,
                 failed INTEGER NOT NULL DEFAULT 0
             );
+            CREATE TABLE IF NOT EXISTS cache_migrations (
+                id INTEGER PRIMARY KEY,
+                applied_at TEXT NOT NULL
+            );
             """;
         command.ExecuteNonQuery();
         using var columns = connection.CreateCommand();
@@ -119,6 +123,28 @@ public sealed class StockRepository(StockOptions options)
                 WHERE NOT EXISTS (SELECT 1 FROM stock_rows LIMIT 1)
                 """;
             migrate.ExecuteNonQuery();
+        }
+        using var migrationMarker = connection.CreateCommand();
+        migrationMarker.CommandText = "SELECT COUNT(*) FROM cache_migrations WHERE id = 1";
+        if (Convert.ToInt32(migrationMarker.ExecuteScalar(), CultureInfo.InvariantCulture) == 0)
+        {
+            using var transaction = connection.BeginTransaction();
+            using var invalidate = connection.CreateCommand();
+            invalidate.Transaction = transaction;
+            invalidate.CommandText = """
+                UPDATE pharmacies SET stock_count = NULL, last_updated_at = NULL
+                WHERE id IN (
+                    SELECT DISTINCT profile_id FROM stock_rows
+                    WHERE source_id LIKE 'legacy:%'
+                )
+                """;
+            invalidate.ExecuteNonQuery();
+            using var mark = connection.CreateCommand();
+            mark.Transaction = transaction;
+            mark.CommandText = "INSERT INTO cache_migrations(id, applied_at) VALUES (1, @now)";
+            mark.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow.ToString("O"));
+            mark.ExecuteNonQuery();
+            transaction.Commit();
         }
         using var interrupted = connection.CreateCommand();
         interrupted.CommandText = "UPDATE collection_runs SET status = 'interrupted', completed_at = @now WHERE status = 'running'";
