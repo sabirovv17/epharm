@@ -7,14 +7,31 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ### Added
 
-- ACC group, subgroup and international nonproprietary name (INN) can be selected as
-  recommendation triggers alongside the existing exact-product trigger. The classification
-  comes from an explicitly reviewed, versioned ACC catalogue snapshot; ambiguous barcodes
-  do not trigger a broad rule, and newly authored broad rules start as drafts.
 - Completed pharmacist course materials end to end: administrators can publish external links,
   interactive content, downloadable attachments, required lessons and minimum video-view targets;
   the mobile app now renders and opens every published material.
 - Added local search and operational sorting to the pharmacist training list.
+
+### Fixed
+
+- Added a bounded mobile API timeout so unavailable services fail with an actionable retry state
+  instead of leaving the application waiting indefinitely.
+- POSM 1.0.65 spreads healthy QR-task polling over 24–36 seconds per device, reducing
+  synchronized load on the merchandising fallback without changing recommendations or orders.
+
+## [0.1.25] - 2026-10-06
+
+### Added
+
+- ACC group, subgroup and international nonproprietary name (INN) can be selected as
+  recommendation triggers alongside the existing exact-product trigger. The classification
+  comes from an explicitly reviewed, versioned ACC catalogue snapshot; ambiguous barcodes
+  do not trigger a broad rule, and newly authored broad rules start as drafts.
+- Reconciled the live certificate editor, course Excel import, program-cover upload and mobile
+  retail-price fallback with the new recommendation code; Kazakh certificate glyphs and image
+  size limits are covered by regression tests.
+- Added a content-verified two-image transaction for the archive-based production host, including
+  automatic backend/frontend rollback and a forward-schema compatibility drill.
 
 ### Fixed
 
@@ -23,10 +40,6 @@ All notable production changes to Epharm are recorded here. The format follows
 - The frontend dependency gate now fails on every production advisory and every new audit
   finding. Its one time-limited exception is the unpatched, dev-only `braces` advisory
   inherited through build/lint tooling; it expires on 2026-11-06.
-- Added a bounded mobile API timeout so unavailable services fail with an actionable retry state
-  instead of leaving the application waiting indefinitely.
-- POSM 1.0.65 spreads healthy QR-task polling over 24–36 seconds per device, reducing
-  synchronized load on the merchandising fallback without changing recommendations or orders.
 
 ## [0.1.17] - 2026-09-25
 
