@@ -96,6 +96,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.time.Duration
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -162,6 +163,10 @@ class TrainingService(
             shortDescription = req.shortDescription.trim(),
             description = req.description.trim(),
             coverUrl = req.coverUrl?.trim()?.takeIf(String::isNotEmpty),
+            certificateEpharmLogoUrl = req.certificateEpharmLogoUrl?.trim()?.takeIf(String::isNotEmpty),
+            certificatePartnerLogoUrl = req.certificatePartnerLogoUrl?.trim()?.takeIf(String::isNotEmpty),
+            certificateSignerName = req.certificateSignerName.trim(),
+            certificateValidityMonths = req.certificateValidityMonths,
             category = req.category.trim(),
             manufacturer = req.manufacturer.trim(),
             brand = req.brand.trim(),
@@ -211,6 +216,19 @@ class TrainingService(
         req.description?.let { program.description = it.trim() }
         if (req.clearCoverUrl) program.coverUrl = null
         else req.coverUrl?.let { program.coverUrl = it.trim().takeIf(String::isNotEmpty) }
+        if (req.clearCertificateEpharmLogoUrl) program.certificateEpharmLogoUrl = null
+        else req.certificateEpharmLogoUrl?.let {
+            program.certificateEpharmLogoUrl = it.trim().takeIf(String::isNotEmpty)
+        }
+        if (req.clearCertificatePartnerLogoUrl) program.certificatePartnerLogoUrl = null
+        else req.certificatePartnerLogoUrl?.let {
+            program.certificatePartnerLogoUrl = it.trim().takeIf(String::isNotEmpty)
+        }
+        req.certificateSignerName?.let {
+            if (it.isBlank()) badRequest("Укажите подписанта сертификата")
+            program.certificateSignerName = it.trim()
+        }
+        req.certificateValidityMonths?.let { program.certificateValidityMonths = it }
         req.category?.let { program.category = it.trim() }
         req.manufacturer?.let { program.manufacturer = it.trim() }
         req.brand?.let { program.brand = it.trim() }
@@ -1562,6 +1580,13 @@ class TrainingService(
             expiresAt = certificate.expiresAt,
             score = certificate.score,
             signerName = certificate.signerName,
+            partnerCompanyName = program.manufacturer.ifBlank {
+                program.brand.ifBlank { "Компания-партнёр" }
+            },
+            coverUrl = program.coverUrl,
+            epharmLogoUrl = program.certificateEpharmLogoUrl,
+            partnerLogoUrl = program.certificatePartnerLogoUrl,
+            templateName = program.certificateTemplate,
             status = status,
             valid = status == kz.epharm.training.domain.CertificateStatus.valid,
         )
@@ -1978,7 +2003,12 @@ class TrainingService(
                 pharmacistId = assignment.pharmacistId,
                 programVersionId = version.id,
                 issuedAt = now,
+                expiresAt = now.atZone(ZoneId.of("Asia/Almaty"))
+                    .plusMonths(program.certificateValidityMonths.toLong())
+                    .toInstant(),
                 score = assignment.score,
+                signerName = program.certificateSignerName,
+                templateName = program.certificateTemplate,
             ).also { it.format = assignment.format }
             certificateRepository.save(certificate)
         }
@@ -2022,6 +2052,11 @@ class TrainingService(
             shortDescription = program.shortDescription,
             description = program.description,
             coverUrl = program.coverUrl,
+            certificateEpharmLogoUrl = program.certificateEpharmLogoUrl,
+            certificatePartnerLogoUrl = program.certificatePartnerLogoUrl,
+            certificateSignerName = program.certificateSignerName,
+            certificateValidityMonths = program.certificateValidityMonths,
+            certificateTemplate = program.certificateTemplate,
             category = program.category,
             manufacturer = program.manufacturer,
             brand = program.brand,

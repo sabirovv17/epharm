@@ -33,6 +33,16 @@ class TrainingProgramEntity(
     var description: String = "",
     @Column(name = "cover_url")
     var coverUrl: String? = null,
+    @Column(name = "certificate_epharm_logo_url", length = 1000)
+    var certificateEpharmLogoUrl: String? = null,
+    @Column(name = "certificate_partner_logo_url", length = 1000)
+    var certificatePartnerLogoUrl: String? = null,
+    @Column(name = "certificate_signer_name", nullable = false)
+    var certificateSignerName: String = "Руководитель учебного центра",
+    @Column(name = "certificate_validity_months", nullable = false)
+    var certificateValidityMonths: Int = 36,
+    @Column(name = "certificate_template", nullable = false, length = 64)
+    var certificateTemplate: String = "modern_ribbon",
     @Column(nullable = false)
     var category: String = "",
     @Column(nullable = false)

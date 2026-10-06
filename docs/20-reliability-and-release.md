@@ -106,6 +106,11 @@ For an exceptional backend-only release, use the separate, tested archive-host t
 `06-deployment-and-ops.md`; it persists distinct backend/frontend tags and commits and requires a
 fresh verified rollback bundle **in addition to**, not instead of, encrypted off-site backup and a
 recent restore-test. The generic two-image release scripts remain backward-compatible.
+When both images change on an archive-based host, use the dedicated two-image transaction in that
+same operations document. It verifies exact running/candidate image IDs and labels, tolerates stale
+generic `.release.env` metadata by pinning each component explicitly, and never recreates Caddy.
+Its local rollback bundle and automatic application rollback also require the off-site backup and
+forward-schema compatibility drill; neither rolls back a Flyway migration.
 The initial route check tolerates brief 502/connection failures while containers start, but both
 routes must report the new release id within 120 seconds (configurable through
 `RELEASE_READINESS_WAIT_SECONDS`). A persistent error or an old release id still triggers rollback.
@@ -119,6 +124,15 @@ Explicit rollback:
 Flyway remains forward-only. Therefore every migration must be expand/contract and compatible with
 the immediately previous application release; rollback changes application images, not production
 data. Run an actual previous->current rollback drill in staging before approving each tag.
+
+The admin and storefront audit gate runs a full npm audit and a second production-only audit.
+`tools/check-frontend-audit.mjs` allows only
+[`GHSA-vfj7-8cjw-p6xm`](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), while the sole
+affected `braces@3.0.3` and every derived finding remain confined to dev dependencies. There is
+no patched `braces` release as of 2026-10-06; removing it requires a reviewed major Tailwind or
+ESLint migration. This exception expires automatically on 2026-11-06 and fails closed on any new
+advisory, production exposure, changed package version, or incomplete audit report. It does not
+waive runtime vulnerability checks or authorize unreviewed dependencies.
 
 ## 500 cash-desk load model
 

@@ -81,6 +81,8 @@ jobs:
         run: bash tools/release/tests/prepare-deploy-contract.sh
       - name: Verify backend-only release and rollback
         run: bash tools/release/tests/backend-only-contract.sh
+      - name: Verify archive-host two-image release and rollback
+        run: bash tools/release/tests/archive-two-image-contract.sh
       - name: Verify release route readiness and bounded failure
         run: bash tools/release/tests/smoke-readiness.sh
       - name: Validate shell syntax and executable bits
@@ -161,7 +163,7 @@ jobs:
           cache: npm
           cache-dependency-path: admin-panel/frontend/package-lock.json
       - run: npm ci
-      - run: npm audit --audit-level=low
+      - run: node ../../tools/check-frontend-audit.mjs
       - run: npm run lint
       - run: npm exec -- tsc --noEmit
       - run: npm test
@@ -182,7 +184,7 @@ jobs:
           cache: npm
           cache-dependency-path: storefront/package-lock.json
       - run: npm ci
-      - run: npm audit --audit-level=low
+      - run: node ../tools/check-frontend-audit.mjs
       - run: npm run lint
       - run: npm test
       - run: npm run build

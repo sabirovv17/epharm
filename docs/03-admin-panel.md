@@ -145,6 +145,15 @@ calling catalog, rules, screens, finance, settings, or other HQ APIs receives JS
 An `HQ_HEAD` token can read training data and export reports, while every training mutation returns
 JSON `403 FORBIDDEN`; the frontend mirrors this contract by hiding all editing controls.
 The LMS roster uses `/api/admin/training/pharmacists`, a read-only projection for assignments.
+Managers can open the certificate editor from the certificates section. Its settings belong to one
+training program: ePharm and partner logos, signer, and validity period. The editor previews the
+certificate composition before saving; only roles with `canManagePrograms` can change it. The
+participant, completed program, issue date, and verification QR come from the actual certificate
+when it is issued, not from the sample shown in the editor.
+
+The training workspace also accepts an Excel course template. Import creates a draft for review,
+not a published course; the manager can inspect lessons and tests before publishing. Program covers
+are uploaded through the backend and stored as returned URLs rather than typed as arbitrary links.
 
 ## Pharmacist Onboarding
 

@@ -18,6 +18,11 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ### Fixed
 
+- Updated the storefront to a patched Next.js release and refreshed available build-tool
+  transitive fixes after newly published dependency advisories.
+- The frontend dependency gate now fails on every production advisory and every new audit
+  finding. Its one time-limited exception is the unpatched, dev-only `braces` advisory
+  inherited through build/lint tooling; it expires on 2026-11-06.
 - Added a bounded mobile API timeout so unavailable services fail with an actionable retry state
   instead of leaving the application waiting indefinitely.
 - POSM 1.0.65 spreads healthy QR-task polling over 24–36 seconds per device, reducing

@@ -108,6 +108,20 @@ export function useCreateCourse() {
   })
 }
 
+export function useImportCourse() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (file: File) => {
+      const body = new FormData()
+      body.append('file', file)
+      return api
+        .post<CourseDto>('/api/admin/lms/courses/import/excel', body)
+        .then((response) => response.data)
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: lmsKeys.all }),
+  })
+}
+
 export function useUpdateCourse() {
   const qc = useQueryClient()
   return useMutation({
@@ -295,6 +309,34 @@ export function useUpdateTrainingProgram() {
         .patch<TrainingProgramDto>(`/api/admin/training/programs/${id}`, patch)
         .then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: lmsKeys.training }),
+  })
+}
+
+export function useUploadTrainingCertificateAsset() {
+  return useMutation({
+    mutationFn: (file: File) => {
+      const body = new FormData()
+      body.append('file', file)
+      return api
+        .post<{ assetUrl: string }>('/api/admin/training/programs/certificate-asset', body, {
+          timeout: 120_000,
+        })
+        .then((response) => response.data)
+    },
+  })
+}
+
+export function useUploadTrainingProgramCover() {
+  return useMutation({
+    mutationFn: (file: File) => {
+      const body = new FormData()
+      body.append('file', file)
+      return api
+        .post<{ coverUrl: string }>('/api/admin/training/programs/cover', body, {
+          timeout: 120_000,
+        })
+        .then((response) => response.data)
+    },
   })
 }
 

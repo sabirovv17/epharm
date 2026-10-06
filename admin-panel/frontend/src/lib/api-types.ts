@@ -1219,6 +1219,11 @@ export interface TrainingProgramDto {
   shortDescription: string
   description: string
   coverUrl: string | null
+  certificateEpharmLogoUrl: string | null
+  certificatePartnerLogoUrl: string | null
+  certificateSignerName: string
+  certificateValidityMonths: number
+  certificateTemplate: string
   category: string
   manufacturer: string
   brand: string
@@ -1265,6 +1270,10 @@ export interface CreateTrainingProgramRequest {
   shortDescription?: string
   description?: string
   coverUrl?: string | null
+  certificateEpharmLogoUrl?: string | null
+  certificatePartnerLogoUrl?: string | null
+  certificateSignerName?: string
+  certificateValidityMonths?: number
   category?: string
   manufacturer?: string
   brand?: string
@@ -1286,6 +1295,8 @@ export interface CreateTrainingProgramRequest {
 
 export type UpdateTrainingProgramRequest = Partial<CreateTrainingProgramRequest> & {
   clearCoverUrl?: boolean
+  clearCertificateEpharmLogoUrl?: boolean
+  clearCertificatePartnerLogoUrl?: boolean
   clearManager?: boolean
   clearStartsAt?: boolean
   clearEndsAt?: boolean

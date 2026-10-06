@@ -155,6 +155,14 @@ services:
       ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:?set ADMIN_BOOTSTRAP_PASSWORD in .env.prod}
       ADMIN_BOOTSTRAP_NAME: ${ADMIN_BOOTSTRAP_NAME:-HQ Admin}
       ADMIN_BOOTSTRAP_COMPANY: ${ADMIN_BOOTSTRAP_COMPANY:-Inkar}
+      # Preserve the deployed read-only Standard-N pharmacist directory bridge.
+      STANDARDN_DIRECTORY_ENABLED: ${STANDARDN_DIRECTORY_ENABLED:-false}
+      STANDARDN_HOST: ${STANDARDN_HOST:-INKSTDN}
+      STANDARDN_PORT: ${STANDARDN_PORT:-3050}
+      STANDARDN_DATABASE: '${STANDARDN_DATABASE:-C:\Standart-N\base_g\ZTRADE_G.FDB}'
+      STANDARDN_USER: ${STANDARDN_USER:-}
+      STANDARDN_PASSWORD: ${STANDARDN_PASSWORD:-}
+      STANDARDN_SYNC_DELAY_MS: ${STANDARDN_SYNC_DELAY_MS:-21600000}
       # Реальный Medusa-каталог. Клиент разрешает cleartext только для этого точного
       # legacy IP:port; любой другой удалённый HTTP origin отклоняется при старте.
       MEDUSA_ENABLED: ${MEDUSA_ENABLED:-true}
