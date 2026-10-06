@@ -258,6 +258,18 @@ describe('RulesPage — отображение списка', () => {
 })
 
 describe('RulesPage — read-only (нет создания/мутаций)', () => {
+  it('показывает и находит ACC-подгруппу по человекочитаемой метке', async () => {
+    setRulesResponse([mkRule({
+      id: 'r_acc',
+      trigger: { kind: 'acc_subgroup', value: 'stable-scope-key', label: 'Анальгетики' },
+    })])
+    const user = userEvent.setup()
+    renderRules()
+    expect(screen.getByTestId('rule-row-r_acc')).toHaveTextContent('Подгруппа ACC: Анальгетики')
+    await user.type(screen.getByPlaceholderText('Поиск по правилам…'), 'Анальгетики')
+    expect(screen.getByTestId('rule-row-r_acc')).toBeInTheDocument()
+  })
+
   it('в шапке нет кнопки «Новое правило»', () => {
     renderRules()
     expect(screen.queryByRole('button', { name: /Новое правило/ })).not.toBeInTheDocument()

@@ -32,6 +32,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
@@ -44,6 +45,7 @@ import org.springframework.transaction.annotation.Transactional
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import java.util.UUID
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -54,6 +56,9 @@ class PosmRecommendIntegrationTest {
 
     companion object {
         private const val POSM_KEY = "dev-posm-key"
+        private const val GROUP_KEY = "grp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        private const val SUBGROUP_KEY = "sub_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        private const val MNN_KEY = "mnn_cccccccccccccccccccccccccccccccc"
 
         @Container
         @JvmStatic
@@ -79,6 +84,7 @@ class PosmRecommendIntegrationTest {
     @Autowired private lateinit var chainRepository: ChainRepository
     @Autowired private lateinit var pendingBonusRepository: PendingBonusRepository
     @Autowired private lateinit var eventRepository: RecommendationEventRepository
+    @Autowired private lateinit var jdbc: JdbcTemplate
 
     // EAN-13 штрих-коды демо-товаров (по ним матчится корзина кассы).
     private val barBio = "4603423004936"
@@ -175,6 +181,111 @@ class PosmRecommendIntegrationTest {
         assertEquals((1..5).map { "p_cap_x_$it" }, crossSells.map { it.recommendSku })
         assertEquals("V", substitutions.first().recommendVendor)
         assertEquals("1 уп.", substitutions.first().recommendVolume)
+    }
+
+    @Test
+    fun `ACC group subgroup and MNN match an arbitrary scanned product by exact EAN`() {
+        val barcode = "4871234567890"
+        publishAccSnapshot(
+            AccRow("ware-1", barcode, GROUP_KEY, SUBGROUP_KEY, MNN_KEY),
+        )
+        ruleRepository.saveAll(
+            listOf(
+                rule("r_acc_group", RuleType.substitution, RuleTrigger("acc_group", GROUP_KEY), "p_zen", 0),
+                rule("r_acc_subgroup", RuleType.substitution, RuleTrigger("acc_subgroup", SUBGROUP_KEY), "p_zen2", 0),
+                rule("r_acc_mnn", RuleType.crosssell, RuleTrigger("acc_mnn", MNN_KEY), "p_cream", 0),
+            ),
+        )
+
+        val result = recommend("s-acc", listOf(CartItemDto(sku = "SN-711", barcode = barcode, name = "Сканированный товар ACC")))
+        assertEquals(listOf("p_zen2", "p_zen", "p_cream"), result.recommendations.map { it.recommendSku })
+        assertTrue(result.recommendations.all { it.triggerBarcode == barcode })
+        assertTrue(result.recommendations.all { it.triggerIpartId == "SN-711" })
+        assertTrue(result.recommendations.all { it.triggerName == "Сканированный товар ACC" })
+        assertTrue(result.recommendations.all { it.triggerSku?.startsWith("acc_") == true })
+        assertEquals("Сканированный товар ACC", eventRepository.findById(result.recommendations.first().eventId).get().triggerName)
+
+        // Real POSM sends barcode + name but often omits SKU when the barcode is available.
+        val withoutSku = recommend("s-acc-posm", listOf(CartItemDto(barcode = barcode, name = "Товар с кассы")))
+        assertEquals(3, withoutSku.recommendations.size)
+        assertTrue(withoutSku.recommendations.all { it.triggerIpartId == null && it.triggerName == "Товар с кассы" })
+
+        // A broad scope must never use the fuzzy/local-name fallback without an ACC barcode.
+        val noBarcode = recommend("s-acc-no-ean", listOf(CartItemDto(name = "Сканированный товар ACC")))
+        assertTrue(noBarcode.recommendations.isEmpty())
+    }
+
+    @Test
+    fun `ambiguous ACC EAN fails closed and distinct concrete triggers get distinct events`() {
+        val ambiguous = "4871234567807"
+        val first = "4871234567814"
+        val second = "4871234567821"
+        publishAccSnapshot(
+            AccRow("ware-a", ambiguous, GROUP_KEY),
+            AccRow("ware-b", ambiguous, GROUP_KEY),
+            AccRow("ware-first", first, GROUP_KEY),
+            AccRow("ware-first", second, GROUP_KEY), // a second EAN for the same WARE_ID
+        )
+        ruleRepository.save(rule("r_acc", RuleType.substitution, RuleTrigger("acc_group", GROUP_KEY), "p_zen", 0))
+
+        assertTrue(recommendByBarcode("s-ambiguous", listOf(ambiguous)).recommendations.isEmpty())
+        val firstResult = recommend("s-concrete", listOf(CartItemDto(barcode = first, name = "Первый препарат")))
+        val repeated = recommend("s-concrete", listOf(CartItemDto(barcode = first, name = "Первый препарат")))
+        val secondResult = recommend("s-concrete", listOf(CartItemDto(barcode = second, name = "Второй препарат")))
+        assertEquals(firstResult.recommendations.single().eventId, repeated.recommendations.single().eventId)
+        assertTrue(firstResult.recommendations.single().eventId != secondResult.recommendations.single().eventId)
+        assertTrue(firstResult.recommendations.single().triggerSku != secondResult.recommendations.single().triggerSku)
+        assertEquals("Первый препарат", eventRepository.findById(firstResult.recommendations.single().eventId).get().triggerName)
+        assertEquals("Второй препарат", eventRepository.findById(secondResult.recommendations.single().eventId).get().triggerName)
+        val combinedCart = recommend(
+            "s-current-scan",
+            listOf(CartItemDto(barcode = first, name = "Первый препарат"), CartItemDto(barcode = second, name = "Второй препарат")),
+            scannedBarcode = second,
+        )
+        assertEquals(second, combinedCart.recommendations.single().triggerBarcode)
+        assertEquals("Второй препарат", combinedCart.recommendations.single().triggerName)
+        mockMvc.perform(
+            post("/api/posm/recommendations/${firstResult.recommendations.single().eventId}/outcome")
+                .header("X-Posm-Key", POSM_KEY)
+                .contentType(MediaType.APPLICATION_JSON).content("""{"outcome":"accepted"}"""),
+        ).andExpect(status().isOk)
+        mockMvc.perform(
+            post("/api/posm/recommendations/${secondResult.recommendations.single().eventId}/outcome")
+                .header("X-Posm-Key", POSM_KEY)
+                .contentType(MediaType.APPLICATION_JSON).content("""{"outcome":"accepted"}"""),
+        ).andExpect(status().isConflict)
+        assertEquals(1, pendingBonusRepository.count())
+        assertTrue(recommendByBarcode("s-concrete", listOf(second)).recommendations.isEmpty())
+    }
+
+    @Test
+    fun `ACC classification reaches barcodes beyond first 200 cart lines`() {
+        val lastBarcode = "4871234567999"
+        publishAccSnapshot(AccRow("ware-last", lastBarcode, GROUP_KEY))
+        ruleRepository.save(rule("r_acc_last", RuleType.substitution, RuleTrigger("acc_group", GROUP_KEY), "p_zen", 0))
+
+        val filler = (0 until 200).map { index -> CartItemDto(barcode = "48${index.toString().padStart(11, '0')}") }
+        val result = recommend("s-long-cart", filler + CartItemDto(barcode = lastBarcode, name = "Последняя позиция"))
+
+        assertEquals(1, result.recommendations.size)
+        assertEquals(lastBarcode, result.recommendations.single().triggerBarcode)
+        assertEquals("Последняя позиция", result.recommendations.single().triggerName)
+    }
+
+    @Test
+    fun `exact product outranks broad ACC offers under five-per-kind cap`() {
+        publishAccSnapshot(AccRow("ware-bio", barBio, GROUP_KEY))
+        (1..5).forEach { index ->
+            val product = product("p_acc_$index", "ACC analog $index", 1000 + index, null)
+            productRepository.save(product)
+            ruleRepository.save(rule("r_acc_$index", RuleType.substitution, RuleTrigger("acc_group", GROUP_KEY), product.id, 900 - index))
+        }
+
+        val substitutions = recommendByBarcode("s-acc-cap", listOf(barBio)).recommendations
+            .filter { it.kind == "substitution" }
+        assertEquals(5, substitutions.size)
+        assertEquals("p_zen", substitutions.first().recommendSku) // existing exact-product rule
+        assertEquals(4, substitutions.drop(1).count { it.recommendSku.startsWith("p_acc_") })
     }
 
     @Test
@@ -409,12 +520,12 @@ class PosmRecommendIntegrationTest {
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
-    private fun recommend(session: String, items: List<CartItemDto>): RecommendResponse {
+    private fun recommend(session: String, items: List<CartItemDto>, scannedBarcode: String? = null): RecommendResponse {
         val body = mockMvc.perform(
             post("/api/posm/recommend")
                 .header("X-Posm-Key", POSM_KEY)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(req(session, items))),
+                .content(objectMapper.writeValueAsString(req(session, items).copy(scannedBarcode = scannedBarcode))),
         )
             .andExpect(status().isOk)
             .andReturn().response.getContentAsString(Charsets.UTF_8) // кириллица в карточке → UTF-8
@@ -440,4 +551,33 @@ class PosmRecommendIntegrationTest {
     private fun rule(id: String, type: RuleType, trigger: RuleTrigger, recommend: String, bonus: Int) =
         RuleEntity(id = id, trigger = trigger, recommend = recommend, bonus = bonus, createdBy = "seed")
             .also { it.type = type; it.status = RuleStatus.active }
+
+    private data class AccRow(
+        val wareId: String,
+        val barcode: String,
+        val groupKey: String? = null,
+        val subgroupKey: String? = null,
+        val mnnKey: String? = null,
+    )
+
+    private fun publishAccSnapshot(vararg rows: AccRow) {
+        val snapshotId = UUID.randomUUID()
+        jdbc.update(
+            "INSERT INTO acc_catalog_snapshots(id,sha256,source_name,item_count,barcode_count) VALUES (?,?,?,?,?)",
+            snapshotId, snapshotId.toString().replace("-", "").repeat(2).take(64), "test.xlsx",
+            rows.map { it.wareId }.distinct().size, rows.size,
+        )
+        rows.forEach { row ->
+            jdbc.update(
+                """INSERT INTO acc_catalog_barcodes(snapshot_id,ware_id,barcode,group_key,group_label,
+                   subgroup_key,subgroup_label,mnn_key,mnn_label) VALUES (?,?,?,?,?,?,?,?,?)""",
+                snapshotId, row.wareId, row.barcode, row.groupKey,
+                row.groupKey?.let { "Анальгетики" }, row.subgroupKey,
+                row.subgroupKey?.let { "Нестероидные" }, row.mnnKey,
+                row.mnnKey?.let { "Ибупрофен" },
+            )
+        }
+        jdbc.update("UPDATE acc_catalog_state SET active_snapshot_id=? WHERE singleton=1", snapshotId)
+    }
+
 }

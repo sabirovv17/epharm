@@ -22,6 +22,9 @@ vi.mock('@/lib/queries/storefront', () => ({
   useStorefront: storefrontHooks.useStorefront,
 }))
 
+const accTriggerHooks = vi.hoisted(() => ({ useAccTriggerOptions: vi.fn() }))
+vi.mock('@/lib/queries/accTriggerOptions', () => accTriggerHooks)
+
 function mkView(over: Partial<PromoRulesViewDto['config']> = {}): PromoRulesViewDto {
   return {
     promoId: 'pr_1',
@@ -64,6 +67,18 @@ beforeEach(() => {
     refetch: vi.fn(),
   })
   rulesHooks.useSavePromoRules.mockReturnValue({ mutate, isPending: false })
+  accTriggerHooks.useAccTriggerOptions.mockImplementation((kind: string) => ({
+    data: {
+      snapshot: {
+        sha256: 'test-snapshot', sourceName: 'Каталог ACC.xlsx',
+        itemCount: 40, barcodeCount: 27, importedAt: '2026-10-06T00:00:00Z',
+      },
+      options: [{ key: 'scope-1', label: 'Анальгетики', parentLabel: kind === 'acc_subgroup' ? 'Лекарства' : null, count: 27 }],
+    },
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
+  }))
   storefrontHooks.useStorefront.mockReturnValue({
     data: {
       items: [
@@ -120,6 +135,88 @@ function renderEditor(campaignBonus = 0) {
 }
 
 describe('PromoRulesEditor — per-pair скрипт + «Добавить»', () => {
+  it('не предлагает широкие правила без загруженного снимка ACC', async () => {
+    const user = userEvent.setup()
+    accTriggerHooks.useAccTriggerOptions.mockReturnValue({
+      data: { snapshot: null, options: [] }, isPending: false, isError: false, refetch: vi.fn(),
+    })
+    renderEditor()
+    await user.click(screen.getByTestId('pr-add-replacements'))
+    await user.selectOptions(screen.getByLabelText('Что запускает рекомендацию'), 'acc_group')
+    expect(screen.getByText(/Классификатор ACC пока не загружен/)).toBeInTheDocument()
+    expect(screen.queryByTestId('pr-trigger-option-scope-1')).not.toBeInTheDocument()
+  })
+
+  it.each(['acc_group', 'acc_subgroup', 'acc_mnn'] as const)(
+    'создаёт %s-триггер черновиком и сохраняет ключ классификатора',
+    async (kind) => {
+      const user = userEvent.setup()
+      renderEditor()
+      await user.click(screen.getByTestId('pr-add-replacements'))
+      await user.selectOptions(screen.getByLabelText('Что запускает рекомендацию'), kind)
+      await user.click(screen.getByTestId('pr-trigger-option-scope-1'))
+      await user.keyboard('{Escape}')
+      await user.click(screen.getByTestId('promo-rules-save'))
+
+      const refs = mutate.mock.calls[0][0].config.replacements
+      expect(refs).toHaveLength(2)
+      expect(refs[0].medusaProductId).toBe('prod_a')
+      expect(refs[1]).toEqual(expect.objectContaining({
+        medusaProductId: '',
+        triggerKind: kind,
+        triggerValue: 'scope-1',
+        triggerLabel: kind === 'acc_subgroup' ? 'Лекарства / Анальгетики' : 'Анальгетики',
+        active: false,
+      }))
+    },
+  )
+
+  it('различает группу и подгруппу с одинаковым ключом и не теряет их при PUT', async () => {
+    const user = userEvent.setup()
+    renderEditor()
+    await user.click(screen.getByTestId('pr-add-crossSells'))
+    await user.selectOptions(screen.getByLabelText('Что запускает рекомендацию'), 'acc_group')
+    await user.click(screen.getByTestId('pr-trigger-option-scope-1'))
+    await user.selectOptions(screen.getByLabelText('Что запускает рекомендацию'), 'acc_subgroup')
+    await user.click(screen.getByTestId('pr-trigger-option-scope-1'))
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByTestId('promo-rules-save'))
+
+    expect(mutate.mock.calls[0][0].config.crossSells.map((ref: { triggerKind: string }) => ref.triggerKind))
+      .toEqual(['acc_group', 'acc_subgroup'])
+    expect(screen.getByTestId('pr-chosen-acc_group-scope-1')).toBeInTheDocument()
+    expect(screen.getByTestId('pr-chosen-acc_subgroup-scope-1')).toBeInTheDocument()
+  })
+
+  it('GET→PUT сохраняет широкое правило и пять товаров предложения', async () => {
+    const user = userEvent.setup()
+    rulesHooks.usePromoRules.mockReturnValue({
+      data: mkView({
+        replacements: [{
+          medusaProductId: '',
+          name: 'Анальгетики',
+          triggerKind: 'acc_group',
+          triggerValue: 'scope-1',
+          triggerLabel: 'Анальгетики',
+          active: false,
+          additionalRecommendations: [1, 2, 3, 4].map((n) => ({
+            medusaProductId: `alternative-${n}`, name: `Аналог ${n}`, bonus: n * 100,
+          })),
+        }],
+      }),
+      isLoading: false, isError: false, error: null, refetch: vi.fn(),
+    })
+    renderEditor()
+    expect(screen.getByTestId('pr-add-offer-acc_group-scope-1')).toBeDisabled()
+    expect(screen.getByTestId('pr-preview-offer-acc_group-scope-1').children).toHaveLength(5)
+    await user.click(screen.getByTestId('promo-rules-save'))
+    const [ref] = mutate.mock.calls[0][0].config.replacements
+    expect(ref).toEqual(expect.objectContaining({
+      medusaProductId: '', triggerKind: 'acc_group', triggerValue: 'scope-1', active: false,
+    }))
+    expect(ref.additionalRecommendations).toHaveLength(4)
+    expect(ref.additionalRecommendations[3].bonus).toBe(400)
+  })
   it('показывает выбранную пару с её per-pair скриптом', () => {
     renderEditor()
     expect(screen.getByTestId('pr-chosen-prod_a')).toBeInTheDocument()

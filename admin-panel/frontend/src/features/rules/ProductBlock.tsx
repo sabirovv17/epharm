@@ -35,12 +35,17 @@ interface ProductBlockProps {
 export function ProductBlock({ product, accent, fallback }: ProductBlockProps) {
   const t = useT()
   if (!product) {
-    const name =
-      fallback?.kind === 'mnn'
-        ? t('rules.mnnPrefix', { v: fallback.value as string })
-        : fallback?.kind === 'product_any'
-          ? t('rules.productGroupN', { n: (fallback.value as string[]).length })
-          : t('rules.anyTrigger')
+    const scopeName = fallback?.label || (fallback?.value as string) || ''
+    const name = (() => {
+      switch (fallback?.kind) {
+        case 'mnn': return t('rules.mnnPrefix', { v: fallback.value as string })
+        case 'product_any': return t('rules.productGroupN', { n: (fallback.value as string[]).length })
+        case 'acc_group': return t('rules.accGroupPrefix', { v: scopeName })
+        case 'acc_subgroup': return t('rules.accSubgroupPrefix', { v: scopeName })
+        case 'acc_mnn': return t('rules.accMnnPrefix', { v: scopeName })
+        default: return t('rules.anyTrigger')
+      }
+    })()
     return (
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-brand-blue-100 text-brand-blue-600">
@@ -48,7 +53,9 @@ export function ProductBlock({ product, accent, fallback }: ProductBlockProps) {
         </span>
         <div className="min-w-0">
           <div className="truncate text-[13px] font-extrabold text-ink-900">{name}</div>
-          <div className="text-[11px] font-semibold text-ink-500">{t('rules.mnnGroup')}</div>
+          <div className="text-[11px] font-semibold text-ink-500">
+            {fallback?.kind?.startsWith('acc_') ? t('rules.accScope') : t('rules.mnnGroup')}
+          </div>
         </div>
       </div>
     )

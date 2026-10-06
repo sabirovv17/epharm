@@ -51,6 +51,7 @@ interface RecommendationLogRow {
     val eventAt: Instant
     val title: String
     val triggerSku: String?
+    val triggerName: String?
     val pharmacyId: String
     val pharmacistId: String
     val pharmacistName: String?
@@ -159,6 +160,7 @@ interface RecommendationEventRepository : JpaRepository<RecommendationEventEntit
                    COALESCE(e.displayed_at, e.shown_at) AS "eventAt",
                    e.recommend_name AS "title",
                    e.trigger_sku AS "triggerSku",
+                   e.trigger_name AS "triggerName",
                    e.pharmacy_id AS "pharmacyId",
                    e.pharmacist_id AS "pharmacistId",
                    CAST(NULL AS VARCHAR) AS "pharmacistName",
@@ -186,6 +188,7 @@ interface RecommendationEventRepository : JpaRepository<RecommendationEventEntit
                        ELSE COALESCE(NULLIF(s.item ->> 'name', ''), NULLIF(s.item ->> 'sku', ''), 'позиция')
                    END AS "title",
                    CAST(NULL AS VARCHAR) AS "triggerSku",
+                   CAST(NULL AS VARCHAR) AS "triggerName",
                    s.pharmacy_id AS "pharmacyId",
                    s.pharmacist_id AS "pharmacistId",
                    s.pharmacist_name AS "pharmacistName",
@@ -234,10 +237,11 @@ interface RecommendationEventRepository : JpaRepository<RecommendationEventEntit
     )
     fun countJournalRowsSince(@Param("since") since: Instant): Long
 
-    /** Последнее событие правила в этом чеке — для идемпотентного показа. */
-    fun findFirstBySessionIdAndRuleIdOrderByShownAtDesc(
+    /** Последний показ того же правила для того же конкретного товара-триггера в чеке. */
+    fun findFirstBySessionIdAndRuleIdAndTriggerSkuOrderByShownAtDesc(
         sessionId: String,
         ruleId: String,
+        triggerSku: String?,
     ): RecommendationEventEntity?
 
     /**

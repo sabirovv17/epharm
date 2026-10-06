@@ -25,6 +25,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
@@ -40,6 +41,7 @@ import org.springframework.transaction.annotation.Transactional
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import java.util.UUID
 
 /**
  * T2: правила замены/кросс-селла генерятся из карточки кампании (PUT /promo/{id}/rules),
@@ -76,6 +78,7 @@ class PromoRulesIntegrationTest {
     @Autowired private lateinit var adminUserRepository: AdminUserRepository
     @Autowired private lateinit var passwordEncoder: PasswordEncoder
     @Autowired private lateinit var entityManager: EntityManager
+    @Autowired private lateinit var jdbc: JdbcTemplate
 
     private lateinit var bearer: String
 
@@ -528,5 +531,92 @@ class PromoRulesIntegrationTest {
             put("/api/admin/promo/pr_noprod/rules").header("Authorization", bearer)
                 .contentType(MediaType.APPLICATION_JSON).content(body),
         ).andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `ACC scope options and campaign GET PUT roundtrip preserve draft and five-offer fields`() {
+        val groupKey = "grp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        val subgroupKey = "sub_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        val snapshot = UUID.randomUUID()
+        jdbc.update(
+            "INSERT INTO acc_catalog_snapshots(id,sha256,source_name,item_count,barcode_count) VALUES (?,?,?,?,?)",
+            snapshot, "a".repeat(64), "acc-test.xlsx", 3, 2,
+        )
+        jdbc.update(
+            """INSERT INTO acc_catalog_barcodes(snapshot_id,ware_id,barcode,group_key,group_label,
+               subgroup_key,subgroup_label) VALUES (?,?,?,?,?,?,?)""",
+            snapshot, "W-100", "4879876543210", groupKey, "Болеутоляющие", subgroupKey, "НПВС",
+        )
+        // Two WARE_IDs sharing one EAN are not usable POSM triggers and must not
+        // inflate the count of members offered to an admin.
+        listOf("W-101", "W-102").forEach { wareId ->
+            jdbc.update(
+                """INSERT INTO acc_catalog_barcodes(snapshot_id,ware_id,barcode,group_key,group_label,
+                   subgroup_key,subgroup_label) VALUES (?,?,?,?,?,?,?)""",
+                snapshot, wareId, "4879876543296", groupKey, "Болеутоляющие", subgroupKey, "НПВС",
+            )
+        }
+        jdbc.update("UPDATE acc_catalog_state SET active_snapshot_id=? WHERE singleton=1", snapshot)
+
+        mockMvc.perform(
+            get("/api/admin/catalog/trigger-options").header("Authorization", bearer)
+                .param("kind", "acc_subgroup").param("q", "нп"),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.snapshot.sha256").value("a".repeat(64)))
+            .andExpect(jsonPath("$.options[0].key").value(subgroupKey))
+            .andExpect(jsonPath("$.options[0].parentLabel").value("Болеутоляющие"))
+            .andExpect(jsonPath("$.options[0].count").value(1))
+        mockMvc.perform(
+            get("/api/admin/catalog/trigger-options").header("Authorization", bearer)
+                .param("kind", "acc_subgroup").param("q", "Болеутол"),
+        ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.options[0].key").value(subgroupKey))
+
+        val body = """
+            {"replacements":[{"medusaProductId":"","triggerKind":"acc_group","triggerValue":"$groupKey",
+               "triggerLabel":"подмена клиентом не должна сохраняться","active":false,"bonus":0,
+               "script":"Предложите альтернативу","additionalRecommendations":[
+                 {"medusaProductId":"extra_acc_1","name":"Второй аналог","price":2200,"bonus":180}
+               ]}],
+             "crossSells":[{"medusaProductId":"","triggerKind":"acc_subgroup","triggerValue":"$subgroupKey",
+               "active":true,"bonus":250}]}
+        """.trimIndent()
+        mockMvc.perform(
+            put("/api/admin/promo/pr_camp/rules").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(body),
+        ).andExpect(status().isOk)
+
+        val first = mockMvc.perform(
+            get("/api/admin/promo/pr_camp/rules").header("Authorization", bearer),
+        ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.config.replacements[0].triggerKind").value("acc_group"))
+            .andExpect(jsonPath("$.config.replacements[0].triggerValue").value(groupKey))
+            .andExpect(jsonPath("$.config.replacements[0].triggerLabel").value("Болеутоляющие"))
+            .andExpect(jsonPath("$.config.replacements[0].active").value(false))
+            .andExpect(jsonPath("$.config.replacements[0].bonus").value(0))
+            .andExpect(jsonPath("$.config.replacements[0].additionalRecommendations[0].bonus").value(180))
+            .andExpect(jsonPath("$.config.crossSells[0].triggerKind").value("acc_subgroup"))
+            .andReturn().response.contentAsString
+
+        val roundtripBody = objectMapper.writeValueAsString(objectMapper.readTree(first).get("config"))
+        mockMvc.perform(
+            put("/api/admin/promo/pr_camp/rules").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(roundtripBody),
+        ).andExpect(status().isOk)
+
+        val rules = ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc("pr_camp")
+        assertThat(rules).hasSize(3)
+        assertThat(rules.filter { it.trigger.kind == "acc_group" }).hasSize(2)
+        assertThat(rules.filter { it.trigger.kind == "acc_group" }.map { it.status }).containsOnly(RuleStatus.draft)
+        assertThat(rules.filter { it.trigger.kind == "acc_subgroup" }.single().status).isEqualTo(RuleStatus.active)
+        assertThat(rules.map { it.trigger.label }).contains("Болеутоляющие", "Болеутоляющие / НПВС")
+
+        val invalid = body.replace(groupKey, "grp_ffffffffffffffffffffffffffffffff")
+        mockMvc.perform(
+            put("/api/admin/promo/pr_camp/rules").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(invalid),
+        ).andExpect(status().isBadRequest)
+        assertThat(ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc("pr_camp")).hasSize(3)
     }
 }

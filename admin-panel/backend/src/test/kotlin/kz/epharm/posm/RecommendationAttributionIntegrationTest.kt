@@ -19,6 +19,8 @@ import kz.epharm.posm.dto.PosSaleItemDto
 import kz.epharm.posm.dto.PosSaleRequest
 import kz.epharm.posm.dto.RecommendRequest
 import kz.epharm.posm.dto.RecommendResponse
+import kz.epharm.posm.entity.RecommendationEventEntity
+import kz.epharm.posm.entity.RecommendationOutcome
 import kz.epharm.posm.repository.PosSaleRepository
 import kz.epharm.posm.repository.RecommendationEventRepository
 import kz.epharm.receipts.repository.PendingBonusRepository
@@ -145,6 +147,31 @@ class RecommendationAttributionIntegrationTest {
         assertEquals("sale_a", ev.saleId)
         assertNotNull(ev.secondsToSale)
         assertTrue(ev.secondsToSale!! >= 0, "время до продажи неотрицательно")
+    }
+
+    @Test
+    fun `one sold SKU converts only one concrete ACC-trigger event in the receipt`() {
+        val older = RecommendationEventEntity(
+            id = "rec_acc_old", sessionId = "sess_acc", pharmacistId = "u_t", pharmacyId = "ph_t",
+            ruleId = "r_s_1", triggerSku = "acc_first", triggerName = "Первый препарат",
+            recommendSku = "p_zen", recommendName = "SelfieLab Zen", expectedAmount = 4500,
+        ).also { it.shownAt = Instant.now().minusSeconds(120) }
+        val accepted = RecommendationEventEntity(
+            id = "rec_acc_accepted", sessionId = "sess_acc", pharmacistId = "u_t", pharmacyId = "ph_t",
+            ruleId = "r_s_1", triggerSku = "acc_second", triggerName = "Второй препарат",
+            recommendSku = "p_zen", recommendName = "SelfieLab Zen", expectedAmount = 4500,
+        ).also {
+            it.shownAt = Instant.now().minusSeconds(60)
+            it.outcome = RecommendationOutcome.accepted
+        }
+        eventRepository.saveAll(listOf(older, accepted))
+
+        postSale("sale_acc", "sess_acc", listOf(saleItem(barZen, 4500)))
+
+        val actual = eventRepository.findAllBySessionId("sess_acc")
+        assertEquals(1, actual.count { it.soldAt != null })
+        assertEquals("sale_acc", actual.single { it.id == accepted.id }.saleId)
+        assertNull(actual.single { it.id == older.id }.saleId)
     }
 
     @Test

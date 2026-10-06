@@ -1,17 +1,20 @@
 // PromoRulesEditor (T2 + per-pair карточка) — секция «Замены и кросс-селл».
 //
 // Модель: 1 кампания = 1 продвигаемый товар (выбран при создании, тут НЕ меняется).
-// Каждая пара (замена/кросс-селл) = до пяти вариантов на кассе и несёт свои поля,
+// Каждая пара (замена/кросс-селл) имеет товарный либо ACC-таксономический триггер,
+// до пяти вариантов на кассе и свои поля,
 // которые на ней показываются: скрипт «что сказать и почему», преимущества, метка
-// партнёра, таблица-сравнение, цель. Товары добавляются по кнопке «Добавить» (модалка).
+// партнёра, таблица-сравнение, цель. Триггеры добавляются через модалку выбора.
 
 import { cloneElement, useEffect, useState, type ReactElement } from 'react'
 import { Button, Field, Input, Modal, Toggle, useToast } from '@/ui'
 import { IconChevDown, IconClose, IconPlus } from '@/ui/icons'
 import type {
+  AccTriggerOptionDto,
   PromoOfferProductRef,
   PromoRuleProductRef,
   PromoRulesConfigDto,
+  PromoTriggerKind,
   RuleComparisonRowDto,
   StorefrontProductDto,
 } from '@/lib/api-types'
@@ -19,6 +22,8 @@ import { describeError } from '@/lib/describeError'
 import { useT } from '@/i18n'
 import { usePromoRules, useSavePromoRules } from '@/lib/queries/promoRules'
 import { MultiProductPicker } from './PromoProductPicker'
+import { PromoTriggerPicker } from './PromoTriggerPicker'
+import { promoTriggerDomId, promoTriggerKey, promoTriggerKind } from './promoTrigger'
 import {
   extractPromoRulesFieldErrors,
   normalizePromoRulesConfig,
@@ -60,6 +65,30 @@ function toRef(p: StorefrontProductDto): PromoRuleProductRef {
     comparison: [],
     additionalRecommendations: [],
     active: true,
+  }
+}
+
+function toScopeRef(
+  kind: Exclude<PromoTriggerKind, 'product'>,
+  option: AccTriggerOptionDto,
+): PromoRuleProductRef {
+  const displayLabel = option.parentLabel
+    ? `${option.parentLabel} / ${option.label}`
+    : option.label
+  return {
+    medusaProductId: '',
+    name: displayLabel,
+    triggerKind: kind,
+    triggerValue: option.key,
+    triggerLabel: displayLabel,
+    bonus: 0,
+    script: '',
+    advantages: [],
+    partnerLabel: null,
+    comparison: [],
+    additionalRecommendations: [],
+    // A broad scope can match many medicines; publication must be deliberate.
+    active: false,
   }
 }
 
@@ -204,6 +233,7 @@ export function PromoRulesEditor({
     positiveInteger: t('pr.validationPositiveInteger'),
     nonNegativeInteger: t('pr.validationNonNegativeInteger'),
     invalidProduct: t('pr.validationInvalidProduct'),
+    invalidTrigger: t('pr.validationInvalidTrigger'),
     goalLabelRequired: t('pr.validationGoalLabelRequired'),
     goalTargetRequired: t('pr.validationGoalTargetRequired'),
   }
@@ -257,17 +287,31 @@ export function PromoRulesEditor({
       }
     })
   }
-  const removeFrom = (key: ListKey, medusaProductId: string) => {
+  const toggleScopeIn = (key: ListKey) => (
+    kind: Exclude<PromoTriggerKind, 'product'>,
+    option: AccTriggerOptionDto,
+  ) => {
+    clearValidation()
+    const candidate = toScopeRef(kind, option)
+    const identity = promoTriggerKey(candidate)
+    setCfg((config) => ({
+      ...config,
+      [key]: config[key].some((ref) => promoTriggerKey(ref) === identity)
+        ? config[key].filter((ref) => promoTriggerKey(ref) !== identity)
+        : [...config[key], candidate],
+    }))
+  }
+  const removeFrom = (key: ListKey, identity: string) => {
     clearValidation()
     setCfg((c) => ({
       ...c,
-      [key]: c[key].filter((r) => r.medusaProductId !== medusaProductId),
+      [key]: c[key].filter((r) => promoTriggerKey(r) !== identity),
     }))
   }
-  const updatePair = (key: ListKey, medusaProductId: string, patch: Partial<PromoRuleProductRef>) =>
+  const updatePair = (key: ListKey, identity: string, patch: Partial<PromoRuleProductRef>) =>
     setCfg((c) => ({
       ...c,
-      [key]: c[key].map((r) => (r.medusaProductId === medusaProductId ? { ...r, ...patch } : r)),
+      [key]: c[key].map((r) => (promoTriggerKey(r) === identity ? { ...r, ...patch } : r)),
     }))
 
   const onSave = () => {
@@ -342,8 +386,9 @@ export function PromoRulesEditor({
             errors={validationErrors}
             onClearError={clearValidation}
             onToggle={toggleIn('replacements')}
-            onRemove={(idp) => removeFrom('replacements', idp)}
-            onPatch={(idp, p) => updatePair('replacements', idp, p)}
+            onScopePick={toggleScopeIn('replacements')}
+            onRemove={(identity) => removeFrom('replacements', identity)}
+            onPatch={(identity, p) => updatePair('replacements', identity, p)}
           />
 
           <RuleSection
@@ -361,8 +406,9 @@ export function PromoRulesEditor({
             errors={validationErrors}
             onClearError={clearValidation}
             onToggle={toggleIn('crossSells')}
-            onRemove={(idp) => removeFrom('crossSells', idp)}
-            onPatch={(idp, p) => updatePair('crossSells', idp, p)}
+            onScopePick={toggleScopeIn('crossSells')}
+            onRemove={(identity) => removeFrom('crossSells', identity)}
+            onPatch={(identity, p) => updatePair('crossSells', identity, p)}
           />
 
           {/* Цель — одна на всю кампанию (применяется ко всем парам). */}
@@ -475,6 +521,7 @@ function RuleSection({
   errors,
   onClearError,
   onToggle,
+  onScopePick,
   onRemove,
   onPatch,
 }: {
@@ -492,8 +539,9 @@ function RuleSection({
   errors: PromoRulesValidationErrors
   onClearError: (path?: string) => void
   onToggle: (p: StorefrontProductDto) => void
-  onRemove: (medusaProductId: string) => void
-  onPatch: (medusaProductId: string, patch: Partial<PromoRuleProductRef>) => void
+  onScopePick: (kind: Exclude<PromoTriggerKind, 'product'>, option: AccTriggerOptionDto) => void
+  onRemove: (identity: string) => void
+  onPatch: (identity: string, patch: Partial<PromoRuleProductRef>) => void
 }) {
   const t = useT()
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -506,7 +554,7 @@ function RuleSection({
         <ul className="flex flex-col gap-2" data-testid={`pr-list-${sectionKey}`}>
           {items.map((r, index) => (
             <PairCard
-              key={r.medusaProductId}
+              key={promoTriggerKey(r)}
               r={r}
               disabled={disabled}
               kind={kind}
@@ -518,8 +566,8 @@ function RuleSection({
               pathPrefix={`${sectionKey}[${index}]`}
               errors={errors}
               onClearError={onClearError}
-              onRemove={() => onRemove(r.medusaProductId)}
-              onPatch={(p) => onPatch(r.medusaProductId, p)}
+              onRemove={() => onRemove(promoTriggerKey(r))}
+              onPatch={(p) => onPatch(promoTriggerKey(r), p)}
             />
           ))}
         </ul>
@@ -550,7 +598,16 @@ function RuleSection({
           </Button>
         }
       >
-        <MultiProductPicker selectedIds={items.map((r) => r.medusaProductId)} onPick={onToggle} />
+        <PromoTriggerPicker
+          selectedProductIds={items
+            .filter((ref) => promoTriggerKind(ref) === 'product')
+            .map((ref) => ref.medusaProductId)}
+          selectedScopeKeys={items
+            .filter((ref) => promoTriggerKind(ref) !== 'product')
+            .map(promoTriggerKey)}
+          onProductPick={onToggle}
+          onScopePick={onScopePick}
+        />
       </Modal>
     </Field>
   )
@@ -596,7 +653,10 @@ function PairCard({
   const pairActive = r.active !== false
   const offers = r.additionalRecommendations ?? []
   const [offerPickerOpen, setOfferPickerOpen] = useState(false)
-  const cardError = errors[`${pathPrefix}.medusaProductId`]
+  const isBroadTrigger = promoTriggerKind(r) !== 'product'
+  const domId = promoTriggerDomId(r)
+  const triggerErrorPath = `${pathPrefix}.${isBroadTrigger ? 'triggerValue' : 'medusaProductId'}`
+  const cardError = errors[triggerErrorPath]
   const hasAdvancedError = Object.keys(errors).some(
     (path) =>
       path.startsWith(`${pathPrefix}.partnerLabel`) ||
@@ -630,8 +690,8 @@ function PairCard({
 
   return (
     <li
-      data-testid={`pr-chosen-${r.medusaProductId}`}
-      data-validation-path={`${pathPrefix}.medusaProductId`}
+      data-testid={`pr-chosen-${domId}`}
+      data-validation-path={triggerErrorPath}
       tabIndex={cardError ? -1 : undefined}
       aria-invalid={cardError ? true : undefined}
       className={`hairline grid gap-3 rounded-xl border bg-paper-card p-3 lg:grid-cols-[minmax(0,1fr)_340px] ${cardError ? 'border-accent-danger' : ''}`}
@@ -639,14 +699,21 @@ function PairCard({
       <div className="flex min-w-0 flex-col gap-2">
         <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] font-bold text-ink-900">{r.name}</div>
+            <div className="truncate text-[13px] font-bold text-ink-900">
+              {isBroadTrigger ? r.triggerLabel || r.name : r.name}
+            </div>
+            {isBroadTrigger && (
+              <div className="text-[11px] font-semibold text-ink-500">
+                {t(`pr.triggerKind.${promoTriggerKind(r)}`)} · {r.triggerValue}
+              </div>
+            )}
             {r.brand && (
               <div className="truncate text-[11px] font-semibold text-ink-500">{r.brand}</div>
             )}
           </div>
           {/* Статус именно этой пары: Активно / Неактивно. */}
           <div
-            data-testid={`pr-status-${r.medusaProductId}`}
+            data-testid={`pr-status-${domId}`}
             className={`shrink-0 ${disabled ? 'opacity-70' : ''}`}
           >
             <Toggle
@@ -661,7 +728,7 @@ function PairCard({
               type="button"
               onClick={onRemove}
               aria-label={t('pr.removePair')}
-              data-testid={`pr-remove-${r.medusaProductId}`}
+              data-testid={`pr-remove-${domId}`}
               className="shrink-0 text-ink-400 transition-colors hover:text-accent-danger"
             >
               <IconClose size={14} />
@@ -675,7 +742,7 @@ function PairCard({
           </div>
         )}
 
-        <div className="grid gap-2 sm:grid-cols-2">
+        {!isBroadTrigger && <div className="grid gap-2 sm:grid-cols-2">
           <label className="flex min-w-0 flex-col gap-1">
             <span className="text-[11px] font-bold uppercase tracking-[0.04em] text-ink-400">
               {t('pr.barcode')}
@@ -692,7 +759,7 @@ function PairCard({
                   ? validationErrorId(`${pathPrefix}.barcode`)
                   : undefined
               }
-              data-testid={`pr-barcode-${r.medusaProductId}`}
+              data-testid={`pr-barcode-${domId}`}
               onChange={(e) => {
                 onClearError(`${pathPrefix}.barcode`)
                 onPatch({ barcode: e.target.value || null })
@@ -723,7 +790,7 @@ function PairCard({
                   ? validationErrorId(`${pathPrefix}.ipartId`)
                   : undefined
               }
-              data-testid={`pr-ipart-${r.medusaProductId}`}
+              data-testid={`pr-ipart-${domId}`}
               onChange={(e) => {
                 onClearError(`${pathPrefix}.ipartId`)
                 onPatch({ ipartId: e.target.value || null })
@@ -738,7 +805,7 @@ function PairCard({
               </span>
             )}
           </label>
-        </div>
+        </div>}
 
         <textarea
           className={`inp text-[13px] ${errors[`${pathPrefix}.script`] ? 'border-accent-danger' : ''}`}
@@ -755,7 +822,7 @@ function PairCard({
               : undefined
           }
           data-validation-path={`${pathPrefix}.script`}
-          data-testid={`pr-script-${r.medusaProductId}`}
+          data-testid={`pr-script-${domId}`}
           onChange={(e) => {
             onClearError(`${pathPrefix}.script`)
             onPatch({ script: e.target.value })
@@ -786,7 +853,7 @@ function PairCard({
                 disabled={atOfferLimit}
                 onClick={() => setOfferPickerOpen(true)}
                 leading={<IconPlus size={13} />}
-                data-testid={`pr-add-offer-${r.medusaProductId}`}
+                data-testid={`pr-add-offer-${domId}`}
               >
                 {atOfferLimit ? t('pr.limitReached') : t('pr.addOffer')}
               </Button>
@@ -810,7 +877,7 @@ function PairCard({
               )}
               <div className="col-span-2">
                 <OfferBonusInput
-                  id={`pr-bonus-primary-${r.medusaProductId}`}
+                  id={`pr-bonus-primary-${domId}`}
                   value={r.bonus}
                   fallback={bonus}
                   disabled={disabled}
@@ -830,7 +897,7 @@ function PairCard({
               <li
                 key={offer.medusaProductId}
                 className={`grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 px-3 py-2 ${offerError ? 'bg-accent-danger/5' : ''}`}
-                data-testid={`pr-offer-${r.medusaProductId}-${offer.medusaProductId}`}
+                data-testid={`pr-offer-${domId}-${offer.medusaProductId}`}
                 data-validation-path={offerPath}
                 tabIndex={offerError ? -1 : undefined}
                 aria-invalid={offerError ? true : undefined}
@@ -863,7 +930,7 @@ function PairCard({
                 )}
                 <div className="col-span-3">
                   <OfferBonusInput
-                    id={`pr-bonus-${r.medusaProductId}-${offer.medusaProductId}`}
+                    id={`pr-bonus-${domId}-${offer.medusaProductId}`}
                     value={offer.bonus}
                     fallback={bonus}
                     disabled={disabled}
@@ -902,7 +969,7 @@ function PairCard({
           <MultiProductPicker
             selectedIds={[
               ...(promotedProductId ? [promotedProductId] : []),
-              r.medusaProductId,
+              ...(r.medusaProductId ? [r.medusaProductId] : []),
               ...offers.map((offer) => offer.medusaProductId),
             ]}
             onPick={toggleOffer}
@@ -914,7 +981,7 @@ function PairCard({
           type="button"
           onClick={() => setOpen((o) => !o)}
           className="flex items-center gap-1.5 self-start text-[12px] font-bold text-brand-green-700"
-          data-testid={`pr-card-toggle-${r.medusaProductId}`}
+          data-testid={`pr-card-toggle-${domId}`}
           aria-expanded={open}
         >
           <IconChevDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -929,7 +996,7 @@ function PairCard({
                 rows={2}
                 value={(r.advantages ?? []).join('\n')}
                 disabled={disabled}
-                data-testid={`pr-adv-${r.medusaProductId}`}
+                data-testid={`pr-adv-${domId}`}
                 onChange={(e) => onPatch({ advantages: e.target.value.split('\n') })}
               />
             </Field>
@@ -958,7 +1025,7 @@ function PairCard({
                   <div
                     key={i}
                     className="grid grid-cols-[1fr_1fr_1fr_auto] items-center gap-2"
-                    data-testid={`pr-cmp-${r.medusaProductId}-${i}`}
+                    data-testid={`pr-cmp-${domId}-${i}`}
                   >
                     <InlineValidatedField
                       path={`${pathPrefix}.comparison[${i}].label`}
@@ -1106,14 +1173,18 @@ function RecommendationPreview({
   const fmtPrice = (p?: number | null) => (p != null ? `${p.toLocaleString('ru-RU')} ₸` : null)
   const isReplace = kind === 'replacement'
   const title = isReplace ? t('pr.previewReplace') : t('pr.previewCross')
+  const isBroadTrigger = promoTriggerKind(r) !== 'product'
+  const domId = promoTriggerDomId(r)
 
   // Семантика как на кассе (backend PromoRulesService):
   //  • замена   — триггер = заменяемый товар (r), ПРЕДЛОЖИТЕ ВМЕСТО = товар кампании;
   //  • кросс-селл — триггер = товар уже в чеке (r), ДОБАВЬТЕ = товар кампании.
-  const triggerLabel = isReplace ? t('pr.previewAsked') : t('pr.previewInCart')
-  const triggerName = r.name
+  const triggerLabel = isBroadTrigger
+    ? t(`pr.triggerKind.${promoTriggerKind(r)}`)
+    : isReplace ? t('pr.previewAsked') : t('pr.previewInCart')
+  const triggerName = isBroadTrigger ? r.triggerLabel || r.name : r.name
   // EAN-13 триггера: выбранный товар пары является trigger и для замены, и для кросс-селла.
-  const triggerBarcode = r.barcode
+  const triggerBarcode = isBroadTrigger ? null : r.barcode
   const offerName = promotedName
   const offers = [
     {
@@ -1149,25 +1220,28 @@ function RecommendationPreview({
         {triggerName && (
           <div
             className="mx-3 rounded-lg bg-ink-50 px-3 py-2"
-            data-testid={`pr-preview-trigger-${r.medusaProductId}`}
+            data-testid={`pr-preview-trigger-${domId}`}
           >
             <div className="text-[10px] font-bold uppercase tracking-wide text-ink-500">
               {triggerLabel}
             </div>
             <div className="text-[13px] font-extrabold leading-tight text-recommendation-ink">{triggerName}</div>
+            {isBroadTrigger && (
+              <div className="text-[10px] text-ink-500">{t('pr.previewScopeActualProduct')}</div>
+            )}
             {triggerBarcode && <span className="sr-only">{triggerBarcode}</span>}
           </div>
         )}
 
         <div
           className="px-3 pb-1 pt-3 text-[16px] font-extrabold uppercase leading-none text-recommendation-burgundy"
-          data-testid={`pr-preview-section-${r.medusaProductId}`}
+          data-testid={`pr-preview-section-${domId}`}
         >
           {isReplace ? t('pr.previewReplace') : t('pr.previewCross')} · {offers.length}
         </div>
         <ul
           className="scrollbar-thin flex max-h-[330px] flex-col gap-1.5 overflow-y-auto px-3 pb-3"
-          data-testid={`pr-preview-offer-${r.medusaProductId}`}
+          data-testid={`pr-preview-offer-${domId}`}
         >
           {offers.map((offer, index) => (
             <li
@@ -1177,7 +1251,7 @@ function RecommendationPreview({
                   ? 'border-recommendation-green-dark bg-recommendation-green text-white'
                   : 'border-ink-200 bg-white text-recommendation-ink'
               }`}
-              data-testid={`pr-preview-card-${r.medusaProductId}-${offer.id}`}
+              data-testid={`pr-preview-card-${domId}-${offer.id}`}
             >
               <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[12px] font-extrabold ${
                 offer.bonus > 0 ? 'bg-white/20 text-white' : 'bg-ink-100 text-recommendation-ink'

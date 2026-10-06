@@ -53,6 +53,15 @@ describe('ruleSummary', () => {
     const s = ruleSummary(r)
     expect(s).toContain('→')
   })
+
+  it.each([
+    ['acc_group', 'Группа ACC'],
+    ['acc_subgroup', 'Подгруппа ACC'],
+    ['acc_mnn', 'МНН ACC'],
+  ] as const)('renders %s taxonomy trigger with its server label', (kind, prefix) => {
+    const rule = mkRule({ trigger: { kind, value: 'stable-uuid', label: 'Болеутоляющие' } })
+    expect(ruleSummary(rule)).toContain(`${prefix}: Болеутоляющие`)
+  })
 })
 
 describe('vendorColor', () => {

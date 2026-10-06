@@ -2,6 +2,8 @@ package kz.epharm.promo.service
 
 import kz.epharm.catalog.entity.ProductEntity
 import kz.epharm.catalog.repository.ProductRepository
+import kz.epharm.catalog.service.AccCatalogTaxonomy
+import kz.epharm.catalog.service.AccScopeKind
 import kz.epharm.medusa.service.MedusaPriceService
 import kz.epharm.promo.dto.PromoComparisonRowDto
 import kz.epharm.promo.dto.PromoOfferProductRefDto
@@ -47,6 +49,7 @@ class PromoRulesService(
     private val ruleRepository: RuleRepository,
     private val productRepository: ProductRepository,
     private val medusaPriceService: MedusaPriceService,
+    private val accCatalogTaxonomy: AccCatalogTaxonomy,
 ) {
 
     @Transactional(readOnly = true)
@@ -94,6 +97,9 @@ class PromoRulesService(
                 "Сначала привяжите товар к кампании, затем настраивайте замены/кросс-селл",
                 HttpStatus.BAD_REQUEST,
             )
+        // Validate all scopes before deleting existing campaign rules.
+        val replacementTriggers = config.replacements.map { it to triggerFor(it) }
+        val crossSellTriggers = config.crossSells.map { it to triggerFor(it) }
         // Локальный товар-продвигаемый (recommend для замен и кросс-селла).
         val promoted = upsertPromotedProduct(promo, promotedMedusaId)
 
@@ -122,11 +128,11 @@ class PromoRulesService(
         val created = mutableListOf<RuleEntity>()
 
         // Замены: триггер — заменяемый товар, рекомендация — продвигаемый.
-        config.replacements
-            .filter { it.medusaProductId != promotedMedusaId }
-            .distinctBy { it.medusaProductId }
-            .forEach { ref ->
-                val trig = upsertProduct(ref)
+        replacementTriggers
+            .filter { (_, trigger) -> trigger.kind != "product" || trigger.value != promotedMedusaId }
+            .distinctBy { (_, trigger) -> trigger.kind to trigger.value }
+            .forEach { (ref, trigger) ->
+                if (trigger.kind == "product") upsertProduct(ref)
                 recommendationsFor(ref, promoted).forEachIndexed { offerRank, offer ->
                     created += RuleEntity(
                         id = generateRuleId(RuleType.substitution),
@@ -136,7 +142,7 @@ class PromoRulesService(
                         script = ref.script.ifBlank { config.script },
                         advantages = ref.advantages.ifEmpty { config.advantages },
                         card = cardFor(ref, config, offerRank),
-                        trigger = RuleTrigger(kind = "product", value = trig.id),
+                        trigger = trigger,
                         createdBy = createdBy,
                     ).also {
                         it.type = RuleType.substitution
@@ -147,11 +153,11 @@ class PromoRulesService(
             }
 
         // Кросс-селл: триггер — товар уже в чеке, рекомендация — продвигаемый товар кампании.
-        config.crossSells
-            .filter { it.medusaProductId != promotedMedusaId }
-            .distinctBy { it.medusaProductId }
-            .forEach { ref ->
-                val companion = upsertProduct(ref)
+        crossSellTriggers
+            .filter { (_, trigger) -> trigger.kind != "product" || trigger.value != promotedMedusaId }
+            .distinctBy { (_, trigger) -> trigger.kind to trigger.value }
+            .forEach { (ref, trigger) ->
+                if (trigger.kind == "product") upsertProduct(ref)
                 recommendationsFor(ref, promoted).forEachIndexed { offerRank, offer ->
                     created += RuleEntity(
                         id = generateRuleId(RuleType.crosssell),
@@ -161,7 +167,7 @@ class PromoRulesService(
                         script = ref.script.ifBlank { config.script },
                         advantages = ref.advantages.ifEmpty { config.advantages },
                         card = cardFor(ref, config, offerRank),
-                        trigger = RuleTrigger(kind = "product", value = companion.id),
+                        trigger = trigger,
                         createdBy = createdBy,
                     ).also {
                         it.type = RuleType.crosssell
@@ -249,33 +255,56 @@ class PromoRulesService(
         promotedId: String?,
         legacyCrossSell: Boolean,
     ): List<PromoRuleProductRefDto> {
-        data class Normalized(val triggerId: String, val recommendId: String, val rule: RuleEntity)
+        data class Normalized(
+            val triggerKind: String,
+            val triggerValue: String,
+            val triggerLabel: String?,
+            val recommendId: String,
+            val rule: RuleEntity,
+        )
 
         val normalized = rules.flatMap { rule ->
-            val triggerIds = when (rule.trigger.kind) {
+            val triggerValues = when (rule.trigger.kind) {
                 "product" -> listOfNotNull(rule.trigger.value as? String)
                 "product_any" -> (rule.trigger.value as? List<*>)
                     ?.mapNotNull { it as? String }
                     .orEmpty()
+                "mnn", "acc_group", "acc_subgroup", "acc_mnn" ->
+                    listOfNotNull(rule.trigger.value as? String)
                 else -> emptyList()
             }
-            triggerIds.distinct().map { rawTrigger ->
-                if (legacyCrossSell && promotedId != null && rawTrigger == promotedId) {
-                    Normalized(triggerId = rule.recommend, recommendId = promotedId, rule = rule)
+            triggerValues.distinct().map { rawTrigger ->
+                if (legacyCrossSell && promotedId != null &&
+                    rule.trigger.kind in setOf("product", "product_any") && rawTrigger == promotedId
+                ) {
+                    Normalized("product", rule.recommend, null, promotedId, rule)
                 } else {
-                    Normalized(triggerId = rawTrigger, recommendId = rule.recommend, rule = rule)
+                    val kind = if (rule.trigger.kind == "product_any") "product" else rule.trigger.kind
+                    Normalized(kind, rawTrigger, rule.trigger.label, rule.recommend, rule)
                 }
             }
         }
 
-        return normalized.groupBy { it.triggerId }.map { (triggerId, group) ->
+        return normalized.groupBy { it.triggerKind to it.triggerValue }.map { (key, group) ->
+            val (kind, triggerValue) = key
             val ordered = group.sortedWith(
                 compareBy<Normalized> { it.rule.card?.offerRank ?: Int.MAX_VALUE }
                     .thenBy { it.rule.id },
             )
             val first = ordered.first().rule
-            val base = productRef(triggerId)
-                ?: PromoRuleProductRefDto(medusaProductId = triggerId, name = triggerId)
+            val base = if (kind == "product") {
+                productRef(triggerValue)
+                    ?: PromoRuleProductRefDto(medusaProductId = triggerValue, name = triggerValue)
+            } else {
+                val label = group.firstNotNullOfOrNull { it.triggerLabel } ?: triggerValue
+                PromoRuleProductRefDto(
+                    medusaProductId = "",
+                    triggerKind = kind,
+                    triggerValue = triggerValue,
+                    triggerLabel = label,
+                    name = label,
+                )
+            }
             val extras = ordered.asSequence()
                 .filter { it.recommendId != promotedId }
                 .distinctBy { it.recommendId }
@@ -287,6 +316,35 @@ class PromoRulesService(
             reconstructRef(base, first).copy(bonus = first.bonus, additionalRecommendations = extras)
         }
     }
+
+    /** The stable key determines membership; client-provided labels never do. */
+    private fun triggerFor(ref: PromoRuleProductRefDto): RuleTrigger = when (ref.triggerKind) {
+        "product" -> {
+            val id = ref.medusaProductId.trim()
+            if (id.isBlank() || !ref.triggerValue.isNullOrBlank()) {
+                invalidTrigger("Exact-product trigger requires medusaProductId and no triggerValue")
+            }
+            RuleTrigger(kind = "product", value = id)
+        }
+        "mnn" -> {
+            // Legacy campaign rules may use this kind; new ACC authoring uses acc_mnn.
+            val value = ref.triggerValue?.trim().orEmpty()
+            if (value.isBlank() || ref.medusaProductId.isNotBlank()) invalidTrigger("Invalid MNN trigger")
+            RuleTrigger(kind = "mnn", value = value, label = ref.triggerLabel?.trim()?.takeIf(String::isNotBlank))
+        }
+        "acc_group", "acc_subgroup", "acc_mnn" -> {
+            if (ref.medusaProductId.isNotBlank()) invalidTrigger("ACC trigger cannot include medusaProductId")
+            val kind = AccScopeKind.parse(ref.triggerKind)
+            val selected = accCatalogTaxonomy.requireActiveOption(kind, ref.triggerValue.orEmpty())
+            val label = selected.parentLabel?.let { "$it / ${selected.label}" } ?: selected.label
+            RuleTrigger(kind = kind.wire, value = selected.key, label = label.take(255))
+        }
+        else -> invalidTrigger("Unknown triggerKind=${ref.triggerKind}")
+    }
+
+    private fun invalidTrigger(message: String): Nothing = throw AppException(
+        ErrorCode.VALIDATION_FAILED, message, HttpStatus.BAD_REQUEST,
+    )
 
     private data class OfferRecommendation(val product: ProductEntity, val bonus: Int?)
 

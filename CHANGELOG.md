@@ -7,6 +7,10 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ### Added
 
+- ACC group, subgroup and international nonproprietary name (INN) can be selected as
+  recommendation triggers alongside the existing exact-product trigger. The classification
+  comes from an explicitly reviewed, versioned ACC catalogue snapshot; ambiguous barcodes
+  do not trigger a broad rule, and newly authored broad rules start as drafts.
 - Completed pharmacist course materials end to end: administrators can publish external links,
   interactive content, downloadable attachments, required lessons and minimum video-view targets;
   the mobile app now renders and opens every published material.

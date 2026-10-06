@@ -39,6 +39,8 @@ data class RuleTrigger(
     val kind: String,
     val value: Any,
     val exclude: List<String>? = null,
+    /** Snapshot label is presentation-only; matching always uses the stable ACC key in value. */
+    val label: String? = null,
 )
 
 /**

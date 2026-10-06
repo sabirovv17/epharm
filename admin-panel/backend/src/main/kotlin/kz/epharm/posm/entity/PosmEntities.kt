@@ -41,6 +41,9 @@ class RecommendationEventEntity(
     @Column(name = "trigger_sku", length = 64)
     var triggerSku: String? = null,
 
+    @Column(name = "trigger_name", length = 255)
+    var triggerName: String? = null,
+
     @Column(name = "recommend_sku", nullable = false, length = 64)
     var recommendSku: String = "",
 

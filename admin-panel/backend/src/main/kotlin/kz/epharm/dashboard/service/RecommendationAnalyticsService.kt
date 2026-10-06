@@ -36,6 +36,7 @@ class RecommendationAnalyticsService(
         val at: Instant,
         val title: String,
         val triggerSku: String?,
+        val triggerName: String?,
         val pharmacyId: String,
         val pharmacistId: String,
         val pharmacistName: String?, // снимок имени продавца из Standard-N; только для продаж
@@ -86,6 +87,7 @@ class RecommendationAnalyticsService(
                 at = row.eventAt,
                 title = row.title,
                 triggerSku = row.triggerSku,
+                triggerName = row.triggerName,
                 pharmacyId = row.pharmacyId,
                 pharmacistId = row.pharmacistId,
                 pharmacistName = row.pharmacistName,
@@ -117,7 +119,8 @@ class RecommendationAnalyticsService(
                 type = r.type,
                 at = r.at,
                 title = r.title,
-                triggerName = r.triggerSku?.let { triggerNames[it] },
+                triggerName = r.triggerName?.takeIf(String::isNotBlank)
+                    ?: r.triggerSku?.let { triggerNames[it] },
                 pharmacyId = r.pharmacyId,
                 pharmacyName = pharmacyNames[r.pharmacyId] ?: r.pharmacyId.ifBlank { "—" },
                 pharmacistId = r.pharmacistId.ifBlank { r.reportedPharmacistId.orEmpty() },

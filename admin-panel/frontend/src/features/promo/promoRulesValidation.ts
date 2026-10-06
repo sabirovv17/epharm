@@ -6,11 +6,14 @@ import type {
   PromoRulesConfigDto,
   RuleComparisonRowDto,
 } from '@/lib/api-types'
+import { promoTriggerKey, promoTriggerKind } from './promoTrigger'
 
 export type PromoRulesValidationErrors = Record<string, string>
 
 export const PROMO_RULE_LIMITS = {
   productId: 64,
+  triggerValue: 64,
+  triggerLabel: 255,
   name: 255,
   brand: 128,
   mnn: 128,
@@ -31,6 +34,7 @@ export type PromoRulesValidationMessages = {
   positiveInteger: string
   nonNegativeInteger: string
   invalidProduct: string
+  invalidTrigger: string
   goalLabelRequired: string
   goalTargetRequired: string
 }
@@ -89,6 +93,13 @@ function normalizeRef(
     script: (ref.script ?? '').trim(),
     barcode: trimOrNull(ref.barcode),
     ipartId: trimOrNull(ref.ipartId),
+    ...(promoTriggerKind(ref) === 'product'
+      ? {}
+      : {
+          medusaProductId: '',
+          triggerValue: trimOrNull(ref.triggerValue),
+          triggerLabel: boundedSnapshot(ref.triggerLabel, PROMO_RULE_LIMITS.triggerLabel),
+        }),
     advantages: (ref.advantages ?? []).map((item) => item.trim()).filter(Boolean),
     comparison: (ref.comparison ?? [])
       .map(normalizeComparison)
@@ -120,7 +131,7 @@ export function normalizePromoRulesConfig(
   promotedProductId?: string,
 ): PromoRulesConfigDto {
   const dedupe = (list: PromoRuleProductRef[]) => [
-    ...new Map(list.map((ref) => [ref.medusaProductId, ref])).values(),
+    ...new Map(list.map((ref) => [promoTriggerKey(ref), ref])).values(),
   ]
 
   return {
@@ -186,8 +197,21 @@ function validateRef(
   errors: PromoRulesValidationErrors,
   messages: PromoRulesValidationMessages,
 ) {
-  if (!ref.medusaProductId.trim() || ref.medusaProductId.length > PROMO_RULE_LIMITS.productId) {
-    errors[`${path}.medusaProductId`] = messages.invalidProduct
+  if (promoTriggerKind(ref) === 'product') {
+    if (!ref.medusaProductId.trim() || ref.medusaProductId.length > PROMO_RULE_LIMITS.productId) {
+      errors[`${path}.medusaProductId`] = messages.invalidProduct
+    }
+  } else {
+    if (!ref.triggerValue?.trim() || ref.triggerValue.length > PROMO_RULE_LIMITS.triggerValue) {
+      errors[`${path}.triggerValue`] = messages.invalidTrigger
+    }
+    validateLength(
+      errors,
+      `${path}.triggerLabel`,
+      ref.triggerLabel,
+      PROMO_RULE_LIMITS.triggerLabel,
+      messages,
+    )
   }
   validateLength(errors, `${path}.barcode`, ref.barcode, PROMO_RULE_LIMITS.barcode, messages)
   validateLength(errors, `${path}.ipartId`, ref.ipartId, PROMO_RULE_LIMITS.ipartId, messages)
@@ -286,6 +310,7 @@ function humanizeServerMessage(
   const max = message.match(/size must be between \d+ and (\d+)/i)?.[1]
   if (path.endsWith('medusaProductId')) return messages.invalidProduct
   if (max) return messages.maxLength(Number(max))
+  if (path.endsWith('triggerValue')) return messages.invalidTrigger
   if (/must not be blank/i.test(message)) return messages.required
   if (/greater than or equal to 0/i.test(message)) return messages.nonNegativeInteger
   return message
