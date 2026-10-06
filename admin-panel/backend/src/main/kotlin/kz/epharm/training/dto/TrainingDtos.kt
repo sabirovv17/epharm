@@ -74,6 +74,11 @@ data class TrainingProgramDto(
     val shortDescription: String,
     val description: String,
     val coverUrl: String?,
+    val certificateEpharmLogoUrl: String?,
+    val certificatePartnerLogoUrl: String?,
+    val certificateSignerName: String,
+    val certificateValidityMonths: Int,
+    val certificateTemplate: String,
     val category: String,
     val manufacturer: String,
     val brand: String,
@@ -133,6 +138,14 @@ data class CreateTrainingProgramRequest(
     val description: String = "",
     @field:Size(max = 1000)
     val coverUrl: String? = null,
+    @field:Size(max = 1000)
+    val certificateEpharmLogoUrl: String? = null,
+    @field:Size(max = 1000)
+    val certificatePartnerLogoUrl: String? = null,
+    @field:NotBlank @field:Size(max = 255)
+    val certificateSignerName: String = "Руководитель учебного центра",
+    @field:Min(1) @field:Max(120)
+    val certificateValidityMonths: Int = 36,
     @field:Size(max = 128)
     val category: String = "",
     @field:Size(max = 255)
@@ -173,6 +186,16 @@ data class UpdateTrainingProgramRequest(
     @field:Size(max = 1000)
     val coverUrl: String? = null,
     val clearCoverUrl: Boolean = false,
+    @field:Size(max = 1000)
+    val certificateEpharmLogoUrl: String? = null,
+    val clearCertificateEpharmLogoUrl: Boolean = false,
+    @field:Size(max = 1000)
+    val certificatePartnerLogoUrl: String? = null,
+    val clearCertificatePartnerLogoUrl: Boolean = false,
+    @field:Size(max = 255)
+    val certificateSignerName: String? = null,
+    @field:Min(1) @field:Max(120)
+    val certificateValidityMonths: Int? = null,
     @field:Size(max = 128)
     val category: String? = null,
     @field:Size(max = 255)
@@ -204,6 +227,14 @@ data class UpdateTrainingProgramRequest(
     val completionBonus: Long? = null,
     @field:Valid
     val stages: List<CreateTrainingStageRequest>? = null,
+)
+
+data class TrainingProgramCoverUploadDto(
+    val coverUrl: String,
+)
+
+data class TrainingProgramCertificateAssetUploadDto(
+    val assetUrl: String,
 )
 
 data class OfflineEventDto(
@@ -578,6 +609,11 @@ data class CertificateVerificationDto(
     val expiresAt: Instant?,
     val score: Int?,
     val signerName: String,
+    val partnerCompanyName: String,
+    val coverUrl: String?,
+    val epharmLogoUrl: String?,
+    val partnerLogoUrl: String?,
+    val templateName: String,
     val status: CertificateStatus,
     val valid: Boolean,
 )

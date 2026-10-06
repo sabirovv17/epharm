@@ -78,6 +78,15 @@ uses the same green/white distinction and preserves the configured offer order. 
 campaign's general reward alone does not rewrite existing rule rewards: edit and save the
 corresponding pair to change what POSM displays.
 
+The trigger of a pair can remain a specific Medusa product or be selected from an imported ACC
+group, subgroup (shown together with its parent group), or INN. The taxonomy selector displays
+the active snapshot and eligible member counts; only scopes with unambiguous barcode members are
+available. A new broad-scope pair starts as a draft and requires an explicit activation decision.
+The offered products and their independent bonuses are unchanged. Saving and reopening a campaign
+must round-trip both old product pairs and broad-scope pairs without reclassifying or deleting them.
+The Rules section labels these trigger kinds distinctly but remains read-only. The ACC file is a
+versioned, manually imported snapshot, not a live prices/stock feed.
+
 ## State and Data
 
 The connected-cash-desk card is a live view, not a permanent installation registry. Its Excel button
@@ -136,6 +145,15 @@ calling catalog, rules, screens, finance, settings, or other HQ APIs receives JS
 An `HQ_HEAD` token can read training data and export reports, while every training mutation returns
 JSON `403 FORBIDDEN`; the frontend mirrors this contract by hiding all editing controls.
 The LMS roster uses `/api/admin/training/pharmacists`, a read-only projection for assignments.
+Managers can open the certificate editor from the certificates section. Its settings belong to one
+training program: ePharm and partner logos, signer, and validity period. The editor previews the
+certificate composition before saving; only roles with `canManagePrograms` can change it. The
+participant, completed program, issue date, and verification QR come from the actual certificate
+when it is issued, not from the sample shown in the editor.
+
+The training workspace also accepts an Excel course template. Import creates a draft for review,
+not a published course; the manager can inspect lessons and tests before publishing. Program covers
+are uploaded through the backend and stored as returned URLs rather than typed as arbitrary links.
 
 ## Pharmacist Onboarding
 

@@ -27,6 +27,7 @@ import {
   IconPlayCircle,
   IconPlus,
   IconUsers,
+  IconUpload,
 } from '@/ui/icons'
 import type {
   CourseDto,
@@ -45,6 +46,7 @@ import {
   downloadTrainingAssignments,
   useCourses,
   useCreateCourse,
+  useImportCourse,
   useDeleteCourse,
   useOfflineEvents,
   useTrainingAssignmentPage,
@@ -86,6 +88,7 @@ import {
   dateTime,
 } from './training-ui'
 import { CourseEditorDrawer } from './CourseEditorDrawer'
+import { CertificateEditorModal } from './CertificateEditorModal'
 
 const TABS: TabItem<TrainingTab>[] = TRAINING_NAVIGATION.map(({ value, label }) => ({
   value,
@@ -122,7 +125,9 @@ export default function LMSPage() {
   const [eventModalOpen, setEventModalOpen] = useState(false)
   const [eventTarget, setEventTarget] = useState<OfflineEventDto | null>(null)
   const [courseModalOpen, setCourseModalOpen] = useState(false)
+  const [courseImportOpen, setCourseImportOpen] = useState(false)
   const [courseTargetId, setCourseTargetId] = useState<string | null>(null)
+  const [certificateEditorOpen, setCertificateEditorOpen] = useState(false)
   const [attendanceEvent, setAttendanceEvent] = useState<OfflineEventDto | null>(null)
   const [qrEvent, setQrEvent] = useState<OfflineEventDto | null>(null)
   const [resultTarget, setResultTarget] = useState<{
@@ -191,8 +196,20 @@ export default function LMSPage() {
     }
     if (tab === 'courses' && capabilities?.canManagePrograms) {
       return (
-        <Button leading={<IconPlus size={15} />} onClick={() => setCourseModalOpen(true)}>
-          Новый курс
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" leading={<IconUpload size={15} />} onClick={() => setCourseImportOpen(true)}>
+            Импорт из Excel
+          </Button>
+          <Button leading={<IconPlus size={15} />} onClick={() => setCourseModalOpen(true)}>
+            Новый курс
+          </Button>
+        </div>
+      )
+    }
+    if (tab === 'certificates' && capabilities?.canManagePrograms) {
+      return (
+        <Button leading={<IconEdit size={15} />} onClick={() => setCertificateEditorOpen(true)}>
+          Редактор сертификата
         </Button>
       )
     }
@@ -319,6 +336,20 @@ export default function LMSPage() {
       )}
       {capabilities?.canManagePrograms && (
         <CreateCourseModal open={courseModalOpen} onClose={() => setCourseModalOpen(false)} />
+      )}
+      {courseImportOpen && capabilities?.canManagePrograms && (
+        <ImportCourseModal
+          open
+          onClose={() => setCourseImportOpen(false)}
+          onImported={(course) => setCourseTargetId(course.id)}
+        />
+      )}
+      {certificateEditorOpen && capabilities?.canManagePrograms && (
+        <CertificateEditorModal
+          open
+          onClose={() => setCertificateEditorOpen(false)}
+          programs={programs}
+        />
       )}
       <CourseEditorDrawer
         key={courseTargetId ?? 'closed-course-editor'}
@@ -1470,6 +1501,115 @@ function CreateCourseModal({ open, onClose }: { open: boolean; onClose: () => vo
             ]}
           />
         </Field>
+      </div>
+    </Modal>
+  )
+}
+
+function ImportCourseModal({
+  open,
+  onClose,
+  onImported,
+}: {
+  open: boolean
+  onClose: () => void
+  onImported: (course: CourseDto) => void
+}) {
+  const toast = useToast()
+  const importCourse = useImportCourse()
+  const [file, setFile] = useState<File | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = () => {
+    if (!file) return setError('Выберите заполненный файл .xlsx')
+    setError(null)
+    importCourse.mutate(file, {
+      onSuccess: (course) => {
+        toast.push('Курс импортирован как черновик')
+        onClose()
+        onImported(course)
+      },
+      onError: (requestError) => setError(describeError(requestError)),
+    })
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Импорт курса из Excel"
+      subtitle="Создайте курс, уроки и тесты одним файлом"
+      width={600}
+      footer={
+        <>
+          <Button variant="ghost" disabled={importCourse.isPending} onClick={onClose}>
+            Отмена
+          </Button>
+          <Button
+            leading={<IconUpload size={15} />}
+            disabled={!file || importCourse.isPending}
+            onClick={submit}
+          >
+            {importCourse.isPending ? 'Импортируем…' : 'Импортировать курс'}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        {error && (
+          <div
+            role="alert"
+            className="rounded-lg bg-surface-danger px-3 py-2 text-[12px] font-semibold text-accent-danger"
+          >
+            {error}
+          </div>
+        )}
+
+        <div className="rounded-xl border border-teal-200 bg-teal-50/70 p-4">
+          <div className="text-[13px] font-extrabold text-ink-900">Сначала скачайте шаблон</div>
+          <div className="mt-1 text-[12px] leading-5 text-ink-600">
+            В нём уже есть пример текстового урока и теста. Не меняйте названия листов и
+            столбцов.
+          </div>
+          <a
+            className="btn btn-md btn-outline mt-3 inline-flex w-fit"
+            href="/templates/epharm-course-import-template.xlsx"
+            download="epharm-course-import-template.xlsx"
+          >
+            <IconDownload size={15} />
+            <span>Скачать шаблон Excel</span>
+          </a>
+        </div>
+
+        <label className="block cursor-pointer rounded-xl border border-dashed border-ink-300 bg-paper-input px-5 py-6 text-center transition hover:border-teal-500 hover:bg-teal-50/40">
+          <input
+            className="sr-only"
+            type="file"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            onChange={(event) => {
+              setError(null)
+              setFile(event.target.files?.[0] ?? null)
+            }}
+          />
+          <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-teal-100 text-teal-700">
+            <IconUpload size={20} />
+          </span>
+          <span className="mt-3 block text-[13px] font-extrabold text-ink-900">
+            {file ? file.name : 'Выбрать заполненный Excel-файл'}
+          </span>
+          <span className="mt-1 block text-[11px] text-ink-500">Только .xlsx, до 2 МБ</span>
+        </label>
+
+        <div className="grid gap-2 text-[12px] leading-5 text-ink-600 sm:grid-cols-2">
+          <div className="rounded-lg bg-paper-input px-3 py-2">
+            <strong className="text-ink-800">Что создаётся:</strong> карточка курса, уроки,
+            тесты и правильные ответы.
+          </div>
+          <div className="rounded-lg bg-paper-input px-3 py-2">
+            <strong className="text-ink-800">После импорта:</strong> курс откроется черновиком
+            для проверки и загрузки файлов.
+          </div>
+        </div>
       </div>
     </Modal>
   )

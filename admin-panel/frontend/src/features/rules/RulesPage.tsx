@@ -22,6 +22,7 @@ import { RuleRow } from './RuleRow'
 import { RuleBuilder } from './RuleBuilder'
 import { describeError } from '@/lib/describeError'
 import { useT } from '@/i18n'
+import { ruleTriggerDisplay } from './lib'
 
 type RulesTab = 'substitution' | 'crosssell' | 'archive'
 type StatusFilter = 'all' | 'active' | 'paused'
@@ -67,10 +68,7 @@ export default function RulesPage() {
   const filtered = currentList.filter((r) => {
     if (filter !== 'all' && r.status !== filter && tab !== 'archive') return false
     if (!q) return true
-    const trigName =
-      r.trigger.kind === 'product'
-        ? productById(r.trigger.value as string)?.name
-        : (r.trigger.value as string)
+    const trigName = ruleTriggerDisplay(r.trigger, productById, t)
     const recName = productById(r.recommend)?.name ?? ''
     return `${trigName ?? ''} ${recName}`.toLowerCase().includes(q.toLowerCase())
   })

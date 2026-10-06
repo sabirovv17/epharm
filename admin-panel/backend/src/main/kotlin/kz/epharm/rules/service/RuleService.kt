@@ -1,6 +1,8 @@
 package kz.epharm.rules.service
 
 import kz.epharm.catalog.repository.ProductRepository
+import kz.epharm.catalog.service.AccCatalogTaxonomy
+import kz.epharm.catalog.service.AccScopeKind
 import kz.epharm.rules.dto.CreateRuleRequest
 import kz.epharm.rules.dto.RuleDto
 import kz.epharm.rules.dto.TriggerDto
@@ -20,6 +22,7 @@ import java.util.UUID
 class RuleService(
     private val ruleRepository: RuleRepository,
     private val productRepository: ProductRepository,
+    private val accCatalogTaxonomy: AccCatalogTaxonomy,
 ) {
 
     @Transactional(readOnly = true)
@@ -39,7 +42,7 @@ class RuleService(
 
     @Transactional
     fun create(req: CreateRuleRequest, createdBy: String): RuleDto {
-        validateTriggerShape(req.trigger)
+        val trigger = canonicalTrigger(req.trigger)
         ensureProductExists(req.recommend)
         ensureNotSelfReference(req.trigger, req.recommend)
         val newId = generateId(req.type)
@@ -51,7 +54,7 @@ class RuleService(
             advantages = req.advantages,
             abTest = req.abTest?.toEntity(),
             card = req.card?.toEntity(),
-            trigger = req.trigger.toEntity(),
+            trigger = trigger,
             createdBy = createdBy,
         ).also {
             it.type = req.type
@@ -81,8 +84,7 @@ class RuleService(
             )
         }
         req.trigger?.let {
-            validateTriggerShape(it)
-            entity.trigger = it.toEntity()
+            entity.trigger = canonicalTrigger(it)
         }
         req.recommend?.let {
             ensureProductExists(it)
@@ -94,6 +96,13 @@ class RuleService(
             triggerValue = entity.trigger.value,
             recommend = entity.recommend,
         )
+        if (req.status == RuleStatus.active && entity.trigger.kind.startsWith("acc_")) {
+            // A snapshot may have changed since this draft was created. Do not activate an
+            // orphaned taxonomy key through a status-only PATCH.
+            accCatalogTaxonomy.requireActiveOption(
+                AccScopeKind.parse(entity.trigger.kind), entity.trigger.value as String,
+            )
+        }
         req.status?.let { entity.status = it }
         req.bonus?.let { entity.bonus = it }
         req.script?.let { entity.script = it }
@@ -171,7 +180,7 @@ class RuleService(
      */
     private fun validateTriggerShape(trigger: TriggerDto) {
         when (trigger.kind) {
-            "product", "mnn" -> {
+            "product", "mnn", "acc_group", "acc_subgroup", "acc_mnn" -> {
                 if (trigger.value !is String || (trigger.value as String).isBlank()) {
                     throw AppException(
                         ErrorCode.VALIDATION_FAILED,
@@ -199,6 +208,16 @@ class RuleService(
                 )
             }
         }
+    }
+
+    private fun canonicalTrigger(trigger: TriggerDto): kz.epharm.rules.entity.RuleTrigger {
+        validateTriggerShape(trigger)
+        if (!trigger.kind.startsWith("acc_")) return trigger.toEntity()
+        val selected = accCatalogTaxonomy.requireActiveOption(
+            AccScopeKind.parse(trigger.kind), trigger.value as String,
+        )
+        val label = selected.parentLabel?.let { "$it / ${selected.label}" } ?: selected.label
+        return trigger.toEntity().copy(value = selected.key, label = label.take(255))
     }
 
     /**

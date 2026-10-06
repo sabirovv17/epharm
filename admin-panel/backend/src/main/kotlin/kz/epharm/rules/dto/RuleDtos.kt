@@ -74,13 +74,15 @@ data class RuleDto(
 
 data class TriggerDto(
     @field:NotBlank
-    @field:Pattern(regexp = "product|mnn|product_any")
+    @field:Pattern(regexp = "product|mnn|product_any|acc_group|acc_subgroup|acc_mnn")
     val kind: String,
     @field:NotNull
     val value: Any,
     val exclude: List<String>? = null,
+    @field:Size(max = 255)
+    val label: String? = null,
 ) {
-    fun toEntity(): RuleTrigger = RuleTrigger(kind = kind, value = value, exclude = exclude)
+    fun toEntity(): RuleTrigger = RuleTrigger(kind = kind, value = value, exclude = exclude, label = label)
 }
 
 data class AbTestDto(

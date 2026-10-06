@@ -9,6 +9,7 @@ import kz.epharm.lms.dto.ReorderCourseLessonsRequest
 import kz.epharm.lms.dto.UpdateCourseLessonRequest
 import kz.epharm.lms.dto.UpdateCourseRequest
 import kz.epharm.lms.entity.CourseStatus
+import kz.epharm.lms.service.CourseExcelImportService
 import kz.epharm.lms.service.CourseService
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
@@ -32,7 +33,10 @@ import org.springframework.web.multipart.MultipartFile
 @RestController
 @RequestMapping("/api/admin/lms/courses")
 @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HQ_HEAD','TRAINING_MANAGER','REGIONAL_MANAGER','TRAINER')")
-class LmsController(private val courseService: CourseService) {
+class LmsController(
+    private val courseService: CourseService,
+    private val courseExcelImportService: CourseExcelImportService,
+) {
 
     @GetMapping
     fun list(@RequestParam(required = false) status: CourseStatus?): List<CourseDto> =
@@ -47,6 +51,13 @@ class LmsController(private val courseService: CourseService) {
         @Valid @RequestBody req: CreateCourseRequest,
         @AuthenticationPrincipal principal: AdminPrincipal?,
     ): CourseDto = courseService.create(req, createdBy = requireUserId(principal))
+
+    @PostMapping("/import/excel", consumes = ["multipart/form-data"])
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER')")
+    fun importExcel(
+        @RequestParam("file") file: MultipartFile,
+        @AuthenticationPrincipal principal: AdminPrincipal?,
+    ): CourseDto = courseExcelImportService.importCourse(file, createdBy = requireUserId(principal))
 
     @PatchMapping("/{id}")
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER')")

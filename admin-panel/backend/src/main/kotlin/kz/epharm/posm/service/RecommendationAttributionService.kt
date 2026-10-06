@@ -2,6 +2,7 @@ package kz.epharm.posm.service
 
 import java.time.Duration
 import kz.epharm.posm.entity.PosSaleEntity
+import kz.epharm.posm.entity.RecommendationOutcome
 import kz.epharm.posm.repository.RecommendationEventRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -41,9 +42,24 @@ class RecommendationAttributionService(
         val candidates = eventRepository.findBySessionIdAndSoldAtIsNull(sessionId)
         if (candidates.isEmpty()) return
 
+        // One sold SKU can close only one recommendation in a receipt. Group scopes may have
+        // shown the same offer for two different scanned products; attributing both would inflate
+        // conversion/revenue. Prefer the accepted event, otherwise the most recent actual show.
+        val winners = candidates
+            .filter { it.recommendSku.isNotBlank() && it.recommendSku in soldProductIds }
+            .groupBy { it.recommendSku }
+            .values.mapNotNull { group ->
+                group.maxWithOrNull(
+                    compareBy(
+                        { if (it.outcome == RecommendationOutcome.accepted) 1 else 0 },
+                        { it.displayedAt ?: it.shownAt },
+                        { it.shownAt },
+                        { it.id },
+                    ),
+                )
+            }
         var attributed = 0
-        for (ev in candidates) {
-            if (ev.recommendSku.isBlank() || ev.recommendSku !in soldProductIds) continue
+        for (ev in winners) {
             val origin = ev.displayedAt ?: ev.shownAt
             ev.soldAt = sale.printedAt
             ev.saleId = sale.id

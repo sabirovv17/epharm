@@ -14,6 +14,7 @@ const messages: PromoRulesValidationMessages = {
   positiveInteger: 'positive-int',
   nonNegativeInteger: 'non-negative-int',
   invalidProduct: 'invalid-product',
+  invalidTrigger: 'invalid-trigger',
   goalLabelRequired: 'goal-label-required',
   goalTargetRequired: 'goal-target-required',
 }
@@ -34,6 +35,36 @@ function config(over: Partial<PromoRulesConfigDto> = {}): PromoRulesConfigDto {
 }
 
 describe('promo rules validation contract', () => {
+  it('keeps legacy product and distinct ACC scopes with an empty Medusa product id', () => {
+    const normalized = normalizePromoRulesConfig(config({
+      replacements: [
+        { medusaProductId: 'product-1', name: 'Товар' },
+        { medusaProductId: '', name: 'Группа', triggerKind: 'acc_group', triggerValue: 'scope-1', triggerLabel: 'Группа', active: false },
+        { medusaProductId: '', name: 'Подгруппа', triggerKind: 'acc_subgroup', triggerValue: 'scope-1', triggerLabel: 'Подгруппа', active: false },
+      ],
+    }))
+
+    expect(normalized.replacements).toHaveLength(3)
+    expect(normalized.replacements[0]).not.toHaveProperty('triggerKind')
+    expect(normalized.replacements[1]).toMatchObject({ medusaProductId: '', triggerKind: 'acc_group', triggerValue: 'scope-1', active: false })
+    expect(normalized.replacements[2]).toMatchObject({ medusaProductId: '', triggerKind: 'acc_subgroup', triggerValue: 'scope-1', active: false })
+    expect(validatePromoRulesConfig(normalized, messages)).toEqual({})
+  })
+
+  it('rejects a broad scope without a stable taxonomy key', () => {
+    const errors = validatePromoRulesConfig(config({
+      crossSells: [{ medusaProductId: '', name: 'Категория', triggerKind: 'acc_mnn', triggerValue: '   ' }],
+    }), messages)
+    expect(errors['crossSells[0].triggerValue']).toBe('invalid-trigger')
+  })
+
+  it('enforces the backend 64-character ACC scope key limit', () => {
+    const errors = validatePromoRulesConfig(config({
+      replacements: [{ medusaProductId: '', name: 'Группа', triggerKind: 'acc_group', triggerValue: 'x'.repeat(65) }],
+    }), messages)
+    expect(errors['replacements[0].triggerValue']).toBe('invalid-trigger')
+  })
+
   it('bounds non-editable Medusa snapshots without changing editable values', () => {
     const normalized = normalizePromoRulesConfig(
       config({

@@ -16,6 +16,9 @@ interface MediaStorage {
     /** Загружает байты, возвращает публичный URL для проигрывания в <video>/<img>. */
     fun upload(bytes: ByteArray, contentType: String, originalName: String): String
 
+    /** Читает объект только из управляемого хранилища. Внешние URL не запрашиваются. */
+    fun read(url: String): ByteArray?
+
     /** Удаляет объект по ранее возвращённому URL (best-effort). */
     fun delete(url: String)
 }
@@ -38,4 +41,7 @@ class InMemoryMediaStorage : MediaStorage {
     override fun delete(url: String) {
         store.keys.firstOrNull { url.endsWith(it) }?.let { store.remove(it) }
     }
+
+    override fun read(url: String): ByteArray? =
+        store.entries.firstOrNull { url.endsWith(it.key) }?.value
 }

@@ -7,6 +7,9 @@ import kz.epharm.catalog.dto.MnnGroupDto
 import kz.epharm.catalog.dto.ProductDto
 import kz.epharm.catalog.dto.UpdateProductRequest
 import kz.epharm.catalog.service.CatalogService
+import kz.epharm.catalog.service.AccCatalogTaxonomy
+import kz.epharm.catalog.service.AccScopeKind
+import kz.epharm.catalog.service.AccScopeOptionsDto
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -17,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.bind.annotation.RequestParam
 
 // Каталог master-data. Read-эндпоинты нужны фронту:
 //   GET /products    — список для productById lookup в RulesPage
@@ -28,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/api/admin/catalog")
 class CatalogController(
     private val catalogService: CatalogService,
+    private val accCatalogTaxonomy: AccCatalogTaxonomy,
 ) {
 
     @GetMapping("/products")
@@ -56,4 +61,11 @@ class CatalogController(
 
     @GetMapping("/mnn-groups")
     fun listMnnGroups(): List<MnnGroupDto> = catalogService.listMnnGroups()
+
+    /** Selectable scopes from the active ACC snapshot; unavailable/ambiguous items are excluded. */
+    @GetMapping("/trigger-options")
+    fun triggerOptions(
+        @RequestParam kind: String,
+        @RequestParam(required = false) q: String?,
+    ): AccScopeOptionsDto = accCatalogTaxonomy.options(AccScopeKind.parse(kind), q)
 }

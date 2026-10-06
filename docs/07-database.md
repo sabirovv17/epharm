@@ -4,7 +4,7 @@ Database: PostgreSQL 16.
 
 Migrations: Flyway files in `admin-panel/backend/src/main/resources/db/migration/`.
 
-Current migration range: V001-V047.
+Current migration range: V001-V057.
 
 ## Migrations
 
@@ -57,13 +57,23 @@ Current migration range: V001-V047.
 | V045    | `standardn_pharmacist_mapping`         | Explicit pharmacy/external USER_ID mapping plus immutable change audit.      |
 | V046    | `signed_posm_update_manifest`          | ECDSA manifest signature stored with every POSM release.                     |
 | V047    | `fulfillment_payment_authority`        | Claimed vs trusted payment status and server-side payment authority.         |
+| V048    | `medusa_catalog_snapshot`              | Complete read-model generation for the Medusa product catalogue.              |
+| V049    | `lms_extended_lesson_materials`        | Extended lesson content and materials.                                        |
+| V050    | `training_lesson_progress`             | Per-lesson pharmacist progress.                                               |
+| V051    | `offline_event_check_in_code`          | Offline-event attendance code.                                                |
+| V052    | `event_participant_code_method`        | Attendance verification method.                                               |
+| V053    | `pharmacist_password_login`            | Pharmacist password-login support.                                            |
+| V054    | `course_quizzes`                       | Course assessment questions and attempts.                                     |
+| V055    | `standardn_pharmacist_directory`       | Standard-N cashier directory.                                                 |
+| V056    | `training_certificate_branding`       | Certificate branding fields already applied in production.                    |
+| V057    | `acc_recommendation_taxonomy`          | Versioned ACC barcode classes and concrete recommendation trigger name.       |
 
 ## Domain Tables
 
 | Domain              | Main tables                                                                    |
 | ------------------- | ------------------------------------------------------------------------------ |
 | Auth                | `admin_users`, `refresh_tokens`, `mobile_otps`, `mobile_refresh_tokens`        |
-| Catalog/rules       | `products`, `rules`                                                            |
+| Catalog/rules       | `products`, `rules`, `acc_catalog_snapshots`, `acc_catalog_state`, `acc_catalog_barcodes` |
 | Promo               | `promos` plus campaign rule references                                         |
 | Receipts/reconcile  | `receipts`, `pending_bonuses`, `pos_sales`, `excel_imports`, `excel_sale_rows` |
 | Pharmacies          | `chains`, `pharmacies`                                                         |
@@ -89,3 +99,23 @@ Current migration range: V001-V047.
 - `pos_sales.items` keeps the original iPartID/EAN/name and the backend-resolved internal
   `productId`; unresolved or ambiguous catalog matches remain `null` instead of being guessed.
 - `source_document_id` is the local Standard-N `DOCS.ID`, not an official fiscal receipt number.
+
+## ACC classification snapshot for recommendation triggers
+
+The user-supplied `Каталог АСС.xlsx` is the only available source for group, subgroup and INN
+membership. It is **not** a live price/stock source. The private offline preparer
+`tools/prepare-acc-recommendation-catalog.py` validates the workbook columns and generates a
+transactional PostgreSQL import plus a SHA-256/count manifest into a new owner-only output directory.
+Neither the original workbook nor the generated SQL belongs in Git or a public build artifact.
+Run the generated SQL only after Flyway V057 has completed, with `psql` error-stop enabled and a
+verified database backup. An import retains every distinct `WARE_ID`/barcode row, then atomically
+switches the singleton active-snapshot pointer; repeating the same source SHA is idempotent.
+
+Scope keys are deterministic hashes of normalized labels; a subgroup key includes its parent
+group. A barcode linked to more than one `WARE_ID` is ambiguous even if the rows appear to share
+the same class, and is excluded from broad-trigger matching. Blank/placeholder group or INN values
+do not become selectable scopes. Exact-product rules remain independent of this snapshot. Before
+activating a broad rule, check its scope and offered products clinically, then use a real pharmacy
+EAN scan for acceptance; internal-only Standard-N codes cannot establish ACC membership. The
+source-quality counts and known freshness limitation are in
+`docs/reports/2026-10-06-acc-classification-quality.md`.

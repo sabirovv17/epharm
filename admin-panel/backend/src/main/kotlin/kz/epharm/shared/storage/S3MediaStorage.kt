@@ -11,6 +11,7 @@ import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.s3.S3Configuration
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest
+import software.amazon.awssdk.services.s3.model.GetObjectRequest
 import software.amazon.awssdk.services.s3.model.PutObjectRequest
 import java.net.URI
 import java.util.UUID
@@ -75,6 +76,27 @@ class S3MediaStorage(
         }.onFailure { log.warn("Не удалось удалить объект {}: {}", key, it.message) }
     }
 
+    override fun read(url: String): ByteArray? {
+        val key = keyFromUrl(url) ?: return null
+        return runCatching {
+            // The PDF generator reads at most three images. A ranged request keeps
+            // memory bounded even if an object was replaced after upload.
+            client.getObjectAsBytes(
+                GetObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(key)
+                    .range("bytes=0-$MAX_CERTIFICATE_ASSET_BYTES")
+                    .build(),
+            ).asByteArray().takeIf { it.size <= MAX_CERTIFICATE_ASSET_BYTES }
+        }.onFailure { log.warn("Не удалось прочитать объект {}: {}", key, it.message) }.getOrNull()
+    }
+
+    internal fun keyFromUrl(url: String): String? {
+        val expectedPrefix = "${publicUrl.trimEnd('/')}/$bucket/"
+        if (!url.startsWith(expectedPrefix)) return null
+        return url.removePrefix(expectedPrefix).takeIf { MANAGED_IMAGE_KEY.matches(it) }
+    }
+
     private fun extOf(name: String, contentType: String): String {
         val dot = name.lastIndexOf('.')
         if (dot in 0 until name.length - 1) return name.substring(dot).lowercase()
@@ -85,5 +107,12 @@ class S3MediaStorage(
             contentType.contains("jpeg") || contentType.contains("jpg") -> ".jpg"
             else -> ""
         }
+    }
+
+    private companion object {
+        const val MAX_CERTIFICATE_ASSET_BYTES = 5 * 1024 * 1024
+        val MANAGED_IMAGE_KEY = Regex(
+            """screens/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:png|jpg|jpeg)""",
+        )
     }
 }
