@@ -4,7 +4,7 @@ Database: PostgreSQL 16.
 
 Migrations: Flyway files in `admin-panel/backend/src/main/resources/db/migration/`.
 
-Current migration range: V001-V056.
+Current migration range: V001-V057.
 
 ## Migrations
 
@@ -65,7 +65,8 @@ Current migration range: V001-V056.
 | V053    | `pharmacist_password_login`            | Pharmacist password-login support.                                            |
 | V054    | `course_quizzes`                       | Course assessment questions and attempts.                                     |
 | V055    | `standardn_pharmacist_directory`       | Standard-N cashier directory.                                                 |
-| V056    | `acc_recommendation_taxonomy`          | Versioned ACC barcode classes and concrete recommendation trigger name.       |
+| V056    | `training_certificate_branding`       | Certificate branding fields already applied in production.                    |
+| V057    | `acc_recommendation_taxonomy`          | Versioned ACC barcode classes and concrete recommendation trigger name.       |
 
 ## Domain Tables
 
@@ -106,7 +107,7 @@ membership. It is **not** a live price/stock source. The private offline prepare
 `tools/prepare-acc-recommendation-catalog.py` validates the workbook columns and generates a
 transactional PostgreSQL import plus a SHA-256/count manifest into a new owner-only output directory.
 Neither the original workbook nor the generated SQL belongs in Git or a public build artifact.
-Run the generated SQL only after Flyway V056 has completed, with `psql` error-stop enabled and a
+Run the generated SQL only after Flyway V057 has completed, with `psql` error-stop enabled and a
 verified database backup. An import retains every distinct `WARE_ID`/barcode row, then atomically
 switches the singleton active-snapshot pointer; repeating the same source SHA is idempotent.
 
