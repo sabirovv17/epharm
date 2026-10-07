@@ -9,10 +9,12 @@ The machine-readable API contract is [`openapi.yaml`](openapi.yaml).
 
 The service requires the variables in `.env.example`. Keep `.env` only on the
 server with mode `0600`; it contains the Firebird password and API key.
-`compose.yml` connects the service to the existing Caddy frontend network and
-does not publish a port. Set `STOCK_HOST_DATA_DIR` in the server `.env` to the
-absolute persistent SQLite directory when the Git checkout differs from the
-data directory. The default full-sweep interval is 30 minutes because
+`compose.yml` binds the API only to the host loopback address on
+`STOCK_HOST_PORT` (default `18080`). Nginx on the stock host handles HTTPS;
+the old gateway can proxy the stable API URL to it. Set `STOCK_HOST_DATA_DIR`
+in the server `.env` to the absolute persistent SQLite directory when the Git
+checkout differs from the data directory. The default full-sweep interval is
+30 minutes because
 the measured indexed read rate cannot support a verified three-minute sweep of
 all 586 profiles without a different source strategy. Use
 `GET /stocks/api/v1/status` to inspect actual freshness.

@@ -6,6 +6,8 @@ services:
     env_file: .env
     volumes:
       - ${STOCK_HOST_DATA_DIR:-./data}:/app/data
+    ports:
+      - '127.0.0.1:${STOCK_HOST_PORT:-18080}:8080'
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=64m
@@ -17,12 +19,3 @@ services:
     mem_limit: 1g
     cpus: 1.5
     restart: unless-stopped
-    networks:
-      frontend:
-        aliases:
-          - epharm-stock-service
-
-networks:
-  frontend:
-    external: true
-    name: inkar-shop_frontend

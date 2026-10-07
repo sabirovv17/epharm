@@ -13,8 +13,15 @@
         X-Frame-Options SAMEORIGIN
     }
     handle /stocks/api/v1/* {
-        uri strip_prefix /stocks
-        reverse_proxy epharm-stock-service:8080
+        reverse_proxy https://10.10.1.81 {
+            header_up Host inkeshopapteka.inkar.kz
+            transport http {
+                tls_server_name inkeshopapteka.inkar.kz
+                dial_timeout 5s
+                tls_timeout 5s
+                response_header_timeout 65s
+            }
+        }
     }
     handle /stocks/* {
         respond "Not Found" 404
