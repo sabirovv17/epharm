@@ -4,7 +4,7 @@
 
 Исходники: [stock-service/](../stock-service/), тесты:
 [stock-service-tests/](../stock-service-tests/). Это отдельный .NET 10 процесс на
-сервере магазина. Он читает групповую Firebird 2.5 базу Standard-N, сохраняет
+сервере данных `10.10.1.81`. Он читает групповую Firebird 2.5 базу Standard-N, сохраняет
 снимки в собственном SQLite и отдаёт их по JSON API. Веб-интерфейса и Excel нет.
 POSM и HQ backend не меняются. Другой сервис подключается через Bearer API.
 
@@ -58,13 +58,17 @@ Standard-N сервис не ускоряет опрос параллельны�
 
 ## API для интеграции
 
-В корпоративной сети Caddy направляет
-`https://inkeshopapteka.inkar.kz/stocks/api/v1/*` на внутренний контейнер,
-срезая только `/stocks`. Прямой порт контейнера на хост не опубликован.
+В корпоративной сети клиенты используют стабильный адрес
+`https://inkeshopapteka.inkar.kz/stocks/api/v1/*`. Пока DNS этого имени ведёт на
+`10.10.1.80`, его Caddy по HTTPS проксирует запрос без изменения пути на Nginx
+`10.10.1.81`. Nginx удаляет префикс `/stocks` и направляет запрос на контейнер,
+доступный только на `127.0.0.1:18080` нового сервера. Прямой порт контейнера
+во внутренней сети не опубликован. При будущем переводе DNS на `.81` тот же
+HTTPS vhost Nginx сохранит внешний URL.
 Все перечисленные маршруты требуют
 `Authorization: Bearer <STOCK_API_KEY>`; ключ находится только в серверном
-`stock-service/.env`. `/healthz` служит локальной проверкой процесса и не
-публикуется через Caddy.
+`stock-service/.env` на `.81`. `/healthz` служит локальной проверкой процесса и
+не публикуется через Nginx/Caddy.
 
 | Запрос                                                               | Ответ                                                                                                         |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
@@ -94,44 +98,58 @@ curl -H 'Authorization: Bearer <api-key>' \
 
 ## Развёртывание, проверка и откат
 
-На сервере Git checkout — `/home/adm-quasar/epharm-stock-code`, Compose запускается
-из его `stock-service/`. Локальная база остаётся в
-`/home/adm-quasar/stock-service/data/stocks.sqlite` и подключается переменной
-`STOCK_HOST_DATA_DIR` из checkout `.env`. Git-ветка
-`codex/pharmacy-stock-service` — передаваемый исходник. `.env` (права
-`0600`) и SQLite не попадают в Git; владельцу интеграции нужно получить
-Bearer-ключ через администратора сервера. Образ собирается через
-`docker compose build stock`, запускается через `docker compose up -d`. Контейнер
-работает без root, с read-only файловой системой, ограничениями CPU/RAM и без
-опубликованного порта. Снимки в `data/` переживают рестарт.
+Рабочий checkout на `.81` — `/home/adm-quasar/epharm-stock-code`, Compose
+запускается из `stock-service/`. SQLite находится в
+`/home/adm-quasar/stock-service/data/stocks.sqlite`; путь задаётся
+`STOCK_HOST_DATA_DIR` в checkout `.env`. Git-ветка
+`codex/pharmacy-stock-service` — передаваемый исходник. `.env` (права `0600`)
+и SQLite не попадают в Git; Bearer-ключ и доступ к нему передаёт администратор.
+Контейнер работает без root, с read-only файловой системой и ограничениями
+CPU/RAM. Compose публикует порт только на `127.0.0.1`, а не на сетевой адрес `.81`.
+Nginx использует версионированный фрагмент
+[`nginx-stock-location.conf`](../stock-service/deploy/nginx-stock-location.conf)
+в HTTPS vhost `inkeshopapteka.inkar.kz`. Перед правкой активного Nginx/Caddy
+сохраняйте их конфигурацию и проверяйте `nginx -t` / `caddy validate`.
 
-Повторное развёртывание из Git checkout:
+Повторное развёртывание на `.81`:
 
 ```bash
 cd /home/adm-quasar/epharm-stock-code
 git status --short
 git pull --ff-only origin codex/pharmacy-stock-service
 cd stock-service
-docker compose config --quiet
-docker compose build stock
-docker compose up -d --no-build
-docker compose ps
+sudo docker compose config --quiet
+sudo docker compose build stock
+sudo docker compose up -d --no-build
+sudo docker compose ps
+curl -fsS http://127.0.0.1:18080/healthz
 ```
 
-Перед обновлением сохранить согласованный SQLite backup: остановить контейнер
-и скопировать весь `data/`, либо использовать SQLite `.backup`. Не копировать
-один `.sqlite` при активном WAL. Сохранить прежний исходник/образ и Caddyfile.
-После запуска проверить `/healthz` из Docker-сети, 401 без Bearer, 200 с Bearer
-на `/status`, список аптек и чтение снимка. `healthz` означает только живой
-процесс; свежесть смотрите в `/status`. При откате вернуть прежний образ и
-Caddyfile, а при несовместимости схемы — сохранённую копию `data/`.
-Маршрут Caddy живёт в конфигурации релиза магазина; его нужно сохранять при
-смене релиза (версии шаблонов лежат в `storefront/deploy/inkar-server/`).
-Активный путь Caddyfile на сервере можно получить без догадок:
+Перед обновлением сохраните согласованный SQLite backup: остановите контейнер
+и скопируйте весь `data/` либо используйте SQLite backup API. Одиночный
+`.sqlite` при активном WAL копировать нельзя. Проверьте `PRAGMA quick_check`,
+сохраните прежний образ, конфигурацию Nginx и Caddy. После запуска проверьте
+401 без Bearer, 200 с Bearer на `/status`, каталог и чтение снимка через оба
+маршрута: `https://10.10.1.81` с TLS-именем `inkeshopapteka.inkar.kz` и
+основной URL через `.80`. `/healthz` подтверждает лишь живой процесс;
+свежесть данных смотрите в `/status`.
+
+Для отката сначала остановите контейнер на `.81`, затем восстановите старый
+маршрут Caddy на `.80` и запустите старый контейнер. Это предотвращает два
+одновременных читателя Standard-N. После удаления старого контейнера откат
+требует повторного развёртывания из Git и сохранённой копии SQLite. Не удаляйте
+Nginx, Caddy и другие сервисы на любом из серверов: `.80` остаётся входным
+шлюзом магазина и CRM. Активный путь Caddyfile на `.80`:
 
 ```bash
 docker inspect inkar-shop-edge-1 --format '{{range .Mounts}}{{if eq .Destination "/etc/caddy/Caddyfile"}}{{.Source}}{{end}}{{end}}'
 ```
+
+Если сторонняя интеграция обращалась по основному HTTPS URL, повторная
+привязка не нужна: URL, пути JSON API и Bearer-ключ сохраняются. Интеграции с
+прямым IP `.80`, локальным Docker-именем или файловым путём нужно перевести на
+основной HTTPS URL. У действующего Caddy не было журнала доступа к API, поэтому
+всех таких клиентов автоматически выявить нельзя.
 
 Локальные проверки:
 
