@@ -7,7 +7,7 @@ services:
     volumes:
       - ${STOCK_HOST_DATA_DIR:-./data}:/app/data
     ports:
-      - '127.0.0.1:${STOCK_HOST_PORT:-18080}:8080'
+      - '127.0.0.1:18080:8080'
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=64m

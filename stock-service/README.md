@@ -9,8 +9,8 @@ The machine-readable API contract is [`openapi.yaml`](openapi.yaml).
 
 The service requires the variables in `.env.example`. Keep `.env` only on the
 server with mode `0600`; it contains the Firebird password and API key.
-`compose.yml` binds the API only to the host loopback address on
-`STOCK_HOST_PORT` (default `18080`). Nginx on the stock host handles HTTPS;
+`compose.yml` binds the API only to the host loopback address on port `18080`.
+Nginx on the stock host handles HTTPS;
 the old gateway can proxy the stable API URL to it. Set `STOCK_HOST_DATA_DIR`
 in the server `.env` to the absolute persistent SQLite directory when the Git
 checkout differs from the data directory. The default full-sweep interval is
