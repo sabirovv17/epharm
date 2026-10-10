@@ -312,9 +312,10 @@ export default function PromoPage() {
         onClose={() => setCreateOpen(false)}
         onCreate={async (req) => {
           try {
-            await createPromo.mutateAsync(req)
+            const created = await createPromo.mutateAsync(req)
             toast.push(t('pm.createdToast'))
             setCreateOpen(false)
+            navigate(`/promo/${created.id}`)
           } catch (e) {
             // Раскрываем конкретную причину от backend (1:1-конфликт товара,
             // несогласованные даты и т.п.) — иначе пользователь видит лишь

@@ -981,6 +981,7 @@ export const ru: Dict = {
   // ── Product picker (товар витрины Medusa) ──────────────────────────────
   'pp.searchPh': 'Поиск товара в витрине Medusa…',
   'pp.searching': 'Поиск…',
+  'pp.searchError': 'Не удалось загрузить товары',
   'pp.notFound': 'Ничего не найдено',
   'pp.startTyping': 'Начните вводить название товара',
   'pp.change': 'Сменить',
@@ -989,6 +990,18 @@ export const ru: Dict = {
   'pp.loading': 'Загружаем…',
 
   // ── Campaign product fields (T1) ───────────────────────────────────────
+  'pm.triggerFirstSub': 'Сначала выберите, что вызовет подсказку на кассе. Затем укажите, что предложить.',
+  'pm.triggerFirstHint': 'Выберите конкретный товар или категорию из классификатора ACC.',
+  'pm.offerSection': 'Что предложить фармацевту',
+  'pm.offerHint': 'Товар для рекомендации выбирается отдельно от товара или категории-триггера.',
+  'pm.recommendationType': 'Какую подсказку показывать',
+  'pm.typeReplacement': 'Замена',
+  'pm.typeCrossSell': 'Допродажа',
+  'pm.fldOfferProduct': 'Рекомендуемый товар из Medusa',
+  'pm.sameProductError': 'Товар-триггер и рекомендуемый товар должны различаться.',
+  'pm.campaignDetails': 'Детали кампании',
+  'pm.draftReviewHint': 'После создания проверьте карточку и включите правило вручную. До этого кассы его не покажут.',
+  'pm.additionalSettings': 'Дополнительные настройки: сроки, обложка и идентификаторы',
   'pm.modalProductSub': 'Один товар из витрины + бонус фармацевту. Цена — из Medusa.',
   'pm.fldProduct': 'Товар (из витрины Medusa)',
   'pm.fldPrice': 'Цена из Medusa',
@@ -2154,6 +2167,7 @@ export const kk: Dict = {
   // ── Product picker ─────────────────────────────────────────────────────
   'pp.searchPh': 'Medusa витринасынан тауар іздеу…',
   'pp.searching': 'Іздеу…',
+  'pp.searchError': 'Тауарлар жүктелмеді',
   'pp.notFound': 'Ештеңе табылмады',
   'pp.startTyping': 'Тауар атауын тере бастаңыз',
   'pp.change': 'Ауыстыру',
@@ -2162,6 +2176,18 @@ export const kk: Dict = {
   'pp.loading': 'Жүктелуде…',
 
   // ── Campaign product fields (T1) ───────────────────────────────────────
+  'pm.triggerFirstSub': 'Алдымен кассадағы ұсынысты не іске қосатынын, содан кейін не ұсынатынын таңдаңыз.',
+  'pm.triggerFirstHint': 'Нақты тауарды немесе ACC жіктеуішіндегі санатты таңдаңыз.',
+  'pm.offerSection': 'Фармацевтке не ұсыну керек',
+  'pm.offerHint': 'Ұсынылатын тауар триггер тауарынан немесе санатынан бөлек таңдалады.',
+  'pm.recommendationType': 'Қандай ұсынысты көрсету керек',
+  'pm.typeReplacement': 'Ауыстыру',
+  'pm.typeCrossSell': 'Қосымша сату',
+  'pm.fldOfferProduct': 'Medusa-дан ұсынылатын тауар',
+  'pm.sameProductError': 'Триггер тауар мен ұсынылатын тауар әртүрлі болуы керек.',
+  'pm.campaignDetails': 'Науқан мәліметтері',
+  'pm.draftReviewHint': 'Жасағаннан кейін карточканы тексеріп, ережені қолмен қосыңыз. Оған дейін кассада көрсетілмейді.',
+  'pm.additionalSettings': 'Қосымша баптаулар: мерзім, мұқаба және идентификаторлар',
   'pm.modalProductSub': 'Витринадан бір тауар + фармацевтке бонус. Баға — Medusa-дан.',
   'pm.fldProduct': 'Тауар (Medusa витринасынан)',
   'pm.fldPrice': 'Medusa-дан баға',

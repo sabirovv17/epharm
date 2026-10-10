@@ -121,6 +121,19 @@ test.describe('Promo — toggle pause/resume + stopPropagation', () => {
 })
 
 test.describe('Promo — create кампанию', () => {
+  const triggerProduct = {
+    id: 'prod_e2e_trigger',
+    name: 'E2E товар-триггер',
+    brand: 'E2E Brand',
+    mnn: null,
+    rxOtc: 'OTC',
+    price: 990,
+    currency: 'KZT',
+    imageUrl: null,
+    barcode: '4603423001072',
+    ipartId: null,
+    category: 'Тестовая категория',
+  }
   const storefrontProduct = {
     id: 'prod_e2e_storefront',
     name: 'E2E товар витрины',
@@ -140,14 +153,17 @@ test.describe('Promo — create кампанию', () => {
     // backend↔Medusa покрывается backend-тестами; здесь фиксируем контракт формы.
     await loggedInPage.route('**/api/admin/storefront/products**', async (route) => {
       const path = new URL(route.request().url()).pathname
-      const isDetail = path.endsWith(`/${storefrontProduct.id}`)
+      const isDetail = path.endsWith(`/${storefrontProduct.id}`) || path.endsWith(`/${triggerProduct.id}`)
+      const product = path.endsWith(`/${triggerProduct.id}`) ? triggerProduct : storefrontProduct
+      const query = new URL(route.request().url()).searchParams.get('q')?.toLowerCase() ?? ''
+      const matches = [triggerProduct, storefrontProduct].filter((item) => item.name.toLowerCase().includes(query))
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(
           isDetail
             ? {
-                ...storefrontProduct,
+                ...product,
                 atc: null,
                 images: [],
                 country: null,
@@ -155,46 +171,76 @@ test.describe('Promo — create кампанию', () => {
                 description: 'Тестовое описание товара',
                 keyFacts: [],
               }
-            : { items: [storefrontProduct], total: 1, limit: 50, offset: 0 },
+            : { items: matches, total: matches.length, limit: 50, offset: 0 },
         ),
+      })
+    })
+    await loggedInPage.route('**/api/admin/catalog/trigger-options**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          snapshot: { sha256: 'e2e', sourceName: 'Каталог АСС', itemCount: 50, barcodeCount: 40, importedAt: '2026-10-01T00:00:00Z' },
+          options: [{ key: 'group:e2e', label: 'E2E группа', count: 12 }],
+        }),
       })
     })
   })
 
-  const selectFirstProduct = async (loggedInPage: import('@playwright/test').Page) => {
-    const option = loggedInPage.locator('[data-testid^="promo-product-option-"]').first()
-    await expect(option).toBeVisible()
-    await option.click()
-    await expect(loggedInPage.getByTestId('create-price-readonly')).toBeVisible()
+  const selectGroupAndOffer = async (loggedInPage: import('@playwright/test').Page) => {
+    await loggedInPage.getByRole('radio', { name: 'Группа ACC', exact: true }).click()
+    await loggedInPage.getByTestId('create-trigger-option-group:e2e').click()
+    await loggedInPage.getByRole('radio', { name: 'Замена' }).click()
+    await loggedInPage.getByPlaceholder(/Поиск товара в витрине Medusa/).fill('E2E товар витрины')
+    await loggedInPage.getByTestId(`promo-product-option-${storefrontProduct.id}`).click()
   }
 
-  test('«Новая кампания» открывает товарную форму Medusa', async ({ loggedInPage }) => {
+  test('«Новая кампания» сначала запрашивает источник рекомендации', async ({ loggedInPage }) => {
     await loggedInPage.getByRole('button', { name: /Новая кампания/ }).first().click()
     const dialog = loggedInPage.getByRole('dialog', { name: /Новая кампания/ })
     await expect(dialog).toBeVisible()
-    await expect(dialog.getByText(/Один товар из витрины/i)).toBeVisible()
-    await expect(dialog.getByPlaceholder(/Поиск товара в витрине Medusa/)).toBeVisible()
+    await expect(dialog.getByText('Что запускает рекомендацию')).toBeVisible()
+    await expect(dialog.getByRole('radio', { name: 'Конкретный товар' })).toBeVisible()
+    await expect(dialog.getByRole('radio', { name: 'Группа ACC', exact: true })).toBeVisible()
+    await expect(dialog.getByRole('radio', { name: 'Подгруппа ACC' })).toBeVisible()
+    await expect(dialog.getByRole('radio', { name: 'МНН ACC' })).toBeVisible()
+    await expect(dialog.getByPlaceholder(/Поиск товара в витрине Medusa/)).toHaveCount(0)
   })
 
-  test('выбор товара заполняет название и показывает read-only цену', async ({ loggedInPage }) => {
+  test('выбор группы и предлагаемого товара заполняет название и показывает read-only цену', async ({ loggedInPage }) => {
     await loggedInPage.getByRole('button', { name: /Новая кампания/ }).first().click()
-    await selectFirstProduct(loggedInPage)
+    await selectGroupAndOffer(loggedInPage)
     await expect(loggedInPage.getByPlaceholder(/Майский марафон Аквамарис/)).not.toHaveValue('')
+    await loggedInPage.getByText(/Дополнительные настройки/).click()
+    await expect(loggedInPage.getByTestId('create-price-readonly')).toBeVisible()
   })
 
   test('выбор пресета меняет цвет обложки', async ({ loggedInPage }) => {
     await loggedInPage.getByRole('button', { name: /Новая кампания/ }).first().click()
+    await selectGroupAndOffer(loggedInPage)
+    await loggedInPage.getByText(/Дополнительные настройки/).click()
     const preset = loggedInPage.getByRole('button', { name: '#BE5A38' })
     await preset.click()
     await expect(preset).toHaveAttribute('aria-pressed', 'true')
   })
 
-  test('кнопка disabled до выбора товара, после выбора — enabled', async ({ loggedInPage }) => {
+  test('кнопка disabled до выбора триггера, типа рекомендации и товара', async ({ loggedInPage }) => {
     await loggedInPage.getByRole('button', { name: /Новая кампания/ }).first().click()
     const submit = loggedInPage.getByRole('button', { name: /Создать черновик/ })
     await expect(submit).toBeDisabled()
-    await selectFirstProduct(loggedInPage)
+    await selectGroupAndOffer(loggedInPage)
     await expect(submit).toBeEnabled()
+  })
+
+  test('конкретный товар можно найти поиском и использовать как триггер', async ({ loggedInPage }) => {
+    await loggedInPage.getByRole('button', { name: /Новая кампания/ }).first().click()
+    await loggedInPage.getByRole('radio', { name: 'Конкретный товар' }).click()
+    await loggedInPage.getByPlaceholder(/Поиск товара в витрине Medusa/).fill('E2E товар-триггер')
+    await loggedInPage.getByTestId(`promo-product-option-${triggerProduct.id}`).click()
+    await loggedInPage.getByRole('radio', { name: 'Допродажа' }).click()
+    await loggedInPage.getByPlaceholder(/Поиск товара в витрине Medusa/).fill('E2E товар витрины')
+    await loggedInPage.getByTestId(`promo-product-option-${storefrontProduct.id}`).click()
+    await expect(loggedInPage.getByRole('button', { name: /Создать черновик/ })).toBeEnabled()
   })
 
   test('создать кампанию → корректный POST + toast', async ({ loggedInPage }) => {
@@ -229,7 +275,7 @@ test.describe('Promo — create кампанию', () => {
     })
 
     await loggedInPage.getByRole('button', { name: /Новая кампания/ }).first().click()
-    await selectFirstProduct(loggedInPage)
+    await selectGroupAndOffer(loggedInPage)
     await loggedInPage.getByPlaceholder(/Майский марафон Аквамарис/).fill(unique)
     await loggedInPage.getByRole('button', { name: /Создать черновик/ }).click()
     await expect(loggedInPage.getByText(/Кампания создана в черновиках/i)).toBeVisible()
@@ -241,6 +287,10 @@ test.describe('Promo — create кампанию', () => {
       productName: storefrontProduct.name,
       barcode: storefrontProduct.barcode,
       ipartId: storefrontProduct.ipartId,
+      initialRecommendation: {
+        type: 'substitution',
+        trigger: { triggerKind: 'acc_group', triggerValue: 'group:e2e', active: false },
+      },
     })
   })
 })

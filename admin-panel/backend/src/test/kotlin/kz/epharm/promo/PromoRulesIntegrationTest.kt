@@ -38,6 +38,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.annotation.Propagation
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
@@ -618,5 +619,132 @@ class PromoRulesIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON).content(invalid),
         ).andExpect(status().isBadRequest)
         assertThat(ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc("pr_camp")).hasSize(3)
+    }
+
+    @Test
+    fun `POST campaign and initial ACC group replacement creates one inactive rule atomically`() {
+        val groupKey = "grp_cccccccccccccccccccccccccccccccc"
+        val snapshot = UUID.randomUUID()
+        jdbc.update(
+            "INSERT INTO acc_catalog_snapshots(id,sha256,source_name,item_count,barcode_count) VALUES (?,?,?,?,?)",
+            snapshot, "c".repeat(64), "acc-test.xlsx", 1, 1,
+        )
+        jdbc.update(
+            """INSERT INTO acc_catalog_barcodes(snapshot_id,ware_id,barcode,group_key,group_label)
+               VALUES (?,?,?,?,?)""",
+            snapshot, "W-200", "4879876543227", groupKey, "Обезболивающие",
+        )
+        jdbc.update("UPDATE acc_catalog_state SET active_snapshot_id=? WHERE singleton=1", snapshot)
+
+        val payload = """
+            {"title":"Групповая рекомендация","status":"draft","medusaProductId":"prod_group_offer",
+             "productName":"Предлагаемый препарат","initialRecommendation":{"type":"substitution",
+             "trigger":{"medusaProductId":"","triggerKind":"acc_group","triggerValue":"$groupKey",
+             "triggerLabel":"Произвольный текст клиента","active":true}}}
+        """.trimIndent()
+        val body = mockMvc.perform(
+            post("/api/admin/promo").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(payload),
+        ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("draft"))
+            .andReturn().response.contentAsString
+
+        val promoId = objectMapper.readTree(body).get("id").asText()
+        val rule = ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc(promoId).single()
+        assertThat(rule.type).isEqualTo(RuleType.substitution)
+        assertThat(rule.trigger.kind).isEqualTo("acc_group")
+        assertThat(rule.trigger.value).isEqualTo(groupKey)
+        assertThat(rule.trigger.label).isEqualTo("Обезболивающие")
+        assertThat(rule.recommend).isEqualTo("prod_group_offer")
+        assertThat(rule.status).isEqualTo(RuleStatus.draft)
+        assertThat(rule.card?.pairActive).isFalse()
+
+        mockMvc.perform(get("/api/admin/promo/$promoId/rules").header("Authorization", bearer))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.config.replacements[0].triggerKind").value("acc_group"))
+            .andExpect(jsonPath("$.config.replacements[0].active").value(false))
+            .andExpect(jsonPath("$.activeCount").value(0))
+    }
+
+    @Test
+    fun `POST campaign and exact-product cross-sell preserves legacy trigger behavior`() {
+        val payload = """
+            {"title":"Товарная рекомендация","medusaProductId":"prod_cross_offer",
+             "productName":"Предлагаемый препарат","initialRecommendation":{"type":"crosssell",
+             "trigger":{"medusaProductId":"prod_scanned","name":"Товар в чеке","active":true}}}
+        """.trimIndent()
+        val body = mockMvc.perform(
+            post("/api/admin/promo").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(payload),
+        ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("draft"))
+            .andReturn().response.contentAsString
+
+        val promoId = objectMapper.readTree(body).get("id").asText()
+        val rule = ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc(promoId).single()
+        assertThat(rule.type).isEqualTo(RuleType.crosssell)
+        assertThat(rule.trigger.kind).isEqualTo("product")
+        assertThat(rule.trigger.value).isEqualTo("prod_scanned")
+        assertThat(rule.status).isEqualTo(RuleStatus.draft)
+        assertThat(rule.card?.pairActive).isFalse()
+    }
+
+    @Test
+    fun `POST campaign rejects own offer as trigger instead of silently dropping the rule`() {
+        val payload = """
+            {"title":"Саморекомендация","medusaProductId":"prod_same",
+             "initialRecommendation":{"type":"substitution",
+             "trigger":{"medusaProductId":"prod_same"}}}
+        """.trimIndent()
+        mockMvc.perform(
+            post("/api/admin/promo").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(payload),
+        ).andExpect(status().isBadRequest)
+        assertThat(promoRepository.count()).isEqualTo(1)
+        assertThat(ruleRepository.count()).isZero()
+    }
+
+    @Test
+    fun `POST initial recommendation requires an offer and cannot publish on creation`() {
+        val missingOffer = """
+            {"title":"Нет предлагаемого товара","initialRecommendation":{"type":"crosssell",
+             "trigger":{"medusaProductId":"prod_scanned"}}}
+        """.trimIndent()
+        val activeImmediately = """
+            {"title":"Слишком ранний запуск","status":"active","medusaProductId":"prod_offer",
+             "initialRecommendation":{"type":"crosssell",
+             "trigger":{"medusaProductId":"prod_scanned"}}}
+        """.trimIndent()
+        listOf(missingOffer, activeImmediately).forEach { payload ->
+            mockMvc.perform(
+                post("/api/admin/promo").header("Authorization", bearer)
+                    .contentType(MediaType.APPLICATION_JSON).content(payload),
+            ).andExpect(status().isBadRequest)
+        }
+        assertThat(promoRepository.count()).isEqualTo(1)
+        assertThat(ruleRepository.count()).isZero()
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `POST campaign rolls back draft if initial ACC scope is not in active snapshot`() {
+        val payload = """
+            {"title":"Несуществующая группа","medusaProductId":"prod_invalid_scope",
+             "initialRecommendation":{"type":"substitution","trigger":{"medusaProductId":"",
+             "triggerKind":"acc_group","triggerValue":"grp_ffffffffffffffffffffffffffffffff"}}}
+        """.trimIndent()
+        try {
+            mockMvc.perform(
+                post("/api/admin/promo").header("Authorization", bearer)
+                    .contentType(MediaType.APPLICATION_JSON).content(payload),
+            ).andExpect(status().isBadRequest)
+            assertThat(promoRepository.count()).isEqualTo(1)
+            assertThat(ruleRepository.count()).isZero()
+        } finally {
+            // This test intentionally runs outside the test transaction so the service's
+            // own rollback is observable; remove committed @BeforeEach fixtures afterwards.
+            promoRepository.deleteAll()
+            adminUserRepository.deleteAll()
+        }
     }
 }

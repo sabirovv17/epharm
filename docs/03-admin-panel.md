@@ -87,6 +87,15 @@ must round-trip both old product pairs and broad-scope pairs without reclassifyi
 The Rules section labels these trigger kinds distinctly but remains read-only. The ACC file is a
 versioned, manually imported snapshot, not a live prices/stock feed.
 
+The new-campaign modal starts with “What triggers the recommendation?” and offers exact Medusa
+product, ACC group, subgroup, or INN. Only the relevant searchable picker appears; ACC choices
+show their parent, eligible barcode-member count, and snapshot source. The user then chooses
+replacement versus cross-sell and the separate Medusa product to offer. The two exact products
+cannot be the same. Campaign name and reward follow, while dates, cover, identifiers, and media
+overrides are collapsed under additional settings. A single POST creates the campaign and its
+first pair atomically as drafts; the form navigates to the campaign detail for card review and
+explicit activation. The old product-only POST contract remains valid for existing clients.
+
 ## State and Data
 
 The connected-cash-desk card is a live view, not a permanent installation registry. Its Excel button

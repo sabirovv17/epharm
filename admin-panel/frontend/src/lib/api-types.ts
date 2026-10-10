@@ -442,6 +442,11 @@ export interface PromoDto {
 export interface CreatePromoRequest {
   title: string
   status?: PromoStatus
+  /** Optional first draft pair, created atomically with the campaign. */
+  initialRecommendation?: {
+    type: 'substitution' | 'crosssell'
+    trigger: PromoRuleProductRef
+  }
   brand?: string
   period?: string
   budget?: number

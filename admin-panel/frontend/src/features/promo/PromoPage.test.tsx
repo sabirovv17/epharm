@@ -52,6 +52,7 @@ const storefrontHooks = vi.hoisted(() => ({
   useStorefront: vi.fn(),
   useStorefrontProduct: vi.fn(),
 }))
+const taxonomyHooks = vi.hoisted(() => ({ useAccTriggerOptions: vi.fn() }))
 
 vi.mock('@/lib/queries/promo', () => promoHooks)
 vi.mock('@/lib/queries/storefront', () => ({
@@ -59,6 +60,7 @@ vi.mock('@/lib/queries/storefront', () => ({
   useStorefront: storefrontHooks.useStorefront,
   useStorefrontProduct: storefrontHooks.useStorefrontProduct,
 }))
+vi.mock('@/lib/queries/accTriggerOptions', () => taxonomyHooks)
 
 function mkPromo(over: Partial<PromoDto> = {}): PromoDto {
   return {
@@ -128,12 +130,38 @@ beforeEach(() => {
           barcode: '4603423004936',
           category: null,
         },
+        {
+          id: 'prod_2',
+          name: 'Аквамарис Норм спрей 150 мл',
+          brand: 'Jadran',
+          mnn: null,
+          rxOtc: null,
+          price: 2890,
+          currency: 'KZT',
+          imageUrl: null,
+          barcode: '3856013201127',
+          category: null,
+        },
       ],
-      total: 1,
+      total: 2,
       limit: 50,
       offset: 0,
     },
     isFetching: false,
+  })
+  taxonomyHooks.useAccTriggerOptions.mockReturnValue({
+    data: {
+      snapshot: { sha256: 'test', sourceName: 'Каталог АСС', itemCount: 200, barcodeCount: 150, importedAt: '2026-10-01T00:00:00Z' },
+      options: [
+        { key: 'group:1', label: 'ЖКТ', count: 40 },
+        { key: 'group:2', label: 'Витамины', count: 20 },
+        { key: 'subgroup:1', label: 'Сорбенты', parentLabel: 'ЖКТ', count: 12 },
+        { key: 'mnn:1', label: 'Ибупрофен', count: 30 },
+      ],
+    },
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
   })
 })
 
@@ -364,91 +392,200 @@ describe('Клик по карточке → переход на /promo/:id (н�
   })
 })
 
-describe('PromoPage — Create modal (товарная акция)', () => {
-  it('клик «Новая кампания» открывает модалку с пикером товара', async () => {
-    const user = userEvent.setup()
-    renderPromo()
-    const buttons = screen.getAllByRole('button', { name: /Новая кампания/ })
-    await user.click(buttons[0])
-    expect(screen.getByPlaceholderText(/Поиск товара/i)).toBeInTheDocument()
-  })
-
-  it('«Создать черновик» disabled пока не выбран товар', async () => {
-    const user = userEvent.setup()
-    renderPromo()
+describe('PromoPage — trigger-first campaign creation', () => {
+  async function openForm(user: ReturnType<typeof userEvent.setup>) {
     await user.click(screen.getAllByRole('button', { name: /Новая кампания/ })[0])
+  }
+
+  async function selectOffer(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole('radio', { name: 'Замена' }))
+    await user.type(screen.getByPlaceholderText(/Поиск товара/i), 'Аква')
+    await user.click(await screen.findByTestId('promo-product-option-prod_2'))
+  }
+
+  it('сначала спрашивает триггер, не показывает каталог товаров до выбора режима', async () => {
+    const user = userEvent.setup()
+    renderPromo()
+    await openForm(user)
+    expect(screen.getByRole('radiogroup', { name: 'Что запускает рекомендацию' })).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText(/Поиск товара/i)).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Создать черновик/ })).toBeDisabled()
-    // выбираем товар из выдачи витрины — title авто-заполнится названием
-    await user.click(screen.getByText('Панкраген 0,2г капс. №60'))
-    expect(screen.getByRole('button', { name: /Создать черновик/ })).toBeEnabled()
   })
 
-  it('цвет обложки: палитра видна, выбранный цвет уходит в create', async () => {
+  it('товарный триггер и замена сохраняются одним запросом, затем открывается карточка', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue(mkPromo({ id: 'pr_new' }))
+    promoHooks.useCreatePromo.mockReturnValue({ mutateAsync, isPending: false })
+    const user = userEvent.setup()
+    renderPromo()
+    await openForm(user)
+    await user.click(screen.getByRole('radio', { name: 'Конкретный товар' }))
+    await user.type(screen.getByPlaceholderText(/Поиск товара/i), 'Панк')
+    await user.click(await screen.findByTestId('promo-product-option-prod_1'))
+    await selectOffer(user)
+    await user.click(screen.getByRole('button', { name: /Создать черновик/ }))
+
+    expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({
+      medusaProductId: 'prod_2',
+      title: 'Аквамарис Норм спрей 150 мл',
+      status: 'draft',
+      barcode: '3856013201127',
+      initialRecommendation: expect.objectContaining({
+        type: 'substitution',
+        trigger: expect.objectContaining({ medusaProductId: 'prod_1', triggerKind: 'product', active: false }),
+      }),
+    }))
+    expect(screen.getByTestId('location-probe')).toHaveTextContent('/promo/pr_new')
+  })
+
+  it.each([
+    ['Группа ACC', 'group:1', 'acc_group'],
+    ['Подгруппа ACC', 'subgroup:1', 'acc_subgroup'],
+    ['МНН ACC', 'mnn:1', 'acc_mnn'],
+  ])('%s выбирается с поиском и создаёт неактивный кросс-селл', async (label, key, kind) => {
     const mutateAsync = vi.fn().mockResolvedValue(mkPromo())
     promoHooks.useCreatePromo.mockReturnValue({ mutateAsync, isPending: false })
     const user = userEvent.setup()
     renderPromo()
-    await user.click(screen.getAllByRole('button', { name: /Новая кампания/ })[0])
-    // палитра цвета обложки доступна сразу при создании (дефолт — основной коралл)
-    expect(screen.getByRole('button', { name: '#D97757' })).toBeInTheDocument()
-    await user.click(screen.getByText('Панкраген 0,2г капс. №60'))
-    await user.click(screen.getByRole('button', { name: '#9A4427' })) // выбрать глубокий коралл
+    await openForm(user)
+    await user.click(screen.getByRole('radio', { name: label }))
+    expect(screen.getByTestId('create-trigger-snapshot')).toHaveTextContent('Каталог АСС')
+    await user.type(screen.getByRole('textbox', { name: /Найти группу/ }), 'сорб')
+    await user.click(screen.getByTestId(`create-trigger-option-${key}`))
+    await user.click(screen.getByRole('radio', { name: 'Допродажа' }))
+    await user.type(screen.getByPlaceholderText(/Поиск товара/i), 'Аква')
+    await user.click(await screen.findByTestId('promo-product-option-prod_2'))
+    await user.click(screen.getByRole('button', { name: /Создать черновик/ }))
+    expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({
+      initialRecommendation: expect.objectContaining({
+        type: 'crosssell',
+        trigger: expect.objectContaining({ triggerKind: kind, triggerValue: key, active: false }),
+      }),
+    }))
+  })
+
+  it('смена типа триггера сбрасывает прошлый выбор и блокирует сохранение', async () => {
+    const user = userEvent.setup()
+    renderPromo()
+    await openForm(user)
+    await user.click(screen.getByRole('radio', { name: 'Группа ACC' }))
+    await user.click(screen.getByTestId('create-trigger-option-group:1'))
+    await selectOffer(user)
+    expect(screen.getByRole('button', { name: /Создать черновик/ })).toBeEnabled()
+    await user.click(screen.getByRole('radio', { name: 'МНН ACC' }))
+    expect(screen.getByRole('button', { name: /Создать черновик/ })).toBeDisabled()
+  })
+
+  it('при изменении уже выбранной группы не сохраняет скрытый старый триггер', async () => {
+    const user = userEvent.setup()
+    renderPromo()
+    await openForm(user)
+    await user.click(screen.getByRole('radio', { name: 'Группа ACC' }))
+    await user.click(screen.getByTestId('create-trigger-option-group:1'))
+    await selectOffer(user)
+    expect(screen.getByRole('button', { name: /Создать черновик/ })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'Сменить' }))
+    expect(screen.getByRole('button', { name: /Создать черновик/ })).toBeDisabled()
+    await user.click(screen.getByTestId('create-trigger-option-group:2'))
+    expect(screen.getByRole('button', { name: /Создать черновик/ })).toBeEnabled()
+  })
+
+  it('не позволяет рекомендовать тот же товар, который запускает подсказку', async () => {
+    const user = userEvent.setup()
+    renderPromo()
+    await openForm(user)
+    await user.click(screen.getByRole('radio', { name: 'Конкретный товар' }))
+    await user.type(screen.getByPlaceholderText(/Поиск товара/i), 'Панк')
+    await user.click(await screen.findByTestId('promo-product-option-prod_1'))
+    await user.click(screen.getByRole('radio', { name: 'Замена' }))
+    await user.type(screen.getByPlaceholderText(/Поиск товара/i), 'Панк')
+    await user.click(await screen.findByTestId('promo-product-option-prod_1'))
+    expect(screen.getByRole('alert')).toHaveTextContent(/должны различаться/)
+    expect(screen.getByRole('button', { name: /Создать черновик/ })).toBeDisabled()
+  })
+
+  it('неактуальный ACC snapshot не даёт выбрать scope', async () => {
+    taxonomyHooks.useAccTriggerOptions.mockReturnValue({ data: { snapshot: null, options: [] }, isPending: false, isError: false, refetch: vi.fn() })
+    const user = userEvent.setup()
+    renderPromo()
+    await openForm(user)
+    await user.click(screen.getByRole('radio', { name: 'Группа ACC' }))
+    expect(screen.getByText(/Классификатор ACC пока не загружен/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Создать черновик/ })).toBeDisabled()
+  })
+
+  it('ограничивает неизменяемые метаданные каталога длиной backend-контракта', async () => {
+    const source = storefrontHooks.useStorefront()
+    storefrontHooks.useStorefront.mockReturnValue({
+      ...source,
+      data: {
+        ...source.data,
+        items: [
+          { ...source.data.items[0], name: 'П'.repeat(300), brand: 'Б'.repeat(150), ipartId: 'I'.repeat(80) },
+          source.data.items[1],
+        ],
+      },
+    })
+    const mutateAsync = vi.fn().mockResolvedValue(mkPromo())
+    promoHooks.useCreatePromo.mockReturnValue({ mutateAsync, isPending: false })
+    const user = userEvent.setup()
+    renderPromo()
+    await openForm(user)
+    await user.click(screen.getByRole('radio', { name: 'Конкретный товар' }))
+    await user.type(screen.getByPlaceholderText(/Поиск товара/i), 'Панк')
+    await user.click(await screen.findByTestId('promo-product-option-prod_1'))
+    await selectOffer(user)
+    await user.click(screen.getByRole('button', { name: /Создать черновик/ }))
+    const req = mutateAsync.mock.calls[0][0]
+    expect(req.initialRecommendation.trigger.name).toHaveLength(255)
+    expect(req.initialRecommendation.trigger.brand).toHaveLength(128)
+    expect(req.initialRecommendation.trigger.ipartId).toBeNull()
+  })
+
+  it('ошибку поиска Medusa показывает отдельно от пустой выдачи с повтором', async () => {
+    const refetch = vi.fn()
+    storefrontHooks.useStorefront.mockReturnValue({ data: undefined, isFetching: false, isError: true, error: new Error('Каталог недоступен'), refetch })
+    const user = userEvent.setup()
+    renderPromo()
+    await openForm(user)
+    await user.click(screen.getByRole('radio', { name: 'Конкретный товар' }))
+    await user.type(screen.getByPlaceholderText(/Поиск товара/i), 'Панк')
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Не удалось загрузить товары/)
+    await user.click(screen.getByRole('button', { name: /Повторить/ }))
+    expect(refetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('расширенные настройки сохраняют цену read-only и выбранный цвет', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue(mkPromo())
+    promoHooks.useCreatePromo.mockReturnValue({ mutateAsync, isPending: false })
+    const user = userEvent.setup()
+    renderPromo()
+    await openForm(user)
+    await user.click(screen.getByRole('radio', { name: 'Группа ACC' }))
+    await user.click(screen.getByTestId('create-trigger-option-group:1'))
+    await selectOffer(user)
+    await user.click(screen.getByText(/Дополнительные настройки/))
+    expect(screen.getByTestId('create-price-readonly').tagName).not.toBe('INPUT')
+    await user.click(screen.getByRole('button', { name: '#9A4427' }))
     await user.click(screen.getByRole('button', { name: /Создать черновик/ }))
     expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ cover: '#9A4427' }))
   })
 
-  it('submit вызывает useCreatePromo.mutateAsync с товаром и статусом draft', async () => {
-    const mutateAsync = vi.fn().mockResolvedValue(mkPromo())
-    promoHooks.useCreatePromo.mockReturnValue({ mutateAsync, isPending: false })
-    const user = userEvent.setup()
-    renderPromo()
-    await user.click(screen.getAllByRole('button', { name: /Новая кампания/ })[0])
-    await user.click(screen.getByText('Панкраген 0,2г капс. №60'))
-    await user.click(screen.getByRole('button', { name: /Создать черновик/ }))
-    expect(mutateAsync).toHaveBeenCalledWith(
-      expect.objectContaining({
-        medusaProductId: 'prod_1',
-        title: 'Панкраген 0,2г капс. №60',
-        status: 'draft',
-        pharmacistBonus: 0,
-        // EAN-13 продвигаемого товара уходит в payload (ключ матчинга на кассе).
-        barcode: '4603423004936',
-      }),
-    )
-    // T1: пороги (tiers) и цена (price) в запрос на создание не уходят
-    const req = mutateAsync.mock.calls[0][0]
-    expect(req).not.toHaveProperty('tiers')
-    expect(req).not.toHaveProperty('price')
-  })
-
-  it('T1: цена из Medusa показана read-only после выбора товара', async () => {
-    const user = userEvent.setup()
-    renderPromo()
-    await user.click(screen.getAllByRole('button', { name: /Новая кампания/ })[0])
-    await user.click(screen.getByText('Панкраген 0,2г капс. №60'))
-    const cell = screen.getByTestId('create-price-readonly')
-    expect(cell.tagName).not.toBe('INPUT')
-    expect(cell.textContent).toMatch(/4\s?990/)
-  })
-
-  it('ошибка создания: тост показывает конкретную причину от backend (а не общую)', async () => {
-    // Регрессия: раньше catch {} глотал сообщение → пользователь видел только
-    // «Не удалось создать кампанию». Теперь сообщение backend (1:1-конфликт) видно.
+  it('ошибка backend не закрывает форму и показывает причину', async () => {
     const mutateAsync = vi.fn().mockRejectedValue({
       isAxiosError: true,
       message: 'Request failed with status code 409',
-      response: {
-        status: 409,
-        data: { code: 'CONFLICT', message: 'Этот товар уже привязан к другой активной кампании' },
-      },
+      response: { status: 409, data: { code: 'CONFLICT', message: 'Этот товар уже привязан к другой активной кампании' } },
     })
     promoHooks.useCreatePromo.mockReturnValue({ mutateAsync, isPending: false })
     const user = userEvent.setup()
     renderPromo()
-    await user.click(screen.getAllByRole('button', { name: /Новая кампания/ })[0])
-    await user.click(screen.getByText('Панкраген 0,2г капс. №60'))
+    await openForm(user)
+    await user.click(screen.getByRole('radio', { name: 'Группа ACC' }))
+    await user.click(screen.getByTestId('create-trigger-option-group:1'))
+    await selectOffer(user)
     await user.click(screen.getByRole('button', { name: /Создать черновик/ }))
     expect(await screen.findByText(/уже привязан к другой активной кампании/)).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 })
 

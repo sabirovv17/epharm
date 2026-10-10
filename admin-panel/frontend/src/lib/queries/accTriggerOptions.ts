@@ -15,6 +15,8 @@ export function useAccTriggerOptions(kind: TaxonomyKind | null, q: string) {
         .then((response) => response.data),
     enabled: kind !== null,
     staleTime: 60_000,
+    // Never show options from a previous kind/query while a new ACC search loads.
+    placeholderData: undefined,
     retry: 1,
   })
 }
