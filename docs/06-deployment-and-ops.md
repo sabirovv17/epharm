@@ -183,61 +183,83 @@ copy of the forward-migrated database. Application rollback does not undo schema
 dry-run, successful two-image switch, failed smoke/automatic rollback, and tampered backup without
 touching production.
 
-### Shop-catalogue read cutover after preload
+### Staged shop-catalogue read cutover after preload
 
-Use the archive two-image transaction above for stage 1 with
-`ESHOP_CATALOG_SYNC_ENABLED=true` and `ESHOP_CATALOG_READ_ENABLED=false`. Its
-rollback bundle must match the final staged `.env.prod`, Compose and Caddy files.
-Wait for a complete, fresh shop snapshot in `/api/health`; verify all/published
-counts, alias coverage, prices, search, images and existing POSM recommendations
-before stage 2. Keep the old catalogue snapshot for the observation window.
+Do not start this sequence until the `.80` exporter is running, VMware disk
+latency has been resolved, and the exporter, snapshot, backup and POSM gates in
+`21-site-catalog-integration.md` pass. Use the archive two-image transaction
+above with `ESHOP_CATALOG_SYNC_ENABLED=true`,
+`ESHOP_CATALOG_ADMIN_READ_ENABLED=false` and `ESHOP_CATALOG_READ_ENABLED=false`.
+Its rollback bundle must match the final staged `.env.prod`, Compose and Caddy
+files. Verify a complete shop snapshot, all/published counts, aliases, prices,
+search, images and existing POSM recommendations. Keep the old snapshot through
+the observation window.
 
-`deploy-archive-two-image.sh` does **not** change `.env.prod`, so it cannot safely
-switch the read flag by itself. Stage 2 uses the dedicated backend-only transaction:
-
-```bash
-cd /home/adm-quasar/epharm
-sudo ./tools/release/switch-eshop-catalog-read.sh \
-  <running-backend-tag> <running-frontend-tag> --dry-run
-sudo ./tools/release/switch-eshop-catalog-read.sh \
-  <running-backend-tag> <running-frontend-tag>
-```
-
-The script shares the application release lock, requires a root-owned mode-0600
-`.env.prod` with `SYNC=true` and `READ=false`, and checks a ready site snapshot
-completed within 30 minutes. It verifies both rendered Compose states without
-printing credentials. It saves the byte-exact previous env under the protected
-`releases/catalog-read-switch/` directory, atomically changes only `READ` to
-`true`, recreates only backend without building, and checks `/api/health`, mobile
-catalogue and search. A failed switch restores the previous env and backend;
-`CRITICAL` means that automatic rollback could not be verified. `--dry-run` makes
-no application or env change. The successful transaction path is recorded in
-`releases/catalog-read-switch/active-transaction` for a later operator-led
-rollback if POSM or other business checks fail after the script exits.
-
-For a delayed POSM or business regression, use the active transaction to restore
-the exact previous env and backend. Do this before another image/configuration
-release; the command refuses a changed release, Compose or Caddy configuration.
+`deploy-archive-two-image.sh` does not change `.env.prod`. The dedicated
+backend-only transaction first enables the full site master for admin:
 
 ```bash
 cd /home/adm-quasar/epharm
 sudo ./tools/release/switch-eshop-catalog-read.sh \
-  <running-backend-tag> <running-frontend-tag> --rollback --dry-run
+  <running-backend-tag> <running-frontend-tag> --admin --dry-run
 sudo ./tools/release/switch-eshop-catalog-read.sh \
-  <running-backend-tag> <running-frontend-tag> --rollback
+  <running-backend-tag> <running-frontend-tag> --admin
 ```
 
-Rollback checks the release lock, private transaction manifest, saved env
-checksum, byte-exact one-flag difference, image tags and unchanged frontend,
-Caddy and PostgreSQL containers. It recreates only backend, verifies legacy
-health, mobile catalogue and search, and archives the active transaction pointer.
-If verification fails, it attempts to restore the prior site-read state and
-reports `CRITICAL` if recovery cannot be verified. Escalate any `CRITICAL`
-result before further release work.
+Check admin list, detail, search and published filter against known site items.
+Mobile still reads the previous catalogue. New site-ID promotions may be drafted
+but cannot be activated until mobile reads are enabled. Confirm existing
+promotions and live POSM recommendation/pop-up flows before proceeding.
 
-After the script, verify admin catalogue, promotions and live POSM recommendation
-and pop-up flows. A new local rollback bundle is required before any subsequent
-image transaction, because the read flag changed the protected `.env.prod` hash.
+Before mobile cutover, reconcile every active campaign to a published site card;
+keep any unmatched legacy POSM rule and cashier key intact. In a staging fixture,
+test three items: published with an active valid promotion, published without a
+promotion, and a product hidden on the site after a promotion was activated.
+Confirm that the first is visible through mobile list/detail, the other two are
+absent/404, and all three remain visible in admin. In production, smoke a known
+published active campaign and a published non-campaign item. The mobile count
+depends on active promotions; do not set a fixed count gate. Then run:
+
+```bash
+sudo ./tools/release/switch-eshop-catalog-read.sh \
+  <running-backend-tag> <running-frontend-tag> --mobile --dry-run
+sudo ./tools/release/switch-eshop-catalog-read.sh \
+  <running-backend-tag> <running-frontend-tag> --mobile
+```
+
+Both stages share the application release lock, require an owner-matched
+mode-0600 `.env.prod` and a complete site snapshot updated within 30 minutes.
+Each verifies rendered Compose flags, saves the byte-exact previous env with a
+private checksum manifest, atomically changes only its own flag, recreates only
+backend without building, and checks `/api/health`, mobile catalogue and search.
+Mobile stage requires the verified active admin transaction. A failed switch
+restores its previous env and backend. `--dry-run` makes no application or env
+change. Successful records use separate `admin-active-transaction` and
+`mobile-active-transaction` pointers under `releases/catalog-read-switch/`.
+
+For delayed business/POSM regression, roll back mobile first, then admin if
+needed. Do this before another image/configuration release; each rollback
+refuses changed release, Compose or Caddy configuration:
+
+```bash
+sudo ./tools/release/switch-eshop-catalog-read.sh \
+  <running-backend-tag> <running-frontend-tag> --rollback-mobile --dry-run
+sudo ./tools/release/switch-eshop-catalog-read.sh \
+  <running-backend-tag> <running-frontend-tag> --rollback-mobile
+# Only if the admin stage must also be reversed:
+sudo ./tools/release/switch-eshop-catalog-read.sh \
+  <running-backend-tag> <running-frontend-tag> --rollback-admin --dry-run
+sudo ./tools/release/switch-eshop-catalog-read.sh \
+  <running-backend-tag> <running-frontend-tag> --rollback-admin
+```
+
+Rollback checks the private manifest, exact saved/current env checksums and
+one-flag difference, image tags and unchanged frontend, Caddy and PostgreSQL
+containers. It recreates only backend, verifies previous health and mobile
+catalogue/search, then archives its pointer. On failure it tries to restore the
+state from before the rollback; `CRITICAL` means recovery could not be verified.
+Escalate any `CRITICAL` before further release work. A new local rollback bundle
+is required before any later image transaction because `.env.prod` changed.
 The contract test is `tools/release/tests/eshop-read-switch-contract.sh`.
 
 ### Backend-only bridge release on an archive-based host

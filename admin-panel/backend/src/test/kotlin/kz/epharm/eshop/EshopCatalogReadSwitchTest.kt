@@ -31,11 +31,11 @@ class EshopCatalogReadSwitchTest {
     private val rules = mockk<RuleRepository>(relaxed = true)
     private val service = MobileCatalogService(
         medusa, MedusaCatalogCache(0), promos, rules,
-        eshop = source, eshopReadEnabled = true,
+        eshop = source, eshopReadEnabled = true, adminEshopReadEnabled = true,
     )
 
     @Test
-    fun `admin sees complete master and mobile sees only published without Medusa access`() {
+    fun `admin sees complete master independently of mobile promotion filter`() {
         val published = EshopCatalogSnapshotRepository.CatalogItem(
             MedusaProduct(id = "prod_Daribar_1", title = "Первый"), true,
         )
@@ -45,16 +45,13 @@ class EshopCatalogReadSwitchTest {
         every { source.hasCompleteSnapshot() } returns true
         every { source.search(null, null, 50, 0, false, null) } returns
             EshopCatalogSnapshotRepository.Page(listOf(published, draft), 2)
-        every { source.search(null, null, 50, 0, true, true) } returns
-            EshopCatalogSnapshotRepository.Page(listOf(published), 1)
-
-        val admin = service.search(null, null, 50, 0, admin = true)
-        val mobile = service.search(null, null, 50, 0)
-
+        val adminOnly = MobileCatalogService(
+            medusa, MedusaCatalogCache(0), promos, rules,
+            eshop = source, eshopReadEnabled = false, adminEshopReadEnabled = true,
+        )
+        val admin = adminOnly.search(null, null, 50, 0, admin = true)
         assertEquals(2, admin.total)
         assertFalse(admin.items[1].published)
-        assertEquals(1, mobile.total)
-        assertEquals("prod_Daribar_1", mobile.items.single().id)
         verify(exactly = 0) { medusa.listProducts(any(), any(), any(), any(), any()) }
     }
 
@@ -89,17 +86,25 @@ class EshopCatalogReadSwitchTest {
             it.medusaProductId = legacyX2
             it.tiers = listOf(PromoTier(1, 100, 500))
         }
+        val promoY = PromoEntity(id = "pr_y", title = "Акция Y").also {
+            it.status = PromoStatus.active
+            it.medusaProductId = legacyY
+            it.tiers = listOf(PromoTier(1, 100, 500))
+        }
         val rule = RuleEntity(
             id = "rule_y", recommend = legacyY, bonus = 80, script = "Подсказка",
             trigger = RuleTrigger(kind = "product", value = legacyX),
         ).also { it.type = RuleType.crosssell; it.status = RuleStatus.active }
         every { source.hasCompleteSnapshot() } returns true
+        every { source.canonicalId(canonicalX) } returns canonicalX
+        every { source.canonicalId(canonicalY) } returns canonicalY
         every { source.findById(canonicalX, true) } returns x
+        every { source.findById(canonicalY, true) } returns y
         every { source.relatedIds(canonicalX) } returns listOf(canonicalX, legacyX, legacyX2)
         every { promos.findAllByMedusaProductIdIn(listOf(canonicalX, legacyX, legacyX2)) } returns listOf(promo)
         every { rules.findAllByStatusRawOrderByUpdatedAtDesc(RuleStatus.active.name) } returns listOf(rule)
         every { promos.findAllByStatusRawAndMedusaProductIdIsNotNullOrderByUpdatedAtDesc(PromoStatus.active.name) } returns
-            listOf(promo, duplicate)
+            listOf(promo, duplicate, promoY)
         every { source.canonicalIds(any()) } answers {
             firstArg<Collection<String>>().associateWith { id ->
                 when (id) {
@@ -132,10 +137,10 @@ class EshopCatalogReadSwitchTest {
             .crosssells.any { it.product.id == canonicalX })
 
         val feed = MobilePromotionsService(promos, service, eshopReadEnabled = true).activeFeed()
-        assertEquals(1, feed.size)
-        assertEquals(canonicalX, feed.single().productId)
-        assertEquals("Товар X", feed.single().name)
-        assertEquals("https://epharm.inkar.kz/api/media/eshop?sku=X", feed.single().imageUrl)
+        assertEquals(2, feed.size)
+        assertEquals(canonicalX, feed.first().productId)
+        assertEquals("Товар X", feed.first().name)
+        assertEquals("https://epharm.inkar.kz/api/media/eshop?sku=X", feed.first().imageUrl)
         verify(exactly = 0) { medusa.getProduct(any()) }
         verify(exactly = 0) { medusa.listProducts(any(), any(), any(), any(), any()) }
     }

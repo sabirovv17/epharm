@@ -54,7 +54,9 @@ class PromoRulesService(
     private val accCatalogTaxonomy: AccCatalogTaxonomy,
     private val eshop: EshopCatalogSnapshotRepository? = null,
     @Value("\${app.eshop.catalog.read-enabled:false}") private val eshopReadEnabled: Boolean = false,
+    @Value("\${app.eshop.catalog.admin-read-enabled:false}") private val eshopAdminReadEnabled: Boolean = false,
 ) {
+    private val shopAuthoringEnabled: Boolean get() = eshopReadEnabled || eshopAdminReadEnabled
 
     @Transactional(readOnly = true)
     fun view(promoId: String): PromoRulesViewDto {
@@ -104,7 +106,7 @@ class PromoRulesService(
         // Validate all scopes before deleting existing campaign rules.
         val replacementTriggers = config.replacements.map { it to triggerFor(it) }
         val crossSellTriggers = config.crossSells.map { it to triggerFor(it) }
-        if (eshopReadEnabled && promo.status == PromoStatus.active) {
+        if (shopAuthoringEnabled && promo.status == PromoStatus.active) {
             validateNewSourceExactKeys(promo, replacementTriggers, "replacements")
             validateNewSourceExactKeys(promo, crossSellTriggers, "crossSells")
         }
@@ -407,7 +409,7 @@ class PromoRulesService(
     }
 
     private fun sourceKey(id: String): String =
-        if (eshopReadEnabled) eshop?.canonicalId(id) ?: id else id
+        if (shopAuthoringEnabled) eshop?.canonicalId(id) ?: id else id
 
     /** Локальный товар под продвигаемый (id = medusaProductId; имя/цена из кампании/Medusa). */
     private fun upsertPromotedProduct(promo: PromoEntity, medusaId: String): ProductEntity {

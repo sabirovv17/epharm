@@ -30,12 +30,15 @@ class MobilePromotionsService(
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun activeFeed(today: LocalDate = LocalDate.now()): List<MobilePromotionDto> {
+    fun activeFeed(today: LocalDate = MobilePromoEligibility.today()): List<MobilePromotionDto> {
         // 1) Чтение промо из БД (repository открывает короткую транзакцию на один SELECT).
         //    В ленту берём только активные товарные акции в окне дат и С ценовыми порогами.
         val promos = promoRepository
             .findAllByStatusRawAndMedusaProductIdIsNotNullOrderByUpdatedAtDesc(PromoStatus.active.name)
-            .filter { inWindow(it, today) && it.tiers.isNotEmpty() }
+            .filter {
+                if (eshopReadEnabled) MobilePromoEligibility.includes(it, today)
+                else inWindow(it, today) && it.tiers.isNotEmpty()
+            }
         if (promos.isEmpty()) return emptyList()
 
         // 2) Живые карточки витрины — ВНЕ транзакции. При сбое Medusa → пустая map → снимок.
@@ -57,12 +60,10 @@ class MobilePromotionsService(
         }
     }
 
-    /** Промо активно сегодня: сегодня не раньше dateStart и не позже dateEnd (null = без границы). */
-    private fun inWindow(p: PromoEntity, today: LocalDate): Boolean {
-        val startOk = p.dateStart?.let { !today.isBefore(it) } ?: true
-        val endOk = p.dateEnd?.let { !today.isAfter(it) } ?: true
-        return startOk && endOk
-    }
+    /** Legacy feed keeps its established date and nonempty-tier rule until mobile cutover. */
+    private fun inWindow(p: PromoEntity, today: LocalDate): Boolean =
+        (p.dateStart == null || !today.isBefore(p.dateStart)) &&
+            (p.dateEnd == null || !today.isAfter(p.dateEnd))
 
     private fun toDto(p: PromoEntity, card: MobileCatalogProductDto?): MobilePromotionDto =
         MobilePromotionDto(

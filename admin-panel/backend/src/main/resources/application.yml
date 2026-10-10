@@ -183,6 +183,7 @@ app:
       # Preload and read cutover are independent. The private exporter is bound to
       # the corporate network; its bearer token must never be sent to browsers.
       sync-enabled: ${ESHOP_CATALOG_SYNC_ENABLED:false}
+      admin-read-enabled: ${ESHOP_CATALOG_ADMIN_READ_ENABLED:false}
       read-enabled: ${ESHOP_CATALOG_READ_ENABLED:false}
       base-url: ${ESHOP_CATALOG_BASE_URL:}
       token: ${ESHOP_CATALOG_TOKEN:}

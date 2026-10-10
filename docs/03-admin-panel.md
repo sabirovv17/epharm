@@ -53,7 +53,7 @@ redirects to `/screens` because banners are now a tab/panel in the Screens secti
 | Promo       | Product campaign CRUD, full site-catalogue picker, gallery/cover, tiers, dates, goals, campaign rules, grid/list view. |
 | Rules       | Read-only/global rules view plus rule builders/components; campaign rules are edited from Promo.                  |
 | Screens     | Connected cash desks, Excel inventory of POSM/client screens, 12-slot default/targeted playlists, banners.        |
-| Pharmacies  | Chains/pharmacies, CRUD, detail page, real Medusa-derived pharmacy seed data.                                     |
+| Pharmacies  | Chains/pharmacies, CRUD and detail page backed by Epharm's own registry; the original seed came from Medusa. |
 | Pharmacists | Registry, pending-profile activation with pharmacy assignment, block/unblock, status/balance data.                |
 | Reconcile   | Receipt moderation queue, claimed promos, POS/Excel source columns, approve/reject.                               |
 | AI Exam     | Question bank CRUD.                                                                                               |
@@ -62,6 +62,11 @@ redirects to `/screens` because banners are now a tab/panel in the Screens secti
 | Training    | Dashboard, programs/routes, courses, events/QR and six-digit attendance codes, assignments, attendance, results, certificates and analytics. |
 | Storefront  | Read-only full site catalogue with publication status and filter.                                                |
 | Settings    | Language/timezone/session settings.                                                                               |
+
+The full site catalogue powers the admin storefront and campaign product picker.
+The mobile catalogue shows only site-published products with a currently active
+promotion. Pharmacy administration and POSM recommendation rules retain their
+existing Epharm data and API identities during this catalogue change.
 
 Campaign rule authoring validates the editable request contract before saving. Optional barcode, iPartID and goal
 fields may remain empty in a draft. A new active exact-product rule from the site

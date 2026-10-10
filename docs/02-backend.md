@@ -23,7 +23,7 @@ The backend is a modular monolith under package `kz.epharm`.
 | `auth`                                | Admin auth, JWT, refresh tokens, roles.                                 |
 | `mobile.auth`                         | Pharmacist OTP auth, registration, refresh/logout.                      |
 | `mobile.profile`                      | `/api/mobile/me` profile/balance.                                       |
-| `mobile.catalog`                      | Public published-product catalogue for mobile.                          |
+| `mobile.catalog`                      | Public catalogue of published products with a current active promotion. |
 | `mobile.promotions`                   | Public active promo campaign feed.                                      |
 | `mobile.receipts`                     | Authenticated receipt upload/history.                                   |
 | `mobile.pharmacies`                   | Public active pharmacy list.                                            |
@@ -166,12 +166,18 @@ The backend consumes a private, authenticated exporter on the live site host. Th
 exporter reads one consistent PostgreSQL snapshot and streams the complete
 Daribar master. Epharm verifies count and SHA-256, then publishes a full
 generation atomically in its own PostgreSQL database. Admin search sees every
-source product; mobile search/detail/categories see only `published=true`.
+source product. Mobile search/detail/categories see only products that are both
+`published=true` on the site and tied to an active promotion within its date
+window with valid price tiers. The filter runs before pagination; mobile
+recommendations and promotion feed use the same eligibility rule.
 The public site offset API is not a full-master or consistent export source.
 
-`ESHOP_CATALOG_SYNC_ENABLED` preloads the new source; `ESHOP_CATALOG_READ_ENABLED`
-switches customer reads only after a verified generation exists. Until the
-read cutover, the previous Medusa snapshot remains the rollback read model.
+`ESHOP_CATALOG_SYNC_ENABLED` preloads the new source.
+`ESHOP_CATALOG_ADMIN_READ_ENABLED` switches the full admin catalogue;
+`ESHOP_CATALOG_READ_ENABLED` switches mobile to the promoted-only catalogue.
+Both require a verified generation. Until each read cutover, the previous
+Medusa snapshot remains its rollback read model. The pharmacy registry uses
+Epharm's own database and API; catalog source switching does not replace it.
 An incomplete export never replaces the active generation. Search uses local
 indexes and does not call the site for each request. See
 `docs/21-site-catalog-integration.md` for source fields, aliases, media,

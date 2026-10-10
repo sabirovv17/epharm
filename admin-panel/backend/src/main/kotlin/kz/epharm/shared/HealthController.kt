@@ -18,6 +18,7 @@ class HealthController(
     private val eshopSnapshot: EshopCatalogSnapshotRepository? = null,
     @Value("\${app.eshop.catalog.sync-enabled:false}") private val eshopSyncEnabled: Boolean = false,
     @Value("\${app.eshop.catalog.read-enabled:false}") private val eshopReadEnabled: Boolean = false,
+    @Value("\${app.eshop.catalog.admin-read-enabled:false}") private val eshopAdminReadEnabled: Boolean = false,
 ) {
     @GetMapping("/health")
     fun health(): Map<String, Any> {
@@ -32,7 +33,8 @@ class HealthController(
             "version" to version,
             "releaseId" to version,
             "commit" to commit,
-            "status" to if (eshopReadEnabled && !activeReady) "degraded" else "ok",
+            "status" to if ((eshopReadEnabled && !activeReady) ||
+                (eshopAdminReadEnabled && eshop?.ready != true)) "degraded" else "ok",
             "catalogSnapshot" to mapOf(
                 "ready" to activeReady,
                 "products" to activeCount,
@@ -41,6 +43,7 @@ class HealthController(
             "eshopCatalogSnapshot" to mapOf(
                 "syncEnabled" to eshopSyncEnabled,
                 "readEnabled" to eshopReadEnabled,
+                "adminReadEnabled" to eshopAdminReadEnabled,
                 "ready" to (eshop?.ready == true),
                 "products" to (eshop?.productCount ?: 0),
                 "publishedProducts" to (eshop?.publishedCount ?: 0),

@@ -166,6 +166,7 @@ services:
       # Preload a complete site generation before switching customer reads.
       # The exporter is a separate read-only sidecar on the trusted .80 host.
       ESHOP_CATALOG_SYNC_ENABLED: ${ESHOP_CATALOG_SYNC_ENABLED:-false}
+      ESHOP_CATALOG_ADMIN_READ_ENABLED: ${ESHOP_CATALOG_ADMIN_READ_ENABLED:-false}
       ESHOP_CATALOG_READ_ENABLED: ${ESHOP_CATALOG_READ_ENABLED:-false}
       ESHOP_CATALOG_BASE_URL: ${ESHOP_CATALOG_BASE_URL:-}
       ESHOP_CATALOG_TOKEN: ${ESHOP_CATALOG_TOKEN:-}

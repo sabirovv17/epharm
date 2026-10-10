@@ -40,7 +40,9 @@ class PromoService(
     private val eshop: EshopCatalogSnapshotRepository? = null,
     @Value("\${app.eshop.catalog.read-enabled:false}") private val eshopReadEnabled: Boolean = false,
     private val productRepository: ProductRepository? = null,
+    @Value("\${app.eshop.catalog.admin-read-enabled:false}") private val eshopAdminReadEnabled: Boolean = false,
 ) {
+    private val shopAuthoringEnabled: Boolean get() = eshopReadEnabled || eshopAdminReadEnabled
 
     @Transactional(readOnly = true)
     fun list(status: PromoStatus? = null): List<PromoDto> {
@@ -286,7 +288,15 @@ class PromoService(
             )
         }
         val sourceId = e.medusaProductId
-        if (eshopReadEnabled && sourceActivation && sourceId != null && eshop?.isCanonicalId(sourceId) == true &&
+        if (eshopAdminReadEnabled && !eshopReadEnabled && sourceActivation && sourceId != null &&
+            eshop?.isCanonicalId(sourceId) == true) {
+            throw AppException(
+                ErrorCode.VALIDATION_FAILED,
+                "Нельзя активировать акцию: мобильный каталог сайта ещё не включён",
+                HttpStatus.BAD_REQUEST,
+            )
+        }
+        if (shopAuthoringEnabled && sourceActivation && sourceId != null && eshop?.isCanonicalId(sourceId) == true &&
             eshop?.findById(sourceId, publicOnly = true) == null) {
             throw AppException(
                 ErrorCode.VALIDATION_FAILED,
@@ -294,16 +304,16 @@ class PromoService(
                 HttpStatus.BAD_REQUEST,
             )
         }
-        if (eshopReadEnabled && sourceActivation) validateExistingRuleKeys(e)
+        if (shopAuthoringEnabled && sourceActivation) validateExistingRuleKeys(e)
         // 1:1 — товар не должен быть в другой живой кампании.
         val mpid = e.medusaProductId
         if (mpid != null && e.status != PromoStatus.archived) {
-            val canonical = if (eshopReadEnabled) eshop?.canonicalId(mpid) ?: mpid else mpid
-            val candidates = if (eshopReadEnabled) promoRepository.findAllByMedusaProductIdIsNotNull()
+            val canonical = if (shopAuthoringEnabled) eshop?.canonicalId(mpid) ?: mpid else mpid
+            val candidates = if (shopAuthoringEnabled) promoRepository.findAllByMedusaProductIdIsNotNull()
                 else promoRepository.findAllByMedusaProductId(mpid)
             val clash = candidates.any {
                 it.id != e.id && it.status != PromoStatus.archived &&
-                    (if (eshopReadEnabled) eshop?.canonicalId(it.medusaProductId.orEmpty())
+                    (if (shopAuthoringEnabled) eshop?.canonicalId(it.medusaProductId.orEmpty())
                         ?: it.medusaProductId else it.medusaProductId) == canonical
             }
             if (clash) {

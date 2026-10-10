@@ -26,6 +26,27 @@ import java.util.Optional
 
 class EshopPromoRuleGuardTest {
     @Test
+    fun `admin-only stage cannot activate site campaign before mobile cutover`() {
+        val promos = mockk<PromoRepository>(relaxed = true)
+        val rules = mockk<RuleRepository>(relaxed = true)
+        val source = mockk<EshopCatalogSnapshotRepository>(relaxed = true)
+        val campaign = PromoEntity(id = "pr_site", title = "Акция", medusaProductId = "prod_Daribar_1")
+        every { promos.findById("pr_site") } returns Optional.of(campaign)
+        every { source.isCanonicalId("prod_Daribar_1") } returns true
+        val service = PromoService(
+            promos, mockk<MedusaPriceService>(relaxed = true), rules,
+            mockk<PharmacyRepository>(relaxed = true), source,
+            eshopReadEnabled = false, eshopAdminReadEnabled = true,
+        )
+
+        val failure = assertThrows(AppException::class.java) {
+            service.update("pr_site", UpdatePromoRequest(status = PromoStatus.active))
+        }
+        assertTrue(failure.message.orEmpty().contains("мобильный каталог"))
+        verify(exactly = 0) { promos.save(any()) }
+    }
+
+    @Test
     fun `active new exact pair without cashier key is rejected before replacing rules`() {
         val promos = mockk<PromoRepository>(relaxed = true)
         val rules = mockk<RuleRepository>(relaxed = true)

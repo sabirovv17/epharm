@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stage 2 of the shop-catalogue cutover: switch one env flag and recreate backend only.
+# Stage the shop-catalogue cutover: admin first, then promo-only mobile.
 set -euo pipefail
 umask 077
 
@@ -7,20 +7,27 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=tools/release/lib.sh
 source "$SCRIPT_DIR/lib.sh"
 
-[[ $# -ge 2 && $# -le 4 ]] || {
-  echo 'Usage: switch-eshop-catalog-read.sh <running-backend-tag> <running-frontend-tag> [--dry-run | --rollback [--dry-run]]' >&2
+[[ $# -ge 3 && $# -le 4 ]] || {
+  echo 'Usage: switch-eshop-catalog-read.sh <running-backend-tag> <running-frontend-tag> <--admin|--mobile|--rollback-admin|--rollback-mobile> [--dry-run]' >&2
   exit 2
 }
 backend_tag="$1"
 frontend_tag="$2"
-action="${3:-}"
-rollback_dry_run="${4:-}"
+action="$3"
+dry_run="${4:-}"
 assert_release_id "$backend_tag"
 assert_release_id "$frontend_tag"
-[[ "$action" == '' || "$action" == --dry-run || "$action" == --rollback ]] \
-  && [[ -z "$rollback_dry_run" || ( "$action" == --rollback && "$rollback_dry_run" == --dry-run ) ]] || {
-  echo 'ERROR: invalid action; use --dry-run or --rollback [--dry-run]' >&2; exit 2;
+[[ "$action" == --admin || "$action" == --mobile || "$action" == --rollback-admin \
+   || "$action" == --rollback-mobile ]] && [[ -z "$dry_run" || "$dry_run" == --dry-run ]] || {
+  echo 'ERROR: select --admin, --mobile, --rollback-admin or --rollback-mobile, optionally --dry-run' >&2; exit 2;
 }
+stage="${action#--}"
+stage="${stage#rollback-}"
+if [[ "$stage" == admin ]]; then
+  old_admin=false; new_admin=true; old_read=false; new_read=false
+else
+  old_admin=true; new_admin=true; old_read=false; new_read=true
+fi
 for command in docker flock python3 curl; do require_command "$command"; done
 readiness_wait_seconds="${CATALOG_READ_SWITCH_WAIT_SECONDS:-120}"
 [[ "$readiness_wait_seconds" =~ ^[0-9]+$ ]] || {
@@ -59,51 +66,52 @@ transaction_dir=''
 switched=false
 
 verify_compose() {
-  local input_env="$1" expected_read="$2"
+  local input_env="$1" expected_admin="$2" expected_read="$3"
   docker compose --env-file "$input_env" --env-file "$RELEASE_ROOT/.release.env" \
     -f "$RELEASE_ROOT/docker-compose.prod.yml" config --format json \
     | python3 -c 'import json,sys
 s=json.load(sys.stdin)["services"]
 b=s["backend"]; f=s["frontend"]; env=b["environment"]
-want_backend,want_frontend,want_read=sys.argv[1:]
+want_backend,want_frontend,want_admin,want_read=sys.argv[1:]
 ok=(b["image"]=="epharm/backend:"+want_backend
     and f["image"]=="epharm/frontend:"+want_frontend
     and str(env.get("ESHOP_CATALOG_SYNC_ENABLED", "")).lower()=="true"
+    and str(env.get("ESHOP_CATALOG_ADMIN_READ_ENABLED", "")).lower()==want_admin
     and str(env.get("ESHOP_CATALOG_READ_ENABLED", "")).lower()==want_read)
-sys.exit(0 if ok else 1)' "$backend_tag" "$frontend_tag" "$expected_read"
+sys.exit(0 if ok else 1)' "$backend_tag" "$frontend_tag" "$expected_admin" "$expected_read"
 }
 
 check_health() {
-  local mode="$1" base_url="${SMOKE_BASE_URL:-https://epharm.inkar.kz}"
+  local expected_admin="$1" expected_read="$2" require_fresh="$3"
+  local base_url="${SMOKE_BASE_URL:-https://epharm.inkar.kz}"
   curl --fail --silent --connect-timeout 3 --max-time 10 "$base_url/api/health" \
     | python3 -c 'import datetime,json,sys
 try:
     h=json.load(sys.stdin)
     e=h["eshopCatalogSnapshot"]
     c=h["catalogSnapshot"]
-    mode,tag=sys.argv[1:]
+    want_admin,want_read,require_fresh,tag=sys.argv[1:]
     good=h.get("status")=="ok" and h.get("releaseId")==tag
     good=good and c.get("ready") is True and c.get("products",0)>0
-    if mode in ("preload", "cutover"):
+    good=good and e.get("adminReadEnabled") is (want_admin=="true")
+    good=good and e.get("readEnabled") is (want_read=="true")
+    if require_fresh=="true":
         completed=datetime.datetime.fromisoformat(e["completedAt"].replace("Z", "+00:00"))
         age=(datetime.datetime.now(datetime.timezone.utc)-completed).total_seconds()
         good=good and e.get("syncEnabled") is True and e.get("ready") is True
         good=good and e.get("products",0)>0 and e.get("publishedProducts",0)>0
         good=good and 0 <= age <= 1800 and not e.get("lastError")
-    if mode=="preload": good=good and e.get("readEnabled") is False
-    elif mode=="cutover":
+    if want_read=="true":
         good=good and e.get("readEnabled") is True and c.get("products")==e.get("products")
-    elif mode=="site":
-        good=good and e.get("readEnabled") is True and c.get("products")==e.get("products")
-    else: good=good and e.get("readEnabled") is False
 except (ValueError,KeyError,TypeError,AttributeError):
     good=False
-sys.exit(0 if good else 1)' "$mode" "$backend_tag"
+sys.exit(0 if good else 1)' "$expected_admin" "$expected_read" "$require_fresh" "$backend_tag"
 }
 
 wait_health() {
-  local mode="$1" deadline=$((SECONDS + readiness_wait_seconds))
-  while ! check_health "$mode"; do
+  local expected_admin="$1" expected_read="$2" require_fresh="$3"
+  local deadline=$((SECONDS + readiness_wait_seconds))
+  while ! check_health "$expected_admin" "$expected_read" "$require_fresh"; do
     (( SECONDS < deadline )) || return 1
     sleep 2
   done
@@ -153,24 +161,26 @@ verify_unchanged() {
 }
 
 transaction_root="$RELEASE_ROOT/releases/catalog-read-switch"
-if [[ "$action" == --rollback ]]; then
+stage_pointer="$transaction_root/$stage-active-transaction"
+if [[ "$action" == --rollback-* ]]; then
   # The pointer is written only after a successful cutover. Check its owner,
   # private permissions, direct-child path, manifest, and exact one-line env
   # difference before any rollback mutation.
-  transaction_info="$(python3 - "$transaction_root" "$env_file" "$backend_tag" "$frontend_tag" \
+  transaction_info="$(python3 - "$transaction_root" "$stage_pointer" "$env_file" "$stage" "$backend_tag" "$frontend_tag" \
     "$release_sha" "$compose_sha" "$caddy_sha" "$backend_image" "$frontend_image" <<'PY'
 import hashlib, os, pathlib, stat, sys
-root, live = map(pathlib.Path, sys.argv[1:3])
-expected = dict(zip(('BACKEND_RELEASE_ID', 'FRONTEND_RELEASE_ID', 'RELEASE_ENV_SHA256',
+root, pointer, live = map(pathlib.Path, sys.argv[1:4])
+expected = dict(zip(('STAGE', 'BACKEND_RELEASE_ID', 'FRONTEND_RELEASE_ID', 'RELEASE_ENV_SHA256',
                      'COMPOSE_SHA256', 'CADDY_SHA256', 'BACKEND_IMAGE', 'FRONTEND_IMAGE'),
-                    sys.argv[3:]))
+                    sys.argv[4:]))
 def private(path, kind, mode):
     item = path.lstat()
     valid_type = stat.S_ISDIR(item.st_mode) if kind == 'directory' else stat.S_ISREG(item.st_mode)
     if not valid_type or item.st_uid != os.geteuid() or stat.S_IMODE(item.st_mode) != mode:
         raise ValueError('invalid private rollback artifact')
 private(root, 'directory', 0o700)
-pointer = root / 'active-transaction'
+if pointer.parent != root or pointer.name != expected['STAGE'] + '-active-transaction':
+    raise ValueError('wrong rollback pointer')
 private(pointer, 'file', 0o600)
 transaction = pathlib.Path(pointer.read_text(encoding='utf-8').rstrip('\n'))
 if not transaction.is_absolute() or transaction.parent != root:
@@ -203,11 +213,18 @@ def only(key):
     return matches[0]
 if lines[only(b'ESHOP_CATALOG_SYNC_ENABLED')].rstrip(b'\r\n') != b'ESHOP_CATALOG_SYNC_ENABLED=true':
     raise ValueError('rollback sync flag mismatch')
-index = only(b'ESHOP_CATALOG_READ_ENABLED')
+admin = only(b'ESHOP_CATALOG_ADMIN_READ_ENABLED')
+read = only(b'ESHOP_CATALOG_READ_ENABLED')
+stage = expected['STAGE']
+old_admin, old_read = (b'false', b'false') if stage == 'admin' else (b'true', b'false')
+if lines[admin].rstrip(b'\r\n') != b'ESHOP_CATALOG_ADMIN_READ_ENABLED=' + old_admin:
+    raise ValueError('rollback admin flag mismatch')
+if lines[read].rstrip(b'\r\n') != b'ESHOP_CATALOG_READ_ENABLED=' + old_read:
+    raise ValueError('rollback mobile flag mismatch')
+index = admin if stage == 'admin' else read
 old_line = lines[index]
-if old_line.rstrip(b'\r\n') != b'ESHOP_CATALOG_READ_ENABLED=false':
-    raise ValueError('rollback read flag mismatch')
-lines[index] = b'ESHOP_CATALOG_READ_ENABLED=true' + old_line[len(old_line.rstrip(b'\r\n')):]
+key = b'ESHOP_CATALOG_ADMIN_READ_ENABLED' if stage == 'admin' else b'ESHOP_CATALOG_READ_ENABLED'
+lines[index] = key + b'=true' + old_line[len(old_line.rstrip(b'\r\n')):]
 if b''.join(lines) != current:
     raise ValueError('rollback env differs by more than the read flag')
 if '\t' in str(transaction) or '\n' in str(transaction):
@@ -216,12 +233,12 @@ print(f"{transaction}\t{manifest['PRE_ENV_SHA256']}\t{manifest['POST_ENV_SHA256'
 PY
   )" || { echo 'ERROR: active cutover rollback artifact failed integrity checks' >&2; exit 1; }
   IFS=$'\t' read -r transaction_dir saved_sha current_sha <<< "$transaction_info"
-  verify_compose "$env_file" true || { echo 'ERROR: live Compose no longer renders site reads' >&2; exit 1; }
-  verify_compose "$transaction_dir/pre.env.prod" false || {
+  verify_compose "$env_file" "$new_admin" "$new_read" || { echo 'ERROR: live Compose no longer renders active reads' >&2; exit 1; }
+  verify_compose "$transaction_dir/pre.env.prod" "$old_admin" "$old_read" || {
     echo 'ERROR: saved Compose no longer renders legacy reads' >&2; exit 1;
   }
   verify_unchanged
-  if [[ "$rollback_dry_run" == --dry-run ]]; then
+  if [[ "$dry_run" == --dry-run ]]; then
     echo 'Shop catalogue rollback dry-run passed; no application container or env changed'
     exit 0
   fi
@@ -249,7 +266,7 @@ PY
       fi
       if [[ "$recovered" == true ]]; then
         compose_prod up -d --no-build --no-deps --force-recreate backend || recovered=false
-        wait_health site || recovered=false
+        wait_health "$new_admin" "$new_read" false || recovered=false
         verify_unchanged || recovered=false
         [[ "$(sha256_file "$env_file")" == "$current_sha" ]] || recovered=false
       fi
@@ -273,26 +290,66 @@ PY
   rollback_started=true
   mv -f "$rollback_tmp" "$env_file"
   compose_prod up -d --no-build --no-deps --force-recreate backend
-  wait_health legacy || { echo 'ERROR: legacy backend did not become healthy' >&2; exit 1; }
+  wait_health "$old_admin" "$old_read" false || { echo 'ERROR: previous backend did not become healthy' >&2; exit 1; }
   legacy_catalog_smoke || { echo 'ERROR: legacy catalogue/search smoke failed' >&2; exit 1; }
   verify_unchanged
   [[ "$(sha256_file "$env_file")" == "$saved_sha" ]] || {
     echo 'ERROR: restored env differs from the verified backup' >&2; exit 1;
   }
   rollback_started=false
-  mv -f "$transaction_root/active-transaction" "$rollback_attempt_dir/completed-active-transaction" || {
-    echo 'WARNING: legacy reads are restored, but the active-transaction pointer could not be archived' >&2;
+  mv -f "$stage_pointer" "$rollback_attempt_dir/completed-$stage-active-transaction" || {
+    echo 'WARNING: previous reads are restored, but the active-transaction pointer could not be archived' >&2;
   }
-  echo "Legacy catalogue reads restored; rollback record saved in $rollback_attempt_dir"
+  echo "Previous $stage catalogue reads restored; rollback record saved in $rollback_attempt_dir"
   exit 0
+fi
+
+if [[ "$stage" == mobile ]]; then
+  python3 - "$transaction_root" "$env_file" "$release_sha" "$compose_sha" "$caddy_sha" \
+    "$backend_image" "$frontend_image" <<'PY' || {
+import hashlib, os, pathlib, stat, sys
+root, live = map(pathlib.Path, sys.argv[1:3])
+entry = root.lstat()
+if not stat.S_ISDIR(entry.st_mode) or entry.st_uid != os.geteuid() or stat.S_IMODE(entry.st_mode) != 0o700:
+    raise SystemExit(1)
+pointer = root / 'admin-active-transaction'
+entry = pointer.lstat()
+if not stat.S_ISREG(entry.st_mode) or entry.st_uid != os.geteuid() or stat.S_IMODE(entry.st_mode) != 0o600:
+    raise SystemExit(1)
+transaction = pathlib.Path(pointer.read_text(encoding='utf-8').rstrip('\n'))
+if not transaction.is_absolute() or transaction.parent != root:
+    raise SystemExit(1)
+entry = transaction.lstat()
+if not stat.S_ISDIR(entry.st_mode) or entry.st_uid != os.geteuid() or stat.S_IMODE(entry.st_mode) != 0o700:
+    raise SystemExit(1)
+manifest_path = transaction / 'manifest'
+entry = manifest_path.lstat()
+if not stat.S_ISREG(entry.st_mode) or entry.st_uid != os.geteuid() or stat.S_IMODE(entry.st_mode) != 0o600:
+    raise SystemExit(1)
+manifest = {}
+for line in manifest_path.read_text(encoding='ascii').splitlines():
+    key, value = line.split('=', 1)
+    if key in manifest:
+        raise SystemExit(1)
+    manifest[key] = value
+expected = dict(zip(('RELEASE_ENV_SHA256', 'COMPOSE_SHA256', 'CADDY_SHA256',
+                     'BACKEND_IMAGE', 'FRONTEND_IMAGE'), sys.argv[3:]))
+if manifest.get('STAGE') != 'admin' or manifest.get('POST_ENV_SHA256') != hashlib.sha256(live.read_bytes()).hexdigest() \
+        or any(manifest.get(key) != value for key, value in expected.items()):
+    raise SystemExit(1)
+PY
+    echo 'ERROR: mobile cutover requires the verified active admin stage' >&2
+    exit 1
+  }
 fi
 
 candidate_tmp="$(mktemp "$RELEASE_ROOT/.env.catalog-read.XXXXXXXX")"
 # Parse dotenv as bytes: exactly one read flag and one sync flag, preserving every
 # other byte (including secrets and comments). The candidate stays mode 0600.
-python3 - "$env_file" "$candidate_tmp" <<'PY' || {
+python3 - "$env_file" "$candidate_tmp" "$stage" <<'PY' || {
 import os, pathlib, stat, sys
-source, candidate = map(pathlib.Path, sys.argv[1:])
+source, candidate = map(pathlib.Path, sys.argv[1:3])
+stage = sys.argv[3]
 entry = source.lstat()
 if not stat.S_ISREG(entry.st_mode) or entry.st_uid != os.geteuid() or stat.S_IMODE(entry.st_mode) != 0o600:
     raise SystemExit(1)
@@ -303,21 +360,27 @@ def only(key):
         raise SystemExit(1)
     return matches[0]
 sync = only(b'ESHOP_CATALOG_SYNC_ENABLED')
+admin = only(b'ESHOP_CATALOG_ADMIN_READ_ENABLED')
 read = only(b'ESHOP_CATALOG_READ_ENABLED')
 if lines[sync].rstrip(b'\r\n') != b'ESHOP_CATALOG_SYNC_ENABLED=true':
     raise SystemExit(1)
-old = lines[read]
-if old.rstrip(b'\r\n') != b'ESHOP_CATALOG_READ_ENABLED=false':
+expected_admin = b'false' if stage == 'admin' else b'true'
+if lines[admin].rstrip(b'\r\n') != b'ESHOP_CATALOG_ADMIN_READ_ENABLED=' + expected_admin:
     raise SystemExit(1)
+if lines[read].rstrip(b'\r\n') != b'ESHOP_CATALOG_READ_ENABLED=false':
+    raise SystemExit(1)
+index = admin if stage == 'admin' else read
+key = b'ESHOP_CATALOG_ADMIN_READ_ENABLED' if stage == 'admin' else b'ESHOP_CATALOG_READ_ENABLED'
+old = lines[index]
 ending = old[len(old.rstrip(b'\r\n')):]
-lines[read] = b'ESHOP_CATALOG_READ_ENABLED=true' + ending
+lines[index] = key + b'=true' + ending
 with candidate.open('wb') as output:
     output.write(b''.join(lines))
     output.flush()
     os.fsync(output.fileno())
 os.chmod(candidate, 0o600)
 PY
-  echo 'ERROR: .env.prod must be an owner-matched mode-0600 file with SYNC=true and READ=false once each' >&2
+  echo 'ERROR: .env.prod must be an owner-matched mode-0600 file with expected staged flags once each' >&2
   rm -f -- "$candidate_tmp"
   exit 1
 }
@@ -336,7 +399,7 @@ rollback_on_exit() {
     fi
     if [[ "$rollback_ok" == true ]]; then
       compose_prod up -d --no-build --no-deps --force-recreate backend || rollback_ok=false
-      wait_health legacy || rollback_ok=false
+      wait_health "$old_admin" "$old_read" false || rollback_ok=false
       legacy_catalog_smoke || rollback_ok=false
       verify_unchanged || rollback_ok=false
       [[ "$(sha256_file "$env_file")" == "$previous_sha" ]] || rollback_ok=false
@@ -353,16 +416,16 @@ rollback_on_exit() {
 trap rollback_on_exit EXIT
 trap 'exit 1' INT TERM
 
-verify_compose "$env_file" false || { echo 'ERROR: current Compose does not render preloaded site catalogue' >&2; exit 1; }
-verify_compose "$candidate_tmp" true || { echo 'ERROR: candidate Compose does not render site reads' >&2; exit 1; }
-check_health preload || { echo 'ERROR: site snapshot is not fresh and ready for cutover' >&2; exit 1; }
+verify_compose "$env_file" "$old_admin" "$old_read" || { echo 'ERROR: current Compose does not render expected staged flags' >&2; exit 1; }
+verify_compose "$candidate_tmp" "$new_admin" "$new_read" || { echo 'ERROR: candidate Compose does not render requested reads' >&2; exit 1; }
+check_health "$old_admin" "$old_read" true || { echo 'ERROR: site snapshot is not fresh and ready for cutover' >&2; exit 1; }
 "$SCRIPT_DIR/smoke.sh" "$backend_tag" "$frontend_tag"
 verify_unchanged
 [[ "$(sha256_file "$env_file")" == "$previous_sha" ]] || {
   echo 'ERROR: .env.prod changed during preflight' >&2; exit 1;
 }
-if [[ "$action" == --dry-run ]]; then
-  echo 'Shop catalogue read switch dry-run passed; no application container or env changed'
+if [[ "$dry_run" == --dry-run ]]; then
+  echo "Shop catalogue $stage switch dry-run passed; no application container or env changed"
   exit 0
 fi
 
@@ -375,8 +438,8 @@ chmod 600 "$transaction_dir/pre.env.prod"
   echo 'ERROR: saved env differs from the live configuration' >&2; exit 1;
 }
 manifest_tmp="$(mktemp "$transaction_dir/.manifest.XXXXXXXX")"
-printf 'BACKEND_RELEASE_ID=%s\nFRONTEND_RELEASE_ID=%s\nRELEASE_ENV_SHA256=%s\nCOMPOSE_SHA256=%s\nCADDY_SHA256=%s\nBACKEND_IMAGE=%s\nFRONTEND_IMAGE=%s\nPRE_ENV_SHA256=%s\nPOST_ENV_SHA256=%s\n' \
-  "$backend_tag" "$frontend_tag" "$release_sha" "$compose_sha" "$caddy_sha" \
+printf 'STAGE=%s\nBACKEND_RELEASE_ID=%s\nFRONTEND_RELEASE_ID=%s\nRELEASE_ENV_SHA256=%s\nCOMPOSE_SHA256=%s\nCADDY_SHA256=%s\nBACKEND_IMAGE=%s\nFRONTEND_IMAGE=%s\nPRE_ENV_SHA256=%s\nPOST_ENV_SHA256=%s\n' \
+  "$stage" "$backend_tag" "$frontend_tag" "$release_sha" "$compose_sha" "$caddy_sha" \
   "$backend_image" "$frontend_image" "$previous_sha" "$candidate_sha" > "$manifest_tmp"
 chmod 600 "$manifest_tmp"
 mv -f "$manifest_tmp" "$transaction_dir/manifest"
@@ -387,7 +450,7 @@ mv -f "$candidate_tmp" "$env_file"
   echo 'ERROR: env changed during atomic cutover' >&2; exit 1;
 }
 compose_prod up -d --no-build --no-deps --force-recreate backend
-wait_health cutover || { echo 'ERROR: backend did not report ready site reads' >&2; exit 1; }
+wait_health "$new_admin" "$new_read" true || { echo 'ERROR: backend did not report ready staged reads' >&2; exit 1; }
 "$SCRIPT_DIR/smoke.sh" "$backend_tag" "$frontend_tag"
 verify_unchanged
 [[ "$(sha256_file "$env_file")" == "$candidate_sha" ]] || {
@@ -396,5 +459,5 @@ verify_unchanged
 active_tmp="$(mktemp "$transaction_root/.active-transaction.XXXXXXXX")"
 printf '%s\n' "$transaction_dir" > "$active_tmp"
 chmod 600 "$active_tmp"
-mv -f "$active_tmp" "$transaction_root/active-transaction"
-echo "Shop catalogue reads enabled; previous env saved in $transaction_dir"
+mv -f "$active_tmp" "$stage_pointer"
+echo "Shop catalogue $stage reads enabled; previous env saved in $transaction_dir"

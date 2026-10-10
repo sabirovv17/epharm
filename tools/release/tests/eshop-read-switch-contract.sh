@@ -12,7 +12,7 @@ cp "$source_root/tools/release/switch-eshop-catalog-read.sh" \
 cp "$source_root/tools/ops/lib.sh" "$test_root/tools/ops/lib.sh"
 printf '# reviewed compose\n' > "$test_root/docker-compose.prod.yml"
 printf '# reviewed Caddy\n' > "$test_root/Caddyfile"
-printf 'SECRET=keep every byte # including spaces\nESHOP_CATALOG_SYNC_ENABLED=true\nESHOP_CATALOG_READ_ENABLED=false\n' \
+printf 'SECRET=keep every byte # including spaces\nESHOP_CATALOG_SYNC_ENABLED=true\nESHOP_CATALOG_ADMIN_READ_ENABLED=false\nESHOP_CATALOG_READ_ENABLED=false\n' \
   > "$test_root/.env.prod"
 printf 'BACKEND_RELEASE_ID=v0.1.25\nFRONTEND_RELEASE_ID=v0.1.25\n' > "$test_root/.release.env"
 chmod 600 "$test_root/.env.prod" "$test_root/.release.env"
@@ -65,6 +65,7 @@ if __import__('os').environ.get('TEST_BAD_RENDER') == 'true':
 print(json.dumps({'services': {
     'backend': {'image': 'epharm/backend:'+pins['BACKEND_RELEASE_ID'],
                 'environment': {'ESHOP_CATALOG_SYNC_ENABLED': env['ESHOP_CATALOG_SYNC_ENABLED'],
+                                'ESHOP_CATALOG_ADMIN_READ_ENABLED': env['ESHOP_CATALOG_ADMIN_READ_ENABLED'],
                                 'ESHOP_CATALOG_READ_ENABLED': env['ESHOP_CATALOG_READ_ENABLED']}},
     'frontend': {'image': 'epharm/frontend:'+pins['FRONTEND_RELEASE_ID']}}}))
 PY
@@ -72,8 +73,9 @@ PY
       up)
         [[ " $* " == *' --no-build --no-deps --force-recreate backend '* ]]
         [[ " $* " != *' frontend '* && " $* " != *' caddy '* && " $* " != *' postgres '* ]]
+        admin_flag="$(sed -n 's/^ESHOP_CATALOG_ADMIN_READ_ENABLED=//p' "$env_file")"
         read_flag="$(sed -n 's/^ESHOP_CATALOG_READ_ENABLED=//p' "$env_file")"
-        printf 'up:%s:backend\n' "$read_flag" >> "$TEST_EVENTS"
+        printf 'up:%s:%s:backend\n' "$admin_flag" "$read_flag" >> "$TEST_EVENTS"
         if [[ "$read_flag" == true && "${TEST_FAIL_UP:-false}" == true ]]; then exit 1; fi
         ;;
       *) exit 1 ;;
@@ -93,14 +95,16 @@ case " $* " in
     python3 - "$TEST_WORKSPACE_ROOT/.env.prod" <<'PY'
 import datetime,json,os,sys
 env=dict(line.rstrip('\n').split('=',1) for line in open(sys.argv[1]) if '=' in line)
+admin=env['ESHOP_CATALOG_ADMIN_READ_ENABLED']=='true'
 read=env['ESHOP_CATALOG_READ_ENABLED']=='true'
 now=datetime.datetime.now(datetime.timezone.utc)
 if os.environ.get('TEST_HEALTH_STALE')=='true': now-=datetime.timedelta(hours=2)
 if read and os.environ.get('TEST_HEALTH_BAD_CUTOVER')=='true': read=False
-status='degraded' if not read and os.environ.get('TEST_FAIL_LEGACY_HEALTH')=='true' else 'ok'
+if admin and os.environ.get('TEST_HEALTH_BAD_ADMIN')=='true': admin=False
+status='degraded' if not admin and not read and os.environ.get('TEST_FAIL_LEGACY_HEALTH')=='true' else 'ok'
 print(json.dumps({'status':status,'releaseId':'v0.1.25',
     'catalogSnapshot': {'ready':True,'products':29326 if read else 28503},
-    'eshopCatalogSnapshot': {'syncEnabled':True,'readEnabled':read,
+    'eshopCatalogSnapshot': {'syncEnabled':True,'adminReadEnabled':admin,'readEnabled':read,
         'ready':True,'products':29326,'publishedProducts':8787,
         'completedAt':now.isoformat(),'lastError':None}}))
 PY
@@ -123,7 +127,8 @@ cat > "$test_root/tools/release/smoke.sh" <<'STUB'
 set -euo pipefail
 [[ "$1" == v0.1.25 && "$2" == v0.1.25 ]]
 flag="$(sed -n 's/^ESHOP_CATALOG_READ_ENABLED=//p' "$TEST_WORKSPACE_ROOT/.env.prod")"
-printf 'smoke:%s\n' "$flag" >> "$TEST_EVENTS"
+admin_flag="$(sed -n 's/^ESHOP_CATALOG_ADMIN_READ_ENABLED=//p' "$TEST_WORKSPACE_ROOT/.env.prod")"
+printf 'smoke:%s:%s\n' "$admin_flag" "$flag" >> "$TEST_EVENTS"
 [[ "$flag" != true || "${TEST_FAIL_SMOKE_CUTOVER:-false}" != true ]]
 STUB
 chmod +x "$test_root/bin/docker" "$test_root/bin/flock" "$test_root/bin/curl" \
@@ -131,11 +136,16 @@ chmod +x "$test_root/bin/docker" "$test_root/bin/flock" "$test_root/bin/curl" \
 export TEST_WORKSPACE_ROOT="$test_root" TEST_EVENTS="$test_root/events"
 export PATH="$test_root/bin:$PATH"
 : > "$TEST_EVENTS"
-switch=("$test_root/tools/release/switch-eshop-catalog-read.sh" v0.1.25 v0.1.25)
+switch=("$test_root/tools/release/switch-eshop-catalog-read.sh" v0.1.25 v0.1.25 --admin)
+rollback=("$test_root/tools/release/switch-eshop-catalog-read.sh" v0.1.25 v0.1.25 --rollback-admin)
+
+if "$test_root/tools/release/switch-eshop-catalog-read.sh" v0.1.25 v0.1.25 --mobile --dry-run >/dev/null 2>&1; then
+  echo 'Mobile cutover skipped the admin stage' >&2; exit 1
+fi
 
 "${switch[@]}" --dry-run
 cmp -s "$test_root/original.env" "$test_root/.env.prod"
-[[ ! -s "$TEST_EVENTS" || "$(cat "$TEST_EVENTS")" == smoke:false ]]
+[[ ! -s "$TEST_EVENTS" || "$(cat "$TEST_EVENTS")" == smoke:false:false ]]
 [[ ! -d "$test_root/releases/catalog-read-switch" ]]
 
 : > "$TEST_EVENTS"
@@ -154,26 +164,35 @@ if TEST_LOCKED=true "${switch[@]}" >/dev/null 2>&1; then
 fi
 [[ ! -s "$TEST_EVENTS" ]]
 
+if CATALOG_READ_SWITCH_WAIT_SECONDS=0 TEST_HEALTH_BAD_ADMIN=true \
+  "${switch[@]}" >/dev/null 2>&1; then
+  echo 'Unhealthy admin reads did not trigger rollback' >&2; exit 1
+fi
+cmp -s "$test_root/original.env" "$test_root/.env.prod"
+[[ "$(cat "$TEST_EVENTS")" == $'smoke:false:false\nup:true:false:backend\nup:false:false:backend' ]]
+: > "$TEST_EVENTS"
+
 "${switch[@]}"
-grep -Fxq 'ESHOP_CATALOG_READ_ENABLED=true' "$test_root/.env.prod"
+grep -Fxq 'ESHOP_CATALOG_ADMIN_READ_ENABLED=true' "$test_root/.env.prod"
+grep -Fxq 'ESHOP_CATALOG_READ_ENABLED=false' "$test_root/.env.prod"
 grep -Fxq 'SECRET=keep every byte # including spaces' "$test_root/.env.prod"
 python3 - "$test_root/.env.prod" <<'PY'
 import os, stat, sys
 assert stat.S_IMODE(os.stat(sys.argv[1]).st_mode) == 0o600
 PY
-transaction_dir="$(cat "$test_root/releases/catalog-read-switch/active-transaction")"
+transaction_dir="$(cat "$test_root/releases/catalog-read-switch/admin-active-transaction")"
 cmp -s "$test_root/original.env" "$transaction_dir/pre.env.prod"
-[[ "$(cat "$TEST_EVENTS")" == $'smoke:false\nup:true:backend\nsmoke:true' ]]
+[[ "$(cat "$TEST_EVENTS")" == $'smoke:false:false\nup:true:false:backend\nsmoke:true:false' ]]
 
 : > "$TEST_EVENTS"
-"${switch[@]}" --rollback --dry-run
-grep -Fxq 'ESHOP_CATALOG_READ_ENABLED=true' "$test_root/.env.prod"
+"${rollback[@]}" --dry-run
+grep -Fxq 'ESHOP_CATALOG_ADMIN_READ_ENABLED=true' "$test_root/.env.prod"
 [[ ! -s "$TEST_EVENTS" ]]
-[[ -f "$test_root/releases/catalog-read-switch/active-transaction" ]]
+[[ -f "$test_root/releases/catalog-read-switch/admin-active-transaction" ]]
 
 cp -p "$transaction_dir/pre.env.prod" "$test_root/clean-pre.env.prod"
 printf '# tampered\n' >> "$transaction_dir/pre.env.prod"
-if "${switch[@]}" --rollback --dry-run >/dev/null 2>&1; then
+if "${rollback[@]}" --dry-run >/dev/null 2>&1; then
   echo 'Rollback accepted a tampered saved env' >&2; exit 1
 fi
 [[ ! -s "$TEST_EVENTS" ]]
@@ -181,50 +200,88 @@ mv -f "$test_root/clean-pre.env.prod" "$transaction_dir/pre.env.prod"
 
 : > "$TEST_EVENTS"
 if CATALOG_READ_SWITCH_WAIT_SECONDS=0 TEST_FAIL_LEGACY_HEALTH=true \
-  "${switch[@]}" --rollback >/dev/null 2>&1; then
+  "${rollback[@]}" >/dev/null 2>&1; then
   echo 'Rollback ignored unhealthy legacy reads' >&2; exit 1
 fi
-grep -Fxq 'ESHOP_CATALOG_READ_ENABLED=true' "$test_root/.env.prod"
-[[ "$(cat "$TEST_EVENTS")" == $'up:false:backend\nup:true:backend' ]]
-[[ -f "$test_root/releases/catalog-read-switch/active-transaction" ]]
+grep -Fxq 'ESHOP_CATALOG_ADMIN_READ_ENABLED=true' "$test_root/.env.prod"
+[[ "$(cat "$TEST_EVENTS")" == $'up:false:false:backend\nup:true:false:backend' ]]
+[[ -f "$test_root/releases/catalog-read-switch/admin-active-transaction" ]]
 
 : > "$TEST_EVENTS"
-if TEST_FAIL_LEGACY_SEARCH=true "${switch[@]}" --rollback >/dev/null 2>&1; then
+if TEST_FAIL_LEGACY_SEARCH=true "${rollback[@]}" >/dev/null 2>&1; then
   echo 'Rollback ignored failed legacy search' >&2; exit 1
 fi
-grep -Fxq 'ESHOP_CATALOG_READ_ENABLED=true' "$test_root/.env.prod"
-[[ "$(cat "$TEST_EVENTS")" == $'up:false:backend\nup:true:backend' ]]
-[[ -f "$test_root/releases/catalog-read-switch/active-transaction" ]]
+grep -Fxq 'ESHOP_CATALOG_ADMIN_READ_ENABLED=true' "$test_root/.env.prod"
+[[ "$(cat "$TEST_EVENTS")" == $'up:false:false:backend\nup:true:false:backend' ]]
+[[ -f "$test_root/releases/catalog-read-switch/admin-active-transaction" ]]
 
 : > "$TEST_EVENTS"
-"${switch[@]}" --rollback
+"${rollback[@]}"
 cmp -s "$test_root/original.env" "$test_root/.env.prod"
-[[ "$(cat "$TEST_EVENTS")" == 'up:false:backend' ]]
-[[ ! -e "$test_root/releases/catalog-read-switch/active-transaction" ]]
-rollback_records=("$test_root/releases/catalog-read-switch"/rollback-*/completed-active-transaction)
+[[ "$(cat "$TEST_EVENTS")" == 'up:false:false:backend' ]]
+[[ ! -e "$test_root/releases/catalog-read-switch/admin-active-transaction" ]]
+rollback_records=("$test_root/releases/catalog-read-switch"/rollback-*/completed-admin-active-transaction)
 [[ "${#rollback_records[@]}" -eq 1 && -f "${rollback_records[0]}" ]]
+
+# Re-enable admin reads, then test the independent mobile promo-only flag.
+: > "$TEST_EVENTS"
+"${switch[@]}"
+cp -p "$test_root/.env.prod" "$test_root/admin.env"
+switch=("$test_root/tools/release/switch-eshop-catalog-read.sh" v0.1.25 v0.1.25 --mobile)
+rollback=("$test_root/tools/release/switch-eshop-catalog-read.sh" v0.1.25 v0.1.25 --rollback-mobile)
+: > "$TEST_EVENTS"
+"${switch[@]}" --dry-run
+cmp -s "$test_root/admin.env" "$test_root/.env.prod"
+[[ "$(cat "$TEST_EVENTS")" == smoke:true:false ]]
+
+mv "$test_root/releases/catalog-read-switch/admin-active-transaction" \
+  "$test_root/releases/catalog-read-switch/admin-active-transaction.saved"
+if "${switch[@]}" --dry-run >/dev/null 2>&1; then
+  echo 'Mobile cutover accepted a missing admin transaction' >&2; exit 1
+fi
+mv "$test_root/releases/catalog-read-switch/admin-active-transaction.saved" \
+  "$test_root/releases/catalog-read-switch/admin-active-transaction"
 
 : > "$TEST_EVENTS"
 if TEST_FAIL_SMOKE_CUTOVER=true "${switch[@]}" >/dev/null 2>&1; then
   echo 'Failed cutover smoke did not trigger rollback' >&2; exit 1
 fi
-cmp -s "$test_root/original.env" "$test_root/.env.prod"
-[[ "$(cat "$TEST_EVENTS")" == $'smoke:false\nup:true:backend\nsmoke:true\nup:false:backend' ]]
+cmp -s "$test_root/admin.env" "$test_root/.env.prod"
+[[ "$(cat "$TEST_EVENTS")" == $'smoke:true:false\nup:true:true:backend\nsmoke:true:true\nup:true:false:backend' ]]
 
 : > "$TEST_EVENTS"
 if CATALOG_READ_SWITCH_WAIT_SECONDS=0 TEST_HEALTH_BAD_CUTOVER=true \
   "${switch[@]}" >/dev/null 2>&1; then
   echo 'Unhealthy site reads did not trigger rollback' >&2; exit 1
 fi
-cmp -s "$test_root/original.env" "$test_root/.env.prod"
-[[ "$(cat "$TEST_EVENTS")" == $'smoke:false\nup:true:backend\nup:false:backend' ]]
+cmp -s "$test_root/admin.env" "$test_root/.env.prod"
+[[ "$(cat "$TEST_EVENTS")" == $'smoke:true:false\nup:true:true:backend\nup:true:false:backend' ]]
 
 : > "$TEST_EVENTS"
 if TEST_FAIL_UP=true "${switch[@]}" >/dev/null 2>&1; then
   echo 'Partial backend recreation did not trigger rollback' >&2; exit 1
 fi
-cmp -s "$test_root/original.env" "$test_root/.env.prod"
-[[ "$(cat "$TEST_EVENTS")" == $'smoke:false\nup:true:backend\nup:false:backend' ]]
+cmp -s "$test_root/admin.env" "$test_root/.env.prod"
+[[ "$(cat "$TEST_EVENTS")" == $'smoke:true:false\nup:true:true:backend\nup:true:false:backend' ]]
+
+: > "$TEST_EVENTS"
+"${switch[@]}"
+grep -Fxq 'ESHOP_CATALOG_ADMIN_READ_ENABLED=true' "$test_root/.env.prod"
+grep -Fxq 'ESHOP_CATALOG_READ_ENABLED=true' "$test_root/.env.prod"
+mobile_transaction="$(cat "$test_root/releases/catalog-read-switch/mobile-active-transaction")"
+cmp -s "$test_root/admin.env" "$mobile_transaction/pre.env.prod"
+[[ "$(cat "$TEST_EVENTS")" == $'smoke:true:false\nup:true:true:backend\nsmoke:true:true' ]]
+if "$test_root/tools/release/switch-eshop-catalog-read.sh" v0.1.25 v0.1.25 --rollback-admin --dry-run >/dev/null 2>&1; then
+  echo 'Admin rollback accepted active mobile reads' >&2; exit 1
+fi
+: > "$TEST_EVENTS"
+"${rollback[@]}" --dry-run
+[[ ! -s "$TEST_EVENTS" ]]
+"${rollback[@]}"
+cmp -s "$test_root/admin.env" "$test_root/.env.prod"
+[[ "$(cat "$TEST_EVENTS")" == 'up:true:false:backend' ]]
+[[ ! -e "$test_root/releases/catalog-read-switch/mobile-active-transaction" ]]
+[[ -f "$test_root/releases/catalog-read-switch/admin-active-transaction" ]]
 
 chmod 644 "$test_root/.env.prod"
 : > "$TEST_EVENTS"

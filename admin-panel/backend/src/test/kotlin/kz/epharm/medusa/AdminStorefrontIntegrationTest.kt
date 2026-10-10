@@ -5,6 +5,7 @@ import kz.epharm.auth.domain.AdminUserStatus
 import kz.epharm.auth.entity.AdminUserEntity
 import kz.epharm.auth.repository.AdminUserRepository
 import kz.epharm.auth.service.JwtService
+import kz.epharm.eshop.EshopCatalogSnapshotRepository
 import kz.epharm.medusa.dto.MedusaCategory
 import kz.epharm.medusa.dto.MedusaProduct
 import kz.epharm.medusa.dto.MedusaVariant
@@ -13,6 +14,8 @@ import kz.epharm.pharmacists.entity.PharmacistStatus
 import kz.epharm.pharmacists.repository.PharmacistRepository
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
@@ -25,6 +28,8 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.transaction.annotation.Transactional
+import com.fasterxml.jackson.databind.ObjectMapper
+import java.math.BigDecimal
 import java.util.UUID
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
@@ -64,6 +69,8 @@ class AdminStorefrontIntegrationTest {
     @Autowired private lateinit var pharmacistRepository: PharmacistRepository
     @Autowired private lateinit var passwordEncoder: PasswordEncoder
     @Autowired private lateinit var snapshot: MedusaCatalogSnapshotRepository
+    @Autowired private lateinit var eshop: EshopCatalogSnapshotRepository
+    @Autowired private lateinit var json: ObjectMapper
 
     private lateinit var adminToken: String
     private lateinit var pharmacistToken: String
@@ -170,6 +177,39 @@ class AdminStorefrontIntegrationTest {
     @Test
     fun `витрина без токена → 401`() {
         mockMvc.perform(get("/api/admin/storefront/products")).andExpect(status().isUnauthorized)
+    }
+
+    @Test
+    fun `mobile promo query filters published campaign ids before paging and categories`() {
+        val generation = UUID.randomUUID()
+        fun row(sku: String, name: String, published: Boolean, category: String) =
+            EshopCatalogSnapshotRepository.ProductRow(
+                sku = sku,
+                productId = "prod_Daribar_$sku",
+                variantId = null,
+                raw = json.readTree("""{"id":"prod_Daribar_$sku","sku":"$sku","name":"$name","categoryHandles":["$category"]}"""),
+                priceAmount = BigDecimal("100.00"),
+                published = published,
+                aliasIds = emptyList(),
+            )
+        eshop.beginSync()
+        eshop.upsertBatch(generation, 0, listOf(
+            row("A", "Акционный А", true, "lekarstva-i-bady"),
+            row("B", "Обычный Б", true, "lekarstva-i-bady"),
+            row("C", "Скрытый В", false, "kosmetika"),
+        ))
+        eshop.completeSync(generation, 3, "catalog-test", null, java.time.Instant.now(), null)
+
+        val eligible = listOf("prod_Daribar_A", "prod_Daribar_C")
+        val first = eshop.searchWithinIds(null, null, 1, 0, eligible)
+        val beyond = eshop.searchWithinIds(null, null, 1, 1, eligible)
+        assertEquals(1, first.total)
+        assertEquals("prod_Daribar_A", first.items.single().product.id)
+        assertEquals(1, beyond.total)
+        assertTrue(beyond.items.isEmpty())
+        assertEquals(0, eshop.searchWithinIds("обычный", null, 10, 0, eligible).total)
+        assertEquals(listOf("Лекарства"), eshop.categoriesWithinIds(eligible).map { it.name })
+        assertEquals(0, eshop.searchWithinIds(null, null, 10, 0, emptyList()).total)
     }
 
     @Test

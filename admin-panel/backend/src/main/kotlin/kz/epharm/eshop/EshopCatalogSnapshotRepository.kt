@@ -6,8 +6,10 @@ import kz.epharm.medusa.dto.MedusaCategory
 import kz.epharm.medusa.dto.MedusaProduct
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.core.ResultSetExtractor
+import org.springframework.jdbc.core.ConnectionCallback
 import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.annotation.Isolation
 import java.sql.PreparedStatement
 import java.math.BigDecimal
 import java.text.Normalizer
@@ -217,6 +219,87 @@ class EshopCatalogSnapshotRepository(
             *(params + limit + offset).toTypedArray(),
         )
         return Page(items, total)
+    }
+
+    /** Search only promoted, published products. Filter before LIMIT so totals and pages stay correct. */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    fun searchWithinIds(
+        q: String?, category: String?, limit: Int, offset: Int, canonicalIds: Collection<String>,
+    ): Page {
+        val ids = canonicalIds.filter(String::isNotBlank).distinct()
+        if (ids.isEmpty()) return Page(emptyList(), 0)
+        val query = normalize(q.orEmpty()).takeIf(String::isNotBlank)?.let { "%${escapeLike(it)}%" }
+        val categoryKey = category?.trim()?.takeIf(String::isNotBlank)
+        val where = buildString {
+            append(" WHERE generation = (SELECT active_generation FROM eshop_catalog_sync_state WHERE singleton = 1)")
+            append(" AND published AND public_id = ANY (?::text[])")
+            if (query != null) append(" AND search_text LIKE ? ESCAPE '!'")
+            if (categoryKey != null) append(" AND category_keys @> ARRAY[?]::text[]")
+        }
+        return jdbc.execute(ConnectionCallback<Page> { connection ->
+            val idArray = connection.createArrayOf("text", ids.toTypedArray())
+            try {
+                fun bind(ps: PreparedStatement): Int {
+                    var index = 1
+                    ps.setArray(index++, idArray)
+                    if (query != null) ps.setString(index++, query)
+                    if (categoryKey != null) ps.setString(index++, categoryKey)
+                    return index
+                }
+                val total = connection.prepareStatement("SELECT count(*) FROM eshop_catalog_products$where").use { ps ->
+                    bind(ps)
+                    ps.executeQuery().use { rs -> if (rs.next()) rs.getInt(1) else 0 }
+                }
+                val items = connection.prepareStatement(
+                    """SELECT product_payload::text, published FROM eshop_catalog_products$where
+                       ORDER BY source_position, sku LIMIT ? OFFSET ?""",
+                ).use { ps ->
+                    val next = bind(ps)
+                    ps.setInt(next, limit)
+                    ps.setInt(next + 1, offset)
+                    ps.executeQuery().use { rs ->
+                        buildList {
+                            while (rs.next()) add(CatalogItem(
+                                json.readValue(rs.getString(1), MedusaProduct::class.java), rs.getBoolean(2),
+                            ))
+                        }
+                    }
+                }
+                Page(items, total)
+            } finally {
+                idArray.free()
+            }
+        })!!
+    }
+
+    /** Category filter options for the same promoted set shown in mobile search. */
+    @Transactional(readOnly = true)
+    fun categoriesWithinIds(canonicalIds: Collection<String>): List<MedusaCategory> {
+        val ids = canonicalIds.filter(String::isNotBlank).distinct()
+        if (ids.isEmpty()) return emptyList()
+        return jdbc.execute(ConnectionCallback<List<MedusaCategory>> { connection ->
+            val idArray = connection.createArrayOf("text", ids.toTypedArray())
+            try {
+                connection.prepareStatement(
+                    """SELECT DISTINCT ON (category ->> 'id') category::text
+                         FROM eshop_catalog_products p
+                         CROSS JOIN LATERAL jsonb_array_elements(
+                             COALESCE(p.product_payload -> 'categories', '[]'::jsonb)) category
+                        WHERE p.generation = (SELECT active_generation FROM eshop_catalog_sync_state WHERE singleton = 1)
+                          AND p.published AND p.public_id = ANY (?::text[])
+                        ORDER BY category ->> 'id', category ->> 'name'""",
+                ).use { ps ->
+                    ps.setArray(1, idArray)
+                    ps.executeQuery().use { rs ->
+                        buildList {
+                            while (rs.next()) add(json.readValue(rs.getString(1), MedusaCategory::class.java))
+                        }
+                    }
+                }
+            } finally {
+                idArray.free()
+            }
+        })!!
     }
 
     fun findById(id: String, publicOnly: Boolean): CatalogItem? {
