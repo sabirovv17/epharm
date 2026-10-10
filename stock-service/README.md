@@ -53,10 +53,11 @@ The `.80` gateway proxies to Nginx on `.81`; Nginx proxies to the service on
 host mount. Keep `.env` on the server with mode `0600`. `STOCK_COLLECTION_ENABLED`
 must remain `false`: the old central collector must never resume.
 
-Before cutover, make a consistent backup of the existing SQLite cache and
-PostgreSQL, run the importer, compare counts and dates, and verify API responses
-and rollback. See the runbook above. The SQLite package exists only in the
-one-time importer image; the serving process uses PostgreSQL.
+The first production cutover was performed on 10 October 2026: 586 pharmacies
+and 1,915,365 historical rows were verified in PostgreSQL. The last SQLite
+snapshot remains available for rollback and comparison. See the runbook before
+future releases. The SQLite package exists only in the one-time importer image;
+the serving process uses PostgreSQL.
 
 The backup scripts and systemd units are in [`deploy/`](deploy/). The stock
 host writes a PostgreSQL custom-format dump every six hours, verifies its
