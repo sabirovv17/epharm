@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from collections import Counter
 from pathlib import Path
-from pim_validation import HEADER, ValidationError, normalize_row, normalize_records, validate_file
+from pim_validation import HEADER, ValidationError, normalize_row, normalize_records, validate_file, sha256
 
 
 def row(**changes):
@@ -35,6 +35,15 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(r[1],'9D1A;54F-5B70-42AE-8DD5-35E964A2BF5D');self.assertEqual(self.quality['invalid_ware_rows'],1)
     def test_blank_uuid_preserved(self):
         self.normalize(row(WARE_ID='',SNAME=''));self.assertEqual(self.quality['blank_ware_rows'],1)
+    def test_unnamed_valid_uuid_preserved_and_audited(self):
+        result=self.normalize(row(SNAME=' '))
+        self.assertEqual(result[2],'')
+        self.assertEqual(self.quality['unnamed_valid_ware_rows'],1)
+        self.assertEqual(self.audit[0]['issue'],'unnamed_valid_ware_quarantined_from_catalog')
+    def test_non_ascii_whitespace_only_name_is_quarantined(self):
+        result=self.normalize(row(SNAME='\u00a0'))
+        self.assertEqual(result[2],'')
+        self.assertEqual(self.quality['unnamed_valid_ware_rows'],1)
     def test_optional_empty_numbers_preserved(self):
         r=self.normalize(row(RETAIL_PRICE='',COST_PRICE=''));self.assertEqual(r[11:13],['','']);self.assertEqual(self.quality['missing_revenue'],1)
     def test_required_empty_numeric_rejected(self):
@@ -58,6 +67,23 @@ class ValidationTests(unittest.TestCase):
     def test_same_batch_other_pharmacy_is_valid(self):
         other=row();other[3]='234';r=normalize_records(iter([HEADER,row(),other]),io.StringIO(),Counter(),lambda x:None)
         self.assertEqual(r['rows'],2)
+    def test_unnamed_row_kept_with_catalog_quarantine_cap(self):
+        unnamed=row(SNAME='');named=row(PART_ID='124')
+        output=io.StringIO();quality=Counter();audit=[]
+        result=normalize_records(iter([HEADER,unnamed,named]),output,quality,audit.append)
+        self.assertEqual(result['rows'],2)
+        self.assertEqual(result['discarded_rows'],0)
+        self.assertEqual(result['catalog_quarantine_limit'],1)
+        self.assertEqual(quality['unnamed_valid_ware_rows'],1)
+        self.assertEqual(len(output.getvalue().splitlines()),3)
+        self.assertEqual(audit[0]['record'],1)
+    def test_excess_unnamed_rows_fail_closed(self):
+        source=[HEADER,row(SNAME=''),row(PART_ID='124',SNAME=''),row(PART_ID='125')]
+        with self.assertRaisesRegex(ValidationError,'quarantine limit'):
+            normalize_records(iter(source),io.StringIO(),Counter(),lambda x:None)
+    def test_no_named_product_fails_closed(self):
+        with self.assertRaisesRegex(ValidationError,'no named product'):
+            normalize_records(iter([HEADER,row(SNAME='')]),io.StringIO(),Counter(),lambda x:None)
     def test_no_partial_artifact_on_interruption(self):
         with tempfile.TemporaryDirectory() as temp:
             p=Path(temp)/'2026-09-06.csv'
@@ -74,6 +100,19 @@ class ValidationTests(unittest.TestCase):
             m,artifact=validate_file(p,Path(temp)/'artifacts',p.stat().st_size)
             self.assertEqual(m['rows'],1);self.assertEqual(m['discarded_rows'],0);self.assertTrue((artifact/'normalized.tsv').exists())
             self.assertEqual(stat.S_IMODE(artifact.stat().st_mode)&0o077,0)
+            self.assertEqual(m['schema_version'],2)
+            self.assertTrue(artifact.name.endswith('-nameq-v2'))
+    def test_old_failed_artifact_is_preserved(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source=Path(temp)/'2026-09-06.csv'
+            with source.open('w',encoding='cp1251',newline='') as stream:
+                csv.writer(stream,delimiter='\t').writerows([HEADER,row(SNAME=''),row(PART_ID='124')])
+            old=Path(temp)/'artifacts'/(source.stem+'-'+sha256(source)[:16]);old.mkdir(parents=True)
+            (old/'failure.json').write_text('{"old":"evidence"}')
+            manifest,new=validate_file(source,Path(temp)/'artifacts')
+            self.assertEqual(manifest['quality']['unnamed_valid_ware_rows'],1)
+            self.assertEqual((old/'failure.json').read_text(),'{"old":"evidence"}')
+            self.assertNotEqual(new,old)
     def test_truncated_download_rejected(self):
         with tempfile.TemporaryDirectory() as temp:
             p=Path(temp)/'2026-09-06.csv';p.write_bytes(b'not complete')
