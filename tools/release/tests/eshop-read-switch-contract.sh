@@ -157,7 +157,10 @@ fi
 "${switch[@]}"
 grep -Fxq 'ESHOP_CATALOG_READ_ENABLED=true' "$test_root/.env.prod"
 grep -Fxq 'SECRET=keep every byte # including spaces' "$test_root/.env.prod"
-[[ "$(stat -f '%Lp' "$test_root/.env.prod" 2>/dev/null || stat -c '%a' "$test_root/.env.prod")" == 600 ]]
+python3 - "$test_root/.env.prod" <<'PY'
+import os, stat, sys
+assert stat.S_IMODE(os.stat(sys.argv[1]).st_mode) == 0o600
+PY
 transaction_dir="$(cat "$test_root/releases/catalog-read-switch/active-transaction")"
 cmp -s "$test_root/original.env" "$transaction_dir/pre.env.prod"
 [[ "$(cat "$TEST_EVENTS")" == $'smoke:false\nup:true:backend\nsmoke:true' ]]
