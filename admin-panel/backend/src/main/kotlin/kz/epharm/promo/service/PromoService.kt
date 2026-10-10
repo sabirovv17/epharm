@@ -43,6 +43,8 @@ class PromoService(
     @Value("\${app.eshop.catalog.admin-read-enabled:false}") private val eshopAdminReadEnabled: Boolean = false,
 ) {
     private val shopAuthoringEnabled: Boolean get() = eshopReadEnabled || eshopAdminReadEnabled
+    private fun siteDraftBeforeMobileCutover(id: String): Boolean =
+        eshopAdminReadEnabled && !eshopReadEnabled && eshop?.isCanonicalId(id) == true
 
     @Transactional(readOnly = true)
     fun list(status: PromoStatus? = null): List<PromoDto> {
@@ -198,7 +200,12 @@ class PromoService(
             return
         }
         val price = if (refetchPrice) {
-            medusaPriceService.priceOf(mpid) ?: e.price
+            val current = if (siteDraftBeforeMobileCutover(mpid)) {
+                medusaPriceService.priceOf(eshop?.findById(mpid, publicOnly = false)?.product)
+            } else {
+                medusaPriceService.priceOf(mpid)
+            }
+            current ?: e.price
         } else {
             e.price
         }
@@ -218,7 +225,7 @@ class PromoService(
             e.ipartId = null
             return
         }
-        if (refetch) {
+        if (refetch && !siteDraftBeforeMobileCutover(mpid)) {
             val ean = medusaPriceService.snapshotOf(mpid)?.barcode?.trim()?.takeIf { it.isNotBlank() }
             if (ean != null) e.barcode = ean
         }

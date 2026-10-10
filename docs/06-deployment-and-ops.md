@@ -208,7 +208,9 @@ sudo ./tools/release/switch-eshop-catalog-read.sh \
 
 Check admin list, detail, search and published filter against known site items.
 Mobile still reads the previous catalogue. New site-ID promotions may be drafted
-but cannot be activated until mobile reads are enabled. Confirm existing
+but cannot be activated until mobile reads are enabled. The scheduled POSM
+promotion-price refresh retains its previous source during this admin-only stage.
+Confirm existing
 promotions and live POSM recommendation/pop-up flows before proceeding.
 
 Before mobile cutover, reconcile every active campaign to a published site card;

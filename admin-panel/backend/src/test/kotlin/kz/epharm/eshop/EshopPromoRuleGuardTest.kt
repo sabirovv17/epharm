@@ -6,6 +6,7 @@ import io.mockk.verify
 import kz.epharm.catalog.repository.ProductRepository
 import kz.epharm.catalog.service.AccCatalogTaxonomy
 import kz.epharm.medusa.service.MedusaPriceService
+import kz.epharm.medusa.dto.MedusaProduct
 import kz.epharm.promo.dto.PromoRuleProductRefDto
 import kz.epharm.promo.dto.PromoRulesConfigDto
 import kz.epharm.promo.dto.UpdatePromoRequest
@@ -20,11 +21,38 @@ import kz.epharm.rules.entity.RuleTrigger
 import kz.epharm.rules.repository.RuleRepository
 import kz.epharm.shared.error.AppException
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import java.util.Optional
 
 class EshopPromoRuleGuardTest {
+    @Test
+    fun `site draft takes site price without switching existing POSM price source`() {
+        val promos = mockk<PromoRepository>(relaxed = true)
+        val rules = mockk<RuleRepository>(relaxed = true)
+        val source = mockk<EshopCatalogSnapshotRepository>(relaxed = true)
+        val price = mockk<MedusaPriceService>(relaxed = true)
+        val campaign = PromoEntity(id = "pr_site", title = "Акция", medusaProductId = "prod_Daribar_1")
+        val product = MedusaProduct(id = "prod_Daribar_1", title = "Товар")
+        every { promos.findById("pr_site") } returns Optional.of(campaign)
+        every { promos.save(any()) } answers { firstArg() }
+        every { source.isCanonicalId("prod_Daribar_1") } returns true
+        every { source.findById("prod_Daribar_1", false) } returns
+            EshopCatalogSnapshotRepository.CatalogItem(product, true)
+        every { price.priceOf(product) } returns 123L
+        val service = PromoService(
+            promos, price, rules, mockk<PharmacyRepository>(relaxed = true), source,
+            eshopReadEnabled = false, eshopAdminReadEnabled = true,
+        )
+
+        service.update("pr_site", UpdatePromoRequest(title = "Акция"))
+
+        assertEquals(123L, campaign.price)
+        verify(exactly = 0) { price.priceOf("prod_Daribar_1") }
+        verify(exactly = 0) { price.snapshotOf("prod_Daribar_1") }
+    }
+
     @Test
     fun `admin-only stage cannot activate site campaign before mobile cutover`() {
         val promos = mockk<PromoRepository>(relaxed = true)
