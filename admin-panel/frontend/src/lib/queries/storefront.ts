@@ -36,7 +36,7 @@ export function useStorefrontProduct(id: string | null) {
   })
 }
 
-export function useStorefront(q: string, offset: number, limit = 50) {
+export function useStorefront(q: string, offset: number, limit = 50, enabled = true) {
   return useQuery<StorefrontPageDto>({
     queryKey: storefrontKeys.list(q, offset, limit),
     queryFn: () =>
@@ -45,6 +45,7 @@ export function useStorefront(q: string, offset: number, limit = 50) {
           params: { q: q || undefined, limit, offset },
         })
         .then((r) => r.data),
+    enabled,
     staleTime: 60 * 1000,
     // ВАЖНО: перебиваем глобальный placeholderData: keepPreviousData (queryClient.ts).
     // При смене q меняется queryKey, и keepPreviousData отдал бы данные ПРЕДЫДУЩЕГО

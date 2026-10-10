@@ -1,18 +1,18 @@
-// CreatePromoModal — создание товарной акции: выбор ОДНОГО товара из витрины
-// Medusa + диапазон дат + единый бонус фармацевту. Цена товара read-only из
-// Medusa (обновляется каждый час). Опционально — override фото/описания (поверх PIM).
-// Бренд берётся из выбранного товара. Многоуровневые пороги убраны (T1).
+// Создание кампании: сначала источник рекомендации, затем её тип и товар,
+// который предлагаем. Начальная пара сохраняется вместе с черновиком кампании.
 
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Field, Input, Modal } from '@/ui'
 import { IconCheck } from '@/ui/icons'
-import type { CreatePromoRequest } from '@/lib/api-types'
+import type { CreatePromoRequest, PromoRuleProductRef, PromoTriggerKind } from '@/lib/api-types'
 import { formatKzt } from '@/mocks/fixtures'
 import { proxyMedia } from '@/lib/media'
 import { useStorefrontProduct } from '@/lib/queries/storefront'
 import { useT } from '@/i18n'
 import { ProductGallery } from './ProductGallery'
 import { PromoProductPicker, type SelectedProduct } from './PromoProductPicker'
+import { PromoInitialTriggerPicker, type InitialTrigger } from './PromoInitialTriggerPicker'
+import { PROMO_RULE_LIMITS } from './promoRulesValidation'
 
 interface CreatePromoModalProps {
   open: boolean
@@ -22,6 +22,9 @@ interface CreatePromoModalProps {
 }
 
 interface FormState {
+  triggerKind: PromoTriggerKind | null
+  trigger: InitialTrigger | null
+  recommendationType: 'substitution' | 'crosssell' | null
   product: SelectedProduct | null
   title: string
   titleTouched: boolean
@@ -36,6 +39,9 @@ interface FormState {
 }
 
 const initial = (): FormState => ({
+  triggerKind: null,
+  trigger: null,
+  recommendationType: null,
   product: null,
   title: '',
   titleTouched: false,
@@ -50,6 +56,33 @@ const initial = (): FormState => ({
   overrideImage: '',
   overrideDescription: '',
 })
+
+function initialTriggerRef(trigger: InitialTrigger): PromoRuleProductRef {
+  if (trigger.kind === 'product') {
+    const product = trigger.product
+    return {
+      medusaProductId: product.medusaProductId,
+      triggerKind: 'product',
+      name: product.productName.trim().slice(0, PROMO_RULE_LIMITS.name),
+      brand: product.brand.trim().slice(0, PROMO_RULE_LIMITS.brand),
+      price: product.price,
+      barcode: product.barcode && product.barcode.length <= 32 ? product.barcode : null,
+      ipartId: product.ipartId && product.ipartId.length <= PROMO_RULE_LIMITS.ipartId ? product.ipartId : null,
+      active: false,
+    }
+  }
+  const label = trigger.option.parentLabel
+    ? `${trigger.option.parentLabel} / ${trigger.option.label}`
+    : trigger.option.label
+  return {
+    medusaProductId: '',
+    triggerKind: trigger.kind,
+    triggerValue: trigger.option.key,
+    triggerLabel: label.slice(0, PROMO_RULE_LIMITS.triggerLabel),
+    name: label.slice(0, PROMO_RULE_LIMITS.name),
+    active: false,
+  }
+}
 
 /// Пресеты цвета обложки (палитра Claude orange + акценты). Источник — design-tokens.
 /// Бренд-стопы разведены по коралловой шкале (узкая дельта, плоско), amber/red/ink — без изменений.
@@ -110,7 +143,16 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
   }, [open])
 
   const datesOk = !form.dateStart || !form.dateEnd || form.dateStart <= form.dateEnd
-  const valid = form.product !== null && form.title.trim().length > 0 && datesOk
+  const sameProduct =
+    form.trigger?.kind === 'product' &&
+    form.trigger.product.medusaProductId === form.product?.medusaProductId
+  const valid =
+    form.trigger !== null &&
+    form.recommendationType !== null &&
+    form.product !== null &&
+    !sameProduct &&
+    form.title.trim().length > 0 &&
+    datesOk
 
   // Деталь выбранного товара витрины — источник фото Medusa для галереи (выбор
   // обложки прямо при создании). Хук вызываем безусловно (id=null → disabled).
@@ -136,15 +178,22 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
     null
 
   const submit = () => {
-    if (!valid || !form.product) return
+    if (!valid || !form.product || !form.trigger || !form.recommendationType) return
     onCreate({
       title: form.title.trim(),
       status: 'draft',
+      initialRecommendation: {
+        type: form.recommendationType,
+        trigger: initialTriggerRef(form.trigger),
+      },
       cover: form.cover,
       medusaProductId: form.product.medusaProductId,
-      productName: form.product.productName,
-      productImage: form.product.productImage,
-      brand: form.product.brand,
+      productName: form.product.productName.trim().slice(0, PROMO_RULE_LIMITS.name),
+      productImage:
+        form.product.productImage && form.product.productImage.length <= 1024
+          ? form.product.productImage
+          : null,
+      brand: form.product.brand.trim().slice(0, PROMO_RULE_LIMITS.brand),
       barcode: form.barcode.trim() || null,
       ipartId: form.ipartId.trim() || null,
       pharmacistBonus: Math.max(0, Math.trunc(Number(form.pharmacistBonus) || 0)),
@@ -160,8 +209,8 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
       open={open}
       onClose={onClose}
       title={t('pm.newCampaign')}
-      subtitle={t('pm.modalProductSub')}
-      width={580}
+      subtitle={t('pm.triggerFirstSub')}
+      width={650}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
@@ -178,130 +227,206 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
         </>
       }
     >
-      <div className="flex flex-col gap-3">
-        <Field label={t('pm.fldProduct')}>
-          <PromoProductPicker
-            value={form.product}
-            onChange={(p) =>
-              setForm((f) => ({
-                ...f,
-                product: p,
-                // авто-название по товару, пока пользователь не правил title вручную
-                title: f.titleTouched ? f.title : p.productName,
-                barcode: p.barcode ?? '',
-                ipartId: p.ipartId ?? '',
-              }))
-            }
-          />
-        </Field>
-
-        {form.product && (
-          <div className="grid grid-cols-2 gap-3">
-            <Field label={t('pr.barcode')}>
-              <Input
-                className="num"
-                value={form.barcode}
-                onChange={(e) => setForm({ ...form, barcode: e.target.value })}
-                data-testid="create-barcode"
-              />
-            </Field>
-            <Field label={t('pr.ipartId')}>
-              <Input
-                className="num"
-                value={form.ipartId}
-                onChange={(e) => setForm({ ...form, ipartId: e.target.value })}
-                data-testid="create-ipart"
-              />
-            </Field>
+      <div className="flex flex-col gap-5">
+        <section aria-labelledby="create-promo-trigger-heading" className="space-y-3">
+          <div>
+            <h3 id="create-promo-trigger-heading" className="text-[14px] font-extrabold text-ink-900">
+              {t('pr.triggerType')}
+            </h3>
+            <p className="mt-1 text-[12px] text-ink-500">{t('pm.triggerFirstHint')}</p>
           </div>
-        )}
+          <PromoInitialTriggerPicker
+            kind={form.triggerKind}
+            value={form.trigger}
+            onKindChange={(kind) => setForm((current) => ({ ...current, triggerKind: kind, trigger: null }))}
+            onChange={(trigger) => setForm((current) => ({ ...current, trigger }))}
+          />
+        </section>
 
-        {/* Цена из Medusa — read-only (обновляется каждый час). */}
-        {form.product && (
-          <Field label={t('pm.fldPrice')} hint={t('pm.priceHint')}>
-            <div
-              className="inp flex items-center bg-paper-input font-bold text-ink-700"
-              data-testid="create-price-readonly"
-            >
-              {form.product.price == null ? t('sf.priceNa') : formatKzt(form.product.price)}
+        {form.trigger && (
+          <section aria-labelledby="create-promo-offer-heading" className="space-y-3 border-t border-ink-100 pt-4">
+            <div>
+              <h3 id="create-promo-offer-heading" className="text-[14px] font-extrabold text-ink-900">
+                {t('pm.offerSection')}
+              </h3>
+              <p className="mt-1 text-[12px] text-ink-500">{t('pm.offerHint')}</p>
             </div>
-          </Field>
+            <fieldset>
+              <legend className="mb-2 text-[12px] font-semibold text-ink-700">{t('pm.recommendationType')}</legend>
+              <div className="grid grid-cols-2 gap-2">
+                {(['substitution', 'crosssell'] as const).map((type) => (
+                  <label
+                    key={type}
+                    className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-[13px] font-semibold ${
+                      form.recommendationType === type
+                        ? 'border-brand-green-600 bg-brand-green-50 text-ink-900'
+                        : 'border-ink-200 bg-paper-card text-ink-700 hover:bg-paper-hover'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="initial-recommendation-type"
+                      value={type}
+                      checked={form.recommendationType === type}
+                      onChange={() => setForm((current) => ({ ...current, recommendationType: type }))}
+                    />
+                    {t(type === 'substitution' ? 'pm.typeReplacement' : 'pm.typeCrossSell')}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            {form.recommendationType && (
+              <Field label={t('pm.fldOfferProduct')}>
+                <PromoProductPicker
+                  value={form.product}
+                  requireQuery
+                  onChange={(p) =>
+                    setForm((current) => ({
+                      ...current,
+                      product: p,
+                      title: current.titleTouched ? current.title : p.productName.slice(0, 255),
+                      barcode: p.barcode ?? '',
+                      ipartId: p.ipartId && p.ipartId.length <= PROMO_RULE_LIMITS.ipartId ? p.ipartId : '',
+                    }))
+                  }
+                />
+              </Field>
+            )}
+            {form.product && (
+              <p className="text-[12px] text-ink-500">
+                {t('pm.fldPrice')}: <span className="font-semibold text-ink-700">
+                  {form.product.price == null ? t('sf.priceNa') : formatKzt(form.product.price)}
+                </span>
+              </p>
+            )}
+            {sameProduct && (
+              <p role="alert" className="text-[12px] font-semibold text-accent-danger">
+                {t('pm.sameProductError')}
+              </p>
+            )}
+          </section>
         )}
 
-        {/* Галерея фото Medusa — выбрать обложку сразу при создании кампании. */}
-        {form.product && galleryImages.length > 0 && (
-          <Field label={t('pm.galleryTitle')} hint={t('pm.galleryPickHint')}>
-            <ProductGallery
-              key={galleryImages.join('|')}
-              images={galleryImages}
-              effective={effectiveCover}
-              resolveSrc={proxyMedia}
-              onPickCover={(u) => setForm((f) => ({ ...f, overrideImage: u }))}
-            />
-          </Field>
+        {form.trigger && form.recommendationType && form.product && (
+          <section aria-labelledby="create-promo-details-heading" className="space-y-3 border-t border-ink-100 pt-4">
+            <div>
+              <h3 id="create-promo-details-heading" className="text-[14px] font-extrabold text-ink-900">
+                {t('pm.campaignDetails')}
+              </h3>
+              <p className="mt-1 text-[12px] text-ink-500">{t('pm.draftReviewHint')}</p>
+            </div>
+
+            <Field label={t('pm.fldTitle')}>
+              <Input
+                value={form.title}
+                maxLength={255}
+                onChange={(e) => setForm({ ...form, title: e.target.value, titleTouched: true })}
+                placeholder={t('pm.titlePh')}
+              />
+            </Field>
+            <Field label={t('pm.fldBonus')} hint={t('pm.bonusHint')}>
+              <Input
+                type="number"
+                min={0}
+                value={form.pharmacistBonus}
+                onChange={(e) => setForm({ ...form, pharmacistBonus: e.target.value })}
+              />
+            </Field>
+
+            <details className="rounded-lg border border-ink-100 bg-paper-input p-3">
+              <summary className="cursor-pointer text-[12px] font-bold text-ink-700">
+                {t('pm.additionalSettings')}
+              </summary>
+              <div className="mt-4 flex flex-col gap-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label={t('pr.barcode')}>
+                    <Input
+                      className="num"
+                      value={form.barcode}
+                      onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+                      data-testid="create-barcode"
+                    />
+                  </Field>
+                  <Field label={t('pr.ipartId')}>
+                    <Input
+                      className="num"
+                      value={form.ipartId}
+                      maxLength={PROMO_RULE_LIMITS.ipartId}
+                      onChange={(e) => setForm({ ...form, ipartId: e.target.value })}
+                      data-testid="create-ipart"
+                    />
+                  </Field>
+                </div>
+
+                <Field label={t('pm.fldPrice')} hint={t('pm.priceHint')}>
+                  <div
+                    className="inp flex items-center bg-paper-input font-bold text-ink-700"
+                    data-testid="create-price-readonly"
+                  >
+                    {form.product.price == null ? t('sf.priceNa') : formatKzt(form.product.price)}
+                  </div>
+                </Field>
+
+                {galleryImages.length > 0 && (
+                  <Field label={t('pm.galleryTitle')} hint={t('pm.galleryPickHint')}>
+                    <ProductGallery
+                      key={galleryImages.join('|')}
+                      images={galleryImages}
+                      effective={effectiveCover}
+                      resolveSrc={proxyMedia}
+                      onPickCover={(u) => setForm((f) => ({ ...f, overrideImage: u }))}
+                    />
+                  </Field>
+                )}
+
+                <Field label={t('pm.fldCover')}>
+                  <CoverColorPicker
+                    value={form.cover}
+                    onChange={(c) => setForm((f) => ({ ...f, cover: c }))}
+                  />
+                </Field>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label={t('pm.fldDateStart')}>
+                    <Input
+                      type="date"
+                      value={form.dateStart}
+                      onChange={(e) => setForm({ ...form, dateStart: e.target.value })}
+                    />
+                  </Field>
+                  <Field label={t('pm.fldDateEnd')}>
+                    <Input
+                      type="date"
+                      value={form.dateEnd}
+                      onChange={(e) => setForm({ ...form, dateEnd: e.target.value })}
+                    />
+                  </Field>
+                </div>
+                {!datesOk && (
+                  <div role="alert" className="-mt-1 text-[12px] font-semibold text-accent-danger">
+                    {t('pm.dateOrderErr')}
+                  </div>
+                )}
+
+                <Field label={t('pm.fldOverrideImage')} hint={t('pm.overrideHint')} optional>
+                  <Input
+                    value={form.overrideImage}
+                    onChange={(e) => setForm({ ...form, overrideImage: e.target.value })}
+                    placeholder="https://…"
+                  />
+                </Field>
+                <Field label={t('pm.fldOverrideDesc')} hint={t('pm.overrideHint')} optional>
+                  <textarea
+                    className="inp"
+                    rows={3}
+                    value={form.overrideDescription}
+                    onChange={(e) => setForm({ ...form, overrideDescription: e.target.value })}
+                  />
+                </Field>
+              </div>
+            </details>
+          </section>
         )}
-
-        <Field label={t('pm.fldTitle')}>
-          <Input
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value, titleTouched: true })}
-            placeholder={t('pm.titlePh')}
-          />
-        </Field>
-
-        <Field label={t('pm.fldCover')}>
-          <CoverColorPicker
-            value={form.cover}
-            onChange={(c) => setForm((f) => ({ ...f, cover: c }))}
-          />
-        </Field>
-
-        <Field label={t('pm.fldBonus')} hint={t('pm.bonusHint')}>
-          <Input
-            type="number"
-            min={0}
-            value={form.pharmacistBonus}
-            onChange={(e) => setForm({ ...form, pharmacistBonus: e.target.value })}
-          />
-        </Field>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Field label={t('pm.fldDateStart')}>
-            <Input
-              type="date"
-              value={form.dateStart}
-              onChange={(e) => setForm({ ...form, dateStart: e.target.value })}
-            />
-          </Field>
-          <Field label={t('pm.fldDateEnd')}>
-            <Input
-              type="date"
-              value={form.dateEnd}
-              onChange={(e) => setForm({ ...form, dateEnd: e.target.value })}
-            />
-          </Field>
-        </div>
-        {!datesOk && (
-          <div className="-mt-1 text-[12px] font-semibold text-accent-danger">
-            {t('pm.dateOrderErr')}
-          </div>
-        )}
-
-        <Field label={t('pm.fldOverrideImage')} hint={t('pm.overrideHint')} optional>
-          <Input
-            value={form.overrideImage}
-            onChange={(e) => setForm({ ...form, overrideImage: e.target.value })}
-            placeholder="https://…"
-          />
-        </Field>
-        <Field label={t('pm.fldOverrideDesc')} hint={t('pm.overrideHint')} optional>
-          <textarea
-            className="inp"
-            rows={3}
-            value={form.overrideDescription}
-            onChange={(e) => setForm({ ...form, overrideDescription: e.target.value })}
-          />
-        </Field>
       </div>
     </Modal>
   )

@@ -77,6 +77,16 @@ for broad scopes, never a fuzzy product name; the response still names the actua
 The recommendation event and sale attribution paths deduplicate a sold offer within one receipt,
 even if multiple grouped items triggered separate displays.
 
+`POST /api/admin/promo` still accepts the legacy campaign payload. For trigger-first creation it
+also accepts optional `initialRecommendation: {type: "substitution"|"crosssell", trigger}`,
+where `trigger` has the same shape as one entry in `PUT /api/admin/promo/{id}/rules`.
+`medusaProductId` remains the product **offered** by the campaign; the initial trigger is the
+scanned product or ACC group/subgroup/MNN that starts the recommendation. This path creates the
+campaign and its first rule in one transaction and only as drafts. It rejects a missing offered
+product, an immediately active campaign, an exact-product self-trigger, or a scope absent from
+the active ACC snapshot. A failed rule cannot leave an empty campaign behind; existing clients
+that omit `initialRecommendation` retain their previous behavior.
+
 ### Mobile
 
 Public:

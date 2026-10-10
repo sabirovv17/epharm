@@ -11,6 +11,7 @@ import { IconBox, IconCheck, IconSearch } from '@/ui/icons'
 import { useStorefront } from '@/lib/queries/storefront'
 import { proxyMedia } from '@/lib/media'
 import { useT } from '@/i18n'
+import { describeError } from '@/lib/describeError'
 import type { StorefrontProductDto } from '@/lib/api-types'
 
 const PAGE = 50
@@ -36,9 +37,11 @@ export interface SelectedProduct {
 function ProductSearchList({
   selectedIds,
   onPick,
+  requireQuery = false,
 }: {
   selectedIds: Set<string>
   onPick: (p: StorefrontProductDto) => void
+  requireQuery?: boolean
 }) {
   const t = useT()
   const [raw, setRaw] = useState('')
@@ -58,7 +61,9 @@ function ProductSearchList({
     return () => clearTimeout(id)
   }, [raw, q])
 
-  const { data, isFetching } = useStorefront(q, page * PAGE, PAGE)
+  const ready = !requireQuery || q.length >= 2
+  const currentQuery = raw.trim() === q
+  const { data, isFetching, isError, error, refetch } = useStorefront(q, page * PAGE, PAGE, ready)
 
   // Накапливаем страницы в один список (page=0 заменяет, >0 — добавляет). Храним
   // по q, чтобы смена запроса начинала с чистого листа. Обновляем acc только когда
@@ -79,7 +84,7 @@ function ProductSearchList({
     lastOffset: number
   }>({ q: '', ids: '', items: [], total: 0, lastOffset: -1 })
   useEffect(() => {
-    if (!data) return
+    if (!data || !ready) return
     const fresh = data.items
     if (page === 0 || acc.q !== q) {
       const ids = fresh.map((i) => i.id).join(',')
@@ -107,12 +112,12 @@ function ProductSearchList({
       total: data.total,
       lastOffset: data.offset,
     })
-  }, [data, page, q, acc])
+  }, [data, page, q, acc, ready])
 
   // Показываем только результаты, соответствующие текущему q (не stale от прошлого
   // запроса). До прихода данных acc.q !== q → пусто → спиннер «Поиск…».
-  const items = acc.q === q ? acc.items : []
-  const total = acc.q === q ? acc.total : 0
+  const items = ready && currentQuery && acc.q === q ? acc.items : []
+  const total = ready && currentQuery && acc.q === q ? acc.total : 0
   const canLoadMore = items.length < total
 
   return (
@@ -121,6 +126,7 @@ function ProductSearchList({
         value={raw}
         onChange={(e) => setRaw(e.target.value)}
         placeholder={t('pp.searchPh')}
+        aria-label={t('pp.searchPh')}
         leading={<IconSearch size={15} />}
         autoFocus
       />
@@ -128,10 +134,17 @@ function ProductSearchList({
         className="max-h-64 overflow-y-auto rounded-xl border border-ink-100"
         data-testid="promo-product-results"
       >
-        {items.length === 0 ? (
+        {ready && currentQuery && isError ? (
+          <div role="alert" className="px-3 py-4 text-[12px] text-accent-danger">
+            {t('pp.searchError')}: {describeError(error)}{' '}
+            <button type="button" onClick={() => refetch()} className="font-bold underline">
+              {t('common.retry')}
+            </button>
+          </div>
+        ) : items.length === 0 ? (
           <div className="flex items-center justify-center gap-2 px-3 py-6 text-[13px] font-semibold text-ink-400">
             <IconBox size={15} />
-            {isFetching ? t('pp.searching') : q ? t('pp.notFound') : t('pp.startTyping')}
+            {!ready ? t('pp.startTyping') : !currentQuery || isFetching ? t('pp.searching') : t('pp.notFound')}
           </div>
         ) : (
           items.map((p) => {
@@ -188,9 +201,10 @@ function ProductSearchList({
 interface Props {
   value: SelectedProduct | null
   onChange: (p: SelectedProduct) => void
+  requireQuery?: boolean
 }
 
-export function PromoProductPicker({ value, onChange }: Props) {
+export function PromoProductPicker({ value, onChange, requireQuery = false }: Props) {
   const t = useT()
   const [open, setOpen] = useState(value === null)
 
@@ -237,6 +251,7 @@ export function PromoProductPicker({ value, onChange }: Props) {
       <ProductSearchList
         selectedIds={value ? new Set([value.medusaProductId]) : new Set()}
         onPick={pick}
+        requireQuery={requireQuery}
       />
       {value && (
         <div className="text-right">

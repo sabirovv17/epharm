@@ -4,12 +4,14 @@ import kz.epharm.medusa.service.MedusaPriceService
 import kz.epharm.pharmacies.repository.PharmacyRepository
 import kz.epharm.promo.dto.CreatePromoRequest
 import kz.epharm.promo.dto.PromoDto
+import kz.epharm.promo.dto.PromoRulesConfigDto
 import kz.epharm.promo.dto.UpdatePromoRequest
 import kz.epharm.promo.entity.PromoEntity
 import kz.epharm.promo.entity.PromoStatus
 import kz.epharm.promo.entity.PromoTier
 import kz.epharm.promo.repository.PromoRepository
 import kz.epharm.rules.entity.RuleStatus
+import kz.epharm.rules.entity.RuleType
 import kz.epharm.rules.repository.RuleRepository
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
@@ -34,6 +36,7 @@ class PromoService(
     private val medusaPriceService: MedusaPriceService,
     private val ruleRepository: RuleRepository,
     private val pharmacyRepository: PharmacyRepository,
+    private val promoRulesService: PromoRulesService,
 ) {
 
     @Transactional(readOnly = true)
@@ -53,6 +56,24 @@ class PromoService(
     @Transactional
     fun create(req: CreatePromoRequest, createdBy: String): PromoDto {
         val medusaProductId = req.medusaProductId?.trim()?.takeIf { it.isNotBlank() }
+        val initialRecommendation = req.initialRecommendation
+        if (initialRecommendation != null) {
+            if (medusaProductId == null || (req.status != null && req.status != PromoStatus.draft)) {
+                throw AppException(
+                    ErrorCode.VALIDATION_FAILED,
+                    "Первую рекомендацию можно создать только в черновике с выбранным товаром",
+                    HttpStatus.BAD_REQUEST,
+                )
+            }
+            val trigger = initialRecommendation.trigger
+            if (trigger.triggerKind == "product" && trigger.medusaProductId.trim() == medusaProductId) {
+                throw AppException(
+                    ErrorCode.VALIDATION_FAILED,
+                    "Товар не может одновременно запускать рекомендацию и предлагаться в ней",
+                    HttpStatus.BAD_REQUEST,
+                )
+            }
+        }
         val entity = PromoEntity(
             id = generateId(),
             title = req.title.trim(),
@@ -81,6 +102,17 @@ class PromoService(
         syncBarcode(entity, refetch = true)
         validatePromo(entity)
         val saved = promoRepository.save(entity)
+        if (initialRecommendation != null) {
+            // This joins the create transaction. Invalid taxonomy keys or rule failures roll
+            // back both the campaign and its generated rule, leaving no partial draft.
+            // A newly created pair always needs an explicit review before publication.
+            val trigger = initialRecommendation.trigger.copy(active = false)
+            val config = when (initialRecommendation.type) {
+                RuleType.substitution -> PromoRulesConfigDto(replacements = listOf(trigger))
+                RuleType.crosssell -> PromoRulesConfigDto(crossSells = listOf(trigger))
+            }
+            promoRulesService.replace(saved.id, config, createdBy)
+        }
         if (req.status != null) syncGeneratedRuleStatuses(saved)
         return dto(saved)
     }

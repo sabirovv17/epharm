@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Size
 import kz.epharm.promo.entity.PromoEntity
 import kz.epharm.promo.entity.PromoStatus
 import kz.epharm.promo.entity.PromoTier
+import kz.epharm.rules.entity.RuleType
 import kz.epharm.shared.validation.BarcodeNormalizer
 import java.time.Instant
 import java.time.LocalDate
@@ -148,6 +149,16 @@ data class CreatePromoRequest(
     val pharmacistBonus: Long = 0,
     val dateStart: LocalDate? = null,
     val dateEnd: LocalDate? = null,
+    /** Optional first recommendation, saved atomically with the campaign draft. */
+    @field:jakarta.validation.Valid
+    val initialRecommendation: InitialPromoRecommendationDto? = null,
+)
+
+/** A single trigger for the first replacement or cross-sell rule of a new campaign. */
+data class InitialPromoRecommendationDto(
+    val type: RuleType,
+    @field:jakarta.validation.Valid
+    val trigger: PromoRuleProductRefDto,
 )
 
 /**
