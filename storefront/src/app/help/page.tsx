@@ -43,9 +43,12 @@ export default function HelpPage() {
       <div className="mt-8 rounded-3xl bg-gradient-to-br from-brand-600 to-brand-800 p-6 text-white sm:p-8">
         <h2 className="font-display text-xl font-bold">Не нашли ответ?</h2>
         <p className="mt-1 text-brand-50/90">Служба заботы на связи ежедневно с 08:00 до 23:00.</p>
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          <a href="tel:+77000000000" className="flex items-center gap-2.5 rounded-2xl bg-white/10 px-4 py-3 transition hover:bg-white/20">
-            <Phone className="h-5 w-5" /> <span className="text-sm font-semibold">+7 700 000 00 00</span>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <a href="tel:+77000001464" className="flex items-center gap-2.5 rounded-2xl bg-white/10 px-4 py-3 transition hover:bg-white/20">
+            <Phone className="h-5 w-5" /> <span className="text-sm font-semibold">+7 (700) 000-14-64</span>
+          </a>
+          <a href="tel:+77273410546" className="flex items-center gap-2.5 rounded-2xl bg-white/10 px-4 py-3 transition hover:bg-white/20">
+            <Phone className="h-5 w-5" /> <span className="text-sm font-semibold">+7 (727) 341-05-46</span>
           </a>
           <a href="mailto:help@darihana.kz" className="flex items-center gap-2.5 rounded-2xl bg-white/10 px-4 py-3 transition hover:bg-white/20">
             <Mail className="h-5 w-5" /> <span className="text-sm font-semibold">help@darihana.kz</span>
