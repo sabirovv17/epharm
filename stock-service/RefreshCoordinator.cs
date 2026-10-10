@@ -72,6 +72,9 @@ public sealed class RefreshWorker(
     RefreshCoordinator refresh,
     ILogger<RefreshWorker> logger) : BackgroundService
 {
+    public static TimeSpan BoundedDelay(TimeSpan delay) =>
+        delay > TimeSpan.FromDays(1) ? TimeSpan.FromDays(1) : delay;
+
     public static TimeSpan DelayBeforeNextRun(
         DateTimeOffset? previousStart,
         DateTimeOffset? previousEnd,
@@ -98,7 +101,7 @@ public sealed class RefreshWorker(
                 options.SweepIntervalSeconds, DateTimeOffset.UtcNow);
             if (delay > TimeSpan.Zero)
             {
-                try { await Task.Delay(delay, stoppingToken); }
+                try { await Task.Delay(BoundedDelay(delay), stoppingToken); }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
             }
             try

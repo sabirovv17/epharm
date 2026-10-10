@@ -9,7 +9,8 @@ builder.Services.AddSingleton<IStockSource>(_ => new StandardNSource(
     options.FirebirdHost, options.FirebirdPort, options.FirebirdPath,
     options.FirebirdUser, options.FirebirdPassword, options.QueryTimeoutSeconds));
 builder.Services.AddSingleton<RefreshCoordinator>();
-builder.Services.AddHostedService<RefreshWorker>();
+if (options.CollectionEnabled)
+    builder.Services.AddHostedService<RefreshWorker>();
 
 var app = builder.Build();
 app.Services.GetRequiredService<StockRepository>().Initialize();

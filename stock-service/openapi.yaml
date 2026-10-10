@@ -121,6 +121,7 @@ components:
         - runTotal
         - runSucceeded
         - runFailed
+        - collectionEnabled
       properties:
         freshnessTargetSeconds: { type: integer }
         sweepIntervalSeconds: { type: integer }
@@ -140,6 +141,7 @@ components:
         runTotal: { type: integer }
         runSucceeded: { type: integer }
         runFailed: { type: integer }
+        collectionEnabled: { type: boolean }
     Pharmacy:
       type: object
       required:

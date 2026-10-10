@@ -17,6 +17,27 @@ public class CollectionTests
             RefreshWorker.DelayBeforeNextRun(now.AddMinutes(-31), now, 1800, now));
         Assert.Equal(TimeSpan.FromMinutes(1),
             RefreshWorker.DelayBeforeNextRun(now.AddMinutes(-2), now, 180, now));
+        Assert.Equal(TimeSpan.FromDays(1), RefreshWorker.BoundedDelay(TimeSpan.FromDays(365)));
+    }
+
+    [Fact]
+    public void DisabledCollectionIsVisibleWithoutDiscardingCachedStock()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"stock-disabled-{Guid.NewGuid():N}.sqlite");
+        try
+        {
+            var enabled = new StockRepository(new StockOptions { DataPath = path });
+            enabled.Initialize();
+            enabled.UpsertPharmacies([new SourcePharmacy(7, "Аптека", "Алматы", "", "7")]);
+            enabled.ReplaceSnapshot(7, [Stock(7, "row", 1)]);
+
+            var disabled = new StockRepository(new StockOptions { DataPath = path, CollectionEnabled = false });
+            var status = disabled.GetCollectionStatus();
+
+            Assert.False(status.CollectionEnabled);
+            Assert.Equal(1, disabled.GetStocks(7, null, 100, 0)!.Total);
+        }
+        finally { Delete(path); }
     }
 
     [Fact]

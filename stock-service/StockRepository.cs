@@ -19,7 +19,7 @@ public sealed record CollectionStatus(
     int PendingCount, int ErrorCount, long? RunId, string? RunStatus,
     DateTimeOffset? RunStartedAt, DateTimeOffset? RunCompletedAt,
     DateTimeOffset? LastSuccessfulRunAt, int RunTotal, int RunSucceeded,
-    int RunFailed);
+    int RunFailed, bool CollectionEnabled);
 
 public sealed record StockPage(
     PharmacyRow Pharmacy, IReadOnlyList<StockRow> Items, int Total,
@@ -351,12 +351,12 @@ public sealed class StockRepository(StockOptions options)
         using var runReader = run.ExecuteReader();
         if (!runReader.Read())
             return new CollectionStatus(options.RefreshSeconds, options.SweepIntervalSeconds, pharmacyCount, fresh, stale,
-                pending, error, null, null, null, null, null, 0, 0, 0);
+                pending, error, null, null, null, null, null, 0, 0, 0, options.CollectionEnabled);
         var status = new CollectionStatus(options.RefreshSeconds, options.SweepIntervalSeconds, pharmacyCount, fresh, stale,
             pending, error, runReader.GetInt64(0), runReader.GetString(1),
             DateTimeOffset.Parse(runReader.GetString(2), CultureInfo.InvariantCulture),
             Date(runReader, 3), Date(runReader, 7), runReader.GetInt32(4),
-            runReader.GetInt32(5), runReader.GetInt32(6));
+            runReader.GetInt32(5), runReader.GetInt32(6), options.CollectionEnabled);
         runReader.Close();
         transaction.Commit();
         return status;

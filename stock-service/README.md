@@ -9,6 +9,9 @@ The machine-readable API contract is [`openapi.yaml`](openapi.yaml).
 
 The service requires the variables in `.env.example`. Keep `.env` only on the
 server with mode `0600`; it contains the Firebird password and API key.
+Set `STOCK_COLLECTION_ENABLED=false` to stop all Firebird polling while the API
+continues to serve cached snapshots. Clients must treat stale snapshots as
+historical data and inspect `collectionEnabled` in `/api/v1/status`.
 `compose.yml` binds the API only to the host loopback address on port `18080`.
 Nginx on the stock host handles HTTPS;
 the old gateway can proxy the stable API URL to it. Set `STOCK_HOST_DATA_DIR`

@@ -12,6 +12,7 @@ public sealed class StockOptions
     public int RefreshSeconds { get; init; } = 180;
     public int SweepIntervalSeconds { get; init; } = 1800;
     public int QueryTimeoutSeconds { get; init; } = 25;
+    public bool CollectionEnabled { get; init; } = true;
 
     public static StockOptions FromEnvironment() => new()
     {
@@ -25,6 +26,7 @@ public sealed class StockOptions
         RefreshSeconds = Math.Max(60, Int("STOCK_REFRESH_SECONDS", 180)),
         SweepIntervalSeconds = Math.Max(180, Int("STOCK_SWEEP_INTERVAL_SECONDS", 1800)),
         QueryTimeoutSeconds = Math.Clamp(Int("STOCK_QUERY_TIMEOUT_SECONDS", 25), 5, 120),
+        CollectionEnabled = Bool("STOCK_COLLECTION_ENABLED", true),
     };
 
     private static string Required(string name) =>
@@ -34,4 +36,13 @@ public sealed class StockOptions
 
     private static int Int(string name, int fallback) =>
         int.TryParse(Environment.GetEnvironmentVariable(name), out var value) ? value : fallback;
+
+    private static bool Bool(string name, bool fallback)
+    {
+        var value = Environment.GetEnvironmentVariable(name);
+        if (string.IsNullOrWhiteSpace(value)) return fallback;
+        return bool.TryParse(value, out var parsed)
+            ? parsed
+            : throw new InvalidOperationException($"Invalid boolean environment variable: {name}");
+    }
 }
