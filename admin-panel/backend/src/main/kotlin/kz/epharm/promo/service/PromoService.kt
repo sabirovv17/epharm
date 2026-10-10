@@ -23,10 +23,10 @@ import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
 /**
- * Кампании-акции (ТЗ §3.2.3). T1: 1 кампания = 1 товар Medusa.
+ * Кампании-акции (ТЗ §3.2.3). T1: 1 кампания = 1 товар каталога.
  *
- *  - цена товара берётся ТОЛЬКО из Medusa (read-only), кладётся в единственный ценовой порог
- *    `{minQty:1, price:<Medusa>, bonus:<бонус фармацевту>}`. Пользователь цену не задаёт;
+ *  - цена товара берётся из текущего источника каталога и кладётся в единственный
+ *    ценовой порог. Пользователь цену не задаёт;
  *  - бонус фармацевту за продажу задаётся в админке (поле `pharmacistBonus`);
  *  - фото/описание можно переопределить вручную (override-поля), если PIM-данные не устраивают;
  *  - один товар не может быть в двух живых (не-archived) кампаниях.
@@ -85,9 +85,9 @@ class PromoService(
         ).also {
             it.status = req.status ?: PromoStatus.draft
         }
-        // Цена — из Medusa (read-only), бонус — из запроса; кладём в единственный порог.
+        // Цена — из текущего каталога (read-only), бонус — из запроса.
         syncTier(entity, desiredBonus = req.pharmacistBonus, refetchPrice = true)
-        // Штрих-код продвигаемого товара — из Medusa (для матчинга кассы); fallback на присланный.
+        // Проверенный кассовый штрих-код сохраняем; старый источник может его заполнить.
         syncBarcode(entity, refetch = true)
         validatePromo(entity, sourceActivation = entity.status == PromoStatus.active)
         val saved = promoRepository.save(entity)
@@ -121,7 +121,7 @@ class PromoService(
         req.budget?.let { entity.budget = it }
         req.kpi?.let { entity.kpi = it.trim() }
         req.cover?.let { entity.cover = it.trim() }
-        // Товарная акция. Смена товара → надо перетянуть цену из Medusa.
+        // Товарная акция. Смена товара → обновляем цену из текущего каталога.
         val productChanged = req.medusaProductId != null
         req.medusaProductId?.let { entity.medusaProductId = it.trim().takeIf { s -> s.isNotBlank() } }
         req.productName?.let { entity.productName = it.trim() }
@@ -137,11 +137,11 @@ class PromoService(
         req.dateStart?.let { entity.dateStart = it }
         req.dateEnd?.let { entity.dateEnd = it }
 
-        // Пересобираем порог: бонус — из запроса (или текущий), цена — из Medusa при смене товара
+        // Пересобираем порог: бонус — из запроса (или текущий), цена — из каталога при смене товара
         // или если ещё не проставлена.
         val desiredBonus = req.pharmacistBonus ?: entity.pharmacistBonus
         syncTier(entity, desiredBonus = desiredBonus, refetchPrice = productChanged || entity.price == 0L)
-        // Штрих-код перетягиваем из Medusa при смене товара (или если ещё не проставлен).
+        // Кассовый штрих-код обновляем, только если источник предоставляет проверенный код.
         syncBarcode(entity, refetch = productChanged || entity.barcode.isNullOrBlank())
 
         validatePromo(entity, sourceActivation = entity.status == PromoStatus.active && (!wasActive || productChanged))
@@ -190,7 +190,7 @@ class PromoService(
     /**
      * Синхронизирует единственный ценовой порог кампании:
      *   - товар не привязан → пороги пусты;
-     *   - привязан → [{minQty:1, price, bonus:desiredBonus}], где price из Medusa
+     *   - привязан → [{minQty:1, price, bonus:desiredBonus}], где price из каталога
      *     (при refetchPrice=true), иначе сохраняем текущую цену.
      */
     private fun syncTier(e: PromoEntity, desiredBonus: Long, refetchPrice: Boolean) {
@@ -215,7 +215,8 @@ class PromoService(
     /**
      * Синхронизирует штрих-код продвигаемого товара:
      *   - товар не привязан → штрих-код очищается;
-     *   - привязан + refetch → тянем EAN-13 из Medusa (snapshot); недоступен → сохраняем текущий.
+     *   - привязан + refetch → тянем EAN-13 из текущего снимка, если он есть;
+     *     иначе сохраняем проверенный кассовый ключ.
      * Штрих-код — ключ матчинга POSM-кассы; стампится на ProductEntity в PromoRulesService.
      */
     private fun syncBarcode(e: PromoEntity, refetch: Boolean) {

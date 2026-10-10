@@ -10,14 +10,13 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 /**
- * Регулярное обновление цен из Medusa (T1).
+ * Регулярное обновление цен из текущего источника каталога (T1).
  *
- * Требование: «цены на все товары обновлять из Medusa, чтобы в блоке
- * рекомендаций всегда была актуальная инфа». Обновляем два источника:
+ * Обновляем цены в двух локальных сущностях:
  *  - promos.tiers[0].price — цена в мобильной ленте акций (бонус не трогаем);
  *  - products.price — цена в POSM-карточке рекомендации (замена/кросс-селл).
  *
- * Устойчивость: цена тянется без кэша (MedusaPriceService). Если Medusa недоступна
+ * Устойчивость: цена тянется без кэша (MedusaPriceService). Если источник недоступен
  * или у товара нет цены — оставляем прошлое значение (не обнуляем). Один инстанс бэка
  * в проде → без распределённой блокировки.
  *
@@ -37,7 +36,7 @@ class PromoPriceScheduler(
     fun scheduledRefresh() {
         val summary = refreshNow()
         log.info(
-            "Периодический рефреш цен Medusa: промо обновлено {}/{}, товаров {}/{}",
+            "Периодический рефреш цен каталога: промо обновлено {}/{}, товаров {}/{}",
             summary.promosUpdated, summary.promosTotal, summary.productsUpdated, summary.productsTotal,
         )
     }
@@ -46,7 +45,7 @@ class PromoPriceScheduler(
     @Transactional
     fun refreshNow(): RefreshSummary {
         if (!medusaPriceService.active) {
-            log.warn("Рефреш цен пропущен: Medusa выключена")
+            log.warn("Рефреш цен пропущен: источник каталога недоступен")
             return RefreshSummary(0, 0, 0, 0)
         }
         return RefreshSummary(
@@ -59,8 +58,8 @@ class PromoPriceScheduler(
         val promos = promoRepository.findAllByMedusaProductIdIsNotNull()
         var updated = 0
         for (p in promos) {
-            // Один запрос к Medusa → актуальные цена И обложка (фото в витрине тоже
-            // меняют). Снимок недоступен (Medusa легла / товара нет) → пропускаем,
+            // Один запрос к текущему каталогу → актуальные цена и обложка.
+            // Снимок недоступен или товара нет → пропускаем,
             // прошлые значения остаются.
             val snap = medusaPriceService.snapshotOf(p.medusaProductId) ?: continue
             var changed = false
@@ -98,7 +97,7 @@ class PromoPriceScheduler(
         val products = productRepository.findAllByMedusaProductIdIsNotNull()
         var updated = 0
         for (prod in products) {
-            // Один снимок Medusa → актуальные цена И штрих-код (ключ матчинга кассы).
+            // Один снимок текущего каталога → цена и проверенный штрих-код, если есть.
             // Снимок недоступен → пропускаем, прошлые значения остаются.
             val snap = medusaPriceService.snapshotOf(prod.medusaProductId) ?: continue
             var changed = false
