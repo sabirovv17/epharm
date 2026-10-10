@@ -109,13 +109,13 @@ Standard-N необходимо явно сопоставлять с ID HQ, а �
 После подготовки `.env` и отдельного смонтированного тома команды таковы:
 
 ```bash
-docker compose config --quiet
-docker compose --profile migration build stock stock-db-init stock-migrate
-docker compose up -d postgres
-docker compose run --rm stock-db-init
-STOCK_HOST_DATA_DIR=/home/adm-quasar/stock-pg-import \
-  docker compose --profile migration run --rm stock-migrate
-docker run --rm -d --name epharm-stock-candidate \
+sudo docker compose config --quiet
+sudo docker compose --profile migration build stock stock-db-init stock-migrate
+sudo docker compose up -d postgres
+sudo docker compose run --rm stock-db-init
+sudo env STOCK_HOST_DATA_DIR=/home/adm-quasar/stock-pg-import \
+  docker compose --profile migration run --rm --user "$(id -u):$(id -g)" stock-migrate
+sudo docker run --rm -d --name epharm-stock-candidate \
   --network stock-service_default --env-file .env \
   -e STOCK_PG_HOST=postgres -p 127.0.0.1:18081:8080 \
   epharm-stock-service:local
@@ -128,17 +128,17 @@ curl -fsS http://127.0.0.1:18081/readyz
 проверки переключите контейнеры:
 
 ```bash
-docker stop epharm-stock-candidate
-docker compose stop stock
-docker compose up -d --no-build stock
+sudo docker stop epharm-stock-candidate
+sudo docker compose stop stock
+sudo docker compose up -d --no-build stock
 curl -fsS http://127.0.0.1:18080/readyz
-docker compose ps
+sudo docker compose ps
 ```
 
 `stock-service_default` — имя сети при запуске Compose из этого каталога без
 переопределённого project name; перед командой `docker run` проверьте его
-командой `docker network ls`. Если новая версия не проходит проверки,
+командой `sudo docker network ls`. Если новая версия не проходит проверки,
 остановите её, восстановите тег прежнего образа и выполните
-`docker compose -f compose.rollback.yml up -d --no-build stock` с прежним
+`sudo docker compose -f compose.rollback.yml up -d --no-build stock` с прежним
 `.env` и неизменным `STOCK_COLLECTION_ENABLED=false`. PostgreSQL и его дамп
 сохраните для расследования; старый контейнер читает только SQLite.

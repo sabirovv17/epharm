@@ -32,7 +32,10 @@ try
     repository.Initialize();
     using var sqlite = new SqliteConnection(new SqliteConnectionStringBuilder
     {
-        DataSource = args[0], Mode = SqliteOpenMode.ReadOnly, Cache = SqliteCacheMode.Private,
+        // A verified backup is immutable. This also allows a WAL-mode database
+        // to open from a read-only bind mount without creating -shm sidecars.
+        DataSource = new Uri(Path.GetFullPath(args[0])).AbsoluteUri + "?immutable=1",
+        Mode = SqliteOpenMode.ReadOnly, Cache = SqliteCacheMode.Private,
     }.ToString());
     sqlite.Open();
     using var sqliteTransaction = sqlite.BeginTransaction(deferred: true);
