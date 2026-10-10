@@ -1,32 +1,22 @@
+using Npgsql;
+
 namespace Epharm.StockService;
 
 public sealed class StockOptions
 {
-    public string FirebirdHost { get; init; } = "";
-    public int FirebirdPort { get; init; } = 3050;
-    public string FirebirdPath { get; init; } = "";
-    public string FirebirdUser { get; init; } = "";
-    public string FirebirdPassword { get; init; } = "";
     public string ApiKey { get; init; } = "";
-    public string DataPath { get; init; } = "/app/data/stocks.sqlite";
+    public string PostgresConnectionString { get; init; } = "";
     public int RefreshSeconds { get; init; } = 180;
     public int SweepIntervalSeconds { get; init; } = 1800;
-    public int QueryTimeoutSeconds { get; init; } = 25;
-    public bool CollectionEnabled { get; init; } = true;
+    public bool CollectionEnabled { get; init; } = false;
 
     public static StockOptions FromEnvironment() => new()
     {
-        FirebirdHost = Required("STOCK_FB_HOST"),
-        FirebirdPort = Math.Clamp(Int("STOCK_FB_PORT", 3050), 1, 65535),
-        FirebirdPath = Required("STOCK_FB_PATH"),
-        FirebirdUser = Required("STOCK_FB_USER"),
-        FirebirdPassword = Required("STOCK_FB_PASSWORD"),
         ApiKey = Required("STOCK_API_KEY"),
-        DataPath = Environment.GetEnvironmentVariable("STOCK_DATA_PATH") ?? "/app/data/stocks.sqlite",
+        PostgresConnectionString = PostgresConnection(),
         RefreshSeconds = Math.Max(60, Int("STOCK_REFRESH_SECONDS", 180)),
         SweepIntervalSeconds = Math.Max(180, Int("STOCK_SWEEP_INTERVAL_SECONDS", 1800)),
-        QueryTimeoutSeconds = Math.Clamp(Int("STOCK_QUERY_TIMEOUT_SECONDS", 25), 5, 120),
-        CollectionEnabled = Bool("STOCK_COLLECTION_ENABLED", true),
+        CollectionEnabled = DisabledCentralCollection(),
     };
 
     private static string Required(string name) =>
@@ -34,15 +24,28 @@ public sealed class StockOptions
             ? value
             : throw new InvalidOperationException($"Missing required environment variable: {name}");
 
+    private static string PostgresConnection()
+    {
+        var explicitConnection = Environment.GetEnvironmentVariable("STOCK_PG_CONNECTION_STRING");
+        if (!string.IsNullOrWhiteSpace(explicitConnection)) return explicitConnection;
+        return new NpgsqlConnectionStringBuilder
+        {
+            Host = Environment.GetEnvironmentVariable("STOCK_PG_HOST") ?? "postgres",
+            Port = Math.Clamp(Int("STOCK_PG_PORT", 5432), 1, 65535),
+            Database = Environment.GetEnvironmentVariable("STOCK_PG_DATABASE") ?? "stocks",
+            Username = Environment.GetEnvironmentVariable("STOCK_PG_USER") ?? "stock_app",
+            Password = Required("STOCK_PG_PASSWORD"),
+        }.ConnectionString;
+    }
+
     private static int Int(string name, int fallback) =>
         int.TryParse(Environment.GetEnvironmentVariable(name), out var value) ? value : fallback;
 
-    private static bool Bool(string name, bool fallback)
+    private static bool DisabledCentralCollection()
     {
-        var value = Environment.GetEnvironmentVariable(name);
-        if (string.IsNullOrWhiteSpace(value)) return fallback;
-        return bool.TryParse(value, out var parsed)
-            ? parsed
-            : throw new InvalidOperationException($"Invalid boolean environment variable: {name}");
+        var value = Environment.GetEnvironmentVariable("STOCK_COLLECTION_ENABLED");
+        if (string.IsNullOrWhiteSpace(value) || value.Equals("false", StringComparison.OrdinalIgnoreCase))
+            return false;
+        throw new InvalidOperationException("STOCK_COLLECTION_ENABLED must be false; central collection is retired");
     }
 }

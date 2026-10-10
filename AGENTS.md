@@ -3,16 +3,16 @@
 Короткая входная точка для Codex: выбирай нужный маршрут, не загружай всю документацию.
 Изменчивые факты проверяй в коде и текущем состоянии среды.
 
-| Область задачи | Сначала читать при необходимости | Код |
-| --- | --- | --- |
-| Архитектура и межмодульный поток | `docs/00-project-map.md`, `docs/01-architecture.md` | По маршруту из карты |
-| Backend / API | `docs/02-backend.md` | `admin-panel/backend/` |
-| Админка | `docs/03-admin-panel.md` | `admin-panel/frontend/` |
-| Мобильное приложение | `docs/04-mobile-app.md` | `lib/`, `test/` |
-| POSM / касса | `docs/05-posm-client.md` | `App/`, `Models/` |
-| Остатки Standard-N | `docs/22-stock-service.md` | `stock-service/`, `stock-service-tests/` |
-| База / миграции | `docs/07-database.md` | `admin-panel/backend/src/main/resources/db/migration/` |
-| Прод / релиз / CI | `docs/06-deployment-and-ops.md`, `docs/20-reliability-and-release.md` | `.github/workflows/`, `docker-compose.prod.yml` |
+| Область задачи                    | Сначала читать при необходимости                                      | Код                                                    |
+| --------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------ |
+| Архитектура и межмодульный поток  | `docs/00-project-map.md`, `docs/01-architecture.md`                   | По маршруту из карты                                   |
+| Backend / API                     | `docs/02-backend.md`                                                  | `admin-panel/backend/`                                 |
+| Админка                           | `docs/03-admin-panel.md`                                              | `admin-panel/frontend/`                                |
+| Мобильное приложение              | `docs/04-mobile-app.md`                                               | `lib/`, `test/`                                        |
+| POSM / касса                      | `docs/05-posm-client.md`                                              | `App/`, `Models/`                                      |
+| Остатки аптек / кассовый источник | `docs/22-stock-service.md`, `docs/23-cashier-stock-transition.md`     | `stock-service/`, `stock-service-tests/`               |
+| База / миграции                   | `docs/07-database.md`                                                 | `admin-panel/backend/src/main/resources/db/migration/` |
+| Прод / релиз / CI                 | `docs/06-deployment-and-ops.md`, `docs/20-reliability-and-release.md` | `.github/workflows/`, `docker-compose.prod.yml`        |
 
 `docs/README.md` — индекс узких контрактов. `CLAUDE.md` и `*claude*notes.md` — контекст
 Claude и рабочие заметки; читай только по задаче, при расхождении проверяй профильный

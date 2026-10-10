@@ -3,9 +3,20 @@ services:
     build: .
     image: epharm-stock-service:local
     container_name: epharm-stock-service
-    env_file: .env
-    volumes:
-      - ${STOCK_HOST_DATA_DIR:-./data}:/app/data
+    environment:
+      STOCK_API_KEY: ${STOCK_API_KEY:?Set STOCK_API_KEY in .env}
+      STOCK_REFRESH_SECONDS: ${STOCK_REFRESH_SECONDS:-180}
+      STOCK_SWEEP_INTERVAL_SECONDS: ${STOCK_SWEEP_INTERVAL_SECONDS:-1800}
+      STOCK_COLLECTION_ENABLED: ${STOCK_COLLECTION_ENABLED:-false}
+      STOCK_PG_HOST: postgres
+      STOCK_PG_DATABASE: stocks
+      STOCK_PG_USER: stock_app
+      STOCK_PG_PASSWORD: ${STOCK_PG_PASSWORD:?Set STOCK_PG_PASSWORD in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      stock-db-init:
+        condition: service_completed_successfully
     ports:
       - '127.0.0.1:18080:8080'
     read_only: true
@@ -19,3 +30,101 @@ services:
     mem_limit: 1g
     cpus: 1.5
     restart: unless-stopped
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: epharm-stock-postgres
+    environment:
+      POSTGRES_DB: stocks
+      POSTGRES_USER: stock_owner
+      POSTGRES_PASSWORD: ${STOCK_PG_ADMIN_PASSWORD:?Set STOCK_PG_ADMIN_PASSWORD in .env}
+      STOCK_PG_APP_PASSWORD: ${STOCK_PG_PASSWORD:?Set STOCK_PG_PASSWORD in .env}
+      STOCK_PG_OWNER_PASSWORD: ${STOCK_PG_OWNER_PASSWORD:?Set STOCK_PG_OWNER_PASSWORD in .env}
+      POSTGRES_INITDB_ARGS: --data-checksums
+    volumes:
+      - type: bind
+        source: ${STOCK_PG_DATA_DIR:?Set STOCK_PG_DATA_DIR to the dedicated data volume}
+        target: /var/lib/postgresql/data
+        bind:
+          create_host_path: false
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    command:
+      - postgres
+      - -c
+      - max_connections=40
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - work_mem=8MB
+      - -c
+      - max_wal_size=2GB
+      - -c
+      - wal_compression=on
+      - -c
+      - autovacuum_vacuum_scale_factor=0.02
+      - -c
+      - autovacuum_analyze_scale_factor=0.02
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U stock_owner -d stocks']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    shm_size: 256mb
+    mem_limit: 2g
+    cpus: 2.0
+    pids_limit: 128
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+  stock-db-init:
+    build:
+      context: .
+      dockerfile: Dockerfile.migrate
+    image: epharm-stock-migrate:local
+    command: ['--init-schema']
+    environment:
+      STOCK_PG_HOST: postgres
+      STOCK_PG_DATABASE: stocks
+      STOCK_PG_USER: stock_schema_owner
+      STOCK_PG_PASSWORD: ${STOCK_PG_OWNER_PASSWORD:?Set STOCK_PG_OWNER_PASSWORD in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    cpus: 0.5
+    restart: 'no'
+
+  stock-migrate:
+    profiles: [migration]
+    build:
+      context: .
+      dockerfile: Dockerfile.migrate
+    image: epharm-stock-migrate:local
+    command: ['/legacy/stocks.sqlite']
+    environment:
+      STOCK_PG_HOST: postgres
+      STOCK_PG_DATABASE: stocks
+      STOCK_PG_USER: stock_app
+      STOCK_PG_PASSWORD: ${STOCK_PG_PASSWORD:?Set STOCK_PG_PASSWORD in .env}
+    depends_on:
+      stock-db-init:
+        condition: service_completed_successfully
+    volumes:
+      - ${STOCK_HOST_DATA_DIR:-./data}:/legacy:ro
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    cpus: 1.0

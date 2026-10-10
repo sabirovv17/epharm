@@ -1,0 +1,80 @@
+openapi: 3.0.3
+info:
+  title: Epharm cashier stock ingestion
+  version: 0.1.0
+  description: >
+    Pilot protocol for a single verified local Standard-N collector per pharmacy.
+    The collector route is not published by the production gateway yet. A mapped,
+    enabled token scoped to one pharmacy is required. A successful empty image
+    means confirmed zero stock; a partial or failed upload does not change the
+    previously published snapshot.
+security:
+  - collectorBearer: []
+paths:
+  /internal/v1/pharmacies/{profileId}/snapshot:
+    post:
+      summary: Atomically publish a complete local cashier snapshot
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema: { type: integer, format: int64, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Snapshot' }
+      responses:
+        '200':
+          description: Snapshot accepted or idempotently repeated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accepted, profileId, asOf]
+                properties:
+                  accepted: { type: boolean, enum: [true] }
+                  profileId: { type: integer, format: int64 }
+                  asOf: { type: string, format: date-time }
+        '400': { description: Invalid identity, row count, time or row data }
+        '401': { description: Missing, disabled or mismatched collector token }
+        '409': { description: Observation older than already published snapshot }
+        '413': { description: Request body exceeds 16 MiB }
+        '429': { description: Collector ingest is busy; retry after the Retry-After header }
+        '503': { description: PostgreSQL authentication or snapshot store unavailable }
+components:
+  securitySchemes:
+    collectorBearer:
+      type: http
+      scheme: bearer
+      description: Independent random token mapped to exactly one HQ ID and Standard-N profile ID
+  schemas:
+    Snapshot:
+      type: object
+      required: [hqPharmacyId, sourceObservedAt, rowCount, items]
+      properties:
+        hqPharmacyId: { type: string, description: Explicitly provisioned HQ pharmacy ID }
+        sourceObservedAt:
+          type: string
+          format: date-time
+          description: UTC completion time of a full local database read; accepted within 10 minutes past and 30 seconds future
+        rowCount: { type: integer, minimum: 0, maximum: 20000 }
+        items:
+          type: array
+          maxItems: 20000
+          description: Complete image, including every positive local warehouse row; omitted rows are removed
+          items: { $ref: '#/components/schemas/StockRow' }
+    StockRow:
+      type: object
+      required: [sourceId, partId, name, quantity]
+      properties:
+        sourceId: { type: string, maxLength: 256 }
+        partId: { type: integer, format: int64, minimum: 1 }
+        name: { type: string, maxLength: 1000 }
+        manufacturerBarcode: { type: string, nullable: true, maxLength: 128 }
+        barcode: { type: string, nullable: true, maxLength: 128 }
+        quantity: { type: number, description: Physical warehouse quantity; not verified sellable quantity }
+        price: { type: number, nullable: true, minimum: 0 }
+        expiryDate: { type: string, format: date, nullable: true }
+        series: { type: string, nullable: true, maxLength: 256 }
+        unit: { type: string, nullable: true, maxLength: 64 }

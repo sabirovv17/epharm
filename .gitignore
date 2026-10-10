@@ -168,6 +168,8 @@ App.Tests/obj/
 # Standart-N stock service local state and .NET build output.
 /stock-service/bin/
 /stock-service/obj/
+/stock-service/stock-service-migrate/bin/
+/stock-service/stock-service-migrate/obj/
 /stock-service/data/
 /stock-service/.env
 /stock-service-tests/bin/

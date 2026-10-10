@@ -1,25 +1,54 @@
 using Epharm.StockService;
-using Epharm.StockService.Source;
+using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.WebHost.ConfigureKestrel(server => server.Limits.MaxRequestBodySize = 16 * 1024 * 1024);
 var options = StockOptions.FromEnvironment();
 builder.Services.AddSingleton(options);
 builder.Services.AddSingleton<StockRepository>();
-builder.Services.AddSingleton<IStockSource>(_ => new StandardNSource(
-    options.FirebirdHost, options.FirebirdPort, options.FirebirdPath,
-    options.FirebirdUser, options.FirebirdPassword, options.QueryTimeoutSeconds));
-builder.Services.AddSingleton<RefreshCoordinator>();
-if (options.CollectionEnabled)
-    builder.Services.AddHostedService<RefreshWorker>();
+builder.Services.AddSingleton<CollectorAuth>();
 
 var app = builder.Build();
 app.Services.GetRequiredService<StockRepository>().Initialize();
 app.UseMiddleware<RequestAuth>();
 
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
+app.MapGet("/readyz", (StockRepository repository) =>
+    repository.IsReady()
+        ? Results.Ok(new { status = "ready" })
+        : Results.Problem("PostgreSQL unavailable", statusCode: StatusCodes.Status503ServiceUnavailable));
 
 app.MapGet("/api/v1/status", (StockRepository repository) =>
     Results.Ok(repository.GetCollectionStatus()));
+
+app.MapPost("/internal/v1/pharmacies/{id:long}/snapshot", IResult (
+    long id, CollectorSnapshot snapshot, HttpContext context,
+    StockRepository repository, ILogger<Program> logger) =>
+{
+    if (context.Items[nameof(CollectorIdentity)] is not CollectorIdentity identity ||
+        identity.ProfileId != id)
+        return Results.Unauthorized();
+    if (snapshot.Validate(identity, DateTimeOffset.UtcNow) is { } error)
+        return Results.BadRequest(new { error });
+    try
+    {
+        if (!repository.TryReplaceSnapshot(id, snapshot.ToSourceStocks(id),
+                snapshot.SourceObservedAt.ToUniversalTime()))
+            return Results.Conflict(new { error = "older_snapshot" });
+    }
+    catch (InvalidDataException)
+    {
+        return Results.BadRequest(new { error = "invalid_snapshot" });
+    }
+    catch (NpgsqlException exception)
+    {
+        logger.LogError(exception, "Stock snapshot store unavailable: profile={ProfileId}", id);
+        return Results.Problem("Stock snapshot store unavailable", statusCode: 503);
+    }
+    logger.LogInformation("Cashier snapshot accepted: profile={ProfileId}, rows={Count}, observedAt={ObservedAt}",
+        id, snapshot.RowCount, snapshot.SourceObservedAt);
+    return Results.Ok(new { accepted = true, profileId = id, asOf = snapshot.SourceObservedAt });
+});
 
 app.MapGet("/api/v1/cities", (StockRepository repository) =>
     Results.Ok(repository.ListCities()));
