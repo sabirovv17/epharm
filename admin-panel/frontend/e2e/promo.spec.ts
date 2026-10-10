@@ -172,7 +172,7 @@ test.describe('Promo — create кампанию', () => {
     await loggedInPage.getByRole('button', { name: /Новая кампания/ }).first().click()
     const dialog = loggedInPage.getByRole('dialog', { name: /Новая кампания/ })
     await expect(dialog).toBeVisible()
-    await expect(dialog.getByText(/Товар из полного каталога/i)).toBeVisible()
+    await expect(dialog.getByText('Товар из полного каталога', { exact: true })).toBeVisible()
     await expect(dialog.getByPlaceholder(/Поиск товара в полном каталоге/)).toBeVisible()
   })
 
