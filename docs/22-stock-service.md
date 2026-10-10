@@ -62,6 +62,7 @@ Standard-N необходимо явно сопоставлять с ID HQ, а �
 - [`stock-service/CollectorAuth.cs`](../stock-service/CollectorAuth.cs): отдельный токен кассы, ограниченный одной аптекой.
 - [`stock-service/stock-service-migrate/`](../stock-service/stock-service-migrate/): однократный импорт исторического SQLite; обслуживающий процесс SQLite не использует.
 - [`stock-service/collector-openapi.yaml`](../stock-service/collector-openapi.yaml): внутренний контракт приёма от кассы. Шлюз этот путь пока не публикует.
+- [`App/Services/StockSnapshotUploadClient.cs`](../App/Services/StockSnapshotUploadClient.cs): транспорт отправки полного снимка из POSM. Он проверяет DTO, размер и HTTPS-адрес, но пока не подключён к чтению кассовой БД и расписанию; на действующих кассах ничего не отправляет.
 - [`stock-service/compose.yml`](../stock-service/compose.yml): отдельный PostgreSQL 17 в закрытой Compose-сети, роль приложения без DDL, ограничения ресурсов и локальный порт API.
 
 Рабочая копия на `.81`: `/home/adm-quasar/epharm-stock-code`;
