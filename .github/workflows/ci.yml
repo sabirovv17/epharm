@@ -399,6 +399,7 @@ jobs:
         run: dotnet test stock-service-tests/stock-service-tests.csproj -c Release --logger 'console;verbosity=normal'
       - run: dotnet publish stock-service/StockService.csproj -c Release
       - run: dotnet publish stock-service/stock-service-migrate/stock-service-migrate.csproj -c Release
+      - run: shellcheck --severity=warning stock-service/deploy/backup-postgres.sh stock-service/deploy/receive-stock-backup.sh
       - run: docker compose --env-file .env.example -f compose.yml config --quiet
         working-directory: stock-service
 

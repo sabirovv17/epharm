@@ -1,0 +1,10 @@
+[Unit]
+Description=Back up Epharm stock PostgreSQL locally and off-host
+Requires=docker.service
+After=docker.service
+RequiresMountsFor=/srv/epharm-stock-postgres
+
+[Service]
+Type=oneshot
+ExecStart=/home/adm-quasar/epharm-stock-code/stock-service/deploy/backup-postgres.sh
+TimeoutStartSec=30min

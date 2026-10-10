@@ -57,3 +57,10 @@ Before cutover, make a consistent backup of the existing SQLite cache and
 PostgreSQL, run the importer, compare counts and dates, and verify API responses
 and rollback. See the runbook above. The SQLite package exists only in the
 one-time importer image; the serving process uses PostgreSQL.
+
+The backup scripts and systemd units are in [`deploy/`](deploy/). The stock
+host writes a PostgreSQL custom-format dump every six hours, verifies its
+catalogue and SHA-256 after delivery to the separate backup host. The receiver
+is bound to one restricted SSH key. Local dumps are kept for seven days and
+off-host dumps for thirty days. A restore into a separate database is required
+before the first production cutover.

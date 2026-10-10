@@ -100,6 +100,27 @@ Standard-N необходимо явно сопоставлять с ID HQ, а �
 кассы подключается позже, после проверки живой локальной БД и её прав `SELECT`.
 Ключ кассы и путь загрузки не совпадают с Bearer-ключом и путём чтения.
 
+### Резервные копии PostgreSQL
+
+[`backup-postgres.sh`](../stock-service/deploy/backup-postgres.sh) создаёт
+`pg_dump -Fc`, проверяет каталог, передаёт дамп на `.76` через отдельный
+SSH-ключ и сравнивает SHA-256. На `.76`
+[`receive-stock-backup.sh`](../stock-service/deploy/receive-stock-backup.sh)
+запускается принудительной командой **только** для этого публичного ключа с
+опцией `restrict` в `authorized_keys`. Закрытый ключ хранится у root на `.81`,
+в Git его нет; интерактивный вход и пересылка портов по нему запрещены.
+[`systemd` timer](../stock-service/deploy/epharm-stock-backup.timer) запускает
+копирование раз в шесть часов. Локальные дампы хранятся семь дней, на `.76` —
+тридцать. Отказ проверки/передачи делает сервис systemd ошибочным; журнал
+`journalctl -u epharm-stock-backup.service` надо включить в наблюдение.
+
+Для первой проверки вручную запустите сервис и восстановите полученный дамп в
+отдельную временную БД. Сверьте число аптек и партий, затем удалите только
+временную БД. `pg_restore -l` при каждом копировании проверяет структуру
+архива, но не заменяет эту проверку восстановления. При недоступности `.76`
+локальный дамп не публикуется как успешная резервная копия, а таймер повторит
+попытку по расписанию.
+
 ### Исполнимая схема параллельной проверки на `.81`
 
 Из `stock-service/` сохраните прежний Compose как `compose.rollback.yml` **до**
@@ -116,7 +137,7 @@ sudo docker compose run --rm stock-db-init
 sudo env STOCK_HOST_DATA_DIR=/home/adm-quasar/stock-pg-import \
   docker compose --profile migration run --rm --user "$(id -u):$(id -g)" stock-migrate
 sudo docker run --rm -d --name epharm-stock-candidate \
-  --network stock-service_default --env-file .env \
+  --network stock-service_default --env-file /home/adm-quasar/stock-pg-import/candidate.env \
   -e STOCK_PG_HOST=postgres -p 127.0.0.1:18081:8080 \
   epharm-stock-service:local
 curl -fsS http://127.0.0.1:18081/readyz
