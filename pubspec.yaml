@@ -52,7 +52,7 @@ dependencies:
   flutter_secure_storage: ^10.3.1
   # sentry_flutter allows a very broad package_info_plus range. Version 9+
   # requires Gradle 8.13/AGP 8.12/Kotlin 2.2, newer than Flutter 3.27's toolchain.
-  package_info_plus: 8.3.1
+  package_info_plus: 10.2.1
   # 9.7+ pulls sentry-cocoa 8.56+, whose Swift closure APIs fail under Xcode 26
   # (getsentry/sentry-dart#3570). Remove this pin only after an iOS compile gate passes.
   sentry_flutter: 9.6.0
