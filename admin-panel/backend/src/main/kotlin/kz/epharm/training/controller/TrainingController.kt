@@ -30,9 +30,12 @@ import kz.epharm.training.dto.TrainingDashboardDto
 import kz.epharm.training.dto.TrainingEventQrDto
 import kz.epharm.training.dto.TrainingPreferenceDto
 import kz.epharm.training.dto.TrainingProgramDto
+import kz.epharm.training.dto.TrainingProgramCoverUploadDto
+import kz.epharm.training.dto.TrainingProgramCertificateAssetUploadDto
 import kz.epharm.training.dto.UpdateTrainingProgramRequest
 import kz.epharm.training.dto.UpdateOfflineEventRequest
 import kz.epharm.training.service.TrainingService
+import kz.epharm.training.service.TrainingProgramAssetService
 import org.springframework.http.HttpStatus
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
@@ -47,6 +50,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.multipart.MultipartFile
 import java.util.UUID
 
 @RestController
@@ -54,6 +58,7 @@ import java.util.UUID
 class TrainingController(
     private val trainingService: TrainingService,
     private val pharmacistService: PharmacistService,
+    private val trainingProgramAssetService: TrainingProgramAssetService,
 ) {
     @GetMapping("/dashboard")
     fun dashboard(@AuthenticationPrincipal principal: AdminPrincipal?): TrainingDashboardDto =
@@ -77,6 +82,18 @@ class TrainingController(
         @Valid @RequestBody req: CreateTrainingProgramRequest,
         @AuthenticationPrincipal principal: AdminPrincipal?,
     ): TrainingProgramDto = trainingService.createProgram(req, requirePrincipal(principal))
+
+    @PostMapping("/programs/cover", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER')")
+    fun uploadProgramCover(
+        @RequestParam("file") file: MultipartFile,
+    ): TrainingProgramCoverUploadDto = trainingProgramAssetService.uploadCover(file)
+
+    @PostMapping("/programs/certificate-asset", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER')")
+    fun uploadCertificateAsset(
+        @RequestParam("file") file: MultipartFile,
+    ): TrainingProgramCertificateAssetUploadDto = trainingProgramAssetService.uploadCertificateAsset(file)
 
     @PatchMapping("/programs/{id}")
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','TRAINING_MANAGER')")

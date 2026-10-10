@@ -19,6 +19,28 @@ All notable production changes to Epharm are recorded here. The format follows
 - POSM 1.0.65 spreads healthy QR-task polling over 24–36 seconds per device, reducing
   synchronized load on the merchandising fallback without changing recommendations or orders.
 
+## [0.1.25] - 2026-10-06
+
+### Added
+
+- ACC group, subgroup and international nonproprietary name (INN) can be selected as
+  recommendation triggers alongside the existing exact-product trigger. The classification
+  comes from an explicitly reviewed, versioned ACC catalogue snapshot; ambiguous barcodes
+  do not trigger a broad rule, and newly authored broad rules start as drafts.
+- Reconciled the live certificate editor, course Excel import, program-cover upload and mobile
+  retail-price fallback with the new recommendation code; Kazakh certificate glyphs and image
+  size limits are covered by regression tests.
+- Added a content-verified two-image transaction for the archive-based production host, including
+  automatic backend/frontend rollback and a forward-schema compatibility drill.
+
+### Fixed
+
+- Updated the storefront to a patched Next.js release and refreshed available build-tool
+  transitive fixes after newly published dependency advisories.
+- The frontend dependency gate now fails on every production advisory and every new audit
+  finding. Its one time-limited exception is the unpatched, dev-only `braces` advisory
+  inherited through build/lint tooling; it expires on 2026-11-06.
+
 ## [0.1.17] - 2026-09-25
 
 ### Changed

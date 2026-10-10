@@ -7,7 +7,7 @@ import { formatKzt, formatNum, PHARMACY_LIST, type Rule } from '@/mocks/fixtures
 import { Button, Metric, SectionCard, Sparkline, Tabs, ComingSoonBanner, type TabItem } from '@/ui'
 import { IconCheck, IconEye, IconSpark } from '@/ui/icons'
 import { useProductLookup } from '@/lib/queries/catalog'
-import { ruleSummary } from './lib'
+import { ruleSummary, ruleTriggerDisplay } from './lib'
 import { useT } from '@/i18n'
 import { ProductIcon } from './ProductBlock'
 
@@ -53,7 +53,7 @@ export function RuleBuilder({ rule }: RuleBuilderProps) {
               })}
             </div>
             <div className="truncate text-[16px] font-extrabold text-ink-900">
-              {ruleSummary(rule, productById)}
+              {ruleSummary(rule, productById, t)}
             </div>
           </div>
           <span className={`chip flex-none ${statusChip.cls}`}>{statusChip.label}</span>
@@ -82,12 +82,7 @@ function RuleConfigView({ rule }: { rule: Rule }) {
   const t = useT()
   const productById = useProductLookup()
   const rec = productById(rule.recommend)
-  const trigName =
-    rule.trigger.kind === 'product'
-      ? (productById(rule.trigger.value as string)?.name ?? (rule.trigger.value as string))
-      : rule.trigger.kind === 'product_any'
-        ? (rule.trigger.value as string[]).map((id) => productById(id)?.name ?? id).join(', ')
-        : (rule.trigger.value as string)
+  const trigName = ruleTriggerDisplay(rule.trigger, productById, t)
   const advantages = (rule.advantages ?? []).filter((a) => a.trim().length > 0)
   const card = rule.card
   const comparison = (card?.comparison ?? []).filter((r) => r.label.trim().length > 0)

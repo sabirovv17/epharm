@@ -20,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
@@ -33,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import java.util.UUID
 
 /**
  * REPRODUCTION-тесты latent-багов backend Rules API. Изначально все методы
@@ -80,6 +82,7 @@ class RuleValidationTest {
     @Autowired private lateinit var productRepository: ProductRepository
     @Autowired private lateinit var adminUserRepository: AdminUserRepository
     @Autowired private lateinit var passwordEncoder: PasswordEncoder
+    @Autowired private lateinit var jdbc: JdbcTemplate
 
     private lateinit var bearer: String
 
@@ -273,6 +276,47 @@ class RuleValidationTest {
         )
             .andExpect(status().isBadRequest)
             .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+    }
+
+    @Test
+    fun `ACC draft cannot be activated after its scope disappears from active snapshot`() {
+        val key = "grp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        val first = UUID.randomUUID()
+        val second = UUID.randomUUID()
+        jdbc.update(
+            "INSERT INTO acc_catalog_snapshots(id,sha256,source_name,item_count,barcode_count) VALUES (?,?,?,?,?)",
+            first, "a".repeat(64), "first.xlsx", 1, 1,
+        )
+        jdbc.update(
+            """INSERT INTO acc_catalog_barcodes(snapshot_id,ware_id,barcode,group_key,group_label)
+               VALUES (?,?,?,?,?)""",
+            first, "W-1", "4871111111111", key, "Анальгетики",
+        )
+        jdbc.update("UPDATE acc_catalog_state SET active_snapshot_id=? WHERE singleton=1", first)
+
+        val created = mockMvc.perform(
+            post("/api/admin/rules")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"type":"substitution","trigger":{"kind":"acc_group","value":"$key"},
+                    "recommend":"p_aqm","status":"draft"}"""),
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val id = objectMapper.readTree(created).get("id").asText()
+
+        jdbc.update(
+            "INSERT INTO acc_catalog_snapshots(id,sha256,source_name,item_count,barcode_count) VALUES (?,?,?,?,?)",
+            second, "b".repeat(64), "second.xlsx", 0, 0,
+        )
+        jdbc.update("UPDATE acc_catalog_state SET active_snapshot_id=? WHERE singleton=1", second)
+
+        mockMvc.perform(
+            patch("/api/admin/rules/$id")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"status":"active"}"""),
+        ).andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+        org.junit.jupiter.api.Assertions.assertEquals(RuleStatus.draft, ruleRepository.findById(id).get().status)
     }
 
     private fun login(): LoginResponse {

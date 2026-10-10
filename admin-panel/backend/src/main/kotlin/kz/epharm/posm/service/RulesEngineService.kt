@@ -2,6 +2,9 @@ package kz.epharm.posm.service
 
 import kz.epharm.catalog.entity.ProductEntity
 import kz.epharm.catalog.repository.ProductRepository
+import kz.epharm.catalog.service.AccCatalogClassification
+import kz.epharm.catalog.service.AccCatalogTaxonomy
+import kz.epharm.catalog.service.AccScopeKind
 import kz.epharm.posm.dto.CartItemDto
 import kz.epharm.promo.entity.PromoStatus
 import kz.epharm.promo.repository.PromoRepository
@@ -14,6 +17,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDate
 import java.time.ZoneId
+import java.security.MessageDigest
 
 /**
  * Результат матчинга правила к корзине: само правило + что в корзине его триггернуло
@@ -24,6 +28,8 @@ data class RuleMatch(
     val triggerSku: String?,
     val triggerName: String?,
     val triggerProduct: ProductEntity?, // товар-триггер из каталога (для объёма/цены в карточке)
+    val triggerIpartId: String?,
+    val triggerBarcode: String?,
     val recommend: ProductEntity,
 )
 
@@ -70,11 +76,12 @@ class RulesEngineService(
     private val ruleRepository: RuleRepository,
     private val productRepository: ProductRepository,
     private val promoRepository: PromoRepository,
+    private val accCatalogTaxonomy: AccCatalogTaxonomy,
 ) {
     private val log = LoggerFactory.getLogger(RulesEngineService::class.java)
 
     @Transactional(readOnly = true)
-    fun match(cart: List<CartItemDto>): RuleMatchResult {
+    fun match(cart: List<CartItemDto>, scannedBarcode: String? = null): RuleMatchResult {
         val activeRules = ruleRepository.findAllByStatusRawOrderByUpdatedAtDesc(RuleStatus.active.name)
         // Кампания — мастер-выключатель: правило из неактивной кампании НЕ показываем,
         // даже если оно осталось active в БД (смена статуса кампании не пересохраняет правила).
@@ -103,18 +110,71 @@ class RulesEngineService(
         val relevantById = relevantProducts.associateBy(ProductEntity::id)
         val cartProducts: Map<String, ProductEntity> = resolveCart(cart, relevantProducts)
         val cartSkus: Set<String> = cartProducts.keys
-        if (cartSkus.isEmpty()) return RuleMatchResult(emptyList(), emptyList())
+        val cartBarcodes = cart.mapNotNull { it.barcode?.trim()?.takeIf(String::isNotEmpty) }.toSet()
+        val cartIpartIds = cart.mapNotNull { it.sku?.trim()?.takeIf(String::isNotEmpty) }.toSet()
+        val cartExactNames = cart.mapNotNull { it.name?.takeIf(String::isNotBlank)?.let(::normalizeName) }.toSet()
+        val hasAccRules = active.any { it.trigger.kind.startsWith("acc_") }
+        val classified = if (hasAccRules) accCatalogTaxonomy.unambiguousBarcodes(cartBarcodes) else emptyMap()
+        val scopedCart = cart.mapNotNull { item ->
+            val barcode = item.barcode?.trim().orEmpty()
+            classified[barcode]?.let { item to it }
+        }
+        if (cartSkus.isEmpty() && scopedCart.isEmpty()) return RuleMatchResult(emptyList(), emptyList())
 
         val raw = active.mapNotNull { rule ->
-            val triggerSku = matchTrigger(rule.trigger, cartSkus, cartProducts) ?: return@mapNotNull null
+            val accKind = AccScopeKind.entries.firstOrNull { it.wire == rule.trigger.kind }
+            val scopedMatch = if (accKind != null) {
+                val key = rule.trigger.value as? String ?: return@mapNotNull null
+                val matching = scopedCart.filter { (_, classification) -> classification.matches(accKind, key) }
+                matching.firstOrNull { (item, _) -> item.barcode?.trim() == scannedBarcode?.trim() }
+                    ?: matching.firstOrNull()
+                    ?: return@mapNotNull null
+            } else null
+            val exactTriggerSku = if (accKind == null) {
+                matchTrigger(rule.trigger, cartSkus, cartProducts) ?: return@mapNotNull null
+            } else null
+            val triggerProduct = exactTriggerSku?.let(cartProducts::get)
+                ?: scopedMatch?.first?.barcode?.trim()?.let { barcode ->
+                    cartProducts.values.firstOrNull { it.barcode?.trim() == barcode }
+                }
+            val exactCartItem = if (accKind == null) triggerProduct?.let { product ->
+                cart.firstOrNull { item ->
+                    val barcode = item.barcode?.trim()?.takeIf(String::isNotEmpty)
+                    val ipartId = item.sku?.trim()?.takeIf(String::isNotEmpty)
+                    (barcode != null && barcode == product.barcode?.trim()) ||
+                        (ipartId != null && ipartId == product.ipartId?.trim()) ||
+                        (barcode == null && ipartId == null &&
+                            item.name?.let(::normalizeName) == normalizeName(product.name))
+                }
+            } else null
+            val triggerSku = exactTriggerSku ?: scopedMatch?.let { (item, classification) ->
+                accIdentity(classification, item.barcode!!.trim())
+            }
             // recommend не должен уже лежать в корзине
-            if (rule.recommend in cartSkus) return@mapNotNull null
             val recProduct = relevantById[rule.recommend] ?: return@mapNotNull null
+            val alreadyInCart = if (accKind == null) {
+                rule.recommend in cartSkus
+            } else {
+                // Broad membership is EAN-only. Do not let fuzzy name resolution turn an
+                // unrelated ACC item into a false self-match, but still suppress the actual
+                // recommended product when it is already in the basket.
+                recProduct.barcode?.trim()?.takeIf(String::isNotEmpty) in cartBarcodes ||
+                    recProduct.ipartId?.trim()?.takeIf(String::isNotEmpty) in cartIpartIds ||
+                    normalizeName(recProduct.name) in cartExactNames
+            }
+            if (alreadyInCart) return@mapNotNull null
             RuleMatch(
                 rule = rule,
                 triggerSku = triggerSku,
-                triggerName = cartProducts[triggerSku]?.name,
-                triggerProduct = cartProducts[triggerSku],
+                triggerName = scopedMatch?.first?.name?.trim()?.takeIf(String::isNotEmpty)
+                    ?: triggerProduct?.name ?: rule.trigger.label,
+                triggerProduct = triggerProduct,
+                triggerIpartId = scopedMatch?.first?.sku?.trim()?.takeIf(String::isNotEmpty)
+                    ?: exactCartItem?.sku?.trim()?.takeIf(String::isNotEmpty)
+                    ?: triggerProduct?.ipartId?.trim()?.takeIf(String::isNotEmpty),
+                triggerBarcode = scopedMatch?.first?.barcode?.trim()?.takeIf(String::isNotEmpty)
+                    ?: exactCartItem?.barcode?.trim()?.takeIf(String::isNotEmpty)
+                    ?: triggerProduct?.barcode?.trim()?.takeIf(String::isNotEmpty),
                 recommend = recProduct,
             )
         }
@@ -125,12 +185,12 @@ class RulesEngineService(
 
         // Одна исходная позиция может иметь несколько альтернатив: это основной multi-offer сценарий.
         // Конфликтом остаётся только одна и та же пара, одновременно заведённая как замена и cross-sell.
-        raw.groupBy { it.triggerSku to it.recommend.id }
+        raw.groupBy { (it.triggerBarcode ?: it.triggerSku) to it.recommend.id }
             .filterValues { ms -> ms.map { it.rule.type.name }.distinct().size >= 2 }
             .forEach { (pair, ms) ->
                 conflicts += RuleConflict(
                     kind = "contradiction",
-                    triggerSku = pair.first,
+                    triggerSku = ms.first().triggerSku,
                     triggerName = ms.first().triggerName,
                     reason = "Кросс-селл/замена невозможны: товар «${ms.first().triggerName ?: pair.first}» " +
                         "одновременно заменяется и допродаётся",
@@ -144,6 +204,7 @@ class RulesEngineService(
             .sortedWith(
                 compareBy(
                     { if (it.rule.type.name == "substitution") 0 else 1 }, // substitution раньше crosssell
+                    { scopePriority(it.rule.trigger.kind) },                   // exact rules survive the 5-offer cap
                     { it.rule.card?.offerRank ?: Int.MAX_VALUE },            // порядок из админки
                     { -it.rule.bonus },                                     // legacy и равные rank — больший бонус выше
                     { it.rule.id },                                          // детерминированный fallback
@@ -393,6 +454,23 @@ class RulesEngineService(
             else cartProducts.values.firstOrNull { it.mnn == mnn && it.id !in excluded }?.id
         }
         else -> null
+    }
+
+    private fun scopePriority(kind: String): Int = when (kind) {
+        "product" -> 0
+        "product_any" -> 1
+        "acc_subgroup" -> 2
+        "acc_mnn" -> 3
+        "acc_group" -> 4
+        else -> 5
+    }
+
+    /** Stable event identity for the concrete ACC package scanned, independent of display labels. */
+    private fun accIdentity(classification: AccCatalogClassification, barcode: String): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest("${classification.wareId}\u001f$barcode".toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        return "acc_${digest.take(32)}"
     }
 
     private companion object {

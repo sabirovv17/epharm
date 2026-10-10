@@ -14,6 +14,7 @@ import kz.epharm.lms.repository.CourseLessonAttachmentRepository
 import kz.epharm.lms.repository.CourseLessonRepository
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
@@ -35,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import java.io.ByteArrayOutputStream
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -130,6 +132,54 @@ class LmsIntegrationTest {
             post("/api/admin/lms/courses").header("Authorization", bearer)
                 .contentType(MediaType.APPLICATION_JSON).content("""{"title":""}"""),
         ).andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `POST import Excel creates draft course lessons and quiz`() {
+        val file = MockMultipartFile(
+            "file",
+            "course.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            courseImportWorkbook(),
+        )
+
+        mockMvc.perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .multipart("/api/admin/lms/courses/import/excel")
+                .file(file)
+                .header("Authorization", bearer),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.title").value("Excel курс"))
+            .andExpect(jsonPath("$.status").value("draft"))
+            .andExpect(jsonPath("$.lessons").value(2))
+            .andExpect(jsonPath("$.durationMin").value(13))
+            .andExpect(jsonPath("$.lessonItems[0].kind").value("text"))
+            .andExpect(jsonPath("$.lessonItems[1].kind").value("test"))
+            .andExpect(jsonPath("$.lessonItems[1].quizQuestions.length()").value(1))
+            .andExpect(jsonPath("$.lessonItems[1].quizQuestions[0].correctOption").value(1))
+    }
+
+    @Test
+    fun `POST invalid Excel is atomic`() {
+        val before = courseRepository.count()
+        val file = MockMultipartFile(
+            "file",
+            "course.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            courseImportWorkbook(includeQuestions = false),
+        )
+
+        mockMvc.perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .multipart("/api/admin/lms/courses/import/excel")
+                .file(file)
+                .header("Authorization", bearer),
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+
+        org.assertj.core.api.Assertions.assertThat(courseRepository.count()).isEqualTo(before)
     }
 
     @Test
@@ -447,6 +497,59 @@ class LmsIntegrationTest {
                 .multipart("/api/admin/lms/courses/crs_draft/lessons/$lessonId/attachments")
                 .file(handout),
         ).andExpect(status().isUnauthorized)
+    }
+
+    private fun courseImportWorkbook(includeQuestions: Boolean = true): ByteArray {
+        val out = ByteArrayOutputStream()
+        XSSFWorkbook().use { workbook ->
+            workbook.createSheet("Курс").apply {
+                createRow(0).apply {
+                    listOf("Название", "Категория", "Описание", "Бонус, ₸").forEachIndexed { index, value ->
+                        createCell(index).setCellValue(value)
+                    }
+                }
+                createRow(1).apply {
+                    createCell(0).setCellValue("Excel курс")
+                    createCell(1).setCellValue("Категория")
+                    createCell(2).setCellValue("Описание")
+                    createCell(3).setCellValue(500.0)
+                }
+            }
+            workbook.createSheet("Уроки").apply {
+                createRow(0).apply {
+                    listOf(
+                        "Код урока", "Порядок", "Название", "Тип", "Длительность, мин",
+                        "Краткое описание", "Содержание", "Внешняя ссылка", "Обязательный",
+                        "Мин. просмотр, %", "Проходной балл, %",
+                    ).forEachIndexed { index, value -> createCell(index).setCellValue(value) }
+                }
+                createRow(1).apply {
+                    listOf("L01", 1, "Текст", "Текст", 8, "Описание", "Содержание", "", "Да", "", "")
+                        .forEachIndexed { index, value -> createCell(index).setCellValue(value.toString()) }
+                }
+                createRow(2).apply {
+                    listOf("L02", 2, "Тест", "Тест", 5, "Проверка", "Ответьте", "", "Да", "", 80)
+                        .forEachIndexed { index, value -> createCell(index).setCellValue(value.toString()) }
+                }
+            }
+            workbook.createSheet("Вопросы").apply {
+                createRow(0).apply {
+                    listOf(
+                        "Код урока", "Порядок", "Вопрос", "Вариант 1", "Вариант 2", "Вариант 3",
+                        "Вариант 4", "Вариант 5", "Вариант 6", "Вариант 7", "Вариант 8",
+                        "Правильный вариант", "Пояснение",
+                    ).forEachIndexed { index, value -> createCell(index).setCellValue(value) }
+                }
+                if (includeQuestions) {
+                    createRow(1).apply {
+                        listOf("L02", 1, "Вопрос?", "Нет", "Да", "", "", "", "", "", "", 2, "Пояснение")
+                            .forEachIndexed { index, value -> createCell(index).setCellValue(value.toString()) }
+                    }
+                }
+            }
+            workbook.write(out)
+        }
+        return out.toByteArray()
     }
 
     private fun login(): LoginResponse {

@@ -4,6 +4,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kz.epharm.catalog.entity.ProductEntity
 import kz.epharm.catalog.repository.ProductRepository
+import kz.epharm.catalog.service.AccCatalogTaxonomy
 import kz.epharm.posm.dto.CartItemDto
 import kz.epharm.promo.entity.PromoEntity
 import kz.epharm.promo.entity.PromoStatus
@@ -34,7 +35,8 @@ class RulesEngineConflictTest {
     // Правила теста без promoId (legacy) → гейтинг по кампании их не трогает,
     // promoRepo.findAllById не вызывается; mock нужен только для конструктора.
     private val promoRepo = mockk<PromoRepository>(relaxed = true)
-    private val engine = RulesEngineService(ruleRepo, productRepo, promoRepo)
+    private val accCatalog = mockk<AccCatalogTaxonomy>(relaxed = true)
+    private val engine = RulesEngineService(ruleRepo, productRepo, promoRepo, accCatalog)
 
     /** Товар с штрих-кодом «bar-<id>», чтобы корзина матчилась по barcode. */
     private fun product(id: String) =

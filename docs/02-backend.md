@@ -51,7 +51,7 @@ The backend is a modular monolith under package `kz.epharm`.
 - `POST /api/admin/auth/login|refresh|logout`, `GET /api/admin/auth/me`
 - `/api/admin/dashboard/summary`
 - `/api/admin/dashboard/recommendations` — конверсия показ→продажа + время до продажи (V032)
-- `/api/admin/catalog/products`, `/brands`, `/mnn-groups`
+- `/api/admin/catalog/products`, `/brands`, `/mnn-groups`, `/trigger-options`
 - `/api/admin/rules/**`
 - `/api/admin/promo/**`, including `/refresh-prices` and `/{id}/rules`
 - `/api/admin/banners/**`
@@ -67,6 +67,15 @@ The backend is a modular monolith under package `kz.epharm`.
 - `/api/admin/training/**`
 - `/api/admin/ai-exam/questions/**`
 - `/api/admin/lift`
+
+`GET /api/admin/catalog/trigger-options?kind=acc_group|acc_subgroup|acc_mnn&q=...`
+returns selectable scopes and metadata for the active ACC classification snapshot. Campaign rule
+pairs keep the historical product trigger by default; optional `triggerKind`, `triggerValue` and
+`triggerLabel` represent a broad ACC scope. The backend validates the scope against the active
+snapshot when saving or activating it. POSM matching uses only an unambiguous exact cart barcode
+for broad scopes, never a fuzzy product name; the response still names the actual scanned item.
+The recommendation event and sale attribution paths deduplicate a sold offer within one receipt,
+even if multiple grouped items triggered separate displays.
 
 ### Mobile
 

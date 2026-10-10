@@ -77,6 +77,14 @@ POSM sends:
 Backend resolves barcode, then `iPartID` when barcode is unavailable, then normalized name. Ambiguous catalog keys are skipped
 instead of selecting an arbitrary product.
 
+ACC group/subgroup/INN triggers are resolved on the backend against the active, immutable ACC
+classification snapshot. Unlike a legacy exact-product rule, they require an exact barcode present
+in that snapshot; the backend does not infer an ACC class from a local Standard-N iPartID or a
+similar name. A barcode belonging to several ACC `WARE_ID`s is ambiguous and cannot activate a
+broad trigger. The POSM client continues to send the same cart request and receives the same
+recommendation DTO: `triggerBarcode`, `triggerIpartId` and `triggerName` identify the real scanned
+cart line, never the group label. Existing clients need no binary update for this feature.
+
 `ExtractBarcode` supports:
 
 - explicit `barcode=...` or `ean=...`;

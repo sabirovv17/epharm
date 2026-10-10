@@ -21,6 +21,7 @@ const lmsHooks = vi.hoisted(() => ({
   useCourses: vi.fn(),
   useCourse: vi.fn(),
   useCreateCourse: vi.fn(),
+  useImportCourse: vi.fn(),
   useUpdateCourse: vi.fn(),
   useDeleteCourse: vi.fn(),
   useCreateCourseLesson: vi.fn(),
@@ -38,6 +39,8 @@ const lmsHooks = vi.hoisted(() => ({
   useOfflineEvents: vi.fn(),
   useTrainingCertificates: vi.fn(),
   useUpdateTrainingProgram: vi.fn(),
+  useUploadTrainingCertificateAsset: vi.fn(),
+  useUploadTrainingProgramCover: vi.fn(),
   useCreateTrainingProgram: vi.fn(),
   useCreateTrainingAssignments: vi.fn(),
   useCreateOfflineEvent: vi.fn(),
@@ -53,7 +56,10 @@ const lmsHooks = vi.hoisted(() => ({
 
 vi.mock('@/lib/queries/lms', () => lmsHooks)
 vi.mock('qrcode', () => ({
-  default: { toCanvas: vi.fn().mockResolvedValue(undefined) },
+  default: {
+    toCanvas: vi.fn().mockResolvedValue(undefined),
+    toDataURL: vi.fn().mockResolvedValue('data:image/png;base64,qr'),
+  },
 }))
 
 const queryResult = <T,>(data: T) => ({
@@ -103,6 +109,11 @@ const program: TrainingProgramDto = {
   shortDescription: 'Основы категории',
   description: '',
   coverUrl: null,
+  certificateEpharmLogoUrl: null,
+  certificatePartnerLogoUrl: null,
+  certificateSignerName: 'Руководитель учебного центра',
+  certificateValidityMonths: 36,
+  certificateTemplate: 'modern_ribbon',
   category: 'Кардиология',
   manufacturer: 'INKAR',
   brand: 'Brand',
@@ -311,6 +322,7 @@ beforeEach(() => {
   )
   lmsHooks.useTrainingPharmacists.mockReturnValue(queryResult([pharmacist]))
   lmsHooks.useCreateCourse.mockReturnValue(mutationResult())
+  lmsHooks.useImportCourse.mockReturnValue(mutationResult())
   lmsHooks.useUpdateCourse.mockReturnValue(mutationResult())
   lmsHooks.useDeleteCourse.mockReturnValue(mutationResult())
   lmsHooks.useCreateCourseLesson.mockReturnValue(mutationResult())
@@ -321,6 +333,8 @@ beforeEach(() => {
   lmsHooks.useUploadCourseLessonAttachment.mockReturnValue(mutationResult())
   lmsHooks.useDeleteCourseLessonAttachment.mockReturnValue(mutationResult())
   lmsHooks.useUpdateTrainingProgram.mockReturnValue(mutationResult())
+  lmsHooks.useUploadTrainingCertificateAsset.mockReturnValue(mutationResult())
+  lmsHooks.useUploadTrainingProgramCover.mockReturnValue(mutationResult())
   lmsHooks.useCreateTrainingProgram.mockReturnValue(mutationResult())
   lmsHooks.useCreateTrainingAssignments.mockReturnValue(mutationResult())
   lmsHooks.useCreateOfflineEvent.mockReturnValue(mutationResult())
@@ -382,6 +396,29 @@ describe('Обучение — операционный раздел', () => {
     expect(screen.getByTestId('training-programs-table')).toBeInTheDocument()
     expect(screen.getByText('Кардиология: продукты INKAR')).toBeInTheDocument()
     expect(screen.getAllByText('Онлайн-курс')).not.toHaveLength(0)
+  })
+
+  it('предлагает шаблон и отправляет выбранный Excel-файл на импорт курса', async () => {
+    const mutate = vi.fn()
+    lmsHooks.useImportCourse.mockReturnValue(mutationResult(mutate))
+    const user = userEvent.setup()
+    renderPage('/lms?tab=courses')
+
+    await user.click(screen.getByRole('button', { name: 'Импорт из Excel' }))
+    const dialog = screen.getByRole('dialog', { name: 'Импорт курса из Excel' })
+    expect(within(dialog).getByRole('link', { name: 'Скачать шаблон Excel' })).toHaveAttribute(
+      'href',
+      '/templates/epharm-course-import-template.xlsx',
+    )
+    const file = new File(['xlsx'], 'course.xlsx', {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    await user.upload(within(dialog).getByLabelText(/Выбрать заполненный Excel-файл/), file)
+    await user.click(within(dialog).getByRole('button', { name: 'Импортировать курс' }))
+    expect(mutate).toHaveBeenCalledWith(file, expect.objectContaining({
+      onSuccess: expect.any(Function),
+      onError: expect.any(Function),
+    }))
   })
 
   it('открывает содержание онлайн-курса и показывает видеоуроки', async () => {
@@ -543,6 +580,48 @@ describe('Обучение — операционный раздел', () => {
     expect(screen.queryByRole('dialog', { name: 'Назначить обучение' })).not.toBeInTheDocument()
   })
 
+  it('сохраняет настройки сертификата только для управляющей роли', async () => {
+    const mutate = vi.fn()
+    lmsHooks.useUpdateTrainingProgram.mockReturnValue(mutationResult(mutate))
+    const user = userEvent.setup()
+    renderPage('/lms?tab=certificates')
+
+    await user.click(screen.getByRole('button', { name: 'Редактор сертификата' }))
+    const dialog = screen.getByRole('dialog', { name: 'Редактор сертификата' })
+    expect(within(dialog).getByTestId('certificate-preview')).toHaveTextContent(program.name)
+    expect(within(dialog).getByText('QR-код появится на выданном сертификате')).toBeInTheDocument()
+    await user.clear(within(dialog).getByLabelText('Подписант'))
+    await user.type(within(dialog).getByLabelText('Подписант'), 'Директор учебного центра')
+    await user.clear(within(dialog).getByLabelText(/Срок действия/))
+    await user.type(within(dialog).getByLabelText(/Срок действия/), '24')
+    await user.click(within(dialog).getByRole('button', { name: 'Сохранить шаблон' }))
+
+    expect(mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: program.id,
+        patch: expect.objectContaining({
+          certificateSignerName: 'Директор учебного центра',
+          certificateValidityMonths: 24,
+          clearCertificateEpharmLogoUrl: true,
+          clearCertificatePartnerLogoUrl: true,
+        }),
+      }),
+      expect.any(Object),
+    )
+  })
+
+  it('не показывает редактор сертификата роли только для чтения', () => {
+    useUiStore.setState({ authedUser: USERS.bauyrzhan })
+    lmsHooks.useTrainingDashboard.mockReturnValue(
+      queryResult({
+        ...dashboard,
+        capabilities: { ...dashboard.capabilities, canManagePrograms: false },
+      }),
+    )
+    renderPage('/lms?tab=certificates')
+    expect(screen.queryByRole('button', { name: 'Редактор сертификата' })).not.toBeInTheDocument()
+  })
+
   it('создаёт программу с выбранным форматом', async () => {
     const mutate = vi.fn()
     lmsHooks.useCreateTrainingProgram.mockReturnValue(mutationResult(mutate))
@@ -580,6 +659,40 @@ describe('Обучение — операционный раздел', () => {
       expect.any(Object),
     )
     expect(mutate.mock.calls[0][0].patch.name).toBe('Кардиология 2.0')
+  })
+
+  it('загружает обложку программы и сохраняет возвращённую сервером ссылку', async () => {
+    const upload = vi.fn((_file: File, callbacks: { onSuccess: (value: { coverUrl: string }) => void }) => {
+      callbacks.onSuccess({ coverUrl: 'https://epharm.inkar.kz/media/course-cover.png' })
+    })
+    const update = vi.fn()
+    lmsHooks.useUploadTrainingProgramCover.mockReturnValue(mutationResult(upload))
+    lmsHooks.useUpdateTrainingProgram.mockReturnValue(mutationResult(update))
+    const user = userEvent.setup()
+    renderPage('/lms?tab=programs')
+
+    await user.click(screen.getByRole('button', { name: 'Редактировать программу' }))
+    const dialog = screen.getByRole('dialog', { name: 'Редактировать программу' })
+    const file = new File(['png'], 'cover.png', { type: 'image/png' })
+    await user.upload(within(dialog).getByLabelText('Выбрать фотографию'), file)
+    expect(upload).toHaveBeenCalledWith(file, expect.objectContaining({
+      onSuccess: expect.any(Function),
+      onError: expect.any(Function),
+    }))
+    expect(within(dialog).getByAltText('Обложка программы')).toHaveAttribute(
+      'src',
+      'https://epharm.inkar.kz/media/course-cover.png',
+    )
+    await user.click(within(dialog).getByRole('button', { name: 'Сохранить изменения' }))
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        patch: expect.objectContaining({
+          coverUrl: 'https://epharm.inkar.kz/media/course-cover.png',
+          clearCoverUrl: false,
+        }),
+      }),
+      expect.any(Object),
+    )
   })
 
   it('создаёт новую версию при изменении маршрута программы', async () => {

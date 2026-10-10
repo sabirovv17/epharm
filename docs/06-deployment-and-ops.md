@@ -137,6 +137,50 @@ Do not perform frontend-only mutable production builds. Backend and frontend sha
 health, Sentry and rollback evidence always identify a coherent deployment. Use
 `./tools/release/rollback.sh <previous-tag>` for application rollback.
 
+### Two-image release on an archive-based host
+
+The generic `deploy.sh` requires a Git checkout and assumes that the old backend and frontend have
+one common `RELEASE_ID`. Do **not** run it on an archive-based host with independently pinned images
+or an out-of-date `.release.env`: it could select a different backend at the next Compose operation.
+The archive transaction instead takes the two currently running tags explicitly, verifies their
+content-addressed IDs, and writes persistent per-component pins. It never recreates Caddy or writes
+`.env.prod`, `Caddyfile`, database volumes, or POSM release files.
+
+After the exact merged commit has passed CI, build both candidate images once from the reviewed
+source archive. Verify that each OCI `org.opencontainers.image.version` label is its image tag and
+each `org.opencontainers.image.revision` label is the same full merged commit SHA. Stage the reviewed
+Compose file and scripts before making the backup; compare its SHA-256 with the merged source. First
+complete the encrypted off-site backup and isolated restore drill required by
+`20-reliability-and-release.md`. Then create the additional local rollback bundle of the **running**
+backend/frontend images and current config with `prepare-backend-only-backup.sh`; despite its name,
+that helper already saves both application images and a PostgreSQL dump. Keep the returned absolute
+bundle path. Its checksum manifest must be less than 24 hours old and is reverified by the deploy
+script; it does not replace the off-site backup.
+The archive validator also verifies every compressed layer digest, uncompressed rootfs diff ID and
+runtime image setting against each running rollback tag. Docker/containerd can identify a live OCI
+*manifest* by one SHA-256 while `docker save`/`load` identifies its config by another. These IDs
+are not interchangeable; after emergency reload the transaction accepts a new image ID only when
+the archived rootfs and runtime configuration still match the original running image, then verifies
+that both recreated containers use the content-equivalent loaded images.
+
+Run `tools/release/deploy-archive-two-image.sh` with, in order: candidate backend tag, candidate
+frontend tag, full merged commit SHA, exact candidate backend image ID, exact candidate frontend
+image ID, current backend tag, current frontend tag, verified bundle path, and reviewed Compose
+SHA-256. An optional final `--dry-run` checks the images, backup, rendered Compose and current smoke
+without switching containers. The live transaction performs the same gates, pins both components in
+`.release.env`, recreates only backend/frontend without rebuilding, and verifies public backend/UI
+release identities plus catalogue/search. A failed switch automatically restores the exact previous
+backend/frontend image IDs, normalizes the stale generic release metadata to those known-good pins,
+and smokes the restored stack. A `CRITICAL` rollback message is an incident requiring immediate
+operator action; do not continue with another release. The saved transaction record is under
+`releases/archive-two-image/active-transaction`.
+
+Before approving a release with new Flyway migrations, test the previous backend against a restored
+copy of the forward-migrated database. Application rollback does not undo schema or data changes.
+`tools/release/tests/archive-two-image-contract.sh` covers metadata drift, wrong artifact IDs,
+dry-run, successful two-image switch, failed smoke/automatic rollback, and tampered backup without
+touching production.
+
 ### Backend-only bridge release on an archive-based host
 
 The normal `deploy.sh` is for coherent two-image releases from a Git checkout. It must **not** be

@@ -62,9 +62,17 @@ data class PromoOfferProductRefDto(
  * Пустые поля → берётся общий дефолт из [PromoRulesConfigDto] (обратная совместимость).
  */
 data class PromoRuleProductRefDto(
-    @field:NotBlank
+    /** Legacy exact-product trigger ID. Empty for ACC classification scopes. */
     @field:Size(max = 64)
     val medusaProductId: String,
+    /** product is the backward-compatible default for existing admin clients. */
+    val triggerKind: String = "product",
+    /** Stable ACC key (or legacy MNN value); null for exact-product triggers. */
+    @field:Size(max = 64)
+    val triggerValue: String? = null,
+    /** Human-readable snapshot label. Presentation only; server validates the key. */
+    @field:Size(max = 255)
+    val triggerLabel: String? = null,
     @field:Size(max = 255)
     val name: String = "",
     @field:Size(max = 128)

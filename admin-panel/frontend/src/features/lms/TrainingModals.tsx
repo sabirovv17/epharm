@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import { Button, Field, Input, Modal, SearchInput, Select, useToast } from '@/ui'
-import { IconArrowDown, IconArrowUp, IconPlus, IconTrash } from '@/ui/icons'
+import { IconArrowDown, IconArrowUp, IconPlus, IconTrash, IconUpload } from '@/ui/icons'
 import type {
   CourseDto,
   CreateTrainingStageRequest,
@@ -30,6 +30,7 @@ import {
   useTrainingEventQr,
   useUpdateOfflineEvent,
   useUpdateTrainingProgram,
+  useUploadTrainingProgramCover,
 } from '@/lib/queries/lms'
 import { describeError } from '@/lib/describeError'
 import { formatNum } from '@/mocks/fixtures'
@@ -182,6 +183,7 @@ export function CreateProgramModal({
   const toast = useToast()
   const create = useCreateTrainingProgram()
   const update = useUpdateTrainingProgram()
+  const uploadCover = useUploadTrainingProgramCover()
   const [name, setName] = useState(() =>
     program ? (mode === 'duplicate' ? `${program.name} (копия)` : program.name) : '',
   )
@@ -421,7 +423,7 @@ export function CreateProgramModal({
     )
   }
 
-  const pending = create.isPending || update.isPending
+  const pending = create.isPending || update.isPending || uploadCover.isPending
   const modalTitle =
     mode === 'edit'
       ? 'Редактировать программу'
@@ -465,12 +467,45 @@ export function CreateProgramModal({
             onChange={(event) => setDescription(event.target.value)}
           />
         </Field>
-        <Field label="Обложка" optional hint="Публичная HTTPS-ссылка на изображение программы">
-          <Input
-            value={coverUrl}
-            onChange={(event) => setCoverUrl(event.target.value)}
-            placeholder="https://…"
-          />
+        <Field label="Обложка" optional hint="JPG или PNG, от 240×240 px, до 5 МБ">
+          <div className="flex flex-col gap-3 rounded-xl border border-ink-100 bg-paper-input p-3 sm:flex-row sm:items-center">
+            <div className="flex h-24 w-full shrink-0 items-center justify-center overflow-hidden rounded-lg border border-ink-100 bg-white sm:w-36">
+              {coverUrl ? (
+                <img className="h-full w-full object-cover" src={coverUrl} alt="Обложка программы" />
+              ) : (
+                <span className="px-3 text-center text-[11px] font-semibold text-ink-400">
+                  Обложка не выбрана
+                </span>
+              )}
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <label className="btn btn-md btn-outline inline-flex w-fit cursor-pointer">
+                <IconUpload size={15} />
+                <span>{uploadCover.isPending ? 'Загружаем…' : 'Выбрать фотографию'}</span>
+                <input
+                  className="sr-only"
+                  type="file"
+                  accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+                  disabled={uploadCover.isPending}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0]
+                    event.target.value = ''
+                    if (!file) return
+                    setError(null)
+                    uploadCover.mutate(file, {
+                      onSuccess: ({ coverUrl: uploadedUrl }) => setCoverUrl(uploadedUrl),
+                      onError: (requestError) => setError(describeError(requestError)),
+                    })
+                  }}
+                />
+              </label>
+              {coverUrl && (
+                <Button size="sm" variant="ghost" className="w-fit" onClick={() => setCoverUrl('')}>
+                  Удалить обложку
+                </Button>
+              )}
+            </div>
+          </div>
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Категория" optional>

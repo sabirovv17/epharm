@@ -115,7 +115,28 @@ export interface MnnGroupDto {
 export type RuleType = 'substitution' | 'crosssell'
 export type RuleStatus = 'active' | 'paused' | 'draft' | 'archived'
 
-export type TriggerKind = 'product' | 'mnn' | 'product_any'
+export type TriggerKind = 'product' | 'mnn' | 'product_any' | 'acc_group' | 'acc_subgroup' | 'acc_mnn'
+
+/** Stable ACC taxonomy scope used by campaign recommendation triggers. */
+export type PromoTriggerKind = 'product' | 'acc_group' | 'acc_subgroup' | 'acc_mnn'
+
+export interface AccTriggerOptionDto {
+  key: string
+  label: string
+  parentLabel?: string | null
+  count: number
+}
+
+export interface AccTriggerOptionsDto {
+  snapshot: {
+    sha256: string
+    sourceName: string
+    itemCount: number
+    barcodeCount: number
+    importedAt: string
+  } | null
+  options: AccTriggerOptionDto[]
+}
 
 export interface RuleTriggerDto {
   kind: TriggerKind
@@ -124,8 +145,11 @@ export interface RuleTriggerDto {
    *   kind='product'     → string (productId)
    *   kind='mnn'         → string (MNN name; опц. exclude:string[])
    *   kind='product_any' → string[] (productIds)
+   *   kind='acc_*'       → string (stable key from the active ACC taxonomy snapshot)
    */
   value: string | string[]
+  /** Human-readable ACC taxonomy label, when supplied by a scoped rule. */
+  label?: string | null
   exclude?: string[]
 }
 
@@ -482,6 +506,11 @@ export interface PromoOfferProductRef {
 export interface PromoRuleProductRef {
   medusaProductId: string
   name: string
+  /** Missing on legacy rules; broad ACC triggers use an empty medusaProductId. */
+  triggerKind?: PromoTriggerKind
+  /** Stable ACC taxonomy key, never a mutable display label. */
+  triggerValue?: string | null
+  triggerLabel?: string | null
   /** Reward for the promoted campaign product in this pair (0 = no reward). */
   bonus?: number | null
   brand?: string | null
@@ -1190,6 +1219,11 @@ export interface TrainingProgramDto {
   shortDescription: string
   description: string
   coverUrl: string | null
+  certificateEpharmLogoUrl: string | null
+  certificatePartnerLogoUrl: string | null
+  certificateSignerName: string
+  certificateValidityMonths: number
+  certificateTemplate: string
   category: string
   manufacturer: string
   brand: string
@@ -1236,6 +1270,10 @@ export interface CreateTrainingProgramRequest {
   shortDescription?: string
   description?: string
   coverUrl?: string | null
+  certificateEpharmLogoUrl?: string | null
+  certificatePartnerLogoUrl?: string | null
+  certificateSignerName?: string
+  certificateValidityMonths?: number
   category?: string
   manufacturer?: string
   brand?: string
@@ -1257,6 +1295,8 @@ export interface CreateTrainingProgramRequest {
 
 export type UpdateTrainingProgramRequest = Partial<CreateTrainingProgramRequest> & {
   clearCoverUrl?: boolean
+  clearCertificateEpharmLogoUrl?: boolean
+  clearCertificatePartnerLogoUrl?: boolean
   clearManager?: boolean
   clearStartsAt?: boolean
   clearEndsAt?: boolean
