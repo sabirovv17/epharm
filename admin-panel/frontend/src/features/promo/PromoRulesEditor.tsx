@@ -806,6 +806,9 @@ function PairCard({
             )}
           </label>
         </div>}
+        {!isBroadTrigger && (
+          <p className="text-[11px] text-ink-500">{t('pr.posmIdentifiersHint')}</p>
+        )}
 
         <textarea
           className={`inp text-[13px] ${errors[`${pathPrefix}.script`] ? 'border-accent-danger' : ''}`}
@@ -948,6 +951,53 @@ function PairCard({
                     }}
                   />
                 </div>
+                <div className="col-span-3 grid gap-2 sm:grid-cols-2">
+                  <label className="flex min-w-0 flex-col gap-1">
+                    <span className="text-[11px] font-semibold text-ink-500">{t('pr.barcode')}</span>
+                    <Input
+                      className="num"
+                      value={offer.barcode ?? ''}
+                      disabled={disabled}
+                      maxLength={PROMO_RULE_LIMITS.barcode}
+                      data-testid={`pr-offer-barcode-${domId}-${offerIndex}`}
+                      onChange={(event) => {
+                        onClearError(`${pathPrefix}.additionalRecommendations[${offerIndex}].barcode`)
+                        onPatch({
+                          additionalRecommendations: offers.map((current) =>
+                            current.medusaProductId === offer.medusaProductId
+                              ? { ...current, barcode: event.target.value || null }
+                              : current,
+                          ),
+                        })
+                      }}
+                    />
+                  </label>
+                  <label className="flex min-w-0 flex-col gap-1">
+                    <span className="text-[11px] font-semibold text-ink-500">{t('pr.ipartId')}</span>
+                    <Input
+                      className="num"
+                      value={offer.ipartId ?? ''}
+                      disabled={disabled}
+                      maxLength={PROMO_RULE_LIMITS.ipartId}
+                      data-testid={`pr-offer-ipart-${domId}-${offerIndex}`}
+                      onChange={(event) => {
+                        onClearError(`${pathPrefix}.additionalRecommendations[${offerIndex}].ipartId`)
+                        onPatch({
+                          additionalRecommendations: offers.map((current) =>
+                            current.medusaProductId === offer.medusaProductId
+                              ? { ...current, ipartId: event.target.value || null }
+                              : current,
+                          ),
+                        })
+                      }}
+                    />
+                  </label>
+                </div>
+                {!offer.barcode && !offer.ipartId && (
+                  <p className="col-span-3 text-[11px] text-ink-500">
+                    {t('pr.posmIdentifiersHint')}
+                  </p>
+                )}
               </li>
               )
             })}

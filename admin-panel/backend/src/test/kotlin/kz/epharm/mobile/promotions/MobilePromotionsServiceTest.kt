@@ -5,6 +5,7 @@ import io.mockk.mockk
 import kz.epharm.mobile.catalog.dto.MobileCatalogProductDto
 import kz.epharm.mobile.catalog.service.MobileCatalogService
 import kz.epharm.mobile.promotions.service.MobilePromotionsService
+import kz.epharm.mobile.promotions.service.MobilePromoEligibility
 import kz.epharm.promo.entity.PromoEntity
 import kz.epharm.promo.entity.PromoStatus
 import kz.epharm.promo.entity.PromoTier
@@ -132,5 +133,33 @@ class MobilePromotionsServiceTest {
         every { repo.findAllByStatusRawAndMedusaProductIdIsNotNullOrderByUpdatedAtDesc(ACTIVE) } returns listOf(p)
         // пустые tiers отфильтрованы ДО Medusa → cardsByIds не зовётся (не застаблен)
         assertTrue(service.activeFeed(today).isEmpty())
+    }
+
+    @Test
+    fun `cutover feed excludes unpublished site cards and campaigns with invalid tiers or dates`() {
+        val current = promo("pr_current", "old-current", start = today, end = today)
+        val hidden = promo("pr_hidden", "old-hidden")
+        val expired = promo("pr_expired", "old-expired", end = today.minusDays(1))
+        val invalid = promo("pr_invalid", "old-invalid", tiers = listOf(PromoTier(1, 0, 10)))
+        every { repo.findAllByStatusRawAndMedusaProductIdIsNotNullOrderByUpdatedAtDesc(ACTIVE) } returns
+            listOf(current, hidden, expired, invalid)
+        every { catalog.cardsByIds(listOf("old-current", "old-hidden")) } returns
+            mapOf("old-current" to card("prod_Daribar_current"))
+
+        val feed = MobilePromotionsService(repo, catalog, eshopReadEnabled = true).activeFeed(today)
+
+        assertEquals(1, feed.size)
+        assertEquals("prod_Daribar_current", feed.single().productId)
+    }
+
+    @Test
+    fun `eligibility uses inclusive dates and rejects malformed price ladders`() {
+        val boundary = promo("pr_boundary", "prod_a", start = today, end = today)
+        assertTrue(MobilePromoEligibility.includes(boundary, today))
+        assertTrue(!MobilePromoEligibility.includes(boundary, today.plusDays(1)))
+        val malformed = promo("pr_bad", "prod_b", tiers = listOf(
+            PromoTier(2, 100, 0), PromoTier(1, 90, 0),
+        ))
+        assertTrue(!MobilePromoEligibility.includes(malformed, today))
     }
 }

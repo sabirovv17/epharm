@@ -136,8 +136,8 @@ test.describe('Promo — create кампанию', () => {
   }
 
   test.beforeEach(async ({ loggedInPage }) => {
-    // UI-сценарии не должны зависеть от доступности внешней Medusa. Интеграция
-    // backend↔Medusa покрывается backend-тестами; здесь фиксируем контракт формы.
+    // UI-сценарии не должны зависеть от доступности внешнего источника каталога.
+    // Здесь фиксируем контракт формы с backend API.
     await loggedInPage.route('**/api/admin/storefront/products**', async (route) => {
       const path = new URL(route.request().url()).pathname
       const isDetail = path.endsWith(`/${storefrontProduct.id}`)
@@ -168,12 +168,12 @@ test.describe('Promo — create кампанию', () => {
     await expect(loggedInPage.getByTestId('create-price-readonly')).toBeVisible()
   }
 
-  test('«Новая кампания» открывает товарную форму Medusa', async ({ loggedInPage }) => {
+  test('«Новая кампания» открывает товарную форму полного каталога', async ({ loggedInPage }) => {
     await loggedInPage.getByRole('button', { name: /Новая кампания/ }).first().click()
     const dialog = loggedInPage.getByRole('dialog', { name: /Новая кампания/ })
     await expect(dialog).toBeVisible()
-    await expect(dialog.getByText(/Один товар из витрины/i)).toBeVisible()
-    await expect(dialog.getByPlaceholder(/Поиск товара в витрине Medusa/)).toBeVisible()
+    await expect(dialog.getByText('Товар из полного каталога', { exact: true })).toBeVisible()
+    await expect(dialog.getByPlaceholder(/Поиск товара в полном каталоге/)).toBeVisible()
   })
 
   test('выбор товара заполняет название и показывает read-only цену', async ({ loggedInPage }) => {

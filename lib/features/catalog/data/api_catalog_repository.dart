@@ -2,8 +2,9 @@ import '../../../core/network/api_client.dart';
 import 'catalog_models.dart';
 import 'catalog_repository.dart';
 
-/// Реальный каталог из бэкенда (`/api/mobile/catalog/*`, под JWT). Бэкенд проксирует
-/// Medusa-витрину — телефон не знает про внешний сервис и не хранит его ключ.
+/// Каталог акционных товаров из бэкенда (`/api/mobile/catalog/*`). Backend
+/// выбирает опубликованные на сайте товары с действующей акцией; телефон не
+/// соединяется с внешним источником каталога и не хранит его ключ.
 class ApiCatalogRepository implements CatalogRepository {
   ApiCatalogRepository(this._client);
 

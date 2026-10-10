@@ -15,17 +15,16 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
 /**
- * Реальный каталог товаров (витрина inkar.kz через Medusa) для мобильного приложения.
+ * Каталог товаров мобильного приложения в стабильном Epharm DTO.
  *
  * ПУБЛИЧНЫЙ эндпоинт (permitAll в SecurityConfig): лента товаров на главной видна БЕЗ
  * логина — фармацевт листает каталог ещё до входа. JWT нужен только для бонусов/чеков
  * (/api/mobile/me, /receipts), а не для просмотра витрины. Идентичность фармацевта в
  * выдаче каталога не используется, поэтому principal здесь не инъектируется.
  *
- * Бэкенд проксирует Medusa, чтобы:
- *  - publishable-ключ Medusa не светился в бинаре телефона;
- *  - телефон ходил только в наш HTTPS (Medusa пока на HTTP);
- *  - можно было кешировать и нормализовать неполные данные.
+ * После переключения источника список, карточки и рекомендации ограничены товарами,
+ * опубликованными на сайте и имеющими действующую товарную акцию. Проверка выполняется
+ * сервером, поэтому прямой запрос по ID не открывает остальные товары.
  */
 @RestController
 @RequestMapping("/api/mobile/catalog")
@@ -33,7 +32,7 @@ class MobileCatalogController(
     private val service: MobileCatalogService,
 ) {
 
-    /** Список/поиск товаров. `q` — строка поиска, `category` — id категории Medusa. */
+    /** Список/поиск товаров. `q` — строка поиска, `category` — id категории. */
     @GetMapping("/products")
     fun products(
         @RequestParam(required = false) q: String?,
@@ -49,7 +48,7 @@ class MobileCatalogController(
     )
 
     /**
-     * Карточка товара по medusa-id.
+     * Карточка товара по canonical id или проверенному legacy id.
      *
      * ИБ: эндпоинт публичный (товары видны до логина). hasActiveCampaign/promoId/campaignTitle
      * отдаём всем, НО размер бонуса фармацевту коммерчески чувствителен — поэтому bonus

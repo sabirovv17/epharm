@@ -1,5 +1,7 @@
 package kz.epharm.promo.service
 
+import kz.epharm.eshop.EshopCatalogSnapshotRepository
+import kz.epharm.catalog.repository.ProductRepository
 import kz.epharm.medusa.service.MedusaPriceService
 import kz.epharm.pharmacies.repository.PharmacyRepository
 import kz.epharm.promo.dto.CreatePromoRequest
@@ -15,15 +17,16 @@ import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import kz.epharm.shared.validation.BarcodeNormalizer
 import org.springframework.http.HttpStatus
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
 /**
- * Кампании-акции (ТЗ §3.2.3). T1: 1 кампания = 1 товар Medusa.
+ * Кампании-акции (ТЗ §3.2.3). T1: 1 кампания = 1 товар каталога.
  *
- *  - цена товара берётся ТОЛЬКО из Medusa (read-only), кладётся в единственный ценовой порог
- *    `{minQty:1, price:<Medusa>, bonus:<бонус фармацевту>}`. Пользователь цену не задаёт;
+ *  - цена товара берётся из текущего источника каталога и кладётся в единственный
+ *    ценовой порог. Пользователь цену не задаёт;
  *  - бонус фармацевту за продажу задаётся в админке (поле `pharmacistBonus`);
  *  - фото/описание можно переопределить вручную (override-поля), если PIM-данные не устраивают;
  *  - один товар не может быть в двух живых (не-archived) кампаниях.
@@ -34,7 +37,14 @@ class PromoService(
     private val medusaPriceService: MedusaPriceService,
     private val ruleRepository: RuleRepository,
     private val pharmacyRepository: PharmacyRepository,
+    private val eshop: EshopCatalogSnapshotRepository? = null,
+    @Value("\${app.eshop.catalog.read-enabled:false}") private val eshopReadEnabled: Boolean = false,
+    private val productRepository: ProductRepository? = null,
+    @Value("\${app.eshop.catalog.admin-read-enabled:false}") private val eshopAdminReadEnabled: Boolean = false,
 ) {
+    private val shopAuthoringEnabled: Boolean get() = eshopReadEnabled || eshopAdminReadEnabled
+    private fun siteDraftBeforeMobileCutover(id: String): Boolean =
+        eshopAdminReadEnabled && !eshopReadEnabled && eshop?.isCanonicalId(id) == true
 
     @Transactional(readOnly = true)
     fun list(status: PromoStatus? = null): List<PromoDto> {
@@ -75,11 +85,11 @@ class PromoService(
         ).also {
             it.status = req.status ?: PromoStatus.draft
         }
-        // Цена — из Medusa (read-only), бонус — из запроса; кладём в единственный порог.
+        // Цена — из текущего каталога (read-only), бонус — из запроса.
         syncTier(entity, desiredBonus = req.pharmacistBonus, refetchPrice = true)
-        // Штрих-код продвигаемого товара — из Medusa (для матчинга кассы); fallback на присланный.
+        // Проверенный кассовый штрих-код сохраняем; старый источник может его заполнить.
         syncBarcode(entity, refetch = true)
-        validatePromo(entity)
+        validatePromo(entity, sourceActivation = entity.status == PromoStatus.active)
         val saved = promoRepository.save(entity)
         if (req.status != null) syncGeneratedRuleStatuses(saved)
         return dto(saved)
@@ -88,6 +98,7 @@ class PromoService(
     @Transactional
     fun update(id: String, req: UpdatePromoRequest): PromoDto {
         val entity = loadOrThrow(id)
+        val wasActive = entity.status == PromoStatus.active
         if (entity.status == PromoStatus.archived) {
             throw AppException(
                 ErrorCode.CONFLICT,
@@ -110,7 +121,7 @@ class PromoService(
         req.budget?.let { entity.budget = it }
         req.kpi?.let { entity.kpi = it.trim() }
         req.cover?.let { entity.cover = it.trim() }
-        // Товарная акция. Смена товара → надо перетянуть цену из Medusa.
+        // Товарная акция. Смена товара → обновляем цену из текущего каталога.
         val productChanged = req.medusaProductId != null
         req.medusaProductId?.let { entity.medusaProductId = it.trim().takeIf { s -> s.isNotBlank() } }
         req.productName?.let { entity.productName = it.trim() }
@@ -126,14 +137,14 @@ class PromoService(
         req.dateStart?.let { entity.dateStart = it }
         req.dateEnd?.let { entity.dateEnd = it }
 
-        // Пересобираем порог: бонус — из запроса (или текущий), цена — из Medusa при смене товара
+        // Пересобираем порог: бонус — из запроса (или текущий), цена — из каталога при смене товара
         // или если ещё не проставлена.
         val desiredBonus = req.pharmacistBonus ?: entity.pharmacistBonus
         syncTier(entity, desiredBonus = desiredBonus, refetchPrice = productChanged || entity.price == 0L)
-        // Штрих-код перетягиваем из Medusa при смене товара (или если ещё не проставлен).
+        // Кассовый штрих-код обновляем, только если источник предоставляет проверенный код.
         syncBarcode(entity, refetch = productChanged || entity.barcode.isNullOrBlank())
 
-        validatePromo(entity)
+        validatePromo(entity, sourceActivation = entity.status == PromoStatus.active && (!wasActive || productChanged))
         val saved = promoRepository.save(entity)
         if (req.status != null) syncGeneratedRuleStatuses(saved)
         return dto(saved)
@@ -179,7 +190,7 @@ class PromoService(
     /**
      * Синхронизирует единственный ценовой порог кампании:
      *   - товар не привязан → пороги пусты;
-     *   - привязан → [{minQty:1, price, bonus:desiredBonus}], где price из Medusa
+     *   - привязан → [{minQty:1, price, bonus:desiredBonus}], где price из каталога
      *     (при refetchPrice=true), иначе сохраняем текущую цену.
      */
     private fun syncTier(e: PromoEntity, desiredBonus: Long, refetchPrice: Boolean) {
@@ -189,7 +200,12 @@ class PromoService(
             return
         }
         val price = if (refetchPrice) {
-            medusaPriceService.priceOf(mpid) ?: e.price
+            val current = if (siteDraftBeforeMobileCutover(mpid)) {
+                medusaPriceService.priceOf(eshop?.findById(mpid, publicOnly = false)?.product)
+            } else {
+                medusaPriceService.priceOf(mpid)
+            }
+            current ?: e.price
         } else {
             e.price
         }
@@ -199,7 +215,8 @@ class PromoService(
     /**
      * Синхронизирует штрих-код продвигаемого товара:
      *   - товар не привязан → штрих-код очищается;
-     *   - привязан + refetch → тянем EAN-13 из Medusa (snapshot); недоступен → сохраняем текущий.
+     *   - привязан + refetch → тянем EAN-13 из текущего снимка, если он есть;
+     *     иначе сохраняем проверенный кассовый ключ.
      * Штрих-код — ключ матчинга POSM-кассы; стампится на ProductEntity в PromoRulesService.
      */
     private fun syncBarcode(e: PromoEntity, refetch: Boolean) {
@@ -209,7 +226,7 @@ class PromoService(
             e.ipartId = null
             return
         }
-        if (refetch) {
+        if (refetch && !siteDraftBeforeMobileCutover(mpid)) {
             val ean = medusaPriceService.snapshotOf(mpid)?.barcode?.trim()?.takeIf { it.isNotBlank() }
             if (ean != null) e.barcode = ean
         }
@@ -260,7 +277,7 @@ class PromoService(
      * Бизнес-валидация: даты согласованы; активная кампания обязана иметь товар (1:1);
      * один товар Medusa не может быть в двух живых (не-archived) кампаниях.
      */
-    private fun validatePromo(e: PromoEntity) {
+    private fun validatePromo(e: PromoEntity, sourceActivation: Boolean = false) {
         val start = e.dateStart
         val end = e.dateEnd
         if (start != null && end != null && end.isBefore(start)) {
@@ -278,11 +295,35 @@ class PromoService(
                 HttpStatus.BAD_REQUEST,
             )
         }
+        val sourceId = e.medusaProductId
+        if (eshopAdminReadEnabled && !eshopReadEnabled && sourceActivation && sourceId != null &&
+            eshop?.isCanonicalId(sourceId) == true) {
+            throw AppException(
+                ErrorCode.VALIDATION_FAILED,
+                "Нельзя активировать акцию: мобильный каталог сайта ещё не включён",
+                HttpStatus.BAD_REQUEST,
+            )
+        }
+        if (shopAuthoringEnabled && sourceActivation && sourceId != null && eshop?.isCanonicalId(sourceId) == true &&
+            eshop?.findById(sourceId, publicOnly = true) == null) {
+            throw AppException(
+                ErrorCode.VALIDATION_FAILED,
+                "Нельзя активировать акцию: товар $sourceId ещё не опубликован в каталоге",
+                HttpStatus.BAD_REQUEST,
+            )
+        }
+        if (shopAuthoringEnabled && sourceActivation) validateExistingRuleKeys(e)
         // 1:1 — товар не должен быть в другой живой кампании.
         val mpid = e.medusaProductId
         if (mpid != null && e.status != PromoStatus.archived) {
-            val clash = promoRepository.findAllByMedusaProductId(mpid)
-                .any { it.id != e.id && it.status != PromoStatus.archived }
+            val canonical = if (shopAuthoringEnabled) eshop?.canonicalId(mpid) ?: mpid else mpid
+            val candidates = if (shopAuthoringEnabled) promoRepository.findAllByMedusaProductIdIsNotNull()
+                else promoRepository.findAllByMedusaProductId(mpid)
+            val clash = candidates.any {
+                it.id != e.id && it.status != PromoStatus.archived &&
+                    (if (shopAuthoringEnabled) eshop?.canonicalId(it.medusaProductId.orEmpty())
+                        ?: it.medusaProductId else it.medusaProductId) == canonical
+            }
             if (clash) {
                 throw AppException(
                     ErrorCode.CONFLICT,
@@ -291,5 +332,31 @@ class PromoService(
                 )
             }
         }
+    }
+
+    /** A draft pair with no cashier key must not become active through promo PATCH. */
+    private fun validateExistingRuleKeys(promo: PromoEntity) {
+        val source = eshop ?: return
+        val products = productRepository ?: return
+        ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc(promo.id)
+            .filter { it.trigger.kind in setOf("product", "product_any") && it.card?.pairActive != false }
+            .forEach { rule ->
+                val triggerIds = when (rule.trigger.kind) {
+                    "product" -> listOfNotNull(rule.trigger.value as? String)
+                    "product_any" -> (rule.trigger.value as? List<*>)?.mapNotNull { it as? String }.orEmpty()
+                    else -> emptyList()
+                }
+                (triggerIds + rule.recommend).forEach { id ->
+                    if (!source.isCanonicalId(id)) return@forEach
+                    val product = products.findById(id).orElse(null)
+                    if (product?.barcode.isNullOrBlank() && product?.ipartId.isNullOrBlank()) {
+                        throw AppException(
+                            ErrorCode.VALIDATION_FAILED,
+                            "Нельзя активировать правило ${rule.id}: у товара $id нет проверенного штрихкода или iPartID кассы",
+                            HttpStatus.BAD_REQUEST,
+                        )
+                    }
+                }
+            }
     }
 }

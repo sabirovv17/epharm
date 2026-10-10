@@ -20,7 +20,19 @@ class Handler(BaseHTTPRequestHandler):
             payload = {"releaseId": (os.environ.get("FRONTEND_FIXTURE_RELEASE_ID", "v0.1.14")
                                     if path == "/release.json" else "v0.1.14")}
             if path == "/api/health":
-                payload.update({"status": "ok", "catalogSnapshot": {"ready": True, "products": 1}})
+                if os.environ.get("ESHOP_FIXTURE_READ") == "true":
+                    payload.update({
+                        "status": "ok",
+                        "eshopCatalogSnapshot": {
+                            "syncEnabled": True, "readEnabled": True,
+                            "ready": os.environ.get("ESHOP_FIXTURE_UNREADY") != "true",
+                            "products": 29326, "publishedProducts": 8784,
+                        },
+                    })
+                    if os.environ.get("ESHOP_FIXTURE_NO_MEDUSA") != "true":
+                        payload["catalogSnapshot"] = {"ready": False, "products": 0}
+                else:
+                    payload.update({"status": "ok", "catalogSnapshot": {"ready": True, "products": 1}})
         elif path == "/api/mobile/catalog/products":
             payload = {"items": [{"id": "prod_smoke", "name": "Парацетамол"}], "total": 1}
         else:

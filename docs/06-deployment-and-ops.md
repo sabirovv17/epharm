@@ -102,12 +102,14 @@ Important current values/policies:
   `DARIBAR_OTP_BASE_URL=https://prod-backoffice.daribar.com` and a finite request timeout.
 - `OTP_DEV_MODE=true` exposes the shared fixed code and is permitted only for local/test environments.
 - `S3_PUBLIC_URL` must match the external Caddy route. It is `https://epharm.inkar.kz/s3`.
-- Medusa defaults in compose are publishable storefront ids, not admin/root secrets.
-- Release preparation requires `MEDUSA_ENABLED=true` and runs `tools/smoke-medusa.sh` from the
-  deployment host. Post-deploy smoke also requires a non-empty `/api/mobile/catalog/products`
-  response and an exact-name search from the completed PostgreSQL catalogue snapshot. On the first
-  snapshot-enabled release it waits up to `CATALOG_SNAPSHOT_WAIT_SECONDS` (default 1800); a
-  disabled/broken catalogue triggers the normal automatic application rollback.
+- Site-catalogue sync and read cutover use separate flags. `ESHOP_CATALOG_TOKEN` is a private
+  server-to-server secret, never a browser value. The exporter and access policy are described in
+  `21-site-catalog-integration.md` and `ops/eshop-catalog-exporter/README.md`.
+- Release preparation checks the private exporter with `tools/smoke-eshop-catalog.sh` when site
+  sync is enabled; the legacy Medusa smoke applies only before site preload. Post-deploy smoke
+  requires a complete PostgreSQL catalogue generation, a non-empty mobile list and exact-name
+  search. On the first snapshot release it waits up to `CATALOG_SNAPSHOT_WAIT_SECONDS` (default
+  1800); a broken catalogue triggers application rollback.
 - Live storefront/PIM/SSH credentials are documented in their existing credential files and must not be
   copied elsewhere.
 
@@ -180,6 +182,87 @@ copy of the forward-migrated database. Application rollback does not undo schema
 `tools/release/tests/archive-two-image-contract.sh` covers metadata drift, wrong artifact IDs,
 dry-run, successful two-image switch, failed smoke/automatic rollback, and tampered backup without
 touching production.
+
+### Staged shop-catalogue read cutover after preload
+
+Do not start this sequence until the `.80` exporter is running, VMware disk
+latency has been resolved, and the exporter, snapshot, backup and POSM gates in
+`21-site-catalog-integration.md` pass. Use the archive two-image transaction
+above with `ESHOP_CATALOG_SYNC_ENABLED=true`,
+`ESHOP_CATALOG_ADMIN_READ_ENABLED=false` and `ESHOP_CATALOG_READ_ENABLED=false`.
+Its rollback bundle must match the final staged `.env.prod`, Compose and Caddy
+files. Verify a complete shop snapshot, all/published counts, aliases, prices,
+search, images and existing POSM recommendations. Keep the old snapshot through
+the observation window.
+
+`deploy-archive-two-image.sh` does not change `.env.prod`. The dedicated
+backend-only transaction first enables the full site master for admin:
+
+```bash
+cd /home/adm-quasar/epharm
+sudo ./tools/release/switch-eshop-catalog-read.sh \
+  <running-backend-tag> <running-frontend-tag> --admin --dry-run
+sudo ./tools/release/switch-eshop-catalog-read.sh \
+  <running-backend-tag> <running-frontend-tag> --admin
+```
+
+Check admin list, detail, search and published filter against known site items.
+Mobile still reads the previous catalogue. New site-ID promotions may be drafted
+but cannot be activated until mobile reads are enabled. The scheduled POSM
+promotion-price refresh retains its previous source during this admin-only stage.
+Confirm existing
+promotions and live POSM recommendation/pop-up flows before proceeding.
+
+Before mobile cutover, reconcile every active campaign to a published site card;
+keep any unmatched legacy POSM rule and cashier key intact. In a staging fixture,
+test three items: published with an active valid promotion, published without a
+promotion, and a product hidden on the site after a promotion was activated.
+Confirm that the first is visible through mobile list/detail, the other two are
+absent/404, and all three remain visible in admin. In production, smoke a known
+published active campaign and a published non-campaign item. The mobile count
+depends on active promotions; do not set a fixed count gate. Then run:
+
+```bash
+sudo ./tools/release/switch-eshop-catalog-read.sh \
+  <running-backend-tag> <running-frontend-tag> --mobile --dry-run
+sudo ./tools/release/switch-eshop-catalog-read.sh \
+  <running-backend-tag> <running-frontend-tag> --mobile
+```
+
+Both stages share the application release lock, require an owner-matched
+mode-0600 `.env.prod` and a complete site snapshot updated within 30 minutes.
+Each verifies rendered Compose flags, saves the byte-exact previous env with a
+private checksum manifest, atomically changes only its own flag, recreates only
+backend without building, and checks `/api/health`, mobile catalogue and search.
+Mobile stage requires the verified active admin transaction. A failed switch
+restores its previous env and backend. `--dry-run` makes no application or env
+change. Successful records use separate `admin-active-transaction` and
+`mobile-active-transaction` pointers under `releases/catalog-read-switch/`.
+
+For delayed business/POSM regression, roll back mobile first, then admin if
+needed. Do this before another image/configuration release; each rollback
+refuses changed release, Compose or Caddy configuration:
+
+```bash
+sudo ./tools/release/switch-eshop-catalog-read.sh \
+  <running-backend-tag> <running-frontend-tag> --rollback-mobile --dry-run
+sudo ./tools/release/switch-eshop-catalog-read.sh \
+  <running-backend-tag> <running-frontend-tag> --rollback-mobile
+# Only if the admin stage must also be reversed:
+sudo ./tools/release/switch-eshop-catalog-read.sh \
+  <running-backend-tag> <running-frontend-tag> --rollback-admin --dry-run
+sudo ./tools/release/switch-eshop-catalog-read.sh \
+  <running-backend-tag> <running-frontend-tag> --rollback-admin
+```
+
+Rollback checks the private manifest, exact saved/current env checksums and
+one-flag difference, image tags and unchanged frontend, Caddy and PostgreSQL
+containers. It recreates only backend, verifies previous health and mobile
+catalogue/search, then archives its pointer. On failure it tries to restore the
+state from before the rollback; `CRITICAL` means recovery could not be verified.
+Escalate any `CRITICAL` before further release work. A new local rollback bundle
+is required before any later image transaction because `.env.prod` changed.
+The contract test is `tools/release/tests/eshop-read-switch-contract.sh`.
 
 ### Backend-only bridge release on an archive-based host
 
@@ -327,5 +410,5 @@ recent restore-test are visible in monitoring.
 - Daribar is an external production dependency for OTP. Monitor request failures and keep the legacy
   p1sms configuration disabled unless an explicit provider rollback is planned.
 - Single backend instance is assumed for payout scheduling unless a distributed lock is added.
-- Medusa still uses HTTP on raw IP; backend/browser image proxy mitigates mixed content for images, not
-  the broader TLS/allowlist concern.
+- Keep the old Medusa credentials only for the bounded rollback window after site cutover; verify
+  that the new backend issues no Medusa requests while site reads are enabled.

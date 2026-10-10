@@ -1,5 +1,6 @@
 package kz.epharm.promo.service
 
+import kz.epharm.eshop.EshopCatalogSnapshotRepository
 import kz.epharm.catalog.entity.ProductEntity
 import kz.epharm.catalog.repository.ProductRepository
 import kz.epharm.catalog.service.AccCatalogTaxonomy
@@ -23,6 +24,7 @@ import kz.epharm.rules.repository.RuleRepository
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import org.springframework.http.HttpStatus
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
@@ -50,7 +52,11 @@ class PromoRulesService(
     private val productRepository: ProductRepository,
     private val medusaPriceService: MedusaPriceService,
     private val accCatalogTaxonomy: AccCatalogTaxonomy,
+    private val eshop: EshopCatalogSnapshotRepository? = null,
+    @Value("\${app.eshop.catalog.read-enabled:false}") private val eshopReadEnabled: Boolean = false,
+    @Value("\${app.eshop.catalog.admin-read-enabled:false}") private val eshopAdminReadEnabled: Boolean = false,
 ) {
+    private val shopAuthoringEnabled: Boolean get() = eshopReadEnabled || eshopAdminReadEnabled
 
     @Transactional(readOnly = true)
     fun view(promoId: String): PromoRulesViewDto {
@@ -100,6 +106,10 @@ class PromoRulesService(
         // Validate all scopes before deleting existing campaign rules.
         val replacementTriggers = config.replacements.map { it to triggerFor(it) }
         val crossSellTriggers = config.crossSells.map { it to triggerFor(it) }
+        if (shopAuthoringEnabled && promo.status == PromoStatus.active) {
+            validateNewSourceExactKeys(promo, replacementTriggers, "replacements")
+            validateNewSourceExactKeys(promo, crossSellTriggers, "crossSells")
+        }
         // Локальный товар-продвигаемый (recommend для замен и кросс-селла).
         val promoted = upsertPromotedProduct(promo, promotedMedusaId)
 
@@ -129,8 +139,10 @@ class PromoRulesService(
 
         // Замены: триггер — заменяемый товар, рекомендация — продвигаемый.
         replacementTriggers
-            .filter { (_, trigger) -> trigger.kind != "product" || trigger.value != promotedMedusaId }
-            .distinctBy { (_, trigger) -> trigger.kind to trigger.value }
+            .filter { (_, trigger) -> trigger.kind != "product" ||
+                sourceKey(trigger.value.toString()) != sourceKey(promotedMedusaId) }
+            .distinctBy { (_, trigger) -> trigger.kind to
+                if (trigger.kind == "product") sourceKey(trigger.value.toString()) else trigger.value }
             .forEach { (ref, trigger) ->
                 if (trigger.kind == "product") upsertProduct(ref)
                 recommendationsFor(ref, promoted).forEachIndexed { offerRank, offer ->
@@ -154,8 +166,10 @@ class PromoRulesService(
 
         // Кросс-селл: триггер — товар уже в чеке, рекомендация — продвигаемый товар кампании.
         crossSellTriggers
-            .filter { (_, trigger) -> trigger.kind != "product" || trigger.value != promotedMedusaId }
-            .distinctBy { (_, trigger) -> trigger.kind to trigger.value }
+            .filter { (_, trigger) -> trigger.kind != "product" ||
+                sourceKey(trigger.value.toString()) != sourceKey(promotedMedusaId) }
+            .distinctBy { (_, trigger) -> trigger.kind to
+                if (trigger.kind == "product") sourceKey(trigger.value.toString()) else trigger.value }
             .forEach { (ref, trigger) ->
                 if (trigger.kind == "product") upsertProduct(ref)
                 recommendationsFor(ref, promoted).forEachIndexed { offerRank, offer ->
@@ -346,18 +360,56 @@ class PromoRulesService(
         ErrorCode.VALIDATION_FAILED, message, HttpStatus.BAD_REQUEST,
     )
 
+    /** Drafts may be prepared without cashier keys; active new exact pairs may not. */
+    private fun validateNewSourceExactKeys(
+        promo: PromoEntity,
+        pairs: List<Pair<PromoRuleProductRefDto, RuleTrigger>>,
+        field: String,
+    ) {
+        val source = eshop ?: return
+        pairs.forEachIndexed { index, (ref, trigger) ->
+            if (!ref.active || trigger.kind != "product") return@forEachIndexed
+            requireSourceKey(source, ref.medusaProductId, ref.barcode, ref.ipartId,
+                "$field[$index].barcode/ipartId")
+            requireSourceKey(source, promo.medusaProductId.orEmpty(), promo.barcode, promo.ipartId,
+                "$field[$index].promotedProduct.barcode/ipartId")
+            ref.additionalRecommendations.forEachIndexed { offerIndex, offer ->
+                requireSourceKey(source, offer.medusaProductId, offer.barcode, offer.ipartId,
+                    "$field[$index].additionalRecommendations[$offerIndex].barcode/ipartId")
+            }
+        }
+    }
+
+    private fun requireSourceKey(
+        source: EshopCatalogSnapshotRepository,
+        productId: String,
+        barcode: String?,
+        ipartId: String?,
+        field: String,
+    ) {
+        if (!source.isCanonicalId(productId)) return
+        val existing = productRepository.findById(productId).orElse(null)
+        val hasKey = !barcode.isNullOrBlank() || !ipartId.isNullOrBlank() ||
+            !existing?.barcode.isNullOrBlank() || !existing?.ipartId.isNullOrBlank()
+        if (!hasKey) invalidTrigger("$field: у товара $productId нужен проверенный штрихкод или iPartID кассы")
+    }
+
     private data class OfferRecommendation(val product: ProductEntity, val bonus: Int?)
 
     /** Основной товар кампании + дополнительные варианты, всего не более пяти. */
     private fun recommendationsFor(ref: PromoRuleProductRefDto, promoted: ProductEntity): List<OfferRecommendation> {
         val extras = ref.additionalRecommendations.asSequence()
-            .filter { it.medusaProductId != promoted.id && it.medusaProductId != ref.medusaProductId }
-            .distinctBy { it.medusaProductId }
+            .filter { sourceKey(it.medusaProductId) != sourceKey(promoted.id) &&
+                sourceKey(it.medusaProductId) != sourceKey(ref.medusaProductId) }
+            .distinctBy { sourceKey(it.medusaProductId) }
             .take(4)
             .map { offer -> OfferRecommendation(upsertOfferProduct(offer), offer.bonus) }
             .toList()
         return listOf(OfferRecommendation(promoted, ref.bonus)) + extras
     }
+
+    private fun sourceKey(id: String): String =
+        if (shopAuthoringEnabled) eshop?.canonicalId(id) ?: id else id
 
     /** Локальный товар под продвигаемый (id = medusaProductId; имя/цена из кампании/Medusa). */
     private fun upsertPromotedProduct(promo: PromoEntity, medusaId: String): ProductEntity {

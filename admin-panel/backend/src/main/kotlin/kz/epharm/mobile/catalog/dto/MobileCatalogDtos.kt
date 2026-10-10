@@ -1,8 +1,8 @@
 package kz.epharm.mobile.catalog.dto
 
 /**
- * Мобильный контракт каталога — НАШ чистый формат поверх Medusa Store API.
- * Мобилка не знает про Medusa: ходит в `/api/mobile/catalog/…`, получает эти DTO.
+ * Мобильный контракт каталога — наш стабильный формат независимо от источника.
+ * Мобилка ходит только в `/api/mobile/catalog/…` и получает опубликованные товары.
  *
  * `price`/`imageUrl`/`brand`/`category` nullable: реальный каталог наполняется
  * постепенно (часть товаров пока без цены/фото) — приложение показывает заглушки.
@@ -22,6 +22,8 @@ data class MobileCatalogProductDto(
     val priceMin: Int? = null,        // retail fallback по аптекам: минимум
     val priceMax: Int? = null,        // retail fallback по аптекам: максимум
     val pharmacyPriceCount: Int? = null,
+    /** Admin catalogue shows the full master; mobile endpoints only expose published rows. */
+    val published: Boolean = true,
 )
 
 data class MobileCatalogPageDto(
@@ -37,7 +39,7 @@ data class MobileCatalogMarketplaceLinkDto(
     val price: Int?,
 )
 
-/** Вопрос-ответ из ПИМ (Medusa metadata.faq) для карточки товара. */
+/** Вопрос-ответ из каталожных метаданных для карточки товара. */
 data class MobileCatalogQaDto(
     val q: String,
     val a: String,
@@ -61,11 +63,12 @@ data class MobileCatalogDetailDto(
     val description: String?,
     val keyFacts: List<String>,
     val marketplaceLinks: List<MobileCatalogMarketplaceLinkDto>,
-    /** Вопрос-ответ из ПИМ (Medusa metadata.faq). Пусто — секции Q&A нет. */
+    /** Вопрос-ответ из каталога. Пусто — секции Q&A нет. */
     val qa: List<MobileCatalogQaDto>,
     val priceMin: Int? = null,
     val priceMax: Int? = null,
     val pharmacyPriceCount: Int? = null,
+    val published: Boolean = true,
     /**
      * Есть ли на этот товар активная кампания (PromoEntity со статусом active). Отдаём всем
      * (анониму тоже) — мобилка по нему решает, кликабельна ли карточка/кнопка «акция в чек».

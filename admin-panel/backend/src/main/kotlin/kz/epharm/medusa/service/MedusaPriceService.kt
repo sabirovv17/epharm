@@ -1,37 +1,45 @@
 package kz.epharm.medusa.service
 
+import kz.epharm.eshop.EshopCatalogSnapshotRepository
 import kz.epharm.medusa.client.MedusaClient
 import kz.epharm.medusa.dto.MedusaProduct
 import kz.epharm.medusa.dto.toRetailPriceSummary
 import kz.epharm.shared.validation.BarcodeNormalizer
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import org.springframework.beans.factory.annotation.Value
 import kotlin.math.roundToLong
 
 /**
- * Единый резолвер цены товара из Medusa (variants.calculatedPrice).
+ * Единый резолвер цены товара из текущего каталога (variants.calculatedPrice).
  *
  * В отличие от [kz.epharm.mobile.catalog.service.MobileCatalogService] — БЕЗ кэша:
  * нужен для регулярного рефреша цен (планировщик) и для подстановки цены при создании
  * кампании, где важна актуальность, а не экономия round-trip'ов.
  *
- * Цена «только из Medusa» — пользователь не может задать её руками (T1).
+ * Цена всегда приходит из источника каталога; пользователь не задаёт её руками (T1).
  */
 @Service
 class MedusaPriceService(
     private val medusa: MedusaClient,
+    private val eshop: EshopCatalogSnapshotRepository? = null,
+    @Value("\${app.eshop.catalog.read-enabled:false}") private val eshopReadEnabled: Boolean = false,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    /** Активен, только если активен сам клиент Medusa (иначе цену взять неоткуда). */
-    val active: Boolean get() = medusa.active
+    /** Активен, когда доступен выбранный источник цен. */
+    val active: Boolean get() = if (eshopReadEnabled) eshop?.hasCompleteSnapshot() == true else medusa.active
 
     /**
-     * Цена товара в тенге (целое). null — Medusa выключена/недоступна или у товара нет цены.
+     * Цена товара в тенге (целое). null — источник недоступен или у товара нет цены.
      * Бросать наверх не нужно: вызывающий (создание промо / планировщик) деградирует на
      * прошлое значение.
      */
     fun priceOf(medusaProductId: String?): Long? {
+        if (eshopReadEnabled) {
+            if (medusaProductId.isNullOrBlank()) return null
+            return priceOf(eshop?.findById(medusaProductId, publicOnly = false)?.product)
+        }
         if (medusaProductId.isNullOrBlank() || !medusa.active) return null
         val nativePrice = try {
             priceOf(medusa.getProduct(medusaProductId))
@@ -49,11 +57,15 @@ class MedusaPriceService(
             ?.roundToLong()
 
     /**
-     * Снимок товара для регулярного рефреша: актуальные цена + обложка одним
-     * запросом к Medusa (фото в витрине тоже меняют, не только цены). null —
-     * Medusa выключена/недоступна. Поля внутри тоже nullable: чего нет — не трогаем.
+     * Снимок товара для регулярного рефреша: цена и обложка одним запросом.
+     * null означает недоступный источник; отсутствующие поля не перезаписываются.
      */
     fun snapshotOf(medusaProductId: String?): MedusaSnapshot? {
+        if (eshopReadEnabled) {
+            if (medusaProductId.isNullOrBlank()) return null
+            val product = eshop?.findById(medusaProductId, publicOnly = false)?.product ?: return null
+            return MedusaSnapshot(priceOf(product), coverOf(product), barcodeOf(product))
+        }
         if (medusaProductId.isNullOrBlank() || !medusa.active) return null
         return try {
             val p = medusa.getProduct(medusaProductId) ?: return null

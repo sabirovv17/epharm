@@ -43,6 +43,7 @@ class MediaProxyController(
     @Value("\${app.medusa.base-url:}") medusaBaseUrl: String,
     @Value("\${app.medusa.connect-timeout-ms:2000}") connectTimeoutMs: Int,
     @Value("\${app.medusa.read-timeout-ms:6000}") readTimeoutMs: Int,
+    @Value("\${app.eshop.catalog.read-enabled:false}") private val eshopReadEnabled: Boolean = false,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -66,6 +67,9 @@ class MediaProxyController(
         // загрузка + меньше трафика на ленте/каталоге). Без `w` — отдаём оригинал.
         @RequestParam(value = "w", required = false) w: Int? = null,
     ): ResponseEntity<ByteArray> {
+        if (eshopReadEnabled) {
+            throw AppException(ErrorCode.NOT_FOUND, "Старый источник изображений отключён", HttpStatus.GONE)
+        }
         val uri = runCatching { URI(raw) }.getOrNull()
             ?: throw badRequest("Некорректный URL изображения")
 

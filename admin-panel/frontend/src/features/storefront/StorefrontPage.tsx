@@ -1,6 +1,5 @@
-// Витрина / каталог — ТЗ Module 3 ↔ HQ. Read-only список реального каталога товаров
-// из Medusa-витрины (через бэкенд-прокси /api/admin/storefront/products). HQ видит тот
-// же каталог, что фармацевт в приложении. Поиск и пагинация — серверные.
+// Полный каталог «Аптеки со склада» для HQ. В приложении видны только
+// опубликованные позиции; поиск, фильтр публикации и пагинация — серверные.
 
 import { useEffect, useState } from 'react'
 import { Button, Empty, PageHeader, SearchInput } from '@/ui'
@@ -12,12 +11,14 @@ import { useT } from '@/i18n'
 import type { StorefrontProductDto } from '@/lib/api-types'
 
 const PAGE = 50
+type PublicationFilter = 'all' | 'published' | 'unpublished'
 
 export default function StorefrontPage() {
   const t = useT()
   const [qInput, setQInput] = useState('')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(0)
+  const [publication, setPublication] = useState<PublicationFilter>('all')
 
   // Дебаунс поиска (300мс) + сброс на первую страницу при новом запросе.
   useEffect(() => {
@@ -32,6 +33,7 @@ export default function StorefrontPage() {
     q,
     page * PAGE,
     PAGE,
+    publication === 'all' ? undefined : publication === 'published',
   )
   const items = data?.items ?? []
   const total = data?.total ?? 0
@@ -51,6 +53,19 @@ export default function StorefrontPage() {
             placeholder={t('sf.search')}
             className="!h-9 !w-[320px] flex-none"
           />
+          <select
+            className="inp !h-9 !w-[190px]"
+            value={publication}
+            onChange={(event) => {
+              setPublication(event.target.value as PublicationFilter)
+              setPage(0)
+            }}
+            aria-label={t('sf.publicationFilter')}
+          >
+            <option value="all">{t('sf.publicationAll')}</option>
+            <option value="published">{t('sf.publicationPublished')}</option>
+            <option value="unpublished">{t('sf.publicationUnpublished')}</option>
+          </select>
           {total > 0 && (
             <span className="text-[12px] font-semibold text-ink-500">
               {t('sf.total', { n: total })}
@@ -87,6 +102,7 @@ export default function StorefrontPage() {
                   <th className="px-3 py-2.5">{t('sf.thMnn')}</th>
                   <th className="px-3 py-2.5">{t('sf.thRx')}</th>
                   <th className="px-3 py-2.5">{t('sf.thCategory')}</th>
+                  <th className="px-3 py-2.5">{t('sf.thPublication')}</th>
                   <th className="px-5 py-2.5 text-right">{t('sf.thPrice')}</th>
                 </tr>
               </thead>
@@ -111,6 +127,11 @@ export default function StorefrontPage() {
                       )}
                     </td>
                     <td className="px-3 py-2.5 text-ink-700">{p.category ?? '—'}</td>
+                    <td className="px-3 py-2.5">
+                      <span className={`chip ${p.published !== false ? 'chip-green' : 'chip-amber'}`}>
+                        {t(p.published !== false ? 'sf.published' : 'sf.unpublished')}
+                      </span>
+                    </td>
                     <td className="num px-5 py-2.5 text-right font-semibold">
                       <PriceCell product={p} fallback={t('sf.priceNa')} />
                     </td>

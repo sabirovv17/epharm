@@ -79,10 +79,18 @@ jobs:
         run: bash storefront/deploy/inkar-server/tests/crm-internal-tls-contract.sh
       - name: Verify immutable release handoff
         run: bash tools/release/tests/prepare-deploy-contract.sh
+      - name: Verify site catalogue exporter and private smoke contract
+        run: |
+          node --check ops/eshop-catalog-exporter/catalog.mjs
+          node --check ops/eshop-catalog-exporter/server.mjs
+          node --test ops/eshop-catalog-exporter/test/*.test.mjs
+          bash tools/release/tests/eshop-catalog-smoke.sh
       - name: Verify backend-only release and rollback
         run: bash tools/release/tests/backend-only-contract.sh
       - name: Verify archive-host two-image release and rollback
         run: bash tools/release/tests/archive-two-image-contract.sh
+      - name: Verify site catalogue read switch and rollback
+        run: bash tools/release/tests/eshop-read-switch-contract.sh
       - name: Verify release route readiness and bounded failure
         run: bash tools/release/tests/smoke-readiness.sh
       - name: Validate shell syntax and executable bits

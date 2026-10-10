@@ -15,9 +15,9 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
 /**
- * Витрина реального каталога (Medusa) в HQ-админке — read-only. Чтобы HQ видел тот же
- * каталог, что и фармацевт в приложении. Делегирует в общий [MobileCatalogService]
- * (каталог един для мобилки и админки).
+ * Каталог в HQ-админке — read-only. Админ видит полный master и признак публикации;
+ * мобильный клиент получает только опубликованные позиции. Делегирует в общий
+ * [MobileCatalogService].
  *
  * Под admin-JWT: `@AuthenticationPrincipal AdminPrincipal?` — pharmacist-токен сюда не
  * пройдёт (в его SecurityContext лежит PharmacistPrincipal, не AdminPrincipal → null → 401).
@@ -33,6 +33,7 @@ class AdminStorefrontController(
         @RequestParam(required = false) q: String?,
         @RequestParam(defaultValue = "50") limit: Int,
         @RequestParam(defaultValue = "0") offset: Int,
+        @RequestParam(required = false) published: Boolean?,
     ): MobileCatalogPageDto {
         requireAdmin(admin)
         return catalog.search(
@@ -41,6 +42,8 @@ class AdminStorefrontController(
             limit = limit,
             offset = offset,
             includeRetailFallbackPrices = true,
+            admin = true,
+            publishedFilter = published,
         )
     }
 
@@ -50,7 +53,7 @@ class AdminStorefrontController(
         @PathVariable id: String,
     ): MobileCatalogDetailDto {
         requireAdmin(admin)
-        return catalog.detail(id, includeRetailFallbackPrices = true)
+        return catalog.detail(id, includeRetailFallbackPrices = true, admin = true)
     }
 
     private fun requireAdmin(admin: AdminPrincipal?) {
