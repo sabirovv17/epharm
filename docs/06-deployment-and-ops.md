@@ -102,12 +102,14 @@ Important current values/policies:
   `DARIBAR_OTP_BASE_URL=https://prod-backoffice.daribar.com` and a finite request timeout.
 - `OTP_DEV_MODE=true` exposes the shared fixed code and is permitted only for local/test environments.
 - `S3_PUBLIC_URL` must match the external Caddy route. It is `https://epharm.inkar.kz/s3`.
-- Medusa defaults in compose are publishable storefront ids, not admin/root secrets.
-- Release preparation requires `MEDUSA_ENABLED=true` and runs `tools/smoke-medusa.sh` from the
-  deployment host. Post-deploy smoke also requires a non-empty `/api/mobile/catalog/products`
-  response and an exact-name search from the completed PostgreSQL catalogue snapshot. On the first
-  snapshot-enabled release it waits up to `CATALOG_SNAPSHOT_WAIT_SECONDS` (default 1800); a
-  disabled/broken catalogue triggers the normal automatic application rollback.
+- Site-catalogue sync and read cutover use separate flags. `ESHOP_CATALOG_TOKEN` is a private
+  server-to-server secret, never a browser value. The exporter and access policy are described in
+  `21-site-catalog-integration.md` and `ops/eshop-catalog-exporter/README.md`.
+- Release preparation checks the private exporter with `tools/smoke-eshop-catalog.sh` when site
+  sync is enabled; the legacy Medusa smoke applies only before site preload. Post-deploy smoke
+  requires a complete PostgreSQL catalogue generation, a non-empty mobile list and exact-name
+  search. On the first snapshot release it waits up to `CATALOG_SNAPSHOT_WAIT_SECONDS` (default
+  1800); a broken catalogue triggers application rollback.
 - Live storefront/PIM/SSH credentials are documented in their existing credential files and must not be
   copied elsewhere.
 
@@ -327,5 +329,5 @@ recent restore-test are visible in monitoring.
 - Daribar is an external production dependency for OTP. Monitor request failures and keep the legacy
   p1sms configuration disabled unless an explicit provider rollback is planned.
 - Single backend instance is assumed for payout scheduling unless a distributed lock is added.
-- Medusa still uses HTTP on raw IP; backend/browser image proxy mitigates mixed content for images, not
-  the broader TLS/allowlist concern.
+- Keep the old Medusa credentials only for the bounded rollback window after site cutover; verify
+  that the new backend issues no Medusa requests while site reads are enabled.

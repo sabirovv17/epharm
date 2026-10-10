@@ -331,6 +331,24 @@ describe('PromoRulesEditor — per-pair скрипт + «Добавить»', ()
     expect(replacement.additionalRecommendations[0].bonus).toBe(0)
   })
 
+  it('позволяет указать проверенные кассовые идентификаторы для альтернативы', async () => {
+    const user = userEvent.setup()
+    renderEditor()
+    await user.click(screen.getByTestId('pr-add-offer-prod_a'))
+    await user.click(await screen.findByTestId('promo-product-option-prod_b'))
+    await user.keyboard('{Escape}')
+
+    const barcode = screen.getByTestId('pr-offer-barcode-prod_a-0')
+    await user.clear(barcode)
+    await user.type(barcode, '4627126380739')
+    await user.type(screen.getByTestId('pr-offer-ipart-prod_a-0'), '12345')
+    await user.click(screen.getByTestId('promo-rules-save'))
+
+    expect(mutate.mock.calls[0][0].config.replacements[0].additionalRecommendations[0]).toEqual(
+      expect.objectContaining({ barcode: '4627126380739', ipartId: '12345' }),
+    )
+  })
+
   it('задаёт бонус индивидуально для каждой позиции и подсвечивает только оплачиваемую', async () => {
     const user = userEvent.setup()
     rulesHooks.usePromoRules.mockReturnValue({

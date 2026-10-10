@@ -37,12 +37,12 @@ fi
 grep -Fq 'dev-mode: ${OTP_DEV_MODE:false}' \
   admin-panel/backend/src/main/resources/application-prod.yml \
   || fail "production OTP must default to dev-mode=false"
-grep -Fq 'MEDUSA_ENABLED=true' .env.prod.example \
-  || fail "production Medusa catalogue must be enabled"
-grep -Fq 'MEDUSA_BASE_URL=http://78.140.246.238:9000' .env.prod.example \
-  || fail "production Medusa must use the live pinned origin until HTTPS is available"
-grep -Fq 'MEDUSA_READ_TIMEOUT_MS=15000' .env.prod.example \
-  || fail "production Medusa timeout must tolerate the measured catalogue latency"
+grep -Fq 'ESHOP_CATALOG_SYNC_ENABLED=false' .env.prod.example \
+  || fail "site catalogue preload must be an explicit production choice"
+grep -Fq 'ESHOP_CATALOG_READ_ENABLED=false' .env.prod.example \
+  || fail "site catalogue read cutover must be an explicit production choice"
+grep -Fq 'ESHOP_CATALOG_TOKEN=' .env.prod.example \
+  || fail "private site catalogue token must be configured outside Git"
 if grep -Fq 'signingConfigs.debug' android/app/build.gradle; then
   fail "Android release configuration must not fall back to the debug key"
 fi

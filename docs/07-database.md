@@ -4,7 +4,7 @@ Database: PostgreSQL 16.
 
 Migrations: Flyway files in `admin-panel/backend/src/main/resources/db/migration/`.
 
-Current migration range: V001-V057.
+Current migration range: V001-V058.
 
 ## Migrations
 
@@ -67,13 +67,14 @@ Current migration range: V001-V057.
 | V055    | `standardn_pharmacist_directory`       | Standard-N cashier directory.                                                 |
 | V056    | `training_certificate_branding`       | Certificate branding fields already applied in production.                    |
 | V057    | `acc_recommendation_taxonomy`          | Versioned ACC barcode classes and concrete recommendation trigger name.       |
+| V058    | `eshop_catalog_snapshot`              | Complete site-catalogue generations, publication filter and verified ID aliases. |
 
 ## Domain Tables
 
 | Domain              | Main tables                                                                    |
 | ------------------- | ------------------------------------------------------------------------------ |
 | Auth                | `admin_users`, `refresh_tokens`, `mobile_otps`, `mobile_refresh_tokens`        |
-| Catalog/rules       | `products`, `rules`, `acc_catalog_snapshots`, `acc_catalog_state`, `acc_catalog_barcodes` |
+| Catalog/rules       | `products`, `rules`, `eshop_catalog_products`, `eshop_catalog_aliases`, `eshop_catalog_sync_state`, ACC snapshot tables |
 | Promo               | `promos` plus campaign rule references                                         |
 | Receipts/reconcile  | `receipts`, `pending_bonuses`, `pos_sales`, `excel_imports`, `excel_sale_rows` |
 | Pharmacies          | `chains`, `pharmacies`                                                         |

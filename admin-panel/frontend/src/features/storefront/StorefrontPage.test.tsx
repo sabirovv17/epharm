@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { ToastHost } from '@/ui'
@@ -13,6 +13,7 @@ function mkProduct(over: Partial<StorefrontProductDto> = {}): StorefrontProductD
   return {
     id: 'p1',
     name: 'Аспирин Кардио 100мг №28',
+    published: true,
     brand: 'Bayer',
     mnn: 'Ацетилсалициловая кислота',
     rxOtc: 'OTC',
@@ -117,5 +118,26 @@ describe('StorefrontPage', () => {
     })
     renderPage()
     expect(screen.getByText('Повторить')).toBeInTheDocument()
+  })
+
+  it('показывает публикацию и передаёт серверный фильтр', () => {
+    hooks.useStorefront.mockReturnValue({
+      data: mkPage([mkProduct({ published: false })]),
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+      isFetching: false,
+    })
+    renderPage()
+    expect(screen.getByText('Не в приложении')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Фильтр публикации'), {
+      target: { value: 'published' },
+    })
+    expect(hooks.useStorefront).toHaveBeenLastCalledWith('', 0, 50, true)
+    fireEvent.change(screen.getByLabelText('Фильтр публикации'), {
+      target: { value: 'unpublished' },
+    })
+    expect(hooks.useStorefront).toHaveBeenLastCalledWith('', 0, 50, false)
   })
 })

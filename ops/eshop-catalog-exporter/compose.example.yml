@@ -1,0 +1,27 @@
+services:
+  eshop-catalog-exporter:
+    build: .
+    image: epharm-eshop-catalog-exporter:1.0.0
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "10.10.1.80:13105:8080"
+    networks:
+      - eshop-backend
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: 0.5
+
+networks:
+  eshop-backend:
+    external: true
+    name: aptekasosklada-v24-backend

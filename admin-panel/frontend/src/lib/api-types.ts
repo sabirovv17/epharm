@@ -1009,12 +1009,12 @@ export interface ExcelImportResultDto {
   rowsMatched: number
 }
 
-// ── Витрина каталога (Medusa, read-only в админке) ──────────────────────────
-// Зеркало backend MobileCatalogProductDto/MobileCatalogPageDto. Цена/бренд/фото
-// nullable — реальный каталог наполняется постепенно.
+// ── Полный каталог «Аптеки со склада» для админки ───────────────────────────
+// Админка видит весь master; мобильный каталог содержит только опубликованные товары.
 export interface StorefrontProductDto {
   id: string
   name: string
+  published: boolean
   brand: string | null
   mnn: string | null
   rxOtc: string | null
@@ -1029,10 +1029,11 @@ export interface StorefrontProductDto {
   pharmacyPriceCount?: number | null
 }
 
-/** Зеркало backend MobileCatalogDetailDto — деталь товара витрины (описание + характеристики). */
+/** Деталь товара полного каталога (описание + характеристики). */
 export interface StorefrontProductDetailDto {
   id: string
   name: string
+  published: boolean
   brand: string | null
   mnn: string | null
   atc: string | null

@@ -45,4 +45,18 @@ class MediaProxyControllerTest {
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.status)
     }
+
+    @Test
+    fun `old Medusa media route is gone after shop read cutover`() {
+        val cutover = MediaProxyController(
+            medusaBaseUrl = "https://medusa.example.kz",
+            connectTimeoutMs = 1000,
+            readTimeoutMs = 1000,
+            eshopReadEnabled = true,
+        )
+        val ex = assertThrows(AppException::class.java) {
+            cutover.img("https://medusa.example.kz/static/x.jpg")
+        }
+        assertEquals(HttpStatus.GONE, ex.status)
+    }
 }

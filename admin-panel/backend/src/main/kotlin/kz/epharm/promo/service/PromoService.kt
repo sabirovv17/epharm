@@ -1,5 +1,7 @@
 package kz.epharm.promo.service
 
+import kz.epharm.eshop.EshopCatalogSnapshotRepository
+import kz.epharm.catalog.repository.ProductRepository
 import kz.epharm.medusa.service.MedusaPriceService
 import kz.epharm.pharmacies.repository.PharmacyRepository
 import kz.epharm.promo.dto.CreatePromoRequest
@@ -15,6 +17,7 @@ import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import kz.epharm.shared.validation.BarcodeNormalizer
 import org.springframework.http.HttpStatus
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
@@ -34,6 +37,9 @@ class PromoService(
     private val medusaPriceService: MedusaPriceService,
     private val ruleRepository: RuleRepository,
     private val pharmacyRepository: PharmacyRepository,
+    private val eshop: EshopCatalogSnapshotRepository? = null,
+    @Value("\${app.eshop.catalog.read-enabled:false}") private val eshopReadEnabled: Boolean = false,
+    private val productRepository: ProductRepository? = null,
 ) {
 
     @Transactional(readOnly = true)
@@ -79,7 +85,7 @@ class PromoService(
         syncTier(entity, desiredBonus = req.pharmacistBonus, refetchPrice = true)
         // Штрих-код продвигаемого товара — из Medusa (для матчинга кассы); fallback на присланный.
         syncBarcode(entity, refetch = true)
-        validatePromo(entity)
+        validatePromo(entity, sourceActivation = entity.status == PromoStatus.active)
         val saved = promoRepository.save(entity)
         if (req.status != null) syncGeneratedRuleStatuses(saved)
         return dto(saved)
@@ -88,6 +94,7 @@ class PromoService(
     @Transactional
     fun update(id: String, req: UpdatePromoRequest): PromoDto {
         val entity = loadOrThrow(id)
+        val wasActive = entity.status == PromoStatus.active
         if (entity.status == PromoStatus.archived) {
             throw AppException(
                 ErrorCode.CONFLICT,
@@ -133,7 +140,7 @@ class PromoService(
         // Штрих-код перетягиваем из Medusa при смене товара (или если ещё не проставлен).
         syncBarcode(entity, refetch = productChanged || entity.barcode.isNullOrBlank())
 
-        validatePromo(entity)
+        validatePromo(entity, sourceActivation = entity.status == PromoStatus.active && (!wasActive || productChanged))
         val saved = promoRepository.save(entity)
         if (req.status != null) syncGeneratedRuleStatuses(saved)
         return dto(saved)
@@ -260,7 +267,7 @@ class PromoService(
      * Бизнес-валидация: даты согласованы; активная кампания обязана иметь товар (1:1);
      * один товар Medusa не может быть в двух живых (не-archived) кампаниях.
      */
-    private fun validatePromo(e: PromoEntity) {
+    private fun validatePromo(e: PromoEntity, sourceActivation: Boolean = false) {
         val start = e.dateStart
         val end = e.dateEnd
         if (start != null && end != null && end.isBefore(start)) {
@@ -278,11 +285,27 @@ class PromoService(
                 HttpStatus.BAD_REQUEST,
             )
         }
+        val sourceId = e.medusaProductId
+        if (eshopReadEnabled && sourceActivation && sourceId != null && eshop?.isCanonicalId(sourceId) == true &&
+            eshop?.findById(sourceId, publicOnly = true) == null) {
+            throw AppException(
+                ErrorCode.VALIDATION_FAILED,
+                "Нельзя активировать акцию: товар $sourceId ещё не опубликован в каталоге",
+                HttpStatus.BAD_REQUEST,
+            )
+        }
+        if (eshopReadEnabled && sourceActivation) validateExistingRuleKeys(e)
         // 1:1 — товар не должен быть в другой живой кампании.
         val mpid = e.medusaProductId
         if (mpid != null && e.status != PromoStatus.archived) {
-            val clash = promoRepository.findAllByMedusaProductId(mpid)
-                .any { it.id != e.id && it.status != PromoStatus.archived }
+            val canonical = if (eshopReadEnabled) eshop?.canonicalId(mpid) ?: mpid else mpid
+            val candidates = if (eshopReadEnabled) promoRepository.findAllByMedusaProductIdIsNotNull()
+                else promoRepository.findAllByMedusaProductId(mpid)
+            val clash = candidates.any {
+                it.id != e.id && it.status != PromoStatus.archived &&
+                    (if (eshopReadEnabled) eshop?.canonicalId(it.medusaProductId.orEmpty())
+                        ?: it.medusaProductId else it.medusaProductId) == canonical
+            }
             if (clash) {
                 throw AppException(
                     ErrorCode.CONFLICT,
@@ -291,5 +314,31 @@ class PromoService(
                 )
             }
         }
+    }
+
+    /** A draft pair with no cashier key must not become active through promo PATCH. */
+    private fun validateExistingRuleKeys(promo: PromoEntity) {
+        val source = eshop ?: return
+        val products = productRepository ?: return
+        ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc(promo.id)
+            .filter { it.trigger.kind in setOf("product", "product_any") && it.card?.pairActive != false }
+            .forEach { rule ->
+                val triggerIds = when (rule.trigger.kind) {
+                    "product" -> listOfNotNull(rule.trigger.value as? String)
+                    "product_any" -> (rule.trigger.value as? List<*>)?.mapNotNull { it as? String }.orEmpty()
+                    else -> emptyList()
+                }
+                (triggerIds + rule.recommend).forEach { id ->
+                    if (!source.isCanonicalId(id)) return@forEach
+                    val product = products.findById(id).orElse(null)
+                    if (product?.barcode.isNullOrBlank() && product?.ipartId.isNullOrBlank()) {
+                        throw AppException(
+                            ErrorCode.VALIDATION_FAILED,
+                            "Нельзя активировать правило ${rule.id}: у товара $id нет проверенного штрихкода или iPartID кассы",
+                            HttpStatus.BAD_REQUEST,
+                        )
+                    }
+                }
+            }
     }
 }

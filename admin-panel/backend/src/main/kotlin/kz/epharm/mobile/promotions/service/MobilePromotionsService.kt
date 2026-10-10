@@ -9,24 +9,24 @@ import kz.epharm.promo.entity.PromoStatus
 import kz.epharm.promo.repository.PromoRepository
 import kz.epharm.shared.error.AppException
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import java.time.LocalDate
 
 /**
  * Лента промо-товаров для мобильного приложения. Источник — активные промо-кампании
- * из админки (status=active, привязан товар Medusa, дата в окне, есть ценовые пороги),
- * смерженные с живыми данными витрины Medusa (имя/бренд/фото/категории).
+ * из админки (status=active, привязан товар витрины, дата в окне, есть ценовые пороги),
+ * смерженные с опубликованными карточками текущего каталога.
  *
- * Устойчивость:
- *  - HTTP к Medusa выполняется ВНЕ БД-транзакции (не держим соединение пула на внешний
- *    round-trip; tiers — jsonb-колонка, грузится с сущностью, lazy-ассоциаций нет);
- *  - если витрина недоступна/упала (timeout/5xx) или товар удалён — деградируем на снимок
- *    промо (productName/productImage/brand), чтобы публичная лента на главной не падала 502.
+ * Кампании по проверенным legacy ID сливаются с canonical карточкой. После cutover
+ * лента включает только опубликованные товары; до него сохраняется прежний fallback
+ * на снимок промо, если Medusa недоступна.
  */
 @Service
 class MobilePromotionsService(
     private val promoRepository: PromoRepository,
     private val catalog: MobileCatalogService,
+    @Value("\${app.eshop.catalog.read-enabled:false}") private val eshopReadEnabled: Boolean = false,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -42,10 +42,19 @@ class MobilePromotionsService(
         val cards = try {
             catalog.cardsByIds(promos.mapNotNull { it.medusaProductId })
         } catch (e: AppException) {
+            if (eshopReadEnabled) throw e
             log.warn("Medusa-мёрж ленты промо упал, деградируем на снимок: {}", e.message)
             emptyMap()
         }
-        return promos.map { toDto(it, cards[it.medusaProductId]) }
+        // A verified alias can point several legacy campaigns to one site product.
+        // Only published source cards are eligible for the mobile feed after cutover.
+        return if (eshopReadEnabled) {
+            promos.mapNotNull { promo ->
+                cards[promo.medusaProductId]?.let { card -> toDto(promo, card) }
+            }.distinctBy { it.productId }
+        } else {
+            promos.map { toDto(it, cards[it.medusaProductId]) }
+        }
     }
 
     /** Промо активно сегодня: сегодня не раньше dateStart и не позже dateEnd (null = без границы). */
@@ -59,13 +68,14 @@ class MobilePromotionsService(
         MobilePromotionDto(
             id = p.id,
             title = p.title,
-            productId = p.medusaProductId.orEmpty(),
+            productId = if (eshopReadEnabled) card?.id ?: p.medusaProductId.orEmpty()
+                        else p.medusaProductId.orEmpty(),
             name = card?.name ?: p.productName.ifBlank { p.title },
             brand = card?.brand ?: p.brand.takeIf { it.isNotBlank() },
             mnn = card?.mnn,
             rxOtc = card?.rxOtc,
             // Приоритет: ручной override → живое фото Medusa → снимок при привязке.
-            imageUrl = p.overrideImage ?: card?.imageUrl ?: p.productImage,
+            imageUrl = if (eshopReadEnabled) card?.imageUrl else p.overrideImage ?: card?.imageUrl ?: p.productImage,
             overrideDescription = p.overrideDescription,
             barcode = card?.barcode,
             category = card?.category,

@@ -25,6 +25,7 @@ vi.mock('@/lib/queries/storefront', () => ({
 function mkProduct(over: Partial<StorefrontProductDto> & { id: string }): StorefrontProductDto {
   return {
     name: `Товар ${over.id}`,
+    published: true,
     brand: 'Бренд',
     mnn: null,
     rxOtc: null,
@@ -124,6 +125,35 @@ describe('PromoProductPicker — пагинация (T6)', () => {
     render(<PromoProductPicker value={null} onChange={vi.fn()} />)
     // mono-строка под именем/брендом несёт штрих-код товара.
     expect(screen.getByTestId('pp-barcode-prod_5')).toHaveTextContent('4603000005')
+  })
+
+  it('показывает статус публикации и фильтрует на сервере', async () => {
+    storefrontHooks.useStorefront.mockImplementation(
+      (_q: string, offset: number, limit = 50, published?: boolean) => {
+        const all = [
+          mkProduct({ id: 'prod_live', name: 'Опубликованный', published: true }),
+          mkProduct({ id: 'prod_draft', name: 'Черновик', published: false }),
+        ]
+        const filtered = all.filter((product) => published === undefined || product.published === published)
+        return {
+          data: { items: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset },
+          isFetching: false,
+        }
+      },
+    )
+    const user = userEvent.setup()
+    render(<PromoProductPicker value={null} onChange={vi.fn()} />)
+    expect(screen.getByText('Опубликованный')).toBeInTheDocument()
+    expect(screen.getByText('Черновик')).toBeInTheDocument()
+    expect(screen.getByText('Не в приложении')).toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText('Фильтр публикации'), 'published')
+    await waitFor(() => expect(screen.queryByText('Черновик')).not.toBeInTheDocument())
+    expect(storefrontHooks.useStorefront).toHaveBeenLastCalledWith('', 0, 50, true)
+
+    await user.selectOptions(screen.getByLabelText('Фильтр публикации'), 'unpublished')
+    await waitFor(() => expect(screen.queryByText('Опубликованный')).not.toBeInTheDocument())
+    expect(storefrontHooks.useStorefront).toHaveBeenLastCalledWith('', 0, 50, false)
   })
 })
 

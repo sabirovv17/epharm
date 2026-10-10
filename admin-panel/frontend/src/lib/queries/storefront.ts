@@ -1,6 +1,5 @@
-// Витрина каталога (Medusa) — read-only TanStack Query хук для админки.
-// Бэкенд проксирует Medusa Store API: GET /api/admin/storefront/products (admin-JWT).
-// Поиск и пагинация — серверные (q/limit/offset).
+// Полный каталог «Аптеки со склада» для админки (admin-JWT).
+// Поиск, публикация и пагинация — серверные (q/published/limit/offset).
 //
 // БАГ-ФИКС (поиск): раньше тут стоял placeholderData: (prev) => prev. При смене
 // запроса react-query отдавал ДАННЫЕ ПРЕДЫДУЩЕГО запроса как placeholder, а
@@ -15,13 +14,13 @@ import type { StorefrontPageDto, StorefrontProductDetailDto } from '@/lib/api-ty
 
 export const storefrontKeys = {
   all: ['storefront'] as const,
-  list: (q: string, offset: number, limit: number) =>
-    [...storefrontKeys.all, 'list', q, offset, limit] as const,
+  list: (q: string, offset: number, limit: number, published?: boolean) =>
+    [...storefrontKeys.all, 'list', q, offset, limit, published ?? 'all'] as const,
   detail: (id: string) => [...storefrontKeys.all, 'detail', id] as const,
 }
 
 /**
- * Деталь одного товара витрины (описание + характеристики из Medusa, с наложенными
+ * Деталь одного товара каталога (описание + характеристики, с наложенными
  * override кампании). Используется на странице кампании, чтобы показать/предзаполнить.
  */
 export function useStorefrontProduct(id: string | null) {
@@ -36,13 +35,13 @@ export function useStorefrontProduct(id: string | null) {
   })
 }
 
-export function useStorefront(q: string, offset: number, limit = 50) {
+export function useStorefront(q: string, offset: number, limit = 50, published?: boolean) {
   return useQuery<StorefrontPageDto>({
-    queryKey: storefrontKeys.list(q, offset, limit),
+    queryKey: storefrontKeys.list(q, offset, limit, published),
     queryFn: () =>
       api
         .get<StorefrontPageDto>('/api/admin/storefront/products', {
-          params: { q: q || undefined, limit, offset },
+          params: { q: q || undefined, published, limit, offset },
         })
         .then((r) => r.data),
     staleTime: 60 * 1000,

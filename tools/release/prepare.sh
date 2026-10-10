@@ -15,11 +15,21 @@ commit="$(release_commit_for_tag "$release_id")"
 require_command docker
 [[ -r "$RELEASE_ROOT/.env.prod" ]] || { echo "ERROR: missing $RELEASE_ROOT/.env.prod" >&2; exit 1; }
 load_env_file "$RELEASE_ROOT/.env.prod"
-[[ "${MEDUSA_ENABLED:-}" == "true" ]] || {
-  echo "ERROR: MEDUSA_ENABLED=true is required for a production release" >&2
+if [[ "${ESHOP_CATALOG_READ_ENABLED:-false}" == "true" \
+   && "${ESHOP_CATALOG_SYNC_ENABLED:-false}" != "true" ]]; then
+  echo 'ERROR: ESHOP_CATALOG_READ_ENABLED requires ESHOP_CATALOG_SYNC_ENABLED' >&2
   exit 1
-}
-"$RELEASE_ROOT/tools/smoke-medusa.sh"
+fi
+if [[ "${ESHOP_CATALOG_SYNC_ENABLED:-false}" == "true" ]]; then
+  "$RELEASE_ROOT/tools/smoke-eshop-catalog.sh"
+fi
+if [[ "${ESHOP_CATALOG_READ_ENABLED:-false}" != "true" \
+   && "${MEDUSA_ENABLED:-false}" == "true" ]]; then
+  "$RELEASE_ROOT/tools/smoke-medusa.sh"
+elif [[ "${ESHOP_CATALOG_READ_ENABLED:-false}" != "true" ]]; then
+  echo 'ERROR: enable a verified catalogue source before preparing a production release' >&2
+  exit 1
+fi
 mkdir -p "$RELEASE_ROOT/releases/$release_id"
 manifest="$RELEASE_ROOT/releases/$release_id/manifest.json"
 if [[ -e "$manifest" ]]; then

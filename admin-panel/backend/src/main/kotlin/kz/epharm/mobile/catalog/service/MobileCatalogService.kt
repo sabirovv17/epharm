@@ -1,5 +1,6 @@
 package kz.epharm.mobile.catalog.service
 
+import kz.epharm.eshop.EshopCatalogSnapshotRepository
 import kz.epharm.medusa.MedusaCatalogCache
 import kz.epharm.medusa.MedusaCatalogSnapshotRepository
 import kz.epharm.medusa.client.MedusaClient
@@ -25,6 +26,7 @@ import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import kz.epharm.shared.validation.BarcodeNormalizer
 import org.springframework.http.HttpStatus
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executors
@@ -32,13 +34,13 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 
 /**
- * Каталог для мобильного приложения: тянет товары из Medusa-витрины через [MedusaClient],
- * нормализует в наши DTO и кеширует ([MedusaCatalogCache]).
+ * Единый каталог для мобильного приложения и HQ. Во время перехода старый снимок
+ * Medusa остаётся отдельным rollback-путём; после включения shop read switch
+ * здесь используются только проверенные поколения нового источника в PostgreSQL.
  *
- * Главная сложность — РЕАЛЬНЫЕ данные неполные: цена/фото/категории часто пусты,
- * но есть богатый `metadata`. Маппинг построен на цепочках fallback (бренд из metadata,
- * категория из metadata, штрихкод из варианта или metadata) — чтобы карточка всегда
- * выглядела осмысленно по мере наполнения PIM.
+ * Нормализованная карточка сохраняет один мобильный DTO при смене источника.
+ * Отсутствующие поля остаются nullable; проверенные legacy ID служат алиасами
+ * для ранее созданных кампаний и правил, тогда как новые карточки используют site ID.
  */
 @Service
 class MobileCatalogService(
@@ -47,6 +49,8 @@ class MobileCatalogService(
     private val promoRepository: PromoRepository,
     private val ruleRepository: RuleRepository,
     private val snapshot: MedusaCatalogSnapshotRepository? = null,
+    private val eshop: EshopCatalogSnapshotRepository? = null,
+    @Value("\${app.eshop.catalog.read-enabled:false}") private val eshopReadEnabled: Boolean = false,
 ) {
     private val retailPriceExecutor = Executors.newFixedThreadPool(RETAIL_PRICE_WORKERS) { runnable ->
         Thread(runnable, "medusa-retail-price").apply { isDaemon = true }
@@ -58,11 +62,22 @@ class MobileCatalogService(
         limit: Int,
         offset: Int,
         includeRetailFallbackPrices: Boolean = false,
+        admin: Boolean = false,
+        publishedFilter: Boolean? = null,
     ): MobileCatalogPageDto {
         val safeLimit = limit.coerceIn(1, MAX_LIMIT)
         val safeOffset = offset.coerceAtLeast(0)
-        val key = "list|q=${q?.trim()?.lowercase().orEmpty()}|cat=${category.orEmpty()}|l=$safeLimit|o=$safeOffset|retail=$includeRetailFallbackPrices"
+        val key = "list|source=$eshopReadEnabled|admin=$admin|published=$publishedFilter|q=${q?.trim()?.lowercase().orEmpty()}|cat=${category.orEmpty()}|l=$safeLimit|o=$safeOffset|retail=$includeRetailFallbackPrices"
         return cache.get(key) {
+            if (eshopReadEnabled) {
+                val source = readyEshop()
+                val page = source.search(q, category, safeLimit, safeOffset,
+                    publicOnly = !admin, published = if (admin) publishedFilter else true)
+                return@get MobileCatalogPageDto(
+                    items = page.items.map { card(it.product).copy(published = it.published) },
+                    total = page.total, limit = safeLimit, offset = safeOffset,
+                )
+            }
             // Search/list is served from a complete PostgreSQL snapshot whenever one
             // exists.  This avoids Medusa's slow remote `q` path and keeps the picker
             // available during storefront outages.  Before the first successful crawl
@@ -97,7 +112,7 @@ class MobileCatalogService(
     }
 
     /**
-     * Карточка товара. Поля Medusa мемоизируются в кеше; КАМПАНИЙНЫЕ поля
+     * Карточка товара. Поля источника мемоизируются в кеше; КАМПАНИЙНЫЕ поля
      * (hasActiveCampaign/promoId/campaignTitle/bonus) вычисляются ВНЕ cache.get — иначе
      * смена статуса кампании «залипла» бы в кеше до истечения TTL.
      *
@@ -108,8 +123,14 @@ class MobileCatalogService(
         id: String,
         includeIncentive: Boolean = false,
         includeRetailFallbackPrices: Boolean = false,
+        admin: Boolean = false,
     ): MobileCatalogDetailDto {
-        val base = cache.get("detail|$id|retail=$includeRetailFallbackPrices") {
+        val base = cache.get("detail|source=$eshopReadEnabled|admin=$admin|$id|retail=$includeRetailFallbackPrices") {
+            if (eshopReadEnabled) {
+                val item = readyEshop().findById(id, publicOnly = !admin)
+                    ?: throw AppException(ErrorCode.NOT_FOUND, "Товар не найден", HttpStatus.NOT_FOUND)
+                return@get applyPromoOverride(id, detailOf(item.product).copy(published = item.published))
+            }
             // A complete snapshot is the authoritative read model.  Falling back
             // to the live storefront only before the first successful crawl keeps
             // product details available while Medusa is down.
@@ -135,7 +156,7 @@ class MobileCatalogService(
         base: MobileCatalogDetailDto,
         includeIncentive: Boolean,
     ): MobileCatalogDetailDto {
-        val promo = promoRepository.findAllByMedusaProductId(medusaProductId)
+        val promo = promosForProduct(medusaProductId)
             .firstOrNull { it.status == PromoStatus.active }
             ?: return base
         return base.copy(
@@ -152,7 +173,7 @@ class MobileCatalogService(
      * в крайнем случае», когда PIM-данные не устраивают.
      */
     private fun applyPromoOverride(medusaProductId: String, base: MobileCatalogDetailDto): MobileCatalogDetailDto {
-        val promo = promoRepository.findAllByMedusaProductId(medusaProductId)
+        val promo = promosForProduct(medusaProductId)
             .firstOrNull {
                 it.overrideImage != null || it.overrideDescription != null ||
                     it.overrideCharacteristics != null
@@ -164,14 +185,25 @@ class MobileCatalogService(
             ?.takeIf { it.isNotEmpty() }
             ?: base.keyFacts
         return base.copy(
-            imageUrl = promo.overrideImage ?: base.imageUrl,
-            images = promo.overrideImage?.let { listOf(it) } ?: base.images,
+            imageUrl = if (eshopReadEnabled) base.imageUrl else promo.overrideImage ?: base.imageUrl,
+            images = if (eshopReadEnabled) base.images else promo.overrideImage?.let { listOf(it) } ?: base.images,
             description = promo.overrideDescription ?: base.description,
             keyFacts = keyFacts,
         )
     }
 
+    private fun promosForProduct(id: String) = if (eshopReadEnabled) {
+        promoRepository.findAllByMedusaProductIdIn(readyEshop().relatedIds(id))
+    } else {
+        promoRepository.findAllByMedusaProductId(id)
+    }
+
     fun categories(): List<MobileCategoryDto> = cache.get("categories") {
+        if (eshopReadEnabled) {
+            return@get readyEshop().categories(publicOnly = true).map {
+                MobileCategoryDto(id = it.id, name = it.name, handle = it.handle, parentId = it.parentCategoryId)
+            }
+        }
         val local = snapshot?.takeIf { it.hasCompleteSnapshot() }
         val categories = if (local != null) local.categories() else medusa.listCategories().productCategories
         categories.map {
@@ -180,14 +212,23 @@ class MobileCatalogService(
     }
 
     /**
-     * Карточки витрины по списку Medusa-id (для джойна промо-лента ↔ каталог).
+     * Карточки витрины по списку source/legacy ID (для джойна промо-лента ↔ каталог).
      * Возвращает map id→карточка; отсутствующие/недоступные id в map не попадают.
      * Переиспользует [card] (включая фильтр плейсхолдеров «-») и кеш.
      */
     fun cardsByIds(ids: List<String>): Map<String, MobileCatalogProductDto> {
         val clean = ids.mapNotNull { it.trim().takeIf { s -> s.isNotBlank() } }.distinct()
         if (clean.isEmpty()) return emptyMap()
-        return cache.get("cards|" + clean.sorted().joinToString(",")) {
+        return cache.get("cards|source=$eshopReadEnabled|" + clean.sorted().joinToString(",")) {
+            if (eshopReadEnabled) {
+                val source = readyEshop()
+                val canonical = source.canonicalIds(clean)
+                val cards = source.findByIds(canonical.values.toSet(), publicOnly = true)
+                    .associate { it.product.id to card(it.product).copy(published = it.published) }
+                return@get clean.mapNotNull { id ->
+                    cards[canonical[id]]?.let { id to it }
+                }.toMap()
+            }
             val local = snapshot?.takeIf { it.hasCompleteSnapshot() }
             val products = if (local != null) {
                 local.findByIds(clean)
@@ -200,6 +241,14 @@ class MobileCatalogService(
             products
                 .associate { it.id to card(it) }
         }
+    }
+
+    private fun readyEshop(): EshopCatalogSnapshotRepository {
+        val repository = eshop
+        if (repository == null || !repository.hasCompleteSnapshot()) {
+            throw AppException(ErrorCode.UPSTREAM_UNAVAILABLE, "Каталог готовится", HttpStatus.SERVICE_UNAVAILABLE)
+        }
+        return repository
     }
 
     // ── Рекомендации к товару (ДОП.3b) ────────────────────────────────────────
@@ -215,6 +264,13 @@ class MobileCatalogService(
      */
     fun recommendations(productId: String, includeIncentive: Boolean): MobileRecommendationsDto {
         val active = activeRules()
+        val identities = if (eshopReadEnabled) {
+            readyEshop().canonicalIds(
+                listOf(productId) + active.flatMap { listOf(it.recommend) + triggerProductIds(it) },
+            )
+        } else emptyMap()
+        fun identity(id: String) = identities[id] ?: id
+        val requested = identity(productId)
         // Собираем партнёров товара по ОБОИМ направлениям правила:
         //  1) этот товар = ТРИГГЕР  → партнёр = recommend (продвигаемый): бонус/клик доступны;
         //  2) этот товар = RECOMMEND (сам продвигаемый) → партнёр(ы) = триггер(ы): инфо-карточка.
@@ -228,12 +284,14 @@ class MobileCatalogService(
                 RuleType.crosssell -> crossPartners
                 else -> continue
             }
-            if (r.recommend != productId && triggerMatches(r, productId)) {
-                map.putIfAbsent(r.recommend, Partner(r.recommend, r, promoted = true))
+            val recommended = identity(r.recommend)
+            if (recommended != requested && triggerProductIds(r).any { identity(it) == requested }) {
+                map.putIfAbsent(recommended, Partner(recommended, r, promoted = true))
             }
-            if (r.recommend == productId) {
+            if (recommended == requested) {
                 for (tp in triggerProductIds(r)) {
-                    if (tp != productId) map.putIfAbsent(tp, Partner(tp, r, promoted = false))
+                    val trigger = identity(tp)
+                    if (trigger != requested) map.putIfAbsent(trigger, Partner(trigger, r, promoted = false))
                 }
             }
         }
@@ -268,7 +326,10 @@ class MobileCatalogService(
     private fun activeCampaignProductIds(): Set<String> =
         promoRepository.findAllByStatusRawAndMedusaProductIdIsNotNullOrderByUpdatedAtDesc(PromoStatus.active.name)
             .mapNotNull { it.medusaProductId }
-            .toSet()
+            .let { ids ->
+                if (!eshopReadEnabled) ids.toSet()
+                else readyEshop().canonicalIds(ids).values.toSet()
+            }
 
     /**
      * Глобальные пулы для ленты каталога (пилюли «Альтернативы»/«Дополнения»): весь
@@ -280,8 +341,10 @@ class MobileCatalogService(
      */
     fun recommendationPools(): MobileRecommendationPoolsDto {
         val active = activeRules()
-        val altIds = active.filter { it.type == RuleType.substitution }.map { it.recommend }.distinct()
-        val crossIds = active.filter { it.type == RuleType.crosssell }.map { it.recommend }.distinct()
+        val identities = if (eshopReadEnabled) readyEshop().canonicalIds(active.map { it.recommend }) else emptyMap()
+        fun identity(id: String) = identities[id] ?: id
+        val altIds = active.filter { it.type == RuleType.substitution }.map { identity(it.recommend) }.distinct()
+        val crossIds = active.filter { it.type == RuleType.crosssell }.map { identity(it.recommend) }.distinct()
         if (altIds.isEmpty() && crossIds.isEmpty()) {
             return MobileRecommendationPoolsDto(emptyList(), emptyList())
         }
@@ -306,13 +369,6 @@ class MobileCatalogService(
                 .map { it.id }
                 .toSet()
         return activeRules.filter { it.promoId == null || it.promoId in activePromoIds }
-    }
-
-    /** Триггер правила указывает на этот товар? (mnn-триггеры пропускаем — нужен mnn товара, редкий legacy.) */
-    private fun triggerMatches(rule: RuleEntity, productId: String): Boolean = when (rule.trigger.kind) {
-        "product" -> (rule.trigger.value as? String) == productId
-        "product_any" -> (rule.trigger.value as? List<*>)?.any { it == productId } == true
-        else -> false
     }
 
     /**

@@ -1,6 +1,6 @@
-// Пикер товара витрины Medusa для промо-кампании. Поиск (q) идёт на бэкенд
-// (GET /api/admin/storefront/products) — тот же прокси, что в разделе «Витрина».
-// При выборе товара заполняет medusaProductId + снимок (имя/фото/бренд).
+// Пикер полного каталога «Аптеки со склада» для промо-кампании.
+// Поиск и фильтр публикации выполняет backend /api/admin/storefront/products.
+// При выборе товара заполняет существующее поле medusaProductId и снимок карточки.
 //
 // T6: серверная пагинация (page size 50) с «Показать ещё» — доступны ВСЕ ~20k
 // товаров витрины, а не первые 20. Дебаунс ввода (~300мс) сбрасывает выдачу.
@@ -14,6 +14,7 @@ import { useT } from '@/i18n'
 import type { StorefrontProductDto } from '@/lib/api-types'
 
 const PAGE = 50
+type PublicationFilter = 'all' | 'published' | 'unpublished'
 
 export interface SelectedProduct {
   medusaProductId: string
@@ -26,6 +27,7 @@ export interface SelectedProduct {
   barcode: string | null
   /** iPartID Стандарт-Н — ручной ключ матчинга, если известен. */
   ipartId?: string | null
+  published?: boolean
 }
 
 /**
@@ -44,6 +46,7 @@ function ProductSearchList({
   const [raw, setRaw] = useState('')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(0)
+  const [publication, setPublication] = useState<PublicationFilter>('all')
 
   // Дебаунс ввода — не дёргаем бэкенд на каждый символ; новый запрос → стр. 0.
   useEffect(() => {
@@ -58,7 +61,12 @@ function ProductSearchList({
     return () => clearTimeout(id)
   }, [raw, q])
 
-  const { data, isFetching } = useStorefront(q, page * PAGE, PAGE)
+  const { data, isFetching } = useStorefront(
+    q,
+    page * PAGE,
+    PAGE,
+    publication === 'all' ? undefined : publication === 'published',
+  )
 
   // Накапливаем страницы в один список (page=0 заменяет, >0 — добавляет). Храним
   // по q, чтобы смена запроса начинала с чистого листа. Обновляем acc только когда
@@ -73,18 +81,19 @@ function ProductSearchList({
   // вечной мёртвой кнопкой).
   const [acc, setAcc] = useState<{
     q: string
+    publication: PublicationFilter
     ids: string
     items: StorefrontProductDto[]
     total: number
     lastOffset: number
-  }>({ q: '', ids: '', items: [], total: 0, lastOffset: -1 })
+  }>({ q: '', publication: 'all', ids: '', items: [], total: 0, lastOffset: -1 })
   useEffect(() => {
     if (!data) return
     const fresh = data.items
-    if (page === 0 || acc.q !== q) {
+    if (page === 0 || acc.q !== q || acc.publication !== publication) {
       const ids = fresh.map((i) => i.id).join(',')
-      if (acc.q === q && acc.ids === ids) return // ничего не изменилось — не дёргаем state
-      setAcc({ q, ids, items: fresh, total: data.total, lastOffset: data.offset })
+      if (acc.q === q && acc.publication === publication && acc.ids === ids) return
+      setAcc({ q, publication, ids, items: fresh, total: data.total, lastOffset: data.offset })
       return
     }
     // page > 0: дозагрузка. Эту же страницу уже учли (ре-ран эффекта на тех же
@@ -102,17 +111,19 @@ function ProductSearchList({
     const items = [...acc.items, ...added]
     setAcc({
       q,
+      publication,
       ids: items.map((i) => i.id).join(','),
       items,
       total: data.total,
       lastOffset: data.offset,
     })
-  }, [data, page, q, acc])
+  }, [data, page, q, publication, acc])
 
   // Показываем только результаты, соответствующие текущему q (не stale от прошлого
   // запроса). До прихода данных acc.q !== q → пусто → спиннер «Поиск…».
-  const items = acc.q === q ? acc.items : []
-  const total = acc.q === q ? acc.total : 0
+  const currentFilter = acc.q === q && acc.publication === publication
+  const items = currentFilter ? acc.items : []
+  const total = currentFilter ? acc.total : 0
   const canLoadMore = items.length < total
 
   return (
@@ -124,6 +135,19 @@ function ProductSearchList({
         leading={<IconSearch size={15} />}
         autoFocus
       />
+      <select
+        className="inp !h-9"
+        value={publication}
+        onChange={(event) => {
+          setPublication(event.target.value as PublicationFilter)
+          setPage(0)
+        }}
+        aria-label={t('sf.publicationFilter')}
+      >
+        <option value="all">{t('sf.publicationAll')}</option>
+        <option value="published">{t('sf.publicationPublished')}</option>
+        <option value="unpublished">{t('sf.publicationUnpublished')}</option>
+      </select>
       <div
         className="max-h-64 overflow-y-auto rounded-xl border border-ink-100"
         data-testid="promo-product-results"
@@ -147,6 +171,9 @@ function ProductSearchList({
                 <ProductThumb url={p.imageUrl} name={p.name} size={40} />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13px] font-bold text-ink-900">{p.name}</div>
+                  <span className={`chip ${p.published !== false ? 'chip-green' : 'chip-amber'}`}>
+                    {t(p.published !== false ? 'sf.published' : 'sf.unpublished')}
+                  </span>
                   {p.brand && (
                     <div className="truncate text-[11px] font-semibold text-ink-500">{p.brand}</div>
                   )}
@@ -203,6 +230,7 @@ export function PromoProductPicker({ value, onChange }: Props) {
       price: p.price ?? null,
       barcode: p.barcode ?? null,
       ipartId: p.ipartId ?? null,
+      published: p.published,
     })
     setOpen(false)
   }
@@ -215,6 +243,11 @@ export function PromoProductPicker({ value, onChange }: Props) {
           <div className="truncate text-[14px] font-extrabold text-ink-900">
             {value.productName}
           </div>
+          {value.published !== undefined && (
+            <span className={`chip ${value.published ? 'chip-green' : 'chip-amber'}`}>
+              {t(value.published ? 'sf.published' : 'sf.unpublished')}
+            </span>
+          )}
           {value.brand && (
             <div className="truncate text-[12px] font-bold text-ink-500">{value.brand}</div>
           )}

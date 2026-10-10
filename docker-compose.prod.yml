@@ -163,6 +163,17 @@ services:
       STANDARDN_USER: ${STANDARDN_USER:-}
       STANDARDN_PASSWORD: ${STANDARDN_PASSWORD:-}
       STANDARDN_SYNC_DELAY_MS: ${STANDARDN_SYNC_DELAY_MS:-21600000}
+      # Preload a complete site generation before switching customer reads.
+      # The exporter is a separate read-only sidecar on the trusted .80 host.
+      ESHOP_CATALOG_SYNC_ENABLED: ${ESHOP_CATALOG_SYNC_ENABLED:-false}
+      ESHOP_CATALOG_READ_ENABLED: ${ESHOP_CATALOG_READ_ENABLED:-false}
+      ESHOP_CATALOG_BASE_URL: ${ESHOP_CATALOG_BASE_URL:-}
+      ESHOP_CATALOG_TOKEN: ${ESHOP_CATALOG_TOKEN:-}
+      ESHOP_CATALOG_MEDIA_BASE_URL: ${ESHOP_CATALOG_MEDIA_BASE_URL:-https://aptekasosklada.kz}
+      ESHOP_CATALOG_REFRESH_SECONDS: ${ESHOP_CATALOG_REFRESH_SECONDS:-900}
+      ESHOP_CATALOG_INITIAL_DELAY_MS: ${ESHOP_CATALOG_INITIAL_DELAY_MS:-5000}
+      ESHOP_CATALOG_CONNECT_TIMEOUT_MS: ${ESHOP_CATALOG_CONNECT_TIMEOUT_MS:-3000}
+      ESHOP_CATALOG_READ_TIMEOUT_MS: ${ESHOP_CATALOG_READ_TIMEOUT_MS:-240000}
       # Реальный Medusa-каталог. Клиент разрешает cleartext только для этого точного
       # legacy IP:port; любой другой удалённый HTTP origin отклоняется при старте.
       MEDUSA_ENABLED: ${MEDUSA_ENABLED:-true}

@@ -30,6 +30,7 @@ class MedusaCatalogSynchronizer(
     @Value("\${app.medusa.snapshot-fetch-workers:1}") fetchWorkers: Int = 1,
     @Value("\${app.medusa.snapshot-refresh-seconds:3600}") private val refreshSeconds: Long,
     @Value("\${app.medusa.snapshot-retry-seconds:300}") private val retrySeconds: Long,
+    @Value("\${app.eshop.catalog.read-enabled:false}") private val eshopReadEnabled: Boolean = false,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val pageSize = pageSize.coerceIn(1, 500)
@@ -50,7 +51,7 @@ class MedusaCatalogSynchronizer(
         fixedDelayString = "\${app.medusa.snapshot-poll-ms:60000}",
     )
     fun scheduledRefresh() {
-        if (!medusa.active || !refreshDue() || !running.compareAndSet(false, true)) return
+        if (eshopReadEnabled || !medusa.active || !refreshDue() || !running.compareAndSet(false, true)) return
         executor.execute {
             try {
                 refreshNow()

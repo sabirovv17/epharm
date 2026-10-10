@@ -55,21 +55,28 @@ export const ru: Dict = {
   'nav.storefront': 'Витрина / Каталог',
   'nav.fulfillment': 'Интернет-заказы',
 
-  // ── Витрина / каталог (Medusa) ──────────────────────────────────────────
+  // ── Полный каталог «Аптеки со склада» ──────────────────────────────────
   'page.storefront.title': 'Витрина / Каталог',
   'page.storefront.subtitle':
-    'Реальный каталог товаров витрины (Medusa). Тот же, что видит фармацевт в приложении.',
+    'Полный каталог «Аптеки со склада». В приложении видны только опубликованные товары.',
   'sf.search': 'Поиск по названию, бренду, МНН',
   'sf.total': 'Всего: {n}',
   'sf.loading': 'Загружаем каталог…',
   'sf.empty': 'Каталог витрины пуст',
-  'sf.emptyBody': 'Товары появятся после наполнения витрины (PIM/Medusa).',
+  'sf.emptyBody': 'Проверьте источник каталога и выбранный фильтр публикации.',
   'sf.thName': 'Товар',
   'sf.thBrand': 'Бренд',
   'sf.thMnn': 'МНН',
   'sf.thRx': 'Рецепт',
   'sf.thCategory': 'Категория',
+  'sf.thPublication': 'Публикация',
   'sf.thPrice': 'Цена',
+  'sf.publicationFilter': 'Фильтр публикации',
+  'sf.publicationAll': 'Все товары',
+  'sf.publicationPublished': 'Опубликованные',
+  'sf.publicationUnpublished': 'Не опубликованные',
+  'sf.published': 'В приложении',
+  'sf.unpublished': 'Не в приложении',
   'sf.priceNa': 'Цена в аптеке',
   'sf.rx': 'Rx',
   'sf.otc': 'OTC',
@@ -978,8 +985,8 @@ export const ru: Dict = {
   'pd.archivedToast': 'Кампания отправлена в архив',
   'pd.restoredToast': 'Кампания восстановлена — в черновиках, проверьте перед включением',
 
-  // ── Product picker (товар витрины Medusa) ──────────────────────────────
-  'pp.searchPh': 'Поиск товара в витрине Medusa…',
+  // ── Product picker (полный каталог) ────────────────────────────────────
+  'pp.searchPh': 'Поиск товара в полном каталоге…',
   'pp.searching': 'Поиск…',
   'pp.notFound': 'Ничего не найдено',
   'pp.startTyping': 'Начните вводить название товара',
@@ -989,10 +996,10 @@ export const ru: Dict = {
   'pp.loading': 'Загружаем…',
 
   // ── Campaign product fields (T1) ───────────────────────────────────────
-  'pm.modalProductSub': 'Один товар из витрины + бонус фармацевту. Цена — из Medusa.',
-  'pm.fldProduct': 'Товар (из витрины Medusa)',
-  'pm.fldPrice': 'Цена из Medusa',
-  'pm.priceHint': 'Read-only, обновляется каждый час из Medusa',
+  'pm.modalProductSub': 'Выберите товар из полного каталога и задайте бонус фармацевту.',
+  'pm.fldProduct': 'Товар из полного каталога',
+  'pm.fldPrice': 'Цена из каталога',
+  'pm.priceHint': 'Цена из источника каталога, только для просмотра',
   'pm.fldBonus': 'Бонус фармацевту за продажу, ₸',
   'pm.bonusHint': 'Сколько получает фармацевт за каждую продажу товара',
   'pm.fldDateStart': 'Начало акции',
@@ -1003,7 +1010,7 @@ export const ru: Dict = {
   'pm.fldOverrideChars': 'Свои характеристики',
   // Галерея фото товара (просмотр)
   'pm.galleryTitle': 'Галерея фото товара',
-  'pm.galleryHint': 'Фото из Medusa. «Своё фото» выше задаёт обложку.',
+  'pm.galleryHint': 'Фото из каталога. «Своё фото» выше задаёт обложку.',
   'pm.galleryPickHint':
     'Листайте фото и нажмите «Сделать обложкой» — обложка покажется в приложении и на кассе.',
   'pm.galleryEmpty': 'Фото товара не найдено',
@@ -1013,12 +1020,12 @@ export const ru: Dict = {
   'pm.galleryNext': 'Следующее фото',
   'pm.gallerySetCover': 'Сделать обложкой',
   'pm.galleryUnavailable': 'Фото не загрузились',
-  'pm.overrideHint': 'Ручное переопределение данных PIM/Medusa',
+  'pm.overrideHint': 'Ручное переопределение данных каталога',
   'pm.overrideCharsHint': 'По одной характеристике в строке',
-  'pm.medusaHint': 'Из Medusa — можно перезаписать (по умолчанию обновляется каждый час)',
-  'pm.medusaCharsHint': 'Из Medusa, по строке — можно перезаписать (иначе обновляется каждый час)',
+  'pm.medusaHint': 'Из каталога — можно перезаписать',
+  'pm.medusaCharsHint': 'Из каталога, по строке — можно перезаписать',
   'pm.charsPlaceholder': 'Например:\nФорма выпуска: спрей\nОбъём: 50 мл\nПроизводитель: …',
-  'pm.medusaCharsRef': 'Характеристики из Medusa',
+  'pm.medusaCharsRef': 'Характеристики из каталога',
 
   // ── PromoDetail (товарная секция T1) ───────────────────────────────────
   'pd.productSection': 'Акция — товар, цена, бонус, даты',
@@ -1077,6 +1084,7 @@ export const ru: Dict = {
   'pr.partnerLabel': 'Метка партнёра',
   'pr.barcode': 'Штрихкод',
   'pr.ipartId': 'iPartID',
+  'pr.posmIdentifiersHint': 'Для кассового правила укажите проверенный штрихкод или iPartID, если их нет в каталоге.',
   'pr.comparison': 'Сравнение',
   'pr.comparisonHint': 'Строки: параметр / было / стало (+ выделение)',
   'pr.colLabel': 'Параметр',
@@ -1230,21 +1238,28 @@ export const kk: Dict = {
   'nav.storefront': 'Дүкен / Каталог',
   'nav.fulfillment': 'Интернет-тапсырыстар',
 
-  // ── Витрина / каталог (Medusa) ──────────────────────────────────────────
+  // ── Полный каталог «Аптеки со склада» ──────────────────────────────────
   'page.storefront.title': 'Дүкен / Каталог',
   'page.storefront.subtitle':
-    'Дүкеннің нақты тауар каталогы (Medusa). Қолданбадағы фармацевт көретін каталог.',
+    '«Аптека со склада» толық каталогы. Қолданбада тек жарияланған тауарлар көрсетіледі.',
   'sf.search': 'Атауы, бренд, ХПА бойынша іздеу',
   'sf.total': 'Барлығы: {n}',
   'sf.loading': 'Каталог жүктелуде…',
   'sf.empty': 'Дүкен каталогы бос',
-  'sf.emptyBody': 'Тауарлар витрина толтырылғаннан кейін пайда болады (PIM/Medusa).',
+  'sf.emptyBody': 'Каталог көзін және жарияланым сүзгісін тексеріңіз.',
   'sf.thName': 'Тауар',
   'sf.thBrand': 'Бренд',
   'sf.thMnn': 'ХПА',
   'sf.thRx': 'Рецепт',
   'sf.thCategory': 'Санат',
+  'sf.thPublication': 'Жарияланым',
   'sf.thPrice': 'Бағасы',
+  'sf.publicationFilter': 'Жарияланым сүзгісі',
+  'sf.publicationAll': 'Барлық тауарлар',
+  'sf.publicationPublished': 'Жарияланғандар',
+  'sf.publicationUnpublished': 'Жарияланбағандар',
+  'sf.published': 'Қолданбада',
+  'sf.unpublished': 'Қолданбада жоқ',
   'sf.priceNa': 'Бағасы дәріханада',
   'sf.rx': 'Rx',
   'sf.otc': 'OTC',
@@ -2152,7 +2167,7 @@ export const kk: Dict = {
   'pd.restoredToast': 'Науқан қалпына келтірілді — черновиктерде, қоспас бұрын тексеріңіз',
 
   // ── Product picker ─────────────────────────────────────────────────────
-  'pp.searchPh': 'Medusa витринасынан тауар іздеу…',
+  'pp.searchPh': 'Толық каталогтан тауар іздеу…',
   'pp.searching': 'Іздеу…',
   'pp.notFound': 'Ештеңе табылмады',
   'pp.startTyping': 'Тауар атауын тере бастаңыз',
@@ -2162,10 +2177,10 @@ export const kk: Dict = {
   'pp.loading': 'Жүктелуде…',
 
   // ── Campaign product fields (T1) ───────────────────────────────────────
-  'pm.modalProductSub': 'Витринадан бір тауар + фармацевтке бонус. Баға — Medusa-дан.',
-  'pm.fldProduct': 'Тауар (Medusa витринасынан)',
-  'pm.fldPrice': 'Medusa-дан баға',
-  'pm.priceHint': 'Тек оқуға, күн сайын Medusa-дан жаңарады',
+  'pm.modalProductSub': 'Толық каталогтан тауарды таңдап, фармацевт бонусын белгілеңіз.',
+  'pm.fldProduct': 'Толық каталогтағы тауар',
+  'pm.fldPrice': 'Каталогтағы баға',
+  'pm.priceHint': 'Каталог көзінен алынған баға, тек қарауға арналған',
   'pm.fldBonus': 'Сатылым үшін фармацевт бонусы, ₸',
   'pm.bonusHint': 'Тауардың әр сатылымы үшін фармацевт қанша алады',
   'pm.fldDateStart': 'Науқан басталуы',
@@ -2175,7 +2190,7 @@ export const kk: Dict = {
   'pm.fldOverrideDesc': 'Өз сипаттамасы',
   'pm.fldOverrideChars': 'Өз сипаттамалары',
   'pm.galleryTitle': 'Тауар фотогалереясы',
-  'pm.galleryHint': 'Medusa фотолары. Жоғарыдағы «Өз фотосы» мұқабаны белгілейді.',
+  'pm.galleryHint': 'Каталог фотолары. Жоғарыдағы «Өз фотосы» мұқабаны белгілейді.',
   'pm.galleryPickHint':
     'Фотоларды парақтап, «Мұқаба ету» басыңыз — мұқаба қолданбада және кассада көрінеді.',
   'pm.galleryEmpty': 'Тауар фотосы табылмады',
@@ -2185,12 +2200,12 @@ export const kk: Dict = {
   'pm.galleryNext': 'Келесі фото',
   'pm.gallerySetCover': 'Мұқаба ету',
   'pm.galleryUnavailable': 'Фотолар жүктелмеді',
-  'pm.overrideHint': 'PIM/Medusa деректерін қолмен қайта анықтау',
+  'pm.overrideHint': 'Каталог деректерін қолмен қайта анықтау',
   'pm.overrideCharsHint': 'Әр жолда бір сипаттама',
-  'pm.medusaHint': 'Medusa-дан — қайта жазуға болады (әдепкіде күн сайын жаңарады)',
-  'pm.medusaCharsHint': 'Medusa-дан, әр жолда — қайта жазуға болады (әйтпесе күн сайын жаңарады)',
+  'pm.medusaHint': 'Каталогтан — қайта жазуға болады',
+  'pm.medusaCharsHint': 'Каталогтан, әр жолда — қайта жазуға болады',
   'pm.charsPlaceholder': 'Мысалы:\nШығару түрі: спрей\nКөлемі: 50 мл\nӨндіруші: …',
-  'pm.medusaCharsRef': 'Medusa сипаттамалары',
+  'pm.medusaCharsRef': 'Каталог сипаттамалары',
 
   // ── PromoDetail (товарная секция T1) ───────────────────────────────────
   'pd.productSection': 'Науқан — тауар, баға, бонус, күндер',
@@ -2249,6 +2264,7 @@ export const kk: Dict = {
   'pr.partnerLabel': 'Серіктес белгісі',
   'pr.barcode': 'Штрихкод',
   'pr.ipartId': 'iPartID',
+  'pr.posmIdentifiersHint': 'Касса ережесі үшін каталогта жоқ болса, тексерілген штрихкодты немесе iPartID енгізіңіз.',
   'pr.comparison': 'Салыстыру',
   'pr.comparisonHint': 'Жолдар: параметр / болды / болды (+ ерекшелеу)',
   'pr.colLabel': 'Параметр',

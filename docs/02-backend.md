@@ -23,12 +23,12 @@ The backend is a modular monolith under package `kz.epharm`.
 | `auth`                                | Admin auth, JWT, refresh tokens, roles.                                 |
 | `mobile.auth`                         | Pharmacist OTP auth, registration, refresh/logout.                      |
 | `mobile.profile`                      | `/api/mobile/me` profile/balance.                                       |
-| `mobile.catalog`                      | Public Medusa-backed product catalog for mobile.                        |
+| `mobile.catalog`                      | Public published-product catalogue for mobile.                          |
 | `mobile.promotions`                   | Public active promo campaign feed.                                      |
 | `mobile.receipts`                     | Authenticated receipt upload/history.                                   |
 | `mobile.pharmacies`                   | Public active pharmacy list.                                            |
 | `catalog`                             | Internal/admin product master data used by rules.                       |
-| `promo`                               | Campaigns, Medusa product snapshots, tiers, campaign-generated rules.   |
+| `promo`                               | Campaigns, source product snapshots, tiers, campaign-generated rules.   |
 | `rules`                               | Rules Engine admin CRUD and POSM matching logic.                        |
 | `receipts`                            | Receipt storage, moderation, POS/Excel reconciliation, bonus crediting. |
 | `pharmacies`                          | Chains and pharmacies.                                                  |
@@ -36,7 +36,8 @@ The backend is a modular monolith under package `kz.epharm`.
 | `finance`                             | Payout batches, items, approval, scheduler.                             |
 | `screens`                             | Broadcast/screen media and playlists.                                   |
 | `banners`                             | Admin-managed mobile banners.                                           |
-| `medusa`                              | Storefront client/proxy and admin read-only catalog.                    |
+| `eshop`                               | Verified full-site catalogue snapshot, aliases and admin/mobile reads. |
+| `medusa`                              | Legacy catalogue adapter retained during rollback window.              |
 | `posm`                                | POSM recommendations, outcomes, sales, playlists, heartbeat, CDP.       |
 | `fulfillment`                         | Signed storefront order ingest, pharmacist cash-pickup queue and actions. |
 | `appupdate`                           | POSM app release metadata and auto-update endpoint.                     |
@@ -130,10 +131,11 @@ All POSM endpoints require `X-Posm-Key`.
 ### Shared Public
 
 - `GET /api/health`
-- `GET /api/media/img?u=<medusa-http-image-url>`
+- `GET /api/media/eshop?sku=<site-sku>`
+- `GET /api/media/img?u=<medusa-http-image-url>` (legacy rollback)
 
-The media proxy only allows the configured Medusa authority and exists to avoid browser mixed-content
-blocking when the admin/mobile web views are served over HTTPS.
+The site image proxy accepts only a validated SKU and fetches the fixed HTTPS site
+media route; the legacy proxy still permits only its configured Medusa authority.
 
 ## Security Model
 
@@ -158,28 +160,28 @@ after phone verification ePharm issues its own JWT pair. The database stores the
 opaque nonce, never the external OTP. Per-phone resend cooldown, TTL and attempt limits remain local.
 See `docs/15-daribar-otp.md` for the extracted contract and operations.
 
-## Medusa Integration
+## Site catalogue integration
 
-Backend is the only consumer of Medusa from this repo. It fetches:
+The backend consumes a private, authenticated exporter on the live site host. The
+exporter reads one consistent PostgreSQL snapshot and streams the complete
+Daribar master. Epharm verifies count and SHA-256, then publishes a full
+generation atomically in its own PostgreSQL database. Admin search sees every
+source product; mobile search/detail/categories see only `published=true`.
+The public site offset API is not a full-master or consistent export source.
 
-- product list/detail/category data;
-- images, barcodes, MNN/ATC/rx metadata;
-- product recommendation data;
-- pharmacy stock locations exported into `seed/pharmacies.json`.
+`ESHOP_CATALOG_SYNC_ENABLED` preloads the new source; `ESHOP_CATALOG_READ_ENABLED`
+switches customer reads only after a verified generation exists. Until the
+read cutover, the previous Medusa snapshot remains the rollback read model.
+An incomplete export never replaces the active generation. Search uses local
+indexes and does not call the site for each request. See
+`docs/21-site-catalog-integration.md` for source fields, aliases, media,
+POSM continuity and rollout gates.
 
-Mobile/admin receive normalized DTOs from this backend, not raw Medusa responses.
-
-Important behavior:
-
-- A background crawler stores a complete, versioned Medusa list snapshot in PostgreSQL. Catalogue
-  browsing and search use that local read model; the remote `q` endpoint is never on the normal
-  request path after the first successful synchronization.
-- Search covers product name, brand/manufacturer, MNN, category, SKU, barcode and alternative names.
-  A trigram index keeps partial Cyrillic/Latin searches fast. Failed or partial refreshes retain the
-  last complete generation and retry automatically.
-- `metadata` placeholders such as `-`, `_`, `none`, `n/a`, `н/д` are treated as empty.
-- Prices may be missing in Medusa; UI must degrade to "Цена в аптеке".
-- Product images may be HTTP; UI should display them through `/api/media/img`.
+Confirmed Medusa ID aliases resolve existing campaign links to site products.
+Unknown aliases remain local POSM `ProductEntity` records and rules; the backend
+does not guess mappings by name. The site source has no usable normalized
+barcodes, so a new exact-product POSM rule requires an explicit verified barcode
+or iPartID before activation.
 
 ## POSM Matching
 
