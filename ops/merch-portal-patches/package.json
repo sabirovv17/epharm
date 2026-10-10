@@ -1,0 +1,16 @@
+{
+  "name": "crm",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Dependency manifest for the reproducible merch portal patch bundle; not a deployable app",
+  "dependencies": {
+    "@vitejs/plugin-react": "5.1.2",
+    "leaflet": "1.9.4",
+    "lucide-react": "^0.554.0",
+    "qrcode": "^1.5.4",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-leaflet": "5.0.0",
+    "vite": "6.4.3"
+  }
+}
