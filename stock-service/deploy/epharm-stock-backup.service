@@ -6,5 +6,5 @@ RequiresMountsFor=/srv/epharm-stock-postgres
 
 [Service]
 Type=oneshot
-ExecStart=/home/adm-quasar/epharm-stock-code/stock-service/deploy/backup-postgres.sh
+ExecStart=/usr/local/sbin/epharm-stock-backup
 TimeoutStartSec=30min
