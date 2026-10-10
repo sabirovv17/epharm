@@ -43,10 +43,9 @@ class EshopMediaController(
         if (!SKU.matches(sku)) {
             throw AppException(ErrorCode.VALIDATION_FAILED, "Некорректный SKU изображения", HttpStatus.BAD_REQUEST)
         }
-        if (!catalog.hasPublishedSku(sku)) {
-            throw AppException(ErrorCode.NOT_FOUND, "Изображение товара не найдено", HttpStatus.NOT_FOUND)
-        }
-        val encoded = URLEncoder.encode(sku, StandardCharsets.UTF_8)
+        val storedSku = catalog.publishedSku(sku)
+            ?: throw AppException(ErrorCode.NOT_FOUND, "Изображение товара не найдено", HttpStatus.NOT_FOUND)
+        val encoded = URLEncoder.encode(storedSku, StandardCharsets.UTF_8)
         val uri = origin.resolve("/api/media/daribar?sku=$encoded")
         val request = HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(15)).GET().build()
         val response = try {

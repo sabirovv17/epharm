@@ -70,12 +70,13 @@ class EshopCatalogSnapshotRepository(
 
     fun hasCompleteSnapshot(): Boolean = syncState().ready
 
-    fun hasPublishedSku(sku: String): Boolean = jdbc.queryForObject(
-        """SELECT EXISTS (SELECT 1 FROM eshop_catalog_products
+    /** Return the stored canonical SKU so outbound media URLs use a catalog value. */
+    fun publishedSku(sku: String): String? = jdbc.query(
+        """SELECT sku FROM eshop_catalog_products
              WHERE generation = (SELECT active_generation FROM eshop_catalog_sync_state WHERE singleton = 1)
-               AND sku = ? AND published)""",
-        Boolean::class.java, sku,
-    ) == true
+               AND sku = ? AND published LIMIT 1""",
+        { rs, _ -> rs.getString(1) }, sku,
+    ).firstOrNull()
 
     @Transactional
     fun beginSync() {

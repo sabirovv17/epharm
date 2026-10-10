@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test
 
 class EshopMediaControllerTest {
     private val catalog = mockk<EshopCatalogSnapshotRepository>().also {
-        every { it.hasPublishedSku(any()) } returns false
+        every { it.publishedSku(any()) } returns null
     }
 
     @Test
