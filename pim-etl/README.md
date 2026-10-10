@@ -14,6 +14,9 @@ This directory contains the recovered production pipeline that imports daily Sta
 - Secrets live only in root-readable files under `/etc/pim-dashboard`. They are neither committed nor inserted into subprocess arguments.
 
 The SSH catalogue receiver is not the Medusa commerce HTTP origin. Replacing the retired commerce origin remains a separate P0 operation requiring a current URL and keys.
+Before deploying the name-quarantine policy, confirm that the independent receiver accepts
+`export_policy_version: 3`. The server's older ETL installation must be reconciled with this
+Git-tracked runtime and protected configuration; copying only the validator is not a safe rollout.
 
 ## Layout
 
