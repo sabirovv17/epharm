@@ -75,6 +75,10 @@ jobs:
             caddy:2-alpine caddy adapt --config /etc/caddy/Caddyfile \
             | node ops/merch-portal-patches/test-caddy-routes.mjs
           bash ops/merch-portal-patches/test-caddy-redirect.sh
+      - name: Audit reproducible merchandising patch dependencies
+        run: |
+          npm ci --ignore-scripts --no-fund --prefix ops/merch-portal-patches
+          npm audit --audit-level=low --prefix ops/merch-portal-patches
       - name: Verify CRM internal HTTPS edge isolation
         run: bash storefront/deploy/inkar-server/tests/crm-internal-tls-contract.sh
       - name: Verify immutable release handoff
