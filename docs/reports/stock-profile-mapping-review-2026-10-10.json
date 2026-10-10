@@ -1,0 +1,18 @@
+{
+  "source_profiles": 586,
+  "hq_pharmacies": 532,
+  "source_blank_address": 99,
+  "source_closed_named": 81,
+  "approved_identity_links": 0,
+  "exact_city_name_address_candidates": 185,
+  "corroborated_candidates": 110,
+  "needs_review": 291,
+  "classifications": {
+    "closed_source_review": 81,
+    "exact_address_correlated_name_city": 2,
+    "exact_name_address_city": 185,
+    "exact_name_correlated_address_city": 108,
+    "manual_review": 206,
+    "no_city_candidates": 4
+  }
+}

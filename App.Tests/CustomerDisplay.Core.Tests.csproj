@@ -41,6 +41,7 @@
     <Compile Include="..\App\Services\PosmDeviceCredentialResolver.cs" Link="Services\PosmDeviceCredentialResolver.cs" />
     <Compile Include="..\App\Services\UpdateManifestVerifier.cs" Link="Services\UpdateManifestVerifier.cs" />
     <Compile Include="..\App\Services\TaskKioskClient.cs" Link="Services\TaskKioskClient.cs" />
+    <Compile Include="..\App\Services\StockSnapshotUploadClient.cs" Link="Services\StockSnapshotUploadClient.cs" />
     <Compile Include="..\App\Config\EpharmConfig.cs" Link="Config\EpharmConfig.cs" />
   </ItemGroup>
 </Project>

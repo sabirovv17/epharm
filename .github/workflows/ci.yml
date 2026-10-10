@@ -371,6 +371,42 @@ jobs:
           dotnet-version: 10.0.x
       - run: dotnet test App.Tests/CustomerDisplay.Core.Tests.csproj -c Release
 
+  stock-service:
+    name: stock / tests and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: stocks
+          POSTGRES_USER: stock_owner
+          POSTGRES_PASSWORD: test
+        ports:
+          - 15434:5432
+        options: >-
+          --health-cmd "pg_isready -U stock_owner -d stocks"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+      - name: Create limited stock application role for integration tests
+        run: docker exec '${{ job.services.postgres.id }}' psql -U stock_owner -d stocks -c "CREATE ROLE stock_app LOGIN PASSWORD 'test'"
+      - name: Run unit and PostgreSQL integration tests
+        env:
+          STOCK_TEST_PG_OWNER_CONNECTION_STRING: Host=127.0.0.1;Port=15434;Database=stocks;Username=stock_owner;Password=test
+          STOCK_TEST_PG_CONNECTION_STRING: Host=127.0.0.1;Port=15434;Database=stocks;Username=stock_app;Password=test
+        run: dotnet test stock-service-tests/stock-service-tests.csproj -c Release --logger 'console;verbosity=normal'
+      - run: dotnet publish stock-service/StockService.csproj -c Release
+      - run: dotnet publish stock-service/stock-service-migrate/stock-service-migrate.csproj -c Release
+      - run: shellcheck --severity=warning stock-service/deploy/backup-postgres.sh stock-service/deploy/receive-stock-backup.sh
+      - run: docker compose --env-file .env.example -f compose.yml config --quiet
+        working-directory: stock-service
+
   posm-windows:
     name: posm / Windows production build
     runs-on: windows-latest
@@ -549,6 +585,7 @@ jobs:
       - mobile-android
       - mobile-ios
       - posm-core
+      - stock-service
       - posm-windows
       - codeql
       - dependency-review
@@ -571,6 +608,7 @@ jobs:
           MOBILE_ANDROID: ${{ needs.mobile-android.result }}
           MOBILE_IOS: ${{ needs.mobile-ios.result }}
           POSM_CORE: ${{ needs.posm-core.result }}
+          STOCK_SERVICE: ${{ needs.stock-service.result }}
           POSM_WINDOWS: ${{ needs.posm-windows.result }}
           CODEQL: ${{ needs.codeql.result }}
           DEPENDENCY_REVIEW: ${{ needs.dependency-review.result }}
@@ -580,7 +618,7 @@ jobs:
             "$REPO_QUALITY" "$OPS_CONTRACT" "$P0_CONFIG" "$ADMIN" "$STOREFRONT"
             "$BACKEND" "$ADMIN_E2E" "$CONTAINERS" "$MOBILE_ANDROID" "$MOBILE_IOS"
             "$PIM_ETL"
-            "$POSM_CORE" "$POSM_WINDOWS" "$CODEQL"
+            "$POSM_CORE" "$STOCK_SERVICE" "$POSM_WINDOWS" "$CODEQL"
           )
           for result in "${required[@]}"; do
             test "$result" = success || exit 1
