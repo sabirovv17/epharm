@@ -102,6 +102,9 @@ OCI labels/Sentry/app health and writes a content-addressed local manifest. `dep
 missing images, performs PostgreSQL + MinIO + off-site backup, updates `.release.env`, starts without
 rebuilding and verifies both `/api/health` and `/release.json` report the expected id. A failed smoke
 automatically returns to the previous images.
+The backend CI must also check runtime-only integrations in the final `bootJar`, not just that
+application sources compile. Standard-N pharmacist synchronization requires the Jaybird Firebird
+driver; the production JAR packaging check guards against silently losing it in a release.
 For an exceptional backend-only release, use the separate, tested archive-host transaction in
 `06-deployment-and-ops.md`; it persists distinct backend/frontend tags and commits and requires a
 fresh verified rollback bundle **in addition to**, not instead of, encrypted off-site backup and a
