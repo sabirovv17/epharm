@@ -23,6 +23,16 @@
 Caddy is the only public entrypoint in the current deployment. Backend, frontend, MinIO, Postgres,
 and Redis are internal Docker services. The same host serves API, admin, and S3 by path.
 
+Stock inventory is a separate service on the shop host. Its internal HTTPS
+`/stocks/api/v1/*` route serves a Bearer-authenticated JSON API. A single
+background worker reads all Standard-N pharmacy profiles with read-only Firebird
+transactions and stores completed per-pharmacy snapshots in its own SQLite
+database. The stock service does not call the HQ backend; Standard-N profile
+IDs and HQ pharmacy IDs require an explicit mapping for cross-system joins.
+Actual freshness is exposed in the status API; a three-minute all-pharmacy
+refresh is not validated for the current Standard-N database. Details are in
+`22-stock-service.md`.
+
 There is also an optional internal VPN hostname in `Caddyfile` (`inkpim.inkar.kz`) that proxies to the
 same frontend over plain HTTP inside the corporate VPN.
 

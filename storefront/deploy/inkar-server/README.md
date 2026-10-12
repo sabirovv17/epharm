@@ -143,6 +143,18 @@ curl -fsS 'https://inkeshopapteka.inkar.kz/api/health?deep=1'
 The command restores the HTTP Caddyfile if the HTTPS probe fails. Certificate
 state persists under `/srv/inkar-shop/data/caddy-*`.
 
+### Stock API on the data warehouse host
+
+The stock collector and its SQLite data run on `10.10.1.81`. These Caddy
+templates preserve the existing client URL
+`https://inkeshopapteka.inkar.kz/stocks/api/v1/*` by proxying over verified
+HTTPS to the `.81` Nginx vhost. Caddy forwards the original `/stocks` prefix;
+Nginx removes it before forwarding to the loopback-only stock container. Do not
+restore the former Docker-network upstream or strip `/stocks` in Caddy during a
+shop release. Check the collector and route as described in
+[`docs/22-stock-service.md`](../../../docs/22-stock-service.md) before replacing
+the live edge configuration.
+
 ### CRM HTTPS for internal pharmacy DNS
 
 The public `crm.inkar.kz` gateway terminates TLS outside this host, but corporate
