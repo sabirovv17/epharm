@@ -26,7 +26,8 @@ if ! PATH="$test_root/bin:$PATH" \
   exit 1
 fi
 
-[[ "$(grep -c '^probe$' "$test_root/docker-state")" -eq 3 ]]
+[[ "$(grep -c '^tcp-probe$' "$test_root/docker-state")" -eq 4 ]]
+[[ "$(grep -c '^db-probe$' "$test_root/docker-state")" -eq 2 ]]
 [[ "$(grep -c '^restore$' "$test_root/docker-state")" -eq 1 ]]
 grep -Fq 'Restore-test OK' "$test_root/restore.log"
-echo 'Restore waits for target PostgreSQL database before pg_restore OK'
+echo 'Restore waits for final PostgreSQL server and target database before pg_restore OK'

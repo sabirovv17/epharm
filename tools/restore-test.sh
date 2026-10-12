@@ -62,10 +62,12 @@ docker run -d --rm --name "$PG_CONTAINER" --network "$NETWORK" \
 
 database_ready=false
 for _ in $(seq 1 60); do
-  # pg_isready may succeed while the image is still initializing and before
-  # POSTGRES_DB has been created. Probe the actual target database instead.
-  if docker exec "$PG_CONTAINER" psql -At -U epharm_restore -d epharm_restore \
-    -c 'SELECT 1' >/dev/null 2>&1; then
+  # The image starts a Unix-socket-only temporary server during initialization.
+  # Wait for the final TCP server, then verify that POSTGRES_DB really exists.
+  if docker exec "$PG_CONTAINER" pg_isready -h 127.0.0.1 -U epharm_restore \
+    -d epharm_restore >/dev/null 2>&1 && \
+    docker exec "$PG_CONTAINER" psql -At -U epharm_restore -d epharm_restore \
+      -c 'SELECT 1' >/dev/null 2>&1; then
     database_ready=true
     break
   fi
