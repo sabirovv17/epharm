@@ -40,6 +40,8 @@ dependencies {
     runtimeOnly(libs.jjwt.jackson)
 
     runtimeOnly(libs.postgresql)
+    // Standard-N pharmacist directory connects to Firebird at runtime.
+    runtimeOnly(libs.jaybird)
     implementation(libs.flyway.core)
     runtimeOnly(libs.flyway.postgresql)
 
