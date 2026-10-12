@@ -147,7 +147,11 @@ content-addressed IDs, and writes persistent per-component pins. It never recrea
 `.env.prod`, `Caddyfile`, database volumes, or POSM release files.
 
 After the exact merged commit has passed CI, build both candidate images once from the reviewed
-source archive. Verify that each OCI `org.opencontainers.image.version` label is its image tag and
+source archive extracted into a **new empty directory**. Never overlay the archive onto the
+server's loose source tree: a stale file can be compiled while the image still carries the new
+commit label. Compare the archive checksum with the transferred artifact and verify a critical
+backend behavior against the built image before switching containers; labels alone do not prove
+source provenance. Verify that each OCI `org.opencontainers.image.version` label is its image tag and
 each `org.opencontainers.image.revision` label is the same full merged commit SHA. Stage the reviewed
 Compose file and scripts before making the backup; compare its SHA-256 with the merged source. First
 complete the encrypted off-site backup and isolated restore drill required by
