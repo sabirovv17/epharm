@@ -59,8 +59,8 @@ redirects to `/screens` because banners are now a tab/panel in the Screens secti
 | AI Exam     | Question bank CRUD.                                                                                               |
 | Finance     | Payout batches, generation, approval with finance/HQ role checks.                                                 |
 | Lift        | Pilot/control analytics view.                                                                                     |
-| Training    | Dashboard, programs/routes, courses, events/QR and six-digit attendance codes, assignments, attendance, results, certificates and analytics. |
-| Storefront  | Read-only Medusa catalog as seen through backend proxy.                                                           |
+| Training    | Dashboard, programs/routes, courses (including scheduled live lessons and their studio), events/QR and six-digit attendance codes, assignments, attendance, results, certificates and analytics. |
+| Storefront  | Read-only product catalog through the backend; the configured Inkar website is preferred, with a local snapshot as outage fallback. |
 | Settings    | Language/timezone/session settings.                                                                               |
 
 Campaign rule authoring validates the editable request contract before saving. Optional barcode, iPartID and goal

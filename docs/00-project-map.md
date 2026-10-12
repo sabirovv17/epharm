@@ -46,7 +46,7 @@ PharmaPayV2/
 
 | Модуль          | Код                                              | Тесты                      | Ключевые файлы                                                                                                                           |
 | --------------- | ------------------------------------------------ | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| **Backend**     | `admin-panel/backend/src/main/kotlin/kz/epharm/` | `src/test/kotlin/`         | `application.yml` (вся конфигурация + env-переменные); Flyway: `src/main/resources/db/migration/` (V001–V047)                            |
+| **Backend**     | `admin-panel/backend/src/main/kotlin/kz/epharm/` | `src/test/kotlin/`         | `application.yml` (вся конфигурация + env-переменные); Flyway: `src/main/resources/db/migration/` (V001–V059)                            |
 | **Админ-фронт** | `admin-panel/frontend/src/`                      | `*.test.tsx` рядом с кодом | `features/*/Page.tsx` (12 разделов), `lib/api-types.ts`, `lib/queries/*`, `i18n/dict.ts` (ru+kk)                                         |
 | **Мобилка**     | `lib/`                                           | `test/`                    | `core/config/api_config.dart` (USE_API/API_BASE), `core/network/api_client.dart`, `features/*/{data,application,presentation}`           |
 | **POSM**        | `App/` + `Models/`                               | `App.Tests/` + VM          | `MainWindow.xaml.cs` (лог кассы), `MainWindow.Recommendations.cs`, `Services/` (Api/Outbox/MediaCache/Updater), `Config/EpharmConfig.cs` |
@@ -59,17 +59,18 @@ PharmaPayV2/
 | ------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | `auth`                                            | JWT-вход админки (admin_users, refresh)                                            |
 | `mobile.auth`                                     | OTP-вход фармацевта (Daribar gateway, локальный кулдаун/TTL/anti-bruteforce)       |
-| `mobile.catalog`                                  | каталог мобилки из Medusa + рекомендации карточки (двунаправленные) + fallback-Q&A |
+| `mobile.catalog`                                  | каталог мобилки из сайта Inkar с резервным снимком + рекомендации карточки        |
 | `mobile` (остальное)                              | me/баланс, чеки, аптеки рядом                                                      |
 | `posm`                                            | recommend/sales/heartbeat/плейлисты касс + атрибуция показ→продажа (V032)          |
 | `training`                                        | программы, маршруты, назначения, события, результаты, сертификаты и бонусы         |
 | `rules`                                           | движок правил замены/кросс-селла (read-only, источник = Промо)                     |
 | `promo`                                           | Промо-кампании (1 кампания = 1 товар; правила создаются отсюда)                    |
-| `medusa`                                          | клиент витрины inkar.kz (каталог/цены/фото) + image-прокси                         |
+| `medusa`                                          | исторический каталог и резервный снимок товаров                                    |
+| `storefront`                                      | read-only клиент нового сайта Inkar и преобразование товаров/категорий             |
 | `screens`                                         | слайды/плейлисты видео для 2-х экранов касс (MinIO)                                |
 | `receipts`/`reconcile`                            | чеки мобилки + модерация бонусов                                                   |
 | `dashboard`                                       | сводка + журнал показов/продаж (RecommendationAnalytics)                           |
-| `pharmacies`/`pharmacists`/`finance`/`lms`/`exam` | справочники и разделы админки                                                      |
+| `pharmacies`/`pharmacists`/`finance`/`lms`/`exam` | справочники, обучение (включая live-комнаты) и разделы админки                     |
 | `shared`                                          | SecurityConfig, ошибки (`AppException`/`ErrorCode`), `PhoneUtil`, ProdBootstrap    |
 
 ## Важные файлы (когда что-то надо быстро)
@@ -95,7 +96,8 @@ PharmaPayV2/
 | ------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | Прод-сервер               | `adm-quasar@inkpim.inkar.kz`, каталог `/home/adm-quasar/epharm`  | деплой = git archive + scp + compose build                                       |
 | Публичный хост            | `https://epharm.inkar.kz`                                        | `/api`→backend, `/s3`→MinIO, `/`→админка                                         |
-| Medusa (витрина inkar.kz) | `http://78.140.246.238:9000` (точечно разрешённый legacy origin) | каталог/цены/фото; включён, cache refresh 5 мин, linked-product refresh ежечасно |
+| Новый сайт Inkar          | `https://www.aptekasosklada.kz`                                  | при включённом флаге — приоритетный read-only каталог; резерв — локальный снимок |
+| Medusa (исторический)     | legacy origin задан в production-конфигурации                      | старый origin выведен из эксплуатации; не полагаться на него для холодного чтения |
 | Daribar OTP gateway       | `https://prod-backoffice.daribar.com/api/v2/{sms,auth}`          | SMS и проверка кода на стороне Daribar; ключи агрегатора в ePharm не передаются  |
 | p1sms (legacy fallback)   | `https://admin.p1sms.kz/apiSms/create`                           | используется только при явном `OTP_PROVIDER=p1sms`                               |
 | Стандарт-Н ДЕМО           | VM пользователя, `C:\Standart-N_DEMO`                            | Firebird `db/ztrade.fdb` (localhost, SYSDBA/masterkey), лог `Kassir/zkassa.log`  |

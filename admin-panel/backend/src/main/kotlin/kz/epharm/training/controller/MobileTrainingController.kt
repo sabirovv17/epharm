@@ -2,6 +2,12 @@ package kz.epharm.training.controller
 
 import jakarta.validation.Valid
 import kz.epharm.mobile.auth.security.PharmacistPrincipal
+import kz.epharm.lms.dto.CourseLiveReactionRequest
+import kz.epharm.lms.dto.CourseLiveRoomDto
+import kz.epharm.lms.dto.CourseLiveVoteRequest
+import kz.epharm.lms.dto.CreateCourseLiveMessageRequest
+import kz.epharm.lms.entity.CourseLiveAuthorType
+import kz.epharm.lms.service.CourseLiveService
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import kz.epharm.training.dto.MobileTrainingOverviewDto
@@ -28,6 +34,7 @@ import java.util.UUID
 @RequestMapping("/api/mobile/training")
 class MobileTrainingController(
     private val trainingService: TrainingService,
+    private val courseLiveService: CourseLiveService,
 ) {
     @GetMapping
     fun overview(@AuthenticationPrincipal principal: PharmacistPrincipal?): MobileTrainingOverviewDto =
@@ -107,6 +114,65 @@ class MobileTrainingController(
         lessonId,
         req,
     )
+
+    @GetMapping("/assignments/{assignmentId}/stages/{stageId}/lessons/{lessonId}/live")
+    fun liveRoom(
+        @PathVariable assignmentId: UUID,
+        @PathVariable stageId: UUID,
+        @PathVariable lessonId: String,
+        @AuthenticationPrincipal principal: PharmacistPrincipal?,
+    ): CourseLiveRoomDto {
+        val actor = requirePrincipal(principal)
+        trainingService.requireLiveLessonAccess(actor.pharmacistId, assignmentId, stageId, lessonId)
+        return courseLiveService.room(lessonId, actor.pharmacistId)
+    }
+
+    @PostMapping("/assignments/{assignmentId}/stages/{stageId}/lessons/{lessonId}/live/messages")
+    fun liveMessage(
+        @PathVariable assignmentId: UUID,
+        @PathVariable stageId: UUID,
+        @PathVariable lessonId: String,
+        @Valid @RequestBody req: CreateCourseLiveMessageRequest,
+        @AuthenticationPrincipal principal: PharmacistPrincipal?,
+    ): CourseLiveRoomDto {
+        val actor = requirePrincipal(principal)
+        trainingService.requireLiveLessonAccess(actor.pharmacistId, assignmentId, stageId, lessonId)
+        return courseLiveService.postMessage(
+            lessonId,
+            actor.pharmacistId,
+            actor.name,
+            CourseLiveAuthorType.pharmacist,
+            req.kind,
+            req.body,
+        )
+    }
+
+    @PostMapping("/assignments/{assignmentId}/stages/{stageId}/lessons/{lessonId}/live/polls/{pollId}/vote")
+    fun liveVote(
+        @PathVariable assignmentId: UUID,
+        @PathVariable stageId: UUID,
+        @PathVariable lessonId: String,
+        @PathVariable pollId: String,
+        @Valid @RequestBody req: CourseLiveVoteRequest,
+        @AuthenticationPrincipal principal: PharmacistPrincipal?,
+    ): CourseLiveRoomDto {
+        val actor = requirePrincipal(principal)
+        trainingService.requireLiveLessonAccess(actor.pharmacistId, assignmentId, stageId, lessonId)
+        return courseLiveService.vote(lessonId, pollId, req.optionId, actor.pharmacistId)
+    }
+
+    @PostMapping("/assignments/{assignmentId}/stages/{stageId}/lessons/{lessonId}/live/reactions")
+    fun liveReaction(
+        @PathVariable assignmentId: UUID,
+        @PathVariable stageId: UUID,
+        @PathVariable lessonId: String,
+        @Valid @RequestBody req: CourseLiveReactionRequest,
+        @AuthenticationPrincipal principal: PharmacistPrincipal?,
+    ): CourseLiveRoomDto {
+        val actor = requirePrincipal(principal)
+        trainingService.requireLiveLessonAccess(actor.pharmacistId, assignmentId, stageId, lessonId)
+        return courseLiveService.react(lessonId, actor.pharmacistId, req.reaction)
+    }
 
     @PostMapping("/events/check-in/{qrToken}")
     fun checkIn(

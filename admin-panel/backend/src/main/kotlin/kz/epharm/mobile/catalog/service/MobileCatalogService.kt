@@ -24,6 +24,8 @@ import kz.epharm.rules.repository.RuleRepository
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import kz.epharm.shared.validation.BarcodeNormalizer
+import kz.epharm.storefront.client.StorefrontCatalogClient
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import java.util.concurrent.CompletableFuture
@@ -32,8 +34,9 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 
 /**
- * Каталог для мобильного приложения: тянет товары из Medusa-витрины через [MedusaClient],
- * нормализует в наши DTO и кеширует ([MedusaCatalogCache]).
+ * Каталог для мобильного приложения: при включённом сайте Inkar берёт товары оттуда,
+ * при сбое использует полный локальный снимок; до включения сохраняет прежний путь
+ * снимок/Medusa. Нормализует в наши DTO и кеширует ([MedusaCatalogCache]).
  *
  * Главная сложность — РЕАЛЬНЫЕ данные неполные: цена/фото/категории часто пусты,
  * но есть богатый `metadata`. Маппинг построен на цепочках fallback (бренд из metadata,
@@ -47,7 +50,9 @@ class MobileCatalogService(
     private val promoRepository: PromoRepository,
     private val ruleRepository: RuleRepository,
     private val snapshot: MedusaCatalogSnapshotRepository? = null,
+    private val storefront: StorefrontCatalogClient? = null,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
     private val retailPriceExecutor = Executors.newFixedThreadPool(RETAIL_PRICE_WORKERS) { runnable ->
         Thread(runnable, "medusa-retail-price").apply { isDaemon = true }
     }
@@ -63,20 +68,30 @@ class MobileCatalogService(
         val safeOffset = offset.coerceAtLeast(0)
         val key = "list|q=${q?.trim()?.lowercase().orEmpty()}|cat=${category.orEmpty()}|l=$safeLimit|o=$safeOffset|retail=$includeRetailFallbackPrices"
         return cache.get(key) {
-            // Search/list is served from a complete PostgreSQL snapshot whenever one
-            // exists.  This avoids Medusa's slow remote `q` path and keeps the picker
-            // available during storefront outages.  Before the first successful crawl
-            // we retain the direct call so a fresh installation still works immediately.
-            // Category ids are stored in the snapshot as well, so every list/search
-            // variant remains available during a complete storefront outage.
-            val local = snapshot?.takeIf { it.hasCompleteSnapshot() }
-                ?.search(q = q, categoryId = category, limit = safeLimit, offset = safeOffset)
+            val websiteEnabled = storefront?.active == true
+            val website = storefront?.takeIf { it.active }?.let { client ->
+                runCatching { client.listProducts(q, category, safeLimit, safeOffset) }
+                    .onFailure { log.warn("Website catalogue unavailable; using local snapshot: {}", it.message) }
+                    .getOrNull()
+            }
+            // Keep the complete snapshot as the outage path for every query, including category filters.
+            val local = if (website == null) snapshot?.takeIf { it.hasCompleteSnapshot() }?.let { repository ->
+                val categoryId = if (websiteEnabled && !category.isNullOrBlank()) {
+                    resolveSnapshotCategoryId(repository, category)
+                        ?: throw websiteUnavailable("Категория недоступна в резервном каталоге")
+                } else category
+                repository.search(q = q, categoryId = categoryId, limit = safeLimit, offset = safeOffset)
+            } else null
             val products: List<MedusaProduct>
             val total: Int
-            if (local != null) {
+            if (website != null) {
+                products = website.products
+                total = website.count
+            } else if (local != null) {
                 products = local.products
                 total = local.total
             } else {
+                if (websiteEnabled) throw websiteUnavailable("Каталог сайта временно недоступен")
                 val remote = medusa.listProducts(
                     q = q,
                     categoryId = category,
@@ -88,7 +103,9 @@ class MobileCatalogService(
                 total = remote.count
             }
             MobileCatalogPageDto(
-                items = cards(products, includeRetailFallbackPrices),
+                // Website prices are authoritative. Its IDs do not necessarily exist in
+                // the retired Medusa origin, so retail fallback there only adds latency.
+                items = cards(products, includeRetailFallbackPrices && !websiteEnabled),
                 total = total,
                 limit = safeLimit,
                 offset = safeOffset,
@@ -110,15 +127,26 @@ class MobileCatalogService(
         includeRetailFallbackPrices: Boolean = false,
     ): MobileCatalogDetailDto {
         val base = cache.get("detail|$id|retail=$includeRetailFallbackPrices") {
-            // A complete snapshot is the authoritative read model.  Falling back
-            // to the live storefront only before the first successful crawl keeps
-            // product details available while Medusa is down.
-            val local = snapshot?.takeIf { it.hasCompleteSnapshot() }
-            val p = (if (local != null) local.findById(id) else medusa.getProduct(id))
+            val websiteEnabled = storefront?.active == true
+            val local = snapshot?.takeIf { it.hasCompleteSnapshot() }?.findById(id)
+            val website = storefront?.takeIf { it.active }?.let { client ->
+                runCatching { client.getProduct(id, local?.handle) }
+                    .onFailure { log.warn("Website product {} unavailable; using local snapshot: {}", id, it.message) }
+                    .getOrNull()
+                    ?.takeIf { product ->
+                        (product.id == id).also { matches ->
+                            if (!matches) log.warn("Website product id differs from requested id; using local snapshot")
+                        }
+                    }
+            }
+            if (websiteEnabled && website == null && local == null) {
+                throw websiteUnavailable("Товар временно недоступен в каталоге")
+            }
+            val p = (website ?: local ?: medusa.getProduct(id))
                 ?: throw AppException(ErrorCode.NOT_FOUND, "Товар не найден", HttpStatus.NOT_FOUND)
             val detail = withRetailPriceFallback(
                 detailOf(p),
-                if (includeRetailFallbackPrices) retailPriceOf(p.id) else null,
+                if (includeRetailFallbackPrices && !websiteEnabled) retailPriceOf(p.id) else null,
             )
             applyPromoOverride(id, detail)
         }
@@ -172,12 +200,30 @@ class MobileCatalogService(
     }
 
     fun categories(): List<MobileCategoryDto> = cache.get("categories") {
-        val local = snapshot?.takeIf { it.hasCompleteSnapshot() }
-        val categories = if (local != null) local.categories() else medusa.listCategories().productCategories
+        val websiteEnabled = storefront?.active == true
+        val website = storefront?.takeIf { it.active }?.let { client ->
+            runCatching { client.listCategories() }
+                .onFailure { log.warn("Website categories unavailable; using local snapshot: {}", it.message) }
+                .getOrNull()
+                ?.takeIf { it.isNotEmpty() }
+        }
+        val local = if (website == null) snapshot?.takeIf { it.hasCompleteSnapshot() } else null
+        if (websiteEnabled && website == null && local == null) {
+            throw websiteUnavailable("Категории временно недоступны")
+        }
+        val categories = website ?: local?.categories() ?: medusa.listCategories().productCategories
         categories.map {
             MobileCategoryDto(id = it.id, name = it.name, handle = it.handle, parentId = it.parentCategoryId)
         }
     }
+
+    private fun resolveSnapshotCategoryId(repository: MedusaCatalogSnapshotRepository, requested: String): String? =
+        repository.categories().firstOrNull { category ->
+            category.id == requested || category.handle.equals(requested, ignoreCase = true)
+        }?.id
+
+    private fun websiteUnavailable(message: String): AppException =
+        AppException(ErrorCode.UPSTREAM_UNAVAILABLE, message, HttpStatus.BAD_GATEWAY)
 
     /**
      * Карточки витрины по списку Medusa-id (для джойна промо-лента ↔ каталог).
@@ -188,16 +234,20 @@ class MobileCatalogService(
         val clean = ids.mapNotNull { it.trim().takeIf { s -> s.isNotBlank() } }.distinct()
         if (clean.isEmpty()) return emptyMap()
         return cache.get("cards|" + clean.sorted().joinToString(",")) {
+            val fromWebsite = clean.mapNotNull { storefront?.takeIf { client -> client.active }?.cachedProduct(it) }
+            val websiteIds = fromWebsite.mapTo(HashSet()) { it.id }
+            val unresolved = clean.filterNot { it in websiteIds }
             val local = snapshot?.takeIf { it.hasCompleteSnapshot() }
-            val products = if (local != null) {
-                local.findByIds(clean)
-            } else {
+            val fromSnapshot = local?.findByIds(unresolved).orEmpty()
+            val snapshotIds = fromSnapshot.mapTo(HashSet()) { it.id }
+            val missing = unresolved.filterNot { it in snapshotIds }
+            val fromMedusa = if (local == null) {
                 // Medusa отдаёт максимум `limit` товаров — при >MAX_LIMIT id бьём на чанки и
                 // сливаем, иначе часть привязанных к промо товаров потерялась бы из выдачи.
-                clean.chunked(MAX_LIMIT)
+                missing.chunked(MAX_LIMIT)
                     .flatMap { chunk -> medusa.listProducts(ids = chunk, limit = chunk.size).products }
-            }
-            products
+            } else emptyList()
+            (fromWebsite + fromSnapshot + fromMedusa)
                 .associate { it.id to card(it) }
         }
     }

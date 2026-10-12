@@ -4,7 +4,7 @@ Database: PostgreSQL 16.
 
 Migrations: Flyway files in `admin-panel/backend/src/main/resources/db/migration/`.
 
-Current migration range: V001-V057.
+Current migration range: V001-V059.
 
 ## Migrations
 
@@ -67,6 +67,8 @@ Current migration range: V001-V057.
 | V055    | `standardn_pharmacist_directory`       | Standard-N cashier directory.                                                 |
 | V056    | `training_certificate_branding`       | Certificate branding fields already applied in production.                    |
 | V057    | `acc_recommendation_taxonomy`          | Versioned ACC barcode classes and concrete recommendation trigger name.       |
+| V058    | `course_live_lessons`                 | Live-room metadata, messages, poll votes and reactions; already applied in production. |
+| V059    | `allow_live_course_lessons`           | Expand the lesson-kind constraint to include live lessons without editing V058. |
 
 ## Domain Tables
 
@@ -81,7 +83,7 @@ Current migration range: V001-V057.
 | Finance             | `payout_batches`, `payout_items`                                               |
 | Screens             | `playlists`, `slides`, `playlist_pharmacy_assignments`                         |
 | POSM                | `recommendation_events`, app release tables, CDP tables                        |
-| LMS/AI              | `courses`, `exam_questions`, `training_programs`, versions and result history  |
+| LMS/AI              | `courses`, `course_live_messages`, `course_live_poll_votes`, `course_live_reactions`, `exam_questions`, `training_programs`, versions and result history |
 | Training operations | `training_assignments`, stages, events, participants, certificates, rewards    |
 | Banners             | `banners`                                                                      |
 

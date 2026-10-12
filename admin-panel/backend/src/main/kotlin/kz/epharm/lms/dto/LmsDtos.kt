@@ -10,6 +10,9 @@ import kz.epharm.lms.entity.CourseEntity
 import kz.epharm.lms.entity.CourseLessonAttachmentEntity
 import kz.epharm.lms.entity.CourseLessonEntity
 import kz.epharm.lms.entity.CourseLessonKind
+import kz.epharm.lms.entity.CourseLivePoll
+import kz.epharm.lms.entity.CourseLiveProvider
+import kz.epharm.lms.entity.CourseLiveStatus
 import kz.epharm.lms.entity.CourseQuizQuestion
 import kz.epharm.lms.entity.CourseStatus
 import java.time.Instant
@@ -22,6 +25,14 @@ data class CourseLessonDto(
     val kind: CourseLessonKind,
     val videoUrl: String?,
     val externalUrl: String?,
+    val liveProvider: CourseLiveProvider?,
+    val liveStatus: CourseLiveStatus?,
+    val liveStartAt: Instant?,
+    val liveEndAt: Instant?,
+    val liveChatEnabled: Boolean,
+    val liveQaEnabled: Boolean,
+    val liveReactionsEnabled: Boolean,
+    val livePolls: List<CourseLivePoll>,
     val required: Boolean,
     val minimumWatchPct: Int?,
     val quizQuestions: List<CourseQuizQuestionDto>,
@@ -51,6 +62,14 @@ data class CourseLessonDto(
             kind = entity.kind,
             videoUrl = entity.videoUrl,
             externalUrl = entity.externalUrl,
+            liveProvider = entity.liveProvider,
+            liveStatus = entity.liveStatus,
+            liveStartAt = entity.liveStartAt,
+            liveEndAt = entity.liveEndAt,
+            liveChatEnabled = entity.liveChatEnabled,
+            liveQaEnabled = entity.liveQaEnabled,
+            liveReactionsEnabled = entity.liveReactionsEnabled,
+            livePolls = entity.livePolls,
             required = entity.required,
             minimumWatchPct = entity.minimumWatchPct,
             quizQuestions = entity.quizQuestions.map {
@@ -231,6 +250,15 @@ data class CreateCourseLessonRequest(
     val kind: CourseLessonKind = CourseLessonKind.text,
     @field:Size(max = 2000)
     val externalUrl: String? = null,
+    val liveProvider: CourseLiveProvider? = null,
+    val liveStatus: CourseLiveStatus? = null,
+    val liveStartAt: Instant? = null,
+    val liveEndAt: Instant? = null,
+    val liveChatEnabled: Boolean = true,
+    val liveQaEnabled: Boolean = true,
+    val liveReactionsEnabled: Boolean = true,
+    @field:Size(max = 10)
+    val livePolls: List<CourseLivePoll> = emptyList(),
     val required: Boolean = true,
     @field:Min(0) @field:Max(100)
     val minimumWatchPct: Int? = null,
@@ -254,6 +282,17 @@ data class UpdateCourseLessonRequest(
     @field:Size(max = 2000)
     val externalUrl: String? = null,
     val clearExternalUrl: Boolean = false,
+    val liveProvider: CourseLiveProvider? = null,
+    val liveStatus: CourseLiveStatus? = null,
+    val liveStartAt: Instant? = null,
+    val liveEndAt: Instant? = null,
+    val clearLiveSchedule: Boolean = false,
+    val liveChatEnabled: Boolean? = null,
+    val liveQaEnabled: Boolean? = null,
+    val liveReactionsEnabled: Boolean? = null,
+    @field:Size(max = 10)
+    val livePolls: List<CourseLivePoll>? = null,
+    val clearLiveSettings: Boolean = false,
     val required: Boolean? = null,
     @field:Min(0) @field:Max(100)
     val minimumWatchPct: Int? = null,

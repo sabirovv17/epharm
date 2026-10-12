@@ -32,23 +32,29 @@ import {
   LogOut,
   Loader2,
   MapPin,
+  MessageCircle,
   PackageSearch,
   Phone,
   Pill,
   PlayCircle,
   QrCode,
   ReceiptText,
+  Radio,
   RefreshCw,
   Search,
+  Send,
   ShieldCheck,
+  Sparkles,
   Upload,
   UserRound,
   WalletCards,
+  UsersRound,
   X,
 } from 'lucide-react'
 import { proxyMedia } from '../../lib/media'
 import { useUiStore } from '@/app/store'
 import { currentLearnerTranslate, learnerTranslate, useLearnerT } from './learner-i18n'
+import type { CourseLiveRoomDto } from '@/lib/api-types'
 
 type Tokens = {
   accessToken: string
@@ -207,6 +213,13 @@ type Lesson = {
   kind?: string
   videoUrl?: string | null
   externalUrl?: string | null
+  liveProvider?: string | null
+  liveStatus?: 'scheduled' | 'live' | 'ended' | null
+  liveStartAt?: string | null
+  liveEndAt?: string | null
+  liveChatEnabled?: boolean
+  liveQaEnabled?: boolean
+  liveReactionsEnabled?: boolean
   required?: boolean
   minimumWatchPct?: number | null
   quizQuestions?: Array<{
@@ -1220,6 +1233,8 @@ export default function LearnerTrainingPage() {
             assignment={selected}
             lessonId={lessonId}
             busy={busy}
+            tokens={tokens}
+            lifecycle={tokenLifecycle}
             onBack={() => navigate(`/learn/course/${selected.id}`)}
             onOpenLesson={(nextLessonId) =>
               navigate(`/learn/course/${selected.id}/lesson/${nextLessonId}`)
@@ -2451,6 +2466,8 @@ function LessonPage({
   assignment,
   lessonId,
   busy,
+  tokens,
+  lifecycle,
   onBack,
   onOpenLesson,
   onSaveProgress,
@@ -2459,6 +2476,8 @@ function LessonPage({
   assignment: Assignment
   lessonId: string
   busy: boolean
+  tokens: Tokens
+  lifecycle: TokenLifecycle
   onBack: () => void
   onOpenLesson: (lessonId: string) => void
   onSaveProgress: (
@@ -2484,9 +2503,14 @@ function LessonPage({
   const lesson = lessons[index]
   const [watchedProgress, setWatchedProgress] = useState<Record<string, number>>({})
   const [saving, setSaving] = useState(false)
+  const [liveState, setLiveState] = useState({ lessonId: lesson?.id ?? lessonId, ended: lesson?.liveStatus === 'ended' })
   const currentPositions = useRef<Record<string, number>>({})
   const lastSyncedProgress = useRef<Record<string, number>>({})
   const progressInFlight = useRef<Set<string>>(new Set())
+
+  const handleLiveEndedChange = useCallback((ended: boolean) => {
+    setLiveState({ lessonId, ended })
+  }, [lessonId])
 
   if (!stage || !lesson) {
     return (
@@ -2504,6 +2528,8 @@ function LessonPage({
   const read = stage.status === 'completed' || lessonCompleted(lesson)
   const videoLesson = lesson.kind === 'video' || !!lesson.videoUrl
   const quizLesson = lesson.kind === 'quiz' || lesson.kind === 'test'
+  const liveLesson = lesson.kind === 'live'
+  const liveEnded = liveState.lessonId === lesson.id ? liveState.ended : lesson.liveStatus === 'ended'
   const threshold = lessonThreshold(lesson)
   const effectiveProgress = Math.max(watchedProgress[lesson.id] ?? 0, lesson.progressPct ?? 0)
   const blockedByPrevious = lessons
@@ -2561,6 +2587,7 @@ function LessonPage({
 
   async function finishLesson() {
     if (quizLesson && !read) return
+    if (liveLesson && !read && !liveEnded) return
     if (!read) {
       if (videoLesson && effectiveProgress < threshold) return
       setSaving(true)
@@ -2600,6 +2627,7 @@ function LessonPage({
             <span className="chip chip-ink"><Clock3 size={14} /> {t('{minutes} мин', { minutes: lesson.durationMin ?? 0 })}</span>
             {lesson.videoUrl && <span className="chip chip-green"><PlayCircle size={14} /> {t('Видеоурок')}</span>}
             {quizLesson && <span className="chip chip-blue"><CheckCircle2 size={14} /> {t('Тест')} · {t('{count} вопросов', { count: lesson.quizQuestions?.length ?? 0 })}</span>}
+            {liveLesson && <span className="chip chip-green"><Radio size={14} /> {t('Прямой эфир')}</span>}
             {attachments.length > 0 && <span className="chip chip-blue"><FileText size={14} /> {t('{count} материалов', { count: attachments.length })}</span>}
           </div>
         </header>
@@ -2638,7 +2666,18 @@ function LessonPage({
             </section>
           )}
 
-          {lesson.externalUrl && (
+          {liveLesson && (
+            <LearnerLiveLesson
+              assignmentId={assignment.id}
+              stageId={currentStage.id}
+              lesson={lesson}
+              tokens={tokens}
+              lifecycle={lifecycle}
+              onEndedChange={handleLiveEndedChange}
+            />
+          )}
+
+          {lesson.externalUrl && !liveLesson && (
             <section>
               <h3 className="mb-3 text-base font-extrabold text-ink-900">{t('Внешний материал')}</h3>
               <a
@@ -2701,7 +2740,7 @@ function LessonPage({
             </section>
           )}
 
-          {!lesson.content && !lesson.videoUrl && !lesson.externalUrl && !quizLesson && attachments.length === 0 && (
+          {!lesson.content && !lesson.videoUrl && !lesson.externalUrl && !quizLesson && !liveLesson && attachments.length === 0 && (
             <div className="rounded-xl bg-paper-hover p-5 text-sm text-ink-500">{t('Материалы этого урока пока не добавлены.')}</div>
           )}
         </div>
@@ -2712,12 +2751,14 @@ function LessonPage({
           </div>
           <button
             className="btn btn-primary btn-md w-full sm:w-auto"
-            disabled={busy || saving || (videoLesson && !read && effectiveProgress < threshold) || (quizLesson && !read)}
+            disabled={busy || saving || (videoLesson && !read && effectiveProgress < threshold) || (quizLesson && !read) || (liveLesson && !read && !liveEnded)}
             onClick={finishLesson}
           >
             <Check size={17} />{' '}
             {quizLesson && !read
               ? t('Сначала пройдите тест')
+              : liveLesson && !read && !liveEnded
+                ? t('Дождитесь окончания эфира')
               : videoLesson && !read && effectiveProgress < threshold
               ? t('Просмотрите ещё {progress}%', { progress: threshold - effectiveProgress })
               : next
@@ -2730,6 +2771,212 @@ function LessonPage({
       </div>
     </article>
   )
+}
+
+function LearnerLiveLesson({
+  assignmentId,
+  stageId,
+  lesson,
+  tokens,
+  lifecycle,
+  onEndedChange,
+}: {
+  assignmentId: string
+  stageId: string
+  lesson: Lesson
+  tokens: Tokens
+  lifecycle: TokenLifecycle
+  onEndedChange: (ended: boolean) => void
+}) {
+  const t = useLearnerT()
+  const [room, setRoom] = useState<CourseLiveRoomDto | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [messageKind, setMessageKind] = useState<'comment' | 'question'>('comment')
+  const [sending, setSending] = useState(false)
+  const base = `/api/mobile/training/assignments/${assignmentId}/stages/${stageId}/lessons/${lesson.id}/live`
+
+  const load = useCallback(async () => {
+    try {
+      const next = await request<CourseLiveRoomDto>(base, {}, tokens, lifecycle)
+      setRoom(next)
+      setError('')
+      onEndedChange(next.status === 'ended')
+    } catch (loadError) {
+      setError(messageFrom(loadError))
+    } finally {
+      setLoading(false)
+    }
+  }, [base, lifecycle, onEndedChange, tokens])
+
+  useEffect(() => {
+    const initial = window.setTimeout(() => void load(), 0)
+    const timer = window.setInterval(() => void load(), room?.status === 'live' ? 4_000 : 15_000)
+    return () => {
+      window.clearTimeout(initial)
+      window.clearInterval(timer)
+    }
+  }, [load, room?.status])
+
+  async function perform(path: string, body: unknown) {
+    setSending(true)
+    try {
+      const next = await request<CourseLiveRoomDto>(`${base}${path}`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }, tokens, lifecycle)
+      setRoom(next)
+      setError('')
+      onEndedChange(next.status === 'ended')
+      return true
+    } catch (actionError) {
+      setError(messageFrom(actionError))
+      return false
+    } finally {
+      setSending(false)
+    }
+  }
+
+  async function submitMessage() {
+    const body = message.trim()
+    if (!body) return
+    const kind = !room?.chatEnabled && room?.qaEnabled ? 'question' : messageKind
+    if (await perform('/messages', { kind, body })) setMessage('')
+  }
+
+  if (loading && !room) {
+    return <section className="grid min-h-72 place-items-center rounded-2xl bg-[#062e31] text-sm font-bold text-white/70"><Loader2 className="mr-2 animate-spin" size={20} /> {t('Подключаемся к эфиру…')}</section>
+  }
+  if (!room) {
+    return <section className="rounded-2xl bg-surface-danger p-5 text-sm font-semibold text-accent-danger">{error || t('Не удалось открыть прямой эфир')}</section>
+  }
+
+  const streamUrl = safeLearnerLiveUrl(room.streamUrl)
+  const embedUrl = learnerEmbedUrl(streamUrl, room.provider)
+  const reactions = [
+    ['like', '👍'],
+    ['heart', '❤️'],
+    ['clap', '👏'],
+    ['wow', '🤩'],
+    ['question', '❓'],
+  ] as const
+
+  return (
+    <section className="overflow-hidden rounded-3xl border border-[#d4e7e5] bg-[#f2f8f7]" data-testid="learner-live-lesson">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#063f43] px-4 py-3.5 text-white sm:px-5">
+        <div className="flex items-center gap-3">
+          <span className={`grid h-10 w-10 place-items-center rounded-xl ${room.status === 'live' ? 'bg-red-500 shadow-[0_0_0_5px_rgba(239,68,68,.15)]' : 'bg-white/10 text-[#8ce0d8]'}`}><Radio size={20} /></span>
+          <div>
+            <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.13em] text-white/55">{room.status === 'live' && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-300" />}{room.status === 'live' ? t('Сейчас в эфире') : room.status === 'ended' ? t('Эфир завершён') : t('Эфир запланирован')}</div>
+            <div className="mt-0.5 text-sm font-extrabold">{formatDateTime(room.startsAt)}</div>
+          </div>
+        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-xl bg-black/15 px-3 py-2 text-[11px] font-bold text-white/75"><UsersRound size={14} /> {t('Участников чата: {count}', { count: room.participantCount })}</span>
+      </div>
+
+      <div className="relative aspect-video overflow-hidden bg-[#041f22]">
+        {room.status === 'scheduled' ? (
+          <LiveLessonPlaceholder icon={<Radio size={31} />} title={t('Эфир скоро начнётся')} body={t('Оставайтесь на странице — трансляция появится автоматически.')} />
+        ) : embedUrl ? (
+          <iframe title={room.title} src={embedUrl} className="h-full w-full border-0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" sandbox="allow-scripts allow-same-origin allow-presentation allow-popups" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen />
+        ) : streamUrl ? (
+          <LiveLessonPlaceholder icon={<ExternalLink size={29} />} title={t('Трансляция на внешней площадке')} body={t('Откройте эфир в приложении провайдера.')} action={<a className="btn btn-primary btn-md mt-4" href={streamUrl} target="_blank" rel="noreferrer">{t('Открыть эфир')} <ExternalLink size={15} /></a>} />
+        ) : (
+          <LiveLessonPlaceholder icon={<Radio size={31} />} title={room.status === 'ended' ? t('Эфир завершён') : t('Ожидаем ведущего')} body={room.status === 'ended' ? t('Запись будет добавлена позже.') : t('Ссылка на трансляцию появится здесь перед началом.')} />
+        )}
+      </div>
+
+      {room.reactionsEnabled && (
+        <div className="flex flex-wrap items-center justify-center gap-1 border-b border-[#d9e8e6] bg-white px-3 py-2.5 sm:justify-start">
+          <span className="mr-2 hidden text-[11px] font-bold text-ink-500 sm:inline">{t('Реакции')}</span>
+          {reactions.map(([id, symbol]) => (
+            <button key={id} type="button" disabled={sending} className="relative grid h-9 min-w-10 place-items-center rounded-xl text-lg transition hover:-translate-y-0.5 hover:bg-[#e5f5f2]" onClick={() => void perform('/reactions', { reaction: id })}>
+              {symbol}{(room.reactions[id] ?? 0) > 0 && <span className="absolute -right-0.5 -top-0.5 rounded-full bg-[#087b77] px-1 text-[8px] font-black text-white">{room.reactions[id]}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="space-y-3 border-b border-[#d9e8e6] p-4 lg:border-b-0 lg:border-r sm:p-5">
+          <div className="flex items-center gap-2 text-[12px] font-extrabold uppercase tracking-[0.09em] text-[#087b77]"><Sparkles size={15} /> {t('Интерактивы')}</div>
+          {room.polls.map((poll) => (
+            <article key={poll.id} className="rounded-2xl border border-[#dce9e7] bg-white p-4">
+              <div className="flex items-start justify-between gap-3"><h4 className="text-sm font-extrabold leading-5 text-ink-900">{poll.prompt}</h4><span className={`rounded-full px-2 py-1 text-[9px] font-extrabold uppercase ${poll.active ? 'bg-[#dcf4f0] text-[#087b77]' : 'bg-ink-100 text-ink-500'}`}>{poll.active ? t('Открыт') : t('Закрыт')}</span></div>
+              <div className="mt-3 space-y-2">
+                {poll.options.map((option) => (
+                  <button key={option.id} type="button" disabled={!poll.active || sending} className={`relative flex w-full items-center justify-between overflow-hidden rounded-xl border px-3 py-2.5 text-left text-xs font-bold ${poll.myOptionId === option.id ? 'border-[#31b5ac] text-[#076a67]' : 'border-ink-100 text-ink-700'}`} onClick={() => void perform(`/polls/${poll.id}/vote`, { optionId: option.id })}>
+                    <span className="absolute inset-y-0 left-0 bg-[#dff4f1]" style={{ width: `${option.percent}%` }} /><span className="relative">{option.label}</span><span className="relative num">{option.percent}%</span>
+                  </button>
+                ))}
+              </div>
+              <div className="mt-2 text-[10px] text-ink-400">{t('Ответили: {count}', { count: poll.totalVotes })}</div>
+            </article>
+          ))}
+          {room.polls.length === 0 && <div className="rounded-2xl border border-dashed border-[#cbdedb] p-7 text-center text-xs text-ink-500">{t('Ведущий пока не запустил интерактив.')}</div>}
+        </div>
+
+        <div className="flex min-h-[430px] flex-col bg-white">
+          <div className="flex items-center justify-between border-b border-ink-100 px-4 py-3"><div><div className="text-sm font-extrabold text-ink-900">{t('Обсуждение')}</div><div className="text-[10px] text-ink-400">{t('Комментарии и вопросы')}</div></div><MessageCircle size={18} className="text-[#15958f]" /></div>
+          <div className="flex-1 space-y-2 overflow-y-auto p-3">
+            {room.messages.map((entry) => (
+              <article key={entry.id} className={`rounded-xl border p-3 ${entry.pinned ? 'border-[#efc47e] bg-[#fffaf0]' : entry.mine ? 'border-[#bfe3df] bg-[#f2fbf9]' : 'border-ink-100'}`}>
+                <div className="flex flex-wrap items-center gap-1.5 text-[10px]"><span className="font-extrabold text-ink-800">{entry.authorName}</span>{entry.authorType === 'admin' && <span className="rounded bg-[#dff4f1] px-1.5 py-0.5 text-[8px] font-extrabold uppercase text-[#087b77]">{t('Ведущий')}</span>}{entry.kind === 'question' && <span className="rounded bg-[#fff0dc] px-1.5 py-0.5 text-[8px] font-extrabold uppercase text-[#9d6314]">{t('Вопрос')}</span>}</div>
+                <p className="mt-1.5 whitespace-pre-wrap text-[11px] leading-5 text-ink-700">{entry.body}</p>
+                <div className="mt-1.5 text-[9px] text-ink-400">{new Date(entry.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</div>
+              </article>
+            ))}
+            {room.messages.length === 0 && <div className="grid min-h-44 place-items-center text-center text-xs text-ink-400"><div><MessageCircle className="mx-auto mb-2 text-ink-300" size={24} />{t('Напишите первое сообщение')}</div></div>}
+          </div>
+          {(room.chatEnabled || room.qaEnabled) && (
+            <div className="border-t border-ink-100 p-3">
+              {room.chatEnabled && room.qaEnabled && <div className="mb-2 grid grid-cols-2 rounded-lg bg-paper-hover p-1"><button type="button" className={`rounded-md px-2 py-1.5 text-[10px] font-extrabold ${messageKind === 'comment' ? 'bg-white text-[#087b77] shadow-sm' : 'text-ink-500'}`} onClick={() => setMessageKind('comment')}>{t('Комментарий')}</button><button type="button" className={`rounded-md px-2 py-1.5 text-[10px] font-extrabold ${messageKind === 'question' ? 'bg-white text-[#a86617] shadow-sm' : 'text-ink-500'}`} onClick={() => setMessageKind('question')}>{t('Вопрос')}</button></div>}
+              <div className="flex items-end gap-2 rounded-xl border border-ink-200 p-2 focus-within:border-[#60bdb6]"><textarea className="min-h-14 flex-1 resize-none border-0 bg-transparent px-1 text-xs leading-5 outline-none" value={message} maxLength={2000} placeholder={!room.chatEnabled && room.qaEnabled || messageKind === 'question' ? t('Задайте вопрос ведущему…') : t('Напишите комментарий…')} onChange={(event) => setMessage(event.target.value)} /><button type="button" aria-label={t('Отправить')} disabled={!message.trim() || sending} className="grid h-9 w-9 place-items-center rounded-lg bg-[#0d918a] text-white disabled:opacity-40" onClick={() => void submitMessage()}><Send size={15} /></button></div>
+            </div>
+          )}
+        </div>
+      </div>
+      {error && <div className="border-t border-red-100 bg-red-50 px-4 py-2.5 text-xs font-semibold text-red-700">{error}</div>}
+    </section>
+  )
+}
+
+function LiveLessonPlaceholder({ icon, title, body, action }: { icon: React.ReactNode; title: string; body: string; action?: React.ReactNode }) {
+  return <div className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_50%_15%,#0d5559_0,#041f22_65%)] p-6 text-center text-white"><div><span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl border border-white/10 bg-white/10 text-[#8ce0d8]">{icon}</span><h3 className="mt-4 text-xl font-extrabold">{title}</h3><p className="mx-auto mt-2 max-w-md text-xs leading-5 text-white/55">{body}</p>{action}</div></div>
+}
+
+function safeLearnerLiveUrl(raw: string | null): string | null {
+  if (!raw) return null
+  try {
+    const url = new URL(raw)
+    return url.protocol === 'https:' ? url.toString() : null
+  } catch {
+    return null
+  }
+}
+
+function learnerEmbedUrl(raw: string | null, provider: CourseLiveRoomDto['provider']): string | null {
+  if (!raw) return null
+  try {
+    const url = new URL(raw)
+    const host = url.hostname.toLowerCase()
+    if (provider === 'youtube' && ['youtube.com', 'www.youtube.com', 'm.youtube.com'].includes(host)) {
+      const id = url.searchParams.get('v') ?? url.pathname.split('/').filter(Boolean).at(-1)
+      return id ? `https://www.youtube.com/embed/${encodeURIComponent(id)}?autoplay=1&rel=0` : null
+    }
+    if (provider === 'youtube' && host === 'youtu.be') {
+      const id = url.pathname.split('/').filter(Boolean)[0]
+      return id ? `https://www.youtube.com/embed/${encodeURIComponent(id)}?autoplay=1&rel=0` : null
+    }
+    if (provider === 'vimeo' && ['vimeo.com', 'www.vimeo.com', 'player.vimeo.com'].includes(host)) {
+      const id = url.pathname.split('/').filter(Boolean).at(-1)
+      return id ? `https://player.vimeo.com/video/${encodeURIComponent(id)}?autoplay=1` : null
+    }
+    return null
+  } catch {
+    return null
+  }
 }
 
 function QuizLesson({

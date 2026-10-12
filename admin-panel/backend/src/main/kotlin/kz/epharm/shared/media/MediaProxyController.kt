@@ -19,11 +19,12 @@ import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.net.URI
+import java.net.HttpURLConnection
 import java.time.Duration
 import javax.imageio.ImageIO
 
 /**
- * Прокси изображений витрины Medusa.
+ * Прокси изображений разрешённых витринных origin.
  *
  * Medusa отдаёт фото товаров по голому HTTP (`http://host:9000/static/…`), а
  * админ-консоль работает по HTTPS. Браузер блокирует загрузку http-картинок на
@@ -31,7 +32,8 @@ import javax.imageio.ImageIO
  * картинку server-to-server и отдаём её клиенту уже по нашему HTTPS-origin.
  *
  * Эндпоинт ПУБЛИЧНЫЙ (фото витрины — не секрет, как и сам каталог), но с защитой
- * от SSRF: проксируем ТОЛЬКО хост Medusa из конфига (`app.medusa.base-url`). Любой
+ * от SSRF: проксируем ТОЛЬКО точные origin из конфигурации Medusa и, если включён,
+ * сайта Inkar. Любой
  * другой `u` → 400, чтобы наш сервер не стал открытым прокси к произвольным URL.
  *
  * Кэш: фото витрины статичны (имя файла с timestamp-префиксом), отдаём
@@ -43,16 +45,31 @@ class MediaProxyController(
     @Value("\${app.medusa.base-url:}") medusaBaseUrl: String,
     @Value("\${app.medusa.connect-timeout-ms:2000}") connectTimeoutMs: Int,
     @Value("\${app.medusa.read-timeout-ms:6000}") readTimeoutMs: Int,
+    @Value("\${app.storefront-catalog.enabled:false}") storefrontEnabled: Boolean = false,
+    @Value("\${app.storefront-catalog.base-url:}") storefrontBaseUrl: String = "",
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    /** Разрешённый источник: authority (host[:port]) витрины Medusa. */
-    private val allowedAuthority: String =
-        runCatching { URI(medusaBaseUrl).authority }.getOrNull().orEmpty()
+    /** Exact configured origins only; a redirect must not widen this SSRF allowlist. */
+    private val allowedOrigins: Set<Pair<String, String>> =
+        (listOf(medusaBaseUrl) + listOfNotNull(storefrontBaseUrl.takeIf { storefrontEnabled }))
+            .mapNotNull { raw ->
+                runCatching {
+                    URI(raw).takeIf { it.scheme in HTTP_SCHEMES && it.rawUserInfo == null && it.host != null }
+                        ?.let { it.scheme to it.authority }
+                }
+                    .getOrNull()
+            }
+            .toSet()
 
     private val rest: RestClient = RestClient.builder()
         .requestFactory(
-            SimpleClientHttpRequestFactory().apply {
+            object : SimpleClientHttpRequestFactory() {
+                override fun prepareConnection(connection: HttpURLConnection, httpMethod: String) {
+                    super.prepareConnection(connection, httpMethod)
+                    connection.instanceFollowRedirects = false
+                }
+            }.apply {
                 setConnectTimeout(connectTimeoutMs)
                 setReadTimeout(readTimeoutMs)
             },
@@ -69,8 +86,8 @@ class MediaProxyController(
         val uri = runCatching { URI(raw) }.getOrNull()
             ?: throw badRequest("Некорректный URL изображения")
 
-        // Anti-SSRF: только http/https и только хост витрины Medusa.
-        if (uri.scheme !in HTTP_SCHEMES || uri.authority != allowedAuthority || allowedAuthority.isBlank()) {
+        // Anti-SSRF: only configured authorities; redirects are not followed.
+        if (uri.scheme !in HTTP_SCHEMES || uri.rawUserInfo != null || (uri.scheme to uri.authority) !in allowedOrigins) {
             throw badRequest("Недопустимый источник изображения")
         }
 

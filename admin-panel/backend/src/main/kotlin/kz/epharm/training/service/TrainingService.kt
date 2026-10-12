@@ -9,6 +9,7 @@ import kz.epharm.lms.repository.CourseLessonRepository
 import kz.epharm.lms.repository.CourseLessonAttachmentRepository
 import kz.epharm.lms.dto.CourseContentDto
 import kz.epharm.lms.entity.CourseLessonKind
+import kz.epharm.lms.entity.CourseLiveStatus
 import kz.epharm.pharmacists.entity.PharmacistEntity
 import kz.epharm.pharmacists.entity.PharmacistStatus
 import kz.epharm.pharmacists.repository.PharmacistRepository
@@ -1199,6 +1200,36 @@ class TrainingService(
         allowQuizCompletion = false,
     )
 
+    @Transactional(readOnly = true)
+    fun requireLiveLessonAccess(
+        pharmacistId: String,
+        assignmentId: UUID,
+        stageId: UUID,
+        lessonId: String,
+    ) {
+        val assignment = loadOwnedAssignment(pharmacistId, assignmentId)
+        if (assignment.status == TrainingAssignmentStatus.cancelled) conflict("Назначение отменено")
+        val assignmentStage = assignmentStageRepository.findById(stageId).orElseThrow {
+            AppException(ErrorCode.NOT_FOUND, "Этап назначения не найден", HttpStatus.NOT_FOUND)
+        }
+        if (assignmentStage.assignmentId != assignmentId) badRequest("Этап относится к другому назначению")
+        if (assignmentStage.status == TrainingStageStatus.locked) {
+            conflict("Предыдущий обязательный этап ещё не завершён")
+        }
+        val programStage = programStageRepository.findById(assignmentStage.programStageId).orElseThrow()
+        if (programStage.type != TrainingStageType.online_course) {
+            badRequest("Прямой эфир доступен только внутри онлайн-курса")
+        }
+        val version = versionRepository.findById(assignment.programVersionId).orElseThrow()
+        val courseId = version.onlineCourseId ?: conflict("К программе не привязан онлайн-курс")
+        val lesson = courseLessonRepository.findById(lessonId).orElseThrow {
+            AppException(ErrorCode.NOT_FOUND, "Урок не найден", HttpStatus.NOT_FOUND)
+        }
+        if (lesson.courseId != courseId || lesson.kind != CourseLessonKind.live) {
+            badRequest("Прямой эфир относится к другому курсу")
+        }
+    }
+
     private fun updateLessonProgressInternal(
         pharmacistId: String,
         assignmentId: UUID,
@@ -1228,6 +1259,9 @@ class TrainingService(
             AppException(ErrorCode.NOT_FOUND, "Урок не найден", HttpStatus.NOT_FOUND)
         }
         if (lesson.courseId != courseId) badRequest("Урок относится к другому курсу")
+        if (lesson.kind == CourseLessonKind.live && req.progressPct >= 100 && lesson.liveStatus != CourseLiveStatus.ended) {
+            conflict("Прямой эфир можно завершить только после окончания трансляции")
+        }
         if (lesson.kind in setOf(CourseLessonKind.quiz, CourseLessonKind.test) &&
             req.progressPct >= 100 && !allowQuizCompletion
         ) {

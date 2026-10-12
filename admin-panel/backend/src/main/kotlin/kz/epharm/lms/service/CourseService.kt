@@ -12,11 +12,18 @@ import kz.epharm.lms.entity.CourseEntity
 import kz.epharm.lms.entity.CourseLessonAttachmentEntity
 import kz.epharm.lms.entity.CourseLessonEntity
 import kz.epharm.lms.entity.CourseLessonKind
+import kz.epharm.lms.entity.CourseLivePoll
+import kz.epharm.lms.entity.CourseLivePollOption
+import kz.epharm.lms.entity.CourseLiveProvider
+import kz.epharm.lms.entity.CourseLiveStatus
 import kz.epharm.lms.entity.CourseQuizQuestion
 import kz.epharm.lms.entity.CourseStatus
 import kz.epharm.lms.repository.CourseLessonRepository
 import kz.epharm.lms.repository.CourseLessonAttachmentRepository
 import kz.epharm.lms.repository.CourseRepository
+import kz.epharm.lms.repository.CourseLiveMessageRepository
+import kz.epharm.lms.repository.CourseLivePollVoteRepository
+import kz.epharm.lms.repository.CourseLiveReactionRepository
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import kz.epharm.shared.storage.MediaStorage
@@ -35,6 +42,9 @@ class CourseService(
     private val lessonRepository: CourseLessonRepository,
     private val attachmentRepository: CourseLessonAttachmentRepository,
     private val lessonProgressRepository: TrainingLessonProgressRepository,
+    private val liveMessageRepository: CourseLiveMessageRepository,
+    private val liveVoteRepository: CourseLivePollVoteRepository,
+    private val liveReactionRepository: CourseLiveReactionRepository,
     private val mediaStorage: MediaStorage,
 ) {
 
@@ -113,6 +123,10 @@ class CourseService(
             invalid("В одном курсе может быть не более $MAX_LESSONS_PER_COURSE уроков")
         }
         val quizQuestions = normalizeQuizQuestions(req.kind, req.quizQuestions)
+        val livePolls = normalizeLivePolls(req.kind, req.livePolls)
+        if (req.kind == CourseLessonKind.live && req.liveStatus !in setOf(null, CourseLiveStatus.scheduled)) {
+            invalid("Новый эфир должен быть запланирован; запуск и завершение доступны в комнате эфира")
+        }
         validateLessonPayload(
             req.kind,
             req.durationMin,
@@ -120,6 +134,11 @@ class CourseService(
             req.externalUrl,
             quizQuestions,
             req.quizPassingScore,
+            req.liveProvider ?: CourseLiveProvider.custom,
+            req.liveStatus,
+            req.liveStartAt,
+            req.liveEndAt,
+            livePolls,
         )
         val lesson = CourseLessonEntity(
             id = "cls_${UUID.randomUUID().toString().replace("-", "").take(16)}",
@@ -128,6 +147,16 @@ class CourseService(
             description = req.description.trim(),
             content = req.content.trim(),
             externalUrl = req.externalUrl?.trim()?.takeIf(String::isNotBlank),
+            liveProviderRaw = (req.liveProvider ?: CourseLiveProvider.custom)
+                .takeIf { req.kind == CourseLessonKind.live }?.name,
+            liveStatusRaw = (req.liveStatus ?: CourseLiveStatus.scheduled)
+                .takeIf { req.kind == CourseLessonKind.live }?.name,
+            liveStartAt = req.liveStartAt.takeIf { req.kind == CourseLessonKind.live },
+            liveEndAt = req.liveEndAt.takeIf { req.kind == CourseLessonKind.live },
+            liveChatEnabled = req.liveChatEnabled,
+            liveQaEnabled = req.liveQaEnabled,
+            liveReactionsEnabled = req.liveReactionsEnabled,
+            livePolls = livePolls,
             required = req.required,
             minimumWatchPct = req.minimumWatchPct
                 ?: if (req.kind == CourseLessonKind.video) 80 else null,
@@ -144,7 +173,7 @@ class CourseService(
     @Transactional
     fun updateLesson(courseId: String, lessonId: String, req: UpdateCourseLessonRequest): CourseDto {
         editableCourse(courseId)
-        val lesson = loadLessonOrThrow(courseId, lessonId)
+        val lesson = loadLessonForUpdateOrThrow(courseId, lessonId)
         req.title?.let {
             if (it.isBlank()) invalid("Название урока обязательно")
             lesson.title = it.trim()
@@ -164,16 +193,78 @@ class CourseService(
             req.minimumWatchPct?.let { lesson.minimumWatchPct = it }
         }
 
+        val nextKind = req.kind ?: lesson.kind
+        if (lesson.kind == CourseLessonKind.live && nextKind != CourseLessonKind.live &&
+            (liveMessageRepository.existsByLessonId(lessonId) ||
+                liveVoteRepository.existsByLessonId(lessonId) ||
+                liveReactionRepository.existsByLessonId(lessonId))
+        ) {
+            invalid("Урок с взаимодействиями нельзя преобразовать; архивируйте курс")
+        }
+        if (lesson.kind == CourseLessonKind.live &&
+            lesson.liveStatus in setOf(CourseLiveStatus.live, CourseLiveStatus.ended) &&
+            (nextKind != CourseLessonKind.live || req.clearLiveSettings || req.clearLiveSchedule ||
+                (req.liveStartAt != null && req.liveStartAt != lesson.liveStartAt) ||
+                (req.liveEndAt != null && req.liveEndAt != lesson.liveEndAt))
+        ) {
+            invalid("После запуска эфира нельзя менять его тип и фактическое время")
+        }
+        if (nextKind == CourseLessonKind.live && req.clearLiveSettings) {
+            invalid("Настройки эфира можно очистить только при смене типа урока")
+        }
+        if (req.liveStatus != null &&
+            (nextKind != CourseLessonKind.live || req.liveStatus != (lesson.liveStatus ?: CourseLiveStatus.scheduled))
+        ) {
+            invalid("Статус эфира изменяется только в комнате эфира")
+        }
+        if (req.clearLiveSettings || (req.kind != null && req.kind != CourseLessonKind.live)) {
+            lesson.liveProvider = null
+            lesson.liveStatus = null
+            lesson.liveStartAt = null
+            lesson.liveEndAt = null
+            lesson.livePolls = emptyList()
+        } else {
+            req.liveProvider?.let { lesson.liveProvider = it }
+            if (req.clearLiveSchedule) {
+                lesson.liveStartAt = null
+                lesson.liveEndAt = null
+            } else {
+                req.liveStartAt?.let { lesson.liveStartAt = it }
+                req.liveEndAt?.let { lesson.liveEndAt = it }
+            }
+            req.liveChatEnabled?.let { lesson.liveChatEnabled = it }
+            req.liveQaEnabled?.let { lesson.liveQaEnabled = it }
+            req.liveReactionsEnabled?.let { lesson.liveReactionsEnabled = it }
+            req.livePolls?.let {
+                val normalized = normalizeLivePolls(nextKind, it)
+                if (liveVoteRepository.existsByLessonId(lessonId)) {
+                    val proposedById = normalized.associateBy(CourseLivePoll::id)
+                    if (lesson.livePolls.any { old ->
+                            val next = proposedById[old.id]
+                            next == null || !next.options.map(CourseLivePollOption::id)
+                                .containsAll(old.options.map(CourseLivePollOption::id))
+                        }
+                    ) {
+                        invalid("После голосования нельзя удалять опросы или варианты; измените текст либо добавьте новые")
+                    }
+                }
+                lesson.livePolls = normalized
+            }
+        }
+
         var obsoleteVideo: String? = null
         if (req.clearVideo || (req.kind != null && req.kind != CourseLessonKind.video)) {
             obsoleteVideo = lesson.videoUrl
             lesson.videoUrl = null
         }
-        val nextKind = req.kind ?: lesson.kind
         req.kind?.let {
             lesson.kind = it
             if (it == CourseLessonKind.video && lesson.minimumWatchPct == null) {
                 lesson.minimumWatchPct = 80
+            }
+            if (it == CourseLessonKind.live) {
+                lesson.liveProvider = lesson.liveProvider ?: CourseLiveProvider.custom
+                lesson.liveStatus = lesson.liveStatus ?: CourseLiveStatus.scheduled
             }
         }
         if (req.clearQuiz || nextKind !in QUIZ_KINDS) {
@@ -189,6 +280,11 @@ class CourseService(
             lesson.externalUrl,
             lesson.quizQuestions,
             lesson.quizPassingScore,
+            lesson.liveProvider ?: CourseLiveProvider.custom,
+            lesson.liveStatus,
+            lesson.liveStartAt,
+            lesson.liveEndAt,
+            lesson.livePolls,
         )
         lessonRepository.save(lesson)
         syncAggregates(courseId)
@@ -199,11 +295,23 @@ class CourseService(
     @Transactional
     fun deleteLesson(courseId: String, lessonId: String): CourseDto {
         editableCourse(courseId)
-        val lesson = loadLessonOrThrow(courseId, lessonId)
+        val lesson = loadLessonForUpdateOrThrow(courseId, lessonId)
         if (lessonProgressRepository.existsByLessonId(lessonId)) {
             throw AppException(
                 ErrorCode.CONFLICT,
                 "Урок уже изучался фармацевтами; архивируйте курс вместо удаления урока",
+                HttpStatus.CONFLICT,
+            )
+        }
+        if (lesson.kind == CourseLessonKind.live &&
+            (lesson.liveStatus != CourseLiveStatus.scheduled ||
+                liveMessageRepository.existsByLessonId(lessonId) ||
+                liveVoteRepository.existsByLessonId(lessonId) ||
+                liveReactionRepository.existsByLessonId(lessonId))
+        ) {
+            throw AppException(
+                ErrorCode.CONFLICT,
+                "Эфир уже проводился или содержит ответы участников; архивируйте курс вместо удаления урока",
                 HttpStatus.CONFLICT,
             )
         }
@@ -345,6 +453,11 @@ class CourseService(
             ?.takeIf { it.courseId == courseId }
             ?: throw AppException(ErrorCode.NOT_FOUND, "Урок не найден", HttpStatus.NOT_FOUND)
 
+    private fun loadLessonForUpdateOrThrow(courseId: String, lessonId: String): CourseLessonEntity =
+        lessonRepository.findByIdForUpdate(lessonId)
+            ?.takeIf { it.courseId == courseId }
+            ?: throw AppException(ErrorCode.NOT_FOUND, "Урок не найден", HttpStatus.NOT_FOUND)
+
     private fun validateVideo(file: MultipartFile) {
         if (file.isEmpty) invalid("Видеофайл пуст")
         if (file.size > MAX_VIDEO_BYTES) invalid("Размер видео не должен превышать 60 МБ")
@@ -376,6 +489,11 @@ class CourseService(
         externalUrl: String?,
         quizQuestions: List<CourseQuizQuestion>,
         quizPassingScore: Int,
+        liveProvider: CourseLiveProvider,
+        liveStatus: CourseLiveStatus?,
+        liveStartAt: java.time.Instant?,
+        liveEndAt: java.time.Instant?,
+        livePolls: List<CourseLivePoll>,
     ) {
         if (content.length > MAX_TEXT_LENGTH) {
             invalid("Текст урока не должен превышать $MAX_TEXT_LENGTH символов")
@@ -386,6 +504,27 @@ class CourseService(
         }
         if (kind in setOf(CourseLessonKind.link, CourseLessonKind.interactive) && externalUrl.isNullOrBlank()) {
             invalid("Для ссылки или интерактива укажите адрес материала")
+        }
+        if (kind == CourseLessonKind.live) {
+            if (liveStartAt == null) invalid("Укажите дату и время начала эфира")
+            if (!externalUrl.isNullOrBlank() && LiveStreamUrlPolicy.safeUrl(externalUrl, liveProvider) == null) {
+                invalid("Для эфира укажите безопасную HTTPS-ссылку выбранного провайдера")
+            }
+            if (liveEndAt != null && !liveEndAt.isAfter(liveStartAt)) {
+                invalid("Время окончания эфира должно быть позже начала")
+            }
+            if (liveStatus == CourseLiveStatus.live && externalUrl.isNullOrBlank()) {
+                invalid("Для запуска эфира укажите ссылку на трансляцию")
+            }
+            livePolls.forEachIndexed { index, poll ->
+                if (poll.prompt.isBlank()) invalid("Введите вопрос интерактива ${index + 1}")
+                if (poll.options.size !in 2..8) {
+                    invalid("В интерактиве ${index + 1} должно быть от 2 до 8 вариантов")
+                }
+                if (poll.options.any { it.label.isBlank() }) {
+                    invalid("Заполните все варианты интерактива ${index + 1}")
+                }
+            }
         }
         if (kind in QUIZ_KINDS) {
             if (quizQuestions.isEmpty()) invalid("Добавьте хотя бы один вопрос теста")
@@ -422,6 +561,41 @@ class CourseService(
         }
     }
 
+    private fun normalizeLivePolls(
+        kind: CourseLessonKind,
+        polls: List<CourseLivePoll>,
+    ): List<CourseLivePoll> {
+        if (kind != CourseLessonKind.live) return emptyList()
+        val normalized = polls.map { poll ->
+            CourseLivePoll(
+                id = poll.id.trim().takeIf(String::isNotBlank)
+                    ?: "poll_${UUID.randomUUID().toString().replace("-", "").take(12)}",
+                prompt = poll.prompt.trim(),
+                active = poll.active,
+                options = poll.options.map { option ->
+                    CourseLivePollOption(
+                        id = option.id.trim().takeIf(String::isNotBlank)
+                            ?: "opt_${UUID.randomUUID().toString().replace("-", "").take(12)}",
+                        label = option.label.trim(),
+                    )
+                },
+            )
+        }
+        if (normalized.map { it.id }.distinct().size != normalized.size) {
+            invalid("Идентификаторы интерактивов не должны повторяться")
+        }
+        if (normalized.any { poll ->
+                !LIVE_POLL_ID.matches(poll.id) || poll.options.any { !LIVE_POLL_ID.matches(it.id) }
+            }
+        ) {
+            invalid("Идентификаторы интерактивов и вариантов должны быть URL-безопасными и не длиннее 64 символов")
+        }
+        if (normalized.any { poll -> poll.options.map { it.id }.distinct().size != poll.options.size }) {
+            invalid("Идентификаторы вариантов ответа не должны повторяться")
+        }
+        return normalized
+    }
+
     private fun registerRollbackCleanup(newUrl: String) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) return
         TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
@@ -445,6 +619,7 @@ class CourseService(
         throw AppException(ErrorCode.VALIDATION_FAILED, message, HttpStatus.BAD_REQUEST)
 
     private companion object {
+        val LIVE_POLL_ID = Regex("[A-Za-z0-9_-]{1,64}")
         const val MAX_VIDEO_BYTES = 60L * 1024 * 1024
         const val MAX_ATTACHMENT_BYTES = 25L * 1024 * 1024
         const val MAX_VIDEO_DURATION_MIN = 30
