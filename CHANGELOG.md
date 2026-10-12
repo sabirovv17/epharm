@@ -19,6 +19,23 @@ All notable production changes to Epharm are recorded here. The format follows
 - POSM 1.0.65 spreads healthy QR-task polling over 24–36 seconds per device, reducing
   synchronized load on the merchandising fallback without changing recommendations or orders.
 
+## [0.1.26] - 2026-10-12
+
+### Added
+
+- Campaign creation now starts by choosing the recommendation trigger: exact product, ACC
+  group, subgroup or international nonproprietary name. The editor shows the matching
+  searchable options while retaining the existing product-trigger flow.
+
+### Fixed
+
+- Screen media uploads use a bounded upload-specific timeout instead of the 15-second API
+  default. After an uncertain response, the active broadcast slot is refreshed from the server.
+- The isolated backup restore test waits until its target PostgreSQL database accepts a real
+  query before restoring, avoiding a startup race.
+- Updated the storefront Sharp dependency and audited the reproducible merchandising patch
+  dependencies used by the release checks.
+
 ## [0.1.25] - 2026-10-06
 
 ### Added

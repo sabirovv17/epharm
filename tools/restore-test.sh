@@ -60,11 +60,23 @@ docker run -d --rm --name "$PG_CONTAINER" --network "$NETWORK" \
   -e POSTGRES_DB=epharm_restore -e POSTGRES_USER=epharm_restore -e POSTGRES_PASSWORD=restore-only \
   "$PG_IMAGE" >/dev/null
 
+database_ready=false
 for _ in $(seq 1 60); do
-  docker exec "$PG_CONTAINER" pg_isready -U epharm_restore -d epharm_restore >/dev/null 2>&1 && break
+  # The image starts a Unix-socket-only temporary server during initialization.
+  # Wait for the final TCP server, then verify that POSTGRES_DB really exists.
+  if docker exec "$PG_CONTAINER" pg_isready -h 127.0.0.1 -U epharm_restore \
+    -d epharm_restore >/dev/null 2>&1 && \
+    docker exec "$PG_CONTAINER" psql -At -U epharm_restore -d epharm_restore \
+      -c 'SELECT 1' >/dev/null 2>&1; then
+    database_ready=true
+    break
+  fi
   sleep 1
 done
-docker exec "$PG_CONTAINER" pg_isready -U epharm_restore -d epharm_restore >/dev/null
+[[ "$database_ready" == true ]] || {
+  echo 'ERROR: isolated PostgreSQL database did not become ready' >&2
+  exit 1
+}
 gzip -dc "$PG_BACKUP" | docker exec -i "$PG_CONTAINER" \
   pg_restore --username epharm_restore --dbname epharm_restore \
     --exit-on-error --no-owner --no-privileges
