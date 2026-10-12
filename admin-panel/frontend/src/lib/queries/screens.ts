@@ -19,6 +19,8 @@ import type {
   UpdatePlaylistRequest,
 } from '@/lib/api-types'
 
+const MEDIA_UPLOAD_TIMEOUT_MS = 120_000
+
 export interface PlaylistListFilter {
   status?: PlaylistStatus
 }
@@ -53,7 +55,11 @@ export function useUploadBroadcast() {
       const form = new FormData()
       form.append('file', file)
       if (title) form.append('title', title)
-      return api.post<ActivePlaylistDto>('/api/admin/screens/broadcast', form).then((r) => r.data)
+      return api
+        .post<ActivePlaylistDto>('/api/admin/screens/broadcast', form, {
+          timeout: MEDIA_UPLOAD_TIMEOUT_MS,
+        })
+        .then((r) => r.data)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: screensKeys.broadcast() })
@@ -83,7 +89,9 @@ export function useUploadBroadcastSlot() {
       if (title) form.append('title', title)
       form.append('durationSec', String(durationSec))
       return api
-        .post<ActivePlaylistDto>(`/api/admin/screens/broadcast/slots/${slot}`, form)
+        .post<ActivePlaylistDto>(`/api/admin/screens/broadcast/slots/${slot}`, form, {
+          timeout: MEDIA_UPLOAD_TIMEOUT_MS,
+        })
         .then((r) => r.data)
     },
     onSuccess: () => {
@@ -140,6 +148,7 @@ export function useUploadBroadcastProfileSlot() {
         .post<BroadcastProfileDto>(
           `/api/admin/screens/broadcast/profiles/${profileId}/slots/${slot}`,
           form,
+          { timeout: MEDIA_UPLOAD_TIMEOUT_MS },
         )
         .then((r) => r.data)
     },
@@ -149,6 +158,10 @@ export function useUploadBroadcastProfileSlot() {
       qc.invalidateQueries({ queryKey: screensKeys.broadcast() })
       qc.invalidateQueries({ queryKey: screensKeys.playlistsRoot() })
       qc.invalidateQueries({ queryKey: screensKeys.slides() })
+    },
+    onError: (_error, { profileId }) => {
+      // Ответ мог оборваться после сохранения файла — сверяем слот с сервером.
+      qc.invalidateQueries({ queryKey: screensKeys.broadcastProfile(profileId) })
     },
   })
 }
@@ -299,7 +312,11 @@ export function useUploadSlide() {
       form.append('file', file)
       form.append('title', title)
       form.append('durationSec', String(durationSec))
-      return api.post<SlideDto>('/api/admin/screens/slides', form).then((r) => r.data)
+      return api
+        .post<SlideDto>('/api/admin/screens/slides', form, {
+          timeout: MEDIA_UPLOAD_TIMEOUT_MS,
+        })
+        .then((r) => r.data)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: screensKeys.slides() })
