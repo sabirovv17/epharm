@@ -183,6 +183,13 @@ app:
     window-days: ${ANALYTICS_WINDOW_DAYS:90}
     # Ежедневный пересчёт витринных метрик реестра аптек (receipts30d/rulesAccepted).
     metrics-refresh-cron: ${ANALYTICS_METRICS_REFRESH_CRON:0 30 6 * * *}
+  storefront-catalog:
+    # Optional website source. Keep disabled until its product/category identifiers
+    # are reconciled with the ePharm snapshot and campaign references.
+    enabled: ${STOREFRONT_CATALOG_ENABLED:false}
+    base-url: ${STOREFRONT_CATALOG_BASE_URL:}
+    connect-timeout-ms: ${STOREFRONT_CATALOG_CONNECT_TIMEOUT_MS:2000}
+    read-timeout-ms: ${STOREFRONT_CATALOG_READ_TIMEOUT_MS:8000}
   medusa:
     # Внешняя витрина inkar.kz на Medusa v2 (Module 3) — источник реального каталога.
     # Бэкенд ходит туда server-to-server и проксирует товары в мобильное приложение

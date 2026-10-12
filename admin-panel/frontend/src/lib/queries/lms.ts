@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type {
   CourseDto,
+  CourseLiveRoomDto,
+  CourseLiveStatus,
   CreateCourseLessonRequest,
   CourseStatus,
   ChangeAssignmentFormatRequest,
@@ -58,6 +60,8 @@ export const lmsKeys = {
   all: ['lms'] as const,
   list: (filter?: CourseListFilter) => [...lmsKeys.all, 'list', filter ?? {}] as const,
   detail: (id: string) => [...lmsKeys.all, 'detail', id] as const,
+  liveRoom: (courseId: string, lessonId: string) =>
+    [...lmsKeys.all, 'detail', courseId, 'lessons', lessonId, 'live'] as const,
   training: ['training'] as const,
   dashboard: () => [...lmsKeys.training, 'dashboard'] as const,
   programs: (status?: TrainingProgramStatus) =>
@@ -310,6 +314,91 @@ export function useUpdateTrainingProgram() {
         .then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: lmsKeys.training }),
   })
+}
+
+export function useCourseLiveRoom(courseId: string, lessonId: string, enabled = true) {
+  return useQuery<CourseLiveRoomDto>({
+    queryKey: lmsKeys.liveRoom(courseId, lessonId),
+    queryFn: () =>
+      api
+        .get<CourseLiveRoomDto>(`/api/admin/lms/courses/${courseId}/lessons/${lessonId}/live`)
+        .then((response) => response.data),
+    enabled: enabled && !!courseId && !!lessonId,
+    refetchInterval: (query) => query.state.data?.status === 'live' ? 3_000 : 15_000,
+  })
+}
+
+function useLiveRoomMutation<TVariables>(
+  courseId: string,
+  lessonId: string,
+  request: (variables: TVariables) => Promise<CourseLiveRoomDto>,
+) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: request,
+    onSuccess: (room) => {
+      qc.setQueryData<CourseLiveRoomDto>(lmsKeys.liveRoom(courseId, lessonId), room)
+      qc.invalidateQueries({ queryKey: lmsKeys.detail(courseId) })
+    },
+  })
+}
+
+export function usePostCourseLiveMessage(courseId: string, lessonId: string) {
+  return useLiveRoomMutation<{ kind: 'comment' | 'question'; body: string }>(courseId, lessonId, (body) =>
+    api
+      .post<CourseLiveRoomDto>(
+        `/api/admin/lms/courses/${courseId}/lessons/${lessonId}/live/messages`,
+        body,
+      )
+      .then((response) => response.data),
+  )
+}
+
+export function useVoteCourseLivePoll(courseId: string, lessonId: string) {
+  return useLiveRoomMutation<{ pollId: string; optionId: string }>(courseId, lessonId, ({ pollId, optionId }) =>
+    api
+      .post<CourseLiveRoomDto>(
+        `/api/admin/lms/courses/${courseId}/lessons/${lessonId}/live/polls/${pollId}/vote`,
+        { optionId },
+      )
+      .then((response) => response.data),
+  )
+}
+
+export function useReactToCourseLive(courseId: string, lessonId: string) {
+  return useLiveRoomMutation<string>(courseId, lessonId, (reaction) =>
+    api
+      .post<CourseLiveRoomDto>(
+        `/api/admin/lms/courses/${courseId}/lessons/${lessonId}/live/reactions`,
+        { reaction },
+      )
+      .then((response) => response.data),
+  )
+}
+
+export function useChangeCourseLiveStatus(courseId: string, lessonId: string) {
+  return useLiveRoomMutation<CourseLiveStatus>(courseId, lessonId, (status) =>
+    api
+      .patch<CourseLiveRoomDto>(
+        `/api/admin/lms/courses/${courseId}/lessons/${lessonId}/live/status`,
+        { status },
+      )
+      .then((response) => response.data),
+  )
+}
+
+export function useModerateCourseLiveMessage(courseId: string, lessonId: string) {
+  return useLiveRoomMutation<{ messageId: string; pinned?: boolean; hidden?: boolean }>(
+    courseId,
+    lessonId,
+    ({ messageId, ...patch }) =>
+      api
+        .patch<CourseLiveRoomDto>(
+          `/api/admin/lms/courses/${courseId}/lessons/${lessonId}/live/messages/${messageId}`,
+          patch,
+        )
+        .then((response) => response.data),
+  )
 }
 
 export function useUploadTrainingCertificateAsset() {

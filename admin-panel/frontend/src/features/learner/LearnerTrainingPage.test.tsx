@@ -227,6 +227,78 @@ describe('learner training portal', () => {
     })
   })
 
+  it('keeps a live lesson locked until the server marks the broadcast ended', async () => {
+    sessionStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
+    const assignment = {
+      id: 'assignment-live',
+      programName: 'Обучение',
+      pharmacyName: 'Аптека',
+      city: 'Алматы',
+      status: 'in_progress',
+      format: 'online',
+      progressPct: 0,
+      stages: [{
+        id: 'stage-live',
+        title: 'Онлайн-курс',
+        type: 'online_course',
+        status: 'in_progress',
+        progressPct: 0,
+        course: {
+          id: 'course-live',
+          title: 'Онлайн-курс',
+          lessons: [{
+            id: 'lesson-live', title: 'Эфир', kind: 'live', order: 0,
+            required: true, progressPct: 0, liveStatus: 'scheduled', attachments: [],
+          }],
+        },
+      }],
+    }
+    const room = {
+      lessonId: 'lesson-live', title: 'Эфир', description: '', provider: 'custom',
+      status: 'ended', startsAt: '2026-10-12T10:00:00Z', endsAt: null,
+      streamUrl: 'https://epharm.inkar.kz/live/demo', chatEnabled: true, qaEnabled: false, reactionsEnabled: false,
+      participantCount: 0, messages: [], polls: [], reactions: {},
+      serverTime: '2026-10-12T11:00:00Z',
+    }
+    let resolveRoom!: (response: Response) => void
+    const roomResponse = new Promise<Response>((resolve) => { resolveRoom = resolve })
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const path = String(input)
+      if (path === '/api/mobile/auth/me') {
+        return json({ id: 'ph-1', name: 'Айжан', phone: '+77070000000', pharmacyName: 'Аптека', city: 'Алматы' })
+      }
+      if (path === '/api/mobile/training/assignments/assignment-live') return json(assignment)
+      if (path === '/api/mobile/training') {
+        return json({ total: 1, inProgress: 1, completed: 0, overdue: 0, assignments: [assignment] })
+      }
+      if (path.endsWith('/lessons/lesson-live/live') && !init?.method) return roomResponse
+      if (path.endsWith('/lessons/lesson-live/live/messages') && init?.method === 'POST') {
+        return json({ message: 'Не удалось отправить сообщение' }, 503)
+      }
+      if (path.endsWith('/lessons/lesson-live') && init?.method === 'PATCH') return json(assignment)
+      return json({ message: `Unexpected request: ${path}` }, 500)
+    })
+
+    renderPortal('/learn/course/assignment-live/lesson/lesson-live')
+    const complete = await screen.findByRole('button', { name: 'Дождитесь окончания эфира' })
+    expect(complete).toBeDisabled()
+    expect(fetchMock.mock.calls.some(([path, init]) => String(path).endsWith('/lesson-live') && init?.method === 'PATCH')).toBe(false)
+
+    resolveRoom(json(room))
+    expect(await screen.findByTestId('learner-live-lesson')).toBeInTheDocument()
+    expect(screen.getByText('Участников чата: 0')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Открыть эфир' })).toHaveAttribute('href', 'https://epharm.inkar.kz/live/demo')
+    expect(screen.queryByTitle('Эфир')).not.toBeInTheDocument()
+    await waitFor(() => expect(complete).toBeEnabled())
+    const message = screen.getByPlaceholderText('Напишите комментарий…')
+    await userEvent.type(message, 'Вопрос к ведущему')
+    await userEvent.click(screen.getByRole('button', { name: 'Отправить' }))
+    expect(await screen.findByText('Не удалось отправить сообщение')).toBeInTheDocument()
+    expect(message).toHaveValue('Вопрос к ведущему')
+    await userEvent.click(complete)
+    expect(fetchMock.mock.calls.some(([path, init]) => String(path).endsWith('/lesson-live') && init?.method === 'PATCH')).toBe(true)
+  })
+
   it('submits a scored lesson test and completes it only after a passing result', async () => {
     sessionStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
     const quizLesson = {

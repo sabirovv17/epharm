@@ -494,6 +494,78 @@ describe('Обучение — операционный раздел', () => {
     }))
   })
 
+  it('создаёт live-урок с расписанием и HTTPS-трансляцией', async () => {
+    const createLesson = vi.fn().mockResolvedValue({
+      ...course,
+      lessonItems: [...course.lessonItems, { id: 'lesson-live' }],
+    })
+    lmsHooks.useCreateCourseLesson.mockReturnValue(mutationResult(vi.fn(), createLesson))
+    const user = userEvent.setup()
+    renderPage('/lms?tab=courses')
+    await user.click(screen.getByRole('button', { name: 'Основы категории' }))
+    await user.click(screen.getByRole('button', { name: 'Добавить урок' }))
+
+    const editor = screen.getByRole('dialog', { name: 'Новый урок' })
+    await user.type(within(editor).getByLabelText('Название'), 'Прямой эфир')
+    await user.selectOptions(within(editor).getByLabelText('Тип урока'), 'live')
+    expect((within(editor).getByLabelText('Начало') as HTMLInputElement).value).not.toBe('')
+    await user.type(within(editor).getByLabelText(/Ссылка на трансляцию/), 'https://www.youtube.com/watch?v=demo123')
+    await user.click(within(editor).getByRole('button', { name: 'Сохранить урок' }))
+
+    expect(createLesson).toHaveBeenCalledWith(expect.objectContaining({
+      courseId: course.id,
+      lesson: expect.objectContaining({
+        title: 'Прямой эфир',
+        kind: 'live',
+        liveProvider: 'custom',
+        liveStartAt: expect.any(String),
+        externalUrl: 'https://www.youtube.com/watch?v=demo123',
+      }),
+    }))
+    expect(createLesson.mock.calls[0][0].lesson).not.toHaveProperty('liveStatus')
+  })
+
+  it.each([
+    ['live', 'В эфире'],
+    ['ended', 'Завершён'],
+  ] as const)('не меняет статус и расписание %s-урока при обычном сохранении', async (status, statusLabel) => {
+    const updateLesson = vi.fn().mockResolvedValue(course)
+    lmsHooks.useUpdateCourseLesson.mockReturnValue(mutationResult(vi.fn(), updateLesson))
+    lmsHooks.useCourse.mockReturnValue(queryResult({
+      ...course,
+      lessonItems: [{
+        ...course.lessonItems[0],
+        title: 'Прямой эфир',
+        kind: 'live',
+        videoUrl: null,
+        externalUrl: 'https://www.youtube.com/watch?v=demo123',
+        liveProvider: 'youtube',
+        liveStatus: status,
+        liveStartAt: '2026-10-15T14:00:29Z',
+        liveEndAt: status === 'ended' ? '2026-10-15T15:00:47Z' : null,
+        livePolls: [],
+      }],
+    }))
+    const user = userEvent.setup()
+    renderPage('/lms?tab=courses')
+    await user.click(screen.getByRole('button', { name: 'Основы категории' }))
+    await user.click(screen.getByRole('button', { name: /1\. Прямой эфир/ }))
+
+    const editor = screen.getByRole('dialog', { name: 'Редактировать урок' })
+    expect(within(editor).queryByRole('combobox', { name: 'Статус' })).not.toBeInTheDocument()
+    expect(within(editor).getByText(statusLabel)).toBeInTheDocument()
+    expect(within(editor).getByLabelText('Начало')).toBeDisabled()
+    expect(within(editor).getByLabelText(/Окончание/)).toBeDisabled()
+    await user.click(within(editor).getByRole('button', { name: 'Сохранить урок' }))
+
+    expect(updateLesson).toHaveBeenCalled()
+    const patch = updateLesson.mock.calls[0][0].patch
+    expect(patch).not.toHaveProperty('liveStatus')
+    expect(patch).not.toHaveProperty('liveStartAt')
+    expect(patch).not.toHaveProperty('liveEndAt')
+    expect(patch).not.toHaveProperty('clearLiveSchedule')
+  })
+
   it('показывает прикрепленные материалы в редакторе урока', async () => {
     const user = userEvent.setup()
     renderPage()

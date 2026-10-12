@@ -8,10 +8,17 @@ import kz.epharm.auth.dto.LoginResponse
 import kz.epharm.auth.entity.AdminUserEntity
 import kz.epharm.auth.repository.AdminUserRepository
 import kz.epharm.lms.entity.CourseEntity
+import kz.epharm.lms.entity.CourseLiveMessageEntity
+import kz.epharm.lms.entity.CourseLivePollVoteEntity
+import kz.epharm.lms.entity.CourseLiveReactionEntity
+import kz.epharm.lms.entity.CourseLiveStatus
 import kz.epharm.lms.entity.CourseStatus
 import kz.epharm.lms.repository.CourseRepository
 import kz.epharm.lms.repository.CourseLessonAttachmentRepository
 import kz.epharm.lms.repository.CourseLessonRepository
+import kz.epharm.lms.repository.CourseLiveMessageRepository
+import kz.epharm.lms.repository.CourseLivePollVoteRepository
+import kz.epharm.lms.repository.CourseLiveReactionRepository
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
@@ -68,6 +75,9 @@ class LmsIntegrationTest {
     @Autowired private lateinit var courseRepository: CourseRepository
     @Autowired private lateinit var courseLessonRepository: CourseLessonRepository
     @Autowired private lateinit var courseLessonAttachmentRepository: CourseLessonAttachmentRepository
+    @Autowired private lateinit var liveMessageRepository: CourseLiveMessageRepository
+    @Autowired private lateinit var liveVoteRepository: CourseLivePollVoteRepository
+    @Autowired private lateinit var liveReactionRepository: CourseLiveReactionRepository
     @Autowired private lateinit var adminUserRepository: AdminUserRepository
     @Autowired private lateinit var passwordEncoder: PasswordEncoder
 
@@ -275,6 +285,272 @@ class LmsIntegrationTest {
             .andExpect(jsonPath("$.lessons").value(0))
             .andExpect(jsonPath("$.durationMin").value(0))
             .andExpect(jsonPath("$.lessonItems.length()").value(0))
+    }
+
+    @Test
+    fun `live lesson supports room chat polls reactions and status`() {
+        val created = mockMvc.perform(
+            post("/api/admin/lms/courses/crs_draft/lessons")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """{
+                      "title":"Прямой разбор кейсов",
+                      "description":"Эфир с тренером",
+                      "kind":"live",
+                      "externalUrl":"https://www.youtube.com/watch?v=demo",
+                      "liveProvider":"youtube",
+                      "liveStatus":"scheduled",
+                      "liveStartAt":"2026-10-15T14:00:00Z",
+                      "liveEndAt":"2026-10-15T15:00:00Z",
+                      "liveChatEnabled":true,
+                      "liveQaEnabled":true,
+                      "liveReactionsEnabled":true,
+                      "livePolls":[{
+                        "id":"poll-1",
+                        "prompt":"Материал понятен?",
+                        "active":true,
+                        "options":[{"id":"yes","label":"Да"},{"id":"no","label":"Нужен пример"}]
+                      }]
+                    }""",
+                ),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.lessonItems[0].kind").value("live"))
+            .andExpect(jsonPath("$.lessonItems[0].liveProvider").value("youtube"))
+            .andExpect(jsonPath("$.lessonItems[0].livePolls.length()").value(1))
+            .andReturn()
+        val lessonId = objectMapper.readTree(created.response.contentAsString)
+            .path("lessonItems").path(0).path("id").asText()
+
+        mockMvc.perform(
+            post("/api/admin/lms/courses/crs_draft/lessons/$lessonId/live/messages")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"kind":"question","body":"Покажите практический пример"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.messages.length()").value(1))
+            .andExpect(jsonPath("$.messages[0].kind").value("question"))
+
+        mockMvc.perform(
+            post("/api/admin/lms/courses/crs_draft/lessons/$lessonId/live/polls/poll-1/vote")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"optionId":"yes"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.polls[0].totalVotes").value(1))
+            .andExpect(jsonPath("$.polls[0].myOptionId").value("yes"))
+
+        mockMvc.perform(
+            post("/api/admin/lms/courses/crs_draft/lessons/$lessonId/live/reactions")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"reaction":"clap"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.reactions.clap").value(1))
+
+        mockMvc.perform(
+            patch("/api/admin/lms/courses/crs_draft/lessons/$lessonId/live/status")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"status":"live"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("live"))
+            .andExpect(jsonPath("$.streamUrl").value("https://www.youtube.com/watch?v=demo"))
+    }
+
+    @Test
+    fun `live status transitions require dedicated room endpoint`() {
+        val path = "/api/admin/lms/courses/crs_draft/lessons"
+        val base = "{\"title\":\"Эфир\",\"kind\":\"live\",\"externalUrl\":\"https://www.youtube.com/watch?v=demo\",\"liveProvider\":\"youtube\",\"liveStartAt\":\"2026-10-15T14:00:00Z\""
+        listOf("live", "ended").forEach { statusValue ->
+            mockMvc.perform(
+                post(path).header("Authorization", bearer)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("$base,\"liveStatus\":\"$statusValue\"}"),
+            ).andExpect(status().isBadRequest)
+        }
+        val created = mockMvc.perform(
+            post(path).header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("$base,\"liveStatus\":\"scheduled\"}"),
+        ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.lessonItems[0].liveStatus").value("scheduled"))
+            .andReturn()
+        val lessonId = objectMapper.readTree(created.response.contentAsString)
+            .path("lessonItems").path(0).path("id").asText()
+        val lessonPath = "$path/$lessonId"
+
+        mockMvc.perform(
+            patch(lessonPath).header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"liveStatus":"ended"}"""),
+        ).andExpect(status().isBadRequest)
+        mockMvc.perform(
+            patch(lessonPath).header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"clearLiveSettings":true}"""),
+        ).andExpect(status().isBadRequest)
+        mockMvc.perform(
+            patch(lessonPath).header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"title":"Новое название","liveStatus":"scheduled"}"""),
+        ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.lessonItems[0].liveStatus").value("scheduled"))
+        mockMvc.perform(
+            get(lessonPath.substringBeforeLast("/lessons")).header("Authorization", bearer),
+        ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.lessonItems[0].liveStatus").value("scheduled"))
+
+        mockMvc.perform(
+            patch("$lessonPath/live/status").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"status":"live"}"""),
+        ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("live"))
+        mockMvc.perform(
+            patch(lessonPath).header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"liveStartAt":"2030-10-15T14:00:00Z"}"""),
+        ).andExpect(status().isBadRequest)
+        mockMvc.perform(
+            patch(lessonPath).header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"kind":"text"}"""),
+        ).andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `live poll and option identifiers must be unique`() {
+        val path = "/api/admin/lms/courses/crs_draft/lessons"
+        val prefix = """{"title":"Эфир","kind":"live","liveStartAt":"2026-10-15T14:00:00Z","livePolls":["""
+        val first = """{"id":"poll-1","prompt":"Вопрос","options":[{"id":"yes","label":"Да"},{"id":"no","label":"Нет"}]}"""
+        mockMvc.perform(
+            post(path).header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(prefix + first + "," + first + "]}"),
+        ).andExpect(status().isBadRequest)
+        val duplicateOptions = """{"id":"poll-1","prompt":"Вопрос","options":[{"id":"same","label":"Да"},{"id":"same","label":"Нет"}]}"""
+        mockMvc.perform(
+            post(path).header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(prefix + duplicateOptions + "]}"),
+        ).andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `live lesson with started status or any interaction cannot be deleted`() {
+        fun createLiveLesson(): String {
+            val created = mockMvc.perform(
+                post("/api/admin/lms/courses/crs_draft/lessons")
+                    .header("Authorization", bearer)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"title":"Эфир","kind":"live","liveStartAt":"2030-10-15T14:00:00Z"}"""),
+            ).andExpect(status().isOk).andReturn()
+            return objectMapper.readTree(created.response.contentAsString)
+                .path("lessonItems").last().path("id").asText()
+        }
+        fun expectProtected(id: String) {
+            mockMvc.perform(delete("/api/admin/lms/courses/crs_draft/lessons/$id").header("Authorization", bearer))
+                .andExpect(status().isConflict)
+            assert(courseLessonRepository.existsById(id))
+        }
+
+        val startedId = createLiveLesson()
+        val started = courseLessonRepository.findById(startedId).orElseThrow()
+        started.liveStatus = CourseLiveStatus.live
+        courseLessonRepository.save(started)
+        expectProtected(startedId)
+
+        val messageId = createLiveLesson()
+        liveMessageRepository.save(CourseLiveMessageEntity(lessonId = messageId, authorId = "ph-1", body = "Вопрос"))
+        expectProtected(messageId)
+        assert(liveMessageRepository.existsByLessonId(messageId))
+
+        val voteId = createLiveLesson()
+        liveVoteRepository.save(CourseLivePollVoteEntity(lessonId = voteId, pollId = "poll-1", voterId = "ph-1", optionId = "yes"))
+        expectProtected(voteId)
+        assert(liveVoteRepository.existsByLessonId(voteId))
+
+        val reactionId = createLiveLesson()
+        liveReactionRepository.save(CourseLiveReactionEntity(lessonId = reactionId, actorId = "ph-1", reaction = "like"))
+        expectProtected(reactionId)
+        assert(liveReactionRepository.existsByLessonId(reactionId))
+
+        val unusedId = createLiveLesson()
+        mockMvc.perform(delete("/api/admin/lms/courses/crs_draft/lessons/$unusedId").header("Authorization", bearer))
+            .andExpect(status().isOk)
+        assert(!courseLessonRepository.existsById(unusedId))
+    }
+
+    @Test
+    fun `voted live poll keeps poll and option ids while allowing text edits and additions`() {
+        val coursePath = "/api/admin/lms/courses/crs_draft/lessons"
+        val created = mockMvc.perform(
+            post(coursePath).header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """{"title":"Эфир","kind":"live","liveStartAt":"2030-10-15T14:00:00Z","livePolls":[{"id":"poll-1","prompt":"Старый текст","options":[{"id":"yes","label":"Да"},{"id":"no","label":"Нет"}]}]}""",
+                ),
+        ).andExpect(status().isOk).andReturn()
+        val lessonId = objectMapper.readTree(created.response.contentAsString)
+            .path("lessonItems").last().path("id").asText()
+        val lessonPath = "$coursePath/$lessonId"
+        liveVoteRepository.save(CourseLivePollVoteEntity(lessonId = lessonId, pollId = "poll-1", voterId = "ph-1", optionId = "yes"))
+
+        fun update(polls: String, expectedStatus: Int) {
+            mockMvc.perform(
+                patch(lessonPath).header("Authorization", bearer)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"livePolls":$polls}"""),
+            ).andExpect(status().`is`(expectedStatus))
+        }
+
+        update(
+            """[{"id":"poll-1","prompt":"Новый текст","options":[{"id":"yes","label":"Точно да"},{"id":"no","label":"Нет"},{"id":"maybe","label":"Возможно"}]}]""",
+            200,
+        )
+        update("[]", 400)
+        update(
+            """[{"id":"poll-renamed","prompt":"Новый текст","options":[{"id":"yes","label":"Точно да"},{"id":"no","label":"Нет"},{"id":"maybe","label":"Возможно"}]}]""",
+            400,
+        )
+        update(
+            """[{"id":"poll-1","prompt":"Новый текст","options":[{"id":"yes-renamed","label":"Точно да"},{"id":"no","label":"Нет"},{"id":"maybe","label":"Возможно"}]}]""",
+            400,
+        )
+        mockMvc.perform(
+            patch(lessonPath).header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"kind":"text"}"""),
+        ).andExpect(status().isBadRequest)
+
+        val preserved = courseLessonRepository.findById(lessonId).orElseThrow().livePolls.single()
+        assert(preserved.id == "poll-1")
+        assert(preserved.prompt == "Новый текст")
+        assert(preserved.options.map { it.id } == listOf("yes", "no", "maybe"))
+        assert(liveVoteRepository.existsByLessonId(lessonId))
+    }
+
+    @Test
+    fun `live poll and option ids must be bounded and URL safe`() {
+        val path = "/api/admin/lms/courses/crs_draft/lessons"
+        fun reject(pollId: String, optionId: String) {
+            mockMvc.perform(
+                post(path).header("Authorization", bearer)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """{"title":"Эфир","kind":"live","liveStartAt":"2030-10-15T14:00:00Z","livePolls":[{"id":"$pollId","prompt":"Вопрос","options":[{"id":"$optionId","label":"Да"},{"id":"no","label":"Нет"}]}]}""",
+                    ),
+            ).andExpect(status().isBadRequest)
+        }
+
+        reject("x".repeat(65), "yes")
+        reject("poll-1", "bad/id")
     }
 
     @Test

@@ -129,7 +129,7 @@ The admin and storefront audit gate runs a full npm audit and a second productio
 `tools/check-frontend-audit.mjs` allows only
 [`GHSA-vfj7-8cjw-p6xm`](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), while the sole
 affected `braces@3.0.3` and every derived finding remain confined to dev dependencies. There is
-no patched `braces` release as of 2026-10-06; removing it requires a reviewed major Tailwind or
+no patched `braces` release as of 2026-10-13; removing it requires a reviewed major Tailwind or
 ESLint migration. This exception expires automatically on 2026-11-06 and fails closed on any new
 advisory, production exposure, changed package version, or incomplete audit report. It does not
 waive runtime vulnerability checks or authorize unreviewed dependencies.

@@ -12,6 +12,7 @@ import kz.epharm.auth.service.JwtService
 import kz.epharm.lms.entity.CourseEntity
 import kz.epharm.lms.entity.CourseLessonEntity
 import kz.epharm.lms.entity.CourseLessonKind
+import kz.epharm.lms.entity.CourseLiveStatus
 import kz.epharm.lms.entity.CourseQuizQuestion
 import kz.epharm.lms.entity.CourseStatus
 import kz.epharm.lms.repository.CourseLessonRepository
@@ -27,9 +28,11 @@ import kz.epharm.pharmacists.repository.PharmacistRepository
 import kz.epharm.training.repository.TrainingCertificateRepository
 import kz.epharm.training.repository.TrainingAssessmentResultRepository
 import kz.epharm.training.repository.TrainingAssignmentStageRepository
+import kz.epharm.training.repository.TrainingAssignmentRepository
 import kz.epharm.training.repository.TrainingRewardRepository
 import kz.epharm.training.repository.TrainingLessonProgressRepository
 import kz.epharm.training.domain.TrainingStageStatus
+import kz.epharm.training.domain.TrainingAssignmentStatus
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -93,6 +96,7 @@ class TrainingIntegrationTest {
     @Autowired private lateinit var rewardRepository: TrainingRewardRepository
     @Autowired private lateinit var lessonProgressRepository: TrainingLessonProgressRepository
     @Autowired private lateinit var assignmentStageRepository: TrainingAssignmentStageRepository
+    @Autowired private lateinit var assignmentRepository: TrainingAssignmentRepository
 
     private lateinit var adminBearer: String
     private lateinit var pharmacistBearer: String
@@ -237,6 +241,71 @@ class TrainingIntegrationTest {
             .andExpect(jsonPath("$.assignment.status").value("waiting_test"))
             .andExpect(jsonPath("$.assignment.stages[0].course.lessons[0].quizScore").value(100))
             .andExpect(jsonPath("$.assignment.stages[0].course.lessons[0].quizAttempts").value(2))
+    }
+
+    @Test
+    fun `live lesson cannot complete early and cancelled assignment cannot access room`() {
+        courseLessonRepository.deleteAll()
+        courseLessonRepository.save(
+            CourseLessonEntity(
+                id = "cls_training_live",
+                courseId = "crs_training",
+                title = "Прямой эфир",
+                liveStatusRaw = CourseLiveStatus.scheduled.name,
+                liveStartAt = Instant.parse("2026-10-15T14:00:00Z"),
+                order = 0,
+            ).also { it.kind = CourseLessonKind.live },
+        )
+        val programId = createPublishedProgram()["id"].asText()
+        val assigned = mockMvc.perform(
+            post("/api/admin/training/assignments")
+                .header("Authorization", adminBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"programId":"$programId","pharmacistIds":["ph_training"],"format":"online","duplicatePolicy":"skip"}"""),
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val assignmentId = objectMapper.readTree(assigned)["assignments"][0]["id"].asText()
+        val started = mockMvc.perform(
+            post("/api/mobile/training/assignments/$assignmentId/start")
+                .header("Authorization", pharmacistBearer),
+        ).andExpect(status().isOk).andReturn().response.contentAsString
+        val onlineStage = objectMapper.readTree(started)["stages"].first { it["type"].asText() == "online_course" }
+        val stageId = onlineStage["id"].asText()
+        val lessonPath = "/api/mobile/training/assignments/$assignmentId/stages/$stageId/lessons/cls_training_live"
+
+        mockMvc.perform(get("$lessonPath/live").header("Authorization", pharmacistBearer))
+            .andExpect(status().isOk)
+        mockMvc.perform(
+            patch(lessonPath).header("Authorization", pharmacistBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"progressPct":100}"""),
+        ).andExpect(status().isConflict)
+        mockMvc.perform(
+            patch(lessonPath).header("Authorization", pharmacistBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"progressPct":50}"""),
+        ).andExpect(status().isOk)
+        val stageUuid = UUID.fromString(stageId)
+        assert(lessonProgressRepository.findByAssignmentStageIdAndLessonId(stageUuid, "cls_training_live")?.progressPct == 50)
+
+        val liveLesson = courseLessonRepository.findById("cls_training_live").orElseThrow()
+        liveLesson.liveStatus = CourseLiveStatus.ended
+        courseLessonRepository.save(liveLesson)
+        mockMvc.perform(
+            patch(lessonPath).header("Authorization", pharmacistBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"progressPct":100}"""),
+        ).andExpect(status().isOk)
+
+        val assignment = assignmentRepository.findById(UUID.fromString(assignmentId)).orElseThrow()
+        assignment.status = TrainingAssignmentStatus.cancelled
+        assignmentRepository.save(assignment)
+        mockMvc.perform(get("$lessonPath/live").header("Authorization", pharmacistBearer))
+            .andExpect(status().isConflict)
+        mockMvc.perform(
+            post("$lessonPath/live/messages").header("Authorization", pharmacistBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"kind":"comment","body":"Не должно сохраниться"}"""),
+        ).andExpect(status().isConflict)
     }
 
     @Test

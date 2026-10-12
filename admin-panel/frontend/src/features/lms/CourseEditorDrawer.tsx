@@ -3,6 +3,7 @@ import {
   ArrowDown,
   ArrowUp,
   BookOpen,
+  CalendarClock,
   Clock3,
   FileText,
   Image,
@@ -10,11 +11,19 @@ import {
   Pencil,
   PlayCircle,
   Plus,
+  Radio,
   Trash2,
   Upload,
 } from 'lucide-react'
 import { Button, Drawer, Empty, Field, IconButton, Input, Modal, Select, useToast } from '@/ui'
-import type { CourseDto, CourseLessonDto, CourseLessonKind, CourseStatus } from '@/lib/api-types'
+import type {
+  CourseDto,
+  CourseLessonDto,
+  CourseLessonKind,
+  CourseLivePoll,
+  CourseLiveProvider,
+  CourseStatus,
+} from '@/lib/api-types'
 import {
   useCourse,
   useCreateCourseLesson,
@@ -27,6 +36,7 @@ import {
   useUploadCourseLessonAttachment,
 } from '@/lib/queries/lms'
 import { describeError } from '@/lib/describeError'
+import { LiveLessonStudio } from './LiveLessonStudio'
 
 interface CourseEditorDrawerProps {
   courseId: string | null
@@ -48,6 +58,7 @@ const lessonKindLabels: Record<CourseLessonKind, string> = {
   test: 'Итоговый тест',
   practice: 'Практическое задание',
   assignment: 'Задание',
+  live: 'Прямой эфир',
 }
 
 type QuizQuestionDraft = {
@@ -68,6 +79,31 @@ function newQuizQuestion(): QuizQuestionDraft {
   }
 }
 
+function newLivePoll(): CourseLivePoll {
+  const suffix = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`
+  return {
+    id: `poll_${suffix}`,
+    prompt: '',
+    active: false,
+    options: [
+      { id: `opt_${suffix}_1`, label: '' },
+      { id: `opt_${suffix}_2`, label: '' },
+    ],
+  }
+}
+
+function toDateTimeLocal(value?: string | null) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const offset = date.getTimezoneOffset() * 60_000
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16)
+}
+
+function toIso(value: string) {
+  return value ? new Date(value).toISOString() : null
+}
+
 export function CourseEditorDrawer({
   courseId,
   fallbackCourse,
@@ -81,6 +117,7 @@ export function CourseEditorDrawer({
   const removeLesson = useDeleteCourseLesson()
   const reorder = useReorderCourseLessons()
   const [lessonTarget, setLessonTarget] = useState<CourseLessonDto | 'new' | null>(null)
+  const [liveStudioTarget, setLiveStudioTarget] = useState<CourseLessonDto | null>(null)
   const [title, setTitle] = useState(fallbackCourse?.title ?? '')
   const [category, setCategory] = useState(fallbackCourse?.category ?? '')
   const [description, setDescription] = useState(fallbackCourse?.description ?? '')
@@ -249,7 +286,9 @@ export function CourseEditorDrawer({
                     <article key={lesson.id} className="py-4">
                       <div className="flex items-start gap-3">
                         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-paper-hover text-ink-600">
-                          {lesson.kind === 'video' ? (
+                          {lesson.kind === 'live' ? (
+                            <Radio size={18} />
+                          ) : lesson.kind === 'video' ? (
                             <PlayCircle size={18} />
                           ) : (
                             <FileText size={18} />
@@ -337,6 +376,19 @@ export function CourseEditorDrawer({
                           {lesson.content}
                         </div>
                       )}
+                      {lesson.kind === 'live' && (
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#cce8e5] bg-[#f0faf8] px-3 py-2.5">
+                          <div className="flex items-center gap-2 text-[12px] font-bold text-[#087b77]">
+                            <CalendarClock size={15} />
+                            {lesson.liveStartAt
+                              ? new Date(lesson.liveStartAt).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' })
+                              : 'Дата эфира не указана'}
+                          </div>
+                          <Button size="sm" variant="outline" leading={<Radio size={14} />} onClick={() => setLiveStudioTarget(lesson)}>
+                            Студия эфира
+                          </Button>
+                        </div>
+                      )}
                     </article>
                   ))}
                 </div>
@@ -353,6 +405,14 @@ export function CourseEditorDrawer({
           lesson={lessonTarget === 'new' ? null : lessonTarget}
           canManage={editable}
           onClose={() => setLessonTarget(null)}
+        />
+      )}
+      {course && liveStudioTarget && (
+        <LiveLessonStudio
+          courseId={course.id}
+          lesson={liveStudioTarget}
+          canManage={editable}
+          onClose={() => setLiveStudioTarget(null)}
         />
       )}
     </>
@@ -381,6 +441,14 @@ function LessonEditorModal({
   const [content, setContent] = useState(lesson?.content ?? '')
   const [kind, setKind] = useState<CourseLessonKind>(lesson?.kind ?? 'text')
   const [externalUrl, setExternalUrl] = useState(lesson?.externalUrl ?? '')
+  const [liveProvider, setLiveProvider] = useState<CourseLiveProvider>(lesson?.liveProvider ?? 'custom')
+  const liveStatus = lesson?.liveStatus ?? 'scheduled'
+  const [liveStartAt, setLiveStartAt] = useState(toDateTimeLocal(lesson?.liveStartAt))
+  const [liveEndAt, setLiveEndAt] = useState(toDateTimeLocal(lesson?.liveEndAt))
+  const [liveChatEnabled, setLiveChatEnabled] = useState(lesson?.liveChatEnabled ?? true)
+  const [liveQaEnabled, setLiveQaEnabled] = useState(lesson?.liveQaEnabled ?? true)
+  const [liveReactionsEnabled, setLiveReactionsEnabled] = useState(lesson?.liveReactionsEnabled ?? true)
+  const [livePolls, setLivePolls] = useState<CourseLivePoll[]>(() => lesson?.livePolls ?? [])
   const [required, setRequired] = useState(lesson?.required ?? true)
   const [minimumWatchPct, setMinimumWatchPct] = useState(
     String(lesson?.minimumWatchPct ?? 80),
@@ -417,6 +485,23 @@ function LessonEditorModal({
       return setError('Размер видео не должен превышать 60 МБ')
     if (attachmentFiles.some((attachment) => attachment.size > 25 * 1024 * 1024))
       return setError('Размер каждого вложения не должен превышать 25 МБ')
+    if (kind === 'live') {
+      if (liveStatus === 'scheduled' && !liveStartAt) return setError('Укажите дату и время начала эфира')
+      if (liveStatus === 'live' && !externalUrl.trim()) return setError('Для запуска укажите ссылку на трансляцию')
+      if (externalUrl.trim()) {
+        try {
+          if (new URL(externalUrl.trim()).protocol !== 'https:') {
+            return setError('Ссылка на трансляцию должна использовать HTTPS')
+          }
+        } catch {
+          return setError('Укажите корректную HTTPS-ссылку на трансляцию')
+        }
+      }
+      const invalidPoll = livePolls.findIndex(
+        (poll) => !poll.prompt.trim() || poll.options.length < 2 || poll.options.some((option) => !option.label.trim()),
+      )
+      if (invalidPoll >= 0) return setError(`Проверьте интерактив ${invalidPoll + 1} и варианты ответа`)
+    }
     if (quizMode) {
       if (quizQuestions.length === 0) return setError('Добавьте хотя бы один вопрос теста')
       const invalidQuestion = quizQuestions.findIndex(
@@ -438,6 +523,14 @@ function LessonEditorModal({
         content: content.trim(),
         kind,
         externalUrl: externalUrl.trim() || null,
+        liveProvider: kind === 'live' ? liveProvider : null,
+        ...(kind === 'live' && liveStatus === 'scheduled'
+          ? { liveStartAt: toIso(liveStartAt), liveEndAt: toIso(liveEndAt) }
+          : {}),
+        liveChatEnabled,
+        liveQaEnabled,
+        liveReactionsEnabled,
+        livePolls: kind === 'live' ? livePolls : [],
         required,
         minimumWatchPct:
           kind === 'video' ? Math.min(100, Math.max(1, Number(minimumWatchPct) || 80)) : null,
@@ -460,6 +553,10 @@ function LessonEditorModal({
             ...payload,
             clearVideo: kind !== 'video',
             clearExternalUrl: !externalUrl.trim(),
+            ...(kind === 'live' && liveStatus !== 'scheduled'
+              ? {}
+              : { clearLiveSchedule: kind !== 'live' || !liveStartAt }),
+            clearLiveSettings: kind !== 'live',
             clearMinimumWatchPct: kind !== 'video',
             clearQuiz: !quizMode,
           },
@@ -528,6 +625,11 @@ function LessonEditorModal({
                 if ((nextKind === 'quiz' || nextKind === 'test') && quizQuestions.length === 0) {
                   setQuizQuestions([newQuizQuestion()])
                 }
+                if (nextKind === 'live' && !liveStartAt) {
+                  const nextHour = new Date(Date.now() + 60 * 60 * 1000)
+                  nextHour.setMinutes(0, 0, 0)
+                  setLiveStartAt(toDateTimeLocal(nextHour.toISOString()))
+                }
               }}
               options={[
                 { value: 'text', label: 'Текстовый материал' },
@@ -542,6 +644,7 @@ function LessonEditorModal({
                 { value: 'test', label: 'Итоговый тест' },
                 { value: 'practice', label: 'Практическое задание' },
                 { value: 'assignment', label: 'Задание' },
+                { value: 'live', label: 'Прямой эфир' },
               ]}
             />
           </Field>
@@ -565,16 +668,100 @@ function LessonEditorModal({
           />
           Обязательный урок
         </label>
-        {(kind === 'link' || kind === 'interactive') && (
-          <Field label="Ссылка">
+        {(kind === 'link' || kind === 'interactive' || kind === 'live') && (
+          <Field label={kind === 'live' ? 'Ссылка на трансляцию' : 'Ссылка'} optional={kind === 'live' && liveStatus === 'scheduled'}>
             <Input
               type="url"
               value={externalUrl}
               disabled={!canManage}
-              placeholder="https://…"
+              placeholder={kind === 'live' ? 'https://youtube.com/live/… или ссылка провайдера' : 'https://…'}
               onChange={(event) => setExternalUrl(event.target.value)}
             />
           </Field>
+        )}
+        {kind === 'live' && (
+          <section className="rounded-2xl border border-[#cce8e5] bg-[#f4fbfa] p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2 text-[14px] font-extrabold text-[#075f61]"><Radio size={17} /> Настройки прямого эфира</div>
+                <p className="mt-1 text-[11px] leading-5 text-ink-500">Трансляция, чат, вопросы, реакции и быстрые опросы в одном окне.</p>
+              </div>
+              <span className={`rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase ${liveStatus === 'live' ? 'bg-red-100 text-red-700' : liveStatus === 'ended' ? 'bg-ink-100 text-ink-600' : 'bg-[#dff4f1] text-[#087b77]'}`}>
+                {liveStatus === 'live' ? 'В эфире' : liveStatus === 'ended' ? 'Завершён' : 'Запланирован'}
+              </span>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <Field label="Провайдер">
+                <Select
+                  value={liveProvider}
+                  disabled={!canManage}
+                  onChange={(value) => setLiveProvider(value as CourseLiveProvider)}
+                  options={[
+                    { value: 'youtube', label: 'YouTube Live' },
+                    { value: 'vimeo', label: 'Vimeo Live' },
+                    { value: 'teams', label: 'Microsoft Teams' },
+                    { value: 'zoom', label: 'Zoom' },
+                    { value: 'custom', label: 'Другая платформа / HLS' },
+                  ]}
+                />
+              </Field>
+              <p className="self-center text-[11px] leading-5 text-ink-500">
+                Статус эфира меняется только в студии после сохранения урока.
+              </p>
+              <Field label="Начало">
+                <Input type="datetime-local" value={liveStartAt} disabled={!canManage || liveStatus !== 'scheduled'} onChange={(event) => setLiveStartAt(event.target.value)} />
+              </Field>
+              <Field label="Окончание" optional>
+                <Input type="datetime-local" value={liveEndAt} disabled={!canManage || liveStatus !== 'scheduled'} onChange={(event) => setLiveEndAt(event.target.value)} />
+              </Field>
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+              {[
+                ['Чат участников', liveChatEnabled, setLiveChatEnabled],
+                ['Вопросы ведущему', liveQaEnabled, setLiveQaEnabled],
+                ['Реакции', liveReactionsEnabled, setLiveReactionsEnabled],
+              ].map(([label, checked, setter]) => (
+                <label key={String(label)} className="flex items-center gap-2 rounded-xl border border-[#d9ebe9] bg-white px-3 py-2.5 text-[11px] font-bold text-ink-700">
+                  <input type="checkbox" checked={Boolean(checked)} disabled={!canManage} onChange={(event) => (setter as (value: boolean) => void)(event.target.checked)} />
+                  {String(label)}
+                </label>
+              ))}
+            </div>
+            <div className="mt-4 border-t border-[#d9ebe9] pt-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-[12px] font-extrabold text-ink-800">Интерактивы во время эфира</div>
+                  <div className="text-[10px] text-ink-500">Запускайте и закрывайте опросы прямо в студии.</div>
+                </div>
+                {canManage && <Button size="sm" variant="outline" leading={<Plus size={14} />} onClick={() => setLivePolls((current) => [...current, newLivePoll()])}>Добавить опрос</Button>}
+              </div>
+              <div className="mt-3 space-y-3">
+                {livePolls.map((poll, pollIndex) => (
+                  <article key={poll.id} className="rounded-xl border border-[#dcecea] bg-white p-3">
+                    <div className="flex items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <Input value={poll.prompt} disabled={!canManage} placeholder={`Вопрос опроса ${pollIndex + 1}`} onChange={(event) => setLivePolls((current) => current.map((item) => item.id === poll.id ? { ...item, prompt: event.target.value } : item))} />
+                      </div>
+                      {canManage && <IconButton tip="Удалить опрос" aria-label={`Удалить опрос ${pollIndex + 1}`} onClick={() => setLivePolls((current) => current.filter((item) => item.id !== poll.id))}><Trash2 size={15} /></IconButton>}
+                    </div>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      {poll.options.map((option, optionIndex) => (
+                        <div key={option.id} className="flex items-center gap-1.5">
+                          <Input value={option.label} disabled={!canManage} placeholder={`Вариант ${optionIndex + 1}`} onChange={(event) => setLivePolls((current) => current.map((item) => item.id === poll.id ? { ...item, options: item.options.map((entry) => entry.id === option.id ? { ...entry, label: event.target.value } : entry) } : item))} />
+                          {canManage && poll.options.length > 2 && <IconButton tip="Удалить вариант" aria-label={`Удалить вариант ${optionIndex + 1}`} onClick={() => setLivePolls((current) => current.map((item) => item.id === poll.id ? { ...item, options: item.options.filter((entry) => entry.id !== option.id) } : item))}><Trash2 size={13} /></IconButton>}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      {canManage && poll.options.length < 8 ? <button type="button" className="text-[11px] font-bold text-[#087b77]" onClick={() => setLivePolls((current) => current.map((item) => item.id === poll.id ? { ...item, options: [...item.options, { id: `opt_${Date.now().toString(36)}`, label: '' }] } : item))}>+ Вариант</button> : <span />}
+                      <label className="flex items-center gap-2 text-[11px] font-bold text-ink-600"><input type="checkbox" checked={poll.active} disabled={!canManage} onChange={(event) => setLivePolls((current) => current.map((item) => item.id === poll.id ? { ...item, active: event.target.checked } : item))} /> Активен сейчас</label>
+                    </div>
+                  </article>
+                ))}
+                {livePolls.length === 0 && <div className="rounded-xl border border-dashed border-[#cfe2df] px-4 py-5 text-center text-[11px] text-ink-500">Опросов пока нет. Их можно добавить сейчас или перед эфиром.</div>}
+              </div>
+            </div>
+          </section>
         )}
         {kind === 'video' && (
           <Field label="Минимальный просмотр, %">

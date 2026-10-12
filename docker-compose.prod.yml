@@ -99,6 +99,10 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+    # Keep the live storefront's HTTPS Host/SNI while resolving it inside the
+    # backend container to the Inkar network address used in production.
+    extra_hosts:
+      - 'www.aptekasosklada.kz:10.10.1.80'
     environment:
       SPRING_PROFILES_ACTIVE: prod
       APP_ENVIRONMENT: production
@@ -166,6 +170,10 @@ services:
       # Реальный Medusa-каталог. Клиент разрешает cleartext только для этого точного
       # legacy IP:port; любой другой удалённый HTTP origin отклоняется при старте.
       MEDUSA_ENABLED: ${MEDUSA_ENABLED:-true}
+      STOREFRONT_CATALOG_ENABLED: ${STOREFRONT_CATALOG_ENABLED:-false}
+      STOREFRONT_CATALOG_BASE_URL: ${STOREFRONT_CATALOG_BASE_URL:-}
+      STOREFRONT_CATALOG_CONNECT_TIMEOUT_MS: ${STOREFRONT_CATALOG_CONNECT_TIMEOUT_MS:-2000}
+      STOREFRONT_CATALOG_READ_TIMEOUT_MS: ${STOREFRONT_CATALOG_READ_TIMEOUT_MS:-8000}
       MEDUSA_BASE_URL: ${MEDUSA_BASE_URL:-http://78.140.246.238:9000}
       MEDUSA_PUBLISHABLE_KEY: ${MEDUSA_PUBLISHABLE_KEY:-pk_ed9c35a59066b45de7d9e12510468ca27af16b6d0170b0910c03746545da4525}
       MEDUSA_SALES_CHANNEL_ID: ${MEDUSA_SALES_CHANNEL_ID:-sc_01KRXGQFYXMJN3FD1WJ7S83WME}

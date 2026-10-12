@@ -23,7 +23,7 @@ The backend is a modular monolith under package `kz.epharm`.
 | `auth`                                | Admin auth, JWT, refresh tokens, roles.                                 |
 | `mobile.auth`                         | Pharmacist OTP auth, registration, refresh/logout.                      |
 | `mobile.profile`                      | `/api/mobile/me` profile/balance.                                       |
-| `mobile.catalog`                      | Public Medusa-backed product catalog for mobile.                        |
+| `mobile.catalog`                      | Public mobile catalog with a configured website source and local snapshot fallback. |
 | `mobile.promotions`                   | Public active promo campaign feed.                                      |
 | `mobile.receipts`                     | Authenticated receipt upload/history.                                   |
 | `mobile.pharmacies`                   | Public active pharmacy list.                                            |
@@ -36,7 +36,8 @@ The backend is a modular monolith under package `kz.epharm`.
 | `finance`                             | Payout batches, items, approval, scheduler.                             |
 | `screens`                             | Broadcast/screen media and playlists.                                   |
 | `banners`                             | Admin-managed mobile banners.                                           |
-| `medusa`                              | Storefront client/proxy and admin read-only catalog.                    |
+| `medusa`                              | Historical Medusa client and durable read-only product snapshot.        |
+| `storefront`                          | Read-only client and DTO mapping for the current Inkar website catalog. |
 | `posm`                                | POSM recommendations, outcomes, sales, playlists, heartbeat, CDP.       |
 | `fulfillment`                         | Signed storefront order ingest, pharmacist cash-pickup queue and actions. |
 | `appupdate`                           | POSM app release metadata and auto-update endpoint.                     |
@@ -67,6 +68,13 @@ The backend is a modular monolith under package `kz.epharm`.
 - `/api/admin/training/**`
 - `/api/admin/ai-exam/questions/**`
 - `/api/admin/lift`
+
+Live lessons extend the existing course API rather than replacing older lesson kinds. The
+administrator's live-room endpoints manage the broadcast state and interactions; the authenticated
+learner endpoints expose only the assigned lesson's room. A learner cannot complete a live lesson
+until the room has ended. Stream URLs are accepted only over HTTPS with provider-aware host checks;
+the new `V059` migration expands the lesson-kind constraint after the already deployed `V058`
+course-live schema migration without editing either previously applied migration.
 
 `GET /api/admin/catalog/trigger-options?kind=acc_group|acc_subgroup|acc_mnn&q=...`
 returns selectable scopes and metadata for the active ACC classification snapshot. Campaign rule
@@ -140,10 +148,10 @@ All POSM endpoints require `X-Posm-Key`.
 ### Shared Public
 
 - `GET /api/health`
-- `GET /api/media/img?u=<medusa-http-image-url>`
+- `GET /api/media/img?u=<configured-catalog-image-url>`
 
-The media proxy only allows the configured Medusa authority and exists to avoid browser mixed-content
-blocking when the admin/mobile web views are served over HTTPS.
+The media proxy allows only the exact configured Medusa or enabled website origin, never follows
+redirects, and avoids browser mixed-content blocking when a source image uses HTTP.
 
 ## Security Model
 
@@ -168,9 +176,16 @@ after phone verification ePharm issues its own JWT pair. The database stores the
 opaque nonce, never the external OTP. Per-phone resend cooldown, TTL and attempt limits remain local.
 See `docs/15-daribar-otp.md` for the extracted contract and operations.
 
-## Medusa Integration
+## Catalog sources and Medusa snapshot
 
-Backend is the only consumer of Medusa from this repo. It fetches:
+When `STOREFRONT_CATALOG_ENABLED=true`, the current Inkar website is the preferred read-only
+source for mobile product lists, detail and category handles. A complete local Medusa snapshot
+remains the outage path and preserves historical product IDs referenced by campaigns. Website
+product IDs can differ from historical IDs; unknown website-only details cannot be recovered from
+the old snapshot after a cold restart and fail promptly rather than waiting on the retired origin.
+The feature flag and website origin are supplied through production environment variables.
+
+For the historical source, backend is the only consumer of Medusa from this repo. It fetched:
 
 - product list/detail/category data;
 - images, barcodes, MNN/ATC/rx metadata;

@@ -19,6 +19,25 @@ All notable production changes to Epharm are recorded here. The format follows
 - POSM 1.0.65 spreads healthy QR-task polling over 24–36 seconds per device, reducing
   synchronized load on the merchandising fallback without changing recommendations or orders.
 
+## [0.1.28] - 2026-10-13
+
+### Added
+
+- Reconciled the live-course editor, broadcast studio and pharmacist live lesson with the
+  versioned backend and frontend. A new forward-only migration permits live lessons on databases
+  that already received the course-live schema; stream links require safe HTTPS URLs.
+- Preserved the deployed website catalogue source behind its existing production feature flag,
+  with the local catalogue snapshot retained for outages and existing campaign product IDs.
+
+### Fixed
+
+- Retained the tested cash-pickup-only POSM order guard, ACC group/subgroup/INN recommendation
+  triggers and the reliable screen-video upload flow while reconciling server-only changes.
+- Protected completed live-room interactions against deletion and poll-id changes, and serialized
+  voting, chat and reactions with lesson edits so concurrent actions cannot orphan audit data.
+- Kept post-launch broadcast timestamps immutable in the admin editor and made website category
+  filtering use category handles, with bounded failure when only the retired origin is unavailable.
+
 ## [0.1.26] - 2026-10-12
 
 ### Added

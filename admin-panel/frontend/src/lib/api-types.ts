@@ -698,6 +698,22 @@ export type CourseLessonKind =
   | 'test'
   | 'practice'
   | 'assignment'
+  | 'live'
+
+export type CourseLiveProvider = 'youtube' | 'vimeo' | 'teams' | 'zoom' | 'custom'
+export type CourseLiveStatus = 'scheduled' | 'live' | 'ended'
+
+export interface CourseLivePollOption {
+  id: string
+  label: string
+}
+
+export interface CourseLivePoll {
+  id: string
+  prompt: string
+  options: CourseLivePollOption[]
+  active: boolean
+}
 
 export interface CourseQuizQuestionDto {
   id: string
@@ -726,6 +742,14 @@ export interface CourseLessonDto {
   kind: CourseLessonKind
   videoUrl: string | null
   externalUrl: string | null
+  liveProvider: CourseLiveProvider | null
+  liveStatus: CourseLiveStatus | null
+  liveStartAt: string | null
+  liveEndAt: string | null
+  liveChatEnabled: boolean
+  liveQaEnabled: boolean
+  liveReactionsEnabled: boolean
+  livePolls: CourseLivePoll[]
   required: boolean
   minimumWatchPct: number | null
   quizQuestions: CourseQuizQuestionDto[]
@@ -785,6 +809,14 @@ export interface CreateCourseLessonRequest {
   content?: string
   kind?: CourseLessonKind
   externalUrl?: string | null
+  liveProvider?: CourseLiveProvider | null
+  liveStatus?: CourseLiveStatus | null
+  liveStartAt?: string | null
+  liveEndAt?: string | null
+  liveChatEnabled?: boolean
+  liveQaEnabled?: boolean
+  liveReactionsEnabled?: boolean
+  livePolls?: CourseLivePoll[]
   required?: boolean
   minimumWatchPct?: number | null
   quizQuestions?: Array<{
@@ -805,6 +837,16 @@ export interface UpdateCourseLessonRequest {
   kind?: CourseLessonKind
   externalUrl?: string | null
   clearExternalUrl?: boolean
+  liveProvider?: CourseLiveProvider | null
+  liveStatus?: CourseLiveStatus | null
+  liveStartAt?: string | null
+  liveEndAt?: string | null
+  clearLiveSchedule?: boolean
+  liveChatEnabled?: boolean
+  liveQaEnabled?: boolean
+  liveReactionsEnabled?: boolean
+  livePolls?: CourseLivePoll[]
+  clearLiveSettings?: boolean
   required?: boolean
   minimumWatchPct?: number | null
   clearMinimumWatchPct?: boolean
@@ -813,6 +855,52 @@ export interface UpdateCourseLessonRequest {
   clearQuiz?: boolean
   durationMin?: number
   clearVideo?: boolean
+}
+
+export interface CourseLiveMessageDto {
+  id: string
+  authorName: string
+  authorType: 'admin' | 'pharmacist'
+  kind: 'comment' | 'question'
+  body: string
+  pinned: boolean
+  mine: boolean
+  createdAt: string
+}
+
+export interface CourseLivePollOptionResultDto {
+  id: string
+  label: string
+  votes: number
+  percent: number
+}
+
+export interface CourseLivePollResultDto {
+  id: string
+  prompt: string
+  active: boolean
+  options: CourseLivePollOptionResultDto[]
+  totalVotes: number
+  myOptionId: string | null
+}
+
+export interface CourseLiveRoomDto {
+  lessonId: string
+  title: string
+  description: string
+  provider: CourseLiveProvider
+  status: CourseLiveStatus
+  startsAt: string | null
+  endsAt: string | null
+  streamUrl: string | null
+  chatEnabled: boolean
+  qaEnabled: boolean
+  reactionsEnabled: boolean
+  participantCount: number
+  messages: CourseLiveMessageDto[]
+  polls: CourseLivePollResultDto[]
+  reactions: Record<string, number>
+  serverTime: string
 }
 
 // ─── Screens (Этап 3.6) — indoor-DOOH плейлисты + слайды (read-only; редактор в Этапе 5) ───
