@@ -191,7 +191,7 @@ test.describe('Promo — create кампанию', () => {
     await loggedInPage.getByRole('radio', { name: 'Группа ACC', exact: true }).click()
     await loggedInPage.getByTestId('create-trigger-option-group:e2e').click()
     await loggedInPage.getByRole('radio', { name: 'Замена' }).click()
-    await loggedInPage.getByPlaceholder(/Поиск товара в витрине Medusa/).fill('E2E товар витрины')
+    await loggedInPage.getByPlaceholder(/Поиск товара в каталоге/).fill('E2E товар витрины')
     await loggedInPage.getByTestId(`promo-product-option-${storefrontProduct.id}`).click()
   }
 
@@ -204,7 +204,7 @@ test.describe('Promo — create кампанию', () => {
     await expect(dialog.getByRole('radio', { name: 'Группа ACC', exact: true })).toBeVisible()
     await expect(dialog.getByRole('radio', { name: 'Подгруппа ACC' })).toBeVisible()
     await expect(dialog.getByRole('radio', { name: 'МНН ACC' })).toBeVisible()
-    await expect(dialog.getByPlaceholder(/Поиск товара в витрине Medusa/)).toHaveCount(0)
+    await expect(dialog.getByPlaceholder(/Поиск товара в каталоге/)).toHaveCount(0)
   })
 
   test('выбор группы и предлагаемого товара заполняет название и показывает read-only цену', async ({ loggedInPage }) => {
@@ -235,10 +235,10 @@ test.describe('Promo — create кампанию', () => {
   test('конкретный товар можно найти поиском и использовать как триггер', async ({ loggedInPage }) => {
     await loggedInPage.getByRole('button', { name: /Новая кампания/ }).first().click()
     await loggedInPage.getByRole('radio', { name: 'Конкретный товар' }).click()
-    await loggedInPage.getByPlaceholder(/Поиск товара в витрине Medusa/).fill('E2E товар-триггер')
+    await loggedInPage.getByPlaceholder(/Поиск товара в каталоге/).fill('E2E товар-триггер')
     await loggedInPage.getByTestId(`promo-product-option-${triggerProduct.id}`).click()
     await loggedInPage.getByRole('radio', { name: 'Допродажа' }).click()
-    await loggedInPage.getByPlaceholder(/Поиск товара в витрине Medusa/).fill('E2E товар витрины')
+    await loggedInPage.getByPlaceholder(/Поиск товара в каталоге/).fill('E2E товар витрины')
     await loggedInPage.getByTestId(`promo-product-option-${storefrontProduct.id}`).click()
     await expect(loggedInPage.getByRole('button', { name: /Создать черновик/ })).toBeEnabled()
   })

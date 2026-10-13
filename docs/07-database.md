@@ -4,7 +4,7 @@ Database: PostgreSQL 16.
 
 Migrations: Flyway files in `admin-panel/backend/src/main/resources/db/migration/`.
 
-Current migration range: V001-V059.
+Current migration range: V001-V060.
 
 ## Migrations
 
@@ -69,6 +69,7 @@ Current migration range: V001-V059.
 | V057    | `acc_recommendation_taxonomy`          | Versioned ACC barcode classes and concrete recommendation trigger name.       |
 | V058    | `course_live_lessons`                 | Live-room metadata, messages, poll votes and reactions; already applied in production. |
 | V059    | `allow_live_course_lessons`           | Expand the lesson-kind constraint to include live lessons without editing V058. |
+| V060    | `storefront_product_references`      | Origin-scoped website product handles/payload for restart-safe campaign pricing. |
 
 ## Domain Tables
 

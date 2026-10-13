@@ -2,14 +2,21 @@ package kz.epharm.promo
 
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kz.epharm.catalog.entity.ProductEntity
 import kz.epharm.catalog.repository.ProductRepository
+import kz.epharm.medusa.MedusaCatalogSnapshotRepository
+import kz.epharm.medusa.client.MedusaClient
+import kz.epharm.medusa.dto.MedusaCalculatedPrice
+import kz.epharm.medusa.dto.MedusaProduct
+import kz.epharm.medusa.dto.MedusaVariant
 import kz.epharm.medusa.service.MedusaPriceService
 import kz.epharm.medusa.service.MedusaPriceService.MedusaSnapshot
 import kz.epharm.promo.entity.PromoEntity
 import kz.epharm.promo.entity.PromoTier
 import kz.epharm.promo.repository.PromoRepository
 import kz.epharm.promo.service.PromoPriceScheduler
+import kz.epharm.storefront.client.StorefrontCatalogClient
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
@@ -56,5 +63,49 @@ class PromoPriceSchedulerTest {
         val summary = scheduler.refreshNow()
         assertEquals(0, summary.promosUpdated)
         assertEquals(0, summary.productsUpdated)
+    }
+
+    @Test
+    fun `website outage cannot replace stored campaign values with historical Medusa snapshot`() {
+        val id = "prod_website"
+        val website = mockk<StorefrontCatalogClient>()
+        val snapshot = mockk<MedusaCatalogSnapshotRepository>()
+        val medusa = mockk<MedusaClient>()
+        every { website.active } returns true
+        every { website.getProduct(id, "old-handle") } throws IllegalStateException("website down")
+        every { website.cachedProduct(id) } returns null
+        every { snapshot.hasCompleteSnapshot() } returns true
+        every { snapshot.findById(id) } returns MedusaProduct(
+            id = id, handle = "old-handle", thumbnail = "https://old.example/image.jpg",
+            variants = listOf(MedusaVariant(id = "old-variant", barcode = "4871234567890",
+                calculatedPrice = MedusaCalculatedPrice(calculatedAmount = 100.0))),
+        )
+        val promo = PromoEntity(id = "pr_website", title = "Акция сайта", medusaProductId = id).also {
+            it.tiers = listOf(PromoTier(minQty = 1, price = 485, bonus = 50))
+            it.productImage = "https://website.example/image.jpg"
+            it.barcode = "4871234567883"
+        }
+        val product = ProductEntity(id = id, name = "Товар сайта", price = 485).also {
+            it.medusaProductId = id
+            it.barcode = promo.barcode
+        }
+        every { promoRepo.findAllByMedusaProductIdIsNotNull() } returns listOf(promo)
+        every { productRepo.findAllByMedusaProductIdIsNotNull() } returns listOf(product)
+        val scheduler = PromoPriceScheduler(promoRepo, productRepo, MedusaPriceService(medusa, website, snapshot))
+
+        val result = scheduler.refreshNow()
+
+        assertEquals(485L, promo.price)
+        assertEquals(50L, promo.pharmacistBonus)
+        assertEquals("https://website.example/image.jpg", promo.productImage)
+        assertEquals("4871234567883", promo.barcode)
+        assertEquals(485, product.price)
+        assertEquals("4871234567883", product.barcode)
+        assertEquals(0, result.promosUpdated)
+        assertEquals(0, result.productsUpdated)
+        verify(exactly = 0) { promoRepo.save(any()) }
+        verify(exactly = 0) { productRepo.save(any()) }
+        verify(exactly = 0) { medusa.getProduct(any()) }
+        verify(exactly = 0) { medusa.getProductPharmacies(any()) }
     }
 }

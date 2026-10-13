@@ -161,6 +161,29 @@ class MobileCatalogSourcePriorityTest {
     }
 
     @Test
+    fun `website-only detail retains saved site payload during outage without historical identity`() {
+        every { website.active } returns true
+        every { snapshot.hasCompleteSnapshot() } returns true
+        every { snapshot.findById("site-only") } returns null
+        every { website.getProduct("site-only", null) } throws IllegalStateException("site down")
+        every { website.cachedProduct("site-only") } returns product("site-only")
+
+        assertThat(service().detail("site-only").id).isEqualTo("site-only")
+        verify(exactly = 0) { medusa.getProduct(any()) }
+    }
+
+    @Test
+    fun `website outage without saved detail still fails promptly`() {
+        every { website.active } returns true
+        every { snapshot.hasCompleteSnapshot() } returns false
+        every { website.getProduct("site-only", null) } throws IllegalStateException("site down")
+        every { website.cachedProduct("site-only") } returns null
+
+        assertThatThrownBy { service().detail("site-only") }.hasMessageContaining("временно недоступен")
+        verify(exactly = 0) { medusa.getProduct(any()) }
+    }
+
+    @Test
     fun `website categories without snapshot fail promptly rather than calling retired Medusa`() {
         every { website.active } returns true
         every { website.listCategories() } throws IllegalStateException("site down")

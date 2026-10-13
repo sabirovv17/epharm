@@ -1,45 +1,37 @@
 package kz.epharm.medusa.service
 
 import kz.epharm.medusa.client.MedusaClient
+import kz.epharm.medusa.MedusaCatalogSnapshotRepository
 import kz.epharm.medusa.dto.MedusaProduct
 import kz.epharm.medusa.dto.toRetailPriceSummary
 import kz.epharm.shared.validation.BarcodeNormalizer
+import kz.epharm.storefront.client.StorefrontCatalogClient
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import kotlin.math.roundToLong
 
 /**
- * Единый резолвер цены товара из Medusa (variants.calculatedPrice).
- *
- * В отличие от [kz.epharm.mobile.catalog.service.MobileCatalogService] — БЕЗ кэша:
- * нужен для регулярного рефреша цен (планировщик) и для подстановки цены при создании
- * кампании, где важна актуальность, а не экономия round-trip'ов.
- *
- * Цена «только из Medusa» — пользователь не может задать её руками (T1).
+ * Цена и идентификаторы товара из того же источника, что и каталог админки.
+ * При включённой витрине сайта старый Medusa origin не участвует даже при сбое.
+ * Имя класса сохранено для существующих кампаний и планировщика обновления цен.
  */
 @Service
 class MedusaPriceService(
     private val medusa: MedusaClient,
+    private val storefront: StorefrontCatalogClient? = null,
+    private val snapshot: MedusaCatalogSnapshotRepository? = null,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    /** Активен, только если активен сам клиент Medusa (иначе цену взять неоткуда). */
-    val active: Boolean get() = medusa.active
+    val active: Boolean get() = storefront?.active == true || medusa.active || snapshot?.hasCompleteSnapshot() == true
 
     /**
-     * Цена товара в тенге (целое). null — Medusa выключена/недоступна или у товара нет цены.
-     * Бросать наверх не нужно: вызывающий (создание промо / планировщик) деградирует на
-     * прошлое значение.
+     * null сохраняет прежнюю цену кампании при недоступном источнике или отсутствии цены.
      */
     fun priceOf(medusaProductId: String?): Long? {
-        if (medusaProductId.isNullOrBlank() || !medusa.active) return null
-        val nativePrice = try {
-            priceOf(medusa.getProduct(medusaProductId))
-        } catch (e: Exception) {
-            log.warn("Не удалось получить цену Medusa для {}: {}", medusaProductId, e.message)
-            null
-        }
-        return nativePrice ?: retailPriceOf(medusaProductId)
+        val id = medusaProductId?.trim()?.takeIf(String::isNotEmpty) ?: return null
+        val nativePrice = priceOf(productOf(id))
+        return nativePrice ?: if (storefront?.active != true && medusa.active) retailPriceOf(id) else null
     }
 
     /** Цена из уже загруженного товара (первый вариант с calculatedPrice). */
@@ -49,27 +41,39 @@ class MedusaPriceService(
             ?.roundToLong()
 
     /**
-     * Снимок товара для регулярного рефреша: актуальные цена + обложка одним
-     * запросом к Medusa (фото в витрине тоже меняют, не только цены). null —
-     * Medusa выключена/недоступна. Поля внутри тоже nullable: чего нет — не трогаем.
+     * Свежий снимок для кампаний: цена, обложка и явный штрихкод; отсутствующие поля
+     * остаются nullable, чтобы вызывающий не затирал ранее сохранённые значения.
      */
     fun snapshotOf(medusaProductId: String?): MedusaSnapshot? {
-        if (medusaProductId.isNullOrBlank() || !medusa.active) return null
-        return try {
-            val p = medusa.getProduct(medusaProductId) ?: return null
-            MedusaSnapshot(
-                price = priceOf(p) ?: retailPriceOf(medusaProductId),
-                cover = coverOf(p),
-                barcode = barcodeOf(p),
-            )
-        } catch (e: Exception) {
-            log.warn("Не удалось получить снимок Medusa для {}: {}", medusaProductId, e.message)
-            null
+        val id = medusaProductId?.trim()?.takeIf(String::isNotEmpty) ?: return null
+        val p = productOf(id) ?: return null
+        return MedusaSnapshot(
+            price = priceOf(p) ?: if (storefront?.active != true && medusa.active) retailPriceOf(id) else null,
+            cover = coverOf(p),
+            barcode = barcodeOf(p),
+        )
+    }
+
+    private fun productOf(id: String): MedusaProduct? {
+        val local = snapshot?.takeIf { it.hasCompleteSnapshot() }?.findById(id)
+        val site = storefront?.takeIf { it.active }
+        if (site != null) {
+            val fresh = runCatching { site.getProduct(id, local?.handle) }
+                .onFailure { log.warn("Не удалось обновить товар витрины {}: {}", id, it.message) }
+                .getOrNull()
+            // The historical snapshot must not overwrite a website campaign during an outage.
+            return fresh ?: site.cachedProduct(id)
         }
+        val legacy = if (medusa.active) runCatching { medusa.getProduct(id) }
+            .onFailure { log.warn("Не удалось получить товар Medusa {}: {}", id, it.message) }
+            .getOrNull() else null
+        return legacy ?: local
     }
 
     private fun retailPriceOf(medusaProductId: String): Long? =
-        medusa.getProductPharmacies(medusaProductId)?.toRetailPriceSummary()?.price?.toLong()
+        runCatching { medusa.getProductPharmacies(medusaProductId)?.toRetailPriceSummary()?.price?.toLong() }
+            .onFailure { log.warn("Не удалось получить розничную цену Medusa {}: {}", medusaProductId, it.message) }
+            .getOrNull()
 
     /** Обложка товара: thumbnail, иначе первое непустое фото. */
     private fun coverOf(product: MedusaProduct): String? =
@@ -77,12 +81,11 @@ class MedusaPriceService(
             ?: product.images.firstNotNullOfOrNull { it.url?.trim()?.takeIf { u -> u.isNotBlank() } }
 
     /**
-     * Штрих-код EAN-13 товара: первый вариант с непустым barcode (зеркало
-     * [kz.epharm.mobile.catalog.service.MobileCatalogService.barcodeOf]). Без metadata-fallback —
-     * для матчинга кассы нужен именно EAN-13 из variant.barcode.
+     * Только явный штрихкод источника. Название товара не устанавливает его EAN.
      */
     private fun barcodeOf(product: MedusaProduct): String? =
         product.variants.firstNotNullOfOrNull { BarcodeNormalizer.first(it.barcode) }
+            ?: BarcodeNormalizer.first(product.metadata?.get("barcode") as? String)
 
     /** Снимок витрины: цена (тенге) + URL обложки + штрих-код. Любое поле может быть null. */
     data class MedusaSnapshot(val price: Long?, val cover: String?, val barcode: String?)

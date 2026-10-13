@@ -87,6 +87,7 @@ export function PromoInitialTriggerPicker({
           value={value?.kind === 'product' ? value.product : null}
           onChange={(product) => onChange({ kind: 'product', product })}
           requireQuery
+          requireScanIdentity
         />
       )}
 

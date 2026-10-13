@@ -19,6 +19,18 @@ All notable production changes to Epharm are recorded here. The format follows
 - POSM 1.0.65 spreads healthy QR-task polling over 24–36 seconds per device, reducing
   synchronized load on the merchandising fallback without changing recommendations or orders.
 
+## [0.1.30] - 2026-10-13
+
+### Fixed
+
+- Campaign and recommendation prices now follow the same configured website catalogue as the
+  product picker, preserving historical source fallback and previously saved prices on outages.
+- Persisted website product references retain their original handles across backend restarts;
+  scheduled price refresh no longer relies on an in-memory catalogue visit or an old Medusa ID.
+- The trigger-first campaign form retains exact-product, ACC group, subgroup and INN choices.
+  Products without a usable barcode or Standard-N identity are clearly unavailable as initial
+  exact-product scan triggers; offered products and broad triggers remain independently selectable.
+
 ## [0.1.29] - 2026-10-13
 
 ### Fixed

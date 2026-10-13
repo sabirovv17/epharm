@@ -41,6 +41,65 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
+describe('PromoProductPicker — идентификатор сканирования триггера', () => {
+  beforeEach(() => {
+    storefrontHooks.useStorefront.mockReturnValue({
+      data: {
+        items: [
+          mkProduct({ id: 'site-only', name: 'Товар без идентификаторов' }),
+          mkProduct({ id: 'blank-identifiers', name: 'Товар с пустыми идентификаторами', barcode: '  ', ipartId: ' ' }),
+          mkProduct({ id: 'invalid-identifiers', name: 'Товар с некорректными идентификаторами', barcode: '0'.repeat(33), ipartId: '1'.repeat(65) }),
+          mkProduct({ id: 'barcode', name: 'Товар со штрихкодом', barcode: '4601164003157' }),
+          mkProduct({ id: 'ipart', name: 'Товар с iPartID', ipartId: '80309' }),
+        ],
+        total: 5,
+        limit: 50,
+        offset: 0,
+      },
+      isFetching: false,
+    })
+  })
+
+  it('не позволяет выбрать триггер без штрихкода или iPartID и объясняет причину', async () => {
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    render(<PromoProductPicker value={null} onChange={onChange} requireScanIdentity />)
+
+    for (const id of ['site-only', 'blank-identifiers', 'invalid-identifiers']) {
+      const option = screen.getByTestId(`promo-product-option-${id}`)
+      expect(option).toBeDisabled()
+      expect(option).toHaveTextContent(/товар нельзя выбрать как триггер на кассе/)
+      await user.click(option)
+    }
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['barcode', { barcode: '4601164003157' }],
+    ['ipart', { ipartId: '80309' }],
+  ])('позволяет выбрать триггер с %s', async (id, identity) => {
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    render(<PromoProductPicker value={null} onChange={onChange} requireScanIdentity />)
+
+    const option = screen.getByTestId(`promo-product-option-${id}`)
+    expect(option).toBeEnabled()
+    await user.click(option)
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ medusaProductId: id, ...identity }))
+  })
+
+  it('сохраняет выбор предлагаемого товара без идентификаторов', async () => {
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    render(<PromoProductPicker value={null} onChange={onChange} />)
+
+    const option = screen.getByTestId('promo-product-option-site-only')
+    expect(option).toBeEnabled()
+    await user.click(option)
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ medusaProductId: 'site-only', barcode: null }))
+  })
+})
+
 // ─── T6: пагинация ───────────────────────────────────────────────────────────
 describe('PromoProductPicker — пагинация (T6)', () => {
   // Эмулируем серверную пагинацию: возвращаем срез по offset/limit от total=120.
