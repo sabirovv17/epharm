@@ -9,6 +9,7 @@ import kz.epharm.storefront.dto.StorefrontCatalogPage
 import kz.epharm.storefront.dto.StorefrontCategoryNode
 import kz.epharm.storefront.dto.StorefrontProductWrapper
 import kz.epharm.storefront.dto.toMedusaProduct
+import kz.epharm.storefront.StorefrontProductReferenceRepository
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
@@ -33,6 +34,7 @@ class StorefrontCatalogClient(
     @Value("\${app.storefront-catalog.base-url:}") rawBaseUrl: String,
     @Value("\${app.storefront-catalog.connect-timeout-ms:2000}") connectTimeoutMs: Int,
     @Value("\${app.storefront-catalog.read-timeout-ms:8000}") readTimeoutMs: Int,
+    private val references: StorefrontProductReferenceRepository? = null,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val baseUrl = validateBaseUrl(enabled, rawBaseUrl, connectTimeoutMs, readTimeoutMs)
@@ -78,6 +80,7 @@ class StorefrontCatalogClient(
                 throw IllegalStateException("Website catalogue returned an empty first page")
             }
             mapped.filter { it.id.isNotBlank() }.forEach { productsById[it.id] = it }
+            references?.remember(checkNotNull(baseUrl), mapped)
             MedusaProductListResponse(
                 products = mapped,
                 count = page.count.coerceAtLeast(mapped.size),
@@ -92,19 +95,22 @@ class StorefrontCatalogClient(
 
     fun getProduct(id: String, knownHandle: String? = null): MedusaProduct? {
         if (!active || id.isBlank()) return null
-        productsById[id]?.let { cached ->
-            if (!cached.description.isNullOrBlank()) return cached
-        }
-        val handle = knownHandle?.trim()?.takeIf { it.isNotBlank() }
-            ?: productsById[id]?.handle?.trim()?.takeIf { it.isNotBlank() }
-            ?: return productsById[id]
+        val cached = cachedProduct(id)
+        // The origin-scoped website handle takes precedence over a legacy Medusa handle.
+        // Detail caching is bounded by MobileCatalogService, not by description presence.
+        val handle = cached?.handle?.trim()?.takeIf { it.isNotBlank() }
+            ?: knownHandle?.trim()?.takeIf { it.isNotBlank() }
+            ?: return cached
         return try {
             val wrapper = rest.get().uri { uri ->
                 uri.path("/api/product/{handle}").build(handle)
             }.retrieve().body(StorefrontProductWrapper::class.java)
             wrapper?.product?.toMedusaProduct(checkNotNull(baseUrl))
                 ?.takeIf { it.id == id }
-                ?.also { productsById[it.id] = it }
+                ?.also {
+                    productsById[it.id] = it
+                    references?.remember(checkNotNull(baseUrl), listOf(it))
+                }
         } catch (error: Exception) {
             log.warn("Storefront product request failed (id={}, handle={}): {}", id, handle, error.message)
             throw upstream(error)
@@ -124,6 +130,7 @@ class StorefrontCatalogClient(
     }
 
     fun cachedProduct(id: String): MedusaProduct? = productsById[id]
+        ?: baseUrl?.let { references?.find(it, id) }?.also { productsById[id] = it }
 
     private fun flatten(nodes: List<StorefrontCategoryNode>, parentId: String? = null): List<MedusaCategory> =
         nodes.flatMap { node ->

@@ -131,8 +131,8 @@ class MobileCatalogService(
             val local = snapshot?.takeIf { it.hasCompleteSnapshot() }?.findById(id)
             val website = storefront?.takeIf { it.active }?.let { client ->
                 runCatching { client.getProduct(id, local?.handle) }
-                    .onFailure { log.warn("Website product {} unavailable; using local snapshot: {}", id, it.message) }
-                    .getOrNull()
+                    .onFailure { log.warn("Website product {} unavailable; using saved catalogue data: {}", id, it.message) }
+                    .getOrElse { client.cachedProduct(id) }
                     ?.takeIf { product ->
                         (product.id == id).also { matches ->
                             if (!matches) log.warn("Website product id differs from requested id; using local snapshot")

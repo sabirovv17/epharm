@@ -13,6 +13,7 @@ import { proxyMedia } from '@/lib/media'
 import { useT } from '@/i18n'
 import { describeError } from '@/lib/describeError'
 import type { StorefrontProductDto } from '@/lib/api-types'
+import { PROMO_RULE_LIMITS } from './promoRulesValidation'
 
 const PAGE = 50
 
@@ -38,10 +39,12 @@ function ProductSearchList({
   selectedIds,
   onPick,
   requireQuery = false,
+  requireScanIdentity = false,
 }: {
   selectedIds: Set<string>
   onPick: (p: StorefrontProductDto) => void
   requireQuery?: boolean
+  requireScanIdentity?: boolean
 }) {
   const t = useT()
   const [raw, setRaw] = useState('')
@@ -149,13 +152,17 @@ function ProductSearchList({
         ) : (
           items.map((p) => {
             const selected = selectedIds.has(p.id)
+            const hasBarcode = Boolean(p.barcode?.trim()) && (p.barcode?.length ?? 0) <= PROMO_RULE_LIMITS.barcode
+            const hasIpartId = Boolean(p.ipartId?.trim()) && (p.ipartId?.length ?? 0) <= PROMO_RULE_LIMITS.ipartId
+            const unavailable = requireScanIdentity && !hasBarcode && !hasIpartId
             return (
               <button
                 key={p.id}
                 type="button"
                 data-testid={`promo-product-option-${p.id}`}
+                disabled={unavailable}
                 onClick={() => onPick(p)}
-                className="flex w-full items-center gap-3 border-b border-ink-50 px-3 py-2 text-left last:border-b-0 hover:bg-paper-input"
+                className="flex w-full items-center gap-3 border-b border-ink-50 px-3 py-2 text-left last:border-b-0 enabled:hover:bg-paper-input disabled:cursor-not-allowed disabled:bg-paper-input"
               >
                 <ProductThumb url={p.imageUrl} name={p.name} size={40} />
                 <div className="min-w-0 flex-1">
@@ -170,6 +177,9 @@ function ProductSearchList({
                     >
                       {p.barcode}
                     </div>
+                  )}
+                  {unavailable && (
+                    <div className="mt-1 text-[11px] text-ink-500">{t('pp.noScanIdentity')}</div>
                   )}
                 </div>
                 {selected && <IconCheck size={16} />}
@@ -202,9 +212,11 @@ interface Props {
   value: SelectedProduct | null
   onChange: (p: SelectedProduct) => void
   requireQuery?: boolean
+  /** Exact scan triggers need an identifier accepted by the backend contract. */
+  requireScanIdentity?: boolean
 }
 
-export function PromoProductPicker({ value, onChange, requireQuery = false }: Props) {
+export function PromoProductPicker({ value, onChange, requireQuery = false, requireScanIdentity = false }: Props) {
   const t = useT()
   const [open, setOpen] = useState(value === null)
 
@@ -252,6 +264,7 @@ export function PromoProductPicker({ value, onChange, requireQuery = false }: Pr
         selectedIds={value ? new Set([value.medusaProductId]) : new Set()}
         onPick={pick}
         requireQuery={requireQuery}
+        requireScanIdentity={requireScanIdentity}
       />
       {value && (
         <div className="text-right">

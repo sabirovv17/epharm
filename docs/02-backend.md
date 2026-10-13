@@ -181,8 +181,14 @@ See `docs/15-daribar-otp.md` for the extracted contract and operations.
 When `STOREFRONT_CATALOG_ENABLED=true`, the current Inkar website is the preferred read-only
 source for mobile product lists, detail and category handles. A complete local Medusa snapshot
 remains the outage path and preserves historical product IDs referenced by campaigns. Website
-product IDs can differ from historical IDs; unknown website-only details cannot be recovered from
-the old snapshot after a cold restart and fail promptly rather than waiting on the retired origin.
+product IDs can differ from historical IDs. Viewed website products retain their original handles
+and last-known-good payload in `storefront_product_references`, scoped by configured origin, so
+campaign price refresh continues after a cold restart. Campaign/rule pricing uses this same source
+priority and refreshes the website detail instead of treating its in-memory copy as a fresh price.
+If the website fails, campaign refresh uses only the stored product from that same website;
+historical data is not written over a website price or barcode. The complete historical snapshot
+remains available for read-only catalogue browsing. Missing data preserves existing campaign values. Unknown website-only
+IDs fail promptly rather than waiting on the retired origin. No barcode is inferred from a name.
 The feature flag and website origin are supplied through production environment variables.
 
 For the historical source, backend is the only consumer of Medusa from this repo. It fetched:
