@@ -41,6 +41,7 @@ The backend is a modular monolith under package `kz.epharm`.
 | `posm`                                | POSM recommendations, outcomes, sales, playlists, heartbeat, CDP.       |
 | `fulfillment`                         | Signed storefront order ingest, pharmacist cash-pickup queue and actions. |
 | `appupdate`                           | POSM app release metadata and auto-update endpoint.                     |
+| `merchtasks`                          | Optional authenticated CRM task bridge, exact staff URL validation and bounded concurrency. |
 | `training`                            | Programs, routes, assignments, events, attendance, results and awards.  |
 | `lms`, `ai_exam`, `lift`, `dashboard` | Admin sections and reporting.                                           |
 | `shared`                              | Security, errors, media proxy, storage, validation, dev reset.          |
@@ -149,6 +150,8 @@ All POSM endpoints require `X-Posm-Key`.
 - `GET /api/posm/playlists/active?pharmacyId=...`
 - `GET /api/posm/app/version`
 - `POST /api/posm/heartbeat`
+- `GET /api/posm/tasks?pharmacyId=...` — scoped CRM assignment with individual device identity.
+- `POST /api/posm/tasks/shown` — accepted/rejected confirmation of an actual displayed QR.
 - `POST /api/posm/cdp/lookup`
 - `POST /api/posm/cdp/register`
 

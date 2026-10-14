@@ -152,6 +152,7 @@ previous_frontend_archive_config_id="$(python3 "$SCRIPT_DIR/verify-image-archive
 }
 actual_backend_id="$(image_id "epharm/backend:$candidate_backend_tag")"
 actual_frontend_id="$(image_id "epharm/frontend:$candidate_frontend_tag")"
+verify_merchandising_image "$candidate_backend_id"
 [[ "$actual_backend_id" == "$candidate_backend_id" && "$actual_frontend_id" == "$candidate_frontend_id" ]] || {
   echo 'ERROR: candidate image IDs differ from the approved artifacts' >&2; exit 1;
 }

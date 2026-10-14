@@ -11,7 +11,7 @@ COPY gradlew settings.gradle.kts build.gradle.kts ./
 COPY gradle ./gradle
 # Затем исходники и сборка boot-jar (тесты гоняет CI, здесь -x test для скорости).
 COPY src ./src
-RUN chmod +x gradlew && ./gradlew --no-daemon clean bootJar -x test
+RUN chmod +x gradlew && ./gradlew --no-daemon clean bootJar verifyMerchandisingArtifact -x test
 
 FROM eclipse-temurin:22-jre AS runtime
 ARG RELEASE_ID=dev

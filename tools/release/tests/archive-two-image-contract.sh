@@ -10,6 +10,7 @@ mkdir -p "$test_root/tools/release" "$test_root/tools/ops" "$test_root/bin" "$te
 cp "$source_root/tools/release/deploy-archive-two-image.sh" "$source_root/tools/release/lib.sh" \
   "$source_root/tools/release/verify-image-archive.py" "$test_root/tools/release/"
 cp "$source_root/tools/ops/lib.sh" "$test_root/tools/ops/lib.sh"
+cp "$source_root/tools/release/tests/fixtures/fake-merch-artifact.py" "$test_root/tools/release/verify-merch-artifact.py"
 printf '# reviewed Compose fixture\n' > "$test_root/docker-compose.prod.yml"
 printf '# reviewed Caddy fixture\n' > "$test_root/Caddyfile"
 printf 'JWT_SECRET=fixture-never-log\nMERCH_TASKS_ENABLED=true\nSTANDARDN_DIRECTORY_ENABLED=true\n' > "$test_root/.env.prod"

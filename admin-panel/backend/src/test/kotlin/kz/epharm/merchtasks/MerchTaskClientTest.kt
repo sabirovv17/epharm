@@ -124,6 +124,80 @@ class MerchTaskClientTest {
     }
 
     @Test
+    fun `private-looking DNS names and ambiguous IPv4 cannot carry the server key over HTTP`() {
+        for (host in listOf("10.10.1.76.evil.example", "evil.172.16.0.1.example", "192.168.0.1.example",
+            "10.00.0.1", "010.0.0.1", "10.0.0.256", "10.0.0.1.", "10.0.1")) {
+            val bridge = clientWithoutServer(true, "http://$host:8080", "server-secret")
+            assertThat(bridge.activeTask("pharmacy-7").available).describedAs(host).isFalse()
+            assertThat(bridge.markShown(MerchTaskShownRequest(dispatchId, "pharmacy-7", "POS-02", deliveryToken)).available)
+                .describedAs(host).isFalse()
+        }
+    }
+
+    @Test
+    fun `redirect never forwards the integration key to another endpoint`() {
+        val redirectedRequests = java.util.concurrent.atomic.AtomicInteger()
+        val destination = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
+            createContext("/") { exchange ->
+                redirectedRequests.incrementAndGet()
+                exchange.sendResponseHeaders(200, -1)
+                exchange.close()
+            }
+            start()
+        }
+        try {
+            server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
+                createContext("/") { exchange ->
+                    exchange.responseHeaders.add("Location", "http://127.0.0.1:${destination.address.port}/capture")
+                    exchange.sendResponseHeaders(302, -1)
+                    exchange.close()
+                }
+                start()
+            }
+            val bridge = client(true, "synthetic-server-key")
+            assertThat(bridge.activeTask("pharmacy-7").available).isFalse()
+            assertThat(bridge.markShown(MerchTaskShownRequest(dispatchId, "pharmacy-7", "POS-02", deliveryToken)).available)
+                .isFalse()
+            assertThat(redirectedRequests.get()).isZero()
+        } finally {
+            destination.stop(0)
+        }
+    }
+
+    @Test
+    fun `metrics distinguish disabled misconfiguration and rejected shown receipts`() {
+        val registry = SimpleMeterRegistry()
+        val disabled = clientWithoutServer(false, "", "", registry)
+        disabled.activeTask("pharmacy-7")
+        assertThat(registry.get("epharm.merch.tasks.enabled").gauge().value()).isZero()
+        assertThat(registry.get("epharm.merch.tasks.requests").tags("operation", "active", "outcome", "disabled")
+            .counter().count()).isEqualTo(1.0)
+        val brokenRegistry = SimpleMeterRegistry()
+        val broken = clientWithoutServer(true, "http://10.0.0.1.evil.example", "server-secret", brokenRegistry)
+        broken.activeTask("pharmacy-7")
+        assertThat(brokenRegistry.get("epharm.merch.tasks.configured").gauge().value()).isZero()
+        assertThat(brokenRegistry.get("epharm.merch.tasks.requests").tags("operation", "active", "outcome", "misconfigured")
+            .counter().count()).isEqualTo(1.0)
+        server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
+            createContext("/") { exchange ->
+                val body = """{"accepted":false}""".toByteArray()
+                exchange.responseHeaders.add("Content-Type", "application/json")
+                exchange.sendResponseHeaders(200, body.size.toLong())
+                exchange.responseBody.use { it.write(body) }
+            }
+            start()
+        }
+        val rejectedRegistry = SimpleMeterRegistry()
+        val rejected = clientWithoutServer(true, "http://127.0.0.1:${requireNotNull(server).address.port}",
+            "server-secret", rejectedRegistry)
+        assertThat(rejected.markShown(MerchTaskShownRequest(dispatchId, "pharmacy-7", "POS-02", deliveryToken)).accepted).isFalse()
+        assertThat(rejectedRegistry.get("epharm.merch.tasks.requests").tags("operation", "shown", "outcome", "rejected")
+            .counter().count()).isEqualTo(1.0)
+        assertThat(rejectedRegistry.find("epharm.merch.tasks.requests").tags("operation", "shown", "outcome", "success")
+            .counter()).isNull()
+    }
+
+    @Test
     fun `invalid pharmacy identifier is rejected before contacting upstream`() {
         val client = clientWithoutServer(enabled = false, baseUrl = "", integrationKey = "")
 
@@ -297,6 +371,7 @@ class MerchTaskClientTest {
         enabled: Boolean,
         baseUrl: String,
         integrationKey: String,
+        meterRegistry: SimpleMeterRegistry = SimpleMeterRegistry(),
     ) = MerchTaskClient(
         objectMapper = jacksonObjectMapper(),
         enabled = enabled,
@@ -304,6 +379,6 @@ class MerchTaskClientTest {
         integrationKey = integrationKey,
         timeoutMs = 1_000,
         publicBaseUrl = "https://epharm.inkar.kz",
-        meterRegistry = SimpleMeterRegistry(),
+        meterRegistry = meterRegistry,
     )
 }

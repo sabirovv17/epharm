@@ -36,8 +36,17 @@ systemctl list-timers 'epharm-*'
 ```
 
 `BACKUP_REQUIRE_OFFSITE=true` makes a missing or failed restic copy fail the daily job. Store the
-restic password only in `/etc/epharm/backup.env` (mode `0600`). A successful run updates Prometheus
+restic password only in `/etc/epharm/backup.env` (mode `0600`), or reference a separate root-owned
+mode-`0600` file through `RESTIC_PASSWORD_FILE`. Keep a recoverable copy of that key outside both
+application and backup servers. A successful run updates Prometheus
 textfile metrics; alerts fire after 36 hours without backup or 8 days without restore verification.
+
+For an SFTP repository on an independent host, pin its SSH host key and use a dedicated key/user
+restricted to SFTP and the application server's source IP. Configure `RESTIC_SFTP_COMMAND` with
+`IdentitiesOnly=yes`, `BatchMode=yes`, `StrictHostKeyChecking=yes` and a protected known-hosts file.
+Load these settings through an additional systemd `EnvironmentFile` rather than replacing existing
+backup settings. A second server on the same LAN protects against one host's failure, not a
+site-wide disaster; retain a separate key recovery copy and plan a truly external destination.
 
 ## Monitoring and alerting
 
@@ -105,6 +114,13 @@ automatically returns to the previous images.
 The backend CI must also check runtime-only integrations in the final `bootJar`, not just that
 application sources compile. Standard-N pharmacist synchronization requires the Jaybird Firebird
 driver; the production JAR packaging check guards against silently losing it in a release.
+`verifyMerchandisingArtifact` checks the protected CRM bridge, disabled redirects and configuration
+in that same JAR. Docker runs it even when unit tests are delegated to CI. All release transactions
+also extract the JAR from the exact candidate image into a stopped, network-isolated container and
+run `tools/release/verify-merch-artifact.py`. Stage the merged verifier and
+`merch-artifact-contract.properties` with the release scripts. An obsolete bridge cannot pass these
+gates by changing only OCI labels. This rejects the known regression; it does not replace
+exact-commit CI, review or Windows acceptance. Privileged manual bypass is not a supported release.
 For an exceptional backend-only release, use the separate, tested archive-host transaction in
 `06-deployment-and-ops.md`; it persists distinct backend/frontend tags and commits and requires a
 fresh verified rollback bundle **in addition to**, not instead of, encrypted off-site backup and a

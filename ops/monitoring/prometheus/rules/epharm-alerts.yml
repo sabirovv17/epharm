@@ -76,6 +76,37 @@ groups:
           summary: 'Epharm API p95 latency exceeds 1 second'
           description: 'Server-side p95 latency has remained above 1 second for 15 minutes.'
 
+  - name: epharm-merchandising
+    rules:
+      - alert: EpharmMerchandisingNotConfigured
+        expr: epharm_merch_tasks_enabled == 0 or epharm_merch_tasks_configured == 0 or absent(epharm_merch_tasks_configured)
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Merchandising bridge is disabled, misconfigured or obsolete'
+          description: 'Check the deployable JAR, CRM origin/key and exact HTTPS staff URL.'
+
+      - alert: EpharmMerchandisingUpstreamFailures
+        expr: |
+          sum(rate(epharm_merch_tasks_requests_total{operation="active",outcome=~"failure|saturated|misconfigured"}[5m]))
+          / clamp_min(sum(rate(epharm_merch_tasks_requests_total{operation="active"}[5m])), 0.001) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'More than 5% of merchandising polls fail'
+          description: 'Recommendations can remain healthy while assignment polling is unavailable.'
+
+      - alert: EpharmMerchandisingReceiptsRejected
+        expr: increase(epharm_merch_tasks_requests_total{operation="shown",outcome="rejected"}[15m]) >= 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'CRM rejects repeated QR display receipts'
+          description: 'HTTP 200 alone is not an accepted shown receipt; inspect expiry and assignment predicates.'
+
   - name: epharm-capacity
     rules:
       - alert: EpharmHostDiskSpaceLow

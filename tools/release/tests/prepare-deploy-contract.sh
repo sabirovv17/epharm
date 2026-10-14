@@ -8,6 +8,7 @@ trap 'rm -rf -- "$test_root"' EXIT
 
 mkdir -p "$test_root/tools/release" "$test_root/tools/ops" "$test_root/bin"
 cp "$source_root/tools/release/"*.sh "$test_root/tools/release/"
+cp "$source_root/tools/release/tests/fixtures/fake-merch-artifact.py" "$test_root/tools/release/verify-merch-artifact.py"
 cp "$source_root/tools/ops/lib.sh" "$test_root/tools/ops/lib.sh"
 touch "$test_root/docker-compose.prod.yml"
 printf '## [0.1.10] - 2026-09-23\n' > "$test_root/CHANGELOG.md"
@@ -100,6 +101,11 @@ if compgen -G "$test_root/.release.prepare.*" >/dev/null; then
   exit 1
 fi
 
+if TEST_BAD_MERCH_ARTIFACT=true "$test_root/tools/release/prepare.sh" v0.1.10 > "$test_root/obsolete-artifact.log" 2>&1; then
+  echo 'Prepare accepted an obsolete merchandising artifact' >&2
+  exit 1
+fi
+[[ ! -e "$test_root/releases/v0.1.10/manifest.json" ]]
 "$test_root/tools/release/prepare.sh" v0.1.10
 grep -Fxq 'RELEASE_ID=v0.1.9' "$test_root/.release.env"
 if compgen -G "$test_root/.release.prepare.*" >/dev/null; then

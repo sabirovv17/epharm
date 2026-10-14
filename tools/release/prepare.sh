@@ -43,6 +43,7 @@ docker compose \
   -f "$RELEASE_ROOT/docker-compose.prod.yml" \
   build --pull backend frontend
 ensure_release_images "$release_id"
+verify_merchandising_image "$(docker image inspect --format '{{.Id}}' "epharm/backend:$release_id")"
 
 backend_image_id="$(docker image inspect --format '{{.Id}}' "epharm/backend:$release_id")"
 frontend_image_id="$(docker image inspect --format '{{.Id}}' "epharm/frontend:$release_id")"

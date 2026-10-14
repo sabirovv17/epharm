@@ -19,6 +19,20 @@ All notable production changes to Epharm are recorded here. The format follows
 - POSM 1.0.65 spreads healthy QR-task polling over 24–36 seconds per device, reducing
   synchronized load on the merchandising fallback without changing recommendations or orders.
 
+## [0.1.32] - 2026-10-14
+
+### Fixed
+
+- POSM 1.0.68 restores new merchandising assignments after a bounded tray reminder and keeps
+  QR windows above the pharmacist desktop without activating them or interrupting barcode input.
+- Display receipts survive network failures and restarts in a bounded, DPAPI-protected,
+  pharmacy/device-scoped queue; expired/revoked receipts do not retry indefinitely.
+- Merchandising rejects private-looking DNS names and credential-forwarding redirects. Metrics
+  distinguish accepted receipts from HTTP-success rejections, with dedicated alerts.
+- CI, Docker builds and transactional release gates inspect the actual JAR for the protected bridge
+  and configuration before accepting a release; exact-commit source remains the release authority.
+- CRM lifecycle/media fixes are released from its separate repository with independent provenance.
+
 ## [0.1.31] - 2026-10-14
 
 ### Fixed

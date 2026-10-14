@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.util.zip.ZipFile
+
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.spring)
@@ -79,3 +82,22 @@ tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
 tasks.named<Jar>("jar") {
     enabled = false
 }
+
+val verifyMerchandisingArtifact by tasks.registering {
+    dependsOn("bootJar")
+    doLast {
+        val contract = Properties().apply {
+            file("src/main/resources/merch-artifact-contract.properties").inputStream().use { load(it) }
+        }
+        ZipFile(layout.buildDirectory.file("libs/app.jar").get().asFile).use { jar ->
+            contract.forEach { path, markers ->
+                val entry = requireNotNull(jar.getEntry(path.toString())) { "Missing merchandising artifact: $path" }
+                val bytes = jar.getInputStream(entry).use { it.readBytes().toString(Charsets.ISO_8859_1) }
+                markers.toString().split(',').forEach { marker ->
+                    check(bytes.contains(marker)) { "Obsolete merchandising artifact $path: missing $marker" }
+                }
+            }
+        }
+    }
+}
+tasks.named("check") { dependsOn(verifyMerchandisingArtifact) }

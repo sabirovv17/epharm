@@ -293,6 +293,20 @@ The shown-ACK request is serialized to a byte array so HTTP carries a fixed `Con
 the existing CRM handler did not read chunked request bodies and would reject a valid UUID as
 missing. A successful QR display is not complete until CRM returns an accepted receipt.
 
+POSM 1.0.68 treats minimize and Later as a ten-minute, per-delivery tray reminder. A new delivery
+does not inherit the previous reminder and opens automatically without activating cashier input.
+A native topmost guard refreshes the QR window's z-order without focus changes; shown evidence is
+queued only after a visible, non-iconic native window and rendered QR are verified. These checks
+still require Windows acceptance above the actual Standard-N desktop.
+
+Displayed receipts are stored atomically under LocalAppData/Epharm, protected by Windows DPAPI
+and scoped to pharmacy/device. Retry survives window close and restart; retention is bounded by
+token expiry, seven days, 200 entries and 1 MiB. Only an explicit valid `accepted=false` retires a
+rejected receipt; transport failures, `available=false` and malformed replies retain it for retry.
+Corrupt encrypted data is quarantined before a fresh queue is created, without logging tokens.
+Overlay updates preserve this state and pharmacy configuration. A signed current manifest alone
+does not prove that offline or broken legacy Windows updaters applied the package.
+
 ## Operations
 
 Useful docs:
