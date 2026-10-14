@@ -239,7 +239,8 @@ cause instead of being mistaken for a confirmed one-monitor installation. v1.0.4
 polling at five minutes and resumes interrupted release downloads from a persistent partial file.
 
 Production binary releases are mirrored in the public, artifact-only repository
-`sabirovv17/epharm-posm-releases`. The source repository remains private. Prefer an immutable,
+`sabirovv17/epharm-posm-releases`. Keep application source and pharmacy configuration out of this
+artifact-only channel; its visibility is independent of the source repository. Prefer an immutable,
 version-and-source-commit-named archive under the existing first-party HTTPS `/downloads/` route
 when pharmacy networks cannot reliably reach an external CDN. Install only the exact Windows CI
 artifact into `/srv/epharm-downloads`, already mounted read-only by Caddy; do not rebuild or change
