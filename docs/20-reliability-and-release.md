@@ -41,6 +41,13 @@ mode-`0600` file through `RESTIC_PASSWORD_FILE`. Keep a recoverable copy of that
 application and backup servers. A successful run updates Prometheus
 textfile metrics; alerts fire after 36 hours without backup or 8 days without restore verification.
 
+For an SFTP repository on an independent host, pin its SSH host key and use a dedicated key/user
+restricted to SFTP and the application server's source IP. Configure `RESTIC_SFTP_COMMAND` with
+`IdentitiesOnly=yes`, `BatchMode=yes`, `StrictHostKeyChecking=yes` and a protected known-hosts file.
+Load these settings through an additional systemd `EnvironmentFile` rather than replacing existing
+backup settings. A second server on the same LAN protects against one host's failure, not a
+site-wide disaster; retain a separate key recovery copy and plan a truly external destination.
+
 ## Monitoring and alerting
 
 The `monitoring` Compose profile includes Prometheus, Alertmanager, Grafana, blackbox exporter,
