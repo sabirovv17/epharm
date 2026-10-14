@@ -236,6 +236,13 @@ Barcode is the primary key for cash-desk recommendation matching.
 Ambiguous barcode or normalized-name matches are logged and skipped. The system prefers not showing a
 recommendation over showing the wrong one.
 
+Both normalized and fuzzy name fallback retain numeric multiplicity, dose units (including
+concentration denominators), and release modifiers such as DSR. Explicit recognized dosage forms
+must agree; known capsule/tablet/plural abbreviations are normalized without lowering the fuzzy
+threshold. No new acceptance path for omitted forms is added: existing similarity and ambiguity
+checks still apply. Name fallback remains secondary to exact identifiers and does not establish
+clinical interchangeability.
+
 ## Dashboard Journal
 
 `GET /api/admin/dashboard/recommendations?page=0&size=50` returns KPI values for the configured
