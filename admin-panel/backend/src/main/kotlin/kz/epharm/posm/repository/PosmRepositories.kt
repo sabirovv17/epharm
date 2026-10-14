@@ -105,12 +105,29 @@ interface RecommendationEventRepository : JpaRepository<RecommendationEventEntit
     /**
      * Единый журнал: показы + каждая позиция завершённого чека. Атрибуцию рекомендации
      * повторяем по тому же контракту, что использовался в сервисе: штрихкод → точное имя →
-     * первая позиция чека. LIMIT/OFFSET применяются уже после UNION и сортировки.
+     * первая позиция чека. Каждый чек даёт хотя бы одну строку, поэтому для страницы нужны
+     * не более offset + size последних чеков. Сохраняем все чеки на граничном timestamp:
+     * порядок их развёрнутых id может отличаться от порядка исходных id (например, префиксы).
+     * Итоговые LIMIT/OFFSET применяются уже после UNION и сортировки.
      */
     @Query(
         nativeQuery = true,
         value = """
-            WITH fastest_attribution AS (
+            WITH receipt_candidates AS MATERIALIZED (
+                SELECT *
+                FROM pos_sales
+                WHERE printed_at >= :since
+                ORDER BY printed_at DESC
+                FETCH FIRST (:rowOffset + :pageSize) ROWS WITH TIES
+            ),
+            show_candidates AS (
+                SELECT *
+                FROM recommendation_events
+                WHERE shown_at >= :since
+                ORDER BY COALESCE(displayed_at, shown_at) DESC, id DESC
+                LIMIT (:rowOffset + :pageSize)
+            ),
+            fastest_attribution AS (
                 SELECT DISTINCT ON (re.sale_id)
                        re.sale_id,
                        re.seconds_to_sale,
@@ -119,6 +136,7 @@ interface RecommendationEventRepository : JpaRepository<RecommendationEventEntit
                 FROM recommendation_events re
                 LEFT JOIN products p ON p.id = re.recommend_sku
                 WHERE re.sale_id IS NOT NULL
+                  AND re.sale_id IN (SELECT id FROM receipt_candidates)
                   AND re.seconds_to_sale IS NOT NULL
                   AND re.sold_at >= :since
                 ORDER BY re.sale_id, re.seconds_to_sale ASC, re.id ASC
@@ -130,7 +148,7 @@ interface RecommendationEventRepository : JpaRepository<RecommendationEventEntit
                        jsonb_array_length(s.items) AS item_count,
                        attr.seconds_to_sale AS attributed_seconds,
                        matched.item_ordinality AS matched_ordinality
-                FROM pos_sales s
+                FROM receipt_candidates s
                 LEFT JOIN fastest_attribution attr ON attr.sale_id = s.id
                 LEFT JOIN LATERAL (
                     SELECT COALESCE(
@@ -153,7 +171,6 @@ interface RecommendationEventRepository : JpaRepository<RecommendationEventEntit
                         ELSE s.items
                     END
                 ) WITH ORDINALITY item(value, ordinality)
-                WHERE s.printed_at >= :since
             )
             SELECT e.id AS "id",
                    'show' AS "eventType",
@@ -172,8 +189,7 @@ interface RecommendationEventRepository : JpaRepository<RecommendationEventEntit
                    e.seconds_to_sale AS "secondsToSale",
                    CAST(NULL AS DOUBLE PRECISION) AS "units",
                    CAST(NULL AS VARCHAR) AS "saleId"
-            FROM recommendation_events e
-            WHERE e.shown_at >= :since
+            FROM show_candidates e
 
             UNION ALL
 

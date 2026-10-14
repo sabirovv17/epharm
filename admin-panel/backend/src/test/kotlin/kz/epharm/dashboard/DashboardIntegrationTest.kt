@@ -1,6 +1,7 @@
 package kz.epharm.dashboard
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import java.sql.Timestamp
 import java.time.Instant
 import kz.epharm.auth.domain.AdminRole
 import kz.epharm.auth.domain.AdminUserStatus
@@ -31,10 +32,14 @@ import kz.epharm.rules.entity.RuleType
 import kz.epharm.rules.repository.RuleRepository
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
@@ -90,6 +95,7 @@ class DashboardIntegrationTest {
     @Autowired private lateinit var posSaleRepository: PosSaleRepository
     @Autowired private lateinit var adminUserRepository: AdminUserRepository
     @Autowired private lateinit var passwordEncoder: PasswordEncoder
+    @Autowired private lateinit var jdbcTemplate: JdbcTemplate
 
     private lateinit var bearer: String
 
@@ -264,6 +270,168 @@ class DashboardIntegrationTest {
             .andExpect(jsonPath("$.page").value(1))
             .andExpect(jsonPath("$.log.length()").value(2))
             .andExpect(jsonPath("$.log[0].type").value("show"))
+    }
+
+    @Test
+    fun `journal candidate bounds preserve every page across timestamp ties and receipt id prefixes`() {
+        eventRepository.deleteAll()
+        val at = Instant.now().plusSeconds(60)
+        val since = Instant.now().minusSeconds(90L * 24 * 60 * 60)
+        fun receipt(id: String, count: Int, time: Instant = at) = PosSaleEntity(
+            id = id,
+            pharmacyId = "ph_hi",
+            pharmacistId = "cashier",
+            printedAt = time,
+            totalAmount = 4_900,
+            items = (0 until count).map { i ->
+                PosSaleItem(sku = "sku_$i", name = "Товар $i", qty = i + 0.5, total = 100L + i)
+            },
+        )
+        posSaleRepository.saveAll(listOf(
+            receipt("newest", 2, at.plusSeconds(5)),
+            receipt("sale", 12),
+            receipt("sale!", 2),
+            receipt("sale#", 0),
+            receipt("sale#9", 2),
+            receipt("sale0", 3),
+            receipt("older_empty", 0, at.minusSeconds(20)),
+            receipt("outside_window", 100, since.minusSeconds(60)),
+        ))
+        eventRepository.saveAll(listOf(
+            RecommendationEventEntity(id = "show_tie", shownAt = at.minusSeconds(1), displayedAt = at),
+            // Sorting must use displayed_at, while the period filter still uses shown_at.
+            RecommendationEventEntity(id = "show_moved", shownAt = at.plusSeconds(10), displayedAt = at.minusSeconds(25)),
+            RecommendationEventEntity(id = "show_outside", shownAt = since.minusSeconds(60), displayedAt = at.plusSeconds(20)),
+        ))
+        posSaleRepository.flush()
+        eventRepository.flush()
+
+        // Unbounded independent reference: expand all matching receipts, then sort computed child ids.
+        val expectedIds = jdbcTemplate.queryForList(
+            """
+                SELECT journal_id FROM (
+                    SELECT id AS journal_id, COALESCE(displayed_at, shown_at) AS event_at
+                    FROM recommendation_events WHERE shown_at >= ?
+                    UNION ALL
+                    SELECT CASE WHEN jsonb_array_length(s.items) = 0 THEN s.id
+                                ELSE s.id || '#' || (item.ordinality - 1)::text END,
+                           s.printed_at
+                    FROM pos_sales s
+                    CROSS JOIN LATERAL jsonb_array_elements(
+                        CASE WHEN jsonb_array_length(s.items) = 0 THEN '[{}]'::jsonb ELSE s.items END
+                    ) WITH ORDINALITY item(value, ordinality)
+                    WHERE s.printed_at >= ?
+                ) journal ORDER BY event_at DESC, journal_id DESC
+            """.trimIndent(),
+            String::class.java,
+            Timestamp.from(since), Timestamp.from(since),
+        )
+        assertEquals(25, expectedIds.size)
+        assertEquals(25L, eventRepository.countJournalRowsSince(since))
+        for (size in listOf(1, 2, 3, 7)) {
+            val actualIds = mutableListOf<String>()
+            val pages = (expectedIds.size + size - 1) / size
+            repeat(pages) { page ->
+                val result = mockMvc.perform(
+                    get("/api/admin/dashboard/recommendations")
+                        .header("Authorization", bearer).param("page", "$page").param("size", "$size"),
+                ).andExpect(status().isOk).andReturn()
+                val json = objectMapper.readTree(result.response.contentAsString)
+                assertEquals(page, json["page"].asInt())
+                assertEquals(pages, json["totalPages"].asInt())
+                assertEquals(25L, json["totalElements"].asLong())
+                actualIds += json["log"].map { it["id"].asText() }
+            }
+            assertEquals(expectedIds, actualIds, "page size $size must preserve the original full journal order")
+        }
+
+        val allRows = eventRepository.findJournalRowsSince(since, 100, 0)
+        val item = allRows.single { it.id == "sale#11" }
+        assertEquals(111L, item.amount)
+        assertEquals(11.5, item.units)
+        assertEquals("sale", item.saleId)
+        val empty = allRows.single { it.id == "older_empty" }
+        assertEquals("Чек", empty.title)
+        assertEquals(4_900L, empty.amount)
+        assertNull(empty.units)
+        assertTrue(allRows.none { it.id.startsWith("outside_window") || it.id == "show_outside" })
+    }
+
+    @Test
+    fun `bounded journal keeps fastest attribution and barcode name first-item fallback`() {
+        eventRepository.deleteAll()
+        val since = Instant.now().minusSeconds(90L * 24 * 60 * 60)
+        val at = Instant.now().plusSeconds(60)
+        productRepository.findById("p_aquamaris").get().also { it.barcode = "4601234567890" }
+        productRepository.findById("p_other").get().also { it.barcode = "4609876543210" }
+        posSaleRepository.saveAll(listOf(
+            PosSaleEntity(
+                id = "sale_barcode", pharmacyId = "ph_hi", printedAt = at,
+                items = listOf(
+                    PosSaleItem(name = "Аквамарис", barcode = "4609876543210", qty = 1.0, total = 2_000),
+                    PosSaleItem(name = "Другое имя", barcode = "4601234567890", qty = 2.0, total = 3_500),
+                ),
+            ),
+            PosSaleEntity(
+                id = "sale_name", pharmacyId = "ph_hi", printedAt = at,
+                items = listOf(PosSaleItem(name = "Другой"), PosSaleItem(name = "нужный ТОВАР")),
+            ),
+            PosSaleEntity(
+                id = "sale_fallback", pharmacyId = "ph_hi", printedAt = at,
+                items = listOf(PosSaleItem(name = "Первый"), PosSaleItem(name = "Второй")),
+            ),
+            PosSaleEntity(id = "sale_empty", pharmacyId = "ph_hi", printedAt = at, totalAmount = 700),
+        ))
+        fun attribution(id: String, saleId: String, sku: String, name: String, seconds: Int) =
+            RecommendationEventEntity(
+                id = id, saleId = saleId, recommendSku = sku, recommendName = name,
+                shownAt = at.minusSeconds(100), soldAt = at, secondsToSale = seconds,
+            )
+        eventRepository.saveAll(listOf(
+            attribution("attr_slow", "sale_barcode", "p_other", "Аквамарис", 50),
+            attribution("attr_z", "sale_barcode", "p_other", "Аквамарис", 8),
+            // Equal fastest times retain the original re.id ASC tie-break.
+            attribution("attr_a", "sale_barcode", "p_aquamaris", "Аквамарис", 8),
+            attribution("attr_name", "sale_name", "missing", "  Нужный товар  ", 14),
+            attribution("attr_fallback", "sale_fallback", "missing", "Отсутствует", 21),
+            attribution("attr_empty", "sale_empty", "missing", "Отсутствует", 25),
+        ))
+        productRepository.flush()
+        posSaleRepository.flush()
+        eventRepository.flush()
+
+        val saleRows = eventRepository.findJournalRowsSince(since, 7, 0)
+        assertEquals(7, saleRows.size)
+        assertTrue(saleRows.all { it.eventType == "sale" })
+        val seconds = saleRows.associate { it.id to it.secondsToSale }
+        assertEquals(8, seconds["sale_barcode#1"])
+        assertNull(seconds["sale_barcode#0"])
+        assertEquals(14, seconds["sale_name#1"])
+        assertNull(seconds["sale_name#0"])
+        assertEquals(21, seconds["sale_fallback#0"])
+        assertNull(seconds["sale_fallback#1"])
+        assertEquals(25, seconds["sale_empty"])
+        assertEquals(13L, eventRepository.countJournalRowsSince(since))
+    }
+
+    @Test
+    fun `recommendations retains legacy limit alias and clamps past the last page`() {
+        mockMvc.perform(
+            get("/api/admin/dashboard/recommendations").header("Authorization", bearer).param("limit", "3"),
+        ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.page").value(0))
+            .andExpect(jsonPath("$.pageSize").value(3))
+            .andExpect(jsonPath("$.totalElements").value(100))
+            .andExpect(jsonPath("$.totalPages").value(34))
+            .andExpect(jsonPath("$.log.length()").value(3))
+
+        mockMvc.perform(
+            get("/api/admin/dashboard/recommendations").header("Authorization", bearer)
+                .param("page", "1000").param("size", "3"),
+        ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.page").value(33))
+            .andExpect(jsonPath("$.totalElements").value(100))
+            .andExpect(jsonPath("$.log.length()").value(1))
     }
 
     private fun login(): LoginResponse {

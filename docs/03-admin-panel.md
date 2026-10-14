@@ -119,6 +119,11 @@ summary, coverage warning and Excel export remain visible while the long list is
 - Query cache is persisted to localStorage and cleared on logout.
 - DTO types live in `src/lib/api-types.ts` and should mirror backend DTOs exactly.
 
+The dashboard journal shows metrics only after a successful response. An initial request failure
+displays an explicit error and retry action, not an empty journal or zero sales. A failed automatic
+refresh retains the last successful rows and metrics with a stale-data warning. Its rolling window
+is configured on the backend and does not follow the header's month selector.
+
 ## UI and Design
 
 Current design source of truth is `admin-panel/design-tokens-admin.md`:

@@ -19,6 +19,15 @@ All notable production changes to Epharm are recorded here. The format follows
 - POSM 1.0.65 spreads healthy QR-task polling over 24–36 seconds per device, reducing
   synchronized load on the merchandising fallback without changing recommendations or orders.
 
+## [0.1.31] - 2026-10-14
+
+### Fixed
+
+- The impressions-and-sales journal bounds receipt candidates before expanding their items,
+  avoiding a full historical item scan for each page while preserving counts, ordering and attribution.
+- Journal load failures now show an explicit retry state instead of zero metrics and an empty
+  history. Failed refreshes retain the last successful data with a visible stale-data warning.
+
 ## [0.1.30] - 2026-10-13
 
 ### Fixed
