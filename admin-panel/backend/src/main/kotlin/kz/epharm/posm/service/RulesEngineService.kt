@@ -492,7 +492,7 @@ class RulesEngineService(
         private val WHITESPACE = Regex("\\s+")
         private val NUMBER = Regex("\\d+(?:[.,]\\d+)?")
         private val MEASURE = Regex(
-            "\\d+(?:[.,]\\d+)?\\s*(?:мкг|мг|мл|г|л|%)(?![\\p{L}])" +
+            "(?<![\\d.,])\\d+(?:[.,]\\d+)?\\s*(?:мкг|мг|мл|г|л|%)(?![\\p{L}])" +
                 "(?:\\s*/\\s*(?:\\d+(?:[.,]\\d+)?\\s*)?(?:мкг|мг|мл|г|л)(?![\\p{L}]))?",
         )
         private val WORD_OR_NUMBER = Regex("[\\p{L}]+|\\d+(?:[.,]\\d+)?")

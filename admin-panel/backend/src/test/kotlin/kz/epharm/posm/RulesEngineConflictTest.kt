@@ -18,8 +18,10 @@ import kz.epharm.rules.entity.RuleType
 import kz.epharm.rules.repository.RuleRepository
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.assertTimeoutPreemptively
 import org.junit.jupiter.api.Test
 import java.time.LocalDate
+import java.time.Duration
 import java.time.ZoneId
 import java.util.Optional
 
@@ -95,6 +97,16 @@ class RulesEngineConflictTest {
             cartProducts = listOf(trigger),
             recommends = listOf(recommend),
         )
+    }
+
+    @Test
+    fun `длинное неизвестное число не вызывает квадратичный поиск единицы дозировки`() {
+        stubNameTrigger("Омез 20мг капс №30")
+        val raw = "Омез " + "9".repeat(100_000) + "x капс №30"
+
+        assertTimeoutPreemptively(Duration.ofSeconds(2)) {
+            assertTrue(engine.match(listOf(CartItemDto(name = raw))).matches.isEmpty())
+        }
     }
 
     @Test
