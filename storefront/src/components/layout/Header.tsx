@@ -178,8 +178,8 @@ export function Header() {
                 <Icon className="h-3.5 w-3.5 text-slate-400" /> {t(key)}
               </Link>
             ))}
-            <a href="tel:+77000000000" className="inline-flex shrink-0 items-center gap-1.5 text-[12px] font-medium text-slate-700 transition hover:text-brand-700">
-              <Phone className="h-3.5 w-3.5 text-slate-400" /> +7 700 000 00 00
+            <a href="tel:+77000001464" className="inline-flex shrink-0 items-center gap-1.5 text-[12px] font-medium text-slate-700 transition hover:text-brand-700">
+              <Phone className="h-3.5 w-3.5 text-slate-400" /> +7 (700) 000-14-64
             </a>
             <span className="inline-flex shrink-0 items-center gap-1.5 text-[12px] font-medium text-slate-600">
               <Clock className="h-3.5 w-3.5 text-slate-400" /> {t("top.hours")}
