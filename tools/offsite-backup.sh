@@ -34,14 +34,20 @@ fi
 }
 
 started="$(date +%s)"
-restic snapshots --json >/dev/null 2>&1 || restic init
-restic backup "$BACKUP_ROOT/postgres" "$BACKUP_ROOT/minio" --tag epharm-production
-restic forget --prune \
+# RESTIC_SFTP_COMMAND is our ops setting, not a native restic environment variable.
+# Pass it explicitly using restic's documented transport option, preserving one argv.
+restic_options=()
+if [[ -n "${RESTIC_SFTP_COMMAND:-}" ]]; then
+  restic_options+=(-o "sftp.command=$RESTIC_SFTP_COMMAND")
+fi
+restic "${restic_options[@]}" snapshots --json >/dev/null 2>&1 || restic "${restic_options[@]}" init
+restic "${restic_options[@]}" backup "$BACKUP_ROOT/postgres" "$BACKUP_ROOT/minio" --tag epharm-production
+restic "${restic_options[@]}" forget --prune \
   --tag epharm-production \
   --keep-daily "${RESTIC_KEEP_DAILY:-30}" \
   --keep-weekly "${RESTIC_KEEP_WEEKLY:-8}" \
   --keep-monthly "${RESTIC_KEEP_MONTHLY:-12}"
-restic check --read-data-subset="${RESTIC_CHECK_SUBSET:-1/20}"
+restic "${restic_options[@]}" check --read-data-subset="${RESTIC_CHECK_SUBSET:-1/20}"
 
 finished="$(date +%s)"
 write_metric "$METRIC_DIR" "epharm_offsite_backup.prom" \

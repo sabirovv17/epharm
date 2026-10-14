@@ -9,6 +9,7 @@ cp "$source_root/tools/release/tests/fixtures/fake-restic.sh" "$test_root/bin/re
 chmod +x "$test_root/bin/restic"
 export PATH="$test_root/bin:$PATH" RESTIC_REPOSITORY=fixture-only-repository
 export RESTIC_PASSWORD_FILE="$test_root/password" BACKUP_ROOT="$test_root/backups"
+export RESTIC_SFTP_COMMAND='fixture-only-ssh -i fixture-key -s sftp'
 unset RESTIC_PASSWORD
 bash "$source_root/tools/offsite-backup.sh"
 test -s "$BACKUP_ROOT/metrics/epharm_offsite_backup.prom"
