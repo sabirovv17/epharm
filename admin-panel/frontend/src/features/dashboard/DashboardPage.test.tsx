@@ -187,6 +187,55 @@ describe('DashboardPage — пустые топ-списки', () => {
 })
 
 describe('DashboardPage — Журнал показов и продаж (V032)', () => {
+  it('первая загрузка журнала не подменяет данные нулевыми KPI или пустым периодом', () => {
+    setAnalytics(undefined, { isLoading: true, isFetching: true })
+    renderPage()
+
+    expect(screen.getByRole('status')).toHaveTextContent('Загружаем журнал…')
+    expect(screen.queryByTestId('recan-kpis')).not.toBeInTheDocument()
+    expect(screen.queryByText('Пока нет событий за период')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('recan-table')).not.toBeInTheDocument()
+  })
+
+  it('ошибка первой загрузки журнала явно показана без ложных нулей, повтор доступен', async () => {
+    const refetch = vi.fn()
+    setAnalytics(undefined, { isError: true, error: new Error('journal failed'), refetch })
+    const user = userEvent.setup()
+    renderPage()
+
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent('Не удалось загрузить журнал')
+    expect(alert).toHaveTextContent('journal failed')
+    expect(screen.queryByTestId('recan-kpis')).not.toBeInTheDocument()
+    expect(screen.queryByText('Пока нет событий за период')).not.toBeInTheDocument()
+    await user.click(within(alert).getByRole('button', { name: 'Повторить' }))
+    expect(refetch).toHaveBeenCalledOnce()
+  })
+
+  it('ошибка обновления сохраняет последние KPI и строки, но предупреждает об их актуальности', async () => {
+    const refetch = vi.fn()
+    setAnalytics(mkAnalytics(), { isError: true, error: new Error('refresh failed'), refetch })
+    const user = userEvent.setup()
+    renderPage()
+
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent('Не удалось обновить (refresh failed)')
+    expect(alert).toHaveTextContent('Показаны последние сохранённые')
+    expect(screen.getByTestId('recan-kpis')).toHaveTextContent('1 · 50%')
+    expect(screen.getByTestId('recan-row-rec_1')).toHaveTextContent('SelfieLab Zen')
+    expect(screen.getByTestId('recan-row-sale_1#0')).toHaveTextContent('Аквамарис')
+    expect(screen.queryByText('Пока нет событий за период')).not.toBeInTheDocument()
+    await user.click(within(alert).getByRole('button', { name: 'Повторить' }))
+    expect(refetch).toHaveBeenCalledOnce()
+  })
+
+  it('повтор загрузки журнала недоступен, пока запрос уже выполняется', () => {
+    setAnalytics(undefined, { isError: true, isFetching: true, error: new Error('retrying') })
+    renderPage()
+
+    expect(within(screen.getByRole('alert')).getByRole('button', { name: 'Повторить' })).toBeDisabled()
+  })
+
   it('KPI + единый лог: строка показа и строка продажи', () => {
     renderPage()
     expect(screen.getByTestId('recan-kpis')).toBeInTheDocument()

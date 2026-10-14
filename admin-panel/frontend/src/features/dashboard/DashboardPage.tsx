@@ -182,7 +182,10 @@ function MiniKpi({ label, value, accent }: { label: string; value: string; accen
 function RecommendationsSection() {
   const t = useT()
   const [page, setPage] = useState(0)
-  const { data: a, isLoading, isFetching } = useRecommendationAnalytics(page, JOURNAL_PAGE_SIZE)
+  const { data: a, isFetching, isError, error, refetch } = useRecommendationAnalytics(
+    page,
+    JOURNAL_PAGE_SIZE,
+  )
   const log = a?.log ?? []
   // Fallback-поля сохраняют UI рабочим во время rolling deploy, если новый frontend
   // на несколько секунд попал на старый backend без метаданных пагинации.
@@ -193,8 +196,46 @@ function RecommendationsSection() {
   const rangeFrom = totalElements > 0 ? effectivePage * pageSize + 1 : 0
   const rangeTo = Math.min((effectivePage + 1) * pageSize, totalElements)
 
+  if (!a) {
+    return (
+      <SectionCard title={t('recan.title')} subtitle={t('recan.subtitle')}>
+        <div role={isError ? 'alert' : 'status'}>
+          <Empty
+            title={isError ? t('recan.errTitle') : t('recan.loading')}
+            body={isError ? describeError(error) : undefined}
+            icon={<IconEye size={22} />}
+            action={
+              isError ? (
+                <Button onClick={() => refetch()} disabled={isFetching}>
+                  {t('common.retry')}
+                </Button>
+              ) : undefined
+            }
+          />
+        </div>
+      </SectionCard>
+    )
+  }
+
   return (
     <SectionCard title={t('recan.title')} subtitle={t('recan.subtitle')}>
+      {isError && (
+        <div
+          role="alert"
+          className="hairline mb-4 flex items-center gap-3 rounded-md border bg-accent-warning/10 px-4 py-2 text-[12px] font-semibold text-ink-700"
+        >
+          <span>{t('common.staleWarn', { e: describeError(error) })}</span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="ml-auto"
+            onClick={() => refetch()}
+            disabled={isFetching}
+          >
+            {t('common.retry')}
+          </Button>
+        </div>
+      )}
       <div
         className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5"
         data-testid="recan-kpis"
@@ -215,7 +256,7 @@ function RecommendationsSection() {
 
       {log.length === 0 ? (
         <Empty
-          title={isLoading ? t('dash.loading') : t('recan.empty')}
+          title={t('recan.empty')}
           icon={<IconEye size={22} />}
         />
       ) : (

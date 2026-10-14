@@ -95,6 +95,13 @@ product, an immediately active campaign, an exact-product self-trigger, or a sco
 the active ACC snapshot. A failed rule cannot leave an empty campaign behind; existing clients
 that omit `initialRecommendation` retain their previous behavior.
 
+The impressions-and-sales journal uses its configured rolling analytics window, independently of
+the header's selected month. PostgreSQL first selects the receipt candidates needed for the page,
+including every receipt sharing the boundary timestamp, then expands their items. The final order
+remains event time descending and expanded event ID descending. Complete counts, empty receipts,
+per-item quantities/amounts and fastest sale attribution are unchanged; deep offsets still cost
+more than initial pages. No events or accepted outcomes are synthesized by the dashboard.
+
 ### Mobile
 
 Public:
