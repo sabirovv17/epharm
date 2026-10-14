@@ -239,18 +239,32 @@ cause instead of being mistaken for a confirmed one-monitor installation. v1.0.4
 polling at five minutes and resumes interrupted release downloads from a persistent partial file.
 
 Production binary releases are mirrored in the public, artifact-only repository
-`sabirovv17/epharm-posm-releases`. The source repository remains private. The production URL uses
-jsDelivr with an immutable artifact-repository commit, while the GitHub release asset remains an
-independent recovery source. Release archives must never contain `posm.json`, device keys,
+`sabirovv17/epharm-posm-releases`. Keep application source and pharmacy configuration out of this
+artifact-only channel; its visibility is independent of the source repository. Prefer an immutable,
+version-and-source-commit-named archive under the existing first-party HTTPS `/downloads/` route
+when pharmacy networks cannot reliably reach an external CDN. Install only the exact Windows CI
+artifact into `/srv/epharm-downloads`, already mounted read-only by Caddy; do not rebuild or change
+its bytes. jsDelivr pinned to an artifact-repository commit and the GitHub release asset remain
+independent recovery sources. Changing the distribution URL requires a newly signed manifest even
+when the version and archive SHA-256 are unchanged; it does not require restarting updated clients.
+Release archives must never contain `posm.json`, device keys,
 credentials, pharmacy identifiers, or source code. The current bridge archive contains only the
 application executable, DLL, deps file, runtime config, and the QR dependency DLL. Before a release becomes current, verify
 an anonymous HTTPS download, Range resume, ZIP integrity, exact byte size, and SHA-256 from the final
-CDN URL. Register only a manifest signed by the offline ECDSA P-256 key. `AppUpdater` verifies the
+distribution URL, including the public ingress address as well as internal DNS. Register only a
+manifest signed by the offline ECDSA P-256 key. `AppUpdater` verifies the
 independently pinned SPKI over platform/version/URL/hash/mandatory before download and then verifies
 the ZIP SHA-256. A public P-256 trust anchor is embedded in current clients so older pharmacy
 configs without an explicit SPKI can still verify a signed update. A malformed nonblank override
 fails closed. The installer rejects remote HTTP backend/fallback URLs before reporting success.
 Pharmacy-specific `C:\Epharm\posm.json` is preserved during the overlay update.
+
+Do not equate a published manifest with a completed fleet rollout. Compare fresh (`<=90s`)
+heartbeats by version after at least two five-minute updater intervals. For remaining older clients,
+collect the actual process path, updater config/environment, `C:\Epharm\update.log` and the POSM
+log through approved workstation access. Historical installation ZIPs do not prove current settings.
+There is no general remote-command/RMM execution endpoint; never disable manifest signature checks
+to repair a workstation-specific download, permissions or configuration failure.
 
 ## Merchandising task QR
 
