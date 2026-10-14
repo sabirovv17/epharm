@@ -21,7 +21,13 @@ if [[ -z "${RESTIC_REPOSITORY:-}" ]]; then
 fi
 
 require_command restic
-require_nonempty RESTIC_PASSWORD
+if [[ -n "${RESTIC_PASSWORD_FILE:-}" ]]; then
+  [[ -s "$RESTIC_PASSWORD_FILE" && -r "$RESTIC_PASSWORD_FILE" ]] || {
+    echo 'ERROR: restic password file is missing or unreadable' >&2; exit 1;
+  }
+else
+  require_nonempty RESTIC_PASSWORD
+fi
 [[ -d "$BACKUP_ROOT/postgres" && -d "$BACKUP_ROOT/minio" ]] || {
   echo "ERROR: local backups are missing below $BACKUP_ROOT" >&2
   exit 1

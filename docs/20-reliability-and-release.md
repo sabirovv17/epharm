@@ -36,7 +36,9 @@ systemctl list-timers 'epharm-*'
 ```
 
 `BACKUP_REQUIRE_OFFSITE=true` makes a missing or failed restic copy fail the daily job. Store the
-restic password only in `/etc/epharm/backup.env` (mode `0600`). A successful run updates Prometheus
+restic password only in `/etc/epharm/backup.env` (mode `0600`), or reference a separate root-owned
+mode-`0600` file through `RESTIC_PASSWORD_FILE`. Keep a recoverable copy of that key outside both
+application and backup servers. A successful run updates Prometheus
 textfile metrics; alerts fire after 36 hours without backup or 8 days without restore verification.
 
 ## Monitoring and alerting
