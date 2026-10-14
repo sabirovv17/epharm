@@ -82,7 +82,9 @@ jobs:
       - name: Verify CRM internal HTTPS edge isolation
         run: bash storefront/deploy/inkar-server/tests/crm-internal-tls-contract.sh
       - name: Verify immutable release handoff
-        run: bash tools/release/tests/prepare-deploy-contract.sh
+        run: |
+          python3 -m unittest discover -s tools/release/tests -p 'test_merch_artifact.py'
+          bash tools/release/tests/prepare-deploy-contract.sh
       - name: Verify backend-only release and rollback
         run: bash tools/release/tests/backend-only-contract.sh
       - name: Verify archive-host two-image release and rollback
@@ -214,6 +216,8 @@ jobs:
       - run: ./gradlew --no-daemon clean build
       - name: Verify Standard-N JDBC driver is packaged
         run: jar tf build/libs/app.jar | grep -Eq '^BOOT-INF/lib/jaybird-5\.0\.6\.java8\.jar$'
+      - name: Verify merchandising code and configuration in the deployable JAR
+        run: python3 ../../tools/release/verify-merch-artifact.py --jar build/libs/app.jar
       - name: Upload backend test reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

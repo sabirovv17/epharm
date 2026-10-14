@@ -105,6 +105,13 @@ automatically returns to the previous images.
 The backend CI must also check runtime-only integrations in the final `bootJar`, not just that
 application sources compile. Standard-N pharmacist synchronization requires the Jaybird Firebird
 driver; the production JAR packaging check guards against silently losing it in a release.
+`verifyMerchandisingArtifact` checks the protected CRM bridge, disabled redirects and configuration
+in that same JAR. Docker runs it even when unit tests are delegated to CI. All release transactions
+also extract the JAR from the exact candidate image into a stopped, network-isolated container and
+run `tools/release/verify-merch-artifact.py`. Stage the merged verifier and
+`merch-artifact-contract.properties` with the release scripts. An obsolete bridge cannot pass these
+gates by changing only OCI labels. This rejects the known regression; it does not replace
+exact-commit CI, review or Windows acceptance. Privileged manual bypass is not a supported release.
 For an exceptional backend-only release, use the separate, tested archive-host transaction in
 `06-deployment-and-ops.md`; it persists distinct backend/frontend tags and commits and requires a
 fresh verified rollback bundle **in addition to**, not instead of, encrypted off-site backup and a

@@ -2,7 +2,9 @@ package kz.epharm.merchtasks.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.micrometer.core.instrument.Counter
+import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.MeterRegistry
+import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
@@ -62,8 +64,19 @@ class MerchTaskClient(
     private val counters = mutableMapOf<Pair<String, String>, Counter>()
     private val registry = meterRegistry
 
+    init {
+        Gauge.builder("epharm.merch.tasks.enabled") { if (enabled) 1.0 else 0.0 }.register(registry)
+        Gauge.builder("epharm.merch.tasks.configured") { if (configured) 1.0 else 0.0 }.register(registry)
+    }
+
     private val rest: RestClient by lazy {
-        val factory = SimpleClientHttpRequestFactory().apply {
+        val factory = object : SimpleClientHttpRequestFactory() {
+            override fun prepareConnection(connection: HttpURLConnection, httpMethod: String) {
+                super.prepareConnection(connection, httpMethod)
+                // The custom integration header would otherwise survive a cross-host GET redirect.
+                connection.instanceFollowRedirects = false
+            }
+        }.apply {
             setConnectTimeout(requestTimeoutMs)
             setReadTimeout(requestTimeoutMs)
         }
@@ -71,6 +84,9 @@ class MerchTaskClient(
             .baseUrl(baseUrl.trimEnd('/'))
             .requestFactory(factory)
             .defaultHeader(INTEGRATION_HEADER, integrationKey)
+            .defaultStatusHandler({ it.is3xxRedirection }) { _, _ ->
+                throw IllegalArgumentException("upstream redirect is not permitted")
+            }
             .build()
     }
 
@@ -86,8 +102,14 @@ class MerchTaskClient(
                 HttpStatus.BAD_REQUEST,
             )
         }
-        if (!enabled) return MerchTaskEnvelope()
-        if (!configured) return MerchTaskEnvelope(available = false)
+        if (!enabled) {
+            counter("active", "disabled").increment()
+            return MerchTaskEnvelope()
+        }
+        if (!configured) {
+            counter("active", "misconfigured").increment()
+            return MerchTaskEnvelope(available = false)
+        }
         return upstream("active", MerchTaskEnvelope(available = false)) {
             rest.get().uri { builder ->
                 builder.path("/api/integrations/pharmapay/tasks/active")
@@ -100,15 +122,23 @@ class MerchTaskClient(
     }
 
     fun markShown(payload: MerchTaskShownRequest): MerchTaskDeliveryResult {
-        if (!enabled) return MerchTaskDeliveryResult()
-        if (!configured) return MerchTaskDeliveryResult(available = false)
+        if (!enabled) {
+            counter("shown", "disabled").increment()
+            return MerchTaskDeliveryResult()
+        }
+        if (!configured) {
+            counter("shown", "misconfigured").increment()
+            return MerchTaskDeliveryResult(available = false)
+        }
         if (!payload.dispatchId.matches(CANONICAL_UUID) ||
             payload.deliveryToken.length !in 32..256 || !payload.deliveryToken.matches(SAFE_TOKEN)
         ) {
             counter("shown", "invalid_receipt").increment()
             return MerchTaskDeliveryResult(available = false)
         }
-        return upstream("shown", MerchTaskDeliveryResult(available = false)) {
+        return upstream("shown", MerchTaskDeliveryResult(available = false), outcome = {
+            if (it.accepted) "accepted" else if (!it.available) "unavailable" else "rejected"
+        }) {
             // The fallback merchandising service uses Python's BaseHTTPRequestHandler, which
             // consumes bodies by Content-Length and does not decode HTTP chunked bodies. An
             // explicit byte array keeps this contract deterministic on both deployment targets.
@@ -158,13 +188,13 @@ class MerchTaskClient(
         return runCatching { URLDecoder.decode(value, StandardCharsets.UTF_8) }.getOrNull()
     }
 
-    private fun <T> upstream(operation: String, fallback: T, call: () -> T): T {
+    private fun <T> upstream(operation: String, fallback: T, outcome: (T) -> String = { "success" }, call: () -> T): T {
         if (!bulkhead.tryAcquire()) {
             counter(operation, "saturated").increment()
             return fallback
         }
         return try {
-            call().also { counter(operation, "success").increment() }
+            call().also { counter(operation, outcome(it)).increment() }
         } catch (e: Exception) {
             counter(operation, "failure").increment()
             if (shouldWarn(operation)) {
@@ -208,6 +238,7 @@ class MerchTaskClient(
         val SAFE_PHARMACY_ID = Regex("[0-9A-Za-z._:+@/-]+")
         val CANONICAL_UUID = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
         val SAFE_TOKEN = Regex("[0-9A-Za-z._~+/=-]+")
+        val IPV4_OCTET = Regex("0|[1-9][0-9]{0,2}")
 
         /** A server credential must never cross the public Internet over plain HTTP. */
         fun trustedTransport(rawBaseUrl: String): Boolean {
@@ -221,11 +252,14 @@ class MerchTaskClient(
                     "https" -> true
                     "http" -> host.equals("localhost", ignoreCase = true) ||
                         host == "127.0.0.1" || host == "[::1]" ||
-                        host.split('.').mapNotNull { it.toIntOrNull() }.let { octets ->
-                            octets.size == 4 && octets.all { it in 0..255 } &&
-                                (octets[0] == 10 ||
-                                    octets[0] == 172 && octets[1] in 16..31 ||
-                                    octets[0] == 192 && octets[1] == 168)
+                        host.split('.').let { labels ->
+                            if (labels.size != 4 || !labels.all { it.matches(IPV4_OCTET) }) false
+                            else labels.map(String::toInt).let { octets ->
+                                octets.all { it in 0..255 } &&
+                                    (octets[0] == 10 ||
+                                        octets[0] == 172 && octets[1] in 16..31 ||
+                                        octets[0] == 192 && octets[1] == 168)
+                            }
                         }
                     else -> false
                 }

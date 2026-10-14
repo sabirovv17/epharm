@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Threading;
@@ -15,7 +18,9 @@ public partial class MainWindow
     private System.Windows.Forms.NotifyIcon? _taskKioskTray;
     private DispatcherTimer? _taskKioskTimer;
     private readonly CancellationTokenSource _taskKioskStop = new();
-    private readonly Dictionary<string, DateTimeOffset> _taskKioskSnoozed = new();
+    private readonly TaskKioskSnooze _taskKioskSnoozed = new();
+    private MerchShownOutbox? _merchShownOutbox;
+    private DispatcherTimer? _merchShownRetryTimer;
     private List<TaskKioskItem> _taskKioskItems = [];
     private bool _taskKioskPolling;
     private bool _taskKioskOnline;
@@ -33,6 +38,15 @@ public partial class MainWindow
         try
         {
             _taskKiosk = new TaskKioskClient(_epharm, pharmacyId, config.ResolveDeviceId());
+            var deviceId = config.ResolveDeviceId();
+            var scope = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(pharmacyId + "\n" + deviceId)));
+            _merchShownOutbox = new MerchShownOutbox(Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Epharm",
+                "merch-shown-" + scope + ".dpapi"), pharmacyId, deviceId, log: Log);
+            _merchShownRetryTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+            _merchShownRetryTimer.Tick += async (_, _) => await FlushMerchShownOutbox();
+            _merchShownRetryTimer.Start();
+            _ = FlushMerchShownOutbox();
             _taskKioskTray = new System.Windows.Forms.NotifyIcon
             {
                 Icon = System.Drawing.SystemIcons.Information,
@@ -67,8 +81,7 @@ public partial class MainWindow
             if (!_taskKioskOnline) window.SetOffline();
             window.Closed += (_, _) =>
             {
-                foreach (var item in window.CurrentItems)
-                    _taskKioskSnoozed[item.NotificationKey] = DateTimeOffset.UtcNow.AddMinutes(10);
+                _taskKioskSnoozed.Defer(window.CurrentItems, DateTimeOffset.UtcNow);
                 _taskKioskWindow = null;
             };
             window.Show();
@@ -101,15 +114,10 @@ public partial class MainWindow
             }
             var liveLinks = items.Select(item => item.LinkId ?? item.NotificationKey).ToHashSet();
             _taskKioskAcknowledged.RemoveWhere(key => !liveLinks.Contains(key));
-            var keys = items.Select(item => item.NotificationKey).ToHashSet();
-            foreach (var key in _taskKioskSnoozed.Keys.Where(key => !keys.Contains(key)).ToArray())
-                _taskKioskSnoozed.Remove(key);
 
             if (_taskKioskTray != null) _taskKioskTray.Text = $"Задания аптеки: {items.Count}";
             _taskKioskWindow?.UpdateTasks(items);
-            if (_taskKioskWindow == null && items.Any(item =>
-                    !_taskKioskSnoozed.TryGetValue(item.NotificationKey, out var until) ||
-                    until <= DateTimeOffset.UtcNow))
+            if (_taskKioskWindow == null && _taskKioskSnoozed.ShouldShow(items, DateTimeOffset.UtcNow))
             {
                 OpenTaskKiosk();
             }
@@ -140,6 +148,7 @@ public partial class MainWindow
         if (_taskKioskStop.IsCancellationRequested) return;
         _taskKioskStop.Cancel();
         _taskKioskTimer?.Stop();
+        _merchShownRetryTimer?.Stop();
         _taskKioskWindow?.Close();
         _taskKioskTray?.Dispose();
         _taskKiosk?.Dispose();
@@ -158,20 +167,37 @@ public partial class MainWindow
 
         try
         {
-            if (await _taskKiosk.AcknowledgeAsync(task, _taskKioskStop.Token))
-                _taskKioskAcknowledged.Add(key);
+            _merchShownOutbox?.Enqueue(task);
+            await FlushMerchShownOutbox();
         }
         catch (OperationCanceledException) when (_taskKioskStop.IsCancellationRequested)
         {
             // Normal application shutdown.
         }
-        catch
+        catch (Exception ex)
         {
-            // Retry after the next successful poll while this QR is actually visible.
+            // Never log the task URL or bearer token. A visible QR will retry enqueue on the next poll.
+            Log($"Задания аптек: подтверждение показа пока не сохранено ({ex.GetType().Name}).");
         }
         finally
         {
             _taskKioskAcknowledging.Remove(key);
+        }
+    }
+
+    private async Task FlushMerchShownOutbox()
+    {
+        if (_merchShownOutbox == null || _epharm == null || _taskKioskStop.IsCancellationRequested) return;
+        try
+        {
+            await _merchShownOutbox.FlushAsync(_epharm,
+                token => Dispatcher.BeginInvoke(new Action(() => _taskKioskAcknowledged.Add(token))),
+                _taskKioskStop.Token);
+        }
+        catch (OperationCanceledException) when (_taskKioskStop.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            Log($"Задания аптек: очередь подтверждений временно недоступна ({ex.GetType().Name}).");
         }
     }
 }

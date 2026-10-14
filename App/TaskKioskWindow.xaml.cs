@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -19,6 +21,7 @@ public partial class TaskKioskWindow : Window
     private readonly DispatcherTimer _expiryTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private bool _online = true;
     private string? _renderedUrl;
+    private IntPtr _hwnd;
 
     public IReadOnlyList<TaskKioskItem> CurrentItems { get; private set; } = Array.Empty<TaskKioskItem>();
     public TaskKioskItem? SelectedTask => Tasks.SelectedItem as TaskKioskItem;
@@ -29,6 +32,9 @@ public partial class TaskKioskWindow : Window
         InitializeComponent();
         SourceInitialized += (_, _) =>
         {
+            _hwnd = new WindowInteropHelper(this).Handle;
+            var style = Native.GetWindowLongPtr(_hwnd, -20).ToInt64();
+            Native.SetWindowLongPtr(_hwnd, -20, new IntPtr(style | 0x08000000L | 0x00000080L));
             var dpi = VisualTreeHelper.GetDpi(this);
             MaxHeight = Math.Max(320, screen.WorkingArea.Height / dpi.DpiScaleY - 24);
             MaxWidth = Math.Max(320, screen.WorkingArea.Width / dpi.DpiScaleX - 24);
@@ -42,6 +48,7 @@ public partial class TaskKioskWindow : Window
         };
         _expiryTimer.Tick += (_, _) =>
         {
+            ElevateWithoutActivation();
             if (SelectedTask is { } task && task.ExpiresAt <= DateTimeOffset.UtcNow)
                 RenderSelected();
         };
@@ -75,7 +82,9 @@ public partial class TaskKioskWindow : Window
 
     private void TaskSelectionChanged(object sender, SelectionChangedEventArgs e) => RenderSelected();
     private void LaterClick(object sender, RoutedEventArgs e) => Close();
-    private void MinimizeClick(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+    // Minimize to tray uses the same bounded per-delivery reminder as Later. A new delivery opens
+    // a fresh non-activating window instead of silently updating an indefinitely minimized window.
+    private void MinimizeClick(object sender, RoutedEventArgs e) => Close();
 
     private void TitleBarDrag(object sender, MouseButtonEventArgs e)
     {
@@ -172,8 +181,38 @@ public partial class TaskKioskWindow : Window
             SelectedTask is { } task &&
             task.ExpiresAt > DateTimeOffset.UtcNow)
         {
-            TaskDisplayed?.Invoke(task);
+            if (ElevateWithoutActivation()) TaskDisplayed?.Invoke(task);
         }
+    }
+
+    private bool ElevateWithoutActivation()
+    {
+        if (_hwnd == IntPtr.Zero || !IsVisible || WindowState != WindowState.Normal) return false;
+        return Native.SetWindowPos(_hwnd, new IntPtr(-1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010 | 0x0040)
+            && Native.IsWindowVisible(_hwnd) && !Native.IsIconic(_hwnd)
+            && Native.GetWindowRect(_hwnd, out var rect) && rect.Right > rect.Left && rect.Bottom > rect.Top;
+    }
+
+    private static class Native
+    {
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct Rect { internal int Left, Top, Right, Bottom; }
+        [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
+        internal static extern IntPtr GetWindowLongPtr(IntPtr hwnd, int index);
+        [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
+        internal static extern IntPtr SetWindowLongPtr(IntPtr hwnd, int index, IntPtr style);
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool SetWindowPos(IntPtr hwnd, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool IsWindowVisible(IntPtr hwnd);
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool IsIconic(IntPtr hwnd);
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
     }
 
     private static string TaskCount(int count)

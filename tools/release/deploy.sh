@@ -13,6 +13,7 @@ release_id="${1:-}"
 assert_release_id "$release_id"
 commit="$(release_commit_for_tag "$release_id")"
 ensure_release_images "$release_id"
+verify_merchandising_image "$(docker image inspect --format '{{.Id}}' "epharm/backend:$release_id")"
 
 previous_id="$(read_release_env_value "$RELEASE_ROOT/.release.env" RELEASE_ID || true)"
 previous_commit="$(read_release_env_value "$RELEASE_ROOT/.release.env" RELEASE_COMMIT || true)"

@@ -135,6 +135,7 @@ actual_commit="$(docker image inspect --format '{{index .Config.Labels "org.open
 [[ "$actual_candidate_id" == "$candidate_image_id" && "$actual_version" == "$candidate_tag" && "$actual_commit" == "$candidate_commit" ]] || {
   echo 'ERROR: candidate image ID/version/commit does not match approved artifact' >&2; exit 1;
 }
+verify_merchandising_image "$candidate_image_id"
 frontend_commit="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "epharm/frontend:$frontend_tag")"
 [[ "$frontend_commit" =~ ^[A-Za-z0-9_.-]+$ ]] || {
   echo 'ERROR: pinned frontend image has no safe revision label' >&2; exit 1;

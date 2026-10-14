@@ -299,19 +299,11 @@ namespace CustomerDisplay.Services
                     new { dispatchId, pharmacyId, deviceId, deliveryToken },
                     JsonOpts,
                     cts.Token).ConfigureAwait(false);
-                if (!response.IsSuccessStatusCode) return false;
-                var result = await response.Content
-                    .ReadFromJsonAsync<MerchTaskDeliveryResult>(JsonOpts, cts.Token)
-                    .ConfigureAwait(false);
-                return result?.Accepted == true;
+                return await MerchTaskDeliveryReply.ReadAsync(response, cts.Token).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
                 throw;
-            }
-            catch
-            {
-                return false;
             }
         }
 

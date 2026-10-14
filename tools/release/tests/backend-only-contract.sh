@@ -7,6 +7,7 @@ test_root="$(mktemp -d "${TMPDIR:-/tmp}/epharm-backend-only.XXXXXXXX")"
 trap 'rm -rf -- "$test_root"' EXIT
 mkdir -p "$test_root/tools/release" "$test_root/tools/ops" "$test_root/bin" "$test_root/backup"
 cp "$source_root/tools/release/"*.sh "$test_root/tools/release/"
+cp "$source_root/tools/release/tests/fixtures/fake-merch-artifact.py" "$test_root/tools/release/verify-merch-artifact.py"
 cp "$source_root/tools/ops/lib.sh" "$test_root/tools/ops/lib.sh"
 printf '# fixture compose\n' > "$test_root/docker-compose.prod.yml"
 printf '# fixture Caddyfile\n' > "$test_root/Caddyfile"

@@ -50,3 +50,7 @@ ensure_release_images() {
   docker image inspect "epharm/backend:$release_id" >/dev/null
   docker image inspect "epharm/frontend:$release_id" >/dev/null
 }
+
+verify_merchandising_image() {
+  python3 "$RELEASE_SCRIPT_DIR/verify-merch-artifact.py" --image "$1"
+}
