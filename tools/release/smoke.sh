@@ -11,6 +11,8 @@ release_id="${release_id:-$(read_release_env_value "$RELEASE_ROOT/.release.env" 
 frontend_release_id="${2:-$(read_release_env_value "$RELEASE_ROOT/.release.env" FRONTEND_RELEASE_ID || true)}"
 frontend_release_id="${frontend_release_id:-$release_id}"
 base_url="${SMOKE_BASE_URL:-https://epharm.inkar.kz}"
+expected_backend_commit="${SMOKE_BACKEND_COMMIT:-}"
+expected_frontend_commit="${SMOKE_FRONTEND_COMMIT:-}"
 
 # Compose can report the containers as started before the frontend listener and
 # Caddy route are ready. A transient 502 at this point must not roll back a
@@ -25,11 +27,13 @@ readiness_deadline=$((SECONDS + readiness_wait_seconds))
 while true; do
   health="$(curl --fail --silent --connect-timeout 3 --max-time 10 "$base_url/api/health" || true)"
   frontend="$(curl --fail --silent --connect-timeout 3 --max-time 10 "$base_url/release.json" || true)"
-  if python3 - "$release_id" "$frontend_release_id" "$health" "$frontend" <<'PY'
+  if python3 - "$release_id" "$frontend_release_id" "$health" "$frontend" \
+      "$expected_backend_commit" "$expected_frontend_commit" <<'PY'
 import json
 import sys
 
 expected_backend, expected_frontend = sys.argv[1:3]
+backend_commit, frontend_commit = sys.argv[5:7]
 try:
     health = json.loads(sys.argv[3])
     frontend = json.loads(sys.argv[4])
@@ -39,7 +43,9 @@ if not isinstance(health, dict) or not isinstance(frontend, dict):
     raise SystemExit(1)
 raise SystemExit(0 if health.get("status") == "ok"
     and health.get("releaseId") == expected_backend
-    and frontend.get("releaseId") == expected_frontend else 1)
+    and frontend.get("releaseId") == expected_frontend
+    and (not backend_commit or health.get("commit") == backend_commit)
+    and (not frontend_commit or frontend.get("commit") == frontend_commit) else 1)
 PY
   then
     break
@@ -50,6 +56,12 @@ PY
   fi
   sleep 2
 done
+
+# Only a new candidate sets this coordinate. Baseline and emergency rollback may
+# intentionally use an older UI; their existing readiness checks remain available.
+if [[ -n "${SMOKE_ADMIN_IMAGE_ID:-}" ]]; then
+  verify_admin_image "$SMOKE_ADMIN_IMAGE_ID" --public-url "$base_url"
+fi
 
 # The first release with the durable Medusa read model needs one complete crawl
 # before catalogue/search can be accepted. Subsequent releases reuse the persisted

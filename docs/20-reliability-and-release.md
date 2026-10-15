@@ -93,6 +93,33 @@ endpoint whose only purpose is generating errors.
 
 ## Immutable application releases and rollback
 
+`main` is the release source of truth. The **Main promotion owner** GitHub ruleset restricts main
+updates to `sabirovv17` on PRs only (policy snapshot: `.github/rulesets/main-release-owner.json`).
+Other collaborators can still push task branches and open PRs. The owner exemption is limited to
+that update-ownership rule: the separate PR/CodeQL rules and strict GitHub-Actions-pinned P0 check
+still apply. Do not add CI or review bypasses to solve a deployment failure. There is currently one
+code owner, so mandatory self-approval is not used as a substitute for owner-controlled promotion.
+
+For a new promotion, `verify-release-source.py <full-commit>` requires the exact current remote
+`main`, its newest successful push-run of `ci.yml`, and the successful P0 gate from the GitHub
+Actions app in that run. It rechecks main before succeeding and fails closed on missing/stale CI
+or unavailable evidence. It uses standard HTTPS; a public repository needs no credential, while
+`GH_TOKEN`/`GITHUB_TOKEN` can be supplied from secret storage for private access or API limits.
+The gate is called by prepare and new deployment transactions, never by explicit rollback.
+
+The `container / admin production build` CI job runs six isolated browser scenarios against the
+actual nginx image. All API requests are mocked/deny-by-default; production reset, login and draft
+creation are never sent. The tests require all four campaign trigger types and verify their request
+payloads. `verify-admin-artifact.py` additionally rejects the known obsolete compiled form before
+promotion. Candidate smoke compares the public `/`, `/promo`, index and protected JS/CSS bytes
+with the exact image and checks both public commit identifiers. These guards complement backend
+integration tests, not replace them.
+
+Repository rules cannot prevent somebody who still has root/sudo/Docker access from bypassing the
+release scripts. Keep one designated production operator, separate ordinary developer access from
+deployment access, and avoid shared privileged credentials. Changing server accounts or rotating
+credentials requires a coordinated access handoff; GitHub settings alone do not secure SSH.
+
 Application release tags must match `vX.Y.Z` (optional prerelease suffix), point to the deployed
 commit and have a dated matching `CHANGELOG.md` section. Protect `v*` tags in the Git hosting rules:
 scripts cannot prevent a repository administrator from force-moving a tag.
@@ -128,6 +155,10 @@ recent restore-test. The generic two-image release scripts remain backward-compa
 When both images change on an archive-based host, use the dedicated two-image transaction in that
 same operations document. It verifies exact running/candidate image IDs and labels, tolerates stale
 generic `.release.env` metadata by pinning each component explicitly, and never recreates Caddy.
+An already-completed archive release uses `rollback-archive-two-image.sh` with its saved transaction,
+not the main-only promotion script or the Git-checkout-only generic rollback. It accepts only the
+saved predecessor of the exact current image pair, takes a fresh current backup, and restores the
+candidate automatically if recovery fails. It never rolls back the database or requires GitHub.
 Its local rollback bundle and automatic application rollback also require the off-site backup and
 forward-schema compatibility drill; neither rolls back a Flyway migration.
 The initial route check tolerates brief 502/connection failures while containers start, but both

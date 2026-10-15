@@ -162,7 +162,7 @@ bundle path. Its checksum manifest must be less than 24 hours old and is reverif
 script; it does not replace the off-site backup.
 The archive validator also verifies every compressed layer digest, uncompressed rootfs diff ID and
 runtime image setting against each running rollback tag. Docker/containerd can identify a live OCI
-*manifest* by one SHA-256 while `docker save`/`load` identifies its config by another. These IDs
+_manifest_ by one SHA-256 while `docker save`/`load` identifies its config by another. These IDs
 are not interchangeable; after emergency reload the transaction accepts a new image ID only when
 the archived rootfs and runtime configuration still match the original running image, then verifies
 that both recreated containers use the content-equivalent loaded images.
@@ -184,6 +184,21 @@ copy of the forward-migrated database. Application rollback does not undo schema
 `tools/release/tests/archive-two-image-contract.sh` covers metadata drift, wrong artifact IDs,
 dry-run, successful two-image switch, failed smoke/automatic rollback, and tampered backup without
 touching production.
+
+For an explicit rollback after a **successful** archive deployment, use its saved transaction:
+
+```bash
+sudo ./tools/release/rollback-archive-two-image.sh \
+  <saved-archive-transaction-directory> /home/adm-quasar/epharm-backend-only-backups
+```
+
+This is separate from new promotion: it does not require old source to be current `main` or a
+reachable GitHub API. It first backs up the current application, requires both running images to
+match the saved candidate, and accepts only that transaction's exact predecessor tags/IDs/pins.
+Missing predecessor images are rejected before a switch: reload the exact tags from the verified
+image archives, then retry. Only backend/frontend change; Caddy, protected env and database remain.
+A failed recovery restores the candidate. `archive-rollback-contract.sh` tests this offline path,
+including mismatched state and failed recovery. Do not use generic `rollback.sh` on a non-Git host.
 
 ### Backend-only bridge release on an archive-based host
 

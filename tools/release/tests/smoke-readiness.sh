@@ -25,7 +25,18 @@ done
 port="$(head -n 1 "$test_root/port")"
 
 SMOKE_BASE_URL="http://127.0.0.1:$port" RELEASE_READINESS_WAIT_SECONDS=10 \
+  SMOKE_BACKEND_COMMIT=backend-fixture SMOKE_FRONTEND_COMMIT=frontend-fixture \
   "$source_root/tools/release/smoke.sh" v0.1.14
+
+for coordinate in SMOKE_BACKEND_COMMIT SMOKE_FRONTEND_COMMIT; do
+  if env "$coordinate=wrong-commit" SMOKE_BASE_URL="http://127.0.0.1:$port" \
+      RELEASE_READINESS_WAIT_SECONDS=0 "$source_root/tools/release/smoke.sh" v0.1.14 \
+      > "$test_root/wrong-commit.log" 2>&1; then
+    echo "Smoke accepted the wrong $coordinate" >&2
+    exit 1
+  fi
+  grep -Fq 'did not report v0.1.14' "$test_root/wrong-commit.log"
+done
 
 if SMOKE_BASE_URL='http://127.0.0.1:1' RELEASE_READINESS_WAIT_SECONDS=1 \
   "$source_root/tools/release/smoke.sh" v0.1.14 > "$test_root/timeout.log" 2>&1; then
@@ -41,6 +52,7 @@ wait "$server_pid" 2>/dev/null || true
 server_pid=''
 mkdir -p "$test_root/split/tools/release" "$test_root/split/tools/ops"
 cp "$source_root/tools/release/smoke.sh" "$source_root/tools/release/lib.sh" "$test_root/split/tools/release/"
+cp "$source_root/tools/release/tests/fixtures/fake-admin-artifact.py" "$test_root/split/tools/release/verify-admin-artifact.py"
 cp "$source_root/tools/ops/lib.sh" "$test_root/split/tools/ops/lib.sh"
 printf 'RELEASE_ID=v0.1.14\nRELEASE_COMMIT=fixture\nBACKEND_RELEASE_ID=v0.1.14\nFRONTEND_RELEASE_ID=v0.1.22\n' > "$test_root/split/.release.env"
 FRONTEND_FIXTURE_RELEASE_ID=v0.1.22 \
@@ -55,5 +67,13 @@ done
 [[ -s "$test_root/split-port" ]] || { echo 'Split smoke fixture failed to start' >&2; exit 1; }
 split_port="$(head -n 1 "$test_root/split-port")"
 SMOKE_BASE_URL="http://127.0.0.1:$split_port" RELEASE_READINESS_WAIT_SECONDS=10 \
+  SMOKE_ADMIN_IMAGE_ID="sha256:$(printf '%064d' 7)" \
   "$test_root/split/tools/release/smoke.sh"
+if TEST_BAD_ADMIN_ARTIFACT=true SMOKE_BASE_URL="http://127.0.0.1:$split_port" \
+    SMOKE_ADMIN_IMAGE_ID="sha256:$(printf '%064d' 7)" \
+    "$test_root/split/tools/release/smoke.sh" > "$test_root/bad-admin.log" 2>&1; then
+  echo 'Smoke accepted an obsolete public admin artifact' >&2
+  exit 1
+fi
+grep -Fq 'Obsolete admin artifact fixture' "$test_root/bad-admin.log"
 echo 'Release readiness retry and timeout OK'

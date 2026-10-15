@@ -54,3 +54,11 @@ ensure_release_images() {
 verify_merchandising_image() {
   python3 "$RELEASE_SCRIPT_DIR/verify-merch-artifact.py" --image "$1"
 }
+
+verify_admin_image() {
+  python3 "$RELEASE_SCRIPT_DIR/verify-admin-artifact.py" --image "$@"
+}
+
+verify_release_source() {
+  python3 "$RELEASE_SCRIPT_DIR/verify-release-source.py" "$1"
+}

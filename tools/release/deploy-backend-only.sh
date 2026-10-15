@@ -29,6 +29,7 @@ assert_release_id "$frontend_tag"
 [[ "$expected_compose_sha" =~ ^[a-f0-9]{64}$ ]] || {
   echo 'ERROR: expected an exact Compose source SHA-256' >&2; exit 2;
 }
+verify_release_source "$candidate_commit"
 [[ "$(sha256_file "$RELEASE_ROOT/docker-compose.prod.yml")" == "$expected_compose_sha" ]] || {
   echo 'ERROR: active Compose file differs from approved merged source' >&2; exit 1;
 }
@@ -252,6 +253,7 @@ rollback_on_exit() {
 trap rollback_on_exit EXIT
 trap 'exit 1' INT TERM
 
+verify_release_source "$candidate_commit"
 switched=true
 mv -f "$staged_env" "$RELEASE_ROOT/.release.env"
 compose_prod up -d --no-build --no-deps backend
@@ -259,7 +261,8 @@ compose_prod up -d --no-build --no-deps backend
    && "$(docker inspect --format '{{.Id}}' epharm-frontend)" == "$current_frontend_container_id" ]] || {
   echo 'ERROR: pinned frontend container was replaced' >&2; exit 1;
 }
-"$SCRIPT_DIR/smoke.sh" "$candidate_tag" "$frontend_tag"
+SMOKE_BACKEND_COMMIT="$candidate_commit" SMOKE_FRONTEND_COMMIT="$frontend_commit" \
+  "$SCRIPT_DIR/smoke.sh" "$candidate_tag" "$frontend_tag"
 [[ "$(docker inspect --format '{{.Image}}' epharm-backend)" == "$candidate_image_id" ]] || {
   echo 'ERROR: running backend image differs from candidate artifact' >&2; exit 1;
 }

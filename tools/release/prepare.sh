@@ -11,6 +11,7 @@ release_id="${1:-}"
 [[ -n "$release_id" ]] || { echo "Usage: $0 vX.Y.Z" >&2; exit 2; }
 "$SCRIPT_DIR/verify-contract.sh" "$release_id"
 commit="$(release_commit_for_tag "$release_id")"
+verify_release_source "$commit"
 
 require_command docker
 [[ -r "$RELEASE_ROOT/.env.prod" ]] || { echo "ERROR: missing $RELEASE_ROOT/.env.prod" >&2; exit 1; }
@@ -44,9 +45,11 @@ docker compose \
   build --pull backend frontend
 ensure_release_images "$release_id"
 verify_merchandising_image "$(docker image inspect --format '{{.Id}}' "epharm/backend:$release_id")"
+verify_admin_image "$(docker image inspect --format '{{.Id}}' "epharm/frontend:$release_id")"
 
 backend_image_id="$(docker image inspect --format '{{.Id}}' "epharm/backend:$release_id")"
 frontend_image_id="$(docker image inspect --format '{{.Id}}' "epharm/frontend:$release_id")"
+verify_release_source "$commit"
 created_at="$(date -u +%FT%TZ)"
 tmp="$manifest.$$"
 printf '{\n  "releaseId": "%s",\n  "commit": "%s",\n  "createdAt": "%s",\n  "images": {\n    "backend": "%s",\n    "frontend": "%s"\n  }\n}\n' \

@@ -12,14 +12,17 @@ release_id="${1:-}"
 [[ -n "$release_id" ]] || { echo "Usage: $0 vX.Y.Z" >&2; exit 2; }
 assert_release_id "$release_id"
 commit="$(release_commit_for_tag "$release_id")"
+verify_release_source "$commit"
 ensure_release_images "$release_id"
 verify_merchandising_image "$(docker image inspect --format '{{.Id}}' "epharm/backend:$release_id")"
+verify_admin_image "$(docker image inspect --format '{{.Id}}' "epharm/frontend:$release_id")"
 
 previous_id="$(read_release_env_value "$RELEASE_ROOT/.release.env" RELEASE_ID || true)"
 previous_commit="$(read_release_env_value "$RELEASE_ROOT/.release.env" RELEASE_COMMIT || true)"
 [[ "$previous_id" != "$release_id" ]] || { echo "ERROR: $release_id is already active" >&2; exit 1; }
 
 "$RELEASE_ROOT/tools/backup-all.sh"
+verify_release_source "$commit"
 write_release_env "$release_id" "$commit"
 
 rollback_on_error() {
@@ -32,7 +35,9 @@ rollback_on_error() {
 trap rollback_on_error ERR
 
 compose_prod up -d --no-build backend frontend caddy
-"$SCRIPT_DIR/smoke.sh" "$release_id"
+SMOKE_BACKEND_COMMIT="$commit" SMOKE_FRONTEND_COMMIT="$commit" \
+  SMOKE_ADMIN_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "epharm/frontend:$release_id")" \
+  "$SCRIPT_DIR/smoke.sh" "$release_id"
 trap - ERR
 printf '%s\n' "$previous_id" > "$RELEASE_ROOT/releases/$release_id/previous-release"
 echo "Deployment verified: $release_id (previous=${previous_id:-none})"
