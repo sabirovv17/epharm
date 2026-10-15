@@ -393,13 +393,16 @@ function Invoke-Metadata([string]$Isql, $Endpoint, [Security.SecureString]$Passw
 }
 
 function Get-StockProbeSelector([string]$Identifier) {
+    if ($Identifier -ceq 'RECENT') {
+        return [pscustomobject]@{ Index='WAREBASE_IDX5'; Field='PART_ID'; Unique=0; Direction=1; Predicate='w.PART_ID > 0'; Limit=5 }
+    }
     if ($Identifier -cmatch '^PART:([0-9]{1,19})$') {
         $partId = [long]0
         if (-not [long]::TryParse($Matches[1], [ref]$partId) -or $partId -le 0) { throw 'INVALID_PART_ID' }
-        return [pscustomobject]@{ Index='PK_WAREBASE'; Field='PART_ID'; Unique=1; Predicate=('w.PART_ID = ' + $partId.ToString([Globalization.CultureInfo]::InvariantCulture)); Limit=1 }
+        return [pscustomobject]@{ Index='PK_WAREBASE'; Field='PART_ID'; Unique=1; Direction=0; Predicate=('w.PART_ID = ' + $partId.ToString([Globalization.CultureInfo]::InvariantCulture)); Limit=1 }
     }
     if ($Identifier -cnotmatch '^[0-9]{6,32}$') { throw 'INVALID_PRODUCT_BARCODE' }
-    return [pscustomobject]@{ Index='WAREBASE_IDX2'; Field='BCODE_IZG'; Unique=0; Predicate=("w.BCODE_IZG = '" + $Identifier + "'"); Limit=5 }
+    return [pscustomobject]@{ Index='WAREBASE_IDX2'; Field='BCODE_IZG'; Unique=0; Direction=0; Predicate=("w.BCODE_IZG = '" + $Identifier + "'"); Limit=5 }
 }
 
 function Get-StockProbeSql([string]$Identifier, [switch]$PlanOnly) {
@@ -438,10 +441,12 @@ SELECT 1 / CASE WHEN
  AND (SELECT COUNT(*) FROM RDB$INDICES i JOIN RDB$INDEX_SEGMENTS s ON s.RDB$INDEX_NAME = i.RDB$INDEX_NAME
       WHERE i.RDB$INDEX_NAME = '__INDEX__' AND i.RDB$RELATION_NAME = 'WAREBASE'
        AND COALESCE(i.RDB$INDEX_INACTIVE, 0) = 0 AND COALESCE(i.RDB$UNIQUE_FLAG, 0) = __INDEX_UNIQUE__
+       AND COALESCE(i.RDB$INDEX_TYPE, 0) = __INDEX_DIRECTION__
        AND s.RDB$FIELD_POSITION = 0 AND s.RDB$FIELD_NAME = '__INDEX_FIELD__') = 1
  THEN 1 ELSE 0 END AS PROBE_SCHEMA_GUARD FROM RDB$DATABASE;
 SET PLAN ON;
 SET PLANONLY __PLAN_ONLY__;
+SET STATS ON;
 SELECT FIRST __ROW_LIMIT__ w.PART_ID AS SAMPLE_PART_ID, w.WARE_ID AS SAMPLE_WARE_ID,
        w.BCODE_IZG AS SAMPLE_EAN, w.BARCODE AS SAMPLE_INTERNAL_BARCODE, w.SNAME AS SAMPLE_PRODUCT_NAME,
        w.QUANT AS SAMPLE_QUANT, w.REALQUANT AS SAMPLE_REALQUANT,
@@ -450,7 +455,9 @@ SELECT FIRST __ROW_LIMIT__ w.PART_ID AS SAMPLE_PART_ID, w.WARE_ID AS SAMPLE_WARE
        w.PART_TYPE AS SAMPLE_PART_TYPE, w.BASE_AGENT_ID AS SAMPLE_BASE_AGENT_ID,
        w.DEP AS SAMPLE_DEP, w.UPDATEDT AS SAMPLE_UPDATED_AT
 FROM WAREBASE w WHERE __PREDICATE__
-PLAN (w INDEX (__INDEX__));
+PLAN (w __ACCESS__)
+__ORDER_BY__;
+SET STATS OFF;
 SET PLANONLY OFF;
 SET PLAN OFF;
 SELECT 'EPHARM_STOCK___PHASE___COMPLETE_V8' AS DIAGNOSTIC_COMPLETE FROM RDB$DATABASE;
@@ -459,7 +466,10 @@ QUIT;
 '@
     $mode = if ($PlanOnly) { 'ON' } else { 'OFF' }
     $phase = if ($PlanOnly) { 'PLAN' } else { 'SAMPLE' }
-    return $template.Replace('__INDEX__', $selector.Index).Replace('__INDEX_FIELD__', $selector.Field).Replace('__INDEX_UNIQUE__', [string]$selector.Unique).Replace('__PREDICATE__', $selector.Predicate).Replace('__ROW_LIMIT__', [string]$selector.Limit).Replace('__PLAN_ONLY__', $mode).Replace('__PHASE__', $phase)
+    # Fetch one ID page without a quantity predicate; no search through zero or positive quantities.
+    $access = if ($Identifier -ceq 'RECENT') { 'ORDER ' + $selector.Index } else { 'INDEX (' + $selector.Index + ')' }
+    $orderBy = if ($Identifier -ceq 'RECENT') { 'ORDER BY w.PART_ID DESC' } else { '' }
+    return $template.Replace('__INDEX__', $selector.Index).Replace('__INDEX_FIELD__', $selector.Field).Replace('__INDEX_UNIQUE__', [string]$selector.Unique).Replace('__INDEX_DIRECTION__', [string]$selector.Direction).Replace('__PREDICATE__', $selector.Predicate).Replace('__ROW_LIMIT__', [string]$selector.Limit).Replace('__PLAN_ONLY__', $mode).Replace('__PHASE__', $phase).Replace('__ACCESS__', $access).Replace('__ORDER_BY__', $orderBy)
 }
 
 function Test-StockProbeResult($Result, [string]$Identifier, [switch]$PlanOnly) {
@@ -476,14 +486,15 @@ function Test-StockProbeResult($Result, [string]$Identifier, [switch]$PlanOnly) 
         if ($values.Count -ne 1 -or $values[0].Groups[1].Value -cne $pair[1]) { return $false }
     }
     $plans = [regex]::Matches($output, '(?im)^\s*PLAN\s+([^\r\n]+)\s*$')
-    if ($plans.Count -ne 1 -or $plans[0].Groups[1].Value -notmatch ('(?i)^\(W\s+INDEX\s*\(' + $selector.Index + '\)\)\s*$')) { return $false }
+    $expectedPlan = if ($Identifier -ceq 'RECENT') { '(?i)^\(W\s+ORDER\s+' + $selector.Index + '\)\s*$' } else { '(?i)^\(W\s+INDEX\s*\(' + $selector.Index + '\)\)\s*$' }
+    if ($plans.Count -ne 1 -or $plans[0].Groups[1].Value -notmatch $expectedPlan) { return $false }
     $rows = [regex]::Matches($output, '(?m)^\s*SAMPLE_PART_ID\s+(\S+)\s*$')
     if ($rows.Count -gt $selector.Limit -or ($PlanOnly -and $rows.Count -ne 0)) { return $false }
     $seen = @{}
     foreach ($row in $rows) {
         $partId = [long]0
         if (-not [long]::TryParse($row.Groups[1].Value, [ref]$partId) -or $partId -le 0 -or $seen.ContainsKey($partId)) { return $false }
-        if ($selector.Field -eq 'PART_ID' -and ('w.PART_ID = ' + $partId.ToString([Globalization.CultureInfo]::InvariantCulture)) -cne $selector.Predicate) { return $false }
+        if ($selector.Field -eq 'PART_ID' -and $selector.Limit -eq 1 -and ('w.PART_ID = ' + $partId.ToString([Globalization.CultureInfo]::InvariantCulture)) -cne $selector.Predicate) { return $false }
         $seen[$partId] = $true
     }
     foreach ($column in @('SAMPLE_QUANT', 'SAMPLE_REALQUANT', 'SAMPLE_BLOCK_QUANT', 'SAMPLE_BLOCK_COUNT')) {
@@ -497,23 +508,37 @@ function Test-StockProbeResult($Result, [string]$Identifier, [switch]$PlanOnly) 
     return $true
 }
 
+function Get-PositiveProbeRows([string]$Output) {
+    $count = 0
+    foreach ($quantity in [regex]::Matches($Output, '(?m)^\s*SAMPLE_QUANT\s+(\S+)\s*$')) {
+        $value = [double]0
+        if ([double]::TryParse($quantity.Groups[1].Value, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$value) -and
+            -not [double]::IsNaN($value) -and -not [double]::IsInfinity($value) -and $value -gt 0) { $count++ }
+    }
+    return $count
+}
+
 function Invoke-StockProbe([string]$Isql, $Endpoint, [Security.SecureString]$Password, [string]$UserName) {
     try {
-        Write-Report 'Для пробы возьмите штрихкод производителя одного товара с экрана кассы (6–32 цифры). Если известен ID партии, введите PART:123. Enter — пропустить.'
-        $identifier = (Read-Host 'Штрихкод или PART:ID').Trim()
+        Write-Report 'Введите RECENT для одной страницы до 5 партий с наибольшими ID. Также можно ввести штрихкод производителя (6–32 цифры) либо PART:123. Enter — пропустить. Положительный QUANT ещё не означает доступность для продажи.'
+        $identifier = (Read-Host 'RECENT, штрихкод или PART:ID').Trim()
         if (-not $identifier) { Write-Report 'STOCK_PROBE_STATUS=SKIPPED_NO_PRODUCT'; return }
         try { $selector = Get-StockProbeSelector $identifier } catch { Write-Report 'STOCK_PROBE_STATUS=SKIPPED_INVALID_IDENTIFIER'; return }
         Write-Report ('PROBE_IDENTIFIER=' + $identifier + '; ROW_LIMIT=' + $selector.Limit + '; FULL_SNAPSHOT=false; SELLABLE_VERIFIED=false')
+        Write-Report ('PLAN_CLIENT_STARTED_UTC=' + [DateTime]::UtcNow.ToString('o'))
         $plan = Invoke-IsqlBatch $Isql $Endpoint ($Password.Copy()) $UserName (Get-StockProbeSql $identifier -PlanOnly)
+        Write-Report ('PLAN_CLIENT_FINISHED_UTC=' + [DateTime]::UtcNow.ToString('o'))
         if ($plan.TimedOut) { Write-IsqlTimeout $plan 'STOCK_PLAN_STATUS'; return }
         Write-Report ('--- STOCK PLAN BEGIN; ELAPSED_MS=' + $plan.ElapsedMs + ' ---')
         Write-Report $plan.Output
         Write-Report '--- STOCK PLAN END ---'
         if (-not (Test-StockProbeResult $plan $identifier -PlanOnly)) { Write-Report 'STOCK_PLAN_STATUS=REJECTED; no product rows read; no retries.'; return }
         Write-Report 'STOCK_PLAN_STATUS=VERIFIED; fixed index; no full scan, join or sort.'
-        Write-Report ('План проверен. Для разового чтения максимум ' + $selector.Limit + ' партий этого товара введите READ; Enter — завершить с отчётом плана.')
+        Write-Report ('План проверен. Для разового чтения максимум ' + $selector.Limit + ' партий пробы введите READ; Enter — завершить с отчётом плана.')
         if ((Read-Host 'Чтение пробы') -cne 'READ') { Write-Report 'STOCK_SAMPLE_STATUS=SKIPPED_BY_OPERATOR'; return }
+        Write-Report ('SAMPLE_CLIENT_STARTED_UTC=' + [DateTime]::UtcNow.ToString('o'))
         $sample = Invoke-IsqlBatch $Isql $Endpoint ($Password.Copy()) $UserName (Get-StockProbeSql $identifier)
+        Write-Report ('SAMPLE_CLIENT_FINISHED_UTC=' + [DateTime]::UtcNow.ToString('o'))
         if ($sample.TimedOut) { Write-IsqlTimeout $sample 'STOCK_SAMPLE_STATUS'; return }
         Write-Report ('--- STOCK SAMPLE BEGIN; ELAPSED_MS=' + $sample.ElapsedMs + ' ---')
         Write-Report $sample.Output
@@ -521,6 +546,7 @@ function Invoke-StockProbe([string]$Isql, $Endpoint, [Security.SecureString]$Pas
         if (-not (Test-StockProbeResult $sample $identifier)) { Write-Report 'STOCK_SAMPLE_STATUS=FAILED_OR_INCOMPLETE; no upload and no retries.'; return }
         $rowCount = [regex]::Matches($sample.Output, '(?m)^\s*SAMPLE_PART_ID\s+\S+\s*$').Count
         Write-Report ('STOCK_SAMPLE_STATUS=OK; RETURNED_ROWS=' + $rowCount + '; QUANTITY_BASIS=UNVERIFIED; SELLABLE_VERIFIED=false; FULL_SNAPSHOT=false')
+        if ($identifier -ceq 'RECENT') { Write-Report ('POSITIVE_QUANT_ROWS_IN_SAMPLE=' + (Get-PositiveProbeRows $sample.Output) + '; no more pages requested; not the total for the pharmacy.') }
         if ($rowCount -eq 0) { Write-Report 'По выбранному идентификатору партий не найдено. Это не означает отсутствие всех остатков в аптеке; запасных запросов нет.' }
         else { Write-Report 'Сверьте SAMPLE_QUANT, SAMPLE_REALQUANT и SAMPLE_BLOCK_QUANT с экраном кассы по той же партии. Отчёт не определяет доступность для продажи.' }
         Write-Report 'Пришлите TXT и количество по выбранному товару с экрана кассы; постоянный сбор не запущен.'
@@ -560,7 +586,7 @@ function Find-FirebirdIsql([string[]]$CashierDirs, $Services) {
 function Invoke-Diagnostic {
     if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { throw 'WINDOWS_REQUIRED' }
     Write-Report '=== EPHARM STOCK DIAGNOSTICS BEGIN ==='
-    Write-Report 'VERSION=8; MODE=UNIVERSAL_PHARMACY_DIAGNOSTIC'
+    Write-Report 'VERSION=9; MODE=UNIVERSAL_PHARMACY_DIAGNOSTIC'
     if ($StockProbe -and $StockSchema) { throw 'CONFLICTING_DIAGNOSTIC_MODES' }
     if ($StockSchema) { Write-Report 'METADATA_SCOPE=TARGETED_STOCK_SCHEMA; no warehouse rows or query execution.' }
     if ($StockProbe) { Write-Report 'STOCK_PROBE_SCOPE=PLAN_THEN_OPTIONAL_SAMPLE; maximum 5 lots; no periodic collection, uploads or installs.' }
@@ -568,7 +594,7 @@ function Invoke-Diagnostic {
     Write-Report ('UTC_TIME=' + [DateTime]::UtcNow.ToString('o'))
     Write-Report ('COMPUTER=' + $env:COMPUTERNAME)
     Write-Report ('POWERSHELL=' + $PSVersionTable.PSVersion.ToString() + '; OS=' + [Environment]::OSVersion.VersionString)
-    if ($StockProbe) { Write-Report 'SCOPE=Verified local source; one indexed product sample after PLANONLY and READ; no service changes or uploads.' }
+    if ($StockProbe) { Write-Report 'SCOPE=Verified local source; one indexed sample after PLANONLY and READ; no service changes or uploads.' }
     else { Write-Report 'SCOPE=Configuration, versions, optional system metadata. No warehouse rows, installs, service changes or uploads.' }
     $label = (Read-Host 'Название или адрес аптеки (необязательно; Enter — пропустить)').Trim()
     $label = [regex]::Replace($label, '[\x00-\x1F]', ' ')

@@ -7,7 +7,7 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 function Assert-Probe([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw ('FAILED: ' + $Message) }
 }
-foreach ($invalid in @('', 'PART:0', 'PART:-1', 'PART:9223372036854775808', 'PART:1;DROP', "123456'", '12345', '１２３４５６７８')) {
+foreach ($invalid in @('', 'POSITIVE', 'recent', 'PART:0', 'PART:-1', 'PART:9223372036854775808', 'PART:1;DROP', "123456'", '12345', '１２３４５６７８')) {
     $rejected = $false
     try { $null = Get-StockProbeSelector $invalid } catch { $rejected = $true }
     Assert-Probe $rejected 'invalid identifiers cannot enter SQL'
@@ -18,6 +18,7 @@ Assert-Probe ((Get-StockProbeSelector '001234567890').Predicate.Contains("'00123
 function Get-ProbeFixture([string]$Identifier, [switch]$PlanOnly, [int]$RowCount = 0) {
     $selector = Get-StockProbeSelector $Identifier
     $phase = if ($PlanOnly) { 'PLAN' } else { 'SAMPLE' }
+    $access = if ($Identifier -ceq 'RECENT') { 'ORDER ' + $selector.Index } else { 'INDEX (' + $selector.Index + ')' }
     $output = @"
 DIAGNOSTIC_READ_ONLY TRUE
 PROBE_TABLE_TYPE 0
@@ -29,7 +30,7 @@ PROBE_INDEX_NAME $($selector.Index)
 PROBE_INDEX_INACTIVE 0
 PROBE_INDEX_ORDINAL 0
 PROBE_INDEX_FIELD $($selector.Field)
-PLAN (W INDEX ($($selector.Index)))
+PLAN (W $access)
 DIAGNOSTIC_COMPLETE EPHARM_STOCK_$($phase)_COMPLETE_V8
 "@
     for ($i = 0; $i -lt $RowCount; $i++) {
@@ -64,13 +65,21 @@ $badSample.Output = $badSample.Output.Replace('SAMPLE_EAN 4601234567890', 'SAMPL
 Assert-Probe (-not (Test-StockProbeResult $badSample $identifier)) 'wrong barcode is rejected'
 $badSample.Output = $badSample.Output.Replace('SAMPLE_QUANT 2.5', 'MISSING_QUANT 2.5')
 Assert-Probe (-not (Test-StockProbeResult $badSample $identifier)) 'partial rows cannot pass'
+Assert-Probe (Test-StockProbeResult (Get-ProbeFixture 'RECENT' -PlanOnly) 'RECENT' -PlanOnly) 'recent page has a single verified ID navigation plan'
+Assert-Probe (Test-StockProbeResult (Get-ProbeFixture 'RECENT' -RowCount 5) 'RECENT') 'recent page accepts at most five distinct lots'
+Assert-Probe (-not (Test-StockProbeResult (Get-ProbeFixture 'RECENT' -RowCount 6) 'RECENT')) 'recent page cannot exceed five lots'
+$bitmapPlan = Get-ProbeFixture 'RECENT' -PlanOnly
+$bitmapPlan.Output = $bitmapPlan.Output.Replace('ORDER WAREBASE_IDX5', 'INDEX (WAREBASE_IDX5)')
+Assert-Probe (-not (Test-StockProbeResult $bitmapPlan 'RECENT' -PlanOnly)) 'recent page requires ID navigation without bitmap or sort'
+Assert-Probe ((Get-PositiveProbeRows "SAMPLE_QUANT 2.5`nSAMPLE_QUANT 0`nSAMPLE_QUANT -1`nSAMPLE_QUANT <null>`nSAMPLE_QUANT NaN`nSAMPLE_QUANT Infinity`nSAMPLE_QUANT 0.125`n") -eq 2) 'positive examples are counted on the client without a quantity predicate'
 
-foreach ($kind in @('barcode','part')) {
-    $value = if ($kind -eq 'barcode') { $identifier } else { 'PART:123' }
+foreach ($kind in @('barcode','part','recent')) {
+    $value = if ($kind -eq 'barcode') { $identifier } elseif ($kind -eq 'recent') { 'RECENT' } else { 'PART:123' }
     foreach ($phase in @('plan','sample')) {
         $sql = Get-StockProbeSql $value -PlanOnly:($phase -eq 'plan')
         Assert-Probe ($sql -notmatch '(?im)^\s*(INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|EXECUTE)\b' -and $sql -notmatch 'SELECT\s+\*') 'probe is fixed SELECT without mutations or SELECT star'
         Assert-Probe ($sql.Contains('SET TRANSACTION READ ONLY READ COMMITTED RECORD_VERSION NO WAIT;') -and $sql.Contains('SET BAIL ON;')) 'readonly and bail are retained'
+        Assert-Probe ($sql.IndexOf('SET STATS ON;') -lt $sql.IndexOf('SELECT FIRST') -and $sql.IndexOf('SET STATS OFF;') -gt $sql.IndexOf('SELECT FIRST')) 'isql statistics bracket only the bounded product statement'
         if ($phase -eq 'plan') { Assert-Probe ($sql.IndexOf('SET PLANONLY ON;') -lt $sql.IndexOf('SELECT FIRST')) 'plan-only enabled before product query'
         } else { Assert-Probe ($sql.IndexOf('SET PLANONLY OFF;') -lt $sql.IndexOf('SELECT FIRST')) 'sample mode is explicit' }
         if ($ExportSqlDirectory) {
@@ -94,18 +103,21 @@ function Invoke-IsqlBatch([string]$Isql, $Endpoint, [Security.SecureString]$Pass
     $script:calls.Add($Sql); $Password.Dispose()
     return $script:results.Dequeue()
 }
-foreach ($case in @('success','bad-plan','cancel')) {
+foreach ($case in @('success','recent','bad-plan','cancel')) {
+    $inputIdentifier = if ($case -eq 'recent') { 'RECENT' } else { $identifier }
     $script:answers = New-Object 'System.Collections.Generic.Queue[string]'
-    $script:answers.Enqueue($identifier); $script:answers.Enqueue($(if ($case -eq 'cancel') { '' } else { 'READ' }))
+    $script:answers.Enqueue($inputIdentifier); $script:answers.Enqueue($(if ($case -eq 'cancel') { '' } else { 'READ' }))
     $script:results = New-Object 'System.Collections.Generic.Queue[object]'
-    $first = Get-ProbeFixture $identifier -PlanOnly
+    $first = Get-ProbeFixture $inputIdentifier -PlanOnly
     if ($case -eq 'bad-plan') { $first.Output = $first.Output.Replace('INDEX (WAREBASE_IDX2)', 'NATURAL') }
-    $script:results.Enqueue($first); $script:results.Enqueue((Get-ProbeFixture $identifier -RowCount 2))
+    $script:results.Enqueue($first); $script:results.Enqueue((Get-ProbeFixture $inputIdentifier -RowCount 2))
     $script:calls = New-Object 'System.Collections.Generic.List[string]'
     $script:Lines.Clear()
     Invoke-StockProbe '/fake/isql' ([pscustomobject]@{Connection='127.0.0.1/3050:fake'}) (ConvertTo-SecureString 'fixture-probe' -AsPlainText -Force) 'PILOT_USER'
     $report = $script:Lines -join "`n"
-    if ($case -eq 'success') { Assert-Probe ($script:calls.Count -eq 2 -and $report.Contains('STOCK_SAMPLE_STATUS=OK; RETURNED_ROWS=2')) 'READ performs exactly one bounded sample after validated plan'
+    if ($case -in @('success','recent')) {
+        Assert-Probe ($script:calls.Count -eq 2 -and $report.Contains('STOCK_SAMPLE_STATUS=OK; RETURNED_ROWS=2')) 'READ performs exactly one bounded sample after validated plan'
+        Assert-Probe ($report.Contains('SAMPLE_CLIENT_STARTED_UTC=') -and $report.Contains('SAMPLE_CLIENT_FINISHED_UTC=')) 'client UTC bounds are captured for source clock comparison'
     } else { Assert-Probe ($script:calls.Count -eq 1 -and -not $report.Contains('STOCK_SAMPLE_STATUS=OK')) 'invalid plan or operator cancel never executes product sample' }
 }
 Write-Host 'PASS: strict selectors, bounded readonly SQL, exact index plan, sample identity/completeness, operator gate and BAT packaging.'
