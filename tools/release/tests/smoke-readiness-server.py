@@ -18,7 +18,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.end_headers()
                 return
             payload = {"releaseId": (os.environ.get("FRONTEND_FIXTURE_RELEASE_ID", "v0.1.14")
-                                    if path == "/release.json" else "v0.1.14")}
+                                    if path == "/release.json" else "v0.1.14"),
+                       "commit": "frontend-fixture" if path == "/release.json" else "backend-fixture"}
             if path == "/api/health":
                 payload.update({"status": "ok", "catalogSnapshot": {"ready": True, "products": 1}})
         elif path == "/api/mobile/catalog/products":

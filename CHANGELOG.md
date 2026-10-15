@@ -19,6 +19,17 @@ All notable production changes to Epharm are recorded here. The format follows
 - POSM 1.0.65 spreads healthy QR-task polling over 24–36 seconds per device, reducing
   synchronized load on the merchandising fallback without changing recommendations or orders.
 
+## [0.1.35] - 2026-10-15
+
+### Fixed
+
+- Restore the reviewed main application after an out-of-band deployment removed product/ACC
+  group/subgroup/INN campaign authoring. Preserve the linked catalogue and existing recommendation data.
+- Exercise all four trigger choices and draft request contracts against the final admin image,
+  not only the development server; reject the obsolete product-only build before promotion.
+- New application promotions require the exact current main commit and its successful trusted CI.
+  Explicit recovery/rollback remains separate and does not depend on GitHub availability.
+
 ## [0.1.32] - 2026-10-14
 
 ### Fixed

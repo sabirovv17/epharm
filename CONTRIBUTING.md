@@ -8,6 +8,11 @@ Current workflow for this repository.
 - Work in short-lived task branches.
 - No direct push to `main`.
 - Merge by squash PR.
+- Only the repository owner (`sabirovv17`) may promote a PR into `main`. Other collaborators retain
+  their task branches and PRs. The separate **Main promotion owner** ruleset restricts main updates
+  to that account on pull requests only; it does not bypass the independent CI, CodeQL or PR rules.
+- `P0 / merge gate` must come from the GitHub Actions app, on the current PR revision. A matching
+  status name from another integration is not an accepted substitute.
 
 Suggested branch prefixes:
 
@@ -98,6 +103,14 @@ PR description should include:
 - any release/deploy/migration notes.
 
 Keep PRs reviewable. If a change spans backend, admin, mobile, and POSM, split when possible.
+
+The compiled admin image must retain campaign triggers for a product, ACC group, subgroup and INN.
+The isolated `playwright.artifact.config.ts` suite mocks every API operation and tests the final
+image without real accounts or data. Do not replace it with a Vite development-server check.
+
+Production images must be built from reviewed main source, never from a developer's older loose
+server directory. A higher release number or OCI label alone does not establish source provenance.
+Do not perform manual Compose image swaps outside the audited release transaction.
 
 Do not merge with known red checks unless the failure is explicitly triaged and accepted.
 

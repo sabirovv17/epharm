@@ -41,6 +41,7 @@ done
 [[ "$expected_compose_sha" =~ ^[a-f0-9]{64}$ ]] || {
   echo 'ERROR: Compose SHA-256 must be exact' >&2; exit 2;
 }
+verify_release_source "$candidate_commit"
 for command in docker python3 flock gzip curl; do require_command "$command"; done
 for config in .env.prod .release.env docker-compose.prod.yml Caddyfile; do
   [[ -r "$RELEASE_ROOT/$config" ]] || {
@@ -153,6 +154,7 @@ previous_frontend_archive_config_id="$(python3 "$SCRIPT_DIR/verify-image-archive
 actual_backend_id="$(image_id "epharm/backend:$candidate_backend_tag")"
 actual_frontend_id="$(image_id "epharm/frontend:$candidate_frontend_tag")"
 verify_merchandising_image "$candidate_backend_id"
+verify_admin_image "$candidate_frontend_id"
 [[ "$actual_backend_id" == "$candidate_backend_id" && "$actual_frontend_id" == "$candidate_frontend_id" ]] || {
   echo 'ERROR: candidate image IDs differ from the approved artifacts' >&2; exit 1;
 }
@@ -299,10 +301,13 @@ done
    && "$(image_id "epharm/frontend:$candidate_frontend_tag")" == "$candidate_frontend_id" ]] || {
   echo 'ERROR: candidate image tag changed before the image switch' >&2; exit 1;
 }
+verify_release_source "$candidate_commit"
 switched=true
 mv -f "$staged_env" "$RELEASE_ROOT/.release.env"
 compose_prod up -d --no-build --no-deps --force-recreate backend frontend
-"$SCRIPT_DIR/smoke.sh" "$candidate_backend_tag" "$candidate_frontend_tag"
+SMOKE_BACKEND_COMMIT="$candidate_commit" SMOKE_FRONTEND_COMMIT="$candidate_commit" \
+  SMOKE_ADMIN_IMAGE_ID="$candidate_frontend_id" \
+  "$SCRIPT_DIR/smoke.sh" "$candidate_backend_tag" "$candidate_frontend_tag"
 [[ "$(docker inspect --format '{{.Image}}' epharm-backend)" == "$candidate_backend_id" \
    && "$(docker inspect --format '{{.Image}}' epharm-frontend)" == "$candidate_frontend_id" \
    && "$(docker inspect --format '{{.Id}}' epharm-caddy)" == "$running_caddy_container" ]] || {

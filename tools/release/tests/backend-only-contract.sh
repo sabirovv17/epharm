@@ -8,6 +8,8 @@ trap 'rm -rf -- "$test_root"' EXIT
 mkdir -p "$test_root/tools/release" "$test_root/tools/ops" "$test_root/bin" "$test_root/backup"
 cp "$source_root/tools/release/"*.sh "$test_root/tools/release/"
 cp "$source_root/tools/release/tests/fixtures/fake-merch-artifact.py" "$test_root/tools/release/verify-merch-artifact.py"
+cp "$source_root/tools/release/tests/fixtures/fake-admin-artifact.py" "$test_root/tools/release/verify-admin-artifact.py"
+cp "$source_root/tools/release/tests/fixtures/fake-release-source.py" "$test_root/tools/release/verify-release-source.py"
 cp "$source_root/tools/ops/lib.sh" "$test_root/tools/ops/lib.sh"
 printf '# fixture compose\n' > "$test_root/docker-compose.prod.yml"
 printf '# fixture Caddyfile\n' > "$test_root/Caddyfile"
@@ -181,6 +183,23 @@ candidate_image="sha256:$(printf '%064d' 4)"
 failed_image="sha256:$(printf '%064d' 5)"
 compose_sha="$(shasum -a 256 "$test_root/docker-compose.prod.yml" | awk '{print $1}')"
 
+for failure in TEST_BAD_RELEASE_SOURCE TEST_BAD_MERCH_ARTIFACT; do
+  if env "$failure=true" "$test_root/tools/release/deploy-backend-only.sh" v0.1.21 "$commit" \
+    "$candidate_image" v0.1.22 "$test_root/backup" "$compose_sha" > "$test_root/rejected-$failure.log" 2>&1; then
+    echo "Backend-only deploy accepted $failure" >&2; exit 1
+  fi
+  case "$failure" in
+    TEST_BAD_RELEASE_SOURCE) expected_error='Unverified release source fixture' ;;
+    TEST_BAD_MERCH_ARTIFACT) expected_error='Obsolete merchandising artifact fixture' ;;
+  esac
+  grep -Fq "$expected_error" "$test_root/rejected-$failure.log"
+  [[ ! -s "$TEST_EVENTS" ]]
+  grep -Fxq 'RELEASE_ID=v0.1.20' "$test_root/.release.env"
+  grep -Fxq 'RELEASE_COMMIT=previous-marker' "$test_root/.release.env"
+  [[ "$(cat "$test_root/backend-image")" == "sha256:$(printf '%064d' 2)" ]]
+  [[ "$(cat "$test_root/frontend-image")" == "sha256:$(printf '%064d' 3)" ]]
+done
+
 if "$test_root/tools/release/deploy-backend-only.sh" v0.1.21 "$commit" \
   "sha256:$(printf '%064d' 9)" v0.1.22 "$test_root/backup" "$compose_sha" >/dev/null 2>&1; then
   echo 'Backend-only deploy accepted a wrong image ID' >&2; exit 1
@@ -200,7 +219,7 @@ grep -Fxq 'FRONTEND_RELEASE_ID=v0.1.22' "$test_root/.release.env"
 grep -Fxq 'up:v0.1.21' "$TEST_EVENTS"
 grep -Fxq 'smoke:v0.1.21/v0.1.22' "$TEST_EVENTS"
 transaction_dir="$(cat "$test_root/releases/backend-only/active-transaction")"
-"$test_root/tools/release/rollback-backend-only.sh" "$transaction_dir" "$test_root/epharm-backend-only-backups"
+TEST_BAD_RELEASE_SOURCE=true "$test_root/tools/release/rollback-backend-only.sh" "$transaction_dir" "$test_root/epharm-backend-only-backups"
 grep -Fxq 'RELEASE_ID=v0.1.20' "$test_root/.release.env"
 grep -Fxq 'FRONTEND_RELEASE_ID=v0.1.22' "$test_root/.release.env"
 [[ "$(cat "$test_root/backend-image")" == "sha256:$(printf '%064d' 2)" ]]

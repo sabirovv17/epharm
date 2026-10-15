@@ -11,6 +11,8 @@ cp "$source_root/tools/release/deploy-archive-two-image.sh" "$source_root/tools/
   "$source_root/tools/release/verify-image-archive.py" "$test_root/tools/release/"
 cp "$source_root/tools/ops/lib.sh" "$test_root/tools/ops/lib.sh"
 cp "$source_root/tools/release/tests/fixtures/fake-merch-artifact.py" "$test_root/tools/release/verify-merch-artifact.py"
+cp "$source_root/tools/release/tests/fixtures/fake-admin-artifact.py" "$test_root/tools/release/verify-admin-artifact.py"
+cp "$source_root/tools/release/tests/fixtures/fake-release-source.py" "$test_root/tools/release/verify-release-source.py"
 printf '# reviewed Compose fixture\n' > "$test_root/docker-compose.prod.yml"
 printf '# reviewed Caddy fixture\n' > "$test_root/Caddyfile"
 printf 'JWT_SECRET=fixture-never-log\nMERCH_TASKS_ENABLED=true\nSTANDARDN_DIRECTORY_ENABLED=true\n' > "$test_root/.env.prod"
@@ -252,8 +254,26 @@ deploy=("$test_root/tools/release/deploy-archive-two-image.sh" v0.1.25 v0.1.25 "
 secret_hash="$(shasum -a 256 "$test_root/.env.prod" | awk '{print $1}')"
 caddy_hash="$(shasum -a 256 "$test_root/Caddyfile" | awk '{print $1}')"
 
+for failure in TEST_BAD_RELEASE_SOURCE TEST_BAD_MERCH_ARTIFACT TEST_BAD_ADMIN_ARTIFACT; do
+  if env "$failure=true" "${deploy[@]}" > "$test_root/rejected-$failure.log" 2>&1; then
+    echo "Archive deploy accepted $failure" >&2; exit 1
+  fi
+  case "$failure" in
+    TEST_BAD_RELEASE_SOURCE) expected_error='Unverified release source fixture' ;;
+    TEST_BAD_MERCH_ARTIFACT) expected_error='Obsolete merchandising artifact fixture' ;;
+    TEST_BAD_ADMIN_ARTIFACT) expected_error='Obsolete admin artifact fixture' ;;
+  esac
+  grep -Fq "$expected_error" "$test_root/rejected-$failure.log"
+  [[ ! -s "$TEST_EVENTS" ]]
+  cmp -s "$test_root/.release.env" "$test_root/backup/release.env"
+  [[ "$(cat "$test_root/backend-image")" == "$old_backend_id" ]]
+  [[ "$(cat "$test_root/frontend-image")" == "$old_frontend_id" ]]
+  [[ "$(shasum -a 256 "$test_root/.env.prod" | awk '{print $1}')" == "$secret_hash" ]]
+  [[ "$(shasum -a 256 "$test_root/Caddyfile" | awk '{print $1}')" == "$caddy_hash" ]]
+done
+
 bad=("${deploy[@]}")
-bad[3]="sha256:$(printf '%064d' 9)"
+bad[4]="sha256:$(printf '%064d' 9)"
 if "${bad[@]}" >/dev/null 2>&1; then
   echo 'Accepted incorrect candidate backend image ID' >&2; exit 1
 fi

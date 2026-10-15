@@ -9,6 +9,8 @@ trap 'rm -rf -- "$test_root"' EXIT
 mkdir -p "$test_root/tools/release" "$test_root/tools/ops" "$test_root/bin"
 cp "$source_root/tools/release/"*.sh "$test_root/tools/release/"
 cp "$source_root/tools/release/tests/fixtures/fake-merch-artifact.py" "$test_root/tools/release/verify-merch-artifact.py"
+cp "$source_root/tools/release/tests/fixtures/fake-admin-artifact.py" "$test_root/tools/release/verify-admin-artifact.py"
+cp "$source_root/tools/release/tests/fixtures/fake-release-source.py" "$test_root/tools/release/verify-release-source.py"
 cp "$source_root/tools/ops/lib.sh" "$test_root/tools/ops/lib.sh"
 touch "$test_root/docker-compose.prod.yml"
 printf '## [0.1.10] - 2026-09-23\n' > "$test_root/CHANGELOG.md"
@@ -88,6 +90,20 @@ git -C "$test_root" tag v0.1.10
 export TEST_WORKSPACE_ROOT="$test_root"
 export TEST_EVENTS="$test_root/events"
 export PATH="$test_root/bin:$PATH"
+: > "$TEST_EVENTS"
+
+# An unverified source must stop even before build or the pre-deploy backup.
+for action in prepare deploy; do
+  if TEST_BAD_RELEASE_SOURCE=true "$test_root/tools/release/$action.sh" v0.1.10 \
+    > "$test_root/unverified-$action.log" 2>&1; then
+    echo "$action accepted an unverified release source" >&2; exit 1
+  fi
+  grep -Fq 'Unverified release source fixture' "$test_root/unverified-$action.log"
+  [[ ! -s "$TEST_EVENTS" ]]
+  grep -Fxq 'RELEASE_ID=v0.1.9' "$test_root/.release.env"
+  grep -Fxq 'RELEASE_COMMIT=previous-commit' "$test_root/.release.env"
+  [[ ! -e "$test_root/releases/v0.1.10/manifest.json" ]]
+done
 
 if TEST_FAIL_BUILD=true "$test_root/tools/release/prepare.sh" v0.1.10 \
   > "$test_root/failed-build.log" 2>&1; then
@@ -106,6 +122,15 @@ if TEST_BAD_MERCH_ARTIFACT=true "$test_root/tools/release/prepare.sh" v0.1.10 > 
   exit 1
 fi
 [[ ! -e "$test_root/releases/v0.1.10/manifest.json" ]]
+if TEST_BAD_ADMIN_ARTIFACT=true "$test_root/tools/release/prepare.sh" v0.1.10 > "$test_root/obsolete-admin.log" 2>&1; then
+  echo 'Prepare accepted an obsolete admin artifact' >&2; exit 1
+fi
+grep -Fq 'Obsolete admin artifact fixture' "$test_root/obsolete-admin.log"
+[[ ! -e "$test_root/releases/v0.1.10/manifest.json" ]]
+grep -Fxq 'RELEASE_ID=v0.1.9' "$test_root/.release.env"
+if grep -Eq '^(backup|up|smoke)$' "$TEST_EVENTS"; then
+  echo 'Rejected prepare changed the running release' >&2; exit 1
+fi
 "$test_root/tools/release/prepare.sh" v0.1.10
 grep -Fxq 'RELEASE_ID=v0.1.9' "$test_root/.release.env"
 if compgen -G "$test_root/.release.prepare.*" >/dev/null; then
@@ -113,6 +138,22 @@ if compgen -G "$test_root/.release.prepare.*" >/dev/null; then
   exit 1
 fi
 grep -Fq '"releaseId": "v0.1.10"' "$test_root/releases/v0.1.10/manifest.json"
+
+before_events="$(wc -l < "$TEST_EVENTS")"
+for failure in TEST_BAD_RELEASE_SOURCE TEST_BAD_MERCH_ARTIFACT TEST_BAD_ADMIN_ARTIFACT; do
+  if env "$failure=true" "$test_root/tools/release/deploy.sh" v0.1.10 > "$test_root/rejected-$failure.log" 2>&1; then
+    echo "Deploy accepted $failure" >&2; exit 1
+  fi
+  case "$failure" in
+    TEST_BAD_RELEASE_SOURCE) expected_error='Unverified release source fixture' ;;
+    TEST_BAD_MERCH_ARTIFACT) expected_error='Obsolete merchandising artifact fixture' ;;
+    TEST_BAD_ADMIN_ARTIFACT) expected_error='Obsolete admin artifact fixture' ;;
+  esac
+  grep -Fq "$expected_error" "$test_root/rejected-$failure.log"
+  [[ "$(wc -l < "$TEST_EVENTS")" -eq "$before_events" ]]
+  grep -Fxq 'RELEASE_ID=v0.1.9' "$test_root/.release.env"
+  grep -Fxq 'RELEASE_COMMIT=previous-commit' "$test_root/.release.env"
+done
 
 "$test_root/tools/release/deploy.sh" v0.1.10
 grep -Fxq 'RELEASE_ID=v0.1.10' "$test_root/.release.env"
