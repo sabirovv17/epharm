@@ -135,8 +135,11 @@ restore_on_exit() {
     echo 'ERROR: archive rollback failed; restoring the current candidate' >&2
     check_images candidate || restore_ok=false
     if [[ "$restore_ok" == true ]]; then
-      mv -f "$forward_ready" "$RELEASE_ROOT/.release.env" || restore_ok=false
-      compose_prod up -d --no-build --no-deps --force-recreate backend frontend || restore_ok=false
+      if mv -f "$forward_ready" "$RELEASE_ROOT/.release.env"; then
+        compose_prod up -d --no-build --no-deps --force-recreate backend frontend || restore_ok=false
+      else
+        restore_ok=false
+      fi
     fi
     check_running "$candidate_backend_id" "$candidate_frontend_id" || restore_ok=false
     configs_unchanged || restore_ok=false

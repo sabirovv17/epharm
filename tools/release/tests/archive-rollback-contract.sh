@@ -76,6 +76,16 @@ cat > "$test_root/bin/flock" <<'SH'
 #!/usr/bin/env bash
 [[ "$1" == -n && "$2" == 9 && "${TEST_LOCKED:-}" != true ]]
 SH
+export TEST_REAL_MV
+TEST_REAL_MV="$(command -v mv)"
+cat > "$test_root/bin/mv" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${TEST_FAIL_FORWARD_PINS:-}" == true && "$1" == -f \
+  && "$2" == "$TEST_ARCHIVE_ROOT/.release.archive-forward."* \
+  && "$3" == "$TEST_ARCHIVE_ROOT/.release.env" ]]; then exit 1; fi
+exec "$TEST_REAL_MV" "$@"
+SH
 cat > "$test_root/tools/release/smoke.sh" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -85,7 +95,7 @@ grep -Fxq "FRONTEND_RELEASE_ID=$2" "$TEST_ARCHIVE_ROOT/.release.env"
 printf 'smoke:%s/%s\n' "$1" "$2" >> "$TEST_ARCHIVE_ROOT/events"
 [[ "${TEST_FAIL_ROLLBACK_SMOKE:-}" != true || "$1" == v0.1.35 ]]
 SH
-chmod +x "$test_root/bin/docker" "$test_root/bin/flock" "$test_root/tools/release/smoke.sh"
+chmod +x "$test_root/bin/docker" "$test_root/bin/flock" "$test_root/bin/mv" "$test_root/tools/release/smoke.sh"
 export TEST_ARCHIVE_ROOT="$test_root"
 export TEST_BAD_RELEASE_SOURCE=true TEST_BAD_ADMIN_ARTIFACT=true
 export PATH="$test_root/bin:$PATH"
@@ -164,4 +174,14 @@ grep -Fxq 'smoke:v0.1.35/v0.1.35' "$test_root/events"
 [[ ! -e "$transaction_dir/rolled-back" ]]
 [[ "$(shasum -a 256 "$test_root/.env.prod")" == "$env_hash" && "$(shasum -a 256 "$test_root/Caddyfile")" == "$caddy_hash" ]]
 if grep -q 'fixture-never-log' "$test_root/failed.log"; then echo 'Rollback exposed a secret' >&2; exit 1; fi
+reset_candidate
+if TEST_FAIL_ROLLBACK_SMOKE=true TEST_FAIL_FORWARD_PINS=true "${rollback[@]}" > "$test_root/failed-forward.log" 2>&1; then
+  echo 'Ignored failed candidate pins restoration' >&2; exit 1
+fi
+grep -Fq 'CRITICAL: candidate restoration failed' "$test_root/failed-forward.log"
+[[ "$(grep -c '^up:' "$test_root/events")" -eq 1 ]]
+grep -Fxq 'up:v0.1.33/v0.1.34' "$test_root/events"
+cmp -s "$transaction_dir/rollback.release.env" "$test_root/.release.env"
+[[ ! -e "$transaction_dir/rolled-back" ]]
+[[ "$(shasum -a 256 "$test_root/.env.prod")" == "$env_hash" && "$(shasum -a 256 "$test_root/Caddyfile")" == "$caddy_hash" ]]
 echo 'Explicit archive rollback, protected state, fresh backup and candidate restoration OK'
