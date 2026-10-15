@@ -44,6 +44,7 @@ The backend is a modular monolith under package `kz.epharm`.
 | `merchtasks`                          | Optional authenticated CRM task bridge, exact staff URL validation and bounded concurrency. |
 | `training`                            | Programs, routes, assignments, events, attendance, results and awards.  |
 | `lms`, `ai_exam`, `lift`, `dashboard` | Admin sections and reporting.                                           |
+| `reporting`                           | HQ-only campaign JSON/PDF, confirmed displays, attributed/0–120-second sales. |
 | `shared`                              | Security, errors, media proxy, storage, validation, dev reset.          |
 
 ## API Map
@@ -53,6 +54,10 @@ The backend is a modular monolith under package `kz.epharm`.
 - `POST /api/admin/auth/login|refresh|logout`, `GET /api/admin/auth/me`
 - `/api/admin/dashboard/summary`
 - `/api/admin/dashboard/recommendations` — конверсия показ→продажа + время до продажи (V032)
+- `/api/admin/reports/campaigns/{promoId}` and `/{promoId}/pdf` — HQ/SYSTEM_ADMIN-only campaign reporting;
+  inclusive `from`/`to` dates in Asia/Almaty, at most 366 days, `no-store`. Confirmed display ACKs,
+  accepted actions, verified attributed sales and the separate 0–120-second subset remain distinct.
+  See [report methodology and rollout](21-rps-rollout-and-manufacturer-reports.md).
 - `/api/admin/catalog/products`, `/brands`, `/mnn-groups`, `/trigger-options`
 - `/api/admin/rules/**`
 - `/api/admin/promo/**`, including `/refresh-prices` and `/{id}/rules`

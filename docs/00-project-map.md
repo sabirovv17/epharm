@@ -70,6 +70,7 @@ PharmaPayV2/
 | `screens`                                         | слайды/плейлисты видео для 2-х экранов касс (MinIO)                                |
 | `receipts`/`reconcile`                            | чеки мобилки + модерация бонусов                                                   |
 | `dashboard`                                       | сводка + журнал показов/продаж (RecommendationAnalytics)                           |
+| `reporting`                                       | HQ-only JSON/PDF одной кампании: ACK, подтверждённые продажи, 0–120 с, методика     |
 | `pharmacies`/`pharmacists`/`finance`/`lms`/`exam` | справочники, обучение (включая live-комнаты) и разделы админки                     |
 | `shared`                                          | SecurityConfig, ошибки (`AppException`/`ErrorCode`), `PhoneUtil`, ProdBootstrap    |
 
@@ -81,6 +82,7 @@ PharmaPayV2/
 | Прод-деплой (как катить)         | `docs/06-deployment-and-ops.md` §Deploy From Git                       |
 | Прод-координаты/операции         | `docs/RUNBOOK.md` + `tools/pg-backup.sh`                               |
 | SMS-вход (Daribar gateway)       | `…/mobile/auth/service/DaribarOtpProvider.kt` + `OtpService.kt`        |
+| PDF производителю / план РПС    | `…/reporting/`, frontend `features/reports/`, `docs/21-rps-rollout-and-manufacturer-reports.md` |
 | Рекомендации в карточке мобилки  | `…/mobile/catalog/service/MobileCatalogService.kt`                     |
 | POSM: живой чек Стандарт-Н       | `App/MainWindow.StandardNReceipt.cs` + `Services/StandardNDbLookup.cs` |
 | POSM: fallback-парсер лога       | `App/MainWindow.xaml.cs` (`ProcessLogLine`/`TryParseAdd2Cheque`)       |
