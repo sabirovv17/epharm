@@ -11,6 +11,7 @@ import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.s3.S3Configuration
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest
+import software.amazon.awssdk.services.s3.model.GetObjectRequest
 import software.amazon.awssdk.services.s3.model.PutObjectRequest
 import java.net.URI
 import java.util.UUID
@@ -73,6 +74,19 @@ class S3MediaStorage(
         runCatching {
             client.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(key).build())
         }.onFailure { log.warn("Не удалось удалить объект {}: {}", key, it.message) }
+    }
+
+    override fun read(url: String): ByteArray? {
+        val key = keyFromUrl(url) ?: return null
+        return runCatching {
+            client.getObjectAsBytes(GetObjectRequest.builder().bucket(bucket).key(key).build()).asByteArray()
+        }.onFailure { log.warn("Не удалось прочитать объект {}: {}", key, it.message) }.getOrNull()
+    }
+
+    private fun keyFromUrl(url: String): String? {
+        val expectedPrefix = "${publicUrl.trimEnd('/')}/$bucket/"
+        if (!url.startsWith(expectedPrefix)) return null
+        return url.removePrefix(expectedPrefix).takeIf(String::isNotBlank)
     }
 
     private fun extOf(name: String, contentType: String): String {

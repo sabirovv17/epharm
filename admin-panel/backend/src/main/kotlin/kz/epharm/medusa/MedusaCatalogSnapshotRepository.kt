@@ -178,6 +178,18 @@ class MedusaCatalogSnapshotRepository(
         return Page(products = products, total = total)
     }
 
+    fun findProduct(id: String): MedusaProduct? = jdbc.query(
+        """
+        SELECT payload::text
+          FROM medusa_catalog_products
+         WHERE sync_id = (SELECT active_sync_id FROM medusa_catalog_sync_state WHERE singleton = 1)
+           AND id = ?
+         LIMIT 1
+        """.trimIndent(),
+        { rs, _ -> objectMapper.readValue(rs.getString(1), MedusaProduct::class.java) },
+        id,
+    ).firstOrNull()
+
     private fun searchDocument(product: MedusaProduct): String {
         val values = mutableListOf<Any?>()
         values += product.id

@@ -7,6 +7,8 @@ import kz.epharm.pharmacists.dto.PharmacistDto
 import kz.epharm.pharmacists.dto.UpdatePharmacistRequest
 import kz.epharm.pharmacists.entity.PharmacistStatus
 import kz.epharm.pharmacists.service.PharmacistService
+import kz.epharm.pharmacists.service.StandardNPharmacistSyncService
+import kz.epharm.pharmacists.service.StandardNSyncResult
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -18,7 +20,10 @@ import org.springframework.web.bind.annotation.RestController
 
 @RestController
 @RequestMapping("/api/admin/pharmacists")
-class PharmacistController(private val pharmacistService: PharmacistService) {
+class PharmacistController(
+    private val pharmacistService: PharmacistService,
+    private val standardNSyncService: StandardNPharmacistSyncService,
+) {
 
     @GetMapping
     fun list(
@@ -28,6 +33,12 @@ class PharmacistController(private val pharmacistService: PharmacistService) {
 
     @GetMapping("/{id}")
     fun get(@PathVariable id: String): PharmacistDto = pharmacistService.get(id)
+
+    @GetMapping("/standardn-directory/status")
+    fun standardNStatus(): StandardNSyncResult = standardNSyncService.status()
+
+    @PostMapping("/standardn-directory/sync")
+    fun syncStandardN(): StandardNSyncResult = standardNSyncService.sync()
 
     @PostMapping
     fun create(@Valid @RequestBody req: CreatePharmacistRequest): PharmacistDto =

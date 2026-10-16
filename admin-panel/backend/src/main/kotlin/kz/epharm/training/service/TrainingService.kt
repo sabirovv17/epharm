@@ -8,6 +8,7 @@ import kz.epharm.lms.repository.CourseRepository
 import kz.epharm.lms.repository.CourseLessonRepository
 import kz.epharm.lms.repository.CourseLessonAttachmentRepository
 import kz.epharm.lms.dto.CourseContentDto
+import kz.epharm.lms.entity.CourseLessonKind
 import kz.epharm.pharmacists.entity.PharmacistEntity
 import kz.epharm.pharmacists.entity.PharmacistStatus
 import kz.epharm.pharmacists.repository.PharmacistRepository
@@ -30,11 +31,15 @@ import kz.epharm.training.dto.CreateTrainingProgramRequest
 import kz.epharm.training.dto.CreateTrainingStageRequest
 import kz.epharm.training.dto.EventParticipantDto
 import kz.epharm.training.dto.MarkAttendanceRequest
+import kz.epharm.training.dto.LessonProgressRequest
 import kz.epharm.training.dto.MassChangeTrainingPreferencesRequest
 import kz.epharm.training.dto.MassAssignmentResultDto
 import kz.epharm.training.dto.MobileTrainingOverviewDto
 import kz.epharm.training.dto.OfflineEventDto
 import kz.epharm.training.dto.OfflineEventSummaryDto
+import kz.epharm.training.dto.QuizQuestionResultDto
+import kz.epharm.training.dto.QuizSubmissionRequest
+import kz.epharm.training.dto.QuizSubmissionResultDto
 import kz.epharm.training.dto.RecordAssessmentResultRequest
 import kz.epharm.training.dto.StageProgressRequest
 import kz.epharm.training.dto.TrainingAssessmentResultDto
@@ -64,6 +69,7 @@ import kz.epharm.training.entity.TrainingAssessmentResultEntity
 import kz.epharm.training.entity.TrainingAuditLogEntity
 import kz.epharm.training.entity.TrainingCertificateEntity
 import kz.epharm.training.entity.TrainingNotificationEntity
+import kz.epharm.training.entity.TrainingLessonProgressEntity
 import kz.epharm.training.entity.TrainingProgramEntity
 import kz.epharm.training.entity.TrainingProgramStageEntity
 import kz.epharm.training.entity.TrainingProgramVersionEntity
@@ -78,6 +84,7 @@ import kz.epharm.training.repository.TrainingAssessmentResultRepository
 import kz.epharm.training.repository.TrainingAuditLogRepository
 import kz.epharm.training.repository.TrainingCertificateRepository
 import kz.epharm.training.repository.TrainingNotificationRepository
+import kz.epharm.training.repository.TrainingLessonProgressRepository
 import kz.epharm.training.repository.TrainingProgramRepository
 import kz.epharm.training.repository.TrainingProgramStageRepository
 import kz.epharm.training.repository.TrainingProgramVersionRepository
@@ -88,6 +95,8 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
+import java.time.Duration
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -102,6 +111,7 @@ class TrainingService(
     private val assignmentRepository: TrainingAssignmentRepository,
     private val assignmentFormatHistoryRepository: TrainingAssignmentFormatHistoryRepository,
     private val assignmentStageRepository: TrainingAssignmentStageRepository,
+    private val lessonProgressRepository: TrainingLessonProgressRepository,
     private val assessmentResultRepository: TrainingAssessmentResultRepository,
     private val participantRepository: EventParticipantRepository,
     private val preferenceRepository: PharmacistTrainingPreferenceRepository,
@@ -122,6 +132,16 @@ class TrainingService(
         TrainingAssignmentStatus.completed.name,
         TrainingAssignmentStatus.cancelled.name,
     )
+    private val videoProgressGraceSeconds = 15L
+    private val secureRandom = java.security.SecureRandom()
+
+    private fun generateCheckInCode(): String {
+        repeat(30) {
+            val candidate = secureRandom.nextInt(900_000).plus(100_000).toString()
+            if (!eventRepository.existsByCheckInCode(candidate)) return candidate
+        }
+        conflict("Не удалось сформировать уникальный код мероприятия")
+    }
 
     // Programs
 
@@ -143,6 +163,10 @@ class TrainingService(
             shortDescription = req.shortDescription.trim(),
             description = req.description.trim(),
             coverUrl = req.coverUrl?.trim()?.takeIf(String::isNotEmpty),
+            certificateEpharmLogoUrl = req.certificateEpharmLogoUrl?.trim()?.takeIf(String::isNotEmpty),
+            certificatePartnerLogoUrl = req.certificatePartnerLogoUrl?.trim()?.takeIf(String::isNotEmpty),
+            certificateSignerName = req.certificateSignerName.trim(),
+            certificateValidityMonths = req.certificateValidityMonths,
             category = req.category.trim(),
             manufacturer = req.manufacturer.trim(),
             brand = req.brand.trim(),
@@ -192,6 +216,19 @@ class TrainingService(
         req.description?.let { program.description = it.trim() }
         if (req.clearCoverUrl) program.coverUrl = null
         else req.coverUrl?.let { program.coverUrl = it.trim().takeIf(String::isNotEmpty) }
+        if (req.clearCertificateEpharmLogoUrl) program.certificateEpharmLogoUrl = null
+        else req.certificateEpharmLogoUrl?.let {
+            program.certificateEpharmLogoUrl = it.trim().takeIf(String::isNotEmpty)
+        }
+        if (req.clearCertificatePartnerLogoUrl) program.certificatePartnerLogoUrl = null
+        else req.certificatePartnerLogoUrl?.let {
+            program.certificatePartnerLogoUrl = it.trim().takeIf(String::isNotEmpty)
+        }
+        req.certificateSignerName?.let {
+            if (it.isBlank()) badRequest("Укажите подписанта сертификата")
+            program.certificateSignerName = it.trim()
+        }
+        req.certificateValidityMonths?.let { program.certificateValidityMonths = it }
         req.category?.let { program.category = it.trim() }
         req.manufacturer?.let { program.manufacturer = it.trim() }
         req.brand?.let { program.brand = it.trim() }
@@ -371,6 +408,7 @@ class TrainingService(
             registrationDeadline = req.registrationDeadline,
             materialsUrl = req.materialsUrl?.trim()?.takeIf(String::isNotEmpty),
             comment = req.comment.trim(),
+            checkInCode = generateCheckInCode(),
             createdBy = principal.userId,
         ).also { it.status = req.status }
         val saved = eventRepository.save(event)
@@ -508,6 +546,7 @@ class TrainingService(
             eventId = event.id,
             token = event.qrToken,
             payload = "epharm://training/check-in/${event.qrToken}",
+            checkInCode = event.checkInCode,
         )
     }
 
@@ -1108,7 +1147,10 @@ class TrainingService(
         if (assignmentStage.assignmentId != assignmentId) badRequest("Этап относится к другому назначению")
         if (assignmentStage.status == TrainingStageStatus.locked) conflict("Предыдущий обязательный этап ещё не завершён")
         val programStage = programStageRepository.findById(assignmentStage.programStageId).orElseThrow()
-        if (programStage.type !in setOf(TrainingStageType.material, TrainingStageType.online_course)) {
+        if (programStage.type == TrainingStageType.online_course) {
+            conflict("Прогресс онлайн-курса обновляется по каждому уроку")
+        }
+        if (programStage.type != TrainingStageType.material) {
             forbidden("Результат теста, экзамена или очного этапа фиксируется доверенным административным контуром")
         }
         val now = Instant.now()
@@ -1137,6 +1179,258 @@ class TrainingService(
         )
         return mapAssignments(listOf(assignment)).single()
     }
+
+    @Transactional
+    fun updateLessonProgress(
+        pharmacistId: String,
+        assignmentId: UUID,
+        stageId: UUID,
+        lessonId: String,
+        req: LessonProgressRequest,
+    ): TrainingAssignmentDto = updateLessonProgressInternal(
+        pharmacistId,
+        assignmentId,
+        stageId,
+        lessonId,
+        req,
+        allowQuizCompletion = false,
+    )
+
+    @Transactional(readOnly = true)
+    fun requireLiveLessonAccess(
+        pharmacistId: String,
+        assignmentId: UUID,
+        stageId: UUID,
+        lessonId: String,
+    ) {
+        val assignment = loadOwnedAssignment(pharmacistId, assignmentId)
+        val assignmentStage = assignmentStageRepository.findById(stageId).orElseThrow {
+            AppException(ErrorCode.NOT_FOUND, "Этап назначения не найден", HttpStatus.NOT_FOUND)
+        }
+        if (assignmentStage.assignmentId != assignmentId) badRequest("Этап относится к другому назначению")
+        if (assignmentStage.status == TrainingStageStatus.locked) {
+            conflict("Предыдущий обязательный этап ещё не завершён")
+        }
+        val programStage = programStageRepository.findById(assignmentStage.programStageId).orElseThrow()
+        if (programStage.type != TrainingStageType.online_course) {
+            badRequest("Прямой эфир доступен только внутри онлайн-курса")
+        }
+        val version = versionRepository.findById(assignment.programVersionId).orElseThrow()
+        val courseId = version.onlineCourseId ?: conflict("К программе не привязан онлайн-курс")
+        val lesson = courseLessonRepository.findById(lessonId).orElseThrow {
+            AppException(ErrorCode.NOT_FOUND, "Урок не найден", HttpStatus.NOT_FOUND)
+        }
+        if (lesson.courseId != courseId || lesson.kind != CourseLessonKind.live) {
+            badRequest("Прямой эфир относится к другому курсу")
+        }
+    }
+
+    private fun updateLessonProgressInternal(
+        pharmacistId: String,
+        assignmentId: UUID,
+        stageId: UUID,
+        lessonId: String,
+        req: LessonProgressRequest,
+        allowQuizCompletion: Boolean,
+    ): TrainingAssignmentDto {
+        val assignment = loadOwnedAssignment(pharmacistId, assignmentId)
+        if (assignment.status in setOf(TrainingAssignmentStatus.completed, TrainingAssignmentStatus.cancelled)) {
+            conflict("Завершённое или отменённое назначение нельзя изменять")
+        }
+        val assignmentStage = assignmentStageRepository.findById(stageId).orElseThrow {
+            AppException(ErrorCode.NOT_FOUND, "Этап назначения не найден", HttpStatus.NOT_FOUND)
+        }
+        if (assignmentStage.assignmentId != assignmentId) badRequest("Этап относится к другому назначению")
+        if (assignmentStage.status == TrainingStageStatus.locked) {
+            conflict("Предыдущий обязательный этап ещё не завершён")
+        }
+        val programStage = programStageRepository.findById(assignmentStage.programStageId).orElseThrow()
+        if (programStage.type != TrainingStageType.online_course) {
+            badRequest("Прогресс урока доступен только для этапа онлайн-курса")
+        }
+        val version = versionRepository.findById(assignment.programVersionId).orElseThrow()
+        val courseId = version.onlineCourseId ?: conflict("К программе не привязан онлайн-курс")
+        val lesson = courseLessonRepository.findById(lessonId).orElseThrow {
+            AppException(ErrorCode.NOT_FOUND, "Урок не найден", HttpStatus.NOT_FOUND)
+        }
+        if (lesson.courseId != courseId) badRequest("Урок относится к другому курсу")
+        if (lesson.kind in setOf(CourseLessonKind.quiz, CourseLessonKind.test) &&
+            req.progressPct >= 100 && !allowQuizCompletion
+        ) {
+            badRequest("Для завершения теста отправьте ответы на вопросы")
+        }
+
+        val lessons = courseLessonRepository.findAllByCourseIdOrderByOrderAscCreatedAtAsc(courseId)
+        val progressByLesson = lessonProgressRepository.findAllByAssignmentStageIdIn(listOf(stageId))
+            .associateBy { it.lessonId }
+            .toMutableMap()
+        val blockedBy = lessons.firstOrNull { previous ->
+            previous.required && previous.order < lesson.order &&
+                progressByLesson[previous.id]?.completedAt == null
+        }
+        if (blockedBy != null) {
+            conflict("Сначала завершите урок «${blockedBy.title}»")
+        }
+
+        val now = Instant.now()
+        val progress = progressByLesson[lesson.id] ?: TrainingLessonProgressEntity(
+            assignmentId = assignment.id,
+            assignmentStageId = assignmentStage.id,
+            lessonId = lesson.id,
+            startedAt = now,
+        )
+        val requestedProgress = maxOf(progress.progressPct, req.progressPct)
+        if (lesson.kind == CourseLessonKind.video && lesson.durationMin > 0 && requestedProgress > progress.progressPct) {
+            val elapsedSeconds = Duration.between(progress.startedAt, now).seconds.coerceAtLeast(0)
+            val durationSeconds = lesson.durationMin.toLong() * 60L
+            val allowedProgress = (((elapsedSeconds + videoProgressGraceSeconds) * 100L) / durationSeconds)
+                .toInt()
+                .coerceIn(0, 100)
+            if (requestedProgress > allowedProgress) {
+                conflict("Видео ещё не просмотрено: сейчас можно сохранить до $allowedProgress%")
+            }
+        }
+        progress.progressPct = requestedProgress
+        progress.lastPositionSeconds = maxOf(progress.lastPositionSeconds, req.positionSeconds)
+        val completionThreshold = lessonCompletionThreshold(lesson.kind, lesson.minimumWatchPct)
+        if (progress.progressPct >= completionThreshold && progress.completedAt == null) {
+            progress.completedAt = now
+        }
+        lessonProgressRepository.save(progress)
+        progressByLesson[lesson.id] = progress
+
+        val requiredLessons = lessons.filter { it.required }
+        if (requiredLessons.isEmpty()) conflict("В онлайн-курсе нет обязательных уроков")
+        assignmentStage.progressPct = requiredLessons.map { requiredLesson ->
+            val threshold = lessonCompletionThreshold(requiredLesson.kind, requiredLesson.minimumWatchPct)
+            val saved = progressByLesson[requiredLesson.id]?.progressPct ?: 0
+            ((saved * 100) / threshold.coerceAtLeast(1)).coerceIn(0, 100)
+        }.average().roundToInt()
+        val allComplete = requiredLessons.all { progressByLesson[it.id]?.completedAt != null }
+        assignmentStage.status = when {
+            allComplete && programStage.manualReview -> TrainingStageStatus.waiting_review
+            allComplete -> TrainingStageStatus.completed
+            assignmentStage.progressPct > 0 -> TrainingStageStatus.in_progress
+            else -> TrainingStageStatus.available
+        }
+        assignmentStage.completedAt = if (allComplete && !programStage.manualReview) now else null
+        if (assignment.startedAt == null) assignment.startedAt = now
+        if (assignmentStage.startedAt == null) assignmentStage.startedAt = now
+        assignmentStageRepository.save(assignmentStage)
+        unlockDependentStages(assignment, programStage.stageKey)
+        recalculateAssignment(assignment)
+        audit(
+            pharmacistId,
+            "pharmacist",
+            "lesson_progress_updated",
+            "training_lesson_progress",
+            progress.id.toString(),
+            mapOf("lessonId" to lesson.id, "progress" to progress.progressPct),
+        )
+        return mapAssignments(listOf(assignment)).single()
+    }
+
+    @Transactional
+    fun submitLessonQuiz(
+        pharmacistId: String,
+        assignmentId: UUID,
+        stageId: UUID,
+        lessonId: String,
+        req: QuizSubmissionRequest,
+    ): QuizSubmissionResultDto {
+        val assignment = loadOwnedAssignment(pharmacistId, assignmentId)
+        if (assignment.status in setOf(TrainingAssignmentStatus.completed, TrainingAssignmentStatus.cancelled)) {
+            conflict("Завершённое или отменённое назначение нельзя изменять")
+        }
+        val assignmentStage = assignmentStageRepository.findById(stageId).orElseThrow {
+            AppException(ErrorCode.NOT_FOUND, "Этап назначения не найден", HttpStatus.NOT_FOUND)
+        }
+        if (assignmentStage.assignmentId != assignmentId) badRequest("Этап относится к другому назначению")
+        if (assignmentStage.status == TrainingStageStatus.locked) {
+            conflict("Предыдущий обязательный этап ещё не завершён")
+        }
+        val programStage = programStageRepository.findById(assignmentStage.programStageId).orElseThrow()
+        if (programStage.type != TrainingStageType.online_course) {
+            badRequest("Тест урока доступен только для этапа онлайн-курса")
+        }
+        val version = versionRepository.findById(assignment.programVersionId).orElseThrow()
+        val courseId = version.onlineCourseId ?: conflict("К программе не привязан онлайн-курс")
+        val lesson = courseLessonRepository.findById(lessonId).orElseThrow {
+            AppException(ErrorCode.NOT_FOUND, "Урок не найден", HttpStatus.NOT_FOUND)
+        }
+        if (lesson.courseId != courseId) badRequest("Урок относится к другому курсу")
+        if (lesson.kind !in setOf(CourseLessonKind.quiz, CourseLessonKind.test)) {
+            badRequest("Этот урок не является тестом")
+        }
+        if (lesson.quizQuestions.isEmpty()) conflict("В тесте нет вопросов")
+
+        val questionIds = lesson.quizQuestions.map { it.id }.toSet()
+        if (req.answers.keys != questionIds) badRequest("Ответьте на все вопросы теста")
+        lesson.quizQuestions.forEach { question ->
+            val answer = req.answers.getValue(question.id)
+            if (answer !in question.options.indices) badRequest("Некорректный вариант ответа")
+        }
+
+        val questionResults = lesson.quizQuestions.map { question ->
+            QuizQuestionResultDto(
+                questionId = question.id,
+                correct = req.answers.getValue(question.id) == question.correctOption,
+                correctOption = question.correctOption,
+                explanation = question.explanation,
+            )
+        }
+        val correctAnswers = questionResults.count { it.correct }
+        val score = ((correctAnswers * 100.0) / lesson.quizQuestions.size).roundToInt()
+        val passed = score >= lesson.quizPassingScore
+        val now = Instant.now()
+        val progress = lessonProgressRepository.findByAssignmentStageIdAndLessonId(stageId, lessonId)
+            ?: TrainingLessonProgressEntity(
+                assignmentId = assignment.id,
+                assignmentStageId = assignmentStage.id,
+                lessonId = lesson.id,
+                startedAt = now,
+            )
+        progress.quizAttempts += 1
+        progress.quizScore = maxOf(progress.quizScore ?: 0, score)
+        lessonProgressRepository.save(progress)
+        if (assignment.startedAt == null) assignment.startedAt = now
+        if (assignmentStage.startedAt == null) assignmentStage.startedAt = now
+        assignmentRepository.save(assignment)
+        assignmentStageRepository.save(assignmentStage)
+
+        val updatedAssignment = if (passed) {
+            updateLessonProgressInternal(
+                pharmacistId,
+                assignmentId,
+                stageId,
+                lessonId,
+                LessonProgressRequest(progressPct = 100),
+                allowQuizCompletion = true,
+            )
+        } else {
+            mapAssignments(listOf(assignment)).single()
+        }
+        audit(
+            pharmacistId,
+            "pharmacist",
+            "lesson_quiz_submitted",
+            "training_lesson_progress",
+            progress.id.toString(),
+            mapOf("lessonId" to lesson.id, "score" to score, "passed" to passed),
+        )
+        return QuizSubmissionResultDto(
+            score = score,
+            passed = passed,
+            correctAnswers = correctAnswers,
+            totalQuestions = lesson.quizQuestions.size,
+            attempt = progress.quizAttempts,
+            questions = questionResults,
+            assignment = updatedAssignment,
+        )
+    }
+
+    private fun lessonCompletionThreshold(kind: CourseLessonKind, configured: Int?): Int =
+        if (kind == CourseLessonKind.video) (configured ?: 80).coerceIn(1, 100) else 100
 
     @Transactional
     fun recordAssessmentResult(
@@ -1226,6 +1520,31 @@ class TrainingService(
     fun checkInEvent(pharmacistId: String, qrToken: UUID): TrainingAssignmentDto {
         val event = eventRepository.findByQrToken(qrToken)
             ?: throw AppException(ErrorCode.NOT_FOUND, "QR-код события не найден", HttpStatus.NOT_FOUND)
+        return confirmEventAttendance(
+            pharmacistId,
+            event,
+            kz.epharm.training.domain.AttendanceMethod.qr,
+        )
+    }
+
+    @Transactional
+    fun checkInEventByCode(pharmacistId: String, rawCode: String): TrainingAssignmentDto {
+        val code = rawCode.filter(Char::isDigit)
+        if (code.length != 6) badRequest("Код мероприятия состоит из 6 цифр")
+        val event = eventRepository.findByCheckInCode(code)
+            ?: throw AppException(ErrorCode.NOT_FOUND, "Код мероприятия не найден", HttpStatus.NOT_FOUND)
+        return confirmEventAttendance(
+            pharmacistId,
+            event,
+            kz.epharm.training.domain.AttendanceMethod.code,
+        )
+    }
+
+    private fun confirmEventAttendance(
+        pharmacistId: String,
+        event: OfflineEventEntity,
+        method: kz.epharm.training.domain.AttendanceMethod,
+    ): TrainingAssignmentDto {
         val now = Instant.now()
         if (now.isBefore(event.startsAt.minusSeconds(7_200)) || now.isAfter(event.endsAt.plusSeconds(3_600))) {
             conflict("Отметка доступна за 2 часа до начала и до часа после завершения события")
@@ -1233,7 +1552,7 @@ class TrainingService(
         val participant = participantRepository.findByEventIdAndPharmacistId(event.id, pharmacistId)
             ?: forbidden("Фармацевт не зарегистрирован на это событие")
         participant.status = EventParticipantStatus.attended
-        participant.checkMethod = kz.epharm.training.domain.AttendanceMethod.qr
+        participant.checkMethod = method
         participant.checkedInAt = now
         participantRepository.save(participant)
         val assignment = loadOwnedAssignment(pharmacistId, participant.assignmentId)
@@ -1246,7 +1565,14 @@ class TrainingService(
             eventType = "training_attendance_confirmed",
             payload = mapOf("event" to event.title),
         )
-        audit(pharmacistId, "pharmacist", "event_qr_check_in", "offline_event", event.id.toString())
+        audit(
+            pharmacistId,
+            "pharmacist",
+            "event_check_in",
+            "offline_event",
+            event.id.toString(),
+            mapOf("method" to method.name),
+        )
         return mapAssignments(listOf(assignment)).single()
     }
 
@@ -1276,6 +1602,13 @@ class TrainingService(
             expiresAt = certificate.expiresAt,
             score = certificate.score,
             signerName = certificate.signerName,
+            partnerCompanyName = program.manufacturer.ifBlank {
+                program.brand.ifBlank { "Компания-партнёр" }
+            },
+            coverUrl = program.coverUrl,
+            epharmLogoUrl = program.certificateEpharmLogoUrl,
+            partnerLogoUrl = program.certificatePartnerLogoUrl,
+            templateName = program.certificateTemplate,
             status = status,
             valid = status == kz.epharm.training.domain.CertificateStatus.valid,
         )
@@ -1692,7 +2025,12 @@ class TrainingService(
                 pharmacistId = assignment.pharmacistId,
                 programVersionId = version.id,
                 issuedAt = now,
+                expiresAt = now.atZone(ZoneId.of("Asia/Almaty"))
+                    .plusMonths(program.certificateValidityMonths.toLong())
+                    .toInstant(),
                 score = assignment.score,
+                signerName = program.certificateSignerName,
+                templateName = program.certificateTemplate,
             ).also { it.format = assignment.format }
             certificateRepository.save(certificate)
         }
@@ -1736,6 +2074,11 @@ class TrainingService(
             shortDescription = program.shortDescription,
             description = program.description,
             coverUrl = program.coverUrl,
+            certificateEpharmLogoUrl = program.certificateEpharmLogoUrl,
+            certificatePartnerLogoUrl = program.certificatePartnerLogoUrl,
+            certificateSignerName = program.certificateSignerName,
+            certificateValidityMonths = program.certificateValidityMonths,
+            certificateTemplate = program.certificateTemplate,
             category = program.category,
             manufacturer = program.manufacturer,
             brand = program.brand,
@@ -1862,6 +2205,10 @@ class TrainingService(
         ).associateBy { it.id }
         val rowIds = rows.map { it.id }
         val assignmentStages = assignmentStageRepository.findAllByAssignmentIdIn(rowIds).groupBy { it.assignmentId }
+        val lessonProgress = lessonProgressRepository.findAllByAssignmentStageIdIn(
+            assignmentStages.values.flatten().map { it.id },
+        ).groupBy { it.assignmentStageId }
+            .mapValues { (_, values) -> values.associateBy { it.lessonId } }
         val certificates = certificateRepository.findAllByAssignmentIdIn(rowIds).associateBy { it.assignmentId }
         val rewards = rewardRepository.findAllByAssignmentIdIn(rowIds).associateBy { it.assignmentId }
         return rows.map { assignment ->
@@ -1880,10 +2227,24 @@ class TrainingService(
                         null
                     }
                     val courseContent = course?.let {
-                        CourseContentDto.of(
+                        val base = CourseContentDto.of(
                             it,
                             courseLessons[it.id].orEmpty(),
                             courseAttachments,
+                        )
+                        val progressByLesson = lessonProgress[row.id].orEmpty()
+                        base.copy(
+                            lessons = base.lessons.map { lesson ->
+                                val progress = progressByLesson[lesson.id]
+                                lesson.copy(
+                                    progressPct = progress?.progressPct ?: 0,
+                                    lastPositionSeconds = progress?.lastPositionSeconds ?: 0,
+                                    startedAt = progress?.startedAt,
+                                    completedAt = progress?.completedAt,
+                                    quizScore = progress?.quizScore,
+                                    quizAttempts = progress?.quizAttempts ?: 0,
+                                )
+                            },
                         )
                     }
                     TrainingAssignmentStageDto(
@@ -1939,16 +2300,25 @@ class TrainingService(
         }
     }
 
-    private fun eventSummary(event: OfflineEventEntity) = OfflineEventSummaryDto(
-        id = event.id,
-        title = event.title,
-        startsAt = event.startsAt,
-        endsAt = event.endsAt,
-        timezone = event.timezone,
-        city = event.city,
-        address = event.address,
-        status = event.status,
-    )
+    private fun eventSummary(event: OfflineEventEntity): OfflineEventSummaryDto {
+        val occupied = participantRepository.countByEventIdAndStatusRawIn(
+            event.id,
+            activeParticipantStatusNames(),
+        )
+        return OfflineEventSummaryDto(
+            id = event.id,
+            title = event.title,
+            startsAt = event.startsAt,
+            endsAt = event.endsAt,
+            timezone = event.timezone,
+            city = event.city,
+            address = event.address,
+            mapUrl = event.mapUrl,
+            capacity = event.capacity,
+            occupied = occupied,
+            status = event.status,
+        )
+    }
 
     private fun certificateDto(row: TrainingCertificateEntity): TrainingCertificateDto {
         val pharmacist = loadPharmacist(row.pharmacistId)

@@ -23,7 +23,10 @@ import 'training_ui.dart';
 enum _TrainingFilter { active, completed, all }
 
 class TrainingScreen extends ConsumerStatefulWidget {
-  const TrainingScreen({super.key});
+  const TrainingScreen({super.key, this.embedded = false});
+
+  /// When true the screen is rendered inside the five-tab pharmacist shell.
+  final bool embedded;
 
   @override
   ConsumerState<TrainingScreen> createState() => _TrainingScreenState();
@@ -31,19 +34,35 @@ class TrainingScreen extends ConsumerStatefulWidget {
 
 class _TrainingScreenState extends ConsumerState<TrainingScreen> {
   _TrainingFilter _filter = _TrainingFilter.active;
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
-    return ProfilePageScaffold(
-      title: 'Обучение',
-      child: user == null
-          ? _LoginRequired(onLogin: () => context.go('/auth/phone'))
-          : _buildAuthenticated(),
-    );
+    final content = user == null
+        ? _LoginRequired(
+            onLogin: () => context.go(
+              Uri(
+                path: '/auth/phone',
+                queryParameters: const {'next': '/training'},
+              ).toString(),
+            ),
+          )
+        : _buildAuthenticated(user.fio);
+    if (widget.embedded) {
+      return ColoredBox(color: AppColors.paperCanvas, child: content);
+    }
+    return ProfilePageScaffold(title: 'Обучение', child: content);
   }
 
-  Widget _buildAuthenticated() {
+  Widget _buildAuthenticated(String fullName) {
     final overview = ref.watch(trainingOverviewProvider);
     return overview.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -58,118 +77,267 @@ class _TrainingScreenState extends ConsumerState<TrainingScreen> {
               .toList(),
           _TrainingFilter.completed =>
             data.assignments.where((item) => item.isCompleted).toList(),
-          _TrainingFilter.all => data.assignments,
+          _TrainingFilter.all => List<TrainingAssignment>.of(data.assignments),
         };
-        return RefreshIndicator(
-          color: AppColors.brandGreen700,
-          onRefresh: () async {
-            ref.invalidate(trainingOverviewProvider);
-            await ref.read(trainingOverviewProvider.future);
-          },
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.screenEdge,
-              0,
-              AppSpacing.screenEdge,
-              AppSpacing.s32,
-            ),
-            children: [
-              _MetricsPanel(overview: data),
-              const SizedBox(height: AppSpacing.s12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _scanEventQr,
-                  icon: const Icon(Icons.qr_code_scanner_rounded),
-                  label: const Text('Отметить посещение'),
-                ),
+        assignments.sort(_compareAssignments);
+        final visibleAssignments = _query.trim().isEmpty
+            ? assignments
+            : assignments.where(_matchesQuery).toList(growable: false);
+        TrainingAssignment? primary;
+        if (_query.trim().isEmpty && assignments.isNotEmpty) {
+          primary = assignments.first;
+          for (final assignment in assignments) {
+            if (assignment.required) {
+              primary = assignment;
+              break;
+            }
+          }
+        }
+        final featuredAssignment = primary;
+        final listAssignments =
+            _query.trim().isEmpty && featuredAssignment != null
+                ? visibleAssignments
+                    .where((item) => item.id != featuredAssignment.id)
+                    .toList()
+                : visibleAssignments;
+        final nameParts = fullName.trim().split(RegExp(r'\s+'));
+        final firstName = nameParts.isEmpty || nameParts.first.isEmpty
+            ? 'фармацевт'
+            : nameParts.first;
+        return Column(
+          children: [
+            if (widget.embedded)
+              _TrainingHero(
+                firstName: firstName,
+                taskCount: assignments.length,
               ),
-              if (data.notifications.isNotEmpty) ...[
-                const SizedBox(height: AppSpacing.s24),
-                const _SectionTitle(title: 'Уведомления'),
-                const SizedBox(height: AppSpacing.s12),
-                ...data.notifications.take(5).map(
-                      (notification) => Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.s8),
-                        child: _NotificationCard(
-                          notification: notification,
-                          onTap: () => _openNotification(notification),
+            Expanded(
+              child: RefreshIndicator(
+                color: AppColors.brandGreen700,
+                onRefresh: () async {
+                  ref.invalidate(trainingOverviewProvider);
+                  await ref.read(trainingOverviewProvider.future);
+                },
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.screenEdge,
+                    AppSpacing.s24,
+                    AppSpacing.screenEdge,
+                    AppSpacing.s32,
+                  ),
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                            child: Text('Моё обучение',
+                                style: AppTypography.h2())),
+                        OutlinedButton.icon(
+                          onPressed: _scanEventQr,
+                          icon: const Icon(Icons.qr_code_scanner_rounded,
+                              size: 19),
+                          label: const Text('QR посещения'),
+                        ),
+                      ],
+                    ),
+                    if (featuredAssignment != null) ...[
+                      const SizedBox(height: AppSpacing.s16),
+                      _LearningJourneyCard(
+                        assignment: featuredAssignment,
+                        onOpen: () => _openAssignment(featuredAssignment.id),
+                      ),
+                    ],
+                    if (data.notifications.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.s24),
+                      const _SectionTitle(title: 'Уведомления'),
+                      const SizedBox(height: AppSpacing.s12),
+                      ...data.notifications.take(5).map(
+                            (notification) => Padding(
+                              padding:
+                                  const EdgeInsets.only(bottom: AppSpacing.s8),
+                              child: _NotificationCard(
+                                notification: notification,
+                                onTap: () => _openNotification(notification),
+                              ),
+                            ),
+                          ),
+                    ],
+                    if (data.upcomingEvents.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.s24),
+                      const _SectionTitle(title: 'Ближайшие события'),
+                      const SizedBox(height: AppSpacing.s12),
+                      ...data.upcomingEvents.map(
+                        (event) => Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.s8),
+                          child: _EventCard(event: event),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: AppSpacing.s24),
+                    const _SectionTitle(title: 'Все программы'),
+                    const SizedBox(height: AppSpacing.s12),
+                    TextField(
+                      controller: _searchController,
+                      textInputAction: TextInputAction.search,
+                      onChanged: (value) => setState(() => _query = value),
+                      decoration: InputDecoration(
+                        hintText: 'Найти программу',
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        suffixIcon: _query.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: 'Очистить поиск',
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _query = '');
+                                },
+                                icon: const Icon(Icons.close_rounded),
+                              ),
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: AppRadii.brLg,
+                          borderSide: const BorderSide(
+                            color: AppColors.borderHairline,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: AppRadii.brLg,
+                          borderSide: const BorderSide(
+                            color: AppColors.borderHairline,
+                          ),
                         ),
                       ),
                     ),
-              ],
-              if (data.upcomingEvents.isNotEmpty) ...[
-                const SizedBox(height: AppSpacing.s24),
-                const _SectionTitle(title: 'Ближайшие события'),
-                const SizedBox(height: AppSpacing.s12),
-                ...data.upcomingEvents.map(
-                  (event) => Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.s8),
-                    child: _EventCard(event: event),
-                  ),
-                ),
-              ],
-              const SizedBox(height: AppSpacing.s24),
-              const _SectionTitle(title: 'Мои программы'),
-              const SizedBox(height: AppSpacing.s12),
-              SizedBox(
-                width: double.infinity,
-                child: SegmentedButton<_TrainingFilter>(
-                  segments: const [
-                    ButtonSegment(
-                        value: _TrainingFilter.active, label: Text('Активные')),
-                    ButtonSegment(
-                        value: _TrainingFilter.completed,
-                        label: Text('Завершённые')),
-                    ButtonSegment(
-                        value: _TrainingFilter.all, label: Text('Все')),
+                    const SizedBox(height: AppSpacing.s12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<_TrainingFilter>(
+                        segments: const [
+                          ButtonSegment(
+                              value: _TrainingFilter.active,
+                              label: Text('Активные')),
+                          ButtonSegment(
+                              value: _TrainingFilter.completed,
+                              label: Text('Завершённые')),
+                          ButtonSegment(
+                              value: _TrainingFilter.all, label: Text('Все')),
+                        ],
+                        selected: {_filter},
+                        showSelectedIcon: false,
+                        onSelectionChanged: (selection) =>
+                            setState(() => _filter = selection.single),
+                        style: ButtonStyle(
+                          visualDensity: VisualDensity.compact,
+                          textStyle:
+                              WidgetStatePropertyAll(AppTypography.caption()),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.s12),
+                    if (listAssignments.isEmpty && featuredAssignment == null)
+                      _EmptyPrograms(searching: _query.trim().isNotEmpty)
+                    else
+                      ...listAssignments.map(
+                        (assignment) => Padding(
+                          padding:
+                              const EdgeInsets.only(bottom: AppSpacing.s12),
+                          child: _AssignmentCard(
+                            assignment: assignment,
+                            onTap: () => _openAssignment(assignment.id),
+                          ),
+                        ),
+                      ),
+                    if (data.certificates.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.s16),
+                      const _SectionTitle(title: 'Сертификаты'),
+                      const SizedBox(height: AppSpacing.s12),
+                      ...data.certificates.map(
+                        (certificate) => Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.s8),
+                          child: _CertificateRow(
+                            certificate: certificate,
+                            onOpen: certificate.pdfUrl == null
+                                ? null
+                                : () => _openCertificate(certificate.pdfUrl!),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
-                  selected: {_filter},
-                  showSelectedIcon: false,
-                  onSelectionChanged: (selection) =>
-                      setState(() => _filter = selection.single),
-                  style: ButtonStyle(
-                    visualDensity: VisualDensity.compact,
-                    textStyle: WidgetStatePropertyAll(AppTypography.caption()),
-                  ),
                 ),
               ),
-              const SizedBox(height: AppSpacing.s12),
-              if (assignments.isEmpty)
-                const _EmptyPrograms()
-              else
-                ...assignments.map(
-                  (assignment) => Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.s12),
-                    child: _AssignmentCard(
-                      assignment: assignment,
-                      onTap: () => _openAssignment(assignment.id),
-                    ),
-                  ),
-                ),
-              if (data.certificates.isNotEmpty) ...[
-                const SizedBox(height: AppSpacing.s16),
-                const _SectionTitle(title: 'Сертификаты'),
-                const SizedBox(height: AppSpacing.s12),
-                ...data.certificates.map(
-                  (certificate) => Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.s8),
-                    child: _CertificateRow(
-                      certificate: certificate,
-                      onOpen: certificate.pdfUrl == null
-                          ? null
-                          : () => _openCertificate(certificate.pdfUrl!),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
+            ),
+          ],
         );
       },
     );
   }
+
+  bool _matchesQuery(TrainingAssignment assignment) {
+    final query = _query.trim().toLowerCase();
+    return <String>[
+      assignment.programName,
+      assignment.shortDescription,
+      assignment.pharmacyName,
+      assignment.city,
+    ].any((value) => value.toLowerCase().contains(query));
+  }
+
+  int _compareAssignments(
+    TrainingAssignment left,
+    TrainingAssignment right,
+  ) {
+    if (_filter == _TrainingFilter.completed) {
+      final byCompletion = _dateDescending(
+        left.completedAt,
+        right.completedAt,
+      );
+      if (byCompletion != 0) return byCompletion;
+    }
+
+    final byStatus = _statusRank(left).compareTo(_statusRank(right));
+    if (byStatus != 0) return byStatus;
+    final byPriority = _priorityRank(left.priority).compareTo(
+      _priorityRank(right.priority),
+    );
+    if (byPriority != 0) return byPriority;
+    final byDeadline = _dateAscending(left.dueAt, right.dueAt);
+    if (byDeadline != 0) return byDeadline;
+    return left.programName.compareTo(right.programName);
+  }
+
+  int _statusRank(TrainingAssignment assignment) => switch (assignment.status) {
+        TrainingAssignmentStatus.overdue => 0,
+        TrainingAssignmentStatus.retakeRequired => 1,
+        TrainingAssignmentStatus.inProgress ||
+        TrainingAssignmentStatus.waitingOnline ||
+        TrainingAssignmentStatus.waitingTest ||
+        TrainingAssignmentStatus.waitingExam ||
+        TrainingAssignmentStatus.waitingEventSelection ||
+        TrainingAssignmentStatus.waitingOffline ||
+        TrainingAssignmentStatus.waitingAttendance ||
+        TrainingAssignmentStatus.waitingReview =>
+          2,
+        _ => 3,
+      };
+
+  int _priorityRank(TrainingPriority priority) => switch (priority) {
+        TrainingPriority.critical => 0,
+        TrainingPriority.high => 1,
+        TrainingPriority.normal => 2,
+        TrainingPriority.low => 3,
+      };
+
+  int _dateAscending(DateTime? left, DateTime? right) {
+    if (left == null && right == null) return 0;
+    if (left == null) return 1;
+    if (right == null) return -1;
+    return left.compareTo(right);
+  }
+
+  int _dateDescending(DateTime? left, DateTime? right) =>
+      _dateAscending(right, left);
 
   Future<void> _openAssignment(String assignmentId) async {
     await Navigator.of(context).push<void>(
@@ -220,60 +388,275 @@ class _TrainingScreenState extends ConsumerState<TrainingScreen> {
   }
 }
 
-class _MetricsPanel extends StatelessWidget {
-  const _MetricsPanel({required this.overview});
+class _TrainingHero extends StatelessWidget {
+  const _TrainingHero({required this.firstName, required this.taskCount});
 
-  final TrainingOverview overview;
+  final String firstName;
+  final int taskCount;
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+        color: AppColors.brandGreen700,
+        child: SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenEdge,
+              AppSpacing.s16,
+              AppSpacing.screenEdge,
+              AppSpacing.s24,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text('ePharm',
+                        style: AppTypography.h2(color: Colors.white)),
+                    const Spacer(),
+                    Container(
+                      width: 44,
+                      height: 44,
+                      alignment: Alignment.center,
+                      decoration: const BoxDecoration(
+                        color: AppColors.brandGreen100,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        firstName.characters.first.toUpperCase(),
+                        style: AppTypography.bodyStrong(
+                            color: AppColors.brandGreen700),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.s20),
+                Text(
+                  '$firstName, сегодня $taskCount ${_taskWord(taskCount)}',
+                  style: AppTypography.h1(color: Colors.white),
+                ),
+                const SizedBox(height: AppSpacing.s8),
+                Text(
+                  'Продолжайте обучение и развивайтесь вместе с ePharm',
+                  style: AppTypography.body14(
+                    color: Colors.white.withValues(alpha: 0.78),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+  static String _taskWord(int value) {
+    final tail = value % 100;
+    if (tail >= 11 && tail <= 14) return 'задач';
+    return switch (value % 10) {
+      1 => 'задача',
+      2 || 3 || 4 => 'задачи',
+      _ => 'задач',
+    };
+  }
+}
+
+class _LearningJourneyCard extends StatelessWidget {
+  const _LearningJourneyCard({required this.assignment, required this.onOpen});
+
+  final TrainingAssignment assignment;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.s16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: AppRadii.brLg,
-        boxShadow: AppShadows.card,
-      ),
-      child: Row(
-        children: [
-          _Metric(value: overview.total, label: 'Всего'),
-          _Metric(value: overview.inProgress, label: 'В работе'),
-          _Metric(value: overview.completed, label: 'Пройдено'),
-          _Metric(
-              value: overview.overdue,
-              label: 'Просрочено',
-              danger: overview.overdue > 0),
+    final stages = assignment.stages;
+    final currentStageIndex = stages.indexWhere(
+      (stage) =>
+          stage.status != TrainingStageStatus.completed &&
+          stage.status != TrainingStageStatus.skipped,
+    );
+    final currentNumber =
+        currentStageIndex < 0 ? stages.length : currentStageIndex + 1;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (assignment.required || assignment.dueAt != null)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.s16, vertical: AppSpacing.s12),
+            decoration: const BoxDecoration(
+              color: AppColors.brandBlue100,
+              borderRadius: AppRadii.brMd,
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.schedule_rounded,
+                    color: AppColors.brandBlue700, size: 21),
+                const SizedBox(width: AppSpacing.s8),
+                Expanded(
+                  child: Text(
+                    assignment.required
+                        ? 'Обязательный курс'
+                        : 'Срок прохождения',
+                    style: AppTypography.body14(color: AppColors.ink700),
+                  ),
+                ),
+                if (assignment.dueAt != null)
+                  Text(
+                    'до ${trainingDate(assignment.dueAt)}',
+                    style: AppTypography.caption(color: AppColors.brandBlue700),
+                  ),
+              ],
+            ),
+          ),
+        const SizedBox(height: AppSpacing.s12),
+        Container(
+          padding: const EdgeInsets.all(AppSpacing.s20),
+          decoration: BoxDecoration(
+            color: AppColors.brandGreen100,
+            borderRadius: AppRadii.brXl,
+            border: Border.all(
+                color: AppColors.brandGreen400.withValues(alpha: 0.35)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'ТЕКУЩИЙ КУРС',
+                style: AppTypography.micro(color: AppColors.brandGreen700)
+                    .copyWith(letterSpacing: 1.1),
+              ),
+              const SizedBox(height: AppSpacing.s8),
+              Text(assignment.programName, style: AppTypography.h2()),
+              if (assignment.shortDescription.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.s4),
+                Text(
+                  assignment.shortDescription,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.body14(color: AppColors.ink500),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.s12),
+              Wrap(
+                spacing: AppSpacing.s8,
+                runSpacing: AppSpacing.s8,
+                children: [
+                  _Tag(
+                    label: assignmentStatusLabel(assignment.status),
+                    color: trainingStatusColor(assignment.status),
+                  ),
+                  if (stages.isNotEmpty)
+                    _Tag(
+                      label: 'Этап $currentNumber из ${stages.length}',
+                      color: AppColors.brandGreen700,
+                    ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.s16),
+              Row(
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: AppRadii.brFull,
+                      child: LinearProgressIndicator(
+                        value: assignment.progressPct / 100,
+                        minHeight: 8,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.s12),
+                  Text(
+                    '${assignment.progressPct}%',
+                    style: AppTypography.bodyStrong(
+                        color: AppColors.brandGreen700),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.s20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: onOpen,
+                  child: Text(assignment.progressPct > 0
+                      ? 'Продолжить'
+                      : 'Начать обучение'),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (stages.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.s12),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: AppRadii.brLg,
+              border: Border.all(color: AppColors.borderHairline),
+            ),
+            child: Column(
+              children: [
+                for (var index = 0;
+                    index < stages.length && index < 4;
+                    index++) ...[
+                  _JourneyStageRow(
+                    stage: stages[index],
+                    current: index == currentStageIndex,
+                  ),
+                  if (index < stages.length - 1 && index < 3) const Divider(),
+                ],
+              ],
+            ),
+          ),
         ],
-      ),
+      ],
     );
   }
 }
 
-class _Metric extends StatelessWidget {
-  const _Metric(
-      {required this.value, required this.label, this.danger = false});
+class _JourneyStageRow extends StatelessWidget {
+  const _JourneyStageRow({required this.stage, required this.current});
 
-  final int value;
-  final String label;
-  final bool danger;
+  final TrainingStage stage;
+  final bool current;
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '$value',
-            style: AppTypography.h2(
-              color: danger ? const Color(0xFFB63F3F) : AppColors.ink900,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(label,
-              style: AppTypography.micro(), textAlign: TextAlign.center),
-        ],
+    final completed = stage.status == TrainingStageStatus.completed ||
+        stage.status == TrainingStageStatus.skipped;
+    final locked = stage.status == TrainingStageStatus.locked;
+    final color =
+        completed || current ? AppColors.brandGreen700 : AppColors.ink400;
+    return ListTile(
+      minTileHeight: 68,
+      leading: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: completed || current
+              ? AppColors.brandGreen100
+              : AppColors.paperInput,
+          shape: BoxShape.circle,
+        ),
+        alignment: Alignment.center,
+        child: Icon(
+          completed
+              ? Icons.check_rounded
+              : locked
+                  ? Icons.lock_outline_rounded
+                  : stageIcon(stage.type),
+          color: color,
+          size: 21,
+        ),
       ),
+      title: Text(stage.title,
+          style: AppTypography.bodyStrong(
+              color: locked ? AppColors.ink500 : AppColors.ink900)),
+      subtitle: Text(
+        current ? 'Текущий этап' : stageStatusLabel(stage.status),
+        style: AppTypography.captionSmall(color: color),
+      ),
+      trailing: Icon(Icons.chevron_right_rounded,
+          color: locked ? AppColors.ink300 : AppColors.ink400),
     );
   }
 }
@@ -455,6 +838,11 @@ class _EventCard extends StatelessWidget {
                           .join(', '),
                       style: AppTypography.caption(),
                     ),
+                  if (event.capacity > 0)
+                    Text(
+                      'Свободно мест: ${event.availableSeats} из ${event.capacity}',
+                      style: AppTypography.captionSmall(),
+                    ),
                 ],
               ),
             ),
@@ -581,7 +969,9 @@ class _CertificateRow extends StatelessWidget {
 }
 
 class _EmptyPrograms extends StatelessWidget {
-  const _EmptyPrograms();
+  const _EmptyPrograms({this.searching = false});
+
+  final bool searching;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -595,8 +985,12 @@ class _EmptyPrograms extends StatelessWidget {
             const Icon(Icons.school_outlined,
                 size: 36, color: AppColors.ink400),
             const SizedBox(height: AppSpacing.s8),
-            Text('В этой группе программ пока нет',
-                style: AppTypography.body14(), textAlign: TextAlign.center),
+            Text(
+                searching
+                    ? 'По вашему запросу ничего не найдено'
+                    : 'В этой группе программ пока нет',
+                style: AppTypography.body14(),
+                textAlign: TextAlign.center),
           ],
         ),
       );

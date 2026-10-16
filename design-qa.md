@@ -1,66 +1,51 @@
-# Design QA — training workspace sidebar
+# Design QA — сертификат ePharm, вариант 3
 
-## Evidence
+- Source visual truth: `C:/Users/vgrus/.codex/generated_images/01a0c7eb-9268-7271-b30a-568047e8aac4/exec-e935887d-f661-4c38-827e-d6c862745b17.png`
+- Final PDF render: `C:/Users/vgrus/Documents/Codex/2026-09-22/aldiyar-kapassov-22-09-2026-11/work/epharm-tz/tmp/pdfs/certificate-preview-final-v3.png`
+- Full and focused comparison: `C:/Users/vgrus/Documents/Codex/2026-09-22/aldiyar-kapassov-22-09-2026-11/work/epharm-tz/tmp/pdfs/certificate-redesign-comparison-final.png`
+- Browser preview: `http://127.0.0.1:4173/__dev/certificate-editor`
+- Browser viewport: 1280 × 720 CSS px, device scale factor 1.
+- Source pixels: 1491 × 1055. PDF render: 1754 × 1241. Both were normalized to 1100 × 778 pixels for comparison.
+- State: completed online course, 100% result, participant/program/partner values populated, verification QR generated.
 
-- Source visual truth: `/Users/amir/Desktop/Screenshot 2026-09-15 at 4.19.36 PM.png`
-  (the user-provided attachment in this task).
-- Browser-rendered implementation: `admin-panel/frontend/docs/reports/training-sidebar-navigation.png`.
-- Viewport and CSS size: `1970 × 1315`; device scale factor: `1`.
-- Source pixels: `1970 × 1315`; implementation pixels: `1970 × 1315`.
-- Density normalization: none required; source and implementation use the same pixel dimensions.
-- State: authenticated `TRAINING_MANAGER`, `/lms?tab=courses`, «Онлайн-курсы» active.
-- Browser: project Playwright Chromium (`Desktop Chrome`).
+## Full-view comparison evidence
 
-## Findings
+The final PDF now follows the selected third concept: high-contrast dark-teal header, heavy Manrope display typography, clear participant and course hierarchy, separated verification rail, large pale score watermark, and a compact mint metadata footer. The course cover is integrated as a restrained header texture instead of competing with the body copy. Uploaded logo images occupy the two brand zones; the QA fixture uses transparent text logos to exercise image placement.
 
-No actionable P0, P1, or P2 differences remain.
+## Focused region comparison evidence
 
-- Information architecture: the source's nine visible LMS tabs and the existing tenth settings tab
-  are represented as first-class sidebar entries. The redundant generic «Обучение» entry and the
-  horizontal tab strip are absent in the dedicated training workspace.
-- Fonts and typography: existing Manrope tokens, weights, line heights, hierarchy, wrapping, and
-  antialiasing are preserved. The long «Результаты и экзамены» label remains readable without
-  clipping in the 280 px sidebar.
-- Spacing and layout rhythm: grouped 40 px navigation rows, compact group headings, consistent icon
-  alignment, and the existing page/card grid keep the denser sidebar scannable. All persistent
-  controls fit above the fold at the target viewport.
-- Colors and visual tokens: the warm dark sidebar, cream canvas, coral active rail/CTA, semantic
-  status chips, radii, and elevation use the project's existing design tokens.
-- Image quality and asset fidelity: the existing logo and project-native vector icon set are reused;
-  no source artwork, logo, or non-standard visual asset was replaced by a placeholder.
-- Copy and content: former tab labels are preserved; «Настройки обучения» is intentionally more
-  explicit in the sidebar, and each selected section receives a concise contextual subtitle.
+The combined comparison includes a body crop at the same scale. Participant, course title, QR, score, dividers, and footer remain legible and do not overlap. Course and participant strings wrap or fit within their allocated columns while the QR rail remains isolated.
 
-## Comparison evidence
+## Findings and comparison history
 
-- Full view: source and implementation were reviewed at identical `1970 × 1315` dimensions. The
-  requested structural change is visible without changing the table density, top bar, CTA placement,
-  canvas balance, or core page hierarchy.
-- Focused region: a separate crop was not needed because the full-resolution comparison keeps both
-  the complete sidebar labels/icons and the former source tab labels readable. The active
-  «Онлайн-курсы» state, coral rail, section grouping, and absence of the generic item were checked
-  directly.
+- P1 fixed — the initial generated PDF used a variable font at its default optical weight, making the title and identity hierarchy look weak.
+  - Fix: generated and embedded static Manrope Regular and ExtraBold instances, then assigned them by semantic role.
+  - Post-fix evidence: `certificate-preview-final-v3.png` shows clean heavy headings without synthetic outlines or joined glyphs.
+- P1 fixed — synthetic font strokes briefly made Cyrillic letters collide.
+  - Fix: removed outline-based weight simulation and rendered all display copy with the real ExtraBold font.
+  - Post-fix evidence: participant and course text have clean counters and spacing in the final render.
+- P2 fixed — the course cover appeared as a large pale rectangle behind the body.
+  - Fix: moved it into the dark header as a 16% opacity texture clipped to the rounded header.
+  - Post-fix evidence: the body is clean white while the uploaded course image remains represented.
+- P2 fixed — editor preview typography used viewport-width units, causing clipping and overlap when the certificate occupied only part of the modal.
+  - Fix: switched preview typography to container-query units and retained fixed A4 proportions.
+  - Post-fix evidence: the 1280 × 720 browser check shows complete FIO, course title, result, QR, and footer without collisions.
+- P3 accepted — the reference uses illustrated leaf symbols inside both logos; the implementation intentionally displays the actual uploaded logo files rather than recreating brand marks in code. The QA fixture therefore differs from the final customer assets.
 
-## Interaction and runtime checks
+## Required fidelity surfaces
 
-- Login as training manager and default `/lms` landing.
-- Visibility of all ten training destinations and absence of the generic «Обучение» button.
-- Programs and online-course navigation, URL deep links, active-state synchronization, and browser
-  Back navigation.
-- Training-manager write controls, HQ read-only behavior, AI Exam access, and redirect away from
-  unauthorized HQ routes.
-- Browser console errors: `0`; uncaught page errors: `0`.
+- Fonts and typography: static Manrope Regular/ExtraBold; hierarchy, wrapping, Cyrillic shapes, and optical weight verified.
+- Spacing and layout rhythm: A4 landscape grid, margins, header/rail/footer alignment, vertical rhythm, and container preview verified.
+- Colors and tokens: dark pharmacy teal, turquoise accent, mint footer, muted blue-gray text, and white body match the selected direction.
+- Image quality and asset fidelity: logos use uploaded PNG/JPG originals with aspect-preserving placement; the course cover is clipped and used as a subtle header texture.
+- Copy and content: participant FIO, program name, partner company, format, score, number, signer, issue date, expiry date, and QR verification remain visible.
 
-## Comparison history
+## Verification
 
-- Pass 1: no P0/P1/P2 visual or interaction findings. No corrective visual iteration was required.
-
-## Open questions
-
-None.
-
-## Follow-up polish
-
-None required for this scope.
+- Backend certificate rendering test: passed.
+- Frontend LMS tests: 23/23 passed.
+- Frontend production build: passed.
+- PDF: one unencrypted A4 landscape page, visually inspected from the final Poppler render.
+- Editor browser preview: checked at 1280 × 720; primary fields, upload controls, preview, and save action are visible.
 
 final result: passed

@@ -32,19 +32,19 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_1_8
+        jvmTarget = JavaVersion.VERSION_17
     }
 
     defaultConfig {
         applicationId = "kz.pharmacy.app"
-        // flutter_secure_storage (persist токенов) требует Android 6.0+ (API 23).
-        // Дефолтный flutter.minSdkVersion (21) ронял release-сборку APK.
-        minSdk = 23
+        // Flutter 3.44 uses API 24 as its supported Android baseline.
+        // This also satisfies flutter_secure_storage's runtime requirement.
+        minSdkVersion = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

@@ -20,7 +20,9 @@ import '../application/auth_controller.dart';
 import '../data/auth_repository.dart';
 
 class OtpScreen extends ConsumerStatefulWidget {
-  const OtpScreen({super.key});
+  const OtpScreen({super.key, this.nextPath});
+
+  final String? nextPath;
 
   @override
   ConsumerState<OtpScreen> createState() => _OtpScreenState();
@@ -80,7 +82,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       _error = null;
     });
     try {
-      await ref.read(authActionsProvider).sendOtp(phone);
+      await ref.read(authActionsProvider).sendActivationOtp(phone);
       if (!mounted) return;
       _controller.clear();
       setState(() {
@@ -88,6 +90,16 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
         _seconds = 60; // новый цикл ожидания
       });
     } on ApiException catch (e) {
+      if (e.code == 'CONFLICT' && mounted) {
+        context.go(
+          Uri(
+            path: '/auth/password',
+            queryParameters:
+                widget.nextPath == null ? null : {'next': widget.nextPath!},
+          ).toString(),
+        );
+        return;
+      }
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
       if (mounted) setState(() => _error = 'Ошибка сети. Попробуйте ещё раз.');
@@ -103,15 +115,28 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       _error = null;
     });
     try {
-      final outcome = await ref.read(authActionsProvider).verifyOtp(_code);
+      await ref.read(authActionsProvider).verifyActivationOtp(_code);
       if (!mounted) return;
-      // Существующий фармацевт → сразу домой; новый номер → экран ФИО+ИИН.
-      if (outcome == OtpOutcome.loggedIn) {
-        context.go('/home');
-      } else {
-        context.go('/auth/profile');
-      }
+      context.go(
+        Uri(
+          path: '/auth/password',
+          queryParameters: {
+            'create': '1',
+            if (widget.nextPath != null) 'next': widget.nextPath!,
+          },
+        ).toString(),
+      );
     } on ApiException catch (e) {
+      if (e.code == 'CONFLICT' && mounted) {
+        context.go(
+          Uri(
+            path: '/auth/password',
+            queryParameters:
+                widget.nextPath == null ? null : {'next': widget.nextPath!},
+          ).toString(),
+        );
+        return;
+      }
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
       if (mounted) setState(() => _error = 'Ошибка сети. Попробуйте ещё раз.');
@@ -164,141 +189,163 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                   bottom: -8,
                   child: PharmGlyph(size: 120),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 24, 0),
-                      child: Row(
+                Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 520),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          IconButton(
-                            onPressed: () => context.go('/auth/phone'),
-                            icon: const Icon(Icons.arrow_back,
-                                color: Colors.white),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 24, 0),
+                            child: Row(
+                              children: [
+                                IconButton(
+                                  tooltip: 'Назад',
+                                  onPressed: () => context.go(
+                                    Uri(
+                                      path: '/auth/activation-phone',
+                                      queryParameters: widget.nextPath == null
+                                          ? null
+                                          : {'next': widget.nextPath!},
+                                    ).toString(),
+                                  ),
+                                  icon: const Icon(
+                                    Icons.arrow_back,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const PharmaLogo(size: 48),
+                              ],
+                            ),
                           ),
-                          const SizedBox(width: 4),
-                          const PharmaLogo(size: 48),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.s24),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: AppSpacing.s24),
-                      child: Text(
-                        'Введите код из смс 💬',
-                        style: TextStyle(
-                          fontFamily: 'Manrope',
-                          fontSize: 26,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          height: 1.1,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.s24),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.s24,
-                      ),
-                      child: Text(
-                        'Код отправлен на номер $phone',
-                        style: const TextStyle(
-                          fontFamily: 'Manrope',
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.s16),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.s24,
-                      ),
-                      child: Center(
-                        key: const Key('otp-pin-center'),
-                        child: SizedBox(
-                          width: 216,
-                          child: Pinput(
-                            controller: _controller,
-                            focusNode: _focus,
-                            length: AuthRepository.otpCodeLength,
-                            enabled: !_busy,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            defaultPinTheme: defaultPinTheme,
-                            focusedPinTheme: focusedPinTheme,
-                            separatorBuilder: (_) => const SizedBox(width: 8),
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly
-                            ],
-                            onChanged: (v) {
-                              setState(() {
-                                _code = v;
-                                _error = null;
-                              });
-                            },
-                            onCompleted: (_) => _submit(),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.s24,
-                      ),
-                      child: _MintCta(
-                        label: _busy ? 'Проверяем…' : 'Войти',
-                        onTap: _canSubmit ? _submit : null,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.s24),
-                    if (_error != null)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.s24,
-                        ),
-                        child: Text(
-                          _error!,
-                          style: const TextStyle(
-                            fontFamily: 'Manrope',
-                            fontSize: 14,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    Center(
-                      // Пока тикает таймер — показываем обратный отсчёт; на нуле — активную
-                      // кнопку повторной отправки (SMS может потеряться, без неё тупик).
-                      child: _seconds > 0
-                          ? Text(
-                              'Повторная отправка через: $mm:$ss',
-                              style: const TextStyle(
+                          const SizedBox(height: AppSpacing.s24),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: AppSpacing.s24,
+                            ),
+                            child: Text(
+                              'Введите код из смс 💬',
+                              style: TextStyle(
                                 fontFamily: 'Manrope',
-                                fontSize: 13,
+                                fontSize: 26,
                                 fontWeight: FontWeight.w800,
                                 color: Colors.white,
+                                height: 1.1,
                               ),
-                            )
-                          : TextButton(
-                              onPressed: _resending ? null : _resend,
-                              child: Text(
-                                _resending
-                                    ? 'Отправляем…'
-                                    : 'Отправить код ещё раз',
-                                style: const TextStyle(
-                                  fontFamily: 'Manrope',
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
-                                  decoration: TextDecoration.underline,
-                                  decorationColor: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.s24),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.s24,
+                            ),
+                            child: Text(
+                              'Код отправлен на номер $phone',
+                              style: const TextStyle(
+                                fontFamily: 'Manrope',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.s16),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.s24,
+                            ),
+                            child: Center(
+                              key: const Key('otp-pin-center'),
+                              child: SizedBox(
+                                width: 216,
+                                child: Pinput(
+                                  controller: _controller,
+                                  focusNode: _focus,
+                                  length: AuthRepository.otpCodeLength,
+                                  enabled: !_busy,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  defaultPinTheme: defaultPinTheme,
+                                  focusedPinTheme: focusedPinTheme,
+                                  separatorBuilder: (_) =>
+                                      const SizedBox(width: 8),
+                                  keyboardType: TextInputType.number,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly,
+                                  ],
+                                  onChanged: (v) {
+                                    setState(() {
+                                      _code = v;
+                                      _error = null;
+                                    });
+                                  },
+                                  onCompleted: (_) => _submit(),
                                 ),
                               ),
                             ),
+                          ),
+                          const SizedBox(height: 20),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.s24,
+                            ),
+                            child: _MintCta(
+                              label: _busy ? 'Проверяем…' : 'Подтвердить',
+                              onTap: _canSubmit ? _submit : null,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.s24),
+                          if (_error != null)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.s24,
+                              ),
+                              child: Text(
+                                _error!,
+                                style: const TextStyle(
+                                  fontFamily: 'Manrope',
+                                  fontSize: 14,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          Center(
+                            // Пока тикает таймер — показываем обратный отсчёт; на нуле — активную
+                            // кнопку повторной отправки (SMS может потеряться, без неё тупик).
+                            child: _seconds > 0
+                                ? Text(
+                                    'Повторная отправка через: $mm:$ss',
+                                    style: const TextStyle(
+                                      fontFamily: 'Manrope',
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : TextButton(
+                                    onPressed: _resending ? null : _resend,
+                                    child: Text(
+                                      _resending
+                                          ? 'Отправляем…'
+                                          : 'Отправить код ещё раз',
+                                      style: const TextStyle(
+                                        fontFamily: 'Manrope',
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white,
+                                        decoration: TextDecoration.underline,
+                                        decorationColor: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
+                  ),
                 ),
               ],
             ),

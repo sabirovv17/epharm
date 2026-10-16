@@ -48,9 +48,82 @@ class ApiTrainingRepository {
     return TrainingAssignment.fromJson(json);
   }
 
-  Future<TrainingAssignment> checkIn(String qrToken) async {
+  Future<TrainingAssignment> updateLessonProgress({
+    required String assignmentId,
+    required String stageId,
+    required String lessonId,
+    required int progressPct,
+    int positionSeconds = 0,
+  }) async {
+    final json = await _client.patchJson(
+      '/api/mobile/training/assignments/$assignmentId/stages/$stageId/lessons/$lessonId',
+      <String, dynamic>{
+        'progressPct': progressPct,
+        'positionSeconds': positionSeconds,
+      },
+    );
+    return TrainingAssignment.fromJson(json);
+  }
+
+  Future<TrainingLiveRoom> loadLiveRoom({
+    required String assignmentId,
+    required String stageId,
+    required String lessonId,
+  }) async {
+    final json = await _client.getJson(
+      '/api/mobile/training/assignments/$assignmentId/stages/$stageId/lessons/$lessonId/live',
+    );
+    return TrainingLiveRoom.fromJson(json);
+  }
+
+  Future<TrainingLiveRoom> postLiveMessage({
+    required String assignmentId,
+    required String stageId,
+    required String lessonId,
+    required String body,
+    required String kind,
+  }) async {
     final json = await _client.postJson(
-      '/api/mobile/training/events/check-in/$qrToken',
+      '/api/mobile/training/assignments/$assignmentId/stages/$stageId/lessons/$lessonId/live/messages',
+      <String, dynamic>{'body': body, 'kind': kind},
+    );
+    return TrainingLiveRoom.fromJson(json);
+  }
+
+  Future<TrainingLiveRoom> voteInLivePoll({
+    required String assignmentId,
+    required String stageId,
+    required String lessonId,
+    required String pollId,
+    required String optionId,
+  }) async {
+    final json = await _client.postJson(
+      '/api/mobile/training/assignments/$assignmentId/stages/$stageId/lessons/$lessonId/live/polls/$pollId/vote',
+      <String, dynamic>{'optionId': optionId},
+    );
+    return TrainingLiveRoom.fromJson(json);
+  }
+
+  Future<TrainingLiveRoom> reactToLiveLesson({
+    required String assignmentId,
+    required String stageId,
+    required String lessonId,
+    required String reaction,
+  }) async {
+    final json = await _client.postJson(
+      '/api/mobile/training/assignments/$assignmentId/stages/$stageId/lessons/$lessonId/live/reactions',
+      <String, dynamic>{'reaction': reaction},
+    );
+    return TrainingLiveRoom.fromJson(json);
+  }
+
+  Future<TrainingAssignment> checkIn(String credential) async {
+    final normalized = credential.trim();
+    final isShortCode = RegExp(r'^\d{6}$').hasMatch(normalized);
+    final json = await _client.postJson(
+      isShortCode
+          ? '/api/mobile/training/events/check-in-code/$normalized'
+          : '/api/mobile/training/events/check-in/$normalized',
       const <String, dynamic>{},
     );
     return TrainingAssignment.fromJson(json);

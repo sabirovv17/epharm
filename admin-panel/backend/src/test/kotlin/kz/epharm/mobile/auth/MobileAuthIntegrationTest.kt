@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
+import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
@@ -64,9 +65,12 @@ class MobileAuthIntegrationTest {
     @Autowired private lateinit var pharmacistRepository: PharmacistRepository
     @Autowired private lateinit var otpRepository: MobileOtpRepository
     @Autowired private lateinit var refreshRepository: MobileRefreshTokenRepository
+    @Autowired private lateinit var passwordEncoder: PasswordEncoder
 
     private val activePhone = "+77002223344"
     private val blockedPhone = "+77003334455"
+    private val unactivatedPhone = "+77470799353"
+    private val unactivatedIin = "061007500024"
     private val takenIin = "880404400014"
 
     @BeforeEach
@@ -77,15 +81,31 @@ class MobileAuthIntegrationTest {
 
         pharmacistRepository.save(
             PharmacistEntity(id = "u_active", name = "Иван Существующий", iin = "951212500015", phone = activePhone)
-                .also { it.status = PharmacistStatus.active; it.tier = PharmacistTier.Gold; it.balance = 42_000 },
+                .also {
+                    it.status = PharmacistStatus.active
+                    it.tier = PharmacistTier.Gold
+                    it.balance = 42_000
+                    it.passwordHash = passwordEncoder.encode("Farm123!")
+                },
         )
         pharmacistRepository.save(
             PharmacistEntity(id = "u_blocked", name = "Пётр Блокированный", iin = "781122300017", phone = blockedPhone)
-                .also { it.status = PharmacistStatus.blocked },
+                .also {
+                    it.status = PharmacistStatus.blocked
+                    it.passwordHash = passwordEncoder.encode("Farm123!")
+                },
         )
         pharmacistRepository.save(
             PharmacistEntity(id = "u_dup", name = "Сергей Дубликат", iin = takenIin, phone = "+77004445566")
                 .also { it.status = PharmacistStatus.active },
+        )
+        pharmacistRepository.save(
+            PharmacistEntity(
+                id = "u_unactivated",
+                name = "Грущак Василий Григорьевич",
+                iin = unactivatedIin,
+                phone = unactivatedPhone,
+            ).also { it.status = PharmacistStatus.active },
         )
     }
 
@@ -169,6 +189,256 @@ class MobileAuthIntegrationTest {
     }
 
     // ── Вход существующего фармацевта ─────────────────────────────────────────
+
+    @Test
+    fun `первая активация привязывает созданный пароль к ИИН`() {
+        mockMvc.perform(
+            post("/api/mobile/auth/activation/status")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"iin":"$unactivatedIin"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.passwordSet").value(false))
+            .andExpect(jsonPath("$.phoneMasked").isString)
+
+        mockMvc.perform(
+            post("/api/mobile/auth/activation/sms/request")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"iin":"$unactivatedIin","phone":"$unactivatedPhone"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.devCode").value("5445"))
+
+        mockMvc.perform(
+            post("/api/mobile/auth/activation/sms/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"iin":"$unactivatedIin","phone":"$unactivatedPhone","code":"5445"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.verified").value(true))
+
+        mockMvc.perform(
+            post("/api/mobile/auth/activation/password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"iin":"$unactivatedIin","phone":"$unactivatedPhone","password":"NewFarm123!"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.pharmacist.id").value("u_unactivated"))
+            .andExpect(jsonPath("$.tokens.accessToken").isString)
+
+        val saved = pharmacistRepository.findByIin(unactivatedIin)!!
+        val hash = checkNotNull(saved.passwordHash)
+        assertThat(hash).isNotBlank
+        assertThat(hash).doesNotContain("NewFarm123!")
+        assertThat(passwordEncoder.matches("NewFarm123!", hash)).isTrue
+
+        mockMvc.perform(
+            post("/api/mobile/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"iin":"$unactivatedIin","password":"NewFarm123!"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.pharmacist.id").value("u_unactivated"))
+
+        mockMvc.perform(
+            post("/api/mobile/auth/activation/status")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"iin":"$unactivatedIin"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.passwordSet").value(true))
+
+        mockMvc.perform(
+            post("/api/mobile/auth/activation/password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"iin":"$unactivatedIin","phone":"$unactivatedPhone","password":"Another123!"}"""),
+        )
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.code").value("CONFLICT"))
+    }
+
+    @Test
+    fun `новый ИИН регистрируется после подтверждения телефона`() {
+        val newIin = "910228400016"
+        val newPhone = "+77770001122"
+
+        mockMvc.perform(
+            post("/api/mobile/auth/activation/status")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"iin":"$newIin"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.passwordSet").value(false))
+            .andExpect(jsonPath("$.registrationRequired").value(true))
+
+        mockMvc.perform(
+            post("/api/mobile/auth/activation/sms/request")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"iin":"$newIin","phone":"$newPhone"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.devCode").value("5445"))
+
+        mockMvc.perform(
+            post("/api/mobile/auth/activation/sms/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"iin":"$newIin","phone":"$newPhone","code":"5445"}"""),
+        )
+            .andExpect(status().isOk)
+
+        mockMvc.perform(
+            post("/api/mobile/auth/activation/password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"iin":"$newIin","phone":"$newPhone","name":"Новый Фармацевт","password":"NewFarm123!"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.pharmacist.name").value("Новый Фармацевт"))
+            .andExpect(jsonPath("$.pharmacist.status").value("pending"))
+
+        val saved = pharmacistRepository.findByIin(newIin)!!
+        assertThat(saved.phone).isEqualTo(newPhone)
+        assertThat(passwordEncoder.matches("NewFarm123!", saved.passwordHash)).isTrue
+    }
+
+    @Test
+    fun `активация отклоняет телефон не привязанный к ИИН`() {
+        mockMvc.perform(
+            post("/api/mobile/auth/activation/sms/request")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"iin":"$unactivatedIin","phone":"+77001112233"}"""),
+        )
+            .andExpect(status().isUnauthorized)
+            .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"))
+    }
+
+    @Test
+    fun `создание пароля без подтверждения телефона запрещено`() {
+        mockMvc.perform(
+            post("/api/mobile/auth/activation/password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"iin":"$unactivatedIin","phone":"$unactivatedPhone","password":"NewFarm123!"}"""),
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("OTP_NOT_VERIFIED"))
+    }
+
+    @Test
+    fun `повторная активация ИИН с готовым паролем запрещена`() {
+        mockMvc.perform(
+            post("/api/mobile/auth/activation/sms/request")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"iin":"951212500015","phone":"$activePhone"}"""),
+        )
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.code").value("CONFLICT"))
+    }
+
+    @Test
+    fun `сброс пароля отправляет код только на привязанный номер и отзывает старые refresh токены`() {
+        val initialLogin = mockMvc.perform(
+            post("/api/mobile/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"iin":"951212500015","password":"Farm123!"}"""),
+        )
+            .andExpect(status().isOk)
+            .andReturn()
+        val oldRefresh = objectMapper
+            .readValue(initialLogin.response.contentAsByteArray, MobileAuthResponse::class.java)
+            .tokens.refreshToken
+
+        mockMvc.perform(
+            post("/api/mobile/auth/password-reset/request")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"iin":"951212500015"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.phoneMasked").value("+7 (700) ***-**-44"))
+            .andExpect(jsonPath("$.devCode").value("5445"))
+
+        mockMvc.perform(
+            post("/api/mobile/auth/password-reset/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"iin":"951212500015","code":"5445"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.verified").value(true))
+
+        mockMvc.perform(
+            post("/api/mobile/auth/password-reset/complete")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"iin":"951212500015","password":"ChangedFarm123!"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.tokens.accessToken").isString)
+            .andExpect(jsonPath("$.pharmacist.id").value("u_active"))
+
+        mockMvc.perform(
+            post("/api/mobile/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"refreshToken":"$oldRefresh"}"""),
+        )
+            .andExpect(status().isUnauthorized)
+
+        mockMvc.perform(
+            post("/api/mobile/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"iin":"951212500015","password":"Farm123!"}"""),
+        )
+            .andExpect(status().isUnauthorized)
+
+        mockMvc.perform(
+            post("/api/mobile/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"iin":"951212500015","password":"ChangedFarm123!"}"""),
+        )
+            .andExpect(status().isOk)
+    }
+
+    @Test
+    fun `сброс пароля запрещён для ИИН без созданного пароля`() {
+        mockMvc.perform(
+            post("/api/mobile/auth/password-reset/request")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"iin":"$unactivatedIin"}"""),
+        )
+            .andExpect(status().isUnauthorized)
+            .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"))
+    }
+
+    @Test
+    fun `вход по ИИН и паролю выдаёт токены и профиль`() {
+        mockMvc.perform(
+            post("/api/mobile/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"iin":"951212500015","password":"Farm123!"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.pharmacist.id").value("u_active"))
+            .andExpect(jsonPath("$.tokens.accessToken").isString)
+    }
+
+    @Test
+    fun `неверный пароль не раскрывает существование ИИН`() {
+        mockMvc.perform(
+            post("/api/mobile/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"iin":"951212500015","password":"Wrong123!"}"""),
+        )
+            .andExpect(status().isUnauthorized)
+            .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"))
+            .andExpect(jsonPath("$.message").value("Неверный ИИН или пароль"))
+    }
+
+    @Test
+    fun `заблокированный фармацевт не может войти по ИИН`() {
+        mockMvc.perform(
+            post("/api/mobile/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"iin":"781122300017","password":"Farm123!"}"""),
+        )
+            .andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.code").value("PHARMACIST_BLOCKED"))
+    }
 
     @Test
     fun `verify существующего номера сразу выдаёт токены и профиль`() {

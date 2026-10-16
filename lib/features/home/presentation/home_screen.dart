@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/network/image_cache_config.dart';
 import '../../../core/network/media.dart';
@@ -26,6 +28,7 @@ import '../../receipts/presentation/receipts_list_screen.dart';
 import '../../training/presentation/training_screen.dart';
 import '../application/home_controller.dart';
 import '../../receipts/presentation/upload_prompt_sheet.dart';
+import 'pharmacist_dashboard_tab.dart';
 import 'widgets/balance_card.dart';
 import 'widgets/bottom_navigation.dart';
 import 'widgets/brand_sheet.dart';
@@ -120,11 +123,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   void _goToAuth() => context.go('/auth/phone');
 
-  /// 2-tab nav: 0=Главная, 1=Профиль. Между ними — центральный FAB-камера,
-  /// открывающий upload sheet (не таб, не меняет [_tab]).
-  ///
-  /// История: 4 таба → 3 таба → 2 таба. «Чек» открывается из BalanceCard,
-  /// а назначенное обучение — из меню профиля.
+  /// Five primary destinations from the pharmacist redesign.
   void _onTabTap(int i) {
     setState(() => _tab = i);
   }
@@ -147,27 +146,155 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: systemUiOverlayStyleDark,
-      child: Scaffold(
-        backgroundColor: AppColors.paperCanvas,
-        body: switch (_tab) {
-          0 => _HomeTab(
-              onLogin: _goToAuth,
-              onHistoryTap: _openReceiptsHistory,
-            ),
-          1 => _ProfileTab(
-              onLogin: _goToAuth,
-              onHistoryTap: _openReceiptsHistory,
-            ),
-          _ => const SizedBox.shrink(),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final desktop = constraints.maxWidth >= 900;
+          final currentTab = switch (_tab) {
+            0 => PharmacistDashboardTab(
+                onOpenCatalog: () => _onTabTap(1),
+                onOpenReceipts: () => _onTabTap(2),
+                onOpenTraining: () => _onTabTap(3),
+              ),
+            1 => _HomeTab(
+                onLogin: _goToAuth,
+                onHistoryTap: _openReceiptsHistory,
+              ),
+            2 => ReceiptsListScreen(
+                onUploadTap: () => showUploadPromptSheet(context),
+              ),
+            3 => const TrainingScreen(embedded: true),
+            4 => _ProfileTab(
+                onLogin: _goToAuth,
+                onHistoryTap: _openReceiptsHistory,
+                onTrainingTap: () => _onTabTap(3),
+              ),
+            _ => const SizedBox.shrink(),
+          };
+          return Scaffold(
+            backgroundColor: AppColors.paperCanvas,
+            body: desktop
+                ? Row(
+                    children: [
+                      _DesktopNavigation(
+                        currentIndex: _tab,
+                        extended: constraints.maxWidth >= 1180,
+                        onTap: _onTabTap,
+                        onScanTap: () => showUploadPromptSheet(context),
+                      ),
+                      Expanded(
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 1180),
+                            child: currentTab,
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : currentTab,
+            bottomNavigationBar: desktop
+                ? null
+                : PharmaBottomNav(
+                    currentIndex: _tab,
+                    onTap: _onTabTap,
+                  ),
+          );
         },
-        bottomNavigationBar: PharmaBottomNav(
-          currentIndex: _tab,
-          onTap: _onTabTap,
-          onScanTap: () => showUploadPromptSheet(context),
-        ),
       ),
     );
   }
+}
+
+class _DesktopNavigation extends StatelessWidget {
+  const _DesktopNavigation({
+    required this.currentIndex,
+    required this.extended,
+    required this.onTap,
+    required this.onScanTap,
+  });
+
+  final int currentIndex;
+  final bool extended;
+  final ValueChanged<int> onTap;
+  final VoidCallback onScanTap;
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+        right: false,
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(
+              right: BorderSide(color: AppColors.borderHairline),
+            ),
+          ),
+          child: NavigationRail(
+            extended: extended,
+            minExtendedWidth: 224,
+            backgroundColor: Colors.white,
+            selectedIndex: currentIndex,
+            onDestinationSelected: onTap,
+            labelType: extended
+                ? NavigationRailLabelType.none
+                : NavigationRailLabelType.all,
+            selectedIconTheme: const IconThemeData(
+              color: AppColors.brandGreen700,
+              size: 29,
+            ),
+            unselectedIconTheme: const IconThemeData(
+              color: AppColors.ink400,
+              size: 27,
+            ),
+            selectedLabelTextStyle: AppTypography.caption(
+              color: AppColors.brandGreen700,
+            ),
+            unselectedLabelTextStyle: AppTypography.caption(
+              color: AppColors.ink500,
+            ),
+            leading: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 16, 12, 20),
+              child: extended
+                  ? FilledButton.icon(
+                      onPressed: onScanTap,
+                      icon: const Icon(Icons.photo_camera_rounded),
+                      label: const Text('Загрузить чек'),
+                    )
+                  : IconButton.filled(
+                      tooltip: 'Загрузить чек',
+                      onPressed: onScanTap,
+                      icon: const Icon(Icons.photo_camera_rounded),
+                    ),
+            ),
+            destinations: const [
+              NavigationRailDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home_rounded),
+                label: Text('Главная'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.medication_outlined),
+                selectedIcon: Icon(Icons.medication_rounded),
+                label: Text('Каталог'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.receipt_long_outlined),
+                selectedIcon: Icon(Icons.receipt_long_rounded),
+                label: Text('Чеки'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.school_outlined),
+                selectedIcon: Icon(Icons.school_rounded),
+                label: Text('Обучение'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.person_outline_rounded),
+                selectedIcon: Icon(Icons.person_rounded),
+                label: Text('Профиль'),
+              ),
+            ],
+          ),
+        ),
+      );
 }
 
 class _HomeTab extends ConsumerWidget {
@@ -419,17 +546,18 @@ class _PromoSliver extends StatelessWidget {
         ),
       );
     }
+    final desktop = MediaQuery.sizeOf(context).width >= 900;
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenEdge),
       sliver: SliverGrid(
         // 2 колонки. childAspectRatio 0.46 (ячейка выше ширины): вмещает фото 3:4
         // (ДОП.4, высота = ширина×4/3 ≈ 1.33w) + блок названия/бренда/бонуса даже на
         // узких экранах (320px) без overflow.
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
+        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: desktop ? 255 : 210,
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
-          childAspectRatio: 0.46,
+          childAspectRatio: desktop ? 0.58 : 0.46,
         ),
         delegate: SliverChildBuilderDelegate(
           (ctx, i) {
@@ -516,9 +644,14 @@ class _Header extends StatelessWidget {
 /// • Тело на paperCanvas: секции «Помощь» (4 row) и «О приложении» (2 row),
 ///   кнопка «Выйти» (только authed), footer версии приложения.
 class _ProfileTab extends ConsumerWidget {
-  const _ProfileTab({required this.onLogin, required this.onHistoryTap});
+  const _ProfileTab({
+    required this.onLogin,
+    required this.onHistoryTap,
+    required this.onTrainingTap,
+  });
   final VoidCallback onLogin;
   final VoidCallback onHistoryTap;
+  final VoidCallback onTrainingTap;
 
   /// Items секции «Помощь». «Обучение» открывает назначенные программы,
   /// очные события и сертификаты текущего фармацевта.
@@ -533,7 +666,10 @@ class _ProfileTab extends ConsumerWidget {
     _ProfileMenuItem(
       Icons.favorite_border_rounded,
       'Служба поддержки в WhatsApp',
-      route: null, // внешняя ссылка — пока заглушка
+      externalUrl: String.fromEnvironment(
+        'SUPPORT_WHATSAPP_URL',
+        defaultValue: 'https://wa.me/77001234567',
+      ),
     ),
     _ProfileMenuItem(
       Icons.help_outline_rounded,
@@ -571,15 +707,22 @@ class _ProfileTab extends ConsumerWidget {
     if (item.route != null) {
       return () => context.push(item.route!);
     }
+    if (item.externalUrl != null) {
+      return () async {
+        final uri = Uri.parse(item.externalUrl!);
+        if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
+            context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Не удалось открыть WhatsApp')),
+          );
+        }
+      };
+    }
     if (item.pushScreen != null) {
       return () {
         switch (item.pushScreen!) {
           case _PushTarget.learning:
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const TrainingScreen(),
-              ),
-            );
+            onTrainingTap();
         }
       };
     }
@@ -711,21 +854,24 @@ class _ProfileTab extends ConsumerWidget {
           ),
 
         // Footer.
-        const Padding(
-          padding: EdgeInsets.fromLTRB(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
             AppSpacing.screenEdge,
             AppSpacing.s24,
             AppSpacing.screenEdge,
-            AppSpacing.s32,
+            112,
           ),
-          child: Text(
-            'Epharm · v 1.0.4 (2026)',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: 'Manrope',
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: AppColors.ink400,
+          child: FutureBuilder<PackageInfo>(
+            future: PackageInfo.fromPlatform(),
+            builder: (context, snapshot) => Text(
+              'Epharm · v ${snapshot.data?.version ?? '—'}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'Manrope',
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: AppColors.ink400,
+              ),
             ),
           ),
         ),
@@ -743,6 +889,7 @@ class _ProfileMenuItem {
     this.label, {
     this.route,
     this.pushScreen,
+    this.externalUrl,
   });
 
   final IconData icon;
@@ -750,6 +897,7 @@ class _ProfileMenuItem {
 
   /// go_router-маршрут (если есть). Например '/profile/faq'.
   final String? route;
+  final String? externalUrl;
 
   /// Альтернатива route — push экрана через Navigator.push.
   final _PushTarget? pushScreen;

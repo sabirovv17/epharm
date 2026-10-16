@@ -40,7 +40,13 @@ class MobileCatalogController(
         @RequestParam(required = false) category: String?,
         @RequestParam(defaultValue = "24") limit: Int,
         @RequestParam(defaultValue = "0") offset: Int,
-    ): MobileCatalogPageDto = service.search(q = q, category = category, limit = limit, offset = offset)
+    ): MobileCatalogPageDto = service.search(
+        q = q,
+        category = category,
+        limit = limit,
+        offset = offset,
+        includeRetailFallbackPrices = true,
+    )
 
     /**
      * Карточка товара по medusa-id.
@@ -53,7 +59,11 @@ class MobileCatalogController(
     fun product(
         @PathVariable id: String,
         @AuthenticationPrincipal principal: PharmacistPrincipal?,
-    ): MobileCatalogDetailDto = service.detail(id, includeIncentive = principal != null)
+    ): MobileCatalogDetailDto = service.detail(
+        id,
+        includeIncentive = principal != null,
+        includeRetailFallbackPrices = true,
+    )
 
     /**
      * Рекомендации к товару (ДОП.3b): «Альтернативы» (замены) + «Дополнения» (кросс-селл)

@@ -46,7 +46,10 @@ function protectedPage(section: SectionId, page: React.ReactNode) {
 
 function HomeRedirect() {
   const user = useUiStore((state) => state.authedUser)
-  return <Navigate to={user ? defaultPathForRole(user.role) : '/login'} replace />
+  const isPhone = typeof window !== 'undefined'
+    && (window.matchMedia?.('(max-width: 767px)').matches || window.innerWidth < 768)
+
+  return <Navigate to={user ? defaultPathForRole(user.role) : isPhone ? '/learn' : '/login'} replace />
 }
 
 export function AppRouter() {
@@ -55,11 +58,18 @@ export function AppRouter() {
       {/* Public — login screen без AppShell */}
       <Route path="/login" element={withSuspense(<LoginPage />)} />
       <Route path="/learn" element={withSuspense(<LearnerTraining />)} />
+      <Route path="/learn/catalog" element={withSuspense(<LearnerTraining />)} />
+      <Route path="/learn/receipts" element={withSuspense(<LearnerTraining />)} />
+      <Route path="/learn/training" element={withSuspense(<LearnerTraining />)} />
+      <Route path="/learn/certificates" element={withSuspense(<LearnerTraining />)} />
+      <Route path="/learn/profile" element={withSuspense(<LearnerTraining />)} />
       <Route path="/learn/course/:assignmentId" element={withSuspense(<LearnerTraining />)} />
       <Route
         path="/learn/course/:assignmentId/lesson/:lessonId"
         element={withSuspense(<LearnerTraining />)}
       />
+      {/* Public entry point: learner portal on phones, HQ login on desktop. */}
+      <Route path="/" element={<HomeRedirect />} />
 
       {/* Private — всё за RequireAuth → AppShell с Sidebar + Topbar */}
       <Route element={<RequireAuth />}>
@@ -82,7 +92,6 @@ export function AppRouter() {
           <Route path="/settings" element={protectedPage('settings', <Settings />)} />
           <Route path="/storefront" element={protectedPage('storefront', <Storefront />)} />
           <Route path="/fulfillment" element={protectedPage('fulfillment', <Fulfillment />)} />
-          <Route path="/" element={<HomeRedirect />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Route>

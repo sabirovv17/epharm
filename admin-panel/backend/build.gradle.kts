@@ -11,14 +11,14 @@ version = "0.1.0-SNAPSHOT"
 
 java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(22))
+        languageVersion.set(JavaLanguageVersion.of(21))
     }
 }
 
 kotlin {
     compilerOptions {
         freeCompilerArgs.addAll("-Xjsr305=strict")
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_22)
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
     }
 }
 
@@ -40,6 +40,7 @@ dependencies {
     runtimeOnly(libs.jjwt.jackson)
 
     runtimeOnly(libs.postgresql)
+    implementation("org.firebirdsql.jdbc:jaybird:5.0.6.java8")
     implementation(libs.flyway.core)
     runtimeOnly(libs.flyway.postgresql)
 

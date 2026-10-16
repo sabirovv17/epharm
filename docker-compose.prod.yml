@@ -99,6 +99,11 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+    # Складской storefront размещён на отдельном 10.10.1.80. Закрепляем имя
+    # именно в backend-контейнере: так сохраняются корректные HTTPS SNI/Host и
+    # интеграция не зависит от состояния внутреннего DNS.
+    extra_hosts:
+      - 'www.aptekasosklada.kz:10.10.1.80'
     environment:
       SPRING_PROFILES_ACTIVE: prod
       APP_ENVIRONMENT: production
@@ -153,6 +158,20 @@ services:
       ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:?set ADMIN_BOOTSTRAP_PASSWORD in .env.prod}
       ADMIN_BOOTSTRAP_NAME: ${ADMIN_BOOTSTRAP_NAME:-HQ Admin}
       ADMIN_BOOTSTRAP_COMPANY: ${ADMIN_BOOTSTRAP_COMPANY:-Inkar}
+      # Read-only Standard-N USERS mirror. Credentials live only in .env.prod.
+      STANDARDN_DIRECTORY_ENABLED: ${STANDARDN_DIRECTORY_ENABLED:-false}
+      STANDARDN_HOST: ${STANDARDN_HOST:-INKSTDN}
+      STANDARDN_PORT: ${STANDARDN_PORT:-3050}
+      STANDARDN_DATABASE: '${STANDARDN_DATABASE:-C:\Standart-N\base_g\ZTRADE_G.FDB}'
+      STANDARDN_USER: ${STANDARDN_USER:-}
+      STANDARDN_PASSWORD: ${STANDARDN_PASSWORD:-}
+      STANDARDN_SYNC_DELAY_MS: ${STANDARDN_SYNC_DELAY_MS:-21600000}
+      # Новый сайт Inkar на .80 — приоритетный read-only источник каталога.
+      # При ошибке MobileCatalogService автоматически использует снимок БД.
+      STOREFRONT_CATALOG_ENABLED: ${STOREFRONT_CATALOG_ENABLED:-false}
+      STOREFRONT_CATALOG_BASE_URL: ${STOREFRONT_CATALOG_BASE_URL:-}
+      STOREFRONT_CATALOG_CONNECT_TIMEOUT_MS: ${STOREFRONT_CATALOG_CONNECT_TIMEOUT_MS:-2000}
+      STOREFRONT_CATALOG_READ_TIMEOUT_MS: ${STOREFRONT_CATALOG_READ_TIMEOUT_MS:-8000}
       # Реальный Medusa-каталог. Клиент разрешает cleartext только для этого точного
       # legacy IP:port; любой другой удалённый HTTP origin отклоняется при старте.
       MEDUSA_ENABLED: ${MEDUSA_ENABLED:-true}

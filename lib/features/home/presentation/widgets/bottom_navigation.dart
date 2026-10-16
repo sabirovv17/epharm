@@ -2,178 +2,124 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_shadows.dart';
+import '../../../../core/theme/app_typography.dart';
 
-/// iOS-style bottom-nav: **2 таба** (Главная / Профиль) + центральный
-/// круглый FAB-камера (open upload prompt sheet — то же что и pill
-/// «Загрузить чек» в BalanceCard).
-///
-/// История изменений:
-/// • Этап 1-3: 4 таба (Главная / Обучение / Чек / Профиль).
-/// • Этап 4 (recipe-интеграция): убрали «Чек» → 3 таба, загрузка через pill
-///   в BalanceCard.
-/// • Этап 5 (текущий): убрали «Обучение» (перенесён в Profile menu), сделали
-///   камеру центральным FAB как primary-action — самая частая операция
-///   фармацевта это «сфоткать чек», поэтому она вынесена под большой палец.
-///
-/// Active tab = brand-green-600 (раньше был blue), inactive = ink/400.
+/// Primary mobile navigation shared by the pharmacist workspace.
 class PharmaBottomNav extends StatelessWidget {
   const PharmaBottomNav({
     super.key,
     required this.currentIndex,
     required this.onTap,
-    required this.onScanTap,
   });
 
-  /// 0 = Home, 1 = Profile. FAB-камера НЕ участвует в индексации.
   final int currentIndex;
   final ValueChanged<int> onTap;
 
-  /// Открыть upload prompt sheet — то же что и «Загрузить чек» в BalanceCard.
-  final VoidCallback onScanTap;
+  static const _items =
+      <({IconData icon, IconData selectedIcon, String label})>[
+    (
+      icon: Icons.home_outlined,
+      selectedIcon: Icons.home_rounded,
+      label: 'Главная'
+    ),
+    (
+      icon: Icons.medication_outlined,
+      selectedIcon: Icons.medication_rounded,
+      label: 'Каталог'
+    ),
+    (
+      icon: Icons.receipt_long_outlined,
+      selectedIcon: Icons.receipt_long_rounded,
+      label: 'Чеки'
+    ),
+    (
+      icon: Icons.school_outlined,
+      selectedIcon: Icons.school_rounded,
+      label: 'Обучение'
+    ),
+    (
+      icon: Icons.person_outline_rounded,
+      selectedIcon: Icons.person_rounded,
+      label: 'Профиль'
+    ),
+  ];
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: AppShadows.navTop,
-      ),
-      // Раньше было top: 10, bottom: 28 — но 28px нижнего паддинга
-      // плюс SafeArea-bottom (на iOS home-indicator ≈ 34px, на Android до 16px)
-      // давали ощутимо пустую белую полосу под иконками. Срезали top 10→6,
-      // bottom 28→8: SafeArea сам добавит индикатор-safe-area где нужно.
-      padding: const EdgeInsets.only(top: 6, bottom: 8),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 48,
-          child: Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.center,
-            children: [
-              // Ряд из 3 ячеек: [Home] [пустое место под FAB] [Profile].
-              // FAB рисуется поверх центральной ячейки и приподнят на -24 px.
-              Row(
-                children: [
-                  Expanded(
-                    child: _NavTabButton(
-                      activeIcon: Icons.home_rounded,
-                      inactiveIcon: Icons.home_outlined,
-                      label: 'Главная',
-                      active: currentIndex == 0,
-                      onTap: () => onTap(0),
-                    ),
+  Widget build(BuildContext context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          boxShadow: AppShadows.navTop,
+          border: Border(top: BorderSide(color: AppColors.borderHairline)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: SizedBox(
+            height: 66,
+            child: Row(
+              children: List.generate(
+                _items.length,
+                (index) => Expanded(
+                  child: _NavTabButton(
+                    item: _items[index],
+                    active: currentIndex == index,
+                    onTap: () => onTap(index),
                   ),
-                  // Пустая центральная ячейка под FAB.
-                  const Expanded(child: SizedBox.shrink()),
-                  Expanded(
-                    child: _NavTabButton(
-                      activeIcon: Icons.person_rounded,
-                      inactiveIcon: Icons.person_outline,
-                      label: 'Профиль',
-                      active: currentIndex == 1,
-                      onTap: () => onTap(1),
-                    ),
-                  ),
-                ],
+                ),
               ),
-              // Центральный зелёный FAB-камера.
-              Positioned(
-                top: -24,
-                child: _CenterScanFab(onTap: onScanTap),
-              ),
-            ],
+            ),
           ),
         ),
-      ),
-    );
-  }
+      );
 }
 
-/// Tab-кнопка — только иконка (label убран 2026-05-26). Icon-only nav: лейблы
-/// «Главная» / «Профиль» избыточны при 2-tab nav, иконки сами по себе
-/// однозначны (домик / человечек). За счёт убранных лейблов поднимаем размер
-/// иконок 28 → 34 px для большего визуального веса.
-///
-/// Активная иконка — `*_rounded` (filled, более «объёмная»). Inactive —
-/// `*_rounded` тоже (раньше был outlined-вариант, но тонкие линии «пропадали»
-/// рядом с большим зелёным FAB по центру; filled в обоих состояниях с
-/// различием только по цвету = visually more grounded).
 class _NavTabButton extends StatelessWidget {
   const _NavTabButton({
-    required this.activeIcon,
-    required this.inactiveIcon,
-    required this.label,
+    required this.item,
     required this.active,
     required this.onTap,
   });
 
-  /// Иконка для active-состояния (filled rounded).
-  final IconData activeIcon;
-
-  /// Иконка для inactive-состояния (outlined rounded — чуть тоньше для
-  /// иерархического контраста с активной).
-  final IconData inactiveIcon;
-
-  /// Semantic label (используется только screen-reader'ом, не рендерится).
-  final String label;
+  final ({IconData icon, IconData selectedIcon, String label}) item;
   final bool active;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final color = active ? AppColors.brandGreen600 : AppColors.ink400;
+    final color = active ? AppColors.brandGreen700 : AppColors.ink400;
     return Semantics(
-      label: label,
+      label: item.label,
       button: true,
       selected: active,
       child: InkWell(
         onTap: onTap,
-        child: Center(
-          child: Icon(
-            active ? activeIcon : inactiveIcon,
-            size: 34,
-            color: color,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Центральный зелёный FAB — открывает upload sheet (камера / галерея / QR).
-/// Тот же зелёный градиент что и у CTA «Продолжить», тот же shadow/fab glow.
-class _CenterScanFab extends StatelessWidget {
-  const _CenterScanFab({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 64,
-      height: 64,
-      child: Material(
-        color: Colors.transparent,
-        shape: const CircleBorder(),
-        clipBehavior: Clip.antiAlias,
-        child: Ink(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: AppColors.brandGreen600,
-            boxShadow: AppShadows.fab,
-            // Тонкий белый ring, чтобы FAB визуально отрывался от шапки nav.
-            border: Border.all(color: Colors.white, width: 4),
-          ),
-          child: InkWell(
-            onTap: onTap,
-            customBorder: const CircleBorder(),
-            child: const Center(
-              child: Icon(
-                Icons.photo_camera_rounded,
-                size: 28,
-                color: Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(2, 6, 2, 5),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                width: 48,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: active ? AppColors.brandGreen100 : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  active ? item.selectedIcon : item.icon,
+                  size: 22,
+                  color: color,
+                ),
               ),
-            ),
+              const SizedBox(height: 2),
+              Text(
+                item.label,
+                maxLines: 1,
+                overflow: TextOverflow.clip,
+                style: AppTypography.micro(color: color).copyWith(fontSize: 10),
+              ),
+            ],
           ),
         ),
       ),

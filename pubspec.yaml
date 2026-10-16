@@ -1,7 +1,7 @@
 name: pharmacy
 description: Epharm — Flutter app for pharmacists (bonuses, training, AI exam).
 publish_to: 'none'
-version: 0.1.2+4
+version: 0.1.4+6
 
 environment:
   sdk: ^3.5.0
@@ -38,6 +38,8 @@ dependencies:
 
   # Открытие внешних ссылок (YouTube video-инструкция, WhatsApp поддержка).
   url_launcher: ^6.3.1
+  # Встроенный плеер прямых уроков; внешняя ссылка остаётся запасным сценарием.
+  webview_flutter: ^4.10.0
 
   # Камера для съёмки чеков. Управляет permissions нативно (iOS Info.plist key
   # + Android <uses-permission/> в манифесте). См. docs/claude-notes.md Этап 3.

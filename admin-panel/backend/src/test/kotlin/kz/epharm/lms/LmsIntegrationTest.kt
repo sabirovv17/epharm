@@ -14,6 +14,7 @@ import kz.epharm.lms.repository.CourseLessonAttachmentRepository
 import kz.epharm.lms.repository.CourseLessonRepository
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
@@ -35,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import java.io.ByteArrayOutputStream
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -133,6 +135,54 @@ class LmsIntegrationTest {
     }
 
     @Test
+    fun `POST import Excel creates draft course lessons and quiz`() {
+        val file = MockMultipartFile(
+            "file",
+            "course.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            courseImportWorkbook(),
+        )
+
+        mockMvc.perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .multipart("/api/admin/lms/courses/import/excel")
+                .file(file)
+                .header("Authorization", bearer),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.title").value("Excel курс"))
+            .andExpect(jsonPath("$.status").value("draft"))
+            .andExpect(jsonPath("$.lessons").value(2))
+            .andExpect(jsonPath("$.durationMin").value(13))
+            .andExpect(jsonPath("$.lessonItems[0].kind").value("text"))
+            .andExpect(jsonPath("$.lessonItems[1].kind").value("test"))
+            .andExpect(jsonPath("$.lessonItems[1].quizQuestions.length()").value(1))
+            .andExpect(jsonPath("$.lessonItems[1].quizQuestions[0].correctOption").value(1))
+    }
+
+    @Test
+    fun `POST invalid Excel is atomic`() {
+        val before = courseRepository.count()
+        val file = MockMultipartFile(
+            "file",
+            "course.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            courseImportWorkbook(includeQuestions = false),
+        )
+
+        mockMvc.perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .multipart("/api/admin/lms/courses/import/excel")
+                .file(file)
+                .header("Authorization", bearer),
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+
+        org.assertj.core.api.Assertions.assertThat(courseRepository.count()).isEqualTo(before)
+    }
+
+    @Test
     fun `GET без Bearer → 401`() {
         mockMvc.perform(get("/api/admin/lms/courses"))
             .andExpect(status().isUnauthorized)
@@ -225,6 +275,118 @@ class LmsIntegrationTest {
             .andExpect(jsonPath("$.lessons").value(0))
             .andExpect(jsonPath("$.durationMin").value(0))
             .andExpect(jsonPath("$.lessonItems.length()").value(0))
+    }
+
+    @Test
+    fun `live lesson supports room chat polls reactions and status`() {
+        val created = mockMvc.perform(
+            post("/api/admin/lms/courses/crs_draft/lessons")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """{
+                      "title":"Прямой разбор кейсов",
+                      "description":"Эфир с тренером",
+                      "kind":"live",
+                      "externalUrl":"https://www.youtube.com/watch?v=demo",
+                      "liveProvider":"youtube",
+                      "liveStatus":"scheduled",
+                      "liveStartAt":"2026-10-15T14:00:00Z",
+                      "liveEndAt":"2026-10-15T15:00:00Z",
+                      "liveChatEnabled":true,
+                      "liveQaEnabled":true,
+                      "liveReactionsEnabled":true,
+                      "livePolls":[{
+                        "id":"poll-1",
+                        "prompt":"Материал понятен?",
+                        "active":true,
+                        "options":[{"id":"yes","label":"Да"},{"id":"no","label":"Нужен пример"}]
+                      }]
+                    }""",
+                ),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.lessonItems[0].kind").value("live"))
+            .andExpect(jsonPath("$.lessonItems[0].liveProvider").value("youtube"))
+            .andExpect(jsonPath("$.lessonItems[0].livePolls.length()").value(1))
+            .andReturn()
+        val lessonId = objectMapper.readTree(created.response.contentAsString)
+            .path("lessonItems").path(0).path("id").asText()
+
+        mockMvc.perform(
+            post("/api/admin/lms/courses/crs_draft/lessons/$lessonId/live/messages")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"kind":"question","body":"Покажите практический пример"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.messages.length()").value(1))
+            .andExpect(jsonPath("$.messages[0].kind").value("question"))
+
+        mockMvc.perform(
+            post("/api/admin/lms/courses/crs_draft/lessons/$lessonId/live/polls/poll-1/vote")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"optionId":"yes"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.polls[0].totalVotes").value(1))
+            .andExpect(jsonPath("$.polls[0].myOptionId").value("yes"))
+
+        mockMvc.perform(
+            post("/api/admin/lms/courses/crs_draft/lessons/$lessonId/live/reactions")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"reaction":"clap"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.reactions.clap").value(1))
+
+        mockMvc.perform(
+            patch("/api/admin/lms/courses/crs_draft/lessons/$lessonId/live/status")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"status":"live"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("live"))
+            .andExpect(jsonPath("$.streamUrl").value("https://www.youtube.com/watch?v=demo"))
+    }
+
+    @Test
+    fun `quiz lesson stores questions answers and passing score`() {
+        mockMvc.perform(
+            post("/api/admin/lms/courses/crs_draft/lessons")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """{
+                      "title":"Итоговый тест",
+                      "kind":"quiz",
+                      "required":true,
+                      "quizPassingScore":80,
+                      "quizQuestions":[
+                        {"id":"q-1","prompt":"Когда принимать?","options":["До еды","После еды"],"correctOption":1,"explanation":"Следуйте инструкции"},
+                        {"id":"q-2","prompt":"Сколько таблеток?","options":["Одну","Две"],"correctOption":0}
+                      ]
+                    }""",
+                ),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.lessonItems[0].kind").value("quiz"))
+            .andExpect(jsonPath("$.lessonItems[0].required").value(true))
+            .andExpect(jsonPath("$.lessonItems[0].quizPassingScore").value(80))
+            .andExpect(jsonPath("$.lessonItems[0].quizQuestions.length()").value(2))
+            .andExpect(jsonPath("$.lessonItems[0].quizQuestions[0].correctOption").value(1))
+
+        mockMvc.perform(
+            post("/api/admin/lms/courses/crs_draft/lessons")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"title":"Пустой тест","kind":"test","quizQuestions":[]}"""),
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.message").value("Добавьте хотя бы один вопрос теста"))
     }
 
     @Test
@@ -370,6 +532,59 @@ class LmsIntegrationTest {
                 .multipart("/api/admin/lms/courses/crs_draft/lessons/$lessonId/attachments")
                 .file(handout),
         ).andExpect(status().isUnauthorized)
+    }
+
+    private fun courseImportWorkbook(includeQuestions: Boolean = true): ByteArray {
+        val out = ByteArrayOutputStream()
+        XSSFWorkbook().use { workbook ->
+            workbook.createSheet("Курс").apply {
+                createRow(0).apply {
+                    listOf("Название", "Категория", "Описание", "Бонус, ₸").forEachIndexed { index, value ->
+                        createCell(index).setCellValue(value)
+                    }
+                }
+                createRow(1).apply {
+                    createCell(0).setCellValue("Excel курс")
+                    createCell(1).setCellValue("Категория")
+                    createCell(2).setCellValue("Описание")
+                    createCell(3).setCellValue(500.0)
+                }
+            }
+            workbook.createSheet("Уроки").apply {
+                createRow(0).apply {
+                    listOf(
+                        "Код урока", "Порядок", "Название", "Тип", "Длительность, мин",
+                        "Краткое описание", "Содержание", "Внешняя ссылка", "Обязательный",
+                        "Мин. просмотр, %", "Проходной балл, %",
+                    ).forEachIndexed { index, value -> createCell(index).setCellValue(value) }
+                }
+                createRow(1).apply {
+                    listOf("L01", 1, "Текст", "Текст", 8, "Описание", "Содержание", "", "Да", "", "")
+                        .forEachIndexed { index, value -> createCell(index).setCellValue(value.toString()) }
+                }
+                createRow(2).apply {
+                    listOf("L02", 2, "Тест", "Тест", 5, "Проверка", "Ответьте", "", "Да", "", 80)
+                        .forEachIndexed { index, value -> createCell(index).setCellValue(value.toString()) }
+                }
+            }
+            workbook.createSheet("Вопросы").apply {
+                createRow(0).apply {
+                    listOf(
+                        "Код урока", "Порядок", "Вопрос", "Вариант 1", "Вариант 2", "Вариант 3",
+                        "Вариант 4", "Вариант 5", "Вариант 6", "Вариант 7", "Вариант 8",
+                        "Правильный вариант", "Пояснение",
+                    ).forEachIndexed { index, value -> createCell(index).setCellValue(value) }
+                }
+                if (includeQuestions) {
+                    createRow(1).apply {
+                        listOf("L02", 1, "Вопрос?", "Нет", "Да", "", "", "", "", "", "", 2, "Пояснение")
+                            .forEachIndexed { index, value -> createCell(index).setCellValue(value.toString()) }
+                    }
+                }
+            }
+            workbook.write(out)
+        }
+        return out.toByteArray()
     }
 
     private fun login(): LoginResponse {

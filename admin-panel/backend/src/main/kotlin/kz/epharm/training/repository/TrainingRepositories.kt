@@ -11,6 +11,7 @@ import kz.epharm.training.entity.TrainingAssessmentResultEntity
 import kz.epharm.training.entity.TrainingAuditLogEntity
 import kz.epharm.training.entity.TrainingCertificateEntity
 import kz.epharm.training.entity.TrainingNotificationEntity
+import kz.epharm.training.entity.TrainingLessonProgressEntity
 import kz.epharm.training.entity.TrainingProgramEntity
 import kz.epharm.training.entity.TrainingProgramStageEntity
 import kz.epharm.training.entity.TrainingProgramVersionEntity
@@ -45,6 +46,8 @@ interface OfflineEventRepository : JpaRepository<OfflineEventEntity, UUID> {
     fun findAllByRegionInOrderByStartsAtDesc(regions: Collection<String>): List<OfflineEventEntity>
     fun findAllByTrainerIdOrderByStartsAtDesc(trainerId: UUID): List<OfflineEventEntity>
     fun findByQrToken(qrToken: UUID): OfflineEventEntity?
+    fun findByCheckInCode(checkInCode: String): OfflineEventEntity?
+    fun existsByCheckInCode(checkInCode: String): Boolean
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select e from OfflineEventEntity e where e.id = :id")
@@ -82,6 +85,18 @@ interface TrainingAssignmentStageRepository : JpaRepository<TrainingAssignmentSt
     fun findAllByAssignmentIdOrderByProgramStageIdAsc(assignmentId: UUID): List<TrainingAssignmentStageEntity>
     fun findAllByAssignmentIdIn(assignmentIds: Collection<UUID>): List<TrainingAssignmentStageEntity>
     fun findByAssignmentIdAndProgramStageId(assignmentId: UUID, programStageId: UUID): TrainingAssignmentStageEntity?
+}
+
+@Repository
+interface TrainingLessonProgressRepository : JpaRepository<TrainingLessonProgressEntity, UUID> {
+    fun findByAssignmentStageIdAndLessonId(
+        assignmentStageId: UUID,
+        lessonId: String,
+    ): TrainingLessonProgressEntity?
+
+    fun findAllByAssignmentStageIdIn(
+        assignmentStageIds: Collection<UUID>,
+    ): List<TrainingLessonProgressEntity>
 }
 
 @Repository

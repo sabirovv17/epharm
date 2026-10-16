@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveEpharmMediaUrl, safeImageSrc } from './media'
+import { proxyMedia, resolveEpharmMediaUrl, safeImageSrc } from './media'
 
 describe('safeImageSrc', () => {
   it('accepts same-origin relative and remote HTTPS images', () => {
@@ -25,6 +25,22 @@ describe('safeImageSrc', () => {
     'file:///etc/passwd',
   ])('rejects active-content or ambiguous source %s', (source) => {
     expect(safeImageSrc(source)).toBeUndefined()
+  })
+})
+
+describe('proxyMedia', () => {
+  it('проксирует HTTPS-фото storefront, которое запрещает cross-origin embedding', () => {
+    const source = 'https://www.aptekasosklada.kz/api/media/daribar?sku=abc-123'
+    const result = proxyMedia(source)
+
+    expect(result).toContain('/api/media/img?u=')
+    expect(result).toContain(encodeURIComponent(source))
+    expect(result).not.toBe(source)
+  })
+
+  it('не проксирует обычный HTTPS URL', () => {
+    const source = 'https://cdn.example/product.webp'
+    expect(proxyMedia(source)).toBe(source)
   })
 })
 

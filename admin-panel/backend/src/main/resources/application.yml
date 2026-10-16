@@ -73,6 +73,16 @@ springdoc:
     path: /swagger-ui.html
 
 app:
+  standardn-directory:
+    # Read-only mirror of Standard-N USERS. Enable only on the internal production network.
+    enabled: ${STANDARDN_DIRECTORY_ENABLED:false}
+    host: ${STANDARDN_HOST:INKSTDN}
+    port: ${STANDARDN_PORT:3050}
+    database: '${STANDARDN_DATABASE:C:\Standart-N\base_g\ZTRADE_G.FDB}'
+    user: ${STANDARDN_USER:}
+    password: ${STANDARDN_PASSWORD:}
+    sync-delay-ms: ${STANDARDN_SYNC_DELAY_MS:21600000}
+    initial-delay-ms: ${STANDARDN_INITIAL_DELAY_MS:30000}
   merch-tasks:
     enabled: ${MERCH_TASKS_ENABLED:false}
     base-url: ${MERCH_TASKS_BASE_URL:}
@@ -89,6 +99,9 @@ app:
     secret: ${JWT_SECRET:dev-secret-change-me-please-very-long-key-for-hs256-algo-min-256-bits-required}
     access-ttl-minutes: 15
     refresh-ttl-days: 30
+    # Только кабинет фармацевта: длительная скользящая сессия. Каждый успешный refresh
+    # ротирует токен и снова выдаёт полный срок; блокировка, смена пароля и выход отзывают его.
+    pharmacist-refresh-ttl-days: ${PHARMACIST_REFRESH_TTL_DAYS:365}
   s3:
     # Внутренний адрес для SDK (PUT/DELETE). В docker — http://minio:9000.
     endpoint: ${S3_ENDPOINT:http://localhost:9000}
@@ -170,6 +183,15 @@ app:
     window-days: ${ANALYTICS_WINDOW_DAYS:90}
     # Ежедневный пересчёт витринных метрик реестра аптек (receipts30d/rulesAccepted).
     metrics-refresh-cron: ${ANALYTICS_METRICS_REFRESH_CRON:0 30 6 * * *}
+  storefront-catalog:
+    # Новый сайт Inkar на выделенном 10.10.1.80 — приоритетный источник каталога,
+    # цен и фотографий. До внутреннего DNS docker-compose закрепляет имя сайта на
+    # этот IP; production использует HTTPS с корректным SNI/Host.
+    # При любой ошибке ePharm использует последний полный PostgreSQL-снимок.
+    enabled: ${STOREFRONT_CATALOG_ENABLED:false}
+    base-url: ${STOREFRONT_CATALOG_BASE_URL:}
+    connect-timeout-ms: ${STOREFRONT_CATALOG_CONNECT_TIMEOUT_MS:2000}
+    read-timeout-ms: ${STOREFRONT_CATALOG_READ_TIMEOUT_MS:8000}
   medusa:
     # Внешняя витрина inkar.kz на Medusa v2 (Module 3) — источник реального каталога.
     # Бэкенд ходит туда server-to-server и проксирует товары в мобильное приложение

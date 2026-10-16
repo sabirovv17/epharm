@@ -48,10 +48,45 @@ abstract final class AppTheme {
     );
 
     return base.copyWith(
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, 52),
+          backgroundColor: AppColors.brandGreen700,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: AppColors.ink300,
+          shape: const RoundedRectangleBorder(borderRadius: AppRadii.brMd),
+          textStyle: AppTypography.bodyStrong(color: Colors.white),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(0, 48),
+          foregroundColor: AppColors.brandGreen700,
+          side: const BorderSide(color: AppColors.brandGreen400),
+          shape: const RoundedRectangleBorder(borderRadius: AppRadii.brMd),
+          textStyle: AppTypography.body14(color: AppColors.brandGreen700),
+        ),
+      ),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: AppColors.brandGreen600,
+        linearTrackColor: AppColors.brandGreen100,
+      ),
+      dividerTheme: const DividerThemeData(
+        color: AppColors.borderHairline,
+        thickness: 1,
+        space: 1,
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: AppColors.ink900,
+        contentTextStyle: AppTypography.body14(color: Colors.white),
+        behavior: SnackBarBehavior.floating,
+        shape: const RoundedRectangleBorder(borderRadius: AppRadii.brMd),
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.paperInput,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         hintStyle: AppTypography.body16(color: AppColors.ink400),
         border: const OutlineInputBorder(
           borderRadius: AppRadii.brMd,

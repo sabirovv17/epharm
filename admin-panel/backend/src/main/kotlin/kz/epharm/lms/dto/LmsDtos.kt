@@ -1,6 +1,8 @@
 package kz.epharm.lms.dto
 
+import jakarta.validation.Valid
 import jakarta.validation.constraints.Min
+import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotEmpty
 import jakarta.validation.constraints.Size
@@ -8,6 +10,10 @@ import kz.epharm.lms.entity.CourseEntity
 import kz.epharm.lms.entity.CourseLessonAttachmentEntity
 import kz.epharm.lms.entity.CourseLessonEntity
 import kz.epharm.lms.entity.CourseLessonKind
+import kz.epharm.lms.entity.CourseLivePoll
+import kz.epharm.lms.entity.CourseLiveProvider
+import kz.epharm.lms.entity.CourseLiveStatus
+import kz.epharm.lms.entity.CourseQuizQuestion
 import kz.epharm.lms.entity.CourseStatus
 import java.time.Instant
 
@@ -18,16 +24,36 @@ data class CourseLessonDto(
     val content: String,
     val kind: CourseLessonKind,
     val videoUrl: String?,
+    val externalUrl: String?,
+    val liveProvider: CourseLiveProvider?,
+    val liveStatus: CourseLiveStatus?,
+    val liveStartAt: Instant?,
+    val liveEndAt: Instant?,
+    val liveChatEnabled: Boolean,
+    val liveQaEnabled: Boolean,
+    val liveReactionsEnabled: Boolean,
+    val livePolls: List<CourseLivePoll>,
+    val required: Boolean,
+    val minimumWatchPct: Int?,
+    val quizQuestions: List<CourseQuizQuestionDto>,
+    val quizPassingScore: Int,
     val attachments: List<CourseLessonAttachmentDto>,
     val durationMin: Int,
     val order: Int,
     val createdAt: Instant,
     val updatedAt: Instant,
+    val progressPct: Int? = null,
+    val lastPositionSeconds: Int? = null,
+    val startedAt: Instant? = null,
+    val completedAt: Instant? = null,
+    val quizScore: Int? = null,
+    val quizAttempts: Int = 0,
 ) {
     companion object {
         fun of(
             entity: CourseLessonEntity,
             attachments: List<CourseLessonAttachmentEntity> = emptyList(),
+            includeQuizAnswers: Boolean = true,
         ): CourseLessonDto = CourseLessonDto(
             id = entity.id,
             title = entity.title,
@@ -35,12 +61,46 @@ data class CourseLessonDto(
             content = entity.content,
             kind = entity.kind,
             videoUrl = entity.videoUrl,
+            externalUrl = entity.externalUrl,
+            liveProvider = entity.liveProvider,
+            liveStatus = entity.liveStatus,
+            liveStartAt = entity.liveStartAt,
+            liveEndAt = entity.liveEndAt,
+            liveChatEnabled = entity.liveChatEnabled,
+            liveQaEnabled = entity.liveQaEnabled,
+            liveReactionsEnabled = entity.liveReactionsEnabled,
+            livePolls = entity.livePolls,
+            required = entity.required,
+            minimumWatchPct = entity.minimumWatchPct,
+            quizQuestions = entity.quizQuestions.map {
+                CourseQuizQuestionDto.of(it, includeAnswer = includeQuizAnswers)
+            },
+            quizPassingScore = entity.quizPassingScore,
             attachments = attachments.map(CourseLessonAttachmentDto::of),
             durationMin = entity.durationMin,
             order = entity.order,
             createdAt = entity.createdAt,
             updatedAt = entity.updatedAt,
         )
+    }
+}
+
+data class CourseQuizQuestionDto(
+    val id: String,
+    val prompt: String,
+    val options: List<String>,
+    val correctOption: Int?,
+    val explanation: String,
+) {
+    companion object {
+        fun of(question: CourseQuizQuestion, includeAnswer: Boolean): CourseQuizQuestionDto =
+            CourseQuizQuestionDto(
+                id = question.id,
+                prompt = question.prompt,
+                options = question.options,
+                correctOption = question.correctOption.takeIf { includeAnswer },
+                explanation = question.explanation.takeIf { includeAnswer }.orEmpty(),
+            )
     }
 }
 
@@ -92,7 +152,13 @@ data class CourseContentDto(
             title = entity.title,
             description = entity.description,
             durationMin = if (lessons.isEmpty()) entity.durationMin else lessons.sumOf { it.durationMin },
-            lessons = lessons.map { CourseLessonDto.of(it, attachmentsByLesson[it.id].orEmpty()) },
+            lessons = lessons.map {
+                CourseLessonDto.of(
+                    it,
+                    attachmentsByLesson[it.id].orEmpty(),
+                    includeQuizAnswers = false,
+                )
+            },
         )
     }
 }
@@ -178,9 +244,28 @@ data class CreateCourseLessonRequest(
     val title: String,
     @field:Size(max = 1000)
     val description: String = "",
-    @field:Size(max = 50_000)
+    @field:Size(max = 10_000)
     val content: String = "",
     val kind: CourseLessonKind = CourseLessonKind.text,
+    @field:Size(max = 1000)
+    val externalUrl: String? = null,
+    val liveProvider: CourseLiveProvider? = null,
+    val liveStatus: CourseLiveStatus? = null,
+    val liveStartAt: Instant? = null,
+    val liveEndAt: Instant? = null,
+    val liveChatEnabled: Boolean = true,
+    val liveQaEnabled: Boolean = true,
+    val liveReactionsEnabled: Boolean = true,
+    @field:Size(max = 10)
+    val livePolls: List<CourseLivePoll> = emptyList(),
+    val required: Boolean = true,
+    @field:Min(0) @field:Max(100)
+    val minimumWatchPct: Int? = null,
+    @field:Valid
+    @field:Size(max = 50)
+    val quizQuestions: List<CourseQuizQuestionRequest> = emptyList(),
+    @field:Min(1) @field:Max(100)
+    val quizPassingScore: Int = 80,
     @field:Min(0)
     val durationMin: Int = 0,
 )
@@ -190,12 +275,50 @@ data class UpdateCourseLessonRequest(
     val title: String? = null,
     @field:Size(max = 1000)
     val description: String? = null,
-    @field:Size(max = 50_000)
+    @field:Size(max = 10_000)
     val content: String? = null,
     val kind: CourseLessonKind? = null,
+    @field:Size(max = 1000)
+    val externalUrl: String? = null,
+    val clearExternalUrl: Boolean = false,
+    val liveProvider: CourseLiveProvider? = null,
+    val liveStatus: CourseLiveStatus? = null,
+    val liveStartAt: Instant? = null,
+    val liveEndAt: Instant? = null,
+    val clearLiveSchedule: Boolean = false,
+    val liveChatEnabled: Boolean? = null,
+    val liveQaEnabled: Boolean? = null,
+    val liveReactionsEnabled: Boolean? = null,
+    @field:Size(max = 10)
+    val livePolls: List<CourseLivePoll>? = null,
+    val clearLiveSettings: Boolean = false,
+    val required: Boolean? = null,
+    @field:Min(0) @field:Max(100)
+    val minimumWatchPct: Int? = null,
+    val clearMinimumWatchPct: Boolean = false,
+    @field:Valid
+    @field:Size(max = 50)
+    val quizQuestions: List<CourseQuizQuestionRequest>? = null,
+    @field:Min(1) @field:Max(100)
+    val quizPassingScore: Int? = null,
+    val clearQuiz: Boolean = false,
     @field:Min(0)
     val durationMin: Int? = null,
     val clearVideo: Boolean = false,
+)
+
+data class CourseQuizQuestionRequest(
+    @field:Size(max = 64)
+    val id: String? = null,
+    @field:NotBlank
+    @field:Size(max = 1000)
+    val prompt: String,
+    @field:Size(min = 2, max = 8)
+    val options: List<String>,
+    @field:Min(0)
+    val correctOption: Int,
+    @field:Size(max = 2000)
+    val explanation: String = "",
 )
 
 data class ReorderCourseLessonsRequest(
