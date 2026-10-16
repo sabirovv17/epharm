@@ -64,6 +64,9 @@ public endpoint unless `.env.prod` and `Caddyfile` are changed together.
 | `19-order-fulfillment.md`                 | Надежная доставка интернет-заказов из витрины в Epharm/POSM и rollout.         |
 | `20-reliability-and-release.md`           | Backup/restore, monitoring, Sentry, releases, load testing and TestFlight.     |
 | `20-production-acceptance.md`             | Единый доказательный P1 runbook: обучение, POSM, mapping и fulfillment pilot.  |
+| `21-rps-rollout-and-manufacturer-reports.md` | Контракт PDF производителя, двухминутная атрибуция, вход РПС и staged-приёмка. |
+| `rollout/rps-instructions-draft.md`        | Черновики ролевых инструкций и сценариев видео до Windows-приёмки.            |
+| `rollout/rps-auth-test.md`                 | Пилот входа РПС: ИИН/пароль, регистрация, SMS-сброс и отсутствие блокировки кассы. |
 | `reports/2026-09-23-orders-merch-audit.md` | Аудит связки заказов/мерча, риски и доказательства перед следующим rollout.   |
 | `TRAINING-TEST-GUIDE.md`                  | Сквозная проверка обучения: админка, приложение, QR, сертификат и роли.        |
 | `RUNBOOK.md`                              | Day-to-day local startup, reset, tests, and production commands.               |

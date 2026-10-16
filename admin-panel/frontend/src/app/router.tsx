@@ -14,6 +14,7 @@ import { SectionRoute } from './SectionRoute'
 const LoginPage = lazy(() => import('@/features/auth/LoginPage'))
 const LearnerTraining = lazy(() => import('@/features/learner/LearnerTrainingPage'))
 const Dashboard = lazy(() => import('@/features/dashboard/DashboardPage'))
+const CampaignReports = lazy(() => import('@/features/reports/CampaignReportsPage'))
 const Promo = lazy(() => import('@/features/promo/PromoPage'))
 const PromoDetail = lazy(() => import('@/features/promo/PromoDetailPage'))
 const Rules = lazy(() => import('@/features/rules/RulesPage'))
@@ -69,6 +70,7 @@ export function AppRouter() {
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
           <Route path="/dashboard" element={protectedPage('dashboard', <Dashboard />)} />
+          <Route path="/dashboard/reports" element={protectedPage('dashboard', <CampaignReports />)} />
           <Route path="/promo" element={protectedPage('promo', <Promo />)} />
           <Route path="/promo/:id" element={protectedPage('promo', <PromoDetail />)} />
           <Route path="/rules" element={protectedPage('rules', <Rules />)} />

@@ -4,6 +4,9 @@
 // остаются Empty — временных рядов в БД пока нет (честно, без фейковых цифр).
 
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { useUiStore } from '@/app/store'
+import { canExportCampaignReports } from '@/features/reports/campaignReports'
 import { Button, Empty, IconButton, Metric, PageHeader, SectionCard } from '@/ui'
 import {
   IconArrowUp,
@@ -23,11 +26,12 @@ import { useT } from '@/i18n'
 
 export default function DashboardPage() {
   const t = useT()
+  const user = useUiStore((state) => state.authedUser)
   const { data: s, isLoading, isError, error, refetch } = useDashboardSummary()
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader title={t('page.dashboard.title')} subtitle={t('page.dashboard.subtitle')} />
+      <PageHeader title={t('page.dashboard.title')} subtitle={t('page.dashboard.subtitle')} actions={canExportCampaignReports(user?.role) ? <Link className="btn btn-md btn-outline" to="/dashboard/reports">Отчёты производителю · PDF</Link> : undefined} />
 
       {isError && !s && (
         <Empty

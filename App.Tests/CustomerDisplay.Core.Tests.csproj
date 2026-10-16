@@ -42,6 +42,10 @@
     <Compile Include="..\App\Services\PosmDeviceCredentialResolver.cs" Link="Services\PosmDeviceCredentialResolver.cs" />
     <Compile Include="..\App\Services\UpdateManifestVerifier.cs" Link="Services\UpdateManifestVerifier.cs" />
     <Compile Include="..\App\Services\TaskKioskClient.cs" Link="Services\TaskKioskClient.cs" />
+    <Compile Include="..\App\Services\StaffSessionObservation.cs" Link="Services\StaffSessionObservation.cs" />
+    <Compile Include="..\App\Services\StaffPasswordValidation.cs" Link="Services\StaffPasswordValidation.cs" />
+    <Compile Include="..\App\Services\StaffAuthClient.cs" Link="Services\StaffAuthClient.cs" />
+    <Compile Include="..\Models\Posm\StaffAuthentication.cs" Link="Models\StaffAuthentication.cs" />
     <Compile Include="..\App\Services\TaskKioskSnooze.cs" Link="Services\TaskKioskSnooze.cs" />
     <Compile Include="..\App\Services\MerchShownOutbox.cs" Link="Services\MerchShownOutbox.cs" />
     <Compile Include="..\App\Services\MerchTaskDeliveryReply.cs" Link="Services\MerchTaskDeliveryReply.cs" />

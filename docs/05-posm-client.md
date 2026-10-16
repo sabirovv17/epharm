@@ -27,6 +27,8 @@ The POSM client runs on a Windows cash-desk machine:
 11. Stores outgoing non-real-time events in a local SQLite outbox and retries safely.
 12. Sends any cashier id/name found in Standard-N as an audit signal; the backend decides the trusted
     internal pharmacist used for bonuses.
+13. Optionally opens a nonmodal employee IIN/password, registration or phone-reset window.
+    Server capabilities must enable it; Standard-N/Windows and ordinary POSM loops stay usable.
 
 The pharmacist recommendation popup is a non-activating, right-anchored panel so the Standard-N
 scanner keeps focus. It shows up to five replacements and five cross-sell offers in ordered,
@@ -46,6 +48,9 @@ next successful poll. Recommendations remain on a separate path.
 | `App/MainWindow.Recommendations.cs`        | Recommendation popup wiring.                       |
 | `App/MainWindow.Screen.cs`                 | Customer screen/video playlist logic.              |
 | `App/MainWindow.Update.cs`                 | App auto-update logic.                             |
+| `App/MainWindow.Staff.cs`, `StaffAuthWindow.cs` | Optional human sign-in, tray reopening and lifecycle. |
+| `App/Services/StaffSessionObservation.cs`    | Exact-workstation session observation and stale-response guard. |
+| `App/Services/StaffAuthClient.cs`            | Separate HTTPS employee credentials/grants channel. |
 | `App/RecommendationWindow.xaml[.cs]`       | Pharmacist recommendation popup.                   |
 | `App/CdpForm.xaml[.cs]`                    | POSM customer-phone/CDP form.                      |
 | `App/Config/EpharmConfig.cs`               | Config/env parsing.                                |
@@ -115,6 +120,8 @@ catalog product ids.
 | `AppLogPath`                           | `EPHARM_APP_LOG`                           | POSM app log path.                                                    |
 | `StandardNLogPaths`                    | `EPHARM_STANDARDN_LOG_PATHS`               | Optional explicit paths (`;`-separated in env).                       |
 | `StandardNReceiptPollMs`               | `EPHARM_STANDARDN_RECEIPT_POLL_MS`         | Active receipt poll interval; default 400ms.                          |
+| `StaffAuthenticationEnabled`           | `EPHARM_STAFF_AUTH_ENABLED`               | Local opt-out; server capabilities are additionally required.          |
+| `StaffSessionMaxAgeSec`                 | `EPHARM_STAFF_SESSION_MAX_AGE_SEC`         | Staff DB-heartbeat freshness policy, default 300s; verify actual cadence in pilot. |
 | `ReceiptCaptureEnabled`                | `EPHARM_RECEIPT_CAPTURE_ENABLED`           | Enables exact-only local capture; default true.                       |
 | `ReceiptCaptureDir`                    | `EPHARM_RECEIPT_CAPTURE_DIR`               | Root for active/pending/quarantine receipt artifacts.                 |
 | `FiscalReceiptInboxDir`                | `EPHARM_FISCAL_RECEIPT_INBOX_DIR`          | Handoff directory written by an approved KKM/OFD adapter.             |
@@ -134,6 +141,15 @@ running Standard-N/cashier processes and likely top-level installation folders. 
 cash-event marker is observed. The cache is `C:\Epharm\standardn-log-paths.txt`.
 
 `Enabled` is effective only when key identity fields are present.
+
+Staff identity is observed independently of an open receipt: one local cashier process
+(PID/start time), exact canonical workstation and one fresh session. It never borrows the
+receipt reader's sole-foreign-session or substring fallback. Unknown/stale/ambiguous observations
+clear only the employee grant and show a nonblocking reason. Grants remain in memory and are
+revalidated every 30 seconds; context/generation guards reject a delayed login after a switch.
+This is ePharm identity, not attestation of ownership of the Standard-N account; receipt seller
+attribution is unchanged. Follow the [Windows/SMS pilot checklist](rollout/rps-auth-test.md)
+before enabling fleet auto-update.
 
 ## Exact Fiscal Receipt Contract
 

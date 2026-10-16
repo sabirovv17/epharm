@@ -36,6 +36,7 @@ import java.util.UUID
  */
 @Service
 class MobileAuthService(
+    private val staffPhoneLock: kz.epharm.posm.staff.StaffPhoneLock,
     private val otpService: OtpService,
     private val pharmacistRepository: PharmacistRepository,
     private val standardNPharmacistRepository: StandardNPharmacistRepository,
@@ -99,6 +100,8 @@ class MobileAuthService(
 
     @Transactional
     fun setInitialPassword(rawIin: String, rawPhone: String, password: String): MobileAuthResponse {
+        // Lock before loading the account: a concurrent staff activation must not be overwritten.
+        staffPhoneLock.lock(PhoneUtil.normalize(rawPhone))
         val identity = findActivationIdentity(rawIin)
         val phone = resolveActivationPhone(identity, rawPhone)
         identity.pharmacist?.let(::ensurePasswordNotSet)

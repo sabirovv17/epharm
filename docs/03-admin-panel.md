@@ -27,6 +27,7 @@ Public:
 Protected under `AppShell`:
 
 - `/dashboard`
+- `/dashboard/reports` — HQ/SYSTEM_ADMIN PDF export, linked from Dashboard
 - `/promo`
 - `/promo/:id`
 - `/rules`
@@ -123,6 +124,16 @@ The dashboard journal shows metrics only after a successful response. An initial
 displays an explicit error and retry action, not an empty journal or zero sales. A failed automatic
 refresh retains the last successful rows and metrics with a stale-data warning. Its rolling window
 is configured on the backend and does not follow the header's month selector.
+
+Manufacturer reports use a separate `/dashboard/reports` form rather than the recommendation
+editor. HQ explicitly selects a campaign (including archived ones) and an inclusive 1–366-day
+Almaty date range, then downloads the backend PDF. Browser and server both restrict export to
+`HQ_HEAD`/`SYSTEM_ADMIN`; a brand-manager role is not proof of campaign ownership. The form
+never writes campaigns or sales, retains selections on errors, rejects non-PDF downloads and
+cancels an unfinished request on navigation. Confirmed replacement sales mean “approved”; the
+0–120-second recommendation-sale subset is separately labelled. Methodology, source limitations
+and the daily chart are inside the PDF; there is no second KPI request with a different cutoff.
+See [rollout and reporting contract](21-rps-rollout-and-manufacturer-reports.md).
 
 ## UI and Design
 

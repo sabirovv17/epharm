@@ -119,6 +119,10 @@ namespace CustomerDisplay.Config
         public bool PharmacistPreview { get; set; } = false;
         /// <summary>Авто-обновление клиента из админки. false (env EPHARM_UPDATE_ENABLED=false) — выкл.</summary>
         public bool UpdateEnabled { get; set; } = true;
+        /// <summary>Opt-out switch; sign-in starts only after backend capabilities explicitly enable it.</summary>
+        public bool StaffAuthenticationEnabled { get; set; } = true;
+        /// <summary>Safety policy, not a verified Standard-N heartbeat cadence; confirm on the pilot.</summary>
+        public int StaffSessionMaxAgeSec { get; set; } = 300;
         /// <summary>Период проверки обновлений (сек). По умолчанию 5 мин (env EPHARM_UPDATE_POLL_SEC).</summary>
         public int UpdatePollSec { get; set; } = 300;
         /// <summary>Проигрывать ли видео. false (env EPHARM_NO_VIDEO=true) — для VM без GPU.</summary>
@@ -279,6 +283,8 @@ namespace CustomerDisplay.Config
             if (Env("EPHARM_PHARMACIST_PREVIEW", "false") == "true") cfg.PharmacistPreview = true;
             // Авто-обновление клиента.
             if (Env("EPHARM_UPDATE_ENABLED", "true") == "false") cfg.UpdateEnabled = false;
+            if (Env("EPHARM_STAFF_AUTH_ENABLED", "true") == "false") cfg.StaffAuthenticationEnabled = false;
+            if (int.TryParse(Env("EPHARM_STAFF_SESSION_MAX_AGE_SEC", ""), out var staffAge)) cfg.StaffSessionMaxAgeSec = Math.Clamp(staffAge, 10, 3600);
             if (int.TryParse(Env("EPHARM_UPDATE_POLL_SEC", ""), out var updSec)) cfg.UpdatePollSec = updSec;
             // Старые аптечные конфиги фиксировали прежний default 1800 секунд. Начиная с
             // v1.0.46 ограничиваем положительный интервал пятью минутами, чтобы дальнейшие

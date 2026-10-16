@@ -44,15 +44,36 @@ The backend is a modular monolith under package `kz.epharm`.
 | `merchtasks`                          | Optional authenticated CRM task bridge, exact staff URL validation and bounded concurrency. |
 | `training`                            | Programs, routes, assignments, events, attendance, results and awards.  |
 | `lms`, `ai_exam`, `lift`, `dashboard` | Admin sections and reporting.                                           |
+| `reporting`                           | HQ-only campaign JSON/PDF, confirmed displays, attributed/0–120-second sales. |
+| `posm.staff`                          | Optional device-scoped employee authentication and purpose-bound SMS recovery. |
 | `shared`                              | Security, errors, media proxy, storage, validation, dev reset.          |
 
 ## API Map
+
+POSM staff identity is an independent optional API under `/api/posm/staff`: capabilities,
+login, OTP request, registration, password reset/activation, session validation and logout.
+Every route requires a non-legacy individual `X-Posm-Key`; opaque staff grants also bind
+the pharmacy/device and observed process/cashier context. Pending registration does not
+assign or activate a pharmacist. `POSM_STAFF_AUTH_ENABLED=false` is the safe default.
+Neither this flag nor a failed login gates Standard-N, recommendation delivery or sales.
+See [manual staff acceptance](rollout/rps-auth-test.md).
+
+OTP issuance/verification serializes Daribar's phone-wide codes across mobile and POSM.
+New staff challenges are purpose/account/device-bound and one-use; independent transactions
+preserve invalidation and attempt budgets on request errors. Changing staff status/pharmacy/
+password or device credentials revokes grants. Password reset also revokes mobile refresh
+tokens; previously issued mobile access JWTs retain their existing short lifetime until expiry.
+Transient expired staff challenges/sessions/rate counters are purged after 24 hours.
 
 ### Admin
 
 - `POST /api/admin/auth/login|refresh|logout`, `GET /api/admin/auth/me`
 - `/api/admin/dashboard/summary`
 - `/api/admin/dashboard/recommendations` — конверсия показ→продажа + время до продажи (V032)
+- `/api/admin/reports/campaigns/{promoId}` and `/{promoId}/pdf` — HQ/SYSTEM_ADMIN-only campaign reporting;
+  inclusive `from`/`to` dates in Asia/Almaty, at most 366 days, `no-store`. Confirmed display ACKs,
+  accepted actions, verified attributed sales and the separate 0–120-second subset remain distinct.
+  See [report methodology and rollout](21-rps-rollout-and-manufacturer-reports.md).
 - `/api/admin/catalog/products`, `/brands`, `/mnn-groups`, `/trigger-options`
 - `/api/admin/rules/**`
 - `/api/admin/promo/**`, including `/refresh-prices` and `/{id}/rules`

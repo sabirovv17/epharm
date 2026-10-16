@@ -19,6 +19,33 @@ All notable production changes to Epharm are recorded here. The format follows
 - POSM 1.0.65 spreads healthy QR-task polling over 24–36 seconds per device, reducing
   synchronized load on the merchandising fallback without changing recommendations or orders.
 
+## [0.1.37] - 2026-10-16
+
+### Added
+
+- HQ-only campaign PDF/JSON reports distinguish confirmed popup displays, confirmed replacement
+  sales, pharmacist actions and the separate 0–120-second conversion, with charts and methodology.
+- POSM 1.0.69 adds optional employee IIN/password sign-in, SMS-confirmed pending registration,
+  first-password activation and bound-phone password recovery. Standard-N and Windows stay usable.
+- Staff sessions are scoped to the individual device, pharmacy and observed cashier context;
+  account/device changes revoke grants. Phone-wide OTP requests are serialized across mobile/POSM
+  purposes, and failed-attempt limits survive transaction rollback. Transient auth data expires.
+
+### Fixed
+
+- Preserve invalidation of an older SMS challenge even when a provider sends a replacement code
+  but its response fails. Coordinate first-password activation with the staff password writer.
+- Include main's verified, bounded local backup and rollback-bundle retention contracts.
+- Remove disposable restore-test anonymous volumes along with their containers, preventing
+  repeated verification from accumulating abandoned database copies on the application disk.
+
+### Rollout
+
+- Use the reviewed main source, not the out-of-band v0.1.36 source label. Existing campaigns and
+  financial data are not reseeded. Keep the previous images for application rollback.
+- `POSM_STAFF_AUTH_ENABLED` defaults to false. Enable the server for a controlled Windows/SMS
+  pilot; promote the signed client to the fleet only after the manual acceptance checklist passes.
+
 ## [0.1.35] - 2026-10-15
 
 ### Fixed

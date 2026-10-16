@@ -94,6 +94,7 @@ class OtpServiceExternalProviderTest {
     }
 
     private fun service() = OtpService(
+        staffPhoneLock = io.mockk.mockk(relaxed = true),
         otpRepository = repository,
         otpProvider = provider,
         devMode = false,

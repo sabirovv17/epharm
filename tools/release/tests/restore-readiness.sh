@@ -2,6 +2,7 @@
 set -euo pipefail
 
 source_root="$(cd "$(dirname "$0")/../../.." && pwd)"
+source "$source_root/tools/ops/lib.sh"
 test_root="$(mktemp -d "${TMPDIR:-/tmp}/epharm-restore-readiness.XXXXXXXX")"
 trap 'rm -rf -- "$test_root"' EXIT
 
@@ -13,7 +14,7 @@ printf 'fixture' > "$test_root/minio-data/data/test-bucket/file"
 printf 'fixture' | gzip > "$test_root/backups/postgres/epharm-postgres-fixture.dump.gz"
 tar -C "$test_root/minio-data" -czf "$test_root/backups/minio/epharm-minio-fixture.tar.gz" data
 for backup in "$test_root/backups/postgres/"*.gz "$test_root/backups/minio/"*.gz; do
-  shasum -a 256 "$backup" | awk '{print $1}' > "$backup.sha256"
+  sha256_file "$backup" > "$backup.sha256"
 done
 printf 'MINIO_ROOT_USER=fixture\nMINIO_ROOT_PASSWORD=fixture\nBACKUP_ROOT=%s\n' \
   "$test_root/backups" > "$test_root/.env.prod"
@@ -29,5 +30,6 @@ fi
 [[ "$(grep -c '^tcp-probe$' "$test_root/docker-state")" -eq 4 ]]
 [[ "$(grep -c '^db-probe$' "$test_root/docker-state")" -eq 2 ]]
 [[ "$(grep -c '^restore$' "$test_root/docker-state")" -eq 1 ]]
+[[ "$(grep -c '^cleanup-volumes$' "$test_root/docker-state")" -eq 2 ]]
 grep -Fq 'Restore-test OK' "$test_root/restore.log"
-echo 'Restore waits for final PostgreSQL server and target database before pg_restore OK'
+echo 'Restore readiness and disposable anonymous-volume cleanup OK'
