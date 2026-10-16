@@ -35,6 +35,7 @@ All notable production changes to Epharm are recorded here. The format follows
 
 - Preserve invalidation of an older SMS challenge even when a provider sends a replacement code
   but its response fails. Coordinate first-password activation with the staff password writer.
+- Include main's verified, bounded local backup and rollback-bundle retention contracts.
 
 ### Rollout
 
