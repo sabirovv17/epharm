@@ -25,6 +25,7 @@ import java.time.Instant
  */
 @Service
 class OtpService(
+    private val staffPhoneLock: kz.epharm.posm.staff.StaffPhoneLock,
     private val otpRepository: MobileOtpRepository,
     private val otpProvider: OtpProvider,
     @Value("\${app.otp.dev-mode:true}") private val devMode: Boolean,
@@ -44,8 +45,10 @@ class OtpService(
      * OTP_RESEND_TOO_SOON (реальные SMS платные; без кулдауна кнопку можно закликать).
      * Уже подтверждённые строки (verified_at) кулдауном не блокируем — это новый цикл входа.
      */
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW, noRollbackFor = [AppException::class])
     fun request(phone: String, now: Instant = Instant.now()): RequestedOtp {
+        staffPhoneLock.lock(phone)
+        staffPhoneLock.invalidateStaff(phone)
         val existing = otpRepository.findById(phone).orElse(null)
         if (existing != null && existing.verifiedAt == null && resendCooldownSeconds > 0) {
             val nextAllowedAt = existing.createdAt.plusSeconds(resendCooldownSeconds)
@@ -86,8 +89,9 @@ class OtpService(
      * бросаем OTP_INVALID. Без этого throw откатил бы инкремент → анти-брутфорс не работал бы
      * (attempts всегда оставался бы 0). С noRollbackFor инкремент коммитится, ошибка летит дальше.
      */
-    @Transactional(noRollbackFor = [AppException::class])
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW, noRollbackFor = [AppException::class])
     fun verify(phone: String, code: String, now: Instant = Instant.now()) {
+        staffPhoneLock.lock(phone)
         val entity = otpRepository.findById(phone).orElseThrow {
             AppException(ErrorCode.OTP_NOT_REQUESTED, "Код не запрашивался для этого номера", HttpStatus.BAD_REQUEST)
         }

@@ -220,6 +220,7 @@ StartLogReader();
             StartHeartbeatPolling();
             StartFulfillment();
             StartTaskKiosk();
+            StartStaffAuthentication();
 
         }
 
@@ -902,6 +903,7 @@ ItemsList.Items.Refresh();
             try
             {
                 StopTaskKiosk();
+                StopStaffAuthentication();
                 _logCts?.Cancel();
                 _standardNReceiptCts?.Cancel();
                 _playlistPollCts?.Cancel();

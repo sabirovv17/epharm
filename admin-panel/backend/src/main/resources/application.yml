@@ -149,6 +149,7 @@ app:
       text-template: 'Код входа ePharm: {code}'
       timeout-ms: 10000
   posm:
+    staff-auth-enabled: ${POSM_STAFF_AUTH_ENABLED:false}
     # Ключ устройства кассы (Module 2). POSM-клиент шлёт его в заголовке X-Posm-Key.
     # Переходный fleet-key; production POSM endpoints используют индивидуальные tokens.
     device-key: ${POSM_DEVICE_KEY:dev-posm-key}

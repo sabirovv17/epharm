@@ -4,7 +4,7 @@ Database: PostgreSQL 16.
 
 Migrations: Flyway files in `admin-panel/backend/src/main/resources/db/migration/`.
 
-Current migration range: V001-V060.
+Current migration range in source: V001-V061.
 
 ## Migrations
 
@@ -70,6 +70,7 @@ Current migration range: V001-V060.
 | V058    | `course_live_lessons`                 | Live-room metadata, messages, poll votes and reactions; already applied in production. |
 | V059    | `allow_live_course_lessons`           | Expand the lesson-kind constraint to include live lessons without editing V058. |
 | V060    | `storefront_product_references`      | Origin-scoped website product handles/payload for restart-safe campaign pricing. |
+| V061    | `posm_staff_auth`                    | Purpose-bound SMS challenges, hashed staff grants, rate budgets and grant-revocation triggers. |
 
 ## Domain Tables
 

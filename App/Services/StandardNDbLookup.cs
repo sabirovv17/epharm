@@ -104,6 +104,39 @@ namespace CustomerDisplay.Services
             return active;
         }
 
+        /// <summary>Staff sign-in observes the workstation session even with no open DOCS row.
+        /// No ACTIVEUSERS/name/sole-foreign-workstation fallbacks are permitted here.</summary>
+        public StaffSessionObservation ObserveStaffSession(string processIdentity)
+        {
+            if (!_cfg.StandardNDbEnabled) return new("database_disabled");
+            try
+            {
+                using var conn = OpenConnection();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandTimeout = TimeoutSec();
+                cmd.CommandText = @"select first 100 s.ID as SESSION_ID, s.USER_ID, s.WS_ID, s.PROG, w.COMPNAME,
+                    cast(s.STARTDT as timestamp) as STARTDT, cast(s.HEARTBEATS as timestamp) as HEARTBEATS,
+                    cast(CURRENT_TIMESTAMP as timestamp) as DB_NOW
+                    from SESSIONS s join WORKSTATIONS w on w.ID = s.WS_ID
+                    where s.ENDDT is null and upper(w.COMPNAME) containing @machine";
+                cmd.Parameters.AddWithValue("@machine", StaffSessionResolver.CanonicalComputer(_machineName));
+                using var reader = cmd.ExecuteReader();
+                var rows = new List<StaffCashSessionRow>();
+                while (reader.Read()) rows.Add(new(ReadInt64(reader, "SESSION_ID") ?? 0,
+                    ValueToString(ReadValue(reader, "USER_ID")) ?? "", ReadInt64(reader, "WS_ID"),
+                    ReadString(reader, "COMPNAME"), ReadString(reader, "PROG"),
+                    ReadValue(reader, "STARTDT") is DateTime started ? DateTime.SpecifyKind(started, DateTimeKind.Unspecified) : null,
+                    ReadValue(reader, "HEARTBEATS") is DateTime heartbeat ? DateTime.SpecifyKind(heartbeat, DateTimeKind.Unspecified) : null,
+                    ReadValue(reader, "DB_NOW") is DateTime dbNow ? DateTime.SpecifyKind(dbNow, DateTimeKind.Unspecified) : null));
+                return StaffSessionResolver.Resolve(rows, _machineName, processIdentity, _cfg.StaffSessionMaxAgeSec);
+            }
+            catch
+            {
+                // This observer must not log database credentials or alter the existing cash path.
+                return new("database_unavailable");
+            }
+        }
+
         /// <summary>
         /// Reads the live Standard-N receipt owned by the local zkassa session. Production
         /// Standard-N builds do not consistently write Add2Cheque details to zkassa.log, while

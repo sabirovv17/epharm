@@ -141,6 +141,9 @@ services:
       # Used only while the explicitly enabled legacy enrollment window is open.
       POSM_DEVICE_KEY: ${POSM_DEVICE_KEY:-legacy-enrollment-disabled}
       POSM_LEGACY_DEVICE_KEY_ENABLED: ${POSM_LEGACY_DEVICE_KEY_ENABLED:-false}
+      # Optional employee sign-in never gates Standard-N sales or the POSM outbox.
+      # Enable for a controlled client pilot; old clients keep their current behavior.
+      POSM_STAFF_AUTH_ENABLED: ${POSM_STAFF_AUTH_ENABLED:-false}
       POSM_UPDATE_PUBLIC_KEY_SPKI: ${POSM_UPDATE_PUBLIC_KEY_SPKI:?set the pinned POSM update public key}
       MERCH_TASKS_ENABLED: ${MERCH_TASKS_ENABLED:-false}
       MERCH_TASKS_BASE_URL: ${MERCH_TASKS_BASE_URL:-}
