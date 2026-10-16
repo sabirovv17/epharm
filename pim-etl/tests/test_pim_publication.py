@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
-from load_files import TABLES, publication, recover_interrupted_publication, recover_all_interrupted, cleanup_terminal_tables, exclusive_lock, VALID_WARE_SQL
+from load_files import TABLES, publication, recover_interrupted_publication, recover_all_interrupted, cleanup_terminal_tables, exclusive_lock, VALID_WARE_SQL, export_catalog
 from pim_validation import ValidationError, durable_json
 
 
@@ -31,6 +31,29 @@ class FakeDatabase:
 class PublicationTests(unittest.TestCase):
     def test_strict_uuid_sql_not_permissive_cast(self):
         self.assertNotIn('toUUIDOrNull',VALID_WARE_SQL);self.assertIn('{8}',VALID_WARE_SQL)
+    def test_unnamed_valid_id_fails_closed_for_entire_pharmacy_offer(self):
+        class ExportDatabase:
+            def __init__(self):self.commands=[]
+            def table(self,name):return 'pim.'+name
+            def query(self,sql):return json.dumps({'noncent_price_batches':0})
+            def export(self,sql,path):
+                self.commands.append(sql)
+                path.write_text('{}\n',encoding='utf-8')
+        with tempfile.TemporaryDirectory() as temp:
+            db=ExportDatabase()
+            source={'snapshot_date':'2026-10-09','source_sha256':'a'*64,'observed_at':'2026-10-10T00:00:00Z',
+                    'rows':2,'pharmacies':1,'quality':{'unnamed_valid_ware_rows':1}}
+            manifest=export_catalog(db,'fact_pharmacy_daily',source,Path(temp))
+            self.assertEqual(manifest['export_policy_version'],3)
+            self.assertEqual(manifest['validation']['quarantined_rows'],1)
+            self.assertIn("trimBoth(sname)!=''",db.commands[0])
+            self.assertNotIn("trimBoth(sname)!=''",db.commands[1])
+            # Filtering unnamed batches before summing would drop their negative
+            # stock and overstate availability. Reject the entire grouped offer.
+            self.assertIn('WHERE '+VALID_WARE_SQL+' GROUP BY ware_id,profile_id',db.commands[2])
+            self.assertNotIn("AND trimBoth(sname)!=''",db.commands[2])
+            self.assertIn('HAVING countIf(trimBoth(sname)=\'\')=0',db.commands[2])
+            self.assertIn('sumIf(stock_end',db.commands[2])
     def test_atomic_json_replaces_whole_document(self):
         with tempfile.TemporaryDirectory() as temp:
             p=Path(temp)/'journal.json';durable_json(p,{'state':'one'});durable_json(p,{'state':'two'})
