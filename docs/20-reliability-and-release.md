@@ -16,9 +16,34 @@ The backup chain is:
    daily/weekly/monthly retention and runs a repository check.
 4. `tools/restore-test.sh` checksum-validates the newest artifacts, restores them into disposable
    PostgreSQL and MinIO containers and verifies Flyway history, public tables and restored buckets.
+5. Only after the complete `backup-all.sh` chain succeeds, verified local rotation retains
+   `BACKUP_KEEP_COUNT` newest PostgreSQL and MinIO backups (default 7 per component, minimum 2).
+   Archives and their checksums are treated together. Failed creation, missing/bad checksum, corrupt
+   gzip/tar, or required off-site failure stops rotation without evicting the old restore points.
 
-No restore script mounts a production volume. Local retention defaults to 30 days. The expected
+No restore script mounts a production volume. Local retention is count-based, not unbounded by
+repeated deployments on the same day. Standalone `pg-backup.sh` and `minio-backup.sh` are additive;
+they never delete old copies. The full chain and restore-test share a lock, taken before selecting
+restore files. Do not install a second cron producer alongside `epharm-backup.timer`. The expected
 production location is `/var/backups/epharm`, on storage independent from Docker's data disk.
+
+Optional `BACKUP_RELEASE_ROOT` enables daily rotation of dedicated pre-deploy rollback bundles:
+keep the newest `BACKUP_RELEASE_KEEP_COUNT` (default 3, minimum 2) **plus** bundles referenced by
+the active backend-only/archive transactions and their pre-rollback markers in every deployment
+listed in `BACKUP_RELEASE_DEPLOY_DIRS` (colon-separated). The wrapper holds all canonical deployment
+locks; malformed references, unsafe paths, unknown bundle contents or altered manifests fail closed.
+Unknown files, legacy SQL dumps, signing material, POSM downloads and Docker volumes are not targets.
+
+`BACKUP_RETENTION_DRY_RUN=true ./tools/backup-all.sh` creates and verifies fresh backups but only
+prints the proposed retention. Verify off-site recovery and an isolated restore before an initial
+historical cleanup. Legacy archives need a separate exact reviewed inventory; never use blanket
+recursive deletion or `docker volume prune` as a substitute for this policy.
+
+For an archive-based application host, install the reviewed backup tools under a separate root-owned
+versioned operations directory, set `EPHARM_DEPLOY_DIR` there in the existing protected backup
+EnvironmentFile, and preserve `EPHARM_ENV_FILE` pointing to the live app configuration. This prevents
+an older application source directory from accidentally replacing the backup policy. No application
+container/image change is required for a backup-tools-only deployment.
 
 Install on a systemd host:
 
@@ -40,6 +65,10 @@ restic password only in `/etc/epharm/backup.env` (mode `0600`), or reference a s
 mode-`0600` file through `RESTIC_PASSWORD_FILE`. Keep a recoverable copy of that key outside both
 application and backup servers. A successful run updates Prometheus
 textfile metrics; alerts fire after 36 hours without backup or 8 days without restore verification.
+With an explicitly local-only installation (`BACKUP_REQUIRE_OFFSITE=false` and no restic destination),
+rotation still retains verified local copies; that is not disaster recovery or proof of a fresh external
+backup. Keep an encrypted external copy independently and do not silently disable a required off-site
+check to make retention pass.
 
 For an SFTP repository on an independent host, pin its SSH host key and use a dedicated key/user
 restricted to SFTP and the application server's source IP. Configure `RESTIC_SFTP_COMMAND` with

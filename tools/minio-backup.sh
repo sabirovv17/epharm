@@ -20,7 +20,6 @@ MINIO_CONTAINER="${MINIO_CONTAINER:-epharm-minio}"
 MINIO_MC_IMAGE="${MINIO_MC_IMAGE:-quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z}"
 MINIO_BACKUP_BUCKETS="${MINIO_BACKUP_BUCKETS:-epharm-receipts}"
 BACKUP_ROOT="${BACKUP_ROOT:-$ROOT_DIR/backups}"
-RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-30}"
 METRIC_DIR="${BACKUP_METRIC_DIR:-$BACKUP_ROOT/metrics}"
 MINIO_DIR="$BACKUP_ROOT/minio"
 TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -67,8 +66,7 @@ checksum="$(sha256_file "$FINAL")"
 printf '%s  %s\n' "$checksum" "$(basename "$FINAL")" > "$FINAL.sha256"
 chmod 600 "$FINAL" "$FINAL.sha256"
 
-find "$MINIO_DIR" -type f \( -name 'epharm-minio-*.tar.gz' -o -name 'epharm-minio-*.tar.gz.sha256' \) \
-  -mtime "+$RETENTION_DAYS" -delete
+# Pruning belongs to backup-all after the whole backup/offsite chain succeeds.
 
 finished="$(date +%s)"
 size="$(wc -c < "$FINAL" | tr -d ' ')"

@@ -99,6 +99,10 @@ jobs:
         run: bash tools/release/tests/restore-readiness.sh
       - name: Verify encrypted offsite password-file handling
         run: bash tools/release/tests/offsite-password-contract.sh
+      - name: Verify bounded backup retention and failure preservation
+        run: |
+          python3 -m unittest discover -s tools/ops/tests -p 'test_*.py' -v
+          bash tools/ops/tests/backup-chain-contract.sh
       - name: Validate shell syntax and executable bits
         run: |
           find tools ops load-tests -type f \( -name '*.sh' -o -name '*.bash' \) -print0 | xargs -0 -n1 bash -n
