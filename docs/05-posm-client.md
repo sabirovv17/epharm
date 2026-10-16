@@ -77,6 +77,9 @@ POSM sends:
 Backend resolves barcode, then `iPartID` when barcode is unavailable, then normalized name. Ambiguous catalog keys are skipped
 instead of selecting an arbitrary product.
 
+Name fallback preserves dosage, pack size, concentration and explicit form distinctions on the
+backend; see [POSM Matching](02-backend.md#posm-matching). Abbreviations do not bypass these guards.
+
 ACC group/subgroup/INN triggers are resolved on the backend against the active, immutable ACC
 classification snapshot. Unlike a legacy exact-product rule, they require an exact barcode present
 in that snapshot; the backend does not infer an ACC class from a local Standard-N iPartID or a

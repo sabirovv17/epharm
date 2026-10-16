@@ -18,8 +18,10 @@ import kz.epharm.rules.entity.RuleType
 import kz.epharm.rules.repository.RuleRepository
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.assertTimeoutPreemptively
 import org.junit.jupiter.api.Test
 import java.time.LocalDate
+import java.time.Duration
 import java.time.ZoneId
 import java.util.Optional
 
@@ -86,6 +88,26 @@ class RulesEngineConflictTest {
     /** Корзина из товаров (по их штрих-кодам). */
     private fun cart(vararg products: ProductEntity) =
         products.map { CartItemDto(barcode = it.barcode) }
+
+    private fun stubNameTrigger(name: String) {
+        val trigger = product("NAME_TRIGGER").also { it.name = name }
+        val recommend = product("NAME_OFFER")
+        stub(
+            rules = listOf(rule("name-rule", RuleType.substitution, trigger.id, recommend.id)),
+            cartProducts = listOf(trigger),
+            recommends = listOf(recommend),
+        )
+    }
+
+    @Test
+    fun `длинное неизвестное число не вызывает квадратичный поиск единицы дозировки`() {
+        stubNameTrigger("Омез 20мг капс №30")
+        val raw = "Омез " + "9".repeat(100_000) + "x капс №30"
+
+        assertTimeoutPreemptively(Duration.ofSeconds(2)) {
+            assertTrue(engine.match(listOf(CartItemDto(name = raw))).matches.isEmpty())
+        }
+    }
 
     @Test
     fun `два аналога на один триггер проходят как multi-offer по бонусу`() {
@@ -214,6 +236,120 @@ class RulesEngineConflictTest {
         )
 
         assertEquals(listOf("REC"), result.matches.map { it.recommend.id })
+    }
+
+    @Test
+    fun `точное имя Омеза с неизвестным локальным SKU и пустым EAN выдаёт три варианта`() {
+        val trigger = product("OMEZ").also {
+            it.name = "Омез 20мг капс №30"
+            it.barcode = "8901148217805"
+            it.ipartId = null
+        }
+        val offers = listOf(product("OFFER_A"), product("OFFER_B"), product("OFFER_C"))
+        stub(
+            rules = offers.mapIndexed { rank, offer ->
+                rule("omez-$rank", RuleType.substitution, trigger.id, offer.id, offerRank = rank)
+            },
+            cartProducts = listOf(trigger),
+            recommends = offers,
+        )
+
+        val result = engine.match(
+            listOf(CartItemDto(sku = "312813", barcode = "", name = "Омез 20мг капс №30")),
+        )
+
+        assertEquals(offers.map { it.id }, result.matches.map { it.recommend.id })
+        assertTrue(result.conflicts.isEmpty())
+    }
+
+    @Test
+    fun `известное сокращение капсул и пробелы в дозировке сохраняют совпадение Омеза`() {
+        stubNameTrigger("Омез 20мг капс №30")
+        listOf(
+            "Омез капсулы 20 мг №30",
+            " ОМЕЗ 20 мг капс. № 30 ",
+            "Омез20мг капс №30",
+        ).forEach { name ->
+            val result = engine.match(listOf(CartItemDto(sku = "312813", barcode = "", name = name)))
+            assertEquals(listOf("NAME_OFFER"), result.matches.map { it.recommend.id }, name)
+        }
+    }
+
+    @Test
+    fun `Омез ДСР с двумя дозировками не совпадает с обычным Омезом`() {
+        stubNameTrigger("Омез 20мг капс №30")
+
+        val result = engine.match(listOf(CartItemDto(name = "Омез ДСР 30мг+20мг капс №30")))
+
+        assertTrue(result.matches.isEmpty(), "Repeated 30 is a second strength, not just the pack size")
+    }
+
+    @Test
+    fun `иная дозировка и иная упаковка Омеза не совпадают с триггером`() {
+        stubNameTrigger("Омез 20мг капс №30")
+        listOf("Омез 40мг капс №30", "Омез 20мг капс №10").forEach { name ->
+            val result = engine.match(listOf(CartItemDto(name = name)))
+            assertTrue(result.matches.isEmpty(), name)
+        }
+    }
+
+    @Test
+    fun `числа дозировки и упаковки нельзя переставить сохранив совпадение`() {
+        stubNameTrigger("Омез 20мг капс №30")
+
+        val result = engine.match(listOf(CartItemDto(name = "Омез 30мг капс №20")))
+
+        assertTrue(result.matches.isEmpty(), "20 mg pack 30 differs from 30 mg pack 20")
+    }
+
+    @Test
+    fun `явно разные формы не совпадают даже при высоком сходстве длинных названий`() {
+        val base = "Тестовый препарат с длинным торговым наименованием производителя"
+        stubNameTrigger("$base 20мг капс №30")
+
+        val result = engine.match(listOf(CartItemDto(name = "$base 20мг табл №30")))
+
+        assertTrue(result.matches.isEmpty(), "Explicit tablets cannot match explicit capsules")
+    }
+
+    @Test
+    fun `единицы дозировки не теряются при высоком сходстве длинных названий`() {
+        val base = "Тестовый препарат с длинным торговым наименованием производителя"
+        stubNameTrigger("$base 20мг капс №30")
+        listOf("мл", "мкг").forEach { unit ->
+            val result = engine.match(listOf(CartItemDto(name = "$base 20$unit капс №30")))
+            assertTrue(result.matches.isEmpty(), "20 mg differs from 20 $unit")
+        }
+    }
+
+    @Test
+    fun `множественное число ампул не позволяет совпасть с капсулами`() {
+        val base = "Тестовый препарат с длинным торговым наименованием производителя"
+        stubNameTrigger("$base 20мг капс №30")
+
+        val result = engine.match(listOf(CartItemDto(name = "$base 20мг ампулы №30")))
+
+        assertTrue(result.matches.isEmpty(), "Explicit ampoules cannot match explicit capsules")
+    }
+
+    @Test
+    fun `знаменатель концентрации не теряется при сравнении похожих названий`() {
+        val base = "Тестовый препарат с длинным торговым наименованием производителя"
+        stubNameTrigger("$base 20мг/мл раствор №30")
+
+        val result = engine.match(listOf(CartItemDto(name = "$base 20мг/г раствор №30")))
+
+        assertTrue(result.matches.isEmpty(), "20 mg/ml differs from 20 mg/g")
+    }
+
+    @Test
+    fun `нормализованное точное имя не обходится без знака процентной концентрации`() {
+        val base = "Тестовый препарат с длинным торговым наименованием производителя"
+        stubNameTrigger("$base 20% раствор 100мл")
+
+        val result = engine.match(listOf(CartItemDto(name = "$base 20 раствор 100мл")))
+
+        assertTrue(result.matches.isEmpty(), "Percent is a concentration unit, not ignorable punctuation")
     }
 
     @Test

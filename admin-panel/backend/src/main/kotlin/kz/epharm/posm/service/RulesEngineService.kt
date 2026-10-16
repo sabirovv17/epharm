@@ -323,7 +323,11 @@ class RulesEngineService(
         val bc = item.barcode?.trim()?.takeIf { it.isNotEmpty() }
         return bc?.let { byBarcode[it] }
             ?: ipart?.let { byIpart[it] }
-            ?: item.name?.takeIf { it.isNotBlank() }?.let { byName[normalizeName(it)] }
+            ?: item.name?.takeIf { it.isNotBlank() }?.let { name ->
+                byName[normalizeName(name)]?.takeIf { product ->
+                    compatibleNameIdentity(nameFingerprint(name), nameFingerprint(product.name))
+                }
+            }
             ?: item.name?.takeIf { it.isNotBlank() }
                 ?.let { fuzzyNameCandidate(it, candidates.orEmpty()) }
     }
@@ -366,9 +370,7 @@ class RulesEngineService(
         val ranked = candidates.asSequence()
             .filter { it.name.isNotBlank() }
             .map { it to nameFingerprint(it.name) }
-            .filter { (_, target) ->
-                source.numbers == target.numbers && source.qualifiers == target.qualifiers
-            }
+            .filter { (_, target) -> compatibleNameIdentity(source, target) }
             .map { (product, target) ->
                 val intersection = source.tokens.intersect(target.tokens).size.toDouble()
                 val union = source.tokens.union(target.tokens).size.toDouble()
@@ -387,6 +389,11 @@ class RulesEngineService(
         return best.first
     }
 
+    private fun compatibleNameIdentity(source: NameFingerprint, target: NameFingerprint): Boolean =
+        source.numbers == target.numbers && source.measures == target.measures &&
+            (source.forms.isEmpty() || target.forms.isEmpty() || source.forms == target.forms) &&
+            source.qualifiers == target.qualifiers
+
     private fun nameFingerprint(raw: String): NameFingerprint {
         val tokens = WORD_OR_NUMBER.findAll(raw.lowercase())
             .map(MatchResult::value)
@@ -399,7 +406,14 @@ class RulesEngineService(
             numbers = NUMBER.findAll(raw.lowercase())
                 .map(MatchResult::value)
                 .map { it.replace(',', '.') }
-                .toSet(),
+                .sorted()
+                .toList(),
+            // A dose and a pack size must not swap places or hide an extra component dose.
+            measures = MEASURE.findAll(raw.lowercase())
+                .map { it.value.replace(',', '.').replace(WHITESPACE, "") }
+                .sorted()
+                .toList(),
+            forms = tokens.filterTo(linkedSetOf()) { it in DOSAGE_FORMS },
             qualifiers = tokens.filterTo(linkedSetOf()) { it in SAFETY_QUALIFIERS },
         )
     }
@@ -477,12 +491,21 @@ class RulesEngineService(
         private val CAMPAIGN_ZONE: ZoneId = ZoneId.of("Asia/Almaty")
         private val WHITESPACE = Regex("\\s+")
         private val NUMBER = Regex("\\d+(?:[.,]\\d+)?")
+        private val MEASURE = Regex(
+            "(?<![\\d.,])\\d+(?:[.,]\\d+)?\\s*(?:мкг|мг|мл|г|л|%)(?![\\p{L}])" +
+                "(?:\\s*/\\s*(?:\\d+(?:[.,]\\d+)?\\s*)?(?:мкг|мг|мл|г|л)(?![\\p{L}]))?",
+        )
         private val WORD_OR_NUMBER = Regex("[\\p{L}]+|\\d+(?:[.,]\\d+)?")
         private const val FUZZY_NAME_THRESHOLD = 0.82
         private const val FUZZY_NAME_MARGIN = 0.08
         private val NAME_STOP_WORDS = setOf("для", "применения", "прим", "лица")
         private val SAFETY_QUALIFIERS = setOf(
             "детский", "форте", "плюс", "макс", "лайт", "ночной", "дневной",
+            "дср", "dsr", "ретард", "sr", "xr", "mr", "пролонгированный",
+        )
+        private val DOSAGE_FORMS = setOf(
+            "капсула", "таблетка", "ампула", "раствор", "суспензия", "порошок",
+            "спрей", "сироп", "гель", "крем", "мазь", "суппозиторий", "капли",
         )
         private val TOKEN_ALIASES = mapOf(
             "дет" to "детский",
@@ -495,12 +518,25 @@ class RulesEngineService(
             "таблетки" to "таблетка",
             "капс" to "капсула",
             "капсулы" to "капсула",
+            "капсул" to "капсула",
+            "таблеток" to "таблетка",
+            "ампулы" to "ампула",
+            "ампул" to "ампула",
+            "суспензии" to "суспензия",
+            "порошки" to "порошок",
+            "сиропы" to "сироп",
+            "гели" to "гель",
+            "кремы" to "крем",
+            "мази" to "мазь",
+            "суппозитории" to "суппозиторий",
         )
     }
 
     private data class NameFingerprint(
         val tokens: Set<String>,
-        val numbers: Set<String>,
+        val numbers: List<String>,
+        val measures: List<String>,
+        val forms: Set<String>,
         val qualifiers: Set<String>,
     )
 }
