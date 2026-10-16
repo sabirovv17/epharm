@@ -73,6 +73,19 @@ release_lock() {
   fi
 }
 
+# Keep restore readers safe while the complete backup/rotation chain is running.
+lock_backup_suite() {
+  local backup_root="$1" mode="${2:-exclusive}"
+  require_command flock
+  mkdir -p "$backup_root"
+  exec 8>"$backup_root/.backup-suite.lock"
+  if [[ "$mode" == shared ]]; then
+    flock -s -n 8 || { echo 'ERROR: backup/retention is running; retry restore later' >&2; return 1; }
+  else
+    flock -n 8 || { echo 'ERROR: another backup/restore/retention operation is running' >&2; return 1; }
+  fi
+}
+
 sha256_file() {
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum "$1" | awk '{print $1}'

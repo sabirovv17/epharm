@@ -19,7 +19,6 @@ POSTGRES_DB="${POSTGRES_DB:-epharm}"
 POSTGRES_USER="${POSTGRES_USER:-epharm}"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-epharm-postgres}"
 BACKUP_ROOT="${BACKUP_ROOT:-$ROOT_DIR/backups}"
-RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-30}"
 METRIC_DIR="${BACKUP_METRIC_DIR:-$BACKUP_ROOT/metrics}"
 PG_DIR="$BACKUP_ROOT/postgres"
 TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -46,8 +45,7 @@ checksum="$(sha256_file "$FINAL")"
 printf '%s  %s\n' "$checksum" "$(basename "$FINAL")" > "$FINAL.sha256"
 chmod 600 "$FINAL" "$FINAL.sha256"
 
-find "$PG_DIR" -type f \( -name 'epharm-postgres-*.dump.gz' -o -name 'epharm-postgres-*.dump.gz.sha256' \) \
-  -mtime "+$RETENTION_DAYS" -delete
+# Pruning belongs to backup-all after the whole backup/offsite chain succeeds.
 
 finished="$(date +%s)"
 size="$(wc -c < "$FINAL" | tr -d ' ')"

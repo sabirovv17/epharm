@@ -19,6 +19,7 @@ require_nonempty MINIO_ROOT_USER
 require_nonempty MINIO_ROOT_PASSWORD
 
 BACKUP_ROOT="${BACKUP_ROOT:-$ROOT_DIR/backups}"
+lock_backup_suite "$BACKUP_ROOT" shared
 METRIC_DIR="${BACKUP_METRIC_DIR:-$BACKUP_ROOT/metrics}"
 PG_IMAGE="${POSTGRES_RESTORE_IMAGE:-postgres:16-alpine}"
 MC_IMAGE="${MINIO_MC_IMAGE:-quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z}"
