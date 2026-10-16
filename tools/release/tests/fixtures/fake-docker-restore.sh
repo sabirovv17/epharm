@@ -3,7 +3,12 @@
 set -euo pipefail
 
 case "$1" in
-  network|run|rm)
+  network|run)
+    exit 0
+    ;;
+  rm)
+    [[ ${2:-} == -fv && ${3:-} == epharm-restore-* ]] || exit 2
+    printf 'cleanup-volumes\n' >> "$FAKE_DOCKER_STATE"
     exit 0
     ;;
   exec)

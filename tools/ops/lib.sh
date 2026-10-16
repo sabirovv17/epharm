@@ -120,5 +120,6 @@ latest_matching_file() {
 
 docker_cleanup_container() {
   local name="$1"
-  docker rm -f "$name" >/dev/null 2>&1 || true
+  # The restore images declare anonymous data volumes; keep no disposable DB behind.
+  docker rm -fv "$name" >/dev/null 2>&1 || true
 }
