@@ -1,5 +1,7 @@
 package kz.epharm.pharmacists.service
 
+import kz.epharm.auth.domain.AdminRole
+import kz.epharm.auth.security.AdminPrincipal
 import kz.epharm.pharmacies.repository.PharmacyRepository
 import kz.epharm.finance.service.PharmacistWalletService
 import kz.epharm.pharmacists.dto.ActivatePharmacistRequest
@@ -13,6 +15,7 @@ import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import org.springframework.http.HttpStatus
 import org.springframework.security.crypto.password.PasswordEncoder
+import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDate
@@ -75,6 +78,12 @@ class PharmacistService(
 
     @Transactional
     fun update(id: String, req: UpdatePharmacistRequest): PharmacistDto {
+        if (req.balance != null) {
+            val role = (SecurityContextHolder.getContext().authentication?.principal as? AdminPrincipal)?.role
+            if (role !in setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD, AdminRole.FINANCE_REVIEWER)) {
+                throw AppException(ErrorCode.FORBIDDEN, "Изменять денежный баланс может только финансовая роль", HttpStatus.FORBIDDEN)
+            }
+        }
         val entity = loadOrThrow(id)
         if (entity.status == PharmacistStatus.blocked) {
             throw AppException(

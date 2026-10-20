@@ -210,15 +210,15 @@ class PharmacistsIntegrationTest {
     }
 
     @Test
-    fun `PATCH balance обновляет`() {
+    fun `BRAND_MANAGER cannot PATCH a monetary balance`() {
         mockMvc.perform(
             patch("/api/admin/pharmacists/u_active")
                 .header("Authorization", bearer)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""{"balance":100000}"""),
         )
-            .andExpect(status().isOk)
-            .andExpect(jsonPath("$.balance").value(100000))
+            .andExpect(status().isForbidden)
+        assert(pharmacistRepository.findById("u_active").orElseThrow().balance == 50_000L)
     }
 
     @Test
