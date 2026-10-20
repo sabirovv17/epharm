@@ -73,4 +73,63 @@ public sealed class RecommendationPopupPlacementTests
         Assert.Equal(workArea.Left, point.X);
         Assert.Equal(workArea.Top, point.Y);
     }
+
+    [Theory]
+    [InlineData(true, true, false, false, true, true, true, true)]
+    [InlineData(false, true, false, false, true, true, true, false)]
+    [InlineData(true, false, false, false, true, true, true, false)]
+    [InlineData(true, true, true, false, true, true, true, false)]
+    [InlineData(true, true, false, true, true, true, true, false)]
+    [InlineData(true, true, false, false, false, true, true, false)]
+    [InlineData(true, true, false, false, true, false, true, false)]
+    [InlineData(true, true, false, false, true, true, false, false)]
+    public void ShownRequiresRenderedUncloakedTopmostExposedWindowWithoutActivation(
+        bool rendered, bool nativeVisible, bool minimized, bool cloaked,
+        bool topmost, bool noActivate, bool exposed, bool expected)
+    {
+        Assert.Equal(expected, PopupWindowPlacement.HasDisplayEvidence(
+            new PixelRect(-600, 20, 500, 700), new PixelRect(-1920, 0, 1920, 1040),
+            rendered, 1, nativeVisible, minimized, cloaked, topmost, noActivate, exposed));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(0.01)]
+    [InlineData(double.NaN)]
+    public void TransparentOrUnknownOpacityCannotBeCountedAsShown(double opacity)
+    {
+        Assert.False(PopupWindowPlacement.HasDisplayEvidence(
+            new PixelRect(20, 20, 500, 700), new PixelRect(0, 0, 1920, 1040),
+            true, opacity, true, false, false, true, true, true));
+    }
+
+    [Theory]
+    [InlineData(-1, 20, 500, 700)]
+    [InlineData(20, -1, 500, 700)]
+    [InlineData(1500, 20, 500, 700)]
+    [InlineData(20, 500, 500, 700)]
+    [InlineData(20, 20, 0, 700)]
+    public void OffscreenOrEmptyWindowCannotBeCountedAsShown(int left, int top, int width, int height)
+    {
+        Assert.False(PopupWindowPlacement.HasDisplayEvidence(
+            new PixelRect(left, top, width, height), new PixelRect(0, 0, 1920, 1040),
+            true, 1, true, false, false, true, true, true));
+    }
+
+    [Theory]
+    [InlineData(-1920, -1080, 500, 700)]
+    [InlineData(20, 20, 500, 700)]
+    [InlineData(0, 0, 1, 1)]
+    public void ExposureProbesStayInsidePhysicalWindowOnAnyMonitor(int left, int top, int width, int height)
+    {
+        var window = new PixelRect(left, top, width, height);
+        var probes = PopupWindowPlacement.ContentProbePoints(window);
+
+        Assert.Equal(3, probes.Length);
+        foreach (var point in probes)
+        {
+            Assert.InRange(point.X, window.Left, window.Right - 1);
+            Assert.InRange(point.Y, window.Top, window.Bottom - 1);
+        }
+    }
 }

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.sun.net.httpserver.HttpServer
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import java.net.InetSocketAddress
+import java.time.Instant
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -31,6 +32,85 @@ class MerchTaskClientTest {
     fun stopServer() {
         server?.stop(0)
         serverExecutor?.shutdownNow()
+    }
+
+    @Test
+    fun `expired deadlines and QR tokens return a healthy empty task queue`() {
+        val dates = AtomicReference("")
+        server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
+            createContext("/") { exchange ->
+                val body = """{"task":{"id":"$dispatchId","publicUrl":"https://epharm.inkar.kz/merch/staff?task=$deliveryToken","deliveryToken":"$deliveryToken",${dates.get()}}}"""
+                    .toByteArray()
+                exchange.responseHeaders.add("Content-Type", "application/json")
+                exchange.sendResponseHeaders(200, body.size.toLong())
+                exchange.responseBody.use { it.write(body) }
+            }
+            start()
+        }
+        val bridge = client(enabled = true, integrationKey = "server-secret")
+        val now = Instant.now()
+        val future = now.plusSeconds(3_600)
+        for (dateFields in listOf(
+            """"dueAt":"${now.minusSeconds(60)}","expiresAt":"$future"""",
+            """"dueAt":"$now","expiresAt":"$future"""",
+            """"dueAt":"$future","expiresAt":"${now.minusSeconds(60)}"""",
+            """"dueAt":null,"expiresAt":"$now"""",
+        )) {
+            dates.set(dateFields)
+
+            val response = bridge.activeTask("pharmacy-7")
+
+            assertThat(response.available).describedAs(dateFields).isTrue()
+            assertThat(response.task).describedAs(dateFields).isNull()
+        }
+    }
+
+    @Test
+    fun `future deadlines and legacy nullable dates remain deliverable`() {
+        val dates = AtomicReference("")
+        server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
+            createContext("/") { exchange ->
+                val body = """{"task":{"id":"$dispatchId","publicUrl":"https://epharm.inkar.kz/merch/staff?task=$deliveryToken","deliveryToken":"$deliveryToken",${dates.get()}}}"""
+                    .toByteArray()
+                exchange.responseHeaders.add("Content-Type", "application/json")
+                exchange.sendResponseHeaders(200, body.size.toLong())
+                exchange.responseBody.use { it.write(body) }
+            }
+            start()
+        }
+        val bridge = client(enabled = true, integrationKey = "server-secret")
+        val future = Instant.now().plusSeconds(3_600)
+        for (dateFields in listOf(
+            """"dueAt":"$future","expiresAt":"$future"""",
+            """"dueAt":null,"expiresAt":null""",
+            """"dueAt":"$future","expiresAt":null""",
+        )) {
+            dates.set(dateFields)
+
+            val response = bridge.activeTask("pharmacy-7")
+
+            assertThat(response.available).describedAs(dateFields).isTrue()
+            assertThat(response.task?.id).describedAs(dateFields).isEqualTo(dispatchId)
+        }
+    }
+
+    @Test
+    fun `unavailable envelope never forwards its task to older POSM clients`() {
+        server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
+            createContext("/") { exchange ->
+                val body = """{"available":false,"task":{"id":"$dispatchId","publicUrl":"https://epharm.inkar.kz/merch/staff?task=$deliveryToken","deliveryToken":"$deliveryToken"}}"""
+                    .toByteArray()
+                exchange.responseHeaders.add("Content-Type", "application/json")
+                exchange.sendResponseHeaders(200, body.size.toLong())
+                exchange.responseBody.use { it.write(body) }
+            }
+            start()
+        }
+
+        val response = client(enabled = true, integrationKey = "server-secret").activeTask("pharmacy-7")
+
+        assertThat(response.available).isFalse()
+        assertThat(response.task).isNull()
     }
 
     @Test

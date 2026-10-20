@@ -22,6 +22,23 @@ All notable production changes to Epharm are recorded here. The format follows
 - POSM 1.0.65 spreads healthy QR-task polling over 24–36 seconds per device, reducing
   synchronized load on the merchandising fallback without changing recommendations or orders.
 
+## [0.1.38] - 2026-10-20
+
+### Fixed
+
+- POSM 1.0.70 clears the customer receipt immediately on confirmed print and after confirmed
+  workstation-bound empty reads, rejects stale database results after newer cashier events,
+  and preserves live carts when database/session identity is uncertain.
+- Recommendation display acknowledgements require actual non-activating native topmost-window
+  evidence instead of a hard-coded success flag; the guard retries without taking scanner focus.
+- Expired merchandising deadlines hide QR codes even when a delivery token has not expired.
+- CRM recommendations tolerate aligned product identifiers, reject unavailable/unmapped context,
+  and preserve local offers on stale stock or contradictory external rules within the 5+5 limit.
+- Production catalogue defaults and release checks use aptekasosklada.kz; enabling that website
+  prevents legacy Medusa remote calls while retaining historical campaign IDs and local snapshots.
+- Exact-product, ACC group, subgroup and INN campaign authoring remains protected by compiled-image
+  browser regression tests. Receipt, order, task and recommendation paths remain separate.
+
 ## [0.1.37] - 2026-10-16
 
 ### Added

@@ -41,6 +41,7 @@ require_command curl
 [[ -r "$RELEASE_ROOT/.env.prod" && -r "$RELEASE_ROOT/.release.env" ]] || {
   echo 'ERROR: production env/release metadata is missing' >&2; exit 1;
 }
+verify_production_catalog_source
 [[ -d "$verified_backup_dir" && -r "$verified_backup_dir/SHA256SUMS" ]] || {
   echo 'ERROR: verified pre-deploy backup is missing' >&2; exit 1;
 }

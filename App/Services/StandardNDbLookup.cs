@@ -141,8 +141,9 @@ namespace CustomerDisplay.Services
         /// Reads the live Standard-N receipt owned by the local zkassa session. Production
         /// Standard-N builds do not consistently write Add2Cheque details to zkassa.log, while
         /// DOCS + DOC_DETAIL_ACTIVE are the authoritative state used by the cashier itself.
-        /// A false result means a database/schema failure and must not clear the last known cart;
-        /// true + null means the query succeeded and this workstation has no open receipt.
+        /// A false result means a database/schema failure or unresolved workstation session and
+        /// must not clear the last known cart. True + null requires one exact local session whose
+        /// DOCS query succeeded and confirmed that no receipt is open.
         /// </summary>
         public bool TryGetCurrentReceipt(out StandardNReceiptSnapshot? receipt)
         {
@@ -153,7 +154,7 @@ namespace CustomerDisplay.Services
             {
                 using var conn = OpenConnection();
                 var cashSession = QueryLocalCashSession(conn);
-                if (cashSession == null) return true;
+                if (cashSession == null) return false;
 
                 using var docCmd = conn.CreateCommand();
                 docCmd.CommandTimeout = TimeoutSec();
@@ -170,9 +171,9 @@ namespace CustomerDisplay.Services
                 DateTimeOffset? openedAt = null;
                 using (var reader = docCmd.ExecuteReader())
                 {
-                    if (!reader.Read()) return true;
+                    if (!reader.Read()) return cashSession.CanConfirmEmptyReceipt;
                     documentId = ReadInt64(reader, "ID") ?? 0L;
-                    if (documentId <= 0) return true;
+                    if (documentId <= 0) return false;
                     openedAt = ToDateTimeOffset(ReadValue(reader, "INSERTDT"));
                 }
 
@@ -713,7 +714,11 @@ namespace CustomerDisplay.Services
                 local.UserId,
                 userName,
                 local.WorkstationId,
-                local.WorkstationName);
+                local.WorkstationName,
+                ReceiptObservationGate.CanConfirmEmptyReceipt(
+                    candidates.Select(candidate => candidate.WorkstationName),
+                    local.WorkstationName,
+                    _machineName));
         }
 
         private StandardNActivePharmacist? QueryPersistentSession(
@@ -1098,7 +1103,8 @@ namespace CustomerDisplay.Services
             string UserId,
             string? UserName,
             long? WorkstationId,
-            string? WorkstationName);
+            string? WorkstationName,
+            bool CanConfirmEmptyReceipt);
 
         private sealed record DbConnectionCandidate(
             string Source,
@@ -1747,29 +1753,4 @@ namespace CustomerDisplay.Services
         }
     }
 
-    public sealed record StandardNActivePharmacist(string Id, string? Name, long? SessionId);
-
-    public sealed record StandardNProductInfo(
-        int PartId,
-        string? Barcode,
-        string? Name,
-        decimal Price,
-        string Source);
-
-    public sealed record StandardNReceiptLine(
-        long LineId,
-        int PartId,
-        string? Barcode,
-        string Name,
-        decimal Price,
-        decimal Qty,
-        decimal DiscountPercent);
-
-    public sealed record StandardNReceiptSnapshot(
-        long DocumentId,
-        long SessionId,
-        string? WorkstationName,
-        DateTimeOffset? OpenedAt,
-        StandardNActivePharmacist Pharmacist,
-        IReadOnlyList<StandardNReceiptLine> Lines);
 }

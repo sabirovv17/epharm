@@ -62,3 +62,22 @@ verify_admin_image() {
 verify_release_source() {
   python3 "$RELEASE_SCRIPT_DIR/verify-release-source.py" "$1"
 }
+
+# New candidate releases share this gate. Explicit rollbacks intentionally keep their old env.
+# Keep dotenv exports local: exporting RELEASE_ID here could override the pinned Compose env file.
+verify_production_catalog_source() (
+  load_env_file "$RELEASE_ROOT/.env.prod" || return 1
+  [[ "${STOREFRONT_CATALOG_ENABLED:-}" == "true" ]] || {
+    echo "ERROR: STOREFRONT_CATALOG_ENABLED=true is required for a production release" >&2
+    return 1
+  }
+  [[ "${MEDUSA_ENABLED:-false}" == "false" ]] || {
+    echo "ERROR: the retired remote catalogue must remain disabled (MEDUSA_ENABLED=false)" >&2
+    return 1
+  }
+  catalog_origin="${STOREFRONT_CATALOG_BASE_URL:-}"
+  case "${catalog_origin%/}" in
+    https://www.aptekasosklada.kz) ;;
+    *) echo "ERROR: production catalogue must use the canonical https://www.aptekasosklada.kz origin" >&2; return 1 ;;
+  esac
+)

@@ -37,12 +37,14 @@ fi
 grep -Fq 'dev-mode: ${OTP_DEV_MODE:false}' \
   admin-panel/backend/src/main/resources/application-prod.yml \
   || fail "production OTP must default to dev-mode=false"
-grep -Fq 'MEDUSA_ENABLED=true' .env.prod.example \
-  || fail "production Medusa catalogue must be enabled"
-grep -Fq 'MEDUSA_BASE_URL=http://78.140.246.238:9000' .env.prod.example \
-  || fail "production Medusa must use the live pinned origin until HTTPS is available"
-grep -Fq 'MEDUSA_READ_TIMEOUT_MS=15000' .env.prod.example \
-  || fail "production Medusa timeout must tolerate the measured catalogue latency"
+grep -Fxq 'MEDUSA_ENABLED=false' .env.prod.example \
+  || fail "the retired remote Medusa catalogue must remain disabled in production"
+grep -Fxq 'MEDUSA_BASE_URL=' .env.prod.example \
+  || fail "production must not retain an active retired Medusa origin"
+grep -Fxq 'STOREFRONT_CATALOG_ENABLED=true' .env.prod.example \
+  || fail "production must use the aptekasosklada.kz website catalogue"
+grep -Fxq 'STOREFRONT_CATALOG_BASE_URL=https://www.aptekasosklada.kz' .env.prod.example \
+  || fail "production catalogue must default to the authoritative website HTTPS origin"
 if grep -Fq 'signingConfigs.debug' android/app/build.gradle; then
   fail "Android release configuration must not fall back to the debug key"
 fi

@@ -17,6 +17,9 @@ public sealed record TaskKioskItem(
     string? LinkId = null)
 {
     public override string ToString() => Title;
+
+    public bool IsCurrent(DateTimeOffset now) =>
+        ExpiresAt > now && (!DueAt.HasValue || DueAt.Value > now);
 }
 
 public interface IMerchTaskApi
@@ -68,19 +71,18 @@ public sealed class TaskKioskClient : IDisposable
             throw new InvalidOperationException("Invalid task link returned by ePharm.");
         }
 
-        return
-        [
-            new TaskKioskItem(
-                task.Id,
-                string.IsNullOrWhiteSpace(task.Title) ? "Задание мерчендайзинга" : task.Title,
-                $"Аптека {_pharmacyId}",
-                task.Priority ?? "normal",
-                task.DueAt,
-                task.DeliveryToken,
-                qr.AbsoluteUri,
-                task.ExpiresAt ?? DateTimeOffset.UtcNow.AddDays(7),
-                task.DeliveryToken)
-        ];
+        var now = DateTimeOffset.UtcNow;
+        var item = new TaskKioskItem(
+            task.Id,
+            string.IsNullOrWhiteSpace(task.Title) ? "Задание мерчендайзинга" : task.Title,
+            $"Аптека {_pharmacyId}",
+            task.Priority ?? "normal",
+            task.DueAt,
+            task.DeliveryToken,
+            qr.AbsoluteUri,
+            task.ExpiresAt ?? now.AddDays(7),
+            task.DeliveryToken);
+        return item.IsCurrent(now) ? [item] : [];
     }
 
     public Task<bool> AcknowledgeAsync(TaskKioskItem task, CancellationToken cancellation)

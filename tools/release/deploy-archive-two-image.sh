@@ -48,6 +48,7 @@ for config in .env.prod .release.env docker-compose.prod.yml Caddyfile; do
     echo "ERROR: missing production configuration $config" >&2; exit 1;
   }
 done
+verify_production_catalog_source
 [[ "$(sha256_file "$RELEASE_ROOT/docker-compose.prod.yml")" == "$expected_compose_sha" ]] || {
   echo 'ERROR: live Compose differs from the reviewed source' >&2; exit 1;
 }

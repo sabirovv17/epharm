@@ -63,18 +63,17 @@ if [[ -n "${SMOKE_ADMIN_IMAGE_ID:-}" ]]; then
   verify_admin_image "$SMOKE_ADMIN_IMAGE_ID" --public-url "$base_url"
 fi
 
-# The first release with the durable Medusa read model needs one complete crawl
-# before catalogue/search can be accepted. Subsequent releases reuse the persisted
-# snapshot and pass immediately. Older rollback targets do not expose
-# catalogSnapshot at all; their live catalogue/search checks below remain the
-# compatibility gate instead of making an explicit rollback wait for 30 minutes.
-# The pre-deploy Medusa smoke prevents waiting on a known-dead origin.
+# A configured website source does not require a historical snapshot. This skips only its
+# readiness wait, never the real non-empty catalogue and exact-product search below. Older
+# health payloads keep their historical snapshot/rollback compatibility checks unchanged.
 snapshot_wait_seconds="${CATALOG_SNAPSHOT_WAIT_SECONDS:-1800}"
 snapshot_deadline=$((SECONDS + snapshot_wait_seconds))
 while ! python3 - "$health" <<'PY'
 import json
 import sys
 payload = json.loads(sys.argv[1])
+if payload.get("catalogSource") == "website":
+    raise SystemExit(0)
 if "catalogSnapshot" not in payload:
     raise SystemExit(0)
 snapshot = payload.get("catalogSnapshot", {})
@@ -82,7 +81,7 @@ raise SystemExit(0 if snapshot.get("ready") is True and snapshot.get("products",
 PY
 do
   (( SECONDS < snapshot_deadline )) || {
-    echo "ERROR: Medusa catalogue snapshot was not ready after ${snapshot_wait_seconds}s" >&2
+    echo "ERROR: historical catalogue snapshot was not ready after ${snapshot_wait_seconds}s" >&2
     exit 1
   }
   sleep 10
@@ -97,7 +96,7 @@ import sys
 items = json.loads(sys.argv[1]).get("items", [])
 name = items[0].get("name", "") if items else ""
 if not isinstance(name, str) or not name.strip():
-    raise SystemExit(f"Medusa catalogue sample has no searchable name: {items[:1]}")
+    raise SystemExit(f"Catalogue sample has no searchable name: {items[:1]}")
 print(name)
 PY
 )"
@@ -124,14 +123,14 @@ items = catalog.get("items")
 total = catalog.get("total")
 sample = items[0] if isinstance(items, list) and items else None
 if not isinstance(sample, dict) or not isinstance(sample.get("id"), str) or not sample["id"]:
-    raise SystemExit(f"Medusa catalogue returned no sample product: {catalog}")
+    raise SystemExit(f"Catalogue returned no sample product: {catalog}")
 if not isinstance(total, int) or total <= 0:
-    raise SystemExit(f"Medusa catalogue returned invalid total: {total!r}")
+    raise SystemExit(f"Catalogue returned invalid total: {total!r}")
 search_ids = [item.get("id") for item in search.get("items", []) if isinstance(item, dict)]
 if sample["id"] not in search_ids:
     raise SystemExit(f"Catalogue search did not return its exact sample product: {search}")
 print(
     f"Smoke OK: backend/frontend report {expected_backend}/{expected_frontend}; "
-    f"catalogue snapshot total={total} sample={sample['id']}; search=ok"
+    f"catalogue source={health.get('catalogSource', 'legacy')} total={total} sample={sample['id']}; search=ok"
 )
 PY
