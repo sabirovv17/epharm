@@ -27,6 +27,8 @@ import { buildProductIndex, useProducts } from '@/lib/queries/catalog'
 import { describeError } from '@/lib/describeError'
 import { formatKzt } from '@/mocks/fixtures'
 import { useT } from '@/i18n'
+import { canManageMoney } from '@/app/accessPolicy'
+import { useUiStore } from '@/app/store'
 
 type RecTab = ReceiptStatus
 type ProductLookup = (id: string | undefined) => ProductDto | undefined
@@ -48,6 +50,7 @@ function fmtDate(iso?: string | null): string {
 export default function ReconcilePage() {
   const t = useT()
   const toast = useToast()
+  const canManage = canManageMoney(useUiStore((state) => state.authedUser?.role))
   const [tab, setTab] = useState<RecTab>('pending')
   const [selected, setSelected] = useState<ReceiptDto | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -72,6 +75,7 @@ export default function ReconcilePage() {
   ]
 
   const onPickFile = (e: ChangeEvent<HTMLInputElement>) => {
+    if (!canManage) return
     const file = e.target.files?.[0]
     e.target.value = '' // позволяем выбрать тот же файл повторно
     if (!file) return
@@ -88,24 +92,26 @@ export default function ReconcilePage() {
         title={t('page.reconcile.title')}
         subtitle={t('page.reconcile.subtitle')}
         actions={
-          <>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".xlsx,.xls"
-              className="hidden"
-              onChange={onPickFile}
-              data-testid="excel-input"
-            />
-            <Button
-              variant="outline"
-              disabled={importExcel.isPending}
-              onClick={() => fileRef.current?.click()}
-              data-testid="import-excel"
-            >
-              {t('rec.importExcel')}
-            </Button>
-          </>
+          canManage ? (
+            <>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={onPickFile}
+                data-testid="excel-input"
+              />
+              <Button
+                variant="outline"
+                disabled={importExcel.isPending}
+                onClick={() => fileRef.current?.click()}
+                data-testid="import-excel"
+              >
+                {t('rec.importExcel')}
+              </Button>
+            </>
+          ) : undefined
         }
       />
 
@@ -176,7 +182,13 @@ export default function ReconcilePage() {
               </thead>
               <tbody className="divide-y divide-ink-100">
                 {receipts.map((r) => (
-                  <ReceiptRow key={r.id} r={r} productOf={productOf} onOpen={setSelected} />
+                  <ReceiptRow
+                    key={r.id}
+                    r={r}
+                    productOf={productOf}
+                    onOpen={setSelected}
+                    canManage={canManage}
+                  />
                 ))}
               </tbody>
             </table>
@@ -214,6 +226,7 @@ export default function ReconcilePage() {
         receipt={selected}
         productOf={productOf}
         onClose={() => setSelected(null)}
+        canManage={canManage}
       />
     </div>
   )
@@ -286,10 +299,12 @@ function ReceiptRow({
   r,
   productOf,
   onOpen,
+  canManage,
 }: {
   r: ReceiptDto
   productOf: ProductLookup
   onOpen: (r: ReceiptDto) => void
+  canManage: boolean
 }) {
   const t = useT()
   const toast = useToast()
@@ -297,10 +312,12 @@ function ReceiptRow({
   const reject = useRejectReceipt()
   const pending = approve.isPending || reject.isPending
   const actionable =
-    r.status === 'pending' || r.status === 'flagged' || r.status === 'moderation_required'
+    canManage &&
+    (r.status === 'pending' || r.status === 'flagged' || r.status === 'moderation_required')
   const productName = productOf(r.parsedSku)?.name ?? r.parsedSku
 
   const onApprove = () => {
+    if (!actionable) return
     if (!confirm(t('rec.confirmApprove', { name: r.pharmacistName }))) return
     approve.mutate(r.id, {
       onSuccess: () => toast.push(t('rec.approvedToast')),
@@ -309,6 +326,7 @@ function ReceiptRow({
   }
 
   const onReject = () => {
+    if (!actionable) return
     const reason = window.prompt(t('rec.rejectPrompt'))
     if (!reason || !reason.trim()) return
     reject.mutate(
@@ -407,10 +425,12 @@ function ReceiptDetailDrawer({
   receipt: r,
   productOf,
   onClose,
+  canManage,
 }: {
   receipt: ReceiptDto | null
   productOf: ProductLookup
   onClose: () => void
+  canManage: boolean
 }) {
   const t = useT()
   const toast = useToast()
@@ -418,10 +438,12 @@ function ReceiptDetailDrawer({
   const reject = useRejectReceipt()
   const busy = approve.isPending || reject.isPending
   const actionable =
-    !!r && (r.status === 'pending' || r.status === 'flagged' || r.status === 'moderation_required')
+    canManage &&
+    !!r &&
+    (r.status === 'pending' || r.status === 'flagged' || r.status === 'moderation_required')
 
   const onApprove = () => {
-    if (!r) return
+    if (!r || !actionable) return
     if (!confirm(t('rec.confirmApprove', { name: r.pharmacistName }))) return
     approve.mutate(r.id, {
       onSuccess: () => {
@@ -433,7 +455,7 @@ function ReceiptDetailDrawer({
   }
 
   const onReject = () => {
-    if (!r) return
+    if (!r || !actionable) return
     const reason = window.prompt(t('rec.rejectPrompt'))
     if (!reason || !reason.trim()) return
     reject.mutate(

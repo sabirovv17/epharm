@@ -160,6 +160,14 @@ All routes except `/login` are protected by `RequireAuth`. The axios interceptor
 `Authorization: Bearer <accessToken>` and performs refresh on 401. If refresh fails as auth failure,
 the store is cleared and the user returns to login.
 
+Manual receipt approval/rejection, Excel sales import and balance adjustments are limited to
+`SYSTEM_ADMIN`, `HQ_HEAD` and `FINANCE_REVIEWER`. Other business roles retain receipt/detail
+and pharmacist/balance reads, but do not see reconciliation mutation controls. The current
+pharmacist registry displays balances read-only; ordinary profile/password PATCH requests omit
+`balance` entirely. Changing another pharmacist's password or phone is restricted separately to
+`SYSTEM_ADMIN` and `HQ_HEAD`, not `FINANCE_REVIEWER`; password reset controls follow that policy.
+Backend authorization remains authoritative even if browser controls are bypassed.
+
 Navigation and direct routes are role-aware:
 
 - `TRAINING_MANAGER` gets the dedicated training workspace plus `AI Exam` and lands on `/lms` after login;

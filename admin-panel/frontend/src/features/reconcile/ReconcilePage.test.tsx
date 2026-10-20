@@ -1,12 +1,13 @@
 // Тесты ReconcilePage — очередь сверки чеков + approve/reject.
 
-import { describe, expect, it, beforeEach, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { ToastHost } from '@/ui'
-import type { ReceiptDto, ReconcileSummaryDto } from '@/lib/api-types'
+import type { AdminRole, ReceiptDto, ReconcileSummaryDto } from '@/lib/api-types'
+import { useUiStore } from '@/app/store'
 import ReconcilePage from './ReconcilePage'
 
 const hooks = vi.hoisted(() => ({
@@ -28,6 +29,15 @@ vi.mock('@/lib/queries/catalog', () => ({
 
 const approveMutate = vi.fn()
 const rejectMutate = vi.fn()
+const originalUser = useUiStore.getState().authedUser
+
+function setRole(role: AdminRole | undefined) {
+  useUiStore.setState({
+    authedUser: role
+      ? { id: 'admin-test', email: 'admin@test.invalid', name: 'Test admin', company: 'Test', role }
+      : null,
+  })
+}
 
 function mkReceipt(over: Partial<ReceiptDto> = {}): ReceiptDto {
   return {
@@ -81,11 +91,16 @@ function setReceipts(list: ReceiptDto[] = [], extra: Record<string, unknown> = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  setRole('HQ_HEAD')
   setReceipts([])
   hooks.useReconcileSummary.mockReturnValue({ data: SUMMARY })
   hooks.useApproveReceipt.mockReturnValue({ mutate: approveMutate, isPending: false })
   hooks.useRejectReceipt.mockReturnValue({ mutate: rejectMutate, isPending: false })
   hooks.useImportExcel.mockReturnValue({ mutate: vi.fn(), isPending: false })
+})
+
+afterEach(() => {
+  act(() => useUiStore.setState({ authedUser: originalUser }))
 })
 
 function renderPage() {
@@ -102,6 +117,37 @@ function renderPage() {
 }
 
 describe('ReconcilePage', () => {
+  it.each(['SYSTEM_ADMIN', 'HQ_HEAD', 'FINANCE_REVIEWER'] as const)('роль %s видит финансовые действия в строке и карточке', async (role) => {
+    setRole(role)
+    setReceipts([mkReceipt()])
+    const user = userEvent.setup()
+    renderPage()
+    expect(screen.getByTestId('import-excel')).toBeInTheDocument()
+    expect(screen.getByTestId('receipt-approve-rcp_1')).toBeInTheDocument()
+    expect(screen.getByTestId('receipt-reject-rcp_1')).toBeInTheDocument()
+    await user.click(screen.getByTestId('receipt-rcp_1'))
+    expect(screen.getByTestId('drawer-approve')).toBeInTheDocument()
+    expect(screen.getByTestId('drawer-reject')).toBeInTheDocument()
+  })
+
+  it.each(['CATEGORY_LEAD', 'BRAND_MANAGER', 'TRAINING_MANAGER', 'REGIONAL_MANAGER', 'TRAINER', undefined] as const)('роль %s сохраняет просмотр без финансовых действий', async (role) => {
+    setRole(role)
+    setReceipts([mkReceipt()])
+    const user = userEvent.setup()
+    renderPage()
+    expect(screen.getByTestId('receipt-rcp_1')).toBeInTheDocument()
+    expect(screen.queryByTestId('import-excel')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('excel-input')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('receipt-approve-rcp_1')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('receipt-reject-rcp_1')).not.toBeInTheDocument()
+    await user.click(screen.getByTestId('receipt-rcp_1'))
+    expect(screen.getByTestId('receipt-detail')).toBeInTheDocument()
+    expect(screen.queryByTestId('drawer-approve')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('drawer-reject')).not.toBeInTheDocument()
+    expect(approveMutate).not.toHaveBeenCalled()
+    expect(rejectMutate).not.toHaveBeenCalled()
+  })
+
   it('H1 + метрики из summary', () => {
     renderPage()
     expect(screen.getByRole('heading', { level: 1, name: /Сверка чеков/i })).toBeInTheDocument()

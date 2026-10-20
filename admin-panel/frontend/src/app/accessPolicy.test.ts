@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   canManageAiExam,
+  canManageMoney,
+  canManagePharmacistCredentials,
   canAccessSection,
   defaultPathForRole,
   isTrainingReadOnlyRole,
@@ -8,6 +10,22 @@ import {
 } from './accessPolicy'
 
 describe('политика доступа к разделам консоли', () => {
+  it.each(['SYSTEM_ADMIN', 'HQ_HEAD', 'FINANCE_REVIEWER'] as const)('роль %s управляет денежными операциями', (role) => {
+    expect(canManageMoney(role)).toBe(true)
+  })
+
+  it.each(['CATEGORY_LEAD', 'BRAND_MANAGER', 'TRAINING_MANAGER', 'REGIONAL_MANAGER', 'TRAINER', undefined] as const)('роль %s не получает денежные полномочия', (role) => {
+    expect(canManageMoney(role)).toBe(false)
+  })
+
+  it.each(['SYSTEM_ADMIN', 'HQ_HEAD'] as const)('роль %s управляет учётными данными фармацевта', (role) => {
+    expect(canManagePharmacistCredentials(role)).toBe(true)
+  })
+
+  it.each(['FINANCE_REVIEWER', 'CATEGORY_LEAD', 'BRAND_MANAGER', 'TRAINING_MANAGER', 'REGIONAL_MANAGER', 'TRAINER', undefined] as const)('роль %s не меняет учётные данные фармацевта', (role) => {
+    expect(canManagePharmacistCredentials(role)).toBe(false)
+  })
+
   it('руководителю обучения доступны только LMS и AI-экзамены', () => {
     expect(sectionIdsForRole('TRAINING_MANAGER')).toEqual(['lms', 'ai_exam'])
     expect(defaultPathForRole('TRAINING_MANAGER')).toBe('/lms')

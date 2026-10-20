@@ -1,12 +1,13 @@
 // Тесты PharmacistsPage — пустой/loading/error/полный список + block/unblock.
 
-import { describe, expect, it, beforeEach, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { ToastHost } from '@/ui'
 import type { PharmacistDto } from '@/lib/api-types'
+import { useUiStore } from '@/app/store'
 import PharmacistsPage from './PharmacistsPage'
 
 const pharmacistHooks = vi.hoisted(() => ({
@@ -41,6 +42,10 @@ const lmsHooks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/queries/lms', () => lmsHooks)
+const originalUser = useUiStore.getState().authedUser
+afterEach(() => {
+  act(() => useUiStore.setState({ authedUser: originalUser }))
+})
 
 function mkPharmacist(over: Partial<PharmacistDto> = {}): PharmacistDto {
   return {
@@ -78,6 +83,7 @@ function setPharmacists(list: PharmacistDto[] = []) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  useUiStore.setState({ authedUser: { id: 'hq-test', email: 'hq@test.invalid', name: 'HQ', company: 'Test', role: 'HQ_HEAD' } })
   setPharmacists([])
   pharmacyHooks.usePharmacies.mockReturnValue({
     data: [
@@ -252,6 +258,50 @@ describe('PharmacistsPage — loading/error', () => {
 })
 
 describe('PharmacistsPage — список и actions', () => {
+  it.each(['FINANCE_REVIEWER', 'CATEGORY_LEAD', 'BRAND_MANAGER', 'TRAINING_MANAGER', 'REGIONAL_MANAGER', 'TRAINER', undefined] as const)('роль %s видит баланс без сброса пароля', (role) => {
+    useUiStore.setState({ authedUser: role ? { id: 'profile-test', email: 'profile@test.invalid', name: 'Profile reader', company: 'Test', role } : null })
+    const mutate = vi.fn()
+    pharmacistHooks.useUpdatePharmacist.mockReturnValue({ mutate, isPending: false })
+    setPharmacists([mkPharmacist({ id: 'ordinary-read' }), mkPharmacist({ id: 'no-password', hasPassword: false })])
+    renderPage()
+    const row = screen.getByTestId('pharmacist-row-ordinary-read')
+    expect(within(row).getByText(/50\s000\s₸/)).toBeInTheDocument()
+    expect(within(row).queryByRole('spinbutton')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Сменить пароль' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Задать пароль' })).not.toBeInTheDocument()
+    expect(mutate).not.toHaveBeenCalled()
+  })
+
+  it.each(['SYSTEM_ADMIN', 'HQ_HEAD'] as const)('роль %s меняет пароль без balance в PATCH', async (role) => {
+    useUiStore.setState({ authedUser: { id: 'profile-test', email: 'profile@test.invalid', name: 'Profile editor', company: 'Test', role } })
+    const mutate = vi.fn()
+    pharmacistHooks.useUpdatePharmacist.mockReturnValue({ mutate, isPending: false })
+    setPharmacists([mkPharmacist({ id: 'ordinary-edit' })])
+    const user = userEvent.setup()
+    renderPage()
+    const row = screen.getByTestId('pharmacist-row-ordinary-edit')
+    expect(within(row).getByText(/50\s000\s₸/)).toBeInTheDocument()
+    expect(within(row).queryByRole('spinbutton')).not.toBeInTheDocument()
+    await user.click(within(row).getByRole('button', { name: 'Сменить пароль' }))
+    await user.type(screen.getByLabelText('Новый пароль'), 'TestPassword123!')
+    await user.click(screen.getByRole('button', { name: 'Сохранить пароль' }))
+    expect(mutate).toHaveBeenCalledWith({ id: 'ordinary-edit', patch: { password: 'TestPassword123!' } }, expect.any(Object))
+    expect(mutate.mock.calls[0][0].patch).not.toHaveProperty('balance')
+  })
+
+  it('потеря полномочий закрывает уже открытый сброс пароля', async () => {
+    const mutate = vi.fn()
+    pharmacistHooks.useUpdatePharmacist.mockReturnValue({ mutate, isPending: false })
+    setPharmacists([mkPharmacist()])
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(screen.getByRole('button', { name: 'Сменить пароль' }))
+    await user.type(screen.getByLabelText('Новый пароль'), 'TestPassword123!')
+    act(() => useUiStore.setState({ authedUser: { id: 'finance-test', email: 'finance@test.invalid', name: 'Finance', company: 'Test', role: 'FINANCE_REVIEWER' } }))
+    expect(screen.queryByRole('button', { name: 'Сохранить пароль' })).not.toBeInTheDocument()
+    expect(mutate).not.toHaveBeenCalled()
+  })
+
   it('таблица показывает строки', () => {
     setPharmacists([
       mkPharmacist({ id: 'u_a', name: 'Айгерим' }),

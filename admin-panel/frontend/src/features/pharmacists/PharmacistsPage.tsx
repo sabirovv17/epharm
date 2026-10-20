@@ -49,6 +49,7 @@ import { CreatePharmacistModal } from './CreatePharmacistModal'
 import { StandardNSellerMappingsModal } from './StandardNSellerMappingsModal'
 import { ASSIGNMENT_STATUS_LABEL, FORMAT_LABEL, dateTime } from '@/features/lms/training-ui'
 import { useUiStore } from '@/app/store'
+import { canManagePharmacistCredentials } from '@/app/accessPolicy'
 
 type PhTab = 'all' | PharmacistStatus
 
@@ -78,6 +79,7 @@ export default function PharmacistsPage() {
   const [standardNMappingsOpen, setStandardNMappingsOpen] = useState(false)
   const adminRole = useUiStore((state) => state.authedUser?.role)
   const canManageStandardN = adminRole === 'SYSTEM_ADMIN' || adminRole === 'HQ_HEAD'
+  const canManageCredentials = canManagePharmacistCredentials(adminRole)
 
   const { data: pharmacists = [], isLoading, isError, error, refetch } = usePharmacists()
   const { data: pharmacies = [] } = usePharmacies()
@@ -430,17 +432,19 @@ export default function PharmacistsPage() {
                         >
                           Обучение
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPasswordTarget(p)
-                            setPasswordValue('')
-                            setPasswordError(null)
-                          }}
-                          className={`text-[12px] font-bold hover:underline ${p.hasPassword ? 'text-ink-500' : 'text-accent-warning'}`}
-                        >
-                          {p.hasPassword ? 'Сменить пароль' : 'Задать пароль'}
-                        </button>
+                        {canManageCredentials && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPasswordTarget(p)
+                              setPasswordValue('')
+                              setPasswordError(null)
+                            }}
+                            className={`text-[12px] font-bold hover:underline ${p.hasPassword ? 'text-ink-500' : 'text-accent-warning'}`}
+                          >
+                            {p.hasPassword ? 'Сменить пароль' : 'Задать пароль'}
+                          </button>
+                        )}
                         {p.status === 'pending' && (
                           <button
                             type="button"
@@ -511,7 +515,7 @@ export default function PharmacistsPage() {
           }}
         />
       )}
-      {passwordTarget && (
+      {canManageCredentials && passwordTarget && (
         <Modal
           open
           onClose={() => setPasswordTarget(null)}
@@ -525,6 +529,7 @@ export default function PharmacistsPage() {
                 variant="primary"
                 disabled={updatePharmacist.isPending || passwordValue.length < 6}
                 onClick={() => {
+                  if (!canManageCredentials) return
                   setPasswordError(null)
                   updatePharmacist.mutate(
                     { id: passwordTarget.id, patch: { password: passwordValue } },
