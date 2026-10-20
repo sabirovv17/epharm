@@ -37,6 +37,8 @@ All notable production changes to Epharm are recorded here. The format follows
   saved keys during an outage. Different strengths, forms and packs are not merged.
 - Attribute journal conversion time to the resolved sale product or confirmed legacy alias,
   never an arbitrary first receipt item. Financial gates and medical-rule statuses are unchanged.
+- Apply compatible patched Vite and follow-redirects versions required by the security audit,
+  without extending the existing development-only advisory exception or bypassing CI.
 
 ### Deployment
 
