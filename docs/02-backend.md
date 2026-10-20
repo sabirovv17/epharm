@@ -192,6 +192,10 @@ redirects, and avoids browser mixed-content blocking when a source image uses HT
 - POSM uses a device key; comparison is constant-time.
 - `GlobalExceptionHandler` returns JSON `{code,message,fields?}` instead of stack traces.
 - Business errors should be `AppException(ErrorCode, message, HttpStatus)`.
+- Receipt approve/reject/import and explicit balance changes require HQ, system-admin or finance
+  roles. Administrative pharmacist phone/password resets require HQ or system-admin only; the
+  service checks these sensitive fields before applying any profile mutations. A password login
+  alone is not a monetary executor proof; the separate fresh OTP and HQ affiliation still apply.
 - Receipt/photo bucket access is still a hardening topic: current MinIO bucket is public-readable.
 
 ## Mobile OTP
