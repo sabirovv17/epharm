@@ -139,6 +139,69 @@ class MerchTaskClientTest {
     }
 
     @Test
+    fun `HTTP error and malformed recommendation contexts return an empty unavailable fallback`() {
+        val response = AtomicReference(503 to "service unavailable")
+        server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
+            createContext("/") { exchange ->
+                exchange.requestBody.use { it.readBytes() }
+                val (status, text) = response.get()
+                val body = text.toByteArray()
+                exchange.responseHeaders.add("Content-Type", "application/json")
+                exchange.sendResponseHeaders(status, body.size.toLong())
+                exchange.responseBody.use { it.write(body) }
+            }
+            start()
+        }
+        val client = client(enabled = true, integrationKey = "server-secret")
+        for (reply in listOf(
+            503 to "service unavailable",
+            200 to "{malformed",
+            200 to """{"recommendations":[{"id":"invalid","kind":"unknown"}]}""",
+        )) {
+            response.set(reply)
+
+            val context = client.recommendationContext(MerchRecommendationContextRequest("pharmacy-7", emptyList()))
+
+            assertThat(context.available).isFalse()
+            assertThat(context.recommendations).isEmpty()
+            assertThat(context.balances).isEmpty()
+        }
+    }
+
+    @Test
+    fun `recommendation timeout is bounded separately from the longer QR timeout`() {
+        val release = CountDownLatch(1)
+        serverExecutor = Executors.newCachedThreadPool { runnable ->
+            Thread(runnable, "merch-recommend-timeout-test").apply { isDaemon = true }
+        }
+        server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
+            executor = serverExecutor
+            createContext("/") { exchange ->
+                exchange.requestBody.use { it.readBytes() }
+                release.await(5, TimeUnit.SECONDS)
+                runCatching { exchange.sendResponseHeaders(503, -1) }
+                exchange.close()
+            }
+            start()
+        }
+        val client = client(
+            enabled = true, integrationKey = "server-secret", timeoutMs = 5_000, recommendTimeoutMs = 250,
+        )
+        try {
+            val start = System.nanoTime()
+
+            val context = client.recommendationContext(MerchRecommendationContextRequest("pharmacy-7", emptyList()))
+
+            val elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start)
+            assertThat(context.available).isFalse()
+            assertThat(context.recommendations).isEmpty()
+            assertThat(elapsedMs).isLessThan(2_500)
+        } finally {
+            release.countDown()
+        }
+    }
+
+    @Test
     fun `disabled gateway stays quiet while incomplete configuration reports unavailable`() {
         val disabled = clientWithoutServer(enabled = false, baseUrl = "", integrationKey = "")
         val missingKey = clientWithoutServer(
@@ -397,6 +460,7 @@ class MerchTaskClientTest {
         publicStaffUrl: String = "",
         maxConcurrent: Int = 16,
         timeoutMs: Int = 1_000,
+        recommendTimeoutMs: Int = 900,
     ): MerchTaskClient {
         val port = requireNotNull(server).address.port
         return MerchTaskClient(
@@ -409,6 +473,7 @@ class MerchTaskClientTest {
             meterRegistry = SimpleMeterRegistry(),
             publicStaffUrl = publicStaffUrl,
             maxConcurrent = maxConcurrent,
+            recommendTimeoutMs = recommendTimeoutMs,
         )
     }
 

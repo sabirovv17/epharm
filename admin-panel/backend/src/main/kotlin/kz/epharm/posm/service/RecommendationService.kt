@@ -7,6 +7,7 @@ import kz.epharm.merchtasks.dto.MerchProductBalance
 import kz.epharm.merchtasks.dto.MerchRecommendationCandidate
 import kz.epharm.merchtasks.dto.MerchRecommendationCartItem
 import kz.epharm.merchtasks.dto.MerchRecommendationContextRequest
+import kz.epharm.merchtasks.dto.MerchRecommendationContextEnvelope
 import kz.epharm.merchtasks.dto.MerchRecommendationProductRef
 import kz.epharm.merchtasks.service.MerchTaskClient
 import kz.epharm.posm.dto.ComparisonRowDto
@@ -56,6 +57,8 @@ class RecommendationService(
     companion object {
         /** UX-контракт popup: максимум пять замен и пять cross-sell одновременно. */
         private const val MAX_RECOMMENDATIONS_PER_KIND = 5
+        // Matches the CRM integration's documented PHARMAPAY_BALANCE_MAX_AGE_SECONDS contract.
+        private const val MAX_CONFIRMED_STOCK_AGE_SECONDS = 1_800L
     }
 
     @Transactional
@@ -90,7 +93,7 @@ class RecommendationService(
                     )
                 }.distinct(),
             ),
-        )
+        ).takeIf { it.available && it.pharmacyMapped } ?: MerchRecommendationContextEnvelope(available = false)
 
         // Начало текущего месяца — период для счётчика цели «N/target».
         val periodStart = java.time.YearMonth.now()
@@ -135,11 +138,20 @@ class RecommendationService(
         val resolvedExternal = resolveExternalRecommendations(req, merchContext.recommendations)
             .filter { it.recommend.id !in decidedSkus }
             .filter { (it.candidate.kind to it.recommend.id) !in localKeys }
-            .distinctBy { it.candidate.kind to it.recommend.id }
         val externalOutOfStock = resolvedExternal.filter {
             isConfirmedOutOfStock(it.recommend, merchContext.balances)
         }
-        val external = resolvedExternal.filterNot { it in externalOutOfStock }
+        val externalInStock = resolvedExternal.filterNot { it in externalOutOfStock }
+        val localByPair = selectedLocal.groupBy {
+            (it.triggerBarcode ?: it.triggerSku ?: it.triggerIpartId?.let { id -> "ipart:$id" }) to it.recommend.id
+        }
+        val externalContradictions = externalInStock.groupBy { it.pairKey() }.filter { (pair, offers) ->
+            offers.map { it.candidate.kind }.distinct().size > 1 || offers.any { offer ->
+                localByPair[pair].orEmpty().any { it.rule.type.name != offer.candidate.kind }
+            }
+        }
+        // CRM cannot remove authoritative local rules. Conflicting external pairs are suppressed.
+        val external = externalInStock.filterNot { it.pairKey() in externalContradictions }
 
         val externalDtos = listOf("substitution", "crosssell").flatMap { kind ->
             val remaining = MAX_RECOMMENDATIONS_PER_KIND - localDtos.count { it.kind == kind }
@@ -148,6 +160,7 @@ class RecommendationService(
                 .sortedWith(compareByDescending<ExternalRecommendation> { it.candidate.priority }
                     .thenByDescending { it.candidate.bonus }
                     .thenBy { it.candidate.id })
+                .distinctBy { it.recommend.id }
                 .take(remaining.coerceAtLeast(0))
                 .map { externalRecommendationDto(req, it, merchContext.balances) }
                 .toList()
@@ -168,6 +181,15 @@ class RecommendationService(
                 reason = "Рекомендованный товар отсутствует в подтверждённом остатке аптеки",
                 ruleIds = listOf("merch:${it.candidate.id}"),
             )
+        } + externalContradictions.map { (pair, offers) ->
+            ConflictDto(
+                kind = "contradiction",
+                triggerName = offers.first().triggerItem.name ?: offers.first().triggerProduct?.name,
+                reason = "Одна и та же пара товаров одновременно задана как замена и допродажа; " +
+                    "противоречащие рекомендации CRM не показаны",
+                ruleIds = localByPair[pair].orEmpty().map { it.rule.id } +
+                    offers.map { "merch:${it.candidate.id}" },
+            )
         }
         val ordered = listOf("substitution", "crosssell").flatMap { kind ->
             (localDtos + externalDtos).filter { it.kind == kind }
@@ -184,7 +206,14 @@ class RecommendationService(
         val triggerItem: CartItemDto,
         val triggerProduct: ProductEntity?,
         val recommend: ProductEntity,
-    )
+    ) {
+        fun pairKey(): Pair<String?, String> = (
+            triggerItem.barcode?.trim()?.takeIf(String::isNotEmpty)
+                ?: triggerProduct?.barcode?.trim()?.takeIf(String::isNotEmpty)
+                ?: triggerProduct?.id
+                ?: triggerItem.sku?.trim()?.takeIf(String::isNotEmpty)?.let { "ipart:$it" }
+            ) to recommend.id
+    }
 
     /** Resolve both sides by exact identifiers only; ambiguous catalog keys fail closed. */
     private fun resolveExternalRecommendations(
@@ -229,7 +258,7 @@ class RecommendationService(
             if (suppliedProducts.size != suppliedKeyCount || suppliedProducts.map { it.id }.distinct().size != 1) {
                 return@mapNotNull null
             }
-            val recommend = suppliedProducts.single()
+            val recommend = suppliedProducts.first()
             val alreadyInCart = req.cart.any { item ->
                 (!recommend.barcode.isNullOrBlank() && item.barcode?.trim() == recommend.barcode?.trim()) ||
                     (!recommend.ipartId.isNullOrBlank() && item.sku?.trim() == recommend.ipartId?.trim()) ||
@@ -306,6 +335,13 @@ class RecommendationService(
             ).filterNotNull()
             supplied > 0 && matches.size == supplied && matches.all { it }
         } ?: return null
+        val now = Instant.now()
+        val fresh = balance.observedAt?.let {
+            !it.isAfter(now) && !it.isBefore(now.minusSeconds(MAX_CONFIRMED_STOCK_AGE_SECONDS))
+        } ?: false
+        val status = if (balance.status == "confirmed" && !fresh) {
+            if (balance.observedAt == null) "unknown" else "stale"
+        } else balance.status
         return ProductBalanceDto(
             pharmacyAvailableQty = balance.pharmacyAvailableQty,
             networkAvailableQty = balance.networkAvailableQty,
@@ -313,7 +349,7 @@ class RecommendationService(
             reservedQty = balance.reservedQty,
             observedAt = balance.observedAt,
             source = balance.source,
-            status = balance.status,
+            status = status,
         )
     }
 
