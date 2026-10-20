@@ -22,7 +22,7 @@ All notable production changes to Epharm are recorded here. The format follows
 - POSM 1.0.65 spreads healthy QR-task polling over 24–36 seconds per device, reducing
   synchronized load on the merchandising fallback without changing recommendations or orders.
 
-## [0.1.39] - Unreleased
+## [0.1.39] - 2026-10-20
 
 ### Added
 
@@ -32,6 +32,15 @@ All notable production changes to Epharm are recorded here. The format follows
   immutable task approval and idempotent credit into the same wallet. Viewing a QR never credits money.
 - An independently gated real-display plus exact printed-sale bridge that creates one bonus
   reservation for HQ moderation, without invented acceptance or historical backfill.
+
+### Fixed
+
+- Serialize manual and imported receipt decisions so a late rejection or Excel row cannot erase
+  a confirmed credit or override a final decision.
+- Restrict receipt approval, Excel financial imports and balance adjustments to authorized roles;
+  only HQ/system administrators may reset another pharmacist's phone or password.
+- Reject legacy backend transitions after financial schema expansion, including automatic failure
+  rollback, and test the actual previous binary against the forward schema in CI.
 
 ### Deployment
 
