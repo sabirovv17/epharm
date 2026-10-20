@@ -27,6 +27,7 @@ import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.annotation.Propagation
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
@@ -134,6 +135,26 @@ class PromoBarcodeAliasesIntegrationTest {
         assertThat(updated.barcode).isEqualTo(newCode)
         assertThat(updated.barcodes).containsExactly(newCode)
         assertThat(updated.ipartId).isNull()
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `unconfirmed initial trigger rolls back the already saved campaign draft atomically`() {
+        assertThrows(AppException::class.java) {
+            promos.create(
+                CreatePromoRequest(
+                    title = "Untrusted initial trigger", medusaProductId = "offer",
+                    initialRecommendation = InitialPromoRecommendationDto(
+                        type = RuleType.substitution,
+                        trigger = PromoRuleProductRefDto(
+                            medusaProductId = "trigger", barcodes = listOf("4600000000999"),
+                        ),
+                    ),
+                ),
+                "isolated-test",
+            )
+        }
+        assertThat(promoRepository.findAllByMedusaProductId("offer")).isEmpty()
     }
 
     @Test
