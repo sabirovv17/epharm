@@ -598,6 +598,7 @@ if (line.Contains("ChequeList.OnChange", StringComparison.OrdinalIgnoreCase))
 
     Dispatcher.Invoke(() =>
     {
+        _receiptObservations.LogChanged();
         var existing = ReceiptItems.FirstOrDefault(x => x.PartId == item.PartId);
         var recommendationAction = ReceiptRecommendationChange.ClassifyExplicitAdd(
             existed: existing != null,
@@ -625,12 +626,7 @@ if (line.Contains("RunScriptByIndex", StringComparison.OrdinalIgnoreCase) &&
 
     Dispatcher.Invoke(() =>
     {
-        var documentId = _standardNDocumentId;
-        var finalized = OnReceiptFinalized("standardn-print-log", documentId);
-        if (finalized && documentId.HasValue)
-            _lastFinalizedStandardNDocumentId = documentId.Value;
-        ReceiptItems.Clear();
-        RecalcTotal();
+        HandleStandardNReceiptPrinted();
     });
 
     return;
@@ -644,6 +640,7 @@ if (line.Contains("Add2Cheque", StringComparison.OrdinalIgnoreCase) &&
 
     Dispatcher.Invoke(() =>
     {
+        _receiptObservations.LogChanged();
         var removalAction = ReceiptRecommendationChange.ClassifyRemoval(
             RemoveItemByPartId(partId.Value));
         if (removalAction != ReceiptRecommendationAction.None) RecalcTotal();
@@ -873,6 +870,7 @@ percent = Math.Round(percent, 2, MidpointRounding.AwayFromZero); // наприм
 
         Dispatcher.Invoke(() =>
         {
+            _receiptObservations.LogChanged();
             ApplyDiscountToAllItems(percent);
             RecalcTotal();
         });

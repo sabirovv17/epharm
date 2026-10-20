@@ -8,6 +8,7 @@ import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
+import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicLong
@@ -125,8 +126,20 @@ class MerchTaskClient(
                     .queryParam("pharmacyId", normalizedPharmacyId)
                     .build()
             }.retrieve().body(MerchTaskEnvelope::class.java)
-                ?.also { response -> response.task?.let(::validateTask) }
+                ?.let(::normalizeTaskEnvelope)
                 ?: MerchTaskEnvelope()
+        }
+    }
+
+    private fun normalizeTaskEnvelope(response: MerchTaskEnvelope): MerchTaskEnvelope {
+        if (!response.available) return response.copy(task = null)
+        val task = response.task ?: return response
+        validateTask(task)
+        val now = Instant.now()
+        return if (task.dueAt?.isAfter(now) == false || task.expiresAt?.isAfter(now) == false) {
+            response.copy(task = null)
+        } else {
+            response
         }
     }
 

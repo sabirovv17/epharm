@@ -79,4 +79,31 @@ internal static class PopupWindowPlacement
         window.Top >= workArea.Top &&
         window.Right <= workArea.Right &&
         window.Bottom <= workArea.Bottom;
+
+    public static PixelPoint[] ContentProbePoints(PixelRect window)
+    {
+        var x = window.Left + Math.Max(0, window.Width - 1) / 2;
+        var height = Math.Max(0, window.Height - 1);
+        return new[]
+        {
+            new PixelPoint(x, window.Top + height / 4),
+            new PixelPoint(x, window.Top + height / 2),
+            new PixelPoint(x, window.Top + height * 3 / 4),
+        };
+    }
+
+    // WS_VISIBLE alone also describes minimized, cloaked or fully obscured windows.
+    public static bool HasDisplayEvidence(
+        PixelRect window,
+        PixelRect workArea,
+        bool rendered,
+        double opacity,
+        bool nativeVisible,
+        bool minimized,
+        bool cloaked,
+        bool topmost,
+        bool noActivate,
+        bool contentExposed) =>
+        rendered && opacity > 0.01 && nativeVisible && !minimized && !cloaked &&
+        topmost && noActivate && contentExposed && IsFullyVisible(window, workArea);
 }

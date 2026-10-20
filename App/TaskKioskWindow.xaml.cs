@@ -49,7 +49,7 @@ public partial class TaskKioskWindow : Window
         _expiryTimer.Tick += (_, _) =>
         {
             ElevateWithoutActivation();
-            if (SelectedTask is { } task && task.ExpiresAt <= DateTimeOffset.UtcNow)
+            if (SelectedTask is { } task && !task.IsCurrent(DateTimeOffset.UtcNow))
                 RenderSelected();
         };
         _expiryTimer.Start();
@@ -144,10 +144,12 @@ public partial class TaskKioskWindow : Window
             ? "До " + due.ToLocalTime().ToString("d MMMM, HH:mm", CultureInfo.GetCultureInfo("ru-RU"))
             : "Без срока";
 
-        if (task.ExpiresAt <= DateTimeOffset.UtcNow)
+        if (!task.IsCurrent(DateTimeOffset.UtcNow))
         {
             ClearQr();
-            HelpText.Text = "Обновляем QR-код…";
+            HelpText.Text = task.DueAt <= DateTimeOffset.UtcNow
+                ? "Срок задания истёк."
+                : "Обновляем QR-код…";
             return;
         }
 
@@ -179,7 +181,7 @@ public partial class TaskKioskWindow : Window
             WindowState == WindowState.Normal &&
             QrImage.Source != null &&
             SelectedTask is { } task &&
-            task.ExpiresAt > DateTimeOffset.UtcNow)
+            task.IsCurrent(DateTimeOffset.UtcNow))
         {
             if (ElevateWithoutActivation()) TaskDisplayed?.Invoke(task);
         }

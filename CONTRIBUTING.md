@@ -108,6 +108,12 @@ The compiled admin image must retain campaign triggers for a product, ACC group,
 The isolated `playwright.artifact.config.ts` suite mocks every API operation and tests the final
 image without real accounts or data. Do not replace it with a Vite development-server check.
 
+The authoritative external product catalogue is `https://www.aptekasosklada.kz`. Do not restore
+remote Medusa calls or remove one of the four trigger types while changing prices, stock or
+recommendation sources. Historical Medusa-named DTO fields and stored local snapshots preserve
+existing identifiers; they are not permission to revive the retired server. ACC classification is
+a separate trigger mapping, not a price/stock feed or proof of medical interchangeability.
+
 Production images must be built from reviewed main source, never from a developer's older loose
 server directory. A higher release number or OCI label alone does not establish source provenance.
 Do not perform manual Compose image swaps outside the audited release transaction.

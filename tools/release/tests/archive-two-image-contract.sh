@@ -16,6 +16,7 @@ cp "$source_root/tools/release/tests/fixtures/fake-release-source.py" "$test_roo
 printf '# reviewed Compose fixture\n' > "$test_root/docker-compose.prod.yml"
 printf '# reviewed Caddy fixture\n' > "$test_root/Caddyfile"
 printf 'JWT_SECRET=fixture-never-log\nMERCH_TASKS_ENABLED=true\nSTANDARDN_DIRECTORY_ENABLED=true\n' > "$test_root/.env.prod"
+printf 'MEDUSA_ENABLED=false\nSTOREFRONT_CATALOG_ENABLED=true\nSTOREFRONT_CATALOG_BASE_URL=https://www.aptekasosklada.kz\n' >> "$test_root/.env.prod"
 # This deliberately disagrees with the running backend: the real archive host
 # had generic v0.1.23 metadata but was running backend v0.1.24.
 printf 'RELEASE_ID=v0.1.23\nRELEASE_COMMIT=stale-marker\n' > "$test_root/.release.env"
@@ -253,6 +254,18 @@ deploy=("$test_root/tools/release/deploy-archive-two-image.sh" v0.1.25 v0.1.25 "
   "$candidate_backend_id" "$candidate_frontend_id" v0.1.24 v0.1.23 "$test_root/backup" "$compose_sha")
 secret_hash="$(shasum -a 256 "$test_root/.env.prod" | awk '{print $1}')"
 caddy_hash="$(shasum -a 256 "$test_root/Caddyfile" | awk '{print $1}')"
+
+for invalid_source in MEDUSA_ENABLED=true STOREFRONT_CATALOG_ENABLED=false \
+  STOREFRONT_CATALOG_BASE_URL=https://aptekasosklada.kz \
+  STOREFRONT_CATALOG_BASE_URL=https://unrelated.example.invalid; do
+  if env "$invalid_source" "${deploy[@]}" > "$test_root/invalid-source.log" 2>&1; then
+    echo "Archive deploy accepted invalid catalogue source: $invalid_source" >&2; exit 1
+  fi
+  [[ ! -s "$TEST_EVENTS" ]]
+  cmp -s "$test_root/.release.env" "$test_root/backup/release.env"
+  [[ "$(cat "$test_root/backend-image")" == "$old_backend_id" ]]
+  [[ "$(cat "$test_root/frontend-image")" == "$old_frontend_id" ]]
+done
 
 for failure in TEST_BAD_RELEASE_SOURCE TEST_BAD_MERCH_ARTIFACT TEST_BAD_ADMIN_ARTIFACT; do
   if env "$failure=true" "${deploy[@]}" > "$test_root/rejected-$failure.log" 2>&1; then

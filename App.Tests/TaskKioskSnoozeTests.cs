@@ -34,4 +34,38 @@ public sealed class TaskKioskSnoozeTests
         Assert.False(snooze.ShouldShow([], Now));
         Assert.False(snooze.ShouldShow([Task("delivery")], Now.AddHours(2)));
     }
+
+    [Theory]
+    [InlineData(-1, false)]
+    [InlineData(0, false)]
+    [InlineData(1, true)]
+    public void TaskDeadlineIsExclusiveEvenWhenQrTokenRemainsValid(int secondsUntilDue, bool expected)
+    {
+        var task = Task("delivery") with { DueAt = Now.AddSeconds(secondsUntilDue) };
+
+        Assert.Equal(expected, task.IsCurrent(Now));
+        Assert.Equal(expected, new TaskKioskSnooze().ShouldShow([task], Now));
+    }
+
+    [Fact]
+    public void ExpiredTaskIsNotReopenedWhenSnoozeEnds()
+    {
+        var snooze = new TaskKioskSnooze();
+        var task = Task("delivery") with { DueAt = Now.AddMinutes(5) };
+        snooze.Defer([task], Now);
+
+        Assert.False(snooze.ShouldShow([task], Now.AddMinutes(10)));
+    }
+
+    [Theory]
+    [InlineData(-1, false)]
+    [InlineData(0, false)]
+    [InlineData(1, true)]
+    public void TaskWithoutDeadlineStillRequiresUnexpiredQrToken(int secondsUntilExpiry, bool expected)
+    {
+        var task = Task("delivery") with { DueAt = null, ExpiresAt = Now.AddSeconds(secondsUntilExpiry) };
+
+        Assert.Equal(expected, task.IsCurrent(Now));
+        Assert.Equal(expected, new TaskKioskSnooze().ShouldShow([task], Now));
+    }
 }

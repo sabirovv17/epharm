@@ -14,8 +14,8 @@ public sealed class TaskKioskClientTests
                 "dispatch-1",
                 "Проверить выкладку",
                 "high",
-                DateTimeOffset.Parse("2026-09-12T10:00:00Z"),
-                DateTimeOffset.Parse("2026-09-13T10:00:00Z"),
+                DateTimeOffset.UtcNow.AddHours(1),
+                DateTimeOffset.UtcNow.AddHours(2),
                 "https://epharm.inkar.kz/merch/staff?token=opaque",
                 "delivery-token"),
         };
@@ -38,6 +38,36 @@ public sealed class TaskKioskClientTests
     public async Task EmptyQueueIsSafeAndDoesNotAcknowledgeAnything()
     {
         var api = new FakeMerchTaskApi();
+        using var client = new TaskKioskClient(api, "pharmacy-7", "POS-02");
+
+        Assert.Empty(await client.ListAsync(CancellationToken.None));
+        Assert.Null(api.Acknowledgement);
+    }
+
+    [Fact]
+    public async Task PastDueAssignmentIsNotOfferedEvenWhileQrTokenIsValid()
+    {
+        var api = new FakeMerchTaskApi
+        {
+            Response = new MerchTaskDto("dispatch-1", "Task", "normal",
+                DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddDays(1),
+                "https://crm.inkar.kz/staff?token=opaque", "delivery-token"),
+        };
+        using var client = new TaskKioskClient(api, "pharmacy-7", "POS-02");
+
+        Assert.Empty(await client.ListAsync(CancellationToken.None));
+        Assert.Null(api.Acknowledgement);
+    }
+
+    [Fact]
+    public async Task ExpiredQrTokenIsNotOfferedEvenBeforeTaskDeadline()
+    {
+        var api = new FakeMerchTaskApi
+        {
+            Response = new MerchTaskDto("dispatch-1", "Task", "normal",
+                DateTimeOffset.UtcNow.AddDays(1), DateTimeOffset.UtcNow.AddMinutes(-1),
+                "https://crm.inkar.kz/staff?token=opaque", "delivery-token"),
+        };
         using var client = new TaskKioskClient(api, "pharmacy-7", "POS-02");
 
         Assert.Empty(await client.ListAsync(CancellationToken.None));

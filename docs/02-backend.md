@@ -18,35 +18,35 @@ The backend is a modular monolith under package `kz.epharm`.
 
 ## Domains
 
-| Package                               | Responsibility                                                          |
-| ------------------------------------- | ----------------------------------------------------------------------- |
-| `auth`                                | Admin auth, JWT, refresh tokens, roles.                                 |
-| `mobile.auth`                         | Pharmacist OTP auth, registration, refresh/logout.                      |
-| `mobile.profile`                      | `/api/mobile/me` profile/balance.                                       |
-| `mobile.catalog`                      | Public mobile catalog with a configured website source and local snapshot fallback. |
-| `mobile.promotions`                   | Public active promo campaign feed.                                      |
-| `mobile.receipts`                     | Authenticated receipt upload/history.                                   |
-| `mobile.pharmacies`                   | Public active pharmacy list.                                            |
-| `catalog`                             | Internal/admin product master data used by rules.                       |
-| `promo`                               | Campaigns, Medusa product snapshots, tiers, campaign-generated rules.   |
-| `rules`                               | Rules Engine admin CRUD and POSM matching logic.                        |
-| `receipts`                            | Receipt storage, moderation, POS/Excel reconciliation, bonus crediting. |
-| `pharmacies`                          | Chains and pharmacies.                                                  |
-| `pharmacists`                         | Pharmacist registry, status, balance.                                   |
-| `finance`                             | Payout batches, items, approval, scheduler.                             |
-| `screens`                             | Broadcast/screen media and playlists.                                   |
-| `banners`                             | Admin-managed mobile banners.                                           |
-| `medusa`                              | Historical Medusa client and durable read-only product snapshot.        |
-| `storefront`                          | Read-only client and DTO mapping for the current Inkar website catalog. |
-| `posm`                                | POSM recommendations, outcomes, sales, playlists, heartbeat, CDP.       |
-| `fulfillment`                         | Signed storefront order ingest, pharmacist cash-pickup queue and actions. |
-| `appupdate`                           | POSM app release metadata and auto-update endpoint.                     |
+| Package                               | Responsibility                                                                              |
+| ------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `auth`                                | Admin auth, JWT, refresh tokens, roles.                                                     |
+| `mobile.auth`                         | Pharmacist OTP auth, registration, refresh/logout.                                          |
+| `mobile.profile`                      | `/api/mobile/me` profile/balance.                                                           |
+| `mobile.catalog`                      | Public mobile catalog with a configured website source and local snapshot fallback.         |
+| `mobile.promotions`                   | Public active promo campaign feed.                                                          |
+| `mobile.receipts`                     | Authenticated receipt upload/history.                                                       |
+| `mobile.pharmacies`                   | Public active pharmacy list.                                                                |
+| `catalog`                             | Internal/admin product master data used by rules.                                           |
+| `promo`                               | Campaigns, Medusa product snapshots, tiers, campaign-generated rules.                       |
+| `rules`                               | Rules Engine admin CRUD and POSM matching logic.                                            |
+| `receipts`                            | Receipt storage, moderation, POS/Excel reconciliation, bonus crediting.                     |
+| `pharmacies`                          | Chains and pharmacies.                                                                      |
+| `pharmacists`                         | Pharmacist registry, status, balance.                                                       |
+| `finance`                             | Payout batches, items, approval, scheduler.                                                 |
+| `screens`                             | Broadcast/screen media and playlists.                                                       |
+| `banners`                             | Admin-managed mobile banners.                                                               |
+| `medusa`                              | Historical Medusa client and durable read-only product snapshot.                            |
+| `storefront`                          | Read-only client and DTO mapping for the current Inkar website catalog.                     |
+| `posm`                                | POSM recommendations, outcomes, sales, playlists, heartbeat, CDP.                           |
+| `fulfillment`                         | Signed storefront order ingest, pharmacist cash-pickup queue and actions.                   |
+| `appupdate`                           | POSM app release metadata and auto-update endpoint.                                         |
 | `merchtasks`                          | Optional authenticated CRM task bridge, exact staff URL validation and bounded concurrency. |
-| `training`                            | Programs, routes, assignments, events, attendance, results and awards.  |
-| `lms`, `ai_exam`, `lift`, `dashboard` | Admin sections and reporting.                                           |
-| `reporting`                           | HQ-only campaign JSON/PDF, confirmed displays, attributed/0–120-second sales. |
-| `posm.staff`                          | Optional device-scoped employee authentication and purpose-bound SMS recovery. |
-| `shared`                              | Security, errors, media proxy, storage, validation, dev reset.          |
+| `training`                            | Programs, routes, assignments, events, attendance, results and awards.                      |
+| `lms`, `ai_exam`, `lift`, `dashboard` | Admin sections and reporting.                                                               |
+| `reporting`                           | HQ-only campaign JSON/PDF, confirmed displays, attributed/0–120-second sales.               |
+| `posm.staff`                          | Optional device-scoped employee authentication and purpose-bound SMS recovery.              |
+| `shared`                              | Security, errors, media proxy, storage, validation, dev reset.                              |
 
 ## API Map
 
@@ -207,10 +207,15 @@ after phone verification ePharm issues its own JWT pair. The database stores the
 opaque nonce, never the external OTP. Per-phone resend cooldown, TTL and attempt limits remain local.
 See `docs/15-daribar-otp.md` for the extracted contract and operations.
 
-## Catalog sources and Medusa snapshot
+## Catalog source and historical snapshots
 
-When `STOREFRONT_CATALOG_ENABLED=true`, the current Inkar website is the preferred read-only
-source for mobile product lists, detail and category handles. A complete local Medusa snapshot
+The current authoritative external catalogue is `https://www.aptekasosklada.kz`
+(`STOREFRONT_CATALOG_ENABLED=true`). It supplies product lists, detail, category handles and
+campaign price refreshes server-to-server. The remote Medusa origin is retired:
+production uses `MEDUSA_ENABLED=false`, and the client also disables its remote requests and crawler
+whenever the website source is enabled, even if an older environment still contains a true legacy flag.
+This does not rename historical DTOs/packages or delete stored products and campaign references.
+A complete local historical snapshot
 remains the outage path and preserves historical product IDs referenced by campaigns. Website
 product IDs can differ from historical IDs. Viewed website products retain their original handles
 and last-known-good payload in `storefront_product_references`, scoped by configured origin, so
@@ -220,7 +225,9 @@ If the website fails, campaign refresh uses only the stored product from that sa
 historical data is not written over a website price or barcode. The complete historical snapshot
 remains available for read-only catalogue browsing. Missing data preserves existing campaign values. Unknown website-only
 IDs fail promptly rather than waiting on the retired origin. No barcode is inferred from a name.
-The feature flag and website origin are supplied through production environment variables.
+The feature flag and website origin are supplied through production environment variables. If neither
+the website nor suitable saved data can satisfy a request, it fails promptly; the retired server is
+not a fallback. Historical snapshot availability does not assert current pharmacy stock or freshness.
 
 For the historical source, backend is the only consumer of Medusa from this repo. It fetched:
 
@@ -233,9 +240,9 @@ Mobile/admin receive normalized DTOs from this backend, not raw Medusa responses
 
 Important behavior:
 
-- A background crawler stores a complete, versioned Medusa list snapshot in PostgreSQL. Catalogue
-  browsing and search use that local read model; the remote `q` endpoint is never on the normal
-  request path after the first successful synchronization.
+- The retained PostgreSQL read model contains the last complete, versioned historical snapshot.
+  Its legacy crawler is inactive with the website source enabled. Website outages may use this
+  local read model; no request is sent to the retired remote `q` endpoint.
 - Search covers product name, brand/manufacturer, MNN, category, SKU, barcode and alternative names.
   A trigram index keeps partial Cyrillic/Latin searches fast. Failed or partial refreshes retain the
   last complete generation and retry automatically.

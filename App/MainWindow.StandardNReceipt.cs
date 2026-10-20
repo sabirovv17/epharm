@@ -14,7 +14,7 @@ namespace CustomerDisplay
         private bool _standardNReceiptInitialized;
         private long? _standardNDocumentId;
         private long? _lastFinalizedStandardNDocumentId;
-        private int _standardNEmptyPolls;
+        private readonly ReceiptObservationGate _receiptObservations = new();
 
         private void StartStandardNReceiptPolling()
         {
@@ -35,10 +35,19 @@ namespace CustomerDisplay
                 var querySucceeded = false;
                 try
                 {
+                    var readRevision = _receiptObservations.Revision;
                     if (_standardNDb?.TryGetCurrentReceipt(out var receipt) == true)
                     {
                         querySucceeded = true;
-                        Dispatcher.Invoke(() => ApplyStandardNReceipt(receipt));
+                        Dispatcher.Invoke(() =>
+                        {
+                            if (_receiptObservations.Admit(readRevision, receipt != null))
+                                ApplyStandardNReceipt(receipt);
+                        });
+                    }
+                    else
+                    {
+                        Dispatcher.Invoke(() => _receiptObservations.ReadFailed());
                     }
                 }
                 catch (OperationCanceledException)
@@ -47,6 +56,7 @@ namespace CustomerDisplay
                 }
                 catch (Exception ex)
                 {
+                    Dispatcher.Invoke(() => _receiptObservations.ReadFailed());
                     Log($"Монитор активного чека Standard-N временно недоступен: {ex.GetBaseException().Message}");
                 }
 
@@ -63,22 +73,22 @@ namespace CustomerDisplay
         {
             if (receipt == null)
             {
-                _standardNEmptyPolls++;
                 if (!_standardNReceiptInitialized)
                 {
                     _standardNReceiptInitialized = true;
                     Log("Монитор активного чека Standard-N подключен; открытого чека пока нет");
-                    return;
                 }
 
                 // Session/doc switches are not atomic from an observer's point of view. Requiring
                 // two authoritative empty reads prevents a one-poll gap from flashing the receipt.
-                if (_standardNDocumentId.HasValue && _standardNEmptyPolls >= 2)
+                if (_receiptObservations.ShouldClearMissingReceipt(
+                        _standardNDocumentId.HasValue, ReceiptItems.Count > 0))
                 {
-                    var closingDocumentId = _standardNDocumentId.Value;
-                    Log($"Активный чек Standard-N закрыт: doc={closingDocumentId}");
-                    var finalized = _lastFinalizedStandardNDocumentId == closingDocumentId;
-                    if (!finalized && ReceiptItems.Any())
+                    var closingDocumentId = _standardNDocumentId;
+                    Log($"Активный чек Standard-N закрыт: doc={closingDocumentId?.ToString() ?? "—"}");
+                    var finalized = closingDocumentId.HasValue &&
+                                    _lastFinalizedStandardNDocumentId == closingDocumentId;
+                    if (!finalized && closingDocumentId.HasValue && ReceiptItems.Any())
                     {
                         finalized = OnReceiptFinalized("standardn-firebird-close", closingDocumentId);
                         if (finalized) _lastFinalizedStandardNDocumentId = closingDocumentId;
@@ -97,7 +107,6 @@ namespace CustomerDisplay
                 return;
             }
 
-            _standardNEmptyPolls = 0;
             ApplyStandardNPharmacist(receipt.Pharmacist);
 
             // Print-log marker can arrive slightly before DOCS stops exposing the active receipt.
@@ -214,6 +223,18 @@ namespace CustomerDisplay
                 LogScannedItemContext(scanned, "активный чек БД Standard-N");
                 OnProductScanned(scanned);
             }
+        }
+
+        private void HandleStandardNReceiptPrinted()
+        {
+            _receiptObservations.LogChanged();
+            var documentId = _standardNDocumentId;
+            OnReceiptFinalized("standardn-print-log", documentId);
+            // Even an empty printed document must not be resurrected by an older DB snapshot.
+            if (documentId.HasValue) _lastFinalizedStandardNDocumentId = documentId.Value;
+            _standardNDocumentId = null;
+            ReceiptItems.Clear();
+            RecalcTotal();
         }
 
         private void ApplyStandardNPharmacist(StandardNActivePharmacist pharmacist)

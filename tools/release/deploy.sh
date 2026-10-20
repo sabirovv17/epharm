@@ -13,6 +13,7 @@ release_id="${1:-}"
 assert_release_id "$release_id"
 commit="$(release_commit_for_tag "$release_id")"
 verify_release_source "$commit"
+verify_production_catalog_source
 ensure_release_images "$release_id"
 verify_merchandising_image "$(docker image inspect --format '{{.Id}}' "epharm/backend:$release_id")"
 verify_admin_image "$(docker image inspect --format '{{.Id}}' "epharm/frontend:$release_id")"

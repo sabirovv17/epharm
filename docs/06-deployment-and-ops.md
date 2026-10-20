@@ -102,12 +102,18 @@ Important current values/policies:
   `DARIBAR_OTP_BASE_URL=https://prod-backoffice.daribar.com` and a finite request timeout.
 - `OTP_DEV_MODE=true` exposes the shared fixed code and is permitted only for local/test environments.
 - `S3_PUBLIC_URL` must match the external Caddy route. It is `https://epharm.inkar.kz/s3`.
-- Medusa defaults in compose are publishable storefront ids, not admin/root secrets.
-- Release preparation requires `MEDUSA_ENABLED=true` and runs `tools/smoke-medusa.sh` from the
-  deployment host. Post-deploy smoke also requires a non-empty `/api/mobile/catalog/products`
-  response and an exact-name search from the completed PostgreSQL catalogue snapshot. On the first
-  snapshot-enabled release it waits up to `CATALOG_SNAPSHOT_WAIT_SECONDS` (default 1800); a
-  disabled/broken catalogue triggers the normal automatic application rollback.
+- Production uses `STOREFRONT_CATALOG_ENABLED=true`,
+  `STOREFRONT_CATALOG_BASE_URL=https://www.aptekasosklada.kz` and `MEDUSA_ENABLED=false`.
+  All candidate deployment entrypoints reject a disabled website source, a non-canonical origin or a
+  re-enabled retired Medusa client. Use the `www` HTTPS origin above: the apex host redirects, while
+  catalogue redirects are deliberately rejected. Deployment never probes the retired server. The runtime client also
+  blocks legacy remote requests while the website source is enabled, protecting older environment
+  files. Historical local snapshots/IDs remain intact as read-only outage data.
+- Post-deploy smoke always requires a non-empty `/api/mobile/catalog/products` response and an
+  exact sample-ID search. An explicit `catalogSource=website` health response skips only the wait
+  for a historical PostgreSQL snapshot, not the catalogue/search checks. Older releases retain
+  their snapshot-readiness wait (`CATALOG_SNAPSHOT_WAIT_SECONDS`, default 1800), including during
+  an explicit rollback. A disabled/broken catalogue triggers the normal automatic application rollback.
 - Live storefront/PIM/SSH credentials are documented in their existing credential files and must not be
   copied elsewhere.
 

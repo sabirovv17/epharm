@@ -14,13 +14,9 @@ commit="$(release_commit_for_tag "$release_id")"
 verify_release_source "$commit"
 
 require_command docker
-[[ -r "$RELEASE_ROOT/.env.prod" ]] || { echo "ERROR: missing $RELEASE_ROOT/.env.prod" >&2; exit 1; }
-load_env_file "$RELEASE_ROOT/.env.prod"
-[[ "${MEDUSA_ENABLED:-}" == "true" ]] || {
-  echo "ERROR: MEDUSA_ENABLED=true is required for a production release" >&2
-  exit 1
-}
-"$RELEASE_ROOT/tools/smoke-medusa.sh"
+verify_production_catalog_source
+# Website outages use the existing read-only local snapshot. The post-deploy catalogue smoke
+# validates the effective backend response; never contact the retired remote origin here.
 mkdir -p "$RELEASE_ROOT/releases/$release_id"
 manifest="$RELEASE_ROOT/releases/$release_id/manifest.json"
 if [[ -e "$manifest" ]]; then
