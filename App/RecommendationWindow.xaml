@@ -48,6 +48,9 @@
                         <TextBlock x:Name="TriggerText" Text="{Binding TriggerContext}"
                                    FontSize="13" FontWeight="SemiBold"
                                    TextWrapping="Wrap" Margin="0,3,0,0"/>
+                        <TextBlock x:Name="StockText" Text="{Binding Stock}"
+                                   FontSize="12.5" FontWeight="SemiBold"
+                                   TextWrapping="Wrap" Margin="0,4,0,0"/>
                     </StackPanel>
 
                     <StackPanel Grid.Column="2" HorizontalAlignment="Right">
@@ -76,6 +79,7 @@
                     <Setter TargetName="NameText" Property="Foreground" Value="#171A2F"/>
                     <Setter TargetName="MetaText" Property="Foreground" Value="#677083"/>
                     <Setter TargetName="TriggerText" Property="Foreground" Value="#677083"/>
+                    <Setter TargetName="StockText" Property="Foreground" Value="#596274"/>
                     <Setter TargetName="PriceText" Property="Foreground" Value="#171A2F"/>
                     <Setter TargetName="BonusText" Property="Foreground" Value="#596274"/>
                     <Setter TargetName="DetailText" Property="Foreground" Value="#20263A"/>
@@ -89,6 +93,7 @@
                     <Setter TargetName="NameText" Property="Foreground" Value="White"/>
                     <Setter TargetName="MetaText" Property="Foreground" Value="#D6EFE0"/>
                     <Setter TargetName="TriggerText" Property="Foreground" Value="#D6EFE0"/>
+                    <Setter TargetName="StockText" Property="Foreground" Value="#D6EFE0"/>
                     <Setter TargetName="PriceText" Property="Foreground" Value="White"/>
                     <Setter TargetName="BonusText" Property="Foreground" Value="#D7EFAD"/>
                     <Setter TargetName="DetailText" Property="Foreground" Value="#F5FFF8"/>

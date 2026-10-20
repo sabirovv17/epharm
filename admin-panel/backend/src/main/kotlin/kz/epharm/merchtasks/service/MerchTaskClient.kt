@@ -15,6 +15,10 @@ import kz.epharm.merchtasks.dto.MerchTaskDeliveryResult
 import kz.epharm.merchtasks.dto.MerchTaskDto
 import kz.epharm.merchtasks.dto.MerchTaskEnvelope
 import kz.epharm.merchtasks.dto.MerchTaskShownRequest
+import kz.epharm.merchtasks.dto.MerchProductBalance
+import kz.epharm.merchtasks.dto.MerchRecommendationCandidate
+import kz.epharm.merchtasks.dto.MerchRecommendationContextEnvelope
+import kz.epharm.merchtasks.dto.MerchRecommendationContextRequest
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import org.slf4j.LoggerFactory
@@ -41,9 +45,11 @@ class MerchTaskClient(
     meterRegistry: MeterRegistry,
     @Value("\${app.merch-tasks.public-staff-url:}") publicStaffUrl: String = "",
     @Value("\${app.merch-tasks.max-concurrent:16}") maxConcurrent: Int = 16,
+    @Value("\${app.merch-tasks.recommend-timeout-ms:900}") recommendTimeoutMs: Int = 900,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val requestTimeoutMs = timeoutMs.coerceIn(MIN_TIMEOUT_MS, MAX_TIMEOUT_MS)
+    private val recommendationTimeoutMs = recommendTimeoutMs.coerceIn(MIN_TIMEOUT_MS, MAX_RECOMMEND_TIMEOUT_MS)
     private val configured get() = baseUrl.isNotBlank() && integrationKey.isNotBlank() &&
         trustedTransport(baseUrl) && trustedStaffUrls != null
     // During migration accept both exact first-party staff pages; do not allow arbitrary /merch/* URLs.
@@ -69,7 +75,7 @@ class MerchTaskClient(
         Gauge.builder("epharm.merch.tasks.configured") { if (configured) 1.0 else 0.0 }.register(registry)
     }
 
-    private val rest: RestClient by lazy {
+    private fun restClient(timeoutMs: Int): RestClient {
         val factory = object : SimpleClientHttpRequestFactory() {
             override fun prepareConnection(connection: HttpURLConnection, httpMethod: String) {
                 super.prepareConnection(connection, httpMethod)
@@ -77,10 +83,10 @@ class MerchTaskClient(
                 connection.instanceFollowRedirects = false
             }
         }.apply {
-            setConnectTimeout(requestTimeoutMs)
-            setReadTimeout(requestTimeoutMs)
+            setConnectTimeout(timeoutMs)
+            setReadTimeout(timeoutMs)
         }
-        RestClient.builder()
+        return RestClient.builder()
             .baseUrl(baseUrl.trimEnd('/'))
             .requestFactory(factory)
             .defaultHeader(INTEGRATION_HEADER, integrationKey)
@@ -89,6 +95,9 @@ class MerchTaskClient(
             }
             .build()
     }
+
+    private val rest: RestClient by lazy { restClient(requestTimeoutMs) }
+    private val recommendationRest: RestClient by lazy { restClient(recommendationTimeoutMs) }
 
     fun activeTask(pharmacyId: String): MerchTaskEnvelope {
         val normalizedPharmacyId = pharmacyId.trim()
@@ -152,6 +161,99 @@ class MerchTaskClient(
                 ?: MerchTaskDeliveryResult()
         }
     }
+
+    /**
+     * Pharmacy-scoped recommendation and stock feed. It is intentionally fail-open and uses a
+     * tighter timeout than QR tasks because a cashier scan must never wait on merchandising.
+     */
+    fun recommendationContext(payload: MerchRecommendationContextRequest): MerchRecommendationContextEnvelope {
+        validatePharmacyId(payload.pharmacyId)
+        if (payload.cart.size > MAX_CART_ITEMS || payload.requestedProducts.size > MAX_REQUESTED_PRODUCTS) {
+            counter("recommendations", "invalid_request").increment()
+            return MerchRecommendationContextEnvelope(available = false)
+        }
+        if (!enabled) {
+            counter("recommendations", "disabled").increment()
+            return MerchRecommendationContextEnvelope()
+        }
+        if (!configured) {
+            counter("recommendations", "misconfigured").increment()
+            return MerchRecommendationContextEnvelope(available = false)
+        }
+        return upstream("recommendations", MerchRecommendationContextEnvelope(available = false)) {
+            val body = objectMapper.writeValueAsBytes(payload)
+            recommendationRest.post()
+                .uri("/api/integrations/pharmapay/recommendations/context")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .body(MerchRecommendationContextEnvelope::class.java)
+                ?.also(::validateRecommendationContext)
+                ?: MerchRecommendationContextEnvelope()
+        }
+    }
+
+    private fun validatePharmacyId(value: String) {
+        val normalized = value.trim()
+        if (normalized.isEmpty() || normalized.length > 128 || !normalized.matches(SAFE_PHARMACY_ID)) {
+            throw AppException(
+                ErrorCode.VALIDATION_FAILED,
+                "Некорректный идентификатор аптеки",
+                HttpStatus.BAD_REQUEST,
+            )
+        }
+    }
+
+    private fun validateRecommendationContext(context: MerchRecommendationContextEnvelope) {
+        require(context.recommendations.size <= MAX_RECOMMENDATIONS) { "too many recommendations" }
+        require(context.balances.size <= MAX_BALANCES) { "too many balances" }
+        context.recommendations.forEach(::validateRecommendation)
+        context.balances.forEach(::validateBalance)
+    }
+
+    private fun validateRecommendation(candidate: MerchRecommendationCandidate) {
+        require(candidate.id.length in 1..48 && candidate.id.matches(SAFE_EXTERNAL_ID)) {
+            "invalid recommendation id"
+        }
+        require(candidate.kind == "substitution" || candidate.kind == "crosssell") {
+            "invalid recommendation kind"
+        }
+        require(!candidate.triggerBarcode.isNullOrBlank() || !candidate.triggerIpartId.isNullOrBlank()) {
+            "recommendation has no exact trigger"
+        }
+        require(!candidate.recommendProductId.isNullOrBlank() || !candidate.recommendBarcode.isNullOrBlank() ||
+            !candidate.recommendIpartId.isNullOrBlank()) { "recommendation has no product key" }
+        require(safeProductKey(candidate.triggerBarcode, 32) && safeProductKey(candidate.triggerIpartId, 64) &&
+            safeProductKey(candidate.recommendProductId, 64) && safeProductKey(candidate.recommendBarcode, 32) &&
+            safeProductKey(candidate.recommendIpartId, 64)) { "invalid recommendation product key" }
+        require(candidate.script.length <= 1_200 && candidate.partnerLabel.orEmpty().length <= 80) {
+            "recommendation text is too long"
+        }
+        require(candidate.advantages.size <= 12 && candidate.advantages.all { it.length <= 240 }) {
+            "invalid recommendation advantages"
+        }
+        require(candidate.bonus in 0..1_000_000 && candidate.priority in -1_000..1_000) {
+            "invalid recommendation rank"
+        }
+    }
+
+    private fun validateBalance(balance: MerchProductBalance) {
+        require(!balance.productId.isNullOrBlank() || !balance.barcode.isNullOrBlank() ||
+            !balance.ipartId.isNullOrBlank()) { "balance has no product key" }
+        require(safeProductKey(balance.productId, 64) && safeProductKey(balance.barcode, 32) &&
+            safeProductKey(balance.ipartId, 64)) { "invalid balance product key" }
+        require(balance.status in setOf("confirmed", "estimated", "stale", "unknown")) {
+            "invalid balance status"
+        }
+        require(listOf(balance.pharmacyAvailableQty, balance.networkAvailableQty,
+            balance.warehouseAvailableQty, balance.reservedQty).filterNotNull().all { it.signum() >= 0 }) {
+            "negative balance"
+        }
+        require(balance.source.orEmpty().length <= 80) { "balance source is too long" }
+    }
+
+    private fun safeProductKey(value: String?, maxLength: Int): Boolean =
+        value == null || (value.isNotBlank() && value.length <= maxLength && value.matches(SAFE_PRODUCT_KEY))
 
     private fun validateTask(task: MerchTaskDto) {
         require(task.id.matches(CANONICAL_UUID)) { "invalid task id" }
@@ -234,10 +336,17 @@ class MerchTaskClient(
         const val INTEGRATION_HEADER = "X-Pharmapay-Key"
         const val MIN_TIMEOUT_MS = 250
         const val MAX_TIMEOUT_MS = 30_000
+        const val MAX_RECOMMEND_TIMEOUT_MS = 2_500
         const val WARNING_INTERVAL_MS = 60_000L
+        const val MAX_CART_ITEMS = 200
+        const val MAX_REQUESTED_PRODUCTS = 50
+        const val MAX_RECOMMENDATIONS = 100
+        const val MAX_BALANCES = 200
         val SAFE_PHARMACY_ID = Regex("[0-9A-Za-z._:+@/-]+")
         val CANONICAL_UUID = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
         val SAFE_TOKEN = Regex("[0-9A-Za-z._~+/=-]+")
+        val SAFE_EXTERNAL_ID = Regex("[0-9A-Za-z._:-]+")
+        val SAFE_PRODUCT_KEY = Regex("[0-9A-Za-z._:+@/-]+")
         val IPV4_OCTET = Regex("0|[1-9][0-9]{0,2}")
 
         /** A server credential must never cross the public Internet over plain HTTP. */

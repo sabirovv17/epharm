@@ -7,6 +7,9 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ### Added
 
+- Added fail-open merchandising recommendations and structured pharmacy/network/warehouse stock
+  context to the existing POSM recommendation flow, while preserving ePharm's canonical rules,
+  event attribution and pharmacist balance accounting.
 - Completed pharmacist course materials end to end: administrators can publish external links,
   interactive content, downloadable attachments, required lessons and minimum video-view targets;
   the mobile app now renders and opens every published material.

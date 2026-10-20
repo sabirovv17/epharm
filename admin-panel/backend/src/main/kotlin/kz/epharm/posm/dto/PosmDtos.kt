@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Pattern
 import jakarta.validation.constraints.Size
+import java.math.BigDecimal
+import java.time.Instant
 
 /**
  * Позиция корзины кассы Стандарт-Н. Сначала используется точный [barcode], затем [sku]
@@ -79,6 +81,24 @@ data class RecommendationDto(
     val comparison: List<ComparisonRowDto>,
     val goalText: String?,
     val goalBonus: Int?,
+    /** Canonical local rules stay authoritative; merchandising can add pharmacy-scoped offers. */
+    val source: String = "epharm",
+    /** Null means that no authoritative inventory snapshot exists; it never means zero stock. */
+    val balance: ProductBalanceDto? = null,
+)
+
+/**
+ * Read-only stock snapshot for the recommended product. Quantities are nullable independently:
+ * an upstream may know the pharmacy stock without knowing the warehouse or network aggregate.
+ */
+data class ProductBalanceDto(
+    val pharmacyAvailableQty: BigDecimal? = null,
+    val networkAvailableQty: BigDecimal? = null,
+    val warehouseAvailableQty: BigDecimal? = null,
+    val reservedQty: BigDecimal? = null,
+    val observedAt: Instant? = null,
+    val source: String? = null,
+    val status: String = "unknown", // confirmed | estimated | stale | unknown
 )
 
 /**

@@ -78,6 +78,42 @@ public sealed class RecommendationPopupModelTests
         Assert.Equal("Без вознаграждения", model.CrossSells.Rows[0].Bonus);
     }
 
+    [Fact]
+    public void Build_DoesNotTurnMissingInventoryIntoZero()
+    {
+        var recommendation = Recommendation("substitution", "Аналог", "Товар", 900);
+
+        var row = RecommendationPopupModelBuilder.Build(new[] { recommendation })
+            .Substitutions.Rows.Single();
+
+        Assert.Equal("Остаток не подтверждён", row.Stock);
+        Assert.False(row.HasConfirmedStock);
+        Assert.DoesNotContain("0", row.Stock);
+    }
+
+    [Fact]
+    public void Build_ShowsPharmacyNetworkAndWarehouseBalanceWithTimestamp()
+    {
+        var recommendation = Recommendation("substitution", "Аналог", "Товар", 900);
+        recommendation.Balance = new ProductBalance
+        {
+            PharmacyAvailableQty = 4,
+            NetworkAvailableQty = 18.5m,
+            WarehouseAvailableQty = 120,
+            ObservedAt = new DateTimeOffset(2026, 10, 19, 10, 30, 0, TimeSpan.Zero),
+            Status = "confirmed",
+            Source = "warehouse",
+        };
+
+        var row = RecommendationPopupModelBuilder.Build(new[] { recommendation })
+            .Substitutions.Rows.Single();
+
+        Assert.Contains("аптека 4", row.Stock);
+        Assert.Contains("сеть 18.5", row.Stock);
+        Assert.Contains("склад 120", row.Stock);
+        Assert.True(row.HasConfirmedStock);
+    }
+
     [Theory]
     [InlineData(1)]
     [InlineData(2)]
