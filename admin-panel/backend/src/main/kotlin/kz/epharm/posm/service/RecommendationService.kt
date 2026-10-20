@@ -39,7 +39,8 @@ import java.util.UUID
  * Оркестрация POSM-рекомендаций (ТЗ §4):
  *  - подбор и ранжирование делегируется RulesEngineService;
  *  - здесь: фильтр «не показывать отклонённое в этом чеке», лимит до 5 на тип,
- *    идемпотентная фиксация показа, фиксация результата, создание pending_bonus при accepted.
+ *    идемпотентная фиксация показа, фиксация результата, создание pending_bonus при accepted;
+ *  - фактический ACK может завершить проверку поздно доставленной продажи без фиктивного accepted.
  */
 @Service
 class RecommendationService(
@@ -50,6 +51,7 @@ class RecommendationService(
     private val entityManager: EntityManager,
     private val merchTaskClient: MerchTaskClient,
     private val productRepository: ProductRepository,
+    private val saleBonuses: RecommendationSaleBonusService,
 ) {
 
     private val log = LoggerFactory.getLogger(RecommendationService::class.java)
@@ -382,10 +384,14 @@ class RecommendationService(
     fun markDisplayed(eventId: String, shownAt: Instant, expectedPharmacyId: String? = null) {
         val event = eventRepository.findById(eventId).orElse(null) ?: return
         if (expectedPharmacyId != null && event.pharmacyId != expectedPharmacyId) return
+        jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", "recommendation:${event.sessionId}")
+        entityManager.flush()
+        entityManager.refresh(event)
         if (event.displayedAt == null) {
             event.displayedAt = shownAt
             eventRepository.save(event)
         }
+        saleBonuses.afterDisplay(event)
     }
 
     @Transactional
@@ -416,8 +422,11 @@ class RecommendationService(
                 event.decidedAt = Instant.now()
             }
             "accepted" -> {
-                val alreadyAccepted = eventRepository.findAllBySessionId(event.sessionId).any {
-                    it.id != event.id && it.recommendSku == event.recommendSku &&
+                val sameOfferEvents = eventRepository.findAllBySessionId(event.sessionId).filter {
+                    it.pharmacyId == event.pharmacyId && it.recommendSku == event.recommendSku
+                }
+                val alreadyAccepted = sameOfferEvents.any {
+                    it.id != event.id &&
                         it.outcome == RecommendationOutcome.accepted
                 }
                 if (alreadyAccepted) {
@@ -434,20 +443,26 @@ class RecommendationService(
                         HttpStatus.CONFLICT,
                     )
                 }
-                val pb = pendingBonusService.register(
+                val existingPendingIds = sameOfferEvents.mapNotNull { it.pendingBonusId }.distinct()
+                if (existingPendingIds.size > 1) {
+                    throw AppException(ErrorCode.CONFLICT, "Conflicting reservations in the current receipt", HttpStatus.CONFLICT)
+                }
+                val pendingId = existingPendingIds.singleOrNull()?.let {
+                    pendingBonusService.reuseForOutcome(it, event.pharmacistId, event.pharmacyId, event.recommendSku)
+                } ?: pendingBonusService.register(
                     pharmacistId = event.pharmacistId,
                     sku = event.recommendSku,
                     productName = event.recommendName,
                     expectedAmount = event.expectedAmount,
                     bonus = event.bonus,
                     ruleId = event.ruleId,
-                )
+                ).id
                 event.outcome = RecommendationOutcome.accepted
-                event.pendingBonusId = pb.id
+                event.pendingBonusId = pendingId
                 event.decidedAt = Instant.now()
                 log.info(
                     "Рекомендация {} принята → pending_bonus {} ({}₸) для фармацевта {}",
-                    event.id, pb.id, event.bonus, event.pharmacistId,
+                    event.id, pendingId, event.bonus, event.pharmacistId,
                 )
             }
         }

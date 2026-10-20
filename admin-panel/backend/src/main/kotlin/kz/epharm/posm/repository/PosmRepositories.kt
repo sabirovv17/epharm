@@ -67,6 +67,8 @@ interface RecommendationLogRow {
 
 @Repository
 interface PosSaleRepository : JpaRepository<PosSaleEntity, String> {
+    fun findByPharmacyIdAndSessionIdOrderByCreatedAtAsc(pharmacyId: String, sessionId: String): List<PosSaleEntity>
+
     /** Чеки за период (свежие первыми) — для единого журнала показ+продажа в админке. */
     fun findByPrintedAtGreaterThanEqualOrderByPrintedAtDesc(since: Instant): List<PosSaleEntity>
 

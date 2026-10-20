@@ -1,6 +1,7 @@
 package kz.epharm.receipts.service
 
 import kz.epharm.pharmacists.repository.PharmacistRepository
+import kz.epharm.pharmacists.entity.PharmacistStatus
 import kz.epharm.receipts.entity.PendingBonusEntity
 import kz.epharm.receipts.entity.PendingBonusStatus
 import kz.epharm.receipts.repository.PendingBonusRepository
@@ -15,7 +16,8 @@ import java.util.UUID
 
 /**
  * Регистрация pending-бонуса (ТЗ §3.5, вход для сверки чеков). Создаётся, когда фармацевт
- * принял рекомендацию POSM (замену / cross-sell) — бонус НЕ начислен, ждёт подтверждения чеком.
+ * принял рекомендацию POSM либо показанный информационный оффер подтверждён точной печатной
+ * продажей — бонус НЕ начислен, ждёт сверки/модерации. sourceSaleId исключает подбор по догадке.
  *
  * Вынесено отдельным сервисом, чтобы POSM-домен (recommendation outcome) не лез напрямую в
  * receipts-репозитории. Зависимость односторонняя: posm → receipts.
@@ -34,6 +36,9 @@ class PendingBonusService(
         expectedAmount: Long,
         bonus: Long,
         ruleId: String?,
+        sourceSaleId: String? = null,
+        occurredAt: Instant? = null,
+        expectedPharmacyId: String? = null,
     ): PendingBonusEntity {
         val pharmacist = pharmacistRepository.findById(pharmacistId).orElseThrow {
             AppException(
@@ -41,6 +46,10 @@ class PendingBonusService(
                 "Фармацевт $pharmacistId не найден",
                 HttpStatus.BAD_REQUEST,
             )
+        }
+        if (sourceSaleId != null && (occurredAt == null || expectedPharmacyId.isNullOrBlank() ||
+                pharmacist.status != PharmacistStatus.active || pharmacist.pharmacyId != expectedPharmacyId)) {
+            throw AppException(ErrorCode.VALIDATION_FAILED, "Verified sale requires an active pharmacist in the exact pharmacy")
         }
         val entity = PendingBonusEntity(
             id = "pb_${UUID.randomUUID().toString().substring(0, 8)}",
@@ -53,8 +62,21 @@ class PendingBonusService(
             expectedAmount = expectedAmount,
             bonus = bonus,
             ruleId = ruleId,
+            sourceSaleId = sourceSaleId,
+            // Offline evidence belongs to its actual display time, not the later upload time.
+            createdAt = occurredAt ?: Instant.now(),
         )
         return pendingBonusRepository.save(entity)
+    }
+
+    @Transactional(readOnly = true)
+    fun reuseForOutcome(id: String, pharmacistId: String, pharmacyId: String, sku: String): String {
+        val pending = pendingBonusRepository.findById(id).orElse(null)
+        if (pending == null || pending.pharmacistId != pharmacistId || pending.pharmacyId != pharmacyId ||
+            pending.sku != sku || pending.status != PendingBonusStatus.awaiting_receipt) {
+            throw AppException(ErrorCode.CONFLICT, "Reservation identity or state conflicts with this recommendation", HttpStatus.CONFLICT)
+        }
+        return pending.id
     }
 
     /**
