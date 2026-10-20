@@ -15,7 +15,8 @@ namespace CustomerDisplay;
 public sealed class StaffAuthWindow : Window
 {
     private readonly StaffAuthClient _client;
-    private readonly StaffAuthContext _context;
+    private readonly StaffAuthContext? _context;
+    private readonly string _sessionRequiredMessage;
     private readonly CancellationTokenSource _stop = new();
     private readonly ComboBox _mode = new();
     private readonly TextBox _iin = new() { MaxLength = 12 };
@@ -28,6 +29,7 @@ public sealed class StaffAuthWindow : Window
     private readonly TextBlock _passwordHint = new() { Text = "Новый пароль: 8–128 символов и не более 72 байт UTF-8. Кириллица и некоторые символы занимают несколько байт.", TextWrapping = TextWrapping.Wrap, FontSize = 12, Foreground = Brushes.DimGray, Margin = new Thickness(0, 6, 0, 0) };
     private readonly TextBox _code = new() { MaxLength = 8 };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0) };
+    private readonly StackPanel _recoveryGuidance = new() { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 12, 0, 0) };
     private readonly Button _request = new() { Content = "Получить SMS-код", Margin = new Thickness(0, 12, 0, 0) };
     private readonly Button _submit = new() { Margin = new Thickness(0, 16, 0, 0) };
     private readonly FrameworkElement _phoneRow;
@@ -41,10 +43,12 @@ public sealed class StaffAuthWindow : Window
     private bool _busy;
     public event Action<StaffAuthResponse>? Authenticated;
 
-    public StaffAuthWindow(StaffAuthClient client, StaffAuthContext context, System.Windows.Forms.Screen screen)
+    public StaffAuthWindow(StaffAuthClient client, StaffAuthContext? context, System.Windows.Forms.Screen screen, string? sessionReason = null)
     {
         _client = client;
         _context = context;
+        _sessionRequiredMessage = (sessionReason ?? "Кассовая сессия ещё не подтверждена.") +
+            " Вход будет доступен после определения текущей сессии Standard-N. Регистрация и восстановление пароля доступны сейчас; касса продолжает работать.";
         Title = "Вход сотрудника ePharm";
         Width = 460; Height = 700; MinWidth = 360; MinHeight = 420;
         ShowActivated = false;
@@ -69,6 +73,18 @@ public sealed class StaffAuthWindow : Window
         panel.Children.Add(_request);
         _codeRow = Field("Код из SMS *", _code); panel.Children.Add(_codeRow);
         panel.Children.Add(_submit); panel.Children.Add(_status);
+        _recoveryGuidance.Children.Add(new TextBlock {
+            Text = "Впервые в ePharm? Зарегистрируйтесь с этим ИИН. Если профиль уже есть, восстановите пароль по привязанному телефону.",
+            TextWrapping = TextWrapping.Wrap,
+        });
+        var recoveryChoices = new WrapPanel();
+        var register = new Button { Content = "Зарегистрироваться с этим ИИН", Padding = new Thickness(8), Margin = new Thickness(0, 8, 8, 0) };
+        var reset = new Button { Content = "Восстановить пароль", Padding = new Thickness(8), Margin = new Thickness(0, 8, 0, 0) };
+        register.Click += (_, _) => _mode.SelectedIndex = 1;
+        reset.Click += (_, _) => _mode.SelectedIndex = 2;
+        recoveryChoices.Children.Add(register); recoveryChoices.Children.Add(reset);
+        _recoveryGuidance.Children.Add(recoveryChoices);
+        panel.Children.Add(_recoveryGuidance);
         panel.Children.Add(new TextBlock { Text = "Пароли и SMS-коды не сохраняются на компьютере. Регистрация требует подтверждения назначения сотрудника.", FontSize = 12, Foreground = Brushes.DimGray, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 18, 0, 0) });
         Content = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         _mode.SelectionChanged += (_, _) => ApplyMode();
@@ -98,11 +114,14 @@ public sealed class StaffAuthWindow : Window
     private void ApplyMode()
     {
         ClearChallenge(); _password.Clear(); _passwordConfirmation.Clear(); _code.Clear(); _status.Text = "";
+        _recoveryGuidance.Visibility = Visibility.Collapsed;
         var login = _mode.SelectedIndex == 0;
         _phoneRow.Visibility = _codeRow.Visibility = _request.Visibility = login ? Visibility.Collapsed : Visibility.Visible;
         _nameRow.Visibility = _mode.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
         _passwordConfirmationRow.Visibility = _passwordHint.Visibility = login ? Visibility.Collapsed : Visibility.Visible;
         _submit.Content = login ? "Войти" : _mode.SelectedIndex == 1 ? "Отправить регистрацию" : "Сохранить новый пароль";
+        _submit.IsEnabled = !_busy && (!login || _context != null);
+        if (login && _context == null) _status.Text = _sessionRequiredMessage;
     }
     private void ValidateIdentity()
     {
@@ -152,29 +171,43 @@ public sealed class StaffAuthWindow : Window
         {
             await _client.ChangePasswordAsync(Purpose, _challenge, _code.Text.Trim(), _iin.Text.Trim(), _phone.Text.Trim(), password, _stop.Token);
             _stop.Token.ThrowIfCancellationRequested(); _mode.SelectedIndex = 0;
-            _status.Text = "Пароль сохранён. Теперь войдите с новым паролем.";
+            _status.Text = _context == null
+                ? "Пароль сохранён. " + _sessionRequiredMessage
+                : "Пароль сохранён. Теперь войдите с новым паролем.";
         }
     }
     private async Task RunAsync(Func<Task> operation)
     {
         if (_busy || _stop.IsCancellationRequested) return;
         _busy = true; _submit.IsEnabled = _request.IsEnabled = _mode.IsEnabled = _forgot.IsEnabled = _newStaff.IsEnabled = false;
+        _recoveryGuidance.IsEnabled = false;
         _iin.IsEnabled = _phone.IsEnabled = _name.IsEnabled = _code.IsEnabled = _password.IsEnabled = _passwordConfirmation.IsEnabled = false;
         _status.Text = "Подождите…";
         try { await operation(); }
         catch (OperationCanceledException) when (_stop.IsCancellationRequested) { }
-        catch (StaffApiException ex) { if (!_stop.IsCancellationRequested) _status.Text = Explain(ex.Code); }
+        catch (StaffApiException ex) {
+            if (!_stop.IsCancellationRequested) {
+                _status.Text = Explain(ex.Code);
+                if (_mode.SelectedIndex == 0 && StaffAuthDiagnostics.OfferRecovery(ex.Code)) {
+                    ClearChallenge(); _password.Clear(); _passwordConfirmation.Clear(); _code.Clear();
+                    _recoveryGuidance.Visibility = Visibility.Visible;
+                }
+            }
+        }
         catch { if (!_stop.IsCancellationRequested) _status.Text = "Сервер временно недоступен. Повторите позже. Касса продолжает работать."; }
         finally {
             _busy = false;
             if (!_stop.IsCancellationRequested) {
-                _submit.IsEnabled = _request.IsEnabled = _mode.IsEnabled = _forgot.IsEnabled = _newStaff.IsEnabled = true;
+                _request.IsEnabled = _mode.IsEnabled = _forgot.IsEnabled = _newStaff.IsEnabled = true;
+                _submit.IsEnabled = _mode.SelectedIndex != 0 || _context != null;
+                _recoveryGuidance.IsEnabled = true;
                 _iin.IsEnabled = _phone.IsEnabled = _name.IsEnabled = _code.IsEnabled = _password.IsEnabled = _passwordConfirmation.IsEnabled = true;
             }
         }
     }
     private static string Explain(string code) => code switch {
         "IIN_REQUIRED" => "Введите ИИН: 12 цифр.", "PHONE_REQUIRED" => "Введите номер телефона.",
+        "SESSION_REQUIRED" => "Сначала войдите в Standard-N и дождитесь определения текущей кассовой сессии. Регистрация и восстановление пароля доступны независимо.",
         "PASSWORD_REQUIRED" => "Введите пароль. Для нового пароля нужно не менее 8 символов.",
         "PASSWORD_LENGTH" => "Новый пароль должен содержать от 8 до 128 символов.",
         "PASSWORD_BYTES" => "Пароль слишком длинный: допускается не более 72 байт UTF-8. Сократите пароль, особенно если он содержит кириллицу или эмодзи.",

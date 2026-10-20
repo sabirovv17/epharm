@@ -120,6 +120,13 @@ preview price is not the campaign price authority.
 
 ## State and Data
 
+The pharmacist table shows IIN/JSN as a separate text column, retaining leading zeroes. Passwords
+and password hashes are never returned or rendered; only the existing set/change actions are
+available to authorized roles. Unknown/absent IIN values are shown as a dash, not invented data.
+Connected cash desks additionally show a fixed-label staff sign-in diagnostic. Unknown client codes
+are never rendered verbatim. `authenticated` is self-reported operational telemetry, not proof of
+employee identity, eligibility for money or successful visual acceptance on a real Windows desktop.
+
 The connected-cash-desk card is a live view, not a permanent installation registry. Its Excel button
 exports the same active heartbeat snapshot with pharmacy name/city/address, Windows device id, last
 heartbeat and the customer-screen state. `Есть` means Windows reports at least two monitors, `Нет`

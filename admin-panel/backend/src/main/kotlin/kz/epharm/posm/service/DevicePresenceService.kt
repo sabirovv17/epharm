@@ -41,6 +41,7 @@ class DevicePresenceService(
         private const val DEVICE_KEY = "epharm:posm:presence:device"
         private const val MONITOR_COUNT_KEY = "epharm:posm:presence:monitor-count"
         private const val APP_VERSION_KEY = "epharm:posm:presence:app-version"
+        private const val STAFF_AUTH_STATUS_KEY = "epharm:posm:presence:staff-auth-status"
         private const val REDIS_WARNING_INTERVAL_MS = 60_000L
         private const val STORAGE_SEPARATOR = "\u001F"
 
@@ -56,6 +57,8 @@ class DevicePresenceService(
         val monitorCount: Int? = null,
         /** null пока касса не обновилась до клиента с телеметрией версии. */
         val appVersion: String? = null,
+        /** Untrusted client diagnostic only, never proof of employee authentication. */
+        val staffAuthStatus: String? = null,
         internal val storageKey: String = presenceKey(deviceId, pharmacyId),
     )
 
@@ -67,6 +70,7 @@ class DevicePresenceService(
         now: Instant = Instant.now(),
         monitorCount: Int? = null,
         appVersion: String? = null,
+        staffAuthStatus: String? = null,
     ) {
         val normalizedPharmacy = pharmacyId?.takeIf { it.isNotBlank() }
         val key = presenceKey(deviceId, normalizedPharmacy)
@@ -74,12 +78,14 @@ class DevicePresenceService(
         val wasOffline = prev == null || prev.lastSeen.isBefore(now.minusSeconds(ttlSeconds))
         val effectiveMonitorCount = monitorCount ?: prev?.monitorCount
         val effectiveAppVersion = appVersion ?: prev?.appVersion
+        val safeStaffStatus = StaffAuthStatus.normalize(staffAuthStatus)
         seen[key] = Presence(
             deviceId = deviceId,
             pharmacyId = normalizedPharmacy,
             lastSeen = now,
             monitorCount = effectiveMonitorCount,
             appVersion = effectiveAppVersion,
+            staffAuthStatus = safeStaffStatus,
             storageKey = key,
         )
 
@@ -93,6 +99,9 @@ class DevicePresenceService(
             if (appVersion != null) {
                 redis.opsForHash<String, String>().put(APP_VERSION_KEY, key, appVersion)
             }
+            // Do not retain another build's old login status when a client omits diagnostics.
+            if (safeStaffStatus != null) redis.opsForHash<String, String>().put(STAFF_AUTH_STATUS_KEY, key, safeStaffStatus)
+            else redis.opsForHash<String, String>().delete(STAFF_AUTH_STATUS_KEY, key)
         }
 
         if (wasOffline) {
@@ -115,6 +124,7 @@ class DevicePresenceService(
                 combined[candidate.storageKey] = latest.copy(
                     monitorCount = candidate.monitorCount ?: stored.monitorCount,
                     appVersion = candidate.appVersion ?: stored.appVersion,
+                    staffAuthStatus = latest.staffAuthStatus ?: if (latest === stored) candidate.staffAuthStatus else null,
                 )
             }
         }
@@ -182,6 +192,7 @@ class DevicePresenceService(
                 hash.delete(DEVICE_KEY, *expiredIds.toTypedArray())
                 hash.delete(MONITOR_COUNT_KEY, *expiredIds.toTypedArray())
                 hash.delete(APP_VERSION_KEY, *expiredIds.toTypedArray())
+                hash.delete(STAFF_AUTH_STATUS_KEY, *expiredIds.toTypedArray())
             }
 
             val tuples = zset.rangeByScoreWithScores(
@@ -199,6 +210,7 @@ class DevicePresenceService(
             val deviceIds = if (keys.isEmpty()) emptyList() else hash.multiGet(DEVICE_KEY, keys).orEmpty()
             val monitorCounts = if (keys.isEmpty()) emptyList() else hash.multiGet(MONITOR_COUNT_KEY, keys).orEmpty()
             val appVersions = if (keys.isEmpty()) emptyList() else hash.multiGet(APP_VERSION_KEY, keys).orEmpty()
+            val staffStatuses = if (keys.isEmpty()) emptyList() else hash.multiGet(STAFF_AUTH_STATUS_KEY, keys).orEmpty()
             result = values.mapIndexed { index, (key, score) ->
                 Presence(
                     // Records created before the composite-key fix have no DEVICE_KEY entry.
@@ -208,6 +220,7 @@ class DevicePresenceService(
                     lastSeen = Instant.ofEpochMilli(score.toLong()),
                     monitorCount = monitorCounts.getOrNull(index)?.toIntOrNull(),
                     appVersion = appVersions.getOrNull(index)?.takeIf { it.isNotBlank() },
+                    staffAuthStatus = StaffAuthStatus.normalize(staffStatuses.getOrNull(index)),
                     storageKey = key,
                 )
             }

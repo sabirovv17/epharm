@@ -468,7 +468,8 @@ class ScreensIntegrationTest {
                 .param("deviceId", "kassa-known")
                 .param("pharmacyId", "ph_known")
                 .param("monitorCount", "2")
-                .param("appVersion", "1.0.46.0"),
+                .param("appVersion", "1.0.46.0")
+                .param("staffAuthStatus", "database_unavailable"),
         ).andExpect(status().isOk)
         devicePresenceService.heartbeat("kassa-orphan", "ph_missing")
 
@@ -500,6 +501,10 @@ class ScreensIntegrationTest {
             .andExpect(
                 jsonPath("$.devices[?(@.deviceId=='kassa-known')].appVersion")
                     .value(org.hamcrest.Matchers.hasItem("1.0.46.0")),
+            )
+            .andExpect(
+                jsonPath("$.devices[?(@.deviceId=='kassa-known')].staffAuthStatus")
+                    .value(org.hamcrest.Matchers.hasItem("database_unavailable")),
             )
             // неизвестная аптека → имя/адрес null (фронт покажет сырой id)
             .andExpect(

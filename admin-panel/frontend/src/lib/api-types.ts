@@ -1000,6 +1000,8 @@ export interface ConnectedDeviceDto {
   monitorCount: number | null
   hasClientScreen: boolean | null
   appVersion: string | null
+  /** Client-reported diagnostic only, never proof of a trusted employee identity. */
+  staffAuthStatus?: string | null
   lastSeen: string
 }
 

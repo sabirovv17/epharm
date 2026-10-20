@@ -66,6 +66,12 @@ password or device credentials revokes grants. Password reset also revokes mobil
 tokens; previously issued mobile access JWTs retain their existing short lifetime until expiry.
 Transient expired staff challenges/sessions/rate counters are purged after 24 hours.
 
+The existing POSM heartbeat accepts optional `staffAuthStatus` from a strict fixed allowlist.
+Unknown/free-text values are discarded without rejecting the heartbeat; an omitted value clears
+obsolete diagnostics from an older client. The connected-screen API exposes the bounded current
+status for operations only. It is never consulted for employee authorization, account activation,
+sale attribution or wallet eligibility. Redis/local presence expiry applies normally; no new PII is stored.
+
 ### Admin
 
 - `POST /api/admin/auth/login|refresh|logout`, `GET /api/admin/auth/me`

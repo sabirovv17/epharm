@@ -282,6 +282,36 @@ describe('ScreensPage — онлайн-кассы', () => {
     expect(screen.queryByTestId('connected-kassa-1')).not.toBeInTheDocument()
   })
 
+  it('показывает безопасную диагностику входа РПС без сырых значений сервера', async () => {
+    const user = userEvent.setup()
+    const rawStatus = 'SMS secret +77010000000 <script>unsafe()</script>'
+    screenHooks.useConnectedScreens.mockReturnValue({
+      data: {
+        total: 4,
+        devices: ['authenticated', 'database_unavailable', rawStatus, null].map((staffAuthStatus, index) => ({
+          deviceId: `staff-${index}`,
+          pharmacyId: 'test-pharmacy',
+          pharmacyName: 'Тестовая аптека',
+          appVersion: '1.0.71.0',
+          lastSeen: '2026-10-21T10:00:00Z',
+          staffAuthStatus,
+        })),
+      },
+      isLoading: false,
+      isError: false,
+    })
+    renderPage()
+
+    await user.click(screen.getByTestId('connected-registers-toggle'))
+    expect(screen.getByTestId('connected-staff-0')).toHaveTextContent('Вход РПС: вход подтверждён')
+    expect(screen.getByTestId('connected-staff-1')).toHaveTextContent('Вход РПС: нет доступа к базе Стандарт‑Н')
+    expect(screen.getByTestId('connected-staff-2')).toHaveTextContent('Вход РПС: нет диагностики (обновите POSM)')
+    expect(screen.getByTestId('connected-staff-3')).toHaveTextContent('Вход РПС: нет диагностики (обновите POSM)')
+    expect(screen.getByTestId('connected-registers').outerHTML).not.toContain(rawStatus)
+    expect(screen.queryByText(/SMS secret/)).not.toBeInTheDocument()
+    expect(screen.getByTestId('connected-export-excel')).toBeEnabled()
+  })
+
   it('отделяет целевой охват от фактически настроенных POSM-аптек', () => {
     renderPage()
 

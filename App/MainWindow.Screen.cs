@@ -183,7 +183,7 @@ namespace CustomerDisplay
                 var monitorCount = System.Windows.Forms.Screen.AllScreens.Length;
                 var appVersion = AppUpdater.CurrentVersion().ToString();
                 var delivered = await _epharm
-                    .HeartbeatAsync(deviceId, pharmacyId, monitorCount, appVersion)
+                    .HeartbeatAsync(deviceId, pharmacyId, monitorCount, appVersion, staffAuthStatus: StaffAuthenticationStatus)
                     .ConfigureAwait(false);
                 if (delivered && _heartbeatDelivered != true)
                 {

@@ -224,7 +224,8 @@ namespace CustomerDisplay.Services
             string? pharmacyId,
             int monitorCount,
             string appVersion,
-            CancellationToken ct = default)
+            CancellationToken ct = default,
+            string? staffAuthStatus = null)
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(_heartbeatTimeout);
@@ -236,6 +237,8 @@ namespace CustomerDisplay.Services
                 url += "&monitorCount=" + Math.Max(1, monitorCount);
                 if (!string.IsNullOrWhiteSpace(appVersion))
                     url += "&appVersion=" + Uri.EscapeDataString(appVersion);
+                if (StaffAuthDiagnostics.IsKnown(staffAuthStatus))
+                    url += "&staffAuthStatus=" + Uri.EscapeDataString(staffAuthStatus!);
                 using var resp = await _http.PostAsync(url, null, cts.Token).ConfigureAwait(false);
                 if (!resp.IsSuccessStatusCode)
                 {

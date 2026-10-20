@@ -115,7 +115,7 @@ namespace CustomerDisplay.Services
                 using var cmd = conn.CreateCommand();
                 cmd.CommandTimeout = TimeoutSec();
                 cmd.CommandText = @"select first 100 s.ID as SESSION_ID, s.USER_ID, s.WS_ID, s.PROG, w.COMPNAME,
-                    cast(s.STARTDT as timestamp) as STARTDT, cast(s.HEARTBEATS as timestamp) as HEARTBEATS,
+                    s.STARTDT, s.HEARTBEATS,
                     cast(CURRENT_TIMESTAMP as timestamp) as DB_NOW
                     from SESSIONS s join WORKSTATIONS w on w.ID = s.WS_ID
                     where s.ENDDT is null and upper(w.COMPNAME) containing @machine";
@@ -125,9 +125,9 @@ namespace CustomerDisplay.Services
                 while (reader.Read()) rows.Add(new(ReadInt64(reader, "SESSION_ID") ?? 0,
                     ValueToString(ReadValue(reader, "USER_ID")) ?? "", ReadInt64(reader, "WS_ID"),
                     ReadString(reader, "COMPNAME"), ReadString(reader, "PROG"),
-                    ReadValue(reader, "STARTDT") is DateTime started ? DateTime.SpecifyKind(started, DateTimeKind.Unspecified) : null,
-                    ReadValue(reader, "HEARTBEATS") is DateTime heartbeat ? DateTime.SpecifyKind(heartbeat, DateTimeKind.Unspecified) : null,
-                    ReadValue(reader, "DB_NOW") is DateTime dbNow ? DateTime.SpecifyKind(dbNow, DateTimeKind.Unspecified) : null));
+                    StaffSessionResolver.ReadDatabaseTimestamp(ReadValue(reader, "STARTDT")),
+                    StaffSessionResolver.ReadDatabaseTimestamp(ReadValue(reader, "HEARTBEATS")),
+                    StaffSessionResolver.ReadDatabaseTimestamp(ReadValue(reader, "DB_NOW"))));
                 return StaffSessionResolver.Resolve(rows, _machineName, processIdentity, _cfg.StaffSessionMaxAgeSec);
             }
             catch

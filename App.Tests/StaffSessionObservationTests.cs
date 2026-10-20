@@ -11,6 +11,30 @@ public sealed class StaffSessionObservationTests
     private static StaffSessionObservation Observe(string process = "10:1000", long session = 100, string user = "cashier-1") =>
         StaffSessionResolver.Resolve([Row(session: session, user: user)], "KASSA1", process);
 
+    [Fact]
+    public void VendorCountersStringsAndOffsetsCannotBeGuessedAsSessionTimestamps()
+    {
+        object?[] unsupported = [null, DBNull.Value, 0, 1729500000L, 1729500000.5m,
+            "2026-10-16T10:00:00Z", Now];
+        foreach (var raw in unsupported)
+        {
+            var parsed = StaffSessionResolver.ReadDatabaseTimestamp(raw);
+            Assert.Null(parsed);
+            Assert.Equal("unsupported_session_time", StaffSessionResolver.Resolve(
+                [Row() with { HeartbeatAt = parsed }], "KASSA1", "10:1000").Status);
+        }
+    }
+
+    [Fact]
+    public void TypedDatabaseTimestampPreservesDatabaseWallClockWithoutTimezoneGuessing()
+    {
+        var raw = new DateTime(2026, 10, 16, 10, 0, 0, DateTimeKind.Utc);
+        var parsed = StaffSessionResolver.ReadDatabaseTimestamp(raw);
+        Assert.NotNull(parsed);
+        Assert.Equal(raw.Ticks, parsed.Value.Ticks);
+        Assert.Equal(DateTimeKind.Unspecified, parsed.Value.Kind);
+    }
+
     [Theory]
     [InlineData("KASSA1")]
     [InlineData("DOMAIN\\kassa1")]
