@@ -133,8 +133,10 @@ interface RecommendationEventRepository : JpaRepository<RecommendationEventEntit
                 SELECT DISTINCT ON (re.sale_id)
                        re.sale_id,
                        re.seconds_to_sale,
+                       re.recommend_sku AS recommend_product_id,
                        re.recommend_name,
-                       p.barcode AS recommend_barcode
+                       p.barcode AS recommend_barcode,
+                       COALESCE(p.barcodes, '[]'::jsonb) AS recommend_barcodes
                 FROM recommendation_events re
                 LEFT JOIN products p ON p.id = re.recommend_sku
                 WHERE re.sale_id IS NOT NULL
@@ -155,15 +157,23 @@ interface RecommendationEventRepository : JpaRepository<RecommendationEventEntit
                 LEFT JOIN LATERAL (
                     SELECT COALESCE(
                         MIN(candidate.ordinality) FILTER (
-                            WHERE NULLIF(attr.recommend_barcode, '') IS NOT NULL
-                              AND candidate.value ->> 'barcode' = attr.recommend_barcode
+                            WHERE NULLIF(attr.recommend_product_id, '') IS NOT NULL
+                              AND candidate.value ->> 'productId' = attr.recommend_product_id
                         ),
                         MIN(candidate.ordinality) FILTER (
-                            WHERE BTRIM(LOWER(COALESCE(attr.recommend_name, ''))) <> ''
+                            WHERE NULLIF(candidate.value ->> 'productId', '') IS NULL
+                              AND NULLIF(candidate.value ->> 'barcode', '') IS NOT NULL
+                              AND (candidate.value ->> 'barcode' = attr.recommend_barcode
+                                   OR jsonb_exists(attr.recommend_barcodes, candidate.value ->> 'barcode'))
+                        ),
+                        MIN(candidate.ordinality) FILTER (
+                            WHERE NULLIF(candidate.value ->> 'productId', '') IS NULL
+                              AND NULLIF(candidate.value ->> 'barcode', '') IS NULL
+                              AND BTRIM(COALESCE(candidate.value ->> 'sku', '')) = ''
+                              AND BTRIM(LOWER(COALESCE(attr.recommend_name, ''))) <> ''
                               AND BTRIM(LOWER(COALESCE(candidate.value ->> 'name', ''))) =
                                   BTRIM(LOWER(attr.recommend_name))
-                        ),
-                        1
+                        )
                     ) AS item_ordinality
                     FROM jsonb_array_elements(s.items) WITH ORDINALITY candidate(value, ordinality)
                 ) matched ON attr.sale_id IS NOT NULL
@@ -220,7 +230,7 @@ interface RecommendationEventRepository : JpaRepository<RecommendationEventEntit
                    false AS "converted",
                    CASE
                        WHEN s.attributed_seconds IS NOT NULL
-                        AND s.item_ordinality = COALESCE(s.matched_ordinality, 1)
+                        AND (s.item_count = 0 OR s.item_ordinality = s.matched_ordinality)
                        THEN s.attributed_seconds
                        ELSE NULL
                    END AS "secondsToSale",

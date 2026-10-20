@@ -76,7 +76,7 @@ class RulesEngineConflictTest {
         // Резолв корзины идёт по штрих-коду.
         every { productRepo.findAllByBarcodeIn(any()) } answers {
             val wanted = firstArg<Collection<String>>().toSet()
-            cartProducts.filter { it.barcode in wanted }
+            (cartProducts + recommends).filter { product -> product.scanBarcodes().any { it in wanted } }
         }
         (cartProducts + recommends).forEach { p ->
             every { productRepo.findById(p.id) } returns Optional.of(p)

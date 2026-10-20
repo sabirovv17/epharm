@@ -272,13 +272,23 @@ Barcode is the primary key for cash-desk recommendation matching.
 
 `CartItemDto` can include:
 
-- `barcode`/EAN - primary matching key;
+- `barcode`/EAN - primary matching key, resolving any confirmed `products.barcodes[]` alias;
 - `name` - fallback matching key after normalization;
-- `sku` - Standard-N internal `iPartID`, diagnostic only;
+- `sku` - Standard-N internal `iPartID`, exact fallback when barcode ownership permits it;
 - `qty`.
 
 Ambiguous barcode or normalized-name matches are logged and skipped. The system prefers not showing a
 recommendation over showing the wrong one.
+
+Campaign/product authoring and catalogue DTOs expose additive `barcodes[]` while retaining the
+legacy primary `barcode`. The website adapter joins explicit UUID `WARE_ID` values to the active
+ACC snapshot in a batch, with case-insensitive WARE matching and global source-code ambiguity
+rejection. It does not infer identity from names or marketplace SKUs. Complete source identities
+replace revoked aliases, whereas incomplete/unavailable sources preserve saved keys. Distinct
+variant doses/forms/packs are not flattened. A supplied ambiguous barcode blocks name/iPart
+fallback, including when its other owner has no active rule. Money attribution additionally
+rejects unknown barcodes and conflicting supplied exact identifiers. POSM keeps sending one actual
+scan code; `triggerBarcode` in the response stays that actual code, not the first catalogue alias.
 
 ## Dashboard Journal
 

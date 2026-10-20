@@ -1,12 +1,14 @@
 package kz.epharm.storefront.dto
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.annotation.JsonAlias
 import com.fasterxml.jackson.annotation.JsonProperty
 import kz.epharm.medusa.dto.MedusaCalculatedPrice
 import kz.epharm.medusa.dto.MedusaCategory
 import kz.epharm.medusa.dto.MedusaImage
 import kz.epharm.medusa.dto.MedusaProduct
 import kz.epharm.medusa.dto.MedusaVariant
+import kz.epharm.shared.validation.BarcodeNormalizer
 import java.net.URI
 
 /**
@@ -48,6 +50,9 @@ data class StorefrontProduct(
     val atc: String? = null,
     val barcode: String? = null,
     val variants: List<StorefrontVariant> = emptyList(),
+    val barcodes: List<String> = emptyList(),
+    val wareId: String? = null,
+    @JsonAlias("ipart_id", "iPartID") val ipartId: String? = null,
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -57,6 +62,7 @@ data class StorefrontVariant(
     val sku: String? = null,
     val barcode: String? = null,
     val price: Double? = null,
+    val barcodes: List<String> = emptyList(),
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -75,6 +81,7 @@ internal fun StorefrontProduct.toMedusaProduct(storefrontOrigin: String): Medusa
             title = variant.title,
             sku = variant.sku,
             barcode = variant.barcode,
+            barcodes = variant.barcodes,
             calculatedPrice = (variant.price?.takeIf { it > 0 } ?: normalizedPrice)?.let {
                 MedusaCalculatedPrice(calculatedAmount = it, currencyCode = "KZT")
             },
@@ -103,7 +110,11 @@ internal fun StorefrontProduct.toMedusaProduct(storefrontOrigin: String): Medusa
     country.clean()?.let { metadata["country"] = it }
     mnn.clean()?.let { metadata["mnn"] = it }
     atc.clean()?.let { metadata["atc"] = it }
-    barcode.clean()?.let { metadata["barcode"] = it }
+    val declaredBarcodes = BarcodeNormalizer.all(listOf(barcode) + barcodes)
+    declaredBarcodes.firstOrNull()?.let { metadata["barcode"] = it }
+    if (declaredBarcodes.isNotEmpty()) metadata["barcodes"] = declaredBarcodes
+    wareId.clean()?.let { metadata["ware_id"] = it }
+    ipartId.clean()?.takeIf { it.length <= 64 }?.let { metadata["ipart_id"] = it }
     categorySlug.clean()?.let { metadata["category"] = it }
     prescription?.let { metadata["rx_otc"] = if (it) "rx" else "otc" }
 

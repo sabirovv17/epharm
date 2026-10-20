@@ -108,7 +108,9 @@ class RulesEngineService(
         // безопаснее для fuzzy-fallback — нерелевантный товар каталога не может стать триггером.
         val relevantProducts = relevantProducts(active)
         val relevantById = relevantProducts.associateBy(ProductEntity::id)
-        val cartProducts: Map<String, ProductEntity> = resolveCart(cart, relevantProducts)
+        // Exact barcode ownership is global: an inactive product can still conflict with a rule.
+        val byBarcode = barcodeIndex(cart)
+        val cartProducts: Map<String, ProductEntity> = resolveCart(cart, relevantProducts, byBarcode)
         val cartSkus: Set<String> = cartProducts.keys
         val cartBarcodes = cart.mapNotNull { it.barcode?.trim()?.takeIf(String::isNotEmpty) }.toSet()
         val cartIpartIds = cart.mapNotNull { it.sku?.trim()?.takeIf(String::isNotEmpty) }.toSet()
@@ -117,7 +119,8 @@ class RulesEngineService(
         val classified = if (hasAccRules) accCatalogTaxonomy.unambiguousBarcodes(cartBarcodes) else emptyMap()
         val scopedCart = cart.mapNotNull { item ->
             val barcode = item.barcode?.trim().orEmpty()
-            classified[barcode]?.let { item to it }
+            classified[barcode]?.takeUnless { barcode in byBarcode && byBarcode[barcode] == null }
+                ?.let { item to it }
         }
         if (cartSkus.isEmpty() && scopedCart.isEmpty()) return RuleMatchResult(emptyList(), emptyList())
 
@@ -135,17 +138,20 @@ class RulesEngineService(
             } else null
             val triggerProduct = exactTriggerSku?.let(cartProducts::get)
                 ?: scopedMatch?.first?.barcode?.trim()?.let { barcode ->
-                    cartProducts.values.firstOrNull { it.barcode?.trim() == barcode }
+                    cartProducts.values.firstOrNull { barcode in it.scanBarcodes() }
                 }
             val exactCartItem = if (accKind == null) triggerProduct?.let { product ->
-                cart.firstOrNull { item ->
+                val matching = cart.filter { item ->
                     val barcode = item.barcode?.trim()?.takeIf(String::isNotEmpty)
                     val ipartId = item.sku?.trim()?.takeIf(String::isNotEmpty)
-                    (barcode != null && barcode == product.barcode?.trim()) ||
-                        (ipartId != null && ipartId == product.ipartId?.trim()) ||
-                        (barcode == null && ipartId == null &&
-                            item.name?.let(::normalizeName) == normalizeName(product.name))
+                    when {
+                        barcode != null && barcode in byBarcode -> byBarcode[barcode]?.id == product.id
+                        ipartId != null -> ipartId == product.ipartId?.trim()
+                        barcode == null -> item.name?.let(::normalizeName) == normalizeName(product.name)
+                        else -> false
+                    }
                 }
+                matching.firstOrNull { it.barcode?.trim() == scannedBarcode?.trim() } ?: matching.firstOrNull()
             } else null
             val triggerSku = exactTriggerSku ?: scopedMatch?.let { (item, classification) ->
                 accIdentity(classification, item.barcode!!.trim())
@@ -158,7 +164,7 @@ class RulesEngineService(
                 // Broad membership is EAN-only. Do not let fuzzy name resolution turn an
                 // unrelated ACC item into a false self-match, but still suppress the actual
                 // recommended product when it is already in the basket.
-                recProduct.barcode?.trim()?.takeIf(String::isNotEmpty) in cartBarcodes ||
+                recProduct.scanBarcodes().any { it in cartBarcodes } ||
                     recProduct.ipartId?.trim()?.takeIf(String::isNotEmpty) in cartIpartIds ||
                     normalizeName(recProduct.name) in cartExactNames
             }
@@ -217,8 +223,8 @@ class RulesEngineService(
 
     /**
      * Резолв корзины кассы → наши товары (id → ProductEntity).
-     *   (1) по iPartID (sku, trim, непустой) — точное совпадение ProductEntity.ipartId;
-     *   (2) по штрих-коду (barcode, trim, непустой) — точное совпадение ProductEntity.barcode;
+     *   (1) по подтверждённому штрих-коду товара, включая aliases;
+     *   (2) по iPartID (sku, trim, непустой) — точное совпадение ProductEntity.ipartId;
      *   (3) для позиций без точного матча — fallback по нормализованному имени.
      * Возврат — уникальные товары (по productId); один товар, даже если в корзине дважды, один раз.
      *
@@ -228,9 +234,9 @@ class RulesEngineService(
      */
     private fun resolveCart(
         cart: List<CartItemDto>,
-        candidates: List<ProductEntity>? = null,
+        candidates: List<ProductEntity>,
+        byBarcode: Map<String, ProductEntity?>,
     ): Map<String, ProductEntity> {
-        val byBarcode = barcodeIndex(cart, candidates)
         val byIpart = ipartIndex(cart, candidates)
         val byName = nameIndex(cart, byBarcode, byIpart, candidates)
         val resolved = LinkedHashMap<String, ProductEntity>()
@@ -284,20 +290,14 @@ class RulesEngineService(
             .toMap()
     }
 
-    /** Индекс штрих-код → товар: только однозначные ключи (коллизия → warn + пропуск). */
-    private fun barcodeIndex(
-        cart: List<CartItemDto>,
-        candidates: List<ProductEntity>? = null,
-    ): Map<String, ProductEntity> {
+    /** Null retains a known collision, so it cannot be mistaken for an absent key and name-matched. */
+    private fun barcodeIndex(cart: List<CartItemDto>): Map<String, ProductEntity?> {
         val barcodes = cart.mapNotNull { it.barcode?.trim()?.takeIf { b -> b.isNotEmpty() } }.distinct()
         if (barcodes.isEmpty()) return emptyMap()
-        val products = candidates?.filter { it.barcode?.trim() in barcodes }
-            ?: productRepository.findAllByBarcodeIn(barcodes)
-        return products
-            .filter { !it.barcode.isNullOrBlank() }
-            .groupBy { it.barcode!!.trim() }
-            .mapNotNull { (bc, products) -> uniqueOrWarn(bc, products, "штрих-код")?.let { bc to it } }
-            .toMap()
+        return productRepository.findAllByBarcodeIn(barcodes)
+            .flatMap { product -> product.scanBarcodes().filter { it in barcodes }.map { it to product } }
+            .groupBy({ it.first }, { it.second })
+            .mapValues { (barcode, products) -> uniqueOrWarn(barcode, products, "штрих-код") }
     }
 
     /**
@@ -306,7 +306,7 @@ class RulesEngineService(
      */
     private fun nameIndex(
         cart: List<CartItemDto>,
-        byBarcode: Map<String, ProductEntity>,
+        byBarcode: Map<String, ProductEntity?>,
         byIpart: Map<String, ProductEntity>,
         candidates: List<ProductEntity>? = null,
     ): Map<String, ProductEntity> {
@@ -329,14 +329,14 @@ class RulesEngineService(
     private fun resolveOne(
         item: CartItemDto,
         byIpart: Map<String, ProductEntity>,
-        byBarcode: Map<String, ProductEntity>,
+        byBarcode: Map<String, ProductEntity?>,
         byName: Map<String, ProductEntity>,
         candidates: List<ProductEntity>? = null,
     ): ProductEntity? {
         val ipart = item.sku?.trim()?.takeIf { it.isNotEmpty() }
         val bc = item.barcode?.trim()?.takeIf { it.isNotEmpty() }
-        return bc?.let { byBarcode[it] }
-            ?: ipart?.let { byIpart[it] }
+        if (bc != null && bc in byBarcode) return byBarcode[bc]
+        return ipart?.let { byIpart[it] }
             ?: item.name?.takeIf { it.isNotBlank() }?.let { byName[normalizeName(it)] }
             ?: item.name?.takeIf { it.isNotBlank() }
                 ?.let { fuzzyNameCandidate(it, candidates.orEmpty()) }

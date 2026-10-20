@@ -3,6 +3,9 @@ package kz.epharm.storefront.client
 import kz.epharm.medusa.dto.MedusaCategory
 import kz.epharm.medusa.dto.MedusaProduct
 import kz.epharm.medusa.dto.MedusaProductListResponse
+import kz.epharm.medusa.dto.scanBarcodes
+import kz.epharm.catalog.service.AccCatalogTaxonomy
+import kz.epharm.catalog.service.AccWareBarcodeLookup
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import kz.epharm.storefront.dto.StorefrontCatalogPage
@@ -19,6 +22,7 @@ import org.springframework.web.client.RestClient
 import java.net.HttpURLConnection
 import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
+import java.util.Locale
 
 /**
  * Read-only client for the new Inkar website catalogue.
@@ -35,6 +39,7 @@ class StorefrontCatalogClient(
     @Value("\${app.storefront-catalog.connect-timeout-ms:2000}") connectTimeoutMs: Int,
     @Value("\${app.storefront-catalog.read-timeout-ms:8000}") readTimeoutMs: Int,
     private val references: StorefrontProductReferenceRepository? = null,
+    private val taxonomy: AccCatalogTaxonomy? = null,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val baseUrl = validateBaseUrl(enabled, rawBaseUrl, connectTimeoutMs, readTimeoutMs)
@@ -75,7 +80,7 @@ class StorefrontCatalogClient(
                 if (!category.isNullOrBlank()) uri.queryParam("category", category.trim())
                 uri.build()
             }.retrieve().body(StorefrontCatalogPage::class.java) ?: StorefrontCatalogPage()
-            val mapped = page.products.map { it.toMedusaProduct(checkNotNull(baseUrl)) }
+            val mapped = enrich(page.products.map { it.toMedusaProduct(checkNotNull(baseUrl)) })
             if (q.isNullOrBlank() && category.isNullOrBlank() && offset == 0 && mapped.isEmpty()) {
                 throw IllegalStateException("Website catalogue returned an empty first page")
             }
@@ -107,6 +112,7 @@ class StorefrontCatalogClient(
             }.retrieve().body(StorefrontProductWrapper::class.java)
             wrapper?.product?.toMedusaProduct(checkNotNull(baseUrl))
                 ?.takeIf { it.id == id }
+                ?.let { enrich(listOf(it)).single() }
                 ?.also {
                     productsById[it.id] = it
                     references?.remember(checkNotNull(baseUrl), listOf(it))
@@ -129,8 +135,31 @@ class StorefrontCatalogClient(
         }
     }
 
-    fun cachedProduct(id: String): MedusaProduct? = productsById[id]
-        ?: baseUrl?.let { references?.find(it, id) }?.also { productsById[id] = it }
+    fun cachedProduct(id: String): MedusaProduct? {
+        val product = productsById[id] ?: baseUrl?.let { references?.find(it, id) } ?: return null
+        return enrich(listOf(product)).single().also { productsById[id] = it }
+    }
+
+    private fun enrich(products: List<MedusaProduct>): List<MedusaProduct> {
+        val lookup = taxonomy?.lookupWareBarcodes(
+            products.mapNotNull { it.metadata?.get("ware_id") as? String },
+        ) ?: AccWareBarcodeLookup()
+        return products.map { product ->
+            val metadata = product.metadata.orEmpty().toMutableMap()
+            val sourceCodes = if (metadata.containsKey("storefront_source_barcodes")) {
+                (metadata["storefront_source_barcodes"] as? Iterable<*>)?.mapNotNull { it as? String }.orEmpty()
+            } else product.scanBarcodes()
+            // Keep source codes separate, so a later ACC snapshot cannot retain old WARE aliases.
+            metadata["storefront_source_barcodes"] = sourceCodes
+            val ware = (metadata["ware_id"] as? String)?.trim()?.lowercase(Locale.ROOT)
+            val codes = (lookup.barcodes[ware].orEmpty() + sourceCodes).distinct()
+            metadata["barcodes"] = codes
+            metadata["barcode"] = codes.firstOrNull()
+            metadata["barcode_source_complete"] = sourceCodes.isNotEmpty() ||
+                (lookup.hasActiveSnapshot && ware in lookup.requestedWareIds)
+            product.copy(metadata = metadata)
+        }
+    }
 
     private fun flatten(nodes: List<StorefrontCategoryNode>, parentId: String? = null): List<MedusaCategory> =
         nodes.flatMap { node ->

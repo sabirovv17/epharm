@@ -437,6 +437,33 @@ describe('PromoPage — trigger-first campaign creation', () => {
     expect(screen.getByTestId('location-probe')).toHaveTextContent('/promo/pr_new')
   })
 
+  it('создаёт точный триггер из plural-only каталога и сохраняет все коды предлагаемого товара', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue(mkPromo({ id: 'pr_multi' }))
+    promoHooks.useCreatePromo.mockReturnValue({ mutateAsync, isPending: false })
+    storefrontHooks.useStorefront.mockReturnValue({
+      data: { items: [
+        { id: 'trigger-multi', name: 'Триггер', brand: 'Тест', barcode: null, barcodes: ['0012345678905', '4601164003157'] },
+        { id: 'offer-multi', name: 'Предлагаемый', brand: 'Тест', barcode: '_00012345_4870000000002_' },
+      ], total: 2, limit: 50, offset: 0 }, isFetching: false,
+    })
+    const user = userEvent.setup()
+    renderPromo()
+    await openForm(user)
+    await user.click(screen.getByRole('radio', { name: 'Конкретный товар' }))
+    await user.type(screen.getByPlaceholderText(/Поиск товара/i), 'Триггер')
+    await user.click(await screen.findByTestId('promo-product-option-trigger-multi'))
+    await user.click(screen.getByRole('radio', { name: 'Замена' }))
+    await user.type(screen.getByPlaceholderText(/Поиск товара/i), 'Предлагаемый')
+    await user.click(await screen.findByTestId('promo-product-option-offer-multi'))
+    await user.click(screen.getByRole('button', { name: /Создать черновик/ }))
+    expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({
+      medusaProductId: 'offer-multi', barcode: '00012345', barcodes: ['00012345', '4870000000002'],
+      initialRecommendation: expect.objectContaining({ trigger: expect.objectContaining({
+        medusaProductId: 'trigger-multi', barcode: '0012345678905', barcodes: ['0012345678905', '4601164003157'], active: false,
+      }) }),
+    }))
+  })
+
   it.each([
     ['Группа ACC', 'group:1', 'acc_group'],
     ['Подгруппа ACC', 'subgroup:1', 'acc_subgroup'],

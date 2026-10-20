@@ -53,7 +53,7 @@ export function PromoTriggerPicker({
       </Field>
 
       {kind === 'product' ? (
-        <MultiProductPicker selectedIds={selectedProductIds} onPick={onProductPick} />
+        <MultiProductPicker selectedIds={selectedProductIds} onPick={onProductPick} requireScanIdentity />
       ) : (
         <div className="flex flex-col gap-2">
           <p className="text-[12px] text-ink-500">{t('pr.triggerScopeHint')}</p>

@@ -6,6 +6,9 @@ import jakarta.persistence.Id
 import jakarta.persistence.PrePersist
 import jakarta.persistence.PreUpdate
 import jakarta.persistence.Table
+import kz.epharm.shared.validation.BarcodeNormalizer
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
 import java.time.Instant
 
 @Entity
@@ -49,6 +52,11 @@ class ProductEntity(
     @Column(name = "barcode", length = 32)
     var barcode: String? = null,
 
+    /** All confirmed aliases of this exact product; barcode remains the legacy primary key. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "barcodes", nullable = false, columnDefinition = "jsonb")
+    var barcodes: List<String> = emptyList(),
+
     /**
      * iPartID кассы Стандарт-Н. Заполняется вручную в кампании/паре правил, когда EAN-13
      * в кассовом логе отсутствует или отличается от Medusa.
@@ -62,6 +70,8 @@ class ProductEntity(
     @Column(name = "updated_at", nullable = false)
     var updatedAt: Instant = Instant.now(),
 ) {
+    fun scanBarcodes(): List<String> = BarcodeNormalizer.all(listOf(barcode) + barcodes)
+
     @PrePersist
     fun onCreate() {
         val now = Instant.now()

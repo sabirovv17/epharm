@@ -57,6 +57,7 @@ class MedusaPriceServiceTest {
         every { medusa.getProductPharmacies("prod_teraflu") } returns null
 
         assertEquals("4607045191357", service.snapshotOf("prod_teraflu")?.barcode)
+        assertEquals(listOf("4607045191357", "4870223140649", "4870223140694"), service.snapshotOf("prod_teraflu")?.barcodes)
     }
 
     @Test
@@ -71,7 +72,7 @@ class MedusaPriceServiceTest {
         assertTrue(service.active)
         assertEquals(485L, service.priceOf("prod_Daribar_1"))
         assertEquals(
-            MedusaPriceService.MedusaSnapshot(485L, "https://catalog.example/image.jpg", "4871234567890"),
+            MedusaPriceService.MedusaSnapshot(485L, "https://catalog.example/image.jpg", "4871234567890", listOf("4871234567890")),
             service.snapshotOf("prod_Daribar_1"),
         )
         verify(exactly = 0) { medusa.getProduct(any()) }
@@ -149,7 +150,7 @@ class MedusaPriceServiceTest {
         )
 
         assertEquals(
-            MedusaPriceService.MedusaSnapshot(null, "https://catalog.example/image.jpg", "4607045191357"),
+            MedusaPriceService.MedusaSnapshot(null, "https://catalog.example/image.jpg", "4607045191357", listOf("4607045191357", "4870223140649")),
             MedusaPriceService(medusa, website).snapshotOf("prod_Daribar_1"),
         )
         verify(exactly = 0) { medusa.getProductPharmacies(any()) }
@@ -163,6 +164,24 @@ class MedusaPriceServiceTest {
             pricedProduct("prod_Daribar_1", 485.0).copy(title = "Активированный уголь")
 
         assertNull(MedusaPriceService(medusa, website).snapshotOf("prod_Daribar_1")?.barcode)
+    }
+
+    @Test
+    fun `an authoritative empty WARE mapping is distinct from an unavailable barcode source`() {
+        val website = mockk<StorefrontCatalogClient>()
+        every { website.active } returns true
+        every { website.getProduct("prod_Daribar_1", null) } returns MedusaProduct(
+            id = "prod_Daribar_1", metadata = mapOf("barcodes" to emptyList<String>(), "barcode_source_complete" to true),
+        )
+        val knownEmpty = MedusaPriceService(medusa, website).snapshotOf("prod_Daribar_1")!!
+        assertTrue(knownEmpty.barcodeSourceComplete)
+        assertTrue(knownEmpty.barcodes.isEmpty())
+
+        every { website.getProduct("prod_Daribar_1", null) } returns MedusaProduct(id = "prod_Daribar_1")
+        assertEquals(false, MedusaPriceService(medusa, website).snapshotOf("prod_Daribar_1")?.barcodeSourceComplete)
+        every { website.getProduct("prod_Daribar_1", null) } throws IllegalStateException("unavailable")
+        every { website.cachedProduct("prod_Daribar_1") } returns null
+        assertNull(MedusaPriceService(medusa, website).snapshotOf("prod_Daribar_1"))
     }
 
     @Test

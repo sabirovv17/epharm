@@ -16,6 +16,7 @@ import kz.epharm.rules.repository.RuleRepository
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import kz.epharm.shared.validation.BarcodeNormalizer
+import kz.epharm.shared.validation.ConfirmedBarcodeAliases
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -100,6 +101,10 @@ class PromoService(
         syncTier(entity, desiredBonus = req.pharmacistBonus, refetchPrice = true)
         // Штрих-код продвигаемого товара — из Medusa (для матчинга кассы); fallback на присланный.
         syncBarcode(entity, refetch = true)
+        entity.barcodes = ConfirmedBarcodeAliases.merge(
+            req.barcodes, req.barcode, source = entity.barcodes,
+            sourceComplete = entity.barcodeSourceComplete,
+        )
         validatePromo(entity)
         val saved = promoRepository.save(entity)
         if (initialRecommendation != null) {
@@ -143,7 +148,15 @@ class PromoService(
         req.kpi?.let { entity.kpi = it.trim() }
         req.cover?.let { entity.cover = it.trim() }
         // Товарная акция. Смена товара → надо перетянуть цену из Medusa.
-        val productChanged = req.medusaProductId != null
+        val productChanged = req.medusaProductId != null &&
+            req.medusaProductId.trim().takeIf(String::isNotBlank) != entity.medusaProductId
+        if (productChanged) {
+            // An identity belongs to one exact item, never to the next selected dose/pack.
+            entity.barcode = null
+            entity.barcodes = emptyList()
+            entity.barcodeSourceComplete = false
+            entity.ipartId = null
+        }
         req.medusaProductId?.let { entity.medusaProductId = it.trim().takeIf { s -> s.isNotBlank() } }
         req.productName?.let { entity.productName = it.trim() }
         req.productImage?.let { entity.productImage = it.trim().takeIf { s -> s.isNotBlank() } }
@@ -163,7 +176,13 @@ class PromoService(
         val desiredBonus = req.pharmacistBonus ?: entity.pharmacistBonus
         syncTier(entity, desiredBonus = desiredBonus, refetchPrice = productChanged || entity.price == 0L)
         // Штрих-код перетягиваем из Medusa при смене товара (или если ещё не проставлен).
-        syncBarcode(entity, refetch = productChanged || entity.barcode.isNullOrBlank())
+        syncBarcode(entity, refetch = productChanged || entity.barcode.isNullOrBlank() || req.barcodes != null)
+        entity.barcodes = ConfirmedBarcodeAliases.merge(
+            req.barcodes.orEmpty(), req.barcode,
+            source = if (entity.barcodeSourceComplete) entity.barcodes else emptyList(),
+            existing = entity.barcodes + listOfNotNull(entity.barcode),
+            sourceComplete = entity.barcodeSourceComplete,
+        )
 
         validatePromo(entity)
         val saved = promoRepository.save(entity)
@@ -238,12 +257,22 @@ class PromoService(
         val mpid = e.medusaProductId
         if (mpid == null) {
             e.barcode = null
+            e.barcodes = emptyList()
+            e.barcodeSourceComplete = false
             e.ipartId = null
             return
         }
         if (refetch) {
-            val ean = medusaPriceService.snapshotOf(mpid)?.barcode?.trim()?.takeIf { it.isNotBlank() }
-            if (ean != null) e.barcode = ean
+            val snapshot = medusaPriceService.snapshotOf(mpid)
+            e.barcodes = ConfirmedBarcodeAliases.merge(
+                primary = snapshot?.barcode,
+                source = snapshot?.let { listOfNotNull(it.barcode) + it.barcodes }.orEmpty(),
+                existing = e.barcodes + listOfNotNull(e.barcode),
+                sourceComplete = snapshot?.barcodeSourceComplete == true,
+            )
+            e.barcode = e.barcodes.firstOrNull()
+            if (snapshot != null && (snapshot.barcodeSourceComplete || snapshot.barcodes.isNotEmpty() ||
+                    snapshot.barcode != null)) e.barcodeSourceComplete = true
         }
     }
 

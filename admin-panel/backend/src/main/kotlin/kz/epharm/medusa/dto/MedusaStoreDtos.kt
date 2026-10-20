@@ -74,6 +74,7 @@ data class MedusaVariant(
     val barcode: String? = null,
     val metadata: Map<String, Any?>? = null,
     @JsonProperty("calculated_price") val calculatedPrice: MedusaCalculatedPrice? = null,
+    val barcodes: List<String> = emptyList(),
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)

@@ -2,6 +2,8 @@ package kz.epharm.catalog.repository
 
 import kz.epharm.catalog.entity.ProductEntity
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 
 @Repository
@@ -17,5 +19,14 @@ interface ProductRepository : JpaRepository<ProductEntity, String> {
     fun findAllByIpartIdIn(ipartIds: Collection<String>): List<ProductEntity>
 
     /** Товары по списку штрих-кодов — точный матчинг корзины POSM-кассы. */
-    fun findAllByBarcodeIn(barcodes: Collection<String>): List<ProductEntity>
+    @Query(
+        value = """
+            SELECT DISTINCT p.* FROM products p
+             WHERE p.barcode IN (:barcodes)
+                OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(p.barcodes) b(code)
+                            WHERE b.code IN (:barcodes))
+        """,
+        nativeQuery = true,
+    )
+    fun findAllByBarcodeIn(@Param("barcodes") barcodes: Collection<String>): List<ProductEntity>
 }

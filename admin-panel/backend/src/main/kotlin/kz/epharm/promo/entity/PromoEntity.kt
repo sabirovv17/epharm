@@ -84,6 +84,14 @@ class PromoEntity(
     @Column(name = "barcode", length = 32)
     var barcode: String? = null,
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "barcodes", nullable = false, columnDefinition = "jsonb")
+    var barcodes: List<String> = emptyList(),
+
+    /** A complete source identity may be empty, which revokes formerly imported codes. */
+    @Column(name = "barcode_source_complete", nullable = false)
+    var barcodeSourceComplete: Boolean = false,
+
     /**
      * iPartID продвигаемого товара в кассе Стандарт-Н. Редактируется вручную,
      * стампится на ProductEntity.ipartId для POSM-матчинга.

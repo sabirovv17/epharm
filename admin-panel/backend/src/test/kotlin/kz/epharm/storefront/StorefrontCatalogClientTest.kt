@@ -6,6 +6,7 @@ import kz.epharm.storefront.dto.StorefrontProduct
 import kz.epharm.storefront.dto.StorefrontVariant
 import kz.epharm.storefront.dto.toMedusaProduct
 import kz.epharm.shared.error.AppException
+import kz.epharm.medusa.dto.scanBarcodes
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.assertj.core.api.Assertions.assertThatThrownBy
@@ -13,6 +14,45 @@ import org.junit.jupiter.api.Test
 import java.net.InetSocketAddress
 
 class StorefrontCatalogClientTest {
+    @Test
+    fun `retains explicit top-level barcode aliases without a price or variants`() {
+        val mapped = StorefrontProduct(
+            id = "site-no-price", wareId = "56d37e88-8449-4933-9f64-aba2553e3760",
+            barcode = "8888110284730", barcodes = listOf("8888110284730", "4810201006352"),
+        ).toMedusaProduct("https://www.aptekasosklada.kz")
+
+        assertThat(mapped.variants).isEmpty()
+        assertThat(mapped.scanBarcodes()).containsExactly("8888110284730", "4810201006352")
+        assertThat(mapped.metadata).containsEntry("ware_id", "56d37e88-8449-4933-9f64-aba2553e3760")
+    }
+
+    @Test
+    fun `collects aliases from same-item variants without treating the website sku as an ipart id`() {
+        val mapped = StorefrontProduct(
+            id = "same-item", barcode = "4603276001779",
+            variants = listOf(
+                StorefrontVariant(id = "one", sku = "daribar-uuid", title = "10 шт", barcode = "4603276001779_4603276013765"),
+                StorefrontVariant(id = "two", sku = "daribar-uuid", title = "10 шт", barcodes = listOf("4603276013765", "8888110284730")),
+            ),
+        ).toMedusaProduct("https://www.aptekasosklada.kz")
+
+        assertThat(mapped.scanBarcodes()).containsExactly("4603276001779", "4603276013765", "8888110284730")
+        assertThat(mapped.metadata).doesNotContainKey("ipart_id")
+    }
+
+    @Test
+    fun `does not flatten codes of variants with different packaging or sku`() {
+        val mapped = StorefrontProduct(
+            id = "different-items", barcode = "8888110284730",
+            variants = listOf(
+                StorefrontVariant(id = "one", sku = "pack-10", title = "10 шт", barcode = "4603276001779"),
+                StorefrontVariant(id = "two", sku = "pack-20", title = "20 шт", barcode = "4603276013765"),
+            ),
+        ).toMedusaProduct("https://www.aptekasosklada.kz")
+
+        assertThat(mapped.scanBarcodes()).containsExactly("8888110284730")
+    }
+
     @Test
     fun `maps website price metadata and relative media to mobile catalogue model`() {
         val mapped = StorefrontProduct(
@@ -62,7 +102,7 @@ class StorefrontCatalogClientTest {
     fun `reads website catalog response and rejects mismatched product detail id`() {
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/api/catalog") { exchange ->
-            val body = """{"products":[{"id":"prod_1","name":"Тест","slug":"test","price":900}],"count":1}"""
+            val body = """{"products":[{"id":"prod_1","name":"Тест","slug":"test","price":900,"wareId":"56d37e88-8449-4933-9f64-aba2553e3760","barcodes":["8888110284730","4810201006352"],"variants":[{"id":"v1","barcode":"8888110284730","barcodes":["4810201001876"]}]}],"count":1}"""
                 .toByteArray()
             exchange.responseHeaders.add("Content-Type", "application/json")
             exchange.sendResponseHeaders(200, body.size.toLong())
@@ -79,6 +119,8 @@ class StorefrontCatalogClientTest {
             val client = StorefrontCatalogClient(true, "http://127.0.0.1:${server.address.port}", 1_000, 1_000)
             val page = client.listProducts(limit = 10, offset = 0)
             assertThat(page.products.single().id).isEqualTo("prod_1")
+            assertThat(page.products.single().scanBarcodes()).containsExactly("8888110284730", "4810201006352", "4810201001876")
+            assertThat(page.products.single().metadata).containsEntry("barcode_source_complete", true)
             assertThat(page.count).isEqualTo(1)
             // The list item has no description, so detail must call the upstream endpoint.
             assertThat(client.getProduct("prod_1", "test")).isNull()

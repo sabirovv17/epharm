@@ -62,7 +62,7 @@ class MerchRecommendationMergeTest {
         }
         every { products.findAllByBarcodeIn(any()) } answers {
             val keys = firstArg<Collection<String>>()
-            catalog.filter { it.barcode in keys }
+            catalog.filter { product -> product.scanBarcodes().any { it in keys } }
         }
         every { products.findAllByIpartIdIn(any()) } answers {
             val keys = firstArg<Collection<String>>()
@@ -291,6 +291,114 @@ class MerchRecommendationMergeTest {
 
         assertThat(response.recommendations.map { it.kind }).containsExactly("substitution", "crosssell")
         assertThat(response.conflicts).isEmpty()
+    }
+
+    @Test
+    fun `external identifiers and stock use confirmed aliases while response keeps the actual cart code`() {
+        trigger.barcodes = listOf("4600000000117", "4600000000124")
+        recommended.barcodes = listOf("4600000000216")
+        val base = context(BigDecimal("4"))
+        every { merch.recommendationContext(any()) } returns base.copy(
+            recommendations = listOf(base.recommendations.single().copy(
+                recommendBarcode = recommended.barcodes.single(), recommendIpartId = recommended.ipartId,
+            )),
+            balances = listOf(base.balances.single().copy(barcode = recommended.barcodes.single())),
+        )
+        val request = request().copy(cart = listOf(CartItemDto(barcode = trigger.barcodes.last())))
+
+        val row = service.recommend(request).recommendations.single()
+
+        assertThat(row.triggerSku).isEqualTo(trigger.id)
+        assertThat(row.triggerBarcode).isEqualTo(trigger.barcodes.last())
+        assertThat(row.recommendSku).isEqualTo(recommended.id)
+        assertThat(row.balance?.pharmacyAvailableQty).isEqualByComparingTo("4")
+    }
+
+    @Test
+    fun `external offer is suppressed when its alternate barcode is already in the basket`() {
+        recommended.barcodes = listOf("4600000000216")
+        every { merch.recommendationContext(any()) } returns context(BigDecimal.ONE)
+        val request = request().copy(cart = request().cart + CartItemDto(barcode = recommended.barcodes.single()))
+
+        assertThat(service.recommend(request).recommendations).isEmpty()
+        verify(exactly = 0) { events.save(any()) }
+    }
+
+    @Test
+    fun `global trigger alias collision cannot be rescued by the matching local SKU`() {
+        trigger.barcodes = listOf("4600000000117")
+        trigger.ipartId = "SN20"
+        catalog += ProductEntity(id = "p_unrelated", name = "Другой препарат", barcode = trigger.barcodes.single())
+        val candidate = candidate(recommended, "crosssell").copy(
+            triggerBarcode = trigger.barcodes.single(), triggerIpartId = trigger.ipartId,
+        )
+        every { merch.recommendationContext(any()) } returns MerchRecommendationContextEnvelope(recommendations = listOf(candidate))
+        val request = request().copy(cart = listOf(CartItemDto(barcode = trigger.barcodes.single(), sku = trigger.ipartId)))
+
+        assertThat(service.recommend(request).recommendations).isEmpty()
+        verify(exactly = 0) { events.save(any()) }
+    }
+
+    @Test
+    fun `ambiguous offered alias is rejected even when the supplied product ID is valid`() {
+        recommended.barcodes = listOf("4600000000216")
+        catalog += ProductEntity(id = "p_other_dose", name = "Другая дозировка", barcode = recommended.barcodes.single())
+        every { merch.recommendationContext(any()) } returns MerchRecommendationContextEnvelope(
+            recommendations = listOf(candidate(recommended, "crosssell").copy(recommendBarcode = recommended.barcodes.single())),
+        )
+
+        assertThat(service.recommend(request()).recommendations).isEmpty()
+        verify(exactly = 0) { events.save(any()) }
+    }
+
+    @Test
+    fun `an external local SKU trigger cannot override the known barcode of a different medicine`() {
+        trigger.ipartId = "SN20"
+        val other = product("p_other_dose").also { it.barcode = "4600000000315" }
+        every { merch.recommendationContext(any()) } returns MerchRecommendationContextEnvelope(
+            recommendations = listOf(candidate(recommended, "crosssell").copy(
+                triggerBarcode = null, triggerIpartId = trigger.ipartId,
+            )),
+        )
+        val request = request().copy(cart = listOf(CartItemDto(barcode = other.barcode, sku = trigger.ipartId)))
+
+        assertThat(service.recommend(request).recommendations).isEmpty()
+        verify(exactly = 0) { events.save(any()) }
+    }
+
+    @Test
+    fun `zero stock under an alternate alias suppresses a local offer only while its ownership is unique`() {
+        recommended.barcodes = listOf("4600000000216")
+        val local = localMatch()
+        every { rulesEngine.match(any(), any()) } returns RuleMatchResult(listOf(local), emptyList())
+        val base = context(BigDecimal.ZERO)
+        every { merch.recommendationContext(any()) } returns base.copy(
+            recommendations = emptyList(),
+            balances = listOf(base.balances.single().copy(barcode = recommended.barcodes.single())),
+        )
+        assertThat(service.recommend(request()).recommendations).isEmpty()
+        catalog += ProductEntity(id = "p_other_dose", name = "Другая дозировка", barcode = recommended.barcodes.single())
+
+        val response = service.recommend(request())
+
+        assertThat(response.recommendations.single().ruleId).isEqualTo(local.rule.id)
+        assertThat(response.recommendations.single().balance).isNull()
+        assertThat(response.conflicts).isEmpty()
+    }
+
+    @Test
+    fun `alternate trigger barcode cannot hide an external contradiction with a local pair`() {
+        trigger.barcodes = listOf("4600000000117")
+        val local = localMatch(kind = RuleType.substitution).copy(triggerBarcode = trigger.barcodes.single())
+        every { rulesEngine.match(any(), any()) } returns RuleMatchResult(listOf(local), emptyList())
+        every { merch.recommendationContext(any()) } returns MerchRecommendationContextEnvelope(
+            recommendations = listOf(candidate(recommended, "crosssell")),
+        )
+
+        val response = service.recommend(request().copy(cart = listOf(CartItemDto(barcode = trigger.barcodes.single()))))
+
+        assertThat(response.recommendations.single().ruleId).isEqualTo(local.rule.id)
+        assertThat(response.conflicts.single().kind).isEqualTo("contradiction")
     }
 
     private fun product(id: String): ProductEntity = ProductEntity(id = id, name = id, price = 100).also(catalog::add)

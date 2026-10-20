@@ -14,6 +14,7 @@ import { useT } from '@/i18n'
 import { describeError } from '@/lib/describeError'
 import type { StorefrontProductDto } from '@/lib/api-types'
 import { PROMO_RULE_LIMITS } from './promoRulesValidation'
+import { collectProductBarcodes } from '@/lib/productBarcodes'
 
 const PAGE = 50
 
@@ -26,6 +27,7 @@ export interface SelectedProduct {
   price: number | null
   /** EAN-13 из Medusa (variant.barcode) — ключ матчинга на кассе. null — нет штрих-кода. */
   barcode: string | null
+  barcodes?: string[]
   /** iPartID Стандарт-Н — ручной ключ матчинга, если известен. */
   ipartId?: string | null
 }
@@ -70,8 +72,8 @@ function ProductSearchList({
 
   // Накапливаем страницы в один список (page=0 заменяет, >0 — добавляет). Храним
   // по q, чтобы смена запроса начинала с чистого листа. Обновляем acc только когда
-  // реально пришли НОВЫЕ id (или сменился запрос) — иначе бесконечный ре-рендер,
-  // т.к. useStorefront может возвращать новый объект data на каждый рендер.
+  // изменилось содержимое (или запрос), не только id: fresh source может добавить
+  // штрихкоды к тем же товарам из старого кэша. Равные данные не вызывают ре-рендер.
   // total держим в acc, чтобы строка «показано X из Y» не мигала, пока data пустой
   // во время загрузки следующей страницы (placeholderData убран — см. storefront.ts).
   // lastOffset — offset последней УЧТЁННОЙ страницы. Нужен, чтобы отличить «ре-ран
@@ -81,18 +83,18 @@ function ProductSearchList({
   // вечной мёртвой кнопкой).
   const [acc, setAcc] = useState<{
     q: string
-    ids: string
+    signature: string
     items: StorefrontProductDto[]
     total: number
     lastOffset: number
-  }>({ q: '', ids: '', items: [], total: 0, lastOffset: -1 })
+  }>({ q: '', signature: '', items: [], total: 0, lastOffset: -1 })
   useEffect(() => {
     if (!data || !ready) return
     const fresh = data.items
     if (page === 0 || acc.q !== q) {
-      const ids = fresh.map((i) => i.id).join(',')
-      if (acc.q === q && acc.ids === ids) return // ничего не изменилось — не дёргаем state
-      setAcc({ q, ids, items: fresh, total: data.total, lastOffset: data.offset })
+      const signature = JSON.stringify(fresh)
+      if (acc.q === q && acc.signature === signature && acc.total === data.total) return
+      setAcc({ q, signature, items: fresh, total: data.total, lastOffset: data.offset })
       return
     }
     // page > 0: дозагрузка. Эту же страницу уже учли (ре-ран эффекта на тех же
@@ -110,7 +112,7 @@ function ProductSearchList({
     const items = [...acc.items, ...added]
     setAcc({
       q,
-      ids: items.map((i) => i.id).join(','),
+      signature: JSON.stringify(items),
       items,
       total: data.total,
       lastOffset: data.offset,
@@ -152,7 +154,8 @@ function ProductSearchList({
         ) : (
           items.map((p) => {
             const selected = selectedIds.has(p.id)
-            const hasBarcode = Boolean(p.barcode?.trim()) && (p.barcode?.length ?? 0) <= PROMO_RULE_LIMITS.barcode
+            const barcodes = collectProductBarcodes(p)
+            const hasBarcode = barcodes.length > 0
             const hasIpartId = Boolean(p.ipartId?.trim()) && (p.ipartId?.length ?? 0) <= PROMO_RULE_LIMITS.ipartId
             const unavailable = requireScanIdentity && !hasBarcode && !hasIpartId
             return (
@@ -170,14 +173,7 @@ function ProductSearchList({
                   {p.brand && (
                     <div className="truncate text-[11px] font-semibold text-ink-500">{p.brand}</div>
                   )}
-                  {p.barcode && (
-                    <div
-                      className="num truncate text-[11px] text-ink-400"
-                      data-testid={`pp-barcode-${p.id}`}
-                    >
-                      {p.barcode}
-                    </div>
-                  )}
+                  <ProductBarcodes codes={barcodes} testId={`pp-barcode-${p.id}`} />
                   {unavailable && (
                     <div className="mt-1 text-[11px] text-ink-500">{t('pp.noScanIdentity')}</div>
                   )}
@@ -221,13 +217,15 @@ export function PromoProductPicker({ value, onChange, requireQuery = false, requ
   const [open, setOpen] = useState(value === null)
 
   const pick = (p: StorefrontProductDto) => {
+    const barcodes = collectProductBarcodes(p)
     onChange({
       medusaProductId: p.id,
       productName: p.name,
       productImage: p.imageUrl ?? null,
       brand: p.brand ?? '',
       price: p.price ?? null,
-      barcode: p.barcode ?? null,
+      barcode: barcodes[0] ?? null,
+      barcodes,
       ipartId: p.ipartId ?? null,
     })
     setOpen(false)
@@ -244,9 +242,7 @@ export function PromoProductPicker({ value, onChange, requireQuery = false, requ
           {value.brand && (
             <div className="truncate text-[12px] font-bold text-ink-500">{value.brand}</div>
           )}
-          {value.barcode && (
-            <div className="num truncate text-[11px] text-ink-400">{value.barcode}</div>
-          )}
+          <ProductBarcodes codes={collectProductBarcodes(value)} />
           {value.ipartId && (
             <div className="num truncate text-[11px] text-ink-400">iPartID: {value.ipartId}</div>
           )}
@@ -283,11 +279,23 @@ export interface MultiProductPickerProps {
   selectedIds: string[]
   /** клик по товару в выдаче (toggle делает родитель). */
   onPick: (p: StorefrontProductDto) => void
+  requireScanIdentity?: boolean
 }
 
-export function MultiProductPicker({ selectedIds, onPick }: MultiProductPickerProps) {
+export function MultiProductPicker({ selectedIds, onPick, requireScanIdentity = false }: MultiProductPickerProps) {
   const ids = useMemo(() => new Set(selectedIds), [selectedIds])
-  return <ProductSearchList selectedIds={ids} onPick={onPick} />
+  return <ProductSearchList selectedIds={ids} onPick={onPick} requireScanIdentity={requireScanIdentity} />
+}
+
+function ProductBarcodes({ codes, testId }: { codes: string[]; testId?: string }) {
+  const t = useT()
+  if (!codes.length) return null
+  return (
+    <div className="num line-clamp-2 break-all text-[11px] text-ink-400" data-testid={testId} title={codes.join(', ')}>
+      {codes.length > 1 && <span className="font-semibold">{t('pp.barcodesCount', { count: codes.length })} · </span>}
+      {codes.join(', ')}
+    </div>
+  )
 }
 
 function ProductThumb({

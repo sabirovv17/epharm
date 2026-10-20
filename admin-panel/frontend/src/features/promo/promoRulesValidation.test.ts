@@ -41,14 +41,41 @@ describe('promo rules validation contract', () => {
         { medusaProductId: 'product-1', name: 'Товар' },
         { medusaProductId: '', name: 'Группа', triggerKind: 'acc_group', triggerValue: 'scope-1', triggerLabel: 'Группа', active: false },
         { medusaProductId: '', name: 'Подгруппа', triggerKind: 'acc_subgroup', triggerValue: 'scope-1', triggerLabel: 'Подгруппа', active: false },
+        { medusaProductId: '', name: 'МНН', triggerKind: 'acc_mnn', triggerValue: 'scope-1', triggerLabel: 'МНН', active: false },
       ],
     }))
 
-    expect(normalized.replacements).toHaveLength(3)
+    expect(normalized.replacements).toHaveLength(4)
     expect(normalized.replacements[0]).not.toHaveProperty('triggerKind')
     expect(normalized.replacements[1]).toMatchObject({ medusaProductId: '', triggerKind: 'acc_group', triggerValue: 'scope-1', active: false })
     expect(normalized.replacements[2]).toMatchObject({ medusaProductId: '', triggerKind: 'acc_subgroup', triggerValue: 'scope-1', active: false })
+    expect(normalized.replacements[3]).toMatchObject({ medusaProductId: '', triggerKind: 'acc_mnn', triggerValue: 'scope-1', active: false })
     expect(validatePromoRulesConfig(normalized, messages)).toEqual({})
+  })
+
+  it('round-trips every exact trigger and offer code without losing independent rewards', () => {
+    const input = config({ replacements: [{
+      medusaProductId: 'trigger', name: 'Триггер', barcode: '_0012345678905_4601164003157_4870000000002_',
+      barcodes: ['4601164003157', 'LOCAL-01'], bonus: 0,
+      additionalRecommendations: [{
+        medusaProductId: 'offer', name: 'Вариант', barcodes: ['00012345', '4870000000003'], bonus: 500,
+      }],
+    }] })
+    const normalized = normalizePromoRulesConfig(input)
+    expect(normalized.replacements[0]).toMatchObject({
+      barcode: '0012345678905', barcodes: ['0012345678905', '4601164003157', '4870000000002', 'LOCAL-01'], bonus: 0,
+      additionalRecommendations: [{ barcode: '00012345', barcodes: ['00012345', '4870000000003'], bonus: 500 }],
+    })
+    expect(normalizePromoRulesConfig(normalized)).toEqual(normalized)
+    expect(validatePromoRulesConfig(normalized, messages)).toEqual({})
+  })
+
+  it('does not truncate an overlong manually editable primary barcode into another identity', () => {
+    const normalized = normalizePromoRulesConfig(config({
+      replacements: [{ medusaProductId: 'trigger', name: 'Триггер', barcode: '9'.repeat(33) }],
+    }))
+    expect(normalized.replacements[0].barcode).toHaveLength(33)
+    expect(validatePromoRulesConfig(normalized, messages)['replacements[0].barcode']).toBe('max:32')
   })
 
   it('rejects a broad scope without a stable taxonomy key', () => {

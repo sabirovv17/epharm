@@ -22,6 +22,8 @@ data class MobileCatalogProductDto(
     val priceMin: Int? = null,        // retail fallback по аптекам: минимум
     val priceMax: Int? = null,        // retail fallback по аптекам: максимум
     val pharmacyPriceCount: Int? = null,
+    val barcodes: List<String> = emptyList(),
+    val ipartId: String? = null,
 )
 
 data class MobileCatalogPageDto(
@@ -80,6 +82,8 @@ data class MobileCatalogDetailDto(
      * отдаётся ТОЛЬКО авторизованному фармацевту (includeIncentive); аноним → null.
      */
     val bonus: Int? = null,
+    val barcodes: List<String> = emptyList(),
+    val ipartId: String? = null,
 )
 
 data class MobileCategoryDto(

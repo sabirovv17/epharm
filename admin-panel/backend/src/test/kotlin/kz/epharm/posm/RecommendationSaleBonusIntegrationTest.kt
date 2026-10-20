@@ -168,6 +168,55 @@ class RecommendationSaleBonusIntegrationTest {
     }
 
     @Test
+    fun `two confirmed aliases in one printed receipt reserve one product bonus without direct money`() {
+        val aliases = listOf("4870000000011", "4870000000012")
+        val product = products.findById("p_offer").orElseThrow()
+        product.barcodes = aliases
+        products.saveAndFlush(product)
+        val event = event()
+        shown(event)
+        val request = PosSaleRequest(
+            saleId = "sale_aliases", pharmacistId = "u_money", pharmacyId = "ph_money", sessionId = "session_money",
+            fiscalId = "fiscal_aliases", captureSource = "standardn-print-log", totalAmount = 2000,
+            items = aliases.map { PosSaleItemDto(barcode = it, qty = 1.0, price = 1000, total = 1000) },
+            printedAt = soldAt,
+        )
+        repeat(2) {
+            mvc.perform(post("/api/posm/sales").header("X-Posm-Key", POSM_KEY).contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(request))).andExpect(status().isOk)
+            shown(event)
+        }
+
+        val bonus = pending.findAll().single()
+        assertEquals("p_offer", bonus.sku)
+        assertEquals("sale_aliases", bonus.sourceSaleId)
+        assertEquals(250L, bonus.bonus)
+        val receipt = receipts.findFirstByPendingBonusId(bonus.id)!!
+        assertEquals(2000L, receipt.parsedAmount)
+        assertEquals(ReceiptStatus.moderation_required, receipt.status)
+        assertEquals(1L, receipts.count())
+        assertEquals(RecommendationOutcome.shown, events.findById(event.id).orElseThrow().outcome)
+        assertEquals(0L, pharmacists.findById("u_money").orElseThrow().balance)
+    }
+
+    @Test
+    fun `colliding secondary alias never reserves money through a matching name or local SKU`() {
+        val alias = "4870000000011"
+        products.findById("p_offer").orElseThrow().also {
+            it.barcodes = listOf(alias)
+            products.saveAndFlush(it)
+        }
+        products.saveAndFlush(ProductEntity(id = "p_other_dose", name = "Товар 40 мг таблетки", barcode = alias))
+        val event = event()
+        shown(event)
+        sale(item = PosSaleItemDto(sku = "SN-123", barcode = alias, name = "Товар 20 мг капсулы №30", qty = 1.0, price = 1000, total = 1000))
+
+        assertEquals(0L, pending.count())
+        assertEquals(0L, receipts.count())
+        assertEquals(0L, pharmacists.findById("u_money").orElseThrow().balance)
+    }
+
+    @Test
     fun `two ACC trigger events offering same SKU reserve only one receipt bonus`() {
         val older = event("rec_group", at = soldAt.minusSeconds(100), trigger = "acc_first")
         val newer = event("rec_subgroup", at = soldAt.minusSeconds(90), trigger = "acc_second")

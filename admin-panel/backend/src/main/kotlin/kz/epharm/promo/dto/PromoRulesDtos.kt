@@ -4,6 +4,7 @@ import jakarta.validation.Valid
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
+import kz.epharm.shared.validation.BarcodeNormalizer
 
 /**
  * DTO для авторинга правил замены/кросс-селла ИЗ кампании (T2).
@@ -54,6 +55,8 @@ data class PromoOfferProductRefDto(
     /** Бонус за продажу именно этого варианта: 0 = без бонуса, null = legacy-дефолт кампании. */
     @field:Min(0)
     val bonus: Int? = null,
+    @field:Size(max = BarcodeNormalizer.MAX_CODES)
+    val barcodes: List<String> = emptyList(),
 )
 
 /**
@@ -111,6 +114,8 @@ data class PromoRuleProductRefDto(
      * Правило встанет active только если И кампания active, И пара active.
      */
     val active: Boolean = true,
+    @field:Size(max = BarcodeNormalizer.MAX_CODES)
+    val barcodes: List<String> = emptyList(),
 )
 
 /**

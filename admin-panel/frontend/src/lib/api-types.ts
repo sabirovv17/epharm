@@ -418,6 +418,7 @@ export interface PromoDto {
   productImage: string | null
   /** EAN-13 продвигаемого товара (из Medusa variant.barcode) — ключ матчинга на кассе. */
   barcode: string | null
+  barcodes?: string[]
   /** iPartID продвигаемого товара в кассе Стандарт-Н — ручной ключ матчинга. */
   ipartId: string | null
   /** Ручной override фото товара (поверх PIM/Medusa). null — берётся productImage. */
@@ -457,6 +458,7 @@ export interface CreatePromoRequest {
   productImage?: string | null
   /** EAN-13 продвигаемого товара (из Medusa) — ключ матчинга на кассе. */
   barcode?: string | null
+  barcodes?: string[]
   /** iPartID продвигаемого товара в кассе Стандарт-Н — ручной ключ матчинга. */
   ipartId?: string | null
   overrideImage?: string | null
@@ -480,6 +482,7 @@ export interface UpdatePromoRequest {
   productImage?: string | null
   /** EAN-13 продвигаемого товара (из Medusa) — ключ матчинга на кассе. */
   barcode?: string | null
+  barcodes?: string[]
   /** iPartID продвигаемого товара в кассе Стандарт-Н — ручной ключ матчинга. */
   ipartId?: string | null
   overrideImage?: string | null
@@ -504,6 +507,7 @@ export interface PromoOfferProductRef {
   volume?: string | null
   price?: number | null
   barcode?: string | null
+  barcodes?: string[]
   ipartId?: string | null
 }
 
@@ -524,6 +528,7 @@ export interface PromoRuleProductRef {
   price?: number | null
   /** EAN-13 (из Medusa variant.barcode) — ключ матчинга этой пары на кассе. */
   barcode?: string | null
+  barcodes?: string[]
   /** iPartID Стандарт-Н — ручной ключ матчинга этой пары на кассе. */
   ipartId?: string | null
   // ── Поля, которые видны в блоке рекомендации на кассе (per-pair) ──────────
@@ -1115,6 +1120,7 @@ export interface StorefrontProductDto {
   currency: string
   imageUrl: string | null
   barcode: string | null
+  barcodes?: string[]
   ipartId?: string | null
   category: string | null
   priceMin?: number | null
@@ -1135,6 +1141,7 @@ export interface StorefrontProductDetailDto {
   imageUrl: string | null
   images: string[]
   barcode: string | null
+  barcodes?: string[]
   ipartId?: string | null
   category: string | null
   country: string | null

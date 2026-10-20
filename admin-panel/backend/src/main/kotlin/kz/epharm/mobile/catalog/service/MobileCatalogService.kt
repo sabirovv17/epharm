@@ -23,7 +23,7 @@ import kz.epharm.rules.entity.RuleType
 import kz.epharm.rules.repository.RuleRepository
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
-import kz.epharm.shared.validation.BarcodeNormalizer
+import kz.epharm.medusa.dto.scanBarcodes
 import kz.epharm.storefront.client.StorefrontCatalogClient
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
@@ -445,6 +445,8 @@ class MobileCatalogService(
         currency = currencyOf(p),
         imageUrl = imageOf(p),
         barcode = barcodeOf(p),
+        barcodes = p.scanBarcodes(),
+        ipartId = explicitIpartId(p),
         category = categoryOf(p),
         categories = categoriesOf(p),
     )
@@ -461,6 +463,8 @@ class MobileCatalogService(
         imageUrl = imageOf(p),
         images = siteImages(p),
         barcode = barcodeOf(p),
+        barcodes = p.scanBarcodes(),
+        ipartId = explicitIpartId(p),
         category = categoryOf(p),
         country = metaStr(p, "country_official") ?: metaStr(p, "country"),
         manufacturer = metaStr(p, "manufacturer_official") ?: metaStr(p, "manufacturer"),
@@ -534,9 +538,10 @@ class MobileCatalogService(
     private fun currencyOf(p: MedusaProduct): String =
         p.variants.firstNotNullOfOrNull { it.calculatedPrice?.currencyCode }?.uppercase() ?: "KZT"
 
-    private fun barcodeOf(p: MedusaProduct): String? =
-        p.variants.firstNotNullOfOrNull { BarcodeNormalizer.first(it.barcode) }
-            ?: BarcodeNormalizer.first(metaStr(p, "barcode"))
+    private fun barcodeOf(p: MedusaProduct): String? = p.scanBarcodes().firstOrNull()
+
+    private fun explicitIpartId(p: MedusaProduct): String? =
+        (metaStr(p, "ipart_id") ?: metaStr(p, "ipartId") ?: metaStr(p, "iPartID"))?.takeIf { it.length <= 64 }
 
     private fun imageOf(p: MedusaProduct): String? =
         p.thumbnail?.trim()?.takeIf { it.isNotBlank() }

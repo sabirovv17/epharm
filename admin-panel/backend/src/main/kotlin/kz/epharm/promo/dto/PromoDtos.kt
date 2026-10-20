@@ -72,6 +72,7 @@ data class PromoDto(
     val createdBy: String,
     val createdAt: Instant,
     val updatedAt: Instant,
+    val barcodes: List<String> = emptyList(),
 ) {
     companion object {
         fun of(e: PromoEntity, effectivePharmacies: Int = e.pharmacies): PromoDto = PromoDto(
@@ -89,6 +90,7 @@ data class PromoDto(
             productName = e.productName,
             productImage = e.productImage,
             barcode = e.barcode,
+            barcodes = BarcodeNormalizer.all(listOf(e.barcode) + e.barcodes),
             ipartId = e.ipartId,
             overrideImage = e.overrideImage,
             overrideDescription = e.overrideDescription,
@@ -152,6 +154,8 @@ data class CreatePromoRequest(
     /** Optional first recommendation, saved atomically with the campaign draft. */
     @field:jakarta.validation.Valid
     val initialRecommendation: InitialPromoRecommendationDto? = null,
+    @field:Size(max = BarcodeNormalizer.MAX_CODES)
+    val barcodes: List<String> = emptyList(),
 )
 
 /** A single trigger for the first replacement or cross-sell rule of a new campaign. */
@@ -201,4 +205,6 @@ data class UpdatePromoRequest(
     val pharmacistBonus: Long? = null,
     val dateStart: LocalDate? = null,
     val dateEnd: LocalDate? = null,
+    @field:Size(max = BarcodeNormalizer.MAX_CODES)
+    val barcodes: List<String>? = null,
 )

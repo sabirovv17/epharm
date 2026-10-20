@@ -176,6 +176,20 @@ describe('PromoDetailPage — рендер', () => {
 })
 
 describe('PromoDetailPage — редактирование', () => {
+  it.each(['prod_multi', null])('обычное редактирование кампании %s сохраняет все штрихкоды из ответа сервера', async (medusaProductId) => {
+    const mutate = vi.fn()
+    promoHooks.useUpdatePromo.mockReturnValue({ mutate, isPending: false })
+    setPromo(mkPromo({ medusaProductId, barcode: '0012345678905', barcodes: ['0012345678905', '4601164003157'] }))
+    const user = userEvent.setup()
+    renderDetail()
+    expect(screen.getByTestId('detail-barcodes')).toHaveTextContent('Штрихкоды: 2')
+    await user.type(screen.getByDisplayValue('Майский марафон'), ' новая')
+    await user.click(screen.getByRole('button', { name: /^Сохранить$/ }))
+    expect(mutate).toHaveBeenCalledWith({ id: 'pr_1', patch: expect.objectContaining({
+      barcode: '0012345678905', barcodes: ['0012345678905', '4601164003157'],
+    }) }, expect.any(Object))
+  })
+
   it('«Сохранить» disabled пока нет изменений, активна после правки', async () => {
     const user = userEvent.setup()
     renderDetail()
