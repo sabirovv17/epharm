@@ -10,6 +10,9 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import kz.epharm.merchtasks.dto.MerchTaskShownRequest
+import kz.epharm.merchtasks.dto.MerchRecommendationCartItem
+import kz.epharm.merchtasks.dto.MerchRecommendationContextRequest
+import kz.epharm.merchtasks.dto.MerchRecommendationProductRef
 import kz.epharm.merchtasks.service.MerchTaskClient
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
@@ -91,6 +94,111 @@ class MerchTaskClientTest {
             "\"deviceId\":\"POS-02\"",
             "\"deliveryToken\":\"$deliveryToken\"",
         )
+    }
+
+    @Test
+    fun `recommendation context sends no pharmacist identity and preserves nullable balances`() {
+        val seenBody = AtomicReference<String>()
+        val seenKey = AtomicReference<String>()
+        server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
+            createContext("/") { exchange ->
+                seenKey.set(exchange.requestHeaders.getFirst("X-Pharmapay-Key"))
+                seenBody.set(exchange.requestBody.bufferedReader().readText())
+                val body = """{
+                  "recommendations":[{
+                    "id":"rec-1","kind":"crosssell","triggerBarcode":"4600000000018",
+                    "recommendProductId":"p-2","script":"Предложите вместе","priority":10
+                  }],
+                  "balances":[{
+                    "productId":"p-2","pharmacyAvailableQty":4,"networkAvailableQty":18.5,
+                    "warehouseAvailableQty":120,"observedAt":"2026-10-19T10:30:00Z",
+                    "source":"warehouse","status":"confirmed"
+                  }]
+                }""".toByteArray()
+                exchange.responseHeaders.add("Content-Type", "application/json")
+                exchange.sendResponseHeaders(200, body.size.toLong())
+                exchange.responseBody.use { it.write(body) }
+            }
+            start()
+        }
+
+        val result = client(enabled = true, integrationKey = "server-secret").recommendationContext(
+            MerchRecommendationContextRequest(
+                pharmacyId = "pharmacy-7",
+                cart = listOf(MerchRecommendationCartItem(barcode = "4600000000018", name = "Товар")),
+                requestedProducts = listOf(MerchRecommendationProductRef(productId = "p-2")),
+            ),
+        )
+
+        assertThat(result.recommendations).hasSize(1)
+        assertThat(result.balances.single().pharmacyAvailableQty).isEqualByComparingTo("4")
+        assertThat(result.balances.single().warehouseAvailableQty).isEqualByComparingTo("120")
+        assertThat(seenKey.get()).isEqualTo("server-secret")
+        assertThat(seenBody.get()).contains("\"pharmacyId\":\"pharmacy-7\"")
+        assertThat(seenBody.get()).doesNotContain("pharmacist", "sessionId")
+    }
+
+    @Test
+    fun `HTTP error and malformed recommendation contexts return an empty unavailable fallback`() {
+        val response = AtomicReference(503 to "service unavailable")
+        server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
+            createContext("/") { exchange ->
+                exchange.requestBody.use { it.readBytes() }
+                val (status, text) = response.get()
+                val body = text.toByteArray()
+                exchange.responseHeaders.add("Content-Type", "application/json")
+                exchange.sendResponseHeaders(status, body.size.toLong())
+                exchange.responseBody.use { it.write(body) }
+            }
+            start()
+        }
+        val client = client(enabled = true, integrationKey = "server-secret")
+        for (reply in listOf(
+            503 to "service unavailable",
+            200 to "{malformed",
+            200 to """{"recommendations":[{"id":"invalid","kind":"unknown"}]}""",
+        )) {
+            response.set(reply)
+
+            val context = client.recommendationContext(MerchRecommendationContextRequest("pharmacy-7", emptyList()))
+
+            assertThat(context.available).isFalse()
+            assertThat(context.recommendations).isEmpty()
+            assertThat(context.balances).isEmpty()
+        }
+    }
+
+    @Test
+    fun `recommendation timeout is bounded separately from the longer QR timeout`() {
+        val release = CountDownLatch(1)
+        serverExecutor = Executors.newCachedThreadPool { runnable ->
+            Thread(runnable, "merch-recommend-timeout-test").apply { isDaemon = true }
+        }
+        server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
+            executor = serverExecutor
+            createContext("/") { exchange ->
+                exchange.requestBody.use { it.readBytes() }
+                release.await(5, TimeUnit.SECONDS)
+                runCatching { exchange.sendResponseHeaders(503, -1) }
+                exchange.close()
+            }
+            start()
+        }
+        val client = client(
+            enabled = true, integrationKey = "server-secret", timeoutMs = 5_000, recommendTimeoutMs = 250,
+        )
+        try {
+            val start = System.nanoTime()
+
+            val context = client.recommendationContext(MerchRecommendationContextRequest("pharmacy-7", emptyList()))
+
+            val elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start)
+            assertThat(context.available).isFalse()
+            assertThat(context.recommendations).isEmpty()
+            assertThat(elapsedMs).isLessThan(2_500)
+        } finally {
+            release.countDown()
+        }
     }
 
     @Test
@@ -352,6 +460,7 @@ class MerchTaskClientTest {
         publicStaffUrl: String = "",
         maxConcurrent: Int = 16,
         timeoutMs: Int = 1_000,
+        recommendTimeoutMs: Int = 900,
     ): MerchTaskClient {
         val port = requireNotNull(server).address.port
         return MerchTaskClient(
@@ -364,6 +473,7 @@ class MerchTaskClientTest {
             meterRegistry = SimpleMeterRegistry(),
             publicStaffUrl = publicStaffUrl,
             maxConcurrent = maxConcurrent,
+            recommendTimeoutMs = recommendTimeoutMs,
         )
     }
 

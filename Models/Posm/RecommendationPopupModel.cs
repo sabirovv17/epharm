@@ -36,6 +36,8 @@ namespace CustomerDisplay.Models.Posm
         public string Bonus { get; init; } = "Без вознаграждения";
         public bool HasBonus { get; init; }
         public string PartnerLabel { get; init; } = "";
+        public string Stock { get; init; } = "Остаток не подтверждён";
+        public bool HasConfirmedStock { get; init; }
     }
 
     public static class RecommendationPopupModelBuilder
@@ -82,6 +84,9 @@ namespace CustomerDisplay.Models.Posm
                     : "Без вознаграждения",
                 HasBonus = recommendation.Bonus > 0,
                 PartnerLabel = recommendation.PartnerLabel?.Trim() ?? "",
+                Stock = StockText(recommendation.Balance),
+                HasConfirmedStock = recommendation.Balance != null &&
+                    (recommendation.Balance.Status == "confirmed" || recommendation.Balance.Status == "estimated"),
             }).ToList();
 
             return new RecommendationPopupSection { TriggerText = sharedTrigger, Rows = rows };
@@ -101,6 +106,27 @@ namespace CustomerDisplay.Models.Posm
             if (!value.HasValue) return "—";
             return value.Value.ToString("#,0", CultureInfo.InvariantCulture).Replace(",", " ") + " ₸";
         }
+
+        public static string StockText(ProductBalance? balance)
+        {
+            if (balance == null) return "Остаток не подтверждён";
+            var parts = new List<string>();
+            if (balance.PharmacyAvailableQty.HasValue)
+                parts.Add($"аптека {Qty(balance.PharmacyAvailableQty.Value)}");
+            if (balance.NetworkAvailableQty.HasValue)
+                parts.Add($"сеть {Qty(balance.NetworkAvailableQty.Value)}");
+            if (balance.WarehouseAvailableQty.HasValue)
+                parts.Add($"склад {Qty(balance.WarehouseAvailableQty.Value)}");
+            if (parts.Count == 0) return "Остаток не подтверждён";
+            var prefix = balance.Status == "stale" ? "Остаток устарел" : "Остаток";
+            var observed = balance.ObservedAt.HasValue
+                ? $" · {balance.ObservedAt.Value.ToLocalTime():dd.MM HH:mm}"
+                : "";
+            return $"{prefix}: {string.Join(" · ", parts)}{observed}";
+        }
+
+        private static string Qty(decimal value) =>
+            value.ToString("0.###", CultureInfo.InvariantCulture);
 
         private static string JoinDot(params string?[] values) =>
             string.Join(" · ", values.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value!.Trim()));

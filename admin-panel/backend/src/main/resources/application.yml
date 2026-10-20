@@ -88,6 +88,8 @@ app:
     base-url: ${MERCH_TASKS_BASE_URL:}
     integration-key: ${MERCH_TASKS_INTEGRATION_KEY:}
     timeout-ms: ${MERCH_TASKS_TIMEOUT_MS:7000}
+    # Scan-time recommendation feed; deliberately shorter than QR task polling.
+    recommend-timeout-ms: ${MERCH_RECOMMENDATIONS_TIMEOUT_MS:900}
     max-concurrent: ${MERCH_TASKS_MAX_CONCURRENT:16}
     # Exact HTTPS page used by QR links from the merchandising service.
     public-staff-url: ${MERCH_TASKS_STAFF_URL:}

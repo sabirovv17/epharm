@@ -38,6 +38,18 @@ namespace CustomerDisplay.Models.Posm
         public bool RecommendHighlight { get; set; }       // выделить зелёным (преимущество)
     }
 
+    /// <summary>Authoritative stock snapshot; null quantities mean “not supplied”, never zero.</summary>
+    public sealed class ProductBalance
+    {
+        public decimal? PharmacyAvailableQty { get; set; }
+        public decimal? NetworkAvailableQty { get; set; }
+        public decimal? WarehouseAvailableQty { get; set; }
+        public decimal? ReservedQty { get; set; }
+        public DateTimeOffset? ObservedAt { get; set; }
+        public string? Source { get; set; }
+        public string Status { get; set; } = "unknown";
+    }
+
     /// <summary>
     /// Одна рекомендация для popup фармацевта. Зеркалит backend RecommendResponse — ВСЕ поля
     /// карточки задаются в админке (Rules Engine) и пуллятся сюда, без расхождений. Опциональные
@@ -77,6 +89,9 @@ namespace CustomerDisplay.Models.Posm
         public int Bonus { get; set; }                     // «+520 ₸ вам»
         public string? GoalText { get; set; }              // «цель «7/10 замен Аквамарис в мае»»
         public int? GoalBonus { get; set; }                // «+2 000 ₸ за выполнение цели»
+
+        public string Source { get; set; } = "epharm";    // epharm | merchandising
+        public ProductBalance? Balance { get; set; }
 
         public bool IsSubstitution => Kind == "substitution";
     }
