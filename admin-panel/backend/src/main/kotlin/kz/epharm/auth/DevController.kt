@@ -33,7 +33,7 @@ import org.springframework.web.bind.annotation.RestController
  */
 @RestController
 @RequestMapping("/api/admin/dev")
-@Profile("dev")
+@Profile("dev & !prod")
 class DevController(
     private val seeder: DevDataSeeder,
     private val adminUserRepository: AdminUserRepository,

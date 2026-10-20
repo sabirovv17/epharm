@@ -60,6 +60,7 @@ import org.springframework.boot.ApplicationRunner
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Profile
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.security.crypto.password.PasswordEncoder
 import java.math.BigDecimal
 import java.time.Instant
@@ -73,8 +74,8 @@ import java.util.UUID
  * Источник фикстур — admin-panel/references/data.jsx (canonical UX-spec).
  */
 @Configuration
-@Profile("dev")
-class DevDataSeeder {
+@Profile("dev & !prod")
+class DevDataSeeder(private val jdbc: JdbcTemplate) {
 
     private val log = LoggerFactory.getLogger(DevDataSeeder::class.java)
 
@@ -148,6 +149,12 @@ class DevDataSeeder {
         receiptRepository: ReceiptRepository,
         bannerRepository: BannerRepository,
     ) {
+        // Disposable dev fixtures only. DELETE is intentionally forbidden by the monetary
+        // append-only triggers; truncate the complete, explicit FK set in this transaction.
+        // Never weaken the production ledger or use CASCADE to erase unrelated domains.
+        jdbc.execute("""TRUNCATE TABLE merch_reward_events, merch_executor_grants,
+            merch_executor_bindings, merch_executor_otp_challenges,
+            pharmacist_wallet_entries, pharmacist_wallet_checkpoints""")
         // 1. Очистка в FK-безопасном порядке (зависимые сначала).
         receiptRepository.deleteAll() // FK → pending_bonuses
         pendingBonusRepository.deleteAll()
