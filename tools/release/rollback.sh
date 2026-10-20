@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Application rollback only. Flyway migrations are forward-only and must remain
-# backward-compatible for at least one release.
+# backward-compatible; protected financial schemas additionally require a capable target.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -12,18 +12,27 @@ target="${1:-}"
 assert_release_id "$target"
 target_commit="$(release_commit_for_tag "$target")"
 ensure_release_images "$target"
+verify_financial_transition "$(docker image inspect --format '{{.Id}}' "epharm/backend:$target")"
 
 current_id="$(read_release_env_value "$RELEASE_ROOT/.release.env" RELEASE_ID || true)"
 current_commit="$(read_release_env_value "$RELEASE_ROOT/.release.env" RELEASE_COMMIT || true)"
 [[ "$current_id" != "$target" ]] || { echo "ERROR: $target is already active" >&2; exit 1; }
 
 "$RELEASE_ROOT/tools/backup-all.sh"
+verify_financial_transition "$(docker image inspect --format '{{.Id}}' "epharm/backend:$target")"
 write_release_env "$target" "$target_commit"
 restore_current_on_error() {
+  local status=$?
+  trap - ERR
   if [[ -n "$current_id" && -n "$current_commit" ]]; then
-    write_release_env "$current_id" "$current_commit"
-    compose_prod up -d --no-build backend frontend caddy || true
+    if verify_financial_transition "$(docker image inspect --format '{{.Id}}' "epharm/backend:$current_id")"; then
+      write_release_env "$current_id" "$current_commit"
+      compose_prod up -d --no-build backend frontend caddy || true
+    else
+      echo 'CRITICAL: unsafe financial restoration denied; keep current pins and use a reviewed wallet-capable forward image' >&2
+    fi
   fi
+  exit "$status"
 }
 trap restore_current_on_error ERR
 

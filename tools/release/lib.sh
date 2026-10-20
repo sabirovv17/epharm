@@ -63,6 +63,11 @@ verify_release_source() {
   python3 "$RELEASE_SCRIPT_DIR/verify-release-source.py" "$1"
 }
 
+# Recheck immediately before every switch/restoration: a candidate may already have migrated the DB.
+verify_financial_transition() {
+  python3 "$RELEASE_SCRIPT_DIR/verify-financial-transition.py" --image "$1"
+}
+
 # New candidate releases share this gate. Explicit rollbacks intentionally keep their old env.
 # Keep dotenv exports local: exporting RELEASE_ID here could override the pinned Compose env file.
 verify_production_catalog_source() (

@@ -91,6 +91,7 @@ check_images
 check_running "$candidate_backend_id" "$candidate_frontend_id" || {
   echo 'ERROR: current application is not the saved candidate; rollback denied' >&2; exit 1;
 }
+verify_financial_transition "$previous_backend_id"
 fresh_output="$("$SCRIPT_DIR/prepare-backend-only-backup.sh" "$candidate_backend_tag" "$candidate_frontend_tag" "$backup_root")"
 fresh_backup="${fresh_output#Verified backend-only backup: }"
 [[ "$fresh_backup" == "$backup_root/"* && -d "$fresh_backup" ]] || {
@@ -134,6 +135,10 @@ restore_on_exit() {
   if [[ "$switched" == true ]]; then
     echo 'ERROR: archive rollback failed; restoring the current candidate' >&2
     check_images candidate || restore_ok=false
+    if [[ "$restore_ok" == true ]] && ! verify_financial_transition "$candidate_backend_id"; then
+      restore_ok=false
+      echo 'CRITICAL: unsafe financial candidate restoration denied; keep current pins and use a reviewed wallet-capable forward image' >&2
+    fi
     if [[ "$restore_ok" == true ]]; then
       if mv -f "$forward_ready" "$RELEASE_ROOT/.release.env"; then
         compose_prod up -d --no-build --no-deps --force-recreate backend frontend || restore_ok=false
@@ -154,6 +159,7 @@ trap 'exit 1' INT TERM
 check_images
 check_running "$candidate_backend_id" "$candidate_frontend_id"
 [[ "$(sha256_file "$rollback_ready")" == "$rollback_sha" ]]
+verify_financial_transition "$previous_backend_id"
 switched=true
 mv -f "$rollback_ready" "$RELEASE_ROOT/.release.env"
 compose_prod up -d --no-build --no-deps --force-recreate backend frontend

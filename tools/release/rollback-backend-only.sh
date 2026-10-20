@@ -53,6 +53,7 @@ require_command flock
   echo 'ERROR: running application differs from this transaction' >&2; exit 1;
 }
 frontend_container_id="$(docker inspect --format '{{.Id}}' epharm-frontend)"
+verify_financial_transition "$previous_id"
 fresh_backup_output="$("$SCRIPT_DIR/prepare-backend-only-backup.sh" \
   "$candidate_tag" "$frontend_tag" "$backup_root")"
 fresh_backup_dir="${fresh_backup_output##* }"
@@ -105,21 +106,25 @@ restore_candidate_on_exit() {
   local status=$?
   trap - EXIT
   if [[ "$switched" == true ]]; then
-    local restore_ok=true
-    echo "ERROR: backend rollback failed; restoring candidate $candidate_tag" >&2
-    if mv -f "$forward_ready" "$RELEASE_ROOT/.release.env"; then
-      compose_prod up -d --no-build --no-deps backend || restore_ok=false
+    if verify_financial_transition "$candidate_id"; then
+      local restore_ok=true
+      echo "ERROR: backend rollback failed; restoring candidate $candidate_tag" >&2
+      if mv -f "$forward_ready" "$RELEASE_ROOT/.release.env"; then
+        compose_prod up -d --no-build --no-deps backend || restore_ok=false
+      else
+        restore_ok=false
+      fi
+      if [[ "$(docker inspect --format '{{.Image}}' epharm-backend 2>/dev/null || true)" != "$candidate_id" \
+         || "$(docker inspect --format '{{.Image}}' epharm-frontend 2>/dev/null || true)" != "$frontend_id" \
+         || "$(docker inspect --format '{{.Id}}' epharm-frontend 2>/dev/null || true)" != "$frontend_container_id" ]]; then
+        restore_ok=false
+      fi
+      "$SCRIPT_DIR/smoke.sh" "$candidate_tag" "$frontend_tag" || restore_ok=false
+      if [[ "$restore_ok" != true ]]; then
+        echo "CRITICAL: candidate restoration failed; inspect $transaction_dir immediately" >&2
+      fi
     else
-      restore_ok=false
-    fi
-    if [[ "$(docker inspect --format '{{.Image}}' epharm-backend 2>/dev/null || true)" != "$candidate_id" \
-       || "$(docker inspect --format '{{.Image}}' epharm-frontend 2>/dev/null || true)" != "$frontend_id" \
-       || "$(docker inspect --format '{{.Id}}' epharm-frontend 2>/dev/null || true)" != "$frontend_container_id" ]]; then
-      restore_ok=false
-    fi
-    "$SCRIPT_DIR/smoke.sh" "$candidate_tag" "$frontend_tag" || restore_ok=false
-    if [[ "$restore_ok" != true ]]; then
-      echo "CRITICAL: candidate restoration failed; inspect $transaction_dir immediately" >&2
+      echo 'CRITICAL: unsafe financial candidate restoration denied; keep current pins and use a reviewed wallet-capable forward image' >&2
     fi
   fi
   rm -f -- "$forward_ready" "$rollback_ready"
@@ -128,6 +133,7 @@ restore_candidate_on_exit() {
 trap restore_candidate_on_exit EXIT
 trap 'exit 1' INT TERM
 
+verify_financial_transition "$previous_id"
 switched=true
 mv -f "$rollback_ready" "$RELEASE_ROOT/.release.env"
 compose_prod up -d --no-build --no-deps backend

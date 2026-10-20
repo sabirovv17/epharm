@@ -13,6 +13,7 @@ cp "$source_root/tools/ops/lib.sh" "$test_root/tools/ops/lib.sh"
 cp "$source_root/tools/release/tests/fixtures/fake-merch-artifact.py" "$test_root/tools/release/verify-merch-artifact.py"
 cp "$source_root/tools/release/tests/fixtures/fake-admin-artifact.py" "$test_root/tools/release/verify-admin-artifact.py"
 cp "$source_root/tools/release/tests/fixtures/fake-release-source.py" "$test_root/tools/release/verify-release-source.py"
+cp "$source_root/tools/release/tests/fixtures/fake-financial-transition.py" "$test_root/tools/release/verify-financial-transition.py"
 printf '# reviewed Compose fixture\n' > "$test_root/docker-compose.prod.yml"
 printf '# reviewed Caddy fixture\n' > "$test_root/Caddyfile"
 printf 'JWT_SECRET=fixture-never-log\nMERCH_TASKS_ENABLED=true\nSTANDARDN_DIRECTORY_ENABLED=true\n' > "$test_root/.env.prod"
@@ -327,6 +328,22 @@ grep -Fxq 'FRONTEND_RELEASE_ID=v0.1.23' "$test_root/.release.env"
 [[ "$(cat "$test_root/frontend-image")" == "$old_frontend_id" ]]
 grep -Fxq 'up:v0.1.25/v0.1.25' "$TEST_EVENTS"
 grep -Fxq 'up:v0.1.24/v0.1.23' "$TEST_EVENTS"
+
+# A schema-protected predecessor must never replace a failed candidate, even with a good backup.
+cp "$test_root/backup/release.env" "$test_root/.release.env"
+echo "$old_backend_id" > "$test_root/backend-image"
+echo "$old_frontend_id" > "$test_root/frontend-image"
+: > "$TEST_EVENTS"
+if TEST_FAIL_CANDIDATE_SMOKE=true TEST_FINANCE_DENY_IMAGE="$old_backend_id" \
+  "${deploy[@]}" > "$test_root/unsafe-auto.log" 2>&1; then
+  echo 'Unsafe financial archive rollback was reported as success' >&2; exit 1
+fi
+grep -Fxq 'BACKEND_RELEASE_ID=v0.1.25' "$test_root/.release.env"
+[[ "$(cat "$test_root/backend-image")" == "$candidate_backend_id" ]]
+[[ "$(cat "$test_root/frontend-image")" == "$candidate_frontend_id" ]]
+[[ "$(grep -c '^up:' "$TEST_EVENTS")" -eq 1 ]]
+grep -Fq 'CRITICAL: unsafe financial rollback denied' "$test_root/unsafe-auto.log"
+if grep -Fq 'Rollback verified:' "$test_root/unsafe-auto.log"; then echo 'Claimed an unperformed financial archive rollback' >&2; exit 1; fi
 
 # Even if Compose replaces only the backend before failing, rollback must
 # recreate both known-good images and persist both old pins.

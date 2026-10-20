@@ -11,6 +11,7 @@ mkdir -p "$test_root/tools/release" "$test_root/tools/ops" "$test_root/bin" "$tr
 cp "$source_root/tools/release/"{rollback-archive-two-image.sh,prepare-backend-only-backup.sh,lib.sh} "$test_root/tools/release/"
 cp "$source_root/tools/ops/lib.sh" "$test_root/tools/ops/lib.sh"
 cp "$source_root/tools/release/tests/fixtures/fake-release-source.py" "$test_root/tools/release/verify-release-source.py"
+cp "$source_root/tools/release/tests/fixtures/fake-financial-transition.py" "$test_root/tools/release/verify-financial-transition.py"
 cp "$source_root/tools/release/tests/fixtures/fake-admin-artifact.py" "$test_root/tools/release/verify-admin-artifact.py"
 printf 'POSTGRES_PASSWORD=fixture-never-log\n' > "$test_root/.env.prod"
 printf '# protected Compose\n' > "$test_root/docker-compose.prod.yml"
@@ -131,6 +132,12 @@ assert_current() {
 }
 rollback=("$test_root/tools/release/rollback-archive-two-image.sh" "$transaction_dir" "$test_root/epharm-backend-only-backups")
 reset_candidate
+if TEST_FINANCE_DENY_IMAGE="sha256:$(printf '%064d' 2)" "${rollback[@]}" > "$test_root/unsafe-explicit.log" 2>&1; then
+  echo 'Explicit archive rollback accepted a financially incompatible predecessor' >&2; exit 1
+fi
+assert_current
+[[ ! -s "$test_root/events" ]]
+reset_candidate
 printf '{"epharm-backend":"wrong-image","epharm-frontend":"wrong-image"}' > "$test_root/running.json"
 if "${rollback[@]}" > "$test_root/rejected.log" 2>&1; then echo 'Accepted mismatched current images' >&2; exit 1; fi
 grep -Fq 'not the saved candidate' "$test_root/rejected.log"
@@ -184,4 +191,17 @@ grep -Fxq 'up:v0.1.33/v0.1.34' "$test_root/events"
 cmp -s "$transaction_dir/rollback.release.env" "$test_root/.release.env"
 [[ ! -e "$transaction_dir/rolled-back" ]]
 [[ "$(shasum -a 256 "$test_root/.env.prod")" == "$env_hash" && "$(shasum -a 256 "$test_root/Caddyfile")" == "$caddy_hash" ]]
+reset_candidate
+if TEST_FAIL_ROLLBACK_SMOKE=true TEST_FINANCE_DENY_IMAGE="sha256:$(printf '%064d' 4)" \
+  "${rollback[@]}" > "$test_root/unsafe-restore.log" 2>&1; then
+  echo 'Archive rollback ignored failure before unsafe candidate restoration' >&2; exit 1
+fi
+grep -Fq 'CRITICAL: unsafe financial candidate restoration denied' "$test_root/unsafe-restore.log"
+[[ "$(grep -c '^up:' "$test_root/events")" -eq 1 ]]
+grep -Fxq 'up:v0.1.33/v0.1.34' "$test_root/events"
+cmp -s "$transaction_dir/rollback.release.env" "$test_root/.release.env"
+[[ ! -e "$transaction_dir/rolled-back" ]]
+if grep -Fq 'Rollback verified:' "$test_root/unsafe-restore.log"; then
+  echo 'Archive rollback claimed an unsafe restoration was verified' >&2; exit 1
+fi
 echo 'Explicit archive rollback, protected state, fresh backup and candidate restoration OK'

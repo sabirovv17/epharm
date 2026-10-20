@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Deploys an already-built release. A data backup is mandatory and smoke failure
-# automatically restores the previously running application images.
+# restores previous application images only when the live financial schema allows them.
 set -euo pipefail
 umask 077
 
@@ -17,6 +17,7 @@ verify_production_catalog_source
 ensure_release_images "$release_id"
 verify_merchandising_image "$(docker image inspect --format '{{.Id}}' "epharm/backend:$release_id")"
 verify_admin_image "$(docker image inspect --format '{{.Id}}' "epharm/frontend:$release_id")"
+verify_financial_transition "$(docker image inspect --format '{{.Id}}' "epharm/backend:$release_id")"
 
 previous_id="$(read_release_env_value "$RELEASE_ROOT/.release.env" RELEASE_ID || true)"
 previous_commit="$(read_release_env_value "$RELEASE_ROOT/.release.env" RELEASE_COMMIT || true)"
@@ -24,14 +25,22 @@ previous_commit="$(read_release_env_value "$RELEASE_ROOT/.release.env" RELEASE_C
 
 "$RELEASE_ROOT/tools/backup-all.sh"
 verify_release_source "$commit"
+verify_financial_transition "$(docker image inspect --format '{{.Id}}' "epharm/backend:$release_id")"
 write_release_env "$release_id" "$commit"
 
 rollback_on_error() {
+  local status=$?
+  trap - ERR
   if [[ -n "$previous_id" && -n "$previous_commit" ]]; then
-    echo "Deployment failed; restoring application release $previous_id" >&2
-    write_release_env "$previous_id" "$previous_commit"
-    compose_prod up -d --no-build backend frontend caddy || true
+    if verify_financial_transition "$(docker image inspect --format '{{.Id}}' "epharm/backend:$previous_id")"; then
+      echo "Deployment failed; restoring application release $previous_id" >&2
+      write_release_env "$previous_id" "$previous_commit"
+      compose_prod up -d --no-build backend frontend caddy || true
+    else
+      echo 'CRITICAL: unsafe financial rollback denied; current candidate pins retained; use a reviewed wallet-capable forward image' >&2
+    fi
   fi
+  exit "$status"
 }
 trap rollback_on_error ERR
 
