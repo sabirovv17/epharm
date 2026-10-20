@@ -11,11 +11,14 @@ import 'package:pharmacy/features/promotions/data/promotion_models.dart';
 /// ПЕРЕЗАПРАШИВАТЬ ленту акций из backend (а не показывать закэшированную),
 /// чтобы заведённая в админке акция появлялась без перезапуска приложения.
 
-const _a = Promotion(id: 'pr_a', productId: 'prod_a', name: 'Аквамарис', brand: 'Stada');
-const _b = Promotion(id: 'pr_b', productId: 'prod_b', name: 'Новая акция', brand: 'Inkar');
+const _a = Promotion(
+    id: 'pr_a', productId: 'prod_a', name: 'Аквамарис', brand: 'Stada');
+const _b = Promotion(
+    id: 'pr_b', productId: 'prod_b', name: 'Новая акция', brand: 'Inkar');
 
 void main() {
-  testWidgets('refreshHomeData перезапрашивает ленту акций (видит новую акцию)', (
+  testWidgets('refreshHomeData перезапрашивает ленту акций (видит новую акцию)',
+      (
     tester,
   ) async {
     var calls = 0;
@@ -83,8 +86,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Каталог'));
+    await tester.pumpAndSettle();
 
-    // Лента главной обёрнута в RefreshIndicator → жест «потянуть вниз» доступен.
+    // Каталог обёрнут в RefreshIndicator → жест «потянуть вниз» доступен.
     expect(find.byType(RefreshIndicator), findsOneWidget);
   });
 }

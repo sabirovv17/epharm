@@ -33,6 +33,16 @@ class TrainingProgramEntity(
     var description: String = "",
     @Column(name = "cover_url")
     var coverUrl: String? = null,
+    @Column(name = "certificate_epharm_logo_url", length = 1000)
+    var certificateEpharmLogoUrl: String? = null,
+    @Column(name = "certificate_partner_logo_url", length = 1000)
+    var certificatePartnerLogoUrl: String? = null,
+    @Column(name = "certificate_signer_name", nullable = false)
+    var certificateSignerName: String = "Руководитель учебного центра",
+    @Column(name = "certificate_validity_months", nullable = false)
+    var certificateValidityMonths: Int = 36,
+    @Column(name = "certificate_template", nullable = false, length = 64)
+    var certificateTemplate: String = "modern_ribbon",
     @Column(nullable = false)
     var category: String = "",
     @Column(nullable = false)
@@ -208,6 +218,8 @@ class OfflineEventEntity(
     var comment: String = "",
     @Column(name = "qr_token", nullable = false)
     var qrToken: UUID = UUID.randomUUID(),
+    @Column(name = "check_in_code", nullable = false, length = 6)
+    var checkInCode: String = "000000",
     @Column(name = "created_by", nullable = false)
     var createdBy: UUID = UUID.randomUUID(),
     @Column(name = "created_at", nullable = false)
@@ -309,6 +321,36 @@ class TrainingAssignmentStageEntity(
         get() = TrainingStageStatus.valueOf(statusRaw)
         set(value) { statusRaw = value.name }
 
+    @PreUpdate
+    fun onUpdate() { updatedAt = Instant.now() }
+}
+
+@Entity
+@Table(name = "training_lesson_progress")
+class TrainingLessonProgressEntity(
+    @Id
+    var id: UUID = UUID.randomUUID(),
+    @Column(name = "assignment_id", nullable = false)
+    var assignmentId: UUID = UUID.randomUUID(),
+    @Column(name = "assignment_stage_id", nullable = false)
+    var assignmentStageId: UUID = UUID.randomUUID(),
+    @Column(name = "lesson_id", nullable = false, length = 64)
+    var lessonId: String = "",
+    @Column(name = "progress_pct", nullable = false)
+    var progressPct: Int = 0,
+    @Column(name = "last_position_seconds", nullable = false)
+    var lastPositionSeconds: Int = 0,
+    @Column(name = "quiz_score")
+    var quizScore: Int? = null,
+    @Column(name = "quiz_attempts", nullable = false)
+    var quizAttempts: Int = 0,
+    @Column(name = "started_at", nullable = false)
+    var startedAt: Instant = Instant.now(),
+    @Column(name = "completed_at")
+    var completedAt: Instant? = null,
+    @Column(name = "updated_at", nullable = false)
+    var updatedAt: Instant = Instant.now(),
+) {
     @PreUpdate
     fun onUpdate() { updatedAt = Instant.now() }
 }

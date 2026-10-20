@@ -2,7 +2,7 @@
 # Сборка исполняемого jar внутри образа (не нужен локальный JDK), затем лёгкий JRE-runtime.
 # Контекст сборки: admin-panel/backend (см. docker-compose.prod.yml).
 
-FROM eclipse-temurin:22-jdk AS build
+FROM eclipse-temurin:21-jdk AS build
 ARG RELEASE_ID=dev
 ARG RELEASE_COMMIT=unknown
 WORKDIR /app
@@ -11,9 +11,9 @@ COPY gradlew settings.gradle.kts build.gradle.kts ./
 COPY gradle ./gradle
 # Затем исходники и сборка boot-jar (тесты гоняет CI, здесь -x test для скорости).
 COPY src ./src
-RUN chmod +x gradlew && ./gradlew --no-daemon clean bootJar -x test
+RUN sed -i 's/\r$//' gradlew && chmod +x gradlew && ./gradlew --no-daemon clean bootJar -x test
 
-FROM eclipse-temurin:22-jre AS runtime
+FROM eclipse-temurin:21-jre AS runtime
 ARG RELEASE_ID=dev
 ARG RELEASE_COMMIT=unknown
 LABEL org.opencontainers.image.title="Epharm backend" \

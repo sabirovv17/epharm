@@ -17,7 +17,7 @@ import java.util.UUID
 @Service
 class MobileRefreshTokenService(
     private val repository: MobileRefreshTokenRepository,
-    @Value("\${app.jwt.refresh-ttl-days:30}") private val refreshTtlDays: Long,
+    @Value("\${app.jwt.pharmacist-refresh-ttl-days:365}") private val refreshTtlDays: Long,
 ) {
     val refreshTtl: Duration = Duration.ofDays(refreshTtlDays)
 

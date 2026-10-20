@@ -16,6 +16,7 @@ class MediaProxyControllerTest {
         medusaBaseUrl = "https://medusa.example.kz",
         connectTimeoutMs = 1000,
         readTimeoutMs = 1000,
+        storefrontBaseUrl = "https://www.aptekasosklada.kz",
     )
 
     @Test
@@ -42,6 +43,14 @@ class MediaProxyControllerTest {
     fun `тот же хост но другой порт отвергается`() {
         val ex = assertThrows(AppException::class.java) {
             controller.img("https://medusa.example.kz:9999/static/x.jpg")
+        }
+        assertEquals(HttpStatus.BAD_REQUEST, ex.status)
+    }
+
+    @Test
+    fun `сайт но другой порт отвергается`() {
+        val ex = assertThrows(AppException::class.java) {
+            controller.img("https://www.aptekasosklada.kz:8080/api/media/x.jpg")
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.status)
     }

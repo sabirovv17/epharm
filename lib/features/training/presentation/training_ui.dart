@@ -77,6 +77,34 @@ IconData stageIcon(TrainingStageType type) => switch (type) {
       TrainingStageType.manualReview => Icons.fact_check_outlined,
     };
 
+String lessonKindLabel(String kind) => switch (kind) {
+      'video' => 'Видео',
+      'pdf' => 'PDF',
+      'presentation' => 'Презентация',
+      'image' => 'Изображение',
+      'audio' => 'Аудио',
+      'link' => 'Ссылка',
+      'interactive' => 'Интерактив',
+      'live' => 'Прямой эфир',
+      'quiz' || 'test' => 'Тест',
+      'practice' || 'assignment' => 'Задание',
+      _ => 'Материал',
+    };
+
+IconData lessonKindIcon(String kind) => switch (kind) {
+      'video' => Icons.play_circle_outline_rounded,
+      'pdf' => Icons.picture_as_pdf_outlined,
+      'presentation' => Icons.slideshow_outlined,
+      'image' => Icons.image_outlined,
+      'audio' => Icons.headphones_outlined,
+      'link' => Icons.link_rounded,
+      'interactive' => Icons.touch_app_outlined,
+      'live' => Icons.live_tv_rounded,
+      'quiz' || 'test' => Icons.quiz_outlined,
+      'practice' || 'assignment' => Icons.assignment_outlined,
+      _ => Icons.article_outlined,
+    };
+
 String trainingDate(DateTime? value, {bool withTime = false}) {
   if (value == null) return 'Не указано';
   final day = value.day.toString().padLeft(2, '0');

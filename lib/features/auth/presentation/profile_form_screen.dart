@@ -16,7 +16,9 @@ import '../../../core/widgets/pharma_logo.dart';
 import '../application/auth_controller.dart';
 
 class ProfileFormScreen extends ConsumerStatefulWidget {
-  const ProfileFormScreen({super.key});
+  const ProfileFormScreen({super.key, this.nextPath});
+
+  final String? nextPath;
 
   @override
   ConsumerState<ProfileFormScreen> createState() => _ProfileFormScreenState();
@@ -35,7 +37,12 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
   }
 
   bool get _fioValid =>
-      _fioCtrl.text.trim().split(RegExp(r'\s+')).where((s) => s.isNotEmpty).length >= 2;
+      _fioCtrl.text
+          .trim()
+          .split(RegExp(r'\s+'))
+          .where((s) => s.isNotEmpty)
+          .length >=
+      2;
   // Полная проверка: формат + дата рождения + контрольная сумма (как на бэке @Iin).
   bool get _iinValid => isValidIin(_iinCtrl.text);
   // Показываем ошибку только когда уже ввели 12 цифр, но контроль не сошёлся.
@@ -50,7 +57,7 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
             fio: _fioCtrl.text.trim(),
             iin: _iinCtrl.text,
           );
-      if (mounted) context.go('/home');
+      if (mounted) context.go(widget.nextPath ?? '/home');
     } catch (e) {
       // Сеть/бэкенд недоступны или ИИН отклонён бэком — показываем ошибку.
       if (mounted) showErrorSnackBar(context, e);
@@ -80,126 +87,147 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
                   bottom: -8,
                   child: PharmGlyph(size: 120),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 24, 0),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            onPressed: () => context.go('/auth/otp'),
-                            icon: const Icon(Icons.arrow_back, color: Colors.white),
-                          ),
-                          const SizedBox(width: 4),
-                          const PharmaLogo(size: 48),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.s24),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: AppSpacing.s24),
-                      child: Text(
-                        'Завершите регистрацию',
-                        style: TextStyle(
-                          fontFamily: 'Manrope',
-                          fontSize: 26,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          height: 1.1,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.s24),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.s24,
-                      ),
+                Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 520),
+                    child: SizedBox(
+                      width: double.infinity,
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _Label('Введите ваше ФИО'),
-                          const SizedBox(height: 6),
-                          _WhiteField(
-                            controller: _fioCtrl,
-                            hint: 'Иванов Иван Иванович',
-                            keyboardType: TextInputType.text,
-                            textCapitalization: TextCapitalization.words,
-                            onChanged: (_) => setState(() {}),
-                          ),
-                          const SizedBox(height: 16),
-                          _Label('Введите ИИН'),
-                          const SizedBox(height: 6),
-                          _WhiteField(
-                            controller: _iinCtrl,
-                            hint: '000000 000000',
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                            ],
-                            maxLength: 12,
-                            letterSpacing: 0.18 * 20,
-                            trailing: Text(
-                              '${_iinCtrl.text.length}/12',
-                              style: const TextStyle(
-                                fontFamily: 'Manrope',
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.ink400,
-                              ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 24, 0),
+                            child: Row(
+                              children: [
+                                IconButton(
+                                  tooltip: 'Назад',
+                                  onPressed: () => context.go(
+                                    Uri(
+                                      path: '/auth/otp',
+                                      queryParameters: widget.nextPath == null
+                                          ? null
+                                          : {'next': widget.nextPath!},
+                                    ).toString(),
+                                  ),
+                                  icon: const Icon(Icons.arrow_back,
+                                      color: Colors.white),
+                                ),
+                                const SizedBox(width: 4),
+                                const PharmaLogo(size: 48),
+                              ],
                             ),
-                            onChanged: (_) => setState(() {}),
                           ),
-                          if (_iinError) ...[
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Проверьте ИИН: 12 цифр, корректная дата рождения и контрольная цифра',
+                          const SizedBox(height: AppSpacing.s24),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: AppSpacing.s24),
+                            child: Text(
+                              'Завершите регистрацию',
                               style: TextStyle(
                                 fontFamily: 'Manrope',
-                                fontSize: 12,
+                                fontSize: 26,
                                 fontWeight: FontWeight.w800,
-                                color: Color(0xFFFFD2D2),
-                                height: 1.3,
+                                color: Colors.white,
+                                height: 1.1,
                               ),
                             ),
-                          ],
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.lock_outline,
-                                size: 16,
-                                color: Colors.white.withValues(alpha: 0.85),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Данные защищены и используются только для зачисления выплат',
-                                  style: TextStyle(
-                                    fontFamily: 'Manrope',
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white.withValues(alpha: 0.85),
-                                    height: 1.3,
-                                  ),
+                          ),
+                          const SizedBox(height: AppSpacing.s24),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.s24,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _Label('Введите ваше ФИО'),
+                                const SizedBox(height: 6),
+                                _WhiteField(
+                                  controller: _fioCtrl,
+                                  hint: 'Иванов Иван Иванович',
+                                  keyboardType: TextInputType.text,
+                                  textCapitalization: TextCapitalization.words,
+                                  onChanged: (_) => setState(() {}),
                                 ),
-                              ),
-                            ],
+                                const SizedBox(height: 16),
+                                _Label('Введите ИИН'),
+                                const SizedBox(height: 6),
+                                _WhiteField(
+                                  controller: _iinCtrl,
+                                  hint: '000000 000000',
+                                  keyboardType: TextInputType.number,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly,
+                                  ],
+                                  maxLength: 12,
+                                  letterSpacing: 0.18 * 20,
+                                  trailing: Text(
+                                    '${_iinCtrl.text.length}/12',
+                                    style: const TextStyle(
+                                      fontFamily: 'Manrope',
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.ink400,
+                                    ),
+                                  ),
+                                  onChanged: (_) => setState(() {}),
+                                ),
+                                if (_iinError) ...[
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    'Проверьте ИИН: 12 цифр, корректная дата рождения и контрольная цифра',
+                                    style: TextStyle(
+                                      fontFamily: 'Manrope',
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFFFFD2D2),
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.lock_outline,
+                                      size: 16,
+                                      color:
+                                          Colors.white.withValues(alpha: 0.85),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Данные защищены и используются только для зачисления выплат',
+                                        style: TextStyle(
+                                          fontFamily: 'Manrope',
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.white
+                                              .withValues(alpha: 0.85),
+                                          height: 1.3,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.s24,
+                            ),
+                            child: _MintCta(
+                              label: _busy ? 'Сохраняем…' : 'Продолжить',
+                              onTap: _canSubmit ? _submit : null,
+                            ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 24),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.s24,
-                      ),
-                      child: _MintCta(
-                        label: _busy ? 'Сохраняем…' : 'Продолжить',
-                        onTap: _canSubmit ? _submit : null,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ],
             ),

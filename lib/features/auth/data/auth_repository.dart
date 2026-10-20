@@ -14,12 +14,51 @@ abstract interface class AuthRepository {
   Future<void> requestOtp({required String phone});
 
   /// Подтвердить код. Результат говорит, нужна ли регистрация или вход уже выполнен.
-  Future<AuthVerifyResult> verifyOtp(
-      {required String phone, required String code});
+  Future<AuthVerifyResult> verifyOtp({
+    required String phone,
+    required String code,
+  });
 
   /// Завершить регистрацию нового фармацевта (ФИО + ИИН) → создаётся pending-аккаунт.
-  Future<User> register(
-      {required String phone, required String fio, required String iin});
+  Future<User> register({
+    required String phone,
+    required String fio,
+    required String iin,
+  });
+
+  Future<ActivationStatus> activationStatus({required String iin});
+
+  Future<void> requestActivationOtp({
+    required String iin,
+    required String phone,
+  });
+
+  Future<void> verifyActivationOtp({
+    required String iin,
+    required String phone,
+    required String code,
+  });
+
+  Future<User> setInitialPassword({
+    required String iin,
+    required String phone,
+    required String password,
+  });
+
+  Future<User> loginWithPassword({
+    required String iin,
+    required String password,
+  });
+}
+
+class ActivationStatus {
+  const ActivationStatus({
+    required this.passwordSet,
+    required this.phoneMasked,
+  });
+
+  final bool passwordSet;
+  final String phoneMasked;
 }
 
 /// Итог подтверждения кода.

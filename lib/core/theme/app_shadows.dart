@@ -7,12 +7,12 @@ abstract final class AppShadows {
   /// Раньше свечение было 0.12 — давало резкую границу под блоками.
   static const List<BoxShadow> card = [
     BoxShadow(
-      color: Color(0x0D221C16), // rgba(34,28,22,0.05) — лёгкая «контактная» тень
+      color: Color(0x0D071B26),
       offset: Offset(0, 1),
       blurRadius: 3,
     ),
     BoxShadow(
-      color: Color(0x14221C16), // rgba(34,28,22,0.08) — мягкое нижнее свечение
+      color: Color(0x12071B26),
       offset: Offset(0, 4),
       blurRadius: 16,
     ),
@@ -21,12 +21,12 @@ abstract final class AppShadows {
   /// Bottom sheets, модалки.
   static const List<BoxShadow> elevated = [
     BoxShadow(
-      color: Color(0x0F221C16),
+      color: Color(0x0F071B26),
       offset: Offset(0, 4),
       blurRadius: 8,
     ),
     BoxShadow(
-      color: Color(0x1A221C16), // rgba(34,28,22,0.10)
+      color: Color(0x1A071B26),
       offset: Offset(0, 12),
       blurRadius: 32,
     ),
@@ -37,7 +37,7 @@ abstract final class AppShadows {
   /// а спокойная брендовая подсветка под CTA-кнопками и активными chip'ами.
   static const List<BoxShadow> fab = [
     BoxShadow(
-      color: Color(0x47D97757), // rgba(217,119,87,0.28)
+      color: Color(0x330F766E),
       offset: Offset(0, 10),
       blurRadius: 24,
     ),
@@ -46,7 +46,7 @@ abstract final class AppShadows {
   /// Верхняя кромка bottom-nav.
   static const List<BoxShadow> navTop = [
     BoxShadow(
-      color: Color(0x0D221C16), // rgba(34,28,22,0.05)
+      color: Color(0x0D071B26),
       offset: Offset(0, -2),
       blurRadius: 12,
     ),

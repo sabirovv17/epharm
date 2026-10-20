@@ -13,6 +13,15 @@ const EPHARM_MEDIA_HOST = 'epharm.inkar.kz'
 const EPHARM_MEDIA_PATH = '/s3/epharm-receipts/'
 const SAFE_RELATIVE_ORIGIN = 'https://relative-media.invalid'
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
+// Эти storefront-эндпоинты намеренно отдают
+// `Cross-Origin-Resource-Policy: same-origin`. Поэтому даже корректный HTTPS URL
+// нельзя вставлять напрямую в <img> на epharm.inkar.kz: браузер его блокирует.
+// Для них всегда используем наш SSRF-защищённый backend-прокси.
+const CATALOG_MEDIA_PROXY_HOSTS = new Set([
+  'www.aptekasosklada.kz',
+  'aptekasosklada.kz',
+  'inkeshopapteka.inkar.kz',
+])
 
 /**
  * Restrict values assigned to media URL attributes. Relative URLs stay on the
@@ -44,9 +53,18 @@ export function safeImageSrc(url?: string | null): string | undefined {
 export function proxyMedia(url?: string | null): string {
   const u = url?.trim()
   if (!u) return ''
-  // Только голый http проксируем (именно он ломает mixed content). Бэкенд-прокси
-  // дополнительно ограничивает хост (SSRF-guard) — чужой http вернёт 400 и отвалится.
-  if (u.startsWith('http://')) {
+  // Голый HTTP ломает mixed content. HTTPS-фото каталога тоже проксируем для
+  // известных storefront-хостов: они запрещают cross-origin embedding через CORP.
+  // Бэкенд дополнительно проверяет authority по своему allowlist (SSRF-guard).
+  let needsProxy = u.startsWith('http://')
+  if (!needsProxy && u.startsWith('https://')) {
+    try {
+      needsProxy = CATALOG_MEDIA_PROXY_HOSTS.has(new URL(u).hostname.toLowerCase())
+    } catch {
+      return ''
+    }
+  }
+  if (needsProxy) {
     return safeImageSrc(`${BASE_URL}/api/media/img?u=${encodeURIComponent(u)}`) ?? ''
   }
   return safeImageSrc(u) ?? ''

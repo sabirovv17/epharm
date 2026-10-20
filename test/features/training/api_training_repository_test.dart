@@ -77,6 +77,22 @@ Map<String, dynamic> _assignmentJson({
                 'content': 'Изучите основные понятия.',
                 'kind': 'video',
                 'videoUrl': 'https://epharm.inkar.kz/s3/lesson.mp4',
+                'externalUrl': 'https://epharm.inkar.kz/materials/lesson-1',
+                'required': true,
+                'minimumWatchPct': 80,
+                'progressPct': 60,
+                'lastPositionSeconds': 420,
+                'attachments': <Map<String, dynamic>>[
+                  <String, dynamic>{
+                    'id': 'attachment-1',
+                    'title': 'Памятка',
+                    'fileName': 'memo.pdf',
+                    'contentType': 'application/pdf',
+                    'mediaUrl': 'https://epharm.inkar.kz/s3/memo.pdf',
+                    'sizeBytes': 1024,
+                    'kind': 'document',
+                  },
+                ],
                 'durationMin': 12,
                 'order': 0,
                 'createdAt': '2026-08-01T10:00:00Z',
@@ -163,10 +179,32 @@ void main() {
         TrainingStageType.onlineCourse);
     expect(overview.assignments.single.stages.first.course?.title,
         'Основы категории');
-    expect(overview.assignments.single.stages.first.course?.lessons.single.title,
+    expect(
+        overview.assignments.single.stages.first.course?.lessons.single.title,
         'Введение');
-    expect(overview.assignments.single.stages.first.course?.lessons.single.isVideo,
+    expect(
+        overview.assignments.single.stages.first.course?.lessons.single.isVideo,
         isTrue);
+    expect(
+      overview.assignments.single.stages.first.course?.lessons.single
+          .hasExternalMaterial,
+      isTrue,
+    );
+    expect(
+      overview.assignments.single.stages.first.course?.lessons.single
+          .minimumWatchPct,
+      80,
+    );
+    expect(
+      overview
+          .assignments.single.stages.first.course?.lessons.single.progressPct,
+      60,
+    );
+    expect(
+      overview.assignments.single.stages.first.course?.lessons.single
+          .attachments.single.displayName,
+      'Памятка',
+    );
     expect(overview.upcomingEvents.single.address, 'Ауэзова 134');
     expect(overview.certificates.single.score, 92);
     expect(overview.notifications.single.id, 'notification-1');
@@ -208,6 +246,173 @@ void main() {
       progressPct: 100,
     );
     expect(assignment.status, TrainingAssignmentStatus.waitingTest);
+  });
+
+  test('lesson progress uses the dedicated authenticated endpoint', () async {
+    final repository = _repository(MockClient((request) async {
+      expect(request.method, 'PATCH');
+      expect(
+        request.url.path,
+        '/api/mobile/training/assignments/assignment-1/stages/stage-1/lessons/lesson-1',
+      );
+      expect(request.headers['Authorization'], 'Bearer access');
+      expect(
+        jsonDecode(request.body),
+        <String, dynamic>{'progressPct': 80, 'positionSeconds': 576},
+      );
+      return _jsonResponse(
+        _assignmentJson(status: 'waiting_test', progress: 50),
+      );
+    }));
+
+    final assignment = await repository.updateLessonProgress(
+      assignmentId: 'assignment-1',
+      stageId: 'stage-1',
+      lessonId: 'lesson-1',
+      progressPct: 80,
+      positionSeconds: 576,
+    );
+    expect(assignment.status, TrainingAssignmentStatus.waitingTest);
+  });
+
+  test('live room parses stream chat polls and reactions', () async {
+    final repository = _repository(MockClient((request) async {
+      expect(request.method, 'GET');
+      expect(
+        request.url.path,
+        '/api/mobile/training/assignments/assignment-1/stages/stage-1/lessons/live-1/live',
+      );
+      return _jsonResponse(<String, dynamic>{
+        'lessonId': 'live-1',
+        'title': 'Разбор кейсов',
+        'description': 'Эфир с тренером',
+        'provider': 'youtube',
+        'status': 'live',
+        'startsAt': '2026-10-11T14:00:00Z',
+        'endsAt': null,
+        'streamUrl': 'https://youtu.be/demo',
+        'chatEnabled': true,
+        'qaEnabled': true,
+        'reactionsEnabled': true,
+        'participantCount': 24,
+        'messages': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'id': 'message-1',
+            'authorName': 'Василий',
+            'authorType': 'pharmacist',
+            'kind': 'question',
+            'body': 'Можно пример?',
+            'pinned': true,
+            'mine': true,
+            'createdAt': '2026-10-11T14:05:00Z',
+          },
+        ],
+        'polls': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'id': 'poll-1',
+            'prompt': 'Всё понятно?',
+            'active': true,
+            'totalVotes': 10,
+            'myOptionId': 'yes',
+            'options': <Map<String, dynamic>>[
+              <String, dynamic>{
+                'id': 'yes',
+                'label': 'Да',
+                'votes': 8,
+                'percent': 80,
+              },
+            ],
+          },
+        ],
+        'reactions': <String, dynamic>{'heart': 7},
+        'serverTime': '2026-10-11T14:06:00Z',
+      });
+    }));
+
+    final room = await repository.loadLiveRoom(
+      assignmentId: 'assignment-1',
+      stageId: 'stage-1',
+      lessonId: 'live-1',
+    );
+
+    expect(room.isLive, isTrue);
+    expect(room.participantCount, 24);
+    expect(room.messages.single.kind, 'question');
+    expect(room.messages.single.pinned, isTrue);
+    expect(room.polls.single.myOptionId, 'yes');
+    expect(room.polls.single.options.single.percent, 80);
+    expect(room.reactions['heart'], 7);
+  });
+
+  test('live interactions use dedicated endpoints and request bodies',
+      () async {
+    var call = 0;
+    final repository = _repository(MockClient((request) async {
+      call++;
+      expect(request.method, 'POST');
+      if (call == 1) {
+        expect(
+          request.url.path,
+          '/api/mobile/training/assignments/a/stages/s/lessons/l/live/messages',
+        );
+        expect(jsonDecode(request.body), <String, dynamic>{
+          'body': 'Вопрос ведущему',
+          'kind': 'question',
+        });
+      } else if (call == 2) {
+        expect(
+          request.url.path,
+          '/api/mobile/training/assignments/a/stages/s/lessons/l/live/polls/p/vote',
+        );
+        expect(jsonDecode(request.body), <String, dynamic>{'optionId': 'yes'});
+      } else {
+        expect(
+          request.url.path,
+          '/api/mobile/training/assignments/a/stages/s/lessons/l/live/reactions',
+        );
+        expect(jsonDecode(request.body), <String, dynamic>{'reaction': 'clap'});
+      }
+      return _jsonResponse(<String, dynamic>{
+        'lessonId': 'l',
+        'title': 'Эфир',
+        'description': '',
+        'provider': 'custom',
+        'status': 'scheduled',
+        'startsAt': null,
+        'endsAt': null,
+        'streamUrl': null,
+        'chatEnabled': true,
+        'qaEnabled': true,
+        'reactionsEnabled': true,
+        'participantCount': 0,
+        'messages': <dynamic>[],
+        'polls': <dynamic>[],
+        'reactions': <String, dynamic>{},
+        'serverTime': '2026-10-11T14:00:00Z',
+      });
+    }));
+
+    await repository.postLiveMessage(
+      assignmentId: 'a',
+      stageId: 's',
+      lessonId: 'l',
+      body: 'Вопрос ведущему',
+      kind: 'question',
+    );
+    await repository.voteInLivePoll(
+      assignmentId: 'a',
+      stageId: 's',
+      lessonId: 'l',
+      pollId: 'p',
+      optionId: 'yes',
+    );
+    await repository.reactToLiveLesson(
+      assignmentId: 'a',
+      stageId: 's',
+      lessonId: 'l',
+      reaction: 'clap',
+    );
+    expect(call, 3);
   });
 
   test('notification read uses authenticated PATCH endpoint', () async {

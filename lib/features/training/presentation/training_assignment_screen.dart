@@ -15,6 +15,7 @@ import '../../profile_pages/presentation/profile_page_scaffold.dart';
 import '../application/training_controller.dart';
 import '../data/training_models.dart';
 import 'training_qr_screen.dart';
+import 'training_live_lesson_screen.dart';
 import 'training_ui.dart';
 
 class TrainingAssignmentScreen extends ConsumerStatefulWidget {
@@ -108,12 +109,20 @@ class _TrainingAssignmentScreenState
               child: _StageRow(
                 stage: stage,
                 busy: _busyAction == stage.id,
+                busyLessonId: _busyAction?.startsWith('lesson:') == true
+                    ? _busyAction!.substring(7)
+                    : null,
                 onOpen: stage.contentUrl == null ||
                         (stage.course?.lessons.isNotEmpty ?? false)
                     ? null
                     : () => _openUrl(stage.contentUrl!),
-                onOpenUrl: _openUrl,
-                onComplete: stage.isCompletableInApp &&
+                onOpenLesson: (lesson, url) =>
+                    _openLesson(assignment, stage, lesson, url),
+                onOpenLive: (lesson) =>
+                    _openLiveLesson(assignment, stage, lesson),
+                onCompleteLesson: (lesson) =>
+                    _completeLesson(assignment, stage, lesson),
+                onComplete: stage.type == TrainingStageType.material &&
                         (stage.isAvailable || stage.isInProgress) &&
                         !assignment.isCompleted
                     ? () => _completeStage(assignment, stage)
@@ -205,6 +214,91 @@ class _TrainingAssignmentScreenState
       if (mounted) {
         showErrorSnackBar(context, Exception('Файл не удалось открыть'));
       }
+    }
+  }
+
+  Future<void> _openLesson(
+    TrainingAssignment assignment,
+    TrainingStage stage,
+    TrainingLesson lesson,
+    String rawUrl,
+  ) async {
+    setState(() => _busyAction = 'lesson:${lesson.id}');
+    try {
+      await ref.read(trainingActionsProvider).startLesson(
+            assignmentId: assignment.id,
+            stageId: stage.id,
+            lessonId: lesson.id,
+            currentProgressPct: lesson.progressPct,
+            currentPositionSeconds: lesson.lastPositionSeconds,
+          );
+      if (!mounted) return;
+      await _openUrl(rawUrl);
+    } catch (error) {
+      if (mounted) showErrorSnackBar(context, error);
+    } finally {
+      if (mounted) setState(() => _busyAction = null);
+    }
+  }
+
+  Future<void> _completeLesson(
+    TrainingAssignment assignment,
+    TrainingStage stage,
+    TrainingLesson lesson,
+  ) async {
+    setState(() => _busyAction = 'lesson:${lesson.id}');
+    try {
+      final updated = await ref.read(trainingActionsProvider).completeLesson(
+            assignmentId: assignment.id,
+            stageId: stage.id,
+            lessonId: lesson.id,
+            positionSeconds: lesson.lastPositionSeconds,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            updated.isCompleted ? 'Программа завершена' : 'Прогресс сохранён',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (error) {
+      if (mounted) showErrorSnackBar(context, error);
+    } finally {
+      if (mounted) setState(() => _busyAction = null);
+    }
+  }
+
+  Future<void> _openLiveLesson(
+    TrainingAssignment assignment,
+    TrainingStage stage,
+    TrainingLesson lesson,
+  ) async {
+    setState(() => _busyAction = 'lesson:${lesson.id}');
+    try {
+      await ref.read(trainingActionsProvider).startLesson(
+            assignmentId: assignment.id,
+            stageId: stage.id,
+            lessonId: lesson.id,
+            currentProgressPct: lesson.progressPct,
+            currentPositionSeconds: lesson.lastPositionSeconds,
+          );
+      if (!mounted) return;
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => TrainingLiveLessonScreen(
+            assignmentId: assignment.id,
+            stageId: stage.id,
+            lesson: lesson,
+          ),
+        ),
+      );
+      ref.invalidate(trainingAssignmentProvider(widget.assignmentId));
+    } catch (error) {
+      if (mounted) showErrorSnackBar(context, error);
+    } finally {
+      if (mounted) setState(() => _busyAction = null);
     }
   }
 
@@ -345,15 +439,21 @@ class _StageRow extends StatelessWidget {
   const _StageRow({
     required this.stage,
     required this.busy,
+    required this.busyLessonId,
     required this.onOpen,
-    required this.onOpenUrl,
+    required this.onOpenLesson,
+    required this.onOpenLive,
+    required this.onCompleteLesson,
     required this.onComplete,
   });
 
   final TrainingStage stage;
   final bool busy;
+  final String? busyLessonId;
   final VoidCallback? onOpen;
-  final ValueChanged<String> onOpenUrl;
+  final Future<void> Function(TrainingLesson lesson, String url) onOpenLesson;
+  final Future<void> Function(TrainingLesson lesson) onOpenLive;
+  final Future<void> Function(TrainingLesson lesson) onCompleteLesson;
   final VoidCallback? onComplete;
 
   @override
@@ -412,7 +512,10 @@ class _StageRow extends StatelessWidget {
                   const SizedBox(height: AppSpacing.s12),
                   _CourseLessons(
                     course: stage.course!,
-                    onOpenUrl: onOpenUrl,
+                    busyLessonId: busyLessonId,
+                    onOpenLesson: onOpenLesson,
+                    onOpenLive: onOpenLive,
+                    onCompleteLesson: onCompleteLesson,
                   ),
                 ],
                 if (onOpen != null || onComplete != null) ...[
@@ -462,10 +565,19 @@ class _StageRow extends StatelessWidget {
 }
 
 class _CourseLessons extends StatelessWidget {
-  const _CourseLessons({required this.course, required this.onOpenUrl});
+  const _CourseLessons({
+    required this.course,
+    required this.busyLessonId,
+    required this.onOpenLesson,
+    required this.onOpenLive,
+    required this.onCompleteLesson,
+  });
 
   final TrainingCourseContent course;
-  final ValueChanged<String> onOpenUrl;
+  final String? busyLessonId;
+  final Future<void> Function(TrainingLesson lesson, String url) onOpenLesson;
+  final Future<void> Function(TrainingLesson lesson) onOpenLive;
+  final Future<void> Function(TrainingLesson lesson) onCompleteLesson;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -493,6 +605,11 @@ class _CourseLessons extends StatelessWidget {
               const SizedBox(height: AppSpacing.s8),
               ...course.lessons.asMap().entries.map((entry) {
                 final lesson = entry.value;
+                final unlocked = course.lessons
+                    .take(entry.key)
+                    .where((item) => item.requiredLesson)
+                    .every((item) => item.isCompleted);
+                final busy = busyLessonId == lesson.id;
                 return Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: AppSpacing.s8),
@@ -510,9 +627,7 @@ class _CourseLessons extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Icon(
-                            lesson.isVideo
-                                ? Icons.play_circle_outline_rounded
-                                : Icons.article_outlined,
+                            lessonKindIcon(lesson.kind),
                             size: 19,
                             color: AppColors.brandGreen700,
                           ),
@@ -528,27 +643,205 @@ class _CourseLessons extends StatelessWidget {
                               '${lesson.durationMin} мин.',
                               style: AppTypography.captionSmall(),
                             ),
+                          if (lesson.requiredLesson)
+                            Padding(
+                              padding: EdgeInsets.only(left: AppSpacing.s8),
+                              child: Icon(
+                                lesson.isCompleted
+                                    ? Icons.verified_rounded
+                                    : Icons.verified_outlined,
+                                size: 16,
+                                color: lesson.isCompleted
+                                    ? AppColors.brandGreen700
+                                    : AppColors.ink400,
+                              ),
+                            ),
                         ],
                       ),
                       if (lesson.description.isNotEmpty) ...[
                         const SizedBox(height: AppSpacing.s4),
-                        Text(lesson.description, style: AppTypography.caption()),
+                        Text(lesson.description,
+                            style: AppTypography.caption()),
+                      ],
+                      const SizedBox(height: AppSpacing.s4),
+                      Wrap(
+                        spacing: AppSpacing.s8,
+                        runSpacing: AppSpacing.s4,
+                        children: [
+                          Text(
+                            lessonKindLabel(lesson.kind),
+                            style: AppTypography.captionSmall(
+                              color: AppColors.brandGreen700,
+                            ),
+                          ),
+                          if (lesson.minimumWatchPct != null)
+                            Text(
+                              'Просмотр от ${lesson.minimumWatchPct}%',
+                              style: AppTypography.captionSmall(),
+                            ),
+                          if (!lesson.requiredLesson)
+                            Text(
+                              'Необязательно',
+                              style: AppTypography.captionSmall(),
+                            ),
+                          if (lesson.progressPct > 0)
+                            Text(
+                              '${lesson.progressPct}%',
+                              style: AppTypography.captionSmall(
+                                color: AppColors.brandGreen700,
+                              ),
+                            ),
+                        ],
+                      ),
+                      if (lesson.progressPct > 0 && !lesson.isCompleted) ...[
+                        const SizedBox(height: AppSpacing.s8),
+                        LinearProgressIndicator(
+                          value: lesson.progressPct / 100,
+                          minHeight: 5,
+                          borderRadius: AppRadii.brFull,
+                          color: AppColors.brandGreen700,
+                          backgroundColor: AppColors.borderHairline,
+                        ),
                       ],
                       if (lesson.content.isNotEmpty) ...[
                         const SizedBox(height: AppSpacing.s8),
                         Text(lesson.content, style: AppTypography.body14()),
                       ],
-                      if (lesson.videoUrl != null) ...[
+                      if (lesson.hasVideo) ...[
                         const SizedBox(height: AppSpacing.s8),
                         SizedBox(
                           height: 38,
                           child: OutlinedButton.icon(
-                            onPressed: () => onOpenUrl(lesson.videoUrl!),
+                            onPressed: !unlocked || busy
+                                ? null
+                                : () => onOpenLesson(lesson, lesson.videoUrl!),
                             icon: const Icon(
                               Icons.play_arrow_rounded,
                               size: 18,
                             ),
                             label: const Text('Смотреть видео'),
+                          ),
+                        ),
+                      ],
+                      if (lesson.hasExternalMaterial) ...[
+                        const SizedBox(height: AppSpacing.s8),
+                        SizedBox(
+                          height: 38,
+                          child: OutlinedButton.icon(
+                            onPressed: !unlocked || busy
+                                ? null
+                                : () =>
+                                    onOpenLesson(lesson, lesson.externalUrl!),
+                            icon:
+                                const Icon(Icons.open_in_new_rounded, size: 18),
+                            label: Text(
+                              lesson.kind == 'interactive'
+                                  ? 'Открыть интерактив'
+                                  : 'Открыть материал',
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (lesson.isLive) ...[
+                        const SizedBox(height: AppSpacing.s8),
+                        SizedBox(
+                          height: 42,
+                          child: FilledButton.icon(
+                            onPressed: !unlocked || busy
+                                ? null
+                                : () => onOpenLive(lesson),
+                            icon: const Icon(Icons.live_tv_rounded, size: 19),
+                            label: Text(
+                              lesson.liveStatus == 'live'
+                                  ? 'Войти в эфир'
+                                  : lesson.liveStatus == 'ended'
+                                      ? 'Открыть запись и обсуждение'
+                                      : 'Открыть комнату эфира',
+                            ),
+                          ),
+                        ),
+                        if (lesson.liveStartAt != null) ...[
+                          const SizedBox(height: AppSpacing.s4),
+                          Text(
+                            'Начало: ${trainingDate(lesson.liveStartAt, withTime: true)}',
+                            style: AppTypography.captionSmall(),
+                          ),
+                        ],
+                      ],
+                      if (lesson.attachments.isNotEmpty) ...[
+                        const SizedBox(height: AppSpacing.s8),
+                        ...lesson.attachments.map(
+                          (attachment) => Padding(
+                            padding:
+                                const EdgeInsets.only(bottom: AppSpacing.s4),
+                            child: SizedBox(
+                              height: 38,
+                              child: OutlinedButton.icon(
+                                onPressed: !unlocked ||
+                                        busy ||
+                                        attachment.mediaUrl.isEmpty
+                                    ? null
+                                    : () => onOpenLesson(
+                                          lesson,
+                                          attachment.mediaUrl,
+                                        ),
+                                icon: Icon(
+                                  attachment.kind == 'image'
+                                      ? Icons.image_outlined
+                                      : attachment.kind == 'video'
+                                          ? Icons.play_circle_outline_rounded
+                                          : Icons.attach_file_rounded,
+                                  size: 18,
+                                ),
+                                label: Text(
+                                  attachment.displayName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (!unlocked) ...[
+                        const SizedBox(height: AppSpacing.s8),
+                        Text(
+                          'Сначала завершите предыдущий обязательный урок',
+                          style: AppTypography.captionSmall(
+                            color: AppColors.accentWarning,
+                          ),
+                        ),
+                      ] else if (!lesson.isCompleted) ...[
+                        const SizedBox(height: AppSpacing.s8),
+                        SizedBox(
+                          height: 40,
+                          child: FilledButton.icon(
+                            onPressed:
+                                busy ? null : () => onCompleteLesson(lesson),
+                            icon: busy
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.check_rounded, size: 18),
+                            label: Text(
+                              busy
+                                  ? 'Сохраняем…'
+                                  : lesson.isVideo
+                                      ? 'Подтвердить просмотр'
+                                      : 'Завершить урок',
+                            ),
+                          ),
+                        ),
+                      ] else ...[
+                        const SizedBox(height: AppSpacing.s8),
+                        Text(
+                          'Урок завершён',
+                          style: AppTypography.caption(
+                            color: AppColors.brandGreen700,
                           ),
                         ),
                       ],
@@ -599,6 +892,35 @@ class _EventDetails extends StatelessWidget {
                     .join(', '),
                 style: AppTypography.caption(),
               ),
+            if (event.capacity > 0) ...[
+              const SizedBox(height: AppSpacing.s4),
+              Text(
+                'Свободно мест: ${event.availableSeats} из ${event.capacity}',
+                style: AppTypography.captionSmall(),
+              ),
+            ],
+            if (event.mapUrl?.isNotEmpty == true) ...[
+              const SizedBox(height: AppSpacing.s8),
+              TextButton.icon(
+                onPressed: () async {
+                  final uri = Uri.tryParse(event.mapUrl!);
+                  if (uri == null ||
+                      !await launchUrl(
+                        uri,
+                        mode: LaunchMode.externalApplication,
+                      )) {
+                    if (context.mounted) {
+                      showErrorSnackBar(
+                        context,
+                        Exception('Не удалось открыть карту'),
+                      );
+                    }
+                  }
+                },
+                icon: const Icon(Icons.map_outlined),
+                label: const Text('Открыть на карте'),
+              ),
+            ],
             const SizedBox(height: AppSpacing.s12),
             SizedBox(
               width: double.infinity,
@@ -671,6 +993,11 @@ class _EventSelection extends StatelessWidget {
                               if (event.address.isNotEmpty)
                                 Text(event.address,
                                     style: AppTypography.captionSmall()),
+                              if (event.capacity > 0)
+                                Text(
+                                  'Свободно ${event.availableSeats} из ${event.capacity}',
+                                  style: AppTypography.captionSmall(),
+                                ),
                             ],
                           ),
                         ),

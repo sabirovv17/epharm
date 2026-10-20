@@ -7,8 +7,8 @@ abstract final class AppGradients {
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
     colors: [
-      Color(0xFFF0A074),
-      Color(0xFFE07E52),
+      Color(0xFF0A4F4A),
+      Color(0xFF073D3A),
     ],
     stops: [0.0, 1.0],
   );
@@ -20,8 +20,8 @@ abstract final class AppGradients {
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
     colors: [
-      Color(0xFFF0A074),
-      Color(0xFFE07E52),
+      Color(0xFF073D3A),
+      Color(0xFF073D3A),
     ],
     stops: [0.0, 1.0],
   );
@@ -34,8 +34,8 @@ abstract final class AppGradients {
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
     colors: [
-      Color(0xFFF3ECE3),
-      Color(0xFFFAF7F2),
+      Color(0xFFE7F4F1),
+      Color(0xFFF7FAF9),
     ],
   );
 
@@ -45,8 +45,8 @@ abstract final class AppGradients {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      Color(0xFFF0A074),
-      Color(0xFFE07E52),
+      Color(0xFF0F766E),
+      Color(0xFF073D3A),
     ],
     stops: [0.0, 1.0],
   );
@@ -56,8 +56,8 @@ abstract final class AppGradients {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      Color(0xFFD86C3A),
-      Color(0xFFEE9A6F),
+      Color(0xFF073D3A),
+      Color(0xFF149B8F),
     ],
   );
 
@@ -66,8 +66,8 @@ abstract final class AppGradients {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      Color(0xFFD86C3A),
-      Color(0xFFE78A5C),
+      Color(0xFF0F766E),
+      Color(0xFF63CFC2),
     ],
   );
 
@@ -75,9 +75,9 @@ abstract final class AppGradients {
   static const RadialGradient coin = RadialGradient(
     radius: 0.35,
     colors: [
-      Color(0xFFF0A074),
-      Color(0xFFE78A5C),
-      Color(0xFFD86C3A),
+      Color(0xFF63CFC2),
+      Color(0xFF149B8F),
+      Color(0xFF073D3A),
     ],
     stops: [0.0, 0.6, 1.0],
   );

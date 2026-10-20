@@ -305,6 +305,7 @@ export interface PharmacistDto {
   coursesDone: number
   coursesTotal: number
   status: PharmacistStatus
+  hasPassword: boolean
   joinedAt: string
   createdAt: string
   updatedAt: string
@@ -314,6 +315,7 @@ export interface CreatePharmacistRequest {
   name: string
   iin: string
   phone: string
+  password: string
   pharmacyId: string
   tier?: PharmacistTier
   status?: PharmacistStatus
@@ -322,6 +324,7 @@ export interface CreatePharmacistRequest {
 export interface UpdatePharmacistRequest {
   name?: string
   phone?: string
+  password?: string
   tier?: PharmacistTier
   balance?: number
   coursesDone?: number
@@ -644,7 +647,43 @@ export interface LiftSummaryDto {
 
 // ─── LMS (Этап 3.6) — обучающие курсы ───
 export type CourseStatus = 'published' | 'draft' | 'archived'
-export type CourseLessonKind = 'text' | 'video'
+export type CourseLessonKind =
+  | 'text'
+  | 'video'
+  | 'pdf'
+  | 'presentation'
+  | 'image'
+  | 'audio'
+  | 'link'
+  | 'interactive'
+  | 'quiz'
+  | 'test'
+  | 'practice'
+  | 'assignment'
+  | 'live'
+
+export type CourseLiveProvider = 'youtube' | 'vimeo' | 'teams' | 'zoom' | 'custom'
+export type CourseLiveStatus = 'scheduled' | 'live' | 'ended'
+
+export interface CourseLivePollOption {
+  id: string
+  label: string
+}
+
+export interface CourseLivePoll {
+  id: string
+  prompt: string
+  options: CourseLivePollOption[]
+  active: boolean
+}
+
+export interface CourseQuizQuestionDto {
+  id: string
+  prompt: string
+  options: string[]
+  correctOption: number | null
+  explanation: string
+}
 
 export interface CourseLessonAttachmentDto {
   id: string
@@ -664,11 +703,30 @@ export interface CourseLessonDto {
   content: string
   kind: CourseLessonKind
   videoUrl: string | null
+  externalUrl: string | null
+  liveProvider: CourseLiveProvider | null
+  liveStatus: CourseLiveStatus | null
+  liveStartAt: string | null
+  liveEndAt: string | null
+  liveChatEnabled: boolean
+  liveQaEnabled: boolean
+  liveReactionsEnabled: boolean
+  livePolls: CourseLivePoll[]
+  required: boolean
+  minimumWatchPct: number | null
+  quizQuestions: CourseQuizQuestionDto[]
+  quizPassingScore: number
+  quizScore?: number | null
+  quizAttempts?: number
   attachments: CourseLessonAttachmentDto[]
   durationMin: number
   order: number
   createdAt: string
   updatedAt: string
+  progressPct?: number | null
+  lastPositionSeconds?: number | null
+  startedAt?: string | null
+  completedAt?: string | null
 }
 
 export interface CourseDto {
@@ -712,6 +770,25 @@ export interface CreateCourseLessonRequest {
   description?: string
   content?: string
   kind?: CourseLessonKind
+  externalUrl?: string | null
+  liveProvider?: CourseLiveProvider | null
+  liveStatus?: CourseLiveStatus | null
+  liveStartAt?: string | null
+  liveEndAt?: string | null
+  liveChatEnabled?: boolean
+  liveQaEnabled?: boolean
+  liveReactionsEnabled?: boolean
+  livePolls?: CourseLivePoll[]
+  required?: boolean
+  minimumWatchPct?: number | null
+  quizQuestions?: Array<{
+    id?: string | null
+    prompt: string
+    options: string[]
+    correctOption: number
+    explanation?: string
+  }>
+  quizPassingScore?: number
   durationMin?: number
 }
 
@@ -720,8 +797,72 @@ export interface UpdateCourseLessonRequest {
   description?: string
   content?: string
   kind?: CourseLessonKind
+  externalUrl?: string | null
+  clearExternalUrl?: boolean
+  liveProvider?: CourseLiveProvider | null
+  liveStatus?: CourseLiveStatus | null
+  liveStartAt?: string | null
+  liveEndAt?: string | null
+  clearLiveSchedule?: boolean
+  liveChatEnabled?: boolean
+  liveQaEnabled?: boolean
+  liveReactionsEnabled?: boolean
+  livePolls?: CourseLivePoll[]
+  clearLiveSettings?: boolean
+  required?: boolean
+  minimumWatchPct?: number | null
+  clearMinimumWatchPct?: boolean
+  quizQuestions?: CreateCourseLessonRequest['quizQuestions']
+  quizPassingScore?: number
+  clearQuiz?: boolean
   durationMin?: number
   clearVideo?: boolean
+}
+
+export interface CourseLiveMessageDto {
+  id: string
+  authorName: string
+  authorType: 'admin' | 'pharmacist'
+  kind: 'comment' | 'question'
+  body: string
+  pinned: boolean
+  mine: boolean
+  createdAt: string
+}
+
+export interface CourseLivePollOptionResultDto {
+  id: string
+  label: string
+  votes: number
+  percent: number
+}
+
+export interface CourseLivePollResultDto {
+  id: string
+  prompt: string
+  active: boolean
+  options: CourseLivePollOptionResultDto[]
+  totalVotes: number
+  myOptionId: string | null
+}
+
+export interface CourseLiveRoomDto {
+  lessonId: string
+  title: string
+  description: string
+  provider: CourseLiveProvider
+  status: CourseLiveStatus
+  startsAt: string | null
+  endsAt: string | null
+  streamUrl: string | null
+  chatEnabled: boolean
+  qaEnabled: boolean
+  reactionsEnabled: boolean
+  participantCount: number
+  messages: CourseLiveMessageDto[]
+  polls: CourseLivePollResultDto[]
+  reactions: Record<string, number>
+  serverTime: string
 }
 
 // ─── Screens (Этап 3.6) — indoor-DOOH плейлисты + слайды (read-only; редактор в Этапе 5) ───
@@ -1133,6 +1274,11 @@ export interface TrainingProgramDto {
   shortDescription: string
   description: string
   coverUrl: string | null
+  certificateEpharmLogoUrl: string | null
+  certificatePartnerLogoUrl: string | null
+  certificateSignerName: string
+  certificateValidityMonths: number
+  certificateTemplate: string
   category: string
   manufacturer: string
   brand: string
@@ -1179,6 +1325,10 @@ export interface CreateTrainingProgramRequest {
   shortDescription?: string
   description?: string
   coverUrl?: string | null
+  certificateEpharmLogoUrl?: string | null
+  certificatePartnerLogoUrl?: string | null
+  certificateSignerName?: string
+  certificateValidityMonths?: number
   category?: string
   manufacturer?: string
   brand?: string
@@ -1200,6 +1350,8 @@ export interface CreateTrainingProgramRequest {
 
 export type UpdateTrainingProgramRequest = Partial<CreateTrainingProgramRequest> & {
   clearCoverUrl?: boolean
+  clearCertificateEpharmLogoUrl?: boolean
+  clearCertificatePartnerLogoUrl?: boolean
   clearManager?: boolean
   clearStartsAt?: boolean
   clearEndsAt?: boolean
@@ -1237,6 +1389,7 @@ export interface TrainingEventQrDto {
   eventId: string
   token: string
   payload: string
+  checkInCode: string
 }
 
 export interface CreateOfflineEventRequest {

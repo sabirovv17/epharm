@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
@@ -38,6 +41,13 @@ class _TrainingQrScreenState extends ConsumerState<TrainingQrScreen> {
         foregroundColor: Colors.white,
         backgroundColor: Colors.black,
         actions: [
+          TextButton(
+            onPressed: _submitting ? null : _showCodeEntry,
+            child: const Text(
+              'Ввести код',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+            ),
+          ),
           IconButton(
             tooltip: 'Фонарик',
             onPressed: _controller.toggleTorch,
@@ -88,10 +98,16 @@ class _TrainingQrScreenState extends ConsumerState<TrainingQrScreen> {
         .firstOrNull;
     final token = rawValue == null ? null : _extractToken(rawValue);
     if (token == null) return;
+    await _submitCredential(token);
+  }
+
+  Future<void> _submitCredential(String credential) async {
+    if (_submitting) return;
     setState(() => _submitting = true);
     await _controller.stop();
     try {
-      final assignment = await ref.read(trainingActionsProvider).checkIn(token);
+      final assignment =
+          await ref.read(trainingActionsProvider).checkIn(credential);
       if (!mounted) return;
       Navigator.of(context).pop<TrainingAssignment>(assignment);
     } catch (error) {
@@ -100,6 +116,78 @@ class _TrainingQrScreenState extends ConsumerState<TrainingQrScreen> {
       setState(() => _submitting = false);
       await _controller.start();
     }
+  }
+
+  Future<void> _showCodeEntry() async {
+    if (_submitting) return;
+    // На web остановка camera stream может ждать браузерный media lifecycle и
+    // блокировать открытие формы. Форма кода не зависит от результата stop().
+    unawaited(_controller.stop());
+    if (!mounted) return;
+    final codeController = TextEditingController();
+    final code = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.s24,
+            AppSpacing.s8,
+            AppSpacing.s24,
+            MediaQuery.viewInsetsOf(sheetContext).bottom + AppSpacing.s24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Код мероприятия', style: AppTypography.title20()),
+              const SizedBox(height: AppSpacing.s8),
+              Text(
+                'Введите 6 цифр, которые показывает организатор.',
+                style: AppTypography.body14(),
+              ),
+              const SizedBox(height: AppSpacing.s16),
+              TextField(
+                controller: codeController,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                maxLength: 6,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 8,
+                ),
+                decoration: const InputDecoration(
+                  hintText: '000000',
+                  counterText: '',
+                ),
+                onSubmitted: (value) {
+                  if (value.length == 6) Navigator.of(sheetContext).pop(value);
+                },
+              ),
+              const SizedBox(height: AppSpacing.s16),
+              FilledButton(
+                onPressed: () {
+                  final value = codeController.text;
+                  if (value.length == 6) Navigator.of(sheetContext).pop(value);
+                },
+                child: const Text('Подтвердить посещение'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    codeController.dispose();
+    if (!mounted) return;
+    if (code == null) {
+      unawaited(_controller.start());
+      return;
+    }
+    await _submitCredential(code);
   }
 
   String? _extractToken(String rawValue) {

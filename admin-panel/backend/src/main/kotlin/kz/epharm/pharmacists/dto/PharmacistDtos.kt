@@ -27,6 +27,7 @@ data class PharmacistDto(
     val coursesDone: Int,
     val coursesTotal: Int,
     val status: PharmacistStatus,
+    val hasPassword: Boolean,
     val joinedAt: LocalDate,
     val createdAt: Instant,
     val updatedAt: Instant,
@@ -41,6 +42,7 @@ data class PharmacistDto(
             earned30d = e.earned30d, balance = e.balance,
             coursesDone = e.coursesDone, coursesTotal = e.coursesTotal,
             status = e.status, joinedAt = e.joinedAt,
+            hasPassword = !e.passwordHash.isNullOrBlank(),
             createdAt = e.createdAt, updatedAt = e.updatedAt,
         )
     }
@@ -53,6 +55,8 @@ data class CreatePharmacistRequest(
     val iin: String,
     @field:NotBlank @field:Size(max = 32)
     val phone: String,
+    @field:NotBlank @field:Size(min = 6, max = 128)
+    val password: String,
     @field:NotBlank @field:Size(max = 64)
     val pharmacyId: String,
     val tier: PharmacistTier = PharmacistTier.Silver,
@@ -64,6 +68,8 @@ data class UpdatePharmacistRequest(
     val name: String? = null,
     @field:Size(max = 32)
     val phone: String? = null,
+    @field:Size(min = 6, max = 128)
+    val password: String? = null,
     val tier: PharmacistTier? = null,
     val status: PharmacistStatus? = null,
     @field:Min(0) val balance: Long? = null,

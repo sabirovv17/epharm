@@ -66,6 +66,8 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tester.tap(find.text('Каталог'));
+      await tester.pumpAndSettle();
 
       // Пустой список баннеров → карусели нет (и нет пустой щели-заглушки).
       expect(find.byType(PromoCarousel), findsNothing);
@@ -96,6 +98,8 @@ void main() {
           child: const MaterialApp(home: HomeScreen()),
         ),
       );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Каталог'));
       await tester.pumpAndSettle();
 
       expect(find.byType(PromoCarousel), findsOneWidget);

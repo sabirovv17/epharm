@@ -23,7 +23,7 @@ import java.time.Duration
 import javax.imageio.ImageIO
 
 /**
- * Прокси изображений витрины Medusa.
+ * Прокси изображений каталога Inkar и резервной витрины Medusa.
  *
  * Medusa отдаёт фото товаров по голому HTTP (`http://host:9000/static/…`), а
  * админ-консоль работает по HTTPS. Браузер блокирует загрузку http-картинок на
@@ -31,8 +31,9 @@ import javax.imageio.ImageIO
  * картинку server-to-server и отдаём её клиенту уже по нашему HTTPS-origin.
  *
  * Эндпоинт ПУБЛИЧНЫЙ (фото витрины — не секрет, как и сам каталог), но с защитой
- * от SSRF: проксируем ТОЛЬКО хост Medusa из конфига (`app.medusa.base-url`). Любой
- * другой `u` → 400, чтобы наш сервер не стал открытым прокси к произвольным URL.
+ * от SSRF: проксируем ТОЛЬКО источники из конфигов `app.medusa.base-url` и
+ * `app.storefront-catalog.base-url`. Любой другой `u` → 400, чтобы наш сервер не
+ * стал открытым прокси к произвольным URL.
  *
  * Кэш: фото витрины статичны (имя файла с timestamp-префиксом), отдаём
  * `Cache-Control: public, max-age=7d` — браузер/Caddy не дёргают бэкенд повторно.
@@ -43,12 +44,14 @@ class MediaProxyController(
     @Value("\${app.medusa.base-url:}") medusaBaseUrl: String,
     @Value("\${app.medusa.connect-timeout-ms:2000}") connectTimeoutMs: Int,
     @Value("\${app.medusa.read-timeout-ms:6000}") readTimeoutMs: Int,
+    @Value("\${app.storefront-catalog.base-url:}") storefrontBaseUrl: String = "",
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    /** Разрешённый источник: authority (host[:port]) витрины Medusa. */
-    private val allowedAuthority: String =
-        runCatching { URI(medusaBaseUrl).authority }.getOrNull().orEmpty()
+    /** Разрешённые источники: старый Medusa и новый сайт Inkar. */
+    private val allowedAuthorities: Set<String> = listOf(medusaBaseUrl, storefrontBaseUrl)
+        .mapNotNull { raw -> runCatching { URI(raw).authority }.getOrNull()?.takeIf { it.isNotBlank() } }
+        .toSet()
 
     private val rest: RestClient = RestClient.builder()
         .requestFactory(
@@ -69,8 +72,8 @@ class MediaProxyController(
         val uri = runCatching { URI(raw) }.getOrNull()
             ?: throw badRequest("Некорректный URL изображения")
 
-        // Anti-SSRF: только http/https и только хост витрины Medusa.
-        if (uri.scheme !in HTTP_SCHEMES || uri.authority != allowedAuthority || allowedAuthority.isBlank()) {
+        // Anti-SSRF: только http/https и только явно настроенные источники каталога.
+        if (uri.scheme !in HTTP_SCHEMES || uri.authority !in allowedAuthorities || allowedAuthorities.isEmpty()) {
             throw badRequest("Недопустимый источник изображения")
         }
 

@@ -11,6 +11,7 @@ import kz.epharm.pharmacists.repository.PharmacistRepository
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import org.springframework.http.HttpStatus
+import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDate
@@ -20,6 +21,7 @@ import java.util.UUID
 class PharmacistService(
     private val pharmacistRepository: PharmacistRepository,
     private val pharmacyRepository: PharmacyRepository,
+    private val passwordEncoder: PasswordEncoder,
 ) {
 
     @Transactional(readOnly = true)
@@ -57,6 +59,7 @@ class PharmacistService(
             name = req.name.trim(),
             iin = req.iin.trim(),
             phone = req.phone.trim(),
+            passwordHash = passwordEncoder.encode(req.password),
             pharmacyId = pharmacy.id,
             pharmacyName = pharmacy.name,
             city = pharmacy.city,
@@ -80,6 +83,7 @@ class PharmacistService(
         }
         req.name?.let { entity.name = it.trim() }
         req.phone?.let { entity.phone = it.trim() }
+        req.password?.let { entity.passwordHash = passwordEncoder.encode(it) }
         req.tier?.let { entity.tier = it }
         // Status переходы через update запрещены (только через /block, /unblock).
         if (req.status != null) {
