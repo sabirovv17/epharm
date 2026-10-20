@@ -1,6 +1,7 @@
 package kz.epharm.pharmacists.service
 
 import kz.epharm.pharmacies.repository.PharmacyRepository
+import kz.epharm.finance.service.PharmacistWalletService
 import kz.epharm.pharmacists.dto.ActivatePharmacistRequest
 import kz.epharm.pharmacists.dto.CreatePharmacistRequest
 import kz.epharm.pharmacists.dto.PharmacistDto
@@ -22,6 +23,7 @@ class PharmacistService(
     private val pharmacistRepository: PharmacistRepository,
     private val pharmacyRepository: PharmacyRepository,
     private val passwordEncoder: PasswordEncoder,
+    private val wallet: PharmacistWalletService,
 ) {
 
     @Transactional(readOnly = true)
@@ -93,7 +95,7 @@ class PharmacistService(
                 HttpStatus.BAD_REQUEST,
             )
         }
-        req.balance?.let { entity.balance = it }
+        req.balance?.let { wallet.adjustTo(entity.id, it) }
         req.coursesDone?.let { entity.coursesDone = it }
         req.coursesTotal?.let { entity.coursesTotal = it }
         return PharmacistDto.of(pharmacistRepository.save(entity))

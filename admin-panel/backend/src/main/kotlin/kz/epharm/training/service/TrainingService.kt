@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import kz.epharm.auth.domain.AdminRole
 import kz.epharm.auth.repository.AdminUserRepository
 import kz.epharm.auth.security.AdminPrincipal
+import kz.epharm.finance.service.PharmacistWalletService
+import kz.epharm.finance.service.WalletCreditSource
 import kz.epharm.lms.repository.CourseRepository
 import kz.epharm.lms.repository.CourseLessonRepository
 import kz.epharm.lms.repository.CourseLessonAttachmentRepository
@@ -121,6 +123,7 @@ class TrainingService(
     private val notificationRepository: TrainingNotificationRepository,
     private val auditRepository: TrainingAuditLogRepository,
     private val pharmacistRepository: PharmacistRepository,
+    private val wallet: PharmacistWalletService,
     private val adminUserRepository: AdminUserRepository,
     private val courseRepository: CourseRepository,
     private val courseLessonRepository: CourseLessonRepository,
@@ -2056,8 +2059,8 @@ class TrainingService(
                     issuedAt = now,
                 ),
             )
-            pharmacist.balance += version.completionBonus
-            pharmacist.earned30d += version.completionBonus
+            wallet.credit(WalletCreditSource.TRAINING_BONUS, assignment.id.toString(), pharmacist.id,
+                version.completionBonus, "assignment:${assignment.id}")
         }
         pharmacist.coursesDone += 1
         pharmacistRepository.save(pharmacist)

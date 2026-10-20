@@ -23,6 +23,7 @@ class PayoutService(
     private val itemRepository: PayoutItemRepository,
     private val adminUserRepository: AdminUserRepository,
     private val pharmacistRepository: PharmacistRepository,
+    private val wallet: PharmacistWalletService,
 ) {
 
     /**
@@ -32,7 +33,18 @@ class PayoutService(
      */
     @Transactional
     fun generateBatch(period: String): PayoutBatchDto {
-        val owed = pharmacistRepository.findAll().filter { it.balance > 0 }
+        wallet.lockPayoutGeneration()
+        val batchId = "pob_${UUID.randomUUID().toString().substring(0, 8)}"
+        // Lock in a stable order and reserve the current balance, never an earlier JPA snapshot.
+        val owed = pharmacistRepository.findAll().filter { it.balance > 0 }.sortedBy { it.id }.mapNotNull { ph ->
+            val itemId = "poi_${UUID.randomUUID().toString().substring(0, 8)}"
+            val reservation = wallet.reserveForPayout(ph.id, itemId)
+            if (reservation.amountKzt == 0L) null else PayoutItemEntity(
+                id = itemId, batchId = batchId, pharmacistId = ph.id, pharmacistName = ph.name,
+                pharmacy = ph.pharmacyName ?: "", city = ph.city, receipts = ph.receipts30d,
+                rules = ph.rulesAccepted30d, amount = -reservation.amountKzt,
+            )
+        }
         if (owed.isEmpty()) {
             throw AppException(
                 ErrorCode.VALIDATION_FAILED,
@@ -40,8 +52,7 @@ class PayoutService(
                 HttpStatus.BAD_REQUEST,
             )
         }
-        val batchId = "pob_${UUID.randomUUID().toString().substring(0, 8)}"
-        val total = owed.sumOf { it.balance }
+        val total = owed.fold(0L) { sum, item -> Math.addExact(sum, item.amount) }
         // Батч сохраняем ПЕРВЫМ — у payout_items FK на payout_batches(id).
         val batch = batchRepository.save(
             PayoutBatchEntity(
@@ -49,23 +60,7 @@ class PayoutService(
                 pharmacists = owed.size, amount = total, items = owed.size,
             ),
         )
-        owed.forEach { ph ->
-            itemRepository.save(
-                PayoutItemEntity(
-                    id = "poi_${UUID.randomUUID().toString().substring(0, 8)}",
-                    batchId = batchId,
-                    pharmacistId = ph.id,
-                    pharmacistName = ph.name,
-                    pharmacy = ph.pharmacyName ?: "",
-                    city = ph.city,
-                    receipts = ph.receipts30d,
-                    rules = ph.rulesAccepted30d,
-                    amount = ph.balance,
-                ),
-            )
-            ph.balance = 0 // снято в батч — баланс обнуляется
-            pharmacistRepository.save(ph)
-        }
+        itemRepository.saveAll(owed)
         return PayoutBatchDto.of(batch)
     }
 

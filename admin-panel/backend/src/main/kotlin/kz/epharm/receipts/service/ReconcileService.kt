@@ -1,6 +1,8 @@
 package kz.epharm.receipts.service
 
 import kz.epharm.pharmacists.repository.PharmacistRepository
+import kz.epharm.finance.service.PharmacistWalletService
+import kz.epharm.finance.service.WalletCreditSource
 import kz.epharm.receipts.dto.ExcelRowInput
 import kz.epharm.receipts.dto.LogSaleInput
 import kz.epharm.receipts.dto.ReceiptDto
@@ -43,6 +45,7 @@ class ReconcileService(
     private val pendingBonusRepository: PendingBonusRepository,
     private val pharmacistRepository: PharmacistRepository,
     private val mediaStorage: MediaStorage,
+    private val wallet: PharmacistWalletService,
 ) {
 
     private val log = LoggerFactory.getLogger(ReconcileService::class.java)
@@ -351,9 +354,9 @@ class ReconcileService(
             ?: receipt.pendingBonusId?.let { pendingBonusRepository.findById(it).orElse(null) }
             ?: return
         val pharmacist = pharmacistRepository.findById(receipt.pharmacistId).orElse(null) ?: return
-        pharmacist.balance += pending.bonus
-        pharmacist.earned30d += pending.bonus
-        pharmacistRepository.save(pharmacist)
+        if (pending.bonus > 0) wallet.credit(
+            WalletCreditSource.RECEIPT_BONUS, pending.id, pharmacist.id, pending.bonus, "receipt:${receipt.id}",
+        )
         pending.status = PendingBonusStatus.matched
         pendingBonusRepository.save(pending)
         receipt.bonusCredited = pending.bonus
