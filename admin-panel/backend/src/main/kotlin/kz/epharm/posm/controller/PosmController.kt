@@ -164,6 +164,7 @@ class PosmController(
         @RequestParam(required = false) pharmacyId: String?,
         @RequestParam(required = false) monitorCount: Int?,
         @RequestParam(required = false) appVersion: String?,
+        @RequestParam(required = false) staffAuthStatus: String?,
     ): HeartbeatResponse {
         val device = deviceAuthentication.authenticate(
             key,
@@ -182,6 +183,7 @@ class PosmController(
             appVersion = appVersion
                 ?.trim()
                 ?.takeIf { it.matches(Regex("[0-9A-Za-z.+-]{1,32}")) },
+            staffAuthStatus = staffAuthStatus,
         )
         return HeartbeatResponse(ok = true, deviceId = id)
     }

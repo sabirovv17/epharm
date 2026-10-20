@@ -4,6 +4,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kz.epharm.posm.service.DevicePresenceService
+import kz.epharm.posm.service.StaffAuthStatus
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.data.redis.core.DefaultTypedTuple
 import org.springframework.data.redis.core.HashOperations
@@ -70,6 +71,20 @@ class DevicePresenceServiceTest {
     }
 
     @Test
+    fun `staff status is fixed diagnostic and omitted heartbeat clears stale auth claim`() {
+        svc.heartbeat("staff-device", "ph_a", t0, staffAuthStatus = "login_visible")
+        assertEquals("login_visible", svc.connected(t0.plusSeconds(1)).single().staffAuthStatus)
+        svc.heartbeat("staff-device", "ph_a", t0.plusSeconds(2), staffAuthStatus = "authenticated")
+        assertEquals("authenticated", svc.connected(t0.plusSeconds(3)).single().staffAuthStatus)
+        svc.heartbeat("staff-device", "ph_a", t0.plusSeconds(4))
+        assertEquals(null, svc.connected(t0.plusSeconds(5)).single().staffAuthStatus)
+        svc.heartbeat("staff-device", "ph_a", t0.plusSeconds(6), staffAuthStatus = "IIN=000101500011 password=private")
+        assertEquals(null, svc.connected(t0.plusSeconds(7)).single().staffAuthStatus)
+        assertEquals(null, StaffAuthStatus.normalize("authenticated\nprivate"))
+        assertEquals(null, StaffAuthStatus.normalize("unknown"))
+    }
+
+    @Test
     fun `heartbeat persists and connected restores device from redis`() {
         val provider = mockk<ObjectProvider<StringRedisTemplate>>()
         val redis = mockk<StringRedisTemplate>()
@@ -87,6 +102,7 @@ class DevicePresenceServiceTest {
         every { hash.multiGet("epharm:posm:presence:device", any()) } returns listOf("kassa-redis")
         every { hash.multiGet("epharm:posm:presence:monitor-count", any()) } returns listOf("2")
         every { hash.multiGet("epharm:posm:presence:app-version", any()) } returns listOf("1.0.46.0")
+        every { hash.multiGet("epharm:posm:presence:staff-auth-status", any()) } returns listOf("database_unavailable")
 
         val writer = DevicePresenceService(ttlSeconds = 90, redisProvider = provider)
         writer.heartbeat(
@@ -95,6 +111,7 @@ class DevicePresenceServiceTest {
             t0,
             monitorCount = 2,
             appVersion = "1.0.46.0",
+            staffAuthStatus = "database_unavailable",
         )
         val key = "ph_redis\u001Fkassa-redis"
         verify { zset.add("epharm:posm:presence:last-seen", key, t0.toEpochMilli().toDouble()) }
@@ -102,6 +119,7 @@ class DevicePresenceServiceTest {
         verify { hash.put("epharm:posm:presence:device", key, "kassa-redis") }
         verify { hash.put("epharm:posm:presence:monitor-count", key, "2") }
         verify { hash.put("epharm:posm:presence:app-version", key, "1.0.46.0") }
+        verify { hash.put("epharm:posm:presence:staff-auth-status", key, "database_unavailable") }
 
         val afterRestart = DevicePresenceService(ttlSeconds = 90, redisProvider = provider)
         val restored = afterRestart.connected(t0.plusSeconds(10))
@@ -110,6 +128,37 @@ class DevicePresenceServiceTest {
         assertEquals("ph_redis", restored.single().pharmacyId)
         assertEquals(2, restored.single().monitorCount)
         assertEquals("1.0.46.0", restored.single().appVersion)
+        assertEquals("database_unavailable", restored.single().staffAuthStatus)
+    }
+
+    @Test
+    fun `legacy heartbeat clears redis auth diagnostic across database merge and restart`() {
+        val provider = mockk<ObjectProvider<StringRedisTemplate>>()
+        val redis = mockk<StringRedisTemplate>()
+        val zset = mockk<ZSetOperations<String, String>>(relaxed = true)
+        val hash = mockk<HashOperations<String, String, String>>(relaxed = true)
+        val jdbc = mockk<JdbcTemplate>()
+        var staffStatus: String? = "authenticated"
+        val key = "ph_merge\u001Fkassa-merge"
+        every { provider.getIfAvailable() } returns redis
+        every { redis.opsForZSet() } returns zset
+        every { redis.opsForHash<String, String>() } returns hash
+        every { zset.rangeByScoreWithScores(any(), any(), any()) } returns
+            setOf(DefaultTypedTuple(key, t0.plusSeconds(10).toEpochMilli().toDouble()))
+        every { hash.multiGet("epharm:posm:presence:pharmacy", any()) } returns listOf("ph_merge")
+        every { hash.multiGet("epharm:posm:presence:device", any()) } returns listOf("kassa-merge")
+        every { hash.multiGet("epharm:posm:presence:staff-auth-status", any()) } answers { listOf(staffStatus) }
+        every { hash.delete("epharm:posm:presence:staff-auth-status", key) } answers { staffStatus = null; 1L }
+        every { jdbc.query(any<String>(), any<RowMapper<DevicePresenceService.Presence>>(), any<Timestamp>()) } returns listOf(
+            DevicePresenceService.Presence("kassa-merge", "ph_merge", t0.plusSeconds(15)),
+        )
+        val writer = DevicePresenceService(90, provider, jdbc)
+        assertEquals("authenticated", writer.connected(t0.plusSeconds(16)).single().staffAuthStatus)
+        writer.heartbeat("kassa-merge", "ph_merge", t0.plusSeconds(20))
+        assertEquals(null, writer.connected(t0.plusSeconds(21)).single().staffAuthStatus)
+        assertEquals(null, DevicePresenceService(90, provider, jdbc).connected(t0.plusSeconds(21)).single().staffAuthStatus)
+        staffStatus = "iin=000101500011"
+        assertEquals(null, DevicePresenceService(90, provider, jdbc).connected(t0.plusSeconds(21)).single().staffAuthStatus)
     }
 
     @Test

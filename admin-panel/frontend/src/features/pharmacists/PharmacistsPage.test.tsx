@@ -313,6 +313,66 @@ describe('PharmacistsPage — список и actions', () => {
     expect(screen.getByTestId('pharmacist-row-u_b')).toBeInTheDocument()
   })
 
+  it('показывает ИИН отдельной колонкой без пароля или его хеша', () => {
+    const pharmacist = {
+      ...mkPharmacist({ iin: '001201000001' }),
+      password: 'SyntheticPasswordMustNotBeRendered!',
+      passwordHash: '$2b$12$syntheticHashMustNotBeRendered',
+    }
+    setPharmacists([pharmacist])
+    renderPage()
+
+    const table = screen.getByTestId('pharmacists-table')
+    const header = within(table).getByRole('columnheader', { name: 'ИИН' })
+    expect(header).toHaveAttribute('scope', 'col')
+    const row = screen.getByTestId('pharmacist-row-u_1')
+    expect(within(row).getByRole('cell', { name: '001201000001' })).toBeInTheDocument()
+    expect(within(row).getAllByRole('cell')).toHaveLength(
+      within(table).getAllByRole('columnheader').length,
+    )
+    expect(table.outerHTML).not.toContain(pharmacist.password)
+    expect(table.outerHTML).not.toContain(pharmacist.passwordHash)
+    expect(within(table).queryByRole('columnheader', { name: /пароль/i })).not.toBeInTheDocument()
+    expect(within(row).getByRole('button', { name: 'Сменить пароль' })).toBeInTheDocument()
+  })
+
+  it('оставляет пустой ИИН явным и сохраняет колонки без массового выбора', () => {
+    lmsHooks.useTrainingDashboard.mockReturnValue({
+      data: { capabilities: { canManagePreferences: false, canManageAssignments: false } },
+    })
+    setPharmacists([mkPharmacist({ iin: '' })])
+    renderPage()
+
+    const table = screen.getByTestId('pharmacists-table')
+    const row = screen.getByTestId('pharmacist-row-u_1')
+    expect(within(table).getByRole('columnheader', { name: 'ИИН' })).toBeInTheDocument()
+    expect(within(row).getByRole('cell', { name: '—' })).toBeInTheDocument()
+    expect(within(row).getAllByRole('cell')).toHaveLength(9)
+    expect(within(table).getAllByRole('columnheader')).toHaveLength(9)
+    expect(within(table).queryByRole('checkbox')).not.toBeInTheDocument()
+  })
+
+  it('поиск по ИИН сохраняет выбор строк и выбирает только видимых сотрудников', async () => {
+    setPharmacists([
+      mkPharmacist({ id: 'u_first', name: 'Первый', iin: '001201000001' }),
+      mkPharmacist({ id: 'u_second', name: 'Второй', iin: '021201000002' }),
+    ])
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(screen.getByRole('checkbox', { name: 'Выбрать Первый' }))
+    const search = screen.getByPlaceholderText('Поиск по имени, аптеке, ИИН, телефону')
+    await user.type(search, '021201000002')
+    expect(screen.queryByTestId('pharmacist-row-u_first')).not.toBeInTheDocument()
+    expect(screen.getByRole('cell', { name: '021201000002' })).toBeInTheDocument()
+    await user.click(screen.getByRole('checkbox', { name: 'Выбрать всех видимых фармацевтов' }))
+    expect(screen.getByRole('button', { name: 'Назначить обучение (2)' })).toBeInTheDocument()
+
+    await user.clear(search)
+    expect(screen.getByRole('checkbox', { name: 'Выбрать Первый' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Выбрать Второй' })).toBeChecked()
+  })
+
   it('фильтр active скрывает blocked', async () => {
     setPharmacists([
       mkPharmacist({ id: 'a', name: 'Active-X', status: 'active' }),

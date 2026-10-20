@@ -159,6 +159,8 @@ data class RegisterPresenceDto(
     /** Версия установленного POSM; null у клиентов старого формата heartbeat. */
     val appVersion: String?,
     val lastSeen: Instant,
+    /** Self-reported operational state, not an authorization or financial identity. */
+    val staffAuthStatus: String? = null,
 )
 
 data class SlideDto(

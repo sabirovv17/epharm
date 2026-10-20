@@ -17,6 +17,11 @@ public sealed record StaffSessionObservation(string Status, StaffObservedSession
 /// <summary>Authoritative staff observations never inherit the receipt-reader's heuristic fallbacks.</summary>
 public static class StaffSessionResolver
 {
+    // A vendor counter/string is not a timestamp; never guess a unit or parse it as personal-session proof.
+    public static DateTime? ReadDatabaseTimestamp(object? value) => value is DateTime timestamp
+        ? DateTime.SpecifyKind(timestamp, DateTimeKind.Unspecified)
+        : null;
+
     public static string CanonicalComputer(string? value)
     {
         var name = (value ?? "").Trim();

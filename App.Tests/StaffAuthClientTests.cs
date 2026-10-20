@@ -31,6 +31,43 @@ public sealed class StaffAuthClientTests
         Assert.False(await client.IsEnabledAsync(TestContext.Current.CancellationToken));
     }
 
+    [Theory]
+    [InlineData(401, "device_auth_required")]
+    [InlineData(403, "forbidden")]
+    [InlineData(404, "endpoint_unavailable")]
+    [InlineData(503, "endpoint_unavailable")]
+    public async Task CapabilityDiagnosticsNeverReadErrorBody(int status, string expected)
+    {
+        using var client = Client(new Handler((_, _) => Task.FromResult(Response("secret-phone-and-password", (HttpStatusCode)status))));
+        var result = await client.CheckCapabilitiesAsync(TestContext.Current.CancellationToken);
+        Assert.False(result.Enabled);
+        Assert.Equal(expected, result.Status);
+        Assert.DoesNotContain("secret", result.ToString());
+    }
+
+    [Fact]
+    public async Task InvalidCapabilityJsonIsReportedWithoutLoggingItsContents()
+    {
+        using var client = Client(new Handler((_, _) => Task.FromResult(Response("not-json-secret"))));
+        Assert.Equal(new(false, "endpoint_unavailable"), await client.CheckCapabilitiesAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task NetworkOrTlsFailureIsReportedWithoutExceptionDetails()
+    {
+        using var client = Client(new Handler((_, _) => throw new HttpRequestException("secret-endpoint-credentials")));
+        Assert.Equal(new(false, "network_unavailable"), await client.CheckCapabilitiesAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task StoppingCapabilityPollRemainsCancellationNotDisabledService()
+    {
+        using var stop = new CancellationTokenSource();
+        stop.Cancel();
+        using var client = Client(new Handler((_, ct) => Task.FromCanceled<HttpResponseMessage>(ct)));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.CheckCapabilitiesAsync(stop.Token));
+    }
+
     [Fact]
     public async Task LoginBindsDeviceAndExactObservedContextWithoutJwt()
     {
@@ -50,6 +87,30 @@ public sealed class StaffAuthClientTests
         Assert.Equal("pending", result.Status);
         Assert.Null(result.SessionToken);
         Assert.Equal(Context, result.Context);
+    }
+
+    [Fact]
+    public async Task MissingCashSessionBlocksOnlyLoginLocallyNotRegistrationOrRecovery()
+    {
+        var calls = 0;
+        using var client = Client(new Handler(async (request, ct) => {
+            calls++;
+            Assert.Equal("test-only-device-key", request.Headers.GetValues("X-Posm-Key").Single());
+            using var document = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(ct));
+            Assert.False(document.RootElement.TryGetProperty("context", out _));
+            return request.RequestUri!.AbsolutePath switch {
+                "/api/posm/staff/register" => Response("{\"status\":\"pending\"}"),
+                "/api/posm/staff/password/reset" => Response("{\"changed\":true}"),
+                _ => throw new InvalidOperationException("A login without observed context must never reach HTTP."),
+            };
+        }));
+        var error = await Assert.ThrowsAsync<StaffApiException>(async () =>
+            await client.LoginAsync("000000000000", "test-only-password", null, TestContext.Current.CancellationToken));
+        Assert.Equal("SESSION_REQUIRED", error.Code);
+        Assert.Equal(0, calls);
+        Assert.Equal("pending", (await client.RegisterAsync("challenge", "1234", "000000000000", "+77000000000", "Test Pharmacist", "test-only-password", TestContext.Current.CancellationToken)).Status);
+        Assert.True((await client.ChangePasswordAsync("reset", "challenge", "1234", "000000000000", "+77000000000", "test-only-password", TestContext.Current.CancellationToken)).Changed);
+        Assert.Equal(2, calls);
     }
 
     [Fact]

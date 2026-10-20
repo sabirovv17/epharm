@@ -48,6 +48,7 @@
     <Compile Include="..\App\Services\StaffSessionObservation.cs" Link="Services\StaffSessionObservation.cs" />
     <Compile Include="..\App\Services\StaffPasswordValidation.cs" Link="Services\StaffPasswordValidation.cs" />
     <Compile Include="..\App\Services\StaffAuthClient.cs" Link="Services\StaffAuthClient.cs" />
+    <Compile Include="..\App\Services\StaffAuthDiagnostics.cs" Link="Services\StaffAuthDiagnostics.cs" />
     <Compile Include="..\Models\Posm\StaffAuthentication.cs" Link="Models\StaffAuthentication.cs" />
     <Compile Include="..\App\Services\TaskKioskSnooze.cs" Link="Services\TaskKioskSnooze.cs" />
     <Compile Include="..\App\Services\MerchShownOutbox.cs" Link="Services\MerchShownOutbox.cs" />

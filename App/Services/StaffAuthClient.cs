@@ -29,16 +29,28 @@ public sealed class StaffAuthClient : IDisposable
         _http.DefaultRequestHeaders.Add("X-Device-Id", config.ResolveDeviceId());
     }
 
-    public async Task<bool> IsEnabledAsync(CancellationToken ct)
+    public async Task<bool> IsEnabledAsync(CancellationToken ct) => (await CheckCapabilitiesAsync(ct).ConfigureAwait(false)).Enabled;
+
+    public async Task<StaffCapabilityCheck> CheckCapabilitiesAsync(CancellationToken ct)
     {
-        using var response = await _http.GetAsync("/api/posm/staff/capabilities", ct).ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode) return false;
-        var value = await response.Content.ReadFromJsonAsync<StaffCapabilities>(Json, ct).ConfigureAwait(false);
-        return value is { Enabled: true, ProtocolVersion: 1 };
+        try
+        {
+            using var response = await _http.GetAsync("/api/posm/staff/capabilities", ct).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode) return StaffAuthDiagnostics.CapabilityFailure(response.StatusCode);
+            var value = await response.Content.ReadFromJsonAsync<StaffCapabilities>(Json, ct).ConfigureAwait(false);
+            return StaffAuthDiagnostics.Capability(value);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (OperationCanceledException) { return new(false, "network_unavailable"); }
+        catch (HttpRequestException) { return new(false, "network_unavailable"); }
+        catch (JsonException) { return new(false, "endpoint_unavailable"); }
     }
 
-    public Task<StaffAuthResponse> LoginAsync(string iin, string password, StaffAuthContext context, CancellationToken ct) =>
-        PostAsync<StaffAuthResponse>("login", new { iin, password, context }, ct);
+    public Task<StaffAuthResponse> LoginAsync(string iin, string password, StaffAuthContext? context, CancellationToken ct)
+    {
+        if (context == null) throw new StaffApiException("SESSION_REQUIRED");
+        return PostAsync<StaffAuthResponse>("login", new { iin, password, context }, ct);
+    }
     public Task<StaffOtpResponse> RequestOtpAsync(string purpose, string iin, string phone, CancellationToken ct) =>
         PostAsync<StaffOtpResponse>("otp/request", new { purpose, iin, phone }, ct);
     public Task<StaffRegistrationResponse> RegisterAsync(string challengeId, string code, string iin, string phone, string name, string password, CancellationToken ct) =>

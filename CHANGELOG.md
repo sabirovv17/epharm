@@ -22,6 +22,30 @@ All notable production changes to Epharm are recorded here. The format follows
 - POSM 1.0.65 spreads healthy QR-task polling over 24–36 seconds per device, reducing
   synchronized load on the merchandising fallback without changing recommendations or orders.
 
+## [0.1.41] - 2026-10-21
+
+### Added
+
+- Visible IIN/JSN column in the pharmacist registry, preserving leading zeroes and credential role restrictions.
+- POSM 1.0.71 offers a clear registration/recovery choice after failed sign-in, retaining the typed IIN
+  while clearing passwords and SMS state; unknown IIN and wrong password remain indistinguishable.
+- Connected-cash-desk diagnostics distinguish staff capability, local session/database failures,
+  a visible sign-in window and a confirmed staff grant using fixed non-personal status codes.
+
+### Fixed
+
+- Optional staff-channel initialization and capability errors no longer disappear without a bounded reason.
+  Diagnostic input cannot insert arbitrary personal data into heartbeat storage or the admin page.
+- A heartbeat from an old client clears an obsolete staff-auth diagnostic rather than implying an
+  authenticated employee. These self-reported codes are not authorization or monetary identity.
+
+### Rollout
+
+- Standard-N, Windows, receipt delivery, recommendations, QR and customer display remain independent
+  of staff sign-in. Passwords remain bcrypt hashes; existing employees/campaigns are not reseeded.
+- Read the live diagnostic after rollout before naming a particular Standard-N compatibility issue;
+  server capability success alone does not prove that the cashier session is readable or a person signed in.
+
 ## [0.1.40] - 2026-10-21
 
 ### Fixed

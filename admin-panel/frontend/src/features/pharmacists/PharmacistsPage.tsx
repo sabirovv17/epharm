@@ -309,7 +309,7 @@ export default function PharmacistsPage() {
               icon={<IconPharmacist size={26} />}
             />
           ) : (
-            <table className="w-full text-[13px]" data-testid="pharmacists-table">
+            <table className="min-w-[1200px] w-full text-[13px]" data-testid="pharmacists-table">
               <thead className="hairline border-b">
                 <tr className="text-left text-[11px] font-bold uppercase tracking-[0.06em] text-ink-500">
                   {canManagePreferences && (
@@ -324,6 +324,7 @@ export default function PharmacistsPage() {
                     </th>
                   )}
                   <th className="px-5 py-2.5">{t('phc.thName')}</th>
+                  <th scope="col" className="w-[132px] whitespace-nowrap px-3 py-2.5">{t('phc.thIin')}</th>
                   <th className="px-3 py-2.5">{t('phc.thPharmacy')}</th>
                   <th className="px-3 py-2.5">Формат обучения</th>
                   <th className="px-3 py-2.5">{t('phc.thTier')}</th>
@@ -362,6 +363,7 @@ export default function PharmacistsPage() {
                         </div>
                       </div>
                     </td>
+                    <td className="num whitespace-nowrap px-3 py-2.5 text-ink-700">{p.iin || '—'}</td>
                     <td className="px-3 py-2.5 text-ink-700">
                       <div className={!p.pharmacyName ? 'font-bold text-accent-warning' : ''}>
                         {p.pharmacyName || t('phc.unassigned')}

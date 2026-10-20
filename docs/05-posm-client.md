@@ -120,6 +120,20 @@ catalog product ids.
 
 ## Config
 
+POSM 1.0.71 includes a guided registration/recovery choice after a failed IIN/password login.
+The typed IIN is retained while passwords, OTP and the previous challenge are cleared. Unknown
+IIN and wrong password have the same response/guidance: there is no account-existence endpoint.
+Registration still requires SMS and creates a pending profile requiring pharmacy assignment.
+An unresolved Standard-N session no longer hides registration/recovery behind a status-only window.
+The full form remains available; only login is disabled until a real context is resolved. No synthetic
+context is sent. Session timestamps are read as native values without forced SQL casts; unsupported
+counters/strings are rejected explicitly, never guessed into a trusted timestamp.
+The optional staff channel reports only allowlisted `staffAuthStatus` codes through the existing
+heartbeat, including local/server-disabled, device credential, network, process/database/session,
+`login_visible`, `login_required` and `authenticated`. No IIN, name, phone, password, OTP or token
+is included. A visible WPF window is not proof of human attention; client state is not financial trust.
+Staff-channel failures must not stop receipt polling, updates, QR, recommendation or customer display.
+
 `posm.json` keys can be overridden by environment variables:
 
 | Key                                    | Env                                        | Meaning                                                                            |

@@ -106,6 +106,7 @@ class ScreenPresenceService(
                 hasClientScreen = device.monitorCount?.let { it >= 2 },
                 appVersion = device.appVersion,
                 lastSeen = device.lastSeen,
+                staffAuthStatus = device.staffAuthStatus,
             )
         }.sortedWith(
             compareBy<RegisterPresenceDto>(
