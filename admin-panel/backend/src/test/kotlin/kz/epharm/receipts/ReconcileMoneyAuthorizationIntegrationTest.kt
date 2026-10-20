@@ -1,6 +1,7 @@
 package kz.epharm.receipts
 
 import java.io.ByteArrayOutputStream
+import java.util.UUID
 import kz.epharm.auth.domain.AdminRole
 import kz.epharm.auth.entity.AdminUserEntity
 import kz.epharm.auth.repository.AdminUserRepository
@@ -10,6 +11,7 @@ import kz.epharm.pharmacies.entity.PharmacyEntity
 import kz.epharm.pharmacies.repository.ChainRepository
 import kz.epharm.pharmacies.repository.PharmacyRepository
 import kz.epharm.pharmacists.entity.PharmacistEntity
+import kz.epharm.pharmacists.entity.PharmacistStatus
 import kz.epharm.pharmacists.repository.PharmacistRepository
 import kz.epharm.receipts.entity.PendingBonusEntity
 import kz.epharm.receipts.entity.ReceiptEntity
@@ -25,6 +27,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
 import org.springframework.mock.web.MockMultipartFile
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
@@ -70,6 +73,7 @@ class ReconcileMoneyAuthorizationIntegrationTest {
     @Autowired private lateinit var pending: PendingBonusRepository
     @Autowired private lateinit var receipts: ReceiptRepository
     @Autowired private lateinit var jdbc: JdbcTemplate
+    @Autowired private lateinit var passwords: PasswordEncoder
     private val allowed = listOf(AdminRole.HQ_HEAD, AdminRole.FINANCE_REVIEWER, AdminRole.SYSTEM_ADMIN)
     private val commercial = listOf(AdminRole.BRAND_MANAGER, AdminRole.CATEGORY_LEAD)
 
@@ -181,12 +185,65 @@ class ReconcileMoneyAuthorizationIntegrationTest {
 
     @Test
     fun `commercial profile changes without a balance remain permitted`() {
-        commercial.forEach { role ->
+        (commercial + AdminRole.FINANCE_REVIEWER).forEach { role ->
             mvc.perform(patch("/api/admin/pharmacists/u_roles").header("Authorization", bearer(role))
                 .contentType(MediaType.APPLICATION_JSON).content("""{"name":"Updated ${role.name}"}"""))
                 .andExpect(status().isOk).andExpect(jsonPath("$.name").value("Updated ${role.name}"))
         }
         assertThat(pharmacists.findById("u_roles").orElseThrow().balance).isZero()
+    }
+
+    @Test
+    fun `commercial and finance cannot take over credentials of an HQ mapped executor`() {
+        hqMapping()
+        val original = pharmacists.findById("u_roles").orElseThrow()
+        val originalPassword = original.passwordHash
+        (commercial + AdminRole.FINANCE_REVIEWER).forEach { role ->
+            val bearer = bearer(role)
+            listOf(
+                """{"phone":"+77009998877","name":"Must not change"}""",
+                """{"password":"TakeoverTest123!","name":"Must not change"}""",
+                """{"phone":"+77009998877","password":"TakeoverTest123!","name":"Must not change"}""",
+                """{"phone":"+77001112233"}""",
+            ).forEach { body ->
+                mvc.perform(patch("/api/admin/pharmacists/u_roles").header("Authorization", bearer)
+                    .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden)
+            }
+        }
+        val person = pharmacists.findById("u_roles").orElseThrow()
+        assertThat(person.phone).isEqualTo("+77001112233")
+        assertThat(person.passwordHash).isEqualTo(originalPassword)
+        assertThat(person.name).isEqualTo("Test")
+        assertThat(person.balance).isZero()
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM posm_pharmacist_mapping_audit", Long::class.java)).isEqualTo(1)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM pharmacist_wallet_entries", Long::class.java)).isZero()
+    }
+
+    @Test
+    fun `HQ and system admin may reset executor contact and credentials`() {
+        hqMapping()
+        listOf(AdminRole.HQ_HEAD, AdminRole.SYSTEM_ADMIN).forEachIndexed { index, role ->
+            val phone = "+7700111223${index + 4}"
+            val password = "HqResetTest$index!"
+            mvc.perform(patch("/api/admin/pharmacists/u_roles").header("Authorization", bearer(role))
+                .contentType(MediaType.APPLICATION_JSON).content("""{"phone":"$phone","password":"$password"}"""))
+                .andExpect(status().isOk).andExpect(jsonPath("$.phone").value(phone))
+            val person = pharmacists.findById("u_roles").orElseThrow()
+            assertThat(passwords.matches(password, person.passwordHash)).isTrue()
+            assertThat(person.balance).isZero()
+        }
+    }
+
+    private fun hqMapping() {
+        val hq = admins.saveAndFlush(AdminUserEntity(email = "affiliation-hq@roles.test", name = "Test HQ",
+            passwordHash = "test-only-not-used", company = "Test").also { it.role = AdminRole.HQ_HEAD })
+        pharmacists.findById("u_roles").orElseThrow().status = PharmacistStatus.active
+        pharmacists.flush()
+        val mapping = UUID.randomUUID()
+        jdbc.update("""INSERT INTO posm_pharmacist_mappings(id,pharmacy_id,external_user_id,pharmacist_id,created_by,updated_by)
+            VALUES (?,'ph_roles','cashier_roles','u_roles',?,?)""", mapping, hq.id, hq.id)
+        jdbc.update("""INSERT INTO posm_pharmacist_mapping_audit(mapping_id,action,pharmacy_id,external_user_id,pharmacist_id,actor_id)
+            VALUES (?,'created','ph_roles','cashier_roles','u_roles',?)""", mapping, hq.id)
     }
 
     private fun bearer(role: AdminRole): String {

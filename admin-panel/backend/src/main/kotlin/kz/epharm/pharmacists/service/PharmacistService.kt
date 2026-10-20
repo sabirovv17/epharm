@@ -84,6 +84,13 @@ class PharmacistService(
                 throw AppException(ErrorCode.FORBIDDEN, "Изменять денежный баланс может только финансовая роль", HttpStatus.FORBIDDEN)
             }
         }
+        // These fields control the owner of a fresh monetary OTP, not just profile presentation.
+        if (req.phone != null || req.password != null) {
+            val role = (SecurityContextHolder.getContext().authentication?.principal as? AdminPrincipal)?.role
+            if (role !in setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD)) {
+                throw AppException(ErrorCode.FORBIDDEN, "Изменять телефон или пароль фармацевта может только HQ", HttpStatus.FORBIDDEN)
+            }
+        }
         val entity = loadOrThrow(id)
         if (entity.status == PharmacistStatus.blocked) {
             throw AppException(
