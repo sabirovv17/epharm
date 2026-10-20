@@ -237,6 +237,11 @@ database/schema failures preserve the live cart and break that empty-read sequen
 A late database response started before a log add, deletion, discount or print cannot overwrite
 the newer customer screen. A just-printed known document cannot repopulate it. Clearing an unbound
 log-only cart discards its draft and recommendation windows; it does not invent a completed sale.
+If a print arrives before any `DOCS.ID` was observed, nonempty database snapshots are quarantined
+until two authoritative empty reads confirm the receipt boundary. New log scans still work but
+cannot release this barrier: they do not identify the old database document. A DB-only cashier
+that immediately opens another receipt without an observed idle boundary may temporarily miss
+DB-driven updates until the next confirmed empty receipt; do not guess identity from time or names.
 The pre-existing tracked-document sale completion contract is unchanged: distinguishing a held or
 cancelled document from a paid sale still needs a real Standard-N fixture before changing financial
 semantics. POSM never writes or closes the cashier's real receipt.

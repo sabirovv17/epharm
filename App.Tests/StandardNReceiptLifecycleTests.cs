@@ -61,6 +61,61 @@ namespace CustomerDisplay.Core.Tests
         }
 
         [Fact]
+        public void UnboundPrintCannotResurrectOldDocumentOrManufactureSecondSale()
+        {
+            var window = new MainWindow();
+            window.AddLogItem(10);
+            window.Print();
+
+            window.Observe(Receipt(100, 10));
+            window.Observe(Receipt(100, 10));
+            window.Observe(null);
+            window.Observe(null);
+
+            Assert.Empty(window.ReceiptItems);
+            Assert.Equal(0m, window.DisplayTotal);
+            Assert.Single(window.Sales);
+        }
+
+        [Fact]
+        public void NewLogScanDoesNotReleaseUnboundPrintDatabaseBarrier()
+        {
+            var window = new MainWindow();
+            window.AddLogItem(10);
+            window.Print();
+            window.AddLogItem(20);
+
+            window.Observe(Receipt(100, 10));
+
+            Assert.Equal(20, Assert.Single(window.ReceiptItems).PartId);
+            Assert.Null(window.DocumentId);
+            Assert.Single(window.Sales);
+        }
+
+        [Fact]
+        public void UnboundPrintBoundaryRequiresConsecutiveSuccessfulEmptyReads()
+        {
+            var window = new MainWindow();
+            window.AddLogItem(10);
+            window.Print();
+            window.Observe(null);
+            window.DatabaseFailed();
+            window.Observe(null);
+            window.Observe(Receipt(100, 10));
+
+            Assert.Empty(window.ReceiptItems);
+            Assert.Single(window.Sales);
+
+            window.Observe(null);
+            window.Observe(null);
+            window.Observe(Receipt(101, 20));
+
+            Assert.Equal(20, Assert.Single(window.ReceiptItems).PartId);
+            Assert.Equal(101, window.DocumentId);
+            Assert.Single(window.Sales);
+        }
+
+        [Fact]
         public void DelayedEmptyReadBeforeNewScanCannotClearNewCart()
         {
             var window = new MainWindow();
