@@ -23,6 +23,8 @@ goal because mobile users have the Flutter app.
 Public:
 
 - `/login`
+- `/learn/merch/claim` — mobile-friendly pharmacist identity confirmation for a CRM task; it uses
+  pharmacist authentication, not the HQ admin session, and does not grant access to the admin shell.
 
 Protected under `AppShell`:
 
@@ -186,6 +188,27 @@ not a published course; the manager can inspect lessons and tests before publish
 are uploaded through the backend and stored as returned URLs rather than typed as arbitrary links.
 
 ## Pharmacist Onboarding
+
+### Merchandising executor confirmation
+
+CRM may open `https://epharm.inkar.kz/learn/merch/claim#challenge=...` for a rewarded task.
+The signed capability is removed from the URL before telemetry starts and kept only in page memory;
+refreshing the page requires scanning the task QR again. The page reuses the pharmacist IIN/password
+login and its existing session-token namespace, never the admin session or the editable CRM executor name.
+
+The backend validates the CRM challenge, active pharmacist and exact pharmacy assignment before
+returning task context. The page then requests a fresh, purpose-scoped SMS only after an explicit
+button press. The recipient is the account's server-bound phone, displayed masked and not editable.
+OTP expiry, resend cooldown, expired login, wrong pharmacy and retryable network errors have explicit
+states. This flow neither activates Standard-N accounts nor changes ordinary pharmacist login.
+
+After confirmation the page offers only the backend-issued, allowlisted
+`https://crm.inkar.kz/staff#claim=...&grant=...` handoff. ePharm JWTs, passwords and SMS codes never
+leave the ePharm origin; the short-lived opaque grant is not saved in browser storage. Returning to
+CRM identifies the executor but does not itself credit money. Rewards require actual completion and
+the manager's approval. Existing anonymous task execution remains a separate, non-rewarded path.
+
+### Existing onboarding
 
 Mobile self-registration creates a `pending` pharmacist without a pharmacy assignment. In
 `/pharmacists`, HQ selects an active pharmacy and activates that profile. This assignment is used

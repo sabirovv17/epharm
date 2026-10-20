@@ -13,6 +13,7 @@ import { SectionRoute } from './SectionRoute'
 
 const LoginPage = lazy(() => import('@/features/auth/LoginPage'))
 const LearnerTraining = lazy(() => import('@/features/learner/LearnerTrainingPage'))
+const MerchClaim = lazy(() => import('@/features/merch/MerchClaimPage'))
 const Dashboard = lazy(() => import('@/features/dashboard/DashboardPage'))
 const CampaignReports = lazy(() => import('@/features/reports/CampaignReportsPage'))
 const Promo = lazy(() => import('@/features/promo/PromoPage'))
@@ -56,6 +57,7 @@ export function AppRouter() {
       {/* Public — login screen без AppShell */}
       <Route path="/login" element={withSuspense(<LoginPage />)} />
       <Route path="/learn" element={withSuspense(<LearnerTraining />)} />
+      <Route path="/learn/merch/claim" element={withSuspense(<MerchClaim />)} />
       <Route path="/learn/catalog" element={withSuspense(<LearnerTraining />)} />
       <Route path="/learn/receipts" element={withSuspense(<LearnerTraining />)} />
       <Route path="/learn/training" element={withSuspense(<LearnerTraining />)} />
