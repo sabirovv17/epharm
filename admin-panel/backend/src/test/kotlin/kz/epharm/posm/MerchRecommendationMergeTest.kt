@@ -16,6 +16,7 @@ import kz.epharm.posm.dto.CartItemDto
 import kz.epharm.posm.dto.RecommendRequest
 import kz.epharm.posm.repository.RecommendationEventRepository
 import kz.epharm.posm.service.RecommendationService
+import kz.epharm.posm.service.RecommendationSaleBonusService
 import kz.epharm.posm.service.RuleMatch
 import kz.epharm.posm.service.RuleMatchResult
 import kz.epharm.posm.service.RulesEngineService
@@ -51,6 +52,7 @@ class MerchRecommendationMergeTest {
     fun setUp() {
         service = RecommendationService(
             rulesEngine, events, pendingBonusService, jdbc, entityManager, merch, products,
+            mockk<RecommendationSaleBonusService>(relaxed = true),
         )
         every { events.findAllBySessionId(any()) } returns emptyList()
         every { rulesEngine.match(any(), any()) } returns RuleMatchResult(emptyList(), emptyList())

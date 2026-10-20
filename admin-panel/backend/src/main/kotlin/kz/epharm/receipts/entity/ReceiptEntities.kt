@@ -57,6 +57,10 @@ class PendingBonusEntity(
     @Column(name = "rule_id", length = 64)
     var ruleId: String? = null,
 
+    /** Exact completed POS sale for an informational, actually displayed recommendation. */
+    @Column(name = "source_sale_id", length = 64)
+    var sourceSaleId: String? = null,
+
     @Column(name = "status", nullable = false, length = 32)
     var statusRaw: String = PendingBonusStatus.awaiting_receipt.name,
 

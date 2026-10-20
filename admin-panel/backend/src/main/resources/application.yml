@@ -93,6 +93,10 @@ app:
     max-concurrent: ${MERCH_TASKS_MAX_CONCURRENT:16}
     # Exact HTTPS page used by QR links from the merchandising service.
     public-staff-url: ${MERCH_TASKS_STAFF_URL:}
+  merch-rewards:
+    # Separate opt-in financial trust boundary; never reuse the public QR integration key.
+    enabled: ${MERCH_REWARDS_ENABLED:false}
+    shared-secret: ${PHARMAPAY_REWARDS_SHARED_SECRET:}
   version: ${RELEASE_ID:dev}
   commit: ${RELEASE_COMMIT:unknown}
   # Канонический публичный origin для QR-проверки сертификатов.
@@ -151,6 +155,9 @@ app:
       text-template: 'Код входа ePharm: {code}'
       timeout-ms: 10000
   posm:
+    sale-bonus:
+      enabled: ${POSM_SALE_BONUS_ENABLED:false}
+      eligible-after: ${POSM_SALE_BONUS_ELIGIBLE_AFTER:}
     staff-auth-enabled: ${POSM_STAFF_AUTH_ENABLED:false}
     # Ключ устройства кассы (Module 2). POSM-клиент шлёт его в заголовке X-Posm-Key.
     # Переходный fleet-key; production POSM endpoints используют индивидуальные tokens.

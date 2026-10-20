@@ -11,6 +11,7 @@ cp "$source_root/tools/release/"*.sh "$test_root/tools/release/"
 cp "$source_root/tools/release/tests/fixtures/fake-merch-artifact.py" "$test_root/tools/release/verify-merch-artifact.py"
 cp "$source_root/tools/release/tests/fixtures/fake-admin-artifact.py" "$test_root/tools/release/verify-admin-artifact.py"
 cp "$source_root/tools/release/tests/fixtures/fake-release-source.py" "$test_root/tools/release/verify-release-source.py"
+cp "$source_root/tools/release/tests/fixtures/fake-financial-transition.py" "$test_root/tools/release/verify-financial-transition.py"
 cp "$source_root/tools/ops/lib.sh" "$test_root/tools/ops/lib.sh"
 touch "$test_root/docker-compose.prod.yml"
 printf '## [0.1.10] - 2026-09-23\n' > "$test_root/CHANGELOG.md"
@@ -26,7 +27,7 @@ STUB
 cat > "$test_root/tools/backup-all.sh" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
-grep -Fxq 'RELEASE_ID=v0.1.9' "$TEST_WORKSPACE_ROOT/.release.env"
+grep -Fxq "RELEASE_ID=${TEST_EXPECT_BEFORE_BACKUP:-v0.1.9}" "$TEST_WORKSPACE_ROOT/.release.env"
 printf 'backup\n' >> "$TEST_EVENTS"
 STUB
 cat > "$test_root/tools/release/smoke.sh" <<'STUB'
@@ -34,6 +35,7 @@ cat > "$test_root/tools/release/smoke.sh" <<'STUB'
 set -euo pipefail
 grep -Fxq "RELEASE_ID=$1" "$TEST_WORKSPACE_ROOT/.release.env"
 printf 'smoke\n' >> "$TEST_EVENTS"
+[[ "${TEST_FAIL_SMOKE:-false}" != true ]]
 STUB
 cat > "$test_root/bin/docker" <<'STUB'
 #!/usr/bin/env bash
@@ -41,7 +43,11 @@ set -euo pipefail
 case "${1:-}:${2:-}" in
   image:inspect)
     if [[ " $* " == *' --format '* ]]; then
-      printf 'sha256:fixture-image\n'
+      if [[ "${!#}" == epharm/backend:v0.1.9 ]]; then
+        printf 'sha256:fixture-old\n'
+      else
+        printf 'sha256:fixture-image\n'
+      fi
     fi
     ;;
   compose:*)
@@ -69,7 +75,7 @@ case "${1:-}:${2:-}" in
         ;;
       up)
         [[ "$release_env" == "$TEST_WORKSPACE_ROOT/.release.env" ]]
-        grep -Fxq 'RELEASE_ID=v0.1.10' "$release_env"
+        grep -Eq '^RELEASE_ID=v0.1.(9|10)$' "$release_env"
         printf 'up\n' >> "$TEST_EVENTS"
         ;;
       *) echo "Unexpected Docker Compose action: $action" >&2; exit 1 ;;
@@ -87,6 +93,7 @@ git -C "$test_root" config user.email 'release-test@example.invalid'
 git -C "$test_root" add CHANGELOG.md docker-compose.prod.yml tools
 git -C "$test_root" commit -qm 'test: release fixture'
 git -C "$test_root" tag v0.1.10
+git -C "$test_root" tag v0.1.9
 
 export TEST_WORKSPACE_ROOT="$test_root"
 export TEST_EVENTS="$test_root/events"
@@ -197,5 +204,50 @@ grep -Fq 'v0.1.10 is already active' "$test_root/repeated-deploy.log"
 [[ "$(grep -c '^backup$' "$TEST_EVENTS")" -eq 1 ]]
 [[ "$(grep -c '^up$' "$TEST_EVENTS")" -eq 1 ]]
 [[ "$(grep -c '^smoke$' "$TEST_EVENTS")" -eq 1 ]]
+
+# The generic explicit rollback must reject an unsafe predecessor before backup or pins.
+: > "$TEST_EVENTS"
+if TEST_FINANCE_DENY_IMAGE=sha256:fixture-old "$test_root/tools/release/rollback.sh" v0.1.9 \
+    > "$test_root/unsafe-rollback.log" 2>&1; then
+  echo 'Generic rollback accepted an unsafe financial predecessor' >&2; exit 1
+fi
+grep -Fq 'Financial transition denied fixture' "$test_root/unsafe-rollback.log"
+grep -Fxq 'RELEASE_ID=v0.1.10' "$test_root/.release.env"
+[[ ! -s "$TEST_EVENTS" ]]
+
+# A rejected candidate cannot change pins or run a backup either.
+printf 'RELEASE_ID=v0.1.9\nRELEASE_COMMIT=previous-commit\n' > "$test_root/.release.env"
+if TEST_FINANCE_DENY_IMAGE=sha256:fixture-image "$test_root/tools/release/deploy.sh" v0.1.10 \
+    > "$test_root/unsafe-candidate.log" 2>&1; then
+  echo 'Generic deploy accepted a financially incomplete candidate' >&2; exit 1
+fi
+grep -Fxq 'RELEASE_ID=v0.1.9' "$test_root/.release.env"
+[[ ! -s "$TEST_EVENTS" ]]
+
+# Migration can happen during startup. A failing smoke must not automatically restore old writers.
+if TEST_FAIL_SMOKE=true TEST_FINANCE_DENY_IMAGE=sha256:fixture-old \
+    "$test_root/tools/release/deploy.sh" v0.1.10 > "$test_root/unsafe-trap.log" 2>&1; then
+  echo 'Generic deploy ignored failed smoke' >&2; exit 1
+fi
+grep -Fq 'CRITICAL: unsafe financial rollback denied' "$test_root/unsafe-trap.log"
+grep -Fxq 'RELEASE_ID=v0.1.10' "$test_root/.release.env"
+[[ "$(grep -c '^up$' "$TEST_EVENTS")" -eq 1 ]]
+if grep -Fq 'Rollback verified' "$test_root/unsafe-trap.log"; then
+  echo 'Generic deploy claimed an unsafe rollback was verified' >&2; exit 1
+fi
+
+# The reverse failure trap must protect the restored candidate as well.
+: > "$TEST_EVENTS"
+if TEST_EXPECT_BEFORE_BACKUP=v0.1.10 TEST_FAIL_SMOKE=true \
+    TEST_FINANCE_DENY_IMAGE=sha256:fixture-image "$test_root/tools/release/rollback.sh" v0.1.9 \
+    > "$test_root/unsafe-restore-trap.log" 2>&1; then
+  echo 'Generic rollback ignored failed smoke' >&2; exit 1
+fi
+grep -Fq 'CRITICAL: unsafe financial restoration denied' "$test_root/unsafe-restore-trap.log"
+grep -Fxq 'RELEASE_ID=v0.1.9' "$test_root/.release.env"
+[[ "$(grep -c '^up$' "$TEST_EVENTS")" -eq 1 ]]
+if grep -Fq 'Rollback verified' "$test_root/unsafe-restore-trap.log"; then
+  echo 'Generic rollback claimed an unsafe restoration was verified' >&2; exit 1
+fi
 
 echo 'Release prepare/deploy contract OK'

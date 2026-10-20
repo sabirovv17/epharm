@@ -155,6 +155,7 @@ previous_frontend_archive_config_id="$(python3 "$SCRIPT_DIR/verify-image-archive
 actual_backend_id="$(image_id "epharm/backend:$candidate_backend_tag")"
 actual_frontend_id="$(image_id "epharm/frontend:$candidate_frontend_tag")"
 verify_merchandising_image "$candidate_backend_id"
+verify_financial_transition "$candidate_backend_id"
 verify_admin_image "$candidate_frontend_id"
 [[ "$actual_backend_id" == "$candidate_backend_id" && "$actual_frontend_id" == "$candidate_frontend_id" ]] || {
   echo 'ERROR: candidate image IDs differ from the approved artifacts' >&2; exit 1;
@@ -242,7 +243,7 @@ rollback_on_exit() {
   local status=$?
   trap - EXIT
   if [[ "$switched" == true ]]; then
-    echo 'ERROR: two-image release failed; restoring the exact previous pins' >&2
+    echo 'ERROR: two-image release failed; checking the protected predecessor before rollback' >&2
     local rollback_ok=true
     local rollback_backend_id="$previous_backend_id"
     local rollback_frontend_id="$previous_frontend_id"
@@ -265,6 +266,10 @@ rollback_on_exit() {
       if [[ "$component" == backend ]]; then rollback_backend_id="$restored_id";
       else rollback_frontend_id="$restored_id"; fi
     done
+    if [[ "$rollback_ok" == true ]] && ! verify_financial_transition "$rollback_backend_id"; then
+      rollback_ok=false
+      echo 'CRITICAL: unsafe financial rollback denied; current candidate pins retained; use a reviewed wallet-capable forward image' >&2
+    fi
     if [[ "$rollback_ok" == true ]]; then
       mv -f "$rollback_ready" "$RELEASE_ROOT/.release.env" || rollback_ok=false
     fi
@@ -303,6 +308,7 @@ done
   echo 'ERROR: candidate image tag changed before the image switch' >&2; exit 1;
 }
 verify_release_source "$candidate_commit"
+verify_financial_transition "$candidate_backend_id"
 switched=true
 mv -f "$staged_env" "$RELEASE_ROOT/.release.env"
 compose_prod up -d --no-build --no-deps --force-recreate backend frontend

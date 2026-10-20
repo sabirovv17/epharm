@@ -138,6 +138,7 @@ actual_commit="$(docker image inspect --format '{{index .Config.Labels "org.open
   echo 'ERROR: candidate image ID/version/commit does not match approved artifact' >&2; exit 1;
 }
 verify_merchandising_image "$candidate_image_id"
+verify_financial_transition "$candidate_image_id"
 frontend_commit="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "epharm/frontend:$frontend_tag")"
 [[ "$frontend_commit" =~ ^[A-Za-z0-9_.-]+$ ]] || {
   echo 'ERROR: pinned frontend image has no safe revision label' >&2; exit 1;
@@ -228,23 +229,27 @@ rollback_on_exit() {
   local status=$?
   trap - EXIT
   if [[ "$switched" == true ]]; then
-    echo "ERROR: backend-only deployment failed; restoring $previous_tag" >&2
-    local rollback_ok=true
-    if mv -f "$rollback_ready" "$RELEASE_ROOT/.release.env"; then
-      compose_prod up -d --no-build --no-deps backend || rollback_ok=false
+    if verify_financial_transition "$previous_image_id"; then
+      echo "ERROR: backend-only deployment failed; restoring $previous_tag" >&2
+      local rollback_ok=true
+      if mv -f "$rollback_ready" "$RELEASE_ROOT/.release.env"; then
+        compose_prod up -d --no-build --no-deps backend || rollback_ok=false
+      else
+        rollback_ok=false
+      fi
+      if [[ "$(docker inspect --format '{{.Image}}' epharm-backend 2>/dev/null || true)" != "$previous_image_id" \
+         || "$(docker inspect --format '{{.Image}}' epharm-frontend 2>/dev/null || true)" != "$current_frontend_id" \
+         || "$(docker inspect --format '{{.Id}}' epharm-frontend 2>/dev/null || true)" != "$current_frontend_container_id" ]]; then
+        rollback_ok=false
+      fi
+      "$SCRIPT_DIR/smoke.sh" "$previous_tag" "$frontend_tag" || rollback_ok=false
+      if [[ "$rollback_ok" != true ]]; then
+        echo "CRITICAL: rollback verification failed; inspect $transaction_dir before further deployment" >&2
+      else
+        echo "Rollback verified: backend $previous_tag; frontend $frontend_tag unchanged" >&2
+      fi
     else
-      rollback_ok=false
-    fi
-    if [[ "$(docker inspect --format '{{.Image}}' epharm-backend 2>/dev/null || true)" != "$previous_image_id" \
-       || "$(docker inspect --format '{{.Image}}' epharm-frontend 2>/dev/null || true)" != "$current_frontend_id" \
-       || "$(docker inspect --format '{{.Id}}' epharm-frontend 2>/dev/null || true)" != "$current_frontend_container_id" ]]; then
-      rollback_ok=false
-    fi
-    "$SCRIPT_DIR/smoke.sh" "$previous_tag" "$frontend_tag" || rollback_ok=false
-    if [[ "$rollback_ok" != true ]]; then
-      echo "CRITICAL: rollback verification failed; inspect $transaction_dir before further deployment" >&2
-    else
-      echo "Rollback verified: backend $previous_tag; frontend $frontend_tag unchanged" >&2
+      echo 'CRITICAL: unsafe financial rollback denied; current candidate pins retained; use a reviewed wallet-capable forward image' >&2
     fi
   fi
   rm -f -- "$staged_env"
@@ -255,6 +260,7 @@ trap rollback_on_exit EXIT
 trap 'exit 1' INT TERM
 
 verify_release_source "$candidate_commit"
+verify_financial_transition "$candidate_image_id"
 switched=true
 mv -f "$staged_env" "$RELEASE_ROOT/.release.env"
 compose_prod up -d --no-build --no-deps backend

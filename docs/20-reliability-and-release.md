@@ -77,6 +77,20 @@ Load these settings through an additional systemd `EnvironmentFile` rather than 
 backup settings. A second server on the same LAN protects against one host's failure, not a
 site-wide disaster; retain a separate key recovery copy and plan a truly external destination.
 
+## Monetary release boundary
+
+The unified wallet release adds forward-only financial migrations. Keep the CRM reward and
+POSM sale-bonus flags off until paired CI, exact HQ-confirmed executor mapping, synchronized
+clocks and the controlled real-phone approval pilot pass. A working recommendation popup is
+not evidence that the staff identity is trusted for money.
+
+A legacy backend booting on the expanded schema proves **read compatibility only**. Its training,
+receipt, adjustment and payout writers do not append to the new ledger. After ledger-backed
+movements exist, do not use an ordinary two-image legacy rollback while those writers remain
+available. Prefer a tested roll-forward; any exceptional rollback requires freezing **all** monetary
+writers and reconciling projection/ledger before reopening them. Disabling CRM rewards alone is
+not sufficient. Never drop migrations or rewrite entries to make an old binary appear compatible.
+
 ## Monitoring and alerting
 
 The `monitoring` Compose profile includes Prometheus, Alertmanager, Grafana, blackbox exporter,

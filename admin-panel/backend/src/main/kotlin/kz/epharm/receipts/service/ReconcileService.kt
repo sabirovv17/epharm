@@ -1,6 +1,11 @@
 package kz.epharm.receipts.service
 
+import jakarta.persistence.EntityManager
+import kz.epharm.posm.repository.PosSaleRepository
+import kz.epharm.posm.repository.RecommendationEventRepository
 import kz.epharm.pharmacists.repository.PharmacistRepository
+import kz.epharm.finance.service.PharmacistWalletService
+import kz.epharm.finance.service.WalletCreditSource
 import kz.epharm.receipts.dto.ExcelRowInput
 import kz.epharm.receipts.dto.LogSaleInput
 import kz.epharm.receipts.dto.ReceiptDto
@@ -17,6 +22,7 @@ import kz.epharm.shared.error.ErrorCode
 import kz.epharm.shared.storage.MediaStorage
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Duration
@@ -43,6 +49,11 @@ class ReconcileService(
     private val pendingBonusRepository: PendingBonusRepository,
     private val pharmacistRepository: PharmacistRepository,
     private val mediaStorage: MediaStorage,
+    private val wallet: PharmacistWalletService,
+    private val posSales: PosSaleRepository,
+    private val recommendationEvents: RecommendationEventRepository,
+    private val jdbc: JdbcTemplate,
+    private val entityManager: EntityManager,
 ) {
 
     private val log = LoggerFactory.getLogger(ReconcileService::class.java)
@@ -176,8 +187,11 @@ class ReconcileService(
 
     @Transactional
     fun approve(id: String, reviewer: String): ReceiptDto {
-        val receipt = loadOrThrow(id)
+        val receipt = loadForDecision(id)
         if (receipt.status == ReceiptStatus.approved) return toDto(receipt)
+        if (receipt.status == ReceiptStatus.rejected || receipt.bonusCredited > 0) {
+            throw AppException(ErrorCode.CONFLICT,"Итоговое решение по чеку уже принято",HttpStatus.CONFLICT)
+        }
         creditFor(receipt)
         receipt.status = ReceiptStatus.approved
         receipt.autoApproved = false
@@ -188,7 +202,11 @@ class ReconcileService(
 
     @Transactional
     fun reject(id: String, reviewer: String, reason: String): ReceiptDto {
-        val receipt = loadOrThrow(id)
+        val receipt = loadForDecision(id)
+        if (receipt.status == ReceiptStatus.approved || receipt.bonusCredited > 0) {
+            throw AppException(ErrorCode.CONFLICT,"Нельзя отклонить чек с подтверждённым начислением",HttpStatus.CONFLICT)
+        }
+        if (receipt.status == ReceiptStatus.rejected) return toDto(receipt)
         receipt.status = ReceiptStatus.rejected
         receipt.flagReason = reason
         receipt.reviewer = reviewer
@@ -205,15 +223,19 @@ class ReconcileService(
     @Transactional
     fun ingestLogSale(input: LogSaleInput) {
         for (item in input.items) {
-            val pending = pendingBonusRepository
+            val candidate = pendingBonusRepository
                 .findAllByPharmacistIdAndSkuAndStatusRawOrderByCreatedAtDesc(
                     input.pharmacistId, item.sku, PendingBonusStatus.awaiting_receipt.name,
                 )
-                .firstOrNull { withinTimeWindow(input.soldAt, it.createdAt) }
+                .firstOrNull { it.sourceSaleId == null && withinTimeWindow(input.soldAt, it.createdAt) }
                 ?: continue
+            val pending = lockPending(candidate.id) ?: continue
+            if (pending.sourceSaleId != null || pending.status != PendingBonusStatus.awaiting_receipt) continue
 
             val receipt = receiptRepository.findFirstByPendingBonusId(pending.id)
+                ?.let { loadForDecision(it.id) }
                 ?: newReceiptForPending(pending, input.fiscalId, input.cashier, input.soldAt, item.total)
+            if (receipt.status in setOf(ReceiptStatus.approved, ReceiptStatus.rejected)) continue
 
             receipt.source = ReceiptSource.posm
             receipt.confirmedByLog = true
@@ -225,6 +247,44 @@ class ReconcileService(
             decideFromSources(receipt)
             receiptRepository.save(receipt)
         }
+    }
+
+    /** An exact printed-sale reservation is evidence for HQ review, never a fake accepted action. */
+    @Transactional
+    fun ingestVerifiedRecommendationSale(pendingId: String, sourceSaleId: String) {
+        entityManager.flush()
+        if (jdbc.queryForList("SELECT id FROM pending_bonuses WHERE id=? FOR UPDATE", pendingId).isEmpty()) return
+        val pending = pendingBonusRepository.findById(pendingId).orElse(null) ?: return
+        entityManager.refresh(pending)
+        if (pending.sourceSaleId != sourceSaleId || pending.status != PendingBonusStatus.awaiting_receipt) return
+        val sale = posSales.findById(sourceSaleId).orElse(null) ?: return
+        val session = sale.sessionId?.takeIf { it.isNotBlank() } ?: return
+        if (sale.captureSource != "standardn-print-log" || sale.totalAmount <= 0 || sale.pharmacyId != pending.pharmacyId ||
+            sale.pharmacistId != pending.pharmacistId || sale.pharmacistSource !in setOf("posm_internal", "standardn_explicit_mapping") ||
+            sale.printedAt.isAfter(Instant.now().plusSeconds(300))) return
+        val proven = recommendationEvents.findAllBySessionId(session).any {
+            val displayed = it.displayedAt
+            it.pendingBonusId == pending.id && it.pharmacistId == pending.pharmacistId && it.pharmacyId == pending.pharmacyId &&
+                it.recommendSku == pending.sku && displayed != null && !displayed.isAfter(sale.printedAt) &&
+                !displayed.isAfter(Instant.now().plusSeconds(300)) && Duration.between(displayed,sale.printedAt) <= MATCH_WINDOW
+        }
+        if (!proven) return
+        val lines = sale.items.filter { it.productId == pending.sku && it.qty.isFinite() && it.qty > 0 && it.price > 0 && it.total > 0 }
+        if (lines.isEmpty()) return
+        val amount = lines.fold(0L) { total, item -> Math.addExact(total, item.total) }
+        val receipt = receiptRepository.findFirstByPendingBonusId(pending.id)
+            ?.let { loadForDecision(it.id) }
+            ?: newReceiptForPending(pending, sale.fiscalId, sale.cashier, sale.printedAt, amount)
+        if (receipt.status in setOf(ReceiptStatus.approved, ReceiptStatus.rejected)) return
+        receipt.source = ReceiptSource.posm
+        receipt.confirmedByLog = true
+        receipt.parsedAmount = amount
+        receipt.parsedAt = sale.printedAt
+        receipt.fiscalId = sale.fiscalId
+        receipt.parsedCashier = sale.cashier ?: ""
+        receipt.autoApproved = false
+        if (receipt.status != ReceiptStatus.flagged) receipt.status = ReceiptStatus.moderation_required
+        receiptRepository.save(receipt)
     }
 
     /**
@@ -240,30 +300,36 @@ class ReconcileService(
     fun ingestExcelRow(row: ExcelRowInput): Boolean {
         // (1) сильный матч по фискальному номеру
         if (!row.fiscalId.isNullOrBlank()) {
-            val existing = receiptRepository.findAllByFiscalId(row.fiscalId)
-                .firstOrNull { it.pendingBonusId != null }
+            val candidates = receiptRepository.findAllByFiscalId(row.fiscalId).filter { it.pendingBonusId != null }
+            // A fiscal number is not globally unique across pharmacies/registers.
+            if (candidates.size > 1) return false
+            val existing = candidates.singleOrNull()?.let { loadForDecision(it.id) }
             if (existing != null) {
-                applyExcelToReceipt(existing, row)
-                return true
+                if (existing.status in setOf(ReceiptStatus.approved, ReceiptStatus.rejected) ||
+                    pendingBonusRepository.findById(existing.pendingBonusId!!).orElse(null)?.sourceSaleId != null) return false
+                return applyExcelToReceipt(existing, row)
             }
         }
         // (2) Excel раньше лога — матч по SKU + сумме к единственному подходящему pending
         val sku = row.sku ?: return false
         val amount = row.amount ?: return false
-        val pending = pendingBonusRepository
+        val candidate = pendingBonusRepository
             .findAllBySkuAndStatusRaw(sku, PendingBonusStatus.awaiting_receipt.name)
             .filter {
-                amountWithinTolerance(amount, it.expectedAmount) &&
+                it.sourceSaleId == null && amountWithinTolerance(amount, it.expectedAmount) &&
                     receiptRepository.findFirstByPendingBonusId(it.id) == null
             }
             .singleOrNull() ?: return false // только однозначный матч — иначе ждём лог
+        val pending = lockPending(candidate.id) ?: return false
+        if (pending.sourceSaleId != null || pending.status != PendingBonusStatus.awaiting_receipt) return false
 
-        val receipt = newReceiptForPending(pending, row.fiscalId, row.cashier, row.soldAt ?: Instant.now(), amount)
-        applyExcelToReceipt(receipt, row)
-        return true
+        val receipt = receiptRepository.findFirstByPendingBonusId(pending.id)?.let { loadForDecision(it.id) }
+            ?: newReceiptForPending(pending, row.fiscalId, row.cashier, row.soldAt ?: Instant.now(), amount)
+        return applyExcelToReceipt(receipt, row)
     }
 
-    private fun applyExcelToReceipt(receipt: ReceiptEntity, row: ExcelRowInput) {
+    private fun applyExcelToReceipt(receipt: ReceiptEntity, row: ExcelRowInput): Boolean {
+        if (receipt.status in setOf(ReceiptStatus.approved,ReceiptStatus.rejected)) return false
         receipt.source = ReceiptSource.posm
         receipt.confirmedByExcel = true
         if (receipt.fiscalId.isNullOrBlank()) receipt.fiscalId = row.fiscalId
@@ -278,10 +344,12 @@ class ReconcileService(
         }
         decideFromSources(receipt)
         receiptRepository.save(receipt)
+        return true
     }
 
     /** Решение по чеку на основе подтверждённых источников. */
     private fun decideFromSources(receipt: ReceiptEntity) {
+        if (receipt.status in setOf(ReceiptStatus.approved,ReceiptStatus.rejected)) return
         val both = receipt.confirmedByLog && receipt.confirmedByExcel
         when {
             both && receipt.flagReason == "amount_mismatch" -> receipt.status = ReceiptStatus.flagged
@@ -351,9 +419,9 @@ class ReconcileService(
             ?: receipt.pendingBonusId?.let { pendingBonusRepository.findById(it).orElse(null) }
             ?: return
         val pharmacist = pharmacistRepository.findById(receipt.pharmacistId).orElse(null) ?: return
-        pharmacist.balance += pending.bonus
-        pharmacist.earned30d += pending.bonus
-        pharmacistRepository.save(pharmacist)
+        if (pending.bonus > 0) wallet.credit(
+            WalletCreditSource.RECEIPT_BONUS, pending.id, pharmacist.id, pending.bonus, "receipt:${receipt.id}",
+        )
         pending.status = PendingBonusStatus.matched
         pendingBonusRepository.save(pending)
         receipt.bonusCredited = pending.bonus
@@ -380,12 +448,30 @@ class ReconcileService(
             )
             // Бронь, уже привязанную к чеку, повторно не цепляем (иначе следующий чек
             // фармацевта «угнал» бы чужую бронь до её подтверждения модератором).
-            .firstOrNull { receiptRepository.findFirstByPendingBonusId(it.id) == null }
+            .firstOrNull { it.sourceSaleId == null && receiptRepository.findFirstByPendingBonusId(it.id) == null }
 
     private fun loadOrThrow(id: String): ReceiptEntity =
         receiptRepository.findById(id).orElseThrow {
             AppException(ErrorCode.NOT_FOUND, "Receipt $id not found", HttpStatus.NOT_FOUND)
         }
+
+    private fun loadForDecision(id: String): ReceiptEntity {
+        entityManager.flush()
+        // All evidence and manual decisions take pending -> receipt -> wallet locks in this order.
+        val pendingId=jdbc.query("SELECT pending_bonus_id FROM receipts WHERE id=?",{rs,_->rs.getString(1)},id).singleOrNull()
+        pendingId?.let { jdbc.queryForList("SELECT id FROM pending_bonuses WHERE id=? FOR UPDATE",it) }
+        jdbc.queryForList("SELECT id FROM receipts WHERE id=? FOR UPDATE",id)
+        return loadOrThrow(id).also {
+            entityManager.refresh(it)
+            if(it.pendingBonusId!=pendingId) throw AppException(ErrorCode.CONFLICT,"Связь чека изменилась — повторите проверку",HttpStatus.CONFLICT)
+        }
+    }
+
+    private fun lockPending(id: String): PendingBonusEntity? {
+        entityManager.flush()
+        if(jdbc.queryForList("SELECT id FROM pending_bonuses WHERE id=? FOR UPDATE",id).isEmpty()) return null
+        return pendingBonusRepository.findById(id).orElse(null)?.also(entityManager::refresh)
+    }
 
     private fun toDto(e: ReceiptEntity, known: PendingBonusEntity? = null): ReceiptDto {
         val pb = known ?: e.pendingBonusId?.let { pendingBonusRepository.findById(it).orElse(null) }

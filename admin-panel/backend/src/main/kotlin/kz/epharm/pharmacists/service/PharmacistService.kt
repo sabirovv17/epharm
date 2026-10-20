@@ -1,6 +1,9 @@
 package kz.epharm.pharmacists.service
 
+import kz.epharm.auth.domain.AdminRole
+import kz.epharm.auth.security.AdminPrincipal
 import kz.epharm.pharmacies.repository.PharmacyRepository
+import kz.epharm.finance.service.PharmacistWalletService
 import kz.epharm.pharmacists.dto.ActivatePharmacistRequest
 import kz.epharm.pharmacists.dto.CreatePharmacistRequest
 import kz.epharm.pharmacists.dto.PharmacistDto
@@ -12,6 +15,7 @@ import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import org.springframework.http.HttpStatus
 import org.springframework.security.crypto.password.PasswordEncoder
+import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDate
@@ -22,6 +26,7 @@ class PharmacistService(
     private val pharmacistRepository: PharmacistRepository,
     private val pharmacyRepository: PharmacyRepository,
     private val passwordEncoder: PasswordEncoder,
+    private val wallet: PharmacistWalletService,
 ) {
 
     @Transactional(readOnly = true)
@@ -73,6 +78,19 @@ class PharmacistService(
 
     @Transactional
     fun update(id: String, req: UpdatePharmacistRequest): PharmacistDto {
+        if (req.balance != null) {
+            val role = (SecurityContextHolder.getContext().authentication?.principal as? AdminPrincipal)?.role
+            if (role !in setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD, AdminRole.FINANCE_REVIEWER)) {
+                throw AppException(ErrorCode.FORBIDDEN, "Изменять денежный баланс может только финансовая роль", HttpStatus.FORBIDDEN)
+            }
+        }
+        // These fields control the owner of a fresh monetary OTP, not just profile presentation.
+        if (req.phone != null || req.password != null) {
+            val role = (SecurityContextHolder.getContext().authentication?.principal as? AdminPrincipal)?.role
+            if (role !in setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD)) {
+                throw AppException(ErrorCode.FORBIDDEN, "Изменять телефон или пароль фармацевта может только HQ", HttpStatus.FORBIDDEN)
+            }
+        }
         val entity = loadOrThrow(id)
         if (entity.status == PharmacistStatus.blocked) {
             throw AppException(
@@ -93,7 +111,7 @@ class PharmacistService(
                 HttpStatus.BAD_REQUEST,
             )
         }
-        req.balance?.let { entity.balance = it }
+        req.balance?.let { wallet.adjustTo(entity.id, it) }
         req.coursesDone?.let { entity.coursesDone = it }
         req.coursesTotal?.let { entity.coursesTotal = it }
         return PharmacistDto.of(pharmacistRepository.save(entity))

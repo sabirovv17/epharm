@@ -34,6 +34,7 @@ The backend is a modular monolith under package `kz.epharm`.
 | `pharmacies`                          | Chains and pharmacies.                                                                      |
 | `pharmacists`                         | Pharmacist registry, status, balance.                                                       |
 | `finance`                             | Payout batches, items, approval, scheduler.                                                 |
+| `finance.merch`                       | Disabled-by-default verified CRM executor grants, signed approvals and idempotent monetary rewards. |
 | `screens`                             | Broadcast/screen media and playlists.                                                       |
 | `banners`                             | Admin-managed mobile banners.                                                               |
 | `medusa`                              | Historical Medusa client and durable read-only product snapshot.                            |
@@ -191,9 +192,24 @@ redirects, and avoids browser mixed-content blocking when a source image uses HT
 - POSM uses a device key; comparison is constant-time.
 - `GlobalExceptionHandler` returns JSON `{code,message,fields?}` instead of stack traces.
 - Business errors should be `AppException(ErrorCode, message, HttpStatus)`.
+- Receipt approve/reject/import and explicit balance changes require HQ, system-admin or finance
+  roles. Administrative pharmacist phone/password resets require HQ or system-admin only; the
+  service checks these sensitive fields before applying any profile mutations. A password login
+  alone is not a monetary executor proof; the separate fresh OTP and HQ affiliation still apply.
 - Receipt/photo bucket access is still a hardening topic: current MinIO bucket is public-readable.
 
 ## Mobile OTP
+
+The opt-in monetary merchandising flow uses a separate purpose-bound fresh OTP, never a
+generic login code or password JWT as proof of phone ownership. Its signed challenge,
+opaque grant and immutable wallet contract are described in
+[unified pharmacist wallet](22-unified-pharmacist-wallet.md).
+
+`RecommendationSaleBonusService` is a separate opt-in, post-activation bridge from actual
+display ACK and exact printed sale to a source-bound pending bonus. It requires a trusted
+internal seller, pharmacy/session/product match and bounded timestamps. It never fabricates
+an accepted outcome or bypasses HQ receipt moderation; name-only and database-close evidence
+cannot trigger it. Both monetary opt-ins default to false in application and production Compose.
 
 The mobile application calls only ePharm endpoints. `OtpProvider` selects the implementation:
 

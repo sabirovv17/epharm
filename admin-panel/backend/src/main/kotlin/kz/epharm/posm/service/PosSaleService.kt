@@ -28,6 +28,7 @@ class PosSaleService(
     private val attributionService: RecommendationAttributionService,
     @Value("\${app.posm.fiscal-artifact-trusted-sources:standardn-kkm-sdk,ofd-api}")
     trustedFiscalSourcesRaw: String,
+    private val saleBonuses: RecommendationSaleBonusService,
 ) {
 
     private val log = LoggerFactory.getLogger(PosSaleService::class.java)
@@ -39,6 +40,7 @@ class PosSaleService(
 
     @Transactional
     fun record(req: PosSaleRequest, identity: PosmPharmacistIdentity): Boolean {
+        saleBonuses.beforeSale(req.sessionId)
         val fiscalArtifact = validateFiscalArtifact(req)
         val existing = posSaleRepository.findById(req.saleId).orElse(null)
         if (existing != null) {
@@ -126,6 +128,7 @@ class PosSaleService(
 
         // Атрибуция показ→продажа (V032): закрываем рекомендации этой сессии, чей товар попал в чек.
         attributionService.attributeSale(sale, productIds.filterNotNull().toSet())
+        saleBonuses.afterSale(sale)
 
         // Сверка/начисление допустимы только для доверенного внутреннего pharmacistId.
         // Сырой Standard-N USER_ID всё равно сохранён выше и отображается в аналитике.
@@ -178,6 +181,7 @@ class PosSaleService(
 
     private fun validateExistingSaleIdentity(existing: PosSaleEntity, req: PosSaleRequest) {
         if (existing.pharmacyId != req.pharmacyId ||
+            existing.sessionId != req.sessionId ||
             existing.totalAmount != req.totalAmount ||
             existing.sourceDocumentId != req.sourceDocumentId
         ) {

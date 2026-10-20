@@ -28,6 +28,14 @@ export function canManageAiExam(role: AdminRole | undefined): boolean {
   return role === 'SYSTEM_ADMIN' || role === 'TRAINING_MANAGER'
 }
 
+export function canManageMoney(role: AdminRole | undefined): boolean {
+  return role === 'SYSTEM_ADMIN' || role === 'HQ_HEAD' || role === 'FINANCE_REVIEWER'
+}
+
+export function canManagePharmacistCredentials(role: AdminRole | undefined): boolean {
+  return role === 'SYSTEM_ADMIN' || role === 'HQ_HEAD'
+}
+
 export function isTrainingReadOnlyRole(role: AdminRole | undefined): boolean {
   return role === 'HQ_HEAD'
 }

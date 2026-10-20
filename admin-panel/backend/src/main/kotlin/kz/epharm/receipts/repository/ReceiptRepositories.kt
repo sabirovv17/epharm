@@ -7,6 +7,8 @@ import org.springframework.stereotype.Repository
 
 @Repository
 interface PendingBonusRepository : JpaRepository<PendingBonusEntity, String> {
+    fun findFirstBySourceSaleIdAndSku(sourceSaleId: String, sku: String): PendingBonusEntity?
+
     /** Открытые pending-бонусы фармацевта по SKU — для матчинга чека (свежие первыми). */
     fun findAllByPharmacistIdAndSkuAndStatusRawOrderByCreatedAtDesc(
         pharmacistId: String,

@@ -254,6 +254,20 @@ class RulesEngineService(
         return items.map { resolveOne(it, byIpart, byBarcode, byName)?.id }
     }
 
+    /** Money never uses names or falls back past an explicitly supplied, unknown/ambiguous EAN. */
+    @Transactional(readOnly = true)
+    fun resolveStrongProductIds(items: List<CartItemDto>): List<String?> {
+        val byBarcode = barcodeIndex(items)
+        val byIpart = ipartIndex(items)
+        return items.map { item ->
+            val barcode = item.barcode?.trim()?.takeIf(String::isNotEmpty)
+            val byLocalSku = item.sku?.trim()?.takeIf(String::isNotEmpty)?.let { byIpart[it] }
+            if (barcode != null) byBarcode[barcode]?.takeIf {
+                byLocalSku == null || byLocalSku.id == it.id
+            }?.id else byLocalSku?.id
+        }
+    }
+
     /** Индекс iPartID Стандарт-Н → товар: только однозначные ключи (коллизия → warn + пропуск). */
     private fun ipartIndex(
         cart: List<CartItemDto>,

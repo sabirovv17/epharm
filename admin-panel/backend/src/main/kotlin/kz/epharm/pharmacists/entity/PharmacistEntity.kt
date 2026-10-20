@@ -8,12 +8,14 @@ import jakarta.persistence.PreUpdate
 import jakarta.persistence.Table
 import java.time.Instant
 import java.time.LocalDate
+import org.hibernate.annotations.DynamicUpdate
 
 enum class PharmacistTier { Silver, Gold, Platinum }
 enum class PharmacistStatus { active, pending, blocked }
 
 @Entity
 @Table(name = "pharmacists")
+@DynamicUpdate
 class PharmacistEntity(
     @Id
     @Column(name = "id", nullable = false, length = 64)

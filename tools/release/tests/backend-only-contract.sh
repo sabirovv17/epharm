@@ -10,6 +10,7 @@ cp "$source_root/tools/release/"*.sh "$test_root/tools/release/"
 cp "$source_root/tools/release/tests/fixtures/fake-merch-artifact.py" "$test_root/tools/release/verify-merch-artifact.py"
 cp "$source_root/tools/release/tests/fixtures/fake-admin-artifact.py" "$test_root/tools/release/verify-admin-artifact.py"
 cp "$source_root/tools/release/tests/fixtures/fake-release-source.py" "$test_root/tools/release/verify-release-source.py"
+cp "$source_root/tools/release/tests/fixtures/fake-financial-transition.py" "$test_root/tools/release/verify-financial-transition.py"
 cp "$source_root/tools/ops/lib.sh" "$test_root/tools/ops/lib.sh"
 printf '# fixture compose\n' > "$test_root/docker-compose.prod.yml"
 printf '# fixture Caddyfile\n' > "$test_root/Caddyfile"
@@ -169,7 +170,8 @@ set -euo pipefail
 [[ "$2" == v0.1.22 ]]
 grep -Fxq 'FRONTEND_RELEASE_ID=v0.1.22' "$TEST_WORKSPACE_ROOT/.release.env"
 printf 'smoke:%s/%s\n' "$1" "$2" >> "$TEST_EVENTS"
-[[ "${TEST_FAIL_SMOKE:-false}" != true || "$1" == v0.1.20 ]]
+if [[ "${TEST_FAIL_SMOKE:-false}" == true && "$1" != v0.1.20 ]]; then exit 1; fi
+if [[ "${TEST_FAIL_ROLLBACK_SMOKE:-false}" == true && "$1" == v0.1.20 ]]; then exit 1; fi
 STUB
 chmod +x "$test_root/bin/docker" "$test_root/bin/flock" "$test_root/bin/sha256sum" \
   "$test_root/bin/curl" "$test_root/tools/release/smoke.sh"
@@ -232,6 +234,29 @@ grep -Fxq 'FRONTEND_RELEASE_ID=v0.1.22' "$test_root/.release.env"
 grep -Fxq 'up:v0.1.21' "$TEST_EVENTS"
 grep -Fxq 'smoke:v0.1.21/v0.1.22' "$TEST_EVENTS"
 transaction_dir="$(cat "$test_root/releases/backend-only/active-transaction")"
+before_events="$(wc -l < "$TEST_EVENTS")"
+if TEST_FINANCE_DENY_IMAGE="sha256:$(printf '%064d' 2)" "$test_root/tools/release/rollback-backend-only.sh" \
+  "$transaction_dir" "$test_root/epharm-backend-only-backups" > "$test_root/unsafe-explicit.log" 2>&1; then
+  echo 'Backend-only rollback accepted a financial-incompatible predecessor' >&2; exit 1
+fi
+[[ "$(wc -l < "$TEST_EVENTS")" == "$before_events" ]]
+grep -Fxq 'BACKEND_RELEASE_ID=v0.1.21' "$test_root/.release.env"
+cp "$test_root/.release.env" "$test_root/candidate.env"
+: > "$TEST_EVENTS"
+if TEST_FAIL_ROLLBACK_SMOKE=true TEST_FINANCE_DENY_IMAGE="$candidate_image" \
+  "$test_root/tools/release/rollback-backend-only.sh" "$transaction_dir" \
+  "$test_root/epharm-backend-only-backups" > "$test_root/unsafe-restore.log" 2>&1; then
+  echo 'Backend-only rollback ignored failure before unsafe candidate restoration' >&2; exit 1
+fi
+grep -Fq 'CRITICAL: unsafe financial candidate restoration denied' "$test_root/unsafe-restore.log"
+grep -Fxq 'RELEASE_ID=v0.1.20' "$test_root/.release.env"
+[[ "$(cat "$test_root/backend-image")" == "sha256:$(printf '%064d' 2)" ]]
+[[ "$(grep -c '^up:' "$TEST_EVENTS")" -eq 1 ]]
+if grep -Fq 'Rollback verified:' "$test_root/unsafe-restore.log"; then
+  echo 'Backend-only rollback claimed an unsafe restoration was verified' >&2; exit 1
+fi
+cp "$test_root/candidate.env" "$test_root/.release.env"
+echo "$candidate_image" > "$test_root/backend-image"
 TEST_BAD_RELEASE_SOURCE=true "$test_root/tools/release/rollback-backend-only.sh" "$transaction_dir" "$test_root/epharm-backend-only-backups"
 grep -Fxq 'RELEASE_ID=v0.1.20' "$test_root/.release.env"
 grep -Fxq 'FRONTEND_RELEASE_ID=v0.1.22' "$test_root/.release.env"
@@ -273,4 +298,19 @@ created_backup="${created_backup_output##* }"
 [[ -s "$created_backup/epharm.dump" && -s "$created_backup/backend-v0.1.20.tar.gz" \
    && -s "$created_backup/frontend-v0.1.22.tar.gz" && -s "$created_backup/SHA256SUMS" ]]
 (cd "$created_backup" && sha256sum --status -c SHA256SUMS)
+
+# The candidate can migrate first. A failed smoke must not restore a now-unsafe old writer.
+printf 'RELEASE_ID=v0.1.20\nRELEASE_COMMIT=previous-marker\n' > "$test_root/.release.env"
+printf 'sha256:%064d\n' 2 > "$test_root/backend-image"
+: > "$TEST_EVENTS"
+if TEST_FAIL_SMOKE=true TEST_FINANCE_DENY_IMAGE="sha256:$(printf '%064d' 2)" \
+  "$test_root/tools/release/deploy-backend-only.sh" v0.1.23 "$commit" "$failed_image" v0.1.22 \
+  "$test_root/backup" "$compose_sha" > "$test_root/unsafe-auto.log" 2>&1; then
+  echo 'Unsafe financial automatic rollback was reported as success' >&2; exit 1
+fi
+grep -Fxq 'BACKEND_RELEASE_ID=v0.1.23' "$test_root/.release.env"
+[[ "$(cat "$test_root/backend-image")" == "$failed_image" ]]
+[[ "$(grep -c '^up:' "$TEST_EVENTS")" -eq 1 ]]
+grep -Fq 'CRITICAL: unsafe financial rollback denied' "$test_root/unsafe-auto.log"
+if grep -Fq 'Rollback verified:' "$test_root/unsafe-auto.log"; then echo 'Claimed an unperformed financial rollback' >&2; exit 1; fi
 echo 'Backend-only release/rollback contract OK'

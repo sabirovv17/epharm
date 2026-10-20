@@ -14,6 +14,7 @@ import kz.epharm.shared.error.ErrorCode
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -45,12 +46,14 @@ class ReconcileController(
     fun get(@PathVariable id: String): ReceiptDto = reconcileService.get(id)
 
     @PostMapping("/{id}/approve")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HQ_HEAD','FINANCE_REVIEWER')")
     fun approve(
         @PathVariable id: String,
         @AuthenticationPrincipal principal: AdminPrincipal?,
     ): ReceiptDto = reconcileService.approve(id, requireUserId(principal))
 
     @PostMapping("/{id}/reject")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HQ_HEAD','FINANCE_REVIEWER')")
     fun reject(
         @PathVariable id: String,
         @Valid @RequestBody req: RejectReceiptRequest,
@@ -79,6 +82,7 @@ class ReconcileController(
      * чеки авто-одобряются, подтверждённые одним → moderation_required.
      */
     @PostMapping("/import-excel", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HQ_HEAD','FINANCE_REVIEWER')")
     fun importExcel(
         @RequestParam("file") file: MultipartFile,
         @AuthenticationPrincipal principal: AdminPrincipal?,

@@ -59,6 +59,7 @@ class StaffAuthService(
     fun requestOtp(device: PosmDeviceIdentity, request: StaffOtpRequest): StaffOtpResponse {
         val phone=phone(request.phone)
         phoneLock.lock(phone)
+        phoneLock.limitSharedSms(phone)
         limit("sms-device:${device.deviceId}",10,3600)
         limit("sms-account:${request.iin}",5,3600)
         limit("sms-phone:$phone",1,60)

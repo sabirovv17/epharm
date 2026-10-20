@@ -40,6 +40,17 @@ Only an offer with a positive individual reward is green; a zero-reward offer st
 it has no reward. Closing the popup does not accept or reject a recommendation, and the panel does
 not promise an Esc shortcut because it cannot take keyboard focus from Standard-N.
 
+The optional sale-bonus bridge does not invent an `accepted` action. With
+`POSM_SALE_BONUS_ENABLED=true` and an explicit UTC activation cutoff, only a real display ACK
+and a matching `standardn-print-log` sale may create one source-bound bonus reservation per
+sale/product. Both must identify the same pharmacy, session and trusted pharmacist. Exact,
+unambiguous barcode/iPartID proof is required; a name match, database disappearance or
+unverified cashier name cannot reserve money. Evidence more than five minutes in the future
+or outside the 30-minute show-to-sale window fails closed. Historical events are not backfilled.
+The resulting receipt goes to HQ moderation, never automatic credit or Excel heuristic approval.
+After approval the bonus uses the same ePharm wallet as training and verified merchandising.
+The bridge defaults to disabled; blank cashier identity does not prevent recommendation display.
+
 Merchandising tasks are accepted only while both the task deadline (when present) and QR-token
 expiration remain in the future. An already-open window hides its QR at expiry rather than waiting
 for a new poll. Such a task cannot reopen through snooze or produce a new display acknowledgement.

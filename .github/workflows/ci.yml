@@ -86,6 +86,7 @@ jobs:
           python3 -m unittest discover -s tools/release/tests -p 'test_merch_artifact.py'
           python3 -m unittest discover -s tools/release/tests -p 'test_admin_artifact.py'
           python3 -m unittest discover -s tools/release/tests -p 'test_release_source.py'
+          python3 -m unittest discover -s tools/release/tests -p 'test_financial_transition.py'
           bash tools/release/tests/prepare-deploy-contract.sh
       - name: Verify backend-only release and rollback
         run: bash tools/release/tests/backend-only-contract.sh
@@ -223,11 +224,27 @@ jobs:
       - uses: gradle/actions/setup-gradle@67621b124fd2e251c5e8a0e6e3b91318f2287669 # v6.3.0
       - name: ACC classification import tests
         run: python3 -m unittest discover -s ../../tools/tests -p 'test_prepare_acc_recommendation_catalog.py'
+      - name: Build the pinned pre-wallet rollback fixture
+        id: wallet-rollback
+        run: |
+          task_ci_rollback_dir="$(mktemp -d "$RUNNER_TEMP/epharm-wallet-rollback.XXXXXXXX")"
+          git -C ../.. fetch --no-tags --depth=1 origin 757039e1021170351c6215c85a8b888ac4df6c8e
+          git -C ../.. archive 757039e1021170351c6215c85a8b888ac4df6c8e admin-panel/backend \
+            | tar -x -C "$task_ci_rollback_dir"
+          (
+            cd "$task_ci_rollback_dir/admin-panel/backend"
+            ./gradlew --no-daemon bootJar -x test
+          )
+          printf 'jar=%s\n' "$task_ci_rollback_dir/admin-panel/backend/build/libs/app.jar" >> "$GITHUB_OUTPUT"
       - run: ./gradlew --no-daemon clean build
+        env:
+          WALLET_ROLLBACK_JAR: ${{ steps.wallet-rollback.outputs.jar }}
       - name: Verify Standard-N JDBC driver is packaged
         run: jar tf build/libs/app.jar | grep -Eq '^BOOT-INF/lib/jaybird-5\.0\.6\.java8\.jar$'
       - name: Verify merchandising code and configuration in the deployable JAR
         run: python3 ../../tools/release/verify-merch-artifact.py --jar build/libs/app.jar
+      - name: Verify wallet-capable financial writers in the deployable JAR
+        run: python3 ../../tools/release/verify-financial-transition.py --jar build/libs/app.jar --schema-protected
       - name: Upload backend test reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
