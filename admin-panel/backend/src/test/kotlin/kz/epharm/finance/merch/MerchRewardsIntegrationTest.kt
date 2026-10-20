@@ -2,6 +2,7 @@ package kz.epharm.finance.merch
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.ninjasquad.springmockk.MockkBean
+import com.ninjasquad.springmockk.SpykBean
 import io.mockk.*
 import java.sql.Timestamp
 import java.time.Instant
@@ -12,6 +13,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import kz.epharm.auth.service.JwtService
@@ -64,6 +66,8 @@ class MerchRewardsIntegrationTest {
     @Autowired lateinit var mvc: MockMvc
     @Autowired lateinit var jwt: JwtService
     @MockkBean lateinit var provider: OtpProvider
+    @SpykBean lateinit var security: MerchRewardSecurity
+    @SpykBean lateinit var phoneLock: kz.epharm.posm.staff.StaffPhoneLock
 
     @BeforeEach fun provider() {
         clearMocks(provider)
@@ -128,7 +132,96 @@ class MerchRewardsIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_executor_grants WHERE dispatch_id=?", Long::class.java, first.dispatch)).isZero()
         val valid = service.issueGrant(person.id, MerchGrantRequest(first.token, otp.otpChallengeId, "1234"))
         assertThat(valid.grant).hasSize(43)
+        assertThat(jdbc.queryForObject("SELECT consumed_at IS NOT NULL FROM merch_executor_otp_challenges WHERE id=?",Boolean::class.java,otp.otpChallengeId)).isTrue()
         assertThatThrownBy { service.issueGrant(person.id, MerchGrantRequest(first.token, otp.otpChallengeId, "1234")) }.isInstanceOf(AppException::class.java)
+        assertThatThrownBy { service.issueGrant(person.id, MerchGrantRequest(second.token, otp.otpChallengeId, "1234")) }.isInstanceOf(AppException::class.java)
+    }
+
+    @Test fun `two concurrent redemptions of one OTP issue only one grant`() {
+        val person=person()
+        val claim=claim(person)
+        val otp=service.requestOtp(person.id,claim.token)
+        val request=MerchGrantRequest(claim.token,otp.otpChallengeId,"1234")
+        val results=parallel((1..2).map { { runCatching { service.issueGrant(person.id,request) } } })
+        assertThat(results.count { it.isSuccess }).isEqualTo(1)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_executor_grants WHERE otp_challenge_id=?",Long::class.java,otp.otpChallengeId)).isEqualTo(1)
+    }
+
+    @Test fun `local provider money proof is six digits peppered and consumed once`() {
+        val person=person()
+        val claim=claim(person)
+        every { provider.id } returns "test-local"
+        every { provider.verificationMode } returns OtpVerificationMode.LOCAL
+        val code=slot<String>()
+        every { provider.requestOtp(person.phone,capture(code)) } just Runs
+        val otp=service.requestOtp(person.id,claim.token)
+        assertThat(code.captured).matches("[0-9]{6}")
+        val stored=jdbc.queryForObject("SELECT code_hash FROM merch_executor_otp_challenges WHERE id=?",String::class.java,otp.otpChallengeId)
+        assertThat(stored).isNotEqualTo(MerchRewardSecurity.hash(code.captured))
+        service.issueGrant(person.id,MerchGrantRequest(claim.token,otp.otpChallengeId,code.captured))
+        assertThatThrownBy { service.issueGrant(person.id,MerchGrantRequest(claim.token,otp.otpChallengeId,code.captured)) }.isInstanceOf(AppException::class.java)
+    }
+
+    @Test fun `slow provider cannot grant after isolated OTP expiry even while CRM challenge is current`() {
+        val time=AtomicReference(Instant.now())
+        every { security.currentTime() } answers { time.get() }
+        val person=person()
+        val claim=claim(person)
+        val otp=service.requestOtp(person.id,claim.token)
+        every { provider.verifyOtp(person.phone,"1234") } answers { time.set(time.get().plusSeconds(301)); OtpVerificationResult.VERIFIED }
+        assertThatThrownBy { service.issueGrant(person.id,MerchGrantRequest(claim.token,otp.otpChallengeId,"1234")) }
+            .isInstanceOf(AppException::class.java).hasMessage("Срок действия кода истёк")
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_executor_grants WHERE otp_challenge_id=?",Long::class.java,otp.otpChallengeId)).isZero()
+    }
+
+    @Test fun `challenge expiring while waiting for phone lock cannot send a fresh money SMS`() {
+        val time=AtomicReference(Instant.now())
+        every { security.currentTime() } answers { time.get() }
+        val person=person()
+        val claim=claim(person)
+        every { phoneLock.lock(person.phone) } answers { callOriginal(); time.set(time.get().plusSeconds(601)) }
+        assertThatThrownBy { service.requestOtp(person.id,claim.token) }.isInstanceOf(AppException::class.java)
+        verify(exactly=0) { provider.requestOtp(any(),any()) }
+    }
+
+    @Test fun `active self claimed or seeded branch without HQ mapping cannot start money verification`() {
+        val person=person(trusted=false)
+        val claim=claim(person)
+        assertThatThrownBy { service.context(person.id,claim.token) }.isInstanceOf(AppException::class.java)
+        assertThatThrownBy { service.requestOtp(person.id,claim.token) }.isInstanceOf(AppException::class.java)
+        jdbc.update("""INSERT INTO posm_pharmacist_mappings(id,pharmacy_id,external_user_id,pharmacist_id)
+            VALUES (?,?,?,?)""",person.mapping,person.pharmacy,"cashier-test",person.id)
+        assertThatThrownBy { service.context(person.id,claim.token) }.isInstanceOf(AppException::class.java)
+        verify(exactly=0) { provider.requestOtp(any(),any()) }
+    }
+
+    @Test fun `mapping with non HQ or inactive actor and blank external identity is not affiliation proof`() {
+        val person=person()
+        val claim=claim(person)
+        jdbc.update("UPDATE admin_users SET role='BRAND_MANAGER' WHERE id=?",person.hq)
+        assertThatThrownBy { service.context(person.id,claim.token) }.isInstanceOf(AppException::class.java)
+        jdbc.update("UPDATE admin_users SET role='HQ_HEAD',status='blocked' WHERE id=?",person.hq)
+        assertThatThrownBy { service.context(person.id,claim.token) }.isInstanceOf(AppException::class.java)
+        jdbc.update("UPDATE admin_users SET status='active' WHERE id=?",person.hq)
+        jdbc.update("UPDATE posm_pharmacist_mappings SET external_user_id=' ' WHERE id=?",person.mapping)
+        assertThatThrownBy { service.context(person.id,claim.token) }.isInstanceOf(AppException::class.java)
+    }
+
+    @Test fun `HQ mapping revocation or remap invalidates already issued and bound money operations`() {
+        val person=person()
+        val claim=claim(person)
+        val grant=grant(person,claim)
+        jdbc.update("UPDATE posm_pharmacist_mappings SET active=false,revoked_at=now() WHERE id=?",person.mapping)
+        assertThatThrownBy { service.redeem(MerchRedeemRequest(grant.grant,claim.dispatch,person.pharmacy,claim.nonce)) }.isInstanceOf(AppException::class.java)
+        jdbc.update("UPDATE posm_pharmacist_mappings SET active=true,revoked_at=NULL WHERE id=?",person.mapping)
+        val binding=service.redeem(MerchRedeemRequest(grant.grant,claim.dispatch,person.pharmacy,claim.nonce))
+        val event=event(person,claim,binding)
+        val other=person(pharmacy=person.pharmacy,trusted=false)
+        jdbc.update("UPDATE posm_pharmacist_mappings SET pharmacist_id=? WHERE id=?",other.id,person.mapping)
+        assertThatThrownBy { service.reward(event,json.writeValueAsBytes(event)) }.isInstanceOf(AppException::class.java)
+        assertThatThrownBy { service.context(other.id,claim.token) }.isInstanceOf(AppException::class.java)
+        assertThat(balance(person)).isEqualTo(100)
+        assertThat(balance(other)).isEqualTo(100)
     }
 
     @Test fun `wrong OTP budget persists across transactions and provider outage is not an attempt`() {
@@ -308,15 +401,23 @@ class MerchRewardsIntegrationTest {
         assertThatThrownBy { jdbc.update("UPDATE merch_reward_events SET amount_kzt=1 WHERE event_id=?", event.eventId) }.isInstanceOf(DataIntegrityViolationException::class.java)
     }
 
-    private data class Person(val id: String, val pharmacy: String, val phone: String)
+    private data class Person(val id: String, val pharmacy: String, val phone: String, val hq: UUID, val mapping: UUID)
     private data class Claim(val token: String, val dispatch: UUID, val nonce: String)
-    private fun person(pharmacy: String = "mp_${UUID.randomUUID()}"): Person {
+    private fun person(pharmacy: String = "mp_${UUID.randomUUID()}",trusted: Boolean=true): Person {
         jdbc.update("INSERT INTO chains(id,name,\"group\") VALUES ('merch-money-chain','TEST','pilot') ON CONFLICT DO NOTHING")
         jdbc.update("INSERT INTO pharmacies(id,name,chain_id,chain_name,city,\"group\") VALUES (?,?,'merch-money-chain','TEST','TEST','pilot') ON CONFLICT DO NOTHING", pharmacy, pharmacy)
         val n = sequence.incrementAndGet().toString()
-        val person = Person("mph_${UUID.randomUUID()}", pharmacy, "+7${n.takeLast(10)}")
+        val person = Person("mph_${UUID.randomUUID()}", pharmacy, "+7${n.takeLast(10)}",UUID.randomUUID(),UUID.randomUUID())
         jdbc.update("""INSERT INTO pharmacists(id,name,iin,phone,pharmacy_id,pharmacy_name,tier,status,balance)
             VALUES (?,'TEST',?,?,?,'TEST','Silver','active',100)""", person.id,n,person.phone,pharmacy)
+        if(trusted) {
+            jdbc.update("""INSERT INTO admin_users(id,email,password_hash,name,role,company,status)
+                VALUES (?,?,'unused','TEST HQ','HQ_HEAD','TEST','active')""",person.hq,"${person.hq}@test.invalid")
+            jdbc.update("""INSERT INTO posm_pharmacist_mappings(id,pharmacy_id,external_user_id,pharmacist_id,created_by,updated_by)
+                VALUES (?,?,?,?,?,?)""",person.mapping,pharmacy,"cashier-$n",person.id,person.hq,person.hq)
+            jdbc.update("""INSERT INTO posm_pharmacist_mapping_audit(mapping_id,action,pharmacy_id,external_user_id,pharmacist_id,actor_id)
+                VALUES (?,'created',?,?,?,?)""",person.mapping,pharmacy,"cashier-$n",person.id,person.hq)
+        }
         return person
     }
     private fun claim(person: Person, pharmacy: String = person.pharmacy): Claim {

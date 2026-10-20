@@ -15,7 +15,7 @@ class MerchRewardSecurityTest {
     private val json = jacksonObjectMapper()
     private val now = Instant.ofEpochSecond(2_000_000_000)
     private val secret = "integration-contract-test-secret-0001"
-    private val security = MerchRewardSecurity(json, true, secret, false)
+    private val security = MerchRewardSecurity(json, true, secret, false, "server-only-test-OTP-pepper-secret-0001")
     private fun mac(value: String) = Mac.getInstance("HmacSHA256").run {
         init(SecretKeySpec(secret.toByteArray(), "HmacSHA256")); doFinal(value.toByteArray())
     }
@@ -62,9 +62,19 @@ class MerchRewardSecurityTest {
         )) assertThatThrownBy { attempt() }.isInstanceOf(AppException::class.java)
     }
     @Test fun `disabled mock OTP or short key cannot expose financial flow`() {
-        for (instance in listOf(MerchRewardSecurity(json, false, secret, false), MerchRewardSecurity(json, true, "short", false),
-            MerchRewardSecurity(json, true, secret, true))) {
+        for (instance in listOf(MerchRewardSecurity(json, false, secret, false,secret), MerchRewardSecurity(json, true, "short", false,secret),
+            MerchRewardSecurity(json, true, secret, true,secret),MerchRewardSecurity(json,true,secret,false,"short"))) {
             assertThatThrownBy { instance.challenge(claim(), now) }.isInstanceOf(AppException::class.java)
         }
+    }
+
+    @Test fun `local OTP hashes use server only secret bound to purpose challenge and phone`() {
+        val id=UUID.randomUUID()
+        val digest=security.otpDigest(id,"+77001112233","123456")
+        assertThat(digest).isNotEqualTo(MerchRewardSecurity.hash("123456"))
+        assertThat(security.matchesOtp(id,"+77001112233","123456",digest)).isTrue()
+        assertThat(security.matchesOtp(UUID.randomUUID(),"+77001112233","123456",digest)).isFalse()
+        assertThat(security.matchesOtp(id,"+77001112234","123456",digest)).isFalse()
+        assertThat(security.matchesOtp(id,"+77001112233","123457",digest)).isFalse()
     }
 }

@@ -25,14 +25,25 @@ class MerchRewardSecurity(
     @Value("\${app.merch-rewards.enabled:false}") private val enabled: Boolean,
     @Value("\${app.merch-rewards.shared-secret:}") private val secret: String,
     @Value("\${app.otp.dev-mode:true}") private val otpDevMode: Boolean,
+    @Value("\${app.jwt.secret}") private val serverSecret: String,
 ) {
+    fun currentTime(): Instant = Instant.now()
     fun requireEnabled() {
-        if (!enabled || secret.toByteArray(UTF_8).size < 32 || otpDevMode) {
+        if (!enabled || secret.toByteArray(UTF_8).size < 32 || serverSecret.toByteArray(UTF_8).size < 32 || otpDevMode) {
             throw AppException(ErrorCode.UPSTREAM_UNAVAILABLE, "Подтверждение вознаграждения временно недоступно", HttpStatus.SERVICE_UNAVAILABLE)
         }
     }
 
-    fun challenge(token: String, now: Instant = Instant.now()): MerchClaim {
+    /** A DB-only leak must not allow an offline search of the small SMS code space. */
+    fun otpDigest(challengeId: UUID, phone: String, code: String): String = Mac.getInstance("HmacSHA256").run {
+        init(SecretKeySpec(serverSecret.toByteArray(UTF_8), "HmacSHA256"))
+        doFinal("epharm.merch.otp.v1\n$challengeId\n$phone\n$code".toByteArray(UTF_8)).joinToString("") { "%02x".format(it) }
+    }
+
+    fun matchesOtp(challengeId: UUID, phone: String, code: String, expected: String?): Boolean = expected != null &&
+        MessageDigest.isEqual(otpDigest(challengeId,phone,code).toByteArray(UTF_8),expected.toByteArray(UTF_8))
+
+    fun challenge(token: String, now: Instant = currentTime()): MerchClaim {
         requireEnabled()
         if (token.length !in 20..4096) invalid()
         val parts = token.split('.')
@@ -58,7 +69,7 @@ class MerchRewardSecurity(
             runCatching { Instant.ofEpochSecond(due) }.getOrElse { invalid() }, title, amount)
     }
 
-    fun verifyRequest(timestamp: String?, signature: String?, method: String, path: String, body: ByteArray, now: Instant = Instant.now()) {
+    fun verifyRequest(timestamp: String?, signature: String?, method: String, path: String, body: ByteArray, now: Instant = currentTime()) {
         requireEnabled()
         val seconds = timestamp?.takeIf { it.matches(Regex("[0-9]{1,12}")) }?.toLongOrNull() ?: unauthorized()
         if (seconds < now.epochSecond - 300 || seconds > now.epochSecond + 300 || body.size > MAX_BODY) unauthorized()

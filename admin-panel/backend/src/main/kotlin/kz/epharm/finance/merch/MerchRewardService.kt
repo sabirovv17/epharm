@@ -56,22 +56,24 @@ class MerchRewardService(
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = [AppException::class])
     fun requestOtp(personId: String, token: String): MerchOtpResponse {
-        val now = Instant.now()
-        val claim = security.challenge(token, now)
+        val claim = security.challenge(token)
         val initial = person(personId, claim.pharmacyId)
         phoneLock.lock(initial.phone)
         val person = person(personId, claim.pharmacyId, locked = true)
         if (person.phone != initial.phone) invalid()
+        val now = security.currentTime()
+        security.challenge(token,now)
         phoneLock.limitSharedSms(person.phone, now)
         phoneLock.invalidateStaff(person.phone)
         jdbc.update("DELETE FROM mobile_otps WHERE phone=?", person.phone)
         val id = UUID.randomUUID()
-        val code = if (provider.verificationMode == OtpVerificationMode.LOCAL) random.nextInt(10000).toString().padStart(4, '0') else null
+        val code = if (provider.verificationMode == OtpVerificationMode.LOCAL) random.nextInt(1_000_000).toString().padStart(6, '0') else null
         val expires = minOf(now.plusSeconds(300), claim.expiresAt)
         jdbc.update("""INSERT INTO merch_executor_otp_challenges
             (id,challenge_hash,pharmacist_id,phone,provider,code_hash,created_at,expires_at) VALUES (?,?,?,?,?,?,?,?)""",
-            id, hash(token), personId, person.phone, provider.id, code?.let(::hash), Timestamp.from(now), Timestamp.from(expires))
+            id, hash(token), personId, person.phone, provider.id, code?.let { security.otpDigest(id,person.phone,it) }, Timestamp.from(now), Timestamp.from(expires))
         try {
+            security.challenge(token)
             provider.requestOtp(person.phone, code)
         } catch (e: Exception) {
             phoneLock.invalidateStaff(person.phone)
@@ -83,8 +85,7 @@ class MerchRewardService(
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = [AppException::class])
     fun issueGrant(personId: String, request: MerchGrantRequest): MerchGrantResponse {
-        val now = Instant.now()
-        val claim = security.challenge(request.crmChallenge, now)
+        val claim = security.challenge(request.crmChallenge)
         if (!request.code.matches(Regex("[0-9]{4,8}"))) invalidOtp()
         val initial = person(personId, claim.pharmacyId)
         phoneLock.lock(initial.phone)
@@ -96,10 +97,10 @@ class MerchRewardService(
         ) }, request.otpChallengeId).singleOrNull() ?: invalidOtp()
         if (otp.consumed || otp.challengeHash != hash(request.crmChallenge) || otp.person != personId ||
             otp.phone != person.phone || otp.provider != provider.id) invalidOtp()
-        if (!otp.expires.isAfter(now)) throw AppException(ErrorCode.OTP_EXPIRED, "Срок действия кода истёк")
+        if (!otp.expires.isAfter(security.currentTime())) throw AppException(ErrorCode.OTP_EXPIRED, "Срок действия кода истёк")
         if (otp.attempts >= 5) throw AppException(ErrorCode.OTP_TOO_MANY_ATTEMPTS, "Запросите новый код", HttpStatus.TOO_MANY_REQUESTS)
         val verification = when (provider.verificationMode) {
-            OtpVerificationMode.LOCAL -> if (hash(request.code) == otp.codeHash) OtpVerificationResult.VERIFIED else OtpVerificationResult.INVALID
+            OtpVerificationMode.LOCAL -> if (security.matchesOtp(request.otpChallengeId,person.phone,request.code,otp.codeHash)) OtpVerificationResult.VERIFIED else OtpVerificationResult.INVALID
             OtpVerificationMode.EXTERNAL -> provider.verifyOtp(person.phone, request.code)
         }
         if (verification != OtpVerificationResult.VERIFIED) {
@@ -108,8 +109,11 @@ class MerchRewardService(
             invalidOtp()
         }
         // A slow SMS provider cannot turn an expired task/challenge into a fresh grant.
-        security.challenge(request.crmChallenge)
-        val verifiedAt = Instant.now()
+        val verifiedAt = security.currentTime()
+        if (!otp.expires.isAfter(verifiedAt)) throw AppException(ErrorCode.OTP_EXPIRED, "Срок действия кода истёк")
+        security.challenge(request.crmChallenge,verifiedAt)
+        // Explicit consumption is local to this proof; phone-wide invalidation also revokes other purposes.
+        jdbc.update("UPDATE merch_executor_otp_challenges SET consumed_at=? WHERE id=?",Timestamp.from(verifiedAt),request.otpChallengeId)
         phoneLock.invalidateStaff(person.phone)
         jdbc.update("DELETE FROM mobile_otps WHERE phone=?", person.phone)
         val grant = ByteArray(32).also(random::nextBytes).let { Base64.getUrlEncoder().withoutPadding().encodeToString(it) }
@@ -189,6 +193,15 @@ class MerchRewardService(
         if (person.status != "active" || !person.pharmacyActive) throw AppException(ErrorCode.USER_NOT_ACTIVE, "Учётная запись или аптека не активна", HttpStatus.FORBIDDEN)
         if (person.pharmacy != pharmacy) throw AppException(ErrorCode.FORBIDDEN, "Задание назначено другой аптеке", HttpStatus.FORBIDDEN)
         if (!person.phone.matches(Regex("\\+7[0-9]{10}"))) throw AppException(ErrorCode.VALIDATION_FAILED, "В профиле не указан корректный телефон")
+        val proven = jdbc.query("""SELECT m.id FROM posm_pharmacist_mappings m
+            JOIN LATERAL (SELECT a.action,a.pharmacy_id,a.pharmacist_id,a.actor_id
+                FROM posm_pharmacist_mapping_audit a WHERE a.mapping_id=m.id ORDER BY a.id DESC LIMIT 1) a ON true
+            JOIN admin_users hq ON hq.id=a.actor_id AND hq.role IN ('SYSTEM_ADMIN','HQ_HEAD') AND hq.status='active'
+            WHERE m.pharmacist_id=? AND m.pharmacy_id=? AND m.active=true AND m.revoked_at IS NULL
+                AND trim(m.external_user_id)<>'' AND a.pharmacist_id=m.pharmacist_id AND a.pharmacy_id=m.pharmacy_id
+                AND a.action IN ('created','remapped','reactivated')
+            ORDER BY m.id LIMIT 1 ${if (locked) "FOR SHARE OF m,hq" else ""}""",{ rs,_ -> rs.getObject(1) },id,pharmacy).isNotEmpty()
+        if (!proven) throw AppException(ErrorCode.FORBIDDEN,"HQ должен подтвердить привязку фармацевта к аптеке перед начислением за мерч",HttpStatus.FORBIDDEN)
         return person
     }
     private fun binding(dispatch: UUID) = jdbc.query("SELECT * FROM merch_executor_bindings WHERE dispatch_id=?", { rs, _ -> Binding(
