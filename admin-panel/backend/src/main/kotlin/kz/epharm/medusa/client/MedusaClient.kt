@@ -40,11 +40,13 @@ class MedusaClient(
     @Value("\${app.medusa.connect-timeout-ms:2000}") private val connectTimeoutMs: Int,
     @Value("\${app.medusa.read-timeout-ms:15000}") private val readTimeoutMs: Int,
     @Value("\${app.medusa.snapshot-read-timeout-ms:60000}") private val snapshotReadTimeoutMs: Int,
+    @Value("\${app.storefront-catalog.enabled:false}") storefrontCatalogEnabled: Boolean = false,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
     private val normalizedBaseUrl = MedusaEndpointPolicy.validate(
-        enabled = enabled,
+        // A stale legacy environment flag must never revive the retired origin or its crawler.
+        enabled = enabled && !storefrontCatalogEnabled,
         rawBaseUrl = baseUrl,
         publishableKey = publishableKey,
         salesChannelId = salesChannelId,
@@ -57,7 +59,7 @@ class MedusaClient(
     val active: Boolean = normalizedBaseUrl != null
 
     init {
-        if (enabled) {
+        if (active) {
             check(snapshotReadTimeoutMs in 1_000..120_000) {
                 "MEDUSA_SNAPSHOT_READ_TIMEOUT_MS must be between 1000 and 120000"
             }

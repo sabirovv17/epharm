@@ -29,12 +29,15 @@ namespace CustomerDisplay
         private IntPtr _hwnd;
         private bool _contentRendered;
         private bool _displayAnnounced;
+        private string? _lastDisplayFailure;
+        private DateTimeOffset _lastDisplayFailureAt;
 
         /// <summary>
-        /// Fired only after the popup is rendered, made topmost through Win32 and verified to be
-        /// fully inside the pharmacist monitor. Consumers may safely use this as displayed_at.
+        /// Fired after rendered native-window visibility evidence, not merely a successful Show().
+        /// This is not an acknowledgment that a human saw or read the recommendation.
         /// </summary>
         public event Action<string>? Displayed;
+        public event Action<string>? DisplayCheckFailed;
 
         public RecommendationWindow(
             Recommendation rec,
@@ -52,6 +55,8 @@ namespace CustomerDisplay
             System.Windows.Forms.Screen? targetScreen = null)
         {
             InitializeComponent();
+            ShowActivated = false;
+            Topmost = true;
 
             var input = recs ?? new List<Recommendation>();
             _recs = input
@@ -157,16 +162,13 @@ namespace CustomerDisplay
         private void OnSizeChanged(object sender, SizeChangedEventArgs e)
         {
             if (!_contentRendered || !e.HeightChanged) return;
-            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => PositionAndElevate()));
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(TryAnnounceDisplayed));
         }
 
         private void OnTopmostGuardTick(object? sender, EventArgs e)
         {
             if (!_contentRendered) return;
-            if (_displayAnnounced)
-                ReassertTopmost();
-            else
-                TryAnnounceDisplayed();
+            TryAnnounceDisplayed();
         }
 
         private void OnClosed(object? sender, EventArgs e)
@@ -192,9 +194,29 @@ namespace CustomerDisplay
 
         private void TryAnnounceDisplayed()
         {
-            if (_displayAnnounced || !PositionAndElevate(out var diagnostics)) return;
-            _displayAnnounced = true;
-            Displayed?.Invoke(diagnostics);
+            string diagnostics;
+            try
+            {
+                if (PositionAndElevate(out diagnostics))
+                {
+                    _lastDisplayFailure = null;
+                    if (_displayAnnounced) return;
+                    _displayAnnounced = true;
+                    Displayed?.Invoke(diagnostics);
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                diagnostics = ex.GetBaseException().Message;
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            if (_lastDisplayFailure == diagnostics && now - _lastDisplayFailureAt < TimeSpan.FromSeconds(30))
+                return;
+            _lastDisplayFailure = diagnostics;
+            _lastDisplayFailureAt = now;
+            DisplayCheckFailed?.Invoke(diagnostics);
         }
 
         private bool PositionAndElevate() => PositionAndElevate(out _);
@@ -237,32 +259,32 @@ namespace CustomerDisplay
                 return false;
             }
 
-            var visible = Opacity > 0.01 &&
-                NativeMethods.IsWindowVisible(_hwnd) && PopupWindowPlacement.IsFullyVisible(
-                new PixelRect(after.Left, after.Top, after.Width, after.Height),
-                new PixelRect(area.Left, area.Top, area.Width, area.Height));
+            var window = new PixelRect(after.Left, after.Top, after.Width, after.Height);
+            var nativeVisible = NativeMethods.IsWindowVisible(_hwnd);
+            var minimized = NativeMethods.IsIconic(_hwnd);
+            var style = NativeMethods.GetWindowLongPtr(_hwnd, NativeMethods.GwlExStyle).ToInt64();
+            var topmost = (style & NativeMethods.WsExTopmost) != 0;
+            var noActivate = (style & NativeMethods.WsExNoActivate) != 0;
+            var cloakResult = NativeMethods.DwmGetWindowAttribute(
+                _hwnd, NativeMethods.DwmwaCloaked, out var cloak, sizeof(uint));
+            var cloaked = cloakResult != 0 || cloak != 0;
+            // shortcut: sampled content exposure excludes fully obscured windows, not partial
+            // overlays; a live Windows cashier smoke test remains necessary for visual acceptance.
+            var exposed = PopupWindowPlacement.ContentProbePoints(window).Any(point =>
+            {
+                var hit = NativeMethods.WindowFromPhysicalPoint(new NativeMethods.Point(point.X, point.Y));
+                return hit != IntPtr.Zero && NativeMethods.GetAncestor(hit, NativeMethods.GaRoot) == _hwnd;
+            });
+            var visible = PopupWindowPlacement.HasDisplayEvidence(
+                window, new PixelRect(area.Left, area.Top, area.Width, area.Height),
+                _contentRendered, Opacity, nativeVisible, minimized, cloaked, topmost, noActivate, exposed);
             var dpi = TargetDpiScale(screen);
             diagnostics = $"monitor={screen.DeviceName}, primary={screen.Primary}, " +
                 $"workArea={area}, dpi={dpi.X:0.##}x{dpi.Y:0.##}, " +
                 $"window=({after.Left},{after.Top},{after.Width}x{after.Height}), " +
-                $"nativeTopmost=true, visible={visible}";
+                $"nativeVisible={nativeVisible}, minimized={minimized}, cloak={cloak}/hr={cloakResult}, " +
+                $"nativeTopmost={topmost}, noActivate={noActivate}, contentExposed={exposed}, visible={visible}";
             return visible;
-        }
-
-        private void ReassertTopmost()
-        {
-            if (_hwnd == IntPtr.Zero || !IsVisible) return;
-            NativeMethods.SetWindowPos(
-                _hwnd,
-                NativeMethods.HwndTopmost,
-                0,
-                0,
-                0,
-                0,
-                NativeMethods.SwpNoMove |
-                NativeMethods.SwpNoSize |
-                NativeMethods.SwpNoActivate |
-                NativeMethods.SwpShowWindow);
         }
 
         private System.Windows.Forms.Screen TargetScreen() =>
@@ -293,6 +315,9 @@ namespace CustomerDisplay
             internal const int GwlExStyle = -20;
             internal const long WsExNoActivate = 0x08000000L;
             internal const long WsExToolWindow = 0x00000080L;
+            internal const long WsExTopmost = 0x00000008L;
+            internal const uint GaRoot = 2;
+            internal const uint DwmwaCloaked = 14;
             internal const uint SwpNoSize = 0x0001;
             internal const uint SwpNoMove = 0x0002;
             internal const uint SwpNoActivate = 0x0010;
@@ -343,6 +368,20 @@ namespace CustomerDisplay
             [DllImport("user32.dll")]
             [return: MarshalAs(UnmanagedType.Bool)]
             internal static extern bool IsWindowVisible(IntPtr hwnd);
+
+            [DllImport("user32.dll")]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            internal static extern bool IsIconic(IntPtr hwnd);
+
+            [DllImport("user32.dll")]
+            internal static extern IntPtr WindowFromPhysicalPoint(Point point);
+
+            [DllImport("user32.dll")]
+            internal static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
+
+            [DllImport("dwmapi.dll")]
+            internal static extern int DwmGetWindowAttribute(
+                IntPtr hwnd, uint attribute, out uint value, int size);
 
             [DllImport("user32.dll")]
             internal static extern IntPtr MonitorFromPoint(Point point, uint flags);

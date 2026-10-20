@@ -191,25 +191,16 @@ app:
     # Ежедневный пересчёт витринных метрик реестра аптек (receipts30d/rulesAccepted).
     metrics-refresh-cron: ${ANALYTICS_METRICS_REFRESH_CRON:0 30 6 * * *}
   storefront-catalog:
-    # Optional website source. Keep disabled until its product/category identifiers
-    # are reconciled with the ePharm snapshot and campaign references.
+    # Production enables aptekasosklada.kz; tests/development may use explicit fixtures.
     enabled: ${STOREFRONT_CATALOG_ENABLED:false}
     base-url: ${STOREFRONT_CATALOG_BASE_URL:}
     connect-timeout-ms: ${STOREFRONT_CATALOG_CONNECT_TIMEOUT_MS:2000}
     read-timeout-ms: ${STOREFRONT_CATALOG_READ_TIMEOUT_MS:8000}
   medusa:
-    # Внешняя витрина inkar.kz на Medusa v2 (Module 3) — источник реального каталога.
-    # Бэкенд ходит туда server-to-server и проксирует товары в мобильное приложение
-    # (/api/mobile/catalog/*), чтобы publishable-ключ не попадал в бинарь телефона, а
-    # телефон общался только с нашим HTTPS.
-    #
-    # base-url / sales-channel / region / publishable-key — клиентские (не секретные)
-    # идентификаторы витрины: ключ Medusa по дизайну публикуемый (как в любом storefront).
-    # Текущий каталог доступен только на legacy HTTP-origin. Политика клиента разрешает
-    # ровно этот IP:port (и loopback для dev); любой другой удалённый HTTP отклоняется.
-    # После появления HTTPS достаточно заменить MEDUSA_BASE_URL — код менять не нужно.
-    enabled: ${MEDUSA_ENABLED:true}
-    base-url: ${MEDUSA_BASE_URL:http://78.140.246.238:9000}
+    # Retired external source. Keep historical IDs/local snapshots for existing campaigns.
+    # The client also blocks legacy HTTP calls whenever the website source is enabled.
+    enabled: ${MEDUSA_ENABLED:false}
+    base-url: ${MEDUSA_BASE_URL:}
     publishable-key: ${MEDUSA_PUBLISHABLE_KEY:pk_ed9c35a59066b45de7d9e12510468ca27af16b6d0170b0910c03746545da4525}
     sales-channel-id: ${MEDUSA_SALES_CHANNEL_ID:sc_01KRXGQFYXMJN3FD1WJ7S83WME}
     region-id: ${MEDUSA_REGION_ID:reg_01KSBNEH2D4GVJN8EATK79WNSH}

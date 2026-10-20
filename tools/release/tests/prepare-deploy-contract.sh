@@ -14,13 +14,14 @@ cp "$source_root/tools/release/tests/fixtures/fake-release-source.py" "$test_roo
 cp "$source_root/tools/ops/lib.sh" "$test_root/tools/ops/lib.sh"
 touch "$test_root/docker-compose.prod.yml"
 printf '## [0.1.10] - 2026-09-23\n' > "$test_root/CHANGELOG.md"
-printf 'MEDUSA_ENABLED=true\n' > "$test_root/.env.prod"
+printf 'MEDUSA_ENABLED=false\nSTOREFRONT_CATALOG_ENABLED=true\nSTOREFRONT_CATALOG_BASE_URL=https://www.aptekasosklada.kz\n' > "$test_root/.env.prod"
 printf 'RELEASE_ID=v0.1.9\nRELEASE_COMMIT=previous-commit\n' > "$test_root/.release.env"
 
 cat > "$test_root/tools/smoke-medusa.sh" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
-printf 'medusa\n' >> "$TEST_EVENTS"
+echo 'Retired Medusa must never be contacted during production release preparation' >&2
+exit 99
 STUB
 cat > "$test_root/tools/backup-all.sh" <<'STUB'
 #!/usr/bin/env bash
@@ -104,6 +105,35 @@ for action in prepare deploy; do
   grep -Fxq 'RELEASE_COMMIT=previous-commit' "$test_root/.release.env"
   [[ ! -e "$test_root/releases/v0.1.10/manifest.json" ]]
 done
+
+# Source validation must fail before a build or changes to the running release.
+for invalid_source in \
+  MEDUSA_ENABLED=true \
+  STOREFRONT_CATALOG_ENABLED=false \
+  STOREFRONT_CATALOG_BASE_URL=https://aptekasosklada.kz \
+  STOREFRONT_CATALOG_BASE_URL=http://www.aptekasosklada.kz \
+  STOREFRONT_CATALOG_BASE_URL=https://retired.example.invalid \
+  STOREFRONT_CATALOG_BASE_URL=https://www.aptekasosklada.kz/api; do
+  for action in prepare deploy; do
+    if env "$invalid_source" "$test_root/tools/release/$action.sh" v0.1.10 \
+      > "$test_root/invalid-source.log" 2>&1; then
+      echo "$action accepted invalid catalogue source: $invalid_source" >&2; exit 1
+    fi
+    [[ ! -s "$TEST_EVENTS" ]]
+    grep -Fxq 'RELEASE_ID=v0.1.9' "$test_root/.release.env"
+    [[ ! -e "$test_root/releases/v0.1.10/manifest.json" ]]
+  done
+done
+
+# Config validation must not leak dotenv exports over the separately pinned release env.
+(
+  source "$test_root/tools/release/lib.sh"
+  unset STOREFRONT_CATALOG_ENABLED STOREFRONT_CATALOG_BASE_URL MEDUSA_ENABLED
+  export RELEASE_ID=parent-release-coordinate
+  verify_production_catalog_source
+  [[ "$RELEASE_ID" == parent-release-coordinate ]]
+  [[ -z "${STOREFRONT_CATALOG_ENABLED+x}" && -z "${MEDUSA_ENABLED+x}" ]]
+)
 
 if TEST_FAIL_BUILD=true "$test_root/tools/release/prepare.sh" v0.1.10 \
   > "$test_root/failed-build.log" 2>&1; then

@@ -607,6 +607,8 @@ namespace CustomerDisplay
                 }
                 Log($"POSM popup verified: {diagnostics}");
             };
+            win.DisplayCheckFailed += diagnostics =>
+                Log($"POSM popup visibility not verified; retrying without scanner focus: {diagnostics}");
             win.Closed += (_, _) =>
             {
                 if (!ReferenceEquals(_recoWindow, win)) return;

@@ -15,10 +15,9 @@ public sealed class TaskKioskSnooze
 
     public bool ShouldShow(IEnumerable<TaskKioskItem> tasks, DateTimeOffset now)
     {
-        var live = tasks.ToArray();
+        var live = tasks.Where(task => task.IsCurrent(now)).ToArray();
         var keys = live.Select(task => task.NotificationKey).ToHashSet();
         foreach (var key in _until.Keys.Where(key => !keys.Contains(key)).ToArray()) _until.Remove(key);
-        return live.Any(task => task.ExpiresAt > now &&
-            (!_until.TryGetValue(task.NotificationKey, out var until) || until <= now));
+        return live.Any(task => !_until.TryGetValue(task.NotificationKey, out var until) || until <= now);
     }
 }

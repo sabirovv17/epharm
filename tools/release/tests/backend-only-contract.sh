@@ -14,6 +14,7 @@ cp "$source_root/tools/ops/lib.sh" "$test_root/tools/ops/lib.sh"
 printf '# fixture compose\n' > "$test_root/docker-compose.prod.yml"
 printf '# fixture Caddyfile\n' > "$test_root/Caddyfile"
 printf 'POSTGRES_PASSWORD=fixture\nMERCH_TASKS_ENABLED=true\nMERCH_TASKS_STAFF_URL=https://crm.inkar.kz/staff\nMERCH_TASKS_BASE_URL=http://10.10.1.80:8080\nMERCH_TASKS_INTEGRATION_KEY=fixture-integration-key\nMERCH_TASKS_MAX_CONCURRENT=16\nMERCH_PORTAL_UPSTREAM=10.10.1.80:8080\n' > "$test_root/.env.prod"
+printf 'MEDUSA_ENABLED=false\nSTOREFRONT_CATALOG_ENABLED=true\nSTOREFRONT_CATALOG_BASE_URL=https://www.aptekasosklada.kz\n' >> "$test_root/.env.prod"
 printf 'RELEASE_ID=v0.1.20\nRELEASE_COMMIT=previous-marker\n' > "$test_root/.release.env"
 printf 'verified fixture\n' > "$test_root/backup/epharm.dump"
 cp "$test_root/.env.prod" "$test_root/backup/env.prod"
@@ -182,6 +183,18 @@ commit="$(printf 'a%.0s' {1..40})"
 candidate_image="sha256:$(printf '%064d' 4)"
 failed_image="sha256:$(printf '%064d' 5)"
 compose_sha="$(shasum -a 256 "$test_root/docker-compose.prod.yml" | awk '{print $1}')"
+
+for invalid_source in MEDUSA_ENABLED=true STOREFRONT_CATALOG_ENABLED=false \
+  STOREFRONT_CATALOG_BASE_URL=https://aptekasosklada.kz \
+  STOREFRONT_CATALOG_BASE_URL=https://unrelated.example.invalid; do
+  if env "$invalid_source" "$test_root/tools/release/deploy-backend-only.sh" v0.1.21 "$commit" \
+    "$candidate_image" v0.1.22 "$test_root/backup" "$compose_sha" > "$test_root/invalid-source.log" 2>&1; then
+    echo "Backend-only deploy accepted invalid catalogue source: $invalid_source" >&2; exit 1
+  fi
+  [[ ! -s "$TEST_EVENTS" ]]
+  grep -Fxq 'RELEASE_ID=v0.1.20' "$test_root/.release.env"
+  [[ "$(cat "$test_root/backend-image")" == "sha256:$(printf '%064d' 2)" ]]
+done
 
 for failure in TEST_BAD_RELEASE_SOURCE TEST_BAD_MERCH_ARTIFACT; do
   if env "$failure=true" "$test_root/tools/release/deploy-backend-only.sh" v0.1.21 "$commit" \
