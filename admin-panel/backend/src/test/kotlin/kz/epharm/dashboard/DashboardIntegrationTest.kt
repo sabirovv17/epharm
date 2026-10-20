@@ -358,7 +358,7 @@ class DashboardIntegrationTest {
     }
 
     @Test
-    fun `bounded journal keeps fastest attribution and barcode name first-item fallback`() {
+    fun `bounded journal keeps fastest attribution and does not guess an unrelated first item`() {
         eventRepository.deleteAll()
         val since = Instant.now().minusSeconds(90L * 24 * 60 * 60)
         val at = Instant.now().plusSeconds(60)
@@ -408,10 +408,44 @@ class DashboardIntegrationTest {
         assertNull(seconds["sale_barcode#0"])
         assertEquals(14, seconds["sale_name#1"])
         assertNull(seconds["sale_name#0"])
-        assertEquals(21, seconds["sale_fallback#0"])
+        assertNull(seconds["sale_fallback#0"])
         assertNull(seconds["sale_fallback#1"])
         assertEquals(25, seconds["sale_empty"])
         assertEquals(13L, eventRepository.countJournalRowsSince(since))
+    }
+
+    @Test
+    fun `journal attaches sale time to canonical product or a legacy alias despite abbreviated cash register names`() {
+        eventRepository.deleteAll()
+        val at = Instant.now().plusSeconds(60)
+        productRepository.findById("p_aquamaris").get().also {
+            it.barcode = "4601234567890"
+            it.barcodes = listOf("4601234567890", "4603276013765")
+        }
+        fun sale(id: String, hasProductId: Boolean) = PosSaleEntity(
+            id = id, pharmacyId = "ph_hi", printedAt = at,
+            items = listOf(
+                PosSaleItem(name = "Аквамарис", productId = "p_other", total = 100),
+                PosSaleItem(name = "Аква капс N30", barcode = "4603276013765", productId = if (hasProductId) "p_aquamaris" else null, total = 3_500),
+            ),
+        )
+        posSaleRepository.saveAll(listOf(sale("alias_legacy", false), sale("alias_resolved", true)))
+        eventRepository.saveAll(listOf("alias_legacy", "alias_resolved").map { id ->
+            RecommendationEventEntity(
+                id = "attr_$id", saleId = id, recommendSku = "p_aquamaris", recommendName = "Аквамарис",
+                shownAt = at.minusSeconds(20), soldAt = at, secondsToSale = 20,
+            )
+        })
+        productRepository.flush()
+        posSaleRepository.flush()
+        eventRepository.flush()
+
+        val rows = eventRepository.findJournalRowsSince(at.minusSeconds(100), 20, 0).filter { it.eventType == "sale" }
+        for (id in listOf("alias_legacy", "alias_resolved")) {
+            assertNull(rows.single { it.id == "$id#0" }.secondsToSale)
+            assertEquals(20, rows.single { it.id == "$id#1" }.secondsToSale)
+            assertEquals(3_500L, rows.single { it.id == "$id#1" }.amount)
+        }
     }
 
     @Test

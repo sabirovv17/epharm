@@ -21,6 +21,7 @@ import { useStorefrontProduct } from '@/lib/queries/storefront'
 import type { SelectedProduct } from './PromoProductPicker'
 import { PromoRulesEditor } from './PromoRulesEditor'
 import { ProductGallery } from './ProductGallery'
+import { collectProductBarcodes } from '@/lib/productBarcodes'
 
 interface FormState {
   title: string
@@ -76,6 +77,7 @@ export default function PromoDetailPage() {
   // Синхронизируем форму при загрузке/смене кампании.
   useEffect(() => {
     if (promo) {
+      const barcodes = collectProductBarcodes(promo)
       setForm({
         title: promo.title,
         brand: promo.brand,
@@ -90,14 +92,15 @@ export default function PromoDetailPage() {
               productImage: promo.productImage,
               brand: promo.brand,
               price: promo.price,
-              barcode: promo.barcode,
+              barcode: barcodes[0] ?? null,
+              barcodes,
               ipartId: promo.ipartId,
             }
           : null,
         dateStart: promo.dateStart ?? '',
         dateEnd: promo.dateEnd ?? '',
         pharmacistBonus: String(promo.pharmacistBonus),
-        barcode: promo.barcode ?? '',
+        barcode: barcodes[0] ?? '',
         ipartId: promo.ipartId ?? '',
         overrideImage: promo.overrideImage ?? '',
         overrideDescription: promo.overrideDescription ?? '',
@@ -171,6 +174,7 @@ export default function PromoDetailPage() {
   const cover = form.cover || promo.cover || '#6F665B'
   const progressMax = Math.max(promo.budget, 1)
   const progressPct = Math.round((promo.spent / progressMax) * 100)
+  const savedBarcodes = collectProductBarcodes(promo)
 
   const dirty =
     form.title !== promo.title ||
@@ -182,7 +186,7 @@ export default function PromoDetailPage() {
     form.dateStart !== (promo.dateStart ?? '') ||
     form.dateEnd !== (promo.dateEnd ?? '') ||
     form.pharmacistBonus !== String(promo.pharmacistBonus) ||
-    form.barcode !== (promo.barcode ?? '') ||
+    form.barcode !== (savedBarcodes[0] ?? '') ||
     form.ipartId !== (promo.ipartId ?? '') ||
     form.overrideImage !== (promo.overrideImage ?? '') ||
     form.overrideDescription !== (promo.overrideDescription ?? '') ||
@@ -227,6 +231,7 @@ export default function PromoDetailPage() {
       cover: form.cover.trim(),
       pharmacistBonus: Math.max(0, Math.trunc(Number(form.pharmacistBonus) || 0)),
       barcode: form.barcode.trim() || null,
+      barcodes: collectProductBarcodes({ barcode: form.barcode, barcodes: savedBarcodes }),
       ipartId: form.ipartId.trim() || null,
       overrideImage: form.overrideImage.trim() || null,
       overrideDescription,
@@ -359,6 +364,11 @@ export default function PromoDetailPage() {
                 </div>
                 {form.product?.brand && (
                   <div className="text-[12px] font-bold text-ink-500">{form.product.brand}</div>
+                )}
+                {savedBarcodes.length > 1 && (
+                  <div className="num max-h-16 overflow-y-auto break-all text-[11px] text-ink-500" data-testid="detail-barcodes">
+                    {t('pp.barcodesCount', { count: savedBarcodes.length })} · {savedBarcodes.join(', ')}
+                  </div>
                 )}
               </div>
             </Field>

@@ -7,6 +7,7 @@ import type {
   RuleComparisonRowDto,
 } from '@/lib/api-types'
 import { promoTriggerKey, promoTriggerKind } from './promoTrigger'
+import { collectProductBarcodes } from '@/lib/productBarcodes'
 
 export type PromoRulesValidationErrors = Record<string, string>
 
@@ -64,7 +65,7 @@ function comparisonHasContent(row: RuleComparisonRowDto): boolean {
 }
 
 function normalizeOffer(offer: PromoOfferProductRef): PromoOfferProductRef {
-  const barcode = trimOrNull(offer.barcode)
+  const barcodes = collectProductBarcodes(offer)
   const ipartId = trimOrNull(offer.ipartId)
   return {
     ...offer,
@@ -75,7 +76,8 @@ function normalizeOffer(offer: PromoOfferProductRef): PromoOfferProductRef {
     // These values come from Medusa and are not editable in the alternative
     // offer row. Discard malformed identifiers instead of blocking the form or
     // fabricating a truncated identifier that could match the wrong product.
-    barcode: barcode && barcode.length <= PROMO_RULE_LIMITS.barcode ? barcode : null,
+    barcode: barcodes[0] ?? null,
+    barcodes,
     ipartId: ipartId && ipartId.length <= PROMO_RULE_LIMITS.ipartId ? ipartId : null,
   }
 }
@@ -84,6 +86,8 @@ function normalizeRef(
   ref: PromoRuleProductRef,
   promotedProductId?: string,
 ): PromoRuleProductRef {
+  const barcodes = collectProductBarcodes(ref)
+  const rawBarcode = trimOrNull(ref.barcode)
   return {
     ...ref,
     name: boundedSnapshot(ref.name, PROMO_RULE_LIMITS.name) ?? '',
@@ -91,7 +95,10 @@ function normalizeRef(
     mnn: boundedSnapshot(ref.mnn, PROMO_RULE_LIMITS.mnn),
     volume: boundedSnapshot(ref.volume, PROMO_RULE_LIMITS.volume),
     script: (ref.script ?? '').trim(),
-    barcode: trimOrNull(ref.barcode),
+    // Keep a malformed editable scalar visible to validation rather than truncating it.
+    barcode: rawBarcode && rawBarcode.length > PROMO_RULE_LIMITS.barcode && collectProductBarcodes({ barcode: rawBarcode }).length === 0
+      ? rawBarcode : barcodes[0] ?? null,
+    barcodes,
     ipartId: trimOrNull(ref.ipartId),
     ...(promoTriggerKind(ref) === 'product'
       ? {}

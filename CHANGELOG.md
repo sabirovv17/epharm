@@ -22,6 +22,29 @@ All notable production changes to Epharm are recorded here. The format follows
 - POSM 1.0.65 spreads healthy QR-task polling over 24–36 seconds per device, reducing
   synchronized load on the merchandising fallback without changing recommendations or orders.
 
+## [0.1.40] - 2026-10-21
+
+### Fixed
+
+- Restore exact-product campaign selection when the website omits EANs but supplies an exact
+  WARE_ID present in the reviewed active ACC snapshot; never guess from a marketplace SKU or name.
+- Retain every confirmed barcode alias through catalogue, campaign creation/editing and refresh;
+  any alias triggers the same product rule once, while four trigger modes and per-offer rewards remain.
+- Refresh picker metadata even when search returns the same product IDs; display barcode counts
+  and reject genuinely unidentified products instead of saving an unusable scan trigger.
+- Reject globally ambiguous aliases, retain actual scanned-code popup binding, suppress already
+  purchased offers under alternate codes, and revoke removed source identities without clearing
+  saved keys during an outage. Different strengths, forms and packs are not merged.
+- Attribute journal conversion time to the resolved sale product or confirmed legacy alias,
+  never an arbitrary first receipt item. Financial gates and medical-rule statuses are unchanged.
+- Apply compatible patched Vite and follow-redirects versions required by the security audit,
+  without extending the existing development-only advisory exception or bypassing CI.
+
+### Deployment
+
+- Additive barcode-identity migration; backend/admin update only. Existing POSM clients already
+  send the actual scan code and do not require another binary release for this change.
+
 ## [0.1.39] - 2026-10-20
 
 ### Added

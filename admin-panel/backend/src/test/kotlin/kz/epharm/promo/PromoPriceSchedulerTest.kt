@@ -58,6 +58,43 @@ class PromoPriceSchedulerTest {
     }
 
     @Test
+    fun `refresh preserves secondary aliases when source temporarily omits identities`() {
+        val primary = "0000000012345"
+        val secondary = "4870223140649"
+        val promo = PromoEntity(id = "p", medusaProductId = "m", barcode = primary)
+        val product = ProductEntity(id = "m", medusaProductId = "m", barcode = primary)
+        every { priceService.active } returns true
+        every { promoRepo.findAllByMedusaProductIdIsNotNull() } returns listOf(promo)
+        every { productRepo.findAllByMedusaProductIdIsNotNull() } returns listOf(product)
+        every { promoRepo.save(any()) } answers { firstArg() }
+        every { productRepo.save(any()) } answers { firstArg() }
+        every { priceService.snapshotOf("m") } returns MedusaSnapshot(
+            price = null, cover = null, barcode = primary, barcodes = listOf(primary, secondary),
+        )
+        scheduler.refreshNow()
+        assertEquals(listOf(primary, secondary), promo.barcodes)
+        assertEquals(listOf(primary, secondary), product.scanBarcodes())
+        every { priceService.snapshotOf("m") } returns MedusaSnapshot(null, null, null)
+        scheduler.refreshNow()
+        assertEquals(listOf(primary, secondary), promo.barcodes)
+        assertEquals(listOf(primary, secondary), product.scanBarcodes())
+        every { priceService.snapshotOf("m") } returns MedusaSnapshot(
+            null, null, secondary, listOf(secondary), barcodeSourceComplete = true,
+        )
+        scheduler.refreshNow()
+        assertEquals(listOf(secondary), promo.barcodes)
+        assertEquals(listOf(secondary), product.scanBarcodes())
+        every { priceService.snapshotOf("m") } returns MedusaSnapshot(
+            null, null, null, barcodeSourceComplete = true,
+        )
+        scheduler.refreshNow()
+        assertEquals(emptyList<String>(), promo.barcodes)
+        assertEquals(emptyList<String>(), product.scanBarcodes())
+        assertEquals(null, promo.barcode)
+        assertEquals(null, product.barcode)
+    }
+
+    @Test
     fun `Medusa выключена — рефреш пропускается`() {
         every { priceService.active } returns false
         val summary = scheduler.refreshNow()

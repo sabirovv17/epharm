@@ -13,6 +13,7 @@ import { ProductGallery } from './ProductGallery'
 import { PromoProductPicker, type SelectedProduct } from './PromoProductPicker'
 import { PromoInitialTriggerPicker, type InitialTrigger } from './PromoInitialTriggerPicker'
 import { PROMO_RULE_LIMITS } from './promoRulesValidation'
+import { collectProductBarcodes } from '@/lib/productBarcodes'
 
 interface CreatePromoModalProps {
   open: boolean
@@ -60,13 +61,15 @@ const initial = (): FormState => ({
 function initialTriggerRef(trigger: InitialTrigger): PromoRuleProductRef {
   if (trigger.kind === 'product') {
     const product = trigger.product
+    const barcodes = collectProductBarcodes(product)
     return {
       medusaProductId: product.medusaProductId,
       triggerKind: 'product',
       name: product.productName.trim().slice(0, PROMO_RULE_LIMITS.name),
       brand: product.brand.trim().slice(0, PROMO_RULE_LIMITS.brand),
       price: product.price,
-      barcode: product.barcode && product.barcode.length <= 32 ? product.barcode : null,
+      barcode: barcodes[0] ?? null,
+      barcodes,
       ipartId: product.ipartId && product.ipartId.length <= PROMO_RULE_LIMITS.ipartId ? product.ipartId : null,
       active: false,
     }
@@ -179,6 +182,7 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
 
   const submit = () => {
     if (!valid || !form.product || !form.trigger || !form.recommendationType) return
+    const barcodes = collectProductBarcodes({ barcode: form.barcode, barcodes: form.product.barcodes })
     onCreate({
       title: form.title.trim(),
       status: 'draft',
@@ -195,6 +199,7 @@ export function CreatePromoModal({ open, onClose, onCreate, pending }: CreatePro
           : null,
       brand: form.product.brand.trim().slice(0, PROMO_RULE_LIMITS.brand),
       barcode: form.barcode.trim() || null,
+      barcodes,
       ipartId: form.ipartId.trim() || null,
       pharmacistBonus: Math.max(0, Math.trunc(Number(form.pharmacistBonus) || 0)),
       overrideImage: form.overrideImage.trim() || null,

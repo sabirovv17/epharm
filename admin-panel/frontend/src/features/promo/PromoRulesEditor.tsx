@@ -24,6 +24,7 @@ import { usePromoRules, useSavePromoRules } from '@/lib/queries/promoRules'
 import { MultiProductPicker } from './PromoProductPicker'
 import { PromoTriggerPicker } from './PromoTriggerPicker'
 import { promoTriggerDomId, promoTriggerKey, promoTriggerKind } from './promoTrigger'
+import { collectProductBarcodes } from '@/lib/productBarcodes'
 import {
   extractPromoRulesFieldErrors,
   normalizePromoRulesConfig,
@@ -50,6 +51,7 @@ const EMPTY_CONFIG: PromoRulesConfigDto = {
 }
 
 function toRef(p: StorefrontProductDto): PromoRuleProductRef {
+  const barcodes = collectProductBarcodes(p)
   return {
     medusaProductId: p.id,
     name: p.name,
@@ -57,7 +59,8 @@ function toRef(p: StorefrontProductDto): PromoRuleProductRef {
     brand: p.brand,
     mnn: p.mnn,
     price: p.price,
-    barcode: p.barcode,
+    barcode: barcodes[0] ?? null,
+    barcodes,
     ipartId: p.ipartId ?? null,
     script: '',
     advantages: [],
@@ -93,6 +96,7 @@ function toScopeRef(
 }
 
 function toOffer(p: StorefrontProductDto): PromoOfferProductRef {
+  const barcodes = collectProductBarcodes(p)
   return {
     medusaProductId: p.id,
     name: p.name,
@@ -100,7 +104,8 @@ function toOffer(p: StorefrontProductDto): PromoOfferProductRef {
     brand: p.brand,
     mnn: p.mnn,
     price: p.price,
-    barcode: p.barcode,
+    barcode: barcodes[0] ?? null,
+    barcodes,
     ipartId: p.ipartId ?? null,
   }
 }
@@ -654,6 +659,7 @@ function PairCard({
   const offers = r.additionalRecommendations ?? []
   const [offerPickerOpen, setOfferPickerOpen] = useState(false)
   const isBroadTrigger = promoTriggerKind(r) !== 'product'
+  const barcodes = collectProductBarcodes(r)
   const domId = promoTriggerDomId(r)
   const triggerErrorPath = `${pathPrefix}.${isBroadTrigger ? 'triggerValue' : 'medusaProductId'}`
   const cardError = errors[triggerErrorPath]
@@ -806,6 +812,12 @@ function PairCard({
             )}
           </label>
         </div>}
+
+        {!isBroadTrigger && barcodes.length > 1 && (
+          <div className="num max-h-16 overflow-y-auto break-all text-[11px] text-ink-500" data-testid={`pr-barcodes-${domId}`}>
+            {t('pp.barcodesCount', { count: barcodes.length })} · {barcodes.join(', ')}
+          </div>
+        )}
 
         <textarea
           className={`inp text-[13px] ${errors[`${pathPrefix}.script`] ? 'border-accent-danger' : ''}`}

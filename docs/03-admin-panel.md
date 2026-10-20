@@ -99,6 +99,20 @@ overrides are collapsed under additional settings. A single POST creates the cam
 first pair atomically as drafts; the form navigates to the campaign detail for card review and
 explicit activation. The old product-only POST contract remains valid for existing clients.
 
+Exact-product triggers retain all confirmed barcode aliases, not just a primary EAN. The picker
+shows the barcode count/list and accepts a product with a usable `barcodes[]` even when the legacy
+`barcode` is empty. Website `WARE_ID` is joined case-insensitively to the active reviewed ACC snapshot;
+only barcode ownership unambiguous across that snapshot is usable. Marketplace SKU and similar names
+are not scan identifiers. Unlike variant strengths/forms/packs are not merged. A product with no
+confirmed barcode or explicit Standard-N iPartID remains unavailable as an exact scan trigger.
+Fresh metadata for the same product IDs must refresh the picker, including previously disabled rows.
+
+Create/edit/read/price refresh preserve the alias list and a compatible primary `barcode`. The backend
+checks browser-provided plural aliases against the selected source or saved identity. A complete
+new source identity replaces revoked aliases (including an explicitly empty mapping); an unavailable
+or incomplete source does not erase the saved identity. This does not publish a draft or activate a
+medical replacement. All four trigger kinds and per-offer reward settings remain independent.
+
 The initial exact-product picker disables products without a usable barcode or iPartID and explains
 why they cannot trigger a cash-desk scan. This restriction does not affect offered products or ACC
 scopes. Catalogue prices are resolved by the backend from the configured source; the browser's

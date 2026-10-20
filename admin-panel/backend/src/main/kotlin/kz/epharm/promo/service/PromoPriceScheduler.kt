@@ -4,6 +4,7 @@ import kz.epharm.catalog.repository.ProductRepository
 import kz.epharm.medusa.service.MedusaPriceService
 import kz.epharm.promo.entity.PromoTier
 import kz.epharm.promo.repository.PromoRepository
+import kz.epharm.shared.validation.ConfirmedBarcodeAliases
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
@@ -81,8 +82,17 @@ class PromoPriceScheduler(
             }
 
             // Штрих-код EAN-13 (ключ матчинга POSM-кассы) — тоже обновляем из Medusa.
-            if (!snap.barcode.isNullOrBlank() && p.barcode != snap.barcode) {
-                p.barcode = snap.barcode
+            val codes = ConfirmedBarcodeAliases.merge(
+                primary = snap.barcode, source = snap.barcodes + listOfNotNull(snap.barcode),
+                existing = p.barcodes + listOfNotNull(p.barcode), sourceComplete = snap.barcodeSourceComplete,
+            )
+            if (codes != p.barcodes || p.barcode != codes.firstOrNull()) {
+                p.barcodes = codes
+                p.barcode = codes.firstOrNull()
+                changed = true
+            }
+            if (!p.barcodeSourceComplete && (snap.barcodeSourceComplete || snap.barcode != null || snap.barcodes.isNotEmpty())) {
+                p.barcodeSourceComplete = true
                 changed = true
             }
 
@@ -108,8 +118,13 @@ class PromoPriceScheduler(
                 prod.price = intPrice
                 changed = true
             }
-            if (!snap.barcode.isNullOrBlank() && prod.barcode != snap.barcode) {
-                prod.barcode = snap.barcode
+            val codes = ConfirmedBarcodeAliases.merge(
+                primary = snap.barcode, source = snap.barcodes + listOfNotNull(snap.barcode),
+                existing = prod.barcodes + listOfNotNull(prod.barcode), sourceComplete = snap.barcodeSourceComplete,
+            )
+            if (codes != prod.barcodes || prod.barcode != codes.firstOrNull()) {
+                prod.barcodes = codes
+                prod.barcode = codes.firstOrNull()
                 changed = true
             }
 

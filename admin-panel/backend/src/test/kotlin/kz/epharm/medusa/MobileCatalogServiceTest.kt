@@ -166,6 +166,23 @@ class MobileCatalogServiceTest {
         val card = service.search(q = null, category = null, limit = 24, offset = 0).items.single()
 
         assertEquals("4607045191357", card.barcode)
+        assertEquals(listOf("4607045191357", "4870223140649", "4870223140694"), card.barcodes)
+        assertNull(card.ipartId)
+    }
+
+    @Test
+    fun `catalog exposes an explicit metadata ipart id but never a Daribar variant sku`() {
+        stubList(
+            MedusaProduct(
+                id = "site-explicit", metadata = mapOf("ipart_id" to "42", "barcodes" to listOf("4603276001779", "4603276013765")),
+                variants = listOf(MedusaVariant(id = "v1", sku = "Daribar-UUID")),
+            ),
+        )
+
+        val card = service.search(q = null, category = null, limit = 24, offset = 0).items.single()
+        assertEquals("42", card.ipartId)
+        assertEquals("4603276001779", card.barcode)
+        assertEquals(listOf("4603276001779", "4603276013765"), card.barcodes)
     }
 
     @Test

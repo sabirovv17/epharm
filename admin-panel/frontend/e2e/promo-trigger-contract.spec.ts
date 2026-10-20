@@ -124,3 +124,36 @@ test('повторное открытие окна начинает с выбо�
   await expect(loggedInPage.getByPlaceholder(/Поиск товара/)).toHaveCount(0)
   await expect(loggedInPage.getByRole('button', { name: /Создать черновик/ })).toBeDisabled()
 })
+
+for (const [label, identity] of [
+  ['plural-only source', { barcode: null, barcodes: ['0012345678905', '4601164003157'] }],
+  ['legacy packed source', { barcode: '_0012345678905_4601164003157_', barcodes: ['4601164003157'] }],
+] as const) {
+  test(`${label}: exact trigger displays and submits every explicit code`, async ({ loggedInPage }, testInfo) => {
+    await loggedInPage.route('**/api/admin/storefront/products**', async (route) => {
+      const url = new URL(route.request().url())
+      const products = [{ ...triggerProduct, ...identity, name: '[ТЕСТ] Цитрамон-П 10 таблеток' }, offerProduct]
+      const detail = products.find((product) => url.pathname.endsWith(`/${product.id}`))
+      const query = url.searchParams.get('q')?.toLocaleLowerCase() ?? ''
+      const items = products.filter((product) => product.name.toLocaleLowerCase().includes(query))
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify(detail
+        ? { ...detail, images: [], description: null, keyFacts: [] }
+        : { items, total: items.length, limit: 50, offset: 0 }) })
+    })
+    await loggedInPage.getByRole('radio', { name: 'Конкретный товар', exact: true }).click()
+    await loggedInPage.getByPlaceholder(/Поиск товара/).fill('Цитрамон')
+    const trigger = loggedInPage.getByTestId(`promo-product-option-${triggerProduct.id}`)
+    await expect(trigger).toBeEnabled()
+    await expect(trigger).toContainText('Штрихкоды: 2')
+    await expect(trigger).toContainText('0012345678905')
+    await expect(trigger).toContainText('4601164003157')
+    await loggedInPage.screenshot({ path: testInfo.outputPath('TEST-citramon-multiple-barcodes.png'), fullPage: true })
+    await trigger.click()
+    await chooseOffer(loggedInPage, 'Замена')
+    const payload = await submitDraft(loggedInPage)
+    expect(payload.initialRecommendation.trigger).toMatchObject({
+      triggerKind: 'product', medusaProductId: triggerProduct.id, barcode: '0012345678905',
+      barcodes: ['0012345678905', '4601164003157'], active: false,
+    })
+  })
+}

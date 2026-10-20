@@ -98,6 +98,42 @@ describe('PromoProductPicker — идентификатор сканирован
     await user.click(option)
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ medusaProductId: 'site-only', barcode: null }))
   })
+
+  it.each([
+    { barcode: null, barcodes: ['0012345678905', '4601164003157'] },
+    { barcode: '_0012345678905_4601164003157_', barcodes: ['4601164003157'] },
+  ])('выбирает точный триггер со всеми кодами источника: %j', async (identity) => {
+    storefrontHooks.useStorefront.mockReturnValue({
+      data: { items: [mkProduct({ id: 'aliases', ...identity })], total: 1, limit: 50, offset: 0 },
+      isFetching: false,
+    })
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    render(<PromoProductPicker value={null} onChange={onChange} requireScanIdentity />)
+    const option = screen.getByTestId('promo-product-option-aliases')
+    expect(option).toBeEnabled()
+    expect(option).toHaveTextContent('0012345678905')
+    expect(option).toHaveTextContent('4601164003157')
+    await user.click(option)
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
+      medusaProductId: 'aliases', barcode: '0012345678905', barcodes: ['0012345678905', '4601164003157'],
+    }))
+  })
+
+  it('после обновления источника заменяет старый кэш с теми же product ids новыми штрихкодами', async () => {
+    const product = mkProduct({ id: 'same-id', barcode: null })
+    const onChange = vi.fn()
+    storefrontHooks.useStorefront.mockReturnValue({
+      data: { items: [product], total: 1, limit: 50, offset: 0 }, isFetching: false,
+    })
+    const { rerender } = render(<PromoProductPicker value={null} onChange={onChange} requireScanIdentity />)
+    expect(screen.getByTestId('promo-product-option-same-id')).toBeDisabled()
+    storefrontHooks.useStorefront.mockReturnValue({
+      data: { items: [{ ...product, barcodes: ['0012345678905'] }], total: 1, limit: 50, offset: 0 }, isFetching: false,
+    })
+    rerender(<PromoProductPicker value={null} onChange={onChange} requireScanIdentity />)
+    await waitFor(() => expect(screen.getByTestId('promo-product-option-same-id')).toBeEnabled())
+  })
 })
 
 // ─── T6: пагинация ───────────────────────────────────────────────────────────

@@ -4,7 +4,7 @@ import kz.epharm.medusa.client.MedusaClient
 import kz.epharm.medusa.MedusaCatalogSnapshotRepository
 import kz.epharm.medusa.dto.MedusaProduct
 import kz.epharm.medusa.dto.toRetailPriceSummary
-import kz.epharm.shared.validation.BarcodeNormalizer
+import kz.epharm.medusa.dto.scanBarcodes
 import kz.epharm.storefront.client.StorefrontCatalogClient
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -47,10 +47,13 @@ class MedusaPriceService(
     fun snapshotOf(medusaProductId: String?): MedusaSnapshot? {
         val id = medusaProductId?.trim()?.takeIf(String::isNotEmpty) ?: return null
         val p = productOf(id) ?: return null
+        val barcodes = p.scanBarcodes()
         return MedusaSnapshot(
             price = priceOf(p) ?: if (storefront?.active != true && medusa.active) retailPriceOf(id) else null,
             cover = coverOf(p),
-            barcode = barcodeOf(p),
+            barcode = barcodes.firstOrNull(),
+            barcodes = barcodes,
+            barcodeSourceComplete = p.metadata?.get("barcode_source_complete") == true,
         )
     }
 
@@ -80,13 +83,9 @@ class MedusaPriceService(
         product.thumbnail?.trim()?.takeIf { it.isNotBlank() }
             ?: product.images.firstNotNullOfOrNull { it.url?.trim()?.takeIf { u -> u.isNotBlank() } }
 
-    /**
-     * Только явный штрихкод источника. Название товара не устанавливает его EAN.
-     */
-    private fun barcodeOf(product: MedusaProduct): String? =
-        product.variants.firstNotNullOfOrNull { BarcodeNormalizer.first(it.barcode) }
-            ?: BarcodeNormalizer.first(product.metadata?.get("barcode") as? String)
-
     /** Снимок витрины: цена (тенге) + URL обложки + штрих-код. Любое поле может быть null. */
-    data class MedusaSnapshot(val price: Long?, val cover: String?, val barcode: String?)
+    data class MedusaSnapshot(
+        val price: Long?, val cover: String?, val barcode: String?, val barcodes: List<String> = emptyList(),
+        val barcodeSourceComplete: Boolean = false,
+    )
 }

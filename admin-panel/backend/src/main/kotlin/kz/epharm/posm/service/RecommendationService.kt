@@ -96,12 +96,13 @@ class RecommendationService(
                 }.distinct(),
             ),
         ).takeIf { it.available && it.pharmacyMapped } ?: MerchRecommendationContextEnvelope(available = false)
+        val balanceBarcodes = productsByBarcode(merchContext.balances.mapNotNull { it.barcode })
 
         // Начало текущего месяца — период для счётчика цели «N/target».
         val periodStart = java.time.YearMonth.now()
             .atDay(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant()
 
-        val localOutOfStock = ranked.filter { isConfirmedOutOfStock(it.recommend, merchContext.balances) }
+        val localOutOfStock = ranked.filter { isConfirmedOutOfStock(it.recommend, merchContext.balances, balanceBarcodes) }
         val selectedLocal = ranked.filterNot { it in localOutOfStock }
         val localDtos = selectedLocal.map { m ->
             val event = upsertShownEvent(req, m)
@@ -133,7 +134,7 @@ class RecommendationService(
                 goalText = goalText,
                 goalBonus = goalBonus,
                 source = "epharm",
-                balance = balanceFor(m.recommend, merchContext.balances),
+                balance = balanceFor(m.recommend, merchContext.balances, balanceBarcodes),
             )
         }
         val localKeys = selectedLocal.map { it.rule.type.name to it.recommend.id }.toSet()
@@ -141,7 +142,7 @@ class RecommendationService(
             .filter { it.recommend.id !in decidedSkus }
             .filter { (it.candidate.kind to it.recommend.id) !in localKeys }
         val externalOutOfStock = resolvedExternal.filter {
-            isConfirmedOutOfStock(it.recommend, merchContext.balances)
+            isConfirmedOutOfStock(it.recommend, merchContext.balances, balanceBarcodes)
         }
         val externalInStock = resolvedExternal.filterNot { it in externalOutOfStock }
         val localByPair = selectedLocal.groupBy {
@@ -164,7 +165,7 @@ class RecommendationService(
                     .thenBy { it.candidate.id })
                 .distinctBy { it.recommend.id }
                 .take(remaining.coerceAtLeast(0))
-                .map { externalRecommendationDto(req, it, merchContext.balances) }
+                .map { externalRecommendationDto(req, it, merchContext.balances, balanceBarcodes) }
                 .toList()
         }
         val conflicts = matchResult.conflicts.map {
@@ -226,14 +227,12 @@ class RecommendationService(
         val ids = candidates.mapNotNull { it.recommendProductId?.trim()?.takeIf(String::isNotEmpty) }.toSet()
         val barcodes = candidates.flatMap {
             listOfNotNull(it.triggerBarcode?.trim(), it.recommendBarcode?.trim())
-        }.filter(String::isNotEmpty).toSet()
+        }.plus(req.cart.mapNotNull { it.barcode?.trim() }).filter(String::isNotEmpty).toSet()
         val ipartIds = candidates.flatMap {
             listOfNotNull(it.triggerIpartId?.trim(), it.recommendIpartId?.trim())
         }.filter(String::isNotEmpty).toSet()
         val byId = productRepository.findAllById(ids).associateBy(ProductEntity::id)
-        val byBarcode = uniqueProducts(
-            if (barcodes.isEmpty()) emptyList() else productRepository.findAllByBarcodeIn(barcodes),
-        ) { it.barcode?.trim() }
+        val byBarcode = productsByBarcode(barcodes)
         val byIpart = uniqueProducts(
             if (ipartIds.isEmpty()) emptyList() else productRepository.findAllByIpartIdIn(ipartIds),
         ) { it.ipartId?.trim() }
@@ -241,12 +240,24 @@ class RecommendationService(
         return candidates.mapNotNull { candidate ->
             val triggerBarcode = candidate.triggerBarcode?.trim()?.takeIf(String::isNotEmpty)
             val triggerIpart = candidate.triggerIpartId?.trim()?.takeIf(String::isNotEmpty)
+            if (triggerBarcode != null && triggerBarcode in byBarcode && byBarcode[triggerBarcode] == null) return@mapNotNull null
+            val triggerByBarcode = triggerBarcode?.let(byBarcode::get)
+            val triggerByIpart = triggerIpart?.let(byIpart::get)
+            if (triggerByBarcode != null && triggerByIpart != null && triggerByBarcode.id != triggerByIpart.id) {
+                return@mapNotNull null
+            }
             val triggerItem = req.cart.firstOrNull { item ->
-                val barcodeMatches = triggerBarcode == null || item.barcode.isNullOrBlank() ||
-                    item.barcode?.trim() == triggerBarcode
+                val itemBarcode = item.barcode?.trim()?.takeIf(String::isNotEmpty)
+                if (itemBarcode != null && itemBarcode in byBarcode && byBarcode[itemBarcode] == null) return@firstOrNull false
+                val itemByBarcode = itemBarcode?.let(byBarcode::get)
+                if (itemByBarcode != null && triggerByIpart != null && itemByBarcode.id != triggerByIpart.id) {
+                    return@firstOrNull false
+                }
+                val barcodeMatches = triggerBarcode == null || itemBarcode == null || itemBarcode == triggerBarcode ||
+                    (triggerByBarcode != null && itemByBarcode?.id == triggerByBarcode.id)
                 val ipartMatches = triggerIpart == null || item.sku.isNullOrBlank() ||
                     item.sku?.trim() == triggerIpart
-                val hasExactMatch = (triggerBarcode != null && item.barcode?.trim() == triggerBarcode) ||
+                val hasExactMatch = (triggerBarcode != null && itemBarcode != null && barcodeMatches) ||
                     (triggerIpart != null && item.sku?.trim() == triggerIpart)
                 barcodeMatches && ipartMatches && hasExactMatch
             } ?: return@mapNotNull null
@@ -262,7 +273,7 @@ class RecommendationService(
             }
             val recommend = suppliedProducts.first()
             val alreadyInCart = req.cart.any { item ->
-                (!recommend.barcode.isNullOrBlank() && item.barcode?.trim() == recommend.barcode?.trim()) ||
+                (item.barcode?.trim() in recommend.scanBarcodes()) ||
                     (!recommend.ipartId.isNullOrBlank() && item.sku?.trim() == recommend.ipartId?.trim()) ||
                     (item.barcode.isNullOrBlank() && item.sku.isNullOrBlank() &&
                         item.name?.trim()?.equals(recommend.name.trim(), ignoreCase = true) == true)
@@ -271,7 +282,7 @@ class RecommendationService(
             ExternalRecommendation(
                 candidate = candidate,
                 triggerItem = triggerItem,
-                triggerProduct = triggerBarcode?.let(byBarcode::get) ?: triggerIpart?.let(byIpart::get),
+                triggerProduct = triggerItem.barcode?.trim()?.let(byBarcode::get) ?: triggerByBarcode ?: triggerByIpart,
                 recommend = recommend,
             )
         }
@@ -286,10 +297,21 @@ class RecommendationService(
         .filterValues { it.size == 1 }
         .mapValues { it.value.single() }
 
+    /** Query all owners, not only the active rule products; null keeps conflicting aliases closed. */
+    private fun productsByBarcode(raw: Collection<String>): Map<String, ProductEntity?> {
+        val barcodes = raw.map(String::trim).filter(String::isNotEmpty).toSet()
+        if (barcodes.isEmpty()) return emptyMap()
+        return productRepository.findAllByBarcodeIn(barcodes)
+            .flatMap { product -> product.scanBarcodes().filter { it in barcodes }.map { it to product } }
+            .groupBy({ it.first }, { it.second })
+            .mapValues { (_, products) -> products.distinctBy(ProductEntity::id).singleOrNull() }
+    }
+
     private fun externalRecommendationDto(
         req: RecommendRequest,
         external: ExternalRecommendation,
         balances: List<MerchProductBalance>,
+        balanceBarcodes: Map<String, ProductEntity?>,
     ): RecommendationDto {
         val candidate = external.candidate
         val ruleId = "merch:${candidate.id}"
@@ -322,17 +344,21 @@ class RecommendationService(
             goalText = null,
             goalBonus = null,
             source = "merchandising",
-            balance = balanceFor(external.recommend, balances),
+            balance = balanceFor(external.recommend, balances, balanceBarcodes),
         )
     }
 
-    private fun balanceFor(product: ProductEntity, balances: List<MerchProductBalance>): ProductBalanceDto? {
+    private fun balanceFor(
+        product: ProductEntity,
+        balances: List<MerchProductBalance>,
+        balanceBarcodes: Map<String, ProductEntity?>,
+    ): ProductBalanceDto? {
         val balance = balances.firstOrNull { candidate ->
             val supplied = listOf(candidate.productId, candidate.barcode, candidate.ipartId)
                 .count { !it.isNullOrBlank() }
             val matches = listOf(
                 candidate.productId?.trim()?.let { it == product.id },
-                candidate.barcode?.trim()?.let { it == product.barcode?.trim() },
+                candidate.barcode?.trim()?.let { balanceBarcodes[it]?.id == product.id },
                 candidate.ipartId?.trim()?.let { it == product.ipartId?.trim() },
             ).filterNotNull()
             supplied > 0 && matches.size == supplied && matches.all { it }
@@ -355,8 +381,12 @@ class RecommendationService(
         )
     }
 
-    private fun isConfirmedOutOfStock(product: ProductEntity, balances: List<MerchProductBalance>): Boolean {
-        val balance = balanceFor(product, balances) ?: return false
+    private fun isConfirmedOutOfStock(
+        product: ProductEntity,
+        balances: List<MerchProductBalance>,
+        balanceBarcodes: Map<String, ProductEntity?>,
+    ): Boolean {
+        val balance = balanceFor(product, balances, balanceBarcodes) ?: return false
         return balance.status == "confirmed" &&
             balance.pharmacyAvailableQty != null && balance.pharmacyAvailableQty.signum() == 0
     }

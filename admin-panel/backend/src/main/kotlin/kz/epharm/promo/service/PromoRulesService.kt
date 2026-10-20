@@ -22,6 +22,7 @@ import kz.epharm.rules.entity.RuleType
 import kz.epharm.rules.repository.RuleRepository
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
+import kz.epharm.shared.validation.ConfirmedBarcodeAliases
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -362,7 +363,8 @@ class PromoRulesService(
     /** Локальный товар под продвигаемый (id = medusaProductId; имя/цена из кампании/Medusa). */
     private fun upsertPromotedProduct(promo: PromoEntity, medusaId: String): ProductEntity {
         val existing = productRepository.findById(medusaId).orElse(null)
-        val price = medusaPriceService.priceOf(medusaId)?.toInt()
+        val snapshot = medusaPriceService.snapshotOf(medusaId)
+        val price = snapshot?.price?.toInt()
             ?: existing?.price?.takeIf { it > 0 }
             ?: promo.price.toInt()
         val p = existing ?: ProductEntity(id = medusaId)
@@ -373,9 +375,20 @@ class PromoRulesService(
         p.price = price
         p.volume = existing?.volume ?: ""
         p.medusaProductId = medusaId
-        // Штрих-код продвигаемого — из кампании (источник истины для матчинга кассы),
-        // иначе сохраняем прежний.
-        p.barcode = promo.barcode?.trim()?.takeIf { it.isNotBlank() } ?: existing?.barcode
+        val sourceCodes = snapshot?.let { listOfNotNull(it.barcode) + it.barcodes }.orEmpty()
+        val freshIdentity = snapshot?.barcodeSourceComplete == true || sourceCodes.isNotEmpty()
+        // One source snapshot supplies both price and identity. Editing an old campaign
+        // must pick up current offered aliases without waiting for the hourly refresh.
+        p.barcodes = ConfirmedBarcodeAliases.merge(
+            source = if (freshIdentity) sourceCodes else promo.barcodes,
+            primary = if (freshIdentity) snapshot?.barcode else promo.barcode,
+            existing = p.scanBarcodes(),
+            sourceComplete = freshIdentity || promo.barcodeSourceComplete,
+        )
+        p.barcode = p.barcodes.firstOrNull()
+        promo.barcodes = p.barcodes
+        promo.barcode = p.barcode
+        if (freshIdentity) promo.barcodeSourceComplete = true
         p.ipartId = promo.ipartId?.trim()?.takeIf { it.isNotBlank() } ?: existing?.ipartId
         return productRepository.save(p)
     }
@@ -384,7 +397,8 @@ class PromoRulesService(
     private fun upsertProduct(ref: PromoRuleProductRefDto): ProductEntity {
         val id = ref.medusaProductId
         val existing = productRepository.findById(id).orElse(null)
-        val price = medusaPriceService.priceOf(id)?.toInt()
+        val snapshot = medusaPriceService.snapshotOf(id)
+        val price = snapshot?.price?.toInt()
             ?: existing?.price?.takeIf { it > 0 }
             ?: ref.price
             ?: 0
@@ -398,9 +412,13 @@ class PromoRulesService(
         p.medusaProductId = id
         // Штрих-код заменяемого/компаньона: из ref (фронт), иначе из Medusa, иначе прежний.
         // Это ключ матчинга POSM-кассы для товара-триггера замены.
-        p.barcode = ref.barcode?.trim()?.takeIf { it.isNotBlank() }
-            ?: medusaPriceService.snapshotOf(id)?.barcode?.trim()?.takeIf { it.isNotBlank() }
-            ?: existing?.barcode
+        val previousCodes = p.scanBarcodes()
+        p.barcodes = ConfirmedBarcodeAliases.merge(
+            ref.barcodes, ref.barcode, snapshot?.let { listOfNotNull(it.barcode) + it.barcodes }.orEmpty(),
+            previousCodes,
+            sourceComplete = snapshot?.barcodeSourceComplete == true,
+        )
+        p.barcode = p.barcodes.firstOrNull()
         p.ipartId = ref.ipartId?.trim()?.takeIf { it.isNotBlank() } ?: existing?.ipartId
         return productRepository.save(p)
     }
@@ -408,7 +426,8 @@ class PromoRulesService(
     private fun upsertOfferProduct(ref: PromoOfferProductRefDto): ProductEntity {
         val id = ref.medusaProductId
         val existing = productRepository.findById(id).orElse(null)
-        val price = medusaPriceService.priceOf(id)?.toInt()
+        val snapshot = medusaPriceService.snapshotOf(id)
+        val price = snapshot?.price?.toInt()
             ?: existing?.price?.takeIf { it > 0 }
             ?: ref.price
             ?: 0
@@ -420,9 +439,13 @@ class PromoRulesService(
         p.price = price
         p.volume = ref.volume?.takeIf { it.isNotBlank() } ?: existing?.volume ?: ""
         p.medusaProductId = id
-        p.barcode = ref.barcode?.trim()?.takeIf { it.isNotBlank() }
-            ?: medusaPriceService.snapshotOf(id)?.barcode?.trim()?.takeIf { it.isNotBlank() }
-            ?: existing?.barcode
+        val previousCodes = p.scanBarcodes()
+        p.barcodes = ConfirmedBarcodeAliases.merge(
+            ref.barcodes, ref.barcode, snapshot?.let { listOfNotNull(it.barcode) + it.barcodes }.orEmpty(),
+            previousCodes,
+            sourceComplete = snapshot?.barcodeSourceComplete == true,
+        )
+        p.barcode = p.barcodes.firstOrNull()
         p.ipartId = ref.ipartId?.trim()?.takeIf { it.isNotBlank() } ?: existing?.ipartId
         return productRepository.save(p)
     }
@@ -436,6 +459,7 @@ class PromoRulesService(
             mnn = p.mnn.takeIf { it.isNotBlank() },
             volume = p.volume.takeIf { it.isNotBlank() },
             barcode = p.barcode?.takeIf { it.isNotBlank() },
+            barcodes = p.scanBarcodes(),
             ipartId = p.ipartId?.takeIf { it.isNotBlank() },
             price = p.price.takeIf { it > 0 },
         )
@@ -450,6 +474,7 @@ class PromoRulesService(
             mnn = p.mnn.takeIf { it.isNotBlank() },
             volume = p.volume.takeIf { it.isNotBlank() },
             barcode = p.barcode?.takeIf { it.isNotBlank() },
+            barcodes = p.scanBarcodes(),
             ipartId = p.ipartId?.takeIf { it.isNotBlank() },
             price = p.price.takeIf { it > 0 },
         )

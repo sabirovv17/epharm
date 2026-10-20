@@ -92,6 +92,7 @@ beforeEach(() => {
           currency: 'KZT',
           imageUrl: null,
           barcode: '4604249789012',
+          barcodes: ['4604249789012', '00012345'],
           ipartId: null,
           category: null,
         },
@@ -227,6 +228,26 @@ describe('PromoRulesEditor — per-pair скрипт + «Добавить»', ()
     )
   })
 
+  it('редактирование и повторное сохранение пары не теряет plural-only идентификаторы и бонусы', async () => {
+    rulesHooks.usePromoRules.mockReturnValue({
+      data: mkView({ replacements: [{
+        medusaProductId: 'prod_a', name: 'Триггер', barcodes: ['0012345678905', '4601164003157'], bonus: 0,
+        additionalRecommendations: [{ medusaProductId: 'prod_b', name: 'Аналог', barcodes: ['00012345', '4870000000002'], bonus: 500 }],
+      }] }),
+      isLoading: false, isError: false, error: null, refetch: vi.fn(),
+    })
+    const user = userEvent.setup()
+    renderEditor()
+    expect(screen.getByTestId('pr-barcodes-prod_a')).toHaveTextContent('Штрихкоды: 2')
+    expect(screen.getByTestId('pr-barcodes-prod_a')).toHaveTextContent('0012345678905, 4601164003157')
+    await user.type(screen.getByTestId('pr-script-prod_a'), 'Проверенный скрипт')
+    await user.click(screen.getByTestId('promo-rules-save'))
+    expect(mutate.mock.calls[0][0].config.replacements[0]).toMatchObject({
+      barcode: '0012345678905', barcodes: ['0012345678905', '4601164003157'], bonus: 0,
+      additionalRecommendations: [{ barcode: '00012345', barcodes: ['00012345', '4870000000002'], bonus: 500 }],
+    })
+  })
+
   it('EAN-13 и iPartID редактируются у выбранной пары', async () => {
     const user = userEvent.setup()
     renderEditor()
@@ -276,7 +297,7 @@ describe('PromoRulesEditor — per-pair скрипт + «Добавить»', ()
     await user.click(screen.getByTestId('promo-rules-save'))
     const arg = mutate.mock.calls[0][0]
     expect(arg.config.crossSells[0]).toEqual(
-      expect.objectContaining({ medusaProductId: 'prod_b', barcode: '4604249789012' }),
+      expect.objectContaining({ medusaProductId: 'prod_b', barcode: '4604249789012', barcodes: ['4604249789012', '00012345'] }),
     )
   })
 
@@ -326,6 +347,7 @@ describe('PromoRulesEditor — per-pair скрипт + «Добавить»', ()
         name: 'Платочки',
         price: 500,
         barcode: '4604249789012',
+        barcodes: ['4604249789012', '00012345'],
       }),
     ])
     expect(replacement.additionalRecommendations[0].bonus).toBe(0)

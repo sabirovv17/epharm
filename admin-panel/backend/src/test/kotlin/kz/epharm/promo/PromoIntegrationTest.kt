@@ -185,7 +185,7 @@ class PromoIntegrationTest {
     }
 
     @Test
-    fun `POST create accepts compound Medusa barcode and stores first EAN`() {
+    fun `POST legacy compound barcode keeps compatible primary without inventing secondary ownership`() {
         val req = CreatePromoRequest(
             title = "Терафлю от гриппа и простуды лимон пор пак №10",
             status = PromoStatus.draft,
@@ -203,9 +203,11 @@ class PromoIntegrationTest {
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.barcode").value("4607045191357"))
+            .andExpect(jsonPath("$.barcodes.length()").value(1))
 
         val saved = promoRepository.findAllByMedusaProductId(req.medusaProductId!!).single()
         assertThat(saved.barcode).isEqualTo("4607045191357")
+        assertThat(saved.barcodes).containsExactly("4607045191357")
     }
 
     @Test
