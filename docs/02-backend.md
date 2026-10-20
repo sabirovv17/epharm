@@ -201,6 +201,12 @@ generic login code or password JWT as proof of phone ownership. Its signed chall
 opaque grant and immutable wallet contract are described in
 [unified pharmacist wallet](22-unified-pharmacist-wallet.md).
 
+`RecommendationSaleBonusService` is a separate opt-in, post-activation bridge from actual
+display ACK and exact printed sale to a source-bound pending bonus. It requires a trusted
+internal seller, pharmacy/session/product match and bounded timestamps. It never fabricates
+an accepted outcome or bypasses HQ receipt moderation; name-only and database-close evidence
+cannot trigger it. Both monetary opt-ins default to false in application and production Compose.
+
 The mobile application calls only ePharm endpoints. `OtpProvider` selects the implementation:
 
 - `OTP_DEV_MODE=true`: local fixed code for development/tests; no external request;

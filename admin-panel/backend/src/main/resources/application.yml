@@ -155,6 +155,9 @@ app:
       text-template: 'Код входа ePharm: {code}'
       timeout-ms: 10000
   posm:
+    sale-bonus:
+      enabled: ${POSM_SALE_BONUS_ENABLED:false}
+      eligible-after: ${POSM_SALE_BONUS_ELIGIBLE_AFTER:}
     staff-auth-enabled: ${POSM_STAFF_AUTH_ENABLED:false}
     # Ключ устройства кассы (Module 2). POSM-клиент шлёт его в заголовке X-Posm-Key.
     # Переходный fleet-key; production POSM endpoints используют индивидуальные tokens.

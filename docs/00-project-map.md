@@ -63,6 +63,7 @@ PharmaPayV2/
 | `mobile` (остальное)                              | me/баланс, чеки, аптеки рядом                                                      |
 | `posm`                                            | recommend/sales/heartbeat/плейлисты касс + атрибуция показ→продажа (V032)          |
 | `posm.staff`                                      | Независимые от device key вход РПС, SMS challenge и отзыв персональных сессий        |
+| `finance.service` / `finance.merch`                | Единый денежный журнал, атомарные начисления/резервы и проверенный исполнитель QR; `docs/22-unified-pharmacist-wallet.md` |
 | `training`                                        | программы, маршруты, назначения, события, результаты, сертификаты и бонусы         |
 | `rules`                                           | движок правил замены/кросс-селла (read-only, источник = Промо)                     |
 | `promo`                                           | Промо-кампании (1 кампания = 1 товар; правила создаются отсюда)                    |
@@ -87,6 +88,7 @@ PharmaPayV2/
 | Рекомендации в карточке мобилки  | `…/mobile/catalog/service/MobileCatalogService.kt`                     |
 | POSM: живой чек Стандарт-Н       | `App/MainWindow.StandardNReceipt.cs` + `Services/StandardNDbLookup.cs` |
 | POSM: fallback-парсер лога       | `App/MainWindow.xaml.cs` (`ProcessLogLine`/`TryParseAdd2Cheque`)       |
+| Показ + печать → бронь бонуса   | `…/posm/service/RecommendationSaleBonusService.kt`; включается отдельно, только HQ-модерация |
 | POSM: сборка дистрибутива        | `~/Desktop/work/epharm-demo/publish-exe.ps1` (вне git, шара Z:)        |
 | Разведка Стандарт-Н на VM        | `App/scripts/standartn-discover.ps1`                                   |
 | Мобилка: вход/OTP-экран          | `lib/features/auth/presentation/otp_screen.dart`                       |
