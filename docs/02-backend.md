@@ -34,6 +34,7 @@ The backend is a modular monolith under package `kz.epharm`.
 | `pharmacies`                          | Chains and pharmacies.                                                  |
 | `pharmacists`                         | Pharmacist registry, status, balance.                                   |
 | `finance`                             | Payout batches, items, approval, scheduler.                             |
+| `finance.merch`                       | Disabled-by-default verified CRM executor grants, signed approvals and idempotent monetary rewards. |
 | `screens`                             | Broadcast/screen media and playlists.                                   |
 | `banners`                             | Admin-managed mobile banners.                                           |
 | `medusa`                              | Historical Medusa client and durable read-only product snapshot.        |
@@ -194,6 +195,11 @@ redirects, and avoids browser mixed-content blocking when a source image uses HT
 - Receipt/photo bucket access is still a hardening topic: current MinIO bucket is public-readable.
 
 ## Mobile OTP
+
+The opt-in monetary merchandising flow uses a separate purpose-bound fresh OTP, never a
+generic login code or password JWT as proof of phone ownership. Its signed challenge,
+opaque grant and immutable wallet contract are described in
+[unified pharmacist wallet](22-unified-pharmacist-wallet.md).
 
 The mobile application calls only ePharm endpoints. `OtpProvider` selects the implementation:
 

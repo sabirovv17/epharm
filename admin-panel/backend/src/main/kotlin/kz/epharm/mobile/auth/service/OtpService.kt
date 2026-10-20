@@ -48,6 +48,7 @@ class OtpService(
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW, noRollbackFor = [AppException::class])
     fun request(phone: String, now: Instant = Instant.now()): RequestedOtp {
         staffPhoneLock.lock(phone)
+        staffPhoneLock.limitSharedSms(phone, now)
         staffPhoneLock.invalidateStaff(phone)
         val existing = otpRepository.findById(phone).orElse(null)
         if (existing != null && existing.verifiedAt == null && resendCooldownSeconds > 0) {

@@ -4,7 +4,7 @@ Database: PostgreSQL 16.
 
 Migrations: Flyway files in `admin-panel/backend/src/main/resources/db/migration/`.
 
-Current migration range in source: V001-V061.
+Current migration range in source: V001-V063.
 
 ## Migrations
 
@@ -71,6 +71,8 @@ Current migration range in source: V001-V061.
 | V059    | `allow_live_course_lessons`           | Expand the lesson-kind constraint to include live lessons without editing V058. |
 | V060    | `storefront_product_references`      | Origin-scoped website product handles/payload for restart-safe campaign pricing. |
 | V061    | `posm_staff_auth`                    | Purpose-bound SMS challenges, hashed staff grants, rate budgets and grant-revocation triggers. |
+| V062    | `pharmacist_wallet_ledger`           | Append-only opening checkpoints and idempotent atomic credits/payout reservations. |
+| V063    | `merch_verified_executor_rewards`    | Isolated OTP proofs, hashed grants, immutable executor bindings and approved-reward events. |
 
 ## Domain Tables
 
@@ -82,7 +84,7 @@ Current migration range in source: V001-V061.
 | Receipts/reconcile  | `receipts`, `pending_bonuses`, `pos_sales`, `excel_imports`, `excel_sale_rows` |
 | Pharmacies          | `chains`, `pharmacies`                                                         |
 | Pharmacists         | `pharmacists`                                                                  |
-| Finance             | `payout_batches`, `payout_items`                                               |
+| Finance             | `payout_batches`, `payout_items`, `pharmacist_wallet_checkpoints`, `pharmacist_wallet_entries`, `merch_executor_otp_challenges`, `merch_executor_grants`, `merch_executor_bindings`, `merch_reward_events` |
 | Screens             | `playlists`, `slides`, `playlist_pharmacy_assignments`                         |
 | POSM                | `recommendation_events`, app release tables, CDP tables                        |
 | LMS/AI              | `courses`, `course_live_messages`, `course_live_poll_votes`, `course_live_reactions`, `exam_questions`, `training_programs`, versions and result history |

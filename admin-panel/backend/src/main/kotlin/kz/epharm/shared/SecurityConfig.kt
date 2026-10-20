@@ -84,6 +84,9 @@ class SecurityConfig(
                         // Storefront worker authenticates every request with HMAC-SHA256 over
                         // timestamp/method/path/body. It has no admin JWT by design.
                         "/api/integrations/storefront/**",
+                        // Both routes independently verify the financial HMAC over raw bounded bytes.
+                        "/api/integrations/merch/executor-grants/redeem",
+                        "/api/integrations/merch/reward-events",
                         // POSM-клиент кассы (Module 2): аутентификация не JWT, а device-key
                         // (заголовок X-Posm-Key), проверяется в PosmController. JWT-фильтр пропускает.
                         "/api/posm/**",

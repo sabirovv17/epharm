@@ -48,11 +48,22 @@ class PharmacistWalletConcurrencyIntegrationTest {
     }
 
     @Autowired private lateinit var wallet: PharmacistWalletService
+    @Autowired private lateinit var merch: kz.epharm.finance.merch.MerchRewardService
     @Autowired private lateinit var payouts: PayoutService
     @Autowired private lateinit var payoutItems: PayoutItemRepository
     @Autowired private lateinit var people: PharmacistRepository
     @Autowired private lateinit var jdbc: JdbcTemplate
     @Autowired private lateinit var transactions: PlatformTransactionManager
+
+    @Test
+    fun `default disabled financial integration rejects all entry points without moving funds`() {
+        val person=person(500)
+        assertThatThrownBy { merch.context(person.id,"not-a-signed-challenge") }.isInstanceOf(AppException::class.java)
+        assertThatThrownBy { merch.redeem(kz.epharm.finance.merch.MerchRedeemRequest("x".repeat(43),UUID.randomUUID(),"pharmacy","n".repeat(43))) }
+            .isInstanceOf(AppException::class.java)
+        assertThat(balance(person.id)).isEqualTo(500)
+        assertThat(entryCount(person.id)).isZero()
+    }
 
     @Test
     fun `concurrent independent credits preserve opening checkpoint and every new amount`() {
