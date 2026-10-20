@@ -229,7 +229,7 @@ namespace CustomerDisplay
         {
             _receiptObservations.LogChanged();
             var documentId = _standardNDocumentId;
-            if (!documentId.HasValue && ReceiptItems.Count > 0)
+            if (!documentId.HasValue)
             {
                 _receiptObservations.AwaitPrintedReceiptBoundary();
                 Log("Печать чека без DOCS.ID: снимки БД ожидают подтверждённого пустого чека; события лога продолжают работать");

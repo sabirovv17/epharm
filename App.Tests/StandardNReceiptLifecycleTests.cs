@@ -78,6 +78,20 @@ namespace CustomerDisplay.Core.Tests
         }
 
         [Fact]
+        public void PrintBeforeAnyObservedRowsCannotPopulateAlreadyPrintedDatabaseDocument()
+        {
+            var window = new MainWindow();
+            window.Print();
+
+            window.Observe(Receipt(100, 10));
+            window.Observe(null);
+            window.Observe(null);
+
+            Assert.Empty(window.ReceiptItems);
+            Assert.Empty(window.Sales);
+        }
+
+        [Fact]
         public void NewLogScanDoesNotReleaseUnboundPrintDatabaseBarrier()
         {
             var window = new MainWindow();
