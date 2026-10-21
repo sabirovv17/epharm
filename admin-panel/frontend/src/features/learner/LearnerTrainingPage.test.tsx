@@ -20,7 +20,9 @@ function renderPortal(path = '/learn') {
       <Routes>
         <Route path="/learn" element={<LearnerTrainingPage />} />
         <Route path="/learn/training" element={<LearnerTrainingPage />} />
+        <Route path="/learn/recommendations" element={<LearnerTrainingPage />} />
         <Route path="/learn/certificates" element={<LearnerTrainingPage />} />
+        <Route path="/learn/profile" element={<LearnerTrainingPage />} />
         <Route path="/learn/course/:assignmentId" element={<LearnerTrainingPage />} />
         <Route path="/learn/course/:assignmentId/lesson/:lessonId" element={<LearnerTrainingPage />} />
       </Routes>
@@ -151,7 +153,7 @@ describe('learner training portal', () => {
 
     renderPortal('/learn/training')
 
-    expect(await screen.findByRole('heading', { name: 'Обучение' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Айжан' })).toBeInTheDocument()
     expect(screen.getByText('Курсы к обучению')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Современная фармация' })).toBeInTheDocument()
     expect(screen.getByText('Что вы получите')).toBeInTheDocument()
@@ -204,6 +206,8 @@ describe('learner training portal', () => {
     renderPortal()
 
     expect(await screen.findByText('42 000 ₸')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Активные рекомендации' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Рекомендации' }))
     expect(screen.getByRole('heading', { name: 'Активные рекомендации' })).toBeInTheDocument()
     expect(screen.getByText('Пример кампании')).toBeInTheDocument()
     expect(screen.getByText(/Название группы/)).toBeInTheDocument()
@@ -232,6 +236,8 @@ describe('learner training portal', () => {
     renderPortal()
 
     expect(await screen.findByText('Баланс временно недоступен')).toBeInTheDocument()
+    expect(screen.queryByText('Активных рекомендаций сейчас нет.')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Рекомендации' }))
     expect(screen.getByText('Активных рекомендаций сейчас нет.')).toBeInTheDocument()
     expect(screen.queryByText('0 ₸')).not.toBeInTheDocument()
   })
@@ -723,13 +729,15 @@ describe('learner training portal', () => {
 
     renderPortal()
 
-    expect(await screen.findByRole('heading', { name: 'Обучение' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Айжан' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Активный курс' })).toBeInTheDocument()
     expect(screen.queryByText('Завершённый курс')).not.toBeInTheDocument()
     expect(screen.queryByText('Уведомления')).not.toBeInTheDocument()
     expect(screen.queryByText('Ближайшие события')).not.toBeInTheDocument()
     expect(screen.queryByText('Препараты и бонусы')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Каталог' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Активные рекомендации' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Рекомендации' })).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Сертификаты' }))
     expect(await screen.findByRole('link', { name: /Завершённый курс/ })).toHaveAttribute('href', '/certificate.pdf')

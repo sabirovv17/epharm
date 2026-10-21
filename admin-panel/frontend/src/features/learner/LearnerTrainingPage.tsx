@@ -256,7 +256,7 @@ type MobileReceipt = {
   createdAt: string
 }
 
-type PortalSection = 'home' | 'certificates' | 'profile'
+type PortalSection = 'home' | 'recommendations' | 'certificates' | 'profile'
 
 type Lesson = {
   id: string
@@ -653,11 +653,13 @@ export default function LearnerTrainingPage() {
   const { assignmentId, lessonId } = useParams<{ assignmentId?: string; lessonId?: string }>()
   const portalSection: PortalSection = location.pathname.startsWith('/learn/catalog')
     ? 'home'
-    : location.pathname.startsWith('/learn/certificates')
-      ? 'certificates'
-      : location.pathname.startsWith('/learn/profile')
-        ? 'profile'
-        : 'home'
+    : location.pathname.startsWith('/learn/recommendations')
+      ? 'recommendations'
+      : location.pathname.startsWith('/learn/certificates')
+        ? 'certificates'
+        : location.pathname.startsWith('/learn/profile')
+          ? 'profile'
+          : 'home'
   const [tokens, setTokens] = useState<Tokens | null>(() => readTokens())
   const [pharmacist, setPharmacist] = useState<Pharmacist | null>(null)
   const [overview, setOverview] = useState<Overview | null>(null)
@@ -1494,6 +1496,7 @@ export default function LearnerTrainingPage() {
 
   const sectionTitle: Record<PortalSection, string> = {
     home: pharmacist?.name || t('Фармацевт'),
+    recommendations: t('Рекомендации'),
     certificates: t('Сертификаты'),
     profile: t('Профиль'),
   }
@@ -1572,6 +1575,13 @@ export default function LearnerTrainingPage() {
             }
             onComplete={completeStage}
           />
+        ) : portalSection === 'recommendations' ? (
+          <RecommendationsView
+            recommendations={personalRecommendations}
+            loading={personalDataLoading}
+            error={recommendationsError}
+            onRetry={refreshPortal}
+          />
         ) : portalSection === 'certificates' ? (
           <CertificatesView certificates={overview?.certificates ?? []} />
         ) : portalSection === 'profile' ? (
@@ -1588,10 +1598,8 @@ export default function LearnerTrainingPage() {
           <OverviewView
             overview={overview}
             balance={personalBalance}
-            recommendations={personalRecommendations}
             personalDataLoading={personalDataLoading}
             balanceError={balanceError}
-            recommendationsError={recommendationsError}
             busy={busy}
             onRetryPersonalData={refreshPortal}
             onOpen={openAssignment}
@@ -1715,6 +1723,7 @@ function PortalNavigation({
   const t = useLearnerT()
   const items = [
     { id: 'home' as const, label: t('Главная'), icon: Home },
+    { id: 'recommendations' as const, label: t('Рекомендации'), icon: Sparkles },
     { id: 'certificates' as const, label: t('Сертификаты'), icon: Award },
     { id: 'profile' as const, label: t('Профиль'), icon: UserRound },
   ]
@@ -1730,7 +1739,7 @@ function PortalNavigation({
         </div>
         <div className="mb-3 px-3 text-[10px] font-extrabold uppercase tracking-[0.16em] text-white/40">{t('Навигация')}</div>
       </div>
-      <div className="mx-auto grid max-w-6xl grid-cols-3 gap-1 lg:mx-0 lg:flex lg:w-full lg:flex-col lg:gap-1">
+      <div className="mx-auto grid max-w-6xl grid-cols-4 gap-1 lg:mx-0 lg:flex lg:w-full lg:flex-col lg:gap-1">
         {items.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -2283,10 +2292,8 @@ function AttendanceDialog({
 function OverviewView({
   overview,
   balance,
-  recommendations,
   personalDataLoading,
   balanceError,
-  recommendationsError,
   busy,
   onRetryPersonalData,
   onOpen,
@@ -2294,10 +2301,8 @@ function OverviewView({
 }: {
   overview: Overview | null
   balance: PersonalBalance | null
-  recommendations: PersonalRecommendationsPage | null
   personalDataLoading: boolean
   balanceError: string
-  recommendationsError: string
   busy: boolean
   onRetryPersonalData: () => void | Promise<void>
   onOpen: (assignment: Assignment) => void
@@ -2316,19 +2321,17 @@ function OverviewView({
 
   return (
     <section>
-      <div className="mb-5">
-        <h2 className="text-xl font-extrabold text-ink-900">{t('Обучение')}</h2>
-        <p className="mt-1 text-sm text-ink-500">{t('Курсы к обучению')}</p>
-      </div>
-
-      <PersonalDataOverview
+      <BalanceOverview
         balance={balance}
-        recommendations={recommendations}
         loading={personalDataLoading}
         balanceError={balanceError}
-        recommendationsError={recommendationsError}
         onRetry={onRetryPersonalData}
       />
+
+      <div className="mb-5">
+        <h2 className="text-xl font-extrabold text-ink-900">{t('Курсы к обучению')}</h2>
+        <p className="mt-1 text-sm text-ink-500">{t('Выберите курс и продолжите обучение')}</p>
+      </div>
 
       {assignments.length === 0 ? (
         <div className="rounded-2xl bg-white p-8 text-center shadow-card">
@@ -2368,71 +2371,84 @@ function OverviewView({
   )
 }
 
-function PersonalDataOverview({
+function BalanceOverview({
   balance,
-  recommendations,
   loading,
   balanceError,
-  recommendationsError,
   onRetry,
 }: {
   balance: PersonalBalance | null
-  recommendations: PersonalRecommendationsPage | null
   loading: boolean
   balanceError: string
-  recommendationsError: string
   onRetry: () => void | Promise<void>
 }) {
   const t = useLearnerT()
   return (
-    <section className="mb-8 space-y-4" aria-labelledby="personal-data-heading">
-      <h2 id="personal-data-heading" className="sr-only">{t('Личные данные ePharm')}</h2>
-      <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
-        <article className="rounded-2xl bg-brand-green-700 p-5 text-white shadow-card">
-          <div className="flex items-center justify-between gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10"><CircleDollarSign size={21} /></span>
-            <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-white/80">ePharm</span>
-          </div>
-          <div className="mt-5 text-xs font-bold text-white/70">{t('Личный баланс')}</div>
-          {loading ? (
-            <div className="mt-3 flex items-center gap-2 text-sm font-bold text-white/80"><Loader2 className="animate-spin" size={18} /> {t('Загружаем…')}</div>
-          ) : balance ? (
-            <div className="mt-1 text-3xl font-extrabold tracking-tight">{formatKzt(balance.balanceKzt)}</div>
-          ) : (
-            <PersonalDataError message={balanceError || t('Баланс временно недоступен')} onRetry={onRetry} inverted />
-          )}
-          <p className="mt-3 text-xs leading-5 text-white/65">{t('Доступный денежный баланс вашей учётной записи.')}</p>
-        </article>
+    <section className="mb-8" aria-labelledby="balance-heading">
+      <article className="max-w-sm rounded-2xl bg-brand-green-700 p-5 text-white shadow-card sm:p-6">
+        <div className="flex items-center justify-between gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10"><CircleDollarSign size={21} /></span>
+          <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-white/80">ePharm</span>
+        </div>
+        <div id="balance-heading" className="mt-5 text-xs font-bold text-white/70">{t('Личный баланс')}</div>
+        {loading ? (
+          <div className="mt-3 flex items-center gap-2 text-sm font-bold text-white/80"><Loader2 className="animate-spin" size={18} /> {t('Загружаем…')}</div>
+        ) : balance ? (
+          <div className="mt-1 text-3xl font-extrabold tracking-tight">{formatKzt(balance.balanceKzt)}</div>
+        ) : (
+          <PersonalDataError message={balanceError || t('Баланс временно недоступен')} onRetry={onRetry} inverted />
+        )}
+        <p className="mt-3 text-xs leading-5 text-white/65">{t('Доступный денежный баланс вашей учётной записи.')}</p>
+      </article>
+    </section>
+  )
+}
 
-        <article className="rounded-2xl bg-white p-5 shadow-card sm:p-6">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h3 className="flex items-center gap-2 text-lg font-extrabold text-ink-900"><Sparkles size={20} className="text-brand-green-600" /> {t('Активные рекомендации')}</h3>
-              <p className="mt-1 text-sm text-ink-500">{t('Подсказки и предложения из центральной системы ePharm')}</p>
-            </div>
-            {recommendations && <span className="chip chip-green">{t('{count} групп', { count: recommendations.total })}</span>}
-          </div>
-
-          {loading ? (
-            <div className="mt-6 flex items-center gap-2 py-5 text-sm font-bold text-ink-500"><Loader2 className="animate-spin" size={18} /> {t('Загружаем рекомендации…')}</div>
-          ) : recommendationsError ? (
-            <PersonalDataError message={recommendationsError} onRetry={onRetry} />
-          ) : recommendations?.items.length ? (
-            <div className="mt-5 space-y-4">
-              {recommendations.items.map((recommendation, index) => (
-                <RecommendationCard key={`${recommendation.campaign?.id ?? 'legacy'}-${recommendation.trigger.kind}-${index}`} recommendation={recommendation} />
-              ))}
-            </div>
-          ) : (
-            <div className="mt-5 rounded-xl bg-paper-hover px-4 py-5 text-sm font-bold text-ink-500">{t('Активных рекомендаций сейчас нет.')}</div>
-          )}
-
-          <p className="mt-4 flex items-start gap-2 text-xs leading-5 text-ink-400">
-            <ShieldCheck className="mt-0.5 shrink-0" size={15} />
-            {t('Справочная информация: рекомендации не подтверждают наличие товара и не заменяют медицинское решение.')}
-          </p>
-        </article>
+function RecommendationsView({
+  recommendations,
+  loading,
+  error,
+  onRetry,
+}: {
+  recommendations: PersonalRecommendationsPage | null
+  loading: boolean
+  error: string
+  onRetry: () => void | Promise<void>
+}) {
+  const t = useLearnerT()
+  return (
+    <section className="rounded-2xl bg-white p-5 shadow-card sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-ink-100 pb-5">
+        <div>
+          <h2 className="flex items-center gap-2 text-lg font-extrabold text-ink-900">
+            <Sparkles size={20} className="text-brand-green-600" /> {t('Активные рекомендации')}
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-ink-500">{t('Подсказки и предложения из центральной системы ePharm')}</p>
+        </div>
+        {recommendations && <span className="chip chip-green">{t('{count} групп', { count: recommendations.total })}</span>}
       </div>
+
+      {loading ? (
+        <div className="flex min-h-40 items-center justify-center gap-2 text-sm font-bold text-ink-500"><Loader2 className="animate-spin" size={18} /> {t('Загружаем рекомендации…')}</div>
+      ) : error ? (
+        <div className="py-6"><PersonalDataError message={error} onRetry={onRetry} /></div>
+      ) : recommendations?.items.length ? (
+        <div className="mt-5 space-y-4">
+          {recommendations.items.map((recommendation, index) => (
+            <RecommendationCard key={`${recommendation.campaign?.id ?? 'legacy'}-${recommendation.trigger.kind}-${index}`} recommendation={recommendation} />
+          ))}
+        </div>
+      ) : (
+        <div className="flex min-h-40 flex-col items-center justify-center rounded-xl bg-paper-hover px-5 py-8 text-center">
+          <Sparkles className="text-ink-300" size={30} />
+          <p className="mt-3 text-sm font-bold text-ink-600">{t('Активных рекомендаций сейчас нет.')}</p>
+        </div>
+      )}
+
+      <p className="mt-5 flex items-start gap-2 text-xs leading-5 text-ink-400">
+        <ShieldCheck className="mt-0.5 shrink-0" size={15} />
+        {t('Справочная информация: рекомендации не подтверждают наличие товара и не заменяют медицинское решение.')}
+      </p>
     </section>
   )
 }
@@ -2506,13 +2522,15 @@ function RecommendationCard({ recommendation }: { recommendation: PersonalRecomm
 function CertificatesView({ certificates }: { certificates: Certificate[] }) {
   const t = useLearnerT()
   return certificates.length === 0 ? (
-    <div className="rounded-2xl bg-white p-8 text-center shadow-card">
-      <Award className="mx-auto text-ink-300" size={38} />
-      <p className="mt-3 font-bold text-ink-700">{t('Сертификатов пока нет')}</p>
-      <p className="mt-1 text-sm text-ink-500">{t('Они появятся здесь после завершения курса.')}</p>
+    <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl bg-white px-5 py-10 text-center shadow-card">
+      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-green-50 text-brand-green-600">
+        <Award size={28} />
+      </span>
+      <p className="mt-4 text-base font-extrabold text-ink-800">{t('Сертификатов пока нет')}</p>
+      <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-ink-500">{t('Они появятся здесь после завершения курса.')}</p>
     </div>
   ) : (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid items-start gap-4 sm:grid-cols-2">
       {certificates.map((certificate) => <CertificateCard key={certificate.id} certificate={certificate} />)}
     </div>
   )
@@ -3642,15 +3660,21 @@ function CertificateCard({ certificate }: { certificate: Certificate }) {
   const content = (
     <>
       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-green-100 text-brand-green-700"><Award size={22} /></span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate font-extrabold text-ink-900">{certificate.programName}</span>
-        <span className="mt-1 block text-xs font-semibold text-ink-400">№ {certificate.number} · {formatDate(certificate.issuedAt)}</span>
+      <span className="min-w-0">
+        <span className="block break-words text-sm font-extrabold leading-5 text-ink-900 sm:text-base">{certificate.programName}</span>
+        <span className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-semibold leading-5 text-ink-400">
+          <span className="min-w-0 break-all">№ {certificate.number}</span>
+          <span aria-hidden="true" className="text-ink-200">·</span>
+          <span className="whitespace-nowrap">{formatDate(certificate.issuedAt)}</span>
+        </span>
       </span>
-      {certificate.score != null && <span className="chip chip-green">{certificate.score}%</span>}
-      {certificate.pdfUrl && <ExternalLink className="shrink-0 text-ink-400" size={17} />}
+      <span className="col-start-2 flex shrink-0 items-center gap-2 sm:col-start-auto">
+        {certificate.score != null && <span className="chip chip-green">{certificate.score}%</span>}
+        {certificate.pdfUrl && <ExternalLink className="text-ink-400" size={17} />}
+      </span>
     </>
   )
-  const className = 'flex items-center gap-3 rounded-2xl border border-ink-100 bg-white p-4 text-left shadow-card transition hover:bg-paper-hover'
+  const className = 'grid grid-cols-[44px_minmax(0,1fr)] items-start gap-3 rounded-2xl border border-ink-100 bg-white p-4 text-left shadow-card transition hover:border-brand-green-200 hover:bg-paper-hover sm:grid-cols-[44px_minmax(0,1fr)_auto] sm:p-5'
   return certificate.pdfUrl ? (
     <a className={className} href={certificate.pdfUrl} target="_blank" rel="noreferrer">{content}</a>
   ) : (

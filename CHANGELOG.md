@@ -5,6 +5,18 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.45] - 2026-10-21
+
+### Changed
+
+- Simplified the pharmacist home screen to show only the personal balance and courses to complete.
+- Moved active medicine recommendations into a dedicated navigation tab on desktop and mobile.
+
+### Fixed
+
+- Realigned certificate cards and their metadata so long course titles and certificate numbers wrap
+  cleanly on narrow mobile screens.
+
 ## [0.1.44] - 2026-10-21
 
 ### Fixed
