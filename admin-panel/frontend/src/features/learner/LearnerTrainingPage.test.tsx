@@ -160,6 +160,131 @@ describe('learner training portal', () => {
     expect(screen.queryByRole('button', { name: 'Каталог' })).not.toBeInTheDocument()
   })
 
+  it('loads personal balance and active recommendations with the pharmacist token', async () => {
+    localStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const path = String(input)
+      if (path === '/api/mobile/auth/me') return json({ id: 'ph-1', name: 'Айжан', phone: '+77070000000', pharmacyName: 'Ауэзова 134', city: 'Алматы' })
+      if (path === '/api/mobile/training') return json({ total: 0, inProgress: 0, completed: 0, overdue: 0, assignments: [] })
+      if (path === '/api/mobile/me/balance') return json({ balanceKzt: 42000, currency: 'KZT' })
+      if (path === '/api/mobile/me/recommendations?page=0&size=20') {
+        return json({
+          items: [{
+            campaign: { id: 'promo-1', title: 'Пример кампании', dateStart: null, dateEnd: null },
+            type: 'substitution',
+            trigger: { kind: 'acc_group', value: 'group-1', label: 'Название группы' },
+            triggerProducts: [],
+            offers: [{
+              ruleId: 'rule-1',
+              product: {
+                id: 'product-1',
+                name: 'Товар-пример',
+                brand: 'Производитель',
+                mnn: 'МНН',
+                volume: '20 таблеток',
+                barcodes: ['0123456789012'],
+                ipartId: null,
+                catalogPriceKzt: 2500,
+                catalogUpdatedAt: '2026-10-21T00:00:00Z',
+              },
+              bonusKzt: 500,
+              script: 'Подсказка фармацевту',
+              advantages: ['Преимущество'],
+            }],
+          }],
+          page: 0,
+          size: 20,
+          total: 1,
+          currency: 'KZT',
+        })
+      }
+      return json({ code: 'NOT_FOUND', message: `Unexpected request: ${path}` }, 500)
+    })
+
+    renderPortal()
+
+    expect(await screen.findByText('42 000 ₸')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Активные рекомендации' })).toBeInTheDocument()
+    expect(screen.getByText('Пример кампании')).toBeInTheDocument()
+    expect(screen.getByText(/Название группы/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Товар-пример' })).toBeInTheDocument()
+    expect(screen.getByText('Бонус: 500 ₸')).toBeInTheDocument()
+
+    const balanceCall = fetchMock.mock.calls.find(([input]) => String(input) === '/api/mobile/me/balance')
+    const recommendationsCall = fetchMock.mock.calls.find(([input]) => String(input) === '/api/mobile/me/recommendations?page=0&size=20')
+    expect(new Headers(balanceCall?.[1]?.headers).get('Authorization')).toBe(`Bearer ${tokens.accessToken}`)
+    expect(new Headers(balanceCall?.[1]?.headers).get('Accept')).toBe('application/json')
+    expect(balanceCall?.[1]?.cache).toBe('no-store')
+    expect(new Headers(recommendationsCall?.[1]?.headers).get('Authorization')).toBe(`Bearer ${tokens.accessToken}`)
+  })
+
+  it('does not disguise a personal API error as a zero balance or empty feed', async () => {
+    localStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const path = String(input)
+      if (path === '/api/mobile/auth/me') return json({ id: 'ph-1', name: 'Айжан', phone: '+77070000000', pharmacyName: 'Ауэзова 134', city: 'Алматы' })
+      if (path === '/api/mobile/training') return json({ total: 0, inProgress: 0, completed: 0, overdue: 0, assignments: [] })
+      if (path === '/api/mobile/me/balance') return json({ code: 'SERVICE_UNAVAILABLE', message: 'Ошибка' }, 503)
+      if (path === '/api/mobile/me/recommendations?page=0&size=20') return json({ items: [], page: 0, size: 20, total: 0, currency: 'KZT' })
+      return json({ code: 'NOT_FOUND', message: `Unexpected request: ${path}` }, 500)
+    })
+
+    renderPortal()
+
+    expect(await screen.findByText('Баланс временно недоступен')).toBeInTheDocument()
+    expect(screen.getByText('Активных рекомендаций сейчас нет.')).toBeInTheDocument()
+    expect(screen.queryByText('0 ₸')).not.toBeInTheDocument()
+  })
+
+  it('shows the fire-safety video as the first lesson block', async () => {
+    localStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
+    const assignment = {
+      id: 'assignment-fire',
+      programName: 'Курс обучения «Пожарная безопасность»',
+      pharmacyName: 'Ауэзова 134',
+      city: 'Алматы',
+      status: 'in_progress',
+      format: 'online',
+      progressPct: 0,
+      stages: [{
+        id: 'stage-fire',
+        title: 'Пожарная безопасность',
+        type: 'online_course',
+        status: 'in_progress',
+        progressPct: 0,
+        course: {
+          id: 'course-fire',
+          title: 'Пожарная безопасность в аптеке',
+          lessons: [{
+            id: 'lesson-fire-1',
+            title: 'Основы пожарной безопасности',
+            description: 'Вводный урок',
+            content: 'Текст учебного материала',
+            kind: 'text',
+            order: 0,
+            durationMin: 5,
+            progressPct: 0,
+            attachments: [],
+          }],
+        },
+      }],
+    }
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const path = String(input)
+      if (path === '/api/mobile/auth/me') return json({ id: 'ph-1', name: 'Айжан', phone: '+77070000000', pharmacyName: 'Ауэзова 134', city: 'Алматы' })
+      if (path === '/api/mobile/training') return json({ total: 1, inProgress: 1, completed: 0, overdue: 0, assignments: [assignment] })
+      if (path === '/api/mobile/training/assignments/assignment-fire') return json(assignment)
+      return json({ message: `Unexpected request: ${path}` }, 500)
+    })
+
+    renderPortal('/learn/course/assignment-fire/lesson/lesson-fire-1')
+
+    const video = await screen.findByLabelText('Видео урока')
+    const material = screen.getByText('Текст учебного материала')
+    expect(video).toHaveAttribute('src', '/training/fire-safety-training-video.mp4')
+    expect(video.compareDocumentPosition(material) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('lets a pharmacist create a password on the first login after SMS verification', async () => {
     const user = userEvent.setup()
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
@@ -665,6 +790,6 @@ describe('learner training portal', () => {
       { path: '/api/mobile/auth/me', authorization: `Bearer ${refreshedTokens.accessToken}` },
       { path: '/api/mobile/training', authorization: `Bearer ${refreshedTokens.accessToken}` },
     ]))
-    expect(fetchMock).toHaveBeenCalledTimes(5)
+    expect(fetchMock).toHaveBeenCalledTimes(7)
   })
 })

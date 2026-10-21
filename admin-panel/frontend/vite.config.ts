@@ -6,6 +6,7 @@ import path from 'node:path'
 
 // https://vite.dev/config/
 const releaseId = process.env.VITE_RELEASE_ID || 'dev'
+const devApiProxyTarget = process.env.VITE_DEV_API_PROXY_TARGET || 'https://epharm.inkar.kz'
 const sentryUploadEnabled = Boolean(
   process.env.SENTRY_AUTH_TOKEN && process.env.SENTRY_ORG && process.env.SENTRY_PROJECT,
 )
@@ -33,6 +34,23 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, './src'),
+    },
+  },
+  server: {
+    proxy: {
+      // Learner portal uses same-origin /api URLs in production. Keep the same
+      // contract during local demos and forward only API traffic to ePharm.
+      '/api': {
+        target: devApiProxyTarget,
+        changeOrigin: true,
+        secure: true,
+        headers: {
+          // Spring CORS correctly rejects arbitrary browser origins. The browser
+          // talks same-origin to Vite, so the server-side proxy supplies the
+          // canonical ePharm origin on the upstream request.
+          Origin: devApiProxyTarget,
+        },
+      },
     },
   },
   test: {

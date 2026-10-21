@@ -5,6 +5,20 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.43] - 2026-10-21
+
+### Added
+
+- Added pharmacist balance and active-recommendation panels backed by the central ePharm mobile API,
+  with authenticated requests, safe session caching, Russian/Kazakh copy and explicit error states.
+- Added the fire-safety training video to the first course section and promoted lesson videos into a
+  responsive in-flow player before the lesson text and test.
+
+### Fixed
+
+- Kept local learner demos on the production same-origin API contract through the Vite development proxy.
+- Prevented a promoted lesson video from appearing twice in the additional-materials list.
+
 ## [0.1.8] - 2026-09-21
 
 ### Fixed

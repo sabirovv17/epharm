@@ -77,6 +77,61 @@ type Pharmacist = {
   coursesTotal?: number
 }
 
+type PersonalBalance = {
+  balanceKzt: number
+  currency: 'KZT'
+}
+
+type RecommendationProduct = {
+  id: string
+  name: string
+  brand: string
+  mnn: string
+  volume: string
+  barcodes: string[]
+  ipartId: string | null
+  catalogPriceKzt: number
+  catalogUpdatedAt: string
+}
+
+type RecommendationCampaign = {
+  id: string
+  title: string
+  dateStart: string | null
+  dateEnd: string | null
+}
+
+type RecommendationTrigger = {
+  kind: 'product' | 'acc_group' | 'acc_subgroup' | 'acc_mnn' | 'product_any' | 'mnn'
+  value: string | string[]
+  label?: string
+  exclude?: string[]
+}
+
+type RecommendationOffer = {
+  ruleId: string
+  product: RecommendationProduct
+  bonusKzt: number
+  script: string
+  advantages: string[]
+}
+
+type PersonalRecommendation = {
+  campaign: RecommendationCampaign | null
+  type: 'substitution' | 'crosssell'
+  trigger: RecommendationTrigger
+  triggerProducts: RecommendationProduct[]
+  offers: RecommendationOffer[]
+}
+
+type PersonalRecommendationsPage = {
+  items: PersonalRecommendation[]
+  page: number
+  size: number
+  total: number
+  currency: 'KZT'
+}
+
 type TrainingEvent = {
   id: string
   title: string
@@ -442,6 +497,48 @@ async function request<T>(
   return decodeResponse<T>(response)
 }
 
+async function requestPersonalData<T>(
+  path: string,
+  tokens: Tokens,
+  lifecycle: TokenLifecycle,
+): Promise<T> {
+  const init: RequestInit = {
+    cache: 'no-store',
+    headers: { Accept: 'application/json' },
+  }
+  let response = await fetchResponse(path, init, tokens)
+  if (response.status === 401 && tokens.refreshToken) {
+    try {
+      const refreshed = await refreshTokens(tokens.refreshToken)
+      lifecycle.onRefreshed(refreshed)
+      response = await fetchResponse(path, init, refreshed)
+    } catch (error) {
+      if (error instanceof LearnerApiError && error.status === 401) lifecycle.onExpired()
+      throw error
+    }
+  }
+  // A final 401 can also mean that the training account is not linked to a personal
+  // ePharm account yet. Keep the training session alive and surface that distinction.
+  return decodeResponse<T>(response)
+}
+
+function personalDataError(error: unknown, subject: 'balance' | 'recommendations') {
+  const unavailable = subject === 'balance'
+    ? currentLearnerTranslate('Баланс временно недоступен')
+    : currentLearnerTranslate('Рекомендации временно недоступны')
+  if (!(error instanceof LearnerApiError)) return unavailable
+  if (error.code === 'USER_NOT_FOUND') return currentLearnerTranslate('Аккаунт ePharm не найден. Войдите заново.')
+  if (error.code === 'USER_NOT_ACTIVE') return currentLearnerTranslate('Аккаунт ePharm не активен. Обратитесь к администратору.')
+  if (error.code === 'FORBIDDEN') return currentLearnerTranslate('Для просмотра нужен личный аккаунт фармацевта ePharm.')
+  if (error.status === 401 || error.code === 'UNAUTHORIZED') {
+    return currentLearnerTranslate('Подтвердите личный вход ePharm, чтобы загрузить данные.')
+  }
+  if (error.status === 400 || error.code === 'VALIDATION_FAILED') {
+    return currentLearnerTranslate('Не удалось загрузить данные: неверные параметры запроса.')
+  }
+  return unavailable
+}
+
 async function requestForm<T>(
   path: string,
   body: FormData,
@@ -564,6 +661,11 @@ export default function LearnerTrainingPage() {
   const [tokens, setTokens] = useState<Tokens | null>(() => readTokens())
   const [pharmacist, setPharmacist] = useState<Pharmacist | null>(null)
   const [overview, setOverview] = useState<Overview | null>(null)
+  const [personalBalance, setPersonalBalance] = useState<PersonalBalance | null>(null)
+  const [personalRecommendations, setPersonalRecommendations] = useState<PersonalRecommendationsPage | null>(null)
+  const [personalDataLoading, setPersonalDataLoading] = useState(Boolean(tokens))
+  const [balanceError, setBalanceError] = useState('')
+  const [recommendationsError, setRecommendationsError] = useState('')
   const [selected, setSelected] = useState<Assignment | null>(null)
   const [authStep, setAuthStep] = useState<AuthStep>('iin')
   const [iin, setIin] = useState('')
@@ -587,6 +689,11 @@ export default function LearnerTrainingPage() {
     setTokens(null)
     setPharmacist(null)
     setOverview(null)
+    setPersonalBalance(null)
+    setPersonalRecommendations(null)
+    setPersonalDataLoading(false)
+    setBalanceError('')
+    setRecommendationsError('')
     setSelected(null)
     setAvailableEvents([])
   }, [])
@@ -612,6 +719,12 @@ export default function LearnerTrainingPage() {
   }, [language])
 
   const loadPortal = useCallback(async (activeTokens: Tokens) => {
+    setPersonalDataLoading(true)
+    setPersonalBalance(null)
+    setPersonalRecommendations(null)
+    setBalanceError('')
+    setRecommendationsError('')
+    let coreLoaded = false
     try {
       const [me, training] = await Promise.all([
         request<Pharmacist>('/api/mobile/auth/me', {}, activeTokens, tokenLifecycle),
@@ -619,11 +732,43 @@ export default function LearnerTrainingPage() {
       ])
       setPharmacist(me)
       setOverview(training)
+      coreLoaded = true
     } catch (loadError) {
       setError(messageFrom(loadError))
     } finally {
       setLoading(false)
     }
+
+    if (!coreLoaded) {
+      setPersonalDataLoading(false)
+      return
+    }
+
+    const personalTokens = readTokens() ?? activeTokens
+    const [balanceResult, recommendationsResult] = await Promise.allSettled([
+      requestPersonalData<PersonalBalance>(
+        '/api/mobile/me/balance',
+        personalTokens,
+        tokenLifecycle,
+      ),
+      requestPersonalData<PersonalRecommendationsPage>(
+        '/api/mobile/me/recommendations?page=0&size=20',
+        personalTokens,
+        tokenLifecycle,
+      ),
+    ])
+
+    if (balanceResult.status === 'fulfilled') {
+      setPersonalBalance(balanceResult.value)
+    } else {
+      setBalanceError(personalDataError(balanceResult.reason, 'balance'))
+    }
+    if (recommendationsResult.status === 'fulfilled') {
+      setPersonalRecommendations(recommendationsResult.value)
+    } else {
+      setRecommendationsError(personalDataError(recommendationsResult.reason, 'recommendations'))
+    }
+    setPersonalDataLoading(false)
   }, [tokenLifecycle])
 
   const authenticated = tokens !== null
@@ -1420,11 +1565,25 @@ export default function LearnerTrainingPage() {
         ) : portalSection === 'certificates' ? (
           <CertificatesView certificates={overview?.certificates ?? []} />
         ) : portalSection === 'profile' ? (
-          <ProfileView pharmacist={pharmacist} overview={overview} onLogout={logout} />
+          <ProfileView
+            pharmacist={pharmacist}
+            overview={overview}
+            balance={personalBalance}
+            balanceLoading={personalDataLoading}
+            balanceError={balanceError}
+            onRetry={refreshPortal}
+            onLogout={logout}
+          />
         ) : (
           <OverviewView
             overview={overview}
+            balance={personalBalance}
+            recommendations={personalRecommendations}
+            personalDataLoading={personalDataLoading}
+            balanceError={balanceError}
+            recommendationsError={recommendationsError}
             busy={busy}
+            onRetryPersonalData={refreshPortal}
             onOpen={openAssignment}
             onOpenLesson={(assignment, nextLessonId) =>
               navigate(`/learn/course/${assignment.id}/lesson/${nextLessonId}`)
@@ -1891,10 +2050,18 @@ function ReceiptCard({ receipt }: { receipt: MobileReceipt }) {
 function ProfileView({
   pharmacist,
   overview,
+  balance,
+  balanceLoading,
+  balanceError,
+  onRetry,
   onLogout,
 }: {
   pharmacist: Pharmacist | null
   overview: Overview | null
+  balance: PersonalBalance | null
+  balanceLoading: boolean
+  balanceError: string
+  onRetry: () => void | Promise<void>
   onLogout: () => void | Promise<void>
 }) {
   const t = useLearnerT()
@@ -1906,8 +2073,18 @@ function ProfileView({
         <p className="mt-1 text-sm font-semibold text-ink-400">{pharmacist?.tier || 'Silver'} · ePharm</p>
         <div className="mt-5 rounded-2xl bg-brand-green-700 p-5 text-left text-white">
           <div className="flex items-center gap-2 text-xs font-bold text-white/70"><CircleDollarSign size={17} /> {t('Доступный баланс')}</div>
-          <div className="mt-2 text-3xl font-extrabold">{formatKzt(pharmacist?.balance)}</div>
-          <div className="mt-2 text-xs font-semibold text-white/70">{t('За 30 дней: +{value}', { value: formatKzt(pharmacist?.earned30d) })}</div>
+          {balanceLoading ? (
+            <div className="mt-3 flex items-center gap-2 text-sm font-bold text-white/80"><Loader2 className="animate-spin" size={18} /> {t('Загружаем баланс…')}</div>
+          ) : balance ? (
+            <div className="mt-2 text-3xl font-extrabold">{formatKzt(balance.balanceKzt)}</div>
+          ) : (
+            <div className="mt-3" role="status">
+              <div className="text-sm font-bold text-white">{balanceError || t('Баланс временно недоступен')}</div>
+              <button type="button" className="mt-3 rounded-lg border border-white/30 px-3 py-1.5 text-xs font-extrabold text-white transition hover:bg-white/10" onClick={() => void onRetry()}>
+                <RefreshCw className="mr-1 inline" size={13} /> {t('Повторить')}
+              </button>
+            </div>
+          )}
         </div>
       </div>
       <div className="space-y-4">
@@ -2095,12 +2272,24 @@ function AttendanceDialog({
 
 function OverviewView({
   overview,
+  balance,
+  recommendations,
+  personalDataLoading,
+  balanceError,
+  recommendationsError,
   busy,
+  onRetryPersonalData,
   onOpen,
   onOpenLesson,
 }: {
   overview: Overview | null
+  balance: PersonalBalance | null
+  recommendations: PersonalRecommendationsPage | null
+  personalDataLoading: boolean
+  balanceError: string
+  recommendationsError: string
   busy: boolean
+  onRetryPersonalData: () => void | Promise<void>
   onOpen: (assignment: Assignment) => void
   onOpenLesson: (assignment: Assignment, lessonId: string) => void
 }) {
@@ -2121,6 +2310,15 @@ function OverviewView({
         <h2 className="text-xl font-extrabold text-ink-900">{t('Обучение')}</h2>
         <p className="mt-1 text-sm text-ink-500">{t('Курсы к обучению')}</p>
       </div>
+
+      <PersonalDataOverview
+        balance={balance}
+        recommendations={recommendations}
+        loading={personalDataLoading}
+        balanceError={balanceError}
+        recommendationsError={recommendationsError}
+        onRetry={onRetryPersonalData}
+      />
 
       {assignments.length === 0 ? (
         <div className="rounded-2xl bg-white p-8 text-center shadow-card">
@@ -2156,6 +2354,141 @@ function OverviewView({
           })}
         </div>
       )}
+    </section>
+  )
+}
+
+function PersonalDataOverview({
+  balance,
+  recommendations,
+  loading,
+  balanceError,
+  recommendationsError,
+  onRetry,
+}: {
+  balance: PersonalBalance | null
+  recommendations: PersonalRecommendationsPage | null
+  loading: boolean
+  balanceError: string
+  recommendationsError: string
+  onRetry: () => void | Promise<void>
+}) {
+  const t = useLearnerT()
+  return (
+    <section className="mb-8 space-y-4" aria-labelledby="personal-data-heading">
+      <h2 id="personal-data-heading" className="sr-only">{t('Личные данные ePharm')}</h2>
+      <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+        <article className="rounded-2xl bg-brand-green-700 p-5 text-white shadow-card">
+          <div className="flex items-center justify-between gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10"><CircleDollarSign size={21} /></span>
+            <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-white/80">ePharm</span>
+          </div>
+          <div className="mt-5 text-xs font-bold text-white/70">{t('Личный баланс')}</div>
+          {loading ? (
+            <div className="mt-3 flex items-center gap-2 text-sm font-bold text-white/80"><Loader2 className="animate-spin" size={18} /> {t('Загружаем…')}</div>
+          ) : balance ? (
+            <div className="mt-1 text-3xl font-extrabold tracking-tight">{formatKzt(balance.balanceKzt)}</div>
+          ) : (
+            <PersonalDataError message={balanceError || t('Баланс временно недоступен')} onRetry={onRetry} inverted />
+          )}
+          <p className="mt-3 text-xs leading-5 text-white/65">{t('Доступный денежный баланс вашей учётной записи.')}</p>
+        </article>
+
+        <article className="rounded-2xl bg-white p-5 shadow-card sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="flex items-center gap-2 text-lg font-extrabold text-ink-900"><Sparkles size={20} className="text-brand-green-600" /> {t('Активные рекомендации')}</h3>
+              <p className="mt-1 text-sm text-ink-500">{t('Подсказки и предложения из центральной системы ePharm')}</p>
+            </div>
+            {recommendations && <span className="chip chip-green">{t('{count} групп', { count: recommendations.total })}</span>}
+          </div>
+
+          {loading ? (
+            <div className="mt-6 flex items-center gap-2 py-5 text-sm font-bold text-ink-500"><Loader2 className="animate-spin" size={18} /> {t('Загружаем рекомендации…')}</div>
+          ) : recommendationsError ? (
+            <PersonalDataError message={recommendationsError} onRetry={onRetry} />
+          ) : recommendations?.items.length ? (
+            <div className="mt-5 space-y-4">
+              {recommendations.items.map((recommendation, index) => (
+                <RecommendationCard key={`${recommendation.campaign?.id ?? 'legacy'}-${recommendation.trigger.kind}-${index}`} recommendation={recommendation} />
+              ))}
+            </div>
+          ) : (
+            <div className="mt-5 rounded-xl bg-paper-hover px-4 py-5 text-sm font-bold text-ink-500">{t('Активных рекомендаций сейчас нет.')}</div>
+          )}
+
+          <p className="mt-4 flex items-start gap-2 text-xs leading-5 text-ink-400">
+            <ShieldCheck className="mt-0.5 shrink-0" size={15} />
+            {t('Справочная информация: рекомендации не подтверждают наличие товара и не заменяют медицинское решение.')}
+          </p>
+        </article>
+      </div>
+    </section>
+  )
+}
+
+function PersonalDataError({
+  message,
+  onRetry,
+  inverted = false,
+}: {
+  message: string
+  onRetry: () => void | Promise<void>
+  inverted?: boolean
+}) {
+  const t = useLearnerT()
+  return (
+    <div className="mt-4" role="status">
+      <p className={`text-sm font-bold ${inverted ? 'text-white' : 'text-accent-danger'}`}>{message}</p>
+      <button
+        type="button"
+        className={`mt-3 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-extrabold transition ${inverted ? 'border-white/30 text-white hover:bg-white/10' : 'border-ink-200 text-ink-700 hover:bg-paper-hover'}`}
+        onClick={() => void onRetry()}
+      >
+        <RefreshCw size={13} /> {t('Повторить')}
+      </button>
+    </div>
+  )
+}
+
+function RecommendationCard({ recommendation }: { recommendation: PersonalRecommendation }) {
+  const t = useLearnerT()
+  const triggerLabel = recommendation.trigger.label || recommendation.triggerProducts.map((product) => product.name).filter(Boolean).join(', ') || t('Условие рекомендации')
+  const typeLabel = recommendation.type === 'substitution' ? t('Замена') : t('Допродажа')
+  return (
+    <section className="overflow-hidden rounded-xl border border-ink-100 bg-white">
+      <div className="flex flex-wrap items-start justify-between gap-3 bg-paper-hover px-4 py-3">
+        <div>
+          <div className="text-sm font-extrabold text-ink-900">{recommendation.campaign?.title || t('Активная рекомендация')}</div>
+          <div className="mt-1 text-xs text-ink-500"><span className="font-bold text-ink-600">{t('Триггер')}:</span> {triggerLabel}</div>
+        </div>
+        <span className="rounded-full bg-brand-green-100 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-brand-green-700">{typeLabel}</span>
+      </div>
+      <div className="grid gap-3 p-3 md:grid-cols-2">
+        {recommendation.offers.map((offer) => (
+          <article key={offer.ruleId} className="rounded-xl border border-ink-100 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h4 className="font-extrabold leading-5 text-ink-900">{offer.product.name}</h4>
+                {[offer.product.brand, offer.product.mnn, offer.product.volume].filter(Boolean).length > 0 && (
+                  <p className="mt-1 text-xs leading-5 text-ink-500">{[offer.product.brand, offer.product.mnn, offer.product.volume].filter(Boolean).join(' · ')}</p>
+                )}
+              </div>
+              <Pill className="shrink-0 text-brand-green-600" size={20} />
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2 text-xs font-extrabold">
+              {offer.product.catalogPriceKzt > 0 && <span className="rounded-lg bg-paper-hover px-2.5 py-1.5 text-ink-700">{t('Справочная цена')}: {formatKzt(offer.product.catalogPriceKzt)}</span>}
+              {offer.bonusKzt > 0 && <span className="rounded-lg bg-brand-green-100 px-2.5 py-1.5 text-brand-green-700">{t('Бонус')}: {formatKzt(offer.bonusKzt)}</span>}
+            </div>
+            {offer.script && <p className="mt-3 rounded-lg bg-brand-green-50 px-3 py-2 text-xs font-semibold leading-5 text-ink-700">{offer.script}</p>}
+            {offer.advantages.length > 0 && (
+              <ul className="mt-3 space-y-1.5">
+                {offer.advantages.map((advantage, index) => <li key={`${offer.ruleId}-${index}`} className="flex items-start gap-2 text-xs leading-5 text-ink-600"><Check className="mt-0.5 shrink-0 text-brand-green-600" size={14} /> {advantage}</li>)}
+              </ul>
+            )}
+          </article>
+        ))}
+      </div>
     </section>
   )
 }
@@ -2604,9 +2937,21 @@ function LessonPage({
   const currentStage = stage
   const previous = lessons[index - 1]
   const next = lessons[index + 1]
-  const attachments = lesson.attachments ?? []
+  const allAttachments = lesson.attachments ?? []
+  const promotedVideoAttachment = lesson.videoUrl
+    ? null
+    : allAttachments.find((attachment) => attachment.kind === 'video') ?? null
+  const isFireSafetyIntro = index === 0 && /пожарн/i.test(
+    `${assignment.programName} ${stage.course?.title ?? ''}`,
+  )
+  const primaryVideoUrl = lesson.videoUrl
+    || promotedVideoAttachment?.mediaUrl
+    || (isFireSafetyIntro ? '/training/fire-safety-training-video.mp4' : null)
+  const attachments = promotedVideoAttachment
+    ? allAttachments.filter((attachment) => attachment.id !== promotedVideoAttachment.id)
+    : allAttachments
   const read = lessonCompleted(lesson)
-  const videoLesson = lesson.kind === 'video' || !!lesson.videoUrl
+  const videoLesson = lesson.kind === 'video' || !!primaryVideoUrl
   const quizLesson = lesson.kind === 'quiz' || lesson.kind === 'test'
   const liveLesson = lesson.kind === 'live'
   const liveEnded = liveState.lessonId === lesson.id ? liveState.ended : lesson.liveStatus === 'ended'
@@ -2704,47 +3049,62 @@ function LessonPage({
           {lesson.description && <p className="mt-3 max-w-3xl text-sm leading-6 text-ink-500">{lesson.description}</p>}
           <div className="mt-4 flex flex-wrap gap-2">
             <span className="chip chip-ink"><Clock3 size={14} /> {t('{minutes} мин', { minutes: lesson.durationMin ?? 0 })}</span>
-            {lesson.videoUrl && <span className="chip chip-green"><PlayCircle size={14} /> {t('Видеоурок')}</span>}
+            {primaryVideoUrl && <span className="chip chip-green"><PlayCircle size={14} /> {t('Видеоурок')}</span>}
             {quizLesson && <span className="chip chip-blue"><CheckCircle2 size={14} /> {t('Тест')} · {t('{count} вопросов', { count: lesson.quizQuestions?.length ?? 0 })}</span>}
             {liveLesson && <span className="chip chip-green"><Radio size={14} /> {t('Прямой эфир')}</span>}
             {attachments.length > 0 && <span className="chip chip-blue"><FileText size={14} /> {t('{count} материалов', { count: attachments.length })}</span>}
           </div>
         </header>
 
-        <div className="space-y-7 p-5 sm:p-8">
-          {lesson.videoUrl && (
-            <section>
-              <h3 className="mb-3 text-base font-extrabold text-ink-900">{t('Видео урока')}</h3>
-              <video
-                controls
-                preload="metadata"
-                className="aspect-video w-full rounded-2xl bg-ink-900"
-                src={lesson.videoUrl}
-                onLoadedMetadata={(event) => {
-                  const resumeAt = lesson.lastPositionSeconds ?? 0
-                  if (resumeAt > 0 && resumeAt < event.currentTarget.duration) {
-                    event.currentTarget.currentTime = resumeAt
-                  }
-                }}
-                onPlay={(event) => {
-                  void persistVideoProgress(
-                    Math.max(
-                      lastSyncedProgress.current[lesson.id] ?? 0,
-                      lesson.progressPct ?? 0,
-                    ),
-                    Math.floor(event.currentTarget.currentTime),
-                  )
-                }}
-                onTimeUpdate={(event) => updateVideoProgress(event.currentTarget)}
-                onPause={(event) => updateVideoProgress(event.currentTarget)}
-              />
-              <div className="mt-3 flex items-center justify-between gap-3 text-xs font-semibold text-ink-500">
-                <span>{t('Просмотрено {progress}%', { progress: effectiveProgress })}</span>
-                <span>{t('Для завершения нужно {threshold}%', { threshold })}</span>
+        {primaryVideoUrl && (
+          <section className="border-b border-ink-100 bg-gradient-to-br from-[#083f43] to-[#052a2d] p-3 sm:p-6">
+            <div className="mx-auto max-w-5xl">
+              <div className="mb-3 flex items-center justify-between gap-3 text-white">
+                <div className="flex items-center gap-2 text-sm font-extrabold">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10"><PlayCircle size={17} /></span>
+                  {t('Видео урока')}
+                </div>
+                <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.1em] text-white/75">ePharm</span>
               </div>
-            </section>
-          )}
+              <div className="overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl shadow-black/25">
+                <video
+                  controls
+                  playsInline
+                  preload="metadata"
+                  aria-label={t('Видео урока')}
+                  className="aspect-video max-h-[70vh] w-full bg-black object-contain"
+                  src={primaryVideoUrl}
+                  onLoadedMetadata={(event) => {
+                    const resumeAt = lesson.lastPositionSeconds ?? 0
+                    if (resumeAt > 0 && resumeAt < event.currentTarget.duration) {
+                      event.currentTarget.currentTime = resumeAt
+                    }
+                  }}
+                  onPlay={(event) => {
+                    void persistVideoProgress(
+                      Math.max(
+                        lastSyncedProgress.current[lesson.id] ?? 0,
+                        lesson.progressPct ?? 0,
+                      ),
+                      Math.floor(event.currentTarget.currentTime),
+                    )
+                  }}
+                  onTimeUpdate={(event) => updateVideoProgress(event.currentTarget)}
+                  onPause={(event) => updateVideoProgress(event.currentTarget)}
+                />
+              </div>
+              <div className="mt-3 flex items-center gap-3 text-xs font-semibold text-white/75">
+                <span className="shrink-0">{t('Просмотрено {progress}%', { progress: effectiveProgress })}</span>
+                <span className="h-1.5 min-w-16 flex-1 overflow-hidden rounded-full bg-white/15">
+                  <span className="block h-full rounded-full bg-brand-green-300 transition-[width]" style={{ width: `${Math.min(100, effectiveProgress)}%` }} />
+                </span>
+                <span className="hidden shrink-0 sm:inline">{t('Для завершения нужно {threshold}%', { threshold })}</span>
+              </div>
+            </div>
+          </section>
+        )}
 
+        <div className="space-y-7 p-5 sm:p-8">
           {liveLesson && (
             <LearnerLiveLesson
               assignmentId={assignment.id}
@@ -2819,7 +3179,7 @@ function LessonPage({
             </section>
           )}
 
-          {!lesson.content && !lesson.videoUrl && !lesson.externalUrl && !quizLesson && !liveLesson && attachments.length === 0 && (
+          {!lesson.content && !primaryVideoUrl && !lesson.externalUrl && !quizLesson && !liveLesson && attachments.length === 0 && (
             <div className="rounded-xl bg-paper-hover p-5 text-sm text-ink-500">{t('Материалы этого урока пока не добавлены.')}</div>
           )}
         </div>
