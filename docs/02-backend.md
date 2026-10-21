@@ -241,6 +241,14 @@ by these endpoints. A training administrator's shared token must never stand in 
 Existing mobile logout revokes refresh tokens; an already issued access token retains its
 short expiry. These endpoints additionally reject accounts made inactive in the database.
 
+The built-in learning portal at `/learn` already authenticates through `/api/mobile/auth/login`
+and uses a pharmacist access token for `/api/mobile/training/**`. It can reuse that same token
+for these routes on the same origin. The balance payload uses `balanceKzt`, not the `balance`
+field in `/api/mobile/auth/me`; the recommendation directory is under `items`, not a bare array.
+A pending account may sign in to the existing learner portal but still receives
+`403 USER_NOT_ACTIVE` from the self-service APIs. Diagnose that account state explicitly;
+do not replace the pharmacist token with an administrator token or silently activate users.
+
 Structured online courses use per-lesson progress. A completed stage created before lesson tracking
 projects its lessons as completed without rewriting history. Legacy URL-only online stages still
 accept stage-level progress, while linked courses require the lesson endpoint. Lessons with recorded
