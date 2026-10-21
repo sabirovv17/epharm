@@ -6,7 +6,6 @@ import {
   Award,
   ArrowLeft,
   BadgeCheck,
-  Bell,
   BookOpen,
   Building2,
   Camera,
@@ -47,7 +46,6 @@ import {
   Sparkles,
   Upload,
   UserRound,
-  WalletCards,
   UsersRound,
   X,
 } from 'lucide-react'
@@ -77,6 +75,61 @@ type Pharmacist = {
   earned30d?: number
   coursesDone?: number
   coursesTotal?: number
+}
+
+type PersonalBalance = {
+  balanceKzt: number
+  currency: 'KZT'
+}
+
+type RecommendationProduct = {
+  id: string
+  name: string
+  brand: string
+  mnn: string
+  volume: string
+  barcodes: string[]
+  ipartId: string | null
+  catalogPriceKzt: number
+  catalogUpdatedAt: string
+}
+
+type RecommendationCampaign = {
+  id: string
+  title: string
+  dateStart: string | null
+  dateEnd: string | null
+}
+
+type RecommendationTrigger = {
+  kind: 'product' | 'acc_group' | 'acc_subgroup' | 'acc_mnn' | 'product_any' | 'mnn'
+  value: string | string[]
+  label?: string
+  exclude?: string[]
+}
+
+type RecommendationOffer = {
+  ruleId: string
+  product: RecommendationProduct
+  bonusKzt: number
+  script: string
+  advantages: string[]
+}
+
+type PersonalRecommendation = {
+  campaign: RecommendationCampaign | null
+  type: 'substitution' | 'crosssell'
+  trigger: RecommendationTrigger
+  triggerProducts: RecommendationProduct[]
+  offers: RecommendationOffer[]
+}
+
+type PersonalRecommendationsPage = {
+  items: PersonalRecommendation[]
+  page: number
+  size: number
+  total: number
+  currency: 'KZT'
 }
 
 type TrainingEvent = {
@@ -203,7 +256,7 @@ type MobileReceipt = {
   createdAt: string
 }
 
-type PortalSection = 'home' | 'catalog' | 'receipts' | 'training' | 'profile'
+type PortalSection = 'home' | 'recommendations' | 'certificates' | 'profile'
 
 type Lesson = {
   id: string
@@ -332,10 +385,35 @@ function lessonCompleted(lesson: Lesson) {
 
 function readTokens(): Tokens | null {
   try {
-    const raw = sessionStorage.getItem(TOKEN_KEY)
+    const persisted = localStorage.getItem(TOKEN_KEY)
+    const legacySession = persisted ? null : sessionStorage.getItem(TOKEN_KEY)
+    const raw = persisted ?? legacySession
+    if (legacySession) {
+      localStorage.setItem(TOKEN_KEY, legacySession)
+      sessionStorage.removeItem(TOKEN_KEY)
+    }
     return raw ? (JSON.parse(raw) as Tokens) : null
   } catch {
     return null
+  }
+}
+
+function storeTokens(tokens: Tokens) {
+  const serialized = JSON.stringify(tokens)
+  try {
+    localStorage.setItem(TOKEN_KEY, serialized)
+    sessionStorage.removeItem(TOKEN_KEY)
+  } catch {
+    // Private/locked-down browsers may block localStorage. Keep the current tab usable.
+    sessionStorage.setItem(TOKEN_KEY, serialized)
+  }
+}
+
+function removeTokens() {
+  try {
+    localStorage.removeItem(TOKEN_KEY)
+  } finally {
+    sessionStorage.removeItem(TOKEN_KEY)
   }
 }
 
@@ -346,15 +424,17 @@ function messageFrom(error: unknown) {
 
 class LearnerApiError extends Error {
   readonly status: number
+  readonly code: string | null
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code: string | null = null) {
     super(message)
     this.name = 'LearnerApiError'
     this.status = status
+    this.code = code
   }
 }
 
-let refreshInFlight: Promise<Tokens> | null = null
+const refreshInFlight = new Map<string, Promise<Tokens>>()
 
 async function fetchResponse(path: string, init: RequestInit, tokens?: Tokens | null) {
   return fetch(path, {
@@ -369,10 +449,11 @@ async function fetchResponse(path: string, init: RequestInit, tokens?: Tokens | 
 
 async function decodeResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const body = await response.json().catch(() => null) as { message?: string } | null
+    const body = await response.json().catch(() => null) as { message?: string; code?: string } | null
     throw new LearnerApiError(
       body?.message || currentLearnerTranslate('Сервер вернул ошибку {status}', { status: response.status }),
       response.status,
+      body?.code ?? null,
     )
   }
   if (response.status === 204) return undefined as T
@@ -380,8 +461,9 @@ async function decodeResponse<T>(response: Response): Promise<T> {
 }
 
 async function refreshTokens(refreshToken: string): Promise<Tokens> {
-  if (!refreshInFlight) {
-    refreshInFlight = (async () => {
+  let pending = refreshInFlight.get(refreshToken)
+  if (!pending) {
+    pending = (async () => {
       const response = await fetchResponse('/api/mobile/auth/refresh', {
         method: 'POST',
         body: JSON.stringify({ refreshToken }),
@@ -389,10 +471,11 @@ async function refreshTokens(refreshToken: string): Promise<Tokens> {
       const result = await decodeResponse<{ tokens: Tokens }>(response)
       return result.tokens
     })().finally(() => {
-      refreshInFlight = null
+      refreshInFlight.delete(refreshToken)
     })
+    refreshInFlight.set(refreshToken, pending)
   }
-  return refreshInFlight
+  return pending
 }
 
 async function request<T>(
@@ -414,6 +497,47 @@ async function request<T>(
   }
   if (response.status === 401 && lifecycle) lifecycle.onExpired()
   return decodeResponse<T>(response)
+}
+
+async function requestPersonalData<T>(
+  path: string,
+  tokens: Tokens,
+  lifecycle: TokenLifecycle,
+): Promise<T> {
+  const init: RequestInit = {
+    cache: 'no-store',
+    headers: { Accept: 'application/json' },
+  }
+  let response = await fetchResponse(path, init, tokens)
+  if (response.status === 401 && tokens.refreshToken) {
+    try {
+      const refreshed = await refreshTokens(tokens.refreshToken)
+      lifecycle.onRefreshed(refreshed)
+      response = await fetchResponse(path, init, refreshed)
+    } catch (error) {
+      if (error instanceof LearnerApiError && error.status === 401) lifecycle.onExpired()
+      throw error
+    }
+  }
+  // Surface a personal-data authorization failure without substituting profile data.
+  return decodeResponse<T>(response)
+}
+
+function personalDataError(error: unknown, subject: 'balance' | 'recommendations') {
+  const unavailable = subject === 'balance'
+    ? currentLearnerTranslate('Баланс временно недоступен')
+    : currentLearnerTranslate('Рекомендации временно недоступны')
+  if (!(error instanceof LearnerApiError)) return unavailable
+  if (error.code === 'USER_NOT_FOUND') return currentLearnerTranslate('Аккаунт ePharm не найден. Войдите заново.')
+  if (error.code === 'USER_NOT_ACTIVE') return currentLearnerTranslate('Аккаунт ePharm не активен. Обратитесь к администратору.')
+  if (error.code === 'FORBIDDEN') return currentLearnerTranslate('Для просмотра нужен личный аккаунт фармацевта ePharm.')
+  if (error.status === 401 || error.code === 'UNAUTHORIZED') {
+    return currentLearnerTranslate('Подтвердите личный вход ePharm, чтобы загрузить данные.')
+  }
+  if (error.status === 400 || error.code === 'VALIDATION_FAILED') {
+    return currentLearnerTranslate('Не удалось загрузить данные: неверные параметры запроса.')
+  }
+  return unavailable
 }
 
 async function requestForm<T>(
@@ -465,18 +589,8 @@ const statusLabel: Record<string, string> = {
   skipped: 'Пропущено',
 }
 
-const formatLabel: Record<string, string> = {
-  online: 'Онлайн',
-  hybrid: 'Гибрид',
-  offline: 'Очно',
-}
-
 function statusText(value: string) {
   return currentLearnerTranslate(statusLabel[value] || value)
-}
-
-function trainingFormatText(value: string) {
-  return currentLearnerTranslate(formatLabel[value] || value)
 }
 
 function formatDate(value?: string | null) {
@@ -526,7 +640,7 @@ function formatIinInput(value: string) {
   return digits.length > 6 ? `${digits.slice(0, 6)} ${digits.slice(6)}` : digits
 }
 
-type AuthStep = 'iin' | 'password' | 'phone' | 'otp' | 'create-password'
+type AuthStep = 'iin' | 'password' | 'phone' | 'otp' | 'create-password' | 'reset-otp' | 'reset-password'
 
 function normalizePhoneInput(value: string) {
   return value.replace(/\D/g, '').slice(0, 10)
@@ -539,22 +653,32 @@ export default function LearnerTrainingPage() {
   const location = useLocation()
   const { assignmentId, lessonId } = useParams<{ assignmentId?: string; lessonId?: string }>()
   const portalSection: PortalSection = location.pathname.startsWith('/learn/catalog')
-    ? 'catalog'
-    : location.pathname.startsWith('/learn/receipts')
-      ? 'receipts'
-      : location.pathname.startsWith('/learn/profile')
-        ? 'profile'
-        : location.pathname.startsWith('/learn/training') || location.pathname.startsWith('/learn/course')
-          ? 'training'
+    ? 'home'
+    : location.pathname.startsWith('/learn/recommendations')
+      ? 'recommendations'
+      : location.pathname.startsWith('/learn/certificates')
+        ? 'certificates'
+        : location.pathname.startsWith('/learn/profile')
+          ? 'profile'
           : 'home'
   const [tokens, setTokens] = useState<Tokens | null>(() => readTokens())
+  const [sessionEpoch, setSessionEpoch] = useState(0)
+  const sessionVersion = useRef(0)
+  const portalRequest = useRef(0)
   const [pharmacist, setPharmacist] = useState<Pharmacist | null>(null)
   const [overview, setOverview] = useState<Overview | null>(null)
+  const [personalBalance, setPersonalBalance] = useState<PersonalBalance | null>(null)
+  const [personalRecommendations, setPersonalRecommendations] = useState<PersonalRecommendationsPage | null>(null)
+  const [personalDataLoading, setPersonalDataLoading] = useState(Boolean(tokens))
+  const [balanceError, setBalanceError] = useState('')
+  const [recommendationsError, setRecommendationsError] = useState('')
   const [selected, setSelected] = useState<Assignment | null>(null)
   const [authStep, setAuthStep] = useState<AuthStep>('iin')
   const [iin, setIin] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirmation, setPasswordConfirmation] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [isNewRegistration, setIsNewRegistration] = useState(false)
   const [phone, setPhone] = useState('')
   const [phoneMasked, setPhoneMasked] = useState('')
   const [otpCode, setOtpCode] = useState('')
@@ -565,27 +689,40 @@ export default function LearnerTrainingPage() {
   const [availableEvents, setAvailableEvents] = useState<TrainingEvent[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
   const [attendanceOpen, setAttendanceOpen] = useState(false)
-  const [promotions, setPromotions] = useState<Promotion[]>([])
 
   const clearSession = useCallback(() => {
-    sessionStorage.removeItem(TOKEN_KEY)
+    sessionVersion.current += 1
+    setSessionEpoch(sessionVersion.current)
+    removeTokens()
     setTokens(null)
     setPharmacist(null)
     setOverview(null)
+    setPersonalBalance(null)
+    setPersonalRecommendations(null)
+    setPersonalDataLoading(false)
+    setBalanceError('')
+    setRecommendationsError('')
     setSelected(null)
     setAvailableEvents([])
-    setPromotions([])
   }, [])
 
   const persistTokens = useCallback((nextTokens: Tokens) => {
-    sessionStorage.setItem(TOKEN_KEY, JSON.stringify(nextTokens))
+    sessionVersion.current += 1
+    setSessionEpoch(sessionVersion.current)
+    storeTokens(nextTokens)
     setTokens(nextTokens)
   }, [])
 
   const tokenLifecycle = useMemo<TokenLifecycle>(() => ({
-    onRefreshed: persistTokens,
-    onExpired: clearSession,
-  }), [clearSession, persistTokens])
+    onRefreshed: (nextTokens) => {
+      if (sessionVersion.current !== sessionEpoch) return
+      storeTokens(nextTokens)
+      setTokens(nextTokens)
+    },
+    onExpired: () => {
+      if (sessionVersion.current === sessionEpoch) clearSession()
+    },
+  }), [clearSession, sessionEpoch])
 
   useEffect(() => {
     const previousTitle = document.title
@@ -598,20 +735,62 @@ export default function LearnerTrainingPage() {
   }, [language])
 
   const loadPortal = useCallback(async (activeTokens: Tokens) => {
+    const epoch = sessionVersion.current
+    const requestId = ++portalRequest.current
+    const isCurrent = () => sessionVersion.current === epoch && portalRequest.current === requestId
+    setPersonalDataLoading(true)
+    setPersonalBalance(null)
+    setPersonalRecommendations(null)
+    setBalanceError('')
+    setRecommendationsError('')
+    let coreLoaded = false
     try {
-      const [me, training, availablePromotions] = await Promise.all([
+      const [me, training] = await Promise.all([
         request<Pharmacist>('/api/mobile/auth/me', {}, activeTokens, tokenLifecycle),
         request<Overview>('/api/mobile/training', {}, activeTokens, tokenLifecycle),
-        request<Promotion[]>('/api/mobile/promotions').catch(() => []),
       ])
+      if (!isCurrent()) return
       setPharmacist(me)
       setOverview(training)
-      setPromotions(availablePromotions)
+      coreLoaded = true
     } catch (loadError) {
-      setError(messageFrom(loadError))
+      if (isCurrent()) setError(messageFrom(loadError))
     } finally {
-      setLoading(false)
+      if (isCurrent()) setLoading(false)
     }
+
+    if (!isCurrent()) return
+    if (!coreLoaded) {
+      setPersonalDataLoading(false)
+      return
+    }
+
+    const personalTokens = readTokens() ?? activeTokens
+    const [balanceResult, recommendationsResult] = await Promise.allSettled([
+      requestPersonalData<PersonalBalance>(
+        '/api/mobile/me/balance',
+        personalTokens,
+        tokenLifecycle,
+      ),
+      requestPersonalData<PersonalRecommendationsPage>(
+        '/api/mobile/me/recommendations?page=0&size=20',
+        personalTokens,
+        tokenLifecycle,
+      ),
+    ])
+
+    if (!isCurrent()) return
+    if (balanceResult.status === 'fulfilled') {
+      setPersonalBalance(balanceResult.value)
+    } else {
+      setBalanceError(personalDataError(balanceResult.reason, 'balance'))
+    }
+    if (recommendationsResult.status === 'fulfilled') {
+      setPersonalRecommendations(recommendationsResult.value)
+    } else {
+      setRecommendationsError(personalDataError(recommendationsResult.reason, 'recommendations'))
+    }
+    setPersonalDataLoading(false)
   }, [tokenLifecycle])
 
   const authenticated = tokens !== null
@@ -669,11 +848,12 @@ export default function LearnerTrainingPage() {
     setBusy(true)
     setError('')
     try {
-      const status = await request<{ passwordSet: boolean; phoneMasked: string }>(
+      const status = await request<{ passwordSet: boolean; phoneMasked: string; registrationRequired?: boolean }>(
         '/api/mobile/auth/activation/status',
         { method: 'POST', body: JSON.stringify({ iin }) },
       )
       setPhoneMasked(status.phoneMasked)
+      setIsNewRegistration(Boolean(status.registrationRequired))
       setAuthStep(status.passwordSet ? 'password' : 'phone')
     } catch (statusError) {
       setError(messageFrom(statusError))
@@ -723,7 +903,14 @@ export default function LearnerTrainingPage() {
       setOtpCode('')
       setAuthStep('otp')
     } catch (requestError) {
-      setError(messageFrom(requestError))
+      if (requestError instanceof LearnerApiError && requestError.code === 'CONFLICT') {
+        setPassword('')
+        setPasswordConfirmation('')
+        setAuthStep('password')
+        setError(t('Пароль для этого ИИН уже создан. Введите его для входа.'))
+      } else {
+        setError(messageFrom(requestError))
+      }
     } finally {
       setBusy(false)
     }
@@ -742,7 +929,14 @@ export default function LearnerTrainingPage() {
       setPasswordConfirmation('')
       setAuthStep('create-password')
     } catch (verifyError) {
-      setError(messageFrom(verifyError))
+      if (verifyError instanceof LearnerApiError && verifyError.code === 'CONFLICT') {
+        setPassword('')
+        setPasswordConfirmation('')
+        setAuthStep('password')
+        setError(t('Пароль для этого ИИН уже создан. Введите его для входа.'))
+      } else {
+        setError(messageFrom(verifyError))
+      }
     } finally {
       setBusy(false)
     }
@@ -761,13 +955,84 @@ export default function LearnerTrainingPage() {
         '/api/mobile/auth/activation/password',
         {
           method: 'POST',
-          body: JSON.stringify({ iin, phone: `+7${phone}`, password }),
+          body: JSON.stringify({
+            iin,
+            phone: `+7${phone}`,
+            password,
+            ...(isNewRegistration ? { name: fullName.trim() } : {}),
+          }),
         },
       )
       persistTokens(result.tokens)
       setPharmacist(result.pharmacist)
     } catch (passwordError) {
-      setError(messageFrom(passwordError))
+      if (passwordError instanceof LearnerApiError && passwordError.code === 'CONFLICT') {
+        setPassword('')
+        setPasswordConfirmation('')
+        setAuthStep('password')
+        setError(t('Пароль уже был создан и сохранён. Введите его для входа.'))
+      } else {
+        setError(messageFrom(passwordError))
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function requestPasswordReset() {
+    setBusy(true)
+    setError('')
+    try {
+      const result = await request<{ phoneMasked: string }>(
+        '/api/mobile/auth/password-reset/request',
+        { method: 'POST', body: JSON.stringify({ iin }) },
+      )
+      setPhoneMasked(result.phoneMasked)
+      setOtpCode('')
+      setAuthStep('reset-otp')
+    } catch (resetError) {
+      setError(messageFrom(resetError))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function verifyPasswordReset(event: React.FormEvent) {
+    event.preventDefault()
+    setBusy(true)
+    setError('')
+    try {
+      await request('/api/mobile/auth/password-reset/verify', {
+        method: 'POST',
+        body: JSON.stringify({ iin, code: otpCode }),
+      })
+      setPassword('')
+      setPasswordConfirmation('')
+      setAuthStep('reset-password')
+    } catch (resetError) {
+      setError(messageFrom(resetError))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function completePasswordReset(event: React.FormEvent) {
+    event.preventDefault()
+    if (password !== passwordConfirmation) {
+      setError(t('Пароли не совпадают'))
+      return
+    }
+    setBusy(true)
+    setError('')
+    try {
+      const result = await request<{ tokens: Tokens; pharmacist: Pharmacist }>(
+        '/api/mobile/auth/password-reset/complete',
+        { method: 'POST', body: JSON.stringify({ iin, password }) },
+      )
+      persistTokens(result.tokens)
+      setPharmacist(result.pharmacist)
+    } catch (resetError) {
+      setError(messageFrom(resetError))
     } finally {
       setBusy(false)
     }
@@ -777,6 +1042,8 @@ export default function LearnerTrainingPage() {
     setAuthStep('iin')
     setPassword('')
     setPasswordConfirmation('')
+    setFullName('')
+    setIsNewRegistration(false)
     setPhone('')
     setPhoneMasked('')
     setOtpCode('')
@@ -866,30 +1133,6 @@ export default function LearnerTrainingPage() {
     }
   }
 
-  async function openNotification(notification: TrainingNotification) {
-    if (!tokens) return
-    if (!notification.read) {
-      try {
-        await request<TrainingNotification>(
-          `/api/mobile/training/notifications/${notification.id}/read`,
-          { method: 'PATCH' },
-          tokens,
-          tokenLifecycle,
-        )
-        setOverview((current) => current ? {
-          ...current,
-          notifications: (current.notifications ?? []).map((item) =>
-            item.id === notification.id ? { ...item, read: true, readAt: new Date().toISOString() } : item,
-          ),
-        } : current)
-      } catch (notificationError) {
-        setError(messageFrom(notificationError))
-        return
-      }
-    }
-    if (notification.assignmentId) navigate(`/learn/course/${notification.assignmentId}`)
-  }
-
   async function completeStage(stage: Stage) {
     if (!tokens || !selected) return
     setBusy(true)
@@ -965,16 +1208,15 @@ export default function LearnerTrainingPage() {
 
   async function logout() {
     const activeTokens = tokens
+    clearSession()
+    setPassword('')
+    navigate('/learn')
     try {
       if (activeTokens) {
-        await request('/api/mobile/auth/logout', { method: 'POST' }, activeTokens, tokenLifecycle)
+        await request('/api/mobile/auth/logout', { method: 'POST' }, activeTokens)
       }
     } catch {
       // Local logout must always succeed even when the server is unavailable.
-    } finally {
-      clearSession()
-      setPassword('')
-      navigate('/learn')
     }
   }
 
@@ -1030,13 +1272,19 @@ export default function LearnerTrainingPage() {
                 {authStep === 'phone' && t('Подтвердите телефон')}
                 {authStep === 'otp' && t('Введите код из SMS')}
                 {authStep === 'create-password' && t('Создайте пароль')}
+                {authStep === 'reset-otp' && t('Восстановление пароля')}
+                {authStep === 'reset-password' && t('Создайте новый пароль')}
               </h1>
               <p className="mt-3 text-sm leading-6 text-ink-500">
                 {authStep === 'iin' && t('Сначала введите ИИН. При первом входе вы подтвердите телефон и создадите собственный пароль.')}
                 {authStep === 'password' && t('Пароль закреплён за указанным ИИН.')}
-                {authStep === 'phone' && t('Введите номер телефона. Мы отправим код и после подтверждения закрепим номер за этим ИИН.')}
+                {authStep === 'phone' && (isNewRegistration
+                  ? t('Новый ИИН. Подтвердите свой номер телефона, затем укажите ФИО и создайте пароль.')
+                  : t('Введите номер телефона. Мы отправим код и после подтверждения закрепим номер за этим ИИН.'))}
                 {authStep === 'otp' && t('Код отправлен на номер {phone}', { phone: phoneMasked })}
                 {authStep === 'create-password' && t('Придумайте пароль не короче 8 символов. Он будет закреплён за вашим ИИН.')}
+                {authStep === 'reset-otp' && t('Код отправлен на привязанный номер {phone}. Изменить номер при восстановлении нельзя.', { phone: phoneMasked })}
+                {authStep === 'reset-password' && t('Телефон подтверждён. Новый пароль заменит предыдущий и останется привязанным к вашему ИИН.')}
               </p>
               {authStep !== 'iin' && (
                 <div className="mt-5 flex items-center justify-between rounded-xl border border-ink-100 bg-paper-hover px-4 py-3">
@@ -1085,6 +1333,14 @@ export default function LearnerTrainingPage() {
                   />
                   <button className="btn btn-primary h-12 w-full text-base" disabled={busy || password.length < 8}>
                     {busy ? t('Входим…') : t('Войти')}
+                  </button>
+                  <button
+                    type="button"
+                    className="w-full text-sm font-bold text-brand-green-700"
+                    disabled={busy}
+                    onClick={() => void requestPasswordReset()}
+                  >
+                    {t('Забыли пароль?')}
                   </button>
                 </form>
               )}
@@ -1141,6 +1397,75 @@ export default function LearnerTrainingPage() {
               )}
               {authStep === 'create-password' && (
                 <form className="mt-6 space-y-5" onSubmit={createInitialPassword}>
+                  {isNewRegistration && (
+                    <label className="block text-sm font-bold text-ink-700">
+                      {t('ФИО')}
+                      <input
+                        className="inp mt-2 h-12 text-base"
+                        autoComplete="name"
+                        value={fullName}
+                        onChange={(event) => setFullName(event.target.value.slice(0, 255))}
+                        placeholder={t('Введите фамилию, имя и отчество')}
+                        minLength={3}
+                        maxLength={255}
+                        autoFocus
+                        required
+                      />
+                    </label>
+                  )}
+                  <PasswordInput
+                    label={t('Новый пароль')}
+                    value={password}
+                    onChange={setPassword}
+                    visible={showPassword}
+                    onToggle={() => setShowPassword((current) => !current)}
+                    autoComplete="new-password"
+                    t={t}
+                  />
+                  <PasswordInput
+                    label={t('Повторите пароль')}
+                    value={passwordConfirmation}
+                    onChange={setPasswordConfirmation}
+                    visible={showPassword}
+                    onToggle={() => setShowPassword((current) => !current)}
+                    autoComplete="new-password"
+                    t={t}
+                  />
+                  <button
+                    className="btn btn-primary h-12 w-full text-base"
+                    disabled={busy || password.length < 8 || passwordConfirmation.length < 8 || (isNewRegistration && fullName.trim().length < 3)}
+                  >
+                    {busy ? t('Сохраняем…') : t('Создать пароль и войти')}
+                  </button>
+                </form>
+              )}
+              {authStep === 'reset-otp' && (
+                <form className="mt-6 space-y-5" onSubmit={verifyPasswordReset}>
+                  <label className="block text-sm font-bold text-ink-700">
+                    {t('Код из SMS')}
+                    <input
+                      className="inp mt-2 h-14 text-center font-mono text-2xl font-extrabold tracking-[0.35em]"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      value={otpCode}
+                      onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, '').slice(0, 8))}
+                      placeholder="••••"
+                      minLength={4}
+                      maxLength={8}
+                      autoFocus
+                      required
+                    />
+                  </label>
+                  <button className="btn btn-primary h-12 w-full text-base" disabled={busy || otpCode.length < 4}>
+                    {busy ? t('Проверяем…') : t('Подтвердить код')}
+                  </button>
+                  <button type="button" className="w-full text-sm font-bold text-brand-green-700" onClick={() => setAuthStep('password')}>
+                    {t('Вернуться ко входу')}
+                  </button>
+                </form>
+              )}
+              {authStep === 'reset-password' && (
+                <form className="mt-6 space-y-5" onSubmit={completePasswordReset}>
                   <PasswordInput
                     label={t('Новый пароль')}
                     value={password}
@@ -1163,7 +1488,7 @@ export default function LearnerTrainingPage() {
                     className="btn btn-primary h-12 w-full text-base"
                     disabled={busy || password.length < 8 || passwordConfirmation.length < 8}
                   >
-                    {busy ? t('Сохраняем…') : t('Создать пароль и войти')}
+                    {busy ? t('Сохраняем…') : t('Сохранить новый пароль и войти')}
                   </button>
                 </form>
               )}
@@ -1179,10 +1504,9 @@ export default function LearnerTrainingPage() {
   }
 
   const sectionTitle: Record<PortalSection, string> = {
-    home: t('Здравствуйте, {name}', { name: pharmacist?.name ?? '' }),
-    catalog: t('Каталог препаратов'),
-    receipts: t('Мои чеки'),
-    training: t('Обучение'),
+    home: pharmacist?.name || t('Фармацевт'),
+    recommendations: t('Рекомендации'),
+    certificates: t('Сертификаты'),
     profile: t('Профиль'),
   }
 
@@ -1197,10 +1521,10 @@ export default function LearnerTrainingPage() {
             onNavigate={(section) => navigate(section === 'home' ? '/learn' : `/learn/${section}`)}
           />
         )}
-        <div className={`min-w-0 pb-24 lg:pb-4 ${selected ? 'lg:col-span-2 lg:mx-auto lg:w-full lg:max-w-6xl' : ''}`}>
+        <div className={`learner-content min-w-0 pb-24 lg:pb-4 ${selected ? 'is-focus lg:col-span-2 lg:mx-auto lg:w-full lg:max-w-6xl' : ''}`}>
         <header className="learner-page-header">
           <div>
-            <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-brand-green-700">{t('Кабинет фармацевта')}</div>
+            <div className="hidden text-[11px] font-extrabold uppercase tracking-[0.18em] text-brand-green-700 sm:block">{t('Кабинет фармацевта')}</div>
             <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-ink-900 sm:text-[28px]">
               {selected ? selected.programName : sectionTitle[portalSection]}
             </h1>
@@ -1260,23 +1584,37 @@ export default function LearnerTrainingPage() {
             }
             onComplete={completeStage}
           />
-        ) : portalSection === 'catalog' ? (
-          <CatalogView tokens={tokens} lifecycle={tokenLifecycle} />
-        ) : portalSection === 'receipts' ? (
-          <ReceiptsView tokens={tokens} lifecycle={tokenLifecycle} />
+        ) : portalSection === 'recommendations' ? (
+          <RecommendationsView
+            recommendations={personalRecommendations}
+            loading={personalDataLoading}
+            error={recommendationsError}
+            onRetry={refreshPortal}
+          />
+        ) : portalSection === 'certificates' ? (
+          <CertificatesView certificates={overview?.certificates ?? []} />
         ) : portalSection === 'profile' ? (
-          <ProfileView pharmacist={pharmacist} overview={overview} onLogout={logout} />
+          <ProfileView
+            pharmacist={pharmacist}
+            overview={overview}
+            balance={personalBalance}
+            balanceLoading={personalDataLoading}
+            balanceError={balanceError}
+            onRetry={refreshPortal}
+            onLogout={logout}
+          />
         ) : (
           <OverviewView
             overview={overview}
-            pharmacist={pharmacist}
-            promotions={promotions}
+            balance={personalBalance}
+            personalDataLoading={personalDataLoading}
+            balanceError={balanceError}
             busy={busy}
+            onRetryPersonalData={refreshPortal}
             onOpen={openAssignment}
-            onRefresh={refreshPortal}
-            onOpenNotification={openNotification}
-            onCheckIn={() => setAttendanceOpen(true)}
-            trainingOnly={portalSection === 'training'}
+            onOpenLesson={(assignment, nextLessonId) =>
+              navigate(`/learn/course/${assignment.id}/lesson/${nextLessonId}`)
+            }
           />
         )}
         </div>
@@ -1325,7 +1663,7 @@ function LanguageSwitcher({ className = '', compact = false }: { className?: str
 
 function LearnerLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen bg-paper px-4 py-4 sm:px-6 sm:py-6 lg:px-5 lg:py-5">
+    <main className="min-h-screen w-full overflow-x-hidden bg-paper px-3 py-3 sm:px-6 sm:py-6 lg:px-5 lg:py-5">
       {children}
     </main>
   )
@@ -1377,7 +1715,7 @@ function PasswordInput({
 }
 
 function ErrorMessage({ text }: { text: string }) {
-  return <div className="mt-5 rounded-xl bg-surface-danger px-4 py-3 text-sm font-semibold text-accent-danger">{text}</div>
+  return <div role="alert" className="mt-5 rounded-xl bg-surface-danger px-4 py-3 text-sm font-semibold text-accent-danger">{text}</div>
 }
 
 function PortalNavigation({
@@ -1394,9 +1732,8 @@ function PortalNavigation({
   const t = useLearnerT()
   const items = [
     { id: 'home' as const, label: t('Главная'), icon: Home },
-    { id: 'catalog' as const, label: t('Каталог'), icon: Pill },
-    { id: 'receipts' as const, label: t('Чеки'), icon: ReceiptText },
-    { id: 'training' as const, label: t('Обучение'), icon: GraduationCap },
+    { id: 'recommendations' as const, label: t('Рекомендации'), icon: Sparkles },
+    { id: 'certificates' as const, label: t('Сертификаты'), icon: Award },
     { id: 'profile' as const, label: t('Профиль'), icon: UserRound },
   ]
   return (
@@ -1411,7 +1748,7 @@ function PortalNavigation({
         </div>
         <div className="mb-3 px-3 text-[10px] font-extrabold uppercase tracking-[0.16em] text-white/40">{t('Навигация')}</div>
       </div>
-      <div className="mx-auto grid max-w-6xl grid-cols-5 gap-1 lg:flex lg:flex-col lg:gap-1">
+      <div className="mx-auto grid max-w-6xl grid-cols-4 gap-1 lg:mx-0 lg:flex lg:w-full lg:flex-col lg:gap-1">
         {items.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -1442,7 +1779,7 @@ function PortalNavigation({
   )
 }
 
-function CatalogView({ tokens, lifecycle }: { tokens: Tokens; lifecycle: TokenLifecycle }) {
+export function CatalogView({ tokens, lifecycle }: { tokens: Tokens; lifecycle: TokenLifecycle }) {
   const t = useLearnerT()
   const [query, setQuery] = useState('')
   const [page, setPage] = useState<CatalogPage | null>(null)
@@ -1505,7 +1842,7 @@ function CatalogView({ tokens, lifecycle }: { tokens: Tokens; lifecycle: TokenLi
           />
         </label>
         <div className="mt-3 flex items-center justify-between text-xs font-semibold text-ink-400">
-          <span>{t('Данные синхронизированы с мобильным приложением')}</span>
+          <span>{t('Каталог аптечной сети: препараты, цены и наличие')}</span>
           {page && <span>{t('{count} товаров', { count: page.total })}</span>}
         </div>
       </div>
@@ -1541,18 +1878,19 @@ function CatalogProductCard({ product, onOpen }: { product: CatalogProduct; onOp
   return (
     <button className="group overflow-hidden rounded-2xl bg-white text-left shadow-card transition hover:-translate-y-0.5 hover:shadow-fab" onClick={onOpen}>
       <div className="relative aspect-square overflow-hidden bg-paper-hover">
-        {image ? (
-          <img className="h-full w-full object-contain p-3 transition duration-300 group-hover:scale-105" src={image} alt="" loading="lazy" />
-        ) : (
-          <div className="flex h-full items-center justify-center text-4xl font-extrabold text-brand-green-600">{product.name.slice(0, 1).toUpperCase()}</div>
-        )}
+        <CatalogProductImage
+          src={image}
+          name={product.name}
+          className="h-full w-full object-contain p-3 transition duration-300 group-hover:scale-105"
+          fallbackClassName="text-4xl"
+        />
         {product.rxOtc && <span className="absolute left-2 top-2 rounded-lg bg-white/90 px-2 py-1 text-[10px] font-extrabold text-brand-green-700">{product.rxOtc.toUpperCase()}</span>}
       </div>
       <div className="p-3.5">
         <p className="truncate text-[11px] font-bold uppercase tracking-wide text-ink-400">{product.brand || product.category || 'ePharm'}</p>
         <h3 className="mt-1 line-clamp-2 min-h-10 text-sm font-extrabold leading-5 text-ink-900 group-hover:text-brand-green-700">{product.name}</h3>
         <div className="mt-3 flex items-end justify-between gap-2">
-          <span className="text-sm font-extrabold text-brand-green-700">{price != null ? formatKzt(price) : t('Цена в аптеке')}</span>
+          <span className="text-sm font-extrabold text-brand-green-700">{price != null ? formatKzt(price) : t('Цена уточняется')}</span>
           <ChevronRight className="shrink-0 text-ink-300" size={18} />
         </div>
       </div>
@@ -1573,7 +1911,12 @@ function CatalogProductDialog({ product, onClose }: { product: CatalogDetail; on
         </div>
         <div className="grid gap-6 px-5 pb-7 sm:grid-cols-[280px_1fr] sm:px-8">
           <div className="aspect-square overflow-hidden rounded-2xl bg-paper-hover">
-            {image ? <img className="h-full w-full object-contain p-5" src={image} alt={product.name} /> : <div className="flex h-full items-center justify-center text-6xl font-extrabold text-brand-green-600">{product.name.slice(0, 1)}</div>}
+            <CatalogProductImage
+              src={image}
+              name={product.name}
+              className="h-full w-full object-contain p-5"
+              fallbackClassName="text-6xl"
+            />
           </div>
           <div>
             <div className="flex flex-wrap gap-2">
@@ -1583,7 +1926,7 @@ function CatalogProductDialog({ product, onClose }: { product: CatalogDetail; on
             </div>
             <h2 id="catalog-product-title" className="mt-3 text-2xl font-extrabold leading-tight text-ink-900">{product.name}</h2>
             {product.brand && <p className="mt-2 font-bold text-brand-green-700">{product.brand}</p>}
-            <div className="mt-5 text-2xl font-extrabold text-ink-900">{product.price != null ? formatKzt(product.price) : t('Цена в аптеке')}</div>
+            <div className="mt-5 text-2xl font-extrabold text-ink-900">{product.price != null ? formatKzt(product.price) : t('Цена уточняется')}</div>
             {product.bonus != null && product.bonus > 0 && (
               <div className="mt-3 inline-flex items-center gap-2 rounded-xl bg-brand-green-700 px-4 py-3 font-extrabold text-white"><Gift size={18} /> {t('Бонус {value}', { value: formatKzt(product.bonus) })}</div>
             )}
@@ -1607,7 +1950,31 @@ function CatalogProductDialog({ product, onClose }: { product: CatalogDetail; on
   )
 }
 
-function ReceiptsView({ tokens, lifecycle }: { tokens: Tokens; lifecycle: TokenLifecycle }) {
+function CatalogProductImage({
+  src,
+  name,
+  className,
+  fallbackClassName,
+}: {
+  src: string
+  name: string
+  className: string
+  fallbackClassName: string
+}) {
+  const [failedSrc, setFailedSrc] = useState('')
+
+  if (!src || failedSrc === src) {
+    return (
+      <div className={`flex h-full items-center justify-center font-extrabold text-brand-green-600 ${fallbackClassName}`}>
+        {name.trim().slice(0, 1).toUpperCase() || 'E'}
+      </div>
+    )
+  }
+
+  return <img className={className} src={src} alt={name} loading="lazy" onError={() => setFailedSrc(src)} />
+}
+
+export function ReceiptsView({ tokens, lifecycle }: { tokens: Tokens; lifecycle: TokenLifecycle }) {
   const t = useLearnerT()
   const [receipts, setReceipts] = useState<MobileReceipt[]>([])
   const [file, setFile] = useState<File | null>(null)
@@ -1711,10 +2078,18 @@ function ReceiptCard({ receipt }: { receipt: MobileReceipt }) {
 function ProfileView({
   pharmacist,
   overview,
+  balance,
+  balanceLoading,
+  balanceError,
+  onRetry,
   onLogout,
 }: {
   pharmacist: Pharmacist | null
   overview: Overview | null
+  balance: PersonalBalance | null
+  balanceLoading: boolean
+  balanceError: string
+  onRetry: () => void | Promise<void>
   onLogout: () => void | Promise<void>
 }) {
   const t = useLearnerT()
@@ -1726,8 +2101,18 @@ function ProfileView({
         <p className="mt-1 text-sm font-semibold text-ink-400">{pharmacist?.tier || 'Silver'} · ePharm</p>
         <div className="mt-5 rounded-2xl bg-brand-green-700 p-5 text-left text-white">
           <div className="flex items-center gap-2 text-xs font-bold text-white/70"><CircleDollarSign size={17} /> {t('Доступный баланс')}</div>
-          <div className="mt-2 text-3xl font-extrabold">{formatKzt(pharmacist?.balance)}</div>
-          <div className="mt-2 text-xs font-semibold text-white/70">{t('За 30 дней: +{value}', { value: formatKzt(pharmacist?.earned30d) })}</div>
+          {balanceLoading ? (
+            <div className="mt-3 flex items-center gap-2 text-sm font-bold text-white/80"><Loader2 className="animate-spin" size={18} /> {t('Загружаем баланс…')}</div>
+          ) : balance ? (
+            <div className="mt-2 text-3xl font-extrabold">{formatKzt(balance.balanceKzt)}</div>
+          ) : (
+            <div className="mt-3" role="status">
+              <div className="text-sm font-bold text-white">{balanceError || t('Баланс временно недоступен')}</div>
+              <button type="button" className="mt-3 rounded-lg border border-white/30 px-3 py-1.5 text-xs font-extrabold text-white transition hover:bg-white/10" onClick={() => void onRetry()}>
+                <RefreshCw className="mr-1 inline" size={13} /> {t('Повторить')}
+              </button>
+            </div>
+          )}
         </div>
       </div>
       <div className="space-y-4">
@@ -1915,41 +2300,26 @@ function AttendanceDialog({
 
 function OverviewView({
   overview,
-  pharmacist,
-  promotions,
+  balance,
+  personalDataLoading,
+  balanceError,
   busy,
+  onRetryPersonalData,
   onOpen,
-  onRefresh,
-  onOpenNotification,
-  onCheckIn,
-  trainingOnly = false,
+  onOpenLesson,
 }: {
   overview: Overview | null
-  pharmacist: Pharmacist | null
-  promotions: Promotion[]
+  balance: PersonalBalance | null
+  personalDataLoading: boolean
+  balanceError: string
   busy: boolean
+  onRetryPersonalData: () => void | Promise<void>
   onOpen: (assignment: Assignment) => void
-  onRefresh: () => void | Promise<void>
-  onOpenNotification: (notification: TrainingNotification) => void | Promise<void>
-  onCheckIn: () => void
-  trainingOnly?: boolean
+  onOpenLesson: (assignment: Assignment, lessonId: string) => void
 }) {
   const t = useLearnerT()
-  const [filter, setFilter] = useState<'active' | 'completed' | 'all'>('active')
-  const [query, setQuery] = useState('')
-  const normalizedQuery = query.trim().toLowerCase()
   const assignments = (overview?.assignments ?? [])
-    .filter((assignment) => {
-      if (filter === 'active') return assignment.status !== 'completed' && assignment.status !== 'cancelled'
-      if (filter === 'completed') return assignment.status === 'completed'
-      return true
-    })
-    .filter((assignment) => !normalizedQuery || [
-      assignment.programName,
-      assignment.programShortDescription ?? '',
-      assignment.pharmacyName,
-      assignment.city,
-    ].some((value) => value.toLowerCase().includes(normalizedQuery)))
+    .filter((assignment) => assignment.status !== 'completed' && assignment.status !== 'cancelled')
     .sort((left, right) => {
       const priority = { critical: 4, high: 3, normal: 2, low: 1 }
       const priorityDiff = (priority[right.priority as keyof typeof priority] ?? 2) -
@@ -1957,160 +2327,225 @@ function OverviewView({
       if (priorityDiff) return priorityDiff
       return new Date(left.dueAt ?? '9999-12-31').getTime() - new Date(right.dueAt ?? '9999-12-31').getTime()
     })
-  const notifications = overview?.notifications ?? []
-  const events = overview?.upcomingEvents ?? []
-  const certificates = overview?.certificates ?? []
+
   return (
-    <>
-      {!trainingOnly && <section className="mb-5 overflow-hidden rounded-2xl bg-white shadow-card">
-        <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-          <div className="flex min-w-0 items-center gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-green-100 text-lg font-extrabold text-brand-green-700">
-              {(pharmacist?.name || 'Ф').slice(0, 1)}
-            </div>
-            <div className="min-w-0">
-              <div className="truncate font-extrabold text-ink-900">{pharmacist?.name || t('Фармацевт')}</div>
-              <div className="mt-1 text-xs font-semibold text-ink-400">
-                {pharmacist?.tier || 'Silver'} · {overview?.defaultFormat ? t('формат {format}', { format: trainingFormatText(overview.defaultFormat) }) : t('формат не задан')}
-              </div>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:min-w-[300px]">
-            <div className="rounded-xl bg-paper-hover px-4 py-3">
-              <div className="flex items-center gap-2 text-xs font-bold text-ink-400"><WalletCards size={15} /> {t('Баланс')}</div>
-              <div className="mt-1 font-extrabold text-ink-900">{formatKzt(pharmacist?.balance)}</div>
-            </div>
-            <div className="rounded-xl bg-paper-hover px-4 py-3">
-              <div className="text-xs font-bold text-ink-400">{t('Курсы')}</div>
-              <div className="mt-1 font-extrabold text-ink-900">{pharmacist?.coursesDone ?? overview?.completed ?? 0} / {pharmacist?.coursesTotal ?? overview?.total ?? 0}</div>
-            </div>
-          </div>
-        </div>
-      </section>}
+    <section>
+      <BalanceOverview
+        balance={balance}
+        loading={personalDataLoading}
+        balanceError={balanceError}
+        onRetry={onRetryPersonalData}
+      />
 
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat value={overview?.total ?? 0} label={t('Всего')} />
-        <Stat value={overview?.inProgress ?? 0} label={t('В процессе')} />
-        <Stat value={overview?.completed ?? 0} label={t('Завершено')} />
-        <Stat value={overview?.overdue ?? 0} label={t('Просрочено')} danger />
+      <div className="mb-5">
+        <h2 className="text-xl font-extrabold text-ink-900">{t('Курсы к обучению')}</h2>
+        <p className="mt-1 text-sm text-ink-500">{t('Выберите курс и продолжите обучение')}</p>
       </div>
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-2">
-        <button className="btn btn-outline btn-md w-full" disabled={busy} onClick={onCheckIn}>
-          <QrCode size={18} /> {t('Отметить посещение по QR')}
-        </button>
-        <button className="btn btn-outline btn-md w-full" disabled={busy} onClick={onRefresh}>
-          <RefreshCw className={busy ? 'animate-spin' : ''} size={18} /> {t('Обновить данные')}
-        </button>
-      </div>
-
-      {notifications.length > 0 && (
-        <section className="mb-7">
-          <h2 className="mb-3 flex items-center gap-2 text-lg font-extrabold text-ink-900"><Bell size={20} /> {t('Уведомления')}</h2>
-          <div className="space-y-2">
-            {notifications.slice(0, 5).map((notification) => (
-              <button
-                key={notification.id}
-                className={`flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition hover:bg-paper-hover ${notification.read ? 'border-ink-100 bg-white' : 'border-brand-green-200 bg-brand-green-50'}`}
-                onClick={() => void onOpenNotification(notification)}
-              >
-                <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${notification.read ? 'bg-ink-200' : 'bg-brand-green-600'}`} />
-                <span className="min-w-0 flex-1">
-                  <span className="block font-extrabold text-ink-900">{notification.title}</span>
-                  <span className="mt-1 block text-sm leading-5 text-ink-500">{notification.message}</span>
-                </span>
-                <span className="shrink-0 text-[11px] font-semibold text-ink-400">{formatDate(notification.scheduledAt)}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {events.length > 0 && (
-        <section className="mb-7">
-          <h2 className="mb-3 flex items-center gap-2 text-lg font-extrabold text-ink-900"><CalendarDays size={20} /> {t('Ближайшие события')}</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {events.map((event) => <EventCard key={event.id} event={event} />)}
-          </div>
-        </section>
-      )}
-
-      {!trainingOnly && <PromotionShowcase promotions={promotions} />}
-
-      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-lg font-extrabold text-ink-900">{t('Мои программы')}</h2>
-        <div className="inline-flex rounded-xl bg-white p-1 shadow-card">
-          {([['active', t('Активные')], ['completed', t('Завершённые')], ['all', t('Все')]] as const).map(([value, label]) => (
-            <button
-              key={value}
-              className={`rounded-lg px-3 py-2 text-xs font-extrabold transition ${filter === value ? 'bg-brand-green-600 text-white' : 'text-ink-500 hover:bg-paper-hover'}`}
-              onClick={() => setFilter(value)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <label className="relative mb-4 block">
-        <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-400" size={18} />
-        <input
-          className="inp h-12 w-full pl-11"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={t('Найти программу')}
-          aria-label={t('Найти программу')}
-        />
-      </label>
       {assignments.length === 0 ? (
         <div className="rounded-2xl bg-white p-8 text-center shadow-card">
           <BookOpen className="mx-auto text-ink-300" size={36} />
-          <p className="mt-3 font-bold text-ink-700">{normalizedQuery ? t('Программы не найдены') : t('В этом разделе программ пока нет')}</p>
+          <p className="mt-3 font-bold text-ink-700">{t('Новых курсов пока нет')}</p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
-          {assignments.map((assignment) => (
-            <button
-              key={assignment.id}
-              className="group rounded-2xl bg-white p-5 text-left shadow-card transition hover:-translate-y-0.5 hover:shadow-fab disabled:opacity-60"
-              disabled={busy}
-              onClick={() => onOpen(assignment)}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <span className="chip chip-green">{statusText(assignment.status)}</span>
-                <span className="text-sm font-extrabold text-brand-green-700">{assignment.progressPct}%</span>
-              </div>
-              <h3 className="mt-4 text-lg font-extrabold text-ink-900 group-hover:text-brand-green-700">
-                {assignment.programName}
-              </h3>
-              {assignment.programShortDescription && (
-                <p className="mt-2 line-clamp-2 text-sm leading-6 text-ink-500">{assignment.programShortDescription}</p>
-              )}
-              <div className="mt-5 h-2 overflow-hidden rounded-full bg-paper-input">
-                <div className="h-full rounded-full bg-brand-green-600" style={{ width: `${assignment.progressPct}%` }} />
-              </div>
-              <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-ink-400">
-                <Clock3 size={15} /> {t('Срок: {date}', { date: formatDate(assignment.dueAt) })} · {trainingFormatText(assignment.format)}
-              </div>
-            </button>
-          ))}
+          {assignments.map((assignment) => {
+            const firstLesson = assignment.stages
+              .filter((stage) => stage.status !== 'locked')
+              .flatMap((stage) => [...(stage.course?.lessons ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)))
+              .find((lesson) => !lessonCompleted(lesson))
+            return (
+              <article key={assignment.id} className="flex min-h-56 flex-col rounded-2xl bg-white p-5 shadow-card sm:p-6">
+                <h3 className="text-xl font-extrabold leading-7 text-ink-900">{assignment.programName}</h3>
+                <div className="mt-5 rounded-xl bg-brand-green-50 p-4">
+                  <div className="text-xs font-extrabold uppercase tracking-[0.1em] text-brand-green-700">{t('Что вы получите')}</div>
+                  <p className="mt-2 text-sm leading-6 text-ink-600">
+                    {assignment.programShortDescription || t('Знания и практические навыки по теме курса.')}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-md mt-5 w-full"
+                  disabled={busy}
+                  onClick={() => firstLesson ? onOpenLesson(assignment, firstLesson.id) : onOpen(assignment)}
+                >
+                  <PlayCircle size={18} /> {t('Начать курс')}
+                </button>
+              </article>
+            )
+          })}
         </div>
       )}
-
-      {certificates.length > 0 && (
-        <section className="mt-8">
-          <h2 className="mb-3 flex items-center gap-2 text-lg font-extrabold text-ink-900"><Award size={20} /> {t('Сертификаты')}</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {certificates.map((certificate) => (
-              <CertificateCard key={certificate.id} certificate={certificate} />
-            ))}
-          </div>
-        </section>
-      )}
-    </>
+    </section>
   )
 }
 
-function PromotionShowcase({ promotions }: { promotions: Promotion[] }) {
+function BalanceOverview({
+  balance,
+  loading,
+  balanceError,
+  onRetry,
+}: {
+  balance: PersonalBalance | null
+  loading: boolean
+  balanceError: string
+  onRetry: () => void | Promise<void>
+}) {
+  const t = useLearnerT()
+  return (
+    <section className="mb-8" aria-labelledby="balance-heading">
+      <article className="max-w-sm rounded-2xl bg-brand-green-700 p-5 text-white shadow-card sm:p-6">
+        <div className="flex items-center justify-between gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10"><CircleDollarSign size={21} /></span>
+          <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-white/80">ePharm</span>
+        </div>
+        <div id="balance-heading" className="mt-5 text-xs font-bold text-white/70">{t('Личный баланс')}</div>
+        {loading ? (
+          <div className="mt-3 flex items-center gap-2 text-sm font-bold text-white/80"><Loader2 className="animate-spin" size={18} /> {t('Загружаем…')}</div>
+        ) : balance ? (
+          <div className="mt-1 text-3xl font-extrabold tracking-tight">{formatKzt(balance.balanceKzt)}</div>
+        ) : (
+          <PersonalDataError message={balanceError || t('Баланс временно недоступен')} onRetry={onRetry} inverted />
+        )}
+        <p className="mt-3 text-xs leading-5 text-white/65">{t('Доступный денежный баланс вашей учётной записи.')}</p>
+      </article>
+    </section>
+  )
+}
+
+function RecommendationsView({
+  recommendations,
+  loading,
+  error,
+  onRetry,
+}: {
+  recommendations: PersonalRecommendationsPage | null
+  loading: boolean
+  error: string
+  onRetry: () => void | Promise<void>
+}) {
+  const t = useLearnerT()
+  return (
+    <section className="rounded-2xl bg-white p-5 shadow-card sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-ink-100 pb-5">
+        <div>
+          <h2 className="flex items-center gap-2 text-lg font-extrabold text-ink-900">
+            <Sparkles size={20} className="text-brand-green-600" /> {t('Активные рекомендации')}
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-ink-500">{t('Подсказки и предложения из центральной системы ePharm')}</p>
+        </div>
+        {recommendations && <span className="chip chip-green">{t('{count} групп', { count: recommendations.total })}</span>}
+      </div>
+
+      {loading ? (
+        <div className="flex min-h-40 items-center justify-center gap-2 text-sm font-bold text-ink-500"><Loader2 className="animate-spin" size={18} /> {t('Загружаем рекомендации…')}</div>
+      ) : error ? (
+        <div className="py-6"><PersonalDataError message={error} onRetry={onRetry} /></div>
+      ) : recommendations?.items.length ? (
+        <div className="mt-5 space-y-4">
+          {recommendations.items.map((recommendation, index) => (
+            <RecommendationCard key={`${recommendation.campaign?.id ?? 'legacy'}-${recommendation.trigger.kind}-${index}`} recommendation={recommendation} />
+          ))}
+        </div>
+      ) : (
+        <div className="flex min-h-40 flex-col items-center justify-center rounded-xl bg-paper-hover px-5 py-8 text-center">
+          <Sparkles className="text-ink-300" size={30} />
+          <p className="mt-3 text-sm font-bold text-ink-600">{t('Активных рекомендаций сейчас нет.')}</p>
+        </div>
+      )}
+
+      <p className="mt-5 flex items-start gap-2 text-xs leading-5 text-ink-400">
+        <ShieldCheck className="mt-0.5 shrink-0" size={15} />
+        {t('Справочная информация: рекомендации не подтверждают наличие товара и не заменяют медицинское решение.')}
+      </p>
+    </section>
+  )
+}
+
+function PersonalDataError({
+  message,
+  onRetry,
+  inverted = false,
+}: {
+  message: string
+  onRetry: () => void | Promise<void>
+  inverted?: boolean
+}) {
+  const t = useLearnerT()
+  return (
+    <div className="mt-4" role="status">
+      <p className={`text-sm font-bold ${inverted ? 'text-white' : 'text-accent-danger'}`}>{message}</p>
+      <button
+        type="button"
+        className={`mt-3 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-extrabold transition ${inverted ? 'border-white/30 text-white hover:bg-white/10' : 'border-ink-200 text-ink-700 hover:bg-paper-hover'}`}
+        onClick={() => void onRetry()}
+      >
+        <RefreshCw size={13} /> {t('Повторить')}
+      </button>
+    </div>
+  )
+}
+
+function RecommendationCard({ recommendation }: { recommendation: PersonalRecommendation }) {
+  const t = useLearnerT()
+  const triggerLabel = recommendation.trigger.label || recommendation.triggerProducts.map((product) => product.name).filter(Boolean).join(', ') || t('Условие рекомендации')
+  const typeLabel = recommendation.type === 'substitution' ? t('Замена') : t('Допродажа')
+  return (
+    <section className="overflow-hidden rounded-xl border border-ink-100 bg-white">
+      <div className="flex flex-wrap items-start justify-between gap-3 bg-paper-hover px-4 py-3">
+        <div>
+          <div className="text-sm font-extrabold text-ink-900">{recommendation.campaign?.title || t('Активная рекомендация')}</div>
+          <div className="mt-1 text-xs text-ink-500"><span className="font-bold text-ink-600">{t('Триггер')}:</span> {triggerLabel}</div>
+        </div>
+        <span className="rounded-full bg-brand-green-100 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-brand-green-700">{typeLabel}</span>
+      </div>
+      <div className="grid gap-3 p-3 md:grid-cols-2">
+        {recommendation.offers.map((offer) => (
+          <article key={offer.ruleId} className="rounded-xl border border-ink-100 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h4 className="font-extrabold leading-5 text-ink-900">{offer.product.name}</h4>
+                {[offer.product.brand, offer.product.mnn, offer.product.volume].filter(Boolean).length > 0 && (
+                  <p className="mt-1 text-xs leading-5 text-ink-500">{[offer.product.brand, offer.product.mnn, offer.product.volume].filter(Boolean).join(' · ')}</p>
+                )}
+              </div>
+              <Pill className="shrink-0 text-brand-green-600" size={20} />
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2 text-xs font-extrabold">
+              {offer.product.catalogPriceKzt > 0 && <span className="rounded-lg bg-paper-hover px-2.5 py-1.5 text-ink-700">{t('Справочная цена')}: {formatKzt(offer.product.catalogPriceKzt)}</span>}
+              {offer.bonusKzt > 0 && <span className="rounded-lg bg-brand-green-100 px-2.5 py-1.5 text-brand-green-700">{t('Бонус')}: {formatKzt(offer.bonusKzt)}</span>}
+            </div>
+            {offer.script && <p className="mt-3 rounded-lg bg-brand-green-50 px-3 py-2 text-xs font-semibold leading-5 text-ink-700">{offer.script}</p>}
+            {offer.advantages.length > 0 && (
+              <ul className="mt-3 space-y-1.5">
+                {offer.advantages.map((advantage, index) => <li key={`${offer.ruleId}-${index}`} className="flex items-start gap-2 text-xs leading-5 text-ink-600"><Check className="mt-0.5 shrink-0 text-brand-green-600" size={14} /> {advantage}</li>)}
+              </ul>
+            )}
+          </article>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function CertificatesView({ certificates }: { certificates: Certificate[] }) {
+  const t = useLearnerT()
+  return certificates.length === 0 ? (
+    <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl bg-white px-5 py-10 text-center shadow-card">
+      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-green-50 text-brand-green-600">
+        <Award size={28} />
+      </span>
+      <p className="mt-4 text-base font-extrabold text-ink-800">{t('Сертификатов пока нет')}</p>
+      <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-ink-500">{t('Они появятся здесь после завершения курса.')}</p>
+    </div>
+  ) : (
+    <div className="grid items-start gap-4 sm:grid-cols-2">
+      {certificates.map((certificate) => <CertificateCard key={certificate.id} certificate={certificate} />)}
+    </div>
+  )
+}
+
+export function PromotionShowcase({ promotions }: { promotions: Promotion[] }) {
   const t = useLearnerT()
   const [selectedPromotion, setSelectedPromotion] = useState<Promotion | null>(null)
   if (!promotions.length) return null
@@ -2139,6 +2574,24 @@ function PromotionShowcase({ promotions }: { promotions: Promotion[] }) {
         <PromotionDialog promotion={selectedPromotion} onClose={() => setSelectedPromotion(null)} />
       )}
     </section>
+  )
+}
+
+export function TrainingEmptyState({
+  icon,
+  title,
+  body,
+}: {
+  icon: React.ReactNode
+  title: string
+  body: string
+}) {
+  return (
+    <div className="rounded-3xl border border-dashed border-brand-green-200 bg-gradient-to-br from-white to-brand-green-50 p-9 text-center shadow-card">
+      <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-white text-brand-green-600 shadow-card">{icon}</span>
+      <h3 className="mt-4 text-lg font-extrabold text-ink-900">{title}</h3>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-ink-500">{body}</p>
+    </div>
   )
 }
 
@@ -2238,7 +2691,7 @@ function PromotionDialog({ promotion, onClose }: { promotion: Promotion; onClose
   )
 }
 
-function Stat({ value, label, danger = false }: { value: number; label: string; danger?: boolean }) {
+export function Stat({ value, label, danger = false }: { value: number; label: string; danger?: boolean }) {
   return (
     <div className="rounded-2xl bg-white p-4 shadow-card">
       <div className={`text-2xl font-extrabold ${danger && value ? 'text-accent-danger' : 'text-ink-900'}`}>{value}</div>
@@ -2278,12 +2731,11 @@ function AssignmentView({
   return (
     <div>
       <button className="btn btn-ghost mb-4 -ml-2" onClick={onBack}>
-        <ArrowLeft size={18} /> {t('Все программы')}
+        <ArrowLeft size={18} /> {t('Обучение')}
       </button>
       <section className="rounded-3xl bg-white p-5 shadow-card sm:p-7">
         <div className="flex flex-wrap items-center gap-2">
           <span className="chip chip-green">{statusText(assignment.status)}</span>
-          <span className="chip chip-ink">{trainingFormatText(assignment.format)}</span>
           {assignment.required && <span className="chip chip-blue">{t('Обязательно')}</span>}
           {assignment.priority === 'high' && <span className="chip chip-red">{t('Высокий приоритет')}</span>}
           {assignment.priority === 'critical' && <span className="chip chip-red">{t('Критический приоритет')}</span>}
@@ -2304,7 +2756,7 @@ function AssignmentView({
         </div>
         {canStart && (
           <button className="btn btn-primary btn-md mt-5 w-full sm:w-auto" disabled={busy} onClick={onStart}>
-            <PlayCircle size={18} /> {busy ? t('Запускаем…') : t('Начать программу')}
+            <PlayCircle size={18} /> {busy ? t('Запускаем…') : t('Начать курс')}
           </button>
         )}
         {startsLater && <div className="mt-4 rounded-xl bg-paper-hover px-4 py-3 text-sm font-semibold text-ink-500">{t('Программа откроется {date}.', { date: formatDateTime(assignment.startsAt) })}</div>}
@@ -2462,6 +2914,100 @@ function StageCard({
   )
 }
 
+type LessonContentBlock =
+  | { kind: 'heading' | 'paragraph'; text: string }
+  | { kind: 'list'; items: string[]; ordered: boolean }
+
+function parseLessonContent(content: string): LessonContentBlock[] {
+  const lines = content
+    .replace(/\r/g, '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+  const blocks: LessonContentBlock[] = []
+  const sectionHeading = /^\d+(?:\.\d+)+(?:[.)])?\s+\S/
+  const bulletItem = /^[-•–—]\s+/
+  const numberedItem = /^\d+[.)]\s+/
+  let index = 0
+
+  while (index < lines.length) {
+    const line = lines[index]
+    if (sectionHeading.test(line)) {
+      blocks.push({ kind: 'heading', text: line })
+      index += 1
+      continue
+    }
+
+    const explicitList = bulletItem.test(line) || numberedItem.test(line)
+    if (explicitList) {
+      const ordered = numberedItem.test(line)
+      const items: string[] = []
+      while (index < lines.length) {
+        const candidate = lines[index]
+        const matches = ordered ? numberedItem.test(candidate) : bulletItem.test(candidate)
+        if (!matches) break
+        items.push(candidate.replace(ordered ? numberedItem : bulletItem, '').trim())
+        index += 1
+      }
+      blocks.push({ kind: 'list', items, ordered })
+      continue
+    }
+
+    if (line.endsWith(':')) {
+      const items: string[] = []
+      let cursor = index + 1
+      while (cursor < lines.length) {
+        const candidate = lines[cursor]
+        if (sectionHeading.test(candidate) || candidate.endsWith(':')) break
+        items.push(candidate.replace(bulletItem, '').replace(numberedItem, '').trim())
+        cursor += 1
+        if (!bulletItem.test(candidate) && !numberedItem.test(candidate) && /[.!?]$/.test(candidate)) break
+      }
+      if (items.length >= 2) {
+        blocks.push({ kind: 'paragraph', text: line }, { kind: 'list', items, ordered: false })
+        index = cursor
+        continue
+      }
+    }
+
+    blocks.push({ kind: 'paragraph', text: line })
+    index += 1
+  }
+
+  return blocks
+}
+
+function LessonContent({ content }: { content: string }) {
+  const blocks = useMemo(() => parseLessonContent(content), [content])
+  return (
+    <div className="max-w-4xl space-y-4">
+      {blocks.map((block, index) => {
+        if (block.kind === 'heading') {
+          return (
+            <h4 key={`${block.kind}-${index}`} className="inline-flex rounded-lg bg-brand-green-50 px-3 py-2 text-sm font-extrabold leading-5 text-brand-green-800 sm:text-[15px]">
+              {block.text}
+            </h4>
+          )
+        }
+        if (block.kind === 'list') {
+          const List = block.ordered ? 'ol' : 'ul'
+          return (
+            <List key={`${block.kind}-${index}`} className="grid gap-2.5 rounded-xl border border-brand-green-100 bg-white p-4 sm:p-5">
+              {block.items.map((item, itemIndex) => (
+                <li key={`${item}-${itemIndex}`} className="flex min-w-0 items-start gap-3 text-sm leading-6 text-ink-700 sm:text-[15px]">
+                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-green-500" aria-hidden="true" />
+                  <span className="min-w-0 break-words">{item}</span>
+                </li>
+              ))}
+            </List>
+          )
+        }
+        return <p key={`${block.kind}-${index}`} className="break-words text-sm leading-6 text-ink-700 sm:text-[15px] sm:leading-7">{block.text}</p>
+      })}
+    </div>
+  )
+}
+
 function LessonPage({
   assignment,
   lessonId,
@@ -2512,6 +3058,10 @@ function LessonPage({
     setLiveState({ lessonId, ended })
   }, [lessonId])
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [lessonId])
+
   if (!stage || !lesson) {
     return (
       <div className="rounded-2xl bg-white p-8 text-center shadow-card">
@@ -2524,13 +3074,26 @@ function LessonPage({
   const currentStage = stage
   const previous = lessons[index - 1]
   const next = lessons[index + 1]
-  const attachments = lesson.attachments ?? []
+  const allAttachments = lesson.attachments ?? []
+  const promotedVideoAttachment = lesson.videoUrl
+    ? null
+    : allAttachments.find((attachment) => attachment.kind === 'video') ?? null
+  const isFireSafetyIntro = index === 0 && /пожарн/i.test(
+    `${assignment.programName} ${stage.course?.title ?? ''}`,
+  )
+  const primaryVideoUrl = lesson.videoUrl
+    || promotedVideoAttachment?.mediaUrl
+    || (isFireSafetyIntro ? '/training/fire-safety-training-video.mp4' : null)
+  const attachments = promotedVideoAttachment
+    ? allAttachments.filter((attachment) => attachment.id !== promotedVideoAttachment.id)
+    : allAttachments
   const read = stage.status === 'completed' || lessonCompleted(lesson)
-  const videoLesson = lesson.kind === 'video' || !!lesson.videoUrl
+  const videoLesson = lesson.kind === 'video' || !!primaryVideoUrl
   const quizLesson = lesson.kind === 'quiz' || lesson.kind === 'test'
   const liveLesson = lesson.kind === 'live'
   const liveEnded = liveState.lessonId === lesson.id ? liveState.ended : lesson.liveStatus === 'ended'
   const threshold = lessonThreshold(lesson)
+
   const effectiveProgress = Math.max(watchedProgress[lesson.id] ?? 0, lesson.progressPct ?? 0)
   const blockedByPrevious = lessons
     .slice(0, index)
@@ -2625,47 +3188,62 @@ function LessonPage({
           {lesson.description && <p className="mt-3 max-w-3xl text-sm leading-6 text-ink-500">{lesson.description}</p>}
           <div className="mt-4 flex flex-wrap gap-2">
             <span className="chip chip-ink"><Clock3 size={14} /> {t('{minutes} мин', { minutes: lesson.durationMin ?? 0 })}</span>
-            {lesson.videoUrl && <span className="chip chip-green"><PlayCircle size={14} /> {t('Видеоурок')}</span>}
+            {primaryVideoUrl && <span className="chip chip-green"><PlayCircle size={14} /> {t('Видеоурок')}</span>}
             {quizLesson && <span className="chip chip-blue"><CheckCircle2 size={14} /> {t('Тест')} · {t('{count} вопросов', { count: lesson.quizQuestions?.length ?? 0 })}</span>}
             {liveLesson && <span className="chip chip-green"><Radio size={14} /> {t('Прямой эфир')}</span>}
             {attachments.length > 0 && <span className="chip chip-blue"><FileText size={14} /> {t('{count} материалов', { count: attachments.length })}</span>}
           </div>
         </header>
 
-        <div className="space-y-7 p-5 sm:p-8">
-          {lesson.videoUrl && (
-            <section>
-              <h3 className="mb-3 text-base font-extrabold text-ink-900">{t('Видео урока')}</h3>
-              <video
-                controls
-                preload="metadata"
-                className="aspect-video w-full rounded-2xl bg-ink-900"
-                src={lesson.videoUrl}
-                onLoadedMetadata={(event) => {
-                  const resumeAt = lesson.lastPositionSeconds ?? 0
-                  if (resumeAt > 0 && resumeAt < event.currentTarget.duration) {
-                    event.currentTarget.currentTime = resumeAt
-                  }
-                }}
-                onPlay={(event) => {
-                  void persistVideoProgress(
-                    Math.max(
-                      lastSyncedProgress.current[lesson.id] ?? 0,
-                      lesson.progressPct ?? 0,
-                    ),
-                    Math.floor(event.currentTarget.currentTime),
-                  )
-                }}
-                onTimeUpdate={(event) => updateVideoProgress(event.currentTarget)}
-                onPause={(event) => updateVideoProgress(event.currentTarget)}
-              />
-              <div className="mt-3 flex items-center justify-between gap-3 text-xs font-semibold text-ink-500">
-                <span>{t('Просмотрено {progress}%', { progress: effectiveProgress })}</span>
-                <span>{t('Для завершения нужно {threshold}%', { threshold })}</span>
+        {primaryVideoUrl && (
+          <section className="border-b border-ink-100 bg-gradient-to-br from-[#083f43] to-[#052a2d] p-3 sm:p-6">
+            <div className="mx-auto max-w-5xl">
+              <div className="mb-3 flex items-center justify-between gap-3 text-white">
+                <div className="flex items-center gap-2 text-sm font-extrabold">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10"><PlayCircle size={17} /></span>
+                  {t('Видео урока')}
+                </div>
+                <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.1em] text-white/75">ePharm</span>
               </div>
-            </section>
-          )}
+              <div className="overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl shadow-black/25">
+                <video
+                  controls
+                  playsInline
+                  preload="metadata"
+                  aria-label={t('Видео урока')}
+                  className="aspect-video max-h-[70vh] w-full bg-black object-contain"
+                  src={primaryVideoUrl}
+                  onLoadedMetadata={(event) => {
+                    const resumeAt = lesson.lastPositionSeconds ?? 0
+                    if (resumeAt > 0 && resumeAt < event.currentTarget.duration) {
+                      event.currentTarget.currentTime = resumeAt
+                    }
+                  }}
+                  onPlay={(event) => {
+                    void persistVideoProgress(
+                      Math.max(
+                        lastSyncedProgress.current[lesson.id] ?? 0,
+                        lesson.progressPct ?? 0,
+                      ),
+                      Math.floor(event.currentTarget.currentTime),
+                    )
+                  }}
+                  onTimeUpdate={(event) => updateVideoProgress(event.currentTarget)}
+                  onPause={(event) => updateVideoProgress(event.currentTarget)}
+                />
+              </div>
+              <div className="mt-3 flex items-center gap-3 text-xs font-semibold text-white/75">
+                <span className="shrink-0">{t('Просмотрено {progress}%', { progress: effectiveProgress })}</span>
+                <span className="h-1.5 min-w-16 flex-1 overflow-hidden rounded-full bg-white/15">
+                  <span className="block h-full rounded-full bg-brand-green-300 transition-[width]" style={{ width: `${Math.min(100, effectiveProgress)}%` }} />
+                </span>
+                <span className="hidden shrink-0 sm:inline">{t('Для завершения нужно {threshold}%', { threshold })}</span>
+              </div>
+            </div>
+          </section>
+        )}
 
+        <div className="space-y-7 p-5 sm:p-8">
           {liveLesson && (
             <LearnerLiveLesson
               assignmentId={assignment.id}
@@ -2692,9 +3270,14 @@ function LessonPage({
           )}
 
           {lesson.content && (
-            <section>
-              <h3 className="mb-3 text-base font-extrabold text-ink-900">{t('Материал урока')}</h3>
-              <div className="whitespace-pre-wrap text-[15px] leading-8 text-ink-700">{lesson.content}</div>
+            <section className="overflow-hidden rounded-2xl border border-ink-100 bg-paper-hover">
+              <div className="flex items-center gap-3 border-b border-ink-100 px-4 py-4 sm:px-6">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-brand-green-700 shadow-sm"><BookOpen size={18} /></span>
+                <h3 className="text-base font-extrabold text-ink-900">{t('Материал урока')}</h3>
+              </div>
+              <div className="p-4 sm:p-6">
+                <LessonContent content={lesson.content} />
+              </div>
             </section>
           )}
 
@@ -2740,7 +3323,7 @@ function LessonPage({
             </section>
           )}
 
-          {!lesson.content && !lesson.videoUrl && !lesson.externalUrl && !quizLesson && !liveLesson && attachments.length === 0 && (
+          {!lesson.content && !primaryVideoUrl && !lesson.externalUrl && !quizLesson && !liveLesson && attachments.length === 0 && (
             <div className="rounded-xl bg-paper-hover p-5 text-sm text-ink-500">{t('Материалы этого урока пока не добавлены.')}</div>
           )}
         </div>
@@ -2996,8 +3579,14 @@ function QuizLesson({
   const [error, setError] = useState('')
 
   async function submit() {
-    if (questions.some((question) => answers[question.id] == null)) {
+    const firstUnanswered = questions.find((question) => answers[question.id] == null)
+    if (firstUnanswered) {
       setError(t('Ответьте на все вопросы'))
+      window.requestAnimationFrame(() => {
+        const target = document.getElementById(`quiz-question-card-${firstUnanswered.id}`)
+        target?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+        target?.focus({ preventScroll: true })
+      })
       return
     }
     setSubmitting(true)
@@ -3052,9 +3641,11 @@ function QuizLesson({
           return (
             <div
               key={question.id}
+              id={`quiz-question-card-${question.id}`}
               role="group"
+              tabIndex={-1}
               aria-labelledby={`quiz-question-${question.id}`}
-              className="rounded-xl border border-ink-100 bg-white p-4"
+              className={`rounded-xl border bg-white p-4 outline-none transition focus:ring-4 focus:ring-red-100 ${error && answers[question.id] == null ? 'border-red-300' : 'border-ink-100'}`}
             >
               <div id={`quiz-question-${question.id}`} className="text-sm font-extrabold leading-5 text-ink-900">
                 {t('Вопрос {number}', { number: questionIndex + 1 })}. {question.prompt}
@@ -3197,15 +3788,21 @@ function CertificateCard({ certificate }: { certificate: Certificate }) {
   const content = (
     <>
       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-green-100 text-brand-green-700"><Award size={22} /></span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate font-extrabold text-ink-900">{certificate.programName}</span>
-        <span className="mt-1 block text-xs font-semibold text-ink-400">№ {certificate.number} · {formatDate(certificate.issuedAt)}</span>
+      <span className="min-w-0">
+        <span className="block break-words text-sm font-extrabold leading-5 text-ink-900 sm:text-base">{certificate.programName}</span>
+        <span className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-semibold leading-5 text-ink-400">
+          <span className="min-w-0 break-all">№ {certificate.number}</span>
+          <span aria-hidden="true" className="text-ink-200">·</span>
+          <span className="whitespace-nowrap">{formatDate(certificate.issuedAt)}</span>
+        </span>
       </span>
-      {certificate.score != null && <span className="chip chip-green">{certificate.score}%</span>}
-      {certificate.pdfUrl && <ExternalLink className="shrink-0 text-ink-400" size={17} />}
+      <span className="col-start-2 flex shrink-0 items-center gap-2 sm:col-start-auto">
+        {certificate.score != null && <span className="chip chip-green">{certificate.score}%</span>}
+        {certificate.pdfUrl && <ExternalLink className="text-ink-400" size={17} />}
+      </span>
     </>
   )
-  const className = 'flex items-center gap-3 rounded-2xl border border-ink-100 bg-white p-4 text-left shadow-card transition hover:bg-paper-hover'
+  const className = 'grid grid-cols-[44px_minmax(0,1fr)] items-start gap-3 rounded-2xl border border-ink-100 bg-white p-4 text-left shadow-card transition hover:border-brand-green-200 hover:bg-paper-hover sm:grid-cols-[44px_minmax(0,1fr)_auto] sm:p-5'
   return certificate.pdfUrl ? (
     <a className={className} href={certificate.pdfUrl} target="_blank" rel="noreferrer">{content}</a>
   ) : (

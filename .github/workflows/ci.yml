@@ -90,6 +90,8 @@ jobs:
           bash tools/release/tests/prepare-deploy-contract.sh
       - name: Verify backend-only release and rollback
         run: bash tools/release/tests/backend-only-contract.sh
+      - name: Verify frontend-only release and rollback
+        run: bash tools/release/tests/frontend-only-contract.sh
       - name: Verify archive-host two-image release and rollback
         run: |
           bash tools/release/tests/archive-two-image-contract.sh
