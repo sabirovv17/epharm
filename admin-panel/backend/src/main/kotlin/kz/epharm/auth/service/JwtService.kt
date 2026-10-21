@@ -1,10 +1,8 @@
 package kz.epharm.auth.service
 
 import io.jsonwebtoken.Claims
-import io.jsonwebtoken.ExpiredJwtException
+import io.jsonwebtoken.JwtException
 import io.jsonwebtoken.Jwts
-import io.jsonwebtoken.MalformedJwtException
-import io.jsonwebtoken.security.SignatureException
 import kz.epharm.auth.domain.AdminRole
 import kz.epharm.auth.entity.AdminUserEntity
 import org.springframework.beans.factory.annotation.Value
@@ -82,14 +80,25 @@ class JwtService(
             .build()
             .parseSignedClaims(token)
             .payload
-    } catch (_: ExpiredJwtException) {
-        null
-    } catch (_: MalformedJwtException) {
-        null
-    } catch (_: SignatureException) {
+            .takeIf(::hasValidAccessClaims)
+    } catch (_: JwtException) {
         null
     } catch (_: IllegalArgumentException) {
         null
+    }
+
+    private fun hasValidAccessClaims(claims: Claims): Boolean {
+        if (claims["sub"] !is String || claims.subject.isBlank() ||
+            claims.expiration == null || claims["name"] !is String) return false
+        return when (claims["typ"]) {
+            TYP_PHARMACIST -> claims["phone"] is String
+            null -> {
+                UUID.fromString(claims.subject)
+                claims["email"] is String && claims["company"] is String &&
+                    AdminRole.entries.any { it.name == claims["role"] }
+            }
+            else -> false
+        }
     }
 
     fun userIdOf(claims: Claims): UUID = UUID.fromString(claims.subject)

@@ -22,7 +22,7 @@ The backend is a modular monolith under package `kz.epharm`.
 | ------------------------------------- | ------------------------------------------------------------------------------------------- |
 | `auth`                                | Admin auth, JWT, refresh tokens, roles.                                                     |
 | `mobile.auth`                         | Pharmacist OTP auth, registration, refresh/logout.                                          |
-| `mobile.profile`                      | `/api/mobile/me` profile/balance.                                                           |
+| `mobile.profile`                      | `/api/mobile/me` profile and authenticated self balance/recommendation APIs.                 |
 | `mobile.catalog`                      | Public mobile catalog with a configured website source and local snapshot fallback.         |
 | `mobile.promotions`                   | Public active promo campaign feed.                                                          |
 | `mobile.receipts`                     | Authenticated receipt upload/history.                                                       |
@@ -153,9 +153,93 @@ Authenticated pharmacist:
 - `GET /api/mobile/auth/me`
 - `POST /api/mobile/auth/logout`
 - `GET /api/mobile/me`
+- `GET /api/mobile/me/balance` — own available wallet balance, integer KZT.
+- `GET /api/mobile/me/recommendations?page=0&size=20` — active authored recommendation groups.
 - `GET /api/mobile/receipts`
 - `POST /api/mobile/receipts` multipart.
 - `/api/mobile/training/**` for the authenticated pharmacist's assignments, events and notifications.
+
+#### Personal balance and recommendation API for the learning service
+
+Both new GET routes require `Authorization: Bearer <pharmacist-access-token>` issued by
+ePharm. This is the same principal used by `/api/mobile/training/**`, not the training
+manager's admin account. An admin token (including `TRAINING_MANAGER`) cannot read these
+routes. POSM device keys and JWTs issued by another service are not pharmacist credentials.
+Never share `app.jwt.secret` with a consuming service.
+
+The current account is reloaded for every call. Only `status=active` may use these routes:
+a pending or blocked account returns `403 USER_NOT_ACTIVE`; a deleted account returns
+`401 USER_NOT_FOUND`. This check applies even to access tokens issued before a status change.
+An active account may read its own balance without a pharmacy assignment. The owner is
+always the signed token subject, never a client-supplied phone, `pharmacistId` or header.
+These identity selectors are not supported and cannot switch the current user.
+Both responses set `Cache-Control: no-store` and contain no IIN, phone or other users' balances.
+
+`GET /api/mobile/me/balance` returns exactly the existing common wallet projection
+`pharmacists.balance`, without creating ledger entries or reserving funds:
+
+```json
+{"balanceKzt":42000,"currency":"KZT"}
+```
+
+`GET /api/mobile/me/recommendations` returns:
+
+```json
+{
+  "items": [{
+    "campaign": {"id":"promo_example","title":"Example","dateStart":null,"dateEnd":null},
+    "type":"substitution",
+    "trigger":{"kind":"acc_group","value":"stable-acc-key","label":"Group label"},
+    "triggerProducts":[],
+    "offers":[{
+      "ruleId":"rule_example",
+      "product":{
+        "id":"product_example","name":"Example product","brand":"Example",
+        "mnn":"Example INN","volume":"30 tablets","barcodes":[],"ipartId":null,
+        "catalogPriceKzt":2500,"catalogUpdatedAt":"2026-01-01T00:00:00Z"
+      },
+      "bonusKzt":0,"script":"Configured text","advantages":[]
+    }]
+  }],
+  "page":0,"size":20,"total":1,"currency":"KZT"
+}
+```
+
+`type` is `substitution` or `crosssell`. Every rule must be active; a linked campaign must
+also be active and within inclusive dates in `Asia/Almaty`. Missing, paused, draft, archived,
+expired and future campaigns are excluded. Legacy manual rules without a campaign remain
+supported with `campaign=null`, matching the POSM activity policy. A missing offered product
+is omitted; an empty group is not returned. Reading does not record impressions, sales,
+acceptances, progress or bonuses, and does not activate rules.
+
+Groups preserve separate trigger and offered products, all four authoring modes
+(`product`, `acc_group`, `acc_subgroup`, `acc_mnn`), plus legacy `product_any`/`mnn`.
+`trigger.value` is a product ID, a list of IDs for `product_any`, a stable scope key for
+`acc_*`, or a literal INN string for legacy `mnn`;
+`exclude` and the presentation-only `label` are preserved where present. `triggerProducts`
+contains known exact-product snapshots only; ACC groups are not expanded into an entire catalog.
+Each campaign/type/trigger group contains up to five distinct offers in admin `offerRank`
+order, with legacy bonus-descending and rule-ID tie-breakers. Bonus zero means no reward.
+
+Pagination is by whole groups, never by individual offers: zero-based `page`, `size` 1–100
+(default 20), `total` number of groups. Invalid bounds/types return `400 VALIDATION_FAILED`;
+pages past the end return `items=[]`. Groups sort by most recently updated rule, then rule ID.
+This is live offset pagination, not a frozen export: edits between calls can move groups.
+
+This endpoint is a network-wide **directory of configured active recommendations**, not
+POSM cart matching or a promise of display/medical equivalence. It does not check a current
+receipt, local pharmacy stock, ACC membership of a scanned item, conflicts in that cart,
+A/B eligibility, dismissals or personal goals. `catalogPriceKzt` is the last stored catalog
+reference price with its update timestamp, not a guaranteed pharmacy price or stock statement.
+All data is read locally; neither a retired Medusa origin nor the website is called per GET.
+
+For a separate learning application with its own login, its unrelated user token or an
+arbitrary ID is **not** accepted. Reuse the learner's existing ePharm pharmacist login/token
+or implement an explicitly verified account-linking/federation flow with the owning team.
+No external service, new issuer trust, CORS origin or account-linking flow is configured
+by these endpoints. A training administrator's shared token must never stand in for a learner.
+Existing mobile logout revokes refresh tokens; an already issued access token retains its
+short expiry. These endpoints additionally reject accounts made inactive in the database.
 
 Structured online courses use per-lesson progress. A completed stage created before lesson tracking
 projects its lessons as completed without rewriting history. Legacy URL-only online stages still
