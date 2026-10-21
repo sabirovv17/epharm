@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using CustomerDisplay.Config;
 using CustomerDisplay.Models.Posm;
 using CustomerDisplay.Services;
 
@@ -27,7 +28,7 @@ public partial class MainWindow
 
     private void StartStaffAuthentication()
     {
-        if (_epharm == null || _posmConfig?.StaffAuthenticationEnabled != true)
+        if (!EpharmConfig.StaffAuthenticationReleaseEnabled || _epharm == null || _posmConfig?.StaffAuthenticationEnabled != true)
         {
             SetStaffAuthenticationStatus("local_disabled");
             return;
