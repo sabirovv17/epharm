@@ -35,6 +35,7 @@ beforeEach(() => {
   localStorage.clear()
   useUiStore.setState({ language: 'ru' })
   vi.restoreAllMocks()
+  vi.stubGlobal('scrollTo', vi.fn())
 })
 
 afterEach(() => {
@@ -270,6 +271,8 @@ describe('learner training portal', () => {
 
   it('shows the fire-safety video as the first lesson block', async () => {
     localStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
+    const scrollTo = vi.fn()
+    vi.stubGlobal('scrollTo', scrollTo)
     const assignment = {
       id: 'assignment-fire',
       programName: 'Курс обучения «Пожарная безопасность»',
@@ -291,7 +294,7 @@ describe('learner training portal', () => {
             id: 'lesson-fire-1',
             title: 'Основы пожарной безопасности',
             description: 'Вводный урок',
-            content: 'Текст учебного материала',
+            content: '2.1. Торговый зал аптеки\n\nПеред началом смены сотрудник должен проверить:\n\nсвободны ли проходы;\n\nдоступны ли указатели эвакуации.',
             kind: 'text',
             order: 0,
             durationMin: 5,
@@ -312,9 +315,12 @@ describe('learner training portal', () => {
     renderPortal('/learn/course/assignment-fire/lesson/lesson-fire-1')
 
     const video = await screen.findByLabelText('Видео урока')
-    const material = screen.getByText('Текст учебного материала')
+    const material = screen.getByText('2.1. Торговый зал аптеки')
     expect(video).toHaveAttribute('src', '/training/fire-safety-training-video.mp4')
     expect(video.compareDocumentPosition(material) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByRole('list')).toHaveTextContent('свободны ли проходы;')
+    expect(screen.getByRole('list')).toHaveTextContent('доступны ли указатели эвакуации.')
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' })
   })
 
   it('lets a pharmacist create a password on the first login after SMS verification', async () => {

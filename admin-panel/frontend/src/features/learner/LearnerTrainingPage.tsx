@@ -2903,6 +2903,100 @@ function StageCard({
   )
 }
 
+type LessonContentBlock =
+  | { kind: 'heading' | 'paragraph'; text: string }
+  | { kind: 'list'; items: string[]; ordered: boolean }
+
+function parseLessonContent(content: string): LessonContentBlock[] {
+  const lines = content
+    .replace(/\r/g, '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+  const blocks: LessonContentBlock[] = []
+  const sectionHeading = /^\d+(?:\.\d+)+(?:[.)])?\s+\S/
+  const bulletItem = /^[-•–—]\s+/
+  const numberedItem = /^\d+[.)]\s+/
+  let index = 0
+
+  while (index < lines.length) {
+    const line = lines[index]
+    if (sectionHeading.test(line)) {
+      blocks.push({ kind: 'heading', text: line })
+      index += 1
+      continue
+    }
+
+    const explicitList = bulletItem.test(line) || numberedItem.test(line)
+    if (explicitList) {
+      const ordered = numberedItem.test(line)
+      const items: string[] = []
+      while (index < lines.length) {
+        const candidate = lines[index]
+        const matches = ordered ? numberedItem.test(candidate) : bulletItem.test(candidate)
+        if (!matches) break
+        items.push(candidate.replace(ordered ? numberedItem : bulletItem, '').trim())
+        index += 1
+      }
+      blocks.push({ kind: 'list', items, ordered })
+      continue
+    }
+
+    if (line.endsWith(':')) {
+      const items: string[] = []
+      let cursor = index + 1
+      while (cursor < lines.length) {
+        const candidate = lines[cursor]
+        if (sectionHeading.test(candidate) || candidate.endsWith(':')) break
+        items.push(candidate.replace(bulletItem, '').replace(numberedItem, '').trim())
+        cursor += 1
+        if (!bulletItem.test(candidate) && !numberedItem.test(candidate) && /[.!?]$/.test(candidate)) break
+      }
+      if (items.length >= 2) {
+        blocks.push({ kind: 'paragraph', text: line }, { kind: 'list', items, ordered: false })
+        index = cursor
+        continue
+      }
+    }
+
+    blocks.push({ kind: 'paragraph', text: line })
+    index += 1
+  }
+
+  return blocks
+}
+
+function LessonContent({ content }: { content: string }) {
+  const blocks = useMemo(() => parseLessonContent(content), [content])
+  return (
+    <div className="max-w-4xl space-y-4">
+      {blocks.map((block, index) => {
+        if (block.kind === 'heading') {
+          return (
+            <h4 key={`${block.kind}-${index}`} className="inline-flex rounded-lg bg-brand-green-50 px-3 py-2 text-sm font-extrabold leading-5 text-brand-green-800 sm:text-[15px]">
+              {block.text}
+            </h4>
+          )
+        }
+        if (block.kind === 'list') {
+          const List = block.ordered ? 'ol' : 'ul'
+          return (
+            <List key={`${block.kind}-${index}`} className="grid gap-2.5 rounded-xl border border-brand-green-100 bg-white p-4 sm:p-5">
+              {block.items.map((item, itemIndex) => (
+                <li key={`${item}-${itemIndex}`} className="flex min-w-0 items-start gap-3 text-sm leading-6 text-ink-700 sm:text-[15px]">
+                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-green-500" aria-hidden="true" />
+                  <span className="min-w-0 break-words">{item}</span>
+                </li>
+              ))}
+            </List>
+          )
+        }
+        return <p key={`${block.kind}-${index}`} className="break-words text-sm leading-6 text-ink-700 sm:text-[15px] sm:leading-7">{block.text}</p>
+      })}
+    </div>
+  )
+}
+
 function LessonPage({
   assignment,
   lessonId,
@@ -2953,6 +3047,10 @@ function LessonPage({
     setLiveState({ lessonId, ended })
   }, [lessonId])
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [lessonId])
+
   if (!stage || !lesson) {
     return (
       <div className="rounded-2xl bg-white p-8 text-center shadow-card">
@@ -2984,6 +3082,7 @@ function LessonPage({
   const liveLesson = lesson.kind === 'live'
   const liveEnded = liveState.lessonId === lesson.id ? liveState.ended : lesson.liveStatus === 'ended'
   const threshold = lessonThreshold(lesson)
+
   const effectiveProgress = Math.max(watchedProgress[lesson.id] ?? 0, lesson.progressPct ?? 0)
   const blockedByPrevious = lessons
     .slice(0, index)
@@ -3159,9 +3258,14 @@ function LessonPage({
           )}
 
           {lesson.content && (
-            <section>
-              <h3 className="mb-3 text-base font-extrabold text-ink-900">{t('Материал урока')}</h3>
-              <div className="whitespace-pre-wrap text-[15px] leading-8 text-ink-700">{lesson.content}</div>
+            <section className="overflow-hidden rounded-2xl border border-ink-100 bg-paper-hover">
+              <div className="flex items-center gap-3 border-b border-ink-100 px-4 py-4 sm:px-6">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-brand-green-700 shadow-sm"><BookOpen size={18} /></span>
+                <h3 className="text-base font-extrabold text-ink-900">{t('Материал урока')}</h3>
+              </div>
+              <div className="p-4 sm:p-6">
+                <LessonContent content={lesson.content} />
+              </div>
             </section>
           )}
 

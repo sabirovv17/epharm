@@ -5,6 +5,14 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.46] - 2026-10-21
+
+### Fixed
+
+- Rebuilt learner lesson text into compact readable sections and lists instead of preserving large
+  blank gaps from imported Word documents.
+- Reset the page to the top whenever a pharmacist opens the next or previous lesson.
+
 ## [0.1.45] - 2026-10-21
 
 ### Changed
