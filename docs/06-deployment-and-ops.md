@@ -139,8 +139,9 @@ tar xzf /tmp/epharm-deploy.tar.gz
 ./tools/release/deploy.sh v1.0.0
 ```
 
-Do not perform frontend-only mutable production builds. Backend and frontend share one release id so
-health, Sentry and rollback evidence always identify a coherent deployment. Use
+Do not perform frontend-only mutable production builds. Coherent two-image releases share one release id;
+the separately audited component-only archive transactions persist each component's exact identity.
+Use
 `./tools/release/rollback.sh <previous-tag>` for application rollback.
 
 ### Two-image release on an archive-based host
@@ -282,6 +283,32 @@ both versions. It restores the candidate if that rollback fails. If the previous
 pruned, reload it from the verified version-specific archive before retrying. Flyway migrations are
 forward-only; confirm the previous backend remains schema-compatible before any rollback. The
 existing full-release scripts remain the path for ordinary two-image releases.
+
+### Frontend-only learner release on an archive-based host
+
+When only the learner/admin UI changes, build its immutable image from reviewed main after exact
+push CI and a locally verified signed release tag. Do not rebuild, relabel or restart a healthy
+backend merely to match the frontend tag. Preserve the protected Compose/env/Caddy, production
+data and POSM. Run the isolated browser artifact suite against the actual final nginx image,
+including real AppRouter learner navigation, direct reload, authorization errors and session changes,
+as well as all four campaign trigger types.
+
+`deploy-frontend-only.sh` accepts the candidate frontend tag/commit/image ID, pinned backend
+tag/commit/image ID, currently running frontend tag, fresh verified rollback bundle and reviewed
+Compose checksum, with an optional final `--dry-run`. It takes the same application deployment
+lock as the other archive transactions, checks main CI, artifact bytes and exact component
+coordinates, and changes only the frontend. Smoke failure restores only the prior frontend pins
+and image; backend and Caddy image/container identities must remain unchanged. A failed recovery
+emits `CRITICAL` rather than declaring success. Successful transactions are recorded beneath
+`releases/frontend-only/`.
+
+The backup policy must scan frontend-only active transaction references before this path is used;
+otherwise an older active rollback bundle could be pruned. Update the reviewed versioned operations
+tools without changing backup secrets, storage destinations or retention counts. A fresh local
+rollback bundle supplements, never replaces, encrypted offsite backup and an isolated restore.
+Use a reviewed roll-forward for a delayed frontend defect; do not apply a two-image or backend
+rollback to a frontend-only transaction. `frontend-only-contract.sh` fault-injects wrong artifacts,
+config/pin drift, failed smoke and failed recovery without touching a real Docker daemon.
 
 ## POSM Fleet Auto-update
 

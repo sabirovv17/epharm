@@ -70,7 +70,7 @@ def references(deploy_roots: list[Path], backup_root: Path) -> tuple[set[Path], 
     protected: set[Path] = set()
     snapshot: dict[Path, object] = {}
     for root in deploy_roots:
-        for kind in ("backend-only", "archive-two-image"):
+        for kind in ("backend-only", "archive-two-image", "frontend-only"):
             parent = root / "releases" / kind
             if parent.exists() or parent.is_symlink():
                 secure(parent, True)

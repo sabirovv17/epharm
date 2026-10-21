@@ -442,11 +442,15 @@ body.learner-portal {
   }
 
   .learner-navigation {
-    position: sticky;
+    position: fixed;
     top: 20px;
+    bottom: 20px;
+    left: max(20px, calc((100vw - 1480px) / 2));
     display: flex;
-    min-height: calc(100vh - 40px);
+    width: 232px;
+    min-height: 0;
     flex-direction: column;
+    overflow-y: auto;
     padding: 18px 12px;
     border: 0;
     border-radius: 18px;
@@ -455,7 +459,16 @@ body.learner-portal {
     backdrop-filter: none;
   }
 
+  .learner-content {
+    grid-column: 2;
+  }
+
+  .learner-content.is-focus {
+    grid-column: 1 / -1;
+  }
+
   .learner-nav-item {
+    width: 100%;
     min-height: 44px;
     flex-direction: row;
     justify-content: flex-start;
@@ -484,6 +497,15 @@ body.learner-portal {
 }
 
 @media (max-width: 767px) {
+  body.learner-portal {
+    overflow-x: hidden;
+  }
+
+  .learner-app-frame {
+    width: 100%;
+    min-width: 0;
+  }
+
   .learner-auth-shell {
     align-items: stretch;
     padding: 0;
@@ -498,16 +520,32 @@ body.learner-portal {
   }
 
   .learner-auth-form-panel {
+    width: 100%;
     align-items: flex-start;
-    padding-top: max(68px, env(safe-area-inset-top));
+    padding: max(68px, env(safe-area-inset-top)) 20px 32px;
   }
 
   .learner-page-header {
-    margin-right: -16px;
-    margin-left: -16px;
-    padding: 8px 16px 16px;
+    margin-right: -12px;
+    margin-left: -12px;
+    padding: 8px 12px 14px;
     background: rgba(255, 255, 255, 0.78);
     backdrop-filter: blur(12px);
+  }
+
+  .learner-page-header h1 {
+    font-size: 20px;
+    line-height: 1.2;
+  }
+
+  .learner-navigation {
+    padding-right: max(10px, env(safe-area-inset-right));
+    padding-left: max(10px, env(safe-area-inset-left));
+  }
+
+  .learner-nav-item {
+    min-height: 52px;
+    font-size: 11px;
   }
 
   .learner-portal .btn-md {

@@ -23,6 +23,13 @@ goal because mobile users have the Flutter app.
 Public:
 
 - `/login`
+- `/learn`, `/learn/recommendations`, `/learn/certificates`, `/learn/profile` and
+  course links — a separate pharmacist cabinet using its own personal session, not
+  an HQ session. The Recommendations button stays in this cabinet and lists active
+  authored groups/offers from `/api/mobile/me/recommendations`; the home balance
+  comes from `/api/mobile/me/balance`. Neither read creates a sale, impression or reward.
+  Authentication/availability errors are explicit, not disguised as a zero balance or
+  empty feed. Sign-out clears personal data and rejects late responses from that session.
 - `/learn/merch/claim` — mobile-friendly pharmacist identity confirmation for a CRM task; it uses
   pharmacist authentication, not the HQ admin session, and does not grant access to the admin shell.
 
@@ -177,7 +184,9 @@ Important layout rules:
 
 ## Auth
 
-All routes except `/login` are protected by `RequireAuth`. The axios interceptor adds
+HQ routes are protected by `RequireAuth`; public learner/merch-claim entry points
+perform their own pharmacist authentication and never grant access to `AppShell`.
+The axios interceptor adds
 `Authorization: Bearer <accessToken>` and performs refresh on 401. If refresh fails as auth failure,
 the store is cleared and the user returns to login.
 

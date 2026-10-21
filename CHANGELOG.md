@@ -22,6 +22,24 @@ All notable production changes to Epharm are recorded here. The format follows
 - POSM 1.0.65 spreads healthy QR-task polling over 24–36 seconds per device, reducing
   synchronized load on the merchandising fallback without changing recommendations or orders.
 
+## [0.1.48] - 2026-10-21
+
+### Fixed
+
+- Keep the pharmacist's Recommendations button inside the learner portal. Its own
+  route displays the active recommendation groups and offers from the self-service
+  API, without an HQ login or access to the administration console.
+- Reconcile the deployed learner reading flow, navigation and personal-data views
+  with current main instead of rolling back campaign authoring, ACC triggers,
+  reports, merchandising identity confirmation or the training administration.
+- Show personal-data authorization failures explicitly rather than displaying a
+  fallback balance; discard responses from an account that has already signed out.
+
+### Rollout
+
+- Frontend-only release with an audited, rollback-capable transaction. Keep the
+  running backend v0.1.47, POSM, balances, active rules and integration settings.
+
 ## [0.1.47] - 2026-10-21
 
 ### Added

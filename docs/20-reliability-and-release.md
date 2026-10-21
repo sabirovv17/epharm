@@ -29,7 +29,7 @@ production location is `/var/backups/epharm`, on storage independent from Docker
 
 Optional `BACKUP_RELEASE_ROOT` enables daily rotation of dedicated pre-deploy rollback bundles:
 keep the newest `BACKUP_RELEASE_KEEP_COUNT` (default 3, minimum 2) **plus** bundles referenced by
-the active backend-only/archive transactions and their pre-rollback markers in every deployment
+the active backend-only/frontend-only/archive transactions and their pre-rollback markers in every deployment
 listed in `BACKUP_RELEASE_DEPLOY_DIRS` (colon-separated). The wrapper holds all canonical deployment
 locks; malformed references, unsafe paths, unknown bundle contents or altered manifests fail closed.
 Unknown files, legacy SQL dumps, signing material, POSM downloads and Docker volumes are not targets.
@@ -150,10 +150,13 @@ or unavailable evidence. It uses standard HTTPS; a public repository needs no cr
 `GH_TOKEN`/`GITHUB_TOKEN` can be supplied from secret storage for private access or API limits.
 The gate is called by prepare and new deployment transactions, never by explicit rollback.
 
-The `container / admin production build` CI job runs six isolated browser scenarios against the
+The `container / admin production build` CI job runs isolated browser scenarios against the
 actual nginx image. All API requests are mocked/deny-by-default; production reset, login and draft
 creation are never sent. The tests require all four campaign trigger types and verify their request
-payloads. `verify-admin-artifact.py` additionally rejects the known obsolete compiled form before
+payloads. The real router must also keep learner recommendations, direct reload and sign-in
+inside the pharmacist cabinet without an HQ session; personal data cannot leak across account
+changes or become a fallback balance after an authorization failure.
+`verify-admin-artifact.py` additionally rejects the known obsolete compiled form before
 promotion. Candidate smoke compares the public `/`, `/promo`, index and protected JS/CSS bytes
 with the exact image and checks both public commit identifiers. These guards complement backend
 integration tests, not replace them.

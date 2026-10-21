@@ -26,7 +26,7 @@ class RollbackRetentionTest(unittest.TestCase):
         self.backups.mkdir(mode=0o700)
         self.deploy = self.root / "deploy"
         self.deploy.mkdir(mode=0o755)
-        for kind in ("backend-only", "archive-two-image"):
+        for kind in ("backend-only", "archive-two-image", "frontend-only"):
             (self.deploy / "releases" / kind).mkdir(parents=True, mode=0o700)
 
     @staticmethod
@@ -89,6 +89,13 @@ class RollbackRetentionTest(unittest.TestCase):
         self.assertFalse(bundles[2].exists())
         self.assertTrue(all(path.exists() for index, path in enumerate(bundles) if index != 2))
         self.assertEqual(self.run_prune(apply=True), [])
+
+    def test_frontend_only_active_rollback_bundle_is_not_rotated(self):
+        bundles = [self.bundle(day) for day in range(1, 7)]
+        self.active("frontend-only", bundles[0], bundles[1])
+        self.assertEqual(self.run_prune(apply=True), [bundles[2]])
+        self.assertTrue(bundles[0].exists())
+        self.assertTrue(bundles[1].exists())
 
     def test_fewer_than_keep_are_untouched(self):
         only = self.bundle(1)
