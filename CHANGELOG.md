@@ -7,13 +7,6 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ### Added
 
-- Read-only pharmacist self-service APIs for the canonical personal balance in KZT and
-  a paginated directory of active substitution/cross-sell recommendations. Both derive
-  identity from a valid ePharm pharmacist access token, reject inactive accounts and
-  prohibit shared response caching; caller-supplied user identifiers grant no access.
-- Recommendation responses retain exact-product, ACC group, subgroup and INN triggers,
-  up to five offers per group, per-offer rewards, scripts and confirmed barcode aliases.
-  This directory does not replace POSM cart matching or local stock checks.
 - Added fail-open merchandising recommendations and structured pharmacy/network/warehouse stock
   context to the existing POSM recommendation flow, while preserving ePharm's canonical rules,
   event attribution and pharmacist balance accounting.
@@ -24,12 +17,27 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ### Fixed
 
-- Reject expired, malformed, unsupported and invalid-claim JWTs as authentication errors
-  instead of allowing token-parser failures to become server errors.
 - Added a bounded mobile API timeout so unavailable services fail with an actionable retry state
   instead of leaving the application waiting indefinitely.
 - POSM 1.0.65 spreads healthy QR-task polling over 24–36 seconds per device, reducing
   synchronized load on the merchandising fallback without changing recommendations or orders.
+
+## [0.1.47] - 2026-10-21
+
+### Added
+
+- Read-only pharmacist self-service APIs for the canonical personal balance in KZT and
+  a paginated directory of active substitution/cross-sell recommendations. Both derive
+  identity from a valid ePharm pharmacist access token, reject inactive accounts and
+  prohibit shared response caching; caller-supplied user identifiers grant no access.
+- Recommendation responses retain exact-product, ACC group, subgroup and INN triggers,
+  up to five offers per group, per-offer rewards, scripts and confirmed barcode aliases.
+  This directory does not replace POSM cart matching or local stock checks.
+
+### Fixed
+
+- Reject expired, malformed, unsupported and invalid-claim JWTs as authentication errors
+  instead of allowing token-parser failures to become server errors.
 
 ### Rollout
 
