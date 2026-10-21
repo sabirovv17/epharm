@@ -725,11 +725,15 @@ export default function LearnerTrainingPage() {
     setBalanceError('')
     setRecommendationsError('')
     let coreLoaded = false
+    let profileBalanceFallback: PersonalBalance | null = null
     try {
       const [me, training] = await Promise.all([
         request<Pharmacist>('/api/mobile/auth/me', {}, activeTokens, tokenLifecycle),
         request<Overview>('/api/mobile/training', {}, activeTokens, tokenLifecycle),
       ])
+      if (typeof me.balance === 'number' && Number.isFinite(me.balance)) {
+        profileBalanceFallback = { balanceKzt: me.balance, currency: 'KZT' }
+      }
       setPharmacist(me)
       setOverview(training)
       coreLoaded = true
@@ -760,6 +764,12 @@ export default function LearnerTrainingPage() {
 
     if (balanceResult.status === 'fulfilled') {
       setPersonalBalance(balanceResult.value)
+    } else if (profileBalanceFallback) {
+      // Production versions before the dedicated personal-data contract expose
+      // the same unified pharmacist wallet on /api/mobile/auth/me. Keep the
+      // cabinet useful during the compatible backend rollout without treating
+      // an unavailable dedicated endpoint as a zero balance.
+      setPersonalBalance(profileBalanceFallback)
     } else {
       setBalanceError(personalDataError(balanceResult.reason, 'balance'))
     }
@@ -1499,7 +1509,7 @@ export default function LearnerTrainingPage() {
             onNavigate={(section) => navigate(section === 'home' ? '/learn' : `/learn/${section}`)}
           />
         )}
-        <div className={`min-w-0 pb-24 lg:pb-4 ${selected ? 'lg:col-span-2 lg:mx-auto lg:w-full lg:max-w-6xl' : ''}`}>
+        <div className={`learner-content min-w-0 pb-24 lg:pb-4 ${selected ? 'is-focus lg:col-span-2 lg:mx-auto lg:w-full lg:max-w-6xl' : ''}`}>
         <header className="learner-page-header">
           <div>
             <div className="hidden text-[11px] font-extrabold uppercase tracking-[0.18em] text-brand-green-700 sm:block">{t('Кабинет фармацевта')}</div>

@@ -5,6 +5,14 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.44] - 2026-10-21
+
+### Fixed
+
+- Displayed the pharmacist's unified wallet balance from the compatible authenticated profile response
+  while the dedicated personal-balance endpoint is not yet available in production.
+- Fixed the desktop pharmacist navigation to the viewport while keeping the mobile bottom navigation intact.
+
 ## [0.1.43] - 2026-10-21
 
 ### Added

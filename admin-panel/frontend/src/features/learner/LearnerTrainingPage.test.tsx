@@ -236,6 +236,32 @@ describe('learner training portal', () => {
     expect(screen.queryByText('0 ₸')).not.toBeInTheDocument()
   })
 
+  it('uses the compatible profile balance while the dedicated balance endpoint is unavailable', async () => {
+    localStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const path = String(input)
+      if (path === '/api/mobile/auth/me') {
+        return json({
+          id: 'ph-1',
+          name: 'Айжан',
+          phone: '+77070000000',
+          pharmacyName: 'Ауэзова 134',
+          city: 'Алматы',
+          balance: 17_500,
+        })
+      }
+      if (path === '/api/mobile/training') return json({ total: 0, inProgress: 0, completed: 0, overdue: 0, assignments: [] })
+      if (path === '/api/mobile/me/balance') return json({ code: 'NOT_FOUND', message: 'Не найдено' }, 404)
+      if (path === '/api/mobile/me/recommendations?page=0&size=20') return json({ items: [], page: 0, size: 20, total: 0, currency: 'KZT' })
+      return json({ code: 'NOT_FOUND', message: `Unexpected request: ${path}` }, 500)
+    })
+
+    renderPortal()
+
+    expect(await screen.findByText('17 500 ₸')).toBeInTheDocument()
+    expect(screen.queryByText('Баланс временно недоступен')).not.toBeInTheDocument()
+  })
+
   it('shows the fire-safety video as the first lesson block', async () => {
     localStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
     const assignment = {
