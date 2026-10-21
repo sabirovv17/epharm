@@ -22,6 +22,18 @@ All notable production changes to Epharm are recorded here. The format follows
 - POSM 1.0.65 spreads healthy QR-task polling over 24–36 seconds per device, reducing
   synchronized load on the merchandising fallback without changing recommendations or orders.
 
+## [0.1.42] - 2026-10-21
+
+### Changed
+
+- Temporarily pause employee sign-in on cash desks. POSM 1.0.72 does not start the staff
+  module, so no login, registration, recovery or staff-status window/tray is created even
+  when an older local configuration enables it. A reviewed new binary is required to resume.
+- Keep production `POSM_STAFF_AUTH_ENABLED=false` for clients awaiting the update. Preserve
+  the complete staff implementation and stored profiles/password hashes for a later pilot.
+- Client-only release: backend/admin remain v0.1.41. Standard-N, receipt delivery, recommendations,
+  merchandising QR, customer display and the signed updater are unchanged.
+
 ## [0.1.41] - 2026-10-21
 
 ### Added

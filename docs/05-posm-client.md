@@ -27,8 +27,8 @@ The POSM client runs on a Windows cash-desk machine:
 11. Stores outgoing non-real-time events in a local SQLite outbox and retries safely.
 12. Sends any cashier id/name found in Standard-N as an audit signal; the backend decides the trusted
     internal pharmacist used for bonuses.
-13. Optionally opens a nonmodal employee IIN/password, registration or phone-reset window.
-    Server capabilities must enable it; Standard-N/Windows and ordinary POSM loops stay usable.
+13. Retains optional employee sign-in/registration/phone-reset code for a future pilot. Production
+    POSM 1.0.72 does not start this module; Standard-N/Windows and ordinary POSM loops stay usable.
 14. Shows and processes only non-demo pickup orders with cash payment. Missing delivery or payment
     fields fail closed. Cached orders are rechecked on startup; server-removed cards close after
     the next successful poll. Recommendations remain on a separate path.
@@ -120,7 +120,15 @@ catalog product ids.
 
 ## Config
 
-POSM 1.0.71 includes a guided registration/recovery choice after a failed IIN/password login.
+POSM 1.0.72 temporarily disables the entire staff module with the read-only
+`EpharmConfig.StaffAuthenticationReleaseEnabled=false` release gate. No HTTP client, staff DB
+observer, tray or staff window starts; JSON, environment or server capabilities cannot override it.
+Production also keeps `POSM_STAFF_AUTH_ENABLED=false` so older responsive clients close their
+staff windows. An already blocked old process still needs the signed client update/restart.
+Existing staff profiles, hashes and all other POSM loops are preserved. Re-enabling requires a
+reviewed new binary, explicit server opt-in and the isolated Windows/SMS pilot below.
+
+The retained POSM 1.0.71 implementation includes a guided registration/recovery choice after a failed IIN/password login.
 The typed IIN is retained while passwords, OTP and the previous challenge are cleared. Unknown
 IIN and wrong password have the same response/guidance: there is no account-existence endpoint.
 Registration still requires SMS and creates a pending profile requiring pharmacy assignment.
@@ -150,7 +158,7 @@ Staff-channel failures must not stop receipt polling, updates, QR, recommendatio
 | `AppLogPath`                           | `EPHARM_APP_LOG`                           | POSM app log path.                                                                 |
 | `StandardNLogPaths`                    | `EPHARM_STANDARDN_LOG_PATHS`               | Optional explicit paths (`;`-separated in env).                                    |
 | `StandardNReceiptPollMs`               | `EPHARM_STANDARDN_RECEIPT_POLL_MS`         | Active receipt poll interval; default 400ms.                                       |
-| `StaffAuthenticationEnabled`           | `EPHARM_STAFF_AUTH_ENABLED`                | Local opt-out; server capabilities are additionally required.                      |
+| `StaffAuthenticationEnabled`           | `EPHARM_STAFF_AUTH_ENABLED`                | Local opt-out; cannot override the disabled release gate in 1.0.72.                |
 | `StaffSessionMaxAgeSec`                | `EPHARM_STAFF_SESSION_MAX_AGE_SEC`         | Staff DB-heartbeat freshness policy, default 300s; verify actual cadence in pilot. |
 | `ReceiptCaptureEnabled`                | `EPHARM_RECEIPT_CAPTURE_ENABLED`           | Enables exact-only local capture; default true.                                    |
 | `ReceiptCaptureDir`                    | `EPHARM_RECEIPT_CAPTURE_DIR`               | Root for active/pending/quarantine receipt artifacts.                              |
@@ -172,7 +180,8 @@ cash-event marker is observed. The cache is `C:\Epharm\standardn-log-paths.txt`.
 
 `Enabled` is effective only when key identity fields are present.
 
-Staff identity is observed independently of an open receipt: one local cashier process
+When the staff module is explicitly re-enabled in a future release, staff identity is observed
+independently of an open receipt: one local cashier process
 (PID/start time), exact canonical workstation and one fresh session. It never borrows the
 receipt reader's sole-foreign-session or substring fallback. Unknown/stale/ambiguous observations
 clear only the employee grant and show a nonblocking reason. Grants remain in memory and are
