@@ -14,13 +14,19 @@ All notable production changes to Epharm are recorded here. The format follows
   interactive content, downloadable attachments, required lessons and minimum video-view targets;
   the mobile app now renders and opens every published material.
 - Added local search and operational sorting to the pharmacist training list.
-
 ### Fixed
 
 - Added a bounded mobile API timeout so unavailable services fail with an actionable retry state
   instead of leaving the application waiting indefinitely.
 - POSM 1.0.65 spreads healthy QR-task polling over 24–36 seconds per device, reducing
   synchronized load on the merchandising fallback without changing recommendations or orders.
+
+## [0.1.49] - 2026-10-22
+
+### Added
+
+- Added a responsive ePharm rating card beside the pharmacist balance, calculated from real course
+  progress and assessment scores with a clear 0–100 scale and status.
 
 ## [0.1.48] - 2026-10-21
 

@@ -2332,6 +2332,7 @@ function OverviewView({
     <section>
       <BalanceOverview
         balance={balance}
+        overview={overview}
         loading={personalDataLoading}
         balanceError={balanceError}
         onRetry={onRetryPersonalData}
@@ -2382,19 +2383,30 @@ function OverviewView({
 
 function BalanceOverview({
   balance,
+  overview,
   loading,
   balanceError,
   onRetry,
 }: {
   balance: PersonalBalance | null
+  overview: Overview | null
   loading: boolean
   balanceError: string
   onRetry: () => void | Promise<void>
 }) {
   const t = useLearnerT()
+  const rating = calculateEpharmRating(overview)
+  const ratingLevel = rating >= 80
+    ? { label: t('Отличный'), color: 'text-[#4f9f3b]' }
+    : rating >= 60
+      ? { label: t('Хороший'), color: 'text-[#78a82f]' }
+      : rating >= 40
+        ? { label: t('Развивающийся'), color: 'text-[#c58b17]' }
+        : { label: t('Начальный'), color: 'text-[#d85a45]' }
+  const markerPosition = Math.min(98, Math.max(2, rating))
   return (
-    <section className="mb-8" aria-labelledby="balance-heading">
-      <article className="max-w-sm rounded-2xl bg-brand-green-700 p-5 text-white shadow-card sm:p-6">
+    <section className="mb-8 grid gap-4 md:grid-cols-2" aria-label={t('Баланс и рейтинг')}>
+      <article className="rounded-2xl bg-brand-green-700 p-5 text-white shadow-card sm:p-6">
         <div className="flex items-center justify-between gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10"><CircleDollarSign size={21} /></span>
           <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-white/80">ePharm</span>
@@ -2409,8 +2421,51 @@ function BalanceOverview({
         )}
         <p className="mt-3 text-xs leading-5 text-white/65">{t('Доступный денежный баланс вашей учётной записи.')}</p>
       </article>
+
+      <article className="rounded-2xl border border-ink-100 bg-white p-5 shadow-card sm:p-6">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-xs font-bold text-ink-500">{t('Ваш рейтинг ePharm')}</div>
+            <div className="mt-2 flex items-end gap-2">
+              <span className="text-3xl font-extrabold tracking-tight text-ink-900">{rating}</span>
+              <span className="pb-0.5 text-lg font-bold text-ink-300">/ 100</span>
+            </div>
+          </div>
+          <span className={`pt-1 text-sm font-extrabold ${ratingLevel.color}`}>{ratingLevel.label}</span>
+        </div>
+
+        <div
+          className="relative mt-4 pt-3"
+          role="meter"
+          aria-label={t('Ваш рейтинг ePharm')}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={rating}
+        >
+          <span
+            className="absolute top-0 h-0 w-0 -translate-x-1/2 border-x-[7px] border-t-[9px] border-x-transparent border-t-ink-700"
+            style={{ left: `${markerPosition}%` }}
+            aria-hidden="true"
+          />
+          <div className="grid grid-cols-4 gap-2" aria-hidden="true">
+            <span className="h-3 rounded-full bg-gradient-to-r from-[#f04a43] to-[#f28a32]" />
+            <span className="h-3 rounded-full bg-gradient-to-r from-[#efa52c] to-[#e4c742]" />
+            <span className="h-3 rounded-full bg-gradient-to-r from-[#d3d940] to-[#92ca3d]" />
+            <span className="h-3 rounded-full bg-gradient-to-r from-[#75c83e] to-[#43b95d]" />
+          </div>
+          <div className="mt-2 flex justify-between text-[10px] font-bold text-ink-300" aria-hidden="true"><span>0</span><span>100</span></div>
+        </div>
+        <p className="mt-2 text-xs leading-5 text-ink-400">{t('На основе прогресса и результатов обучения.')}</p>
+      </article>
     </section>
   )
+}
+
+function calculateEpharmRating(overview: Overview | null) {
+  const assignments = (overview?.assignments ?? []).filter((assignment) => assignment.status !== 'cancelled')
+  if (assignments.length === 0) return 0
+  const total = assignments.reduce((sum, assignment) => sum + (assignment.score ?? assignment.progressPct ?? 0), 0)
+  return Math.max(0, Math.min(100, Math.round(total / assignments.length)))
 }
 
 function RecommendationsView({

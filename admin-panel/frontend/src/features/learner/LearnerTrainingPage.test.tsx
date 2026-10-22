@@ -324,6 +324,8 @@ describe('learner training portal', () => {
 
     expect(await screen.findByRole('heading', { name: 'Айжан' })).toBeInTheDocument()
     expect(screen.getByText('Курсы к обучению')).toBeInTheDocument()
+    expect(screen.getByText('Ваш рейтинг ePharm')).toBeInTheDocument()
+    expect(screen.getByRole('meter', { name: 'Ваш рейтинг ePharm' })).toHaveAttribute('aria-valuenow', '25')
     expect(screen.getByRole('heading', { name: 'Современная фармация' })).toBeInTheDocument()
     expect(screen.getByText('Что вы получите')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Начать курс' })).toBeInTheDocument()
