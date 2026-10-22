@@ -2397,12 +2397,12 @@ function BalanceOverview({
   const t = useLearnerT()
   const rating = calculateEpharmRating(overview)
   const ratingLevel = rating >= 80
-    ? { label: t('Отличный'), color: 'text-[#4f9f3b]' }
+    ? { label: t('Отличный'), color: 'text-[#2f9e63]' }
     : rating >= 60
-      ? { label: t('Хороший'), color: 'text-[#78a82f]' }
+      ? { label: t('Хороший'), color: 'text-[#0d918a]' }
       : rating >= 40
-        ? { label: t('Развивающийся'), color: 'text-[#c58b17]' }
-        : { label: t('Начальный'), color: 'text-[#d85a45]' }
+        ? { label: t('Развивающийся'), color: 'text-[#397f91]' }
+        : { label: t('Начальный'), color: 'text-[#647a80]' }
   const markerPosition = Math.min(98, Math.max(2, rating))
   return (
     <section className="mb-8 grid gap-4 md:grid-cols-2" aria-label={t('Баланс и рейтинг')}>
@@ -2448,10 +2448,10 @@ function BalanceOverview({
             aria-hidden="true"
           />
           <div className="grid grid-cols-4 gap-2" aria-hidden="true">
-            <span className="h-3 rounded-full bg-gradient-to-r from-[#f04a43] to-[#f28a32]" />
-            <span className="h-3 rounded-full bg-gradient-to-r from-[#efa52c] to-[#e4c742]" />
-            <span className="h-3 rounded-full bg-gradient-to-r from-[#d3d940] to-[#92ca3d]" />
-            <span className="h-3 rounded-full bg-gradient-to-r from-[#75c83e] to-[#43b95d]" />
+            <span className="h-3 rounded-full bg-gradient-to-r from-[#c6ece8] to-[#9edfd9]" />
+            <span className="h-3 rounded-full bg-gradient-to-r from-[#86d4cd] to-[#62c3ba]" />
+            <span className="h-3 rounded-full bg-gradient-to-r from-[#46b8ae] to-[#1fa194]" />
+            <span className="h-3 rounded-full bg-gradient-to-r from-[#159785] to-[#2f9e63]" />
           </div>
           <div className="mt-2 flex justify-between text-[10px] font-bold text-ink-300" aria-hidden="true"><span>0</span><span>100</span></div>
         </div>
@@ -3653,8 +3653,8 @@ function QuizLesson({
 
   if (completed && !result) {
     return (
-      <section className="rounded-2xl border border-brand-green-200 bg-brand-green-50 p-5">
-        <div className="flex items-center gap-3 text-brand-green-700">
+      <section className="rounded-2xl border border-[#9bd8b7] bg-[#e7f8ef] p-5">
+        <div className="flex items-center gap-3 text-[#17623f]">
           <CheckCircle2 size={24} />
           <div>
             <div className="font-extrabold">{t('Тест пройден')}</div>
@@ -3678,7 +3678,7 @@ function QuizLesson({
       </div>
 
       {result && (
-        <div className={`mt-4 rounded-xl p-4 ${result.passed ? 'bg-brand-green-100 text-brand-green-800' : 'bg-surface-danger text-accent-danger'}`}>
+        <div className={`mt-4 rounded-xl p-4 ${result.passed ? 'border border-[#9bd8b7] bg-[#e7f8ef] text-[#17623f]' : 'bg-surface-danger text-accent-danger'}`}>
           <div className="font-extrabold">{result.passed ? t('Тест пройден') : t('Тест не пройден')}</div>
           <div className="mt-1 text-sm font-semibold">
             {t('Результат: {score}% · правильных ответов {correct} из {total}', {
@@ -3713,13 +3713,14 @@ function QuizLesson({
                   return (
                     <label
                       key={`${question.id}-${optionIndex}`}
+                      data-answer-state={correct ? 'correct' : wrongSelected ? 'incorrect' : selected ? 'selected' : 'idle'}
                       className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 text-sm font-semibold transition ${
                         correct
-                          ? 'border-brand-green-300 bg-brand-green-50 text-brand-green-800'
+                          ? 'border-[#70c795] bg-[#e7f8ef] text-[#17623f] ring-1 ring-[#70c795]/30'
                           : wrongSelected
                             ? 'border-red-200 bg-red-50 text-red-700'
                             : selected
-                              ? 'border-brand-green-400 bg-brand-green-50 text-ink-800'
+                              ? 'border-[#46baaf] bg-[#eaf7f6] text-ink-800'
                               : 'border-ink-100 bg-white text-ink-700 hover:bg-paper-hover'
                       }`}
                     >
@@ -3730,13 +3731,14 @@ function QuizLesson({
                         disabled={!!result || submitting}
                         onChange={() => setAnswers((current) => ({ ...current, [question.id]: optionIndex }))}
                       />
-                      <span>{option}</span>
+                      <span className="min-w-0 flex-1">{option}</span>
+                      {correct && <CheckCircle2 className="mt-0.5 shrink-0 text-[#2f9e63]" size={18} aria-hidden="true" />}
                     </label>
                   )
                 })}
               </div>
               {questionResult && (
-                <div className={`mt-3 text-xs font-bold ${questionResult.correct ? 'text-brand-green-700' : 'text-red-700'}`}>
+                <div className={`mt-3 text-xs font-bold ${questionResult.correct ? 'text-[#238454]' : 'text-red-700'}`}>
                   {questionResult.correct ? t('Правильный ответ') : t('Неправильный ответ')}
                   {questionResult.explanation && <span className="ml-1 font-semibold text-ink-500">· {questionResult.explanation}</span>}
                 </div>

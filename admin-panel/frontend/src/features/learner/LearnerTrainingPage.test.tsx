@@ -847,6 +847,9 @@ describe('learner training portal', () => {
     })
     expect(await screen.findByText('Тест пройден')).toBeInTheDocument()
     expect(screen.getByText(/Результат: 100%/)).toBeInTheDocument()
+    expect(screen.getByText('До еды').closest('label')).toHaveAttribute('data-answer-state', 'correct')
+    expect(screen.getByText('До еды').closest('label')).toHaveClass('bg-[#e7f8ef]')
+    expect(screen.getByText('Две').closest('label')).toHaveAttribute('data-answer-state', 'correct')
   })
 
   it('keeps the home page focused on active training and puts certificates in a separate tab', async () => {
