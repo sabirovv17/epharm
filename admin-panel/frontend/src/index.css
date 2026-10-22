@@ -308,7 +308,118 @@
    direction: deep teal navigation, hygienic surfaces and calm density.
    ───────────────────────────────────────────────────────────────── */
 body.learner-portal {
+  --learner-accent-50: #eaf7f6;
+  --learner-accent-100: #d4efec;
+  --learner-accent-200: #aee0db;
+  --learner-accent-300: #7bcfc7;
+  --learner-accent-400: #46baaf;
+  --learner-accent-500: #20a298;
+  --learner-accent-600: #0d918a;
+  --learner-accent-700: #087b77;
+  --learner-accent-800: #075f5d;
   background: #eef5f5;
+}
+
+/*
+ * The admin console intentionally keeps its own terracotta action palette.
+ * The pharmacist workspace uses the pharmacy-teal family exclusively, so the
+ * legacy brand-green utility names are remapped only while learner-portal is
+ * mounted. This prevents learner UI changes from leaking into the admin UI.
+ */
+.learner-portal .bg-brand-green-50 {
+  background-color: var(--learner-accent-50);
+}
+
+.learner-portal .bg-brand-green-100,
+.learner-portal .bg-brand-blue-100 {
+  background-color: var(--learner-accent-100);
+}
+
+.learner-portal .bg-brand-green-300 {
+  background-color: var(--learner-accent-300);
+}
+
+.learner-portal .bg-brand-green-400 {
+  background-color: var(--learner-accent-400);
+}
+
+.learner-portal .bg-brand-green-500 {
+  background-color: var(--learner-accent-500);
+}
+
+.learner-portal .bg-brand-green-600 {
+  background-color: var(--learner-accent-600);
+}
+
+.learner-portal .bg-brand-green-700 {
+  background-color: var(--learner-accent-700);
+}
+
+.learner-portal .text-brand-green-100\/80 {
+  color: rgb(212 239 236 / 0.8);
+}
+
+.learner-portal .text-brand-green-200 {
+  color: var(--learner-accent-200);
+}
+
+.learner-portal .text-brand-green-300 {
+  color: var(--learner-accent-300);
+}
+
+.learner-portal .text-brand-green-600,
+.learner-portal .text-brand-blue-600 {
+  color: var(--learner-accent-600);
+}
+
+.learner-portal .text-brand-green-700 {
+  color: var(--learner-accent-700);
+}
+
+.learner-portal .text-brand-green-800 {
+  color: var(--learner-accent-800);
+}
+
+.learner-portal .border-brand-green-100 {
+  border-color: var(--learner-accent-100);
+}
+
+.learner-portal .border-brand-green-200 {
+  border-color: var(--learner-accent-200);
+}
+
+.learner-portal .border-brand-green-300 {
+  border-color: var(--learner-accent-300);
+}
+
+.learner-portal .border-brand-green-400 {
+  border-color: var(--learner-accent-400);
+}
+
+.learner-portal .to-brand-green-50 {
+  --tw-gradient-to: var(--learner-accent-50) var(--tw-gradient-to-position);
+}
+
+.learner-portal .hover\:bg-brand-green-50:hover {
+  background-color: var(--learner-accent-50);
+}
+
+.learner-portal .hover\:border-brand-green-200:hover {
+  border-color: var(--learner-accent-200);
+}
+
+.learner-portal .hover\:border-brand-green-400:hover {
+  border-color: var(--learner-accent-400);
+}
+
+.learner-portal .group:hover .group-hover\:text-brand-green-700 {
+  color: var(--learner-accent-700);
+}
+
+.learner-portal .chip-green,
+.learner-portal .chip-blue {
+  background-color: var(--learner-accent-100);
+  color: var(--learner-accent-700);
 }
 
 .learner-auth-shell {
@@ -405,11 +516,20 @@ body.learner-portal {
 }
 
 .learner-portal .btn-primary {
+  border-color: rgba(8, 123, 119, 0.25);
+  background-color: var(--learner-accent-600);
+  color: #fff;
   box-shadow: 0 5px 14px rgba(7, 135, 127, 0.17);
 }
 
 .learner-portal .btn-primary:hover {
+  background-color: var(--learner-accent-700);
   box-shadow: 0 7px 18px rgba(7, 135, 127, 0.23);
+}
+
+.learner-portal .inp:focus {
+  border-color: var(--learner-accent-600);
+  box-shadow: 0 0 0 3px rgba(13, 145, 138, 0.18);
 }
 
 .learner-portal .shadow-card {

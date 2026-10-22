@@ -324,6 +324,8 @@ describe('learner training portal', () => {
 
     expect(await screen.findByRole('heading', { name: 'Айжан' })).toBeInTheDocument()
     expect(screen.getByText('Курсы к обучению')).toBeInTheDocument()
+    expect(screen.getByText('Ваш рейтинг ePharm')).toBeInTheDocument()
+    expect(screen.getByRole('meter', { name: 'Ваш рейтинг ePharm' })).toHaveAttribute('aria-valuenow', '25')
     expect(screen.getByRole('heading', { name: 'Современная фармация' })).toBeInTheDocument()
     expect(screen.getByText('Что вы получите')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Начать курс' })).toBeInTheDocument()
@@ -845,6 +847,9 @@ describe('learner training portal', () => {
     })
     expect(await screen.findByText('Тест пройден')).toBeInTheDocument()
     expect(screen.getByText(/Результат: 100%/)).toBeInTheDocument()
+    expect(screen.getByText('До еды').closest('label')).toHaveAttribute('data-answer-state', 'correct')
+    expect(screen.getByText('До еды').closest('label')).toHaveClass('bg-[#e7f8ef]')
+    expect(screen.getByText('Две').closest('label')).toHaveAttribute('data-answer-state', 'correct')
   })
 
   it('keeps the home page focused on active training and puts certificates in a separate tab', async () => {
