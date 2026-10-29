@@ -1,0 +1,180 @@
+{
+  "at_utc": "2026-10-29T05:55:28.273487+00:00",
+  "counts": {
+    "schema_migrations": {
+      "rows": 87
+    },
+    "sms_login_challenges": {
+      "rows": 0
+    },
+    "app_users": {
+      "rows": 6
+    },
+    "branches": {
+      "rows": 680
+    },
+    "inventory_containers": {
+      "rows": 5080
+    },
+    "media_plan_items": {
+      "rows": 6
+    },
+    "media_plans": {
+      "rows": 3
+    },
+    "member_branch_access": {
+      "rows": 32
+    },
+    "monthly_inventory": {
+      "rows": 16935
+    },
+    "organizations": {
+      "rows": 9
+    },
+    "promotions": {
+      "rows": 0
+    },
+    "shelves": {
+      "rows": 16914
+    },
+    "staff_access_codes": {
+      "rows": 10
+    },
+    "staff_task_batches": {
+      "rows": 0
+    },
+    "telegram_chat_bindings": {
+      "rows": 0
+    },
+    "visit_reports": {
+      "rows": 0
+    },
+    "advertising_place_photos": {
+      "rows": 0
+    },
+    "audit_log": {
+      "rows": 39
+    },
+    "organization_members": {
+      "rows": 0
+    },
+    "staff_access_attempts": {
+      "rows": 7
+    },
+    "staff_access_code_branches": {
+      "rows": 530
+    },
+    "staff_task_checklist_items": {
+      "rows": 246
+    },
+    "staff_task_comments": {
+      "rows": 0
+    },
+    "staff_task_events": {
+      "rows": 277
+    },
+    "staff_tasks": {
+      "rows": 82
+    },
+    "staff_task_attachments": {
+      "rows": 11
+    },
+    "telegram_branch_invites": {
+      "rows": 0
+    },
+    "telegram_chat_states": {
+      "rows": 0
+    },
+    "telegram_notification_log": {
+      "rows": 0
+    },
+    "user_sessions": {
+      "rows": 235
+    },
+    "visit_report_attempts": {
+      "rows": 0
+    },
+    "visit_report_attempt_photos": {
+      "rows": 0
+    },
+    "visit_shelf_photos": {
+      "rows": 0
+    },
+    "advertiser_profiles": {
+      "rows": 3
+    },
+    "branch_passport_photos": {
+      "rows": 0
+    },
+    "epharm_branch_crosswalk": {
+      "rows": 532
+    },
+    "epharm_catalog_snapshots": {
+      "rows": 1
+    },
+    "epharm_catalog_staging": {
+      "rows": 530
+    },
+    "placement_item_client_photos": {
+      "rows": 0
+    },
+    "placement_item_product_details": {
+      "rows": 6
+    },
+    "staff_task_delivery_receipts": {
+      "rows": 27
+    },
+    "staff_task_dispatch_links": {
+      "rows": 36
+    },
+    "staff_task_kiosk_devices": {
+      "rows": 0
+    },
+    "staff_task_kiosk_links": {
+      "rows": 0
+    },
+    "supplier_budget_plan_items": {
+      "rows": 48
+    },
+    "supplier_budget_plans": {
+      "rows": 10
+    },
+    "supplier_company_members": {
+      "rows": 0
+    },
+    "supplier_pricing_tiers": {
+      "rows": 5
+    },
+    "staff_task_dispatches": {
+      "rows": 27
+    },
+    "pharmacy_training_materials": {
+      "rows": 0
+    },
+    "staff_task_stock_observations": {
+      "rows": 0
+    },
+    "pharmapay_recommendation_signals": {
+      "rows": 0
+    },
+    "pharmapay_product_balances": {
+      "rows": 0
+    },
+    "epharm_executor_challenges": {
+      "rows": 0
+    },
+    "epharm_reward_outbox": {
+      "rows": 0
+    },
+    "epharm_executor_bindings": {
+      "rows": 0
+    },
+    "epharm_executor_links": {
+      "rows": 0
+    }
+  },
+  "migration_columns": ["name", "applied_at"],
+  "migration_count": {
+    "rows": 87
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "checked_at_utc": "2026-10-29T07:24:59.698451+00:00",
+  "branch": "codex/unified-admin-baseline",
+  "authorized_production_change": "Exactly backup pointer canonicalization and original-byte audit, approved by user; no app deploy/restart/retention/data mutation",
+  "unit_results": {
+    "backend_suites": [
+      {
+        "name": "kz.epharm.posm.LegacyPosmWireContractTest",
+        "tests": 27,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "name": "kz.epharm.auth.policy.UnifiedAccessPolicyTest",
+        "tests": 21,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "name": "kz.epharm.merchtasks.MerchTaskClientTest",
+        "tests": 19,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "name": "kz.epharm.posm.DevicePresenceServiceTest",
+        "tests": 11,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "name": "kz.epharm.shared.identity.SourceIdentityTest",
+        "tests": 11,
+        "failures": 0,
+        "skipped": 0
+      }
+    ],
+    "backend_total": 89,
+    "dotnet_core": {
+      "passed": 296,
+      "new_legacy_cases": 19,
+      "trx_evidence_sha256": "53445b8c9497fae11d3a595592aa265ea9f45c9c60208a199bb4e76458330609"
+    },
+    "unification_python": 33,
+    "ops_python": 44
+  },
+  "shell_contracts_passed": [
+    "physical root-dir",
+    "frontend-only transaction/rollback",
+    "backend-only transaction/rollback",
+    "archive two-image transaction",
+    "archive rollback",
+    "backup chain ordering/locks in Linux container"
+  ],
+  "runtime_files": "Available16MinIO objects +31CRM files +20download files preserved and hashed. Three pre-existing missing references documented; source snapshot differs from live current writes. Asset shelf-template recovered from pinned source locally. See dedicated reports.",
+  "scope_limits": [
+    "No new-branch GitHub CI: no push or merge.",
+    "No full backend test suite or frontend build; added backend pure cores remain unwired.",
+    "No Windows overlay/real scan/customer second-screen/installed EXE hash proof.",
+    "No U4 schema migration, user/account mapping, bank payment or password export implementation.",
+    "No source/API/role/POSM or /learn production deployment."
+  ]
+}

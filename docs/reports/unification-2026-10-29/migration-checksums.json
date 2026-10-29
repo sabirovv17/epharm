@@ -1,0 +1,5 @@
+{
+  "algorithm": "Flyway CRC32 over UTF-8 lines without BOM/newlines (signed32); all current source migrations compared to captured live flyway_schema_history",
+  "checked": 65,
+  "differences": []
+}

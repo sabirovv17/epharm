@@ -34,6 +34,20 @@ listed in `BACKUP_RELEASE_DEPLOY_DIRS` (colon-separated). The wrapper holds all 
 locks; malformed references, unsafe paths, unknown bundle contents or altered manifests fail closed.
 Unknown files, legacy SQL dumps, signing material, POSM downloads and Docker volumes are not targets.
 
+`active-transaction` must contain a physical canonical absolute direct-child path and exactly
+one final LF. Do not remove a malformed reference or weaken retention checks. The reviewed
+`tools/ops/repair-frontend-pointer.py` defaults to read-only dry-run and accepts only the narrow
+legacy frontend relative format, pinned pointer/manifest SHA256 and exact running image IDs.
+It validates protected bundles under the existing deploy lock. Explicit `--apply` additionally
+preserves the original mode-0600 bytes outside bundles and replaces only that pointer atomically;
+it never deploys, restarts, restores a database or runs retention. Live repair requires separate
+authorization. The 29 October authorized repair and subsequent strict dry-run are recorded in
+`docs/reports/unification-2026-10-29/backup-blocker-resolution.json`.
+
+POSM files served through `/downloads/*` live outside the receipt bucket: MinIO backup alone
+does not preserve them. Before unification/cutover, verify the dedicated downloads manifest,
+copies and SHA256 alongside DB+uploads. Do not add these files to rollback retention targets.
+
 `BACKUP_RETENTION_DRY_RUN=true ./tools/backup-all.sh` creates and verifies fresh backups but only
 prints the proposed retention. Verify off-site recovery and an isolated restore before an initial
 historical cleanup. Legacy archives need a separate exact reviewed inventory; never use blanket

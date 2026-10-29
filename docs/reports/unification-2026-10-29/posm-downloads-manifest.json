@@ -1,0 +1,106 @@
+{
+  "at_utc": "2026-10-29T06:39:39.413083+00:00",
+  "root": "/srv/epharm-downloads",
+  "files": [
+    {
+      "relative_path": "Epharm-POSM-bridge-v1.0.46-win-x64.zip",
+      "bytes": 182628,
+      "sha256": "601de62cc99afae146fd74c135f5fc888d845eba227da6696897847b35a1bf89"
+    },
+    {
+      "relative_path": "Epharm-POSM-bridge-v1.0.47-win-x64.zip",
+      "bytes": 188297,
+      "sha256": "ab034cd3cb611ff89b79e30d18fdff65d248d9ce8b43abd43875345bdd4d443a"
+    },
+    {
+      "relative_path": "Epharm-POSM-update-v1.0.30-win-x64.zip",
+      "bytes": 168613659,
+      "sha256": "19c29a51ac5eb6f0e0f3579a62512bb00d14818eac623128737cb6088eb90386"
+    },
+    {
+      "relative_path": "Epharm-POSM-update-v1.0.45-win-x64.zip",
+      "bytes": 168623064,
+      "sha256": "8e68b8160ce58bc744d4765ae9dfccc21d20a87abcca19e2fd0ec8dba9453145"
+    },
+    {
+      "relative_path": "Epharm-POSM-update-v1.0.47-win-x64.zip",
+      "bytes": 168555707,
+      "sha256": "97e401e479005b8b2613d2ec45953c0aaff4a5593b60017584e5e6ea35be9e0c"
+    },
+    {
+      "relative_path": "archive/20260916T142507Z/epharm-posm-1.0.54-full.zip",
+      "bytes": 168709074,
+      "sha256": "476463daad95026b295972aa69e48c61024e1015d4c1c3d16d5b021a16242bf8"
+    },
+    {
+      "relative_path": "epharm-posm-1.0.51.zip",
+      "bytes": 172941653,
+      "sha256": "91af569bd2674c7e9bbf64b8a356728ce2a25499b40fdf86ec4e66f98db8771b"
+    },
+    {
+      "relative_path": "epharm-posm-1.0.53.zip",
+      "bytes": 168819103,
+      "sha256": "8634327e4497c42a97111f7ae8ac8a0e9b6f6b58b4e7da8365ea9b9ffd527e28"
+    },
+    {
+      "relative_path": "epharm-posm-1.0.54.zip",
+      "bytes": 236717,
+      "sha256": "a084bae883195c8756607e4312795e471c57d061cc2eb7355aa3e681049c6774"
+    },
+    {
+      "relative_path": "epharm-posm-1.0.55-compat.zip",
+      "bytes": 340359,
+      "sha256": "d9836851bd987cd024d776a315853869080d34d3ea7be8fbb7a35daaab977f80"
+    },
+    {
+      "relative_path": "epharm-posm-1.0.56-compat.zip",
+      "bytes": 340845,
+      "sha256": "cb65e261fd63442a2cf1fe51ecf68bd9b7692599d380a04e2700a85677f19d1b"
+    },
+    {
+      "relative_path": "epharm-posm-1.0.58-compat.zip",
+      "bytes": 343927,
+      "sha256": "75313b6711273f005f938abe52de9f387bbea5cdd5f129556621bc6544dbb036"
+    },
+    {
+      "relative_path": "epharm-posm-1.0.59-compat.zip",
+      "bytes": 355369,
+      "sha256": "af68d512190347363646871b13767d3ecb34eaf85a867744fe4aad16454ec0de"
+    },
+    {
+      "relative_path": "epharm-posm-1.0.60-recovery-compat.zip",
+      "bytes": 343522,
+      "sha256": "e5ca8a629fb10ab311683b7597c1455365109ee6c10789f403273c24c2557d29"
+    },
+    {
+      "relative_path": "epharm-posm-1.0.61-compat.zip",
+      "bytes": 355846,
+      "sha256": "4e3025b2c098a66136d5d25bbdc20155f6c52758b5a6d26ecb573eb27f0e1650"
+    },
+    {
+      "relative_path": "epharm-posm-1.0.62-forward-recovery-compat.zip",
+      "bytes": 355375,
+      "sha256": "3c9db77139b3c147d51e4de7dd35a2d29550d811d77253636f16fb4244e2bf53"
+    },
+    {
+      "relative_path": "epharm-posm-1.0.68-b310bfe59fb1-compat.zip",
+      "bytes": 363044,
+      "sha256": "68e14c89d27d379694f81c8a555ff43f862819e17e30c28cb5c16fd5ce1d1190"
+    },
+    {
+      "relative_path": "epharm-posm-1.0.70-757039e10211-compat.zip",
+      "bytes": 389515,
+      "sha256": "e35dec64bd1027cc0bcae9e54f7406a36609fcf7e2175cb19fff208acb663efa"
+    },
+    {
+      "relative_path": "epharm-posm-1.0.71-3ec63ef3d808-compat.zip",
+      "bytes": 391396,
+      "sha256": "031fe67123ed47c3664883b51bd3e94b1fa8e40410c0f72dcdac0db42178c885"
+    },
+    {
+      "relative_path": "epharm-posm-1.0.72-8210c2b52d56-compat.zip",
+      "bytes": 391395,
+      "sha256": "3a4566a5bc4177d4269feb3837e9ed8ed61eef7712c3b63ac1119951b3263a1e"
+    }
+  ]
+}

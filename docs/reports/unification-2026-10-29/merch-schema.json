@@ -1,0 +1,4620 @@
+{
+  "columns": [
+    {
+      "table_name": "advertiser_profiles",
+      "column_name": "user_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "advertiser_profiles",
+      "column_name": "company_name",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "advertiser_profiles",
+      "column_name": "legal_name",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "advertiser_profiles",
+      "column_name": "bin",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "advertiser_profiles",
+      "column_name": "legal_address",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "advertiser_profiles",
+      "column_name": "actual_address",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "advertiser_profiles",
+      "column_name": "bank_name",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "advertiser_profiles",
+      "column_name": "bic",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "advertiser_profiles",
+      "column_name": "iban",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "advertiser_profiles",
+      "column_name": "kbe",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "advertiser_profiles",
+      "column_name": "director_name",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "advertiser_profiles",
+      "column_name": "director_position",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "advertiser_profiles",
+      "column_name": "contact_position",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "advertiser_profiles",
+      "column_name": "contact_email",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "advertiser_profiles",
+      "column_name": "vat_registered",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "advertiser_profiles",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "advertiser_profiles",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "advertiser_profiles",
+      "column_name": "supplier_category",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "advertiser_profiles",
+      "column_name": "six_month_budget",
+      "data_type": "bigint",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "advertiser_profiles",
+      "column_name": "primary_contact_role",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "advertising_place_photos",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "advertising_place_photos",
+      "column_name": "shelf_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "advertising_place_photos",
+      "column_name": "object_key",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "advertising_place_photos",
+      "column_name": "mime_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "advertising_place_photos",
+      "column_name": "file_size_bytes",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "advertising_place_photos",
+      "column_name": "original_filename",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "advertising_place_photos",
+      "column_name": "position_index",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "advertising_place_photos",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "app_users",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "app_users",
+      "column_name": "email",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "app_users",
+      "column_name": "full_name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "app_users",
+      "column_name": "phone",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "app_users",
+      "column_name": "role",
+      "data_type": "USER-DEFINED",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "app_users",
+      "column_name": "password_hash",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "app_users",
+      "column_name": "active",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "app_users",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "app_users",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "app_users",
+      "column_name": "phone_verified_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "app_users",
+      "column_name": "operational_division",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "app_users",
+      "column_name": "onboarding_version",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "app_users",
+      "column_name": "onboarding_role",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "app_users",
+      "column_name": "onboarding_completed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "audit_log",
+      "column_name": "id",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "audit_log",
+      "column_name": "actor_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "audit_log",
+      "column_name": "organization_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "audit_log",
+      "column_name": "entity_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "audit_log",
+      "column_name": "entity_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "audit_log",
+      "column_name": "action",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "audit_log",
+      "column_name": "before_data",
+      "data_type": "jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "audit_log",
+      "column_name": "after_data",
+      "data_type": "jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "audit_log",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "branch_passport_photos",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "branch_passport_photos",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "branch_passport_photos",
+      "column_name": "angle_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "branch_passport_photos",
+      "column_name": "object_key",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "branch_passport_photos",
+      "column_name": "mime_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "branch_passport_photos",
+      "column_name": "file_size_bytes",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "branch_passport_photos",
+      "column_name": "original_filename",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "branch_passport_photos",
+      "column_name": "caption",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "branch_passport_photos",
+      "column_name": "position_index",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "branch_passport_photos",
+      "column_name": "uploaded_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "branch_passport_photos",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "organization_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "source_key",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "code",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "address",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "city",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "division",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "latitude",
+      "data_type": "numeric",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "longitude",
+      "data_type": "numeric",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "geocode_accuracy",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "source_rows",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "price_adjustment_percent",
+      "data_type": "numeric",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "active",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "cabinet_counts",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "geocode_source",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "geocoded_address",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "geocoded_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "geocode_metadata",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "floor_plan",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "traffic_ots_per_day",
+      "data_type": "bigint",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "vehicle_traffic_per_day",
+      "data_type": "bigint",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "pedestrian_traffic_per_day",
+      "data_type": "bigint",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "traffic_source",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "traffic_measured_at",
+      "data_type": "date",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "floor_plan_draft",
+      "data_type": "jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "floor_plan_updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "floor_plan_published_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "epharm_branch_crosswalk",
+      "column_name": "external_location_id",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_branch_crosswalk",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_branch_crosswalk",
+      "column_name": "match_method",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_branch_crosswalk",
+      "column_name": "confidence",
+      "data_type": "numeric",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "epharm_branch_crosswalk",
+      "column_name": "payload_hash",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_branch_crosswalk",
+      "column_name": "first_seen_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_branch_crosswalk",
+      "column_name": "last_seen_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_branch_crosswalk",
+      "column_name": "last_snapshot_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_catalog_snapshots",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_catalog_snapshots",
+      "column_name": "source_name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_catalog_snapshots",
+      "column_name": "source_sha256",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_catalog_snapshots",
+      "column_name": "target_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_catalog_snapshots",
+      "column_name": "imported_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_catalog_snapshots",
+      "column_name": "applied_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "epharm_catalog_snapshots",
+      "column_name": "summary",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_catalog_staging",
+      "column_name": "snapshot_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_catalog_staging",
+      "column_name": "external_location_id",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_catalog_staging",
+      "column_name": "name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_catalog_staging",
+      "column_name": "address",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_catalog_staging",
+      "column_name": "city",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_catalog_staging",
+      "column_name": "chain_name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_catalog_staging",
+      "column_name": "source_active",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_catalog_staging",
+      "column_name": "payload_hash",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_catalog_staging",
+      "column_name": "raw_payload",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_catalog_staging",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_executor_bindings",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_executor_bindings",
+      "column_name": "dispatch_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_executor_bindings",
+      "column_name": "pharmacy_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_executor_bindings",
+      "column_name": "pharmacist_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_executor_bindings",
+      "column_name": "nonce_hash",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_executor_bindings",
+      "column_name": "reward_amount_kzt",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_executor_bindings",
+      "column_name": "task_due_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_executor_bindings",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_executor_challenges",
+      "column_name": "nonce_hash",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_executor_challenges",
+      "column_name": "dispatch_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_executor_challenges",
+      "column_name": "link_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_executor_challenges",
+      "column_name": "pharmacy_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_executor_challenges",
+      "column_name": "reward_amount_kzt",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_executor_challenges",
+      "column_name": "task_due_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_executor_challenges",
+      "column_name": "issued_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_executor_challenges",
+      "column_name": "expires_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_executor_challenges",
+      "column_name": "consumed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "epharm_executor_links",
+      "column_name": "link_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_executor_links",
+      "column_name": "binding_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_reward_outbox",
+      "column_name": "event_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_reward_outbox",
+      "column_name": "dispatch_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_reward_outbox",
+      "column_name": "binding_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_reward_outbox",
+      "column_name": "body",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_reward_outbox",
+      "column_name": "body_sha256",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_reward_outbox",
+      "column_name": "state",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_reward_outbox",
+      "column_name": "attempts",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_reward_outbox",
+      "column_name": "available_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_reward_outbox",
+      "column_name": "lease_until",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "epharm_reward_outbox",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "epharm_reward_outbox",
+      "column_name": "delivered_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "epharm_reward_outbox",
+      "column_name": "last_error",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "inventory_containers",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "inventory_containers",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "inventory_containers",
+      "column_name": "container_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "inventory_containers",
+      "column_name": "code",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "inventory_containers",
+      "column_name": "name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "inventory_containers",
+      "column_name": "category",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "inventory_containers",
+      "column_name": "position_index",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "inventory_containers",
+      "column_name": "active",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "inventory_containers",
+      "column_name": "metadata",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "inventory_containers",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "inventory_containers",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "media_plan_items",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "media_plan_items",
+      "column_name": "media_plan_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "media_plan_items",
+      "column_name": "shelf_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "media_plan_items",
+      "column_name": "placement_month",
+      "data_type": "date",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "media_plan_items",
+      "column_name": "monthly_price",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "media_plan_items",
+      "column_name": "status",
+      "data_type": "USER-DEFINED",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "media_plan_items",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "media_plan_items",
+      "column_name": "reviewed_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "media_plan_items",
+      "column_name": "reviewed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "media_plan_items",
+      "column_name": "review_note",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "media_plan_items",
+      "column_name": "sale_portion",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "media_plans",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "media_plans",
+      "column_name": "advertiser_name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "media_plans",
+      "column_name": "contact_email",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "media_plans",
+      "column_name": "placement_month",
+      "data_type": "date",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "media_plans",
+      "column_name": "status",
+      "data_type": "USER-DEFINED",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "media_plans",
+      "column_name": "total_amount",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "media_plans",
+      "column_name": "submitted_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "media_plans",
+      "column_name": "reviewed_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "media_plans",
+      "column_name": "reviewed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "media_plans",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "media_plans",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "media_plans",
+      "column_name": "request_number",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "media_plans",
+      "column_name": "submitted_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "media_plans",
+      "column_name": "held_until",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "media_plans",
+      "column_name": "rejection_reason",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "media_plans",
+      "column_name": "origin",
+      "data_type": "USER-DEFINED",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "media_plans",
+      "column_name": "assignment_group_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "media_plans",
+      "column_name": "assignment_note",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "media_plans",
+      "column_name": "campaign_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "member_branch_access",
+      "column_name": "user_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "member_branch_access",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "member_branch_access",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "monthly_inventory",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "monthly_inventory",
+      "column_name": "shelf_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "monthly_inventory",
+      "column_name": "placement_month",
+      "data_type": "date",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "monthly_inventory",
+      "column_name": "status",
+      "data_type": "USER-DEFINED",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "monthly_inventory",
+      "column_name": "monthly_price",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "monthly_inventory",
+      "column_name": "held_until",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "monthly_inventory",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "monthly_inventory",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "monthly_inventory",
+      "column_name": "block_reason",
+      "data_type": "USER-DEFINED",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "monthly_inventory",
+      "column_name": "block_note",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "monthly_inventory",
+      "column_name": "blocked_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "monthly_inventory",
+      "column_name": "blocked_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "organization_members",
+      "column_name": "organization_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "organization_members",
+      "column_name": "user_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "organization_members",
+      "column_name": "is_owner",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "organization_members",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "organizations",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "organizations",
+      "column_name": "source_key",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "organizations",
+      "column_name": "name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "organizations",
+      "column_name": "legal_name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "organizations",
+      "column_name": "bin",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "organizations",
+      "column_name": "source",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "organizations",
+      "column_name": "active",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "organizations",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "organizations",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "organizations",
+      "column_name": "legal_address",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "organizations",
+      "column_name": "actual_address",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "organizations",
+      "column_name": "bank_name",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "organizations",
+      "column_name": "bic",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "organizations",
+      "column_name": "iban",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "organizations",
+      "column_name": "kbe",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "organizations",
+      "column_name": "director_name",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "organizations",
+      "column_name": "director_position",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "organizations",
+      "column_name": "contact_name",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "organizations",
+      "column_name": "contact_phone",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "organizations",
+      "column_name": "contact_email",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "organizations",
+      "column_name": "vat_registered",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacy_training_materials",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacy_training_materials",
+      "column_name": "request_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacy_training_materials",
+      "column_name": "created_by",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacy_training_materials",
+      "column_name": "title",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacy_training_materials",
+      "column_name": "instructions",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacy_training_materials",
+      "column_name": "object_key",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacy_training_materials",
+      "column_name": "original_filename",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacy_training_materials",
+      "column_name": "status",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacy_training_materials",
+      "column_name": "review_note",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pharmacy_training_materials",
+      "column_name": "reviewed_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pharmacy_training_materials",
+      "column_name": "reviewed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pharmacy_training_materials",
+      "column_name": "due_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacy_training_materials",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmapay_product_balances",
+      "column_name": "id",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmapay_product_balances",
+      "column_name": "organization_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmapay_product_balances",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmapay_product_balances",
+      "column_name": "external_key",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmapay_product_balances",
+      "column_name": "product_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pharmapay_product_balances",
+      "column_name": "barcode",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pharmapay_product_balances",
+      "column_name": "ipart_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pharmapay_product_balances",
+      "column_name": "pharmacy_available_qty",
+      "data_type": "numeric",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pharmapay_product_balances",
+      "column_name": "network_available_qty",
+      "data_type": "numeric",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pharmapay_product_balances",
+      "column_name": "warehouse_available_qty",
+      "data_type": "numeric",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pharmapay_product_balances",
+      "column_name": "reserved_qty",
+      "data_type": "numeric",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pharmapay_product_balances",
+      "column_name": "quality",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmapay_product_balances",
+      "column_name": "source",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmapay_product_balances",
+      "column_name": "observed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmapay_product_balances",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmapay_recommendation_signals",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmapay_recommendation_signals",
+      "column_name": "organization_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmapay_recommendation_signals",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pharmapay_recommendation_signals",
+      "column_name": "kind",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmapay_recommendation_signals",
+      "column_name": "trigger_barcode",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pharmapay_recommendation_signals",
+      "column_name": "trigger_ipart_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pharmapay_recommendation_signals",
+      "column_name": "recommend_product_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pharmapay_recommendation_signals",
+      "column_name": "recommend_barcode",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pharmapay_recommendation_signals",
+      "column_name": "recommend_ipart_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pharmapay_recommendation_signals",
+      "column_name": "script",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmapay_recommendation_signals",
+      "column_name": "advantages",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmapay_recommendation_signals",
+      "column_name": "partner_label",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pharmapay_recommendation_signals",
+      "column_name": "bonus",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmapay_recommendation_signals",
+      "column_name": "priority",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmapay_recommendation_signals",
+      "column_name": "active",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmapay_recommendation_signals",
+      "column_name": "valid_from",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pharmapay_recommendation_signals",
+      "column_name": "valid_until",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pharmapay_recommendation_signals",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmapay_recommendation_signals",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "placement_item_client_photos",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "placement_item_client_photos",
+      "column_name": "media_plan_item_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "placement_item_client_photos",
+      "column_name": "object_key",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "placement_item_client_photos",
+      "column_name": "mime_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "placement_item_client_photos",
+      "column_name": "byte_size",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "placement_item_client_photos",
+      "column_name": "original_filename",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "placement_item_client_photos",
+      "column_name": "uploaded_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "placement_item_client_photos",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "placement_item_client_photos",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "placement_item_product_details",
+      "column_name": "media_plan_item_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "placement_item_product_details",
+      "column_name": "product_name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "placement_item_product_details",
+      "column_name": "sku",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "placement_item_product_details",
+      "column_name": "facing_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "placement_item_product_details",
+      "column_name": "unit_price",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "placement_item_product_details",
+      "column_name": "base_shelf_price",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "placement_item_product_details",
+      "column_name": "supplier_category",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "placement_item_product_details",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "placement_item_product_details",
+      "column_name": "products",
+      "data_type": "jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "promotions",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "promotions",
+      "column_name": "organization_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "promotions",
+      "column_name": "title",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "promotions",
+      "column_name": "description",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "promotions",
+      "column_name": "starts_on",
+      "data_type": "date",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "promotions",
+      "column_name": "ends_on",
+      "data_type": "date",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "promotions",
+      "column_name": "status",
+      "data_type": "USER-DEFINED",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "promotions",
+      "column_name": "created_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "promotions",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "promotions",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "schema_migrations",
+      "column_name": "name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "schema_migrations",
+      "column_name": "applied_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "shelves",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "shelves",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "shelves",
+      "column_name": "code",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "shelves",
+      "column_name": "category",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "shelves",
+      "column_name": "width_m",
+      "data_type": "numeric",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "shelves",
+      "column_name": "base_monthly_price",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "shelves",
+      "column_name": "active",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "shelves",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "shelves",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "shelves",
+      "column_name": "template_image_url",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "shelves",
+      "column_name": "place_type",
+      "data_type": "USER-DEFINED",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "shelves",
+      "column_name": "title",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "shelves",
+      "column_name": "container_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "shelves",
+      "column_name": "position_index",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "shelves",
+      "column_name": "specifications",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "shelves",
+      "column_name": "sale_mode",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "shelves",
+      "column_name": "half_monthly_price",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "sms_login_challenges",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "sms_login_challenges",
+      "column_name": "phone",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "sms_login_challenges",
+      "column_name": "code_hash",
+      "data_type": "character",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "sms_login_challenges",
+      "column_name": "request_ip",
+      "data_type": "inet",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "sms_login_challenges",
+      "column_name": "attempts",
+      "data_type": "smallint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "sms_login_challenges",
+      "column_name": "expires_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "sms_login_challenges",
+      "column_name": "consumed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "sms_login_challenges",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_access_attempts",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_access_attempts",
+      "column_name": "access_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_access_attempts",
+      "column_name": "lookup_hash",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_access_attempts",
+      "column_name": "code_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_access_attempts",
+      "column_name": "organization_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_access_attempts",
+      "column_name": "request_ip",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_access_attempts",
+      "column_name": "user_agent",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_access_attempts",
+      "column_name": "success",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_access_attempts",
+      "column_name": "failure_reason",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_access_attempts",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_access_code_branches",
+      "column_name": "code_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_access_code_branches",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_access_code_branches",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_access_codes",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_access_codes",
+      "column_name": "organization_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_access_codes",
+      "column_name": "placement_month",
+      "data_type": "date",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_access_codes",
+      "column_name": "code_hash",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_access_codes",
+      "column_name": "deadline_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_access_codes",
+      "column_name": "status",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_access_codes",
+      "column_name": "created_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_access_codes",
+      "column_name": "revoked_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_access_codes",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_access_codes",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_access_codes",
+      "column_name": "last_used_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_access_codes",
+      "column_name": "revoked_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_access_codes",
+      "column_name": "max_uses",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_access_codes",
+      "column_name": "use_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_access_codes",
+      "column_name": "note",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_access_codes",
+      "column_name": "qr_token_hash",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_access_codes",
+      "column_name": "qr_created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_access_codes",
+      "column_name": "qr_last_used_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_access_codes",
+      "column_name": "qr_use_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_attachments",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_attachments",
+      "column_name": "task_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_attachments",
+      "column_name": "uploaded_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_attachments",
+      "column_name": "object_key",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_attachments",
+      "column_name": "mime_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_attachments",
+      "column_name": "byte_size",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_attachments",
+      "column_name": "original_filename",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_attachments",
+      "column_name": "caption",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_attachments",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_attachments",
+      "column_name": "dispatch_link_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_attachments",
+      "column_name": "uploaded_by_name",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_attachments",
+      "column_name": "evidence_metadata",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_batches",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_batches",
+      "column_name": "organization_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_batches",
+      "column_name": "media_plan_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_batches",
+      "column_name": "placement_month",
+      "data_type": "date",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_batches",
+      "column_name": "task_phase",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_batches",
+      "column_name": "title",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_batches",
+      "column_name": "advertiser_name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_batches",
+      "column_name": "created_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_batches",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_batches",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_checklist_items",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_checklist_items",
+      "column_name": "task_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_checklist_items",
+      "column_name": "position",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_checklist_items",
+      "column_name": "title",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_checklist_items",
+      "column_name": "required",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_checklist_items",
+      "column_name": "completed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_checklist_items",
+      "column_name": "completed_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_checklist_items",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_comments",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_comments",
+      "column_name": "task_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_comments",
+      "column_name": "author_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_comments",
+      "column_name": "author_name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_comments",
+      "column_name": "body",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_comments",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_delivery_receipts",
+      "column_name": "dispatch_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_delivery_receipts",
+      "column_name": "link_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_delivery_receipts",
+      "column_name": "device_id",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_delivery_receipts",
+      "column_name": "shown_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_dispatch_links",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_dispatch_links",
+      "column_name": "dispatch_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_dispatch_links",
+      "column_name": "token_hash",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_dispatch_links",
+      "column_name": "created_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatch_links",
+      "column_name": "expires_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_dispatch_links",
+      "column_name": "opened_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatch_links",
+      "column_name": "last_used_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatch_links",
+      "column_name": "submitted_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatch_links",
+      "column_name": "revoked_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatch_links",
+      "column_name": "use_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_dispatch_links",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_dispatch_links",
+      "column_name": "integration_access_token",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatch_links",
+      "column_name": "issued_channel",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "organization_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "mass_owner_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "source_batch_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "title",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "task_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "priority",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "status",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "due_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "created_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "executor_name",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "sent_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "opened_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "started_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "submitted_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "completed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "cancelled_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "automation_kind",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "media_plan_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "recurring_cycle_number",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "cycle_starts_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "next_cycle_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "assignment_ready_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "sla_started_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "blocked_reason",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "reward_amount_kzt",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "reward_configured_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_dispatches",
+      "column_name": "reward_configured_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_events",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_events",
+      "column_name": "task_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_events",
+      "column_name": "actor_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_events",
+      "column_name": "actor_name",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_events",
+      "column_name": "event_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_events",
+      "column_name": "from_status",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_events",
+      "column_name": "to_status",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_events",
+      "column_name": "details",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_events",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_kiosk_devices",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_kiosk_devices",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_kiosk_devices",
+      "column_name": "name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_kiosk_devices",
+      "column_name": "token_hash",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_kiosk_devices",
+      "column_name": "active",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_kiosk_devices",
+      "column_name": "created_by",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_kiosk_devices",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_kiosk_devices",
+      "column_name": "last_seen_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_task_kiosk_links",
+      "column_name": "link_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_kiosk_links",
+      "column_name": "device_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_kiosk_links",
+      "column_name": "generation",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_stock_observations",
+      "column_name": "task_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_stock_observations",
+      "column_name": "counts",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_stock_observations",
+      "column_name": "shortage_reason",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_task_stock_observations",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "organization_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "title",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "description",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "task_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "priority",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "status",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "due_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "created_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "assigned_to_name",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "completed_by_name",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "completed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "assignee_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "reviewer_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "shelf_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "accepted_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "started_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "submitted_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "reviewed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "review_note",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "blocked_reason",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "employee_comment",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "required_photo_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "reference_image_url",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "revision_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "batch_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "media_plan_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "media_plan_item_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "task_phase",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "auto_generated",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "available_from",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "mass_owner_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "dispatch_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "automation_kind",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "recurring_cycle_number",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "staff_tasks",
+      "column_name": "training_material_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "supplier_budget_plan_items",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_budget_plan_items",
+      "column_name": "plan_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_budget_plan_items",
+      "column_name": "product_name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_budget_plan_items",
+      "column_name": "sku",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "supplier_budget_plan_items",
+      "column_name": "activity_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_budget_plan_items",
+      "column_name": "active_months",
+      "data_type": "ARRAY",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_budget_plan_items",
+      "column_name": "pharmacy_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_budget_plan_items",
+      "column_name": "facing_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_budget_plan_items",
+      "column_name": "people_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_budget_plan_items",
+      "column_name": "unit_price",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_budget_plan_items",
+      "column_name": "supplier_category",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_budget_plan_items",
+      "column_name": "note",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "supplier_budget_plan_items",
+      "column_name": "position_index",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_budget_plan_items",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_budget_plans",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_budget_plans",
+      "column_name": "supplier_user_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_budget_plans",
+      "column_name": "title",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_budget_plans",
+      "column_name": "start_month",
+      "data_type": "date",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_budget_plans",
+      "column_name": "budget_limit",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_budget_plans",
+      "column_name": "status",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_budget_plans",
+      "column_name": "notes",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "supplier_budget_plans",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_budget_plans",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_budget_plans",
+      "column_name": "shelf_selection",
+      "data_type": "jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "supplier_budget_plans",
+      "column_name": "end_month",
+      "data_type": "date",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_budget_plans",
+      "column_name": "request_ids",
+      "data_type": "ARRAY",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_budget_plans",
+      "column_name": "extra_activities",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_budget_plans",
+      "column_name": "planning_mode",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_budget_plans",
+      "column_name": "product_briefs",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_company_members",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_company_members",
+      "column_name": "supplier_user_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_company_members",
+      "column_name": "full_name",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_company_members",
+      "column_name": "email",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_company_members",
+      "column_name": "position",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "supplier_company_members",
+      "column_name": "access_role",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_company_members",
+      "column_name": "active",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_company_members",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_company_members",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_pricing_tiers",
+      "column_name": "category",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_pricing_tiers",
+      "column_name": "label",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_pricing_tiers",
+      "column_name": "price_multiplier",
+      "data_type": "numeric",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_pricing_tiers",
+      "column_name": "facing_month_price",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_pricing_tiers",
+      "column_name": "promotion_month_price",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_pricing_tiers",
+      "column_name": "training_event_price",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_pricing_tiers",
+      "column_name": "motivation_person_price",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_pricing_tiers",
+      "column_name": "active",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "supplier_pricing_tiers",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "telegram_branch_invites",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "telegram_branch_invites",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "telegram_branch_invites",
+      "column_name": "code_hash",
+      "data_type": "character",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "telegram_branch_invites",
+      "column_name": "code_hint",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "telegram_branch_invites",
+      "column_name": "active",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "telegram_branch_invites",
+      "column_name": "expires_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "telegram_branch_invites",
+      "column_name": "used_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "telegram_branch_invites",
+      "column_name": "created_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "telegram_branch_invites",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "telegram_chat_bindings",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "telegram_chat_bindings",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "telegram_chat_bindings",
+      "column_name": "invite_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "telegram_chat_bindings",
+      "column_name": "chat_id",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "telegram_chat_bindings",
+      "column_name": "chat_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "telegram_chat_bindings",
+      "column_name": "chat_title",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "telegram_chat_bindings",
+      "column_name": "username",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "telegram_chat_bindings",
+      "column_name": "linked_by_telegram_user_id",
+      "data_type": "bigint",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "telegram_chat_bindings",
+      "column_name": "linked_by_name",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "telegram_chat_bindings",
+      "column_name": "active",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "telegram_chat_bindings",
+      "column_name": "linked_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "telegram_chat_bindings",
+      "column_name": "last_seen_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "telegram_chat_bindings",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "telegram_chat_states",
+      "column_name": "binding_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "telegram_chat_states",
+      "column_name": "report_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "telegram_chat_states",
+      "column_name": "selected_shelf_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "telegram_chat_states",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "telegram_notification_log",
+      "column_name": "id",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "telegram_notification_log",
+      "column_name": "binding_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "telegram_notification_log",
+      "column_name": "event_key",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "telegram_notification_log",
+      "column_name": "payload",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "telegram_notification_log",
+      "column_name": "delivered_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "user_sessions",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "user_sessions",
+      "column_name": "user_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "user_sessions",
+      "column_name": "token_hash",
+      "data_type": "character",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "user_sessions",
+      "column_name": "expires_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "user_sessions",
+      "column_name": "last_used_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "user_sessions",
+      "column_name": "revoked_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "user_sessions",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "user_sessions",
+      "column_name": "session_kind",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "user_sessions",
+      "column_name": "staff_access_code_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "user_sessions",
+      "column_name": "staff_organization_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "user_sessions",
+      "column_name": "staff_month",
+      "data_type": "date",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "user_sessions",
+      "column_name": "staff_deadline_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_report_attempt_photos",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_report_attempt_photos",
+      "column_name": "attempt_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_report_attempt_photos",
+      "column_name": "shelf_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_report_attempt_photos",
+      "column_name": "media_plan_item_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_report_attempt_photos",
+      "column_name": "object_key",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_report_attempt_photos",
+      "column_name": "mime_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_report_attempt_photos",
+      "column_name": "file_size_bytes",
+      "data_type": "bigint",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_report_attempt_photos",
+      "column_name": "original_filename",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_report_attempt_photos",
+      "column_name": "taken_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_report_attempt_photos",
+      "column_name": "violation_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_report_attempt_photos",
+      "column_name": "violation_note",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_report_attempt_photos",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_report_attempts",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_report_attempts",
+      "column_name": "visit_report_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_report_attempts",
+      "column_name": "attempt_number",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_report_attempts",
+      "column_name": "status",
+      "data_type": "USER-DEFINED",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_report_attempts",
+      "column_name": "notes",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_report_attempts",
+      "column_name": "rejection_reason",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_report_attempts",
+      "column_name": "submitted_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_report_attempts",
+      "column_name": "reviewed_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_report_attempts",
+      "column_name": "reviewed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_report_attempts",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_reports",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_reports",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_reports",
+      "column_name": "visited_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_reports",
+      "column_name": "status",
+      "data_type": "USER-DEFINED",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_reports",
+      "column_name": "notes",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_reports",
+      "column_name": "reviewed_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_reports",
+      "column_name": "reviewed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_reports",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_reports",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_reports",
+      "column_name": "report_number",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_reports",
+      "column_name": "placement_month",
+      "data_type": "date",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_reports",
+      "column_name": "submitted_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_reports",
+      "column_name": "rejection_reason",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_reports",
+      "column_name": "report_source",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_reports",
+      "column_name": "telegram_binding_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_reports",
+      "column_name": "submitted_by_name",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_reports",
+      "column_name": "submitted_by_user_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_shelf_photos",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_shelf_photos",
+      "column_name": "visit_report_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_shelf_photos",
+      "column_name": "shelf_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_shelf_photos",
+      "column_name": "object_key",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_shelf_photos",
+      "column_name": "mime_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_shelf_photos",
+      "column_name": "file_size_bytes",
+      "data_type": "bigint",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_shelf_photos",
+      "column_name": "taken_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_shelf_photos",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_shelf_photos",
+      "column_name": "media_plan_item_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_shelf_photos",
+      "column_name": "original_filename",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_shelf_photos",
+      "column_name": "violation_type",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "visit_shelf_photos",
+      "column_name": "violation_note",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "visit_shelf_photos",
+      "column_name": "capture_source",
+      "data_type": "text",
+      "is_nullable": "NO"
+    }
+  ],
+  "foreign_keys": [
+    {
+      "source_table": "advertiser_profiles",
+      "target_table": "app_users",
+      "name": "advertiser_profiles_user_id_fkey",
+      "definition": "FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "advertising_place_photos",
+      "target_table": "shelves",
+      "name": "advertising_place_photos_shelf_id_fkey",
+      "definition": "FOREIGN KEY (shelf_id) REFERENCES shelves(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "audit_log",
+      "target_table": "app_users",
+      "name": "audit_log_actor_id_fkey",
+      "definition": "FOREIGN KEY (actor_id) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "audit_log",
+      "target_table": "organizations",
+      "name": "audit_log_organization_id_fkey",
+      "definition": "FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "branch_passport_photos",
+      "target_table": "branches",
+      "name": "branch_passport_photos_branch_id_fkey",
+      "definition": "FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "branch_passport_photos",
+      "target_table": "app_users",
+      "name": "branch_passport_photos_uploaded_by_fkey",
+      "definition": "FOREIGN KEY (uploaded_by) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "branches",
+      "target_table": "organizations",
+      "name": "branches_organization_id_fkey",
+      "definition": "FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "epharm_branch_crosswalk",
+      "target_table": "branches",
+      "name": "epharm_branch_crosswalk_branch_id_fkey",
+      "definition": "FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "epharm_branch_crosswalk",
+      "target_table": "epharm_catalog_snapshots",
+      "name": "epharm_branch_crosswalk_last_snapshot_id_fkey",
+      "definition": "FOREIGN KEY (last_snapshot_id) REFERENCES epharm_catalog_snapshots(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "epharm_catalog_staging",
+      "target_table": "epharm_catalog_snapshots",
+      "name": "epharm_catalog_staging_snapshot_id_fkey",
+      "definition": "FOREIGN KEY (snapshot_id) REFERENCES epharm_catalog_snapshots(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "epharm_executor_bindings",
+      "target_table": "staff_task_dispatches",
+      "name": "epharm_executor_bindings_dispatch_id_fkey",
+      "definition": "FOREIGN KEY (dispatch_id) REFERENCES staff_task_dispatches(id)"
+    },
+    {
+      "source_table": "epharm_executor_bindings",
+      "target_table": "epharm_executor_challenges",
+      "name": "epharm_executor_bindings_nonce_hash_fkey",
+      "definition": "FOREIGN KEY (nonce_hash) REFERENCES epharm_executor_challenges(nonce_hash)"
+    },
+    {
+      "source_table": "epharm_executor_challenges",
+      "target_table": "staff_task_dispatches",
+      "name": "epharm_executor_challenges_dispatch_id_fkey",
+      "definition": "FOREIGN KEY (dispatch_id) REFERENCES staff_task_dispatches(id)"
+    },
+    {
+      "source_table": "epharm_executor_challenges",
+      "target_table": "staff_task_dispatch_links",
+      "name": "epharm_executor_challenges_link_id_fkey",
+      "definition": "FOREIGN KEY (link_id) REFERENCES staff_task_dispatch_links(id)"
+    },
+    {
+      "source_table": "epharm_executor_links",
+      "target_table": "epharm_executor_bindings",
+      "name": "epharm_executor_links_binding_id_fkey",
+      "definition": "FOREIGN KEY (binding_id) REFERENCES epharm_executor_bindings(id)"
+    },
+    {
+      "source_table": "epharm_executor_links",
+      "target_table": "staff_task_dispatch_links",
+      "name": "epharm_executor_links_link_id_fkey",
+      "definition": "FOREIGN KEY (link_id) REFERENCES staff_task_dispatch_links(id)"
+    },
+    {
+      "source_table": "epharm_reward_outbox",
+      "target_table": "epharm_executor_bindings",
+      "name": "epharm_reward_outbox_binding_id_fkey",
+      "definition": "FOREIGN KEY (binding_id) REFERENCES epharm_executor_bindings(id)"
+    },
+    {
+      "source_table": "epharm_reward_outbox",
+      "target_table": "staff_task_dispatches",
+      "name": "epharm_reward_outbox_dispatch_id_fkey",
+      "definition": "FOREIGN KEY (dispatch_id) REFERENCES staff_task_dispatches(id)"
+    },
+    {
+      "source_table": "inventory_containers",
+      "target_table": "branches",
+      "name": "inventory_containers_branch_id_fkey",
+      "definition": "FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "media_plan_items",
+      "target_table": "media_plans",
+      "name": "media_plan_items_media_plan_id_fkey",
+      "definition": "FOREIGN KEY (media_plan_id) REFERENCES media_plans(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "media_plan_items",
+      "target_table": "app_users",
+      "name": "media_plan_items_reviewed_by_fkey",
+      "definition": "FOREIGN KEY (reviewed_by) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "media_plan_items",
+      "target_table": "shelves",
+      "name": "media_plan_items_shelf_id_fkey",
+      "definition": "FOREIGN KEY (shelf_id) REFERENCES shelves(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "media_plans",
+      "target_table": "app_users",
+      "name": "media_plans_reviewed_by_fkey",
+      "definition": "FOREIGN KEY (reviewed_by) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "media_plans",
+      "target_table": "app_users",
+      "name": "media_plans_submitted_by_fkey",
+      "definition": "FOREIGN KEY (submitted_by) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "member_branch_access",
+      "target_table": "branches",
+      "name": "member_branch_access_branch_id_fkey",
+      "definition": "FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "member_branch_access",
+      "target_table": "app_users",
+      "name": "member_branch_access_user_id_fkey",
+      "definition": "FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "monthly_inventory",
+      "target_table": "app_users",
+      "name": "monthly_inventory_blocked_by_fkey",
+      "definition": "FOREIGN KEY (blocked_by) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "monthly_inventory",
+      "target_table": "shelves",
+      "name": "monthly_inventory_shelf_id_fkey",
+      "definition": "FOREIGN KEY (shelf_id) REFERENCES shelves(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "organization_members",
+      "target_table": "organizations",
+      "name": "organization_members_organization_id_fkey",
+      "definition": "FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "organization_members",
+      "target_table": "app_users",
+      "name": "organization_members_user_id_fkey",
+      "definition": "FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "pharmacy_training_materials",
+      "target_table": "app_users",
+      "name": "pharmacy_training_materials_created_by_fkey",
+      "definition": "FOREIGN KEY (created_by) REFERENCES app_users(id)"
+    },
+    {
+      "source_table": "pharmacy_training_materials",
+      "target_table": "media_plans",
+      "name": "pharmacy_training_materials_request_id_fkey",
+      "definition": "FOREIGN KEY (request_id) REFERENCES media_plans(id)"
+    },
+    {
+      "source_table": "pharmacy_training_materials",
+      "target_table": "app_users",
+      "name": "pharmacy_training_materials_reviewed_by_fkey",
+      "definition": "FOREIGN KEY (reviewed_by) REFERENCES app_users(id)"
+    },
+    {
+      "source_table": "pharmapay_product_balances",
+      "target_table": "branches",
+      "name": "pharmapay_product_balances_branch_id_fkey",
+      "definition": "FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "pharmapay_product_balances",
+      "target_table": "organizations",
+      "name": "pharmapay_product_balances_organization_id_fkey",
+      "definition": "FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "pharmapay_recommendation_signals",
+      "target_table": "branches",
+      "name": "pharmapay_recommendation_signals_branch_id_fkey",
+      "definition": "FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "pharmapay_recommendation_signals",
+      "target_table": "organizations",
+      "name": "pharmapay_recommendation_signals_organization_id_fkey",
+      "definition": "FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "placement_item_client_photos",
+      "target_table": "media_plan_items",
+      "name": "placement_item_client_photos_media_plan_item_id_fkey",
+      "definition": "FOREIGN KEY (media_plan_item_id) REFERENCES media_plan_items(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "placement_item_client_photos",
+      "target_table": "app_users",
+      "name": "placement_item_client_photos_uploaded_by_fkey",
+      "definition": "FOREIGN KEY (uploaded_by) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "placement_item_product_details",
+      "target_table": "media_plan_items",
+      "name": "placement_item_product_details_media_plan_item_id_fkey",
+      "definition": "FOREIGN KEY (media_plan_item_id) REFERENCES media_plan_items(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "promotions",
+      "target_table": "app_users",
+      "name": "promotions_created_by_fkey",
+      "definition": "FOREIGN KEY (created_by) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "promotions",
+      "target_table": "organizations",
+      "name": "promotions_organization_id_fkey",
+      "definition": "FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "shelves",
+      "target_table": "branches",
+      "name": "shelves_branch_id_fkey",
+      "definition": "FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "shelves",
+      "target_table": "inventory_containers",
+      "name": "shelves_container_id_fkey",
+      "definition": "FOREIGN KEY (container_id) REFERENCES inventory_containers(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_access_attempts",
+      "target_table": "staff_access_codes",
+      "name": "staff_access_attempts_code_id_fkey",
+      "definition": "FOREIGN KEY (code_id) REFERENCES staff_access_codes(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_access_attempts",
+      "target_table": "organizations",
+      "name": "staff_access_attempts_organization_id_fkey",
+      "definition": "FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_access_code_branches",
+      "target_table": "branches",
+      "name": "staff_access_code_branches_branch_id_fkey",
+      "definition": "FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "staff_access_code_branches",
+      "target_table": "staff_access_codes",
+      "name": "staff_access_code_branches_code_id_fkey",
+      "definition": "FOREIGN KEY (code_id) REFERENCES staff_access_codes(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "staff_access_codes",
+      "target_table": "app_users",
+      "name": "staff_access_codes_created_by_fkey",
+      "definition": "FOREIGN KEY (created_by) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_access_codes",
+      "target_table": "organizations",
+      "name": "staff_access_codes_organization_id_fkey",
+      "definition": "FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "staff_access_codes",
+      "target_table": "app_users",
+      "name": "staff_access_codes_revoked_by_fkey",
+      "definition": "FOREIGN KEY (revoked_by) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_task_attachments",
+      "target_table": "staff_task_dispatch_links",
+      "name": "staff_task_attachments_dispatch_link_id_fkey",
+      "definition": "FOREIGN KEY (dispatch_link_id) REFERENCES staff_task_dispatch_links(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_task_attachments",
+      "target_table": "staff_tasks",
+      "name": "staff_task_attachments_task_id_fkey",
+      "definition": "FOREIGN KEY (task_id) REFERENCES staff_tasks(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "staff_task_attachments",
+      "target_table": "app_users",
+      "name": "staff_task_attachments_uploaded_by_fkey",
+      "definition": "FOREIGN KEY (uploaded_by) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_task_batches",
+      "target_table": "app_users",
+      "name": "staff_task_batches_created_by_fkey",
+      "definition": "FOREIGN KEY (created_by) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_task_batches",
+      "target_table": "media_plans",
+      "name": "staff_task_batches_media_plan_id_fkey",
+      "definition": "FOREIGN KEY (media_plan_id) REFERENCES media_plans(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "staff_task_batches",
+      "target_table": "organizations",
+      "name": "staff_task_batches_organization_id_fkey",
+      "definition": "FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "staff_task_checklist_items",
+      "target_table": "app_users",
+      "name": "staff_task_checklist_items_completed_by_fkey",
+      "definition": "FOREIGN KEY (completed_by) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_task_checklist_items",
+      "target_table": "staff_tasks",
+      "name": "staff_task_checklist_items_task_id_fkey",
+      "definition": "FOREIGN KEY (task_id) REFERENCES staff_tasks(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "staff_task_comments",
+      "target_table": "app_users",
+      "name": "staff_task_comments_author_id_fkey",
+      "definition": "FOREIGN KEY (author_id) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_task_comments",
+      "target_table": "staff_tasks",
+      "name": "staff_task_comments_task_id_fkey",
+      "definition": "FOREIGN KEY (task_id) REFERENCES staff_tasks(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "staff_task_delivery_receipts",
+      "target_table": "staff_task_dispatches",
+      "name": "staff_task_delivery_receipts_dispatch_id_fkey",
+      "definition": "FOREIGN KEY (dispatch_id) REFERENCES staff_task_dispatches(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "staff_task_delivery_receipts",
+      "target_table": "staff_task_dispatch_links",
+      "name": "staff_task_delivery_receipts_link_id_fkey",
+      "definition": "FOREIGN KEY (link_id) REFERENCES staff_task_dispatch_links(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "staff_task_dispatch_links",
+      "target_table": "app_users",
+      "name": "staff_task_dispatch_links_created_by_fkey",
+      "definition": "FOREIGN KEY (created_by) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_task_dispatch_links",
+      "target_table": "staff_task_dispatches",
+      "name": "staff_task_dispatch_links_dispatch_id_fkey",
+      "definition": "FOREIGN KEY (dispatch_id) REFERENCES staff_task_dispatches(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "staff_task_dispatches",
+      "target_table": "branches",
+      "name": "staff_task_dispatches_branch_id_fkey",
+      "definition": "FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "staff_task_dispatches",
+      "target_table": "app_users",
+      "name": "staff_task_dispatches_created_by_fkey",
+      "definition": "FOREIGN KEY (created_by) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_task_dispatches",
+      "target_table": "app_users",
+      "name": "staff_task_dispatches_mass_owner_id_fkey",
+      "definition": "FOREIGN KEY (mass_owner_id) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_task_dispatches",
+      "target_table": "media_plans",
+      "name": "staff_task_dispatches_media_plan_id_fkey",
+      "definition": "FOREIGN KEY (media_plan_id) REFERENCES media_plans(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "staff_task_dispatches",
+      "target_table": "organizations",
+      "name": "staff_task_dispatches_organization_id_fkey",
+      "definition": "FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "staff_task_dispatches",
+      "target_table": "app_users",
+      "name": "staff_task_dispatches_reward_configured_by_fkey",
+      "definition": "FOREIGN KEY (reward_configured_by) REFERENCES app_users(id)"
+    },
+    {
+      "source_table": "staff_task_dispatches",
+      "target_table": "staff_task_batches",
+      "name": "staff_task_dispatches_source_batch_id_fkey",
+      "definition": "FOREIGN KEY (source_batch_id) REFERENCES staff_task_batches(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_task_events",
+      "target_table": "app_users",
+      "name": "staff_task_events_actor_id_fkey",
+      "definition": "FOREIGN KEY (actor_id) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_task_events",
+      "target_table": "staff_tasks",
+      "name": "staff_task_events_task_id_fkey",
+      "definition": "FOREIGN KEY (task_id) REFERENCES staff_tasks(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "staff_task_kiosk_devices",
+      "target_table": "branches",
+      "name": "staff_task_kiosk_devices_branch_id_fkey",
+      "definition": "FOREIGN KEY (branch_id) REFERENCES branches(id)"
+    },
+    {
+      "source_table": "staff_task_kiosk_devices",
+      "target_table": "app_users",
+      "name": "staff_task_kiosk_devices_created_by_fkey",
+      "definition": "FOREIGN KEY (created_by) REFERENCES app_users(id)"
+    },
+    {
+      "source_table": "staff_task_kiosk_links",
+      "target_table": "staff_task_kiosk_devices",
+      "name": "staff_task_kiosk_links_device_id_fkey",
+      "definition": "FOREIGN KEY (device_id) REFERENCES staff_task_kiosk_devices(id)"
+    },
+    {
+      "source_table": "staff_task_kiosk_links",
+      "target_table": "staff_task_dispatch_links",
+      "name": "staff_task_kiosk_links_link_id_fkey",
+      "definition": "FOREIGN KEY (link_id) REFERENCES staff_task_dispatch_links(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "staff_task_stock_observations",
+      "target_table": "staff_tasks",
+      "name": "staff_task_stock_observations_task_id_fkey",
+      "definition": "FOREIGN KEY (task_id) REFERENCES staff_tasks(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "staff_tasks",
+      "target_table": "app_users",
+      "name": "staff_tasks_assignee_id_fkey",
+      "definition": "FOREIGN KEY (assignee_id) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_tasks",
+      "target_table": "staff_task_batches",
+      "name": "staff_tasks_batch_id_fkey",
+      "definition": "FOREIGN KEY (batch_id) REFERENCES staff_task_batches(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_tasks",
+      "target_table": "branches",
+      "name": "staff_tasks_branch_id_fkey",
+      "definition": "FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_tasks",
+      "target_table": "app_users",
+      "name": "staff_tasks_created_by_fkey",
+      "definition": "FOREIGN KEY (created_by) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_tasks",
+      "target_table": "staff_task_dispatches",
+      "name": "staff_tasks_dispatch_id_fkey",
+      "definition": "FOREIGN KEY (dispatch_id) REFERENCES staff_task_dispatches(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_tasks",
+      "target_table": "app_users",
+      "name": "staff_tasks_mass_owner_id_fkey",
+      "definition": "FOREIGN KEY (mass_owner_id) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_tasks",
+      "target_table": "media_plans",
+      "name": "staff_tasks_media_plan_id_fkey",
+      "definition": "FOREIGN KEY (media_plan_id) REFERENCES media_plans(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_tasks",
+      "target_table": "media_plan_items",
+      "name": "staff_tasks_media_plan_item_id_fkey",
+      "definition": "FOREIGN KEY (media_plan_item_id) REFERENCES media_plan_items(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_tasks",
+      "target_table": "organizations",
+      "name": "staff_tasks_organization_id_fkey",
+      "definition": "FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "staff_tasks",
+      "target_table": "app_users",
+      "name": "staff_tasks_reviewer_id_fkey",
+      "definition": "FOREIGN KEY (reviewer_id) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_tasks",
+      "target_table": "shelves",
+      "name": "staff_tasks_shelf_id_fkey",
+      "definition": "FOREIGN KEY (shelf_id) REFERENCES shelves(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "staff_tasks",
+      "target_table": "pharmacy_training_materials",
+      "name": "staff_tasks_training_material_id_fkey",
+      "definition": "FOREIGN KEY (training_material_id) REFERENCES pharmacy_training_materials(id)"
+    },
+    {
+      "source_table": "supplier_budget_plan_items",
+      "target_table": "supplier_budget_plans",
+      "name": "supplier_budget_plan_items_plan_id_fkey",
+      "definition": "FOREIGN KEY (plan_id) REFERENCES supplier_budget_plans(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "supplier_budget_plans",
+      "target_table": "app_users",
+      "name": "supplier_budget_plans_supplier_user_id_fkey",
+      "definition": "FOREIGN KEY (supplier_user_id) REFERENCES app_users(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "supplier_company_members",
+      "target_table": "app_users",
+      "name": "supplier_company_members_supplier_user_id_fkey",
+      "definition": "FOREIGN KEY (supplier_user_id) REFERENCES app_users(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "telegram_branch_invites",
+      "target_table": "branches",
+      "name": "telegram_branch_invites_branch_id_fkey",
+      "definition": "FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "telegram_branch_invites",
+      "target_table": "app_users",
+      "name": "telegram_branch_invites_created_by_fkey",
+      "definition": "FOREIGN KEY (created_by) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "telegram_chat_bindings",
+      "target_table": "branches",
+      "name": "telegram_chat_bindings_branch_id_fkey",
+      "definition": "FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "telegram_chat_bindings",
+      "target_table": "telegram_branch_invites",
+      "name": "telegram_chat_bindings_invite_id_fkey",
+      "definition": "FOREIGN KEY (invite_id) REFERENCES telegram_branch_invites(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "telegram_chat_states",
+      "target_table": "telegram_chat_bindings",
+      "name": "telegram_chat_states_binding_id_fkey",
+      "definition": "FOREIGN KEY (binding_id) REFERENCES telegram_chat_bindings(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "telegram_chat_states",
+      "target_table": "visit_reports",
+      "name": "telegram_chat_states_report_id_fkey",
+      "definition": "FOREIGN KEY (report_id) REFERENCES visit_reports(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "telegram_chat_states",
+      "target_table": "shelves",
+      "name": "telegram_chat_states_selected_shelf_id_fkey",
+      "definition": "FOREIGN KEY (selected_shelf_id) REFERENCES shelves(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "telegram_notification_log",
+      "target_table": "telegram_chat_bindings",
+      "name": "telegram_notification_log_binding_id_fkey",
+      "definition": "FOREIGN KEY (binding_id) REFERENCES telegram_chat_bindings(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "user_sessions",
+      "target_table": "staff_access_codes",
+      "name": "user_sessions_staff_access_code_id_fkey",
+      "definition": "FOREIGN KEY (staff_access_code_id) REFERENCES staff_access_codes(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "user_sessions",
+      "target_table": "organizations",
+      "name": "user_sessions_staff_organization_id_fkey",
+      "definition": "FOREIGN KEY (staff_organization_id) REFERENCES organizations(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "user_sessions",
+      "target_table": "app_users",
+      "name": "user_sessions_user_id_fkey",
+      "definition": "FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "visit_report_attempt_photos",
+      "target_table": "visit_report_attempts",
+      "name": "visit_report_attempt_photos_attempt_id_fkey",
+      "definition": "FOREIGN KEY (attempt_id) REFERENCES visit_report_attempts(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "visit_report_attempt_photos",
+      "target_table": "media_plan_items",
+      "name": "visit_report_attempt_photos_media_plan_item_id_fkey",
+      "definition": "FOREIGN KEY (media_plan_item_id) REFERENCES media_plan_items(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "visit_report_attempt_photos",
+      "target_table": "shelves",
+      "name": "visit_report_attempt_photos_shelf_id_fkey",
+      "definition": "FOREIGN KEY (shelf_id) REFERENCES shelves(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "visit_report_attempts",
+      "target_table": "app_users",
+      "name": "visit_report_attempts_reviewed_by_fkey",
+      "definition": "FOREIGN KEY (reviewed_by) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "visit_report_attempts",
+      "target_table": "visit_reports",
+      "name": "visit_report_attempts_visit_report_id_fkey",
+      "definition": "FOREIGN KEY (visit_report_id) REFERENCES visit_reports(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "visit_reports",
+      "target_table": "branches",
+      "name": "visit_reports_branch_id_fkey",
+      "definition": "FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "visit_reports",
+      "target_table": "app_users",
+      "name": "visit_reports_reviewed_by_fkey",
+      "definition": "FOREIGN KEY (reviewed_by) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "visit_reports",
+      "target_table": "app_users",
+      "name": "visit_reports_submitted_by_user_id_fkey",
+      "definition": "FOREIGN KEY (submitted_by_user_id) REFERENCES app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "visit_reports",
+      "target_table": "telegram_chat_bindings",
+      "name": "visit_reports_telegram_binding_id_fkey",
+      "definition": "FOREIGN KEY (telegram_binding_id) REFERENCES telegram_chat_bindings(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "visit_shelf_photos",
+      "target_table": "media_plan_items",
+      "name": "visit_shelf_photos_media_plan_item_id_fkey",
+      "definition": "FOREIGN KEY (media_plan_item_id) REFERENCES media_plan_items(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "visit_shelf_photos",
+      "target_table": "shelves",
+      "name": "visit_shelf_photos_shelf_id_fkey",
+      "definition": "FOREIGN KEY (shelf_id) REFERENCES shelves(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "visit_shelf_photos",
+      "target_table": "visit_reports",
+      "name": "visit_shelf_photos_visit_report_id_fkey",
+      "definition": "FOREIGN KEY (visit_report_id) REFERENCES visit_reports(id) ON DELETE CASCADE"
+    }
+  ]
+}

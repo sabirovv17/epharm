@@ -3,7 +3,7 @@
 # Shared helpers for production operations scripts. Callers enable strict mode.
 
 ops_root_dir() {
-  cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd
+  cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P
 }
 
 load_env_file() {

@@ -4,8 +4,12 @@ set -euo pipefail
 umask 077
 source_root="$(cd "$(dirname "$0")/../../.." && pwd)"
 test_root="$(mktemp -d "${TMPDIR:-/tmp}/epharm-frontend-only.XXXXXXXX")"
+test_root="$(cd "$test_root" && pwd -P)"
 trap 'rm -rf -- "$test_root"' EXIT
-mkdir -p "$test_root/tools/release" "$test_root/tools/ops" "$test_root/bin" "$test_root/backup"
+backup_root="$test_root/epharm-backend-only-backups"
+backup_dir="$backup_root/pre-backend-only-20261022T112243Z-ABCDEFGH"
+mkdir -p "$test_root/tools/release" "$test_root/tools/ops" "$test_root/bin" "$backup_dir"
+export TEST_REAL_MKTEMP="$(command -v mktemp)"
 cp "$source_root/tools/release/"{deploy-frontend-only.sh,lib.sh} "$test_root/tools/release/"
 cp "$source_root/tools/ops/lib.sh" "$test_root/tools/ops/"
 cp "$source_root/tools/release/tests/fixtures/fake-financial-transition.py" "$test_root/tools/release/verify-financial-transition.py"
@@ -125,6 +129,11 @@ elif args[0] == 'compose':
                 state.update(frontendImage=identity(9), frontendContainer='outside-frontend-container')
             if os.environ.get('TEST_CONFIG_DRIFT') == 'true':
                 with (root / '.env.prod').open('a') as out: out.write('OUTSIDE_CHANGE=true\n')
+            if os.environ.get('TEST_TRANSACTION_MOVED') == 'true':
+                transaction = pathlib.Path((root / 'created-transaction').read_text().strip())
+                moved = root / ('relocated-' + transaction.name)
+                transaction.rename(moved)
+                transaction.symlink_to(moved, target_is_directory=True)
             save()
             if os.environ.get('TEST_FAIL_CANDIDATE_ABSENT') == 'true':
                 state['frontendMissing'] = True
@@ -147,6 +156,20 @@ cat > "$test_root/bin/flock" <<'SH'
 set -euo pipefail
 [[ "$1" == -n && "$2" == 9 && -f "$TEST_FRONTEND_ROOT/releases/backend-only/.deploy.lock" ]]
 [[ "${TEST_LOCK_BUSY:-false}" != true ]]
+SH
+cat > "$test_root/bin/mktemp" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+result="$("$TEST_REAL_MKTEMP" "$@")"
+if [[ "${1:-}" == -d && "${2:-}" == "$TEST_FRONTEND_ROOT/releases/frontend-only/"* ]]; then
+  printf '%s\n' "$result" > "$TEST_FRONTEND_ROOT/created-transaction"
+  case "${TEST_TRANSACTION_RESULT:-}" in
+    relative) result="${result#"$TEST_FRONTEND_ROOT/"}" ;;
+    noncanonical) result="${result%/*}/./${result##*/}" ;;
+    outside) result="$("$TEST_REAL_MKTEMP" -d "$TEST_FRONTEND_ROOT/outside-transaction.XXXXXXXX")" ;;
+  esac
+fi
+printf '%s\n' "$result"
 SH
 cat > "$test_root/tools/release/smoke.sh" <<'SH'
 #!/usr/bin/env bash
@@ -173,7 +196,7 @@ else
 fi
 printf 'smoke:%s/%s\n' "$1" "$2" >> "$TEST_FRONTEND_ROOT/events"
 SH
-chmod +x "$test_root/bin/docker" "$test_root/bin/flock" "$test_root/tools/release/smoke.sh"
+chmod +x "$test_root/bin/docker" "$test_root/bin/flock" "$test_root/bin/mktemp" "$test_root/tools/release/smoke.sh"
 export TEST_FRONTEND_ROOT="$test_root"
 export PATH="$test_root/bin:$PATH"
 commit="$(printf 'a%.0s' {1..40})"
@@ -181,7 +204,7 @@ backend_commit="$(printf 'b%.0s' {1..40})"
 backend_id="sha256:$(printf '%064d' 2)"
 candidate_id="sha256:$(printf '%064d' 5)"
 reset_fixture() {
-  python3 - "$test_root" <<'PY'
+  python3 - "$test_root" "$backup_dir" <<'PY'
 import hashlib, gzip, json, pathlib, sys
 root = pathlib.Path(sys.argv[1])
 (root / 'state.json').write_text(json.dumps({
@@ -198,12 +221,13 @@ root = pathlib.Path(sys.argv[1])
 (root / '.release.env').write_text('RELEASE_ID=v0.1.46\nRELEASE_COMMIT=stale-marker\n')
 (root / 'docker-compose.prod.yml').write_text('# approved Compose fixture\n')
 (root / 'Caddyfile').write_text('# protected Caddy fixture\n')
-backup = root / 'backup'
+backup = pathlib.Path(sys.argv[2])
 backup.chmod(0o700)
+(root / 'releases/frontend-only/active-transaction').unlink(missing_ok=True)
 for name, source in (('env.prod','.env.prod'), ('release.env','.release.env'),
                      ('docker-compose.prod.yml','docker-compose.prod.yml'), ('Caddyfile','Caddyfile')):
     (backup / name).write_bytes((root / source).read_bytes())
-(backup / 'epharm.dump').write_bytes(b'fixture custom dump\n')
+(backup / 'epharm.dump').write_bytes(b'PGDMPfixture custom dump\n')
 for component, tag in (('backend','v0.1.47'),('frontend','v0.1.46')):
     (backup / f'{component}-{tag}.tar.gz').write_bytes(gzip.compress(f'{component} image fixture\n'.encode()))
 names = ['epharm.dump','env.prod','release.env','docker-compose.prod.yml','Caddyfile',
@@ -215,10 +239,10 @@ PY
 reset_fixture
 compose_sha="$(shasum -a 256 "$test_root/docker-compose.prod.yml" | awk '{print $1}')"
 deploy=(bash "$test_root/tools/release/deploy-frontend-only.sh" v0.1.48 "$commit" "$candidate_id" \
-  v0.1.47 "$backend_commit" "$backend_id" v0.1.46 "$test_root/backup" "$compose_sha")
+  v0.1.47 "$backend_commit" "$backend_id" v0.1.46 "$backup_dir" "$compose_sha")
 assert_no_switch() {
   ! grep -q '^up:' "$test_root/events"
-  cmp -s "$test_root/.release.env" "$test_root/backup/release.env"
+  cmp -s "$test_root/.release.env" "$backup_dir/release.env"
   python3 - "$test_root/state.json" <<'PY'
 import json, sys
 s=json.load(open(sys.argv[1]))
@@ -232,6 +256,15 @@ import json, sys
 s=json.load(open(sys.argv[1]))
 assert s['backendContainer']=='stable-backend-container' and s['caddyContainer']=='stable-caddy-container'
 assert s['backendImage']=='sha256:'+'2'.zfill(64) and s['caddyImage']=='sha256:'+'6'.zfill(64)
+PY
+}
+assert_pointer() {
+  python3 -B - "$source_root/tools/ops/prune-release-backups.py" "$test_root" "$backup_root" <<'PY'
+import importlib.util, pathlib, sys
+spec = importlib.util.spec_from_file_location('retention', sys.argv[1])
+retention = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(retention)
+assert retention.prune(pathlib.Path(sys.argv[3]), [pathlib.Path(sys.argv[2])], 3, False) == []
 PY
 }
 for failure in TEST_BAD_RELEASE_SOURCE TEST_BAD_ADMIN_ARTIFACT TEST_BAD_CANDIDATE_LABEL \
@@ -249,11 +282,11 @@ reset_fixture
 if MEDUSA_ENABLED=true "${deploy[@]}" > "$test_root/catalog.log" 2>&1; then exit 1; fi
 assert_no_switch
 reset_fixture
-printf 'tamper' >> "$test_root/backup/epharm.dump"
+printf 'tamper' >> "$backup_dir/epharm.dump"
 if "${deploy[@]}" > "$test_root/backup.log" 2>&1; then exit 1; fi
 assert_no_switch
 reset_fixture
-python3 - "$test_root/backup/SHA256SUMS" <<'PY'
+python3 - "$backup_dir/SHA256SUMS" <<'PY'
 import os, sys, time
 os.utime(sys.argv[1], (time.time()-86401, time.time()-86401))
 PY
@@ -278,6 +311,13 @@ assert_no_switch
 reset_fixture
 "${deploy[@]}" --dry-run > "$test_root/dry-run.log" 2>&1
 assert_no_switch
+for result in relative noncanonical outside; do
+  reset_fixture
+  if TEST_TRANSACTION_RESULT="$result" "${deploy[@]}" > "$test_root/transaction-$result.log" 2>&1; then exit 1; fi
+  assert_no_switch
+  grep -Fq 'ERROR: unsafe frontend transaction directory:' "$test_root/transaction-$result.log"
+  [[ ! -e "$test_root/releases/frontend-only/active-transaction" ]]
+done
 reset_fixture
 "${deploy[@]}" > "$test_root/success.log" 2>&1
 assert_fixed
@@ -287,6 +327,20 @@ grep -Fxq 'FRONTEND_RELEASE_ID=v0.1.48' "$test_root/.release.env"
 grep -Fxq 'RELEASE_ID=v0.1.47' "$test_root/.release.env"
 [[ "$(grep -c '^up:' "$test_root/events")" == 1 ]]
 [[ -s "$test_root/releases/frontend-only/active-transaction" ]]
+assert_pointer
+reset_fixture
+ln -s "$test_root" "$test_root/deploy-current"
+symlink_deploy=("${deploy[@]}")
+symlink_deploy[1]="$test_root/deploy-current/tools/release/deploy-frontend-only.sh"
+"${symlink_deploy[@]}" > "$test_root/symlink-success.log" 2>&1
+assert_fixed
+assert_pointer
+reset_fixture
+if TEST_TRANSACTION_MOVED=true "${deploy[@]}" > "$test_root/moved-transaction.log" 2>&1; then exit 1; fi
+assert_fixed
+grep -Fq 'ERROR: unsafe frontend transaction directory:' "$test_root/moved-transaction.log"
+grep -Fq 'Frontend rollback verified:' "$test_root/moved-transaction.log"
+[[ ! -e "$test_root/releases/frontend-only/active-transaction" ]]
 
 for failure in TEST_FAIL_CANDIDATE_SMOKE TEST_FAIL_PUBLIC_BYTES TEST_FAIL_CANDIDATE_UP TEST_FAIL_CANDIDATE_ABSENT; do
   reset_fixture
@@ -329,7 +383,7 @@ for drift in TEST_FRONTEND_DRIFT_PREFLIGHT TEST_FRONTEND_DRIFT_BASELINE TEST_FRO
   if env "$drift=true" "${deploy[@]}" > "$test_root/$drift.log" 2>&1; then exit 1; fi
   assert_fixed
   ! grep -q '^up:' "$test_root/events"
-  cmp -s "$test_root/.release.env" "$test_root/backup/release.env"
+  cmp -s "$test_root/.release.env" "$backup_dir/release.env"
 done
 reset_fixture
 if TEST_FRONTEND_DRIFT_ROLLBACK=true "${deploy[@]}" > "$test_root/frontend-rollback-drift.log" 2>&1; then exit 1; fi

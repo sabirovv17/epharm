@@ -128,7 +128,29 @@ python3 "$SCRIPT_DIR/verify-image-archive.py" "$verified_backup_dir/frontend-${p
 verify_financial_transition "$backend_id"
 verify_admin_image "$candidate_id"
 
+assert_transaction_dir() {
+  python3 - "$RELEASE_ROOT/releases/frontend-only" "$transaction_dir" <<'PY'
+import os, pathlib, stat, sys
+parent_raw, transaction_raw = sys.argv[1:]
+parent, transaction = map(pathlib.Path, (parent_raw, transaction_raw))
+try:
+    if str(parent) != parent_raw or str(transaction) != transaction_raw:
+        raise ValueError('directory path contains noncanonical components')
+    if transaction.parent != parent:
+        raise ValueError('transaction is not a direct child of the frontend release directory')
+    for path in (parent, transaction):
+        info = path.lstat()
+        if (not path.is_absolute() or path.resolve(strict=True) != path or path.is_symlink()
+                or not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid()
+                or stat.S_IMODE(info.st_mode) != 0o700
+                or any(ord(character) < 32 or ord(character) == 127 for character in str(path))):
+            raise ValueError('directory must be absolute, canonical, caller-owned and mode 0700')
+except (OSError, RuntimeError, ValueError) as error:
+    raise SystemExit(f'ERROR: unsafe frontend transaction directory: {error}')
+PY
+}
 transaction_dir="$(mktemp -d "$RELEASE_ROOT/releases/frontend-only/${candidate_tag}-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXXXX")"
+assert_transaction_dir
 cp -p "$RELEASE_ROOT/.release.env" "$transaction_dir/original.release.env"
 original_release_sha="$(sha256_file "$RELEASE_ROOT/.release.env")"
 original_env_sha="$(sha256_file "$RELEASE_ROOT/.env.prod")"
@@ -252,6 +274,7 @@ verify_financial_transition "$backend_id"
 assert_fixed_components
 assert_previous_frontend
 assert_backup_configs
+assert_transaction_dir
 switched=true
 mv -f "$staged_env" "$RELEASE_ROOT/.release.env"
 compose_prod up -d --no-build --no-deps --force-recreate frontend
@@ -263,6 +286,7 @@ SMOKE_BACKEND_COMMIT="$backend_commit" SMOKE_FRONTEND_COMMIT="$candidate_commit"
 }
 assert_fixed_components
 assert_protected_configs
+assert_transaction_dir
 active_tmp="$(mktemp "$RELEASE_ROOT/releases/frontend-only/.active-transaction.XXXXXX")"
 printf '%s\n' "$transaction_dir" > "$active_tmp"
 mv -f "$active_tmp" "$RELEASE_ROOT/releases/frontend-only/active-transaction"

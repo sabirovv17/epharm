@@ -1,0 +1,4119 @@
+{
+  "schemaVersion": 1,
+  "artifact": "epharm-unification-posm-contracts",
+  "generatedDate": "2026-10-29",
+  "language": "en",
+  "sourceSnapshot": {
+    "requestedRef": "4e1064e4",
+    "coreRef": "b946592549db9eab8d108c6c5bdbd7022915a655",
+    "provenance": "Pinned ePharm core b946592549db9eab8d108c6c5bdbd7022915a655; source files revalidated in the fresh Git worktree. Runtime checks are recorded separately."
+  },
+  "scope": {
+    "mode": "read-only source audit; only /tmp artifact written",
+    "productionAccessed": false,
+    "secretsOpened": false,
+    "requestsSent": false,
+    "applicationChanged": false,
+    "planChanged": false,
+    "publicOrigin": "https://epharm.inkar.kz",
+    "publicOriginMustRemainUnchanged": true,
+    "singleBackendAndDatabaseTarget": true,
+    "mandatoryRpsWindowAllowed": false,
+    "allSalesJournalChangeAllowed": false,
+    "secretsOpenedNote": "No credential files or live config read. Only tracked source/config templates were inspected; no secret values copied into this artifact."
+  },
+  "stateSemantics": {
+    "source_confirmed": "Method/path/DTO/behavior checked in cited source; no claim of live operation.",
+    "needs_verification": "Source boundary recorded, but required part such as mounted bytes, external CRM behavior, SPA fallback or proxy access is absent from snapshot or runtime-dependent."
+  },
+  "checkExecution": {
+    "positiveChecks": "planned, not executed",
+    "negativeChecks": "planned, not executed",
+    "unitTestsRun": false,
+    "integrationTestsRun": false,
+    "windowsTestsRun": false,
+    "productionSmokeRun": false
+  },
+  "errorEnvelope": {
+    "dto": "ApiErrorResponse",
+    "fields": ["code", "message", "timestamp", "fields?"],
+    "sources": [
+      {
+        "path": "admin-panel/backend/src/main/kotlin/kz/epharm/shared/error/GlobalExceptionHandler.kt",
+        "line": 32,
+        "anchor": "class GlobalExceptionHandler"
+      }
+    ]
+  },
+  "deviceAuthInvariant": {
+    "facts": [
+      "POSM SecurityConfig permitAll is routing only; controllers enforce device auth.",
+      "SHA-256(token) matches exactly one active fulfillment_devices record joined to active pharmacy; token length32..256.",
+      "When supplied, claimed pharmacy is exact trimmed match; device is trimmed case-insensitive match.",
+      "Regular authenticate allows legacy only if app.posm.legacy-device-key-enabled; production compose defaultfalse, application fallbacktrue.",
+      "authenticateForUpdate accepts retired fleet key only for version route even when regular legacy disabled.",
+      "requireLegacyBootstrap is separate, requiring legacyEnabled and enrollment/fulfillment flags; not implied by update exception.",
+      "Client reuses stored protected credential only for matching device+pharmacy.",
+      "StaffAuthController ignores supplied X-Device-Id header; its device identity comes from authenticated key, while Standard-N context is separately bound."
+    ],
+    "sources": [
+      {
+        "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/PosmDeviceAuthenticationService.kt",
+        "line": 57,
+        "anchor": "private fun authenticateInternal("
+      },
+      {
+        "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/PosmDeviceAuthenticationService.kt",
+        "line": 50,
+        "anchor": "fun authenticateForUpdate("
+      },
+      {
+        "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/PosmDeviceAuthenticationService.kt",
+        "line": 109,
+        "anchor": "fun requireLegacyBootstrap("
+      },
+      {
+        "path": "App/Services/PosmDeviceCredentialResolver.cs",
+        "line": 7,
+        "anchor": "internal static string Resolve("
+      },
+      {
+        "path": "admin-panel/backend/src/main/kotlin/kz/epharm/shared/SecurityConfig.kt",
+        "line": 92,
+        "anchor": "\"/api/posm/**\""
+      },
+      {
+        "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthController.kt",
+        "line": 47,
+        "anchor": "private fun device("
+      }
+    ]
+  },
+  "updateTrustInvariant": {
+    "algorithm": "ECDSA over SHA-256, DER signature; SPKI public key pinned independently on client",
+    "canonicalPrefix": "epharm-posm-update-v1",
+    "canonicalSignedFields": [
+      "trim(platform)",
+      "trim(version)",
+      "trim(url)",
+      "lowercase(trim(sha256))",
+      "lowercase(mandatory)"
+    ],
+    "separator": "LF, no final LF after mandatory",
+    "unsignedResponseFields": ["current", "notes"],
+    "archiveIntegrity": "Mandatory signed SHA256 + newer version + HTTPS URL/local dev exception + executable presence; downloaded via separate HttpClient without per-device credential.",
+    "configSafety": "Shared ZIP posm.json discarded; existing per-pharmacy configuration remains.",
+    "serverNote": "Registration verifies signature if server pin configured; blank dev/test pin skips server cryptographic enforcement, client still enforces. Production compose requires pin variable.",
+    "sources": [
+      {
+        "path": "App/Services/UpdateManifestVerifier.cs",
+        "line": 36,
+        "anchor": "internal static string Canonical("
+      },
+      {
+        "path": "admin-panel/backend/src/main/kotlin/kz/epharm/appupdate/service/AppUpdateManifestVerifier.kt",
+        "line": 50,
+        "anchor": "fun canonical("
+      },
+      {
+        "path": "App/Services/AppUpdater.cs",
+        "line": 80,
+        "anchor": "if (!UpdateManifestVerifier.Verify("
+      },
+      {
+        "path": "App/Services/AppUpdater.cs",
+        "line": 154,
+        "anchor": "private async Task<bool> DownloadAsync("
+      },
+      {
+        "path": "App/Services/AppUpdater.cs",
+        "line": 126,
+        "anchor": "SafeDelete(Path.Combine(staging, \"posm.json\"))"
+      },
+      {
+        "path": "docker-compose.prod.yml",
+        "line": 147,
+        "anchor": "POSM_UPDATE_PUBLIC_KEY_SPKI:"
+      }
+    ]
+  },
+  "displayEvidenceInvariant": {
+    "facts": [
+      "HTTP200 from recommend means generated payload, not visible popup.",
+      "Recommendation creation outcome=shown/shownAt is not displayedAt.",
+      "Client shown receipt originates from actual rendered/elevated visible WPF window; Windows overlay proof still required.",
+      "Recommendation shown returns ok:true for unknown/foreign event no-op: verify scoped persisted displayedAt, not response alone.",
+      "Heartbeat/fulfillment polling proves recent traffic only; monitorCount is topology telemetry, not video/popup display.",
+      "Merch QR delivery needs accepted:true (not HTTP200 alone) and correct task/token/device/pharmacy record; API cannot independently prove human attention."
+    ],
+    "sources": [
+      {
+        "path": "App/RecommendationWindow.xaml.cs",
+        "line": 195,
+        "anchor": "private void TryAnnounceDisplayed()"
+      },
+      {
+        "path": "App/MainWindow.Recommendations.cs",
+        "line": 659,
+        "anchor": "private void MarkRecommendationShown("
+      },
+      {
+        "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/RecommendationService.kt",
+        "line": 414,
+        "anchor": "fun markDisplayed("
+      },
+      {
+        "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/DevicePresenceService.kt",
+        "line": 113,
+        "anchor": "fun connected("
+      },
+      {
+        "path": "App/TaskKioskWindow.xaml.cs",
+        "line": 177,
+        "anchor": "private void AnnounceDisplayed()"
+      },
+      {
+        "path": "App/Services/MerchTaskDeliveryReply.cs",
+        "line": 11,
+        "anchor": "public static async Task<bool> ReadAsync("
+      }
+    ]
+  },
+  "retryInvariant": {
+    "facts": [
+      "EpharmApiClient uses BackendFailoverHandler: it buffers/replays even POST on network/timeout or404/502/503/504 across configured origins. All configured origins therefore must be trusted and share same authoritative data/idempotency.",
+      "Sales, outcome and recommendation shown use SQLite outbox; preserve stable ids and pending payloads.",
+      "Fulfillment versioned actions return409 after lost-success replay rather than a second transition; refetch instead of inventing success.",
+      "Legacy device registration rotates credential and must not be considered idempotent.",
+      "Human staff password/OTP API intentionally uses no automatic failover replay, no cookies, no redirects.",
+      "Merch shown queue is DPAPI CurrentUser, scoped by device+pharmacy, expiry bounded; explicit rejected capability is retired, transient response retained."
+    ],
+    "sources": [
+      {
+        "path": "App/Services/BackendFailoverHandler.cs",
+        "line": 35,
+        "anchor": "protected override async Task<HttpResponseMessage> SendAsync("
+      },
+      {
+        "path": "App/Services/BackendFailoverHandler.cs",
+        "line": 104,
+        "anchor": "private static bool ShouldTryFallback("
+      },
+      {
+        "path": "App/Services/OfflineOutbox.cs",
+        "line": 60,
+        "anchor": "public void Enqueue("
+      },
+      {
+        "path": "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/service/FulfillmentService.kt",
+        "line": 506,
+        "anchor": "if (current.version != request.expectedVersion)"
+      },
+      {
+        "path": "App/Services/StaffAuthClient.cs",
+        "line": 27,
+        "anchor": "new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false }"
+      },
+      {
+        "path": "App/Services/MerchShownOutbox.cs",
+        "line": 63,
+        "anchor": "public async Task FlushAsync("
+      }
+    ]
+  },
+  "featureFlags": [
+    {
+      "name": "StaffAuthenticationReleaseEnabled",
+      "sourceValue": false,
+      "kind": "POSM binary constant",
+      "invariant": "Do not enable staff/RPS windows as part of unification.",
+      "source": {
+        "path": "App/Config/EpharmConfig.cs",
+        "line": 123,
+        "anchor": "public static bool StaffAuthenticationReleaseEnabled"
+      }
+    },
+    {
+      "name": "POSM_STAFF_AUTH_ENABLED",
+      "composeDefault": false,
+      "kind": "server env flag",
+      "invariant": "Capabilities can report disabled; core POSM must continue.",
+      "source": {
+        "path": "docker-compose.prod.yml",
+        "line": 146,
+        "anchor": "POSM_STAFF_AUTH_ENABLED:"
+      }
+    },
+    {
+      "name": "EPHARM_STAFF_AUTH_ENABLED",
+      "sourceDefault": true,
+      "kind": "local optional opt-out, ineffective while release constantfalse",
+      "source": {
+        "path": "App/Config/EpharmConfig.cs",
+        "line": 288,
+        "anchor": "Env(\"EPHARM_STAFF_AUTH_ENABLED\""
+      }
+    },
+    {
+      "name": "POSM_LEGACY_DEVICE_KEY_ENABLED",
+      "composeDefault": false,
+      "applicationFallback": true,
+      "invariant": "Runtime actual value must be checked without reading secret values; do not widen update exception.",
+      "source": {
+        "path": "docker-compose.prod.yml",
+        "line": 143,
+        "anchor": "POSM_LEGACY_DEVICE_KEY_ENABLED:"
+      }
+    },
+    {
+      "name": "FULFILLMENT_ENABLED",
+      "composeDefault": false,
+      "source": {
+        "path": "docker-compose.prod.yml",
+        "line": 159,
+        "anchor": "FULFILLMENT_ENABLED:"
+      }
+    },
+    {
+      "name": "FULFILLMENT_DEVICE_REGISTRATION_ENABLED",
+      "composeDefault": false,
+      "source": {
+        "path": "docker-compose.prod.yml",
+        "line": 162,
+        "anchor": "FULFILLMENT_DEVICE_REGISTRATION_ENABLED:"
+      }
+    },
+    {
+      "name": "MERCH_TASKS_ENABLED",
+      "composeDefault": false,
+      "source": {
+        "path": "docker-compose.prod.yml",
+        "line": 148,
+        "anchor": "MERCH_TASKS_ENABLED:"
+      }
+    },
+    {
+      "name": "MERCH_REWARDS_ENABLED",
+      "composeDefault": false,
+      "source": {
+        "path": "docker-compose.prod.yml",
+        "line": 155,
+        "anchor": "MERCH_REWARDS_ENABLED:"
+      }
+    },
+    {
+      "name": "POSM_SALE_BONUS_ENABLED",
+      "composeDefault": false,
+      "source": {
+        "path": "docker-compose.prod.yml",
+        "line": 157,
+        "anchor": "POSM_SALE_BONUS_ENABLED:"
+      }
+    }
+  ],
+  "knownSourceGaps": [
+    {
+      "id": "CDP_BODY_SCOPE",
+      "state": "source_confirmed",
+      "finding": "cdp/register authenticates key without claimed pharmacy; registration pharmacyId/pharmacistId metadata is persisted from body without device binding.",
+      "requiredAction": "Record current behavior; decide validation during identity/API integration, verify no authorization or financial trust inferred from metadata.",
+      "sources": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/controller/PosmController.kt",
+          "line": 238,
+          "anchor": "fun cdpRegister("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/cdp/service/CdpService.kt",
+          "line": 37,
+          "anchor": "fun register("
+        }
+      ]
+    },
+    {
+      "id": "RECOMMEND_SESSION_COLLISION",
+      "state": "needs_verification",
+      "finding": "Recommendation event reuse lookup uses sessionId/ruleId/trigger without pharmacy; source alone does not prove global session uniqueness across devices.",
+      "requiredAction": "Negative isolated concurrent test with same session across pharmacies; preserve pharmacy isolation without silently changing installed client contract.",
+      "sources": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/RecommendationService.kt",
+          "line": 508,
+          "anchor": "private fun upsertShownEvent("
+        }
+      ]
+    },
+    {
+      "id": "EXTERNAL_CRM_RECEIPT",
+      "state": "needs_verification",
+      "finding": "Actual legacy CRM task selection, receipt idempotency, media cookies/Range and callback redemption require composed candidate; gateway source cannot prove upstream.",
+      "requiredAction": "Verify old/current QR and revision token fixtures with common backend before cutover.",
+      "sources": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/merchtasks/service/MerchTaskClient.kt",
+          "line": 146,
+          "anchor": "fun markShown("
+        },
+        {
+          "path": "Caddyfile",
+          "line": 50,
+          "anchor": "@merch_media {"
+        }
+      ]
+    },
+    {
+      "id": "INSTALLED_AND_INGRESS",
+      "state": "needs_verification",
+      "finding": "Installed versions, actual flags, TLS/ingress/DNS, archive bytes/signature pin, device state and old pending outboxes are not established by this offline source audit.",
+      "requiredAction": "K1/K2 capture isolated fixtures and supported Windows versions; authorized production read-only evidence later, no deployment or secret extraction.",
+      "sources": [
+        {
+          "path": "Caddyfile",
+          "line": 12,
+          "anchor": "(epharm_routes) {"
+        },
+        {
+          "path": "docker-compose.prod.yml",
+          "line": 143,
+          "anchor": "POSM_LEGACY_DEVICE_KEY_ENABLED:"
+        }
+      ]
+    }
+  ],
+  "contracts": [
+    {
+      "id": "POSM_RECOMMEND",
+      "method": "POST",
+      "path": "/api/posm/recommend",
+      "auth": {
+        "headers": ["X-Posm-Key"],
+        "boundary": "POSM device authentication, independent of admin/mobile JWT; see deviceAuthInvariant.",
+        "valuesIncluded": false
+      },
+      "identity": "Device credential binds pharmacyId; pharmacist resolved by pharmacy-scoped explicit mapping, active internal id, or unique exact name; unresolved seller remains blank.",
+      "request": {
+        "server": "RecommendRequest + CartItemDto",
+        "client": "RecommendRequest + CartItem",
+        "keyFields": [
+          "pharmacyId",
+          "sessionId",
+          "pharmacistId?",
+          "pharmacistName?",
+          "scannedBarcode?",
+          "cart[{sku?,barcode?,name?,qty}]"
+        ]
+      },
+      "response": {
+        "server": "RecommendResponse + RecommendationDto + ConflictDto",
+        "client": "RecommendResponse + Recommendation + Conflict",
+        "keyFields": [
+          "sessionId",
+          "recommendations[{eventId,ruleId,kind,triggerSku?,triggerIpartId?,triggerBarcode?,recommendSku,recommendBarcode?,recommendPrice,bonus,script,advantages,comparison,source,balance?}]",
+          "conflicts[{kind,triggerName?,reason,ruleIds}]"
+        ]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        }
+      ],
+      "sideEffects": [
+        "Creates/reuses recommendation events; creation shownAt and outcome=shown do not prove UI display.",
+        "May call optional pharmacy-scoped merch context, with no pharmacist identity sent upstream."
+      ],
+      "requiredInvariant": [
+        "Same method/path/camelCase DTO; do not require admin login or staff login.",
+        "Keep concrete-product and classifier recommendations and local canonical precedence; null inventory means unknown, not zero.",
+        "Repeated calls reuse undecided event by session/rule/concrete trigger; current repository lookup is not pharmacy-qualified and needs collision check."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/controller/PosmController.kt",
+          "line": 65,
+          "anchor": "fun recommend("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/dto/PosmDtos.kt",
+          "line": 30,
+          "anchor": "data class RecommendRequest("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/RecommendationService.kt",
+          "line": 67,
+          "anchor": "fun recommend("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/RecommendationService.kt",
+          "line": 508,
+          "anchor": "private fun upsertShownEvent("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/PosmPharmacistIdentityService.kt",
+          "line": 39,
+          "anchor": "fun resolve("
+        },
+        {
+          "path": "App/Services/EpharmApiClient.cs",
+          "line": 82,
+          "anchor": "public async Task<RecommendResponse?> RecommendAsync"
+        }
+      ],
+      "positiveChecks": [
+        "A provisioned pharmacy device sends real barcode/iPartID cart and receives typed recommendations/conflicts.",
+        "Repeat same receipt/cart before decision and compare event ids; verify no second undecided event.",
+        "On Windows, distinguish generated response from popup Displayed callback and displayedAt."
+      ],
+      "negativeChecks": [
+        "Foreign pharmacyId or revoked key ->401.",
+        "Unknown/ambiguous seller cannot acquire another pharmacy identity; unresolved recommendation must not create bonus.",
+        "Same sessionId in two pharmacies must not reuse a foreign event; current query scope needs verification.",
+        "Optional merch timeout/offline does not block core cashier workflow."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "POSM_RECOMMENDATION_SHOWN",
+      "method": "POST",
+      "path": "/api/posm/recommendations/{eventId}/shown",
+      "auth": {
+        "headers": ["X-Posm-Key"],
+        "boundary": "POSM device authentication, independent of admin/mobile JWT; see deviceAuthInvariant.",
+        "valuesIncluded": false
+      },
+      "identity": "eventId is checked against authenticated device pharmacy. Unknown or other-pharmacy event deliberately produces a no-op with successful ok response.",
+      "request": {
+        "server": "MarkShownRequest",
+        "client": "MarkShownRequest",
+        "keyFields": ["shownAt (Instant/DateTimeOffset)"]
+      },
+      "response": {
+        "server": "MarkShownResponse",
+        "client": "client reads only success status",
+        "keyFields": ["eventId", "ok"]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        }
+      ],
+      "sideEffects": [
+        "First displayedAt is stored under receipt advisory lock; retries keep first timestamp.",
+        "saleBonuses.afterDisplay can run; no-op events make no changes."
+      ],
+      "requiredInvariant": [
+        "Only actually visible/elevated popup triggers client shown outbox; HTTP200 and generated shownAt are insufficient proof.",
+        "Keep shown_<eventId> durable outbox id and first display time.",
+        "Do not silently change no-op acknowledgment semantics; acceptance must inspect correct event/pharmacy displayedAt."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/controller/PosmController.kt",
+          "line": 93,
+          "anchor": "fun markShown("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/RecommendationService.kt",
+          "line": 414,
+          "anchor": "fun markDisplayed("
+        },
+        {
+          "path": "App/RecommendationWindow.xaml.cs",
+          "line": 195,
+          "anchor": "private void TryAnnounceDisplayed()"
+        },
+        {
+          "path": "App/MainWindow.Recommendations.cs",
+          "line": 686,
+          "anchor": "private void EnqueueShownPing("
+        },
+        {
+          "path": "App/Services/OutboxFlusher.cs",
+          "line": 109,
+          "anchor": "case \"shown\":"
+        }
+      ],
+      "positiveChecks": [
+        "Visible popup on correct Windows screen ->outbox->displayedAt once.",
+        "Repeat or deliver delayed shown event after sale and verify first timestamp and single attribution."
+      ],
+      "negativeChecks": [
+        "Unknown/foreign event returns ok:true but must not alter another event.",
+        "Hidden/minimized/failed-topmost window must not create a show proof.",
+        "Offline/restart preserves outbox; eventual delivery must not duplicate bonus."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "POSM_OUTCOME",
+      "method": "POST",
+      "path": "/api/posm/recommendations/{eventId}/outcome",
+      "auth": {
+        "headers": ["X-Posm-Key"],
+        "boundary": "POSM device authentication, independent of admin/mobile JWT; see deviceAuthInvariant.",
+        "valuesIncluded": false
+      },
+      "identity": "Authenticated device pharmacy must own recommendation; seller identity was resolved on recommendation creation.",
+      "request": {
+        "server": "OutcomeRequest",
+        "client": "OutcomeRequest",
+        "keyFields": ["outcome:accepted|rejected", "finalSku?"]
+      },
+      "response": {
+        "server": "OutcomeResponse",
+        "client": "OutcomeResponse (client reads only success status)",
+        "keyFields": ["eventId", "outcome", "pendingBonusId?"]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        },
+        {
+          "status": 404,
+          "code": "NOT_FOUND",
+          "when": "Unknown or other-pharmacy recommendation."
+        },
+        {
+          "status": 409,
+          "code": "CONFLICT / USER_NOT_ACTIVE",
+          "when": "Offer already accepted in receipt; unresolved pharmacist; conflicting reservations."
+        }
+      ],
+      "sideEffects": [
+        "Serializes per receipt; first decision is retained on retry; accepted may register/reuse pending bonus.",
+        "A decision is not a completed sale, cash payment, or final wallet payout."
+      ],
+      "requiredInvariant": [
+        "Keep event decision idempotency and no duplicate same offered SKU in receipt.",
+        "Keep outbox delivery independent of optional staff-auth windows."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/controller/PosmController.kt",
+          "line": 79,
+          "anchor": "fun outcome("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/RecommendationService.kt",
+          "line": 428,
+          "anchor": "fun recordOutcome("
+        },
+        {
+          "path": "App/Services/EpharmApiClient.cs",
+          "line": 112,
+          "anchor": "public async Task<bool> RecordOutcomeAsync"
+        },
+        {
+          "path": "App/Services/OutboxFlusher.cs",
+          "line": 104,
+          "anchor": "case \"outcome\":"
+        }
+      ],
+      "positiveChecks": [
+        "Accept resolved event and verify one pendingBonusId; retry retains same result.",
+        "Reject and retry returns rejected with no new bonus."
+      ],
+      "negativeChecks": [
+        "Foreign event ->404; accepted/rejected invalid value ->400.",
+        "Two concurrent acceptances of same product in one receipt cannot produce two bonuses.",
+        "Changing a decided event via retry must not overwrite first outcome."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "POSM_SALES",
+      "method": "POST",
+      "path": "/api/posm/sales",
+      "auth": {
+        "headers": ["X-Posm-Key"],
+        "boundary": "POSM device authentication, independent of admin/mobile JWT; see deviceAuthInvariant.",
+        "valuesIncluded": false
+      },
+      "identity": "pharmacyId must match device; same pharmacy-scoped seller resolver as recommend. Unmapped raw Standard-N seller is preserved for audit without trusted pharmacist identity.",
+      "request": {
+        "server": "PosSaleRequest + PosSaleItemDto",
+        "client": "SaleReport + SaleReportItem",
+        "keyFields": [
+          "saleId",
+          "pharmacyId",
+          "sessionId?",
+          "sourceDocumentId?",
+          "pharmacistId?",
+          "pharmacistName?",
+          "captureSource?",
+          "totalAmount",
+          "items[{sku?,barcode?,name,qty,price,total}]",
+          "printedAt",
+          "artifactFormat?",
+          "artifactSha256?",
+          "artifactSource?",
+          "fiscalId?",
+          "fiscalSign?",
+          "cashRegisterRegistrationNumber?",
+          "ofdName?",
+          "cashier?",
+          "shift?"
+        ]
+      },
+      "response": {
+        "server": "PosSaleResponse",
+        "client": "client reads only success status",
+        "keyFields": ["saleId", "accepted (false on already stored sale/enrichment)"]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        },
+        {
+          "status": 409,
+          "code": "VALIDATION_FAILED (ResponseStatusException mapping)",
+          "when": "saleId identity conflict or immutable fiscal artifact conflict."
+        }
+      ],
+      "sideEffects": [
+        "Stores pos_sales; resolves local product keys; attributes recommendations; may reconcile trusted seller and gated sale bonus.",
+        "Duplicate sale may enrich missing exact fiscal metadata only; no second attribution/reconciliation.",
+        "Original fiscal bytes are not uploaded by this JSON endpoint."
+      ],
+      "requiredInvariant": [
+        "Keep stable saleId derived from pharmacy + Standard-N document or receipt session, preserve pending outbox.",
+        "Same id must retain pharmacy/session/total/sourceDocument identity.",
+        "Legacy reconstructed PNG without artifact hash remains deliverable but is not exact fiscal provenance.",
+        "Hash opt-in requires trusted original PDF/PNG provenance and complete immutable fiscal fields.",
+        "Current journal of all sales is unchanged by this contract audit."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/controller/PosmController.kt",
+          "line": 105,
+          "anchor": "fun sale("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/dto/PosmDtos.kt",
+          "line": 169,
+          "anchor": "data class PosSaleRequest("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/PosSaleService.kt",
+          "line": 42,
+          "anchor": "fun record("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/PosSaleService.kt",
+          "line": 157,
+          "anchor": "private fun validateFiscalArtifact("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/PosSaleService.kt",
+          "line": 182,
+          "anchor": "private fun validateExistingSaleIdentity("
+        },
+        {
+          "path": "App/Services/OfflineOutbox.cs",
+          "line": 60,
+          "anchor": "public void Enqueue("
+        }
+      ],
+      "positiveChecks": [
+        "Send closed receipt, retry same sale, verify one sale and accepted:false on retry.",
+        "Enrich previously stored structured sale with exact metadata once, without financial rerun.",
+        "Unmapped Standard-N seller sale is preserved and shown as unmapped."
+      ],
+      "negativeChecks": [
+        "Key with foreign pharmacy ->401.",
+        "Repeat saleId with different pharmacy/session/document/total ->409.",
+        "Hash with untrusted source/missing fiscal fields ->400; conflicting immutable original ->409.",
+        "Offline/restart delivery must not lose or duplicate completed receipts."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "POSM_PLAYLIST",
+      "method": "GET",
+      "path": "/api/posm/playlists/active",
+      "auth": {
+        "headers": ["X-Posm-Key"],
+        "boundary": "POSM device authentication, independent of admin/mobile JWT; see deviceAuthInvariant.",
+        "valuesIncluded": false
+      },
+      "identity": "Optional pharmacyId must equal device pharmacy; omitted pharmacy uses bound device pharmacy.",
+      "request": {
+        "server": "query",
+        "client": "GetActivePlaylistAsync",
+        "keyFields": ["pharmacyId?"]
+      },
+      "response": {
+        "server": "ActivePlaylistDto + ActiveSlideDto",
+        "client": "ActivePlaylist + ActiveSlide",
+        "keyFields": [
+          "playlistId?",
+          "name",
+          "slides[{id,url,kind,durationSec,title,position,inherited?}]"
+        ]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        }
+      ],
+      "sideEffects": [],
+      "requiredInvariant": [
+        "Keep active pharmacy-specific profile and inherited global slots; empty playlist is valid.",
+        "Downloading playlist/media is not proof that client screen rendered any frame.",
+        "Offline leaves safe cached/current/local media behavior.",
+        "Client downloads playlist media with separate credential-free HttpClient and switches only after cache warming; preserve prior cached playback when cache download fails."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/controller/PosmController.kt",
+          "line": 125,
+          "anchor": "fun activePlaylist("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/screens/service/ScreenService.kt",
+          "line": 75,
+          "anchor": "fun activePlaylistForScreen("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/screens/dto/ScreenDtos.kt",
+          "line": 72,
+          "anchor": "data class ActivePlaylistDto("
+        },
+        {
+          "path": "App/Services/EpharmApiClient.cs",
+          "line": 131,
+          "anchor": "public async Task<ActivePlaylist?> GetActivePlaylistAsync"
+        },
+        {
+          "path": "App/Services/MediaCache.cs",
+          "line": 33,
+          "anchor": "_http = new HttpClient"
+        },
+        {
+          "path": "App/MainWindow.Screen.cs",
+          "line": 271,
+          "anchor": "private async Task LoadBackendPlaylistAsync("
+        }
+      ],
+      "positiveChecks": [
+        "Bound pharmacy obtains active ordered effective slides; omission resolves same pharmacy.",
+        "Pharmacy overrides preserve other inherited default slots."
+      ],
+      "negativeChecks": [
+        "Foreign pharmacy ->401.",
+        "Inactive/missing profile ->empty/fallback rather than leaked foreign playlist.",
+        "Missing or slow media does not stop cashier sale capture."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "POSM_HEARTBEAT",
+      "method": "POST",
+      "path": "/api/posm/heartbeat",
+      "auth": {
+        "headers": ["X-Posm-Key"],
+        "boundary": "POSM device authentication, independent of admin/mobile JWT; see deviceAuthInvariant.",
+        "valuesIncluded": false
+      },
+      "identity": "Optional deviceId/pharmacyId claims checked against key; fallback uses bound identity. Presence identity is pharmacyId+deviceId, not deviceId alone.",
+      "request": {
+        "server": "query, no body",
+        "client": "HeartbeatAsync",
+        "keyFields": [
+          "deviceId?",
+          "pharmacyId?",
+          "monitorCount?",
+          "appVersion?",
+          "staffAuthStatus?"
+        ]
+      },
+      "response": {
+        "server": "HeartbeatResponse",
+        "client": "client reads only success status",
+        "keyFields": ["ok", "deviceId"]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        }
+      ],
+      "sideEffects": [
+        "Touches device last_seen_at and shared Redis/local presence.",
+        "Connected count also merges durable fulfillment-device activity.",
+        "Invalid monitorCount outside1..16 is ignored; appVersion normalized; staffAuthStatus restricted to nonpersonal code allowlist."
+      ],
+      "requiredInvariant": [
+        "Heartbeat/online count proves recent device traffic only, never popup/QR/video/sale/staff authentication.",
+        "Do not treat duplicate Windows device names in different pharmacies as same register.",
+        "Preserve compatibility with omitted newer telemetry fields."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/controller/PosmController.kt",
+          "line": 161,
+          "anchor": "fun heartbeat("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/DevicePresenceService.kt",
+          "line": 48,
+          "anchor": "private fun presenceKey("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/DevicePresenceService.kt",
+          "line": 113,
+          "anchor": "fun connected("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/StaffAuthStatus.kt",
+          "line": 5,
+          "anchor": "private val allowed"
+        },
+        {
+          "path": "App/Services/EpharmApiClient.cs",
+          "line": 222,
+          "anchor": "public async Task<bool> HeartbeatAsync"
+        }
+      ],
+      "positiveChecks": [
+        "Two pharmacies with same Windows device name remain separate presence records.",
+        "Old-client heartbeat without monitorCount/appVersion succeeds; new fields roundtrip."
+      ],
+      "negativeChecks": [
+        "Foreign pharmacy/device ->401.",
+        "Free-text staffAuthStatus is discarded, not stored as identity.",
+        "TTL expiry removes online presence but never rewrites historic shows/sales."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "POSM_VERSION",
+      "method": "GET",
+      "path": "/api/posm/app/version",
+      "auth": {
+        "headers": ["X-Posm-Key"],
+        "boundary": "Per-device credential OR retired fleet key accepted ONLY through authenticateForUpdate; anonymous request is not accepted.",
+        "valuesIncluded": false
+      },
+      "identity": "Per-device deviceId claim must match; legacy update identity has no database device binding and no write authority.",
+      "request": {
+        "server": "query",
+        "client": "GetAppVersionAsync",
+        "keyFields": ["platform? default win-x64", "deviceId?", "currentVersion?"]
+      },
+      "response": {
+        "server": "AppVersionDto",
+        "client": "AppVersionInfo",
+        "keyFields": [
+          "current",
+          "platform",
+          "version",
+          "url",
+          "sha256",
+          "manifestSignature",
+          "mandatory",
+          "notes"
+        ]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        }
+      ],
+      "sideEffects": [
+        "Logs bounded update metadata; reads release record; no lastSeen touch or credential issuance."
+      ],
+      "requiredInvariant": [
+        "Retired-key exception must remain read-only and scoped to app/version; no blanket legacy re-enable.",
+        "No current release ->current:false; current:true means release exists, client separately checks newer version.",
+        "Pinned ECDSA/SHA-256 verification required before download/installation; see updateTrustInvariant."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/controller/PosmController.kt",
+          "line": 138,
+          "anchor": "fun appVersion("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/PosmDeviceAuthenticationService.kt",
+          "line": 50,
+          "anchor": "fun authenticateForUpdate("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/appupdate/service/AppReleaseService.kt",
+          "line": 20,
+          "anchor": "fun currentFor("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/appupdate/dto/AppUpdateDtos.kt",
+          "line": 12,
+          "anchor": "data class AppVersionDto("
+        },
+        {
+          "path": "App/Services/AppUpdater.cs",
+          "line": 80,
+          "anchor": "if (!UpdateManifestVerifier.Verify("
+        }
+      ],
+      "positiveChecks": [
+        "Individual key reads version; retired key still reads migration release while general legacy flag=false.",
+        "No release returns current:false; same/older version is ignored by updater."
+      ],
+      "negativeChecks": [
+        "Missing/bogus key ->401.",
+        "Retired key must fail recommend/sales/heartbeat/tasks with legacy disabled.",
+        "Wrong per-device deviceId ->401.",
+        "Tampered URL/version/hash/mandatory/platform/signature fails pinned signature check."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "POSM_TASKS",
+      "method": "GET",
+      "path": "/api/posm/tasks",
+      "auth": {
+        "headers": ["X-Posm-Key", "X-Device-Id"],
+        "boundary": "Per-device key; optional X-Device-Id checked when present.",
+        "valuesIncluded": false
+      },
+      "identity": "Required pharmacyId is verified against key; proxy uses authenticated pharmacy.",
+      "request": {
+        "server": "query",
+        "client": "GetActiveMerchTaskAsync",
+        "keyFields": ["pharmacyId"]
+      },
+      "response": {
+        "server": "MerchTaskEnvelope + MerchTaskDto",
+        "client": "MerchTaskEnvelope + MerchTaskDto",
+        "keyFields": [
+          "available",
+          "task?{id,title,priority?,dueAt?,expiresAt?,publicUrl,deliveryToken}"
+        ]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        }
+      ],
+      "sideEffects": ["Optional backend gateway poll; no shown acknowledgment."],
+      "requiredInvariant": [
+        "Core POSM remains fail-open if merch disabled/unavailable. Disabled ->available:true task:null; misconfiguration/network/bulkhead ->available:false task:null.",
+        "Preserve exact trusted staff URL alternatives and query/fragment token forms; no global URL rewriting.",
+        "Suppress expired/due tasks; actual future/cancelled task exclusion depends upstream and needs composed-system verification."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/controller/PosmController.kt",
+          "line": 193,
+          "anchor": "fun activeMerchTask("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/merchtasks/service/MerchTaskClient.kt",
+          "line": 103,
+          "anchor": "fun activeTask("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/merchtasks/service/MerchTaskClient.kt",
+          "line": 271,
+          "anchor": "private fun validateTask("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/merchtasks/service/MerchTaskClient.kt",
+          "line": 134,
+          "anchor": "private fun normalizeTaskEnvelope("
+        },
+        {
+          "path": "App/Services/EpharmApiClient.cs",
+          "line": 268,
+          "anchor": "public async Task<MerchTaskDto?> GetActiveMerchTaskAsync"
+        },
+        {
+          "path": "App/Services/TaskKioskClient.cs",
+          "line": 59,
+          "anchor": "public async Task<List<TaskKioskItem>> ListAsync"
+        }
+      ],
+      "positiveChecks": [
+        "Bound device receives only current task, renders correct pharmacy QR.",
+        "Disabled merch gives empty optional task; unavailable=true/false semantics reach client distinctly.",
+        "Legacy /merch/staff?task and configured /staff?task=1#task forms remain compatible."
+      ],
+      "negativeChecks": [
+        "Foreign pharmacy or mismatching X-Device-Id ->401.",
+        "Untrusted staff host/path/token/expired due returns optional unavailable/empty, never arbitrary QR.",
+        "HTTP200 with available:false must be treated as unavailable and not as empty valid success."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "POSM_TASK_SHOWN",
+      "method": "POST",
+      "path": "/api/posm/tasks/shown",
+      "auth": {
+        "headers": ["X-Posm-Key"],
+        "boundary": "POSM device authentication, independent of admin/mobile JWT; see deviceAuthInvariant.",
+        "valuesIncluded": false
+      },
+      "identity": "Body deviceId/pharmacyId checked against key, then replaced with authenticated normalized identity.",
+      "request": {
+        "server": "MerchTaskShownRequest",
+        "client": "anonymous object in AcknowledgeMerchTaskAsync",
+        "keyFields": ["dispatchId", "pharmacyId", "deviceId", "deliveryToken"]
+      },
+      "response": {
+        "server": "MerchTaskDeliveryResult",
+        "client": "MerchTaskDeliveryReply",
+        "keyFields": ["accepted", "available"]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        }
+      ],
+      "sideEffects": [
+        "Proxies actual visible-QR receipt upstream.",
+        "DPAPI CurrentUser outbox scoped to pharmacy/device stores receipt until accepted, explicit valid rejection, or expiry."
+      ],
+      "requiredInvariant": [
+        "Only visible normal current QR + successful native elevation triggers TaskDisplayed/outbox.",
+        "HTTP200 alone is insufficient: accepted must be boolean; available:false/malformed/unavailable is transient and retained for retry.",
+        "Explicit accepted:false available:true is terminal rejection and removed; accepted:true retires once.",
+        "Token generation/revision/idempotency semantics must be preserved by unified backend; external CRM implementation is outside this source snapshot.",
+        "Current DPAPI receipt queue is bounded to200 entries/1MiB and at most7days, with one encrypted corrupt snapshot quarantine. Capture pending scope/expiry before migration; do not assume unbounded retention."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/controller/PosmController.kt",
+          "line": 208,
+          "anchor": "fun markMerchTaskShown("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/merchtasks/service/MerchTaskClient.kt",
+          "line": 146,
+          "anchor": "fun markShown("
+        },
+        {
+          "path": "App/Services/MerchTaskDeliveryReply.cs",
+          "line": 11,
+          "anchor": "public static async Task<bool> ReadAsync("
+        },
+        {
+          "path": "App/Services/MerchShownOutbox.cs",
+          "line": 63,
+          "anchor": "public async Task FlushAsync("
+        },
+        {
+          "path": "App/TaskKioskWindow.xaml.cs",
+          "line": 177,
+          "anchor": "private void AnnounceDisplayed()"
+        },
+        {
+          "path": "App/MainWindow.TaskKiosk.cs",
+          "line": 78,
+          "anchor": "window.TaskDisplayed +="
+        }
+      ],
+      "positiveChecks": [
+        "Actual current QR shown ->durable scoped receipt->accepted:true; retry remains single shown record upstream.",
+        "Transport outage/restart keeps encrypted outbox and later delivers."
+      ],
+      "negativeChecks": [
+        "Foreign device/pharmacy ->401; invalid body ->400.",
+        "HTTP200 available:false/invalid JSON retains receipt; accepted:false available:true removes it.",
+        "Minimized/expired/no QR/not elevated window produces no receipt.",
+        "Revision or revoked delivery token cannot acknowledge previous generation as current."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "CDP_LOOKUP",
+      "method": "POST",
+      "path": "/api/posm/cdp/lookup",
+      "auth": {
+        "headers": ["X-Posm-Key"],
+        "boundary": "POSM device authentication, independent of admin/mobile JWT; see deviceAuthInvariant.",
+        "valuesIncluded": false
+      },
+      "identity": "CDP customer is separate from pharmacist identity; phone is normalized to +digits. Registration pharmacyId/pharmacistId are caller-supplied metadata in current source.",
+      "request": {
+        "server": "CdpLookupRequest",
+        "client": "CdpLookupRequestDto",
+        "keyFields": ["phone"]
+      },
+      "response": {
+        "server": "CdpLookupResponse",
+        "client": "CdpLookupResult",
+        "keyFields": ["found", "profileId?", "phone", "name?", "tier?"]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        }
+      ],
+      "sideEffects": [],
+      "requiredInvariant": [
+        "Keep CDP profiles and phone idempotency, do not merge customer with pharmacist by name/phone.",
+        "Device authentication does not currently validate CDP registration body pharmacyId; source gap needs explicit decision/test."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/controller/PosmController.kt",
+          "line": 228,
+          "anchor": "fun cdpLookup("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/cdp/service/CdpService.kt",
+          "line": 25,
+          "anchor": "fun lookup("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/cdp/dto/CdpDtos.kt",
+          "line": 7,
+          "anchor": "data class CdpLookupRequest("
+        }
+      ],
+      "positiveChecks": ["Normalized phone lookup returns existing or found:false."],
+      "negativeChecks": ["Missing key->401; blank phone->400; no welcome credit/SMS is inferred."],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "CDP_REGISTER",
+      "method": "POST",
+      "path": "/api/posm/cdp/register",
+      "auth": {
+        "headers": ["X-Posm-Key"],
+        "boundary": "POSM device authentication, independent of admin/mobile JWT; see deviceAuthInvariant.",
+        "valuesIncluded": false
+      },
+      "identity": "CDP customer is separate from pharmacist identity; phone is normalized to +digits. Registration pharmacyId/pharmacistId are caller-supplied metadata in current source.",
+      "request": {
+        "server": "CdpRegisterRequest",
+        "client": "CdpRegisterRequestDto",
+        "keyFields": ["phone", "name?", "pharmacistId?", "pharmacyId?"]
+      },
+      "response": {
+        "server": "CdpProfileDto",
+        "client": "CdpProfile",
+        "keyFields": ["id", "phone", "name?", "tier", "createdAt", "isNew"]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        }
+      ],
+      "sideEffects": [
+        "Creates phone-normalized cdp_profile or returns existing; welcome bonus/SMS remain TODO placeholders."
+      ],
+      "requiredInvariant": [
+        "Keep CDP profiles and phone idempotency, do not merge customer with pharmacist by name/phone.",
+        "Device authentication does not currently validate CDP registration body pharmacyId; source gap needs explicit decision/test."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/controller/PosmController.kt",
+          "line": 238,
+          "anchor": "fun cdpRegister("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/cdp/service/CdpService.kt",
+          "line": 37,
+          "anchor": "fun register("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/cdp/dto/CdpDtos.kt",
+          "line": 21,
+          "anchor": "data class CdpRegisterRequest("
+        }
+      ],
+      "positiveChecks": [
+        "Same phone with 8/7/formatting variants returns same profile, second isNew:false."
+      ],
+      "negativeChecks": [
+        "Cross-pharmacy supplied registration metadata is currently NOT checked against device; do not report binding as verified.",
+        "Repeated registration/concurrent unique conflict must not create duplicate profile or money."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "FULFILLMENT_DEVICE_REGISTER",
+      "method": "POST",
+      "path": "/api/posm/fulfillment/devices/register",
+      "auth": {
+        "headers": ["X-Posm-Key"],
+        "boundary": "Controlled legacy enrollment only: legacy-key flag + correct legacy key + fulfillment enabled + device-registration enabled.",
+        "valuesIncluded": false
+      },
+      "identity": "Claims deviceId and active pharmacy for enrollment; reissuing same pair rotates prior token.",
+      "request": {
+        "server": "RegisterFulfillmentDeviceRequest",
+        "client": "RegisterFulfillmentDeviceRequest",
+        "keyFields": ["deviceId", "pharmacyId"]
+      },
+      "response": {
+        "server": "RegisterFulfillmentDeviceResponse",
+        "client": "RegisterFulfillmentDeviceResponse",
+        "keyFields": ["deviceId", "pharmacyId", "token"]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 403,
+          "code": "FORBIDDEN",
+          "when": "Device enrollment disabled."
+        },
+        {
+          "status": 503,
+          "code": "UPSTREAM_UNAVAILABLE",
+          "when": "Fulfillment disabled."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        },
+        {
+          "status": 404,
+          "code": "NOT_FOUND",
+          "when": "Pharmacy inactive/not found."
+        }
+      ],
+      "sideEffects": [
+        "Issues random 32-byte device credential, stores only SHA-256/hint; audits issuance; updates same device/pharmacy pair."
+      ],
+      "requiredInvariant": [
+        "Do not reopen enrollment to make old clients work; HQ provisioning is production path.",
+        "Preserve fulfillment_devices ids/hashes/bindings and local protected token store.",
+        "This registration POST is not idempotent: retry rotates token; check enrollment workflow before replay."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/controller/PosmFulfillmentController.kt",
+          "line": 26,
+          "anchor": "fun register("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/PosmDeviceAuthenticationService.kt",
+          "line": 109,
+          "anchor": "fun requireLegacyBootstrap("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/service/FulfillmentService.kt",
+          "line": 184,
+          "anchor": "fun registerDevice("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/service/FulfillmentService.kt",
+          "line": 201,
+          "anchor": "private fun issueDeviceCredential("
+        },
+        {
+          "path": "App/Services/PosmDeviceCredentialResolver.cs",
+          "line": 7,
+          "anchor": "internal static string Resolve("
+        }
+      ],
+      "positiveChecks": [
+        "On isolated fixture with every flag explicitly enabled, register correct pair and use returned credential.",
+        "Stored token reused only if device+pharmacy match expected identity."
+      ],
+      "negativeChecks": [
+        "Defaults keep legacy bootstrap disabled; individual token must not substitute for bootstrap key.",
+        "Old token fails after rotation/revocation; foreign/inactive pharmacy enrollment rejected."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "FULFILLMENT_ORDERS",
+      "method": "GET",
+      "path": "/api/posm/fulfillment/orders",
+      "auth": {
+        "headers": ["X-Fulfillment-Device"],
+        "boundary": "Independent per-device fulfillment token; same hashed device table, feature-gated; not admin JWT.",
+        "valuesIncluded": false
+      },
+      "identity": "Token binds active device and active pharmacy; returns only assigned non-demo pickup/cash orders for that pharmacy.",
+      "request": {
+        "server": "query/path",
+        "client": "FulfillmentClient.ListAsync/GetAsync",
+        "keyFields": ["status? active|submitted", "offset?", "limit? <=50"]
+      },
+      "response": {
+        "server": "FulfillmentOrderPageDto",
+        "client": "FulfillmentOrderPage",
+        "keyFields": ["items", "offset", "limit", "hasMore"]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        },
+        {
+          "status": 503,
+          "code": "UPSTREAM_UNAVAILABLE",
+          "when": "Fulfillment disabled."
+        },
+        {
+          "status": 404,
+          "code": "NOT_FOUND",
+          "when": "Detail belongs to another pharmacy, unsupported flow, or absent."
+        }
+      ],
+      "sideEffects": [
+        "Authenticating token refreshes durable last_seen_at; polling can contribute to online presence."
+      ],
+      "requiredInvariant": [
+        "Fulfillment must retain separate device credential/header and pharmacy scope.",
+        "Order visibility/payment fields do not authorize card payment or generic bank processing."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/controller/PosmFulfillmentController.kt",
+          "line": 35,
+          "anchor": "fun orders("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/service/FulfillmentService.kt",
+          "line": 251,
+          "anchor": "fun authenticateDevice("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/service/FulfillmentService.kt",
+          "line": 271,
+          "anchor": "fun listForDevice("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/service/FulfillmentService.kt",
+          "line": 303,
+          "anchor": "fun getForDevice("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/dto/FulfillmentDtos.kt",
+          "line": 99,
+          "anchor": "data class FulfillmentOrderPageDto("
+        }
+      ],
+      "positiveChecks": [
+        "Bound device lists/opens its assigned pickup cash order with original ids/version."
+      ],
+      "negativeChecks": [
+        "Foreign order->404; invalid token->401; disabled->503.",
+        "Noncash/delivery/demo/unassigned orders not exposed as POSM-processable.",
+        "Unsupported status filter->400."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "FULFILLMENT_ORDER",
+      "method": "GET",
+      "path": "/api/posm/fulfillment/orders/{orderId}",
+      "auth": {
+        "headers": ["X-Fulfillment-Device"],
+        "boundary": "Independent per-device fulfillment token; same hashed device table, feature-gated; not admin JWT.",
+        "valuesIncluded": false
+      },
+      "identity": "Token binds active device and active pharmacy; returns only assigned non-demo pickup/cash orders for that pharmacy.",
+      "request": {
+        "server": "query/path",
+        "client": "FulfillmentClient.ListAsync/GetAsync",
+        "keyFields": ["orderId"]
+      },
+      "response": {
+        "server": "FulfillmentOrderDto",
+        "client": "FulfillmentOrder",
+        "keyFields": [
+          "orderId",
+          "pharmacyId",
+          "status",
+          "version",
+          "lines",
+          "delivery",
+          "paymentMethod",
+          "paymentStatus",
+          "paymentStatusClaimed",
+          "paymentAuthority?",
+          "demo",
+          "pickupAttempts",
+          "pickupLockedUntil?",
+          "cancellationReason?",
+          "completedAt?"
+        ]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        },
+        {
+          "status": 503,
+          "code": "UPSTREAM_UNAVAILABLE",
+          "when": "Fulfillment disabled."
+        },
+        {
+          "status": 404,
+          "code": "NOT_FOUND",
+          "when": "Detail belongs to another pharmacy, unsupported flow, or absent."
+        }
+      ],
+      "sideEffects": [
+        "Authenticating token refreshes durable last_seen_at; polling can contribute to online presence."
+      ],
+      "requiredInvariant": [
+        "Fulfillment must retain separate device credential/header and pharmacy scope.",
+        "Order visibility/payment fields do not authorize card payment or generic bank processing."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/controller/PosmFulfillmentController.kt",
+          "line": 46,
+          "anchor": "fun order("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/service/FulfillmentService.kt",
+          "line": 251,
+          "anchor": "fun authenticateDevice("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/service/FulfillmentService.kt",
+          "line": 271,
+          "anchor": "fun listForDevice("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/service/FulfillmentService.kt",
+          "line": 303,
+          "anchor": "fun getForDevice("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/dto/FulfillmentDtos.kt",
+          "line": 73,
+          "anchor": "data class FulfillmentOrderDto("
+        }
+      ],
+      "positiveChecks": [
+        "Bound device lists/opens its assigned pickup cash order with original ids/version."
+      ],
+      "negativeChecks": [
+        "Foreign order->404; invalid token->401; disabled->503.",
+        "Noncash/delivery/demo/unassigned orders not exposed as POSM-processable.",
+        "Unsupported status filter->400."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "FULFILLMENT_ACTION",
+      "method": "POST",
+      "path": "/api/posm/fulfillment/orders/{orderId}/actions",
+      "auth": {
+        "headers": ["X-Fulfillment-Device"],
+        "boundary": "Independent per-device fulfillment token; same hashed device table, feature-gated; not admin JWT.",
+        "valuesIncluded": false
+      },
+      "identity": "Device pharmacy owns non-demo pickup/cash order; expectedVersion is optimistic concurrency guard.",
+      "request": {
+        "server": "FulfillmentActionRequest",
+        "client": "FulfillmentActionRequest",
+        "keyFields": [
+          "action:assemble|ready|issue|cancel",
+          "expectedVersion",
+          "code? (six digits for issue)",
+          "reason?",
+          "cashCollected"
+        ]
+      },
+      "response": {
+        "server": "FulfillmentOrderDto",
+        "client": "FulfillmentOrder",
+        "keyFields": [
+          "orderId",
+          "status",
+          "version",
+          "paymentStatus",
+          "pickupAttempts",
+          "pickupLockedUntil?",
+          "completedAt?"
+        ]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        },
+        {
+          "status": 404,
+          "code": "NOT_FOUND",
+          "when": "Foreign/unsupported order."
+        },
+        {
+          "status": 409,
+          "code": "CONFLICT",
+          "when": "Stale version, illegal status transition, no explicit cash confirmation."
+        },
+        {
+          "status": 429,
+          "code": "CONFLICT / VALIDATION_FAILED",
+          "when": "Pickup code locked after five failures for15min."
+        },
+        {
+          "status": 503,
+          "code": "UPSTREAM_UNAVAILABLE",
+          "when": "Feature disabled."
+        }
+      ],
+      "sideEffects": [
+        "Locked transition increments version and emits update/audit.",
+        "Issue needs ready state, matching pickup-code HMAC, payment guard; cancel needs reason.",
+        "Wrong code persists attempt/lock counters."
+      ],
+      "requiredInvariant": [
+        "Do not automatically replay action as a second success: retry old expectedVersion gets409, then refetch.",
+        "Preserve order versions/cash status/pickup-code HMAC secret and attempt counters.",
+        "No issued money/card success is inferred from HTTP200 or placement placeholder."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/controller/PosmFulfillmentController.kt",
+          "line": 55,
+          "anchor": "fun action("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/service/FulfillmentService.kt",
+          "line": 482,
+          "anchor": "private fun act("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/service/FulfillmentService.kt",
+          "line": 645,
+          "anchor": "private fun paymentIssueError("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/dto/FulfillmentDtos.kt",
+          "line": 106,
+          "anchor": "data class FulfillmentActionRequest("
+        },
+        {
+          "path": "App/Services/FulfillmentClient.cs",
+          "line": 77,
+          "anchor": "public Task<FulfillmentApiResult<FulfillmentOrder>> ActAsync("
+        }
+      ],
+      "positiveChecks": [
+        "submitted->assemble->assembling->ready->ready->issue with valid code+cashCollected ->completed once.",
+        "Cancel active order with reason preserves history and version."
+      ],
+      "negativeChecks": [
+        "Concurrent/stale expectedVersion->409; no duplicate transition.",
+        "Bad code five times->429; next attempt before unlock rejected.",
+        "Foreign order or noncash flow->404; no cash confirmation->409."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "STAFF_CAPABILITIES",
+      "method": "GET",
+      "path": "/api/posm/staff/capabilities",
+      "auth": {
+        "headers": ["X-Posm-Key"],
+        "boundary": "Nonlegacy individual device key mandatory. Mutating/session routes require server staff-auth enabled; capabilities reports disabled without503.",
+        "valuesIncluded": false
+      },
+      "identity": "Device only; no human identity granted.",
+      "request": {
+        "server": "none",
+        "client": "CheckCapabilitiesAsync",
+        "keyFields": []
+      },
+      "response": {
+        "server": "map",
+        "client": "StaffCapabilities",
+        "keyFields": ["enabled", "protocolVersion=1"]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        }
+      ],
+      "sideEffects": [],
+      "requiredInvariant": [
+        "Optional channel; release gate false means this POSM binary must never open RPS/staff window even if server says enabled.",
+        "Capabilities and all staff responses Cache-Control:no-store."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthController.kt",
+          "line": 22,
+          "anchor": "fun capabilities("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthController.kt",
+          "line": 47,
+          "anchor": "private fun device("
+        },
+        {
+          "path": "App/Config/EpharmConfig.cs",
+          "line": 123,
+          "anchor": "public static bool StaffAuthenticationReleaseEnabled"
+        },
+        {
+          "path": "App/MainWindow.Staff.cs",
+          "line": 29,
+          "anchor": "private void StartStaffAuthentication()"
+        }
+      ],
+      "positiveChecks": [
+        "With individual key server false ->200 enabled:false; core POSM unaffected."
+      ],
+      "negativeChecks": [
+        "Legacy key rejected for staff even when general legacy enabled.",
+        "Enabling env/JSON alone cannot bypass false release constant."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "STAFF_LOGIN",
+      "method": "POST",
+      "path": "/api/posm/staff/login",
+      "auth": {
+        "headers": ["X-Posm-Key"],
+        "boundary": "Nonlegacy individual device key mandatory. Mutating/session routes require server staff-auth enabled; capabilities reports disabled without503.",
+        "valuesIncluded": false
+      },
+      "identity": "Active pharmacist same pharmacy; binds grant to Standard-N user/session/workstation/processInstance and device.",
+      "request": {
+        "server": "StaffLoginRequest + StaffContext",
+        "client": "StaffAuthContext + anonymous login request",
+        "keyFields": [
+          "iin",
+          "password",
+          "context{standardNUserId,standardNSessionId,workstationId,processInstanceId}"
+        ]
+      },
+      "response": {
+        "server": "StaffSessionResponse",
+        "client": "StaffAuthResponse",
+        "keyFields": ["status", "sessionToken?", "expiresAt?", "pharmacist{id,name}", "context"]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        },
+        {
+          "status": 401,
+          "code": "INVALID_CREDENTIALS",
+          "when": "Wrong credential/blocked/not active/foreign pharmacy."
+        },
+        {
+          "status": 429,
+          "code": "OTP_TOO_MANY_ATTEMPTS",
+          "when": "Device/account rate limit."
+        },
+        {
+          "status": 503,
+          "code": "UPSTREAM_UNAVAILABLE",
+          "when": "Staff disabled."
+        }
+      ],
+      "sideEffects": [
+        "Creates hashed8h staff session and revokes previous device+pharmacy sessions; pending person gets no grant."
+      ],
+      "requiredInvariant": [
+        "Staff session never replaces device auth, never enters sales/shown outbox/logs.",
+        "Optional login failure cannot block Standard-N sales/recommendations/videos."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthController.kt",
+          "line": 27,
+          "anchor": "fun login("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
+          "line": 38,
+          "anchor": "fun login("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffDtos.kt",
+          "line": 16,
+          "anchor": "data class StaffLoginRequest("
+        },
+        {
+          "path": "App/Services/StaffAuthClient.cs",
+          "line": 49,
+          "anchor": "public Task<StaffAuthResponse> LoginAsync("
+        }
+      ],
+      "positiveChecks": [
+        "In isolated enabled fixture active same-pharmacy login returns context-bound8h grant.",
+        "Pending user receives pending with no sessionToken."
+      ],
+      "negativeChecks": [
+        "Wrong pharmacy/password/blocked->401; disabled->503; rate exceeded->429.",
+        "No automatic mutation replay/redirect forwarding of human credentials."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "STAFF_OTP",
+      "method": "POST",
+      "path": "/api/posm/staff/otp/request",
+      "auth": {
+        "headers": ["X-Posm-Key"],
+        "boundary": "Nonlegacy individual device key mandatory. Mutating/session routes require server staff-auth enabled; capabilities reports disabled without503.",
+        "valuesIncluded": false
+      },
+      "identity": "Challenge bound to device/pharmacy/purpose/IIN/normalized phone; shared phone lock and budgets.",
+      "request": {
+        "server": "StaffOtpRequest",
+        "client": "anonymous OTP request",
+        "keyFields": ["purpose:register|reset|activate", "iin", "phone"]
+      },
+      "response": {
+        "server": "StaffOtpResponse",
+        "client": "StaffOtpResponse",
+        "keyFields": ["challengeId", "ttlSeconds", "phoneMasked", "devCode? (dev only)"]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        },
+        {
+          "status": 429,
+          "code": "OTP_TOO_MANY_ATTEMPTS",
+          "when": "Device/account/phone budgets."
+        },
+        {
+          "status": 503,
+          "code": "UPSTREAM_UNAVAILABLE / SMS_SEND_FAILED",
+          "when": "Disabled or SMS failure."
+        }
+      ],
+      "sideEffects": ["Creates bounded challenge and may send SMS; not run during audit."],
+      "requiredInvariant": [
+        "Never enable or send real SMS as a side effect of integration verification.",
+        "Keep rate limits/challenge binding; dev-code visibility depends profile/OTP provider and must be verified."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthController.kt",
+          "line": 29,
+          "anchor": "fun otp("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
+          "line": 59,
+          "anchor": "fun requestOtp("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffDtos.kt",
+          "line": 21,
+          "anchor": "data class StaffOtpRequest("
+        }
+      ],
+      "positiveChecks": ["Isolated fake-provider fixture returns masked phone/challenge."],
+      "negativeChecks": [
+        "Foreign purpose/expired or wrong challenge not reusable; malformed IIN/phone->400.",
+        "Rate limit persists after failed attempt."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "STAFF_REGISTER",
+      "method": "POST",
+      "path": "/api/posm/staff/register",
+      "auth": {
+        "headers": ["X-Posm-Key"],
+        "boundary": "Nonlegacy individual device key mandatory. Mutating/session routes require server staff-auth enabled; capabilities reports disabled without503.",
+        "valuesIncluded": false
+      },
+      "identity": "Password challenge must match device/pharmacy/person/purpose/phone and valid unused OTP.",
+      "request": {
+        "server": "StaffPasswordRequest",
+        "client": "StaffPasswordRequest anonymous body",
+        "keyFields": ["challengeId", "code", "iin", "phone", "password", "name?"]
+      },
+      "response": {
+        "server": "map",
+        "client": "StaffRegistrationResponse",
+        "keyFields": ["status:pending"]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        },
+        {
+          "status": 400,
+          "code": "OTP_INVALID",
+          "when": "Invalid/expired/consumed/wrong-scope challenge."
+        },
+        {
+          "status": 429,
+          "code": "OTP_TOO_MANY_ATTEMPTS",
+          "when": "OTP attempt budget."
+        },
+        {
+          "status": 503,
+          "code": "UPSTREAM_UNAVAILABLE",
+          "when": "Disabled."
+        }
+      ],
+      "sideEffects": ["Registration creates pending pharmacist, not active login."],
+      "requiredInvariant": [
+        "Human password/OTP is not logged, cached, outboxed, forwarded through redirect, or silently retried.",
+        "New activation/registration must not grant administrative privileges."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthController.kt",
+          "line": 31,
+          "anchor": "fun register("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
+          "line": 93,
+          "anchor": "fun complete("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffDtos.kt",
+          "line": 26,
+          "anchor": "data class StaffPasswordRequest("
+        },
+        {
+          "path": "App/Services/StaffAuthClient.cs",
+          "line": 81,
+          "anchor": "private async Task<T> PostAsync<T>"
+        }
+      ],
+      "positiveChecks": ["Isolated correct-purpose fake OTP succeeds once with expected response."],
+      "negativeChecks": [
+        "Changed device/pharmacy/purpose/person/phone or replayed challenge fails.",
+        "Weak/oversized password and exhausted OTP budget rejected."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "STAFF_PASSWORD_RESET",
+      "method": "POST",
+      "path": "/api/posm/staff/password/reset",
+      "auth": {
+        "headers": ["X-Posm-Key"],
+        "boundary": "Nonlegacy individual device key mandatory. Mutating/session routes require server staff-auth enabled; capabilities reports disabled without503.",
+        "valuesIncluded": false
+      },
+      "identity": "Password challenge must match device/pharmacy/person/purpose/phone and valid unused OTP.",
+      "request": {
+        "server": "StaffPasswordRequest",
+        "client": "StaffPasswordRequest anonymous body",
+        "keyFields": ["challengeId", "code", "iin", "phone", "password", "name?"]
+      },
+      "response": {
+        "server": "map",
+        "client": "StaffPasswordChanged",
+        "keyFields": ["changed:true"]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        },
+        {
+          "status": 400,
+          "code": "OTP_INVALID",
+          "when": "Invalid/expired/consumed/wrong-scope challenge."
+        },
+        {
+          "status": 429,
+          "code": "OTP_TOO_MANY_ATTEMPTS",
+          "when": "OTP attempt budget."
+        },
+        {
+          "status": 503,
+          "code": "UPSTREAM_UNAVAILABLE",
+          "when": "Disabled."
+        }
+      ],
+      "sideEffects": ["Updates password; revokes staff sessions and mobile refresh tokens."],
+      "requiredInvariant": [
+        "Human password/OTP is not logged, cached, outboxed, forwarded through redirect, or silently retried.",
+        "New activation/registration must not grant administrative privileges."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthController.kt",
+          "line": 36,
+          "anchor": "fun reset("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
+          "line": 93,
+          "anchor": "fun complete("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffDtos.kt",
+          "line": 26,
+          "anchor": "data class StaffPasswordRequest("
+        },
+        {
+          "path": "App/Services/StaffAuthClient.cs",
+          "line": 81,
+          "anchor": "private async Task<T> PostAsync<T>"
+        }
+      ],
+      "positiveChecks": ["Isolated correct-purpose fake OTP succeeds once with expected response."],
+      "negativeChecks": [
+        "Changed device/pharmacy/purpose/person/phone or replayed challenge fails.",
+        "Weak/oversized password and exhausted OTP budget rejected."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "STAFF_PASSWORD_ACTIVATE",
+      "method": "POST",
+      "path": "/api/posm/staff/password/activate",
+      "auth": {
+        "headers": ["X-Posm-Key"],
+        "boundary": "Nonlegacy individual device key mandatory. Mutating/session routes require server staff-auth enabled; capabilities reports disabled without503.",
+        "valuesIncluded": false
+      },
+      "identity": "Password challenge must match device/pharmacy/person/purpose/phone and valid unused OTP.",
+      "request": {
+        "server": "StaffPasswordRequest",
+        "client": "StaffPasswordRequest anonymous body",
+        "keyFields": ["challengeId", "code", "iin", "phone", "password", "name?"]
+      },
+      "response": {
+        "server": "map",
+        "client": "StaffPasswordChanged",
+        "keyFields": ["changed:true"]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        },
+        {
+          "status": 400,
+          "code": "OTP_INVALID",
+          "when": "Invalid/expired/consumed/wrong-scope challenge."
+        },
+        {
+          "status": 429,
+          "code": "OTP_TOO_MANY_ATTEMPTS",
+          "when": "OTP attempt budget."
+        },
+        {
+          "status": 503,
+          "code": "UPSTREAM_UNAVAILABLE",
+          "when": "Disabled."
+        }
+      ],
+      "sideEffects": ["Updates password; revokes staff sessions and mobile refresh tokens."],
+      "requiredInvariant": [
+        "Human password/OTP is not logged, cached, outboxed, forwarded through redirect, or silently retried.",
+        "New activation/registration must not grant administrative privileges."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthController.kt",
+          "line": 36,
+          "anchor": "fun reset("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
+          "line": 93,
+          "anchor": "fun complete("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffDtos.kt",
+          "line": 26,
+          "anchor": "data class StaffPasswordRequest("
+        },
+        {
+          "path": "App/Services/StaffAuthClient.cs",
+          "line": 81,
+          "anchor": "private async Task<T> PostAsync<T>"
+        }
+      ],
+      "positiveChecks": ["Isolated correct-purpose fake OTP succeeds once with expected response."],
+      "negativeChecks": [
+        "Changed device/pharmacy/purpose/person/phone or replayed challenge fails.",
+        "Weak/oversized password and exhausted OTP budget rejected."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "STAFF_SESSION",
+      "method": "GET",
+      "path": "/api/posm/staff/session",
+      "auth": {
+        "headers": ["X-Posm-Key", "X-Staff-Session"],
+        "boundary": "Individual device key plus optional human session token, server feature gate.",
+        "valuesIncluded": false
+      },
+      "identity": "Exact current StaffContext and device/pharmacy/password fingerprint/active status must match.",
+      "request": {
+        "server": "StaffContext query",
+        "client": "ValidateAsync",
+        "keyFields": ["standardNUserId", "standardNSessionId", "workstationId", "processInstanceId"]
+      },
+      "response": {
+        "server": "StaffSessionResponse",
+        "client": "StaffAuthResponse",
+        "keyFields": ["status", "sessionToken:null", "expiresAt", "pharmacist", "context"]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        },
+        {
+          "status": 401,
+          "code": "INVALID_CREDENTIALS",
+          "when": "Expired/revoked/mismatched context/password/person/pharmacy."
+        },
+        {
+          "status": 503,
+          "code": "UPSTREAM_UNAVAILABLE",
+          "when": "Disabled."
+        }
+      ],
+      "sideEffects": [],
+      "requiredInvariant": [
+        "Do not interpret self-reported heartbeat staffAuthStatus as this authorization proof.",
+        "Changing cashier process/session invalidates grant; no token persistence in generic outbox."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthController.kt",
+          "line": 41,
+          "anchor": "fun session("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
+          "line": 139,
+          "anchor": "fun session("
+        },
+        {
+          "path": "App/Services/StaffAuthClient.cs",
+          "line": 61,
+          "anchor": "public async Task<StaffAuthResponse> ValidateAsync("
+        }
+      ],
+      "positiveChecks": ["Correct session/context validates without returning raw token again."],
+      "negativeChecks": [
+        "Any changed Standard-N context field, password fingerprint, pharmacist pharmacy/status, expiry or revoke ->401."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "STAFF_LOGOUT",
+      "method": "POST",
+      "path": "/api/posm/staff/logout",
+      "auth": {
+        "headers": ["X-Posm-Key", "X-Staff-Session"],
+        "boundary": "Individual key plus staff-session token, optional channel/server feature gate.",
+        "valuesIncluded": false
+      },
+      "identity": "Only same device+pharmacy session can be revoked.",
+      "request": {
+        "server": "none",
+        "client": "LogoutAsync",
+        "keyFields": []
+      },
+      "response": {
+        "server": "204 no content",
+        "client": "none",
+        "keyFields": []
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 503,
+          "code": "UPSTREAM_UNAVAILABLE",
+          "when": "Disabled."
+        }
+      ],
+      "sideEffects": ["Marks matching session revoked; absent/unknown token is safe no-op."],
+      "requiredInvariant": ["Keep logout scoped; do not revoke another pharmacy session."],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthController.kt",
+          "line": 43,
+          "anchor": "fun logout("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
+          "line": 153,
+          "anchor": "fun logout("
+        },
+        {
+          "path": "App/Services/StaffAuthClient.cs",
+          "line": 73,
+          "anchor": "public async Task LogoutAsync("
+        }
+      ],
+      "positiveChecks": ["Logout existing grant then session validation fails."],
+      "negativeChecks": [
+        "Foreign token does not revoke foreign session; device auth still required."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "LEARN_SPA_BOUNDARY",
+      "method": "GET",
+      "path": "/learn/**",
+      "auth": {
+        "headers": [],
+        "boundary": "Browser SPA surface; protected mobile APIs use their own pharmacist JWT, never POSM key.",
+        "valuesIncluded": false
+      },
+      "identity": "Learner/claim user identity is separate from POSM device and HQ admin identity.",
+      "request": {
+        "server": "path/query/fragment",
+        "client": "BrowserRouter",
+        "keyFields": [
+          "/learn",
+          "/learn/catalog",
+          "/learn/receipts",
+          "/learn/training",
+          "/learn/recommendations",
+          "/learn/certificates",
+          "/learn/profile",
+          "/learn/course/:assignmentId",
+          "/learn/course/:assignmentId/lesson/:lessonId"
+        ]
+      },
+      "response": {
+        "server": "HTML/JS SPA",
+        "client": "browser",
+        "keyFields": ["client route + mobile API JSON"]
+      },
+      "errors": [],
+      "sideEffects": ["Loads learner UI; POSM core APIs remain independent."],
+      "requiredInvariant": [
+        "Canonical public origin remains https://epharm.inkar.kz.",
+        "Preserve deep links and separate mobile/admin/device authentication; adding common HQ shell does not move learner into admin session.",
+        "Archive snapshot lacks frontend nginx SPA fallback configuration; actual deep-link HTTP200 must be verified on composed candidate."
+      ],
+      "sourcePaths": [
+        {
+          "path": "Caddyfile",
+          "line": 90,
+          "anchor": "handle {"
+        },
+        {
+          "path": "admin-panel/frontend/src/app/router.tsx",
+          "line": 61,
+          "anchor": "<Route path=\"/learn\""
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/shared/SecurityConfig.kt",
+          "line": 123,
+          "anchor": "\"/api/mobile/**\").hasRole"
+        }
+      ],
+      "positiveChecks": [
+        "Direct navigation and refresh of each learner deep link loads intended page on candidate."
+      ],
+      "negativeChecks": [
+        "Admin JWT does not gain mobile pharmacist access; POSM key does not become human session.",
+        "Unification must not redirect POSM API traffic to learner/admin login."
+      ],
+      "state": "needs_verification",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "LEARN_MERCH_CLAIM",
+      "method": "GET",
+      "path": "/learn/merch/claim",
+      "auth": {
+        "headers": [],
+        "boundary": "Browser receives signed challenge in fragment then uses separate pharmacist mobile auth + fresh SMS grant APIs.",
+        "valuesIncluded": false
+      },
+      "identity": "Verified active pharmacist must match challenge pharmacy and HQ-proven seller mapping; device access alone does not claim reward.",
+      "request": {
+        "server": "fragment navigation",
+        "client": "captureMerchClaimNavigation",
+        "keyFields": ["challenge (single bounded fragment field)"]
+      },
+      "response": {
+        "server": "SPA",
+        "client": "MerchClaimPage",
+        "keyFields": ["challenge kept in memory", "callback redirect validated before leaving"]
+      },
+      "errors": [],
+      "sideEffects": [
+        "Clears challenge fragment from URL before telemetry, keeps it only in module memory.",
+        "May initiate auth/SMS only on explicit user interaction; none performed in audit."
+      ],
+      "requiredInvariant": [
+        "Preserve already-cleaned in-memory challenge through UI integration; do not place it in persistent storage or logs.",
+        "Current callback is exact crm.inkar.kz/staff#claim=...&grant=...; issuer/audience/allowlist must remain compatible during unified migration.",
+        "General /learn login must not introduce mandatory RPS window on POSM."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/frontend/src/app/router.tsx",
+          "line": 62,
+          "anchor": "<Route path=\"/learn/merch/claim\""
+        },
+        {
+          "path": "admin-panel/frontend/src/features/merch/claimNavigation.ts",
+          "line": 5,
+          "anchor": "export function captureMerchClaimNavigation()"
+        },
+        {
+          "path": "admin-panel/frontend/src/features/merch/claimNavigation.ts",
+          "line": 17,
+          "anchor": "export function trustedMerchRedirect("
+        },
+        {
+          "path": "admin-panel/frontend/src/features/merch/MerchClaimPage.tsx",
+          "line": 153,
+          "anchor": "async function login("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardSecurity.kt",
+          "line": 56,
+          "anchor": "if (text(\"iss\")"
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardService.kt",
+          "line": 187,
+          "anchor": "private fun person("
+        }
+      ],
+      "positiveChecks": [
+        "Legacy valid challenge opens correct task/pharmacy/amount; fragment cleaned before telemetry.",
+        "Returning signed grant targets only exact approved callback."
+      ],
+      "negativeChecks": [
+        "Duplicate/malformed fragment rejected; reload after memory loss asks fresh QR instead of leaking storage.",
+        "Foreign pharmacy/inactive person/no HQ mapping denied.",
+        "Callback different origin/path/query/extra fragment fields rejected."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "MERCH_GRANT_CONTEXT",
+      "method": "POST",
+      "path": "/api/mobile/merch/executor-grants/context",
+      "auth": {
+        "headers": ["Authorization"],
+        "boundary": "Pharmacist bearer JWT, independent of POSM/admin; MERCH_REWARDS_ENABLED and safe provider/config gate.",
+        "valuesIncluded": false
+      },
+      "identity": "Person/challenge pharmacy and active HQ-proven seller mapping required.",
+      "request": {
+        "server": "MerchContextRequest",
+        "client": "MerchClaimPage post",
+        "keyFields": ["crmChallenge"]
+      },
+      "response": {
+        "server": "MerchClaimContext",
+        "client": "typed claim-page JSON",
+        "keyFields": [
+          "dispatchId",
+          "taskTitle",
+          "pharmacyName",
+          "amountKzt",
+          "currency",
+          "challengeExpiresAt",
+          "phoneMasked"
+        ]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/expired/wrong-type JWT."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        },
+        {
+          "status": 403,
+          "code": "FORBIDDEN / USER_NOT_ACTIVE",
+          "when": "Wrong pharmacy/inactive account/no HQ-proven mapping."
+        },
+        {
+          "status": 429,
+          "code": "OTP_TOO_MANY_ATTEMPTS",
+          "when": "SMS/OTP budget."
+        },
+        {
+          "status": 503,
+          "code": "UPSTREAM_UNAVAILABLE / SMS_SEND_FAILED",
+          "when": "Feature disabled or provider failure."
+        }
+      ],
+      "sideEffects": ["Reads bounded context."],
+      "requiredInvariant": [
+        "Do not enable reward/SMS feature or credit money as migration side effect.",
+        "Keep JWT, fresh OTP, seller proof and exact callback independent of device polling."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardController.kt",
+          "line": 19,
+          "anchor": "fun context("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardService.kt",
+          "line": 50,
+          "anchor": "fun context("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardSecurity.kt",
+          "line": 46,
+          "anchor": "fun challenge("
+        }
+      ],
+      "positiveChecks": [
+        "Isolated valid active same-pharmacy signed challenge/OTP yields expected DTO."
+      ],
+      "negativeChecks": [
+        "Expired/wrong issuer/audience/challenge scope/person or wrong OTP denied; no grant without proof."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "MERCH_GRANT_OTP",
+      "method": "POST",
+      "path": "/api/mobile/merch/executor-grants/otp/request",
+      "auth": {
+        "headers": ["Authorization"],
+        "boundary": "Pharmacist bearer JWT, independent of POSM/admin; MERCH_REWARDS_ENABLED and safe provider/config gate.",
+        "valuesIncluded": false
+      },
+      "identity": "Person/challenge pharmacy and active HQ-proven seller mapping required.",
+      "request": {
+        "server": "MerchContextRequest",
+        "client": "MerchClaimPage post",
+        "keyFields": ["crmChallenge"]
+      },
+      "response": {
+        "server": "MerchOtpResponse",
+        "client": "typed claim-page JSON",
+        "keyFields": ["otpChallengeId", "phoneMasked", "expiresAt", "retryAfterSeconds"]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/expired/wrong-type JWT."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        },
+        {
+          "status": 403,
+          "code": "FORBIDDEN / USER_NOT_ACTIVE",
+          "when": "Wrong pharmacy/inactive account/no HQ-proven mapping."
+        },
+        {
+          "status": 429,
+          "code": "OTP_TOO_MANY_ATTEMPTS",
+          "when": "SMS/OTP budget."
+        },
+        {
+          "status": 503,
+          "code": "UPSTREAM_UNAVAILABLE / SMS_SEND_FAILED",
+          "when": "Feature disabled or provider failure."
+        }
+      ],
+      "sideEffects": ["May create OTP challenge/send SMS."],
+      "requiredInvariant": [
+        "Do not enable reward/SMS feature or credit money as migration side effect.",
+        "Keep JWT, fresh OTP, seller proof and exact callback independent of device polling."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardController.kt",
+          "line": 23,
+          "anchor": "fun otp("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardService.kt",
+          "line": 58,
+          "anchor": "fun requestOtp("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardSecurity.kt",
+          "line": 46,
+          "anchor": "fun challenge("
+        }
+      ],
+      "positiveChecks": [
+        "Isolated valid active same-pharmacy signed challenge/OTP yields expected DTO."
+      ],
+      "negativeChecks": [
+        "Expired/wrong issuer/audience/challenge scope/person or wrong OTP denied; no grant without proof."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "MERCH_GRANT_ISSUE",
+      "method": "POST",
+      "path": "/api/mobile/merch/executor-grants",
+      "auth": {
+        "headers": ["Authorization"],
+        "boundary": "Pharmacist bearer JWT, independent of POSM/admin; MERCH_REWARDS_ENABLED and safe provider/config gate.",
+        "valuesIncluded": false
+      },
+      "identity": "Person/challenge pharmacy and active HQ-proven seller mapping required.",
+      "request": {
+        "server": "MerchGrantRequest",
+        "client": "MerchClaimPage post",
+        "keyFields": ["crmChallenge", "otpChallengeId", "code"]
+      },
+      "response": {
+        "server": "MerchGrantResponse",
+        "client": "typed claim-page JSON",
+        "keyFields": ["grant", "expiresAt", "redirectUrl"]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/expired/wrong-type JWT."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        },
+        {
+          "status": 403,
+          "code": "FORBIDDEN / USER_NOT_ACTIVE",
+          "when": "Wrong pharmacy/inactive account/no HQ-proven mapping."
+        },
+        {
+          "status": 429,
+          "code": "OTP_TOO_MANY_ATTEMPTS",
+          "when": "SMS/OTP budget."
+        },
+        {
+          "status": 503,
+          "code": "UPSTREAM_UNAVAILABLE / SMS_SEND_FAILED",
+          "when": "Feature disabled or provider failure."
+        }
+      ],
+      "sideEffects": ["Creates hashed expiring grant tied to person/pharmacy/task/amount/nonce."],
+      "requiredInvariant": [
+        "Do not enable reward/SMS feature or credit money as migration side effect.",
+        "Keep JWT, fresh OTP, seller proof and exact callback independent of device polling."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardController.kt",
+          "line": 27,
+          "anchor": "fun grant("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardService.kt",
+          "line": 87,
+          "anchor": "fun issueGrant("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardSecurity.kt",
+          "line": 46,
+          "anchor": "fun challenge("
+        }
+      ],
+      "positiveChecks": [
+        "Isolated valid active same-pharmacy signed challenge/OTP yields expected DTO."
+      ],
+      "negativeChecks": [
+        "Expired/wrong issuer/audience/challenge scope/person or wrong OTP denied; no grant without proof."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "MERCH_GRANT_REDEEM",
+      "method": "POST",
+      "path": "/api/integrations/merch/executor-grants/redeem",
+      "auth": {
+        "headers": ["X-Merch-Timestamp", "X-Merch-Signature"],
+        "boundary": "Financial HMAC over exact timestamp/method/path+query/SHA256(raw bounded bytes); not JWT/device-key.",
+        "valuesIncluded": false
+      },
+      "identity": "Binding pins confirmed executor + pharmacy + dispatch + fixed amount; reward recipient is not supplied arbitrarily by callback.",
+      "request": {
+        "server": "MerchRedeemRequest",
+        "client": "server-to-server",
+        "keyFields": ["grant", "dispatchId", "pharmacyId", "nonce"]
+      },
+      "response": {
+        "server": "MerchBindingResponse",
+        "client": "server-to-server",
+        "keyFields": ["bindingId", "pharmacistId", "dispatchId", "pharmacyId"]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        },
+        {
+          "status": 403,
+          "code": "FORBIDDEN / USER_NOT_ACTIVE",
+          "when": "Executor/pharmacy/mapping no longer eligible."
+        },
+        {
+          "status": 409,
+          "code": "CONFLICT",
+          "when": "Reused event/dispatch with different raw payload or binding/amount conflict."
+        },
+        {
+          "status": 503,
+          "code": "UPSTREAM_UNAVAILABLE",
+          "when": "Reward integration disabled."
+        }
+      ],
+      "sideEffects": [
+        "Redeems grant into single executor binding; repeat same grant returns binding."
+      ],
+      "requiredInvariant": [
+        "Preserve exact signed POST path/bytes; no redirect of signed request.",
+        "Keep historical ids, pending retries, payload hashes and shared key continuity; no duplicate credits.",
+        "Current issuer crm.inkar.kz and callback remain legacy-compatible after domain unification."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardController.kt",
+          "line": 31,
+          "anchor": "fun redeem("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardSecurity.kt",
+          "line": 72,
+          "anchor": "fun verifyRequest("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardService.kt",
+          "line": 129,
+          "anchor": "fun redeem("
+        }
+      ],
+      "positiveChecks": ["Exact signed grant redeem repeated yields same binding."],
+      "negativeChecks": [
+        "Changing whitespace/body/path/query/method without resigning fails HMAC; stale timestamp or >16KiB denied.",
+        "Same event/dispatch different payload or wrong binding/pharmacy/amount cannot credit twice."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "MERCH_REWARD_CALLBACK",
+      "method": "POST",
+      "path": "/api/integrations/merch/reward-events",
+      "auth": {
+        "headers": ["X-Merch-Timestamp", "X-Merch-Signature"],
+        "boundary": "Financial HMAC over exact timestamp/method/path+query/SHA256(raw bounded bytes); not JWT/device-key.",
+        "valuesIncluded": false
+      },
+      "identity": "Binding pins confirmed executor + pharmacy + dispatch + fixed amount; reward recipient is not supplied arbitrarily by callback.",
+      "request": {
+        "server": "MerchRewardEvent",
+        "client": "server-to-server",
+        "keyFields": [
+          "schemaVersion",
+          "type",
+          "eventId",
+          "dispatchId",
+          "bindingId",
+          "pharmacyId",
+          "amountKzt",
+          "currency",
+          "submittedAt",
+          "approvedAt",
+          "approvedByCrmUserId"
+        ]
+      },
+      "response": {
+        "server": "MerchRewardAck",
+        "client": "server-to-server",
+        "keyFields": ["eventId", "credited", "duplicate"]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing/invalid/revoked credential, inactive pharmacy, or conflicting claimed pharmacy/device when that endpoint supplies claims to authentication."
+        },
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        },
+        {
+          "status": 403,
+          "code": "FORBIDDEN / USER_NOT_ACTIVE",
+          "when": "Executor/pharmacy/mapping no longer eligible."
+        },
+        {
+          "status": 409,
+          "code": "CONFLICT",
+          "when": "Reused event/dispatch with different raw payload or binding/amount conflict."
+        },
+        {
+          "status": 503,
+          "code": "UPSTREAM_UNAVAILABLE",
+          "when": "Reward integration disabled."
+        }
+      ],
+      "sideEffects": [
+        "Credits single wallet entry and stores immutable event/payload hash;201 first,200 duplicate."
+      ],
+      "requiredInvariant": [
+        "Preserve exact signed POST path/bytes; no redirect of signed request.",
+        "Keep historical ids, pending retries, payload hashes and shared key continuity; no duplicate credits.",
+        "Current issuer crm.inkar.kz and callback remain legacy-compatible after domain unification."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardController.kt",
+          "line": 37,
+          "anchor": "fun reward("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardSecurity.kt",
+          "line": 72,
+          "anchor": "fun verifyRequest("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardService.kt",
+          "line": 157,
+          "anchor": "fun reward("
+        }
+      ],
+      "positiveChecks": [
+        "Exact signed fixture accepted; same event/body retry returns duplicate with one wallet entry."
+      ],
+      "negativeChecks": [
+        "Changing whitespace/body/path/query/method without resigning fails HMAC; stale timestamp or >16KiB denied.",
+        "Same event/dispatch different payload or wrong binding/pharmacy/amount cannot credit twice."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "DOWNLOAD_ARCHIVE",
+      "method": "GET",
+      "path": "/downloads/{artifactPath}",
+      "auth": {
+        "headers": [],
+        "boundary": "Anonymous public static package; device/admin/staff credentials must not be attached.",
+        "valuesIncluded": false
+      },
+      "identity": "Trust comes from separately pinned signature and signed SHA-256, not URL or public HTTP200.",
+      "request": {
+        "server": "path + optional Range",
+        "client": "AppUpdater.DownloadAsync",
+        "keyFields": ["artifactPath", "Range?"]
+      },
+      "response": {
+        "server": "static byte stream",
+        "client": "ZIP download",
+        "keyFields": ["Content-Length", "Content-Range?", "Accept-Ranges?", "bytes"]
+      },
+      "errors": [
+        {
+          "status": 404,
+          "code": "static server response",
+          "when": "Missing artifact."
+        },
+        {
+          "status": 416,
+          "code": "static server response",
+          "when": "Unsatisfiable range; client handles complete existing length before final SHA check."
+        }
+      ],
+      "sideEffects": [
+        "Reads file from mounted /srv/epharm-downloads; installation only after signature/hash/version checks."
+      ],
+      "requiredInvariant": [
+        "Preserve /downloads path/public bytes and resume200/206/416 behavior, without device-key forwarding.",
+        "ECDSA public key independently pinned; signed fields and checksum cannot be replaced by HTTP success.",
+        "Never overwrite per-pharmacy posm.json from shared ZIP.",
+        "Actual mounted artifacts/MIME/Range behavior need candidate verification; source route does not prove installed versions."
+      ],
+      "sourcePaths": [
+        {
+          "path": "Caddyfile",
+          "line": 28,
+          "anchor": "handle_path /downloads/*"
+        },
+        {
+          "path": "App/Services/AppUpdater.cs",
+          "line": 154,
+          "anchor": "private async Task<bool> DownloadAsync("
+        },
+        {
+          "path": "App/Services/AppUpdater.cs",
+          "line": 126,
+          "anchor": "SafeDelete(Path.Combine(staging, \"posm.json\"))"
+        },
+        {
+          "path": "App/Services/UpdateManifestVerifier.cs",
+          "line": 36,
+          "anchor": "internal static string Canonical("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/appupdate/service/AppUpdateManifestVerifier.kt",
+          "line": 50,
+          "anchor": "fun canonical("
+        }
+      ],
+      "positiveChecks": [
+        "Valid signed newer manifest downloads/resumes package, SHA matches, ZIP has CustomerDisplay.exe, per-pharmacy config survives.",
+        "HEAD and byte Range on candidate return consistent total length; partial interruption resumes."
+      ],
+      "negativeChecks": [
+        "Bad/missing pinned key/signature/checksum or tampered signed field prevents installation.",
+        "Corrupt/partial ZIP or missing executable rejected; no token header sent to artifact origin."
+      ],
+      "state": "needs_verification",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "S3_PUBLIC_PROXY",
+      "method": "GET",
+      "path": "/s3/{bucket}/{key}",
+      "auth": {
+        "headers": [],
+        "boundary": "Caddy strips /s3 and forwards to object store; actual object/bucket policy or signed URL controls access, not admin JWT.",
+        "valuesIncluded": false
+      },
+      "identity": "Object bytes/media refs must keep exact legacy key and intended visibility; public prefix is not proof every bucket/object is public.",
+      "request": {
+        "server": "object path/query",
+        "client": "media clients",
+        "keyFields": ["bucket", "key", "Range?", "signed query?"]
+      },
+      "response": {
+        "server": "byte stream",
+        "client": "media clients",
+        "keyFields": ["Content-Type", "Content-Length", "Content-Range?", "bytes"]
+      },
+      "errors": [
+        {
+          "status": 403,
+          "code": "object-store error",
+          "when": "Bucket/object policy or signature denies."
+        },
+        {
+          "status": 404,
+          "code": "object-store error",
+          "when": "Object absent."
+        },
+        {
+          "status": 416,
+          "code": "object-store error",
+          "when": "Invalid Range."
+        }
+      ],
+      "sideEffects": [],
+      "requiredInvariant": [
+        "Preserve /s3 prefix stripping/path-style bucket/key and old URLs; no rewrite of protected CRM media into public S3.",
+        "Keep byte/MIME/Range/video seeking and object access policy; source proxy has no JWT check.",
+        "MinIO endpoint and object-policy/runtime data must be verified on isolated candidate."
+      ],
+      "sourcePaths": [
+        {
+          "path": "Caddyfile",
+          "line": 21,
+          "anchor": "handle_path /s3/*"
+        },
+        {
+          "path": "docker-compose.prod.yml",
+          "line": 126,
+          "anchor": "S3_PUBLIC_URL:"
+        }
+      ],
+      "positiveChecks": [
+        "Old permitted image/video URL yields identical bytes and MIME; Range produces206 on candidate."
+      ],
+      "negativeChecks": [
+        "Private or unpermitted objects remain denied; changed paths do not expose sibling objects.",
+        "Missing objects are not substituted by HTML login or SPA200."
+      ],
+      "state": "needs_verification",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "CATALOG_IMAGE_PROXY",
+      "method": "GET",
+      "path": "/api/media/img",
+      "auth": {
+        "headers": [],
+        "boundary": "Public catalog image endpoint; exact configured origin SSRF allowlist; no credentials forwarded.",
+        "valuesIncluded": false
+      },
+      "identity": "Only configured storefront origin plus retained configured legacy origin; current active source is aptekasosklada.kz, never re-enable old catalog by this audit.",
+      "request": {
+        "server": "query",
+        "client": "browser image URLs",
+        "keyFields": ["u", "w? (resize50..2000)"]
+      },
+      "response": {
+        "server": "ResponseEntity<ByteArray>",
+        "client": "image decoder",
+        "keyFields": [
+          "Content-Type",
+          "Cache-Control public max-age7d",
+          "original bytes or JPEG thumbnail"
+        ]
+      },
+      "errors": [
+        {
+          "status": 400,
+          "code": "VALIDATION_FAILED",
+          "when": "Invalid JSON/required fields/type/query or Bean Validation failure; response ApiErrorResponse(code,message,timestamp,fields?)."
+        },
+        {
+          "status": 502,
+          "code": "UPSTREAM_UNAVAILABLE",
+          "when": "Fetch fails or empty upstream body."
+        }
+      ],
+      "sideEffects": ["May fetch image server-to-server; optional resize to JPEG."],
+      "requiredInvariant": [
+        "Keep exact-origin allowlist/no redirects/userinfo exclusion; never open arbitrary URL proxy.",
+        "Do not treat this full-buffer image endpoint as Range-video proxy."
+      ],
+      "sourcePaths": [
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/shared/media/MediaProxyController.kt",
+          "line": 80,
+          "anchor": "fun img("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/shared/media/MediaProxyController.kt",
+          "line": 54,
+          "anchor": "private val allowedOrigins:"
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/shared/media/MediaProxyController.kt",
+          "line": 70,
+          "anchor": "connection.instanceFollowRedirects = false"
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/shared/SecurityConfig.kt",
+          "line": 104,
+          "anchor": "\"/api/media/**\""
+        }
+      ],
+      "positiveChecks": [
+        "Allowed storefront image returns expected MIME; optional width yields proportional JPEG."
+      ],
+      "negativeChecks": [
+        "Foreign origin/userinfo/redirect widening denied or not followed; no general SSRF.",
+        "Invalid upstream body->502; unknown width does not change access control."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "LEGACY_MERCH_STAFF",
+      "method": "GET",
+      "path": "/merch/staff",
+      "auth": {
+        "headers": [],
+        "boundary": "Public narrow proxy/legacy navigation; upstream capability/media cookie checks remain required; X-Pharmapay-Key is stripped.",
+        "valuesIncluded": false
+      },
+      "identity": "Applies only to allowlisted route/method; no CRM administrative API published.",
+      "request": {
+        "server": "browser navigation",
+        "client": "legacy CRM browser",
+        "keyFields": ["task query/fragment context"]
+      },
+      "response": {
+        "server": "302 redirect",
+        "client": "legacy browser",
+        "keyFields": ["Location + no-store/no-referrer"]
+      },
+      "errors": [
+        {
+          "status": 404,
+          "code": "Caddy response",
+          "when": "Unknown /merch path or method before prefix stripping."
+        }
+      ],
+      "sideEffects": [
+        "Legacy staff GET redirects to exact CRM /staff preserving query; new fragment-token links bypass this redirect."
+      ],
+      "requiredInvariant": [
+        "Preserve old working staff links and files; query/fragment and cleaned challenge context must not be dropped.",
+        "Protected media must retain upstream cookies/Path/MIME/Range semantics; proxy config alone does not prove them.",
+        "Never redirect signed financial POSTs or turn public proxy into administrative/system integration access."
+      ],
+      "sourcePaths": [
+        {
+          "path": "Caddyfile",
+          "line": 38,
+          "anchor": "@merch_staff {"
+        },
+        {
+          "path": "Caddyfile",
+          "line": 65,
+          "anchor": "header_up -X-Pharmapay-Key"
+        }
+      ],
+      "positiveChecks": [
+        "On isolated composed candidate old permitted link/action/media resolves correct scoped task/file."
+      ],
+      "negativeChecks": [
+        "Unknown route/wrong method->404; no integration header leaked.",
+        "Expired/foreign capability or media cookie denied upstream; full compatibility needs CRM candidate test."
+      ],
+      "state": "needs_verification",
+      "routeExpansion": "/merch/staff",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "LEGACY_MERCH_ASSET",
+      "method": "GET",
+      "path": "/merch/assets/{assetPath}",
+      "auth": {
+        "headers": [],
+        "boundary": "Public narrow proxy/legacy navigation; upstream capability/media cookie checks remain required; X-Pharmapay-Key is stripped.",
+        "valuesIncluded": false
+      },
+      "identity": "Applies only to allowlisted route/method; no CRM administrative API published.",
+      "request": {
+        "server": "capability-bound legacy request",
+        "client": "legacy CRM browser",
+        "keyFields": ["upstream unchanged request bytes and capability context"]
+      },
+      "response": {
+        "server": "upstream static/JSON/bytes",
+        "client": "legacy browser",
+        "keyFields": ["upstream response"]
+      },
+      "errors": [
+        {
+          "status": 404,
+          "code": "Caddy response",
+          "when": "Unknown /merch path or method before prefix stripping."
+        }
+      ],
+      "sideEffects": ["Strips /merch and forwards only allowed routes."],
+      "requiredInvariant": [
+        "Preserve old working staff links and files; query/fragment and cleaned challenge context must not be dropped.",
+        "Protected media must retain upstream cookies/Path/MIME/Range semantics; proxy config alone does not prove them.",
+        "Never redirect signed financial POSTs or turn public proxy into administrative/system integration access."
+      ],
+      "sourcePaths": [
+        {
+          "path": "Caddyfile",
+          "line": 42,
+          "anchor": "@merch_assets {"
+        },
+        {
+          "path": "Caddyfile",
+          "line": 65,
+          "anchor": "header_up -X-Pharmapay-Key"
+        }
+      ],
+      "positiveChecks": [
+        "On isolated composed candidate old permitted link/action/media resolves correct scoped task/file."
+      ],
+      "negativeChecks": [
+        "Unknown route/wrong method->404; no integration header leaked.",
+        "Expired/foreign capability or media cookie denied upstream; full compatibility needs CRM candidate test."
+      ],
+      "state": "needs_verification",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "LEGACY_MERCH_PHARMACY_IMAGE",
+      "method": "GET",
+      "path": "/merch/pharmacy-shelf.png",
+      "auth": {
+        "headers": [],
+        "boundary": "Public narrow proxy/legacy navigation; upstream capability/media cookie checks remain required; X-Pharmapay-Key is stripped.",
+        "valuesIncluded": false
+      },
+      "identity": "Applies only to allowlisted route/method; no CRM administrative API published.",
+      "request": {
+        "server": "capability-bound legacy request",
+        "client": "legacy CRM browser",
+        "keyFields": ["upstream unchanged request bytes and capability context"]
+      },
+      "response": {
+        "server": "upstream static/JSON/bytes",
+        "client": "legacy browser",
+        "keyFields": ["upstream response"]
+      },
+      "errors": [
+        {
+          "status": 404,
+          "code": "Caddy response",
+          "when": "Unknown /merch path or method before prefix stripping."
+        }
+      ],
+      "sideEffects": ["Strips /merch and forwards only allowed routes."],
+      "requiredInvariant": [
+        "Preserve old working staff links and files; query/fragment and cleaned challenge context must not be dropped.",
+        "Protected media must retain upstream cookies/Path/MIME/Range semantics; proxy config alone does not prove them.",
+        "Never redirect signed financial POSTs or turn public proxy into administrative/system integration access."
+      ],
+      "sourcePaths": [
+        {
+          "path": "Caddyfile",
+          "line": 42,
+          "anchor": "@merch_assets {"
+        },
+        {
+          "path": "Caddyfile",
+          "line": 65,
+          "anchor": "header_up -X-Pharmapay-Key"
+        }
+      ],
+      "positiveChecks": [
+        "On isolated composed candidate old permitted link/action/media resolves correct scoped task/file."
+      ],
+      "negativeChecks": [
+        "Unknown route/wrong method->404; no integration header leaked.",
+        "Expired/foreign capability or media cookie denied upstream; full compatibility needs CRM candidate test."
+      ],
+      "state": "needs_verification",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "LEGACY_MERCH_TASK_FETCH",
+      "method": "POST",
+      "path": "/merch/api/public/task-dispatch",
+      "auth": {
+        "headers": [],
+        "boundary": "Public narrow proxy/legacy navigation; upstream capability/media cookie checks remain required; X-Pharmapay-Key is stripped.",
+        "valuesIncluded": false
+      },
+      "identity": "Applies only to allowlisted route/method; no CRM administrative API published.",
+      "request": {
+        "server": "capability-bound legacy request",
+        "client": "legacy CRM browser",
+        "keyFields": [
+          "upstream public task capability; exact legacy DTO requires CRM source/candidate verification"
+        ]
+      },
+      "response": {
+        "server": "upstream static/JSON/bytes",
+        "client": "legacy browser",
+        "keyFields": ["upstream response"]
+      },
+      "errors": [
+        {
+          "status": 404,
+          "code": "Caddy response",
+          "when": "Unknown /merch path or method before prefix stripping."
+        }
+      ],
+      "sideEffects": ["Strips /merch and forwards only allowed routes."],
+      "requiredInvariant": [
+        "Preserve old working staff links and files; query/fragment and cleaned challenge context must not be dropped.",
+        "Protected media must retain upstream cookies/Path/MIME/Range semantics; proxy config alone does not prove them.",
+        "Never redirect signed financial POSTs or turn public proxy into administrative/system integration access."
+      ],
+      "sourcePaths": [
+        {
+          "path": "Caddyfile",
+          "line": 46,
+          "anchor": "@merch_task_api {"
+        },
+        {
+          "path": "Caddyfile",
+          "line": 65,
+          "anchor": "header_up -X-Pharmapay-Key"
+        }
+      ],
+      "positiveChecks": [
+        "On isolated composed candidate old permitted link/action/media resolves correct scoped task/file."
+      ],
+      "negativeChecks": [
+        "Unknown route/wrong method->404; no integration header leaked.",
+        "Expired/foreign capability or media cookie denied upstream; full compatibility needs CRM candidate test."
+      ],
+      "state": "needs_verification",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "LEGACY_MERCH_TASK_QUEUE",
+      "method": "POST",
+      "path": "/merch/api/public/task-dispatch/queue",
+      "auth": {
+        "headers": [],
+        "boundary": "Public narrow proxy/legacy navigation; upstream capability/media cookie checks remain required; X-Pharmapay-Key is stripped.",
+        "valuesIncluded": false
+      },
+      "identity": "Applies only to allowlisted route/method; no CRM administrative API published.",
+      "request": {
+        "server": "capability-bound legacy request",
+        "client": "legacy CRM browser",
+        "keyFields": ["upstream unchanged request bytes and capability context"]
+      },
+      "response": {
+        "server": "upstream static/JSON/bytes",
+        "client": "legacy browser",
+        "keyFields": ["upstream response"]
+      },
+      "errors": [
+        {
+          "status": 404,
+          "code": "Caddy response",
+          "when": "Unknown /merch path or method before prefix stripping."
+        }
+      ],
+      "sideEffects": ["Strips /merch and forwards only allowed routes."],
+      "requiredInvariant": [
+        "Preserve old working staff links and files; query/fragment and cleaned challenge context must not be dropped.",
+        "Protected media must retain upstream cookies/Path/MIME/Range semantics; proxy config alone does not prove them.",
+        "Never redirect signed financial POSTs or turn public proxy into administrative/system integration access."
+      ],
+      "sourcePaths": [
+        {
+          "path": "Caddyfile",
+          "line": 46,
+          "anchor": "@merch_task_api {"
+        },
+        {
+          "path": "Caddyfile",
+          "line": 65,
+          "anchor": "header_up -X-Pharmapay-Key"
+        }
+      ],
+      "positiveChecks": [
+        "On isolated composed candidate old permitted link/action/media resolves correct scoped task/file."
+      ],
+      "negativeChecks": [
+        "Unknown route/wrong method->404; no integration header leaked.",
+        "Expired/foreign capability or media cookie denied upstream; full compatibility needs CRM candidate test."
+      ],
+      "state": "needs_verification",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "LEGACY_MERCH_TASK_START",
+      "method": "POST",
+      "path": "/merch/api/public/task-dispatch/start",
+      "auth": {
+        "headers": [],
+        "boundary": "Public narrow proxy/legacy navigation; upstream capability/media cookie checks remain required; X-Pharmapay-Key is stripped.",
+        "valuesIncluded": false
+      },
+      "identity": "Applies only to allowlisted route/method; no CRM administrative API published.",
+      "request": {
+        "server": "capability-bound legacy request",
+        "client": "legacy CRM browser",
+        "keyFields": ["upstream unchanged request bytes and capability context"]
+      },
+      "response": {
+        "server": "upstream static/JSON/bytes",
+        "client": "legacy browser",
+        "keyFields": ["upstream response"]
+      },
+      "errors": [
+        {
+          "status": 404,
+          "code": "Caddy response",
+          "when": "Unknown /merch path or method before prefix stripping."
+        }
+      ],
+      "sideEffects": ["Strips /merch and forwards only allowed routes."],
+      "requiredInvariant": [
+        "Preserve old working staff links and files; query/fragment and cleaned challenge context must not be dropped.",
+        "Protected media must retain upstream cookies/Path/MIME/Range semantics; proxy config alone does not prove them.",
+        "Never redirect signed financial POSTs or turn public proxy into administrative/system integration access."
+      ],
+      "sourcePaths": [
+        {
+          "path": "Caddyfile",
+          "line": 46,
+          "anchor": "@merch_task_api {"
+        },
+        {
+          "path": "Caddyfile",
+          "line": 65,
+          "anchor": "header_up -X-Pharmapay-Key"
+        }
+      ],
+      "positiveChecks": [
+        "On isolated composed candidate old permitted link/action/media resolves correct scoped task/file."
+      ],
+      "negativeChecks": [
+        "Unknown route/wrong method->404; no integration header leaked.",
+        "Expired/foreign capability or media cookie denied upstream; full compatibility needs CRM candidate test."
+      ],
+      "state": "needs_verification",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "LEGACY_MERCH_TASK_CHECKLIST",
+      "method": "POST",
+      "path": "/merch/api/public/task-dispatch/checklist",
+      "auth": {
+        "headers": [],
+        "boundary": "Public narrow proxy/legacy navigation; upstream capability/media cookie checks remain required; X-Pharmapay-Key is stripped.",
+        "valuesIncluded": false
+      },
+      "identity": "Applies only to allowlisted route/method; no CRM administrative API published.",
+      "request": {
+        "server": "capability-bound legacy request",
+        "client": "legacy CRM browser",
+        "keyFields": ["upstream unchanged request bytes and capability context"]
+      },
+      "response": {
+        "server": "upstream static/JSON/bytes",
+        "client": "legacy browser",
+        "keyFields": ["upstream response"]
+      },
+      "errors": [
+        {
+          "status": 404,
+          "code": "Caddy response",
+          "when": "Unknown /merch path or method before prefix stripping."
+        }
+      ],
+      "sideEffects": ["Strips /merch and forwards only allowed routes."],
+      "requiredInvariant": [
+        "Preserve old working staff links and files; query/fragment and cleaned challenge context must not be dropped.",
+        "Protected media must retain upstream cookies/Path/MIME/Range semantics; proxy config alone does not prove them.",
+        "Never redirect signed financial POSTs or turn public proxy into administrative/system integration access."
+      ],
+      "sourcePaths": [
+        {
+          "path": "Caddyfile",
+          "line": 46,
+          "anchor": "@merch_task_api {"
+        },
+        {
+          "path": "Caddyfile",
+          "line": 65,
+          "anchor": "header_up -X-Pharmapay-Key"
+        }
+      ],
+      "positiveChecks": [
+        "On isolated composed candidate old permitted link/action/media resolves correct scoped task/file."
+      ],
+      "negativeChecks": [
+        "Unknown route/wrong method->404; no integration header leaked.",
+        "Expired/foreign capability or media cookie denied upstream; full compatibility needs CRM candidate test."
+      ],
+      "state": "needs_verification",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "LEGACY_MERCH_TASK_EVIDENCE",
+      "method": "POST",
+      "path": "/merch/api/public/task-dispatch/evidence",
+      "auth": {
+        "headers": [],
+        "boundary": "Public narrow proxy/legacy navigation; upstream capability/media cookie checks remain required; X-Pharmapay-Key is stripped.",
+        "valuesIncluded": false
+      },
+      "identity": "Applies only to allowlisted route/method; no CRM administrative API published.",
+      "request": {
+        "server": "capability-bound legacy request",
+        "client": "legacy CRM browser",
+        "keyFields": ["upstream unchanged request bytes and capability context"]
+      },
+      "response": {
+        "server": "upstream static/JSON/bytes",
+        "client": "legacy browser",
+        "keyFields": ["upstream response"]
+      },
+      "errors": [
+        {
+          "status": 404,
+          "code": "Caddy response",
+          "when": "Unknown /merch path or method before prefix stripping."
+        }
+      ],
+      "sideEffects": ["Strips /merch and forwards only allowed routes."],
+      "requiredInvariant": [
+        "Preserve old working staff links and files; query/fragment and cleaned challenge context must not be dropped.",
+        "Protected media must retain upstream cookies/Path/MIME/Range semantics; proxy config alone does not prove them.",
+        "Never redirect signed financial POSTs or turn public proxy into administrative/system integration access."
+      ],
+      "sourcePaths": [
+        {
+          "path": "Caddyfile",
+          "line": 46,
+          "anchor": "@merch_task_api {"
+        },
+        {
+          "path": "Caddyfile",
+          "line": 65,
+          "anchor": "header_up -X-Pharmapay-Key"
+        }
+      ],
+      "positiveChecks": [
+        "On isolated composed candidate old permitted link/action/media resolves correct scoped task/file."
+      ],
+      "negativeChecks": [
+        "Unknown route/wrong method->404; no integration header leaked.",
+        "Expired/foreign capability or media cookie denied upstream; full compatibility needs CRM candidate test."
+      ],
+      "state": "needs_verification",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "LEGACY_MERCH_TASK_SUBMIT",
+      "method": "POST",
+      "path": "/merch/api/public/task-dispatch/submit",
+      "auth": {
+        "headers": [],
+        "boundary": "Public narrow proxy/legacy navigation; upstream capability/media cookie checks remain required; X-Pharmapay-Key is stripped.",
+        "valuesIncluded": false
+      },
+      "identity": "Applies only to allowlisted route/method; no CRM administrative API published.",
+      "request": {
+        "server": "capability-bound legacy request",
+        "client": "legacy CRM browser",
+        "keyFields": ["upstream unchanged request bytes and capability context"]
+      },
+      "response": {
+        "server": "upstream static/JSON/bytes",
+        "client": "legacy browser",
+        "keyFields": ["upstream response"]
+      },
+      "errors": [
+        {
+          "status": 404,
+          "code": "Caddy response",
+          "when": "Unknown /merch path or method before prefix stripping."
+        }
+      ],
+      "sideEffects": ["Strips /merch and forwards only allowed routes."],
+      "requiredInvariant": [
+        "Preserve old working staff links and files; query/fragment and cleaned challenge context must not be dropped.",
+        "Protected media must retain upstream cookies/Path/MIME/Range semantics; proxy config alone does not prove them.",
+        "Never redirect signed financial POSTs or turn public proxy into administrative/system integration access."
+      ],
+      "sourcePaths": [
+        {
+          "path": "Caddyfile",
+          "line": 46,
+          "anchor": "@merch_task_api {"
+        },
+        {
+          "path": "Caddyfile",
+          "line": 65,
+          "anchor": "header_up -X-Pharmapay-Key"
+        }
+      ],
+      "positiveChecks": [
+        "On isolated composed candidate old permitted link/action/media resolves correct scoped task/file."
+      ],
+      "negativeChecks": [
+        "Unknown route/wrong method->404; no integration header leaked.",
+        "Expired/foreign capability or media cookie denied upstream; full compatibility needs CRM candidate test."
+      ],
+      "state": "needs_verification",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "LEGACY_MERCH_TASK_FILES",
+      "method": "GET",
+      "path": "/merch/api/task-files/{fileId}",
+      "auth": {
+        "headers": [],
+        "boundary": "Public narrow proxy/legacy navigation; upstream capability/media cookie checks remain required; X-Pharmapay-Key is stripped.",
+        "valuesIncluded": false
+      },
+      "identity": "Applies only to allowlisted route/method; no CRM administrative API published.",
+      "request": {
+        "server": "capability-bound legacy request",
+        "client": "legacy CRM browser",
+        "keyFields": ["upstream unchanged request bytes and capability context"]
+      },
+      "response": {
+        "server": "upstream static/JSON/bytes",
+        "client": "legacy browser",
+        "keyFields": ["upstream response"]
+      },
+      "errors": [
+        {
+          "status": 404,
+          "code": "Caddy response",
+          "when": "Unknown /merch path or method before prefix stripping."
+        }
+      ],
+      "sideEffects": ["Strips /merch and forwards only allowed routes."],
+      "requiredInvariant": [
+        "Preserve old working staff links and files; query/fragment and cleaned challenge context must not be dropped.",
+        "Protected media must retain upstream cookies/Path/MIME/Range semantics; proxy config alone does not prove them.",
+        "Never redirect signed financial POSTs or turn public proxy into administrative/system integration access."
+      ],
+      "sourcePaths": [
+        {
+          "path": "Caddyfile",
+          "line": 50,
+          "anchor": "@merch_media {"
+        },
+        {
+          "path": "Caddyfile",
+          "line": 65,
+          "anchor": "header_up -X-Pharmapay-Key"
+        }
+      ],
+      "positiveChecks": [
+        "On isolated composed candidate old permitted link/action/media resolves correct scoped task/file."
+      ],
+      "negativeChecks": [
+        "Unknown route/wrong method->404; no integration header leaked.",
+        "Expired/foreign capability or media cookie denied upstream; full compatibility needs CRM candidate test."
+      ],
+      "state": "needs_verification",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "LEGACY_MERCH_REQUEST_ITEM_FILES",
+      "method": "GET",
+      "path": "/merch/api/request-item-files/{fileId}",
+      "auth": {
+        "headers": [],
+        "boundary": "Public narrow proxy/legacy navigation; upstream capability/media cookie checks remain required; X-Pharmapay-Key is stripped.",
+        "valuesIncluded": false
+      },
+      "identity": "Applies only to allowlisted route/method; no CRM administrative API published.",
+      "request": {
+        "server": "capability-bound legacy request",
+        "client": "legacy CRM browser",
+        "keyFields": ["upstream unchanged request bytes and capability context"]
+      },
+      "response": {
+        "server": "upstream static/JSON/bytes",
+        "client": "legacy browser",
+        "keyFields": ["upstream response"]
+      },
+      "errors": [
+        {
+          "status": 404,
+          "code": "Caddy response",
+          "when": "Unknown /merch path or method before prefix stripping."
+        }
+      ],
+      "sideEffects": ["Strips /merch and forwards only allowed routes."],
+      "requiredInvariant": [
+        "Preserve old working staff links and files; query/fragment and cleaned challenge context must not be dropped.",
+        "Protected media must retain upstream cookies/Path/MIME/Range semantics; proxy config alone does not prove them.",
+        "Never redirect signed financial POSTs or turn public proxy into administrative/system integration access."
+      ],
+      "sourcePaths": [
+        {
+          "path": "Caddyfile",
+          "line": 50,
+          "anchor": "@merch_media {"
+        },
+        {
+          "path": "Caddyfile",
+          "line": 65,
+          "anchor": "header_up -X-Pharmapay-Key"
+        }
+      ],
+      "positiveChecks": [
+        "On isolated composed candidate old permitted link/action/media resolves correct scoped task/file."
+      ],
+      "negativeChecks": [
+        "Unknown route/wrong method->404; no integration header leaked.",
+        "Expired/foreign capability or media cookie denied upstream; full compatibility needs CRM candidate test."
+      ],
+      "state": "needs_verification",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "LEGACY_MERCH_PLACEMENT_FILES",
+      "method": "GET",
+      "path": "/merch/api/placement-files/{fileId}",
+      "auth": {
+        "headers": [],
+        "boundary": "Public narrow proxy/legacy navigation; upstream capability/media cookie checks remain required; X-Pharmapay-Key is stripped.",
+        "valuesIncluded": false
+      },
+      "identity": "Applies only to allowlisted route/method; no CRM administrative API published.",
+      "request": {
+        "server": "capability-bound legacy request",
+        "client": "legacy CRM browser",
+        "keyFields": ["upstream unchanged request bytes and capability context"]
+      },
+      "response": {
+        "server": "upstream static/JSON/bytes",
+        "client": "legacy browser",
+        "keyFields": ["upstream response"]
+      },
+      "errors": [
+        {
+          "status": 404,
+          "code": "Caddy response",
+          "when": "Unknown /merch path or method before prefix stripping."
+        }
+      ],
+      "sideEffects": ["Strips /merch and forwards only allowed routes."],
+      "requiredInvariant": [
+        "Preserve old working staff links and files; query/fragment and cleaned challenge context must not be dropped.",
+        "Protected media must retain upstream cookies/Path/MIME/Range semantics; proxy config alone does not prove them.",
+        "Never redirect signed financial POSTs or turn public proxy into administrative/system integration access."
+      ],
+      "sourcePaths": [
+        {
+          "path": "Caddyfile",
+          "line": 50,
+          "anchor": "@merch_media {"
+        },
+        {
+          "path": "Caddyfile",
+          "line": 65,
+          "anchor": "header_up -X-Pharmapay-Key"
+        }
+      ],
+      "positiveChecks": [
+        "On isolated composed candidate old permitted link/action/media resolves correct scoped task/file."
+      ],
+      "negativeChecks": [
+        "Unknown route/wrong method->404; no integration header leaked.",
+        "Expired/foreign capability or media cookie denied upstream; full compatibility needs CRM candidate test."
+      ],
+      "state": "needs_verification",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "DOWNLOAD_ARCHIVE_HEAD",
+      "method": "HEAD",
+      "path": "/downloads/{artifactPath}",
+      "auth": {
+        "headers": [],
+        "boundary": "Anonymous public static package; device/admin/staff credentials must not be attached.",
+        "valuesIncluded": false
+      },
+      "identity": "Trust comes from separately pinned signature and signed SHA-256, not URL or public HTTP200.",
+      "request": {
+        "server": "path + optional Range",
+        "client": "AppUpdater.DownloadAsync",
+        "keyFields": ["artifactPath", "Range?"]
+      },
+      "response": {
+        "server": "static byte stream",
+        "client": "ZIP download",
+        "keyFields": ["Content-Length", "Content-Range?", "Accept-Ranges?"]
+      },
+      "errors": [
+        {
+          "status": 404,
+          "code": "static server response",
+          "when": "Missing artifact."
+        },
+        {
+          "status": 416,
+          "code": "static server response",
+          "when": "Unsatisfiable range; client handles complete existing length before final SHA check."
+        }
+      ],
+      "sideEffects": [],
+      "requiredInvariant": [
+        "Preserve /downloads path/public bytes and resume200/206/416 behavior, without device-key forwarding.",
+        "ECDSA public key independently pinned; signed fields and checksum cannot be replaced by HTTP success.",
+        "Never overwrite per-pharmacy posm.json from shared ZIP.",
+        "Actual mounted artifacts/MIME/Range behavior need candidate verification; source route does not prove installed versions."
+      ],
+      "sourcePaths": [
+        {
+          "path": "Caddyfile",
+          "line": 28,
+          "anchor": "handle_path /downloads/*"
+        },
+        {
+          "path": "App/Services/AppUpdater.cs",
+          "line": 154,
+          "anchor": "private async Task<bool> DownloadAsync("
+        },
+        {
+          "path": "App/Services/AppUpdater.cs",
+          "line": 126,
+          "anchor": "SafeDelete(Path.Combine(staging, \"posm.json\"))"
+        },
+        {
+          "path": "App/Services/UpdateManifestVerifier.cs",
+          "line": 36,
+          "anchor": "internal static string Canonical("
+        },
+        {
+          "path": "admin-panel/backend/src/main/kotlin/kz/epharm/appupdate/service/AppUpdateManifestVerifier.kt",
+          "line": 50,
+          "anchor": "fun canonical("
+        }
+      ],
+      "positiveChecks": [
+        "Candidate HEAD returns metadata consistent with GET; no body or credential forwarding."
+      ],
+      "negativeChecks": [
+        "Missing/private object keeps appropriate denial; HEAD does not bypass access policy or establish render/install success."
+      ],
+      "state": "needs_verification",
+      "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "S3_PUBLIC_PROXY_HEAD",
+      "method": "HEAD",
+      "path": "/s3/{bucket}/{key}",
+      "auth": {
+        "headers": [],
+        "boundary": "Caddy strips /s3 and forwards to object store; actual object/bucket policy or signed URL controls access, not admin JWT.",
+        "valuesIncluded": false
+      },
+      "identity": "Object bytes/media refs must keep exact legacy key and intended visibility; public prefix is not proof every bucket/object is public.",
+      "request": {
+        "server": "object path/query",
+        "client": "media clients",
+        "keyFields": ["bucket", "key", "Range?", "signed query?"]
+      },
+      "response": {
+        "server": "byte stream",
+        "client": "media clients",
+        "keyFields": ["Content-Type", "Content-Length", "Content-Range?"]
+      },
+      "errors": [
+        {
+          "status": 403,
+          "code": "object-store error",
+          "when": "Bucket/object policy or signature denies."
+        },
+        {
+          "status": 404,
+          "code": "object-store error",
+          "when": "Object absent."
+        },
+        {
+          "status": 416,
+          "code": "object-store error",
+          "when": "Invalid Range."
+        }
+      ],
+      "sideEffects": [],
+      "requiredInvariant": [
+        "Preserve /s3 prefix stripping/path-style bucket/key and old URLs; no rewrite of protected CRM media into public S3.",
+        "Keep byte/MIME/Range/video seeking and object access policy; source proxy has no JWT check.",
+        "MinIO endpoint and object-policy/runtime data must be verified on isolated candidate."
+      ],
+      "sourcePaths": [
+        {
+          "path": "Caddyfile",
+          "line": 21,
+          "anchor": "handle_path /s3/*"
+        },
+        {
+          "path": "docker-compose.prod.yml",
+          "line": 126,
+          "anchor": "S3_PUBLIC_URL:"
+        }
+      ],
+      "positiveChecks": [
+        "Candidate HEAD returns metadata consistent with GET; no body or credential forwarding."
+      ],
+      "negativeChecks": [
+        "Missing/private object keeps appropriate denial; HEAD does not bypass access policy or establish render/install success."
+      ],
+      "state": "needs_verification",
+      "origin": "https://epharm.inkar.kz"
+    }
+  ],
+  "sourceManifest": [
+    {
+      "path": "App/Config/EpharmConfig.cs",
+      "sha256": "16f86725a21328097d6e596d262b4c6c1134cbf0333571018ed3532197aa5b37"
+    },
+    {
+      "path": "App/MainWindow.Recommendations.cs",
+      "sha256": "7810d4497cbbc62c5812ff2873e90b1f74d385dc4c1b692b91a5efa20ad916c6"
+    },
+    {
+      "path": "App/MainWindow.Screen.cs",
+      "sha256": "f4badd17f6e090ec6dab6d39a7638926942be1afbb31219032e7d745b6f78da4"
+    },
+    {
+      "path": "App/MainWindow.Staff.cs",
+      "sha256": "998e486560d1aa689d0eef0d7f9ba79c6e49b9e1073199299cc64386a4426005"
+    },
+    {
+      "path": "App/MainWindow.TaskKiosk.cs",
+      "sha256": "4f0a185d42a8072dca754e82288d72d05f00b73f3a1ab3e8bf7ad9e706c4614a"
+    },
+    {
+      "path": "App/RecommendationWindow.xaml.cs",
+      "sha256": "ae01a11d2908aafc90dfdfb9ec71065e3648a444e9f27cc08d076254dbbaae18"
+    },
+    {
+      "path": "App/Services/AppUpdater.cs",
+      "sha256": "d1e720bf19de4d8fc0a44e3e1fce56ad0f4f91307a250a30ecd9b3506ce41fd7"
+    },
+    {
+      "path": "App/Services/BackendFailoverHandler.cs",
+      "sha256": "89683248ae2b90b165e7a225c477c292aaa46bf1c5aa5d4cd8f9c9332da1e59a"
+    },
+    {
+      "path": "App/Services/EpharmApiClient.cs",
+      "sha256": "5a41642fd5fe55559afc4e28336796d2fa236152373f7bb48f850d1d1c79f94f"
+    },
+    {
+      "path": "App/Services/FulfillmentClient.cs",
+      "sha256": "236fc04ca7a501a3d929a4a33fc674a421a0d2f1b323b2712aff167e40847692"
+    },
+    {
+      "path": "App/Services/MediaCache.cs",
+      "sha256": "d24379b8afa3ab8dee043d951080c1c87facd7027a11b35c9dc67bc32e4723ac"
+    },
+    {
+      "path": "App/Services/MerchShownOutbox.cs",
+      "sha256": "655ae7c59052cc40671af14d09e1480736419f53747285d3c01f8c6020cf3941"
+    },
+    {
+      "path": "App/Services/MerchTaskDeliveryReply.cs",
+      "sha256": "f77d2f60f65c83e12e016e49f26a36cb5d64da9412908d87e826d14df60c008e"
+    },
+    {
+      "path": "App/Services/OfflineOutbox.cs",
+      "sha256": "01abe470b7799a74493465e110561a4b51bcf9355bc6a83a32255abb779d9aba"
+    },
+    {
+      "path": "App/Services/OutboxFlusher.cs",
+      "sha256": "e8409aed0565ce7acc5a68e8b8d45b1d6ca5ea92d3adbb3cbb03ceae42cc1312"
+    },
+    {
+      "path": "App/Services/PosmDeviceCredentialResolver.cs",
+      "sha256": "243505110bee663d88223238accc5fa886439624178007168ab0052ab243b09e"
+    },
+    {
+      "path": "App/Services/StaffAuthClient.cs",
+      "sha256": "0129f295ee165cbb8adc7b3af489f8e9f7baa5525b1861d6a1637fad35bbf8b3"
+    },
+    {
+      "path": "App/Services/TaskKioskClient.cs",
+      "sha256": "ca012a0a67e1b68261feb01ce0e61935918cb3dc2db85f51cd349b347a9d7fe4"
+    },
+    {
+      "path": "App/Services/UpdateManifestVerifier.cs",
+      "sha256": "1a1d6f23077fba1401ac60168735420ae71bd02feb0362a4f99ea1c0b66e761e"
+    },
+    {
+      "path": "App/TaskKioskWindow.xaml.cs",
+      "sha256": "e8106aabd7a4ca474d4cd900b340f3109d113fca28b51d464574dc2d83e16432"
+    },
+    {
+      "path": "Caddyfile",
+      "sha256": "d74a5304add7cf47da998b6b1b20861789199a506911b254769643c36ff3853b"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/appupdate/dto/AppUpdateDtos.kt",
+      "sha256": "9ad76cbd7b873b0a6fb69bf1f989ea3436daa5824088533ede38aa6f975d318e"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/appupdate/service/AppReleaseService.kt",
+      "sha256": "af8afca60a4a3ac172a656829a826c85efa00786ca6ccd0e9c85078098200d63"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/appupdate/service/AppUpdateManifestVerifier.kt",
+      "sha256": "cbeedabe79ab5edc5bb74b40faa3d241f18eb6034db23a85be64e6533f5d08e4"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/cdp/dto/CdpDtos.kt",
+      "sha256": "579675adc3aaf362384ea14c0a93f1ef876d7c0cd489dc3ec30cef278d31f753"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/cdp/service/CdpService.kt",
+      "sha256": "df961cb198b25d2d8e4b87786562f160dfb57406d0f395d140ab9b6822a8c1fd"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardController.kt",
+      "sha256": "0f31036961760c2cd2a63a745b06e5f150f9de197b655e12f93af9094e69106e"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardSecurity.kt",
+      "sha256": "e355370aa6f0b05de8961e52a3869383155e8edf93b7bfad278942fab3cb4733"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardService.kt",
+      "sha256": "797e7861bd4514d3d3d3c127a19cbb04649fb0491d9d55bf104d024f7cbe6a89"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/controller/PosmFulfillmentController.kt",
+      "sha256": "35287fd3576ec059a038cf080149047fc7c126b30e8f8ba00379561767e0100b"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/dto/FulfillmentDtos.kt",
+      "sha256": "5201ec9b60dcda21896eafbc6a920e2174e6a667d7f47ce9dc43c705bedc78e3"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/service/FulfillmentService.kt",
+      "sha256": "7be8e21c13427df74d5aebcf9cd088e06e7da609ebd9e83240480a46ffd0409c"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/merchtasks/service/MerchTaskClient.kt",
+      "sha256": "f38cc26629cd97562ecae177420f55190f6f3006769756d02ac600cf1f4e0a2f"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/controller/PosmController.kt",
+      "sha256": "fda48ca59516976519c9811424967d7a7db81cec49bd3e44ecb6aa7649a96956"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/dto/PosmDtos.kt",
+      "sha256": "2ce5a7715f20ac12c52668ed3fd5ea68e76ba191cbb5d9e301871e6032113625"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/DevicePresenceService.kt",
+      "sha256": "6018de913a635e10c17902b507755dd42f34e992d87a025e3418c4c89f2fa233"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/PosSaleService.kt",
+      "sha256": "5e37eb7527fc315f72aa7770547fc828af9d384454c057bff194779dbe39ab7e"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/PosmDeviceAuthenticationService.kt",
+      "sha256": "b14145166cf95a9e03cdd151110ea3847f556eecd02557381c9bbcbd7b2b2dcc"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/PosmPharmacistIdentityService.kt",
+      "sha256": "10a5c1911b47551f189dbda47391d4dd6cd98fdb928c2d18b51663d17408afef"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/RecommendationService.kt",
+      "sha256": "6291ea37d74fa81be3d4813f3d0c455d16890203be4be6f7a322137261fc5052"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/StaffAuthStatus.kt",
+      "sha256": "8d5260c0aa168939eca1d31979c47be962bdd23aa1ae31993aaf2f3d61af7d84"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthController.kt",
+      "sha256": "5f320d30371cb9b5a4b8fd26d6f8bab4c0d0e983d8b867749cb5360d6f0e2504"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
+      "sha256": "7fb5859bce0bb56c0a6e7f0189259f8c67d5d14cbf328546f79964860dbd502d"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffDtos.kt",
+      "sha256": "7ee200fadbaae1f55bf01e899da5340b78b61eaa51e91564757490acb730009d"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/screens/dto/ScreenDtos.kt",
+      "sha256": "2682a13be2c5940a2acb8e4f2797703130d7f62eeb7ff21892dfb358ff63d493"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/screens/service/ScreenService.kt",
+      "sha256": "08bbf65003426a6d878e60478aded99bca353728264e0fbca8ebe2aacef6bee1"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/shared/SecurityConfig.kt",
+      "sha256": "530f552b2a004b64542e3cf24697eacc6dafcbb6a58625173819a8563f8fb859"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/shared/error/GlobalExceptionHandler.kt",
+      "sha256": "ec6d4df98ad0791f85a00c747fbad9f11db6394d092e9c226381e919e5a4be4b"
+    },
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/shared/media/MediaProxyController.kt",
+      "sha256": "adac0c1bff91586d3c47f2d328666c1a65fd1a18ad8a138afd30ed685557ed66"
+    },
+    {
+      "path": "admin-panel/frontend/src/app/router.tsx",
+      "sha256": "e2af2eda77a8e54b6f888c882f85c1de8985d03bbe7ec049531cbc936033e37f"
+    },
+    {
+      "path": "admin-panel/frontend/src/features/merch/MerchClaimPage.tsx",
+      "sha256": "d1b777b167c9aff550e249c59578f402f7d07470f890b8ad6ac1bf7e38d02f2a"
+    },
+    {
+      "path": "admin-panel/frontend/src/features/merch/claimNavigation.ts",
+      "sha256": "4cfb04d4f89d48ce5e2ea7e86f0f968c34e8a0d73cf52bbcc736a35539f493e6"
+    },
+    {
+      "path": "docker-compose.prod.yml",
+      "sha256": "840cc6738684c4cd65b3cc269bf6e8929289b690593f546650126ad7bc6cd7be"
+    }
+  ],
+  "inventorySummary": {
+    "contractCount": 47,
+    "sourceConfirmedCount": 30,
+    "needsVerificationCount": 17,
+    "runtimeChecksExecuted": 0
+  }
+}

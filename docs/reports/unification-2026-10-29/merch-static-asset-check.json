@@ -1,0 +1,12 @@
+{
+  "asset": "public/pharmacy-shelf.png",
+  "source_repository": "kapassov/pharmacy-crm-demo",
+  "source_revision": "02501dcc0fb0617da1dae73b595fb1fa52d64096",
+  "source_sha256": "bf529ed9ba6afc9fd9b7a5b6f410f4c606fff796284e4faff56487434a24c337",
+  "local_target": "admin-panel/frontend/public/pharmacy-shelf.png",
+  "local_sha256": "bf529ed9ba6afc9fd9b7a5b6f410f4c606fff796284e4faff56487434a24c337",
+  "bytes": 1820229,
+  "current_crm_http_status": 404,
+  "references_in_crm_snapshot": 16914,
+  "change": "Recovered tracked source asset into unified frontend public assets; original relative URL and database values preserved. Not deployed."
+}

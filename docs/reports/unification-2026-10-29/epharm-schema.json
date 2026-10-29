@@ -1,0 +1,5358 @@
+{
+  "columns": [
+    {
+      "table_name": "acc_catalog_barcodes",
+      "column_name": "snapshot_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "acc_catalog_barcodes",
+      "column_name": "ware_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "acc_catalog_barcodes",
+      "column_name": "barcode",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "acc_catalog_barcodes",
+      "column_name": "group_key",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "acc_catalog_barcodes",
+      "column_name": "group_label",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "acc_catalog_barcodes",
+      "column_name": "subgroup_key",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "acc_catalog_barcodes",
+      "column_name": "subgroup_label",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "acc_catalog_barcodes",
+      "column_name": "mnn_key",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "acc_catalog_barcodes",
+      "column_name": "mnn_label",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "acc_catalog_snapshots",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "acc_catalog_snapshots",
+      "column_name": "sha256",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "acc_catalog_snapshots",
+      "column_name": "source_name",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "acc_catalog_snapshots",
+      "column_name": "item_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "acc_catalog_snapshots",
+      "column_name": "barcode_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "acc_catalog_snapshots",
+      "column_name": "imported_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "acc_catalog_state",
+      "column_name": "singleton",
+      "data_type": "smallint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "acc_catalog_state",
+      "column_name": "active_snapshot_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "admin_training_regions",
+      "column_name": "admin_user_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "admin_training_regions",
+      "column_name": "region",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "admin_users",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "admin_users",
+      "column_name": "email",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "admin_users",
+      "column_name": "password_hash",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "admin_users",
+      "column_name": "name",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "admin_users",
+      "column_name": "role",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "admin_users",
+      "column_name": "company",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "admin_users",
+      "column_name": "status",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "admin_users",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "admin_users",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "app_releases",
+      "column_name": "id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "app_releases",
+      "column_name": "platform",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "app_releases",
+      "column_name": "version",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "app_releases",
+      "column_name": "url",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "app_releases",
+      "column_name": "sha256",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "app_releases",
+      "column_name": "mandatory",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "app_releases",
+      "column_name": "notes",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "app_releases",
+      "column_name": "is_current",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "app_releases",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "app_releases",
+      "column_name": "manifest_signature",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "banners",
+      "column_name": "id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "banners",
+      "column_name": "title",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "banners",
+      "column_name": "subtitle",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "banners",
+      "column_name": "image_url",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "banners",
+      "column_name": "detail_md",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "banners",
+      "column_name": "status",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "banners",
+      "column_name": "position",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "banners",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "banners",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "cdp_profiles",
+      "column_name": "id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "cdp_profiles",
+      "column_name": "phone",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "cdp_profiles",
+      "column_name": "name",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "cdp_profiles",
+      "column_name": "tier",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "cdp_profiles",
+      "column_name": "registered_by_pharmacist",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "cdp_profiles",
+      "column_name": "registered_at_pharmacy",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "cdp_profiles",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chains",
+      "column_name": "id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chains",
+      "column_name": "name",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chains",
+      "column_name": "color",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chains",
+      "column_name": "points",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chains",
+      "column_name": "group",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chains",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "chains",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lesson_attachments",
+      "column_name": "id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lesson_attachments",
+      "column_name": "lesson_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lesson_attachments",
+      "column_name": "title",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lesson_attachments",
+      "column_name": "file_name",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lesson_attachments",
+      "column_name": "content_type",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lesson_attachments",
+      "column_name": "media_url",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lesson_attachments",
+      "column_name": "size_bytes",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lesson_attachments",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lessons",
+      "column_name": "id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lessons",
+      "column_name": "course_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lessons",
+      "column_name": "title",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lessons",
+      "column_name": "description",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lessons",
+      "column_name": "content",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lessons",
+      "column_name": "kind",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lessons",
+      "column_name": "video_url",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "course_lessons",
+      "column_name": "duration_min",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lessons",
+      "column_name": "order_no",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lessons",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lessons",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lessons",
+      "column_name": "external_url",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "course_lessons",
+      "column_name": "required_lesson",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lessons",
+      "column_name": "minimum_watch_pct",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "course_lessons",
+      "column_name": "quiz_questions",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lessons",
+      "column_name": "quiz_passing_score",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lessons",
+      "column_name": "live_provider",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "course_lessons",
+      "column_name": "live_status",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "course_lessons",
+      "column_name": "live_start_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "course_lessons",
+      "column_name": "live_end_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "course_lessons",
+      "column_name": "live_chat_enabled",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lessons",
+      "column_name": "live_qa_enabled",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lessons",
+      "column_name": "live_reactions_enabled",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_lessons",
+      "column_name": "live_polls",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_live_messages",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_live_messages",
+      "column_name": "lesson_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_live_messages",
+      "column_name": "author_type",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_live_messages",
+      "column_name": "author_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_live_messages",
+      "column_name": "author_name",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_live_messages",
+      "column_name": "kind",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_live_messages",
+      "column_name": "body",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_live_messages",
+      "column_name": "pinned",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_live_messages",
+      "column_name": "hidden",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_live_messages",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_live_poll_votes",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_live_poll_votes",
+      "column_name": "lesson_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_live_poll_votes",
+      "column_name": "poll_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_live_poll_votes",
+      "column_name": "voter_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_live_poll_votes",
+      "column_name": "option_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_live_poll_votes",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_live_reactions",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_live_reactions",
+      "column_name": "lesson_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_live_reactions",
+      "column_name": "actor_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_live_reactions",
+      "column_name": "reaction",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "course_live_reactions",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "courses",
+      "column_name": "id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "courses",
+      "column_name": "title",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "courses",
+      "column_name": "status",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "courses",
+      "column_name": "category",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "courses",
+      "column_name": "lessons",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "courses",
+      "column_name": "duration_min",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "courses",
+      "column_name": "enrolled",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "courses",
+      "column_name": "completed",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "courses",
+      "column_name": "bonus",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "courses",
+      "column_name": "created_by",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "courses",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "courses",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "courses",
+      "column_name": "description",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "event_participants",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "event_participants",
+      "column_name": "event_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "event_participants",
+      "column_name": "assignment_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "event_participants",
+      "column_name": "pharmacist_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "event_participants",
+      "column_name": "status",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "event_participants",
+      "column_name": "registered_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "event_participants",
+      "column_name": "checked_in_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "event_participants",
+      "column_name": "check_method",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "event_participants",
+      "column_name": "trainer_comment",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "event_participants",
+      "column_name": "score",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "event_participants",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "exam_questions",
+      "column_name": "id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "exam_questions",
+      "column_name": "prompt",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "exam_questions",
+      "column_name": "kind",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "exam_questions",
+      "column_name": "category",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "exam_questions",
+      "column_name": "keywords",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "exam_questions",
+      "column_name": "difficulty",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "exam_questions",
+      "column_name": "created_by",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "exam_questions",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "exam_questions",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "excel_imports",
+      "column_name": "id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "excel_imports",
+      "column_name": "file_name",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "excel_imports",
+      "column_name": "uploaded_by",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "excel_imports",
+      "column_name": "rows_total",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "excel_imports",
+      "column_name": "rows_matched",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "excel_imports",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "excel_sale_rows",
+      "column_name": "id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "excel_sale_rows",
+      "column_name": "import_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "excel_sale_rows",
+      "column_name": "fiscal_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "excel_sale_rows",
+      "column_name": "pharmacy_code",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "excel_sale_rows",
+      "column_name": "cashier",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "excel_sale_rows",
+      "column_name": "sku",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "excel_sale_rows",
+      "column_name": "product_name",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "excel_sale_rows",
+      "column_name": "qty",
+      "data_type": "numeric",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "excel_sale_rows",
+      "column_name": "amount",
+      "data_type": "bigint",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "excel_sale_rows",
+      "column_name": "sold_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "excel_sale_rows",
+      "column_name": "matched",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "flyway_schema_history",
+      "column_name": "installed_rank",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "flyway_schema_history",
+      "column_name": "version",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "flyway_schema_history",
+      "column_name": "description",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "flyway_schema_history",
+      "column_name": "type",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "flyway_schema_history",
+      "column_name": "script",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "flyway_schema_history",
+      "column_name": "checksum",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "flyway_schema_history",
+      "column_name": "installed_by",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "flyway_schema_history",
+      "column_name": "installed_on",
+      "data_type": "timestamp without time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "flyway_schema_history",
+      "column_name": "execution_time",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "flyway_schema_history",
+      "column_name": "success",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_audit",
+      "column_name": "id",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_audit",
+      "column_name": "order_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "fulfillment_audit",
+      "column_name": "actor_type",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_audit",
+      "column_name": "actor_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_audit",
+      "column_name": "action",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_audit",
+      "column_name": "details",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_audit",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_devices",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_devices",
+      "column_name": "device_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_devices",
+      "column_name": "pharmacy_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_devices",
+      "column_name": "secret_sha256",
+      "data_type": "character",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_devices",
+      "column_name": "secret_hint",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_devices",
+      "column_name": "active",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_devices",
+      "column_name": "registered_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_devices",
+      "column_name": "last_seen_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_devices",
+      "column_name": "revoked_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "fulfillment_order_lines",
+      "column_name": "order_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_order_lines",
+      "column_name": "line_no",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_order_lines",
+      "column_name": "product_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_order_lines",
+      "column_name": "sku",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_order_lines",
+      "column_name": "title",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_order_lines",
+      "column_name": "quantity",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_order_lines",
+      "column_name": "unit_price",
+      "data_type": "numeric",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "fulfillment_order_updates",
+      "column_name": "cursor",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_order_updates",
+      "column_name": "order_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_order_updates",
+      "column_name": "version",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_order_updates",
+      "column_name": "status",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_order_updates",
+      "column_name": "changed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_order_updates",
+      "column_name": "source",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_orders",
+      "column_name": "order_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_orders",
+      "column_name": "event_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_orders",
+      "column_name": "order_number",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_orders",
+      "column_name": "request_sha256",
+      "data_type": "character",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_orders",
+      "column_name": "pharmacy_external_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_orders",
+      "column_name": "pharmacy_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "fulfillment_orders",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_orders",
+      "column_name": "total",
+      "data_type": "numeric",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_orders",
+      "column_name": "currency",
+      "data_type": "character",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_orders",
+      "column_name": "delivery",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_orders",
+      "column_name": "payment_method",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_orders",
+      "column_name": "payment_status",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_orders",
+      "column_name": "is_demo",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_orders",
+      "column_name": "pickup_code_hmac",
+      "data_type": "character",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_orders",
+      "column_name": "pickup_attempts",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_orders",
+      "column_name": "pickup_locked_until",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "fulfillment_orders",
+      "column_name": "status",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_orders",
+      "column_name": "version",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_orders",
+      "column_name": "cancellation_reason",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "fulfillment_orders",
+      "column_name": "completed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "fulfillment_orders",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_orders",
+      "column_name": "payment_status_claimed",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_orders",
+      "column_name": "payment_authority",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "fulfillment_pharmacy_links",
+      "column_name": "external_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_pharmacy_links",
+      "column_name": "pharmacy_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_pharmacy_links",
+      "column_name": "crm_branch_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "fulfillment_pharmacy_links",
+      "column_name": "active",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_pharmacy_links",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "fulfillment_pharmacy_links",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "medusa_catalog_products",
+      "column_name": "sync_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "medusa_catalog_products",
+      "column_name": "id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "medusa_catalog_products",
+      "column_name": "payload",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "medusa_catalog_products",
+      "column_name": "search_text",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "medusa_catalog_products",
+      "column_name": "category_ids",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "medusa_catalog_products",
+      "column_name": "source_position",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "medusa_catalog_products",
+      "column_name": "synced_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "medusa_catalog_sync_state",
+      "column_name": "singleton",
+      "data_type": "smallint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "medusa_catalog_sync_state",
+      "column_name": "started_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "medusa_catalog_sync_state",
+      "column_name": "completed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "medusa_catalog_sync_state",
+      "column_name": "active_sync_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "medusa_catalog_sync_state",
+      "column_name": "product_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "medusa_catalog_sync_state",
+      "column_name": "last_error",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "merch_executor_bindings",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_bindings",
+      "column_name": "dispatch_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_bindings",
+      "column_name": "pharmacist_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_bindings",
+      "column_name": "pharmacy_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_bindings",
+      "column_name": "reward_kzt",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_bindings",
+      "column_name": "task_due_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_bindings",
+      "column_name": "verified_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_bindings",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_grants",
+      "column_name": "token_hash",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_grants",
+      "column_name": "otp_challenge_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_grants",
+      "column_name": "dispatch_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_grants",
+      "column_name": "pharmacist_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_grants",
+      "column_name": "pharmacy_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_grants",
+      "column_name": "phone_hash",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_grants",
+      "column_name": "nonce_hash",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_grants",
+      "column_name": "reward_kzt",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_grants",
+      "column_name": "task_due_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_grants",
+      "column_name": "verified_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_grants",
+      "column_name": "expires_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_grants",
+      "column_name": "redeemed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "merch_executor_grants",
+      "column_name": "binding_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "merch_executor_otp_challenges",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_otp_challenges",
+      "column_name": "challenge_hash",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_otp_challenges",
+      "column_name": "pharmacist_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_otp_challenges",
+      "column_name": "phone",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_otp_challenges",
+      "column_name": "provider",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_otp_challenges",
+      "column_name": "code_hash",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "merch_executor_otp_challenges",
+      "column_name": "attempts",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_otp_challenges",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_otp_challenges",
+      "column_name": "expires_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_executor_otp_challenges",
+      "column_name": "consumed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "merch_reward_events",
+      "column_name": "event_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_reward_events",
+      "column_name": "dispatch_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_reward_events",
+      "column_name": "binding_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_reward_events",
+      "column_name": "pharmacist_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_reward_events",
+      "column_name": "pharmacy_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_reward_events",
+      "column_name": "amount_kzt",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_reward_events",
+      "column_name": "submitted_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_reward_events",
+      "column_name": "approved_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_reward_events",
+      "column_name": "approved_by_crm_user_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_reward_events",
+      "column_name": "payload_hash",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_reward_events",
+      "column_name": "wallet_entry_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "merch_reward_events",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "mobile_otps",
+      "column_name": "phone",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "mobile_otps",
+      "column_name": "code_hash",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "mobile_otps",
+      "column_name": "expires_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "mobile_otps",
+      "column_name": "attempts",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "mobile_otps",
+      "column_name": "verified_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "mobile_otps",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "mobile_otps",
+      "column_name": "verification_provider",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "mobile_refresh_tokens",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "mobile_refresh_tokens",
+      "column_name": "pharmacist_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "mobile_refresh_tokens",
+      "column_name": "token_hash",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "mobile_refresh_tokens",
+      "column_name": "expires_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "mobile_refresh_tokens",
+      "column_name": "revoked_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "mobile_refresh_tokens",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "offline_events",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "offline_events",
+      "column_name": "program_version_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "offline_events",
+      "column_name": "title",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "offline_events",
+      "column_name": "event_type",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "offline_events",
+      "column_name": "starts_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "offline_events",
+      "column_name": "ends_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "offline_events",
+      "column_name": "timezone",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "offline_events",
+      "column_name": "region",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "offline_events",
+      "column_name": "city",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "offline_events",
+      "column_name": "address",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "offline_events",
+      "column_name": "map_url",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "offline_events",
+      "column_name": "trainer_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "offline_events",
+      "column_name": "organizer",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "offline_events",
+      "column_name": "capacity",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "offline_events",
+      "column_name": "registration_deadline",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "offline_events",
+      "column_name": "status",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "offline_events",
+      "column_name": "materials_url",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "offline_events",
+      "column_name": "comment",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "offline_events",
+      "column_name": "qr_token",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "offline_events",
+      "column_name": "created_by",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "offline_events",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "offline_events",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "offline_events",
+      "column_name": "check_in_code",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "payout_batches",
+      "column_name": "id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "payout_batches",
+      "column_name": "period",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "payout_batches",
+      "column_name": "status",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "payout_batches",
+      "column_name": "pharmacists",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "payout_batches",
+      "column_name": "amount",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "payout_batches",
+      "column_name": "items",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "payout_batches",
+      "column_name": "reviewer_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "payout_batches",
+      "column_name": "reviewer_name",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "payout_batches",
+      "column_name": "approved_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "payout_batches",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "payout_batches",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "payout_items",
+      "column_name": "id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "payout_items",
+      "column_name": "batch_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "payout_items",
+      "column_name": "pharmacist_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "payout_items",
+      "column_name": "pharmacist_name",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "payout_items",
+      "column_name": "pharmacy",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "payout_items",
+      "column_name": "city",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "payout_items",
+      "column_name": "receipts",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "payout_items",
+      "column_name": "rules",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "payout_items",
+      "column_name": "amount",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "payout_items",
+      "column_name": "flag",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "payout_items",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pending_bonuses",
+      "column_name": "id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pending_bonuses",
+      "column_name": "pharmacist_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pending_bonuses",
+      "column_name": "pharmacist_name",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pending_bonuses",
+      "column_name": "pharmacy_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pending_bonuses",
+      "column_name": "pharmacy_name",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pending_bonuses",
+      "column_name": "sku",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pending_bonuses",
+      "column_name": "product_name",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pending_bonuses",
+      "column_name": "expected_amount",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pending_bonuses",
+      "column_name": "bonus",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pending_bonuses",
+      "column_name": "rule_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pending_bonuses",
+      "column_name": "status",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pending_bonuses",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pending_bonuses",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pending_bonuses",
+      "column_name": "source_sale_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pharmacies",
+      "column_name": "id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacies",
+      "column_name": "name",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacies",
+      "column_name": "chain_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacies",
+      "column_name": "chain_name",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacies",
+      "column_name": "city",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacies",
+      "column_name": "district",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacies",
+      "column_name": "addr",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacies",
+      "column_name": "group",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacies",
+      "column_name": "pharmacists",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacies",
+      "column_name": "receipts_30d",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacies",
+      "column_name": "gmv_30d",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacies",
+      "column_name": "lift_pct",
+      "data_type": "numeric",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacies",
+      "column_name": "rules_accepted",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacies",
+      "column_name": "active",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacies",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacies",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacist_training_preferences",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacist_training_preferences",
+      "column_name": "pharmacist_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacist_training_preferences",
+      "column_name": "default_format",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacist_training_preferences",
+      "column_name": "changed_by",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacist_training_preferences",
+      "column_name": "reason",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacist_training_preferences",
+      "column_name": "valid_from",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacist_training_preferences",
+      "column_name": "valid_to",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pharmacist_training_preferences",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacist_wallet_checkpoints",
+      "column_name": "pharmacist_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacist_wallet_checkpoints",
+      "column_name": "balance_kzt",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacist_wallet_checkpoints",
+      "column_name": "earned_30d_kzt",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacist_wallet_checkpoints",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacist_wallet_entries",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacist_wallet_entries",
+      "column_name": "pharmacist_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacist_wallet_entries",
+      "column_name": "source",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacist_wallet_entries",
+      "column_name": "source_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacist_wallet_entries",
+      "column_name": "amount_kzt",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacist_wallet_entries",
+      "column_name": "earned_delta_kzt",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacist_wallet_entries",
+      "column_name": "currency",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacist_wallet_entries",
+      "column_name": "context_key",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacist_wallet_entries",
+      "column_name": "balance_after_kzt",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacist_wallet_entries",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacists",
+      "column_name": "id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacists",
+      "column_name": "name",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacists",
+      "column_name": "iin",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacists",
+      "column_name": "phone",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacists",
+      "column_name": "pharmacy_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pharmacists",
+      "column_name": "pharmacy_name",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pharmacists",
+      "column_name": "city",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacists",
+      "column_name": "tier",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacists",
+      "column_name": "receipts_30d",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacists",
+      "column_name": "rules_accepted_30d",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacists",
+      "column_name": "earned_30d",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacists",
+      "column_name": "balance",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacists",
+      "column_name": "courses_done",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacists",
+      "column_name": "courses_total",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacists",
+      "column_name": "status",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacists",
+      "column_name": "joined_at",
+      "data_type": "date",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacists",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacists",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pharmacists",
+      "column_name": "password_hash",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "playlist_pharmacy_assignments",
+      "column_name": "pharmacy_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "playlist_pharmacy_assignments",
+      "column_name": "playlist_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "playlist_pharmacy_assignments",
+      "column_name": "assigned_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "playlists",
+      "column_name": "id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "playlists",
+      "column_name": "name",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "playlists",
+      "column_name": "status",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "playlists",
+      "column_name": "slides_count",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "playlists",
+      "column_name": "duration_sec",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "playlists",
+      "column_name": "pharmacies",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "playlists",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "playlists",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "playlists",
+      "column_name": "pharmacy_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "playlists",
+      "column_name": "parent_playlist_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pos_sales",
+      "column_name": "id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pos_sales",
+      "column_name": "session_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pos_sales",
+      "column_name": "pharmacist_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pos_sales",
+      "column_name": "pharmacy_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pos_sales",
+      "column_name": "fiscal_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pos_sales",
+      "column_name": "cashier",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pos_sales",
+      "column_name": "shift",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pos_sales",
+      "column_name": "total_amount",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pos_sales",
+      "column_name": "items",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pos_sales",
+      "column_name": "printed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pos_sales",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pos_sales",
+      "column_name": "pharmacist_name",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pos_sales",
+      "column_name": "reported_pharmacist_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pos_sales",
+      "column_name": "reported_pharmacist_name",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pos_sales",
+      "column_name": "pharmacist_source",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "pos_sales",
+      "column_name": "source_document_id",
+      "data_type": "bigint",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pos_sales",
+      "column_name": "capture_source",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pos_sales",
+      "column_name": "artifact_format",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pos_sales",
+      "column_name": "artifact_sha256",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pos_sales",
+      "column_name": "artifact_source",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pos_sales",
+      "column_name": "fiscal_sign",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pos_sales",
+      "column_name": "cash_register_registration_number",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "pos_sales",
+      "column_name": "ofd_name",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "posm_pharmacist_mapping_audit",
+      "column_name": "id",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_pharmacist_mapping_audit",
+      "column_name": "mapping_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_pharmacist_mapping_audit",
+      "column_name": "action",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_pharmacist_mapping_audit",
+      "column_name": "pharmacy_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_pharmacist_mapping_audit",
+      "column_name": "external_user_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_pharmacist_mapping_audit",
+      "column_name": "pharmacist_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_pharmacist_mapping_audit",
+      "column_name": "actor_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "posm_pharmacist_mapping_audit",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_pharmacist_mappings",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_pharmacist_mappings",
+      "column_name": "pharmacy_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_pharmacist_mappings",
+      "column_name": "external_user_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_pharmacist_mappings",
+      "column_name": "external_user_name",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "posm_pharmacist_mappings",
+      "column_name": "pharmacist_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_pharmacist_mappings",
+      "column_name": "active",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_pharmacist_mappings",
+      "column_name": "created_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "posm_pharmacist_mappings",
+      "column_name": "updated_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "posm_pharmacist_mappings",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_pharmacist_mappings",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_pharmacist_mappings",
+      "column_name": "revoked_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "posm_staff_challenges",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_staff_challenges",
+      "column_name": "purpose",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_staff_challenges",
+      "column_name": "device_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_staff_challenges",
+      "column_name": "pharmacy_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_staff_challenges",
+      "column_name": "iin",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_staff_challenges",
+      "column_name": "phone",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_staff_challenges",
+      "column_name": "pharmacist_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "posm_staff_challenges",
+      "column_name": "eligible",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_staff_challenges",
+      "column_name": "provider",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_staff_challenges",
+      "column_name": "code_hash",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "posm_staff_challenges",
+      "column_name": "attempts",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_staff_challenges",
+      "column_name": "expires_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_staff_challenges",
+      "column_name": "consumed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "posm_staff_challenges",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_staff_rate_limits",
+      "column_name": "scope_hash",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_staff_rate_limits",
+      "column_name": "window_start",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_staff_rate_limits",
+      "column_name": "attempts",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_staff_sessions",
+      "column_name": "token_hash",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_staff_sessions",
+      "column_name": "pharmacist_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_staff_sessions",
+      "column_name": "device_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_staff_sessions",
+      "column_name": "pharmacy_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_staff_sessions",
+      "column_name": "password_fingerprint",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_staff_sessions",
+      "column_name": "standard_n_user_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_staff_sessions",
+      "column_name": "standard_n_session_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_staff_sessions",
+      "column_name": "workstation_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_staff_sessions",
+      "column_name": "process_instance_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_staff_sessions",
+      "column_name": "expires_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "posm_staff_sessions",
+      "column_name": "revoked_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "posm_staff_sessions",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "products",
+      "column_name": "id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "products",
+      "column_name": "name",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "products",
+      "column_name": "brand",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "products",
+      "column_name": "vendor",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "products",
+      "column_name": "mnn",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "products",
+      "column_name": "price",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "products",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "products",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "products",
+      "column_name": "volume",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "products",
+      "column_name": "medusa_product_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "products",
+      "column_name": "barcode",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "products",
+      "column_name": "ipart_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "products",
+      "column_name": "barcodes",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "title",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "status",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "brand",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "period",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "pharmacies",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "budget",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "spent",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "kpi",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "cover",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "created_by",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "medusa_product_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "product_name",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "product_image",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "date_start",
+      "data_type": "date",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "date_end",
+      "data_type": "date",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "tiers",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "override_image",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "override_description",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "override_characteristics",
+      "data_type": "text",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "goal_label",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "goal_target",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "goal_bonus",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "barcode",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "ipart_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "barcodes",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "promos",
+      "column_name": "barcode_source_complete",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "receipts",
+      "column_name": "id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "receipts",
+      "column_name": "pharmacist_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "receipts",
+      "column_name": "pharmacist_name",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "receipts",
+      "column_name": "pharmacy_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "receipts",
+      "column_name": "pharmacy_name",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "receipts",
+      "column_name": "photo_url",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "receipts",
+      "column_name": "fiscal_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "receipts",
+      "column_name": "parsed_sku",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "receipts",
+      "column_name": "parsed_amount",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "receipts",
+      "column_name": "parsed_cashier",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "receipts",
+      "column_name": "parsed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "receipts",
+      "column_name": "status",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "receipts",
+      "column_name": "auto_approved",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "receipts",
+      "column_name": "flag_reason",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "receipts",
+      "column_name": "pending_bonus_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "receipts",
+      "column_name": "bonus_credited",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "receipts",
+      "column_name": "reviewer",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "receipts",
+      "column_name": "reviewed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "receipts",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "receipts",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "receipts",
+      "column_name": "source",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "receipts",
+      "column_name": "confirmed_by_log",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "receipts",
+      "column_name": "confirmed_by_excel",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "receipts",
+      "column_name": "claimed_promo_ids",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "recommendation_events",
+      "column_name": "id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "recommendation_events",
+      "column_name": "session_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "recommendation_events",
+      "column_name": "pharmacist_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "recommendation_events",
+      "column_name": "pharmacy_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "recommendation_events",
+      "column_name": "rule_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "recommendation_events",
+      "column_name": "kind",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "recommendation_events",
+      "column_name": "trigger_sku",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "recommendation_events",
+      "column_name": "recommend_sku",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "recommendation_events",
+      "column_name": "recommend_name",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "recommendation_events",
+      "column_name": "expected_amount",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "recommendation_events",
+      "column_name": "bonus",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "recommendation_events",
+      "column_name": "outcome",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "recommendation_events",
+      "column_name": "pending_bonus_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "recommendation_events",
+      "column_name": "shown_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "recommendation_events",
+      "column_name": "decided_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "recommendation_events",
+      "column_name": "displayed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "recommendation_events",
+      "column_name": "sold_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "recommendation_events",
+      "column_name": "sale_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "recommendation_events",
+      "column_name": "seconds_to_sale",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "recommendation_events",
+      "column_name": "trigger_name",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "refresh_tokens",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "refresh_tokens",
+      "column_name": "user_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "refresh_tokens",
+      "column_name": "token_hash",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "refresh_tokens",
+      "column_name": "expires_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "refresh_tokens",
+      "column_name": "revoked_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "refresh_tokens",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "rules",
+      "column_name": "id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "rules",
+      "column_name": "type",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "rules",
+      "column_name": "status",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "rules",
+      "column_name": "trigger",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "rules",
+      "column_name": "recommend",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "rules",
+      "column_name": "bonus",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "rules",
+      "column_name": "script",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "rules",
+      "column_name": "advantages",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "rules",
+      "column_name": "ab_test",
+      "data_type": "jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "rules",
+      "column_name": "pharmacies",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "rules",
+      "column_name": "impressions",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "rules",
+      "column_name": "accepts",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "rules",
+      "column_name": "conv_rate",
+      "data_type": "numeric",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "rules",
+      "column_name": "revenue",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "rules",
+      "column_name": "payout",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "rules",
+      "column_name": "created_by",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "rules",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "rules",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "rules",
+      "column_name": "card",
+      "data_type": "jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "rules",
+      "column_name": "promo_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "schema_meta",
+      "column_name": "key",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "schema_meta",
+      "column_name": "value",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "slides",
+      "column_name": "id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "slides",
+      "column_name": "title",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "slides",
+      "column_name": "kind",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "slides",
+      "column_name": "duration_sec",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "slides",
+      "column_name": "media_url",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "slides",
+      "column_name": "playlist_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "slides",
+      "column_name": "position",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "slides",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "slides",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "standardn_pharmacist_directory",
+      "column_name": "directory_key",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "standardn_pharmacist_directory",
+      "column_name": "source_profile_id",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "standardn_pharmacist_directory",
+      "column_name": "source_user_id",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "standardn_pharmacist_directory",
+      "column_name": "iin",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "standardn_pharmacist_directory",
+      "column_name": "full_name",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "standardn_pharmacist_directory",
+      "column_name": "source_status",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "standardn_pharmacist_directory",
+      "column_name": "source_login",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "standardn_pharmacist_directory",
+      "column_name": "source_post",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "standardn_pharmacist_directory",
+      "column_name": "source_department",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "standardn_pharmacist_directory",
+      "column_name": "profile_name",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "standardn_pharmacist_directory",
+      "column_name": "profile_city",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "standardn_pharmacist_directory",
+      "column_name": "profile_address",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "standardn_pharmacist_directory",
+      "column_name": "imported_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "storefront_product_references",
+      "column_name": "origin",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "storefront_product_references",
+      "column_name": "product_id",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "storefront_product_references",
+      "column_name": "payload",
+      "data_type": "jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "storefront_product_references",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assessment_results",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assessment_results",
+      "column_name": "assignment_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assessment_results",
+      "column_name": "assignment_stage_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assessment_results",
+      "column_name": "source_type",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assessment_results",
+      "column_name": "attempt_no",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assessment_results",
+      "column_name": "score",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assessment_results",
+      "column_name": "passed",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assessment_results",
+      "column_name": "feedback",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assessment_results",
+      "column_name": "competency_json",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assessment_results",
+      "column_name": "recorded_by",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assessment_results",
+      "column_name": "recorded_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignment_format_history",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignment_format_history",
+      "column_name": "assignment_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignment_format_history",
+      "column_name": "old_format",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignment_format_history",
+      "column_name": "new_format",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignment_format_history",
+      "column_name": "old_event_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_assignment_format_history",
+      "column_name": "new_event_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_assignment_format_history",
+      "column_name": "reason",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignment_format_history",
+      "column_name": "changed_by",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignment_format_history",
+      "column_name": "changed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignment_stages",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignment_stages",
+      "column_name": "assignment_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignment_stages",
+      "column_name": "program_stage_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignment_stages",
+      "column_name": "status",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignment_stages",
+      "column_name": "progress_pct",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignment_stages",
+      "column_name": "score",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_assignment_stages",
+      "column_name": "attempts_used",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignment_stages",
+      "column_name": "started_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_assignment_stages",
+      "column_name": "completed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_assignment_stages",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignments",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignments",
+      "column_name": "program_version_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignments",
+      "column_name": "pharmacist_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignments",
+      "column_name": "format",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignments",
+      "column_name": "status",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignments",
+      "column_name": "priority",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignments",
+      "column_name": "required",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignments",
+      "column_name": "assigned_by",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignments",
+      "column_name": "responsible_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_assignments",
+      "column_name": "event_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_assignments",
+      "column_name": "starts_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_assignments",
+      "column_name": "due_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_assignments",
+      "column_name": "progress_pct",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignments",
+      "column_name": "score",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_assignments",
+      "column_name": "started_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_assignments",
+      "column_name": "completed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_assignments",
+      "column_name": "cancelled_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_assignments",
+      "column_name": "completion_reason",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_assignments",
+      "column_name": "repeat_no",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignments",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_assignments",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_audit_log",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_audit_log",
+      "column_name": "actor_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_audit_log",
+      "column_name": "actor_type",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_audit_log",
+      "column_name": "action",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_audit_log",
+      "column_name": "entity_type",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_audit_log",
+      "column_name": "entity_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_audit_log",
+      "column_name": "details_json",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_audit_log",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_certificates",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_certificates",
+      "column_name": "certificate_number",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_certificates",
+      "column_name": "assignment_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_certificates",
+      "column_name": "pharmacist_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_certificates",
+      "column_name": "program_version_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_certificates",
+      "column_name": "format",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_certificates",
+      "column_name": "issued_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_certificates",
+      "column_name": "expires_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_certificates",
+      "column_name": "score",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_certificates",
+      "column_name": "signer_name",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_certificates",
+      "column_name": "template_name",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_certificates",
+      "column_name": "qr_token",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_certificates",
+      "column_name": "status",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_certificates",
+      "column_name": "pdf_url",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_certificates",
+      "column_name": "replaced_by",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_certificates",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_lesson_progress",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_lesson_progress",
+      "column_name": "assignment_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_lesson_progress",
+      "column_name": "assignment_stage_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_lesson_progress",
+      "column_name": "lesson_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_lesson_progress",
+      "column_name": "progress_pct",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_lesson_progress",
+      "column_name": "last_position_seconds",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_lesson_progress",
+      "column_name": "started_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_lesson_progress",
+      "column_name": "completed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_lesson_progress",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_lesson_progress",
+      "column_name": "quiz_score",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_lesson_progress",
+      "column_name": "quiz_attempts",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_notifications",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_notifications",
+      "column_name": "pharmacist_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_notifications",
+      "column_name": "assignment_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_notifications",
+      "column_name": "event_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_notifications",
+      "column_name": "channel",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_notifications",
+      "column_name": "event_type",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_notifications",
+      "column_name": "payload_json",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_notifications",
+      "column_name": "status",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_notifications",
+      "column_name": "scheduled_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_notifications",
+      "column_name": "sent_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_notifications",
+      "column_name": "idempotency_key",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_notifications",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_program_stages",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_program_stages",
+      "column_name": "version_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_program_stages",
+      "column_name": "stage_key",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_program_stages",
+      "column_name": "type",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_program_stages",
+      "column_name": "title",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_program_stages",
+      "column_name": "order_no",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_program_stages",
+      "column_name": "required",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_program_stages",
+      "column_name": "unlock_after_key",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_program_stages",
+      "column_name": "deadline_days",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_program_stages",
+      "column_name": "passing_score",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_program_stages",
+      "column_name": "max_attempts",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_program_stages",
+      "column_name": "bonus",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_program_stages",
+      "column_name": "manual_review",
+      "data_type": "boolean",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_program_stages",
+      "column_name": "applicable_formats",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_program_stages",
+      "column_name": "content_url",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_program_versions",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_program_versions",
+      "column_name": "program_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_program_versions",
+      "column_name": "version_no",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_program_versions",
+      "column_name": "allowed_formats",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_program_versions",
+      "column_name": "online_course_id",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_program_versions",
+      "column_name": "passing_score",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_program_versions",
+      "column_name": "max_attempts",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_program_versions",
+      "column_name": "completion_bonus",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_program_versions",
+      "column_name": "snapshot_json",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_program_versions",
+      "column_name": "created_by",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_program_versions",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "name",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "short_description",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "description",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "cover_url",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "category",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "manufacturer",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "brand",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "product",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "language",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "manager_id",
+      "data_type": "uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "allowed_formats",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "starts_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "ends_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "normative_days",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "tags",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "status",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "current_version",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "published_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "archived_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "created_by",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "certificate_epharm_logo_url",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "certificate_partner_logo_url",
+      "data_type": "character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "certificate_signer_name",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "certificate_validity_months",
+      "data_type": "integer",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_programs",
+      "column_name": "certificate_template",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_rewards",
+      "column_name": "id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_rewards",
+      "column_name": "assignment_id",
+      "data_type": "uuid",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_rewards",
+      "column_name": "pharmacist_id",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_rewards",
+      "column_name": "amount",
+      "data_type": "bigint",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_rewards",
+      "column_name": "reason",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_rewards",
+      "column_name": "status",
+      "data_type": "character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_rewards",
+      "column_name": "issued_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "training_rewards",
+      "column_name": "reversed_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "training_rewards",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    }
+  ],
+  "foreign_keys": [
+    {
+      "source_table": "acc_catalog_barcodes",
+      "target_table": "acc_catalog_snapshots",
+      "name": "acc_catalog_barcodes_snapshot_id_fkey",
+      "definition": "FOREIGN KEY (snapshot_id) REFERENCES acc_catalog_snapshots(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "acc_catalog_state",
+      "target_table": "acc_catalog_snapshots",
+      "name": "acc_catalog_state_active_snapshot_id_fkey",
+      "definition": "FOREIGN KEY (active_snapshot_id) REFERENCES acc_catalog_snapshots(id)"
+    },
+    {
+      "source_table": "admin_training_regions",
+      "target_table": "admin_users",
+      "name": "admin_training_regions_admin_user_id_fkey",
+      "definition": "FOREIGN KEY (admin_user_id) REFERENCES admin_users(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "course_lesson_attachments",
+      "target_table": "course_lessons",
+      "name": "course_lesson_attachments_lesson_id_fkey",
+      "definition": "FOREIGN KEY (lesson_id) REFERENCES course_lessons(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "course_lessons",
+      "target_table": "courses",
+      "name": "course_lessons_course_id_fkey",
+      "definition": "FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "course_live_messages",
+      "target_table": "course_lessons",
+      "name": "course_live_messages_lesson_id_fkey",
+      "definition": "FOREIGN KEY (lesson_id) REFERENCES course_lessons(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "course_live_poll_votes",
+      "target_table": "course_lessons",
+      "name": "course_live_poll_votes_lesson_id_fkey",
+      "definition": "FOREIGN KEY (lesson_id) REFERENCES course_lessons(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "course_live_reactions",
+      "target_table": "course_lessons",
+      "name": "course_live_reactions_lesson_id_fkey",
+      "definition": "FOREIGN KEY (lesson_id) REFERENCES course_lessons(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "event_participants",
+      "target_table": "training_assignments",
+      "name": "event_participants_assignment_id_fkey",
+      "definition": "FOREIGN KEY (assignment_id) REFERENCES training_assignments(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "event_participants",
+      "target_table": "offline_events",
+      "name": "event_participants_event_id_fkey",
+      "definition": "FOREIGN KEY (event_id) REFERENCES offline_events(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "event_participants",
+      "target_table": "pharmacists",
+      "name": "event_participants_pharmacist_id_fkey",
+      "definition": "FOREIGN KEY (pharmacist_id) REFERENCES pharmacists(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "excel_sale_rows",
+      "target_table": "excel_imports",
+      "name": "excel_sale_rows_import_id_fkey",
+      "definition": "FOREIGN KEY (import_id) REFERENCES excel_imports(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "fulfillment_audit",
+      "target_table": "fulfillment_orders",
+      "name": "fulfillment_audit_order_id_fkey",
+      "definition": "FOREIGN KEY (order_id) REFERENCES fulfillment_orders(order_id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "fulfillment_devices",
+      "target_table": "pharmacies",
+      "name": "fulfillment_devices_pharmacy_id_fkey",
+      "definition": "FOREIGN KEY (pharmacy_id) REFERENCES pharmacies(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "fulfillment_order_lines",
+      "target_table": "fulfillment_orders",
+      "name": "fulfillment_order_lines_order_id_fkey",
+      "definition": "FOREIGN KEY (order_id) REFERENCES fulfillment_orders(order_id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "fulfillment_order_updates",
+      "target_table": "fulfillment_orders",
+      "name": "fulfillment_order_updates_order_id_fkey",
+      "definition": "FOREIGN KEY (order_id) REFERENCES fulfillment_orders(order_id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "fulfillment_orders",
+      "target_table": "pharmacies",
+      "name": "fulfillment_orders_pharmacy_id_fkey",
+      "definition": "FOREIGN KEY (pharmacy_id) REFERENCES pharmacies(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "fulfillment_pharmacy_links",
+      "target_table": "pharmacies",
+      "name": "fulfillment_pharmacy_links_pharmacy_id_fkey",
+      "definition": "FOREIGN KEY (pharmacy_id) REFERENCES pharmacies(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "merch_executor_bindings",
+      "target_table": "pharmacists",
+      "name": "merch_executor_bindings_pharmacist_id_fkey",
+      "definition": "FOREIGN KEY (pharmacist_id) REFERENCES pharmacists(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "merch_executor_bindings",
+      "target_table": "pharmacies",
+      "name": "merch_executor_bindings_pharmacy_id_fkey",
+      "definition": "FOREIGN KEY (pharmacy_id) REFERENCES pharmacies(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "merch_executor_grants",
+      "target_table": "merch_executor_bindings",
+      "name": "merch_executor_grants_binding_id_fkey",
+      "definition": "FOREIGN KEY (binding_id) REFERENCES merch_executor_bindings(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "merch_executor_grants",
+      "target_table": "merch_executor_otp_challenges",
+      "name": "merch_executor_grants_otp_challenge_id_fkey",
+      "definition": "FOREIGN KEY (otp_challenge_id) REFERENCES merch_executor_otp_challenges(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "merch_executor_grants",
+      "target_table": "pharmacists",
+      "name": "merch_executor_grants_pharmacist_id_fkey",
+      "definition": "FOREIGN KEY (pharmacist_id) REFERENCES pharmacists(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "merch_executor_grants",
+      "target_table": "pharmacies",
+      "name": "merch_executor_grants_pharmacy_id_fkey",
+      "definition": "FOREIGN KEY (pharmacy_id) REFERENCES pharmacies(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "merch_executor_otp_challenges",
+      "target_table": "pharmacists",
+      "name": "merch_executor_otp_challenges_pharmacist_id_fkey",
+      "definition": "FOREIGN KEY (pharmacist_id) REFERENCES pharmacists(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "merch_reward_events",
+      "target_table": "merch_executor_bindings",
+      "name": "merch_reward_events_binding_id_fkey",
+      "definition": "FOREIGN KEY (binding_id) REFERENCES merch_executor_bindings(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "merch_reward_events",
+      "target_table": "pharmacists",
+      "name": "merch_reward_events_pharmacist_id_fkey",
+      "definition": "FOREIGN KEY (pharmacist_id) REFERENCES pharmacists(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "merch_reward_events",
+      "target_table": "pharmacies",
+      "name": "merch_reward_events_pharmacy_id_fkey",
+      "definition": "FOREIGN KEY (pharmacy_id) REFERENCES pharmacies(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "merch_reward_events",
+      "target_table": "pharmacist_wallet_entries",
+      "name": "merch_reward_events_wallet_entry_id_fkey",
+      "definition": "FOREIGN KEY (wallet_entry_id) REFERENCES pharmacist_wallet_entries(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "mobile_refresh_tokens",
+      "target_table": "pharmacists",
+      "name": "mobile_refresh_tokens_pharmacist_id_fkey",
+      "definition": "FOREIGN KEY (pharmacist_id) REFERENCES pharmacists(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "offline_events",
+      "target_table": "admin_users",
+      "name": "offline_events_created_by_fkey",
+      "definition": "FOREIGN KEY (created_by) REFERENCES admin_users(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "offline_events",
+      "target_table": "training_program_versions",
+      "name": "offline_events_program_version_id_fkey",
+      "definition": "FOREIGN KEY (program_version_id) REFERENCES training_program_versions(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "offline_events",
+      "target_table": "admin_users",
+      "name": "offline_events_trainer_id_fkey",
+      "definition": "FOREIGN KEY (trainer_id) REFERENCES admin_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "payout_items",
+      "target_table": "payout_batches",
+      "name": "payout_items_batch_id_fkey",
+      "definition": "FOREIGN KEY (batch_id) REFERENCES payout_batches(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "payout_items",
+      "target_table": "pharmacists",
+      "name": "payout_items_pharmacist_id_fkey",
+      "definition": "FOREIGN KEY (pharmacist_id) REFERENCES pharmacists(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "pending_bonuses",
+      "target_table": "pos_sales",
+      "name": "pending_bonuses_source_sale_id_fkey",
+      "definition": "FOREIGN KEY (source_sale_id) REFERENCES pos_sales(id)"
+    },
+    {
+      "source_table": "pharmacies",
+      "target_table": "chains",
+      "name": "pharmacies_chain_id_fkey",
+      "definition": "FOREIGN KEY (chain_id) REFERENCES chains(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "pharmacist_training_preferences",
+      "target_table": "admin_users",
+      "name": "pharmacist_training_preferences_changed_by_fkey",
+      "definition": "FOREIGN KEY (changed_by) REFERENCES admin_users(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "pharmacist_training_preferences",
+      "target_table": "pharmacists",
+      "name": "pharmacist_training_preferences_pharmacist_id_fkey",
+      "definition": "FOREIGN KEY (pharmacist_id) REFERENCES pharmacists(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "pharmacist_wallet_checkpoints",
+      "target_table": "pharmacists",
+      "name": "pharmacist_wallet_checkpoints_pharmacist_id_fkey",
+      "definition": "FOREIGN KEY (pharmacist_id) REFERENCES pharmacists(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "pharmacist_wallet_entries",
+      "target_table": "pharmacists",
+      "name": "pharmacist_wallet_entries_pharmacist_id_fkey",
+      "definition": "FOREIGN KEY (pharmacist_id) REFERENCES pharmacists(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "pharmacists",
+      "target_table": "pharmacies",
+      "name": "pharmacists_pharmacy_id_fkey",
+      "definition": "FOREIGN KEY (pharmacy_id) REFERENCES pharmacies(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "playlist_pharmacy_assignments",
+      "target_table": "pharmacies",
+      "name": "playlist_pharmacy_assignments_pharmacy_id_fkey",
+      "definition": "FOREIGN KEY (pharmacy_id) REFERENCES pharmacies(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "playlist_pharmacy_assignments",
+      "target_table": "playlists",
+      "name": "playlist_pharmacy_assignments_playlist_id_fkey",
+      "definition": "FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "playlists",
+      "target_table": "playlists",
+      "name": "playlists_parent_playlist_id_fkey",
+      "definition": "FOREIGN KEY (parent_playlist_id) REFERENCES playlists(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "playlists",
+      "target_table": "pharmacies",
+      "name": "playlists_pharmacy_id_fkey",
+      "definition": "FOREIGN KEY (pharmacy_id) REFERENCES pharmacies(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "posm_pharmacist_mapping_audit",
+      "target_table": "admin_users",
+      "name": "posm_pharmacist_mapping_audit_actor_id_fkey",
+      "definition": "FOREIGN KEY (actor_id) REFERENCES admin_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "posm_pharmacist_mapping_audit",
+      "target_table": "posm_pharmacist_mappings",
+      "name": "posm_pharmacist_mapping_audit_mapping_id_fkey",
+      "definition": "FOREIGN KEY (mapping_id) REFERENCES posm_pharmacist_mappings(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "posm_pharmacist_mappings",
+      "target_table": "admin_users",
+      "name": "posm_pharmacist_mappings_created_by_fkey",
+      "definition": "FOREIGN KEY (created_by) REFERENCES admin_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "posm_pharmacist_mappings",
+      "target_table": "pharmacists",
+      "name": "posm_pharmacist_mappings_pharmacist_id_fkey",
+      "definition": "FOREIGN KEY (pharmacist_id) REFERENCES pharmacists(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "posm_pharmacist_mappings",
+      "target_table": "pharmacies",
+      "name": "posm_pharmacist_mappings_pharmacy_id_fkey",
+      "definition": "FOREIGN KEY (pharmacy_id) REFERENCES pharmacies(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "posm_pharmacist_mappings",
+      "target_table": "admin_users",
+      "name": "posm_pharmacist_mappings_updated_by_fkey",
+      "definition": "FOREIGN KEY (updated_by) REFERENCES admin_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "posm_staff_sessions",
+      "target_table": "pharmacists",
+      "name": "posm_staff_sessions_pharmacist_id_fkey",
+      "definition": "FOREIGN KEY (pharmacist_id) REFERENCES pharmacists(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "receipts",
+      "target_table": "pending_bonuses",
+      "name": "receipts_pending_bonus_id_fkey",
+      "definition": "FOREIGN KEY (pending_bonus_id) REFERENCES pending_bonuses(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "recommendation_events",
+      "target_table": "pending_bonuses",
+      "name": "recommendation_events_pending_bonus_id_fkey",
+      "definition": "FOREIGN KEY (pending_bonus_id) REFERENCES pending_bonuses(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "refresh_tokens",
+      "target_table": "admin_users",
+      "name": "refresh_tokens_user_id_fkey",
+      "definition": "FOREIGN KEY (user_id) REFERENCES admin_users(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "rules",
+      "target_table": "products",
+      "name": "rules_recommend_fkey",
+      "definition": "FOREIGN KEY (recommend) REFERENCES products(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "slides",
+      "target_table": "playlists",
+      "name": "slides_playlist_id_fkey",
+      "definition": "FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "training_assessment_results",
+      "target_table": "training_assignments",
+      "name": "training_assessment_results_assignment_id_fkey",
+      "definition": "FOREIGN KEY (assignment_id) REFERENCES training_assignments(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "training_assessment_results",
+      "target_table": "training_assignment_stages",
+      "name": "training_assessment_results_assignment_stage_id_fkey",
+      "definition": "FOREIGN KEY (assignment_stage_id) REFERENCES training_assignment_stages(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "training_assessment_results",
+      "target_table": "admin_users",
+      "name": "training_assessment_results_recorded_by_fkey",
+      "definition": "FOREIGN KEY (recorded_by) REFERENCES admin_users(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "training_assignment_format_history",
+      "target_table": "training_assignments",
+      "name": "training_assignment_format_history_assignment_id_fkey",
+      "definition": "FOREIGN KEY (assignment_id) REFERENCES training_assignments(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "training_assignment_format_history",
+      "target_table": "admin_users",
+      "name": "training_assignment_format_history_changed_by_fkey",
+      "definition": "FOREIGN KEY (changed_by) REFERENCES admin_users(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "training_assignment_format_history",
+      "target_table": "offline_events",
+      "name": "training_assignment_format_history_new_event_id_fkey",
+      "definition": "FOREIGN KEY (new_event_id) REFERENCES offline_events(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "training_assignment_format_history",
+      "target_table": "offline_events",
+      "name": "training_assignment_format_history_old_event_id_fkey",
+      "definition": "FOREIGN KEY (old_event_id) REFERENCES offline_events(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "training_assignment_stages",
+      "target_table": "training_assignments",
+      "name": "training_assignment_stages_assignment_id_fkey",
+      "definition": "FOREIGN KEY (assignment_id) REFERENCES training_assignments(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "training_assignment_stages",
+      "target_table": "training_program_stages",
+      "name": "training_assignment_stages_program_stage_id_fkey",
+      "definition": "FOREIGN KEY (program_stage_id) REFERENCES training_program_stages(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "training_assignments",
+      "target_table": "admin_users",
+      "name": "training_assignments_assigned_by_fkey",
+      "definition": "FOREIGN KEY (assigned_by) REFERENCES admin_users(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "training_assignments",
+      "target_table": "offline_events",
+      "name": "training_assignments_event_id_fkey",
+      "definition": "FOREIGN KEY (event_id) REFERENCES offline_events(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "training_assignments",
+      "target_table": "pharmacists",
+      "name": "training_assignments_pharmacist_id_fkey",
+      "definition": "FOREIGN KEY (pharmacist_id) REFERENCES pharmacists(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "training_assignments",
+      "target_table": "training_program_versions",
+      "name": "training_assignments_program_version_id_fkey",
+      "definition": "FOREIGN KEY (program_version_id) REFERENCES training_program_versions(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "training_assignments",
+      "target_table": "admin_users",
+      "name": "training_assignments_responsible_id_fkey",
+      "definition": "FOREIGN KEY (responsible_id) REFERENCES admin_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "training_certificates",
+      "target_table": "training_assignments",
+      "name": "training_certificates_assignment_id_fkey",
+      "definition": "FOREIGN KEY (assignment_id) REFERENCES training_assignments(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "training_certificates",
+      "target_table": "pharmacists",
+      "name": "training_certificates_pharmacist_id_fkey",
+      "definition": "FOREIGN KEY (pharmacist_id) REFERENCES pharmacists(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "training_certificates",
+      "target_table": "training_program_versions",
+      "name": "training_certificates_program_version_id_fkey",
+      "definition": "FOREIGN KEY (program_version_id) REFERENCES training_program_versions(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "training_certificates",
+      "target_table": "training_certificates",
+      "name": "training_certificates_replaced_by_fkey",
+      "definition": "FOREIGN KEY (replaced_by) REFERENCES training_certificates(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "training_lesson_progress",
+      "target_table": "training_assignments",
+      "name": "training_lesson_progress_assignment_id_fkey",
+      "definition": "FOREIGN KEY (assignment_id) REFERENCES training_assignments(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "training_lesson_progress",
+      "target_table": "training_assignment_stages",
+      "name": "training_lesson_progress_assignment_stage_id_fkey",
+      "definition": "FOREIGN KEY (assignment_stage_id) REFERENCES training_assignment_stages(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "training_lesson_progress",
+      "target_table": "course_lessons",
+      "name": "training_lesson_progress_lesson_id_fkey",
+      "definition": "FOREIGN KEY (lesson_id) REFERENCES course_lessons(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "training_notifications",
+      "target_table": "training_assignments",
+      "name": "training_notifications_assignment_id_fkey",
+      "definition": "FOREIGN KEY (assignment_id) REFERENCES training_assignments(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "training_notifications",
+      "target_table": "offline_events",
+      "name": "training_notifications_event_id_fkey",
+      "definition": "FOREIGN KEY (event_id) REFERENCES offline_events(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "training_notifications",
+      "target_table": "pharmacists",
+      "name": "training_notifications_pharmacist_id_fkey",
+      "definition": "FOREIGN KEY (pharmacist_id) REFERENCES pharmacists(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "training_program_stages",
+      "target_table": "training_program_versions",
+      "name": "training_program_stages_version_id_fkey",
+      "definition": "FOREIGN KEY (version_id) REFERENCES training_program_versions(id) ON DELETE CASCADE"
+    },
+    {
+      "source_table": "training_program_versions",
+      "target_table": "admin_users",
+      "name": "training_program_versions_created_by_fkey",
+      "definition": "FOREIGN KEY (created_by) REFERENCES admin_users(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "training_program_versions",
+      "target_table": "courses",
+      "name": "training_program_versions_online_course_id_fkey",
+      "definition": "FOREIGN KEY (online_course_id) REFERENCES courses(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "training_program_versions",
+      "target_table": "training_programs",
+      "name": "training_program_versions_program_id_fkey",
+      "definition": "FOREIGN KEY (program_id) REFERENCES training_programs(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "training_programs",
+      "target_table": "admin_users",
+      "name": "training_programs_created_by_fkey",
+      "definition": "FOREIGN KEY (created_by) REFERENCES admin_users(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "training_programs",
+      "target_table": "admin_users",
+      "name": "training_programs_manager_id_fkey",
+      "definition": "FOREIGN KEY (manager_id) REFERENCES admin_users(id) ON DELETE SET NULL"
+    },
+    {
+      "source_table": "training_rewards",
+      "target_table": "training_assignments",
+      "name": "training_rewards_assignment_id_fkey",
+      "definition": "FOREIGN KEY (assignment_id) REFERENCES training_assignments(id) ON DELETE RESTRICT"
+    },
+    {
+      "source_table": "training_rewards",
+      "target_table": "pharmacists",
+      "name": "training_rewards_pharmacist_id_fkey",
+      "definition": "FOREIGN KEY (pharmacist_id) REFERENCES pharmacists(id) ON DELETE RESTRICT"
+    }
+  ]
+}

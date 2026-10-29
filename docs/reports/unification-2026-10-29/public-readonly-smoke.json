@@ -1,0 +1,58 @@
+{
+  "at_utc": "2026-10-29T06:01:02.535692+00:00",
+  "requests": "GET only; no auth, login, claims or telemetry submitted",
+  "checks": [
+    {
+      "path": "/learn",
+      "status": 200,
+      "url": "https://epharm.inkar.kz/learn",
+      "content_type": "text/html",
+      "bytes": 701,
+      "sha256": "60e4d3a498575bda58d60ffbed05538c14a0c7e98d71eb36d5b9a9f75ec0349d"
+    },
+    {
+      "path": "/lms",
+      "status": 200,
+      "url": "https://epharm.inkar.kz/lms",
+      "content_type": "text/html",
+      "bytes": 701,
+      "sha256": "60e4d3a498575bda58d60ffbed05538c14a0c7e98d71eb36d5b9a9f75ec0349d"
+    },
+    {
+      "path": "/",
+      "status": 200,
+      "url": "https://epharm.inkar.kz/",
+      "content_type": "text/html",
+      "bytes": 701,
+      "sha256": "60e4d3a498575bda58d60ffbed05538c14a0c7e98d71eb36d5b9a9f75ec0349d"
+    },
+    {
+      "path": "/api/health",
+      "status": 200,
+      "url": "https://epharm.inkar.kz/api/health",
+      "content_type": "application/json",
+      "bytes": 301,
+      "sha256": "0e05c9f65125c80c175c6c698735540de6cd8bbabfcce9055ee094af9529043c"
+    },
+    {
+      "path": "/release.json",
+      "status": 200,
+      "url": "https://epharm.inkar.kz/release.json",
+      "content_type": "application/json",
+      "bytes": 76,
+      "sha256": "11330f6e84a4f3d78b7a1734cab9caebe6cb208b94c313107f90edf90d7bc1a3",
+      "release": {
+        "releaseId": "v0.1.52",
+        "commit": "ce418fd689eed7f776c212e523736bbb4efa9585"
+      }
+    },
+    {
+      "path": "/merch/staff",
+      "status": 200,
+      "url": "https://crm.inkar.kz/staff",
+      "content_type": "text/html",
+      "bytes": 655,
+      "sha256": "5e66ed7f55aeb92cd39331bb8d04bbda0711f764057249ae8830d39909be96aa"
+    }
+  ]
+}

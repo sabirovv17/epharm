@@ -1,0 +1,128 @@
+{
+  "captured_on": "2026-10-29",
+  "public_origin": "https://epharm.inkar.kz",
+  "authorization": "Read-only production inspection and local implementation. No deploy, migration, data change, restart or cleanup.",
+  "main": {
+    "epharm": "b946592549db9eab8d108c6c5bdbd7022915a655",
+    "merch": "02501dcc0fb0617da1dae73b595fb1fa52d64096",
+    "epharm_ci": {
+      "conclusion": "success",
+      "url": "https://github.com/sabirovv17/epharm/actions/runs/40812638699"
+    }
+  },
+  "edge": {
+    "host": "10.10.1.74",
+    "epharm_upstream": "http://10.10.1.76:8060",
+    "crm_upstream": "http://10.10.1.80:80",
+    "source": "nginx sites-enabled read-only; 2026-10-29"
+  },
+  "epharm": {
+    "host": "10.10.1.76",
+    "backend": {
+      "image": "epharm/backend:v0.1.47",
+      "image_id": "sha256:e3ca027029cba7906972462754b77a51579853a221620e04f500a0470693a7b8",
+      "revision_label": "aa37b1e720923334cef8265f66a507d549b32780",
+      "started_at": "2026-10-29T03:25:41.946367047Z",
+      "health": "healthy"
+    },
+    "frontend": {
+      "image": "epharm/frontend:v0.1.52",
+      "image_id": "sha256:a5f596c3b2a987df0aef53b5c6ea41fbda2fd0ccb06460a66629ada25d2c7824",
+      "revision_label": "ce418fd689eed7f776c212e523736bbb4efa9585",
+      "started_at": "2026-10-22T11:22:50.12656748Z",
+      "health": "healthy"
+    },
+    "public_health": {
+      "service": "epharm-backend",
+      "version": "v0.1.47",
+      "releaseId": "v0.1.47",
+      "commit": "aa37b1e720923334cef8265f66a507d549b32780",
+      "status": "ok",
+      "catalogSource": "website",
+      "catalogSnapshot": {
+        "ready": true,
+        "products": 28503,
+        "completedAt": "2026-10-20T10:41:17.667460Z"
+      },
+      "timestamp": "2026-10-29T06:03:33.092159512Z"
+    },
+    "flyway_applied": 65,
+    "flyway_latest": "065",
+    "source_vs_main": "main adds PR126 learner UI/city-ranking repository/service/DTO updates; no new migration after065; no App/Models difference relative to deployed frontend commit",
+    "Caddyfile_sha256": "d74a5304add7cf47da998b6b1b20861789199a506911b254769643c36ff3853b"
+  },
+  "merch": {
+    "host": "10.10.1.80",
+    "service": "pharmacy-crm-demo.service",
+    "state": "active/running",
+    "process_started_at": "2026-10-23T06:05:49Z",
+    "git_head": "ffb987ebc2c5d64b263fdbeb7b7bfb1e633c8ea3",
+    "git_worktree": "dirty with later integration files; do not reset or replace from old HEAD",
+    "source_files_checked": 263,
+    "source_sha256_differences_from_pinned_main": 0,
+    "source_scope": [
+      "src/**/*.js",
+      "src/**/*.jsx",
+      "src/**/*.css",
+      "scripts/**/*.py",
+      "scripts/**/*.sql",
+      "database/migrations/**/*.sql"
+    ],
+    "compiled_frontend": "Separate 2026-10-29 dist, captured by SHA256. PR127 visual delta must be composed with current source; dist is not proven by git HEAD.",
+    "migrations_applied": 87,
+    "latest_migration": "085_epharm_verified_executor_rewards.sql",
+    "latest_source_number_note": "Both077 migrations exist; do not deduplicate by numeric prefix."
+  },
+  "fleet": {
+    "captured_at": "2026-10-29T05:59:51.118584+00:00",
+    "source": "Read-only Redis presence hashes/zset, aggregate only",
+    "online_90s": 448,
+    "stored_presence": 452,
+    "online_versions": {
+      "1.0.72.0": 444,
+      "1.0.57.0": 3,
+      "1.0.66.0": 1
+    },
+    "current_release": "1.0.72",
+    "current_release_mandatory": true,
+    "note": "Not a permanent installation registry or popup/QR confirmation; aggregate varies with time."
+  },
+  "backup": {
+    "epharm_last_unit_result": "exit-code=1 at2026-10-29T03:32:19Z",
+    "failure_stage": "release-backup retention guard rejects malformed relative frontend-only active-transaction pointer",
+    "pointer_metadata": {
+      "bytes": 57,
+      "lines": 1,
+      "absolute": false,
+      "trailing_lf": true
+    },
+    "epharm_latest_component_files": {
+      "postgres": {
+        "name": "epharm-postgres-20261029T032922Z.dump.gz",
+        "bytes": 291173552
+      },
+      "minio": {
+        "name": "epharm-minio-20261029T033051Z.tar.gz",
+        "bytes": 114267657
+      }
+    },
+    "note": "Component files exist before retention failure; file presence is not independent validation of dump, encrypted offsite copy or restore. Do not loosen prune guard or delete rollback records.",
+    "epharm_last_restore_unit_result": "success, exit0,2026-10-25T05:44:27Z; no independent restore performed this turn",
+    "crm_last_backup_unit_result": "success, exit0,2026-10-29T02:30:05Z; no independent restore performed this turn"
+  },
+  "limitations": [
+    "Image revisions from immutable image IDs/OCI labels/public health; no independent JAR byte-for-byte rebuild comparison.",
+    "Table counts taken sequentially in read-only transactions; active production continues writing. They are not a frozen migration snapshot.",
+    "Statistics counters were reset (many n_live_tup=0); exact count files are authoritative for this observation.",
+    "Sales-window growth query timed out at4seconds and was cancelled; no longer or unbounded scan attempted. Database-size growth obtained from existing Prometheus history instead; receipt ingest-rate query and peak-capacity rehearsal remain open.",
+    "No production backups, restore, test sales, recommendation ACK, SMS, account changes or flags were triggered.",
+    "No customer/pharmacist rows, phone/IIN, password hashes, auth tokens or credential values exported."
+  ],
+  "growth_observation": {
+    "source": "growth-observation.json; existing Prometheus history read only",
+    "whole_database_delta_1d_bytes": 33240714.957457893,
+    "whole_database_delta_7d_bytes": 210547813.9199881,
+    "samples_7d": 39081,
+    "interpretation": "Gauge delta includes data/index/TOAST/vacuum; not an ingest rate or long-term capacity guarantee."
+  }
+}

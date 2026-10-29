@@ -2,94 +2,99 @@
 
 Database: PostgreSQL 16.
 
+For admin unification the two source databases were restored separately: ePharm uses 16,
+CRM uses 18.6/dump 1.16. Do not restore the latter directly over the former. The local
+identity model adds no schema or live data changes; see [the U1/U2 contract](23-unified-admin-data-and-access.md)
+and [restore evidence](reports/unification-2026-10-29/isolated-restore-verification.json).
+
 Migrations: Flyway files in `admin-panel/backend/src/main/resources/db/migration/`.
 
 Current migration range in source: V001-V063.
 
 ## Migrations
 
-| Version | File                                   | Purpose                                                                      |
-| ------- | -------------------------------------- | ---------------------------------------------------------------------------- |
-| V001    | `init`                                 | Flyway/bootstrap marker.                                                     |
-| V002    | `auth`                                 | Admin users and admin refresh tokens.                                        |
-| V003    | `catalog`                              | Internal products.                                                           |
-| V004    | `rules`                                | Rules engine tables and JSON trigger/recommend data.                         |
-| V005    | `promo`                                | Promo campaigns.                                                             |
-| V006    | `pharmacies`                           | Chains and pharmacies.                                                       |
-| V007    | `pharmacists`                          | Pharmacist registry, balance, status.                                        |
-| V008    | `payouts`                              | Payout batches and items.                                                    |
-| V009    | `lms`                                  | Courses.                                                                     |
-| V010    | `screens`                              | Playlists and slides.                                                        |
-| V011    | `ai_exam`                              | AI exam question bank.                                                       |
-| V012    | `receipts`                             | Receipts and pending bonuses.                                                |
-| V013    | `posm_recommendations`                 | Recommendation events and initial POSM mapping.                              |
-| V014    | `posm_sales_excel`                     | POS sales, Excel imports/rows, source columns.                               |
-| V015    | `cdp_profiles`                         | POSM CDP/customer profiles.                                                  |
-| V016    | `playlist_target`                      | Per-pharmacy playlist targeting.                                             |
-| V017    | `app_releases`                         | POSM app releases and auto-update metadata.                                  |
-| V018    | `rule_card`                            | Rich recommendation card JSON and product volume.                            |
-| V019    | `mobile_auth`                          | Mobile OTPs, mobile refresh tokens, self-register fields.                    |
-| V020    | `drop_ocr_score`                       | Remove OCR score; OCR is not used.                                           |
-| V021    | `drop_qr_raw`                          | Remove QR/OFD raw field; QR/OFD is not used.                                 |
-| V022    | `promo_products`                       | Campaign product link, dates, tiers, product snapshot.                       |
-| V023    | `promo_feed_index`                     | Indexes for mobile promo feed.                                               |
-| V024    | `receipt_claimed_promos`               | Claimed promo ids on receipts.                                               |
-| V025    | `campaign_product_rules`               | Campaign rule link and override image/description fields.                    |
-| V026    | `analytics_indexes`                    | Analytics/performance indexes.                                               |
-| V027    | `promo_override_characteristics`       | Product/card override characteristics.                                       |
-| V028    | `promo_campaign_goal`                  | Campaign goal fields.                                                        |
-| V029    | `banners`                              | Mobile banners managed from admin.                                           |
-| V030    | `product_barcode`                      | Product/promo barcode fields and removal of obsolete `product_pos_codes`.    |
-| V031    | `product_ipart_id`                     | Optional Standard-N iPartID snapshot for deterministic diagnostics/matching. |
-| V032    | `recommendation_sale_attribution`      | Show-to-sale correlation, display time, attributed sale and duration.        |
-| V033    | `pos_sale_pharmacist_name`             | Standard-N pharmacist/cashier name snapshot on POS sales.                    |
-| V034    | `pos_sale_pharmacist_identity_audit`   | Raw Standard-N id/name and identity-resolution source on POS sales.          |
-| V035    | `training_programs`                    | Programs, versions, assignments, events, attendance, certificates/rewards.   |
-| V036    | `training_routes_and_assessments`      | Per-format routes, result history and assignment format history.             |
-| V037    | `dashboard_journal_pagination_indexes` | Indexes for the paginated analytics journal.                                 |
-| V038    | `targeted_screen_playlists`            | Parent/child playlist inheritance and pharmacy-profile assignments.          |
-| V039    | `mobile_otp_provider`                  | Records which provider owns verification for each OTP request.               |
-| V040    | `lms_course_lessons`                   | Editable LMS lessons and uploaded video lesson metadata.                     |
-| V041    | `pos_sale_receipt_capture`             | Standard-N document/capture metadata and pharmacy/document lookup index.     |
-| V042    | `pos_sale_fiscal_artifact_metadata`    | Exact fiscal artifact manifest, hash and trusted-source metadata.            |
-| V043    | `order_fulfillment`                    | Storefront order queue, mappings, devices, audit and monotonic update feed.  |
-| V044    | `lms_lesson_attachments`               | Uploaded lesson handouts and media, already established in production.       |
-| V045    | `standardn_pharmacist_mapping`         | Explicit pharmacy/external USER_ID mapping plus immutable change audit.      |
-| V046    | `signed_posm_update_manifest`          | ECDSA manifest signature stored with every POSM release.                     |
-| V047    | `fulfillment_payment_authority`        | Claimed vs trusted payment status and server-side payment authority.         |
-| V048    | `medusa_catalog_snapshot`              | Complete read-model generation for the Medusa product catalogue.              |
-| V049    | `lms_extended_lesson_materials`        | Extended lesson content and materials.                                        |
-| V050    | `training_lesson_progress`             | Per-lesson pharmacist progress.                                               |
-| V051    | `offline_event_check_in_code`          | Offline-event attendance code.                                                |
-| V052    | `event_participant_code_method`        | Attendance verification method.                                               |
-| V053    | `pharmacist_password_login`            | Pharmacist password-login support.                                            |
-| V054    | `course_quizzes`                       | Course assessment questions and attempts.                                     |
-| V055    | `standardn_pharmacist_directory`       | Standard-N cashier directory.                                                 |
-| V056    | `training_certificate_branding`       | Certificate branding fields already applied in production.                    |
-| V057    | `acc_recommendation_taxonomy`          | Versioned ACC barcode classes and concrete recommendation trigger name.       |
-| V058    | `course_live_lessons`                 | Live-room metadata, messages, poll votes and reactions; already applied in production. |
-| V059    | `allow_live_course_lessons`           | Expand the lesson-kind constraint to include live lessons without editing V058. |
-| V060    | `storefront_product_references`      | Origin-scoped website product handles/payload for restart-safe campaign pricing. |
-| V061    | `posm_staff_auth`                    | Purpose-bound SMS challenges, hashed staff grants, rate budgets and grant-revocation triggers. |
-| V062    | `pharmacist_wallet_ledger`           | Append-only opening checkpoints and idempotent atomic credits/payout reservations. |
-| V063    | `merch_verified_executor_rewards`    | Isolated OTP proofs, hashed grants, immutable executor bindings and approved-reward events. |
+| Version | File                                   | Purpose                                                                                        |
+| ------- | -------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| V001    | `init`                                 | Flyway/bootstrap marker.                                                                       |
+| V002    | `auth`                                 | Admin users and admin refresh tokens.                                                          |
+| V003    | `catalog`                              | Internal products.                                                                             |
+| V004    | `rules`                                | Rules engine tables and JSON trigger/recommend data.                                           |
+| V005    | `promo`                                | Promo campaigns.                                                                               |
+| V006    | `pharmacies`                           | Chains and pharmacies.                                                                         |
+| V007    | `pharmacists`                          | Pharmacist registry, balance, status.                                                          |
+| V008    | `payouts`                              | Payout batches and items.                                                                      |
+| V009    | `lms`                                  | Courses.                                                                                       |
+| V010    | `screens`                              | Playlists and slides.                                                                          |
+| V011    | `ai_exam`                              | AI exam question bank.                                                                         |
+| V012    | `receipts`                             | Receipts and pending bonuses.                                                                  |
+| V013    | `posm_recommendations`                 | Recommendation events and initial POSM mapping.                                                |
+| V014    | `posm_sales_excel`                     | POS sales, Excel imports/rows, source columns.                                                 |
+| V015    | `cdp_profiles`                         | POSM CDP/customer profiles.                                                                    |
+| V016    | `playlist_target`                      | Per-pharmacy playlist targeting.                                                               |
+| V017    | `app_releases`                         | POSM app releases and auto-update metadata.                                                    |
+| V018    | `rule_card`                            | Rich recommendation card JSON and product volume.                                              |
+| V019    | `mobile_auth`                          | Mobile OTPs, mobile refresh tokens, self-register fields.                                      |
+| V020    | `drop_ocr_score`                       | Remove OCR score; OCR is not used.                                                             |
+| V021    | `drop_qr_raw`                          | Remove QR/OFD raw field; QR/OFD is not used.                                                   |
+| V022    | `promo_products`                       | Campaign product link, dates, tiers, product snapshot.                                         |
+| V023    | `promo_feed_index`                     | Indexes for mobile promo feed.                                                                 |
+| V024    | `receipt_claimed_promos`               | Claimed promo ids on receipts.                                                                 |
+| V025    | `campaign_product_rules`               | Campaign rule link and override image/description fields.                                      |
+| V026    | `analytics_indexes`                    | Analytics/performance indexes.                                                                 |
+| V027    | `promo_override_characteristics`       | Product/card override characteristics.                                                         |
+| V028    | `promo_campaign_goal`                  | Campaign goal fields.                                                                          |
+| V029    | `banners`                              | Mobile banners managed from admin.                                                             |
+| V030    | `product_barcode`                      | Product/promo barcode fields and removal of obsolete `product_pos_codes`.                      |
+| V031    | `product_ipart_id`                     | Optional Standard-N iPartID snapshot for deterministic diagnostics/matching.                   |
+| V032    | `recommendation_sale_attribution`      | Show-to-sale correlation, display time, attributed sale and duration.                          |
+| V033    | `pos_sale_pharmacist_name`             | Standard-N pharmacist/cashier name snapshot on POS sales.                                      |
+| V034    | `pos_sale_pharmacist_identity_audit`   | Raw Standard-N id/name and identity-resolution source on POS sales.                            |
+| V035    | `training_programs`                    | Programs, versions, assignments, events, attendance, certificates/rewards.                     |
+| V036    | `training_routes_and_assessments`      | Per-format routes, result history and assignment format history.                               |
+| V037    | `dashboard_journal_pagination_indexes` | Indexes for the paginated analytics journal.                                                   |
+| V038    | `targeted_screen_playlists`            | Parent/child playlist inheritance and pharmacy-profile assignments.                            |
+| V039    | `mobile_otp_provider`                  | Records which provider owns verification for each OTP request.                                 |
+| V040    | `lms_course_lessons`                   | Editable LMS lessons and uploaded video lesson metadata.                                       |
+| V041    | `pos_sale_receipt_capture`             | Standard-N document/capture metadata and pharmacy/document lookup index.                       |
+| V042    | `pos_sale_fiscal_artifact_metadata`    | Exact fiscal artifact manifest, hash and trusted-source metadata.                              |
+| V043    | `order_fulfillment`                    | Storefront order queue, mappings, devices, audit and monotonic update feed.                    |
+| V044    | `lms_lesson_attachments`               | Uploaded lesson handouts and media, already established in production.                         |
+| V045    | `standardn_pharmacist_mapping`         | Explicit pharmacy/external USER_ID mapping plus immutable change audit.                        |
+| V046    | `signed_posm_update_manifest`          | ECDSA manifest signature stored with every POSM release.                                       |
+| V047    | `fulfillment_payment_authority`        | Claimed vs trusted payment status and server-side payment authority.                           |
+| V048    | `medusa_catalog_snapshot`              | Complete read-model generation for the Medusa product catalogue.                               |
+| V049    | `lms_extended_lesson_materials`        | Extended lesson content and materials.                                                         |
+| V050    | `training_lesson_progress`             | Per-lesson pharmacist progress.                                                                |
+| V051    | `offline_event_check_in_code`          | Offline-event attendance code.                                                                 |
+| V052    | `event_participant_code_method`        | Attendance verification method.                                                                |
+| V053    | `pharmacist_password_login`            | Pharmacist password-login support.                                                             |
+| V054    | `course_quizzes`                       | Course assessment questions and attempts.                                                      |
+| V055    | `standardn_pharmacist_directory`       | Standard-N cashier directory.                                                                  |
+| V056    | `training_certificate_branding`        | Certificate branding fields already applied in production.                                     |
+| V057    | `acc_recommendation_taxonomy`          | Versioned ACC barcode classes and concrete recommendation trigger name.                        |
+| V058    | `course_live_lessons`                  | Live-room metadata, messages, poll votes and reactions; already applied in production.         |
+| V059    | `allow_live_course_lessons`            | Expand the lesson-kind constraint to include live lessons without editing V058.                |
+| V060    | `storefront_product_references`        | Origin-scoped website product handles/payload for restart-safe campaign pricing.               |
+| V061    | `posm_staff_auth`                      | Purpose-bound SMS challenges, hashed staff grants, rate budgets and grant-revocation triggers. |
+| V062    | `pharmacist_wallet_ledger`             | Append-only opening checkpoints and idempotent atomic credits/payout reservations.             |
+| V063    | `merch_verified_executor_rewards`      | Isolated OTP proofs, hashed grants, immutable executor bindings and approved-reward events.    |
 
 ## Domain Tables
 
-| Domain              | Main tables                                                                    |
-| ------------------- | ------------------------------------------------------------------------------ |
-| Auth                | `admin_users`, `refresh_tokens`, `mobile_otps`, `mobile_refresh_tokens`        |
-| Catalog/rules       | `products`, `rules`, `acc_catalog_snapshots`, `acc_catalog_state`, `acc_catalog_barcodes` |
-| Promo               | `promos` plus campaign rule references                                         |
-| Receipts/reconcile  | `receipts`, `pending_bonuses`, `pos_sales`, `excel_imports`, `excel_sale_rows` |
-| Pharmacies          | `chains`, `pharmacies`                                                         |
-| Pharmacists         | `pharmacists`                                                                  |
+| Domain              | Main tables                                                                                                                                                                                                |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Auth                | `admin_users`, `refresh_tokens`, `mobile_otps`, `mobile_refresh_tokens`                                                                                                                                    |
+| Catalog/rules       | `products`, `rules`, `acc_catalog_snapshots`, `acc_catalog_state`, `acc_catalog_barcodes`                                                                                                                  |
+| Promo               | `promos` plus campaign rule references                                                                                                                                                                     |
+| Receipts/reconcile  | `receipts`, `pending_bonuses`, `pos_sales`, `excel_imports`, `excel_sale_rows`                                                                                                                             |
+| Pharmacies          | `chains`, `pharmacies`                                                                                                                                                                                     |
+| Pharmacists         | `pharmacists`                                                                                                                                                                                              |
 | Finance             | `payout_batches`, `payout_items`, `pharmacist_wallet_checkpoints`, `pharmacist_wallet_entries`, `merch_executor_otp_challenges`, `merch_executor_grants`, `merch_executor_bindings`, `merch_reward_events` |
-| Screens             | `playlists`, `slides`, `playlist_pharmacy_assignments`                         |
-| POSM                | `recommendation_events`, app release tables, CDP tables                        |
-| LMS/AI              | `courses`, `course_live_messages`, `course_live_poll_votes`, `course_live_reactions`, `exam_questions`, `training_programs`, versions and result history |
-| Training operations | `training_assignments`, stages, events, participants, certificates, rewards    |
-| Banners             | `banners`                                                                      |
+| Screens             | `playlists`, `slides`, `playlist_pharmacy_assignments`                                                                                                                                                     |
+| POSM                | `recommendation_events`, app release tables, CDP tables                                                                                                                                                    |
+| LMS/AI              | `courses`, `course_live_messages`, `course_live_poll_votes`, `course_live_reactions`, `exam_questions`, `training_programs`, versions and result history                                                   |
+| Training operations | `training_assignments`, stages, events, participants, certificates, rewards                                                                                                                                |
+| Banners             | `banners`                                                                                                                                                                                                  |
 
 ## Current Architectural Decisions
 

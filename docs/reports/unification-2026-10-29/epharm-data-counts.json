@@ -1,0 +1,241 @@
+{
+  "at_utc": "2026-10-29T05:55:35.077631+00:00",
+  "counts": {
+    "flyway_schema_history": {
+      "rows": 65
+    },
+    "receipts": {
+      "rows": 1
+    },
+    "storefront_product_references": {
+      "rows": 479
+    },
+    "posm_staff_challenges": {
+      "rows": 0
+    },
+    "recommendation_events": {
+      "rows": 47010
+    },
+    "excel_imports": {
+      "rows": 0
+    },
+    "pending_bonuses": {
+      "rows": 0
+    },
+    "pos_sales": {
+      "rows": 1797502
+    },
+    "schema_meta": {
+      "rows": 1
+    },
+    "refresh_tokens": {
+      "rows": 1237
+    },
+    "posm_staff_sessions": {
+      "rows": 0
+    },
+    "pharmacies": {
+      "rows": 532
+    },
+    "rules": {
+      "rows": 29
+    },
+    "pharmacists": {
+      "rows": 6
+    },
+    "posm_staff_rate_limits": {
+      "rows": 0
+    },
+    "chains": {
+      "rows": 1
+    },
+    "payout_batches": {
+      "rows": 1
+    },
+    "payout_items": {
+      "rows": 2
+    },
+    "courses": {
+      "rows": 11
+    },
+    "pharmacist_wallet_checkpoints": {
+      "rows": 0
+    },
+    "playlists": {
+      "rows": 3
+    },
+    "slides": {
+      "rows": 12
+    },
+    "exam_questions": {
+      "rows": 0
+    },
+    "pharmacist_wallet_entries": {
+      "rows": 0
+    },
+    "excel_sale_rows": {
+      "rows": 0
+    },
+    "cdp_profiles": {
+      "rows": 6
+    },
+    "mobile_refresh_tokens": {
+      "rows": 61
+    },
+    "banners": {
+      "rows": 0
+    },
+    "admin_users": {
+      "rows": 2
+    },
+    "mobile_otps": {
+      "rows": 4
+    },
+    "app_releases": {
+      "rows": 23
+    },
+    "admin_training_regions": {
+      "rows": 0
+    },
+    "training_programs": {
+      "rows": 9
+    },
+    "merch_executor_otp_challenges": {
+      "rows": 0
+    },
+    "training_program_stages": {
+      "rows": 14
+    },
+    "training_program_versions": {
+      "rows": 10
+    },
+    "offline_events": {
+      "rows": 1
+    },
+    "merch_executor_bindings": {
+      "rows": 0
+    },
+    "training_assignments": {
+      "rows": 15
+    },
+    "merch_executor_grants": {
+      "rows": 0
+    },
+    "training_assignment_stages": {
+      "rows": 17
+    },
+    "event_participants": {
+      "rows": 1
+    },
+    "merch_reward_events": {
+      "rows": 0
+    },
+    "pharmacist_training_preferences": {
+      "rows": 0
+    },
+    "training_certificates": {
+      "rows": 5
+    },
+    "training_rewards": {
+      "rows": 2
+    },
+    "playlist_pharmacy_assignments": {
+      "rows": 26
+    },
+    "training_notifications": {
+      "rows": 36
+    },
+    "training_audit_log": {
+      "rows": 105
+    },
+    "training_assessment_results": {
+      "rows": 0
+    },
+    "training_assignment_format_history": {
+      "rows": 0
+    },
+    "products": {
+      "rows": 37
+    },
+    "fulfillment_pharmacy_links": {
+      "rows": 505
+    },
+    "promos": {
+      "rows": 15
+    },
+    "course_lesson_attachments": {
+      "rows": 3
+    },
+    "fulfillment_order_lines": {
+      "rows": 66
+    },
+    "fulfillment_order_updates": {
+      "rows": 22
+    },
+    "fulfillment_devices": {
+      "rows": 558
+    },
+    "fulfillment_audit": {
+      "rows": 637
+    },
+    "fulfillment_orders": {
+      "rows": 44
+    },
+    "posm_pharmacist_mappings": {
+      "rows": 0
+    },
+    "posm_pharmacist_mapping_audit": {
+      "rows": 0
+    },
+    "medusa_catalog_products": {
+      "rows": 28503
+    },
+    "medusa_catalog_sync_state": {
+      "rows": 1
+    },
+    "acc_catalog_snapshots": {
+      "rows": 1
+    },
+    "acc_catalog_state": {
+      "rows": 1
+    },
+    "training_lesson_progress": {
+      "rows": 22
+    },
+    "standardn_pharmacist_directory": {
+      "rows": 3471
+    },
+    "acc_catalog_barcodes": {
+      "rows": 28872
+    },
+    "course_lessons": {
+      "rows": 26
+    },
+    "course_live_messages": {
+      "rows": 0
+    },
+    "course_live_poll_votes": {
+      "rows": 0
+    },
+    "course_live_reactions": {
+      "rows": 0
+    }
+  },
+  "flags": {
+    "POSM_STAFF_AUTH_ENABLED": "false",
+    "POSM_LEGACY_DEVICE_KEY_ENABLED": "false",
+    "MERCH_TASKS_ENABLED": "true",
+    "MERCH_REWARDS_ENABLED": "false",
+    "STOREFRONT_CATALOG_ENABLED": "true",
+    "MEDUSA_ENABLED": "false",
+    "FULFILLMENT_ENABLED": "true",
+    "POSM_SALE_BONUS_ENABLED": "false"
+  },
+  "backup_error_summary": [
+    "no errors were found",
+    "ERROR: Malformed protected path: /home/adm-quasar/epharm/releases/frontend-only/active-transaction",
+    "epharm-backup.service: Main process exited, code=exited, status=1/FAILURE",
+    "epharm-backup.service: Failed with result 'exit-code'.",
+    "Failed to start epharm-backup.service - Epharm PostgreSQL and MinIO backup."
+  ]
+}

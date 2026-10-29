@@ -1,0 +1,19 @@
+// Historical test snapshot; see provenance.json. Only namespace/using prefixes are relocated.
+namespace CustomerDisplay.Core.Tests.Legacy.V1066.Models.Posm
+{
+    /// <summary>
+    /// Текущий релиз POSM-клиента из админки (GET /api/posm/app/version). Зеркалит
+    /// kz.epharm.appupdate.dto.AppVersionDto. Current=false → обновляться не нужно.
+    /// </summary>
+    public sealed class AppVersionInfo
+    {
+        public bool Current { get; set; }
+        public string Platform { get; set; } = "win-x64";
+        public string Version { get; set; } = "";
+        public string Url { get; set; } = "";
+        public string Sha256 { get; set; } = "";
+        public string ManifestSignature { get; set; } = "";
+        public bool Mandatory { get; set; }
+        public string Notes { get; set; } = "";
+    }
+}

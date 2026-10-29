@@ -1,0 +1,63 @@
+{
+  "at_utc": "2026-10-29T06:04:02.710538+00:00",
+  "source": "GET localhost Prometheus; bytes represent whole PostgreSQL database, not receipt throughput",
+  "queries": {
+    "db_size_now": {
+      "query": "pg_database_size_bytes{datname=\"epharm\"}",
+      "status": "success",
+      "result": [
+        {
+          "metric": {
+            "__name__": "pg_database_size_bytes",
+            "datname": "epharm",
+            "instance": "postgres-exporter:9187",
+            "job": "postgres"
+          },
+          "value": [1793253843.071, "2207767575"]
+        }
+      ]
+    },
+    "db_growth_1d_bytes": {
+      "query": "delta(pg_database_size_bytes{datname=\"epharm\"}[1d])",
+      "status": "success",
+      "result": [
+        {
+          "metric": {
+            "datname": "epharm",
+            "instance": "postgres-exporter:9187",
+            "job": "postgres"
+          },
+          "value": [1793253843.123, "33240714.957457893"]
+        }
+      ]
+    },
+    "db_growth_7d_bytes": {
+      "query": "delta(pg_database_size_bytes{datname=\"epharm\"}[7d])",
+      "status": "success",
+      "result": [
+        {
+          "metric": {
+            "datname": "epharm",
+            "instance": "postgres-exporter:9187",
+            "job": "postgres"
+          },
+          "value": [1793253843.362, "210547813.9199881"]
+        }
+      ]
+    },
+    "db_samples_7d": {
+      "query": "count_over_time(pg_database_size_bytes{datname=\"epharm\"}[7d])",
+      "status": "success",
+      "result": [
+        {
+          "metric": {
+            "datname": "epharm",
+            "instance": "postgres-exporter:9187",
+            "job": "postgres"
+          },
+          "value": [1793253843.686, "39081"]
+        }
+      ]
+    }
+  }
+}

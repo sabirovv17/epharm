@@ -1,0 +1,548 @@
+{
+  "schemaVersion": 1,
+  "clientVersion": "1.0.66",
+  "sourceCommit": "84d50b29871de7a7ce460376f05c474c74de06ac",
+  "canonicalPublicOrigin": "https://epharm.inkar.kz",
+  "syntheticOnly": true,
+  "pharmacyId": "pharmacy-synthetic-1",
+  "deviceId": "SYNTHETIC-POS-01",
+  "steps": [
+    {
+      "name": "recommend",
+      "method": "POST",
+      "pathAndQuery": "/api/posm/recommend",
+      "headers": {
+        "X-Posm-Key": "synthetic-posm-device-token-for-1.0.66-only"
+      },
+      "body": {
+        "pharmacistId": "pharmacist-synthetic-1",
+        "pharmacistName": "Synthetic Pharmacist",
+        "pharmacyId": "pharmacy-synthetic-1",
+        "sessionId": "session-synthetic-1",
+        "scannedBarcode": "0000000000000",
+        "cart": [
+          {
+            "sku": "synthetic-ipart-1",
+            "barcode": "0000000000000",
+            "name": "Synthetic trigger",
+            "qty": 1
+          }
+        ]
+      },
+      "response": {
+        "sessionId": "session-synthetic-1",
+        "recommendations": [
+          {
+            "eventId": "rec_synthetic_1",
+            "ruleId": "rule_synthetic_1",
+            "kind": "substitution",
+            "triggerSku": "product-trigger-1",
+            "triggerIpartId": "synthetic-ipart-1",
+            "triggerName": "Synthetic trigger",
+            "triggerVolume": "10 mg",
+            "triggerPrice": 1000,
+            "triggerBarcode": "0000000000000",
+            "recommendSku": "product-offer-1",
+            "recommendName": "Synthetic offer",
+            "recommendBarcode": "0000000000001",
+            "recommendVendor": "Synthetic manufacturer",
+            "recommendVolume": "10 mg",
+            "recommendPrice": 900,
+            "partnerLabel": "Synthetic partner",
+            "bonus": 50,
+            "script": "Synthetic instruction",
+            "advantages": ["Synthetic benefit"],
+            "comparison": [
+              {
+                "label": "Synthetic comparison",
+                "triggerValue": "A",
+                "recommendValue": "B",
+                "recommendHighlight": true
+              }
+            ],
+            "goalText": null,
+            "goalBonus": null,
+            "source": "epharm",
+            "balance": {
+              "pharmacyAvailableQty": 2,
+              "networkAvailableQty": null,
+              "warehouseAvailableQty": null,
+              "reservedQty": 0,
+              "observedAt": "2026-10-29T00:00:00+00:00",
+              "source": "synthetic-stock",
+              "status": "confirmed"
+            }
+          }
+        ],
+        "conflicts": []
+      }
+    },
+    {
+      "name": "shown",
+      "method": "POST",
+      "pathAndQuery": "/api/posm/recommendations/rec_synthetic_1/shown",
+      "headers": {
+        "X-Posm-Key": "synthetic-posm-device-token-for-1.0.66-only"
+      },
+      "body": {
+        "shownAt": "2026-10-29T00:00:00+00:00"
+      },
+      "response": {
+        "eventId": "rec_synthetic_1",
+        "ok": true
+      }
+    },
+    {
+      "name": "outcome",
+      "method": "POST",
+      "pathAndQuery": "/api/posm/recommendations/rec_synthetic_1/outcome",
+      "headers": {
+        "X-Posm-Key": "synthetic-posm-device-token-for-1.0.66-only"
+      },
+      "body": {
+        "outcome": "accepted",
+        "finalSku": "product-offer-1"
+      },
+      "response": {
+        "eventId": "rec_synthetic_1",
+        "outcome": "accepted",
+        "pendingBonusId": "pending-synthetic-1"
+      }
+    },
+    {
+      "name": "sale",
+      "method": "POST",
+      "pathAndQuery": "/api/posm/sales",
+      "headers": {
+        "X-Posm-Key": "synthetic-posm-device-token-for-1.0.66-only"
+      },
+      "body": {
+        "saleId": "sale-synthetic-1",
+        "pharmacistId": "pharmacist-synthetic-1",
+        "pharmacistName": "Synthetic Pharmacist",
+        "pharmacyId": "pharmacy-synthetic-1",
+        "sessionId": "session-synthetic-1",
+        "sourceDocumentId": 101,
+        "captureSource": "synthetic-test",
+        "artifactFormat": null,
+        "artifactSha256": null,
+        "artifactSource": null,
+        "fiscalId": null,
+        "fiscalSign": null,
+        "cashRegisterRegistrationNumber": null,
+        "ofdName": null,
+        "cashier": "Synthetic Cashier",
+        "shift": "synthetic-shift",
+        "totalAmount": 900,
+        "items": [
+          {
+            "sku": "synthetic-ipart-2",
+            "barcode": "0000000000001",
+            "name": "Synthetic offer",
+            "qty": 1,
+            "price": 900,
+            "total": 900
+          }
+        ],
+        "printedAt": "2026-10-29T00:00:00+00:00"
+      },
+      "response": {
+        "saleId": "sale-synthetic-1",
+        "accepted": true
+      }
+    },
+    {
+      "name": "playlist",
+      "method": "GET",
+      "pathAndQuery": "/api/posm/playlists/active?pharmacyId=pharmacy-synthetic-1",
+      "headers": {
+        "X-Posm-Key": "synthetic-posm-device-token-for-1.0.66-only"
+      },
+      "body": null,
+      "response": {
+        "playlistId": "playlist-synthetic-1",
+        "name": "Synthetic display",
+        "slides": [
+          {
+            "id": "slide-synthetic-1",
+            "url": "https://epharm.inkar.kz/s3/synthetic/slide.mp4",
+            "kind": "video",
+            "durationSec": 15,
+            "title": "Synthetic slide",
+            "position": 0,
+            "inherited": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "heartbeat",
+      "method": "POST",
+      "pathAndQuery": "/api/posm/heartbeat?deviceId=SYNTHETIC-POS-01&pharmacyId=pharmacy-synthetic-1&monitorCount=2&appVersion=1.0.66",
+      "headers": {
+        "X-Posm-Key": "synthetic-posm-device-token-for-1.0.66-only"
+      },
+      "body": null,
+      "response": {
+        "ok": true,
+        "deviceId": "SYNTHETIC-POS-01"
+      }
+    },
+    {
+      "name": "version",
+      "method": "GET",
+      "pathAndQuery": "/api/posm/app/version?platform=win-x64&deviceId=SYNTHETIC-POS-01&currentVersion=1.0.66",
+      "headers": {
+        "X-Posm-Key": "synthetic-posm-device-token-for-1.0.66-only"
+      },
+      "body": null,
+      "response": {
+        "current": true,
+        "platform": "win-x64",
+        "version": "1.0.72",
+        "url": "https://epharm.inkar.kz/downloads/synthetic-posm.zip",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manifestSignature": "synthetic-signature-filled-in-test",
+        "mandatory": false,
+        "notes": "Synthetic update; never install"
+      }
+    },
+    {
+      "name": "cdpLookup",
+      "method": "POST",
+      "pathAndQuery": "/api/posm/cdp/lookup",
+      "headers": {
+        "X-Posm-Key": "synthetic-posm-device-token-for-1.0.66-only"
+      },
+      "body": {
+        "phone": "+70000000000"
+      },
+      "response": {
+        "found": false,
+        "profileId": null,
+        "phone": "+70000000000",
+        "name": null,
+        "tier": null
+      }
+    },
+    {
+      "name": "cdpRegister",
+      "method": "POST",
+      "pathAndQuery": "/api/posm/cdp/register",
+      "headers": {
+        "X-Posm-Key": "synthetic-posm-device-token-for-1.0.66-only"
+      },
+      "body": {
+        "phone": "+70000000000",
+        "name": "Synthetic Customer",
+        "pharmacistId": "pharmacist-synthetic-1",
+        "pharmacyId": "pharmacy-synthetic-1"
+      },
+      "response": {
+        "id": "cdp-synthetic-1",
+        "phone": "+70000000000",
+        "name": "Synthetic Customer",
+        "tier": "base",
+        "createdAt": "2026-10-29T00:00:00+00:00",
+        "isNew": true
+      }
+    },
+    {
+      "name": "task",
+      "method": "GET",
+      "pathAndQuery": "/api/posm/tasks?pharmacyId=pharmacy-synthetic-1",
+      "headers": {
+        "X-Posm-Key": "synthetic-posm-device-token-for-1.0.66-only",
+        "X-Device-Id": "SYNTHETIC-POS-01"
+      },
+      "body": null,
+      "response": {
+        "available": true,
+        "task": {
+          "id": "11111111-2222-4333-8444-555555555555",
+          "title": "Synthetic merchandising task",
+          "priority": "normal",
+          "dueAt": "2100-01-01T00:00:00+00:00",
+          "expiresAt": "2100-01-01T00:00:00+00:00",
+          "publicUrl": "https://epharm.inkar.kz/merch/staff?task=synthetic-task-delivery-token-00000000000000000000",
+          "deliveryToken": "synthetic-task-delivery-token-00000000000000000000"
+        }
+      }
+    },
+    {
+      "name": "taskShown",
+      "method": "POST",
+      "pathAndQuery": "/api/posm/tasks/shown",
+      "headers": {
+        "X-Posm-Key": "synthetic-posm-device-token-for-1.0.66-only"
+      },
+      "body": {
+        "dispatchId": "11111111-2222-4333-8444-555555555555",
+        "pharmacyId": "pharmacy-synthetic-1",
+        "deviceId": "SYNTHETIC-POS-01",
+        "deliveryToken": "synthetic-task-delivery-token-00000000000000000000"
+      },
+      "response": {
+        "accepted": true,
+        "available": true
+      }
+    },
+    {
+      "name": "fulfillmentRegister",
+      "method": "POST",
+      "pathAndQuery": "/api/posm/fulfillment/devices/register",
+      "headers": {
+        "X-Posm-Key": "synthetic-posm-device-token-for-1.0.66-only"
+      },
+      "body": {
+        "deviceId": "SYNTHETIC-POS-01",
+        "pharmacyId": "pharmacy-synthetic-1"
+      },
+      "response": {
+        "deviceId": "SYNTHETIC-POS-01",
+        "pharmacyId": "pharmacy-synthetic-1",
+        "token": "synthetic-fulfillment-token-only-0000000000"
+      }
+    },
+    {
+      "name": "fulfillmentList",
+      "method": "GET",
+      "pathAndQuery": "/api/posm/fulfillment/orders?status=active&offset=0&limit=50",
+      "headers": {
+        "X-Fulfillment-Device": "synthetic-fulfillment-token-only-0000000000"
+      },
+      "body": null,
+      "response": {
+        "items": [
+          {
+            "orderId": "order-synthetic-1",
+            "number": "SYNTHETIC-1",
+            "pharmacyExternalId": "synthetic-branch",
+            "pharmacyId": "pharmacy-synthetic-1",
+            "pharmacyName": "Synthetic pharmacy",
+            "pharmacyAddress": "Synthetic address",
+            "createdAt": "2026-10-29T00:00:00+00:00",
+            "total": 900,
+            "currency": "KZT",
+            "delivery": "pickup",
+            "paymentMethod": "cash",
+            "paymentStatus": "unpaid",
+            "paymentStatusClaimed": "unpaid",
+            "paymentAuthority": null,
+            "demo": false,
+            "status": "ready",
+            "version": 3,
+            "pickupAttempts": 0,
+            "pickupLockedUntil": null,
+            "cancellationReason": null,
+            "completedAt": null,
+            "updatedAt": "2026-10-29T00:00:00+00:00",
+            "lines": [
+              {
+                "productId": "product-offer-1",
+                "sku": "synthetic-ipart-2",
+                "title": "Synthetic offer",
+                "quantity": 1,
+                "unitPrice": 900
+              }
+            ]
+          }
+        ],
+        "offset": 0,
+        "limit": 50,
+        "hasMore": false
+      }
+    },
+    {
+      "name": "fulfillmentGet",
+      "method": "GET",
+      "pathAndQuery": "/api/posm/fulfillment/orders/order-synthetic-1",
+      "headers": {
+        "X-Fulfillment-Device": "synthetic-fulfillment-token-only-0000000000"
+      },
+      "body": null,
+      "response": {
+        "orderId": "order-synthetic-1",
+        "number": "SYNTHETIC-1",
+        "pharmacyExternalId": "synthetic-branch",
+        "pharmacyId": "pharmacy-synthetic-1",
+        "pharmacyName": "Synthetic pharmacy",
+        "pharmacyAddress": "Synthetic address",
+        "createdAt": "2026-10-29T00:00:00+00:00",
+        "total": 900,
+        "currency": "KZT",
+        "delivery": "pickup",
+        "paymentMethod": "cash",
+        "paymentStatus": "unpaid",
+        "paymentStatusClaimed": "unpaid",
+        "paymentAuthority": null,
+        "demo": false,
+        "status": "ready",
+        "version": 3,
+        "pickupAttempts": 0,
+        "pickupLockedUntil": null,
+        "cancellationReason": null,
+        "completedAt": null,
+        "updatedAt": "2026-10-29T00:00:00+00:00",
+        "lines": [
+          {
+            "productId": "product-offer-1",
+            "sku": "synthetic-ipart-2",
+            "title": "Synthetic offer",
+            "quantity": 1,
+            "unitPrice": 900
+          }
+        ]
+      }
+    },
+    {
+      "name": "fulfillmentAction",
+      "method": "POST",
+      "pathAndQuery": "/api/posm/fulfillment/orders/order-synthetic-1/actions",
+      "headers": {
+        "X-Fulfillment-Device": "synthetic-fulfillment-token-only-0000000000"
+      },
+      "body": {
+        "action": "issue",
+        "expectedVersion": 3,
+        "code": "123456",
+        "reason": null,
+        "cashCollected": true
+      },
+      "response": {
+        "orderId": "order-synthetic-1",
+        "number": "SYNTHETIC-1",
+        "pharmacyExternalId": "synthetic-branch",
+        "pharmacyId": "pharmacy-synthetic-1",
+        "pharmacyName": "Synthetic pharmacy",
+        "pharmacyAddress": "Synthetic address",
+        "createdAt": "2026-10-29T00:00:00+00:00",
+        "total": 900,
+        "currency": "KZT",
+        "delivery": "pickup",
+        "paymentMethod": "cash",
+        "paymentStatus": "cash_collected",
+        "paymentStatusClaimed": "unpaid",
+        "paymentAuthority": null,
+        "demo": false,
+        "status": "completed",
+        "version": 4,
+        "pickupAttempts": 0,
+        "pickupLockedUntil": null,
+        "cancellationReason": null,
+        "completedAt": null,
+        "updatedAt": "2026-10-29T00:00:00+00:00",
+        "lines": [
+          {
+            "productId": "product-offer-1",
+            "sku": "synthetic-ipart-2",
+            "title": "Synthetic offer",
+            "quantity": 1,
+            "unitPrice": 900
+          }
+        ]
+      }
+    }
+  ],
+  "taskUnavailable": {
+    "available": false,
+    "task": null
+  },
+  "taskShownUnavailable": {
+    "accepted": false,
+    "available": false
+  },
+  "taskExpired": {
+    "id": "11111111-2222-4333-8444-555555555555",
+    "title": "Synthetic merchandising task",
+    "priority": "normal",
+    "dueAt": "2000-01-01T00:00:00+00:00",
+    "expiresAt": "2000-01-01T00:00:00+00:00",
+    "publicUrl": "https://epharm.inkar.kz/merch/staff?task=synthetic-task-delivery-token-00000000000000000000",
+    "deliveryToken": "synthetic-task-delivery-token-00000000000000000000"
+  },
+  "fragmentTask": {
+    "id": "11111111-2222-4333-8444-555555555555",
+    "title": "Synthetic merchandising task",
+    "priority": "normal",
+    "dueAt": "2100-01-01T00:00:00+00:00",
+    "expiresAt": "2100-01-01T00:00:00+00:00",
+    "publicUrl": "https://crm.inkar.kz/staff?task=1#task=synthetic-task-delivery-token-00000000000000000000",
+    "deliveryToken": "synthetic-task-delivery-token-00000000000000000000"
+  },
+  "fulfillmentNonCash": {
+    "orderId": "order-synthetic-1",
+    "number": "SYNTHETIC-1",
+    "pharmacyExternalId": "synthetic-branch",
+    "pharmacyId": "pharmacy-synthetic-1",
+    "pharmacyName": "Synthetic pharmacy",
+    "pharmacyAddress": "Synthetic address",
+    "createdAt": "2026-10-29T00:00:00+00:00",
+    "total": 900,
+    "currency": "KZT",
+    "delivery": "pickup",
+    "paymentMethod": "card",
+    "paymentStatus": "paid",
+    "paymentStatusClaimed": "unpaid",
+    "paymentAuthority": null,
+    "demo": false,
+    "status": "ready",
+    "version": 3,
+    "pickupAttempts": 0,
+    "pickupLockedUntil": null,
+    "cancellationReason": null,
+    "completedAt": null,
+    "updatedAt": "2026-10-29T00:00:00+00:00",
+    "lines": [
+      {
+        "productId": "product-offer-1",
+        "sku": "synthetic-ipart-2",
+        "title": "Synthetic offer",
+        "quantity": 1,
+        "unitPrice": 900
+      }
+    ]
+  },
+  "fulfillmentDemo": {
+    "orderId": "order-synthetic-1",
+    "number": "SYNTHETIC-1",
+    "pharmacyExternalId": "synthetic-branch",
+    "pharmacyId": "pharmacy-synthetic-1",
+    "pharmacyName": "Synthetic pharmacy",
+    "pharmacyAddress": "Synthetic address",
+    "createdAt": "2026-10-29T00:00:00+00:00",
+    "total": 900,
+    "currency": "KZT",
+    "delivery": "pickup",
+    "paymentMethod": "cash",
+    "paymentStatus": "demo_no_charge",
+    "paymentStatusClaimed": "unpaid",
+    "paymentAuthority": null,
+    "demo": true,
+    "status": "ready",
+    "version": 3,
+    "pickupAttempts": 0,
+    "pickupLockedUntil": null,
+    "cancellationReason": null,
+    "completedAt": null,
+    "updatedAt": "2026-10-29T00:00:00+00:00",
+    "lines": [
+      {
+        "productId": "product-offer-1",
+        "sku": "synthetic-ipart-2",
+        "title": "Synthetic offer",
+        "quantity": 1,
+        "unitPrice": 900
+      }
+    ]
+  },
+  "taskPastDue": {
+    "id": "11111111-2222-4333-8444-555555555555",
+    "title": "Synthetic merchandising task",
+    "priority": "normal",
+    "dueAt": "2000-01-01T00:00:00+00:00",
+    "expiresAt": "2100-01-01T00:00:00+00:00",
+    "publicUrl": "https://epharm.inkar.kz/merch/staff?task=synthetic-task-delivery-token-00000000000000000000",
+    "deliveryToken": "synthetic-task-delivery-token-00000000000000000000"
+  }
+}

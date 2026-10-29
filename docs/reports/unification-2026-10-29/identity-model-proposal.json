@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "initiative": "U1 source and canonical identity core",
+  "date": "2026-10-29",
+  "scope": {
+    "productionAccessed": false,
+    "privateRowsRead": false,
+    "databaseModified": false,
+    "migrationCreated": false,
+    "httpAdded": false,
+    "springBeanAdded": false,
+    "existingAuthorizationChanged": false,
+    "realPersonIdsGenerated": false,
+    "filesWritten": [
+      "admin-panel/backend/src/main/kotlin/kz/epharm/shared/identity/SourceIdentity.kt",
+      "admin-panel/backend/src/test/kotlin/kz/epharm/shared/identity/SourceIdentityTest.kt"
+    ]
+  },
+  "types": {
+    "package": "kz.epharm.shared.identity",
+    "source": "SourceIdentity(system: SourceSystem, entityType: SourceEntityType, originalId: String)",
+    "canonical": "CanonicalIdentity(entityType: CanonicalEntityType, id: String)",
+    "binding": "VerifiedCrosswalkBinding(source, canonical, verificationReference)",
+    "resolver": "SourceIdentityResolver(bindings).resolve(source): CanonicalIdentity?",
+    "sourceSystems": ["EPHARM", "MERCH_CRM"],
+    "canonicalEntityTypes": [
+      "PHARMACY",
+      "PHARMACIST",
+      "ADMIN_ACCOUNT",
+      "CUSTOMER",
+      "ACCOUNT",
+      "PERSON"
+    ]
+  },
+  "inputFactsFromParent": {
+    "state": "provided_restored_data_facts_not_recounted_by_this_agent",
+    "epharmPostgres": "16",
+    "crmPostgres": "18.6",
+    "epharmPharmacies": 532,
+    "crmBranches": 680,
+    "verifiedDistinctOneToOneCrosswalkPairs": 532,
+    "crmBranchesUnmapped": 148,
+    "noInferenceKeys": ["name", "address", "phone"]
+  },
+  "mappingProposal": [
+    {
+      "sourceSystem": "EPHARM",
+      "sourceEntityType": "PHARMACY",
+      "sourceStorage": "pharmacies.id trusted DB value",
+      "canonicalEntityType": "PHARMACY",
+      "idPolicy": "Retain original ID exactly, without normalization.",
+      "resolution": "identity"
+    },
+    {
+      "sourceSystem": "EPHARM",
+      "sourceEntityType": "PHARMACIST",
+      "sourceStorage": "pharmacists.id trusted DB value",
+      "canonicalEntityType": "PHARMACIST",
+      "idPolicy": "Retain original ID exactly; not a PERSON or ACCOUNT ID.",
+      "resolution": "identity"
+    },
+    {
+      "sourceSystem": "EPHARM",
+      "sourceEntityType": "ADMIN_ACCOUNT",
+      "sourceStorage": "admin_users.id trusted UUID value rendered with UUID.toString() before this core",
+      "canonicalEntityType": "ADMIN_ACCOUNT",
+      "idPolicy": "Retain provided DB-derived ID; no UUID parsing/guessing in resolver.",
+      "resolution": "identity"
+    },
+    {
+      "sourceSystem": "EPHARM",
+      "sourceEntityType": "CUSTOMER",
+      "sourceStorage": "cdp_profiles.id trusted DB value",
+      "canonicalEntityType": "CUSTOMER",
+      "idPolicy": "Retain customer domain identity separately from pharmacist/account/person.",
+      "resolution": "identity"
+    },
+    {
+      "sourceSystem": "MERCH_CRM",
+      "sourceEntityType": "BRANCH",
+      "sourceStorage": "trusted original CRM branch ID plus separately verified crosswalk; physical crosswalk storage remains RFC-owned",
+      "canonicalEntityType": "PHARMACY",
+      "idPolicy": "Only an explicit verified branch-to-existing-pharmacy binding. Enforce one-to-one in both directions; duplicate identical pair is idempotent.",
+      "resolution": "verified_crosswalk_only",
+      "candidatePairsFromParent": 532
+    },
+    {
+      "sourceSystem": "MERCH_CRM",
+      "sourceEntityType": "BRANCH",
+      "canonicalEntityType": null,
+      "idPolicy": "No match by string/name/address/phone, no generated canonical ID. Preserve original branch and its ACL/history.",
+      "resolution": "unresolved_until_U4_or_explicit_review",
+      "unmappedCountFromParent": 148
+    },
+    {
+      "sourceSystem": "MERCH_CRM",
+      "sourceEntityTypes": ["ACCOUNT", "ADMIN_ACCOUNT", "PHARMACIST", "CUSTOMER", "PERSON"],
+      "canonicalEntityType": null,
+      "idPolicy": "No automatic human merge or cross-domain binding. Existing account/role/ACL/history is not discarded because canonical person is unresolved.",
+      "resolution": "unresolved_until_separate_verified_contract"
+    },
+    {
+      "sourceSystems": ["EPHARM", "MERCH_CRM"],
+      "sourceEntityTypes": ["ACCOUNT", "PERSON"],
+      "canonicalEntityType": null,
+      "idPolicy": "Opaque format or similarity to an existing account/pharmacist ID never creates a person or account association.",
+      "resolution": "unresolved_by_this_resolver"
+    }
+  ],
+  "invariants": [
+    "Namespace consists of source system, source entity type and opaque original ID.",
+    "Case, leading zeros and whitespace inside a nonblank ID are preserved. No trim, case folding, numeric coercion, UUID-format inference or heuristic matching.",
+    "Canonical type is part of equality; account/person/pharmacist/customer remain distinct even when ID text is identical.",
+    "Blank source/canonical IDs and blank provenance references are rejected.",
+    "Unsupported relationship is rejected at binding construction, including all human/account/person bindings.",
+    "Forward mapping conflict and reverse alias conflict raise IllegalArgumentException; no source rows are deleted or silently merged.",
+    "Resolver snapshots input and does not observe later list mutation.",
+    "No database existence, identity verification, permission grant, SMS/HMAC proof or row migration is performed."
+  ],
+  "u2Agreement": {
+    "consumer": "unified_admin_plan pure policy",
+    "account": "CanonicalIdentity(CanonicalEntityType.ADMIN_ACCOUNT, trustedAccountId)",
+    "person": "Optional separately established CanonicalIdentity(CanonicalEntityType.PERSON, canonicalPersonId)",
+    "rule": "U2 does not derive person from account/pharmacist/customer. Missing proven PERSON identity keeps independent-review decisions fail-closed.",
+    "boundary": "PERSON value can be explicitly supplied by later verified U4 work, but this resolver never generates or derives one."
+  },
+  "verificationReferenceBoundary": "Provenance text only. Nonblank reference and a VerifiedCrosswalkBinding value are not proof that source endpoints, approval or evidence were actually verified. The trusted caller must verify those before construction.",
+  "validation": {
+    "command": "./gradlew test --tests kz.epharm.shared.identity.SourceIdentityTest --no-daemon",
+    "tests": 11,
+    "failures": 0,
+    "errors": 0,
+    "testCases": [
+      "unknown crm identifiers remain unresolved even when their string matches epharm()",
+      "same source cannot alias two canonical pharmacies()",
+      "source system entity and case form independent namespaces()",
+      "opaque ids are not trimmed or interpreted as numbers or UUIDs()",
+      "account person pharmacist and customer canonical identities never imply each other()",
+      "two crm branches cannot silently collapse to one canonical pharmacy()",
+      "existing epharm identifiers and types are retained exactly()",
+      "only an exact verified branch crosswalk resolves a crm branch()",
+      "repeated identical binding is idempotent and resolver snapshots its input()",
+      "blank ids and missing crosswalk provenance are rejected()",
+      "unsupported entity or source relationship cannot become a binding()"
+    ],
+    "report": "/Users/amir/.codex/worktrees/unified-admin-baseline/PharmaPayV2/admin-panel/backend/build/test-results/test/TEST-kz.epharm.shared.identity.SourceIdentityTest.xml",
+    "state": "local_pure_unit_tests_passed",
+    "notProved": [
+      "Actual532 bindings or148 unresolved rows were not loaded or recounted here.",
+      "No U4 schema/crosswalk persistence, legacy location-scope migration or account/person generation implemented.",
+      "No existing backend authentication/authorization behavior has been wired to this core."
+    ]
+  },
+  "sourceHashes": [
+    {
+      "path": "admin-panel/backend/src/main/kotlin/kz/epharm/shared/identity/SourceIdentity.kt",
+      "sha256": "19c2959934638b9cf8eb10c01c0ab852ffd42c36d23786f77fbc7df67c57bac6"
+    },
+    {
+      "path": "admin-panel/backend/src/test/kotlin/kz/epharm/shared/identity/SourceIdentityTest.kt",
+      "sha256": "6ac36d9c5e782bef597e1f3533e90a50b123b0e9422000c23609780cf2958447"
+    }
+  ]
+}
