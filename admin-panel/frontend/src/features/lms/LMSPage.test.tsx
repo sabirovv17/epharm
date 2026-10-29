@@ -16,11 +16,14 @@ import type {
 import { USERS } from '@/mocks/fixtures'
 import { useUiStore } from '@/app/store'
 import LMSPage from './LMSPage'
+const exportCaps = vi.hoisted(() => ({
+  canExportTrainingCourses: false,
+  canExportTrainingPrograms: false,
+  canExportTrainingAssignments: false,
+  canExportTrainingResults: false,
+}))
 vi.mock('@/app/useAdministrativeCapabilities', () => ({
-  useAdministrativeCapabilities: () => ({
-    canExportTrainingCourses: false,
-    canExportTrainingPrograms: false,
-  }),
+  useAdministrativeCapabilities: () => exportCaps,
 }))
 
 const lmsHooks = vi.hoisted(() => ({
@@ -298,6 +301,12 @@ const participant: EventParticipantDto = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  Object.assign(exportCaps, {
+    canExportTrainingCourses: false,
+    canExportTrainingPrograms: false,
+    canExportTrainingAssignments: false,
+    canExportTrainingResults: false,
+  })
   // Component-level scenarios exercise the legacy HQ tab bar. The dedicated
   // training-workspace behavior is covered separately below and in Sidebar/E2E.
   useUiStore.setState({ authedUser: { ...USERS.lms, role: 'SYSTEM_ADMIN' } })
@@ -349,6 +358,31 @@ beforeEach(() => {
   lmsHooks.useChangeAssignmentFormat.mockReturnValue(mutationResult())
   lmsHooks.useAssignmentFormatHistory.mockReturnValue(queryResult([]))
   lmsHooks.downloadTrainingAssignments.mockResolvedValue(new Blob(['report']))
+})
+
+describe('new XLSX does not expand legacy training list or CSV access', () => {
+  it.each(['assignments', 'results'] as const)(
+    'keeps %s export separately usable when the old dashboard/list is denied',
+    (tab) => {
+      exportCaps.canExportTrainingAssignments = true
+      exportCaps.canExportTrainingResults = true
+      lmsHooks.useTrainingDashboard.mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        isError: true,
+        error: new Error('Список не подключён к этим правам'),
+        refetch: vi.fn(),
+      })
+      renderPage(`/lms?tab=${tab}`)
+      expect(screen.getByText('Не удалось загрузить раздел обучения')).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', {
+          name: tab === 'assignments' ? 'Excel: назначения' : 'Excel: результаты',
+        }),
+      ).toBeEnabled()
+      expect(screen.queryByRole('button', { name: 'CSV', exact: true })).not.toBeInTheDocument()
+    },
+  )
 })
 
 function renderPage(initialEntry = '/lms') {

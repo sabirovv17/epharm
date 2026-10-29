@@ -45,5 +45,8 @@ export function useAdministrativeCapabilities() {
     canExportTrainingCourses: fresh && query.data?.canExportTrainingCourses === true,
     canExportTrainingPrograms: fresh && query.data?.canExportTrainingPrograms === true,
     canBindMerchProducer: fresh && query.data?.canBindMerchProducer === true,
+    canManageCampaignProducer: fresh && query.data?.canManageCampaignProducer === true,
+    canExportTrainingAssignments: fresh && query.data?.canExportTrainingAssignments === true,
+    canExportTrainingResults: fresh && query.data?.canExportTrainingResults === true,
   }
 }

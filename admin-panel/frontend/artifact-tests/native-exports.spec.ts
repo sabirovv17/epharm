@@ -63,6 +63,8 @@ test('native merch and education export buttons use independent capabilities and
           canExportMerchTasks: true,
           canExportTrainingCourses: true,
           canExportTrainingPrograms: true,
+          canExportTrainingAssignments: true,
+          canExportTrainingResults: true,
         },
       })
     if (path.endsWith('.xlsx')) {
@@ -109,6 +111,8 @@ test('native merch and education export buttons use independent capabilities and
           overdue: 0,
         },
       })
+    if (path === '/api/admin/training/assignments/page')
+      return route.fulfill({ json: { items: [], total: 0, page: 0, size: 25, totalPages: 0 } })
     if (
       [
         '/api/admin/lms/courses',
@@ -146,6 +150,18 @@ test('native merch and education export buttons use independent capabilities and
   await download('Excel: курсы')
   await page.goto('/lms?tab=programs')
   await download('Excel: программы')
+  await page.goto('/lms?tab=assignments')
+  await page.getByRole('combobox', { name: 'Формат назначений' }).selectOption('online')
+  await page.getByRole('combobox', { name: 'Статус назначений' }).selectOption('in_progress')
+  await page.getByPlaceholder('Фармацевт, аптека или программа').fill('Демо')
+  await expect(page.getByRole('button', { name: 'Excel: назначения' })).toBeDisabled()
+  await page.getByPlaceholder('Фармацевт, аптека или программа').clear()
+  await download('Excel: назначения')
+  await page.goto('/lms?tab=results')
+  await page.getByPlaceholder('Фармацевт, программа или этап').fill('Демо')
+  await expect(page.getByRole('button', { name: 'Excel: результаты' })).toBeDisabled()
+  await page.getByPlaceholder('Фармацевт, программа или этап').clear()
+  await download('Excel: результаты')
   expect(exports).toEqual([
     {
       path: '/api/admin/merch/exports/inventory.xlsx',
@@ -158,6 +174,11 @@ test('native merch and education export buttons use independent capabilities and
     { path: '/api/admin/merch/exports/tasks.xlsx', params: {} },
     { path: '/api/admin/training/exports/courses.xlsx', params: {} },
     { path: '/api/admin/training/exports/programs.xlsx', params: {} },
+    {
+      path: '/api/admin/training/exports/assignments.xlsx',
+      params: { format: 'online', status: 'in_progress' },
+    },
+    { path: '/api/admin/training/exports/results.xlsx', params: {} },
   ])
   expect(blocked).toEqual([])
 })

@@ -38,6 +38,9 @@ export interface AccessCapabilities {
   canExportTrainingCourses?: boolean
   canExportTrainingPrograms?: boolean
   canBindMerchProducer?: boolean
+  canManageCampaignProducer?: boolean
+  canExportTrainingAssignments?: boolean
+  canExportTrainingResults?: boolean
 }
 
 export interface AccessAccount {

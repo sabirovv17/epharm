@@ -64,6 +64,7 @@ import { isTrainingReadOnlyRole, isTrainingWorkspaceRole } from '@/app/accessPol
 import { useUiStore } from '@/app/store'
 import { useAdministrativeCapabilities } from '@/app/useAdministrativeCapabilities'
 import ReportDownloadButton from '@/features/reports/ReportDownloadButton'
+import TrainingLearningExport from './TrainingLearningExport'
 import {
   TRAINING_NAVIGATION,
   trainingItem,
@@ -268,12 +269,30 @@ export default function LMSPage() {
       )}
 
       {dashboardQuery.isError && !dashboard ? (
-        <Empty
-          title="Не удалось загрузить раздел обучения"
-          body={describeError(dashboardQuery.error)}
-          icon={<IconLMS size={28} />}
-          action={<Button onClick={() => dashboardQuery.refetch()}>Повторить</Button>}
-        />
+        <>
+          <Empty
+            title="Не удалось загрузить раздел обучения"
+            body={describeError(dashboardQuery.error)}
+            icon={<IconLMS size={28} />}
+            action={<Button onClick={() => dashboardQuery.refetch()}>Повторить</Button>}
+          />
+          {(tab === 'assignments' || tab === 'results') && (
+            <div className="card p-4">
+              <p className="mb-3 text-[13px] text-ink-500">
+                Список сейчас недоступен. Отдельная выгрузка доступна только по своему праву и
+                охватывает всю разрешённую историю без фильтров таблицы.
+              </p>
+              <TrainingLearningExport
+                mode={tab}
+                allowed={
+                  tab === 'assignments'
+                    ? exportAccess.canExportTrainingAssignments
+                    : exportAccess.canExportTrainingResults
+                }
+              />
+            </div>
+          )}
+        </>
       ) : tab === 'overview' ? (
         <OverviewTab dashboard={dashboard} loading={dashboardQuery.isLoading} />
       ) : tab === 'programs' ? (
@@ -290,6 +309,7 @@ export default function LMSPage() {
           programs={programs}
           canManage={!!capabilities?.canManageAssignments}
           canExport={!!capabilities?.canExport}
+          canExportXlsx={exportAccess.canExportTrainingAssignments}
           onChangeFormat={setFormatTarget}
         />
       ) : tab === 'events' || tab === 'attendance' ? (
@@ -314,6 +334,7 @@ export default function LMSPage() {
           assignments={assignments}
           loading={assignmentsQuery.isLoading}
           canRecord={!!capabilities?.canRecordResults}
+          canExportXlsx={exportAccess.canExportTrainingResults}
           onRecord={setResultTarget}
         />
       ) : tab === 'certificates' ? (
@@ -658,12 +679,14 @@ function AssignmentsTab({
   programs,
   canManage,
   canExport,
+  canExportXlsx,
   onChangeFormat,
 }: {
   dashboard: TrainingDashboardDto | undefined
   programs: TrainingProgramDto[]
   canManage: boolean
   canExport: boolean
+  canExportXlsx: boolean
   onChangeFormat: (assignment: TrainingAssignmentDto) => void
 }) {
   const toast = useToast()
@@ -782,6 +805,7 @@ function AssignmentsTab({
               className="!h-9 min-w-[260px] flex-1"
             />
             <Select
+              ariaLabel="Программа назначений"
               value={programId}
               onChange={(value) => {
                 setProgramId(value)
@@ -794,6 +818,7 @@ function AssignmentsTab({
               ]}
             />
             <Select
+              ariaLabel="Формат назначений"
               value={format}
               onChange={(value) => {
                 setFormat(value as TrainingFormat | 'all')
@@ -806,6 +831,7 @@ function AssignmentsTab({
               ]}
             />
             <Select
+              ariaLabel="Статус назначений"
               value={status}
               onChange={(value) => {
                 setStatus(value as TrainingAssignmentStatus | 'all')
@@ -831,6 +857,16 @@ function AssignmentsTab({
                 {exporting ? 'Экспорт…' : 'CSV'}
               </Button>
             )}
+            <TrainingLearningExport
+              mode="assignments"
+              allowed={canExportXlsx}
+              nameSearch={query}
+              filter={{
+                format: format === 'all' ? undefined : format,
+                status: status === 'all' ? undefined : status,
+                programId: programId === 'all' ? undefined : programId,
+              }}
+            />
           </div>
         }
         empty={visible.length === 0}
@@ -975,11 +1011,13 @@ function ResultsTab({
   assignments,
   loading,
   canRecord,
+  canExportXlsx,
   onRecord,
 }: {
   assignments: TrainingAssignmentDto[]
   loading: boolean
   canRecord: boolean
+  canExportXlsx: boolean
   onRecord: (target: {
     assignment: TrainingAssignmentDto
     stage: TrainingAssignmentStageDto
@@ -1006,12 +1044,15 @@ function ResultsTab({
   return (
     <TableSection
       search={
-        <SearchInput
-          value={query}
-          onChange={setQuery}
-          placeholder="Фармацевт, программа или этап"
-          className="!h-9 w-[360px]"
-        />
+        <div className="flex items-start gap-3">
+          <SearchInput
+            value={query}
+            onChange={setQuery}
+            placeholder="Фармацевт, программа или этап"
+            className="!h-9 w-[360px]"
+          />
+          <TrainingLearningExport mode="results" allowed={canExportXlsx} nameSearch={query} />
+        </div>
       }
       empty={rows.length === 0}
       emptyLabel="Этапов аттестации пока нет"

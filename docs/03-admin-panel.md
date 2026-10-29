@@ -177,7 +177,7 @@ Public:
 Protected under `AppShell`:
 
 - `/dashboard`
-- `/dashboard/reports` — HQ/SYSTEM_ADMIN PDF export, linked from Dashboard
+- `/dashboard/reports` — HQ/SYSTEM_ADMIN XLSX reports and explicit producer provenance, linked from Dashboard
 - `/promo`
 - `/promo/:id`
 - `/rules`
@@ -315,14 +315,29 @@ displays an explicit error and retry action, not an empty journal or zero sales.
 refresh retains the last successful rows and metrics with a stale-data warning. Its rolling window
 is configured on the backend and does not follow the header's month selector.
 
-Manufacturer reports use a separate `/dashboard/reports` form rather than the recommendation
-editor. HQ explicitly selects a campaign (including archived ones) and an inclusive 1–366-day
-Almaty date range, then downloads the backend PDF. Browser and server both restrict export to
-`HQ_HEAD`/`SYSTEM_ADMIN`; a brand-manager role is not proof of campaign ownership. The form
-never writes campaigns or sales, retains selections on errors, rejects non-PDF downloads and
-cancels an unfinished request on navigation. Confirmed replacement sales mean “approved”; the
-0–120-second recommendation-sale subset is separately labelled. Methodology, source limitations
-and the daily chart are inside the PDF; there is no second KPI request with a different cutoff.
+Manufacturer reports use a separate `/dashboard/reports` form. The current HQ interface exports
+XLSX only; legacy campaign-PDF endpoints remain compatibility APIs, and certificate PDFs are
+unchanged. HQ explicitly selects one campaign or a producer and an inclusive 1–366-day Almaty
+period. The producer index lists confirmed binding counts and unbound campaigns; brand/author/name
+matching is never a binding. Export requires the separate fresh server report capability and
+financial/view intersection. Errors do not turn into files; unfinished requests are cancelled.
+Confirmed replacement sales mean “approved”; the 0–120-second recommendation-sale subset remains
+separately labelled. Campaign reports retain methodology and source limitations.
+
+With `canManageCampaignProducer`, HQ may explicitly add or retract a campaign's producer binding
+using its current revision, an evidence reference and either a bounded approved interval or an
+explicit whole-history confirmation. Overlapping/stale changes require a reload, not auto-rebase.
+Retractions preserve original records. This flow does not change recommendation rules or bonuses.
+HQ may add a business manufacturer for campaigns using an idempotent request ID kept only in the
+open form's memory. An uncertain retry retains the same ID and payload. This does not create a
+phone, SMS portal login or staff identity, and never auto-links a campaign.
+
+Assignment/result XLSX buttons have independent capabilities. Assignment export carries applied
+format/status/program filters across all pages; result export covers recorded result history,
+without a hidden date interval or answer keys. Any active unsupported name search disables the
+button with a clear explanation. If the legacy training dashboard/list is denied, an explicitly
+separate export-only panel remains available under the new export permission; it does not reopen
+legacy read, CSV or result-edit permissions. Test scoring and learner video content are unchanged.
 See [rollout and reporting contract](21-rps-rollout-and-manufacturer-reports.md).
 
 ## UI and Design
