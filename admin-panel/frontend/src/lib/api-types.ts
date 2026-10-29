@@ -574,6 +574,24 @@ export interface PromoRulesViewDto {
   activeCount: number
 }
 
+export interface PromoChangesBundle {
+  campaign: UpdatePromoRequest
+  rules: PromoRulesConfigDto
+}
+
+export interface PromoChangesViewDto {
+  promoId: string
+  revision: number
+  hasPendingChanges: boolean
+  bundle: PromoChangesBundle
+  conflict: boolean
+  updatedAt: string | null
+  updatedBy: string | null
+  canSave: boolean
+  canApply: boolean
+  readinessIssues: string[]
+}
+
 export interface UpdateRuleRequest {
   status?: RuleStatus
   trigger?: RuleTriggerDto

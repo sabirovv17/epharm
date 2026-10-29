@@ -133,6 +133,10 @@ export default function PromoPage() {
   }, [promos])
 
   const handleToggle = (p: Promo) => {
+    if (p.status === 'draft') {
+      navigate(`/promo/${p.id}`)
+      return
+    }
     const next: PromoStatus = p.status === 'active' ? 'paused' : 'active'
     updatePromo.mutate(
       { id: p.id, patch: { status: next } },
@@ -433,8 +437,20 @@ function PromoCard({ promo, onOpen, onToggle, onArchive, onRestore }: PromoCardP
                 <button
                   type="button"
                   onClick={stop(onToggle)}
-                  title={promo.status === 'active' ? t('pm.pause') : t('pm.resume')}
-                  aria-label={promo.status === 'active' ? t('pm.pause') : t('pm.resume')}
+                  title={
+                    promo.status === 'draft'
+                      ? 'Проверить и запустить'
+                      : promo.status === 'active'
+                        ? t('pm.pause')
+                        : t('pm.resume')
+                  }
+                  aria-label={
+                    promo.status === 'draft'
+                      ? 'Проверить и запустить'
+                      : promo.status === 'active'
+                        ? t('pm.pause')
+                        : t('pm.resume')
+                  }
                   className="flex h-7 w-7 items-center justify-center rounded-md text-ink-500 hover:bg-paper-hover hover:text-ink-900"
                 >
                   {promo.status === 'active' ? <IconPause size={14} /> : <IconPlay size={14} />}
@@ -639,8 +655,20 @@ function PromoRow({ promo, onOpen, onToggle, onArchive, onRestore }: PromoRowPro
               <button
                 type="button"
                 onClick={stop(onToggle)}
-                title={promo.status === 'active' ? t('pm.pause') : t('pm.resume')}
-                aria-label={promo.status === 'active' ? t('pm.pause') : t('pm.resume')}
+                title={
+                  promo.status === 'draft'
+                    ? 'Проверить и запустить'
+                    : promo.status === 'active'
+                      ? t('pm.pause')
+                      : t('pm.resume')
+                }
+                aria-label={
+                  promo.status === 'draft'
+                    ? 'Проверить и запустить'
+                    : promo.status === 'active'
+                      ? t('pm.pause')
+                      : t('pm.resume')
+                }
                 className="flex h-7 w-7 items-center justify-center rounded-md text-ink-500 hover:bg-paper-hover hover:text-ink-900"
               >
                 {promo.status === 'active' ? <IconPause size={14} /> : <IconPlay size={14} />}

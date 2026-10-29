@@ -21,6 +21,7 @@ vi.mock('@/lib/api', () => ({
   authApi: { login: vi.fn(), logout: vi.fn(), me: vi.fn() },
   setTokens: vi.fn(),
   onForcedLogout: vi.fn(),
+  onTokensRefreshed: vi.fn(),
   errorCodeOf: () => null,
 }))
 

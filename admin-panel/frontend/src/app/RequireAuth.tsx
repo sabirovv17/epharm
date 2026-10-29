@@ -6,9 +6,10 @@ import { useUiStore } from './store'
 
 export function RequireAuth() {
   const authedUser = useUiStore((s) => s.authedUser)
+  const sessionEpoch = useUiStore((s) => s.querySessionEpoch)
   const location = useLocation()
   if (!authedUser) {
     return <Navigate to="/login" replace state={{ from: location }} />
   }
-  return <Outlet />
+  return <Outlet key={sessionEpoch} />
 }

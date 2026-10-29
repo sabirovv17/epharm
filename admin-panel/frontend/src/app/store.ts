@@ -8,19 +8,24 @@
 //   - 401-перехватчик в api.ts вызывает onForcedLogout → у нас тут это слушает init()
 
 import { create } from 'zustand'
-import { authApi, errorCodeOf, onForcedLogout, setTokens as setApiTokens } from '@/lib/api'
+import {
+  authApi,
+  errorCodeOf,
+  onForcedLogout,
+  onTokensRefreshed,
+  setTokens as setApiTokens,
+} from '@/lib/api'
 import type { AuthTokens, UserDto } from '@/lib/api-types'
 import { tokenStore } from '@/lib/tokenStore'
-import { clearPersistedCache } from './queryPersist'
+import { querySessionEpoch, resetQuerySession } from './queryClient'
 
 // Storage для clearPersistedCache — берём localStorage если доступен.
 const cacheStorage =
   typeof globalThis !== 'undefined' && 'localStorage' in globalThis
     ? (globalThis as { localStorage: Storage }).localStorage
     : null
-const clearQueryCache = () => {
-  if (cacheStorage) clearPersistedCache(cacheStorage)
-}
+let authAttempt = 0
+let forcedLogoutSubscribed = false
 
 /** Отчётный период (месяц + год). month — 0-11, как в Date.getMonth(). */
 export interface PeriodValue {
@@ -55,6 +60,7 @@ interface UiState {
   // Auth
   authedUser: UserDto | null
   tokens: AuthTokens | null
+  querySessionEpoch: number
 
   // UI flags
   sidebarCollapsed: boolean
@@ -122,6 +128,7 @@ const initialAuth = loadInitialAuth()
 export const useUiStore = create<UiState>((set, get) => ({
   authedUser: initialAuth.authedUser,
   tokens: initialAuth.tokens,
+  querySessionEpoch,
   sidebarCollapsed: false,
   commandPaletteOpen: false,
   roleSwitcherOpen: false,
@@ -133,20 +140,41 @@ export const useUiStore = create<UiState>((set, get) => ({
     // Гидрация теперь синхронна (см. loadInitialAuth выше).
     // Здесь остаётся только подписка на forced-logout от axios-interceptor'а
     // (401 при провале refresh) — это side-effect, которому нужен useEffect.
+    if (forcedLogoutSubscribed) return
+    forcedLogoutSubscribed = true
     onForcedLogout(() => {
+      authAttempt++
       tokenStore.clear()
-      clearQueryCache()
       setApiTokens(null)
-      set({ authedUser: null, tokens: null })
+      resetQuerySession(null)
+      set({
+        authedUser: null,
+        tokens: null,
+        querySessionEpoch,
+        commandPaletteOpen: false,
+        roleSwitcherOpen: false,
+        contractModalOpen: false,
+      })
+    })
+    onTokensRefreshed((tokens) => {
+      const user = get().authedUser
+      if (!user || !get().tokens) return
+      tokenStore.save({ user, tokens })
+      // Same authenticated session: do not advance its epoch or replace its query cache.
+      set({ tokens })
     })
   },
 
   login: async (email, password) => {
+    const attempt = ++authAttempt
     try {
       const resp = await authApi.login(email, password)
+      if (attempt !== authAttempt)
+        return { ok: false, code: 'UNKNOWN', message: 'Сессия изменилась.' }
       tokenStore.save({ tokens: resp.tokens, user: resp.user })
       setApiTokens(resp.tokens)
-      set({ authedUser: resp.user, tokens: resp.tokens })
+      resetQuerySession(resp.user)
+      set({ authedUser: resp.user, tokens: resp.tokens, querySessionEpoch })
       return { ok: true }
     } catch (err) {
       const code = errorCodeOf(err)
@@ -165,29 +193,37 @@ export const useUiStore = create<UiState>((set, get) => ({
   },
 
   logout: async () => {
+    authAttempt++
+    let revoke: Promise<void> | undefined
     try {
-      // Best-effort: если токен уже невалиден, всё равно очищаем локально.
-      if (get().tokens) await authApi.logout()
+      if (get().tokens) revoke = authApi.logout()
     } catch {
       // ignore
     }
     tokenStore.clear()
-    // Bug R fix: query cache очищается на logout — иначе при login другого юзера
-    // он бы увидел кэшированные данные предыдущего.
-    clearQueryCache()
     setApiTokens(null)
+    resetQuerySession(null)
     set({
       authedUser: null,
       tokens: null,
+      querySessionEpoch,
       commandPaletteOpen: false,
       roleSwitcherOpen: false,
       contractModalOpen: false,
     })
+    try {
+      await revoke
+    } catch {
+      /* local logout already completed */
+    }
   },
 
   setActiveRole: (user) => {
+    authAttempt++
+    setApiTokens(get().tokens)
+    resetQuerySession(user)
     // Без backend это просто UI-trick. При наличии настоящих токенов лучше переподписать сессию.
-    set({ authedUser: user })
+    set({ authedUser: user, querySessionEpoch })
     // Также сохраняем в localStorage чтобы перезагрузка не сбрасывала демо-роль.
     const current = get()
     if (current.tokens) {

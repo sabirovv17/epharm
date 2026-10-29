@@ -57,21 +57,21 @@ redirects to `/screens` because banners are now a tab/panel in the Screens secti
 
 ## Sections
 
-| Section     | Current purpose                                                                                                   |
-| ----------- | ----------------------------------------------------------------------------------------------------------------- |
-| Dashboard   | HQ summary/KPI entrypoint and paginated 90-day journal of recommendation shows and POS sales.                     |
-| Promo       | Product campaign CRUD, Medusa product picker, gallery/cover, tiers, dates, goals, campaign rules, grid/list view. |
-| Rules       | Read-only/global rules view plus rule builders/components; campaign rules are edited from Promo.                  |
-| Screens     | Connected cash desks, Excel inventory of POSM/client screens, 12-slot default/targeted playlists, banners.        |
-| Pharmacies  | Chains/pharmacies, CRUD, detail page, real Medusa-derived pharmacy seed data.                                     |
-| Pharmacists | Registry, pending-profile activation with pharmacy assignment, block/unblock, status/balance data.                |
-| Reconcile   | Receipt moderation queue, claimed promos, POS/Excel source columns, approve/reject.                               |
-| AI Exam     | Question bank CRUD.                                                                                               |
-| Finance     | Payout batches, generation, approval with finance/HQ role checks.                                                 |
-| Lift        | Pilot/control analytics view.                                                                                     |
+| Section     | Current purpose                                                                                                                                                                                  |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Dashboard   | HQ summary/KPI entrypoint and paginated 90-day journal of recommendation shows and POS sales.                                                                                                    |
+| Promo       | Product campaign CRUD, Medusa product picker, gallery/cover, tiers, dates, goals, campaign rules, grid/list view.                                                                                |
+| Rules       | Read-only/global rules view plus rule builders/components; campaign rules are edited from Promo.                                                                                                 |
+| Screens     | Connected cash desks, Excel inventory of POSM/client screens, 12-slot default/targeted playlists, banners.                                                                                       |
+| Pharmacies  | Chains/pharmacies, CRUD, detail page, real Medusa-derived pharmacy seed data.                                                                                                                    |
+| Pharmacists | Registry, pending-profile activation with pharmacy assignment, block/unblock, status/balance data.                                                                                               |
+| Reconcile   | Receipt moderation queue, claimed promos, POS/Excel source columns, approve/reject.                                                                                                              |
+| AI Exam     | Question bank CRUD.                                                                                                                                                                              |
+| Finance     | Payout batches, generation, approval with finance/HQ role checks.                                                                                                                                |
+| Lift        | Pilot/control analytics view.                                                                                                                                                                    |
 | Training    | Dashboard, programs/routes, courses (including scheduled live lessons and their studio), events/QR and six-digit attendance codes, assignments, attendance, results, certificates and analytics. |
-| Storefront  | Read-only product catalog through the backend; the configured Inkar website is preferred, with a local snapshot as outage fallback. |
-| Settings    | Language/timezone/session settings.                                                                               |
+| Storefront  | Read-only product catalog through the backend; the configured Inkar website is preferred, with a local snapshot as outage fallback.                                                              |
+| Settings    | Language/timezone/session settings.                                                                                                                                                              |
 
 Campaign rule authoring validates the editable request contract before saving. Optional barcode, iPartID and goal
 fields may remain empty. Once a goal or a comparison row is started, its conditionally required fields are marked
@@ -84,9 +84,11 @@ In each replacement or cross-sell pair, the campaign product and up to four addi
 products have independent pharmacist reward amounts. New offers start at `0` (no reward); an
 explicit positive KZT amount makes only that offer's POSM card green. Old rules without an
 individual amount retain their previously inherited campaign reward until edited. The preview
-uses the same green/white distinction and preserves the configured offer order. Saving the
-campaign's general reward alone does not rewrite existing rule rewards: edit and save the
-corresponding pair to change what POSM displays.
+uses the same green/white distinction and preserves the configured offer order. In the local
+unification candidate both editor save buttons prepare one campaign-and-rules bundle. Saving
+does not change the published offer. Explicitly inherited rewards follow the campaign reward
+when that saved bundle is applied; explicit per-offer rewards stay independent. Historical
+unknown inheritance is preserved rather than guessed.
 
 The trigger of a pair can remain a specific Medusa product or be selected from an imported ACC
 group, subgroup (shown together with its parent group), or INN. The taxonomy selector displays
@@ -103,8 +105,19 @@ show their parent, eligible barcode-member count, and snapshot source. The user 
 replacement versus cross-sell and the separate catalogue product to offer. The two exact products
 cannot be the same. Campaign name and reward follow, while dates, cover, identifiers, and media
 overrides are collapsed under additional settings. A single POST creates the campaign and its
-first pair atomically as drafts; the form navigates to the campaign detail for card review and
-explicit activation. The old product-only POST contract remains valid for existing clients.
+first pair atomically as drafts; the form navigates to the campaign detail for card review.
+In the local unification candidate the manager saves the enabled recommendations, then uses
+the separate Apply action for that saved revision. Unsaved edits cannot be published. Applying
+an existing paused campaign preserves its pause. Revision or published-source conflicts require
+an explicit reload/discard, without silent retry or overwrite. MANAGED accounts cannot bypass
+this process through the old direct content endpoints; LEGACY contracts remain available until
+controlled account conversion. The old product-only POST remains compatible for legacy clients.
+
+Administrator caches are bound to the authenticated account and role. Switching account or
+logging out detaches and clears the old client; late requests cannot populate the next session.
+Prepared campaign bundles and access-management data are never persisted. A 401/403 removes
+the denied projection, while a same-account temporary server failure can retain ordinary cached
+data. These boundaries do not clear the separate learner session or course progress.
 
 Exact-product triggers retain all confirmed barcode aliases, not just a primary EAN. The picker
 shows the barcode count/list and accepts a product with a usable `barcodes[]` even when the legacy

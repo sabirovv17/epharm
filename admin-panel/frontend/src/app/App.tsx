@@ -8,6 +8,8 @@ import { useUiStore } from './store'
 import { queryClient } from './queryClient'
 
 export function App() {
+  // Replace the provider's client, while only the private Outlet resets local component state.
+  useUiStore((state) => state.querySessionEpoch)
   // 1 раз при mount'е: гидрируем токены из localStorage + подписываемся на forced-logout
   // от axios-interceptor'а (401 при провале refresh).
   useEffect(() => {
