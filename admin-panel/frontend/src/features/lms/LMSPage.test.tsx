@@ -16,6 +16,12 @@ import type {
 import { USERS } from '@/mocks/fixtures'
 import { useUiStore } from '@/app/store'
 import LMSPage from './LMSPage'
+vi.mock('@/app/useAdministrativeCapabilities', () => ({
+  useAdministrativeCapabilities: () => ({
+    canExportTrainingCourses: false,
+    canExportTrainingPrograms: false,
+  }),
+}))
 
 const lmsHooks = vi.hoisted(() => ({
   useCourses: vi.fn(),
@@ -275,7 +281,6 @@ const assignment: TrainingAssignmentDto = {
   updatedAt: '2026-08-01T08:00:00Z',
 }
 
-
 const participant: EventParticipantDto = {
   id: 'participant-1',
   eventId: offlineEvent.id,
@@ -383,9 +388,7 @@ describe('Обучение — операционный раздел', () => {
 
     renderPage('/lms?tab=unknown')
 
-    expect(
-      screen.getByRole('heading', { level: 1, name: 'Дашборд обучения' }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Дашборд обучения' })).toBeInTheDocument()
     expect(screen.getByText('Активные программы')).toBeInTheDocument()
   })
 
@@ -415,10 +418,13 @@ describe('Обучение — операционный раздел', () => {
     })
     await user.upload(within(dialog).getByLabelText(/Выбрать заполненный Excel-файл/), file)
     await user.click(within(dialog).getByRole('button', { name: 'Импортировать курс' }))
-    expect(mutate).toHaveBeenCalledWith(file, expect.objectContaining({
-      onSuccess: expect.any(Function),
-      onError: expect.any(Function),
-    }))
+    expect(mutate).toHaveBeenCalledWith(
+      file,
+      expect.objectContaining({
+        onSuccess: expect.any(Function),
+        onError: expect.any(Function),
+      }),
+    )
   })
 
   it('открывает содержание онлайн-курса и показывает видеоуроки', async () => {
@@ -455,10 +461,22 @@ describe('Обучение — операционный раздел', () => {
       lessonItems: [
         ...course.lessonItems,
         {
-          id: 'quiz-new', title: 'Итоговый тест', description: '', content: '', kind: 'quiz',
-          videoUrl: null, externalUrl: null, required: true, minimumWatchPct: null,
-          quizPassingScore: 80, quizQuestions: [], attachments: [], durationMin: 0, order: 1,
-          createdAt: '2026-08-01T08:00:00Z', updatedAt: '2026-08-01T08:00:00Z',
+          id: 'quiz-new',
+          title: 'Итоговый тест',
+          description: '',
+          content: '',
+          kind: 'quiz',
+          videoUrl: null,
+          externalUrl: null,
+          required: true,
+          minimumWatchPct: null,
+          quizPassingScore: 80,
+          quizQuestions: [],
+          attachments: [],
+          durationMin: 0,
+          order: 1,
+          createdAt: '2026-08-01T08:00:00Z',
+          updatedAt: '2026-08-01T08:00:00Z',
         },
       ],
     })
@@ -478,20 +496,24 @@ describe('Обучение — операционный раздел', () => {
     await user.click(within(lessonDialog).getByRole('radio', { name: 'Правильный ответ 2' }))
     await user.click(within(lessonDialog).getByRole('button', { name: 'Сохранить урок' }))
 
-    expect(createLesson).toHaveBeenCalledWith(expect.objectContaining({
-      courseId: course.id,
-      lesson: expect.objectContaining({
-        title: 'Итоговый тест',
-        kind: 'quiz',
-        required: true,
-        quizPassingScore: 80,
-        quizQuestions: [expect.objectContaining({
-          prompt: 'Когда принимать препарат?',
-          options: ['До еды', 'После еды'],
-          correctOption: 1,
-        })],
+    expect(createLesson).toHaveBeenCalledWith(
+      expect.objectContaining({
+        courseId: course.id,
+        lesson: expect.objectContaining({
+          title: 'Итоговый тест',
+          kind: 'quiz',
+          required: true,
+          quizPassingScore: 80,
+          quizQuestions: [
+            expect.objectContaining({
+              prompt: 'Когда принимать препарат?',
+              options: ['До еды', 'После еды'],
+              correctOption: 1,
+            }),
+          ],
+        }),
       }),
-    }))
+    )
   })
 
   it('создаёт live-урок с расписанием и HTTPS-трансляцией', async () => {
@@ -509,62 +531,74 @@ describe('Обучение — операционный раздел', () => {
     await user.type(within(editor).getByLabelText('Название'), 'Прямой эфир')
     await user.selectOptions(within(editor).getByLabelText('Тип урока'), 'live')
     expect((within(editor).getByLabelText('Начало') as HTMLInputElement).value).not.toBe('')
-    await user.type(within(editor).getByLabelText(/Ссылка на трансляцию/), 'https://www.youtube.com/watch?v=demo123')
+    await user.type(
+      within(editor).getByLabelText(/Ссылка на трансляцию/),
+      'https://www.youtube.com/watch?v=demo123',
+    )
     await user.click(within(editor).getByRole('button', { name: 'Сохранить урок' }))
 
-    expect(createLesson).toHaveBeenCalledWith(expect.objectContaining({
-      courseId: course.id,
-      lesson: expect.objectContaining({
-        title: 'Прямой эфир',
-        kind: 'live',
-        liveProvider: 'custom',
-        liveStartAt: expect.any(String),
-        externalUrl: 'https://www.youtube.com/watch?v=demo123',
+    expect(createLesson).toHaveBeenCalledWith(
+      expect.objectContaining({
+        courseId: course.id,
+        lesson: expect.objectContaining({
+          title: 'Прямой эфир',
+          kind: 'live',
+          liveProvider: 'custom',
+          liveStartAt: expect.any(String),
+          externalUrl: 'https://www.youtube.com/watch?v=demo123',
+        }),
       }),
-    }))
+    )
     expect(createLesson.mock.calls[0][0].lesson).not.toHaveProperty('liveStatus')
   })
 
   it.each([
     ['live', 'В эфире'],
     ['ended', 'Завершён'],
-  ] as const)('не меняет статус и расписание %s-урока при обычном сохранении', async (status, statusLabel) => {
-    const updateLesson = vi.fn().mockResolvedValue(course)
-    lmsHooks.useUpdateCourseLesson.mockReturnValue(mutationResult(vi.fn(), updateLesson))
-    lmsHooks.useCourse.mockReturnValue(queryResult({
-      ...course,
-      lessonItems: [{
-        ...course.lessonItems[0],
-        title: 'Прямой эфир',
-        kind: 'live',
-        videoUrl: null,
-        externalUrl: 'https://www.youtube.com/watch?v=demo123',
-        liveProvider: 'youtube',
-        liveStatus: status,
-        liveStartAt: '2026-10-15T14:00:29Z',
-        liveEndAt: status === 'ended' ? '2026-10-15T15:00:47Z' : null,
-        livePolls: [],
-      }],
-    }))
-    const user = userEvent.setup()
-    renderPage('/lms?tab=courses')
-    await user.click(screen.getByRole('button', { name: 'Основы категории' }))
-    await user.click(screen.getByRole('button', { name: /1\. Прямой эфир/ }))
+  ] as const)(
+    'не меняет статус и расписание %s-урока при обычном сохранении',
+    async (status, statusLabel) => {
+      const updateLesson = vi.fn().mockResolvedValue(course)
+      lmsHooks.useUpdateCourseLesson.mockReturnValue(mutationResult(vi.fn(), updateLesson))
+      lmsHooks.useCourse.mockReturnValue(
+        queryResult({
+          ...course,
+          lessonItems: [
+            {
+              ...course.lessonItems[0],
+              title: 'Прямой эфир',
+              kind: 'live',
+              videoUrl: null,
+              externalUrl: 'https://www.youtube.com/watch?v=demo123',
+              liveProvider: 'youtube',
+              liveStatus: status,
+              liveStartAt: '2026-10-15T14:00:29Z',
+              liveEndAt: status === 'ended' ? '2026-10-15T15:00:47Z' : null,
+              livePolls: [],
+            },
+          ],
+        }),
+      )
+      const user = userEvent.setup()
+      renderPage('/lms?tab=courses')
+      await user.click(screen.getByRole('button', { name: 'Основы категории' }))
+      await user.click(screen.getByRole('button', { name: /1\. Прямой эфир/ }))
 
-    const editor = screen.getByRole('dialog', { name: 'Редактировать урок' })
-    expect(within(editor).queryByRole('combobox', { name: 'Статус' })).not.toBeInTheDocument()
-    expect(within(editor).getByText(statusLabel)).toBeInTheDocument()
-    expect(within(editor).getByLabelText('Начало')).toBeDisabled()
-    expect(within(editor).getByLabelText(/Окончание/)).toBeDisabled()
-    await user.click(within(editor).getByRole('button', { name: 'Сохранить урок' }))
+      const editor = screen.getByRole('dialog', { name: 'Редактировать урок' })
+      expect(within(editor).queryByRole('combobox', { name: 'Статус' })).not.toBeInTheDocument()
+      expect(within(editor).getByText(statusLabel)).toBeInTheDocument()
+      expect(within(editor).getByLabelText('Начало')).toBeDisabled()
+      expect(within(editor).getByLabelText(/Окончание/)).toBeDisabled()
+      await user.click(within(editor).getByRole('button', { name: 'Сохранить урок' }))
 
-    expect(updateLesson).toHaveBeenCalled()
-    const patch = updateLesson.mock.calls[0][0].patch
-    expect(patch).not.toHaveProperty('liveStatus')
-    expect(patch).not.toHaveProperty('liveStartAt')
-    expect(patch).not.toHaveProperty('liveEndAt')
-    expect(patch).not.toHaveProperty('clearLiveSchedule')
-  })
+      expect(updateLesson).toHaveBeenCalled()
+      const patch = updateLesson.mock.calls[0][0].patch
+      expect(patch).not.toHaveProperty('liveStatus')
+      expect(patch).not.toHaveProperty('liveStartAt')
+      expect(patch).not.toHaveProperty('liveEndAt')
+      expect(patch).not.toHaveProperty('clearLiveSchedule')
+    },
+  )
 
   it('показывает прикрепленные материалы в редакторе урока', async () => {
     const user = userEvent.setup()
@@ -578,7 +612,9 @@ describe('Обучение — операционный раздел', () => {
       'href',
       'https://epharm.inkar.kz/s3/handout.pdf',
     )
-    expect(screen.getByRole('button', { name: 'Удалить материал Памятка фармацевта' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Удалить материал Памятка фармацевта' }),
+    ).toBeInTheDocument()
   })
 
   it('разрешает роли только на чтение открыть курс без кнопок редактирования', async () => {
@@ -734,9 +770,11 @@ describe('Обучение — операционный раздел', () => {
   })
 
   it('загружает обложку программы и сохраняет возвращённую сервером ссылку', async () => {
-    const upload = vi.fn((_file: File, callbacks: { onSuccess: (value: { coverUrl: string }) => void }) => {
-      callbacks.onSuccess({ coverUrl: 'https://epharm.inkar.kz/media/course-cover.png' })
-    })
+    const upload = vi.fn(
+      (_file: File, callbacks: { onSuccess: (value: { coverUrl: string }) => void }) => {
+        callbacks.onSuccess({ coverUrl: 'https://epharm.inkar.kz/media/course-cover.png' })
+      },
+    )
     const update = vi.fn()
     lmsHooks.useUploadTrainingProgramCover.mockReturnValue(mutationResult(upload))
     lmsHooks.useUpdateTrainingProgram.mockReturnValue(mutationResult(update))
@@ -747,10 +785,13 @@ describe('Обучение — операционный раздел', () => {
     const dialog = screen.getByRole('dialog', { name: 'Редактировать программу' })
     const file = new File(['png'], 'cover.png', { type: 'image/png' })
     await user.upload(within(dialog).getByLabelText('Выбрать фотографию'), file)
-    expect(upload).toHaveBeenCalledWith(file, expect.objectContaining({
-      onSuccess: expect.any(Function),
-      onError: expect.any(Function),
-    }))
+    expect(upload).toHaveBeenCalledWith(
+      file,
+      expect.objectContaining({
+        onSuccess: expect.any(Function),
+        onError: expect.any(Function),
+      }),
+    )
     expect(within(dialog).getByAltText('Обложка программы')).toHaveAttribute(
       'src',
       'https://epharm.inkar.kz/media/course-cover.png',
@@ -844,7 +885,6 @@ describe('Обучение — операционный раздел', () => {
       new URL('/learn/course/assignment-1', window.location.origin).toString(),
     )
   })
-
 
   it('предвыбирает фармацевта при переходе из реестра', () => {
     renderPage('/lms?action=assign&pharmacists=ph-1')

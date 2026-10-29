@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useState, type ReactNode } from 'react'
 import { Button, Field, Input, Modal, PageHeader, Select } from '@/ui'
 import { formatKzt } from '@/mocks/fixtures'
 import type {
@@ -55,9 +55,17 @@ const localMonth = () => {
 export default function PlacementWorkspace({
   gateway,
   customerName,
+  renderExport,
+  renderBinding,
 }: {
   gateway: PlacementGateway
   customerName?: string
+  renderExport?: (filter: { producerId?: string; status?: string }) => ReactNode
+  renderBinding?: (
+    placement: Placement,
+    producers: ProducerOption[],
+    onChanged: () => void,
+  ) => ReactNode
 }) {
   const [producerId, setProducerId] = useState('')
   const [status, setStatus] = useState('')
@@ -129,6 +137,8 @@ export default function PlacementWorkspace({
         >
           Новый медиаплан
         </Button>
+        {gateway.realm === 'admin' &&
+          renderExport?.({ producerId: producerId || undefined, status: status || undefined })}
       </div>
       {!!options.error && gateway.realm === 'admin' && (
         <Notice error={options.error} onReload={options.reload} />
@@ -222,6 +232,7 @@ export default function PlacementWorkspace({
           producers={options.data ?? []}
           onClose={() => setDetailId('')}
           onChanged={list.reload}
+          renderBinding={renderBinding}
         />
       )}
     </div>
@@ -248,12 +259,18 @@ function PlacementDetail({
   producers,
   onClose,
   onChanged,
+  renderBinding,
 }: {
   id: string
   gateway: PlacementGateway
   producers: ProducerOption[]
   onClose: () => void
   onChanged: () => void
+  renderBinding?: (
+    placement: Placement,
+    producers: ProducerOption[],
+    onChanged: () => void,
+  ) => ReactNode
 }) {
   const load = useCallback((signal: AbortSignal) => gateway.view(id, signal), [gateway, id])
   const read = usePlacementRead(load)
@@ -336,11 +353,24 @@ function PlacementDetail({
                   отдельной проверки связи.
                 </p>
               )}
+              {gateway.realm === 'admin' &&
+                renderBinding?.(item, producers, () => {
+                  reload()
+                  onChanged()
+                })}
               <div className="rounded-lg bg-paper-input p-3">
                 <p className="font-bold">Сумма по данным сервера: {amount(item.totalAmount)}</p>
                 <p className="mt-1 text-[12px]">
-                  Резерв: {item.reservationState}. Срок подтверждения —{' '}
-                  {item.reservationBusinessDays} рабочих дня, {item.reservationTimezone}.
+                  Резерв:{' '}
+                  {(
+                    {
+                      active: 'действует',
+                      expired: 'истёк',
+                      confirmed: 'подтверждён',
+                      closed: 'не действует',
+                    } as Record<string, string>
+                  )[item.reservationState] ?? 'статус не определён'}
+                  . Срок подтверждения — {item.reservationBusinessDays} рабочих дня, время Алматы.
                   {item.heldUntil &&
                     ` До ${new Date(item.heldUntil).toLocaleString('ru-RU', { timeZone: item.reservationTimezone })}.`}
                 </p>

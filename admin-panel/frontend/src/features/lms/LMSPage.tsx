@@ -62,6 +62,8 @@ import { describeError } from '@/lib/describeError'
 import { formatKzt, formatNum } from '@/mocks/fixtures'
 import { isTrainingReadOnlyRole, isTrainingWorkspaceRole } from '@/app/accessPolicy'
 import { useUiStore } from '@/app/store'
+import { useAdministrativeCapabilities } from '@/app/useAdministrativeCapabilities'
+import ReportDownloadButton from '@/features/reports/ReportDownloadButton'
 import {
   TRAINING_NAVIGATION,
   trainingItem,
@@ -96,6 +98,7 @@ const TABS: TabItem<TrainingTab>[] = TRAINING_NAVIGATION.map(({ value, label }) 
 }))
 
 export default function LMSPage() {
+  const exportAccess = useAdministrativeCapabilities()
   const [searchParams, setSearchParams] = useSearchParams()
   const role = useUiStore((state) => state.authedUser?.role)
   const isReadOnly = isTrainingReadOnlyRole(role)
@@ -197,7 +200,11 @@ export default function LMSPage() {
     if (tab === 'courses' && capabilities?.canManagePrograms) {
       return (
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" leading={<IconUpload size={15} />} onClick={() => setCourseImportOpen(true)}>
+          <Button
+            variant="outline"
+            leading={<IconUpload size={15} />}
+            onClick={() => setCourseImportOpen(true)}
+          >
             Импорт из Excel
           </Button>
           <Button leading={<IconPlus size={15} />} onClick={() => setCourseModalOpen(true)}>
@@ -225,7 +232,31 @@ export default function LMSPage() {
             ? currentSection.subtitle
             : 'Программы, назначения, очные события, контроль прохождения и сертификаты фармацевтов'
         }
-        actions={action}
+        actions={
+          <div className="flex items-start gap-2">
+            {action}
+            {tab === 'courses' && (
+              <ReportDownloadButton
+                allowed={exportAccess.canExportTrainingCourses}
+                path="/api/admin/training/exports/courses.xlsx"
+                params={{}}
+                filename="training-courses.xlsx"
+                label="Excel: курсы"
+                note="Все доступные курсы и статусы, без ключей тестов."
+              />
+            )}
+            {tab === 'programs' && (
+              <ReportDownloadButton
+                allowed={exportAccess.canExportTrainingPrograms}
+                path="/api/admin/training/exports/programs.xlsx"
+                params={{}}
+                filename="training-programs.xlsx"
+                label="Excel: программы"
+                note="Все доступные программы; поиск таблицы не фильтрует выгрузку."
+              />
+            )}
+          </div>
+        }
       />
 
       {!trainingWorkspace && (
@@ -654,9 +685,12 @@ function AssignmentsTab({
   const pageData = pageQuery.data
   const visible = pageData?.items ?? []
   const totalAssignments = dashboard?.totalAssignments ?? pageData?.total ?? 0
-  const inProgressAssignments = dashboard?.inProgress ?? visible.filter((item) => item.status === 'in_progress').length
-  const completedAssignments = dashboard?.completed ?? visible.filter((item) => item.status === 'completed').length
-  const overdueAssignments = dashboard?.overdue ?? visible.filter((item) => item.status === 'overdue').length
+  const inProgressAssignments =
+    dashboard?.inProgress ?? visible.filter((item) => item.status === 'in_progress').length
+  const completedAssignments =
+    dashboard?.completed ?? visible.filter((item) => item.status === 'completed').length
+  const overdueAssignments =
+    dashboard?.overdue ?? visible.filter((item) => item.status === 'overdue').length
   const todayLabel = new Intl.DateTimeFormat('ru-RU', {
     day: 'numeric',
     month: 'long',
@@ -701,7 +735,10 @@ function AssignmentsTab({
   if (pageQuery.isLoading) return <LoadingBlock label="Загружаем назначения…" />
   return (
     <div className="flex flex-col gap-4">
-      <section className="card grid grid-cols-[repeat(4,minmax(0,1fr))_190px] overflow-hidden" data-testid="assignment-summary">
+      <section
+        className="card grid grid-cols-[repeat(4,minmax(0,1fr))_190px] overflow-hidden"
+        data-testid="assignment-summary"
+      >
         <AssignmentSummaryMetric label="Всего назначений" value={totalAssignments} />
         <AssignmentSummaryMetric
           label="В процессе"
@@ -722,8 +759,12 @@ function AssignmentsTab({
         />
         <div className="flex items-center border-l border-ink-100 px-5 py-3">
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-ink-400">Сегодня</div>
-            <div className="mt-1 text-[13px] font-extrabold capitalize text-ink-800">{todayLabel}</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-ink-400">
+              Сегодня
+            </div>
+            <div className="mt-1 text-[13px] font-extrabold capitalize text-ink-800">
+              {todayLabel}
+            </div>
           </div>
         </div>
       </section>
@@ -731,156 +772,160 @@ function AssignmentsTab({
       <TableSection
         search={
           <div className="flex w-full flex-wrap items-center gap-2">
-          <SearchInput
-            value={query}
-            onChange={(value) => {
-              setQuery(value)
-              setPage(0)
-            }}
-            placeholder="Фармацевт, аптека или программа"
-            className="!h-9 min-w-[260px] flex-1"
-          />
-          <Select
-            value={programId}
-            onChange={(value) => {
-              setProgramId(value)
-              setPage(0)
-            }}
-            className="w-[210px]"
-            options={[
-              { value: 'all', label: 'Все программы' },
-              ...programs.map((program) => ({ value: program.id, label: program.name })),
-            ]}
-          />
-          <Select
-            value={format}
-            onChange={(value) => {
-              setFormat(value as TrainingFormat | 'all')
-              setPage(0)
-            }}
-            className="w-[150px]"
-            options={[
-              { value: 'all', label: 'Все форматы' },
-              ...Object.entries(FORMAT_LABEL).map(([value, label]) => ({ value, label })),
-            ]}
-          />
-          <Select
-            value={status}
-            onChange={(value) => {
-              setStatus(value as TrainingAssignmentStatus | 'all')
-              setPage(0)
-            }}
-            className="w-[190px]"
-            options={[
-              { value: 'all', label: 'Все статусы' },
-              ...Object.entries(ASSIGNMENT_STATUS_LABEL).map(([value, label]) => ({
-                value,
-                label,
-              })),
-            ]}
-          />
-          {canExport && (
-            <Button
-              size="sm"
-              variant="outline"
-              leading={<IconDownload size={15} />}
-              disabled={exporting}
-              onClick={exportCsv}
-            >
-              {exporting ? 'Экспорт…' : 'CSV'}
-            </Button>
-          )}
+            <SearchInput
+              value={query}
+              onChange={(value) => {
+                setQuery(value)
+                setPage(0)
+              }}
+              placeholder="Фармацевт, аптека или программа"
+              className="!h-9 min-w-[260px] flex-1"
+            />
+            <Select
+              value={programId}
+              onChange={(value) => {
+                setProgramId(value)
+                setPage(0)
+              }}
+              className="w-[210px]"
+              options={[
+                { value: 'all', label: 'Все программы' },
+                ...programs.map((program) => ({ value: program.id, label: program.name })),
+              ]}
+            />
+            <Select
+              value={format}
+              onChange={(value) => {
+                setFormat(value as TrainingFormat | 'all')
+                setPage(0)
+              }}
+              className="w-[150px]"
+              options={[
+                { value: 'all', label: 'Все форматы' },
+                ...Object.entries(FORMAT_LABEL).map(([value, label]) => ({ value, label })),
+              ]}
+            />
+            <Select
+              value={status}
+              onChange={(value) => {
+                setStatus(value as TrainingAssignmentStatus | 'all')
+                setPage(0)
+              }}
+              className="w-[190px]"
+              options={[
+                { value: 'all', label: 'Все статусы' },
+                ...Object.entries(ASSIGNMENT_STATUS_LABEL).map(([value, label]) => ({
+                  value,
+                  label,
+                })),
+              ]}
+            />
+            {canExport && (
+              <Button
+                size="sm"
+                variant="outline"
+                leading={<IconDownload size={15} />}
+                disabled={exporting}
+                onClick={exportCsv}
+              >
+                {exporting ? 'Экспорт…' : 'CSV'}
+              </Button>
+            )}
           </div>
         }
         empty={visible.length === 0}
         emptyLabel="Назначений пока нет"
       >
-      <table className="w-full text-[13px]" data-testid="training-assignments-table">
-        <thead className="hairline border-b text-left text-[11px] font-bold uppercase text-ink-500">
-          <tr>
-            <th className="px-5 py-2.5">Фармацевт</th>
-            <th className="px-3 py-2.5">Программа</th>
-            <th className="px-3 py-2.5">Формат</th>
-            <th className="px-3 py-2.5">Срок</th>
-            <th className="px-3 py-2.5">Прогресс</th>
-            <th className="px-3 py-2.5">Статус</th>
-            <th className="px-5 py-2.5" />
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-ink-100">
-          {visible.map((assignment) => (
-            <tr key={assignment.id} className="hover:bg-paper-hover">
-              <td className="px-5 py-3">
-                <div className="font-extrabold text-ink-900">{assignment.pharmacistName}</div>
-                <div className="text-[11px] text-ink-500">
-                  {assignment.pharmacyName} · {assignment.city}
-                </div>
-              </td>
-              <td className="px-3 py-3 font-semibold text-ink-800">{assignment.programName}</td>
-              <td className="px-3 py-3">{FORMAT_LABEL[assignment.format]}</td>
-              <td className="num px-3 py-3 text-ink-600">{dateOnly(assignment.dueAt)}</td>
-              <td className="px-3 py-3">
-                <div className="flex min-w-[130px] items-center gap-2">
-                  <ProgressBar value={assignment.progressPct} />
-                  <span className="num w-9 text-right text-[11px] font-bold">
-                    {assignment.progressPct}%
-                  </span>
-                </div>
-              </td>
-              <td className="px-3 py-3">
-                <span className={`chip ${chipClass(assignment.status)}`}>
-                  {ASSIGNMENT_STATUS_LABEL[assignment.status]}
-                </span>
-              </td>
-              <td className="px-5 py-3 text-right">
-                <div className="flex items-center justify-end gap-1">
-                  <IconButton
-                    tip="Скопировать ссылку для фармацевта"
-                    aria-label={`Скопировать ссылку на курс для ${assignment.pharmacistName}`}
-                    onClick={() => void copyLearnerLink(assignment)}
-                  >
-                    <Copy size={16} />
-                  </IconButton>
-                  {canManage && assignment.status !== 'cancelled' && (
-                    <Button size="sm" variant="outline" onClick={() => onChangeFormat(assignment)}>
-                      Сменить формат
-                    </Button>
-                  )}
-                </div>
-              </td>
+        <table className="w-full text-[13px]" data-testid="training-assignments-table">
+          <thead className="hairline border-b text-left text-[11px] font-bold uppercase text-ink-500">
+            <tr>
+              <th className="px-5 py-2.5">Фармацевт</th>
+              <th className="px-3 py-2.5">Программа</th>
+              <th className="px-3 py-2.5">Формат</th>
+              <th className="px-3 py-2.5">Срок</th>
+              <th className="px-3 py-2.5">Прогресс</th>
+              <th className="px-3 py-2.5">Статус</th>
+              <th className="px-5 py-2.5" />
             </tr>
-          ))}
-        </tbody>
-      </table>
-      {(pageData?.total ?? 0) > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink-100 px-5 py-3 text-[12px] text-ink-600">
-          <span>
-            Показано {page * 25 + 1}–{Math.min((page + 1) * 25, pageData?.total ?? 0)} из{' '}
-            {formatNum(pageData?.total ?? 0)}
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={page === 0 || pageQuery.isFetching}
-              onClick={() => setPage((value) => Math.max(0, value - 1))}
-            >
-              Назад
-            </Button>
-            <span className="num min-w-[92px] text-center">
-              Страница {page + 1} из {Math.max(1, pageData?.totalPages ?? 1)}
+          </thead>
+          <tbody className="divide-y divide-ink-100">
+            {visible.map((assignment) => (
+              <tr key={assignment.id} className="hover:bg-paper-hover">
+                <td className="px-5 py-3">
+                  <div className="font-extrabold text-ink-900">{assignment.pharmacistName}</div>
+                  <div className="text-[11px] text-ink-500">
+                    {assignment.pharmacyName} · {assignment.city}
+                  </div>
+                </td>
+                <td className="px-3 py-3 font-semibold text-ink-800">{assignment.programName}</td>
+                <td className="px-3 py-3">{FORMAT_LABEL[assignment.format]}</td>
+                <td className="num px-3 py-3 text-ink-600">{dateOnly(assignment.dueAt)}</td>
+                <td className="px-3 py-3">
+                  <div className="flex min-w-[130px] items-center gap-2">
+                    <ProgressBar value={assignment.progressPct} />
+                    <span className="num w-9 text-right text-[11px] font-bold">
+                      {assignment.progressPct}%
+                    </span>
+                  </div>
+                </td>
+                <td className="px-3 py-3">
+                  <span className={`chip ${chipClass(assignment.status)}`}>
+                    {ASSIGNMENT_STATUS_LABEL[assignment.status]}
+                  </span>
+                </td>
+                <td className="px-5 py-3 text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    <IconButton
+                      tip="Скопировать ссылку для фармацевта"
+                      aria-label={`Скопировать ссылку на курс для ${assignment.pharmacistName}`}
+                      onClick={() => void copyLearnerLink(assignment)}
+                    >
+                      <Copy size={16} />
+                    </IconButton>
+                    {canManage && assignment.status !== 'cancelled' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onChangeFormat(assignment)}
+                      >
+                        Сменить формат
+                      </Button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {(pageData?.total ?? 0) > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink-100 px-5 py-3 text-[12px] text-ink-600">
+            <span>
+              Показано {page * 25 + 1}–{Math.min((page + 1) * 25, pageData?.total ?? 0)} из{' '}
+              {formatNum(pageData?.total ?? 0)}
             </span>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={page + 1 >= (pageData?.totalPages ?? 0) || pageQuery.isFetching}
-              onClick={() => setPage((value) => value + 1)}
-            >
-              Далее
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={page === 0 || pageQuery.isFetching}
+                onClick={() => setPage((value) => Math.max(0, value - 1))}
+              >
+                Назад
+              </Button>
+              <span className="num min-w-[92px] text-center">
+                Страница {page + 1} из {Math.max(1, pageData?.totalPages ?? 1)}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={page + 1 >= (pageData?.totalPages ?? 0) || pageQuery.isFetching}
+                onClick={() => setPage((value) => value + 1)}
+              >
+                Далее
+              </Button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
       </TableSection>
     </div>
   )
@@ -897,17 +942,29 @@ function AssignmentSummaryMetric({
   progress?: number
   tone?: 'primary' | 'success' | 'danger'
 }) {
-  const fill = tone === 'success' ? 'bg-accent-success' : tone === 'danger' ? 'bg-accent-danger' : 'bg-brand-green-500'
+  const fill =
+    tone === 'success'
+      ? 'bg-accent-success'
+      : tone === 'danger'
+        ? 'bg-accent-danger'
+        : 'bg-brand-green-500'
   return (
     <div className="border-r border-ink-100 px-5 py-3 last:border-r-0">
       <div className="flex items-baseline justify-between gap-3">
-        <div className="num text-[22px] font-extrabold tracking-[-0.02em] text-ink-900">{formatNum(value)}</div>
-        {progress !== undefined && <span className="num text-[10px] font-bold text-ink-400">{Math.round(progress)}%</span>}
+        <div className="num text-[22px] font-extrabold tracking-[-0.02em] text-ink-900">
+          {formatNum(value)}
+        </div>
+        {progress !== undefined && (
+          <span className="num text-[10px] font-bold text-ink-400">{Math.round(progress)}%</span>
+        )}
       </div>
       <div className="mt-0.5 text-[11px] font-semibold text-ink-500">{label}</div>
       {progress !== undefined && (
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink-100">
-          <div className={`h-full rounded-full ${fill}`} style={{ width: `${Math.min(100, progress)}%` }} />
+          <div
+            className={`h-full rounded-full ${fill}`}
+            style={{ width: `${Math.min(100, progress)}%` }}
+          />
         </div>
       )}
     </div>
@@ -1568,8 +1625,7 @@ function ImportCourseModal({
         <div className="rounded-xl border border-teal-200 bg-teal-50/70 p-4">
           <div className="text-[13px] font-extrabold text-ink-900">Сначала скачайте шаблон</div>
           <div className="mt-1 text-[12px] leading-5 text-ink-600">
-            В нём уже есть пример текстового урока и теста. Не меняйте названия листов и
-            столбцов.
+            В нём уже есть пример текстового урока и теста. Не меняйте названия листов и столбцов.
           </div>
           <a
             className="btn btn-md btn-outline mt-3 inline-flex w-fit"
@@ -1602,12 +1658,12 @@ function ImportCourseModal({
 
         <div className="grid gap-2 text-[12px] leading-5 text-ink-600 sm:grid-cols-2">
           <div className="rounded-lg bg-paper-input px-3 py-2">
-            <strong className="text-ink-800">Что создаётся:</strong> карточка курса, уроки,
-            тесты и правильные ответы.
+            <strong className="text-ink-800">Что создаётся:</strong> карточка курса, уроки, тесты и
+            правильные ответы.
           </div>
           <div className="rounded-lg bg-paper-input px-3 py-2">
-            <strong className="text-ink-800">После импорта:</strong> курс откроется черновиком
-            для проверки и загрузки файлов.
+            <strong className="text-ink-800">После импорта:</strong> курс откроется черновиком для
+            проверки и загрузки файлов.
           </div>
         </div>
       </div>

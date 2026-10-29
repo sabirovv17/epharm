@@ -32,6 +32,12 @@ export interface AccessCapabilities {
   canExportPayouts?: boolean
   canExportPharmacists?: boolean
   canExportCampaignReports?: boolean
+  canExportMerchInventory?: boolean
+  canExportMerchPlacements?: boolean
+  canExportMerchTasks?: boolean
+  canExportTrainingCourses?: boolean
+  canExportTrainingPrograms?: boolean
+  canBindMerchProducer?: boolean
 }
 
 export interface AccessAccount {
@@ -60,6 +66,27 @@ export interface VerifiedPerson {
   personId: string
   displayName: string
   referenceLabel: string
+}
+export interface SourceAccessAccount {
+  sourceAccountId: string
+  name: string
+  email: string | null
+  sourceRole: string
+  active: boolean
+  hasPassword: boolean
+  accountId: string | null
+  personId: string | null
+}
+export interface IdentityProof {
+  verifiedPersonId: string
+  verificationReference: string
+  currentPassword: string
+}
+export interface IdentityPharmacistPage {
+  items: { id: string; name: string; pharmacyName: string; personId: string | null }[]
+  limit: number
+  offset: number
+  hasMore: boolean
 }
 
 export interface AccessPermission {
@@ -111,6 +138,35 @@ export const accessApi = {
     api.get<AccessAccount[]>('/api/admin/access/accounts', { signal }).then((r) => r.data),
   people: (signal: AbortSignal) =>
     api.get<VerifiedPerson[]>('/api/admin/access/people', { signal }).then((r) => r.data),
+  verifyPerson: (body: { name: string; verificationReference: string; currentPassword: string }) =>
+    api.post<VerifiedPerson>('/api/admin/access/people', body).then((r) => r.data),
+  sourceAccounts: (signal: AbortSignal) =>
+    api
+      .get<SourceAccessAccount[]>('/api/admin/access/source-accounts', { signal })
+      .then((r) => r.data),
+  bindSource: (id: string, body: IdentityProof & { targetAccountId: string }) =>
+    api
+      .post(`/api/admin/access/source-accounts/${encodeURIComponent(id)}/bind`, body)
+      .then((r) => r.data),
+  provisionSource: (
+    id: string,
+    body: IdentityProof & { role: AdminRole; email?: string; jobTitle: string },
+  ) =>
+    api
+      .post<AccessProfile>(
+        `/api/admin/access/source-accounts/${encodeURIComponent(id)}/provision`,
+        body,
+      )
+      .then((r) => r.data),
+  bindPharmacist: (body: IdentityProof & { pharmacistId: string }) =>
+    api.post('/api/admin/access/pharmacist-person-links', body).then((r) => r.data),
+  pharmacistOptions: (q: string, offset: number, signal: AbortSignal) =>
+    api
+      .get<IdentityPharmacistPage>('/api/admin/access/pharmacist-options', {
+        params: { q, offset, limit: 50 },
+        signal,
+      })
+      .then((r) => r.data),
   catalog: (signal: AbortSignal) =>
     api.get<AccessCatalog>('/api/admin/access/catalog', { signal }).then((r) => r.data),
   profile: (id: string, signal: AbortSignal) =>

@@ -29,7 +29,7 @@ export default function ReportDownloadButton({
     done?: boolean
   } | null>(null)
   const current = state?.key === key ? state : null
-  useEffect(() => () => request.current?.abort(), [key])
+  useEffect(() => () => request.current?.abort(), [key, allowed])
   const download = async () => {
     if (!allowed || invalid || current?.pending) return
     request.current?.abort()

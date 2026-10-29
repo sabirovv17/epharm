@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { api } from '@/lib/api'
 import ReportDownloadButton from './ReportDownloadButton'
@@ -65,5 +65,34 @@ describe('separate XLSX action', () => {
     )
     expect(submit).not.toHaveBeenCalled()
     expect(await screen.findByRole('status')).toHaveTextContent('Excel передан браузеру')
+  })
+  it('cancels an in-flight download when the independent permission is removed', async () => {
+    let finish!: (value: unknown) => void
+    const get = vi.spyOn(api, 'get').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        }),
+    )
+    const props = {
+      path: '/api/admin/reports/ledger.xlsx',
+      params: {},
+      filename: 'ledger.xlsx',
+      label: 'Excel',
+    }
+    const { rerender } = render(<ReportDownloadButton {...props} allowed />)
+    await userEvent.click(screen.getByRole('button'))
+    const signal = get.mock.calls[0][1]?.signal
+    rerender(<ReportDownloadButton {...props} allowed={false} />)
+    expect(signal?.aborted).toBe(true)
+    await act(async () => {
+      finish({
+        data: new Blob(['synthetic-only']),
+        headers: {
+          'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        },
+      })
+    })
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 })

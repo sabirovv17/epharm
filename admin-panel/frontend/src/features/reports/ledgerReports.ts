@@ -82,6 +82,12 @@ export async function downloadReport(
       throw new Error('Сервер не вернул Excel. Файл не сохранён.')
     return response.data
   } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 413)
+      throw new Error('В выгрузке слишком много данных. Сузьте фильтры и повторите запрос.', {
+        cause: error,
+      })
+    if (axios.isAxiosError(error) && error.response?.status === 429)
+      throw new Error('Слишком много запросов на выгрузку. Повторите позже.', { cause: error })
     if (axios.isAxiosError(error) && error.response?.data instanceof Blob) {
       try {
         error.response.data = JSON.parse(await error.response.data.text())

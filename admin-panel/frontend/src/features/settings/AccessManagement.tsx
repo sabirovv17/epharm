@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Button, Field, Input, Modal, SectionCard, Select } from '@/ui'
 import { roleLabel } from '@/mocks/fixtures'
+import IdentityManagement from './IdentityManagement'
 import {
   accessApi,
   accessFailure,
@@ -38,6 +39,7 @@ export default function AccessManagement() {
   const [createOpen, setCreateOpen] = useState(false)
   const [selected, setSelected] = useState<AccessAccount | null>(null)
   const [notice, setNotice] = useState('')
+  const [tab, setTab] = useState<'accounts' | 'identity'>('accounts')
 
   useEffect(() => {
     const controller = new AbortController()
@@ -100,119 +102,155 @@ export default function AccessManagement() {
         )}
         {data?.capabilities.canViewAccounts && (
           <>
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[13px] text-ink-500">
-                Новый аккаунт создаётся без прав. Права назначаются отдельным действием.
-              </p>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={reload}>
-                  Обновить список
-                </Button>
-                {data.capabilities.canManageAccounts && (
-                  <Button onClick={() => setCreateOpen(true)}>Создать аккаунт</Button>
-                )}
-              </div>
+            <div
+              className="flex gap-2 border-b border-paper-line pb-3"
+              role="tablist"
+              aria-label="Управление доступом"
+            >
+              <Button
+                variant={tab === 'accounts' ? 'primary' : 'ghost'}
+                role="tab"
+                aria-selected={tab === 'accounts'}
+                onClick={() => setTab('accounts')}
+              >
+                Аккаунты и права
+              </Button>
+              <Button
+                variant={tab === 'identity' ? 'primary' : 'ghost'}
+                role="tab"
+                aria-selected={tab === 'identity'}
+                onClick={() => setTab('identity')}
+              >
+                Личности и перенос
+              </Button>
             </div>
-            {notice && (
-              <p role="status" className="text-[13px] font-semibold text-ink-700">
-                {notice}
-              </p>
-            )}
-            {!data.accounts.length ? (
-              <p className="text-ink-500">Аккаунты не найдены.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-[13px]">
-                  <thead className="border-b text-[12px] text-ink-500">
-                    <tr>
-                      <th className="py-2">Сотрудник</th>
-                      <th>Роль / режим</th>
-                      <th>Статус</th>
-                      <th className="text-right">Доступ</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.accounts.map((account) => (
-                      <tr key={account.accountId} className="border-b last:border-0">
-                        <td className="py-3">
-                          <div className="font-semibold">{account.name}</div>
-                          <div className="text-ink-500">{account.email}</div>
-                          {account.jobTitle && (
-                            <div className="text-ink-400">{account.jobTitle}</div>
-                          )}
-                        </td>
-                        <td>
-                          {roleLabel(account.roleCeiling)}
-                          <div className="text-[12px] text-ink-500">
-                            {account.managed
-                              ? `Управляемый · версия ${account.version ?? '—'}`
-                              : 'Прежние права'}
-                          </div>
-                        </td>
-                        <td>
-                          {account.status === 'ACTIVE' || account.status === 'active'
-                            ? 'Активен'
-                            : 'Неактивен'}
-                          {account.primaryHqOwner && (
-                            <div className="text-[12px] text-ink-500">Главный HQ</div>
-                          )}
-                        </td>
-                        <td className="text-right">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={!account.managed || !account.personId}
-                            onClick={() => setSelected(account)}
-                          >
-                            {data.capabilities.canManageAccounts && account.editable
-                              ? 'Настроить права'
-                              : 'Посмотреть права'}
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            <p className="text-[12px] text-ink-400">
-              Прежние аккаунты не переводятся на новые права автоматически. Личные кабинеты
-              фармацевтов и кассы работают отдельно.
-            </p>
-            {createOpen && (
-              <CreateAccount
-                catalog={data.catalog}
+            {tab === 'identity' ? (
+              <IdentityManagement
+                accounts={data.accounts}
                 people={data.people}
-                onClose={() => setCreateOpen(false)}
-                onCreated={() => {
-                  setCreateOpen(false)
-                  setNotice('Аккаунт создан без прав. Выберите его в списке и настройте доступ.')
-                  reload()
-                }}
-              />
-            )}
-            {selected && (
-              <GrantEditor
-                key={selected.accountId}
-                account={selected}
                 catalog={data.catalog}
-                canManage={data.capabilities.canManageAccounts && selected.editable}
-                onClose={() => setSelected(null)}
-                onSaved={(version) => {
-                  setData((current) =>
-                    current
-                      ? {
-                          ...current,
-                          accounts: current.accounts.map((account) =>
-                            account.accountId === selected.accountId
-                              ? { ...account, version }
-                              : account,
-                          ),
-                        }
-                      : current,
-                  )
-                }}
+                canManage={data.capabilities.canManageAccounts}
+                onChanged={reload}
               />
+            ) : (
+              <>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[13px] text-ink-500">
+                    Новый аккаунт создаётся без прав. Права назначаются отдельным действием.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={reload}>
+                      Обновить список
+                    </Button>
+                    {data.capabilities.canManageAccounts && (
+                      <Button onClick={() => setCreateOpen(true)}>Создать аккаунт</Button>
+                    )}
+                  </div>
+                </div>
+                {notice && (
+                  <p role="status" className="text-[13px] font-semibold text-ink-700">
+                    {notice}
+                  </p>
+                )}
+                {!data.accounts.length ? (
+                  <p className="text-ink-500">Аккаунты не найдены.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-[13px]">
+                      <thead className="border-b text-[12px] text-ink-500">
+                        <tr>
+                          <th className="py-2">Сотрудник</th>
+                          <th>Роль / режим</th>
+                          <th>Статус</th>
+                          <th className="text-right">Доступ</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.accounts.map((account) => (
+                          <tr key={account.accountId} className="border-b last:border-0">
+                            <td className="py-3">
+                              <div className="font-semibold">{account.name}</div>
+                              <div className="text-ink-500">{account.email}</div>
+                              {account.jobTitle && (
+                                <div className="text-ink-400">{account.jobTitle}</div>
+                              )}
+                            </td>
+                            <td>
+                              {roleLabel(account.roleCeiling)}
+                              <div className="text-[12px] text-ink-500">
+                                {account.managed
+                                  ? `Управляемый · версия ${account.version ?? '—'}`
+                                  : 'Прежние права'}
+                              </div>
+                            </td>
+                            <td>
+                              {account.status === 'ACTIVE' || account.status === 'active'
+                                ? 'Активен'
+                                : 'Неактивен'}
+                              {account.primaryHqOwner && (
+                                <div className="text-[12px] text-ink-500">Главный HQ</div>
+                              )}
+                            </td>
+                            <td className="text-right">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={!account.managed || !account.personId}
+                                onClick={() => setSelected(account)}
+                              >
+                                {data.capabilities.canManageAccounts && account.editable
+                                  ? 'Настроить права'
+                                  : 'Посмотреть права'}
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <p className="text-[12px] text-ink-400">
+                  Прежние аккаунты не переводятся на новые права автоматически. Личные кабинеты
+                  фармацевтов и кассы работают отдельно.
+                </p>
+                {createOpen && (
+                  <CreateAccount
+                    catalog={data.catalog}
+                    people={data.people}
+                    onClose={() => setCreateOpen(false)}
+                    onCreated={() => {
+                      setCreateOpen(false)
+                      setNotice(
+                        'Аккаунт создан без прав. Выберите его в списке и настройте доступ.',
+                      )
+                      reload()
+                    }}
+                  />
+                )}
+                {selected && (
+                  <GrantEditor
+                    key={selected.accountId}
+                    account={selected}
+                    catalog={data.catalog}
+                    canManage={data.capabilities.canManageAccounts && selected.editable}
+                    onClose={() => setSelected(null)}
+                    onSaved={(version) => {
+                      setData((current) =>
+                        current
+                          ? {
+                              ...current,
+                              accounts: current.accounts.map((account) =>
+                                account.accountId === selected.accountId
+                                  ? { ...account, version }
+                                  : account,
+                              ),
+                            }
+                          : current,
+                      )
+                    }}
+                  />
+                )}
+              </>
             )}
           </>
         )}

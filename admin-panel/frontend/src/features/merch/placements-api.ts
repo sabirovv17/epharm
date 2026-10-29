@@ -39,6 +39,7 @@ export interface Placement {
   createdAt: string
   updatedAt: string
   producerBindingStatus: 'verified' | 'unresolved'
+  canBindProducer?: boolean
 }
 export interface PlacementPage {
   items: Placement[]

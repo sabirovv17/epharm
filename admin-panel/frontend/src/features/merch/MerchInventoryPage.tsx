@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAdministrativeCapabilities } from '@/app/useAdministrativeCapabilities'
 import { describeError } from '@/lib/describeError'
 import { formatKzt } from '@/mocks/fixtures'
+import ReportDownloadButton from '@/features/reports/ReportDownloadButton'
 import { Button, Field, Input, Modal, PageHeader, Select } from '@/ui'
 import {
   inventoryApi,
@@ -45,10 +46,10 @@ export default function MerchInventoryPage() {
         )}
       </div>
     )
-  return <InventoryWorkspace />
+  return <InventoryWorkspace canExport={capability.canExportMerchInventory} />
 }
 
-function InventoryWorkspace() {
+function InventoryWorkspace({ canExport }: { canExport: boolean }) {
   const [offset, setOffset] = useState(0)
   const [branchId, setBranchId] = useState('')
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7))
@@ -79,6 +80,26 @@ function InventoryWorkspace() {
       <PageHeader
         title="Календарь и доступность"
         subtitle="Аптеки мерча, оборудование и доступность полок. Занятые и зарезервированные размещения защищены."
+        actions={
+          <ReportDownloadButton
+            allowed={canExport}
+            path="/api/admin/merch/exports/inventory.xlsx"
+            params={{
+              branchId: branchId || undefined,
+              startMonth: freshCalendar?.startMonth,
+              monthCount: freshCalendar ? String(freshCalendar.monthCount) : undefined,
+            }}
+            filename="merch-inventory.xlsx"
+            label="Excel: доступность"
+            invalid={
+              !freshCalendar ||
+              freshCalendar.branch.id !== branchId ||
+              freshCalendar.startMonth !== `${month}-01`
+                ? 'Сначала выберите аптеку и дождитесь актуального календаря'
+                : undefined
+            }
+          />
+        }
       />
       <div className="card flex flex-wrap items-end gap-3 p-4">
         <Field label="Аптека мерча">

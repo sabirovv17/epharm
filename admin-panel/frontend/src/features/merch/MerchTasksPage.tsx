@@ -6,6 +6,7 @@ import { formatKzt } from '@/mocks/fixtures'
 import MerchTaskDetail from './MerchTaskDetail'
 import { adminTaskApi, adminTaskGateway, type CreateTask, type TaskBranch } from './tasks-api'
 import { usePlacementRead } from './usePlacementRead'
+import ReportDownloadButton from '@/features/reports/ReportDownloadButton'
 
 export default function MerchTasksPage() {
   const access = useAdministrativeCapabilities()
@@ -25,6 +26,7 @@ export default function MerchTasksPage() {
       canCreate={access.canCreateMerchTasks}
       canExecute={access.canExecuteMerchTasks}
       canReview={access.canReviewMerchTasks}
+      canExport={access.canExportMerchTasks}
     />
   )
 }
@@ -32,10 +34,12 @@ function TaskWorkspace({
   canCreate,
   canExecute,
   canReview,
+  canExport,
 }: {
   canCreate: boolean
   canExecute: boolean
   canReview: boolean
+  canExport: boolean
 }) {
   const [offset, setOffset] = useState(0)
   const [selected, setSelected] = useState('')
@@ -50,9 +54,19 @@ function TaskWorkspace({
         title="Задания фармацевтов"
         subtitle="Задания, фотоотчёты и проверка отдельных пунктов в вашей области аптек."
         actions={
-          <Button disabled={!canCreate} onClick={() => setCreating(true)}>
-            Новое задание
-          </Button>
+          <div className="flex gap-2">
+            <ReportDownloadButton
+              allowed={canExport}
+              path="/api/admin/merch/exports/tasks.xlsx"
+              params={{}}
+              filename="merch-tasks.xlsx"
+              label="Excel: задания"
+              note="Вся доступная история заданий; открытая карточка не является фильтром."
+            />
+            <Button disabled={!canCreate} onClick={() => setCreating(true)}>
+              Новое задание
+            </Button>
+          </div>
         }
       />
       {list.pending && <p role="status">Загружаем задания…</p>}

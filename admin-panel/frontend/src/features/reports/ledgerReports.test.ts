@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/lib/api'
+import { AxiosError } from 'axios'
 import { downloadReport, readLedger, type LedgerReport } from './ledgerReports'
 const report: LedgerReport = {
   from: '2026-10-01',
@@ -75,5 +76,23 @@ describe('financial report transport', () => {
         new AbortController().signal,
       ),
     ).rejects.toThrow('не вернул Excel')
+  })
+  it.each([
+    [413, 'Сузьте фильтры'],
+    [429, 'Повторите позже'],
+  ] as const)('does not truncate or retry a rejected export (%s)', async (status, message) => {
+    const get = vi.spyOn(api, 'get').mockRejectedValue(
+      new AxiosError('Synthetic rejection', undefined, undefined, undefined, {
+        status,
+        data: {},
+        config: {} as never,
+        headers: {},
+        statusText: '',
+      }),
+    )
+    await expect(
+      downloadReport('/api/admin/merch/exports/tasks.xlsx', {}, new AbortController().signal),
+    ).rejects.toThrow(message)
+    expect(get).toHaveBeenCalledOnce()
   })
 })

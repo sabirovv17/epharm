@@ -39,5 +39,11 @@ export function useAdministrativeCapabilities() {
     canExportPayouts: fresh && query.data?.canExportPayouts === true,
     canExportPharmacists: fresh && query.data?.canExportPharmacists === true,
     canExportCampaignReports: fresh && query.data?.canExportCampaignReports === true,
+    canExportMerchInventory: fresh && query.data?.canExportMerchInventory === true,
+    canExportMerchPlacements: fresh && query.data?.canExportMerchPlacements === true,
+    canExportMerchTasks: fresh && query.data?.canExportMerchTasks === true,
+    canExportTrainingCourses: fresh && query.data?.canExportTrainingCourses === true,
+    canExportTrainingPrograms: fresh && query.data?.canExportTrainingPrograms === true,
+    canBindMerchProducer: fresh && query.data?.canBindMerchProducer === true,
   }
 }

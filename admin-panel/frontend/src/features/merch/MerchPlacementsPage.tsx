@@ -3,6 +3,8 @@ import { useAdministrativeCapabilities } from '@/app/useAdministrativeCapabiliti
 import { Button } from '@/ui'
 import PlacementWorkspace from './PlacementWorkspace'
 import { placementGateway } from './placements-api'
+import ReportDownloadButton from '@/features/reports/ReportDownloadButton'
+import PlacementProducerBinding from './PlacementProducerBinding'
 
 const gateway = placementGateway('admin', async <T,>(path: string, init: RequestInit = {}) => {
   const response = await api.request<T>({
@@ -31,5 +33,28 @@ export default function MerchPlacementsPage() {
         )}
       </div>
     )
-  return <PlacementWorkspace gateway={gateway} />
+  return (
+    <PlacementWorkspace
+      gateway={gateway}
+      renderExport={(filter) => (
+        <ReportDownloadButton
+          allowed={access.canExportMerchPlacements}
+          path="/api/admin/merch/exports/placements.xlsx"
+          params={filter}
+          filename="merch-placements.xlsx"
+          label="Excel: медиапланы"
+          note="Все страницы по выбранному производителю и статусу; без скрытого периода."
+        />
+      )}
+      renderBinding={(placement, producers, onChanged) =>
+        access.canBindMerchProducer && placement.canBindProducer === true ? (
+          <PlacementProducerBinding
+            placement={placement}
+            producers={producers}
+            onChanged={onChanged}
+          />
+        ) : null
+      }
+    />
+  )
 }

@@ -47,6 +47,17 @@ selection gives no access. Per-action delegation limits, role ceilings, CAS vers
 password confirmation are retained. Capabilities and inventory projections are not persisted in
 the offline query cache.
 
+The separate **Личности и перенос** tab keeps identity migration out of the default grant editor.
+HQ explicitly records a verified person with an internal reference and current-password proof;
+then it may bind a source CRM account to an existing managed account of that exact person, or
+provision a new managed account with empty grants. No FIO/email match creates a binding. Source
+inactive status and password compatibility are validated by the server; hashes never reach the
+UI. Advertisers continue in their producer SMS realm. A narrow paginated
+`/api/admin/access/pharmacist-options` picker supports pharmacist/person links without reading
+phone, IIN, bank or balance fields. An existing link is not reassigned. Passwords/references are
+not persisted; cancelling or completing the form clears password state. Source identity actions
+do not authenticate pharmacists on POSM or activate RPS.
+
 ### Manufacturer plans and separate producer portal (local candidate)
 
 The internal workspace lists authorized plans, opens fresh details and preserves cancelled item
@@ -57,6 +68,10 @@ administrative assignment require explicit confirmation, the fetched revision an
 `can*` flags. Reject/cancel require a reason. Conflicts are never retried or rebased automatically.
 Server quotes are authoritative, withheld amounts render `—`, and unresolved historical producer
 links remain read-only. The saved plan and each item retain their status and origin.
+For an unresolved plan with no owner, only the separate global and object-level server binding
+capabilities reveal HQ's explicit producer-binding form. It requires a complete active company,
+current revision, private audit reason, acknowledgement and current password. The reason is not
+sent to public notes or the producer profile. There is no reassignment or automatic name match.
 
 `/producer/login` and `/producer` are a separate public producer realm, outside the admin shell and
 `/learn`. SMS request/verification and rotating refresh tokens use `/api/producer/**` exclusively.
@@ -132,6 +147,15 @@ have separate server export capabilities; the payout period means batch creation
 approved batch is not proof of a bank transfer. Registry search/training filters not supported
 by its export API are explicitly excluded. XLSX MIME is checked so an error page is not saved
 as a spreadsheet. These local flows do not constitute a production deployment.
+
+Separate native merchandising XLSX buttons export inventory for the displayed branch/calendar,
+placements for the applied producer/status, and the task queue's authorized history. Opening a
+detail does not filter the queue export; no hidden period is added. Courses and programs have
+separate XLSX buttons covering their authorized registries, without answer keys; table text
+search is not silently treated as an export filter. Every button requires its own fresh server
+export capability. A 413 asks to narrow filters and 429 asks to retry later; no truncated file or
+HTML error is accepted as Excel. These buttons do not alter lesson content, test scoring or the
+separate learner session.
 
 Public:
 
