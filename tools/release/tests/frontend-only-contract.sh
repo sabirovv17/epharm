@@ -9,7 +9,8 @@ trap 'rm -rf -- "$test_root"' EXIT
 backup_root="$test_root/epharm-backend-only-backups"
 backup_dir="$backup_root/pre-backend-only-20261022T112243Z-ABCDEFGH"
 mkdir -p "$test_root/tools/release" "$test_root/tools/ops" "$test_root/bin" "$backup_dir"
-export TEST_REAL_MKTEMP="$(command -v mktemp)"
+TEST_REAL_MKTEMP="$(command -v mktemp)"
+export TEST_REAL_MKTEMP
 cp "$source_root/tools/release/"{deploy-frontend-only.sh,lib.sh} "$test_root/tools/release/"
 cp "$source_root/tools/ops/lib.sh" "$test_root/tools/ops/"
 cp "$source_root/tools/release/tests/fixtures/fake-financial-transition.py" "$test_root/tools/release/verify-financial-transition.py"
