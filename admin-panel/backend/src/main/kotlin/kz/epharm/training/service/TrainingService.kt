@@ -28,6 +28,7 @@ import kz.epharm.training.domain.TrainingStageType
 import kz.epharm.training.dto.ChangeTrainingPreferenceRequest
 import kz.epharm.training.dto.ChangeAssignmentFormatRequest
 import kz.epharm.training.dto.CertificateVerificationDto
+import kz.epharm.training.dto.CityTrainingRankingDto
 import kz.epharm.training.dto.CreateOfflineEventRequest
 import kz.epharm.training.dto.CreateTrainingAssignmentsRequest
 import kz.epharm.training.dto.CreateTrainingProgramRequest
@@ -1023,7 +1024,7 @@ class TrainingService(
 
     @Transactional(readOnly = true)
     fun mobileOverview(pharmacistId: String): MobileTrainingOverviewDto {
-        loadPharmacist(pharmacistId)
+        val pharmacist = loadPharmacist(pharmacistId)
         val assignments = assignmentRepository.findAllByPharmacistIdOrderByCreatedAtDesc(pharmacistId)
         val dtos = mapAssignments(assignments)
         val certificates = certificateRepository.findAllByPharmacistIdOrderByIssuedAtDesc(pharmacistId)
@@ -1048,6 +1049,43 @@ class TrainingService(
                 )
                 .map(::notificationDto),
             defaultFormat = preferenceRepository.findByPharmacistIdAndValidToIsNull(pharmacistId)?.defaultFormat,
+            cityRanking = cityTrainingRanking(pharmacist),
+        )
+    }
+
+    private fun cityTrainingRanking(pharmacist: PharmacistEntity): CityTrainingRankingDto {
+        val cityPharmacists = pharmacistRepository
+            .findAllByCityIgnoreCaseAndStatusRawOrderByNameAsc(pharmacist.city, PharmacistStatus.active.name)
+            .toMutableList()
+            .also { cohort ->
+                if (cohort.none { it.id == pharmacist.id }) cohort += pharmacist
+            }
+        val pharmacistIds = cityPharmacists.map { it.id }
+        val assignmentsByPharmacist = assignmentRepository
+            .findAllByPharmacistIdInOrderByCreatedAtDesc(pharmacistIds)
+            .asSequence()
+            .filter { it.status != TrainingAssignmentStatus.cancelled }
+            .groupBy { it.pharmacistId }
+        val scores = cityPharmacists.associate { member ->
+            val assignments = assignmentsByPharmacist[member.id].orEmpty()
+            val score = assignments
+                .takeIf { it.isNotEmpty() }
+                ?.map { it.score ?: it.progressPct }
+                ?.average()
+                ?.roundToInt()
+                ?: 0
+            member.id to score.coerceIn(0, 100)
+        }
+        val ordered = cityPharmacists.sortedWith(
+            compareByDescending<PharmacistEntity> { scores[it.id] ?: 0 }
+                .thenBy(String.CASE_INSENSITIVE_ORDER) { it.name }
+                .thenBy { it.id },
+        )
+        return CityTrainingRankingDto(
+            city = pharmacist.city,
+            position = ordered.indexOfFirst { it.id == pharmacist.id }.coerceAtLeast(0) + 1,
+            total = ordered.size,
+            score = scores[pharmacist.id] ?: 0,
         )
     }
 
