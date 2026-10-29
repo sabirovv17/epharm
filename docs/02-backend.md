@@ -444,3 +444,9 @@ financial changes require separate configure-bonus permission. V067 retains pend
 JSON separately from published tables and keeps an immutable publication history.
 Conflicting revisions/source conditions return409 without partial publication.
 These endpoints do not change POSM authentication, paths or response shapes.
+
+The disposable dev reset explicitly truncates pending/publication history together
+with its existing fixture-only FK set before reseeding campaigns. It uses no CASCADE
+and does not weaken append-only triggers. Both destructive utilities are excluded
+when `prod` is active, including a combined `prod+dev` profile. It must not be run
+against restored business data; migration rehearsals use plain Flyway without it.

@@ -3,6 +3,13 @@ package kz.epharm.auth
 import java.util.UUID
 import kz.epharm.finance.service.PharmacistWalletService
 import kz.epharm.finance.service.WalletCreditSource
+import kz.epharm.catalog.entity.ProductEntity
+import kz.epharm.catalog.repository.ProductRepository
+import kz.epharm.promo.dto.PromoRuleProductRefDto
+import kz.epharm.promo.dto.SavePromoChangesRequest
+import kz.epharm.promo.entity.PromoEntity
+import kz.epharm.promo.repository.PromoRepository
+import kz.epharm.promo.service.PromoPublicationService
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
@@ -42,6 +49,9 @@ class DevWalletResetIntegrationTest {
     @Autowired private lateinit var mvc: MockMvc
     @Autowired private lateinit var jdbc: JdbcTemplate
     @Autowired private lateinit var wallet: PharmacistWalletService
+    @Autowired private lateinit var products: ProductRepository
+    @Autowired private lateinit var promos: PromoRepository
+    @Autowired private lateinit var publication: PromoPublicationService
 
     @Test fun `dev reset clears financial fixtures and reseeds without weakening append-only protection`() {
         val person = jdbc.queryForObject("SELECT id FROM pharmacists ORDER BY id LIMIT 1", String::class.java)!!
@@ -58,6 +68,47 @@ class DevWalletResetIntegrationTest {
             assertThat(jdbc.queryForObject("SELECT count(*) FROM pharmacists", Long::class.java)).isEqualTo(people)
             assertThat(jdbc.queryForList("SELECT id FROM admin_users ORDER BY id")).isEqualTo(admins)
             assertThat(jdbc.queryForObject("SELECT count(*) FROM receipts", Long::class.java)).isGreaterThan(0)
+        }
+    }
+
+    @Test fun `dev reset clears applied publication history and pending draft before reseeding campaigns`() {
+        mvc.perform(post("/api/admin/dev/reset")).andExpect(status().isOk)
+        val originalPromos = jdbc.queryForList("SELECT id FROM promos ORDER BY id")
+        val originalProducts = products.count()
+        val originalRules = jdbc.queryForObject("SELECT count(*) FROM rules", Long::class.java)
+        val originalAdmins = jdbc.queryForList("SELECT id FROM admin_users ORDER BY id")
+        repeat(2) {
+            products.saveAllAndFlush(listOf(
+                ProductEntity(id = "reset-trigger", name = "Synthetic reset trigger", price = 1000),
+                ProductEntity(id = "reset-offer", name = "Synthetic reset offer", price = 2000),
+            ))
+            promos.saveAndFlush(PromoEntity(id = "pr-reset-fixture", title = "Synthetic reset campaign",
+                medusaProductId = "reset-offer", productName = "Synthetic reset offer"))
+            val initial = publication.view("pr-reset-fixture")
+            val bundle = initial.bundle.copy(
+                campaign = initial.bundle.campaign.copy(pharmacistBonus = 100),
+                rules = initial.bundle.rules.copy(replacements = listOf(PromoRuleProductRefDto(
+                    medusaProductId = "reset-trigger", name = "Synthetic reset trigger", price = 1000))),
+            )
+            val saved = publication.save("pr-reset-fixture", SavePromoChangesRequest(initial.revision, bundle), "dev-reset-test")
+            val applied = publication.apply("pr-reset-fixture", saved.revision, "dev-reset-test")
+            val pending = publication.save("pr-reset-fixture", SavePromoChangesRequest(applied.revision,
+                applied.bundle.copy(campaign = applied.bundle.campaign.copy(title = "Unapplied changes"))), "dev-reset-test")
+            assertThat(pending.hasPendingChanges).isTrue()
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM promo_publication_history", Long::class.java)).isEqualTo(1)
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM promo_publication_changes WHERE bundle_json IS NOT NULL", Long::class.java)).isEqualTo(1)
+            assertThatThrownBy { jdbc.update("DELETE FROM promo_publication_history") }
+                .isInstanceOf(DataIntegrityViolationException::class.java)
+            assertThatThrownBy { jdbc.update("UPDATE promo_publication_history SET applied_by='forbidden'") }
+                .isInstanceOf(DataIntegrityViolationException::class.java)
+
+            mvc.perform(post("/api/admin/dev/reset")).andExpect(status().isOk)
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM promo_publication_changes", Long::class.java)).isZero()
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM promo_publication_history", Long::class.java)).isZero()
+            assertThat(jdbc.queryForList("SELECT id FROM promos ORDER BY id")).isEqualTo(originalPromos)
+            assertThat(products.count()).isEqualTo(originalProducts)
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM rules", Long::class.java)).isEqualTo(originalRules)
+            assertThat(jdbc.queryForList("SELECT id FROM admin_users ORDER BY id")).isEqualTo(originalAdmins)
         }
     }
 }

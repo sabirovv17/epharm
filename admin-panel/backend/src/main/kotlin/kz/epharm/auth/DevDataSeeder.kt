@@ -149,12 +149,13 @@ class DevDataSeeder(private val jdbc: JdbcTemplate) {
         receiptRepository: ReceiptRepository,
         bannerRepository: BannerRepository,
     ) {
-        // Disposable dev fixtures only. DELETE is intentionally forbidden by the monetary
+        // Disposable dev fixtures only. DELETE is intentionally forbidden by the monetary/publication
         // append-only triggers; truncate the complete, explicit FK set in this transaction.
         // Never weaken the production ledger or use CASCADE to erase unrelated domains.
         jdbc.execute("""TRUNCATE TABLE merch_reward_events, merch_executor_grants,
             merch_executor_bindings, merch_executor_otp_challenges,
-            pharmacist_wallet_entries, pharmacist_wallet_checkpoints""")
+            pharmacist_wallet_entries, pharmacist_wallet_checkpoints,
+            promo_publication_changes, promo_publication_history""")
         // 1. Очистка в FK-безопасном порядке (зависимые сначала).
         receiptRepository.deleteAll() // FK → pending_bonuses
         pendingBonusRepository.deleteAll()

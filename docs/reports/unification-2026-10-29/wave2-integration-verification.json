@@ -19,7 +19,21 @@
     "jarContracts": [
       "merchandising artifact",
       "financial transition schema-protected (offline only)"
-    ]
+    ],
+    "fullSuiteBeforeDevFixtureFollowUp": true,
+    "devFixtureFollowUp": {
+      "reproducedStatus": 409,
+      "constraint": "promo_publication_changes_promo_id_fkey",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "scenario": "Two real Save -> Apply -> pending -> HTTP reset cycles; seed/admin IDs preserved; append-only update/delete rejected; prod+dev excludes reset utilities",
+      "change": "Two tables added to existing explicit dev-only TRUNCATE; no CASCADE or migration change",
+      "bootJarAndOfflineArtifactContractsPassed": true,
+      "finalJarSha256": "68e2eb509e20d2514107b7eed17d553ea504cb495d5d4cd657752949d77f332a",
+      "restoredCandidateAndProductionNotReset": true
+    }
   },
   "frontend": {
     "unitComponentTests": 714,
@@ -103,6 +117,8 @@
     "admin-panel/frontend/src/app/queryClient.ts": "b046a92afd4055f4d28571fb6d584c1bec94c489267f69ad2eeae5cbb51adf50",
     "admin-panel/frontend/src/app/queryPersist.ts": "9b54b9bf03e99e4fd54d0d9bf89fe474f1170a1788654564b5a565af6ff936b4",
     "admin-panel/frontend/src/lib/api.ts": "2bd4eed5f83207d56a0be4ff2cda4623a5ace9718f635e5214d334dbb9518616",
-    "App.Tests/LegacyPosmCompatibilityTests.cs": "74ba0baedb491dfaa3163d579dc0101a2aff13862c5526c5b3c5437226b94ac3"
+    "App.Tests/LegacyPosmCompatibilityTests.cs": "74ba0baedb491dfaa3163d579dc0101a2aff13862c5526c5b3c5437226b94ac3",
+    "admin-panel/backend/src/main/kotlin/kz/epharm/auth/DevDataSeeder.kt": "d20bed18e388ad265eef575357336a8af2599b0d09d224e6cb3f02e40c13b70a",
+    "admin-panel/backend/src/test/kotlin/kz/epharm/auth/DevWalletResetIntegrationTest.kt": "e38428101a4e0390b621f032d00c11f74e760fefb5d59e69fd0957a9977a1301"
   }
 }

@@ -2346,6 +2346,13 @@ retirement, sale-first и оба порядка ACK не создают втор
 границы проверок — [wave2-integration-verification.json](docs/reports/unification-2026-10-29/wave2-integration-verification.json).
 Код сохранён отдельными checkpoints в `codex/unified-admin-development`; review
 ведётся в [draft PR130](https://github.com/sabirovv17/epharm/pull/130), без merge/deploy.
+Дополнительный dev/E2E blocker воспроизведён и закрыт: после настоящей публикации
+следующий dev-reset возвращал409 из-за FK новых таблиц. В dev-only explicit TRUNCATE
+добавлены только pending/history, без CASCADE и ослабления append-only trigger.
+3 focused проверки проходят: два цикла Save→Apply→pending→reset сохраняют seed/ID
+админов; `prod+dev` не создаёт destructive utilities. Пересобраны bootJar и offline
+artifact contracts. Полный936 выше — до этой узкой правки dev fixtures; новый head
+проходит отдельный CI. Исходный восстановленный кандидат и production не сбрасывались.
 
 **Порядок далее сохраняется:** U1/U2 human/account bindings и
 MERCH_BRANCH scope, функциональный порт M0→M2/M3, U5/U6 и отдельные XLSX/V1.
