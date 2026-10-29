@@ -85,7 +85,20 @@
       "notInferredFromLocalChecks": true
     },
     "requiredDecoderAndStandardNDriverPackaged": true,
-    "localBootJarSha256": "32dd434e8fe2c6bbc2da7665c8f5f52e7309104917456dbeb13910486b561cc8"
+    "localBootJarSha256": "32dd434e8fe2c6bbc2da7665c8f5f52e7309104917456dbeb13910486b561cc8",
+    "opsDependencyAudit": {
+      "package": "ops/merch-portal-patches",
+      "dependency": "vite",
+      "before": "6.4.4",
+      "after": "6.4.5",
+      "advisory": "https://github.com/advisories/GHSA-8g5g-mxqh-grgj",
+      "beforeModerate": 1,
+      "afterVulnerabilities": 0,
+      "installIgnoreScripts": "PASS",
+      "sidecarTests": 3,
+      "ciThresholdChanged": false,
+      "legacyPatchBuild": "NOT_RUN_PRECONDITION_REFUSED: saved CRM source differs from legacy patch contexts; no forced apply"
+    }
   },
   "preservedCandidate": {
     "flywayVersion": "086",
