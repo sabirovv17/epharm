@@ -1,0 +1,108 @@
+{
+  "date": "2026-10-29",
+  "scope": "local unification development; no production rollout or main merge",
+  "sourceMain": "b946592549db9eab8d108c6c5bdbd7022915a655",
+  "codeCommit": "edecf0c2c35745d93c6a33ccc234d1bc641aa1a5",
+  "branch": "codex/unified-admin-development",
+  "backend": {
+    "command": "./gradlew build",
+    "classes": 109,
+    "tests": 936,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1,
+    "jarSha256": "3442f7718ae8827c0fb89909f280879687e129946dbe96da48c4d1e64ef7655f",
+    "skipReason": "One opt-in legacy wallet rollback test requires WALLET_ROLLBACK_JAR; no legacy-image runtime rollback claimed",
+    "focusedTests": 159,
+    "focusedClasses": 7,
+    "publicationTests": 28,
+    "jarContracts": [
+      "merchandising artifact",
+      "financial transition schema-protected (offline only)"
+    ]
+  },
+  "frontend": {
+    "unitComponentTests": 714,
+    "testFiles": 60,
+    "failures": 0,
+    "builtChromiumTests": 22,
+    "builtBrowserFailures": 0,
+    "typecheckBuildLint": "passed",
+    "browserBoundary": "built assets with mocked synthetic API, not Windows/POSM acceptance",
+    "localNode": "26.0.0 with --no-experimental-webstorage; CI Node version unchanged"
+  },
+  "posm": {
+    "coreTests": 300,
+    "failures": 0,
+    "skipped": 0,
+    "historicalClients": ["1.0.57", "1.0.66"],
+    "fullOpaqueIdShownOutcome": "passed over actual loopback HTTP",
+    "realWindowsAcceptance": false
+  },
+  "python": {
+    "defaultTests": 86,
+    "defaultSkipped": 1,
+    "failures": 0,
+    "optInPg18To16IntegrationSeparatelyPassed": true
+  },
+  "inventory": {
+    "actions": 396,
+    "groups": 57,
+    "backendEndpoints": 239,
+    "posmContracts": 47,
+    "sourceCoveragePassed": true,
+    "notRuntimeAcceptance": true
+  },
+  "preservation": {
+    "sourceTables": 130,
+    "sourceRows": 1948185,
+    "allSourceBusinessRowsAndPrimaryKeysMatch": true,
+    "crmRows": 42410,
+    "candidateFlywayUpgrade": "65 to67, two migrations, original business-column/PK/count hashes unchanged",
+    "functionalMerchMergeAccepted": false,
+    "sourceDatabasesAndPrivateBackupsRetained": true
+  },
+  "verifiedScenarios": [
+    "managed direct-content bypass rejected; explicit saved revision Apply only",
+    "stable rule IDs and retirement preserve report membership and events",
+    "same receipt frozen price/bonus; new receipt updated published terms",
+    "retired recommendation delayed shown/outcome and repeated sale without duplicate reservation",
+    "same-SKU equivalent reservations do not require matching rule ID; monetary mismatch conflicts without mutation",
+    "historical money overflow rejected without clamping",
+    "new full UUID identifiers with legacy IDs retained",
+    "account/role isolated query cache; pending/access not persisted",
+    "late old login/logout/request/refresh does not modify next session; refreshed token survives reload",
+    "separate learner session/progress is not cleared",
+    "delegate role ceiling and ALL_ONLY restrictions enforced by server"
+  ],
+  "independentReview": {
+    "remainingActionableP1P2": 0,
+    "boundary": "source review and tests; no live Windows/outbox or production acceptance"
+  },
+  "untouchedContracts": [
+    "https://epharm.inkar.kz",
+    "separate /learn",
+    "POSM device authentication, HMAC and update channel",
+    "RPS production flag",
+    "aptekasosklada.kz authoritative catalog"
+  ],
+  "remainingGates": [
+    "verified human/account bindings and controlled legacy conversion",
+    "MERCH_BRANCH scoped runtime domain and M0/M2/M3 business port",
+    "all remaining SQL/field/export/bulk policy surfaces",
+    "unified financial histories and XLSX/D9",
+    "Windows/Standard-N overlay, QR, customer screen and offline outbox acceptance",
+    "capacity, rollback and final U8 approval before future rollout"
+  ],
+  "sourceFileSha256": {
+    "admin-panel/backend/src/main/kotlin/kz/epharm/promo/service/PromoPublicationService.kt": "d61b7a34ae70f75b65a438d197c0952feec335fb9acd0a0da96c84f9d295c84b",
+    "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/RecommendationService.kt": "6d03b230506f67aeb193c7b728c426df288c198d5e3ad22a2b5c0274fb0c8f5f",
+    "admin-panel/backend/src/main/kotlin/kz/epharm/receipts/service/PendingBonusService.kt": "cd4d7af7562b1dbe1939ab5b554585f4d92fc416a84bca437116535694910cc7",
+    "admin-panel/backend/src/main/resources/db/migration/V066__unified_admin_access.sql": "353a8485728b2990370f61742bf3da7ffe4e37687b77843a01edc8c0b029db6e",
+    "admin-panel/backend/src/main/resources/db/migration/V067__campaign_publication_changes.sql": "18d2791677234ab32b11ec1014e5a7cbd8e494c21daed2525f5cef0d2770d66b",
+    "admin-panel/frontend/src/app/queryClient.ts": "b046a92afd4055f4d28571fb6d584c1bec94c489267f69ad2eeae5cbb51adf50",
+    "admin-panel/frontend/src/app/queryPersist.ts": "9b54b9bf03e99e4fd54d0d9bf89fe474f1170a1788654564b5a565af6ff936b4",
+    "admin-panel/frontend/src/lib/api.ts": "2bd4eed5f83207d56a0be4ff2cda4623a5ace9718f635e5214d334dbb9518616",
+    "App.Tests/LegacyPosmCompatibilityTests.cs": "74ba0baedb491dfaa3163d579dc0101a2aff13862c5526c5b3c5437226b94ac3"
+  }
+}

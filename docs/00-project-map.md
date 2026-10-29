@@ -40,7 +40,7 @@ PharmaPayV2/
 │
 ├── builds/                  ← архив собранных релизов (APK/zip) + build_all.sh
 ├── tools/                   ← серверные утилиты (pg-backup.sh)
-│   └── unification/         ← локальный/CI guard карты функций и Spring API; без доступа к production
+│   └── unification/         ← guard функций/API и изолированная репетиция переноса; без доступа к production
 ├── _reference/              ← дизайн-токены и handoff (исторический контекст)
 └── dist/, build*/           ← артефакты сборок (gitignored, можно сносить)
 ```

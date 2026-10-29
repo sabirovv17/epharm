@@ -90,6 +90,10 @@ does not change the published offer. Explicitly inherited rewards follow the cam
 when that saved bundle is applied; explicit per-offer rewards stay independent. Historical
 unknown inheritance is preserved rather than guessed.
 
+An already issued recommendation in an open receipt keeps its event's quoted price and reward,
+including after publication changes. A new receipt uses current published terms. Delayed shown/
+outcome requests keep their original event identity even after the rule is retired.
+
 The trigger of a pair can remain a specific Medusa product or be selected from an imported ACC
 group, subgroup (shown together with its parent group), or INN. The taxonomy selector displays
 the active snapshot and eligible member counts; only scopes with unambiguous barcode members are
