@@ -89,6 +89,28 @@ class UnifiedAdminAccessIntegrationTest {
             .andExpect(jsonPath("$.managed").value(true)).andExpect(jsonPath("$.grants").isEmpty)
     }
 
+    @Test fun `credential export entry requires explicit HQ authority and registry scope even for a legacy profile`() {
+        fun eligible() = mapper.readTree(mvc.perform(get("/api/admin/access/me").header("Authorization", auth()))
+            .andExpect(status().isOk).andReturn().response.contentAsByteArray)["canExportLearnerCredentials"].asBoolean()
+        val view = grant("pharmacists","registry","view")
+        val credentials = grant("pharmacists","registry","export_credentials")
+        grants(view, grant("pharmacists","registry","export"))
+        assertThat(eligible()).isFalse()
+        grants(view, credentials)
+        assertThat(eligible()).isTrue()
+        jdbc.update("UPDATE admin_users SET access_mode='LEGACY' WHERE id=?",admin.id)
+        assertThat(eligible()).isTrue()
+        for(role in listOf("CATEGORY_LEAD","REGIONAL_MANAGER","TRAINING_MANAGER")) {
+            jdbc.update("UPDATE admin_users SET role=? WHERE id=?",role,admin.id)
+            assertThat(eligible()).isFalse()
+        }
+        jdbc.update("UPDATE admin_users SET role='HQ_HEAD',access_mode='MANAGED' WHERE id=?",admin.id)
+        grants(grant("pharmacists","registry","view",setOf("scope-b")), credentials)
+        assertThat(eligible()).isFalse()
+        grants(view, grant("pharmacists","registry","export_credentials", all=true))
+        assertThat(eligible()).isTrue()
+    }
+
     @Test fun `tariff capability matches HQ-only endpoint and requires global branch and producer authority`() {
         fun tariffGrants(allBranches:Boolean=true,allProducers:Boolean=true) = arrayOf("view","financial_data").map {action->
             StoredGrant("merchandising","placements",action,allMerchBranches=allBranches,
@@ -235,7 +257,7 @@ class UnifiedAdminAccessIntegrationTest {
     }
 
     @Test fun `catalog never advertises unmigrated routes as grantable and scope empty is invalid`() {
-        assertThat(catalog.routes).hasSize(256)
+        assertThat(catalog.routes).hasSize(259)
         val reviewedTraining = setOf(
             "GET /api/admin/training/assignments",
             "GET /api/admin/training/assignments/export.csv",
@@ -346,6 +368,9 @@ class UnifiedAdminAccessIntegrationTest {
             "POST /api/admin/merch/tasks/items/{itemId}/reviews",
             "POST /api/admin/merch/tasks/items/{itemId}/source-continuation",
             "GET /api/admin/merch/tasks/evidence/{id}",
+            "POST /api/admin/learner-credentials/exports",
+            "POST /api/admin/learner-credentials/exports/{id}/download",
+            "DELETE /api/admin/learner-credentials/exports/{id}",
         )
         assertThat(catalog.routes.filter { it.mode == ScopeIntegration.SCOPED }.all {
             it.api.contains(" /api/admin/pharmacists") || it.api.contains(" /api/admin/pharmacies") ||

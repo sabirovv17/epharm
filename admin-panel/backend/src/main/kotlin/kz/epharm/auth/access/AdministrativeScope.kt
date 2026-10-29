@@ -1,6 +1,8 @@
 package kz.epharm.auth.access
 
 import kz.epharm.auth.policy.*
+import kz.epharm.auth.domain.AdminRole
+import kz.epharm.learnercredentials.CredentialExportAuthority
 import kz.epharm.pharmacists.dto.PharmacistDto
 import kz.epharm.pharmacists.dto.UpdatePharmacistRequest
 import kz.epharm.pharmacies.dto.UpdatePharmacyRequest
@@ -10,17 +12,21 @@ import kz.epharm.shared.error.ErrorCode
 import kz.epharm.shared.identity.*
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
+import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.context.request.RequestContextHolder
 import org.springframework.web.context.request.ServletRequestAttributes
 import java.time.Instant
 import java.util.UUID
+import java.security.MessageDigest
 
 data class AuthorizedAdminRequest(val access: LoadedAccess, val permission: PermissionKey, val scope: DataScope)
 
 /** Request-bound context, never a client filter or a scope supplied in JSON/query parameters. */
 @Component
-class AdministrativeScope(private val catalog: UnifiedAdminCatalog, private val store: UnifiedAccessStore) {
+class AdministrativeScope(private val catalog: UnifiedAdminCatalog, private val store: UnifiedAccessStore,
+    private val jdbc: JdbcTemplate, private val encoder: PasswordEncoder) {
     private fun current(): AuthorizedAdminRequest? =
         (RequestContextHolder.getRequestAttributes() as? ServletRequestAttributes)?.request
             ?.getAttribute(ATTRIBUTE) as? AuthorizedAdminRequest
@@ -34,6 +40,37 @@ class AdministrativeScope(private val catalog: UnifiedAdminCatalog, private val 
     fun requireExplicitPermission(permission: PermissionKey) {
         val context = current() ?: deny()
         if (!catalog.policy.decide(context.access.actor, AccessRequest(permission, context.scope), Instant.now()).allowed) deny()
+    }
+
+    /** D9 is separate from ordinary registry exports and always verifies the acting HQ password. */
+    fun requireLearnerCredentialExport(currentPassword: String, pharmacyIds: Set<String>,
+        includesUnassigned: Boolean): CredentialExportAuthority {
+        check(TransactionSynchronizationManager.isActualTransactionActive())
+        check(!TransactionSynchronizationManager.isCurrentTransactionReadOnly())
+        val previous = current() ?: deny()
+        val accountId = UUID.fromString(previous.access.actor.account.id)
+        store.lockAccounts(setOf(accountId))
+        val fresh = store.loadAccount(accountId) ?: deny()
+        val profile = fresh.profile ?: deny()
+        if (fresh.role !in setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD) ||
+            currentPassword.isEmpty() || currentPassword.length > 1024 ||
+            pharmacyIds.any { it.isBlank() || it.length > 64 } ||
+            pharmacyIds.isEmpty() && !includesUnassigned) deny()
+        val hash = jdbc.queryForObject("SELECT password_hash FROM admin_users WHERE id=?", String::class.java, accountId) ?: deny()
+        if (!runCatching { encoder.matches(currentPassword, hash) }.getOrDefault(false)) deny()
+        val scope = if (includesUnassigned) DataScope(PharmacyScope.All) else DataScope(PharmacyScope.Assigned(
+            pharmacyIds.map { CanonicalIdentity(CanonicalEntityType.PHARMACY, it) }))
+        val now = Instant.now()
+        val proof = ReauthenticationEvidence(fresh.actor.account, ReauthenticationMethod.PASSWORD, now)
+        if (!catalog.policy.decide(fresh.actor, AccessRequest(catalog.credentialExport, scope), now, proof).allowed) deny()
+        (RequestContextHolder.getRequestAttributes() as? ServletRequestAttributes)?.request
+            ?.setAttribute(ATTRIBUTE, previous.copy(access = fresh)) ?: deny()
+        val digest = MessageDigest.getInstance("SHA-256")
+        listOf(accountId.toString(), hash, profile.version.toString(), profile.personId.toString(), fresh.role.name,
+            includesUnassigned.toString(), pharmacyIds.sorted().joinToString("\u0000")).forEach {
+            digest.update(it.toByteArray(Charsets.UTF_8)); digest.update(0.toByte())
+        }
+        return CredentialExportAuthority(accountId, digest.digest().joinToString("") { "%02x".format(it) })
     }
 
     /** Lock the current authority before domain locks; revocation and money writes serialize. */

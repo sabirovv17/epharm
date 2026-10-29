@@ -29,6 +29,7 @@ class PharmacistService(
     private val passwordEncoder: PasswordEncoder,
     private val wallet: PharmacistWalletService,
     private val administrativeScope: AdministrativeScope,
+    private val credentialVault: kz.epharm.learnercredentials.LearnerPasswordVault,
 ) {
 
     @Transactional(readOnly = true)
@@ -76,7 +77,9 @@ class PharmacistService(
             it.tier = req.tier
             it.status = req.status
         }
-        return projected(pharmacistRepository.save(entity))
+        val saved=pharmacistRepository.saveAndFlush(entity)
+        credentialVault.capture(saved.id,saved.passwordHash!!,req.password)
+        return projected(saved)
     }
 
     @Transactional
@@ -118,7 +121,9 @@ class PharmacistService(
         req.balance?.let { wallet.adjustTo(entity.id, it) }
         req.coursesDone?.let { entity.coursesDone = it }
         req.coursesTotal?.let { entity.coursesTotal = it }
-        return projected(pharmacistRepository.save(entity))
+        val saved=if(req.password!=null) pharmacistRepository.saveAndFlush(entity) else pharmacistRepository.save(entity)
+        req.password?.let {credentialVault.capture(saved.id,saved.passwordHash!!,it)}
+        return projected(saved)
     }
 
     @Transactional

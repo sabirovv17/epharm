@@ -182,3 +182,9 @@ V085/V086 extend only the placement-reference and inventory-media MIME checks to
 WebP. They do not rewrite files or source rows. Original reference, inventory and
 task evidence bytes and hashes remain authoritative; a generated XLSX thumbnail
 may be JPEG so spreadsheet clients do not need native WebP support.
+
+V087 adds the D9 password vault, encrypted short-lived export payloads, bounded attempt
+accounting and append-only metadata audit. It neither reconstructs old hashes nor resets
+accounts, starts workers or replays bonuses. Password/hash version mismatch makes the
+copy unavailable; the encryption key ring is external to DB backups. A recovery drill
+must restore the matching DB and independent key artifact before decryption is accepted.

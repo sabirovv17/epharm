@@ -42,6 +42,8 @@ const lmsHooks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/queries/lms', () => lmsHooks)
+const accessHooks = vi.hoisted(() => ({ useAdministrativeCapabilities: vi.fn() }))
+vi.mock('@/app/useAdministrativeCapabilities', () => accessHooks)
 const originalUser = useUiStore.getState().authedUser
 afterEach(() => {
   act(() => useUiStore.setState({ authedUser: originalUser }))
@@ -83,6 +85,11 @@ function setPharmacists(list: PharmacistDto[] = []) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  accessHooks.useAdministrativeCapabilities.mockReturnValue({
+    canExportLearnerCredentials: false,
+    canExportPharmacists: false,
+    data: { version: 1 },
+  })
   useUiStore.setState({
     authedUser: {
       id: 'hq-test',
@@ -403,6 +410,29 @@ describe('PharmacistsPage — список и actions', () => {
     expect(within(row).getAllByRole('cell')).toHaveLength(9)
     expect(within(table).getAllByRole('columnheader')).toHaveLength(9)
     expect(within(table).queryByRole('checkbox')).not.toBeInTheDocument()
+  })
+
+  it('позволяет выбрать сотрудников для D9 без прав на изменение обучения', async () => {
+    const user = userEvent.setup()
+    accessHooks.useAdministrativeCapabilities.mockReturnValue({
+      canExportLearnerCredentials: true,
+      canExportPharmacists: false,
+      data: { version: 1 },
+    })
+    lmsHooks.useTrainingDashboard.mockReturnValue({
+      data: { capabilities: { canManagePreferences: false, canManageAssignments: false } },
+    })
+    setPharmacists([mkPharmacist()])
+    renderPage()
+    const download = screen.getByRole('button', { name: 'Учётные данные ЛК' })
+    expect(download).toBeDisabled()
+    await user.click(screen.getByRole('checkbox', { name: 'Выбрать Айгерим Касенова' }))
+    expect(download).toBeEnabled()
+    expect(
+      screen.queryByRole('button', { name: /Изменить формат|Назначить обучение/ }),
+    ).not.toBeInTheDocument()
+    await user.click(download)
+    expect(screen.getByRole('dialog')).toHaveTextContent('Айгерим Касенова')
   })
 
   it('показывает скрытые поля прочерком и не выдаёт частичную сумму за общий баланс', () => {

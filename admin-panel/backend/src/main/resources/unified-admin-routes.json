@@ -2659,5 +2659,38 @@
       "kind": "ORDINARY"
     },
     "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/learner-credentials/exports",
+    "permission": {
+      "module": "pharmacists",
+      "subsection": "registry",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/learner-credentials/exports/{id}/download",
+    "permission": {
+      "module": "pharmacists",
+      "subsection": "registry",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "DELETE /api/admin/learner-credentials/exports/{id}",
+    "permission": {
+      "module": "pharmacists",
+      "subsection": "registry",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
   }
 ]

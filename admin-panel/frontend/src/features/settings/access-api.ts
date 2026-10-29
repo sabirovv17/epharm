@@ -34,6 +34,7 @@ export interface AccessCapabilities {
   canExportLedger?: boolean
   canExportPayouts?: boolean
   canExportPharmacists?: boolean
+  canExportLearnerCredentials?: boolean
   canExportCampaignReports?: boolean
   canExportMerchInventory?: boolean
   canExportMerchPlacements?: boolean

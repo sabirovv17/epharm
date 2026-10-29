@@ -76,6 +76,7 @@ opt-in серверный адаптер — `auth/access/` (права, кат�
 | `posm`                                            | recommend/sales/heartbeat/плейлисты касс + атрибуция показ→продажа (V032)                                                 |
 | `posm.staff`                                      | Независимые от device key вход РПС, SMS challenge и отзыв персональных сессий                                             |
 | `finance.service` / `finance.merch`               | Единый денежный журнал, атомарные начисления/резервы и проверенный исполнитель QR; `docs/22-unified-pharmacist-wallet.md` |
+| `learnercredentials`                              | D9: отдельный vault и ограниченная выдача текущих учётных данных; `docs/23-unified-admin-data-and-access.md`              |
 | `training`                                        | программы, маршруты, назначения, события, результаты, сертификаты и бонусы                                                |
 | `rules`                                           | движок правил замены/кросс-селла (read-only, источник = Промо)                                                            |
 | `promo`                                           | Промо-кампании (1 кампания = 1 товар; правила создаются отсюда)                                                           |

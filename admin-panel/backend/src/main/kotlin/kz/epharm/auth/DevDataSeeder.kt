@@ -165,7 +165,7 @@ class DevDataSeeder(private val jdbc: JdbcTemplate) {
         jdbc.execute("""TRUNCATE TABLE merch_reward_events, merch_executor_grants,
             merch_executor_bindings, merch_executor_otp_challenges,
             merch_task_reviews, merch_task_evidence, merch_task_stock_observations, merch_task_attempts, merch_task_rewards,
-            pharmacist_wallet_entries, pharmacist_wallet_checkpoints,
+            pharmacist_wallet_entries, pharmacist_wallet_checkpoints, learner_password_vault,
             promo_publication_changes, promo_publication_history""")
         // 1. Очистка в FK-безопасном порядке (зависимые сначала).
         receiptRepository.deleteAll() // FK → pending_bonuses

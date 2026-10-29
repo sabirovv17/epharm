@@ -82,7 +82,7 @@ class UnifiedAccessPresentation(private val catalog: UnifiedAdminCatalog) {
         private val ACTION_TITLES = mapOf("view" to "Просмотр", "create" to "Создание", "edit" to "Редактирование",
             "delete" to "Удаление", "activate" to "Активация", "approve" to "Подтверждение", "archive" to "В архив",
             "assign" to "Назначение", "block" to "Блокировка", "change_format" to "Смена формата", "duplicate" to "Копирование",
-            "export" to "Выгрузка", "generate" to "Формирование", "import" to "Импорт", "map" to "Сопоставление",
+            "export" to "Выгрузка", "export_credentials" to "Экспорт учётных данных ЛК", "generate" to "Формирование", "import" to "Импорт", "map" to "Сопоставление",
             "mark" to "Отметка", "moderate" to "Проверка", "participate" to "Участие", "provision" to "Подключение",
             "publish" to "Публикация", "record_result" to "Фиксация результата", "refresh" to "Обновление", "reject" to "Отклонение",
             "reorder" to "Порядок", "restore" to "Восстановление", "revoke" to "Отзыв", "show_qr" to "Показ QR",

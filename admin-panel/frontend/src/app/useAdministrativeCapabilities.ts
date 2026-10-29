@@ -41,6 +41,7 @@ export function useAdministrativeCapabilities() {
     canExportLedger: fresh && query.data?.canExportLedger === true,
     canExportPayouts: fresh && query.data?.canExportPayouts === true,
     canExportPharmacists: fresh && query.data?.canExportPharmacists === true,
+    canExportLearnerCredentials: fresh && query.data?.canExportLearnerCredentials === true,
     canExportCampaignReports: fresh && query.data?.canExportCampaignReports === true,
     canExportMerchInventory: fresh && query.data?.canExportMerchInventory === true,
     canExportMerchPlacements: fresh && query.data?.canExportMerchPlacements === true,

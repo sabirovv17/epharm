@@ -16219,5 +16219,46 @@
     ],
     "risks": ["Physical acceptance and real source-person bindings remain separate rollout gates"],
     "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.77",
+    "group": "H16",
+    "name": "D9: отдельная защищённая выгрузка текущих учётных данных ЛК",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged candidate)",
+      "api": [
+        "POST /api/admin/learner-credentials/exports",
+        "POST /api/admin/learner-credentials/exports/{id}/download",
+        "DELETE /api/admin/learner-credentials/exports/{id}"
+      ],
+      "ui": ["admin-panel/frontend/src/features/pharmacists/CredentialExportDialog.tsx"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/learnercredentials/LearnerCredentialExportController.kt",
+        "admin-panel/backend/src/main/resources/db/migration/V087__learner_credential_vault.sql"
+      ],
+      "data": [
+        "learner_password_vault",
+        "learner_credential_exports",
+        "learner_credential_export_attempts",
+        "learner_credential_export_audit"
+      ]
+    },
+    "target": {
+      "section": "Фармацевты",
+      "subsection": "Реестр",
+      "actions": ["export_credentials"],
+      "scope": "Explicit HQ2 credential + registry view intersection; separate personal_data; fresh password twice; one-time server TTL"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "G10: AEAD/version binding, bounded selected XLSX, revoke/expiry/key rotation and negative roles",
+      "No password reset/backfill or RPS activation; coordinated DB/key restore is a separate acceptance proof"
+    ],
+    "risks": [
+      "Historical hashes are irreversible; absent captured current password is an explicit unavailable status",
+      "Key custody/recovery and current release acceptance remain required before rollout"
+    ],
+    "owner": "ePharm unification integration owner"
   }
 ]

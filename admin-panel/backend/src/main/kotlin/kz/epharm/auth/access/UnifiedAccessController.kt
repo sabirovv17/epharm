@@ -150,6 +150,7 @@ data class AccessCapabilities(
     val canExportLedger: Boolean = false,
     val canExportPayouts: Boolean = false,
     val canExportPharmacists: Boolean = false,
+    val canExportLearnerCredentials: Boolean = false,
     val canExportCampaignReports: Boolean = false,
     val note: String = "Explicit grants also require existing role checks; NOT_READY routes deny managed accounts",
 )
@@ -192,6 +193,7 @@ class UnifiedAccountAccessService(
             canExportLedger = canUseExplicit(access, catalog.accrualExport),
             canExportPayouts = canUseExplicit(access, catalog.payoutExport),
             canExportPharmacists = canUseExplicit(access, catalog.pharmacistExport),
+            canExportLearnerCredentials = canRequestCredentialExport(access),
             canExportCampaignReports = canUseExplicit(access, catalog.campaignReportExport))
     }
 
@@ -202,6 +204,26 @@ class UnifiedAccountAccessService(
         if (catalog.integration(key) == ScopeIntegration.ALL_ONLY && !catalog.isAllScope(key, scope)) return false
         // Menu eligibility only; item review still requires the current executor and ReviewContext.
         return catalog.policy.authorizeScope(access.actor, AccessRequest(key, scope), Instant.now()).allowed
+    }
+
+    private fun canRequestCredentialExport(access: LoadedAccess): Boolean {
+        if (access.profile == null || access.role !in catalog.availableRoles(catalog.credentialExport)) return false
+        val grant = access.actor.grants.singleOrNull { it.permission == catalog.credentialExport } ?: return false
+        val view = if (access.actor.primaryHqOwner) PharmacyScope.All else
+            access.actor.grants.singleOrNull { it.permission == catalog.viewRegistry }?.scope?.pharmacies ?: return false
+        val intersection = when (val credentials = grant.scope.pharmacies) {
+            PharmacyScope.All -> view
+            is PharmacyScope.Assigned -> when(view) {
+                PharmacyScope.All -> credentials
+                is PharmacyScope.Assigned -> PharmacyScope.Assigned(credentials.ids.intersect(view.ids))
+                else -> return false
+            }
+            else -> return false
+        }
+        val scope = DataScope(intersection)
+        // Eligibility shows the action; it is never a password proof or permission to download.
+        return grant.scope.valid() && scope.valid() && catalog.policy.decide(access.actor,
+            AccessRequest(catalog.viewRegistry, scope), Instant.now()).allowed
     }
 
     private fun canView(access: LoadedAccess) = access.role in CORE_ROLES && catalog.policy.decide(

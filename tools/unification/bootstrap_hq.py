@@ -22,6 +22,7 @@ FIELDS = {"schemaVersion", "accountId", "personId", "displayName", "verification
 GRANT_FIELDS = {"module", "subsection", "action", "allPharmacies", "pharmacyIds", "allMerchBranches", "merchBranchIds", "allProducers", "producerIds"}
 MODULES = {"analytics", "motivation", "training", "merchandising", "pharmacies_products", "pharmacists", "management"}
 KINDS = {"ORDINARY", "SENSITIVE_DATA", "FINANCIAL", "EXPORT", "CREDENTIAL_EXPORT", "POSM_TECHNICAL", "ACCESS_ADMINISTRATION"}
+CREDENTIAL_EXPORT = ("pharmacists", "registry", "export_credentials")
 # Explicit, bounded source definitions approved alongside the pinned route catalog. Never auto-issued.
 MANUAL = {
     ("management", "accounts", "view"): "SENSITIVE_DATA",
@@ -66,7 +67,7 @@ def permission_key(value):
     return key
 
 
-def permission_catalog(routes):
+def permission_catalog(routes, include_credential_export=False):
     stage.require(isinstance(routes, list) and 0 < len(routes) <= 10000, "routes must be a bounded nonempty array")
     allowed = dict(MANUAL)
     denied, apis = set(), set()
@@ -87,6 +88,8 @@ def permission_catalog(routes):
             allowed[key] = kind
     for key in denied:
         allowed.pop(key, None)
+    if include_credential_export:
+        allowed[CREDENTIAL_EXPORT] = "CREDENTIAL_EXPORT"
     return allowed
 
 
@@ -108,7 +111,7 @@ def canonical_uuid(value):
     return value
 
 
-def validate_payload(payload, allowed):
+def validate_payload(payload, allowed, include_credential_export=False):
     stage.require(isinstance(payload, dict) and set(payload) == FIELDS, "identity input has missing or unsupported fields")
     stage.require(type(payload["schemaVersion"]) is int and payload["schemaVersion"] == 1, "unsupported identity schema version")
     result = {"schemaVersion": 1, "accountId": canonical_uuid(payload["accountId"]), "personId": canonical_uuid(payload["personId"]),
@@ -121,7 +124,9 @@ def validate_payload(payload, allowed):
     for grant in grants:
         stage.require(isinstance(grant, dict) and set(grant) <= GRANT_FIELDS, "grant has unsupported fields")
         key = permission_key(grant)
-        stage.require(key in allowed and allowed[key] != "CREDENTIAL_EXPORT", "unknown, not-ready or credential-export grant is forbidden")
+        stage.require(key in allowed and (allowed[key] != "CREDENTIAL_EXPORT" or
+                      include_credential_export and key == CREDENTIAL_EXPORT),
+                      "unknown, not-ready or unapproved credential-export grant is forbidden")
         stage.require(key not in keys, "repeated permission grant")
         keys.add(key)
         row = dict(zip(("module", "subsection", "action"), key))
@@ -139,7 +144,7 @@ def validate_payload(payload, allowed):
         normalized.append(row)
     for key in keys:
         prerequisite = PREREQUISITES.get(key)
-        if allowed[key] == "EXPORT":
+        if allowed[key] in {"EXPORT", "CREDENTIAL_EXPORT"}:
             prerequisite = (key[0], key[1], "view")
         stage.require(prerequisite is None or prerequisite in keys, "explicit same-domain view prerequisite is missing")
     result["grants"] = sorted(normalized, key=lambda g: (g["module"], g["subsection"], g["action"]))
@@ -257,14 +262,16 @@ def run(args, database_factory=stage.Database):
     plan_sha, routes_sha = stage.digest(raw), stage.digest(routes_raw)
     stage.require(plan_sha == stage.hash_arg(args.plan_sha256), "identity plan checksum differs from the approved pin")
     stage.require(routes_sha == stage.hash_arg(args.routes_sha256), "route catalog checksum differs from the approved pin")
-    allowed = permission_catalog(stage.parse_json(routes_raw))
-    payload = validate_payload(stage.parse_json(raw), allowed)
+    credential_export = getattr(args, "include_credential_export", False)
+    allowed = permission_catalog(stage.parse_json(routes_raw), credential_export)
+    payload = validate_payload(stage.parse_json(raw), allowed, credential_export)
     target_sha = stage.hash_arg(args.target_sha256)
     stage.require(not args.apply or args.report is not None, "--apply requires a new private report path")
     output = report_file(args.report) if args.report else None
     summary = {"schemaVersion": 1, "planSha256": plan_sha, "routesSha256": routes_sha, "targetIdentitySha256": target_sha,
                "grantCount": len(payload["grants"]), "allowedPermissionCount": len(allowed), "productionChanged": False,
-               "primaryOwnerConfigurationChanged": False, "applicationRuntimeVerified": False}
+               "primaryOwnerConfigurationChanged": False, "applicationRuntimeVerified": False,
+               "credentialExportExplicitlyApproved": credential_export and any(permission_key(g) == CREDENTIAL_EXPORT for g in payload["grants"])}
     try:
         db = database_factory(args.container, args.user, args.database)
         target = db.inspect()
@@ -301,6 +308,8 @@ def parser():
     p.add_argument("--input", type=Path, required=True)
     p.add_argument("--routes", type=Path, required=True)
     p.add_argument("--report", type=Path)
+    p.add_argument("--include-credential-export", action="store_true",
+                   help="Allow only the explicit D9 grant in the pinned HQ input; never adds a grant implicitly")
     mode = p.add_mutually_exclusive_group(); mode.add_argument("--plan", action="store_true"); mode.add_argument("--apply", action="store_true")
     return p
 

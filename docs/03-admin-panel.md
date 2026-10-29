@@ -494,3 +494,12 @@ workspace exposes authorized coordinates, published floorplans and explicit prel
 with exact budgets. Adding a proposal does not reserve a place. Saved-plan draft recovery requires
 the same owner, version and current edit permission; unsaved drafts use explicit JSON preview.
 The HQ tariff entry uses the fresh server capability and compare-and-set updates.
+
+## D9 credential download
+
+The pharmacist registry shows the separate credential export action only with fresh
+`canExportLearnerCredentials`. Its dialog snapshots selected account IDs, takes a purpose
+and current HQ password, and prepares/downloads at most25 selected rows. It clears password
+state immediately on submit/cancel, aborts on session/version/unmount changes, and never
+uses query cache/storage for credential values. Ordinary report export remains separate.
+Errors use a safe status allowlist and never echo Axios request bodies or server details.

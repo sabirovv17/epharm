@@ -107,7 +107,8 @@ runtime-каталог и контроллеры подключены локал
   проверка пароля того же account и ограниченная область. SMS/refresh её не заменяют.
   Время валидности задаётся сервером; текущий адаптер имеет предел5минут,
   при каждой административной записи пароль проверяется непосредственно.
-  Хранилище расшифровываемой копии, ключ вне БД, аудит и сам XLSX ещё не реализованы.
+  D9 реализован в отдельном `learnercredentials` контуре: AEAD-копия, внешний ключ,
+  аудит и одноразовый XLSX; эксплуатационная приёмка ключей/restore обязательна отдельно.
 - Приёмка собственной работы запрещена по canonical PERSON даже через другой
   account. Автор задания вправе принять работу другого исполнителя.
   Неизвестная личность не считается «другим человеком».
@@ -283,8 +284,10 @@ read-only. `--apply` additionally needs an explicitly selected account/PERSON,
 verification reference and exact grants in an owner-only input file, pinned input,
 route catalogue and database identities, and a new private report path. It never
 derives a person from a name, changes the existing admin row, activates the trusted
-primary-owner configuration, switches legacy accounts to MANAGED, or grants
-credential exports. A repeated application is a no-op only while the complete
+primary-owner configuration, switches legacy accounts to MANAGED, or implicitly grants
+credential exports. D9 additionally requires `--include-credential-export` and the exact
+`pharmacists/registry/export_credentials` entry with its registry view prerequisite
+in the approved input; the option never adds grants on its own. A repeated application is a no-op only while the complete
 profile, proof, grants and original audit markers still agree. Subsequent profile
 edits are conflicts, never an invitation to reset permissions. The synthetic
 fixture is not authorization to bootstrap a real operator or production.
@@ -366,3 +369,26 @@ and SHA-256 are unchanged. The pinned source reference-photo set contains zero r
 A pinned task reference remains readable after archive even if JVM and database
 clocks differ: its exact immutable UUID and verified parent lineage are authority,
 not a cross-clock ordering predicate.
+
+### D9: current learner credential export
+
+`LearnerCredentialExportFacade` commits bounded attempt accounting before the domain
+transaction. Prepare/download reload and lock the active HQ account and access profile,
+verify the current password, then intersect registry view with the explicit credential
+grant and pharmacy scope. The download also checks the frozen credential/access snapshot.
+A legacy role or primary-owner ordinary permission is insufficient. `personal_data`
+controls IIN/phone and any login derived from them independently.
+
+Normal authentication retains BCrypt hashes. The explicitly agreed recoverable D9
+exception uses a separate AES-256-GCM copy bound to pharmacist ID and current hash;
+SMS/refresh alone cannot populate it. Password writers capture the effective untrimmed
+value after successful verification/set. Missing keys/copy do not break ordinary login.
+The key ring is an owner-only absolute JSON file outside the DB/image, mounted read-only;
+rotation keeps older key IDs for restore. Losing the matching key means no recovery.
+
+Prepared encrypted XLSX payloads expire after120seconds, can be downloaded once only,
+and are limited to25 selected rows and4 preparations/hour. Current admin password is
+required again on download; stale grants, another owner, credential mutation, tampering
+or removed key deny release. Formula-like text and whitespace remain exact string cells.
+Audit/attempt tables exclude passwords, hashes and key bytes. Coordinated DB/private-file/
+key backup and recovery is a release gate, not established by encryption unit tests.

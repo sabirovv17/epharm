@@ -51,6 +51,7 @@ class UnifiedAdminCatalog(mapper: ObjectMapper) {
     val campaignReportView = key("analytics", "campaign_reports", "view")
     val campaignReportExport = key("analytics", "campaign_reports", "export")
     val pharmacistExport = key("pharmacists", "registry", "export")
+    val credentialExport = key("pharmacists", "registry", "export_credentials")
     val producerView = key("merchandising", "producers", "view")
     val placementView = key("merchandising", "placements", "view")
     val placementBindProducer = key("merchandising", "placements", "bind_producer")
@@ -99,6 +100,8 @@ class UnifiedAdminCatalog(mapper: ObjectMapper) {
             PermissionDefinition(campaignReportView, PermissionKind.FINANCIAL),
             PermissionDefinition(campaignReportExport, PermissionKind.EXPORT, viewPermission = campaignReportView),
             PermissionDefinition(pharmacistExport, PermissionKind.EXPORT, viewPermission = viewRegistry),
+            PermissionDefinition(credentialExport, PermissionKind.CREDENTIAL_EXPORT,
+                viewPermission = viewRegistry, requiresPasswordReauthentication = true),
             PermissionDefinition(producerView), PermissionDefinition(placementView),
             PermissionDefinition(producerBindingManage, PermissionKind.SENSITIVE_DATA, viewPermission = key("motivation", "campaigns", "view")),
             PermissionDefinition(placementBindProducer, PermissionKind.SENSITIVE_DATA, viewPermission = placementView),
@@ -120,7 +123,7 @@ class UnifiedAdminCatalog(mapper: ObjectMapper) {
     fun supported(key: PermissionKey) = definitions.any { it.key == key }
 
     fun availableRoles(key: PermissionKey): Set<AdminRole> = when {
-        key in setOf(accountManage, producerBindingManage, placementBindProducer) -> setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD)
+        key in setOf(accountManage, producerBindingManage, placementBindProducer, credentialExport) -> setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD)
         key.module == AdministrationModule.TRAINING -> trainingRoleCeilings["${key.subsection}.${key.action}"].orEmpty()
         key.module == AdministrationModule.MERCHANDISING -> setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD,
             AdminRole.CATEGORY_LEAD, AdminRole.REGIONAL_MANAGER)

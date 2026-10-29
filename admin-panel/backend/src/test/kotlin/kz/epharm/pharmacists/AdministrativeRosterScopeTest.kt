@@ -39,7 +39,7 @@ class AdministrativeRosterScopeTest {
     private val encoder = mockk<PasswordEncoder>()
     private val wallet = mockk<PharmacistWalletService>()
     private val scope = mockk<AdministrativeScope>()
-    private val staffService = PharmacistService(pharmacists, pharmacies, encoder, wallet, scope)
+    private val staffService = PharmacistService(pharmacists, pharmacies, encoder, wallet, scope, mockk(relaxed=true))
     private val pharmacyService = PharmacyService(pharmacies, chains, pharmacists, scope)
     private val area = setOf("pharmacy-synthetic-one")
 

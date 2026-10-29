@@ -28,6 +28,7 @@ import javax.crypto.spec.SecretKeySpec
 class MobilePasswordResetService(private val jdbc: JdbcTemplate, private val provider: OtpProvider,
     private val phoneLock: StaffPhoneLock, private val encoder: PasswordEncoder,
     private val mobileAuth: MobileAuthService, private val refresh: MobileRefreshTokenService,
+    private val credentialVault: kz.epharm.learnercredentials.LearnerPasswordVault,
     @Value("\${app.otp.dev-mode:true}") private val devMode: Boolean,
     @Value("\${app.otp.dev-fixed:5445}") private val devCode: String,
     @Value("\${app.jwt.secret}") private val codeSecret: String) {
@@ -110,7 +111,9 @@ class MobilePasswordResetService(private val jdbc: JdbcTemplate, private val pro
             challenge.verified == null || challenge.resetExpires?.isAfter(now) != true ||
             challenge.resetTokenHash != hash(request.resetToken)) invalid()
         val person = requireCurrentPerson(challenge)
-        jdbc.update("UPDATE pharmacists SET password_hash=?,updated_at=now() WHERE id=?", encoder.encode(request.password), person.id)
+        val updatedHash=encoder.encode(request.password)
+        jdbc.update("UPDATE pharmacists SET password_hash=?,updated_at=now() WHERE id=?", updatedHash, person.id)
+        credentialVault.capture(person.id,updatedHash,request.password)
         jdbc.update("UPDATE mobile_password_reset_challenges SET consumed_at=now() WHERE id=?", challenge.id)
         phoneLock.invalidateStaff(challenge.phone!!)
         jdbc.update("DELETE FROM mobile_otps WHERE phone=?", challenge.phone)

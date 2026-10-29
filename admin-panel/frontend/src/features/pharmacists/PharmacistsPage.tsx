@@ -52,6 +52,7 @@ import { StandardNSellerMappingsModal } from './StandardNSellerMappingsModal'
 import { ASSIGNMENT_STATUS_LABEL, FORMAT_LABEL, dateTime } from '@/features/lms/training-ui'
 import { useUiStore } from '@/app/store'
 import { canManagePharmacistCredentials } from '@/app/accessPolicy'
+import CredentialExportDialog from './CredentialExportDialog'
 
 type PhTab = 'all' | PharmacistStatus
 
@@ -80,6 +81,12 @@ export default function PharmacistsPage() {
   const [preferenceTargets, setPreferenceTargets] = useState<PharmacistDto[] | null>(null)
   const [trainingProfileId, setTrainingProfileId] = useState<string | null>(null)
   const [standardNMappingsOpen, setStandardNMappingsOpen] = useState(false)
+  const [credentialSelection, setCredentialSelection] = useState<{
+    ownerId: string
+    version: number | null
+    people: { id: string; name: string }[]
+  } | null>(null)
+  const currentAccount = useUiStore((state) => state.authedUser?.id)
   const adminRole = useUiStore((state) => state.authedUser?.role)
   const canManageStandardN = adminRole === 'SYSTEM_ADMIN' || adminRole === 'HQ_HEAD'
   const canManageCredentials = canManagePharmacistCredentials(adminRole)
@@ -104,6 +111,8 @@ export default function PharmacistsPage() {
     trainingDashboardQuery.data?.capabilities.canManagePreferences ?? false
   const canManageAssignments =
     trainingDashboardQuery.data?.capabilities.canManageAssignments ?? false
+  const canSelectPharmacists =
+    canManagePreferences || canManageAssignments || access.canExportLearnerCredentials
 
   const hasData = pharmacists.length > 0
   const showFullError = isError && !hasData
@@ -204,11 +213,43 @@ export default function PharmacistsPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      {access.canExportLearnerCredentials &&
+        credentialSelection &&
+        credentialSelection.ownerId === currentAccount &&
+        credentialSelection.version === access.data?.version && (
+          <CredentialExportDialog
+            key={`${credentialSelection.ownerId}:${credentialSelection.version}`}
+            people={credentialSelection.people}
+            onClose={() => setCredentialSelection(null)}
+          />
+        )}
       <PageHeader
         title={t('page.pharmacists.title')}
         subtitle={t('page.pharmacists.subtitle')}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            {access.canExportLearnerCredentials && (
+              <Button
+                variant="outline"
+                disabled={
+                  !currentAccount ||
+                  selectedPharmacists.length < 1 ||
+                  selectedPharmacists.length > 25 ||
+                  selectedPharmacists.length !== selectedIds.size
+                }
+                title="Выберите до 25 фармацевтов в реестре"
+                onClick={() =>
+                  currentAccount &&
+                  setCredentialSelection({
+                    ownerId: currentAccount,
+                    version: access.data?.version ?? null,
+                    people: selectedPharmacists.map(({ id, name }) => ({ id, name })),
+                  })
+                }
+              >
+                Учётные данные ЛК
+              </Button>
+            )}
             <ReportDownloadButton
               allowed={access.canExportPharmacists}
               path="/api/admin/reports/pharmacists.xlsx"
@@ -334,7 +375,7 @@ export default function PharmacistsPage() {
             <table className="min-w-[1200px] w-full text-[13px]" data-testid="pharmacists-table">
               <thead className="hairline border-b">
                 <tr className="text-left text-[11px] font-bold uppercase tracking-[0.06em] text-ink-500">
-                  {canManagePreferences && (
+                  {canSelectPharmacists && (
                     <th className="w-10 px-3 py-2.5">
                       <input
                         type="checkbox"
@@ -365,7 +406,7 @@ export default function PharmacistsPage() {
                     className="hover:bg-paper-hover"
                     data-testid={`pharmacist-row-${p.id}`}
                   >
-                    {canManagePreferences && (
+                    {canSelectPharmacists && (
                       <td className="px-3 py-2.5">
                         <input
                           type="checkbox"

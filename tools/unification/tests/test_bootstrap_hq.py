@@ -160,6 +160,29 @@ class BootstrapHqTest(unittest.TestCase):
             with self.assertRaises(stage.StageError): bootstrap.permission_catalog(definitions)
         self.assertEqual(12, len(bootstrap.MANUAL))
 
+    def test_credential_bootstrap_requires_exact_opt_in_explicit_grant_and_registry_view(self):
+        definitions = [route(), route("pharmacists", "registry", "view", "ORDINARY")]
+        allowed = bootstrap.permission_catalog(definitions, include_credential_export=True)
+        approved = grant("pharmacists", "registry", "export_credentials")
+        view = grant("pharmacists", "registry", "view")
+        changed = payload(); changed["grants"] = [approved, view]
+        with self.assertRaises(stage.StageError):
+            bootstrap.validate_payload(changed, allowed)
+        changed["grants"] = [approved]
+        with self.assertRaisesRegex(stage.StageError, "prerequisite"):
+            bootstrap.validate_payload(changed, allowed, include_credential_export=True)
+        changed["grants"] = [approved, view]
+        result = bootstrap.validate_payload(changed, allowed, include_credential_export=True)
+        self.assertEqual(2, len(result["grants"]))
+        unchanged = payload()
+        result = bootstrap.validate_payload(unchanged, allowed, include_credential_export=True)
+        self.assertFalse(any(bootstrap.permission_key(g) == bootstrap.CREDENTIAL_EXPORT for g in result["grants"]))
+        unexpected = ("pharmacists", "registry", "another_credentials")
+        allowed[unexpected] = "CREDENTIAL_EXPORT"
+        changed["grants"] = [grant(*unexpected), view]
+        with self.assertRaises(stage.StageError):
+            bootstrap.validate_payload(changed, allowed, include_credential_export=True)
+
     def test_all_200_explicit_grants_are_bounded_without_implicit_additions(self):
         definitions = [route("training", "courses", "action_" + str(i), "ORDINARY") for i in range(200)]
         changed = payload(); changed["grants"] = [grant("training", "courses", "action_" + str(i)) for i in range(200)]

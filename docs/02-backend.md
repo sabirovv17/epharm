@@ -503,3 +503,14 @@ The UI entry uses fresh `canViewMerchTariffs`; stale edits require a fresh fetch
 workbooks with explicit view/export permissions. Producer associations are explicit
 versioned facts, not brand/name heuristics. Wallet reports read postings once and
 retain unknown/conflicting historical pharmacy attribution as unknown.
+
+## Learner credential export (D9)
+
+`learnercredentials` owns POST `/api/admin/learner-credentials/exports`, POST
+`/{id}/download` and DELETE `/{id}`. Route preflight requires scoped registry view;
+the transactional service separately requires explicit HQ2 credential authority, current
+password reauthentication and current access/credential versions. The preparatory API
+returns metadata only; download returns a no-store one-use XLSX. Ordinary roster exports
+never contain credential values. `app.learner-credentials.enabled` defaults false.
+Key file, bounded TTL/batch/attempt settings and capture behavior are documented in
+[the data/access contract](23-unified-admin-data-and-access.md#d9-current-learner-credential-export).
