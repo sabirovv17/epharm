@@ -1,0 +1,1522 @@
+[
+  {
+    "api": "DELETE /api/admin/ai-exam/questions/{id}",
+    "permission": {
+      "module": "training",
+      "subsection": "question_bank",
+      "action": "delete",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "DELETE /api/admin/banners/{id}",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "banners",
+      "action": "delete",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "DELETE /api/admin/catalog/products/{id}",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "products",
+      "action": "delete",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "DELETE /api/admin/fulfillment/devices/{id}",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "fulfillment",
+      "action": "revoke",
+      "kind": "POSM_TECHNICAL"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "DELETE /api/admin/lms/courses/{id}",
+    "permission": {
+      "module": "training",
+      "subsection": "courses",
+      "action": "archive",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "DELETE /api/admin/lms/courses/{id}/lessons/{lessonId}",
+    "permission": {
+      "module": "training",
+      "subsection": "courses",
+      "action": "delete",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "DELETE /api/admin/lms/courses/{id}/lessons/{lessonId}/attachments/{attachmentId}",
+    "permission": {
+      "module": "training",
+      "subsection": "courses",
+      "action": "delete",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "DELETE /api/admin/pharmacies/chains/{id}",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "chains",
+      "action": "delete",
+      "kind": "ORDINARY"
+    },
+    "mode": "ALL_ONLY"
+  },
+  {
+    "api": "DELETE /api/admin/pharmacies/{id}",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "pharmacies",
+      "action": "delete",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "DELETE /api/admin/posm/pharmacist-mappings/{id}",
+    "permission": {
+      "module": "pharmacists",
+      "subsection": "seller_mappings",
+      "action": "revoke",
+      "kind": "POSM_TECHNICAL"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "DELETE /api/admin/screens/broadcast/profiles/{id}/slots/{slot}",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "media",
+      "action": "delete",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "DELETE /api/admin/screens/playlists/{id}",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "media",
+      "action": "delete",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "DELETE /api/admin/screens/slides/{id}",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "media",
+      "action": "delete",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/ai-exam/questions",
+    "permission": {
+      "module": "training",
+      "subsection": "question_bank",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/app-releases",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "posm_releases",
+      "action": "view",
+      "kind": "POSM_TECHNICAL"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/banners",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "banners",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/catalog/brands",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "products",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/catalog/mnn-groups",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "products",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/catalog/products",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "products",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/catalog/products/{id}",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "products",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/catalog/trigger-options",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "classifier",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/dashboard/recommendations",
+    "permission": {
+      "module": "analytics",
+      "subsection": "motivation",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/dashboard/summary",
+    "permission": {
+      "module": "analytics",
+      "subsection": "motivation",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/fulfillment/devices",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "fulfillment",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/fulfillment/orders",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "fulfillment",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/fulfillment/orders/{orderId}",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "fulfillment",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/fulfillment/pharmacy-links",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "fulfillment",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/fulfillment/status",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "fulfillment",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/lift",
+    "permission": {
+      "module": "analytics",
+      "subsection": "motivation_effect",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/lms/courses",
+    "permission": {
+      "module": "training",
+      "subsection": "courses",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/lms/courses/{id}",
+    "permission": {
+      "module": "training",
+      "subsection": "courses",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/lms/courses/{id}/lessons/{lessonId}/live",
+    "permission": {
+      "module": "training",
+      "subsection": "live",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/payouts",
+    "permission": {
+      "module": "motivation",
+      "subsection": "payouts",
+      "action": "view",
+      "kind": "FINANCIAL"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/payouts/{id}",
+    "permission": {
+      "module": "motivation",
+      "subsection": "payouts",
+      "action": "view",
+      "kind": "FINANCIAL"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/payouts/{id}/items",
+    "permission": {
+      "module": "motivation",
+      "subsection": "payouts",
+      "action": "view",
+      "kind": "FINANCIAL"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/pharmacies",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "pharmacies",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED"
+  },
+  {
+    "api": "GET /api/admin/pharmacies/chains",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "chains",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "ALL_ONLY"
+  },
+  {
+    "api": "GET /api/admin/pharmacies/{id}",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "pharmacies",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED"
+  },
+  {
+    "api": "GET /api/admin/pharmacists",
+    "permission": {
+      "module": "pharmacists",
+      "subsection": "registry",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED"
+  },
+  {
+    "api": "GET /api/admin/pharmacists/standardn-directory/status",
+    "permission": {
+      "module": "pharmacists",
+      "subsection": "standardn_directory",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/pharmacists/{id}",
+    "permission": {
+      "module": "pharmacists",
+      "subsection": "registry",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED"
+  },
+  {
+    "api": "GET /api/admin/posm/pharmacist-mappings",
+    "permission": {
+      "module": "pharmacists",
+      "subsection": "seller_mappings",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/posm/pharmacist-mappings/unmapped",
+    "permission": {
+      "module": "pharmacists",
+      "subsection": "seller_mappings",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/promo",
+    "permission": {
+      "module": "motivation",
+      "subsection": "campaigns",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/promo/{id}",
+    "permission": {
+      "module": "motivation",
+      "subsection": "campaigns",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/promo/{id}/rules",
+    "permission": {
+      "module": "motivation",
+      "subsection": "recommendations",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/reconcile",
+    "permission": {
+      "module": "motivation",
+      "subsection": "sales_review",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/reconcile/summary",
+    "permission": {
+      "module": "motivation",
+      "subsection": "sales_review",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/reconcile/{id}",
+    "permission": {
+      "module": "motivation",
+      "subsection": "sales_review",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/reports/campaigns/{promoId}",
+    "permission": {
+      "module": "analytics",
+      "subsection": "campaign_reports",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/reports/campaigns/{promoId}/pdf",
+    "permission": {
+      "module": "analytics",
+      "subsection": "campaign_reports",
+      "action": "export",
+      "kind": "EXPORT"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/rules",
+    "permission": {
+      "module": "motivation",
+      "subsection": "recommendations",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/rules/{id}",
+    "permission": {
+      "module": "motivation",
+      "subsection": "recommendations",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/screens/broadcast",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "media",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/screens/broadcast/profiles",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "media",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/screens/broadcast/profiles/{id}",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "media",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/screens/connected",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "registers",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/screens/connected/export.xlsx",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "registers",
+      "action": "export",
+      "kind": "EXPORT"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/screens/connected/summary",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "registers",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/screens/coverage",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "registers",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/screens/playlists",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "media",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/screens/slides",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "media",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/storefront/products",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "products",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/storefront/products/{id}",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "products",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/training/assignments",
+    "permission": {
+      "module": "training",
+      "subsection": "assignments",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/training/assignments/export.csv",
+    "permission": {
+      "module": "training",
+      "subsection": "assignments",
+      "action": "export",
+      "kind": "EXPORT"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/training/assignments/page",
+    "permission": {
+      "module": "training",
+      "subsection": "assignments",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/training/assignments/{assignmentId}/format-history",
+    "permission": {
+      "module": "training",
+      "subsection": "assignments",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/training/assignments/{assignmentId}/results",
+    "permission": {
+      "module": "training",
+      "subsection": "results",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/training/certificates",
+    "permission": {
+      "module": "training",
+      "subsection": "certificates",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/training/dashboard",
+    "permission": {
+      "module": "training",
+      "subsection": "overview",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/training/events",
+    "permission": {
+      "module": "training",
+      "subsection": "events",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/training/events/{eventId}/participants",
+    "permission": {
+      "module": "training",
+      "subsection": "attendance",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/training/events/{eventId}/qr",
+    "permission": {
+      "module": "training",
+      "subsection": "events",
+      "action": "show_qr",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/training/pharmacists",
+    "permission": {
+      "module": "training",
+      "subsection": "roster",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED"
+  },
+  {
+    "api": "GET /api/admin/training/pharmacists/{pharmacistId}/preference-history",
+    "permission": {
+      "module": "training",
+      "subsection": "preferences",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/training/pharmacists/{pharmacistId}/profile",
+    "permission": {
+      "module": "training",
+      "subsection": "profiles",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/training/preferences",
+    "permission": {
+      "module": "training",
+      "subsection": "preferences",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/training/programs",
+    "permission": {
+      "module": "training",
+      "subsection": "programs",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/training/programs/{id}",
+    "permission": {
+      "module": "training",
+      "subsection": "programs",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "PATCH /api/admin/ai-exam/questions/{id}",
+    "permission": {
+      "module": "training",
+      "subsection": "question_bank",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "PATCH /api/admin/banners/{id}",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "banners",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "PATCH /api/admin/catalog/products/{id}",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "products",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "PATCH /api/admin/lms/courses/{id}",
+    "permission": {
+      "module": "training",
+      "subsection": "courses",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "PATCH /api/admin/lms/courses/{id}/lessons/{lessonId}",
+    "permission": {
+      "module": "training",
+      "subsection": "courses",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "PATCH /api/admin/lms/courses/{id}/lessons/{lessonId}/live/messages/{messageId}",
+    "permission": {
+      "module": "training",
+      "subsection": "live",
+      "action": "moderate",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "PATCH /api/admin/lms/courses/{id}/lessons/{lessonId}/live/status",
+    "permission": {
+      "module": "training",
+      "subsection": "live",
+      "action": "publish",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "PATCH /api/admin/pharmacies/chains/{id}",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "chains",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "ALL_ONLY"
+  },
+  {
+    "api": "PATCH /api/admin/pharmacies/{id}",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "pharmacies",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED"
+  },
+  {
+    "api": "PATCH /api/admin/pharmacists/{id}",
+    "permission": {
+      "module": "pharmacists",
+      "subsection": "registry",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED"
+  },
+  {
+    "api": "PATCH /api/admin/promo/{id}",
+    "permission": {
+      "module": "motivation",
+      "subsection": "campaigns",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "PATCH /api/admin/rules/{id}",
+    "permission": {
+      "module": "motivation",
+      "subsection": "recommendations",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "PATCH /api/admin/screens/playlists/{id}",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "media",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "PATCH /api/admin/training/assignments/{assignmentId}/format",
+    "permission": {
+      "module": "training",
+      "subsection": "assignments",
+      "action": "change_format",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "PATCH /api/admin/training/assignments/{assignmentId}/stages/{stageId}/result",
+    "permission": {
+      "module": "training",
+      "subsection": "results",
+      "action": "record_result",
+      "kind": "SENSITIVE_DATA"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "PATCH /api/admin/training/events/{eventId}",
+    "permission": {
+      "module": "training",
+      "subsection": "events",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "PATCH /api/admin/training/events/{eventId}/participants/{participantId}",
+    "permission": {
+      "module": "training",
+      "subsection": "attendance",
+      "action": "mark",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "PATCH /api/admin/training/pharmacists/preferences",
+    "permission": {
+      "module": "training",
+      "subsection": "preferences",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "PATCH /api/admin/training/pharmacists/{pharmacistId}/preference",
+    "permission": {
+      "module": "training",
+      "subsection": "preferences",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "PATCH /api/admin/training/programs/{id}",
+    "permission": {
+      "module": "training",
+      "subsection": "programs",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/ai-exam/questions",
+    "permission": {
+      "module": "training",
+      "subsection": "question_bank",
+      "action": "create",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/app-releases",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "posm_releases",
+      "action": "publish",
+      "kind": "POSM_TECHNICAL"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/banners",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "banners",
+      "action": "create",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/banners/image",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "banners",
+      "action": "upload",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/catalog/products",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "products",
+      "action": "create",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/fulfillment/devices",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "fulfillment",
+      "action": "provision",
+      "kind": "POSM_TECHNICAL"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/fulfillment/orders/{orderId}/actions",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "fulfillment",
+      "action": "transition",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/fulfillment/orders/{orderId}/assign",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "fulfillment",
+      "action": "assign",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/lms/courses",
+    "permission": {
+      "module": "training",
+      "subsection": "courses",
+      "action": "create",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/lms/courses/import/excel",
+    "permission": {
+      "module": "training",
+      "subsection": "courses",
+      "action": "import",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/lms/courses/{id}/lessons",
+    "permission": {
+      "module": "training",
+      "subsection": "courses",
+      "action": "create",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/lms/courses/{id}/lessons/{lessonId}/attachments",
+    "permission": {
+      "module": "training",
+      "subsection": "courses",
+      "action": "upload",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/lms/courses/{id}/lessons/{lessonId}/live/messages",
+    "permission": {
+      "module": "training",
+      "subsection": "live",
+      "action": "participate",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/lms/courses/{id}/lessons/{lessonId}/live/polls/{pollId}/vote",
+    "permission": {
+      "module": "training",
+      "subsection": "live",
+      "action": "participate",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/lms/courses/{id}/lessons/{lessonId}/live/reactions",
+    "permission": {
+      "module": "training",
+      "subsection": "live",
+      "action": "participate",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/lms/courses/{id}/lessons/{lessonId}/video",
+    "permission": {
+      "module": "training",
+      "subsection": "courses",
+      "action": "upload",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/payouts/generate",
+    "permission": {
+      "module": "motivation",
+      "subsection": "payouts",
+      "action": "generate",
+      "kind": "FINANCIAL"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/payouts/{id}/approve",
+    "permission": {
+      "module": "motivation",
+      "subsection": "payouts",
+      "action": "approve",
+      "kind": "FINANCIAL"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/pharmacies",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "pharmacies",
+      "action": "create",
+      "kind": "ORDINARY"
+    },
+    "mode": "ALL_ONLY"
+  },
+  {
+    "api": "POST /api/admin/pharmacies/chains",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "chains",
+      "action": "create",
+      "kind": "ORDINARY"
+    },
+    "mode": "ALL_ONLY"
+  },
+  {
+    "api": "POST /api/admin/pharmacists",
+    "permission": {
+      "module": "pharmacists",
+      "subsection": "registry",
+      "action": "create",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/pharmacists/standardn-directory/sync",
+    "permission": {
+      "module": "pharmacists",
+      "subsection": "standardn_directory",
+      "action": "sync",
+      "kind": "POSM_TECHNICAL"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/pharmacists/{id}/activate",
+    "permission": {
+      "module": "pharmacists",
+      "subsection": "registry",
+      "action": "activate",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED"
+  },
+  {
+    "api": "POST /api/admin/pharmacists/{id}/block",
+    "permission": {
+      "module": "pharmacists",
+      "subsection": "registry",
+      "action": "block",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED"
+  },
+  {
+    "api": "POST /api/admin/pharmacists/{id}/unblock",
+    "permission": {
+      "module": "pharmacists",
+      "subsection": "registry",
+      "action": "unblock",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED"
+  },
+  {
+    "api": "POST /api/admin/posm/pharmacist-mappings",
+    "permission": {
+      "module": "pharmacists",
+      "subsection": "seller_mappings",
+      "action": "map",
+      "kind": "POSM_TECHNICAL"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/promo",
+    "permission": {
+      "module": "motivation",
+      "subsection": "campaigns",
+      "action": "create",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/promo/refresh-prices",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "catalog_sync",
+      "action": "refresh",
+      "kind": "POSM_TECHNICAL"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/promo/{id}/archive",
+    "permission": {
+      "module": "motivation",
+      "subsection": "campaigns",
+      "action": "archive",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/promo/{id}/restore",
+    "permission": {
+      "module": "motivation",
+      "subsection": "campaigns",
+      "action": "restore",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/reconcile/import-excel",
+    "permission": {
+      "module": "motivation",
+      "subsection": "sales_review",
+      "action": "import",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/reconcile/submit",
+    "permission": {
+      "module": "motivation",
+      "subsection": "sales_review",
+      "action": "submit",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/reconcile/{id}/approve",
+    "permission": {
+      "module": "motivation",
+      "subsection": "sales_review",
+      "action": "approve",
+      "kind": "FINANCIAL"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/reconcile/{id}/reject",
+    "permission": {
+      "module": "motivation",
+      "subsection": "sales_review",
+      "action": "reject",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/rules",
+    "permission": {
+      "module": "motivation",
+      "subsection": "recommendations",
+      "action": "create",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/rules/{id}/archive",
+    "permission": {
+      "module": "motivation",
+      "subsection": "recommendations",
+      "action": "archive",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/rules/{id}/duplicate",
+    "permission": {
+      "module": "motivation",
+      "subsection": "recommendations",
+      "action": "duplicate",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/screens/broadcast",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "media",
+      "action": "upload",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/screens/broadcast/profiles/{id}/slots/{slot}",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "media",
+      "action": "upload",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/screens/broadcast/slots/{slot}",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "media",
+      "action": "upload",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/screens/playlists",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "media",
+      "action": "create",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/screens/slides",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "media",
+      "action": "create",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/screens/slides/{id}/assign",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "media",
+      "action": "assign",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/training/assignments",
+    "permission": {
+      "module": "training",
+      "subsection": "assignments",
+      "action": "assign",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/training/events",
+    "permission": {
+      "module": "training",
+      "subsection": "events",
+      "action": "create",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/training/programs",
+    "permission": {
+      "module": "training",
+      "subsection": "programs",
+      "action": "create",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/training/programs/certificate-asset",
+    "permission": {
+      "module": "training",
+      "subsection": "programs",
+      "action": "upload",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "POST /api/admin/training/programs/cover",
+    "permission": {
+      "module": "training",
+      "subsection": "programs",
+      "action": "upload",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "PUT /api/admin/fulfillment/pharmacy-links",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "fulfillment",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "PUT /api/admin/lms/courses/{id}/lessons/reorder",
+    "permission": {
+      "module": "training",
+      "subsection": "courses",
+      "action": "reorder",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "PUT /api/admin/promo/{id}/rules",
+    "permission": {
+      "module": "motivation",
+      "subsection": "recommendations",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  },
+  {
+    "api": "PUT /api/admin/screens/broadcast/profiles/{id}/pharmacies",
+    "permission": {
+      "module": "pharmacies_products",
+      "subsection": "media",
+      "action": "assign",
+      "kind": "ORDINARY"
+    },
+    "mode": "NOT_READY"
+  }
+]

@@ -1,0 +1,15 @@
+{
+  "mode": "isolated_clone_only_no_production_write",
+  "database": "epharm_access_candidate",
+  "sourceTables": 73,
+  "sourceRowCountsUnchanged": true,
+  "adminOriginalColumnHashUnchanged": true,
+  "migrationSha256": "353a8485728b2990370f61742bf3da7ffe4e37687b77843a01edc8c0b029db6e",
+  "newTables": ["unified_persons", "unified_admin_profiles", "unified_admin_access_audit"],
+  "existingAccountModes": "LEGACY|2",
+  "profiles": 0,
+  "posSales": 1793268,
+  "recommendationEvents": 47010,
+  "noAccountOrCredentialConversion": true,
+  "note": "Additive SQL upgrade tested on cloned restored V065 database; Flyway startup tested separately by Spring integration tests."
+}

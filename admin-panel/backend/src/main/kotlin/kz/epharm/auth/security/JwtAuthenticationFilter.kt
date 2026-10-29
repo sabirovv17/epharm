@@ -13,8 +13,8 @@ import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 
 /**
- * Парсит Authorization: Bearer <jwt> на каждом запросе. Если токен валиден — кладёт
- * AdminPrincipal в SecurityContext с ролью ROLE_<AdminRole>.
+ * Парсит Authorization: Bearer <jwt> на каждом запросе. Для администратора загружает
+ * текущий активный аккаунт и роль из БД; claims не сохраняют отозванные полномочия.
  *
  * Невалидный/отсутствующий токен — просто пропускаем дальше; решение о доступе
  * принимает SecurityFilterChain (authorizeHttpRequests).
@@ -22,6 +22,7 @@ import org.springframework.web.filter.OncePerRequestFilter
 @Component
 class JwtAuthenticationFilter(
     private val jwtService: JwtService,
+    private val adminSessionLoader: AdminSessionLoader,
 ) : OncePerRequestFilter() {
 
     override fun doFilterInternal(
@@ -47,23 +48,18 @@ class JwtAuthenticationFilter(
                         listOf(SimpleGrantedAuthority("ROLE_PHARMACIST")),
                     )
                 } else {
-                    // Токен админа HQ-консоли — AdminPrincipal + ROLE_<AdminRole>.
-                    val role = jwtService.roleOf(claims)
-                    val principal = AdminPrincipal(
-                        userId = jwtService.userIdOf(claims),
-                        email = claims["email"] as String,
-                        name = claims["name"] as String,
-                        role = role,
-                        company = claims["company"] as String,
-                    )
-                    UsernamePasswordAuthenticationToken(
-                        principal,
-                        null,
-                        listOf(SimpleGrantedAuthority("ROLE_${role.name}")),
-                    )
+                    adminSessionLoader.load(claims.subject)?.let { principal ->
+                        UsernamePasswordAuthenticationToken(
+                            principal,
+                            null,
+                            listOf(SimpleGrantedAuthority("ROLE_${principal.role.name}")),
+                        )
+                    }
                 }
-                auth.details = WebAuthenticationDetailsSource().buildDetails(request)
-                SecurityContextHolder.getContext().authentication = auth
+                if (auth != null) {
+                    auth.details = WebAuthenticationDetailsSource().buildDetails(request)
+                    SecurityContextHolder.getContext().authentication = auth
+                }
             }
         }
         filterChain.doFilter(request, response)

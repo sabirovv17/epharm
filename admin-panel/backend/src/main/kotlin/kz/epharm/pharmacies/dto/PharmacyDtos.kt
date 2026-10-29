@@ -64,7 +64,7 @@ data class PharmacyDto(
     val group: PharmacyGroup,
     val pharmacists: Int,
     val receipts30d: Int,
-    val gmv30d: Long,
+    val gmv30d: Long?,
     val liftPct: Double,
     val rulesAccepted: Int,
     val active: Boolean,

@@ -2,6 +2,7 @@ package kz.epharm.shared
 
 import kz.epharm.auth.domain.AdminRole
 import kz.epharm.auth.entity.AdminUserEntity
+import kz.epharm.auth.repository.AdminUserRepository
 import kz.epharm.auth.service.JwtService
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -18,6 +19,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import org.springframework.transaction.annotation.Transactional
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
@@ -37,6 +39,7 @@ import org.testcontainers.junit.jupiter.Testcontainers
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Testcontainers
+@Transactional
 class AuthErrorContractTest {
 
     companion object {
@@ -59,6 +62,7 @@ class AuthErrorContractTest {
 
     @Autowired private lateinit var mockMvc: MockMvc
     @Autowired private lateinit var jwtService: JwtService
+    @Autowired private lateinit var admins: AdminUserRepository
 
     @Test
     fun `неизвестный публичный API-маршрут возвращает 404 JSON вместо 500`() {
@@ -191,10 +195,11 @@ class AuthErrorContractTest {
     }
 
     private fun adminToken(role: AdminRole): String = jwtService.issueAccessToken(
-        AdminUserEntity(
+        admins.saveAndFlush(AdminUserEntity(
             email = "${role.name.lowercase()}@example.test",
+            passwordHash = "test-only-not-used",
             name = "Role contract test",
             company = "ePharm",
-        ).also { it.role = role },
+        ).also { it.role = role }),
     )
 }

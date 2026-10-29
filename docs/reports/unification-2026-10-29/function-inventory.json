@@ -12845,5 +12845,190 @@
       "Есть таблицы и SQL-функции; в current scripts/API не найден Telegram runner или HTTP-контур. Не включать старый канал автоматически и не удалять его данные"
     ],
     "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H14.10",
+    "group": "H14",
+    "name": "Читать собственные актуальные серверные разрешения",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "working-tree:codex/unified-admin-development",
+      "ui": [],
+      "api": ["GET /api/admin/access/me"],
+      "jobs": [],
+      "data": [
+        "admin_users",
+        "unified_persons",
+        "unified_admin_profiles",
+        "unified_admin_access_audit"
+      ],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/auth/access/UnifiedAccessController.kt"
+      ]
+    },
+    "target": {
+      "section": "Управление",
+      "subsection": "Аккаунты и доступ",
+      "actions": ["Читать собственные актуальные серверные разрешения"],
+      "scope": "ADMINISTRATION; сохранённые права, отдельный management grant; ALL/assigned pharmacy scope; legacy role ceiling"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "MANAGED missing/empty grants не превращаются в LEGACY",
+      "Новый аккаунт без прав; человек связан явно; нет сброса существующих паролей",
+      "Пароль делегирующего проверяется, self-change и расширение области запрещены; версия и аудит без секретов"
+    ],
+    "risks": [
+      "Первый серверный срез, не готовность всего U2; NOT_READY маршруты закрыты; frontend настроек и импорт людей отдельно"
+    ],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H14.11",
+    "group": "H14",
+    "name": "Каталог подключённых и ожидающих серверных разрешений",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "working-tree:codex/unified-admin-development",
+      "ui": [],
+      "api": ["GET /api/admin/access/catalog"],
+      "jobs": [],
+      "data": [
+        "admin_users",
+        "unified_persons",
+        "unified_admin_profiles",
+        "unified_admin_access_audit"
+      ],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/auth/access/UnifiedAccessController.kt"
+      ]
+    },
+    "target": {
+      "section": "Управление",
+      "subsection": "Аккаунты и доступ",
+      "actions": ["Каталог подключённых и ожидающих серверных разрешений"],
+      "scope": "ADMINISTRATION; сохранённые права, отдельный management grant; ALL/assigned pharmacy scope; legacy role ceiling"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "MANAGED missing/empty grants не превращаются в LEGACY",
+      "Новый аккаунт без прав; человек связан явно; нет сброса существующих паролей",
+      "Пароль делегирующего проверяется, self-change и расширение области запрещены; версия и аудит без секретов"
+    ],
+    "risks": [
+      "Первый серверный срез, не готовность всего U2; NOT_READY маршруты закрыты; frontend настроек и импорт людей отдельно"
+    ],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H14.12",
+    "group": "H14",
+    "name": "Читать профиль доступа административного аккаунта",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "working-tree:codex/unified-admin-development",
+      "ui": [],
+      "api": ["GET /api/admin/access/accounts/{id}"],
+      "jobs": [],
+      "data": [
+        "admin_users",
+        "unified_persons",
+        "unified_admin_profiles",
+        "unified_admin_access_audit"
+      ],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/auth/access/UnifiedAccessController.kt"
+      ]
+    },
+    "target": {
+      "section": "Управление",
+      "subsection": "Аккаунты и доступ",
+      "actions": ["Читать профиль доступа административного аккаунта"],
+      "scope": "ADMINISTRATION; сохранённые права, отдельный management grant; ALL/assigned pharmacy scope; legacy role ceiling"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "MANAGED missing/empty grants не превращаются в LEGACY",
+      "Новый аккаунт без прав; человек связан явно; нет сброса существующих паролей",
+      "Пароль делегирующего проверяется, self-change и расширение области запрещены; версия и аудит без секретов"
+    ],
+    "risks": [
+      "Первый серверный срез, не готовность всего U2; NOT_READY маршруты закрыты; frontend настроек и импорт людей отдельно"
+    ],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H14.13",
+    "group": "H14",
+    "name": "Создать административный аккаунт с пустыми правами",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "working-tree:codex/unified-admin-development",
+      "ui": [],
+      "api": ["POST /api/admin/access/accounts"],
+      "jobs": [],
+      "data": [
+        "admin_users",
+        "unified_persons",
+        "unified_admin_profiles",
+        "unified_admin_access_audit"
+      ],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/auth/access/UnifiedAccessController.kt"
+      ]
+    },
+    "target": {
+      "section": "Управление",
+      "subsection": "Аккаунты и доступ",
+      "actions": ["Создать административный аккаунт с пустыми правами"],
+      "scope": "ADMINISTRATION; сохранённые права, отдельный management grant; ALL/assigned pharmacy scope; legacy role ceiling"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "MANAGED missing/empty grants не превращаются в LEGACY",
+      "Новый аккаунт без прав; человек связан явно; нет сброса существующих паролей",
+      "Пароль делегирующего проверяется, self-change и расширение области запрещены; версия и аудит без секретов"
+    ],
+    "risks": [
+      "Первый серверный срез, не готовность всего U2; NOT_READY маршруты закрыты; frontend настроек и импорт людей отдельно"
+    ],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H14.14",
+    "group": "H14",
+    "name": "Изменить разрешения с проверкой области и версии",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "working-tree:codex/unified-admin-development",
+      "ui": [],
+      "api": ["PUT /api/admin/access/accounts/{id}/grants"],
+      "jobs": [],
+      "data": [
+        "admin_users",
+        "unified_persons",
+        "unified_admin_profiles",
+        "unified_admin_access_audit"
+      ],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/auth/access/UnifiedAccessController.kt"
+      ]
+    },
+    "target": {
+      "section": "Управление",
+      "subsection": "Аккаунты и доступ",
+      "actions": ["Изменить разрешения с проверкой области и версии"],
+      "scope": "ADMINISTRATION; сохранённые права, отдельный management grant; ALL/assigned pharmacy scope; legacy role ceiling"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "MANAGED missing/empty grants не превращаются в LEGACY",
+      "Новый аккаунт без прав; человек связан явно; нет сброса существующих паролей",
+      "Пароль делегирующего проверяется, self-change и расширение области запрещены; версия и аудит без секретов"
+    ],
+    "risks": [
+      "Первый серверный срез, не готовность всего U2; NOT_READY маршруты закрыты; frontend настроек и импорт людей отдельно"
+    ],
+    "owner": "ePharm unification integration owner"
   }
 ]

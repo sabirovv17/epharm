@@ -107,7 +107,7 @@ class SecurityConfig(
                         "/api/public/training/certificates/**",
                     ).permitAll()
                     // Профиль и logout нужны любой роли HQ-консоли.
-                    .requestMatchers("/api/admin/auth/me", "/api/admin/auth/logout")
+                    .requestMatchers("/api/admin/auth/me", "/api/admin/auth/logout", "/api/admin/access/me")
                     .hasAnyRole(*ADMIN_ROLES)
                     // Учебный workspace. Права на конкретные мутации дополнительно
                     // сужаются @PreAuthorize в контроллерах.

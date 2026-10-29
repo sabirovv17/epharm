@@ -130,8 +130,8 @@ enum class DecisionReason {
 data class AccessDecision(val allowed: Boolean, val reason: DecisionReason)
 
 /**
- * Unwired pure core for U2, not a completed RBAC rollout. No Spring bean, current roles, API,
- * database, personal /learn or device authentication use it. No runtime catalog is defined here.
+ * Pure policy core for U2. The opt-in administrative HTTP/DB adapter lives in auth/access;
+ * personal /learn and device authentication remain independent. No runtime catalog is defined here.
  * Callers must supply server-verified identities, historical row/owner scope, requested projection,
  * a reviewed immutable catalog, trusted current time and password-verification evidence. An allow
  * decision applies only to that exact operation/scope; it is not an unscoped query/filter builder.
@@ -168,8 +168,7 @@ class UnifiedAccessPolicy(definitions: Collection<PermissionDefinition>, private
         if (actor.person?.entityType != CanonicalEntityType.PERSON || recipient.person?.entityType != CanonicalEntityType.PERSON) {
             return decision(DecisionReason.UNRESOLVED_DELEGATION_IDENTITY)
         }
-        if (recipient.account == actor.account || actor.person != null &&
-            actor.person.entityType == CanonicalEntityType.PERSON && actor.person == recipient.person) {
+        if (recipient.account == actor.account || actor.person == recipient.person) {
             return decision(DecisionReason.SELF_PERMISSION_CHANGE)
         }
         if (catalog[controlPermission]?.kind != PermissionKind.ACCESS_ADMINISTRATION) return decision(DecisionReason.DELEGATION_REQUIRED)

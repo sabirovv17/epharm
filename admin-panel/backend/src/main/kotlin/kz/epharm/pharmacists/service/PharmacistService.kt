@@ -1,6 +1,7 @@
 package kz.epharm.pharmacists.service
 
 import kz.epharm.auth.domain.AdminRole
+import kz.epharm.auth.access.AdministrativeScope
 import kz.epharm.auth.security.AdminPrincipal
 import kz.epharm.pharmacies.repository.PharmacyRepository
 import kz.epharm.finance.service.PharmacistWalletService
@@ -27,23 +28,32 @@ class PharmacistService(
     private val pharmacyRepository: PharmacyRepository,
     private val passwordEncoder: PasswordEncoder,
     private val wallet: PharmacistWalletService,
+    private val administrativeScope: AdministrativeScope,
 ) {
 
     @Transactional(readOnly = true)
     fun list(status: PharmacistStatus? = null, pharmacyId: String? = null): List<PharmacistDto> {
+        val scope = administrativeScope.currentPharmacyIds()
         val rows = when {
+            scope != null && scope.isEmpty() -> emptyList()
+            scope != null -> pharmacistRepository.findForAdministration(scope, status?.name, pharmacyId)
+            status != null && pharmacyId != null ->
+                pharmacistRepository.findAllByStatusRawAndPharmacyIdOrderByNameAsc(status.name, pharmacyId)
             status != null -> pharmacistRepository.findAllByStatusRawOrderByNameAsc(status.name)
             pharmacyId != null -> pharmacistRepository.findAllByPharmacyIdOrderByNameAsc(pharmacyId)
             else -> pharmacistRepository.findAllByOrderByNameAsc()
         }
-        return rows.map(PharmacistDto::of)
+        return rows.map { projected(it) }
     }
 
     @Transactional(readOnly = true)
-    fun get(id: String): PharmacistDto = PharmacistDto.of(loadOrThrow(id))
+    fun get(id: String): PharmacistDto = projected(loadOrThrow(id))
 
     @Transactional
     fun create(req: CreatePharmacistRequest): PharmacistDto {
+        val pharmacy = findPharmacy(req.pharmacyId) ?: throw AppException(
+            ErrorCode.VALIDATION_FAILED, "Pharmacy does not exist or is outside your scope", HttpStatus.BAD_REQUEST,
+        )
         // IIN + phone уникальны — проверяем заранее для понятного сообщения
         // (constraint вернёт 500 internal иначе).
         pharmacistRepository.findByIin(req.iin)?.let {
@@ -51,13 +61,6 @@ class PharmacistService(
         }
         pharmacistRepository.findByPhone(req.phone)?.let {
             throw AppException(ErrorCode.CONFLICT, "Телефон ${req.phone} уже зарегистрирован", HttpStatus.CONFLICT)
-        }
-        val pharmacy = pharmacyRepository.findById(req.pharmacyId).orElseThrow {
-            AppException(
-                ErrorCode.VALIDATION_FAILED,
-                "Pharmacy ${req.pharmacyId} does not exist",
-                HttpStatus.BAD_REQUEST,
-            )
         }
         val entity = PharmacistEntity(
             id = generateId(),
@@ -73,11 +76,12 @@ class PharmacistService(
             it.tier = req.tier
             it.status = req.status
         }
-        return PharmacistDto.of(pharmacistRepository.save(entity))
+        return projected(pharmacistRepository.save(entity))
     }
 
     @Transactional
     fun update(id: String, req: UpdatePharmacistRequest): PharmacistDto {
+        administrativeScope.requirePharmacistUpdate(req)
         if (req.balance != null) {
             val role = (SecurityContextHolder.getContext().authentication?.principal as? AdminPrincipal)?.role
             if (role !in setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD, AdminRole.FINANCE_REVIEWER)) {
@@ -91,7 +95,7 @@ class PharmacistService(
                 throw AppException(ErrorCode.FORBIDDEN, "Изменять телефон или пароль фармацевта может только HQ", HttpStatus.FORBIDDEN)
             }
         }
-        val entity = loadOrThrow(id)
+        val entity = loadOrThrow(id, forUpdate = true)
         if (entity.status == PharmacistStatus.blocked) {
             throw AppException(
                 ErrorCode.CONFLICT,
@@ -114,12 +118,12 @@ class PharmacistService(
         req.balance?.let { wallet.adjustTo(entity.id, it) }
         req.coursesDone?.let { entity.coursesDone = it }
         req.coursesTotal?.let { entity.coursesTotal = it }
-        return PharmacistDto.of(pharmacistRepository.save(entity))
+        return projected(pharmacistRepository.save(entity))
     }
 
     @Transactional
     fun activate(id: String, req: ActivatePharmacistRequest): PharmacistDto {
-        val entity = loadOrThrow(id)
+        val entity = loadOrThrow(id, forUpdate = true)
         if (entity.status != PharmacistStatus.pending) {
             throw AppException(
                 ErrorCode.CONFLICT,
@@ -132,20 +136,20 @@ class PharmacistService(
         entity.pharmacyName = pharmacy.name
         entity.city = pharmacy.city
         entity.status = PharmacistStatus.active
-        return PharmacistDto.of(pharmacistRepository.save(entity))
+        return projected(pharmacistRepository.save(entity))
     }
 
     @Transactional
     fun block(id: String): PharmacistDto {
-        val entity = loadOrThrow(id)
+        val entity = loadOrThrow(id, forUpdate = true)
         entity.status = PharmacistStatus.blocked
-        return PharmacistDto.of(pharmacistRepository.save(entity))
+        return projected(pharmacistRepository.save(entity))
     }
 
     @Transactional
     fun unblock(id: String): PharmacistDto {
-        val entity = loadOrThrow(id)
-        if (entity.status != PharmacistStatus.blocked) return PharmacistDto.of(entity)
+        val entity = loadOrThrow(id, forUpdate = true)
+        if (entity.status != PharmacistStatus.blocked) return projected(entity)
         if (entity.pharmacyId.isNullOrBlank()) {
             throw AppException(
                 ErrorCode.VALIDATION_FAILED,
@@ -154,33 +158,40 @@ class PharmacistService(
             )
         }
         entity.status = PharmacistStatus.active
-        return PharmacistDto.of(pharmacistRepository.save(entity))
+        return projected(pharmacistRepository.save(entity))
     }
 
-    private fun loadPharmacy(id: String) = pharmacyRepository.findById(id).orElseThrow {
-        AppException(
-            ErrorCode.VALIDATION_FAILED,
-            "Аптека $id не найдена",
-            HttpStatus.BAD_REQUEST,
-        )
-    }.also {
+    private fun loadPharmacy(id: String) = (findPharmacy(id) ?: throw AppException(
+        ErrorCode.VALIDATION_FAILED, "Аптека не найдена или находится вне вашей области", HttpStatus.BAD_REQUEST,
+    )).also {
         if (!it.active) {
             throw AppException(
-                ErrorCode.VALIDATION_FAILED,
-                "Нельзя назначить отключённую аптеку",
-                HttpStatus.CONFLICT,
+                ErrorCode.VALIDATION_FAILED, "Нельзя назначить отключённую аптеку", HttpStatus.CONFLICT,
             )
         }
     }
 
-    private fun loadOrThrow(id: String): PharmacistEntity =
-        pharmacistRepository.findById(id).orElseThrow {
-            AppException(
-                ErrorCode.NOT_FOUND,
-                "Pharmacist $id not found",
-                HttpStatus.NOT_FOUND,
-            )
+    private fun findPharmacy(id: String) = administrativeScope.currentPharmacyIds().let { scope ->
+        when {
+            scope == null -> pharmacyRepository.findById(id).orElse(null)
+            scope.isEmpty() -> null
+            else -> pharmacyRepository.findInAdministrativeScope(id, scope).orElse(null)
         }
+    }
+
+    private fun projected(entity: PharmacistEntity): PharmacistDto =
+        administrativeScope.pharmacist(PharmacistDto.of(entity))
+
+    private fun loadOrThrow(id: String, forUpdate: Boolean = false): PharmacistEntity {
+        val scope = administrativeScope.currentPharmacyIds()
+        val entity = when {
+            scope == null -> pharmacistRepository.findById(id).orElse(null)
+            scope.isEmpty() -> null
+            forUpdate -> pharmacistRepository.findInAdministrativeScopeForUpdate(id, scope).orElse(null)
+            else -> pharmacistRepository.findInAdministrativeScope(id, scope).orElse(null)
+        }
+        return entity ?: throw AppException(ErrorCode.NOT_FOUND, "Pharmacist $id not found", HttpStatus.NOT_FOUND)
+    }
 
     private fun generateId(): String = "u_${UUID.randomUUID().toString().substring(0, 8)}"
 }
