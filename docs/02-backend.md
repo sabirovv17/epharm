@@ -18,36 +18,36 @@ The backend is a modular monolith under package `kz.epharm`.
 
 ## Domains
 
-| Package                               | Responsibility                                                                              |
-| ------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `auth`                                | Admin auth, JWT, refresh tokens, roles.                                                     |
-| `mobile.auth`                         | Pharmacist OTP auth, registration, refresh/logout.                                          |
-| `mobile.profile`                      | `/api/mobile/me` profile and authenticated self balance/recommendation APIs.                 |
-| `mobile.catalog`                      | Public mobile catalog with a configured website source and local snapshot fallback.         |
-| `mobile.promotions`                   | Public active promo campaign feed.                                                          |
-| `mobile.receipts`                     | Authenticated receipt upload/history.                                                       |
-| `mobile.pharmacies`                   | Public active pharmacy list.                                                                |
-| `catalog`                             | Internal/admin product master data used by rules.                                           |
-| `promo`                               | Campaigns, Medusa product snapshots, tiers, campaign-generated rules.                       |
-| `rules`                               | Rules Engine admin CRUD and POSM matching logic.                                            |
-| `receipts`                            | Receipt storage, moderation, POS/Excel reconciliation, bonus crediting.                     |
-| `pharmacies`                          | Chains and pharmacies.                                                                      |
-| `pharmacists`                         | Pharmacist registry, status, balance.                                                       |
-| `finance`                             | Payout batches, items, approval, scheduler.                                                 |
+| Package                               | Responsibility                                                                                      |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `auth`                                | Admin auth, JWT, refresh tokens, roles.                                                             |
+| `mobile.auth`                         | Pharmacist OTP auth, registration, refresh/logout.                                                  |
+| `mobile.profile`                      | `/api/mobile/me` profile and authenticated self balance/recommendation APIs.                        |
+| `mobile.catalog`                      | Public mobile catalog with a configured website source and local snapshot fallback.                 |
+| `mobile.promotions`                   | Public active promo campaign feed.                                                                  |
+| `mobile.receipts`                     | Authenticated receipt upload/history.                                                               |
+| `mobile.pharmacies`                   | Public active pharmacy list.                                                                        |
+| `catalog`                             | Internal/admin product master data used by rules.                                                   |
+| `promo`                               | Campaigns, Medusa product snapshots, tiers, campaign-generated rules.                               |
+| `rules`                               | Rules Engine admin CRUD and POSM matching logic.                                                    |
+| `receipts`                            | Receipt storage, moderation, POS/Excel reconciliation, bonus crediting.                             |
+| `pharmacies`                          | Chains and pharmacies.                                                                              |
+| `pharmacists`                         | Pharmacist registry, status, balance.                                                               |
+| `finance`                             | Payout batches, items, approval, scheduler.                                                         |
 | `finance.merch`                       | Disabled-by-default verified CRM executor grants, signed approvals and idempotent monetary rewards. |
-| `screens`                             | Broadcast/screen media and playlists.                                                       |
-| `banners`                             | Admin-managed mobile banners.                                                               |
-| `medusa`                              | Historical Medusa client and durable read-only product snapshot.                            |
-| `storefront`                          | Read-only client and DTO mapping for the current Inkar website catalog.                     |
-| `posm`                                | POSM recommendations, outcomes, sales, playlists, heartbeat, CDP.                           |
-| `fulfillment`                         | Signed storefront order ingest, pharmacist cash-pickup queue and actions.                   |
-| `appupdate`                           | POSM app release metadata and auto-update endpoint.                                         |
-| `merchtasks`                          | Optional authenticated CRM task bridge, exact staff URL validation and bounded concurrency. |
-| `training`                            | Programs, routes, assignments, events, attendance, results and awards.                      |
-| `lms`, `ai_exam`, `lift`, `dashboard` | Admin sections and reporting.                                                               |
-| `reporting`                           | HQ-only campaign JSON/PDF, confirmed displays, attributed/0–120-second sales.               |
-| `posm.staff`                          | Optional device-scoped employee authentication and purpose-bound SMS recovery.              |
-| `shared`                              | Security, errors, media proxy, storage, validation, dev reset.                              |
+| `screens`                             | Broadcast/screen media and playlists.                                                               |
+| `banners`                             | Admin-managed mobile banners.                                                                       |
+| `medusa`                              | Historical Medusa client and durable read-only product snapshot.                                    |
+| `storefront`                          | Read-only client and DTO mapping for the current Inkar website catalog.                             |
+| `posm`                                | POSM recommendations, outcomes, sales, playlists, heartbeat, CDP.                                   |
+| `fulfillment`                         | Signed storefront order ingest, pharmacist cash-pickup queue and actions.                           |
+| `appupdate`                           | POSM app release metadata and auto-update endpoint.                                                 |
+| `merchtasks`                          | Optional authenticated CRM task bridge, exact staff URL validation and bounded concurrency.         |
+| `training`                            | Programs, routes, assignments, events, attendance, results and awards.                              |
+| `lms`, `ai_exam`, `lift`, `dashboard` | Admin sections and reporting.                                                                       |
+| `reporting`                           | HQ-only campaign JSON/PDF, confirmed displays, attributed/0–120-second sales.                       |
+| `posm.staff`                          | Optional device-scoped employee authentication and purpose-bound SMS recovery.                      |
+| `shared`                              | Security, errors, media proxy, storage, validation, dev reset.                                      |
 
 ## API Map
 
@@ -179,29 +179,44 @@ Both responses set `Cache-Control: no-store` and contain no IIN, phone or other 
 `pharmacists.balance`, without creating ledger entries or reserving funds:
 
 ```json
-{"balanceKzt":42000,"currency":"KZT"}
+{ "balanceKzt": 42000, "currency": "KZT" }
 ```
 
 `GET /api/mobile/me/recommendations` returns:
 
 ```json
 {
-  "items": [{
-    "campaign": {"id":"promo_example","title":"Example","dateStart":null,"dateEnd":null},
-    "type":"substitution",
-    "trigger":{"kind":"acc_group","value":"stable-acc-key","label":"Group label"},
-    "triggerProducts":[],
-    "offers":[{
-      "ruleId":"rule_example",
-      "product":{
-        "id":"product_example","name":"Example product","brand":"Example",
-        "mnn":"Example INN","volume":"30 tablets","barcodes":[],"ipartId":null,
-        "catalogPriceKzt":2500,"catalogUpdatedAt":"2026-01-01T00:00:00Z"
-      },
-      "bonusKzt":0,"script":"Configured text","advantages":[]
-    }]
-  }],
-  "page":0,"size":20,"total":1,"currency":"KZT"
+  "items": [
+    {
+      "campaign": { "id": "promo_example", "title": "Example", "dateStart": null, "dateEnd": null },
+      "type": "substitution",
+      "trigger": { "kind": "acc_group", "value": "stable-acc-key", "label": "Group label" },
+      "triggerProducts": [],
+      "offers": [
+        {
+          "ruleId": "rule_example",
+          "product": {
+            "id": "product_example",
+            "name": "Example product",
+            "brand": "Example",
+            "mnn": "Example INN",
+            "volume": "30 tablets",
+            "barcodes": [],
+            "ipartId": null,
+            "catalogPriceKzt": 2500,
+            "catalogUpdatedAt": "2026-01-01T00:00:00Z"
+          },
+          "bonusKzt": 0,
+          "script": "Configured text",
+          "advantages": []
+        }
+      ]
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "total": 1,
+  "currency": "KZT"
 }
 ```
 
@@ -409,3 +424,13 @@ export JAVA_HOME=/Users/amir/Library/Java/JavaVirtualMachines/temurin-22.0.2/Con
 ```
 
 Local dev needs the root `docker compose up -d` infrastructure.
+
+## Opt-in unified administrative access
+
+`auth/access` connects `auth/policy` to persisted grants and request-bound SQL
+scopes. V066 defaults existing accounts to LEGACY; new accounts are MANAGED and
+empty-deny. Current admin identity/status/role are reloaded from the database,
+while mobile, POSM and HMAC authentication remain separate. Exact handler patterns
+are catalogued; unknown/NOT_READY routes deny managed accounts. Existing role
+checks remain an additional ceiling. See [the U1/U2 contract](23-unified-admin-data-and-access.md)
+for supported surfaces, field projections, management locking and remaining gates.

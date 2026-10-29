@@ -10,16 +10,16 @@
 
 Epharm: Kotlin/Spring backend, React-админка, Flutter-приложение и C#/WPF POSM. Полная [карта проекта](docs/00-project-map.md) нужна при неясном маршруте или структурной задаче; [индекс документов](docs/README.md) — для узких контрактов.
 
-| Область задачи                   | Сначала читать при необходимости                                      | Код                                                              |
-| -------------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Архитектура и межмодульный поток | `docs/01-architecture.md`                                             | По маршруту из карты                                             |
-| Backend / API                    | `docs/02-backend.md`                                                  | `admin-panel/backend/`                                           |
-| Общие ID и права единой админки  | `PLAN.md`, `docs/23-unified-admin-data-and-access.md`                 | backend `shared/identity/`, `auth/policy/`; `tools/unification/` |
-| Админка                          | `docs/03-admin-panel.md`                                              | `admin-panel/frontend/`                                          |
-| Мобильное приложение             | `docs/04-mobile-app.md`                                               | `lib/`, `test/`                                                  |
-| POSM / касса                     | `docs/05-posm-client.md`                                              | `App/`, `Models/`                                                |
-| База / миграции                  | `docs/07-database.md`                                                 | `admin-panel/backend/src/main/resources/db/migration/`           |
-| Прод / релиз / CI                | `docs/06-deployment-and-ops.md`, `docs/20-reliability-and-release.md` | `.github/workflows/`, `docker-compose.prod.yml`                  |
+| Область задачи                   | Сначала читать при необходимости                                      | Код                                                                              |
+| -------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Архитектура и межмодульный поток | `docs/01-architecture.md`                                             | По маршруту из карты                                                             |
+| Backend / API                    | `docs/02-backend.md`                                                  | `admin-panel/backend/`                                                           |
+| Общие ID и права единой админки  | `PLAN.md`, `docs/23-unified-admin-data-and-access.md`                 | backend `shared/identity/`, `auth/policy/`, `auth/access/`; `tools/unification/` |
+| Админка                          | `docs/03-admin-panel.md`                                              | `admin-panel/frontend/`                                                          |
+| Мобильное приложение             | `docs/04-mobile-app.md`                                               | `lib/`, `test/`                                                                  |
+| POSM / касса                     | `docs/05-posm-client.md`                                              | `App/`, `Models/`                                                                |
+| База / миграции                  | `docs/07-database.md`                                                 | `admin-panel/backend/src/main/resources/db/migration/`                           |
+| Прод / релиз / CI                | `docs/06-deployment-and-ops.md`, `docs/20-reliability-and-release.md` | `.github/workflows/`, `docker-compose.prod.yml`                                  |
 
 `CLAUDE.md` и `*claude*notes.md` — контекст Claude и рабочие заметки; читай только по задаче, при расхождении проверяй профильный документ и код.
 

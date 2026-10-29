@@ -69,7 +69,7 @@ placement may change; existing POSM and `/learn` must keep `https://epharm.inkar
 | `21-rps-rollout-and-manufacturer-reports.md`    | Контракт PDF производителя, двухминутная атрибуция, вход РПС и staged-приёмка.                                    |
 | `21-merchandising-recommendations-and-stock.md` | Защищённый feed CRM: рекомендации, остатки, бонусный контур и rollout.                                            |
 | `22-unified-pharmacist-wallet.md`               | Один денежный баланс, неизменяемый журнал, OTP-подтверждённый исполнитель и подписанное одобрение CRM.            |
-| `23-unified-admin-data-and-access.md`           | U1/U2: сохранение ID, явные crosswalk, ядро прав и границы отдельного /learn/POSM; runtime пока не подключён.     |
+| `23-unified-admin-data-and-access.md`           | U1/U2: сохранение ID, CRM-only branches, opt-in серверные права/SQL scopes; отдельные /learn/POSM.                |
 | `rollout/rps-instructions-draft.md`             | Черновики ролевых инструкций и сценариев видео до Windows-приёмки.                                                |
 | `rollout/rps-auth-test.md`                      | Пилот входа РПС: ИИН/пароль, регистрация, SMS-сброс и отсутствие блокировки кассы.                                |
 | `reports/2026-09-23-orders-merch-audit.md`      | Аудит связки заказов/мерча, риски и доказательства перед следующим rollout.                                       |

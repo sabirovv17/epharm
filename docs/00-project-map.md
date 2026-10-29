@@ -51,8 +51,9 @@ PharmaPayV2/
 [`docs/reports/unification-2026-10-29/README.md`](reports/unification-2026-10-29/README.md).
 Это evidence исходного среза, а задачи/решения ведутся только в корневом PLAN.md.
 Технический контракт общих данных/доступа: [23-unified-admin-data-and-access.md](23-unified-admin-data-and-access.md).
-Pure-ядра: backend `shared/identity/SourceIdentity.kt`, `auth/policy/UnifiedAccessPolicy.kt`;
-они ещё не подключены к текущей авторизации или API. Исторические wire fixtures:
+Ядра: backend `shared/identity/SourceIdentity.kt`, `auth/policy/UnifiedAccessPolicy.kt`;
+opt-in серверный адаптер — `auth/access/` (права, каталог маршрутов, SQL scope).
+Старые аккаунты автоматически не переводятся. Исторические wire fixtures:
 `App.Tests/Fixtures/LegacyPosm/`, общие с backend `LegacyPosmWireContractTest`.
 
 | Модуль          | Код                                                   | Тесты                                     | Ключевые файлы                                                                                                                           |

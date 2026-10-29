@@ -4,12 +4,12 @@ Database: PostgreSQL 16.
 
 For admin unification the two source databases were restored separately: ePharm uses 16,
 CRM uses 18.6/dump 1.16. Do not restore the latter directly over the former. The local
-identity model adds no schema or live data changes; see [the U1/U2 contract](23-unified-admin-data-and-access.md)
+identity mapping stays offline; V066 adds opt-in access tables without converting existing accounts; see [the U1/U2 contract](23-unified-admin-data-and-access.md)
 and [restore evidence](reports/unification-2026-10-29/isolated-restore-verification.json).
 
 Migrations: Flyway files in `admin-panel/backend/src/main/resources/db/migration/`.
 
-Current migration range in source: V001-V063.
+Current migration range in source: V001-V066. V066 is additive and not deployed by this unification task.
 
 ## Migrations
 

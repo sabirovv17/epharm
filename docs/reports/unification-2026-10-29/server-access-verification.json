@@ -1,0 +1,80 @@
+{
+  "date": "2026-10-29",
+  "scope": "local candidate only; no production deployment",
+  "backendCommit": "ac6985c",
+  "identityCommit": "d657ae6",
+  "sourceMain": "b946592549db9eab8d108c6c5bdbd7022915a655",
+  "routes": {
+    "NOT_READY": 137,
+    "ALL_ONLY": 5,
+    "SCOPED": 10
+  },
+  "newAccessEndpoints": 5,
+  "inventory": {
+    "actions": 391,
+    "groups": 57,
+    "posmContracts": 47,
+    "backendEndpoints": 234
+  },
+  "verification": {
+    "backendFullBuild": "passed (all suites, Flyway, bootJar and merchandising artifact contract)",
+    "lastBackendFollowup": {
+      "tests": 15,
+      "failed": 0,
+      "purpose": "final transaction guard/concurrency/access regression, rebuilt JAR and artifact verification"
+    },
+    "posmCore": {
+      "tests": 296,
+      "failed": 0
+    },
+    "unificationPython": {
+      "tests": 56,
+      "failed": 0
+    },
+    "legacyPosmWire": "passed in full backend suite",
+    "sourceDataUpgrade": "access-upgrade-preservation.json",
+    "frontend": {
+      "tests": 656,
+      "testFiles": 54,
+      "failed": 0,
+      "build": "passed",
+      "typescript": "passed",
+      "lint": "passed",
+      "runtime": "local Node 26; CI pins Node 24.15.0",
+      "testCommand": "NODE_OPTIONS=--no-experimental-webstorage npm test",
+      "note": "Disable Node26 experimental global webstorage only for local run; repository/runtime configuration unchanged."
+    }
+  },
+  "logs": {
+    "fullBackendBuild": {
+      "sha256": "ae4fb79ad40aa81de1dba5345e4fc37078c9ac92acc5bb599b7d65ad603d3a09",
+      "result": "passed"
+    },
+    "lastAccessRegressionAndJar": {
+      "sha256": "5da7b1c8b11e936aace120b98c74785d75b97877c95b3d028270dc283be76ad6",
+      "result": "passed"
+    },
+    "posmCore": {
+      "sha256": "3cc006e73cdb32e203101183d5020c027c60d73c5f967375f25e9d61abd7fb32",
+      "result": "passed"
+    },
+    "identityAndInventoryTests": {
+      "sha256": "7d88ed52b4f45d4903f3a5889cafb6c909f6c152c86309713da3efc406f8f093",
+      "result": "passed"
+    }
+  },
+  "remaining": [
+    "source human/account bindings, explicit initial owner/grants and controlled existing-account conversion",
+    "historical finance/training scopes and MERCH_BRANCH scopes",
+    "remaining NOT_READY routes, exports and bulk projections",
+    "management UI and unified CRM migration/rehearsal",
+    "physical Windows/POSM overlay and installed binary validation before release"
+  ],
+  "preserved": [
+    "epharm.inkar.kz",
+    "separate /learn",
+    "POSM device-key/HMAC/QR/outbox/update authentication boundaries",
+    "all source snapshots/records and original file references"
+  ],
+  "runtimeAcceptedInProduction": false
+}

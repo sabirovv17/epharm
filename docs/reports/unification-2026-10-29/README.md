@@ -166,3 +166,15 @@ python3 -B tools/unification/check_inventory.py \
 Guard и его негативные тесты включены в существующий CI `ops-contract`, который
 уже обязателен для P0 gate. Это проверка карты и исходников, не runtime-совместимости.
 GitHub CI именно новой ветки ещё не запускался: push/deploy сейчас не выполнялись.
+
+## Продолжение: карта ID и серверный доступ
+
+Новая ветка `codex/unified-admin-development` сохраняет baseline отдельно от
+проверенных следующих срезов. [Карта ID](identity-disposition.json) сохраняет680
+CRM branch UUID,532 optional pharmacy relations и148 самостоятельных записей.
+[Проверка доступа](server-access-verification.json) фиксирует первый opt-in
+серверный срез, полный backend build, POSM/frontend/unit checks и оставшиеся
+NOT_READY границы. [Upgrade preservation](access-upgrade-preservation.json)
+подтверждает неизменность73 исходных таблиц на локальном клоне.
+Текущий guard:391 действий,57 групп,47 POSM contracts,234 backend endpoints.
+Production rollout/миграция аккаунтов и закрытие U1/U2 не заявляются.
