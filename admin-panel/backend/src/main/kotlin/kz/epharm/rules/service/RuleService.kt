@@ -10,6 +10,7 @@ import kz.epharm.rules.dto.RuleDto
 import kz.epharm.rules.dto.TriggerDto
 import kz.epharm.rules.dto.UpdateRuleRequest
 import kz.epharm.rules.entity.RuleEntity
+import kz.epharm.rules.entity.RuleCard
 import kz.epharm.rules.entity.RuleStatus
 import kz.epharm.rules.entity.RuleType
 import kz.epharm.rules.repository.RuleRepository
@@ -76,8 +77,8 @@ class RuleService(
     fun update(id: String, req: UpdateRuleRequest): RuleDto {
         val entity = loadOrThrow(id, forUpdate = true)
         val nextCard = when {
-            req.clearCard -> null
-            req.card != null -> req.card.toEntity()
+            req.clearCard -> entity.card?.bonusInherited?.let { RuleCard(bonusInherited = it) }
+            req.card != null -> req.card.toEntity().copy(bonusInherited = entity.card?.bonusInherited)
             else -> entity.card
         }
         if (entity.status == RuleStatus.active || req.status != null && req.status != entity.status ||
@@ -85,6 +86,7 @@ class RuleService(
             administrativeScope.requireAllPermission(MotivationPermissions.recommendationPublish)
         }
         val nextBonus = req.bonus ?: entity.bonus
+        val bonusChanged = nextBonus != entity.bonus
         val nextTrigger = req.trigger?.toEntity() ?: entity.trigger
         val nextAbTest = when {
             req.clearAbTest -> null
@@ -98,8 +100,17 @@ class RuleService(
         val paidGoalChanged = (nextCard?.goalBonus ?: 0) != (entity.card?.goalBonus ?: 0) ||
             nextCard?.goalTarget != entity.card?.goalTarget &&
             ((nextCard?.goalBonus ?: 0) != 0 || (entity.card?.goalBonus ?: 0) != 0)
-        if (nextBonus != entity.bonus || paidConditionChanged || paidGoalChanged) {
+        if (bonusChanged || paidConditionChanged || paidGoalChanged) {
             administrativeScope.requireAllPermission(MotivationPermissions.configureBonus)
+        }
+        if (administrativeScope.hasManagedRequest() && entity.promoId != null) {
+            val lifecycleOnly = req.status != null && req.copy(status = null) == UpdateRuleRequest()
+            val safeStatus = req.status in setOf(RuleStatus.paused, RuleStatus.draft) ||
+                req.status == RuleStatus.active && entity.status == RuleStatus.active
+            if (!lifecycleOnly || !safeStatus) {
+                throw AppException(ErrorCode.CONFLICT,
+                    "Правило связано с кампанией: используйте подготовленные изменения и «Применить»", HttpStatus.CONFLICT)
+            }
         }
         if (entity.status == RuleStatus.archived) {
             throw AppException(
@@ -147,8 +158,10 @@ class RuleService(
             req.abTest != null -> entity.abTest = req.abTest.toEntity()
         }
         when {
-            req.clearCard -> entity.card = null
-            req.card != null -> entity.card = req.card.toEntity()
+            req.clearCard || req.card != null -> entity.card = nextCard
+        }
+        if (bonusChanged && entity.promoId != null) {
+            entity.card = (entity.card ?: RuleCard()).copy(bonusInherited = false)
         }
         return RuleDto.of(ruleRepository.save(entity))
     }
@@ -159,6 +172,7 @@ class RuleService(
         if (entity.status == RuleStatus.archived) return RuleDto.of(entity)
         administrativeScope.requireAllPermission(MotivationPermissions.recommendationPublish)
         entity.status = RuleStatus.archived
+        entity.retiredAt = java.time.Instant.now()
         return RuleDto.of(ruleRepository.save(entity))
     }
 
@@ -288,9 +302,9 @@ class RuleService(
     }
 
     private fun generateId(type: RuleType): String {
-        val short = UUID.randomUUID().toString().substring(0, 8)
+        val suffix = UUID.randomUUID().toString().replace("-", "")
         // 'r_' prefix совпадает с seed-форматом, чтобы UI и логи были однородны.
         val typeMark = if (type == RuleType.crosssell) "x" else "s"
-        return "r_${typeMark}_$short"
+        return "r_${typeMark}_$suffix"
     }
 }

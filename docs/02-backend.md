@@ -434,3 +434,13 @@ while mobile, POSM and HMAC authentication remain separate. Exact handler patter
 are catalogued; unknown/NOT_READY routes deny managed accounts. Existing role
 checks remain an additional ceiling. See [the U1/U2 contract](23-unified-admin-data-and-access.md)
 for supported surfaces, field projections, management locking and remaining gates.
+
+The local unification candidate adds `GET/PUT /api/admin/promo/{id}/changes` and
+`POST /api/admin/promo/{id}/changes/apply`. PUT accepts `expectedRevision` and one
+complete `bundle: {campaign, rules}` or explicit `discard: true`; Apply accepts the
+saved `expectedRevision`. Author identity comes from the authenticated principal.
+Both campaign and recommendation capabilities are required, globally scoped;
+financial changes require separate configure-bonus permission. V067 retains pending
+JSON separately from published tables and keeps an immutable publication history.
+Conflicting revisions/source conditions return409 without partial publication.
+These endpoints do not change POSM authentication, paths or response shapes.

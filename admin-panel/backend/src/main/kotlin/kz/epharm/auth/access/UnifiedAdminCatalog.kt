@@ -2,6 +2,7 @@ package kz.epharm.auth.access
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import kz.epharm.auth.domain.AdminRole
 import kz.epharm.auth.policy.*
 import org.springframework.stereotype.Component
 import java.time.Duration
@@ -34,7 +35,7 @@ class UnifiedAdminCatalog(mapper: ObjectMapper) {
         require(routes.map { it.api }.distinct().size == routes.size)
         val keys = routes.filter { it.mode != ScopeIntegration.NOT_READY }.map { it.permission }.groupBy { it.key() }
         require(keys.values.all { group -> group.map { it.kind }.distinct().size == 1 })
-        definitions = keys.map { (key, group) -> PermissionDefinition(key, group.first().kind) } + listOf(
+        val explicit = listOf(
             PermissionDefinition(sensitive, PermissionKind.SENSITIVE_DATA),
             PermissionDefinition(financial, PermissionKind.FINANCIAL),
             PermissionDefinition(pharmacyFinancial, PermissionKind.FINANCIAL),
@@ -44,6 +45,9 @@ class UnifiedAdminCatalog(mapper: ObjectMapper) {
             PermissionDefinition(recommendationPublish),
             PermissionDefinition(configureBonus, PermissionKind.FINANCIAL),
         )
+        require(explicit.all { definition -> keys[definition.key]?.all { it.kind == definition.kind } != false })
+        val explicitKeys = explicit.map { it.key }.toSet()
+        definitions = explicit + keys.filterKeys { it !in explicitKeys }.map { (key, group) -> PermissionDefinition(key, group.first().kind) }
         policy = UnifiedAccessPolicy(definitions, Duration.ofMinutes(5))
     }
 
@@ -51,6 +55,20 @@ class UnifiedAdminCatalog(mapper: ObjectMapper) {
     fun supported(key: PermissionKey) = key in setOf(sensitive, financial, pharmacyFinancial, accountView, accountManage,
         campaignPublish, recommendationPublish, configureBonus) ||
         routes.any { it.permission.key() == key && it.mode != ScopeIntegration.NOT_READY }
+
+    fun availableRoles(key: PermissionKey): Set<AdminRole> = when {
+        key == accountManage -> setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD)
+        key.module == AdministrationModule.TRAINING -> setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD,
+            AdminRole.TRAINING_MANAGER, AdminRole.REGIONAL_MANAGER, AdminRole.TRAINER)
+        else -> setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD, AdminRole.CATEGORY_LEAD, AdminRole.BRAND_MANAGER, AdminRole.FINANCE_REVIEWER)
+    }
+
+    fun integration(key: PermissionKey): ScopeIntegration = when {
+        !supported(key) -> ScopeIntegration.NOT_READY
+        key in setOf(accountView, accountManage, financial, campaignPublish, recommendationPublish, configureBonus) -> ScopeIntegration.ALL_ONLY
+        routes.any { it.permission.key() == key && it.mode == ScopeIntegration.ALL_ONLY } -> ScopeIntegration.ALL_ONLY
+        else -> ScopeIntegration.SCOPED
+    }
 
     companion object {
         fun key(module: String, subsection: String, action: String) =

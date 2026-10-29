@@ -9,7 +9,18 @@ and [restore evidence](reports/unification-2026-10-29/isolated-restore-verificat
 
 Migrations: Flyway files in `admin-panel/backend/src/main/resources/db/migration/`.
 
-Current migration range in source: V001-V066. V066 is additive and not deployed by this unification task.
+Current migration range in source: V001-V067. V066 and V067 were applied only to the isolated
+unification candidate. Neither has been deployed by this task. All original business-table
+column, primary-key and row-count fingerprints survived the upgrade; Flyway history gained
+only the two expected rows. See [candidate-schema-upgrade.json](reports/unification-2026-10-29/candidate-schema-upgrade.json).
+
+V067 adds prepared campaign changes, immutable publication history and a retirement marker
+for rules. Removed campaign rules remain archived with their original IDs so recommendation
+events and reports keep their links. The history trigger rejects UPDATE and DELETE. Pending
+JSON is an authoring projection; POSM continues to read the published campaign/rule tables.
+V066/V067 are now frozen after this candidate rehearsal; subsequent schema fixes require a
+new migration. The inert CRM staging schema is not an application read model or a completed
+business migration.
 
 ## Migrations
 
@@ -78,6 +89,10 @@ Current migration range in source: V001-V066. V066 is additive and not deployed 
 | V061    | `posm_staff_auth`                      | Purpose-bound SMS challenges, hashed staff grants, rate budgets and grant-revocation triggers. |
 | V062    | `pharmacist_wallet_ledger`             | Append-only opening checkpoints and idempotent atomic credits/payout reservations.             |
 | V063    | `merch_verified_executor_rewards`      | Isolated OTP proofs, hashed grants, immutable executor bindings and approved-reward events.    |
+| V064    | `recommendation_sale_bonus_source`     | Verified sale source and duplicate-reservation protection for recommendation rewards.          |
+| V065    | `product_barcode_aliases`              | Explicit product barcode aliases retained across catalogue refreshes.                          |
+| V066    | `unified_admin_access`                 | Opt-in managed access profiles, verified people and transactional access audit.                |
+| V067    | `campaign_publication_changes`         | Prepared revisions, immutable publication history and retained archived rule identities.       |
 
 ## Domain Tables
 

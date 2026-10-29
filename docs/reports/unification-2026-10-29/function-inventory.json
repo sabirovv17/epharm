@@ -13090,5 +13090,107 @@
     ],
     "risks": ["Not an automatic legacy account/person migration"],
     "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H03.12",
+    "group": "H03",
+    "name": "Читать подготовленную и опубликованную редакции акции",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "working-tree:codex/unified-admin-development",
+      "ui": ["admin-panel/frontend/src/features/promo/PromoDetailPage.tsx"],
+      "api": ["GET /api/admin/promo/{id}/changes"],
+      "jobs": [],
+      "data": ["promos", "rules", "promo_publication_changes", "promo_publication_history"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/promo/service/PromoPublicationService.kt"
+      ]
+    },
+    "target": {
+      "section": "Мотивация фармацевтов",
+      "subsection": "Промо-кампании / Подготовка и применение",
+      "actions": ["Читать подготовленную и опубликованную редакции акции"],
+      "scope": "Global campaign scope; separate view/edit/publish/financial permissions, version and original rule identity"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Save does not change POSM published conditions",
+      "Apply uses one saved revision and atomic campaign/rule transaction",
+      "Original rule IDs/events retained; removed pairs retired and never revived",
+      "Stale or invalid bundle cannot partially publish; financial conditions require explicit grant"
+    ],
+    "risks": [
+      "Legacy compatibility actors transition separately; no automatic production conversion",
+      "Publication/readiness does not prove a physical Windows overlay"
+    ],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H03.13",
+    "group": "H03",
+    "name": "Сохранить общий черновик условий и рекомендаций без публикации",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "working-tree:codex/unified-admin-development",
+      "ui": ["admin-panel/frontend/src/features/promo/PromoDetailPage.tsx"],
+      "api": ["PUT /api/admin/promo/{id}/changes"],
+      "jobs": [],
+      "data": ["promos", "rules", "promo_publication_changes", "promo_publication_history"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/promo/service/PromoPublicationService.kt"
+      ]
+    },
+    "target": {
+      "section": "Мотивация фармацевтов",
+      "subsection": "Промо-кампании / Подготовка и применение",
+      "actions": ["Сохранить общий черновик условий и рекомендаций без публикации"],
+      "scope": "Global campaign scope; separate view/edit/publish/financial permissions, version and original rule identity"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Save does not change POSM published conditions",
+      "Apply uses one saved revision and atomic campaign/rule transaction",
+      "Original rule IDs/events retained; removed pairs retired and never revived",
+      "Stale or invalid bundle cannot partially publish; financial conditions require explicit grant"
+    ],
+    "risks": [
+      "Legacy compatibility actors transition separately; no automatic production conversion",
+      "Publication/readiness does not prove a physical Windows overlay"
+    ],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H03.14",
+    "group": "H03",
+    "name": "Применить проверенную сохранённую редакцию акции",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "working-tree:codex/unified-admin-development",
+      "ui": ["admin-panel/frontend/src/features/promo/PromoDetailPage.tsx"],
+      "api": ["POST /api/admin/promo/{id}/changes/apply"],
+      "jobs": [],
+      "data": ["promos", "rules", "promo_publication_changes", "promo_publication_history"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/promo/service/PromoPublicationService.kt"
+      ]
+    },
+    "target": {
+      "section": "Мотивация фармацевтов",
+      "subsection": "Промо-кампании / Подготовка и применение",
+      "actions": ["Применить проверенную сохранённую редакцию акции"],
+      "scope": "Global campaign scope; separate view/edit/publish/financial permissions, version and original rule identity"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Save does not change POSM published conditions",
+      "Apply uses one saved revision and atomic campaign/rule transaction",
+      "Original rule IDs/events retained; removed pairs retired and never revived",
+      "Stale or invalid bundle cannot partially publish; financial conditions require explicit grant"
+    ],
+    "risks": [
+      "Legacy compatibility actors transition separately; no automatic production conversion",
+      "Publication/readiness does not prove a physical Windows overlay"
+    ],
+    "owner": "ePharm unification integration owner"
   }
 ]

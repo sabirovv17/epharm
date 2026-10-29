@@ -187,7 +187,7 @@ class UnifiedAdminAccessIntegrationTest {
 
     @Test fun `create and replace enforce password self-change optimistic version and audit`() {
         grants(grant("management", "accounts", "manage", all = true), grant("management", "accounts", "view", all = true),
-            grant("pharmacies_products", "pharmacies", "view"))
+            grant("pharmacies_products", "pharmacies", "view"), grant("training", "roster", "view", all = true))
         val recipientPerson = UUID.randomUUID()
         jdbc.update("insert into unified_persons values(?,?)", recipientPerson, "synthetic-reviewed-source")
         val create = mapOf("email" to "new-managed@example.invalid", "name" to "Managed Test", "password" to "Synthetic-new-password",
@@ -203,6 +203,7 @@ class UnifiedAdminAccessIntegrationTest {
         replace(id, 0, desired, "wrong-password").andExpect(status().isForbidden)
         replace(admin.id.toString(), 1, emptyList()).andExpect(status().isForbidden)
         replace(id, 0, listOf(grant("pharmacies_products", "pharmacies", "view", ids = setOf("scope-b")))).andExpect(status().isForbidden)
+        replace(id, 0, listOf(grant("training", "roster", "view", all = true))).andExpect(status().isBadRequest)
         replace(id, 0, desired).andExpect(status().isOk).andExpect(jsonPath("$.version").value(1))
         replace(id, 0, desired).andExpect(status().isConflict)
         assertThat(jdbc.queryForObject("select count(*) from unified_admin_access_audit where target_id=?", Long::class.java, UUID.fromString(id))).isEqualTo(2)
@@ -210,7 +211,7 @@ class UnifiedAdminAccessIntegrationTest {
     }
 
     @Test fun `catalog never advertises unmigrated routes as grantable and scope empty is invalid`() {
-        assertThat(catalog.routes).hasSize(152)
+        assertThat(catalog.routes).hasSize(155)
         assertThat(catalog.routes.filter { it.mode == ScopeIntegration.SCOPED }.all {
             it.api.contains(" /api/admin/pharmacists") || it.api.contains(" /api/admin/pharmacies") ||
                 it.api == "GET /api/admin/training/pharmacists"

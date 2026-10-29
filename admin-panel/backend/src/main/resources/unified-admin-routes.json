@@ -450,6 +450,16 @@
     "mode": "ALL_ONLY"
   },
   {
+    "api": "GET /api/admin/promo/{id}/changes",
+    "permission": {
+      "module": "motivation",
+      "subsection": "campaigns",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "ALL_ONLY"
+  },
+  {
     "api": "GET /api/admin/promo/{id}/rules",
     "permission": {
       "module": "motivation",
@@ -1290,6 +1300,16 @@
     "mode": "ALL_ONLY"
   },
   {
+    "api": "POST /api/admin/promo/{id}/changes/apply",
+    "permission": {
+      "module": "motivation",
+      "subsection": "campaigns",
+      "action": "publish",
+      "kind": "ORDINARY"
+    },
+    "mode": "ALL_ONLY"
+  },
+  {
     "api": "POST /api/admin/promo/{id}/restore",
     "permission": {
       "module": "motivation",
@@ -1498,6 +1518,16 @@
       "kind": "ORDINARY"
     },
     "mode": "NOT_READY"
+  },
+  {
+    "api": "PUT /api/admin/promo/{id}/changes",
+    "permission": {
+      "module": "motivation",
+      "subsection": "campaigns",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "ALL_ONLY"
   },
   {
     "api": "PUT /api/admin/promo/{id}/rules",

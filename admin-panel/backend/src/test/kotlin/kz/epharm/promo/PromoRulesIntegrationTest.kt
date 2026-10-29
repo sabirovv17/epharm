@@ -218,7 +218,10 @@ class PromoRulesIntegrationTest {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.config.replacements.length()").value(2))
 
-        val rewritten = ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc("pr_camp")
+        val all = ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc("pr_camp")
+        assertThat(all.first { it.id == stored.id }.retiredAt).isNotNull()
+        assertThat(all.first { it.id == stored.id }.status).isEqualTo(RuleStatus.archived)
+        val rewritten = all.filter { it.retiredAt == null }
         assertThat(rewritten).hasSize(2)
         assertThat(rewritten.map { it.trigger.kind }).containsOnly("product")
         assertThat(rewritten.map { it.trigger.value })

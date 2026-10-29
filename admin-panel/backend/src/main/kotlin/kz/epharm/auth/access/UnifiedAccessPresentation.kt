@@ -20,18 +20,8 @@ class UnifiedAccessPresentation(private val catalog: UnifiedAdminCatalog) {
             val routes = grouped[key].orEmpty()
             val definition = definitions[key]
             val kind = definition?.kind ?: routes.first().permission.kind
-            val mode = when {
-                !catalog.supported(key) -> ScopeIntegration.NOT_READY
-                key in setOf(catalog.accountView, catalog.accountManage, catalog.financial,
-                    catalog.campaignPublish, catalog.recommendationPublish, catalog.configureBonus) -> ScopeIntegration.ALL_ONLY
-                routes.any { it.mode == ScopeIntegration.ALL_ONLY } -> ScopeIntegration.ALL_ONLY
-                else -> ScopeIntegration.SCOPED
-            }
-            val roles = when {
-                key == catalog.accountManage -> setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD)
-                key.module == AdministrationModule.TRAINING -> TRAINING_ROLES
-                else -> CORE_ROLES
-            }
+            val mode = catalog.integration(key)
+            val roles = catalog.availableRoles(key)
             val scope = if (!manage || mode == ScopeIntegration.NOT_READY || access.role !in roles) null else {
                 val own = if (access.actor.primaryHqOwner && kind == PermissionKind.ORDINARY) PharmacyScope.All
                     else access.actor.grants.singleOrNull { it.permission == key }?.scope?.pharmacies
@@ -50,10 +40,6 @@ class UnifiedAccessPresentation(private val catalog: UnifiedAdminCatalog) {
     }
 
     companion object {
-        private val CORE_ROLES = setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD, AdminRole.CATEGORY_LEAD,
-            AdminRole.BRAND_MANAGER, AdminRole.FINANCE_REVIEWER)
-        private val TRAINING_ROLES = setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD, AdminRole.TRAINING_MANAGER,
-            AdminRole.REGIONAL_MANAGER, AdminRole.TRAINER)
         private val MODULE_TITLES = mapOf(AdministrationModule.ANALYTICS to "Аналитика",
             AdministrationModule.MOTIVATION to "Мотивация фармацевтов", AdministrationModule.TRAINING to "Обучение",
             AdministrationModule.MERCHANDISING to "Мерчендайзинг", AdministrationModule.PHARMACIES_PRODUCTS to "Аптеки и товары",

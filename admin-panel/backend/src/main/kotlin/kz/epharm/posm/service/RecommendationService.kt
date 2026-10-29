@@ -118,14 +118,14 @@ class RecommendationService(
                 triggerVolume = m.triggerProduct?.volume?.ifBlank { null },
                 triggerPrice = m.triggerProduct?.price,
                 triggerBarcode = m.triggerBarcode,
-                recommendSku = m.recommend.id,
-                recommendName = m.recommend.name,
+                recommendSku = event.recommendSku,
+                recommendName = event.recommendName,
                 recommendVendor = m.recommend.vendor.ifBlank { null },
                 recommendVolume = m.recommend.volume.ifBlank { null },
-                recommendPrice = m.recommend.price,
+                recommendPrice = snapshotMoney(event.expectedAmount),
                 recommendBarcode = m.recommend.barcode?.ifBlank { null },
                 partnerLabel = card?.partnerLabel?.ifBlank { null },
-                bonus = m.rule.bonus,
+                bonus = snapshotMoney(event.bonus),
                 script = m.rule.script,
                 advantages = m.rule.advantages,
                 comparison = card?.comparison.orEmpty().map {
@@ -330,14 +330,14 @@ class RecommendationService(
             triggerVolume = external.triggerProduct?.volume?.ifBlank { null },
             triggerPrice = external.triggerProduct?.price,
             triggerBarcode = external.triggerItem.barcode?.trim()?.takeIf(String::isNotEmpty),
-            recommendSku = external.recommend.id,
-            recommendName = external.recommend.name,
+            recommendSku = event.recommendSku,
+            recommendName = event.recommendName,
             recommendVendor = external.recommend.vendor.ifBlank { null },
             recommendVolume = external.recommend.volume.ifBlank { null },
-            recommendPrice = external.recommend.price,
+            recommendPrice = snapshotMoney(event.expectedAmount),
             recommendBarcode = external.recommend.barcode?.ifBlank { null },
             partnerLabel = candidate.partnerLabel?.ifBlank { null } ?: "МЕРЧЕНДАЙЗИНГ",
-            bonus = candidate.bonus,
+            bonus = snapshotMoney(event.bonus),
             script = candidate.script,
             advantages = candidate.advantages,
             comparison = emptyList(),
@@ -478,7 +478,8 @@ class RecommendationService(
                     throw AppException(ErrorCode.CONFLICT, "Conflicting reservations in the current receipt", HttpStatus.CONFLICT)
                 }
                 val pendingId = existingPendingIds.singleOrNull()?.let {
-                    pendingBonusService.reuseForOutcome(it, event.pharmacistId, event.pharmacyId, event.recommendSku)
+                    pendingBonusService.reuseForOutcome(it, event.pharmacistId, event.pharmacyId, event.recommendSku,
+                        expectedAmount = event.expectedAmount, bonus = event.bonus)
                 } ?: pendingBonusService.register(
                     pharmacistId = event.pharmacistId,
                     sku = event.recommendSku,
@@ -509,10 +510,10 @@ class RecommendationService(
         val existing = eventRepository.findFirstBySessionIdAndRuleIdAndTriggerSkuOrderByShownAtDesc(
             req.sessionId, m.rule.id, m.triggerSku,
         )
-        if (existing != null && existing.outcome == RecommendationOutcome.shown) return existing
+        if (sameIssuedOffer(existing, req, m.recommend.id, m.rule.type.name)) return existing!!
 
         val event = RecommendationEventEntity(
-            id = "rec_${UUID.randomUUID().toString().substring(0, 8)}",
+            id = "rec_${UUID.randomUUID().toString().replace("-", "")}",
             sessionId = req.sessionId,
             pharmacistId = req.pharmacistId,
             pharmacyId = req.pharmacyId,
@@ -541,10 +542,10 @@ class RecommendationService(
             ruleId,
             safeTrigger,
         )
-        if (existing != null && existing.outcome == RecommendationOutcome.shown) return existing
+        if (sameIssuedOffer(existing, req, external.recommend.id, external.candidate.kind)) return existing!!
 
         val event = RecommendationEventEntity(
-            id = "rec_${UUID.randomUUID().toString().substring(0, 8)}",
+            id = "rec_${UUID.randomUUID().toString().replace("-", "")}",
             sessionId = req.sessionId,
             pharmacistId = req.pharmacistId,
             pharmacyId = req.pharmacyId,
@@ -563,5 +564,17 @@ class RecommendationService(
             }
         }
         return eventRepository.save(event)
+    }
+
+    private fun sameIssuedOffer(event: RecommendationEventEntity?, req: RecommendRequest, sku: String, kind: String): Boolean =
+        event != null && event.outcome == RecommendationOutcome.shown && event.pharmacyId == req.pharmacyId &&
+            event.pharmacistId == req.pharmacistId && event.recommendSku == sku && event.kindRaw == kind
+
+    /** One open receipt keeps its issued integer-KZT quote; later receipts use current terms. */
+    private fun snapshotMoney(value: Long): Int {
+        if (value !in 0L..Int.MAX_VALUE.toLong()) {
+            throw AppException(ErrorCode.CONFLICT, "Сохранённые условия рекомендации выходят за допустимый диапазон суммы", HttpStatus.CONFLICT)
+        }
+        return value.toInt()
     }
 }

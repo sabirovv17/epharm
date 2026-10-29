@@ -29,10 +29,16 @@ class AdministrativeScope(private val catalog: UnifiedAdminCatalog) {
     }
 
     fun requireAllPermission(permission: PermissionKey) {
-        val context = current() ?: return
-        if (context.scope.pharmacies !is PharmacyScope.All ||
-            !catalog.policy.decide(context.access.actor, AccessRequest(permission, DataScope(PharmacyScope.All)), Instant.now()).allowed) deny()
+        if (!canAllPermission(permission)) deny()
     }
+
+    fun canAllPermission(permission: PermissionKey): Boolean {
+        val context = current() ?: return true
+        return context.scope.pharmacies is PharmacyScope.All &&
+            catalog.policy.decide(context.access.actor, AccessRequest(permission, DataScope(PharmacyScope.All)), Instant.now()).allowed
+    }
+
+    fun hasManagedRequest(): Boolean = current() != null
 
     fun requirePharmacistUpdate(req: UpdatePharmacistRequest) {
         if (current() == null) return

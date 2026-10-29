@@ -209,6 +209,10 @@ class UnifiedAccountAccessService(
         if (grants.map { it.permission }.distinct().size != grants.size || grants.any { !catalog.supported(it.permission) }) {
             throw AppException(ErrorCode.VALIDATION_FAILED, "Неизвестное, повторное или ещё не подключённое разрешение")
         }
+        if (grants.any { recipient.role !in catalog.availableRoles(it.permission) ||
+                catalog.integration(it.permission) == ScopeIntegration.ALL_ONLY && it.scope.pharmacies !is PharmacyScope.All }) {
+            throw AppException(ErrorCode.VALIDATION_FAILED, "Разрешение несовместимо с ролью или областью аккаунта")
+        }
         val ids = req.grants.flatMap { it.pharmacyIds }.toSet()
         if (ids.size > 2000) throw AppException(ErrorCode.VALIDATION_FAILED, "Слишком большая область аптек")
         val known = if (ids.isEmpty()) 0L else jdbc.queryForObject(

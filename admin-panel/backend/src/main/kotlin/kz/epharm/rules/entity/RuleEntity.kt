@@ -84,6 +84,8 @@ data class RuleCard(
      * чтобы оно round-trip'илось в редакторе даже при paused/draft кампании.
      */
     val pairActive: Boolean? = null,
+    /** Null preserves unknown legacy provenance; true means the campaign's default bonus. */
+    val bonusInherited: Boolean? = null,
 )
 
 @Entity
@@ -158,6 +160,9 @@ class RuleEntity(
 
     @Column(name = "updated_at", nullable = false)
     var updatedAt: Instant = Instant.now(),
+
+    @Column(name = "retired_at")
+    var retiredAt: Instant? = null,
 ) {
     var type: RuleType
         get() = RuleType.valueOf(typeRaw)

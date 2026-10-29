@@ -141,34 +141,38 @@ class UnifiedMotivationAuthorizationIntegrationTest {
         campaign()
         grants(grant("campaigns", "edit"), grant("campaigns", "publish"))
         change("PATCH", "/api/admin/promo/mot-promo", mapOf("status" to "active", "pharmacistBonus" to 50)).andExpect(status().isForbidden)
-        change("PATCH", "/api/admin/promo/mot-promo", mapOf("status" to "active")).andExpect(status().isOk)
+        change("PATCH", "/api/admin/promo/mot-promo", mapOf("status" to "active")).andExpect(status().isConflict)
+        promos.findById("mot-promo").orElseThrow().also { it.status = PromoStatus.active; promos.saveAndFlush(it) }
         grants(grant("campaigns", "edit"), grant("bonuses", "configure_bonus"), grant("campaigns", "archive"))
         change("PATCH", "/api/admin/promo/mot-promo", mapOf("title" to "Live change")).andExpect(status().isForbidden)
         change("POST", "/api/admin/promo/mot-promo/archive").andExpect(status().isForbidden)
         assertThat(promos.findById("mot-promo").orElseThrow().status).isEqualTo(PromoStatus.active)
     }
 
-    @Test fun `enabling a pair requires publication even while its campaign remains a draft`() {
+    @Test fun `legacy pair writes cannot bypass the managed prepared workflow even for a draft`() {
         campaign()
         grants(grant("recommendations", "edit"))
         change("PUT", "/api/admin/promo/mot-promo/rules", config(ref(active = true))).andExpect(status().isForbidden)
-        change("PUT", "/api/admin/promo/mot-promo/rules", config()).andExpect(status().isOk)
-        assertThat(rules.findAll().single().card?.pairActive).isFalse()
+        change("PUT", "/api/admin/promo/mot-promo/rules", config()).andExpect(status().isConflict)
+        assertThat(rules.count()).isZero()
         grants(grant("recommendations", "edit"), grant("recommendations", "publish"))
-        change("PUT", "/api/admin/promo/mot-promo/rules", config(ref(active = true))).andExpect(status().isOk)
-        assertThat(rules.findAll().single().status).isEqualTo(RuleStatus.draft)
+        change("PUT", "/api/admin/promo/mot-promo/rules", config(ref(active = true))).andExpect(status().isConflict)
+        assertThat(rules.count()).isZero()
     }
 
-    @Test fun `unchanged effective bonuses permit text roundtrip without financial permission`() {
+    @Test fun `legacy text roundtrip cannot bypass the managed revision even when money is unchanged`() {
         campaign(bonus = 100)
         linkedRule(bonus = 100)
         grants(grant("recommendations", "edit"))
         change("PUT", "/api/admin/promo/mot-promo/rules", config(ref(bonus = 100).apply { put("script", "Updated text") }))
-            .andExpect(status().isOk)
+            .andExpect(status().isConflict)
         change("PUT", "/api/admin/promo/mot-promo/rules", config(ref(bonus = null).apply { put("script", "Fallback unchanged") }))
-            .andExpect(status().isOk)
+            .andExpect(status().isForbidden)
+        grants(grant("recommendations", "edit"), grant("bonuses", "configure_bonus"))
+        change("PUT", "/api/admin/promo/mot-promo/rules", config(ref(bonus = null).apply { put("script", "Fallback unchanged") }))
+            .andExpect(status().isConflict)
         assertThat(rules.findAll().single().bonus).isEqualTo(100)
-        assertThat(rules.findAll().single().script).isEqualTo("Fallback unchanged")
+        assertThat(rules.findAll().single().script).isEmpty()
     }
 
     @Test fun `fallback zero removal paid trigger or extra offer cannot bypass financial configuration`() {
@@ -195,8 +199,8 @@ class UnifiedMotivationAuthorizationIntegrationTest {
         change("PUT", "/api/admin/promo/mot-promo/rules", config()).andExpect(status().isForbidden)
         change("PUT", "/api/admin/promo/mot-promo/rules", config() + mapOf("goalTarget" to 6, "goalBonus" to 100))
             .andExpect(status().isForbidden)
-        change("PUT", "/api/admin/promo/mot-promo/rules", config() + mapOf("goalTarget" to 5, "goalBonus" to 100))
-            .andExpect(status().isOk)
+        change("PUT", "/api/admin/promo/mot-promo/rules", config(ref(bonus = 0)) + mapOf("goalTarget" to 5, "goalBonus" to 100))
+            .andExpect(status().isConflict)
         assertThat(promos.findById(promo.id).orElseThrow().goalTarget).isEqualTo(5)
     }
 
@@ -207,7 +211,7 @@ class UnifiedMotivationAuthorizationIntegrationTest {
             rules.saveAndFlush(it)
         }
         grants(grant("recommendations", "edit"))
-        change("PUT", "/api/admin/promo/mot-promo/rules", config()).andExpect(status().isForbidden)
+        change("PUT", "/api/admin/promo/mot-promo/rules", config(ref(bonus = 0))).andExpect(status().isForbidden)
         assertThat(rules.findById("mot-rule").orElseThrow().card?.goalBonus).isEqualTo(100)
     }
 
@@ -281,8 +285,8 @@ class UnifiedMotivationAuthorizationIntegrationTest {
         assertThat(rules.findById("mot-rule").orElseThrow().bonus).isZero()
     }
 
-    @Test fun `D28 characterization active bonus PATCH currently does not apply to generated rule`() {
-        // Deliberate source characterization: a future explicit apply/stable sync must update this contract.
+    @Test fun `legacy account compatibility keeps old PATCH behavior until controlled account conversion`() {
+        jdbc.update("update admin_users set access_mode='LEGACY' where id=?", admin.id)
         campaign(PromoStatus.active, 100)
         linkedRule(100, active = true).also { it.status = RuleStatus.active; rules.saveAndFlush(it) }
         grants(grant("campaigns", "edit"), grant("campaigns", "publish"), grant("bonuses", "configure_bonus"))
