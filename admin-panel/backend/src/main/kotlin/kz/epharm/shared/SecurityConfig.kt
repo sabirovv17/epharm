@@ -1,6 +1,7 @@
 package kz.epharm.shared
 
 import kz.epharm.auth.security.JwtAuthenticationFilter
+import org.springframework.http.HttpMethod
 import kz.epharm.merch.producer.auth.ProducerAuthenticationFilter
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
@@ -59,6 +60,11 @@ class SecurityConfig(
             .formLogin { it.disable() }
             .authorizeHttpRequests { auth ->
                 auth
+                    .requestMatchers(HttpMethod.POST,
+                        "/api/mobile/auth/password-reset/request",
+                        "/api/mobile/auth/password-reset/verify",
+                        "/api/mobile/auth/password-reset/complete",
+                    ).permitAll()
                     .requestMatchers(
                         "/api/health",
                         "/actuator/health",

@@ -47,7 +47,7 @@ class MobileAuthService(
 
     @Transactional
     fun login(rawIin: String, password: String): MobileAuthResponse {
-        val pharmacist = pharmacistRepository.findByIin(rawIin.trim())
+        val pharmacist = pharmacistRepository.findByIinForUpdate(rawIin.trim())
             ?: throw AppException(
                 ErrorCode.INVALID_CREDENTIALS,
                 "Неверный ИИН или пароль",
@@ -141,6 +141,8 @@ class MobileAuthService(
     fun verifySms(rawPhone: String, code: String): VerifySmsResponse {
         val phone = PhoneUtil.normalize(rawPhone)
         otpService.verify(phone, code)
+        staffPhoneLock.lock(phone)
+        otpService.requireVerified(phone)
 
         val pharmacist = pharmacistRepository.findByPhone(phone)
             ?: return VerifySmsResponse(registered = false, tokens = null, pharmacist = null)
@@ -190,16 +192,16 @@ class MobileAuthService(
 
     @Transactional
     fun refresh(rawRefreshToken: String): RefreshResponse {
-        val now = Instant.now()
-        val pharmacistId = mobileRefreshTokenService.rotate(rawRefreshToken, now)
+        val pharmacistId = mobileRefreshTokenService.pharmacistIdOf(rawRefreshToken)
             ?: throw AppException(
                 ErrorCode.INVALID_REFRESH_TOKEN,
                 "Refresh-токен недействителен или истёк",
                 HttpStatus.UNAUTHORIZED,
             )
-        val pharmacist = pharmacistRepository.findById(pharmacistId).orElseThrow {
-            AppException(ErrorCode.USER_NOT_FOUND, "Фармацевт не найден", HttpStatus.UNAUTHORIZED)
-        }
+        val pharmacist = pharmacistRepository.findByIdForUpdate(pharmacistId) ?: throw AppException(ErrorCode.USER_NOT_FOUND, "Фармацевт не найден", HttpStatus.UNAUTHORIZED)
+        val now = Instant.now()
+        if (mobileRefreshTokenService.rotate(rawRefreshToken, now) != pharmacist.id) throw AppException(
+            ErrorCode.INVALID_REFRESH_TOKEN, "Refresh-токен недействителен или истёк", HttpStatus.UNAUTHORIZED)
         if (pharmacist.status == PharmacistStatus.blocked) {
             mobileRefreshTokenService.revokeAllForPharmacist(pharmacist.id)
             throw AppException(ErrorCode.PHARMACIST_BLOCKED, "Аккаунт заблокирован", HttpStatus.FORBIDDEN)
@@ -218,6 +220,16 @@ class MobileAuthService(
             AppException(ErrorCode.USER_NOT_FOUND, "Фармацевт не найден", HttpStatus.UNAUTHORIZED)
         }
         return MeDto.of(pharmacist)
+    }
+
+    /** Internal caller has atomically consumed an account/password-bound recovery grant. */
+    @Transactional
+    internal fun issueAfterVerifiedPasswordReset(pharmacistId: String): MobileAuthResponse {
+        val pharmacist = pharmacistRepository.findById(pharmacistId).orElseThrow {
+            AppException(ErrorCode.USER_NOT_FOUND, "Фармацевт не найден", HttpStatus.UNAUTHORIZED)
+        }
+        ensureNotBlocked(pharmacist)
+        return MobileAuthResponse(tokens = issueTokens(pharmacist), pharmacist = MeDto.of(pharmacist))
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

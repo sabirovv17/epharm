@@ -24,7 +24,10 @@ function renderPortal(path = '/learn') {
         <Route path="/learn/certificates" element={<LearnerTrainingPage />} />
         <Route path="/learn/profile" element={<LearnerTrainingPage />} />
         <Route path="/learn/course/:assignmentId" element={<LearnerTrainingPage />} />
-        <Route path="/learn/course/:assignmentId/lesson/:lessonId" element={<LearnerTrainingPage />} />
+        <Route
+          path="/learn/course/:assignmentId/lesson/:lessonId"
+          element={<LearnerTrainingPage />}
+        />
       </Routes>
     </MemoryRouter>,
   )
@@ -54,39 +57,74 @@ describe('learner training portal', () => {
       status: 'in_progress',
       format: 'online',
       progressPct: 0,
-      stages: [{
-        id: 'stage-live',
-        title: 'Онлайн-курс',
-        type: 'online_course',
-        status: 'in_progress',
-        progressPct: 0,
-        course: {
-          id: 'course-live',
+      stages: [
+        {
+          id: 'stage-live',
           title: 'Онлайн-курс',
-          lessons: [{
-            id: 'lesson-live', title: 'Эфир', kind: 'live', order: 0,
-            required: true, progressPct: 0, liveStatus: 'scheduled', attachments: [],
-          }],
+          type: 'online_course',
+          status: 'in_progress',
+          progressPct: 0,
+          course: {
+            id: 'course-live',
+            title: 'Онлайн-курс',
+            lessons: [
+              {
+                id: 'lesson-live',
+                title: 'Эфир',
+                kind: 'live',
+                order: 0,
+                required: true,
+                progressPct: 0,
+                liveStatus: 'scheduled',
+                attachments: [],
+              },
+            ],
+          },
         },
-      }],
+      ],
     }
     const room = {
-      lessonId: 'lesson-live', title: 'Эфир', description: '', provider: 'custom',
-      status: 'ended', startsAt: '2026-10-12T10:00:00Z', endsAt: null,
-      streamUrl: 'https://epharm.inkar.kz/live/demo', chatEnabled: true, qaEnabled: false, reactionsEnabled: false,
-      participantCount: 0, messages: [], polls: [], reactions: {},
+      lessonId: 'lesson-live',
+      title: 'Эфир',
+      description: '',
+      provider: 'custom',
+      status: 'ended',
+      startsAt: '2026-10-12T10:00:00Z',
+      endsAt: null,
+      streamUrl: 'https://epharm.inkar.kz/live/demo',
+      chatEnabled: true,
+      qaEnabled: false,
+      reactionsEnabled: false,
+      participantCount: 0,
+      messages: [],
+      polls: [],
+      reactions: {},
       serverTime: '2026-10-12T11:00:00Z',
     }
     let resolveRoom!: (response: Response) => void
-    const roomResponse = new Promise<Response>((resolve) => { resolveRoom = resolve })
+    const roomResponse = new Promise<Response>((resolve) => {
+      resolveRoom = resolve
+    })
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const path = String(input)
       if (path === '/api/mobile/auth/me') {
-        return json({ id: 'ph-1', name: 'Айжан', phone: '+77070000000', pharmacyName: 'Аптека', city: 'Алматы' })
+        return json({
+          id: 'ph-1',
+          name: 'Айжан',
+          phone: '+77070000000',
+          pharmacyName: 'Аптека',
+          city: 'Алматы',
+        })
       }
       if (path === '/api/mobile/training/assignments/assignment-live') return json(assignment)
       if (path === '/api/mobile/training') {
-        return json({ total: 1, inProgress: 1, completed: 0, overdue: 0, assignments: [assignment] })
+        return json({
+          total: 1,
+          inProgress: 1,
+          completed: 0,
+          overdue: 0,
+          assignments: [assignment],
+        })
       }
       if (path.endsWith('/lessons/lesson-live/live') && !init?.method) return roomResponse
       if (path.endsWith('/lessons/lesson-live/live/messages') && init?.method === 'POST') {
@@ -99,12 +137,19 @@ describe('learner training portal', () => {
     renderPortal('/learn/course/assignment-live/lesson/lesson-live')
     const complete = await screen.findByRole('button', { name: 'Дождитесь окончания эфира' })
     expect(complete).toBeDisabled()
-    expect(fetchMock.mock.calls.some(([path, init]) => String(path).endsWith('/lesson-live') && init?.method === 'PATCH')).toBe(false)
+    expect(
+      fetchMock.mock.calls.some(
+        ([path, init]) => String(path).endsWith('/lesson-live') && init?.method === 'PATCH',
+      ),
+    ).toBe(false)
 
     resolveRoom(json(room))
     expect(await screen.findByTestId('learner-live-lesson')).toBeInTheDocument()
     expect(screen.getByText('Участников чата: 0')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Открыть эфир' })).toHaveAttribute('href', 'https://epharm.inkar.kz/live/demo')
+    expect(screen.getByRole('link', { name: 'Открыть эфир' })).toHaveAttribute(
+      'href',
+      'https://epharm.inkar.kz/live/demo',
+    )
     expect(screen.queryByTitle('Эфир')).not.toBeInTheDocument()
     await waitFor(() => expect(complete).toBeEnabled())
     const message = screen.getByPlaceholderText('Напишите комментарий…')
@@ -113,7 +158,11 @@ describe('learner training portal', () => {
     expect(await screen.findByText('Не удалось отправить сообщение')).toBeInTheDocument()
     expect(message).toHaveValue('Вопрос к ведущему')
     await userEvent.click(complete)
-    expect(fetchMock.mock.calls.some(([path, init]) => String(path).endsWith('/lesson-live') && init?.method === 'PATCH')).toBe(true)
+    expect(
+      fetchMock.mock.calls.some(
+        ([path, init]) => String(path).endsWith('/lesson-live') && init?.method === 'PATCH',
+      ),
+    ).toBe(true)
   })
 
   it('keeps all lessons of a completed legacy course accessible without lesson progress rows', async () => {
@@ -126,30 +175,44 @@ describe('learner training portal', () => {
       status: 'completed',
       format: 'online',
       progressPct: 100,
-      stages: [{
-        id: 'stage-1',
-        title: 'Основы',
-        type: 'online_course',
-        status: 'completed',
-        progressPct: 100,
-        course: {
-          id: 'course-1',
+      stages: [
+        {
+          id: 'stage-1',
           title: 'Основы',
-          lessons: [
-            { id: 'lesson-1', title: 'Первый', order: 0, attachments: [] },
-            { id: 'lesson-2', title: 'Второй', order: 1, attachments: [] },
-          ],
+          type: 'online_course',
+          status: 'completed',
+          progressPct: 100,
+          course: {
+            id: 'course-1',
+            title: 'Основы',
+            lessons: [
+              { id: 'lesson-1', title: 'Первый', order: 0, attachments: [] },
+              { id: 'lesson-2', title: 'Второй', order: 1, attachments: [] },
+            ],
+          },
         },
-      }],
+      ],
     }
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const path = String(input)
       if (path === '/api/mobile/auth/me') {
-        return json({ id: 'ph-1', name: 'Айжан', phone: '+77070000000', pharmacyName: 'Ауэзова 134', city: 'Алматы' })
+        return json({
+          id: 'ph-1',
+          name: 'Айжан',
+          phone: '+77070000000',
+          pharmacyName: 'Ауэзова 134',
+          city: 'Алматы',
+        })
       }
       if (path === '/api/mobile/training/assignments/assignment-1') return json(assignment)
       if (path === '/api/mobile/training') {
-        return json({ total: 1, inProgress: 0, completed: 1, overdue: 0, assignments: [assignment] })
+        return json({
+          total: 1,
+          inProgress: 0,
+          completed: 1,
+          overdue: 0,
+          assignments: [assignment],
+        })
       }
       return json({ message: `Unexpected request: ${path}` }, 500)
     })
@@ -174,33 +237,56 @@ describe('learner training portal', () => {
       format: 'online',
       progressPct: 0,
       startedAt: '2026-09-01T10:00:00Z',
-      stages: [{
-        id: 'stage-1',
-        title: 'Внешний онлайн-курс',
-        type: 'online_course',
-        status: 'available',
-        progressPct: 0,
-        contentUrl: 'https://example.org/course',
-        course: null,
-      }],
+      stages: [
+        {
+          id: 'stage-1',
+          title: 'Внешний онлайн-курс',
+          type: 'online_course',
+          status: 'available',
+          progressPct: 0,
+          contentUrl: 'https://example.org/course',
+          course: null,
+        },
+      ],
     }
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const path = String(input)
       if (path === '/api/mobile/auth/me') {
-        return json({ id: 'ph-1', name: 'Айжан', phone: '+77070000000', pharmacyName: 'Ауэзова 134', city: 'Алматы' })
+        return json({
+          id: 'ph-1',
+          name: 'Айжан',
+          phone: '+77070000000',
+          pharmacyName: 'Ауэзова 134',
+          city: 'Алматы',
+        })
       }
       if (path === '/api/mobile/training/assignments/assignment-1') return json(assignment)
       if (path === '/api/mobile/training') {
-        return json({ total: 1, inProgress: 1, completed: 0, overdue: 0, assignments: [assignment] })
+        return json({
+          total: 1,
+          inProgress: 1,
+          completed: 0,
+          overdue: 0,
+          assignments: [assignment],
+        })
       }
-      if (path === '/api/mobile/training/assignments/assignment-1/stages/stage-1' && init?.method === 'PATCH') {
-        return json({ ...assignment, stages: [{ ...assignment.stages[0], status: 'completed', progressPct: 100 }] })
+      if (
+        path === '/api/mobile/training/assignments/assignment-1/stages/stage-1' &&
+        init?.method === 'PATCH'
+      ) {
+        return json({
+          ...assignment,
+          stages: [{ ...assignment.stages[0], status: 'completed', progressPct: 100 }],
+        })
       }
       return json({ message: `Unexpected request: ${path}` }, 500)
     })
 
     renderPortal('/learn/course/assignment-1')
-    expect(await screen.findByRole('link', { name: 'Открыть материал' })).toHaveAttribute('href', 'https://example.org/course')
+    expect(await screen.findByRole('link', { name: 'Открыть материал' })).toHaveAttribute(
+      'href',
+      'https://example.org/course',
+    )
     await userEvent.click(screen.getByRole('button', { name: 'Завершить этап' }))
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -234,13 +320,26 @@ describe('learner training portal', () => {
       if (path === '/api/mobile/auth/login') {
         return json({
           tokens,
-          pharmacist: { id: 'ph-1', name: 'Айжан', phone: '+77070000000', pharmacyName: 'Ауэзова 134', city: 'Алматы' },
+          pharmacist: {
+            id: 'ph-1',
+            name: 'Айжан',
+            phone: '+77070000000',
+            pharmacyName: 'Ауэзова 134',
+            city: 'Алматы',
+          },
         })
       }
       if (path === '/api/mobile/auth/me') {
-        return json({ id: 'ph-1', name: 'Айжан', phone: '+77070000000', pharmacyName: 'Ауэзова 134', city: 'Алматы' })
+        return json({
+          id: 'ph-1',
+          name: 'Айжан',
+          phone: '+77070000000',
+          pharmacyName: 'Ауэзова 134',
+          city: 'Алматы',
+        })
       }
-      if (path === '/api/mobile/training') return json({ total: 0, inProgress: 0, completed: 0, overdue: 0, assignments: [] })
+      if (path === '/api/mobile/training')
+        return json({ total: 0, inProgress: 0, completed: 0, overdue: 0, assignments: [] })
       if (path === '/api/mobile/promotions') return json([])
       return json({ message: `Unexpected request: ${path}` }, 500)
     })
@@ -271,7 +370,13 @@ describe('learner training portal', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const path = String(input)
       if (path === '/api/mobile/auth/me') {
-        return json({ id: 'ph-1', name: 'Айжан', phone: '+77070000000', pharmacyName: 'Ауэзова 134', city: 'Алматы' })
+        return json({
+          id: 'ph-1',
+          name: 'Айжан',
+          phone: '+77070000000',
+          pharmacyName: 'Ауэзова 134',
+          city: 'Алматы',
+        })
       }
       if (path === '/api/mobile/training') {
         return json({ total: 0, inProgress: 0, completed: 0, overdue: 0, assignments: [] })
@@ -296,33 +401,58 @@ describe('learner training portal', () => {
       status: 'in_progress',
       format: 'online',
       progressPct: 25,
-      stages: [{
-        id: 'stage-live',
-        title: 'Онлайн-модуль',
-        type: 'online_course',
-        status: 'in_progress',
-        progressPct: 25,
-        course: {
-          id: 'course-live',
+      stages: [
+        {
+          id: 'stage-live',
           title: 'Онлайн-модуль',
-          lessons: [
-            { id: 'lesson-video', title: 'Вводный видеоурок', kind: 'video', durationMin: 12, progressPct: 50, attachments: [] },
-            { id: 'lesson-live', title: 'Конференция с экспертом', kind: 'live', liveStatus: 'scheduled', liveStartAt: '2026-10-20T09:00:00Z', progressPct: 0, attachments: [] },
-          ],
+          type: 'online_course',
+          status: 'in_progress',
+          progressPct: 25,
+          course: {
+            id: 'course-live',
+            title: 'Онлайн-модуль',
+            lessons: [
+              {
+                id: 'lesson-video',
+                title: 'Вводный видеоурок',
+                kind: 'video',
+                durationMin: 12,
+                progressPct: 50,
+                attachments: [],
+              },
+              {
+                id: 'lesson-live',
+                title: 'Конференция с экспертом',
+                kind: 'live',
+                liveStatus: 'scheduled',
+                liveStartAt: '2026-10-20T09:00:00Z',
+                progressPct: 0,
+                attachments: [],
+              },
+            ],
+          },
         },
-      }],
+      ],
     }
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const path = String(input)
-      if (path === '/api/mobile/auth/me') return json({ id: 'ph-1', name: 'Айжан', phone: '+77070000000', pharmacyName: 'Ауэзова 134', city: 'Алматы' })
-      if (path === '/api/mobile/training') return json({
-        total: 1,
-        inProgress: 1,
-        completed: 0,
-        overdue: 0,
-        assignments: [assignment],
-        cityRanking: { city: 'Алматы', position: 4, total: 27, score: 25 },
-      })
+      if (path === '/api/mobile/auth/me')
+        return json({
+          id: 'ph-1',
+          name: 'Айжан',
+          phone: '+77070000000',
+          pharmacyName: 'Ауэзова 134',
+          city: 'Алматы',
+        })
+      if (path === '/api/mobile/training')
+        return json({
+          total: 1,
+          inProgress: 1,
+          completed: 0,
+          overdue: 0,
+          assignments: [assignment],
+          cityRanking: { city: 'Алматы', position: 4, total: 27, score: 25 },
+        })
       if (path === '/api/mobile/promotions') return json([])
       return json({ message: `Unexpected request: ${path}` }, 500)
     })
@@ -332,7 +462,10 @@ describe('learner training portal', () => {
     expect(await screen.findByRole('heading', { name: 'Айжан' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Текущий курс' })).toBeInTheDocument()
     expect(screen.getByText('Ваш рейтинг ePharm')).toBeInTheDocument()
-    expect(screen.getByRole('meter', { name: 'Ваш рейтинг ePharm' })).toHaveAttribute('aria-valuenow', '25')
+    expect(screen.getByRole('meter', { name: 'Ваш рейтинг ePharm' })).toHaveAttribute(
+      'aria-valuenow',
+      '25',
+    )
     expect(screen.getByText('№ 4 из 27 в городе Алматы')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Современная фармация' })).toBeInTheDocument()
     expect(screen.getByText('Что вы получите')).toBeInTheDocument()
@@ -345,34 +478,46 @@ describe('learner training portal', () => {
     localStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const path = String(input)
-      if (path === '/api/mobile/auth/me') return json({ id: 'ph-1', name: 'Айжан', phone: '+77070000000', pharmacyName: 'Ауэзова 134', city: 'Алматы' })
-      if (path === '/api/mobile/training') return json({ total: 0, inProgress: 0, completed: 0, overdue: 0, assignments: [] })
+      if (path === '/api/mobile/auth/me')
+        return json({
+          id: 'ph-1',
+          name: 'Айжан',
+          phone: '+77070000000',
+          pharmacyName: 'Ауэзова 134',
+          city: 'Алматы',
+        })
+      if (path === '/api/mobile/training')
+        return json({ total: 0, inProgress: 0, completed: 0, overdue: 0, assignments: [] })
       if (path === '/api/mobile/me/balance') return json({ balanceKzt: 42000, currency: 'KZT' })
       if (path === '/api/mobile/me/recommendations?page=0&size=20') {
         return json({
-          items: [{
-            campaign: { id: 'promo-1', title: 'Пример кампании', dateStart: null, dateEnd: null },
-            type: 'substitution',
-            trigger: { kind: 'acc_group', value: 'group-1', label: 'Название группы' },
-            triggerProducts: [],
-            offers: [{
-              ruleId: 'rule-1',
-              product: {
-                id: 'product-1',
-                name: 'Товар-пример',
-                brand: 'Производитель',
-                mnn: 'МНН',
-                volume: '20 таблеток',
-                barcodes: ['0123456789012'],
-                ipartId: null,
-                catalogPriceKzt: 2500,
-                catalogUpdatedAt: '2026-10-21T00:00:00Z',
-              },
-              bonusKzt: 500,
-              script: 'Подсказка фармацевту',
-              advantages: ['Преимущество'],
-            }],
-          }],
+          items: [
+            {
+              campaign: { id: 'promo-1', title: 'Пример кампании', dateStart: null, dateEnd: null },
+              type: 'substitution',
+              trigger: { kind: 'acc_group', value: 'group-1', label: 'Название группы' },
+              triggerProducts: [],
+              offers: [
+                {
+                  ruleId: 'rule-1',
+                  product: {
+                    id: 'product-1',
+                    name: 'Товар-пример',
+                    brand: 'Производитель',
+                    mnn: 'МНН',
+                    volume: '20 таблеток',
+                    barcodes: ['0123456789012'],
+                    ipartId: null,
+                    catalogPriceKzt: 2500,
+                    catalogUpdatedAt: '2026-10-21T00:00:00Z',
+                  },
+                  bonusKzt: 500,
+                  script: 'Подсказка фармацевту',
+                  advantages: ['Преимущество'],
+                },
+              ],
+            },
+          ],
           page: 0,
           size: 20,
           total: 1,
@@ -393,22 +538,40 @@ describe('learner training portal', () => {
     expect(screen.getByRole('heading', { name: 'Товар-пример' })).toBeInTheDocument()
     expect(screen.getByText('Бонус: 500 ₸')).toBeInTheDocument()
 
-    const balanceCall = fetchMock.mock.calls.find(([input]) => String(input) === '/api/mobile/me/balance')
-    const recommendationsCall = fetchMock.mock.calls.find(([input]) => String(input) === '/api/mobile/me/recommendations?page=0&size=20')
-    expect(new Headers(balanceCall?.[1]?.headers).get('Authorization')).toBe(`Bearer ${tokens.accessToken}`)
+    const balanceCall = fetchMock.mock.calls.find(
+      ([input]) => String(input) === '/api/mobile/me/balance',
+    )
+    const recommendationsCall = fetchMock.mock.calls.find(
+      ([input]) => String(input) === '/api/mobile/me/recommendations?page=0&size=20',
+    )
+    expect(new Headers(balanceCall?.[1]?.headers).get('Authorization')).toBe(
+      `Bearer ${tokens.accessToken}`,
+    )
     expect(new Headers(balanceCall?.[1]?.headers).get('Accept')).toBe('application/json')
     expect(balanceCall?.[1]?.cache).toBe('no-store')
-    expect(new Headers(recommendationsCall?.[1]?.headers).get('Authorization')).toBe(`Bearer ${tokens.accessToken}`)
+    expect(new Headers(recommendationsCall?.[1]?.headers).get('Authorization')).toBe(
+      `Bearer ${tokens.accessToken}`,
+    )
   })
 
   it('does not disguise a personal API error as a zero balance or empty feed', async () => {
     localStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const path = String(input)
-      if (path === '/api/mobile/auth/me') return json({ id: 'ph-1', name: 'Айжан', phone: '+77070000000', pharmacyName: 'Ауэзова 134', city: 'Алматы' })
-      if (path === '/api/mobile/training') return json({ total: 0, inProgress: 0, completed: 0, overdue: 0, assignments: [] })
-      if (path === '/api/mobile/me/balance') return json({ code: 'SERVICE_UNAVAILABLE', message: 'Ошибка' }, 503)
-      if (path === '/api/mobile/me/recommendations?page=0&size=20') return json({ items: [], page: 0, size: 20, total: 0, currency: 'KZT' })
+      if (path === '/api/mobile/auth/me')
+        return json({
+          id: 'ph-1',
+          name: 'Айжан',
+          phone: '+77070000000',
+          pharmacyName: 'Ауэзова 134',
+          city: 'Алматы',
+        })
+      if (path === '/api/mobile/training')
+        return json({ total: 0, inProgress: 0, completed: 0, overdue: 0, assignments: [] })
+      if (path === '/api/mobile/me/balance')
+        return json({ code: 'SERVICE_UNAVAILABLE', message: 'Ошибка' }, 503)
+      if (path === '/api/mobile/me/recommendations?page=0&size=20')
+        return json({ items: [], page: 0, size: 20, total: 0, currency: 'KZT' })
       return json({ code: 'NOT_FOUND', message: `Unexpected request: ${path}` }, 500)
     })
 
@@ -435,9 +598,12 @@ describe('learner training portal', () => {
           balance: 17_500,
         })
       }
-      if (path === '/api/mobile/training') return json({ total: 0, inProgress: 0, completed: 0, overdue: 0, assignments: [] })
-      if (path === '/api/mobile/me/balance') return json({ code: 'NOT_FOUND', message: 'Не найдено' }, 404)
-      if (path === '/api/mobile/me/recommendations?page=0&size=20') return json({ items: [], page: 0, size: 20, total: 0, currency: 'KZT' })
+      if (path === '/api/mobile/training')
+        return json({ total: 0, inProgress: 0, completed: 0, overdue: 0, assignments: [] })
+      if (path === '/api/mobile/me/balance')
+        return json({ code: 'NOT_FOUND', message: 'Не найдено' }, 404)
+      if (path === '/api/mobile/me/recommendations?page=0&size=20')
+        return json({ items: [], page: 0, size: 20, total: 0, currency: 'KZT' })
       return json({ code: 'NOT_FOUND', message: `Unexpected request: ${path}` }, 500)
     })
 
@@ -460,33 +626,52 @@ describe('learner training portal', () => {
       status: 'in_progress',
       format: 'online',
       progressPct: 0,
-      stages: [{
-        id: 'stage-fire',
-        title: 'Пожарная безопасность',
-        type: 'online_course',
-        status: 'in_progress',
-        progressPct: 0,
-        course: {
-          id: 'course-fire',
-          title: 'Пожарная безопасность в аптеке',
-          lessons: [{
-            id: 'lesson-fire-1',
-            title: 'Основы пожарной безопасности',
-            description: 'Вводный урок',
-            content: '2.1. Торговый зал аптеки\n\nПеред началом смены сотрудник должен проверить:\n\nсвободны ли проходы;\n\nдоступны ли указатели эвакуации.\n\n2.2. Действия при пожаре\n\nСообщите руководителю и вызовите 112.',
-            kind: 'text',
-            order: 0,
-            durationMin: 5,
-            progressPct: 0,
-            attachments: [],
-          }],
+      stages: [
+        {
+          id: 'stage-fire',
+          title: 'Пожарная безопасность',
+          type: 'online_course',
+          status: 'in_progress',
+          progressPct: 0,
+          course: {
+            id: 'course-fire',
+            title: 'Пожарная безопасность в аптеке',
+            lessons: [
+              {
+                id: 'lesson-fire-1',
+                title: 'Основы пожарной безопасности',
+                description: 'Вводный урок',
+                content:
+                  '2.1. Торговый зал аптеки\n\nПеред началом смены сотрудник должен проверить:\n\nсвободны ли проходы;\n\nдоступны ли указатели эвакуации.\n\n2.2. Действия при пожаре\n\nСообщите руководителю и вызовите 112.',
+                kind: 'text',
+                order: 0,
+                durationMin: 5,
+                progressPct: 0,
+                attachments: [],
+              },
+            ],
+          },
         },
-      }],
+      ],
     }
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const path = String(input)
-      if (path === '/api/mobile/auth/me') return json({ id: 'ph-1', name: 'Айжан', phone: '+77070000000', pharmacyName: 'Ауэзова 134', city: 'Алматы' })
-      if (path === '/api/mobile/training') return json({ total: 1, inProgress: 1, completed: 0, overdue: 0, assignments: [assignment] })
+      if (path === '/api/mobile/auth/me')
+        return json({
+          id: 'ph-1',
+          name: 'Айжан',
+          phone: '+77070000000',
+          pharmacyName: 'Ауэзова 134',
+          city: 'Алматы',
+        })
+      if (path === '/api/mobile/training')
+        return json({
+          total: 1,
+          inProgress: 1,
+          completed: 0,
+          overdue: 0,
+          assignments: [assignment],
+        })
       if (path === '/api/mobile/training/assignments/assignment-fire') return json(assignment)
       return json({ message: `Unexpected request: ${path}` }, 500)
     })
@@ -502,7 +687,9 @@ describe('learner training portal', () => {
     expect(screen.queryByText('Сообщите руководителю и вызовите 112.')).not.toBeInTheDocument()
     await user.click(screen.getByRole('tab', { name: /2.2. Действия при пожаре/ }))
     expect(screen.getByText('Сообщите руководителю и вызовите 112.')).toBeInTheDocument()
-    await waitFor(() => expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' }))
+    await waitFor(() =>
+      expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' }),
+    )
   })
 
   it('lets a pharmacist create a password on the first login after SMS verification', async () => {
@@ -521,13 +708,26 @@ describe('learner training portal', () => {
       if (path === '/api/mobile/auth/activation/password') {
         return json({
           tokens,
-          pharmacist: { id: 'ph-1', name: 'Василий', phone: '+77470799353', pharmacyName: 'Аптека', city: 'Рудный' },
+          pharmacist: {
+            id: 'ph-1',
+            name: 'Василий',
+            phone: '+77470799353',
+            pharmacyName: 'Аптека',
+            city: 'Рудный',
+          },
         })
       }
       if (path === '/api/mobile/auth/me') {
-        return json({ id: 'ph-1', name: 'Василий', phone: '+77470799353', pharmacyName: 'Аптека', city: 'Рудный' })
+        return json({
+          id: 'ph-1',
+          name: 'Василий',
+          phone: '+77470799353',
+          pharmacyName: 'Аптека',
+          city: 'Рудный',
+        })
       }
-      if (path === '/api/mobile/training') return json({ total: 0, inProgress: 0, completed: 0, overdue: 0, assignments: [] })
+      if (path === '/api/mobile/training')
+        return json({ total: 0, inProgress: 0, completed: 0, overdue: 0, assignments: [] })
       if (path === '/api/mobile/promotions') return json([])
       return json({ message: `Unexpected request: ${path}` }, 500)
     })
@@ -549,7 +749,11 @@ describe('learner training portal', () => {
       '/api/mobile/auth/activation/password',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ iin: '061007500024', phone: '+77470799353', password: 'NewFarm123!' }),
+        body: JSON.stringify({
+          iin: '061007500024',
+          phone: '+77470799353',
+          password: 'NewFarm123!',
+        }),
       }),
     )
   })
@@ -570,13 +774,26 @@ describe('learner training portal', () => {
       if (path === '/api/mobile/auth/activation/password') {
         return json({
           tokens,
-          pharmacist: { id: 'ph-new', name: 'Новый Фармацевт', phone: '+77770001122', pharmacyName: null, city: '' },
+          pharmacist: {
+            id: 'ph-new',
+            name: 'Новый Фармацевт',
+            phone: '+77770001122',
+            pharmacyName: null,
+            city: '',
+          },
         })
       }
       if (path === '/api/mobile/auth/me') {
-        return json({ id: 'ph-new', name: 'Новый Фармацевт', phone: '+77770001122', pharmacyName: null, city: '' })
+        return json({
+          id: 'ph-new',
+          name: 'Новый Фармацевт',
+          phone: '+77770001122',
+          pharmacyName: null,
+          city: '',
+        })
       }
-      if (path === '/api/mobile/training') return json({ total: 0, inProgress: 0, completed: 0, overdue: 0, assignments: [] })
+      if (path === '/api/mobile/training')
+        return json({ total: 0, inProgress: 0, completed: 0, overdue: 0, assignments: [] })
       if (path === '/api/mobile/promotions') return json([])
       return json({ message: `Unexpected request: ${path}` }, 500)
     })
@@ -641,21 +858,42 @@ describe('learner training portal', () => {
         return json({ passwordSet: true, phoneMasked: '+7 (747) ***-**-53' })
       }
       if (path === '/api/mobile/auth/password-reset/request') {
-        return json({ sent: true, phoneMasked: '+7 (747) ***-**-53', ttlSeconds: 300 })
+        return json({
+          challengeId: '31242cc8-c92a-4c3b-920e-940e59b48ade',
+          phoneMasked: '+7 (747) ***-**-53',
+          ttlSeconds: 300,
+        })
       }
       if (path === '/api/mobile/auth/password-reset/verify') {
-        return json({ verified: true, phoneMasked: '+7 (747) ***-**-53' })
+        return json({
+          resetToken: 'r'.repeat(43),
+          expiresAt: new Date(Date.now() + 300000).toISOString(),
+          phoneMasked: '+7 (747) ***-**-53',
+        })
       }
       if (path === '/api/mobile/auth/password-reset/complete') {
         return json({
           tokens,
-          pharmacist: { id: 'ph-1', name: 'Василий', phone: '+77470799353', pharmacyName: 'Аптека', city: 'Рудный' },
+          pharmacist: {
+            id: 'ph-1',
+            name: 'Василий',
+            phone: '+77470799353',
+            pharmacyName: 'Аптека',
+            city: 'Рудный',
+          },
         })
       }
       if (path === '/api/mobile/auth/me') {
-        return json({ id: 'ph-1', name: 'Василий', phone: '+77470799353', pharmacyName: 'Аптека', city: 'Рудный' })
+        return json({
+          id: 'ph-1',
+          name: 'Василий',
+          phone: '+77470799353',
+          pharmacyName: 'Аптека',
+          city: 'Рудный',
+        })
       }
-      if (path === '/api/mobile/training') return json({ total: 0, inProgress: 0, completed: 0, overdue: 0, assignments: [] })
+      if (path === '/api/mobile/training')
+        return json({ total: 0, inProgress: 0, completed: 0, overdue: 0, assignments: [] })
       if (path === '/api/mobile/promotions') return json([])
       return json({ message: `Unexpected request: ${path}` }, 500)
     })
@@ -669,7 +907,9 @@ describe('learner training portal', () => {
       '/api/mobile/auth/password-reset/request',
       expect.objectContaining({ method: 'POST', body: JSON.stringify({ iin: '061007500024' }) }),
     )
-    expect(await screen.findByText(/Код отправлен на привязанный номер/)).toHaveTextContent('+7 (747) ***-**-53')
+    expect(await screen.findByText(/Код отправлен на привязанный номер/)).toHaveTextContent(
+      '+7 (747) ***-**-53',
+    )
 
     await user.type(screen.getByRole('textbox', { name: 'Код из SMS' }), '5445')
     await user.click(screen.getByRole('button', { name: 'Подтвердить код' }))
@@ -682,7 +922,11 @@ describe('learner training portal', () => {
       '/api/mobile/auth/password-reset/complete',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ iin: '061007500024', password: 'ResetFarm123!' }),
+        body: JSON.stringify({
+          iin: '061007500024',
+          resetToken: 'r'.repeat(43),
+          password: 'ResetFarm123!',
+        }),
       }),
     )
   })
@@ -726,31 +970,45 @@ describe('learner training portal', () => {
     const completedAssignment = {
       ...assignment,
       progressPct: 100,
-      stages: [{
-        ...assignment.stages[0],
-        status: 'completed',
-        progressPct: 100,
-        course: {
-          ...assignment.stages[0].course,
-          lessons: [
-            assignment.stages[0].course.lessons[0],
-            {
-              ...assignment.stages[0].course.lessons[1],
-              progressPct: 100,
-              completedAt: '2026-09-01T10:10:00Z',
-            },
-          ],
+      stages: [
+        {
+          ...assignment.stages[0],
+          status: 'completed',
+          progressPct: 100,
+          course: {
+            ...assignment.stages[0].course,
+            lessons: [
+              assignment.stages[0].course.lessons[0],
+              {
+                ...assignment.stages[0].course.lessons[1],
+                progressPct: 100,
+                completedAt: '2026-09-01T10:10:00Z',
+              },
+            ],
+          },
         },
-      }],
+      ],
     }
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const path = String(input)
       if (path === '/api/mobile/auth/me') {
-        return json({ id: 'ph-1', name: 'Айжан', phone: '+77070000000', pharmacyName: 'Ауэзова 134', city: 'Алматы' })
+        return json({
+          id: 'ph-1',
+          name: 'Айжан',
+          phone: '+77070000000',
+          pharmacyName: 'Ауэзова 134',
+          city: 'Алматы',
+        })
       }
       if (path === '/api/mobile/training/assignments/assignment-1') return json(assignment)
       if (path === '/api/mobile/training' && (!init?.method || init.method === 'GET')) {
-        return json({ total: 1, inProgress: 1, completed: 0, overdue: 0, assignments: [assignment] })
+        return json({
+          total: 1,
+          inProgress: 1,
+          completed: 0,
+          overdue: 0,
+          assignments: [assignment],
+        })
       }
       if (path.endsWith('/stages/stage-1/lessons/lesson-2') && init?.method === 'PATCH') {
         return json(completedAssignment)
@@ -790,30 +1048,58 @@ describe('learner training portal', () => {
       attachments: [],
     }
     const assignment = {
-      id: 'assignment-quiz', programName: 'Тестирование', pharmacyName: 'Ауэзова 134', city: 'Алматы',
-      status: 'in_progress', format: 'online', progressPct: 0, startedAt: '2026-09-01T10:00:00Z',
-      stages: [{
-        id: 'stage-quiz', title: 'Проверка знаний', type: 'online_course', status: 'in_progress', progressPct: 0,
-        course: { id: 'course-quiz', title: 'Проверка знаний', lessons: [quizLesson] },
-      }],
+      id: 'assignment-quiz',
+      programName: 'Тестирование',
+      pharmacyName: 'Ауэзова 134',
+      city: 'Алматы',
+      status: 'in_progress',
+      format: 'online',
+      progressPct: 0,
+      startedAt: '2026-09-01T10:00:00Z',
+      stages: [
+        {
+          id: 'stage-quiz',
+          title: 'Проверка знаний',
+          type: 'online_course',
+          status: 'in_progress',
+          progressPct: 0,
+          course: { id: 'course-quiz', title: 'Проверка знаний', lessons: [quizLesson] },
+        },
+      ],
     }
     const completedAssignment = {
       ...assignment,
       progressPct: 100,
-      stages: [{
-        ...assignment.stages[0],
-        status: 'completed',
-        progressPct: 100,
-        course: {
-          ...assignment.stages[0].course,
-          lessons: [{ ...quizLesson, progressPct: 100, quizScore: 100, quizAttempts: 1, completedAt: '2026-09-01T10:10:00Z' }],
+      stages: [
+        {
+          ...assignment.stages[0],
+          status: 'completed',
+          progressPct: 100,
+          course: {
+            ...assignment.stages[0].course,
+            lessons: [
+              {
+                ...quizLesson,
+                progressPct: 100,
+                quizScore: 100,
+                quizAttempts: 1,
+                completedAt: '2026-09-01T10:10:00Z',
+              },
+            ],
+          },
         },
-      }],
+      ],
     }
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const path = String(input)
       if (path === '/api/mobile/auth/me') {
-        return json({ id: 'ph-1', name: 'Айжан', phone: '+77070000000', pharmacyName: 'Ауэзова 134', city: 'Алматы' })
+        return json({
+          id: 'ph-1',
+          name: 'Айжан',
+          phone: '+77070000000',
+          pharmacyName: 'Ауэзова 134',
+          city: 'Алматы',
+        })
       }
       if (path === '/api/mobile/training/assignments/assignment-quiz') return json(assignment)
       if (path.endsWith('/stages/stage-quiz/lessons/quiz-1/quiz') && init?.method === 'POST') {
@@ -831,7 +1117,13 @@ describe('learner training portal', () => {
         })
       }
       if (path === '/api/mobile/training') {
-        return json({ total: 1, inProgress: 0, completed: 1, overdue: 0, assignments: [completedAssignment] })
+        return json({
+          total: 1,
+          inProgress: 0,
+          completed: 1,
+          overdue: 0,
+          assignments: [completedAssignment],
+        })
       }
       return json({ message: `Unexpected request: ${path}` }, 500)
     })
@@ -840,11 +1132,15 @@ describe('learner training portal', () => {
     expect(await screen.findByRole('heading', { name: 'Итоговый тест' })).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Завершить тест' }))
-    await waitFor(() => expect(document.activeElement).toHaveAttribute('id', 'quiz-question-card-q-1'))
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute('id', 'quiz-question-card-q-1'),
+    )
     await userEvent.click(screen.getByRole('radio', { name: 'До еды' }))
 
     await userEvent.click(screen.getByRole('button', { name: 'Завершить тест' }))
-    await waitFor(() => expect(document.activeElement).toHaveAttribute('id', 'quiz-question-card-q-2'))
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute('id', 'quiz-question-card-q-2'),
+    )
     await userEvent.click(screen.getByRole('radio', { name: 'Две' }))
     await userEvent.click(screen.getByRole('button', { name: 'Завершить тест' }))
 
@@ -859,7 +1155,10 @@ describe('learner training portal', () => {
     })
     expect(await screen.findByText('Тест пройден')).toBeInTheDocument()
     expect(screen.getByText(/Результат: 100%/)).toBeInTheDocument()
-    expect(screen.getByText('До еды').closest('label')).toHaveAttribute('data-answer-state', 'correct')
+    expect(screen.getByText('До еды').closest('label')).toHaveAttribute(
+      'data-answer-state',
+      'correct',
+    )
     expect(screen.getByText('До еды').closest('label')).toHaveClass('bg-[#e7f8ef]')
     expect(screen.getByText('Две').closest('label')).toHaveAttribute('data-answer-state', 'correct')
   })
@@ -887,7 +1186,14 @@ describe('learner training portal', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const path = String(input)
       if (path === '/api/mobile/auth/me') {
-        return json({ id: 'ph-1', name: 'Айжан', phone: '+77070000000', pharmacyName: 'Ауэзова 134', city: 'Алматы', balance: 1500 })
+        return json({
+          id: 'ph-1',
+          name: 'Айжан',
+          phone: '+77070000000',
+          pharmacyName: 'Ауэзова 134',
+          city: 'Алматы',
+          balance: 1500,
+        })
       }
       if (path === '/api/mobile/training') {
         return json({
@@ -897,23 +1203,56 @@ describe('learner training portal', () => {
           overdue: 0,
           defaultFormat: 'hybrid',
           assignments: [active, completed],
-          upcomingEvents: [{ id: 'event-1', title: 'Практикум', startsAt: '2026-09-24T11:00:00Z', city: 'Алматы', address: 'Учебный центр', capacity: 20, occupied: 12, status: 'scheduled' }],
-          notifications: [{ id: 'notification-1', eventType: 'reminder', title: 'Напоминание', message: 'Курс ждёт завершения', read: false, scheduledAt: '2026-09-23T11:00:00Z' }],
-          certificates: [{ id: 'certificate-1', number: 'EPH-1', assignmentId: 'assignment-completed', programName: 'Завершённый курс', format: 'online', issuedAt: '2026-09-23T11:00:00Z', status: 'valid', pdfUrl: '/certificate.pdf' }],
+          upcomingEvents: [
+            {
+              id: 'event-1',
+              title: 'Практикум',
+              startsAt: '2026-09-24T11:00:00Z',
+              city: 'Алматы',
+              address: 'Учебный центр',
+              capacity: 20,
+              occupied: 12,
+              status: 'scheduled',
+            },
+          ],
+          notifications: [
+            {
+              id: 'notification-1',
+              eventType: 'reminder',
+              title: 'Напоминание',
+              message: 'Курс ждёт завершения',
+              read: false,
+              scheduledAt: '2026-09-23T11:00:00Z',
+            },
+          ],
+          certificates: [
+            {
+              id: 'certificate-1',
+              number: 'EPH-1',
+              assignmentId: 'assignment-completed',
+              programName: 'Завершённый курс',
+              format: 'online',
+              issuedAt: '2026-09-23T11:00:00Z',
+              status: 'valid',
+              pdfUrl: '/certificate.pdf',
+            },
+          ],
         })
       }
       if (path === '/api/mobile/promotions') {
-        return json([{
-          id: 'promo-1',
-          productId: 'product-1',
-          name: 'Ренни апельсин жев таб №24',
-          brand: 'Bayer',
-          mnn: 'Кальция карбонат + Магния карбонат',
-          rxOtc: 'OTC',
-          category: 'Лекарственное средство',
-          barcode: '4250369504480',
-          tiers: [{ minQty: 1, price: 1740, bonus: 100 }],
-        }])
+        return json([
+          {
+            id: 'promo-1',
+            productId: 'product-1',
+            name: 'Ренни апельсин жев таб №24',
+            brand: 'Bayer',
+            mnn: 'Кальция карбонат + Магния карбонат',
+            rxOtc: 'OTC',
+            category: 'Лекарственное средство',
+            barcode: '4250369504480',
+            tiers: [{ minQty: 1, price: 1740, bonus: 100 }],
+          },
+        ])
       }
       return json({ message: `Unexpected request: ${path}` }, 500)
     })
@@ -931,27 +1270,70 @@ describe('learner training portal', () => {
     expect(screen.getByRole('button', { name: 'Рекомендации' })).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Сертификаты' }))
-    expect(await screen.findByRole('link', { name: /Завершённый курс/ })).toHaveAttribute('href', '/certificate.pdf')
+    expect(await screen.findByRole('link', { name: /Завершённый курс/ })).toHaveAttribute(
+      'href',
+      '/certificate.pdf',
+    )
   })
 
   it('selects an offline event through the same mobile training endpoint', async () => {
     localStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
     const trainingEvent = {
-      id: 'event-1', title: 'Практикум', startsAt: '2026-09-24T11:00:00Z',
-      city: 'Алматы', address: 'Учебный центр', capacity: 20, occupied: 12, status: 'scheduled',
+      id: 'event-1',
+      title: 'Практикум',
+      startsAt: '2026-09-24T11:00:00Z',
+      city: 'Алматы',
+      address: 'Учебный центр',
+      capacity: 20,
+      occupied: 12,
+      status: 'scheduled',
     }
     const assignment = {
-      id: 'assignment-1', programName: 'Гибридный курс', pharmacyName: 'Ауэзова 134', city: 'Алматы',
-      status: 'waiting_event_selection', format: 'hybrid', progressPct: 0, startedAt: '2026-09-23T10:00:00Z', event: null, stages: [],
+      id: 'assignment-1',
+      programName: 'Гибридный курс',
+      pharmacyName: 'Ауэзова 134',
+      city: 'Алматы',
+      status: 'waiting_event_selection',
+      format: 'hybrid',
+      progressPct: 0,
+      startedAt: '2026-09-23T10:00:00Z',
+      event: null,
+      stages: [],
     }
     const selectedAssignment = { ...assignment, status: 'in_progress', event: trainingEvent }
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const path = String(input)
-      if (path === '/api/mobile/auth/me') return json({ id: 'ph-1', name: 'Айжан', phone: '+77070000000', pharmacyName: 'Ауэзова 134', city: 'Алматы' })
-      if (path === '/api/mobile/training/assignments/assignment-1' && (!init?.method || init.method === 'GET')) return json(assignment)
-      if (path === '/api/mobile/training/assignments/assignment-1/events' && (!init?.method || init.method === 'GET')) return json([trainingEvent])
-      if (path === '/api/mobile/training/assignments/assignment-1/events/event-1' && init?.method === 'POST') return json(selectedAssignment)
-      if (path === '/api/mobile/training') return json({ total: 1, inProgress: 1, completed: 0, overdue: 0, assignments: [selectedAssignment] })
+      if (path === '/api/mobile/auth/me')
+        return json({
+          id: 'ph-1',
+          name: 'Айжан',
+          phone: '+77070000000',
+          pharmacyName: 'Ауэзова 134',
+          city: 'Алматы',
+        })
+      if (
+        path === '/api/mobile/training/assignments/assignment-1' &&
+        (!init?.method || init.method === 'GET')
+      )
+        return json(assignment)
+      if (
+        path === '/api/mobile/training/assignments/assignment-1/events' &&
+        (!init?.method || init.method === 'GET')
+      )
+        return json([trainingEvent])
+      if (
+        path === '/api/mobile/training/assignments/assignment-1/events/event-1' &&
+        init?.method === 'POST'
+      )
+        return json(selectedAssignment)
+      if (path === '/api/mobile/training')
+        return json({
+          total: 1,
+          inProgress: 1,
+          completed: 0,
+          overdue: 0,
+          assignments: [selectedAssignment],
+        })
       return json({ message: `Unexpected request: ${path}` }, 500)
     })
 
@@ -969,7 +1351,10 @@ describe('learner training portal', () => {
 
   it('refreshes an expired access token once for concurrent portal requests', async () => {
     localStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
-    const refreshedTokens = { accessToken: 'fresh-access-token', refreshToken: 'fresh-refresh-token' }
+    const refreshedTokens = {
+      accessToken: 'fresh-access-token',
+      refreshToken: 'fresh-refresh-token',
+    }
     let refreshCalls = 0
     const protectedCalls: Array<{ path: string; authorization: string | null }> = []
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
@@ -1008,13 +1393,17 @@ describe('learner training portal', () => {
 
     expect(await screen.findByRole('heading', { name: 'Айжан' })).toBeInTheDocument()
     expect(refreshCalls).toBe(1)
-    expect(JSON.parse(localStorage.getItem('epharm.learner.tokens') || '{}')).toEqual(refreshedTokens)
-    expect(protectedCalls).toEqual(expect.arrayContaining([
-      { path: '/api/mobile/auth/me', authorization: `Bearer ${tokens.accessToken}` },
-      { path: '/api/mobile/training', authorization: `Bearer ${tokens.accessToken}` },
-      { path: '/api/mobile/auth/me', authorization: `Bearer ${refreshedTokens.accessToken}` },
-      { path: '/api/mobile/training', authorization: `Bearer ${refreshedTokens.accessToken}` },
-    ]))
+    expect(JSON.parse(localStorage.getItem('epharm.learner.tokens') || '{}')).toEqual(
+      refreshedTokens,
+    )
+    expect(protectedCalls).toEqual(
+      expect.arrayContaining([
+        { path: '/api/mobile/auth/me', authorization: `Bearer ${tokens.accessToken}` },
+        { path: '/api/mobile/training', authorization: `Bearer ${tokens.accessToken}` },
+        { path: '/api/mobile/auth/me', authorization: `Bearer ${refreshedTokens.accessToken}` },
+        { path: '/api/mobile/training', authorization: `Bearer ${refreshedTokens.accessToken}` },
+      ]),
+    )
     expect(fetchMock).toHaveBeenCalledTimes(7)
   })
 })

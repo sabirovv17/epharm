@@ -13,6 +13,8 @@ import java.util.Optional
 interface MobileRefreshTokenRepository : JpaRepository<MobileRefreshTokenEntity, java.util.UUID> {
 
     fun findByTokenHash(tokenHash: String): Optional<MobileRefreshTokenEntity>
+    @Query("SELECT t.pharmacistId FROM MobileRefreshTokenEntity t WHERE t.tokenHash = :tokenHash")
+    fun pharmacistIdByTokenHash(@Param("tokenHash") tokenHash: String): String?
 
     @Modifying
     @Query(

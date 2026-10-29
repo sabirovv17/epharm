@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 
-import { ACCOUNTS, expect, test, type DevAccount } from './fixtures'
+import { ACCOUNTS, expect, test, openSidebarModule, type DevAccount } from './fixtures'
 
 async function loginForRole(page: Page, account: DevAccount, landingPath: string): Promise<void> {
   await page.goto('/login')
@@ -16,15 +16,26 @@ test.describe('Role access — обучение и AI-экзамены', () => {
   }) => {
     await loginForRole(freshPage, ACCOUNTS.bauyrzhan, '/rules')
 
+    await openSidebarModule(freshPage, 'Аналитика')
     await expect(freshPage.getByRole('button', { name: /Дашборд аналитики/i })).toBeVisible()
-    await expect(freshPage.getByRole('button', { name: /^Обучение/i })).toBeVisible()
+    await openSidebarModule(freshPage, 'Обучение')
     await expect(freshPage.getByRole('button', { name: /AI-Экзаменация/i })).toBeVisible()
 
-    await freshPage.getByRole('button', { name: /^Обучение/i }).click()
+    await freshPage
+      .getByRole('complementary', { name: 'Основная навигация' })
+      .getByRole('button', { name: 'Дашборд', exact: true })
+      .click()
     await expect(freshPage).toHaveURL(/\/lms$/)
     await expect(freshPage.getByTestId('training-read-only')).toHaveText('Только просмотр')
-    await expect(freshPage.getByRole('button', { name: 'Программы' })).toBeVisible()
-    await freshPage.getByRole('button', { name: 'Программы' }).click()
+    await expect(
+      freshPage
+        .getByRole('complementary', { name: 'Основная навигация' })
+        .getByRole('button', { name: 'Программы', exact: true }),
+    ).toBeVisible()
+    await freshPage
+      .getByRole('complementary', { name: 'Основная навигация' })
+      .getByRole('button', { name: 'Программы', exact: true })
+      .click()
     await expect(freshPage.getByRole('button', { name: 'Новая программа' })).toHaveCount(0)
 
     await freshPage.getByRole('button', { name: /AI-Экзаменация/i }).click()
@@ -38,8 +49,14 @@ test.describe('Role access — обучение и AI-экзамены', () => {
   }) => {
     await loginForRole(freshPage, ACCOUNTS.lms, '/lms')
 
-    await expect(freshPage.getByRole('banner').getByRole('button', { name: new RegExp(ACCOUNTS.lms.name) })).toBeVisible()
-    await expect(freshPage.getByRole('button', { name: /^Обучение$/i })).toHaveCount(0)
+    await expect(
+      freshPage.getByRole('banner').getByRole('button', { name: new RegExp(ACCOUNTS.lms.name) }),
+    ).toBeVisible()
+    await expect(
+      freshPage
+        .getByRole('complementary', { name: 'Основная навигация' })
+        .getByTitle('Обучение', { exact: true }),
+    ).toBeVisible()
     await expect(freshPage.getByRole('button', { name: /AI-Экзаменация/i })).toBeVisible()
     await expect(freshPage.getByRole('button', { name: /Дашборд аналитики/i })).toHaveCount(0)
     await expect(freshPage.getByRole('button', { name: /Rules Engine/i })).toHaveCount(0)
@@ -56,26 +73,40 @@ test.describe('Role access — обучение и AI-экзамены', () => {
       'Аналитика',
       'Настройки обучения',
     ]) {
-      await expect(freshPage.getByRole('button', { name: section })).toBeVisible()
+      await expect(
+        freshPage
+          .getByRole('complementary', { name: 'Основная навигация' })
+          .getByRole('button', { name: section, exact: true }),
+      ).toBeVisible()
     }
 
-    await freshPage.getByRole('button', { name: 'Программы' }).click()
+    await freshPage
+      .getByRole('complementary', { name: 'Основная навигация' })
+      .getByRole('button', { name: 'Программы', exact: true })
+      .click()
     await expect(freshPage).toHaveURL(/\/lms\?tab=programs$/)
     await expect(freshPage.getByRole('heading', { level: 1, name: 'Программы' })).toBeVisible()
-    await expect(freshPage.getByRole('button', { name: 'Программы' })).toHaveClass(
-      /sidebar-active/,
-    )
+    await expect(
+      freshPage
+        .getByRole('complementary', { name: 'Основная навигация' })
+        .getByRole('button', { name: 'Программы', exact: true }),
+    ).toHaveClass(/sidebar-active/)
     await expect(freshPage.getByRole('button', { name: 'Новая программа' })).toBeVisible()
     await expect(freshPage.locator('main .tab')).toHaveCount(0)
 
-    await freshPage.getByRole('button', { name: 'Онлайн-курсы' }).click()
+    await freshPage
+      .getByRole('complementary', { name: 'Основная навигация' })
+      .getByRole('button', { name: 'Онлайн-курсы', exact: true })
+      .click()
     await expect(freshPage).toHaveURL(/\/lms\?tab=courses$/)
     await expect(freshPage.getByRole('heading', { level: 1, name: 'Онлайн-курсы' })).toBeVisible()
     await freshPage.goBack()
     await expect(freshPage).toHaveURL(/\/lms\?tab=programs$/)
-    await expect(freshPage.getByRole('button', { name: 'Программы' })).toHaveClass(
-      /sidebar-active/,
-    )
+    await expect(
+      freshPage
+        .getByRole('complementary', { name: 'Основная навигация' })
+        .getByRole('button', { name: 'Программы', exact: true }),
+    ).toHaveClass(/sidebar-active/)
 
     await freshPage.getByRole('button', { name: /AI-Экзаменация/i }).click()
     await expect(freshPage).toHaveURL(/\/ai-exam$/)

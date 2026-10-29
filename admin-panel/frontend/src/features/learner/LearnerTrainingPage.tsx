@@ -749,6 +749,10 @@ export default function LearnerTrainingPage() {
   const [phone, setPhone] = useState('')
   const [phoneMasked, setPhoneMasked] = useState('')
   const [otpCode, setOtpCode] = useState('')
+  const recoveryVersion = useRef(0)
+  const recoveryRequest = useRef<AbortController | null>(null)
+  const resetChallenge = useRef<{ iin: string; id: string } | null>(null)
+  const resetGrant = useRef<{ iin: string; token: string; expiresAt: string } | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(Boolean(tokens))
@@ -757,7 +761,29 @@ export default function LearnerTrainingPage() {
   const [eventsLoading, setEventsLoading] = useState(false)
   const [attendanceOpen, setAttendanceOpen] = useState(false)
 
+  const clearRecovery = useCallback(() => {
+    recoveryVersion.current += 1
+    recoveryRequest.current?.abort()
+    recoveryRequest.current = null
+    resetChallenge.current = null
+    resetGrant.current = null
+    setOtpCode('')
+    setPassword('')
+    setPasswordConfirmation('')
+    setBusy(false)
+  }, [])
+  useEffect(
+    () => () => {
+      recoveryVersion.current += 1
+      recoveryRequest.current?.abort()
+      resetChallenge.current = null
+      resetGrant.current = null
+    },
+    [],
+  )
+
   const clearSession = useCallback(() => {
+    clearRecovery()
     sessionVersion.current += 1
     setSessionEpoch(sessionVersion.current)
     removeTokens()
@@ -771,14 +797,18 @@ export default function LearnerTrainingPage() {
     setRecommendationsError('')
     setSelected(null)
     setAvailableEvents([])
-  }, [])
+  }, [clearRecovery])
 
-  const persistTokens = useCallback((nextTokens: Tokens) => {
-    sessionVersion.current += 1
-    setSessionEpoch(sessionVersion.current)
-    storeTokens(nextTokens)
-    setTokens(nextTokens)
-  }, [])
+  const persistTokens = useCallback(
+    (nextTokens: Tokens) => {
+      clearRecovery()
+      sessionVersion.current += 1
+      setSessionEpoch(sessionVersion.current)
+      storeTokens(nextTokens)
+      setTokens(nextTokens)
+    },
+    [clearRecovery],
+  )
 
   const tokenLifecycle = useMemo<TokenLifecycle>(
     () => ({
@@ -1091,65 +1121,124 @@ export default function LearnerTrainingPage() {
   }
 
   async function requestPasswordReset() {
+    clearRecovery()
+    const version = recoveryVersion.current
+    const subject = iin
+    const controller = new AbortController()
+    recoveryRequest.current = controller
     setBusy(true)
     setError('')
     try {
-      const result = await request<{ phoneMasked: string }>(
+      const result = await request<{ challengeId: string; phoneMasked: string }>(
         '/api/mobile/auth/password-reset/request',
-        { method: 'POST', body: JSON.stringify({ iin }) },
+        { method: 'POST', body: JSON.stringify({ iin: subject }), signal: controller.signal },
       )
+      if (version !== recoveryVersion.current || controller.signal.aborted) return
+      if (!result.challengeId)
+        throw new Error('Не удалось запросить подтверждение. Повторите позже.')
+      resetChallenge.current = { iin: subject, id: result.challengeId }
       setPhoneMasked(result.phoneMasked)
       setOtpCode('')
       setAuthStep('reset-otp')
     } catch (resetError) {
-      setError(messageFrom(resetError))
+      if (version === recoveryVersion.current && !controller.signal.aborted)
+        setError(messageFrom(resetError))
     } finally {
-      setBusy(false)
+      if (version === recoveryVersion.current) setBusy(false)
     }
   }
 
   async function verifyPasswordReset(event: React.FormEvent) {
     event.preventDefault()
+    const challenge = resetChallenge.current
+    if (!challenge || challenge.iin !== iin) {
+      returnToPassword('Подтверждение истекло. Запросите новый SMS-код.')
+      return
+    }
+    const version = recoveryVersion.current
+    const controller = new AbortController()
+    recoveryRequest.current = controller
     setBusy(true)
     setError('')
     try {
-      await request('/api/mobile/auth/password-reset/verify', {
-        method: 'POST',
-        body: JSON.stringify({ iin, code: otpCode }),
-      })
+      const result = await request<{ resetToken: string; expiresAt: string }>(
+        '/api/mobile/auth/password-reset/verify',
+        {
+          method: 'POST',
+          body: JSON.stringify({ iin, challengeId: challenge.id, code: otpCode }),
+          signal: controller.signal,
+        },
+      )
+      if (version !== recoveryVersion.current || controller.signal.aborted) return
+      if (
+        !/^[A-Za-z0-9_-]{43}$/.test(result.resetToken) ||
+        !(Date.parse(result.expiresAt) > Date.now())
+      ) {
+        returnToPassword('Подтверждение истекло. Запросите новый SMS-код.')
+        return
+      }
+      resetGrant.current = { iin, token: result.resetToken, expiresAt: result.expiresAt }
+      resetChallenge.current = null
+      setOtpCode('')
       setPassword('')
       setPasswordConfirmation('')
       setAuthStep('reset-password')
     } catch (resetError) {
-      setError(messageFrom(resetError))
+      if (version === recoveryVersion.current && !controller.signal.aborted)
+        setError(messageFrom(resetError))
     } finally {
-      setBusy(false)
+      if (version === recoveryVersion.current) setBusy(false)
     }
   }
 
   async function completePasswordReset(event: React.FormEvent) {
     event.preventDefault()
+    const grant = resetGrant.current
+    if (!grant || grant.iin !== iin || !(Date.parse(grant.expiresAt) > Date.now())) {
+      returnToPassword('Подтверждение истекло. Запросите новый SMS-код.')
+      return
+    }
     if (password !== passwordConfirmation) {
       setError(t('Пароли не совпадают'))
       return
     }
+    if (new TextEncoder().encode(password).length > 72) {
+      setError('Пароль: от 8 символов и не более 72 байт UTF-8')
+      return
+    }
+    const version = recoveryVersion.current
+    const controller = new AbortController()
+    recoveryRequest.current = controller
     setBusy(true)
     setError('')
     try {
       const result = await request<{ tokens: Tokens; pharmacist: Pharmacist }>(
         '/api/mobile/auth/password-reset/complete',
-        { method: 'POST', body: JSON.stringify({ iin, password }) },
+        {
+          method: 'POST',
+          body: JSON.stringify({ iin, resetToken: grant.token, password }),
+          signal: controller.signal,
+        },
       )
+      if (version !== recoveryVersion.current || controller.signal.aborted) return
       persistTokens(result.tokens)
       setPharmacist(result.pharmacist)
     } catch (resetError) {
-      setError(messageFrom(resetError))
+      if (version === recoveryVersion.current && !controller.signal.aborted)
+        returnToPassword(messageFrom(resetError))
     } finally {
-      setBusy(false)
+      if (version === recoveryVersion.current) setBusy(false)
     }
   }
 
+  function returnToPassword(message = '') {
+    clearRecovery()
+    setAuthStep('password')
+    setError(message)
+  }
+
   function resetActivation() {
+    clearRecovery()
     setAuthStep('iin')
     setPassword('')
     setPasswordConfirmation('')
@@ -1455,9 +1544,10 @@ export default function LearnerTrainingPage() {
                       inputMode="numeric"
                       autoComplete="username"
                       value={formatIinInput(iin)}
-                      onChange={(event) =>
+                      onChange={(event) => {
+                        clearRecovery()
                         setIin(event.target.value.replace(/\D/g, '').slice(0, 12))
-                      }
+                      }}
                       placeholder="000000 000000"
                       minLength={13}
                       maxLength={13}
@@ -1646,7 +1736,7 @@ export default function LearnerTrainingPage() {
                   <button
                     type="button"
                     className="w-full text-sm font-bold text-brand-green-700"
-                    onClick={() => setAuthStep('password')}
+                    onClick={() => returnToPassword()}
                   >
                     {t('Вернуться ко входу')}
                   </button>
@@ -1677,6 +1767,13 @@ export default function LearnerTrainingPage() {
                     disabled={busy || password.length < 8 || passwordConfirmation.length < 8}
                   >
                     {busy ? t('Сохраняем…') : t('Сохранить новый пароль и войти')}
+                  </button>
+                  <button
+                    type="button"
+                    className="w-full text-sm font-bold text-brand-green-700"
+                    onClick={() => returnToPassword()}
+                  >
+                    {t('Вернуться ко входу')}
                   </button>
                 </form>
               )}

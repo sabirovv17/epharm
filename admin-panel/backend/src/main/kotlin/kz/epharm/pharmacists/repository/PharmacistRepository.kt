@@ -22,6 +22,12 @@ interface PharmacistRepository : JpaRepository<PharmacistEntity, String> {
         statusRaw: String,
     ): List<PharmacistEntity>
     fun findByIin(iin: String): PharmacistEntity?
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM PharmacistEntity p WHERE p.iin = :iin")
+    fun findByIinForUpdate(@Param("iin") iin: String): PharmacistEntity?
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM PharmacistEntity p WHERE p.id = :id")
+    fun findByIdForUpdate(@Param("id") id: String): PharmacistEntity?
     fun findByPhone(phone: String): PharmacistEntity?
     fun countByStatusRaw(statusRaw: String): Long
     fun countByPharmacyId(pharmacyId: String): Long

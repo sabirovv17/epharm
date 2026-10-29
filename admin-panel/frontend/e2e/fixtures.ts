@@ -34,6 +34,14 @@ export async function loginViaUI(page: Page, acc: DevAccount = ACCOUNTS.damir): 
   await page.waitForURL('**/rules', { timeout: 10_000 })
 }
 
+export async function openSidebarModule(page: Page, label: string): Promise<void> {
+  const module = page
+    .getByRole('complementary', { name: 'Основная навигация' })
+    .getByTitle(label, { exact: true })
+  await baseExpect(module).toBeVisible()
+  if ((await module.getAttribute('aria-expanded')) === 'false') await module.click()
+}
+
 /**
  * Backend health check — гарантия что Spring Boot запущен.
  * Запускается в beforeAll каждого spec'а через fixture.

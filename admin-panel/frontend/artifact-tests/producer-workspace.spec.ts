@@ -355,7 +355,9 @@ test('a producer with a truthful empty company name completes only its own profi
   await page.getByRole('button', { name: 'Получить SMS-код' }).click()
   await page.getByLabel('SMS-код производителя').fill('1234')
   await page.getByRole('button', { name: 'Войти', exact: true }).click()
-  await expect(page.getByRole('status')).toContainText('Название компании не заполнено')
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Название компании не заполнено' }),
+  ).toBeVisible()
   await page.getByRole('button', { name: 'Заполнить профиль компании' }).click()
   await page.getByLabel('Название компании', { exact: true }).fill('Демо-организация')
   await page.screenshot({

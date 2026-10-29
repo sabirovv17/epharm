@@ -20,6 +20,7 @@ class StaffPhoneLock(private val jdbc: JdbcTemplate,
     }
     // Issuance flags do not resurrect an older proof after a disable/re-enable cycle.
     fun invalidateStaff(phone: String) {
+        jdbc.update("UPDATE mobile_password_reset_challenges SET consumed_at=now() WHERE phone=? AND consumed_at IS NULL",phone)
         jdbc.update("UPDATE posm_staff_challenges SET consumed_at=now() WHERE phone=? AND consumed_at IS NULL",phone)
         jdbc.update("UPDATE merch_executor_otp_challenges SET consumed_at=now() WHERE phone=? AND consumed_at IS NULL",phone)
         invalidateProducer(phone)
@@ -27,9 +28,8 @@ class StaffPhoneLock(private val jdbc: JdbcTemplate,
     fun invalidateProducer(phone: String) {
         jdbc.update("UPDATE merch_producer_challenges SET consumed_at=now() WHERE phone=? AND consumed_at IS NULL", phone)
     }
-    /** Opt-in money verification shares Daribar's phone-wide issuance budget with login. */
+    /** Login and password recovery always share Daribar's phone-wide issuance budget. */
     fun limitSharedSms(phone: String, now: Instant = Instant.now()) {
-        if (!merchRewardsEnabled && !producerAuthEnabled && !nativeExecutorEnabled) return
         val key = kz.epharm.finance.merch.MerchRewardSecurity.hash("sms-shared-phone:$phone")
         val last = jdbc.query("SELECT window_start FROM posm_staff_rate_limits WHERE scope_hash=?", { rs, _ -> rs.getTimestamp(1).toInstant() }, key).singleOrNull()
         if (last != null && last.plusSeconds(60).isAfter(now)) {

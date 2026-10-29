@@ -159,6 +159,22 @@ separate learner session.
 
 Public:
 
+The learner's forgotten-password flow uses three exact public POST routes under
+`/api/mobile/auth/password-reset`: `request` accepts the IIN; `verify` requires that
+IIN, its opaque `challengeId` and the SMS code; `complete` requires the same IIN, the
+single-use `resetToken` and the new password. The server obtains the existing bound
+phone; the browser cannot choose a recipient, create an employee or activate one.
+Request responses use the same generic hint for unavailable identities. The grant
+is held only in component memory and is cleared on back, IIN change, sign-out,
+unmount, successful authentication or failed completion. Late responses cannot
+restore it. Recovery responses use `no-store`; passwords and codes are never cached.
+Provider codes/proofs are purpose-bound, phone-wide issuance limits apply even when
+merch/RPS features are off, and completion rechecks the current phone, status and
+password fingerprint before atomically spending the proof and revoking old refresh
+tokens. Existing access JWTs retain their normal short TTL; this is not instant
+access-token revocation. Automatic tests use disposable databases and mocked SMS,
+not evidence of real delivery or a production release. RPS remains disabled.
+
 - `/login`
 - `/learn`, `/learn/recommendations`, `/learn/certificates`, `/learn/profile` and
   course links — a separate pharmacist cabinet using its own personal session, not

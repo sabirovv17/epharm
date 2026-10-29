@@ -5,7 +5,6 @@ import kz.epharm.mobile.auth.service.OtpService
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import org.assertj.core.api.Assertions.assertThat
-import org.assertj.core.api.Assertions.assertThatCode
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -50,12 +49,14 @@ class OtpServiceTest {
 
     @Autowired private lateinit var otpService: OtpService
     @Autowired private lateinit var otpRepository: MobileOtpRepository
+    @Autowired private lateinit var jdbc: org.springframework.jdbc.core.JdbcTemplate
 
     private val phone = "+77011112233"
 
     @BeforeEach
     fun clean() {
         otpRepository.deleteAll()
+        jdbc.execute("TRUNCATE posm_staff_rate_limits")
     }
 
     @Test
@@ -169,12 +170,13 @@ class OtpServiceTest {
     }
 
     @Test
-    fun `после verify кулдаун не мешает новому циклу входа`() {
+    fun `verified code cannot bypass shared phone SMS cooldown`() {
         val t0 = Instant.parse("2026-06-09T10:00:00Z")
         otpService.request(phone, now = t0)
         otpService.verify(phone, "5445", now = t0)
-        // Строка verified → повторный запрос сразу разрешён (новый вход).
-        assertThatCode { otpService.request(phone, now = t0.plus(Duration.ofSeconds(5))) }
-            .doesNotThrowAnyException()
+        // Proof verification does not permit flooding the sender or another OTP purpose.
+        assertThatThrownBy { otpService.request(phone, now = t0.plus(Duration.ofSeconds(5))) }
+            .extracting("code").isEqualTo(ErrorCode.OTP_RESEND_TOO_SOON)
+        assertThat(otpRepository.findById(phone).orElseThrow().verifiedAt).isEqualTo(t0)
     }
 }
