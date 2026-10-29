@@ -369,6 +369,12 @@ type Overview = {
   certificates?: Certificate[]
   notifications?: TrainingNotification[]
   defaultFormat?: string | null
+  cityRanking?: {
+    city: string
+    position: number
+    total: number
+    score: number
+  }
 }
 
 const TOKEN_KEY = 'epharm.learner.tokens'
@@ -1523,9 +1529,11 @@ export default function LearnerTrainingPage() {
         )}
         <div className={`learner-content min-w-0 pb-24 lg:pb-4 ${selected ? 'is-focus lg:col-span-2 lg:mx-auto lg:w-full lg:max-w-6xl' : ''}`}>
         <header className="learner-page-header">
-          <div>
-            <div className="hidden text-[11px] font-extrabold uppercase tracking-[0.18em] text-brand-green-700 sm:block">{t('Кабинет фармацевта')}</div>
-            <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-ink-900 sm:text-[28px]">
+          <div className="min-w-0">
+            <div className="hidden items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.2em] text-brand-green-700 sm:flex">
+              <span className="h-1.5 w-1.5 rounded-full bg-brand-green-500" /> {t('Кабинет фармацевта')}
+            </div>
+            <h1 className="mt-1 truncate text-2xl font-extrabold tracking-tight text-ink-900 sm:text-[28px]">
               {selected ? selected.programName : sectionTitle[portalSection]}
             </h1>
             {!selected && portalSection === 'home' && (
@@ -1663,7 +1671,7 @@ function LanguageSwitcher({ className = '', compact = false }: { className?: str
 
 function LearnerLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen w-full overflow-x-hidden bg-paper px-3 py-3 sm:px-6 sm:py-6 lg:px-5 lg:py-5">
+    <main className="learner-portal-shell min-h-screen w-full overflow-x-hidden px-3 py-3 sm:px-6 sm:py-6 lg:px-5 lg:py-5">
       {children}
     </main>
   )
@@ -1740,7 +1748,7 @@ function PortalNavigation({
     <nav className="learner-navigation" aria-label={t('Разделы приложения')}>
       <div className="hidden lg:block">
         <div className="flex items-center gap-3 px-3 pb-7 pt-2">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-brand-green-200"><BookOpen size={21} /></span>
+          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-brand-green-200 ring-1 ring-white/10"><BookOpen size={22} /></span>
           <div>
             <div className="text-xl font-extrabold tracking-tight text-white">ePharm</div>
             <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-green-200">{t('Фармацевт')}</div>
@@ -2338,9 +2346,15 @@ function OverviewView({
         onRetry={onRetryPersonalData}
       />
 
-      <div className="mb-5">
-        <h2 className="text-xl font-extrabold text-ink-900">{t('Курсы к обучению')}</h2>
-        <p className="mt-1 text-sm text-ink-500">{t('Выберите курс и продолжите обучение')}</p>
+      <div className="mb-5 flex items-end justify-between gap-4">
+        <div>
+          <div className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-brand-green-700">{t('Обучение')}</div>
+          <h2 className="mt-1 text-xl font-extrabold text-ink-900">{t('Курсы к обучению')}</h2>
+          <p className="mt-1 text-sm text-ink-500">{t('Выберите курс и продолжите обучение')}</p>
+        </div>
+        <span className="hidden rounded-full bg-white px-3 py-1.5 text-xs font-extrabold text-ink-500 shadow-card sm:inline-flex">
+          {t('{count} активных', { count: assignments.length })}
+        </span>
       </div>
 
       {assignments.length === 0 ? (
@@ -2349,16 +2363,20 @@ function OverviewView({
           <p className="mt-3 font-bold text-ink-700">{t('Новых курсов пока нет')}</p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
           {assignments.map((assignment) => {
             const firstLesson = assignment.stages
               .filter((stage) => stage.status !== 'locked')
               .flatMap((stage) => [...(stage.course?.lessons ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)))
               .find((lesson) => !lessonCompleted(lesson))
             return (
-              <article key={assignment.id} className="flex min-h-56 flex-col rounded-2xl bg-white p-5 shadow-card sm:p-6">
+              <article key={assignment.id} className="learner-course-card flex min-h-64 flex-col rounded-3xl bg-white p-5 shadow-card sm:p-6">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-green-50 text-brand-green-700"><BookOpen size={19} /></span>
+                  {assignment.required && <span className="rounded-full bg-paper-hover px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-ink-400">{t('Обязательно')}</span>}
+                </div>
                 <h3 className="text-xl font-extrabold leading-7 text-ink-900">{assignment.programName}</h3>
-                <div className="mt-5 rounded-xl bg-brand-green-50 p-4">
+                <div className="mt-4 rounded-2xl bg-brand-green-50 p-4">
                   <div className="text-xs font-extrabold uppercase tracking-[0.1em] text-brand-green-700">{t('Что вы получите')}</div>
                   <p className="mt-2 text-sm leading-6 text-ink-600">
                     {assignment.programShortDescription || t('Знания и практические навыки по теме курса.')}
@@ -2395,7 +2413,7 @@ function BalanceOverview({
   onRetry: () => void | Promise<void>
 }) {
   const t = useLearnerT()
-  const rating = calculateEpharmRating(overview)
+  const rating = overview?.cityRanking?.score ?? calculateEpharmRating(overview)
   const ratingLevel = rating >= 80
     ? { label: t('Отличный'), color: 'text-[#2f9e63]' }
     : rating >= 60
@@ -2405,8 +2423,8 @@ function BalanceOverview({
         : { label: t('Начальный'), color: 'text-[#647a80]' }
   const markerPosition = Math.min(98, Math.max(2, rating))
   return (
-    <section className="mb-8 grid gap-4 md:grid-cols-2" aria-label={t('Баланс и рейтинг')}>
-      <article className="rounded-2xl bg-brand-green-700 p-5 text-white shadow-card sm:p-6">
+    <section className="learner-metrics mb-8 grid gap-4 md:grid-cols-2" aria-label={t('Баланс и рейтинг')}>
+      <article className="learner-balance-card rounded-3xl p-5 text-white sm:p-6">
         <div className="flex items-center justify-between gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10"><CircleDollarSign size={21} /></span>
           <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-white/80">ePharm</span>
@@ -2422,7 +2440,7 @@ function BalanceOverview({
         <p className="mt-3 text-xs leading-5 text-white/65">{t('Доступный денежный баланс вашей учётной записи.')}</p>
       </article>
 
-      <article className="rounded-2xl border border-ink-100 bg-white p-5 shadow-card sm:p-6">
+      <article className="learner-rating-card rounded-3xl border border-ink-100 bg-white p-5 shadow-card sm:p-6">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-xs font-bold text-ink-500">{t('Ваш рейтинг ePharm')}</div>
@@ -2455,7 +2473,13 @@ function BalanceOverview({
           </div>
           <div className="mt-2 flex justify-between text-[10px] font-bold text-ink-300" aria-hidden="true"><span>0</span><span>100</span></div>
         </div>
-        <p className="mt-2 text-xs leading-5 text-ink-400">{t('На основе прогресса и результатов обучения.')}</p>
+        {overview?.cityRanking ? (
+          <p className="mt-2 text-[11px] font-semibold leading-5 text-ink-400">
+            {t('№ {position} из {total} в городе {city}', overview.cityRanking)}
+          </p>
+        ) : (
+          <p className="mt-2 text-[11px] leading-5 text-ink-400">{t('Место в городе появится после синхронизации рейтинга.')}</p>
+        )}
       </article>
     </section>
   )
@@ -2973,6 +2997,11 @@ type LessonContentBlock =
   | { kind: 'heading' | 'paragraph'; text: string }
   | { kind: 'list'; items: string[]; ordered: boolean }
 
+type LessonContentSection = {
+  title: string
+  blocks: LessonContentBlock[]
+}
+
 function parseLessonContent(content: string): LessonContentBlock[] {
   const lines = content
     .replace(/\r/g, '')
@@ -3032,33 +3061,127 @@ function parseLessonContent(content: string): LessonContentBlock[] {
   return blocks
 }
 
+function splitLessonContentIntoSections(blocks: LessonContentBlock[], fallbackTitle: string): LessonContentSection[] {
+  const sections: LessonContentSection[] = []
+  let current: LessonContentSection = { title: fallbackTitle, blocks: [] }
+
+  for (const block of blocks) {
+    if (block.kind === 'heading') {
+      if (current.blocks.length > 0) sections.push(current)
+      current = { title: block.text, blocks: [] }
+      continue
+    }
+    current.blocks.push(block)
+  }
+
+  if (current.blocks.length > 0 || sections.length === 0) sections.push(current)
+  return sections
+}
+
 function LessonContent({ content }: { content: string }) {
+  const t = useLearnerT()
   const blocks = useMemo(() => parseLessonContent(content), [content])
+  const sections = useMemo(
+    () => splitLessonContentIntoSections(blocks, t('Введение')),
+    [blocks, t],
+  )
+  const [selection, setSelection] = useState({ content, index: 0 })
+  const activeSection = selection.content === content ? selection.index : 0
+  const selectedSection = sections[Math.min(activeSection, sections.length - 1)]
+  const selectSection = (index: number | ((current: number) => number)) => {
+    setSelection((current) => {
+      const currentIndex = current.content === content ? current.index : 0
+      return {
+        content,
+        index: typeof index === 'function' ? index(currentIndex) : index,
+      }
+    })
+  }
+
+  const renderBlock = (block: LessonContentBlock, index: number) => {
+    if (block.kind === 'list') {
+      const List = block.ordered ? 'ol' : 'ul'
+      return (
+        <List key={`${block.kind}-${index}`} className="grid gap-2.5 rounded-2xl border border-brand-green-100 bg-white p-4 sm:p-5">
+          {block.items.map((item, itemIndex) => (
+            <li key={`${item}-${itemIndex}`} className="flex min-w-0 items-start gap-3 text-sm leading-6 text-ink-700 sm:text-[15px]">
+              <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-green-500" aria-hidden="true" />
+              <span className="min-w-0 break-words">{item}</span>
+            </li>
+          ))}
+        </List>
+      )
+    }
+    return <p key={`${block.kind}-${index}`} className="break-words text-sm leading-7 text-ink-700 sm:text-[15px] sm:leading-7">{block.text}</p>
+  }
+
+  if (!selectedSection) return null
+
   return (
-    <div className="max-w-4xl space-y-4">
-      {blocks.map((block, index) => {
-        if (block.kind === 'heading') {
-          return (
-            <h4 key={`${block.kind}-${index}`} className="inline-flex rounded-lg bg-brand-green-50 px-3 py-2 text-sm font-extrabold leading-5 text-brand-green-800 sm:text-[15px]">
-              {block.text}
-            </h4>
-          )
-        }
-        if (block.kind === 'list') {
-          const List = block.ordered ? 'ol' : 'ul'
-          return (
-            <List key={`${block.kind}-${index}`} className="grid gap-2.5 rounded-xl border border-brand-green-100 bg-white p-4 sm:p-5">
-              {block.items.map((item, itemIndex) => (
-                <li key={`${item}-${itemIndex}`} className="flex min-w-0 items-start gap-3 text-sm leading-6 text-ink-700 sm:text-[15px]">
-                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-green-500" aria-hidden="true" />
-                  <span className="min-w-0 break-words">{item}</span>
-                </li>
-              ))}
-            </List>
-          )
-        }
-        return <p key={`${block.kind}-${index}`} className="break-words text-sm leading-6 text-ink-700 sm:text-[15px] sm:leading-7">{block.text}</p>
-      })}
+    <div className="lesson-section-reader">
+      {sections.length > 1 && (
+        <div className="lesson-section-tabs" role="tablist" aria-label={t('Разделы урока')}>
+          {sections.map((section, index) => (
+            <button
+              key={`${section.title}-${index}`}
+              id={`lesson-section-tab-${index}`}
+              type="button"
+              role="tab"
+              aria-selected={activeSection === index}
+              aria-controls={`lesson-section-panel-${index}`}
+              className={`lesson-section-tab ${activeSection === index ? 'is-active' : ''}`}
+              onClick={() => selectSection(index)}
+            >
+              <span className="lesson-section-number">{String(index + 1).padStart(2, '0')}</span>
+              <span className="line-clamp-2">{section.title}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div
+        id={`lesson-section-panel-${activeSection}`}
+        role="tabpanel"
+        aria-labelledby={`lesson-section-tab-${activeSection}`}
+        className="lesson-section-panel"
+      >
+        <div className="mb-5 flex items-start justify-between gap-4 border-b border-ink-100 pb-4">
+          <div>
+            <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-brand-green-700">
+              {t('Раздел {current} из {total}', { current: activeSection + 1, total: sections.length })}
+            </div>
+            <h4 className="mt-1 text-lg font-extrabold leading-6 text-ink-900">{selectedSection.title}</h4>
+          </div>
+          {sections.length > 1 && (
+            <span className="shrink-0 rounded-full bg-brand-green-50 px-2.5 py-1 text-[10px] font-extrabold text-brand-green-700">
+              {Math.round(((activeSection + 1) / sections.length) * 100)}%
+            </span>
+          )}
+        </div>
+        <div className="max-w-4xl space-y-4">
+          {selectedSection.blocks.map(renderBlock)}
+        </div>
+        {sections.length > 1 && (
+          <div className="mt-7 flex items-center justify-between gap-3 border-t border-ink-100 pt-5">
+            <button
+              type="button"
+              className="btn btn-outline btn-md"
+              disabled={activeSection === 0}
+              onClick={() => selectSection((current) => Math.max(0, current - 1))}
+            >
+              <ArrowLeft size={16} /> {t('Предыдущий раздел')}
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary btn-md"
+              disabled={activeSection === sections.length - 1}
+              onClick={() => selectSection((current) => Math.min(sections.length - 1, current + 1))}
+            >
+              {t('Следующий раздел')} <ChevronRight size={16} />
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -3234,8 +3357,8 @@ function LessonPage({
       <button className="btn btn-ghost mb-4 -ml-2" onClick={onBack}>
         <ArrowLeft size={18} /> {t('К содержанию курса')}
       </button>
-      <div className="overflow-hidden rounded-3xl bg-white shadow-card">
-        <header className="border-b border-ink-100 p-5 sm:p-8">
+      <div className="learner-lesson-card overflow-hidden rounded-3xl bg-white shadow-card">
+        <header className="learner-lesson-hero border-b border-ink-100 p-5 sm:p-8">
           <div className="text-xs font-extrabold uppercase tracking-[0.16em] text-brand-green-700">
             {t('Урок {current} из {total}', { current: index + 1, total: lessons.length })}
           </div>
@@ -3325,12 +3448,12 @@ function LessonPage({
           )}
 
           {lesson.content && (
-            <section className="overflow-hidden rounded-2xl border border-ink-100 bg-paper-hover">
-              <div className="flex items-center gap-3 border-b border-ink-100 px-4 py-4 sm:px-6">
+            <section className="overflow-hidden rounded-3xl border border-ink-100 bg-paper-hover">
+              <div className="flex items-center gap-3 border-b border-ink-100 bg-white px-4 py-4 sm:px-6">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-brand-green-700 shadow-sm"><BookOpen size={18} /></span>
                 <h3 className="text-base font-extrabold text-ink-900">{t('Материал урока')}</h3>
               </div>
-              <div className="p-4 sm:p-6">
+              <div className="p-3 sm:p-5">
                 <LessonContent content={lesson.content} />
               </div>
             </section>

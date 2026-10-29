@@ -315,7 +315,14 @@ describe('learner training portal', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const path = String(input)
       if (path === '/api/mobile/auth/me') return json({ id: 'ph-1', name: 'Айжан', phone: '+77070000000', pharmacyName: 'Ауэзова 134', city: 'Алматы' })
-      if (path === '/api/mobile/training') return json({ total: 1, inProgress: 1, completed: 0, overdue: 0, assignments: [assignment] })
+      if (path === '/api/mobile/training') return json({
+        total: 1,
+        inProgress: 1,
+        completed: 0,
+        overdue: 0,
+        assignments: [assignment],
+        cityRanking: { city: 'Алматы', position: 4, total: 27, score: 25 },
+      })
       if (path === '/api/mobile/promotions') return json([])
       return json({ message: `Unexpected request: ${path}` }, 500)
     })
@@ -326,6 +333,7 @@ describe('learner training portal', () => {
     expect(screen.getByText('Курсы к обучению')).toBeInTheDocument()
     expect(screen.getByText('Ваш рейтинг ePharm')).toBeInTheDocument()
     expect(screen.getByRole('meter', { name: 'Ваш рейтинг ePharm' })).toHaveAttribute('aria-valuenow', '25')
+    expect(screen.getByText('№ 4 из 27 в городе Алматы')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Современная фармация' })).toBeInTheDocument()
     expect(screen.getByText('Что вы получите')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Начать курс' })).toBeInTheDocument()
@@ -440,6 +448,7 @@ describe('learner training portal', () => {
   })
 
   it('shows the fire-safety video as the first lesson block', async () => {
+    const user = userEvent.setup()
     localStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
     const scrollTo = vi.fn()
     vi.stubGlobal('scrollTo', scrollTo)
@@ -464,7 +473,7 @@ describe('learner training portal', () => {
             id: 'lesson-fire-1',
             title: 'Основы пожарной безопасности',
             description: 'Вводный урок',
-            content: '2.1. Торговый зал аптеки\n\nПеред началом смены сотрудник должен проверить:\n\nсвободны ли проходы;\n\nдоступны ли указатели эвакуации.',
+            content: '2.1. Торговый зал аптеки\n\nПеред началом смены сотрудник должен проверить:\n\nсвободны ли проходы;\n\nдоступны ли указатели эвакуации.\n\n2.2. Действия при пожаре\n\nСообщите руководителю и вызовите 112.',
             kind: 'text',
             order: 0,
             durationMin: 5,
@@ -485,12 +494,15 @@ describe('learner training portal', () => {
     renderPortal('/learn/course/assignment-fire/lesson/lesson-fire-1')
 
     const video = await screen.findByLabelText('Видео урока')
-    const material = screen.getByText('2.1. Торговый зал аптеки')
+    const material = screen.getByRole('heading', { name: '2.1. Торговый зал аптеки' })
     expect(video).toHaveAttribute('src', '/training/fire-safety-training-video.mp4')
     expect(video.compareDocumentPosition(material) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByRole('list')).toHaveTextContent('свободны ли проходы;')
     expect(screen.getByRole('list')).toHaveTextContent('доступны ли указатели эвакуации.')
-    expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' })
+    expect(screen.queryByText('Сообщите руководителю и вызовите 112.')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: /2.2. Действия при пожаре/ }))
+    expect(screen.getByText('Сообщите руководителю и вызовите 112.')).toBeInTheDocument()
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' }))
   })
 
   it('lets a pharmacist create a password on the first login after SMS verification', async () => {
