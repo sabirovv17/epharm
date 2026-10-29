@@ -13,13 +13,14 @@ import org.springframework.http.HttpStatus
 @Component
 class StaffPhoneLock(private val jdbc: JdbcTemplate,
     @Value("\${app.merch-rewards.enabled:false}") private val merchRewardsEnabled: Boolean = false,
-    @Value("\${app.merch.producer-auth-enabled:false}") private val producerAuthEnabled: Boolean = false) {
+    @Value("\${app.merch.producer-auth-enabled:false}") private val producerAuthEnabled: Boolean = false,
+    @Value("\${app.merch.native-executor-enabled:false}") private val nativeExecutorEnabled: Boolean = false) {
     fun lock(phone: String) {
         jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?, 718094))", phone)
     }
     fun invalidateStaff(phone: String) {
         jdbc.update("UPDATE posm_staff_challenges SET consumed_at=now() WHERE phone=? AND consumed_at IS NULL",phone)
-        if (merchRewardsEnabled) jdbc.update("UPDATE merch_executor_otp_challenges SET consumed_at=now() WHERE phone=? AND consumed_at IS NULL",phone)
+        if (merchRewardsEnabled || nativeExecutorEnabled) jdbc.update("UPDATE merch_executor_otp_challenges SET consumed_at=now() WHERE phone=? AND consumed_at IS NULL",phone)
         invalidateProducer(phone)
     }
     fun invalidateProducer(phone: String) {
@@ -27,7 +28,7 @@ class StaffPhoneLock(private val jdbc: JdbcTemplate,
     }
     /** Opt-in money verification shares Daribar's phone-wide issuance budget with login. */
     fun limitSharedSms(phone: String, now: Instant = Instant.now()) {
-        if (!merchRewardsEnabled && !producerAuthEnabled) return
+        if (!merchRewardsEnabled && !producerAuthEnabled && !nativeExecutorEnabled) return
         val key = kz.epharm.finance.merch.MerchRewardSecurity.hash("sms-shared-phone:$phone")
         val last = jdbc.query("SELECT window_start FROM posm_staff_rate_limits WHERE scope_hash=?", { rs, _ -> rs.getTimestamp(1).toInstant() }, key).singleOrNull()
         if (last != null && last.plusSeconds(60).isAfter(now)) {

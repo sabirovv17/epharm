@@ -75,7 +75,7 @@ class ProducerAuthIntegrationTest {
         jdbc.execute("""TRUNCATE merch_producer_refresh_tokens,merch_producer_sessions,merch_producer_challenges,merch_producer_auth_limits,
             posm_staff_rate_limits,posm_staff_challenges,mobile_otps,merch_placement_audit,merch_inventory_audit,merch_media_plan_items,
             merch_media_plans,merch_monthly_inventory,merch_shelves,merch_inventory_containers,merch_branches,merch_organizations,
-            merch_producers,admin_users CASCADE""")
+            merch_producers,unified_external_accounts,admin_users CASCADE""")
         clearMocks(provider)
         authNow=Instant.now();every {clock.instant()} answers {authNow}
         every {provider.id} returns "synthetic-provider"
@@ -87,6 +87,9 @@ class ProducerAuthIntegrationTest {
     }
     private fun insertCustomer(id:UUID,phone:String) {jdbc.update("""INSERT INTO merch_producers(id,source_system,source_origin,source_id,source_payload,name,active,
         phone,phone_normalized,source_account_role,created_at,updated_at) VALUES(?,'MERCH_CRM','https://crm.inkar.kz',?,'{}','Synthetic producer',true,?,?,'advertiser',now(),now())""",id,id,phone,phone)}
+    private fun insertExternal(id:UUID,phone:String,role:String="advertiser",active:Boolean=true) {jdbc.update("""INSERT INTO unified_external_accounts
+        (id,source_system,source_origin,source_payload,full_name,phone,source_role,active,created_at,updated_at)
+        VALUES(?,'MERCH_CRM','https://crm.inkar.kz','{}','Synthetic preserved account',?,?,?,now(),now())""",id,phone,role,active)}
     private fun post(path:String,body:Any,token:String?=null)=mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON)
         .also {if(token!=null) it.header("Authorization","Bearer $token")}.content(json.writeValueAsString(body)))
     private fun challenge(phone:String=PHONE):ProducerSmsChallenge=json.readValue(post("/api/producer/auth/sms/request",ProducerSmsRequest(phone))
@@ -120,8 +123,10 @@ class ProducerAuthIntegrationTest {
         post("/api/producer/auth/sms/verify",ProducerSmsVerify(c.challengeId,code)).andExpect(status().isBadRequest)
         assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_producer_sessions",Long::class.java)).isEqualTo(1)
     }
-    @Test fun `unknown and duplicate phones are generic do not send SMS and cannot invalidate a cashier OTP`() {
+    @Test fun `blocked and duplicate phones are generic do not send SMS and cannot invalidate a cashier OTP`() {
         val phone="+77000000999"
+        val blocked=UUID.randomUUID();insertCustomer(blocked,phone)
+        jdbc.update("UPDATE merch_producers SET active=false WHERE id=?",blocked)
         jdbc.update("INSERT INTO mobile_otps(phone,code_hash,expires_at,verified_at) VALUES(?,'synthetic',now()+interval '5 minutes',now())",phone)
         val unknown=challenge(phone)
         post("/api/producer/auth/sms/verify",ProducerSmsVerify(unknown.challengeId,"1234")).andExpect(status().isBadRequest)
@@ -131,6 +136,126 @@ class ProducerAuthIntegrationTest {
         post("/api/producer/auth/sms/verify",ProducerSmsVerify(duplicate.challengeId,"1234")).andExpect(status().isBadRequest)
         verify(exactly=0) {provider.requestOtp(any(),any())}
         assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_producer_sessions",Long::class.java)).isZero()
+    }
+
+    @Test fun `unknown phone registers only after valid SMS as an isolated producer with an incomplete company profile`() {
+        val phone="+77000000999"
+        val people=jdbc.queryForObject("SELECT count(*) FROM unified_persons",Long::class.java)
+        val pharmacists=jdbc.queryForObject("SELECT count(*) FROM pharmacists",Long::class.java)
+        val admins=jdbc.queryForObject("SELECT count(*) FROM admin_users",Long::class.java)
+        val c=challenge(phone);val code=delivered
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_producers",Long::class.java)).isEqualTo(2)
+        assertThat(jdbc.queryForObject("SELECT registration_pending AND eligible AND customer_id IS NULL FROM merch_producer_challenges WHERE id=?",Boolean::class.java,c.challengeId)).isTrue()
+        val wrong=if(code=="000000") "111111" else "000000"
+        post("/api/producer/auth/sms/verify",ProducerSmsVerify(c.challengeId,wrong)).andExpect(status().isBadRequest)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_producers",Long::class.java)).isEqualTo(2)
+        val a:ProducerAuthResponse=json.readValue(post("/api/producer/auth/sms/verify",ProducerSmsVerify(c.challengeId,code))
+            .andExpect(status().isOk).andReturn().response.contentAsByteArray)
+        assertThat(a.customer.id).isNotIn(customer,other,admin.id);assertThat(a.customer.name).isNull();assertThat(a.customer.profileComplete).isFalse()
+        val created=jdbc.queryForMap("SELECT * FROM merch_producers WHERE id=?",a.customer.id)
+        assertThat(created["source_system"]).isEqualTo("EPHARM");assertThat(created["source_origin"]).isEqualTo("https://epharm.inkar.kz")
+        assertThat(created["source_id"]).isEqualTo(a.customer.id);assertThat(created["source_account_role"]).isEqualTo("advertiser")
+        assertThat(created["phone_normalized"]).isEqualTo(phone);assertThat(created["phone_verified_at"]).isNotNull();assertThat(created["name"]).isNull()
+        mvc.perform(get("/api/producer/profile").header("Authorization","Bearer ${a.accessToken}"))
+            .andExpect(status().isOk).andExpect(jsonPath("$.profileComplete").value(false)).andExpect(jsonPath("$.profile.companyName").isEmpty())
+        me(a.accessToken).andExpect(status().isOk)
+        mvc.perform(get("/api/admin/pharmacists").header("Authorization","Bearer ${a.accessToken}")).andExpect(status().isUnauthorized)
+        post("/api/producer/auth/sms/verify",ProducerSmsVerify(c.challengeId,code)).andExpect(status().isBadRequest)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_producers",Long::class.java)).isEqualTo(3)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM unified_persons",Long::class.java)).isEqualTo(people)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM pharmacists",Long::class.java)).isEqualTo(pharmacists)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM admin_users",Long::class.java)).isEqualTo(admins)
+        verify(exactly=1){provider.requestOtp(phone,any())}
+    }
+
+    @Test fun `all preserved roles inactive accounts and normalized phone duplicates block registration without SMS`() {
+        val phones=listOf("+77000000990","+77000000991","+77000000992","+77000000993")
+        insertExternal(UUID.randomUUID(),"8 (700) 000-09-90","mass_manager")
+        insertExternal(UUID.randomUUID(),"7000000991",active=false)
+        // An advertiser without its verified owned customer projection must not be recreated under another UUID.
+        insertExternal(UUID.randomUUID(),phones[2])
+        val duplicate=UUID.randomUUID();insertCustomer(duplicate,phones[3])
+        insertCustomer(UUID.randomUUID(),phones[3]);jdbc.update("UPDATE merch_producers SET active=false WHERE id=?",duplicate)
+        for(phone in phones) {
+            jdbc.update("INSERT INTO mobile_otps(phone,code_hash,expires_at,verified_at) VALUES(?,'synthetic',now()+interval '5 minutes',now())",phone)
+            val c=challenge(phone)
+            post("/api/producer/auth/sms/verify",ProducerSmsVerify(c.challengeId,"123456")).andExpect(status().isBadRequest)
+            assertThat(jdbc.queryForObject("SELECT NOT eligible AND NOT registration_pending FROM merch_producer_challenges WHERE id=?",Boolean::class.java,c.challengeId)).isTrue()
+            assertThat(jdbc.queryForObject("SELECT verified_at IS NOT NULL AND expires_at>now() FROM mobile_otps WHERE phone=?",Boolean::class.java,phone)).isTrue()
+        }
+        verify(exactly=0){provider.requestOtp(any(),any())}
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_producer_sessions",Long::class.java)).isZero()
+    }
+
+    @Test fun `registered source advertiser remains the same customer and a source role collision cannot hijack it`() {
+        insertExternal(customer,"8 (700) 000-00-01")
+        val a=login();assertThat(a.customer.id).isEqualTo(customer)
+        jdbc.execute("TRUNCATE merch_producer_challenges,merch_producer_auth_limits,posm_staff_rate_limits CASCADE")
+        insertExternal(UUID.randomUUID(),"7000000001","mass_manager")
+        clearMocks(provider,answers=false,recordedCalls=true)
+        val c=challenge()
+        post("/api/producer/auth/sms/verify",ProducerSmsVerify(c.challengeId,"123456")).andExpect(status().isBadRequest)
+        verify(exactly=0){provider.requestOtp(any(),any())}
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_producers",Long::class.java)).isEqualTo(2)
+    }
+
+    @Test fun `unknown registration provider failure TTL and expired verification never create a customer`() {
+        val phone="+77000000999"
+        every {provider.requestOtp(phone,any())} throws IllegalStateException("synthetic outage")
+        post("/api/producer/auth/sms/request",ProducerSmsRequest(phone)).andExpect(status().isServiceUnavailable)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_producers",Long::class.java)).isEqualTo(2)
+        assertThat(jdbc.queryForObject("SELECT consumed_at IS NOT NULL FROM merch_producer_challenges WHERE phone=?",Boolean::class.java,phone)).isTrue()
+        every {provider.requestOtp(any(),any())} answers {delivered=secondArg<String?>().orEmpty()}
+        val c=challenge("+77000000998");val code=delivered;authNow=authNow.plusSeconds(301)
+        post("/api/producer/auth/sms/verify",ProducerSmsVerify(c.challengeId,code)).andExpect(status().isBadRequest)
+        every {provider.verificationMode} returns OtpVerificationMode.EXTERNAL
+        val slow=challenge("+77000000997")
+        every {provider.verifyOtp(any(),any())} answers {authNow=authNow.plusSeconds(301);OtpVerificationResult.VERIFIED}
+        post("/api/producer/auth/sms/verify",ProducerSmsVerify(slow.challengeId,"123456")).andExpect(status().isBadRequest)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_producers",Long::class.java)).isEqualTo(2)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_producer_sessions",Long::class.java)).isZero()
+    }
+
+    @Test fun `a source collision appearing during external verification consumes the challenge instead of registering`() {
+        val phone="+77000000999"
+        every {provider.verificationMode} returns OtpVerificationMode.EXTERNAL
+        val c=challenge(phone)
+        every {provider.verifyOtp(phone,any())} answers {
+            insertExternal(UUID.randomUUID(),"8 (700) 000-09-99","mass_manager")
+            OtpVerificationResult.VERIFIED
+        }
+        post("/api/producer/auth/sms/verify",ProducerSmsVerify(c.challengeId,"123456")).andExpect(status().isBadRequest)
+        assertThat(jdbc.queryForObject("SELECT consumed_at IS NOT NULL FROM merch_producer_challenges WHERE id=?",Boolean::class.java,c.challengeId)).isTrue()
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_producers",Long::class.java)).isEqualTo(2)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_producer_sessions",Long::class.java)).isZero()
+        post("/api/producer/auth/sms/verify",ProducerSmsVerify(c.challengeId,"123456")).andExpect(status().isBadRequest)
+        verify(exactly=1){provider.verifyOtp(phone,any())}
+    }
+
+    @Test fun `a customer disabled while external SMS verification answers cannot receive a session`() {
+        every {provider.verificationMode} returns OtpVerificationMode.EXTERNAL
+        val c=challenge()
+        every {provider.verifyOtp(PHONE,any())} answers {
+            jdbc.update("UPDATE merch_producers SET active=false WHERE id=?",customer)
+            OtpVerificationResult.VERIFIED
+        }
+        post("/api/producer/auth/sms/verify",ProducerSmsVerify(c.challengeId,"123456")).andExpect(status().isBadRequest)
+        assertThat(jdbc.queryForObject("SELECT consumed_at IS NOT NULL FROM merch_producer_challenges WHERE id=?",Boolean::class.java,c.challengeId)).isTrue()
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_producer_sessions",Long::class.java)).isZero()
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_producers",Long::class.java)).isEqualTo(2)
+    }
+
+    @Test fun `parallel consumption of one unknown phone challenge registers one customer and one session`() {
+        val phone="+77000000999";val c=challenge(phone);val code=delivered
+        val pool=Executors.newFixedThreadPool(2);val ready=CountDownLatch(2);val go=CountDownLatch(1)
+        try {
+            val calls=(1..2).map {pool.submit<Int>{ready.countDown();check(go.await(5,TimeUnit.SECONDS));
+                post("/api/producer/auth/sms/verify",ProducerSmsVerify(c.challengeId,code)).andReturn().response.status}}
+            assertThat(ready.await(5,TimeUnit.SECONDS)).isTrue();go.countDown()
+            assertThat(calls.map {it.get(10,TimeUnit.SECONDS)}).containsExactlyInAnyOrder(200,400)
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_producers WHERE phone_normalized=?",Long::class.java,phone)).isEqualTo(1)
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_producer_sessions",Long::class.java)).isEqualTo(1)
+        } finally {go.countDown();pool.shutdownNow()}
     }
     @Test fun `five wrong attempts and TTL expiry cannot be reset or replayed`() {
         val c=challenge();val correct=delivered;val wrong=if(correct=="000000") "111111" else "000000"

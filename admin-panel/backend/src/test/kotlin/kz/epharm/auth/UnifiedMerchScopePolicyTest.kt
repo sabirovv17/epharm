@@ -1,6 +1,7 @@
 package kz.epharm.auth
 
 import kz.epharm.auth.access.StoredGrant
+import kz.epharm.auth.access.UnifiedAdminCatalog
 import kz.epharm.auth.policy.*
 import kz.epharm.shared.identity.*
 import org.assertj.core.api.Assertions.assertThat
@@ -86,4 +87,14 @@ class UnifiedMerchScopePolicyTest {
         assertThat(engine.delegate(issuer, recipient, PermissionGrant(key,
             DataScope(PharmacyScope.AllMerchBranches, OwnerScope.AllCustomers)), control, Instant.now(), proof).allowed).isFalse()
     }
+    @Test fun `ALL_ONLY uses the full typed branch and customer domain`() {
+        val catalog = UnifiedAdminCatalog(com.fasterxml.jackson.module.kotlin.jacksonObjectMapper())
+        val global = catalog.placementBindProducer
+        assertThat(catalog.isAllScope(global, DataScope(PharmacyScope.All))).isFalse()
+        assertThat(catalog.isAllScope(global, DataScope(PharmacyScope.AllMerchBranches))).isFalse()
+        assertThat(catalog.isAllScope(global, DataScope(PharmacyScope.AllMerchBranches, OwnerScope.Customers(listOf(customer))))).isFalse()
+        assertThat(catalog.isAllScope(global, DataScope(PharmacyScope.MerchBranches(listOf(branch)), OwnerScope.AllCustomers))).isFalse()
+        assertThat(catalog.isAllScope(global, DataScope(PharmacyScope.AllMerchBranches, OwnerScope.AllCustomers))).isTrue()
+    }
+
 }

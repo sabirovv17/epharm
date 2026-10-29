@@ -11,6 +11,8 @@ import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
+import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionTemplate
@@ -27,7 +29,8 @@ object PlacementPermissions {
 
 @Service
 class PlacementService(private val repository: PlacementRepository,private val access: AdministrativeScope,
-    private val json: ObjectMapper,private val transactions: PlatformTransactionManager,private val producerSessions:ProducerAuthService) {
+    private val json: ObjectMapper,private val transactions: PlatformTransactionManager,private val producerSessions:ProducerAuthService,
+    private val jdbc:JdbcTemplate,private val passwordEncoder:PasswordEncoder) {
     @Transactional(readOnly=true)
     fun producerBranches(actor:PlacementActor.Producer,limit:Int,offset:Int):ProducerBranchOptions {
         activeProducer(actor.customerId)
@@ -98,6 +101,39 @@ class PlacementService(private val repository: PlacementRepository,private val a
         val plan=load(id);val items=repository.items(id)
         require(actor,"view",items.branches(),plan.producerId)
         return dto(plan,items,actor)
+    }
+    /** Resolves only an unowned preserved plan; it neither publishes a placement nor changes financial history. */
+    @Transactional
+    fun bindProducer(id:UUID,request:BindPlacementProducer,actor:PlacementActor.Internal):PlacementDto {
+        access.lockCurrentActor()
+        access.requireAllMerchPlacementPermission(PlacementPermissions.key("bind_producer"))
+        access.requireAllMerchPlacementPermission(PlacementPermissions.key("view"))
+        val person=access.currentVerifiedPersonId()
+        if(jdbc.query("SELECT verification_reference FROM unified_persons WHERE id=? FOR SHARE",{rs,_->rs.getString(1)},person)
+                .singleOrNull()?.isNotBlank()!=true) forbidden()
+        if(request.expectedRevision<0 || request.reason.trim().length !in 3..1000 || request.currentPassword.isBlank() || request.currentPassword.length>128)
+            invalid("Укажите ревизию, подтверждение связи и текущий пароль")
+        // lockCurrentActor already holds the current account/profile rows; read its current password, never a token claim or cached entity.
+        val authority=jdbc.queryForList("SELECT status,role,password_hash FROM admin_users WHERE id=?",actor.accountId).singleOrNull()?:forbidden()
+        if(authority["status"]!="active" || authority["role"] !in setOf("SYSTEM_ADMIN","HQ_HEAD")) forbidden()
+        val passwordHash=authority["password_hash"] as? String?:forbidden()
+        if(!passwordEncoder.matches(request.currentPassword,passwordHash)) throw AppException(ErrorCode.INVALID_CREDENTIALS,"Подтвердите текущий пароль администратора",HttpStatus.UNAUTHORIZED)
+        company(activeProducer(request.producerId,lock=true))
+        val before=load(id);val old=repository.items(id)
+        repository.lock(old.branches(),old.map {it.shelfId}.toSet())
+        val plan=repository.plan(id,true)?:missing();val items=repository.items(id,true)
+        if(items.map {it.shelfId}.toSet()!=old.map {it.shelfId}.toSet()) conflict("Состав медиаплана изменился: обновите страницу")
+        requireRevision(plan,request.expectedRevision)
+        if(before.producerId!=null || plan.producerId!=null) conflict("Владелец медиаплана уже подтверждён")
+        val now=Instant.now()
+        val changed=jdbc.update("""UPDATE merch_media_plans SET producer_id=?,revision=revision+1,updated_at=?
+            WHERE id=? AND source_system='MERCH_CRM' AND producer_id IS NULL AND revision=?""",
+            request.producerId,java.sql.Timestamp.from(now),id,request.expectedRevision)
+        if(changed!=1) conflict("Связь медиаплана уже изменилась: обновите страницу")
+        repository.audit(id,request.expectedRevision+1,actor,"producer_bound",json.writeValueAsString(mapOf(
+            "previousProducerId" to null,"producerId" to request.producerId,"verificationReason" to request.reason.trim(),
+            "verifiedPersonId" to person)),now)
+        return dto(load(id),items,actor)
     }
     @Transactional
     fun create(request: CreatePlacementDraft,actor: PlacementActor): PlacementDto = create(request,actor,false)
@@ -260,7 +296,9 @@ class PlacementService(private val repository: PlacementRepository,private val a
             active && plan.status==PlacementStatus.draft && can("edit"),active && complete && plan.status==PlacementStatus.draft && money && can("submit"),
             active && liveHold && money && can("approve"),active && liveHold && money && can("reject"),
             active && plan.status in setOf(PlacementStatus.draft,PlacementStatus.pending,PlacementStatus.approved) && money && can("cancel") && !(actor is PlacementActor.Producer && plan.status==PlacementStatus.approved),
-            plan.createdAt,plan.updatedAt,if(plan.producerId==null) "unresolved" else "verified")
+            plan.createdAt,plan.updatedAt,if(plan.producerId==null) "unresolved" else "verified",
+            actor is PlacementActor.Internal && plan.producerId==null && access.canAllMerchPlacementPermission(PlacementPermissions.key("bind_producer")) &&
+                jdbc.queryForObject("SELECT source_system='MERCH_CRM' FROM merch_media_plans WHERE id=?",Boolean::class.java,plan.id)==true)
     }
     private fun require(actor: PlacementActor,action: String,branches: Set<UUID>,producer: UUID?) {
         when(actor) {

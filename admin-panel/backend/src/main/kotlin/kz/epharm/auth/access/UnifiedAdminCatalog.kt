@@ -41,6 +41,7 @@ class UnifiedAdminCatalog(mapper: ObjectMapper) {
     val pharmacistExport = key("pharmacists", "registry", "export")
     val producerView = key("merchandising", "producers", "view")
     val placementView = key("merchandising", "placements", "view")
+    val placementBindProducer = key("merchandising", "placements", "bind_producer")
     val taskView = key("merchandising", "tasks", "view")
     val taskCreate = key("merchandising", "tasks", "create")
     val taskExecute = key("merchandising", "tasks", "execute")
@@ -73,6 +74,7 @@ class UnifiedAdminCatalog(mapper: ObjectMapper) {
             PermissionDefinition(pharmacistExport, PermissionKind.EXPORT, viewPermission = viewRegistry),
             PermissionDefinition(producerView), PermissionDefinition(placementView),
             PermissionDefinition(producerBindingManage, PermissionKind.SENSITIVE_DATA),
+            PermissionDefinition(placementBindProducer, PermissionKind.SENSITIVE_DATA, viewPermission = placementView),
             PermissionDefinition(taskView), PermissionDefinition(taskReview, independentReview = true),
         ) + listOf("edit", "submit", "approve", "reject", "cancel", "assign", "financial_data").map { action ->
             PermissionDefinition(key("merchandising", "placements", action),
@@ -91,7 +93,7 @@ class UnifiedAdminCatalog(mapper: ObjectMapper) {
     fun supported(key: PermissionKey) = definitions.any { it.key == key }
 
     fun availableRoles(key: PermissionKey): Set<AdminRole> = when {
-        key in setOf(accountManage, producerBindingManage) -> setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD)
+        key in setOf(accountManage, producerBindingManage, placementBindProducer) -> setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD)
         key.module == AdministrationModule.TRAINING -> setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD,
             AdminRole.TRAINING_MANAGER, AdminRole.REGIONAL_MANAGER, AdminRole.TRAINER)
         key.module == AdministrationModule.MERCHANDISING -> setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD,
@@ -102,10 +104,12 @@ class UnifiedAdminCatalog(mapper: ObjectMapper) {
     fun integration(key: PermissionKey): ScopeIntegration = when {
         !supported(key) -> ScopeIntegration.NOT_READY
         key in setOf(accountView, accountManage, financial, campaignPublish, recommendationPublish, configureBonus,
-            payoutView, payoutExport, campaignReportView, campaignReportExport, producerBindingManage) -> ScopeIntegration.ALL_ONLY
+            payoutView, payoutExport, campaignReportView, campaignReportExport, producerBindingManage, placementBindProducer) -> ScopeIntegration.ALL_ONLY
         routes.any { it.permission.key() == key && it.mode == ScopeIntegration.ALL_ONLY } -> ScopeIntegration.ALL_ONLY
         else -> ScopeIntegration.SCOPED
     }
+
+    fun isAllScope(key: PermissionKey, scope: DataScope) = scope.covers(allScope(key))
 
     fun allScope(key: PermissionKey) = DataScope(if (key.module == AdministrationModule.MERCHANDISING)
         PharmacyScope.AllMerchBranches else PharmacyScope.All,

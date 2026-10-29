@@ -92,6 +92,11 @@ class MerchTaskWorkflowIntegrationTest {
         jdbc.update("""insert into pharmacists(id,name,iin,phone,pharmacy_id,pharmacy_name,city,tier,status,joined_at,balance)
             values('task-pharmacist','Synthetic','000000000001','+77000000001','task-pharmacy','Synthetic','Synthetic','Silver','active',current_date,500)""")
         jdbc.update("insert into pharmacist_person_links(pharmacist_id,person_id,verification_reference,verified_by) values('task-pharmacist',?,'synthetic-proof',?)",pharmacistPerson,admin.id)
+        val mapping=UUID.randomUUID()
+        jdbc.update("""insert into posm_pharmacist_mappings(id,pharmacy_id,external_user_id,pharmacist_id,created_by,updated_by)
+            values(?,'task-pharmacy','synthetic-posm-id','task-pharmacist',?,?)""",mapping,admin.id,admin.id)
+        jdbc.update("""insert into posm_pharmacist_mapping_audit(mapping_id,action,pharmacy_id,external_user_id,pharmacist_id,actor_id)
+            values(?,'created','task-pharmacy','synthetic-posm-id','task-pharmacist',?)""",mapping,admin.id)
         val org = UUID.randomUUID(); branch=UUID.randomUUID()
         jdbc.update("""insert into merch_organizations(id,source_system,source_origin,source_id,source_payload,name,legal_name,active,created_at,updated_at)
             values(?,'EPHARM','https://epharm.inkar.kz',?,'{}','Synthetic','Synthetic',true,now(),now())""",org,org)
@@ -198,6 +203,16 @@ class MerchTaskWorkflowIntegrationTest {
         val item=d.items.single(); val a=start(item.id); upload(item.id); submit(item,a)
         assertEquals("held",review(d.id,item.id).reward!!.state)
         assertEquals(0,jdbc.queryForObject("select count(*) from pharmacist_wallet_entries",Int::class.java))
+    }
+
+    @Test fun `paid final approval rechecks the same current HQ audited recipient mapping and holds revoked proof without credit`() {
+        val d=create(count=1);binding(d);val item=d.items.single();val a=start(item.id);upload(item.id);submit(item,a)
+        jdbc.update("update posm_pharmacist_mappings set active=false,revoked_at=now() where pharmacist_id='task-pharmacist'")
+        review(d.id,item.id)
+        assertEquals("recipient_HQ_mapping_no_longer_verified",get(d.id).reward!!.reason)
+        assertEquals("held",get(d.id).reward!!.state)
+        assertEquals(500L,jdbc.queryForObject("select balance from pharmacists where id='task-pharmacist'",Long::class.java))
+        assertEquals(0,jdbc.queryForObject("select count(*) from pharmacist_wallet_entries where source='merch_task'",Int::class.java))
     }
 
     @Test fun `upload replay has one private file record and scoped download authenticates before returning exact bytes`() {
@@ -512,6 +527,160 @@ class MerchTaskWorkflowIntegrationTest {
         } finally { release.countDown();executor.shutdownNow() }
     }
 
+    @Test fun `explicit source resume preserves original actor checklist file and attempt snapshot before real new executor starts`() {
+        val source=sourceTask("in_progress",300)
+        val before=get(source.first.id).items.single()
+        assertTrue(before.canResumeSource);assertFalse(before.canAdoptSourceReview)
+        val request=ContinueSourceTask(before.version,"resume","HQ preserves unfinished source attempt")
+        val adopted=continueSource(before.id,request)
+        assertEquals("revision_required",adopted.status)
+        val preserved=get(source.first.id).items.single().currentAttempt!!
+        assertEquals("source_preserved",preserved.status);assertNull(preserved.executorPersonId)
+        assertEquals("source_preserved_unverified",preserved.executorIdentityStatus)
+        assertEquals("Original source employee comment",preserved.comment)
+        assertEquals(before.checklist.map {it.id}.toSet(),preserved.completedChecklistIds)
+        assertEquals(source.second,jdbc.queryForObject("select source_payload::text from merch_task_items where id=?",String::class.java,before.id))
+        assertEquals(0,jdbc.queryForObject("select count(*) from merch_task_evidence where attempt_id is not null",Int::class.java))
+        assertArrayEquals(photo,Files.readAllBytes(source.third))
+        binding(source.first)
+        val fresh=start(before.id)
+        assertEquals(2,fresh.number);assertEquals(pharmacistPerson,fresh.executorPersonId)
+        assertEquals(2,jdbc.queryForObject("select count(*) from merch_task_attempts where item_id=?",Int::class.java,before.id))
+        assertEquals(0,jdbc.queryForObject("select count(*) from pharmacist_wallet_entries",Int::class.java))
+    }
+
+    @Test fun `manual source submitted review is explicit HQ unknown identity and paid acceptance is always held without credit`() {
+        for(amount in listOf(0L,300L)) {
+            val source=sourceTask("submitted",amount);val item=get(source.first.id).items.single()
+            assertTrue(item.canAdoptSourceReview)
+            val adopted=continueSource(item.id,ContinueSourceTask(item.version,"review","HQ adopts preserved submitted evidence"))
+            val current=get(source.first.id).items.single()
+            assertTrue(current.canReview)
+            val request=ReviewMerchTaskItem(adopted.attemptId,current.version,"approve","HQ accepts source evidence with unknown executor",manualSourcePreserved=true)
+            mvc.perform(post("/api/admin/merch/tasks/items/${item.id}/reviews").header("Authorization",adminAuth).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsBytes(request.copy(manualSourcePreserved=false)))).andExpect(status().isForbidden)
+            repeat(2) { mvc.perform(post("/api/admin/merch/tasks/items/${item.id}/reviews").header("Authorization",adminAuth).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsBytes(request))).andExpect(status().isOk) }
+            val result=get(source.first.id)
+            assertEquals("completed",result.items.single().status)
+            assertEquals(if(amount==0L) "not_monetary" else "held",result.reward!!.state)
+            if(amount>0) assertEquals("source_preserved_approval_requires_HQ_reconciliation",result.reward!!.reason)
+            assertEquals(source.second,jdbc.queryForObject("select source_payload::text from merch_task_items where id=?",String::class.java,item.id))
+            assertArrayEquals(photo,Files.readAllBytes(source.third))
+        }
+        assertEquals(0,jdbc.queryForObject("select count(*) from pharmacist_wallet_entries",Int::class.java))
+        assertEquals(2,jdbc.queryForObject("select count(*) from merch_task_events where details->>'reviewMode'='manual_source_preserved'",Int::class.java))
+    }
+
+    @Test fun `source continuation denies MAS stale CAS invalid mode and modified preserved snapshot without inventing an executor`() {
+        val source=sourceTask("submitted",300);val item=get(source.first.id).items.single()
+        val request=ContinueSourceTask(item.version,"review","HQ must inspect original evidence")
+        jdbc.update("update admin_users set role='CATEGORY_LEAD' where id=?",admin.id)
+        sourceRequest(item.id,request).andExpect(status().isForbidden)
+        jdbc.update("update admin_users set role='HQ_HEAD' where id=?",admin.id)
+        sourceRequest(item.id,request.copy(expectedItemVersion=999)).andExpect(status().isConflict)
+        sourceRequest(item.id,request.copy(mode="guess-person")).andExpect(status().isBadRequest)
+        val adopted=continueSource(item.id,request)
+        jdbc.update("update merch_task_attempts set source_payload=source_payload||'{\"tampered\":true}'::jsonb where id=?",adopted.attemptId)
+        mvc.perform(post("/api/admin/merch/tasks/items/${item.id}/reviews").header("Authorization",adminAuth).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsBytes(ReviewMerchTaskItem(adopted.attemptId,adopted.itemVersion,"approve","Manual source review",manualSourcePreserved=true))))
+            .andExpect(status().isConflict)
+        assertEquals(0,jdbc.queryForObject("select count(*) from merch_task_reviews",Int::class.java))
+        assertEquals(0,jdbc.queryForObject("select count(*) from merch_task_attempts where executor_person_id is not null",Int::class.java))
+    }
+
+    @Test fun `parallel source adoption has one history snapshot one CAS conflict and exact retry is idempotent`() {
+        val source=sourceTask("submitted",0);val item=get(source.first.id).items.single()
+        val requests=listOf(ContinueSourceTask(item.version,"review","HQ submission review first"),ContinueSourceTask(item.version,"resume","HQ asks for fresh execution"))
+        val ready=CountDownLatch(2);val release=CountDownLatch(1);val executor=Executors.newFixedThreadPool(2)
+        try {
+            val futures=requests.map { request -> executor.submit<Pair<Int,Int>> {
+                ready.countDown();check(release.await(10,TimeUnit.SECONDS));requests.indexOf(request) to sourceRequest(item.id,request).andReturn().response.status } }
+            assertTrue(ready.await(10,TimeUnit.SECONDS));release.countDown()
+            val results=futures.map {it.get(15,TimeUnit.SECONDS)}
+            assertEquals(listOf(200,409),results.map {it.second}.sorted())
+            val winner=requests[results.single {it.second==200}.first]
+            assertTrue(continueSource(item.id,winner).duplicate)
+            assertEquals(1,jdbc.queryForObject("select count(*) from merch_task_attempts where item_id=?",Int::class.java,item.id))
+            assertEquals(1,jdbc.queryForObject("select count(*) from merch_task_events where item_id=? AND event_type='source_continuation'",Int::class.java,item.id))
+        } finally {release.countDown();executor.shutdownNow()}
+    }
+
+    @Test fun `first authority gate serializes cross audited HQ reviewers before actor rows and both paid reviews commit without deadlock`() {
+        val first=create(count=1);binding(first);val item1=first.items.single();val attempt1=start(item1.id);upload(item1.id);submit(item1,attempt1)
+        val originalMapping=jdbc.queryForObject("select id from posm_pharmacist_mappings where pharmacist_id='task-pharmacist'",UUID::class.java)
+        jdbc.update("""insert into posm_pharmacist_mapping_audit(mapping_id,action,pharmacy_id,external_user_id,pharmacist_id,actor_id)
+            values(?,'reactivated','task-pharmacy','synthetic-posm-id','task-pharmacist',?)""",originalMapping,reviewer.id)
+        val secondPerson=UUID.randomUUID();jdbc.update("insert into unified_persons values(?,?)",secondPerson,"synthetic-reviewed-proof")
+        jdbc.update("""insert into pharmacists(id,name,iin,phone,pharmacy_id,pharmacy_name,city,tier,status,joined_at,balance)
+            values('task-second','Synthetic','000000000002','+77000000002','task-pharmacy','Synthetic','Synthetic','Silver','active',current_date,100)""")
+        jdbc.update("insert into pharmacist_person_links(pharmacist_id,person_id,verification_reference,verified_by) values('task-second',?,'synthetic-proof',?)",secondPerson,admin.id)
+        val mapping2=UUID.randomUUID()
+        jdbc.update("""insert into posm_pharmacist_mappings(id,pharmacy_id,external_user_id,pharmacist_id,created_by,updated_by)
+            values(?,'task-pharmacy','synthetic-second-posm','task-second',?,?)""",mapping2,admin.id,admin.id)
+        jdbc.update("""insert into posm_pharmacist_mapping_audit(mapping_id,action,pharmacy_id,external_user_id,pharmacist_id,actor_id)
+            values(?,'created','task-pharmacy','synthetic-second-posm','task-second',?)""",mapping2,admin.id)
+        val second=json.readValue(mvc.perform(post("/api/admin/merch/tasks").header("Authorization",adminAuth).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsBytes(CreateMerchTaskDispatch(branch,"Second independent paid task",Instant.now().plusSeconds(3600),300,"task-second",listOf(CreateMerchTaskItem("Second shelf"))))))
+            .andExpect(status().isOk).andReturn().response.contentAsByteArray,MerchTaskDispatchDto::class.java)
+        jdbc.update("""insert into merch_executor_bindings(id,dispatch_id,pharmacist_id,pharmacy_id,reward_kzt,task_due_at,verified_at)
+            values(?,?,'task-second','task-pharmacy',300,?,now())""",UUID.randomUUID(),second.id,Timestamp.from(second.dueAt))
+        val auth2="Bearer ${jwt.issuePharmacistToken("task-second","Synthetic","+77000000002")}"
+        val item2=second.items.single();val attempt2=start(item2.id,auth2);upload(item2.id,auth=auth2);submit(item2,attempt2,auth2)
+        val req1=ReviewMerchTaskItem(attempt1.id,get(first.id).items.single().version,"approve","HQ A checks mapping audited by HQ B")
+        val req2=ReviewMerchTaskItem(attempt2.id,get(second.id).items.single().version,"approve","HQ B checks mapping audited by HQ A")
+        val held=CountDownLatch(1);val release=CountDownLatch(1);val executor=Executors.newFixedThreadPool(3)
+        val blocker=executor.submit {TransactionTemplate(transactionManager).executeWithoutResult {
+            jdbc.queryForList("select id from merch_task_dispatches where id=? for update",first.id)
+            held.countDown();check(release.await(20,TimeUnit.SECONDS))
+        }}
+        try {
+            assertTrue(held.await(10,TimeUnit.SECONDS))
+            val a=executor.submit<Int> {sendReview(item1.id,req1)}
+            awaitLock("merch_task_dispatches")
+            val b=executor.submit<Int> {mvc.perform(post("/api/admin/merch/tasks/items/${item2.id}/reviews").header("Authorization",reviewerAuth)
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(req2))).andReturn().response.status}
+            val until=System.nanoTime()+TimeUnit.SECONDS.toNanos(10)
+            while(jdbc.queryForObject("""select count(*) from pg_stat_activity where datname=current_database() AND pid<>pg_backend_pid()
+                AND wait_event_type='Lock' AND query ILIKE '%pg_advisory_xact_lock(817109%'""",Int::class.java)==0) {
+                if(System.nanoTime()>until) fail<Unit>("Second reviewer did not wait on the first authority gate")
+                Thread.sleep(20)
+            }
+            TransactionTemplate(transactionManager).executeWithoutResult {
+                jdbc.queryForList("select id from admin_users where id=? for no key update nowait",reviewer.id)
+            }
+            assertFalse(b.isDone)
+            release.countDown();blocker.get(15,TimeUnit.SECONDS)
+            assertEquals(200,a.get(15,TimeUnit.SECONDS));assertEquals(200,b.get(15,TimeUnit.SECONDS))
+            assertEquals(2,jdbc.queryForObject("select count(*) from pharmacist_wallet_entries where source='merch_task'",Int::class.java))
+            assertEquals(800L,jdbc.queryForObject("select balance from pharmacists where id='task-pharmacist'",Long::class.java))
+            assertEquals(400L,jdbc.queryForObject("select balance from pharmacists where id='task-second'",Long::class.java))
+        } finally {release.countDown();executor.shutdownNow()}
+    }
+
+    private fun sourceRequest(item:UUID,request:ContinueSourceTask)=mvc.perform(post("/api/admin/merch/tasks/items/$item/source-continuation")
+        .header("Authorization",adminAuth).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(request)))
+    private fun continueSource(item:UUID,request:ContinueSourceTask)=json.readValue(sourceRequest(item,request).andExpect(status().isOk)
+        .andReturn().response.contentAsByteArray,SourceTaskContinuation::class.java)
+    private fun sourceTask(status:String,reward:Long):Triple<MerchTaskDispatchDto,String,java.nio.file.Path> {
+        val dispatch=UUID.randomUUID();val item=UUID.randomUUID();val checklist=UUID.randomUUID();val actor=UUID.randomUUID()
+        val original=json.writeValueAsString(mapOf("id" to item,"status" to status,"assignee_id" to actor,"reviewer_id" to UUID.randomUUID(),
+            "started_at" to "2026-10-01T10:00:00Z","submitted_at" to if(status=="submitted") "2026-10-01T10:01:00Z" else null,
+            "employee_comment" to "Original source employee comment","_unification_checklist_source" to listOf(mapOf("id" to checklist,
+                "title" to "Source checklist","required" to true,"completed_at" to "2026-10-01T10:00:30Z","completed_by" to actor))))
+        jdbc.update("""insert into merch_task_dispatches(id,source_system,source_origin,source_id,source_payload,branch_id,title,status,due_at,
+            reward_amount_kzt,source_mass_owner_id,created_at,updated_at) values(?,'MERCH_CRM','https://crm.inkar.kz',?,'{}',?,'Source preserved packet',?,now()+interval '1 hour',?,?,now(),now())""",
+            dispatch,dispatch,branch,status,reward,actor)
+        jdbc.update("""insert into merch_task_items(id,dispatch_id,source_id,source_payload,title,task_type,status,required,required_photo_count,
+            checklist,source_assignee_id,created_at,updated_at) values(?,?,?,?::jsonb,'Source item','photo_report',?,true,1,?::jsonb,?,now(),now())""",
+            item,dispatch,item,original,status,json.writeValueAsString(listOf(TaskChecklistItem(checklist,"Source checklist"))),actor)
+        val key="source-preserved/${UUID.randomUUID()}.png";val path=files.resolve(key);Files.createDirectories(path.parent);Files.write(path,photo)
+        jdbc.update("""insert into merch_task_evidence(id,item_id,storage_backend,object_key,mime_type,byte_size,sha256,source_uploaded_by,created_at)
+            values(?,?,'legacy_reference',?,'image/png',?,?,?,now())""",UUID.randomUUID(),item,key,photo.size,TaskEvidenceStorage.hash(photo),actor)
+        val canonical=jdbc.queryForObject("select source_payload::text from merch_task_items where id=?",String::class.java,item)!!
+        return Triple(get(dispatch),canonical,path)
+    }
+
     private fun nativeLink(dispatch:UUID):String {
         val token="synthetic_capability_"+UUID.randomUUID().toString().replace("-","")
         jdbc.update("""insert into merch_task_links(id,dispatch_id,token_hash,issued_channel,expires_at,native_owned,source_payload)
@@ -538,7 +707,7 @@ class MerchTaskWorkflowIntegrationTest {
         val until=System.nanoTime()+TimeUnit.SECONDS.toNanos(10)
         while(System.nanoTime()<until) {
             val waiting=jdbc.queryForObject("""select count(*) from pg_stat_activity where datname=current_database() AND pid<>pg_backend_pid()
-                AND wait_event_type='Lock' AND query ILIKE ? AND query ILIKE '%for update%'""",Int::class.java,"%$table%")!!
+                AND wait_event_type='Lock' AND query ILIKE ? AND query ILIKE '%for%update%'""",Int::class.java,"%$table%")!!
             if(waiting>0) return
             Thread.sleep(20)
         }

@@ -86,6 +86,7 @@ app:
   merch:
     # These switches do not migrate data or enable the legacy CRM writer.
     native-delivery-enabled: ${MERCH_NATIVE_DELIVERY_ENABLED:false}
+    native-executor-enabled: ${MERCH_NATIVE_EXECUTOR_ENABLED:false}
     producer-auth-enabled: ${MERCH_PRODUCER_AUTH_ENABLED:false}
     placements:
       expiry-enabled: ${MERCH_PLACEMENT_EXPIRY_ENABLED:false}

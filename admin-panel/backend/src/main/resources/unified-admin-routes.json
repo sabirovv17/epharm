@@ -1944,5 +1944,27 @@
     },
     "mode": "SCOPED",
     "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/placements/{id}/producer-binding",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "bind_producer",
+      "kind": "SENSITIVE_DATA"
+    },
+    "mode": "ALL_ONLY",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/tasks/items/{itemId}/source-continuation",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "review",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
   }
 ]

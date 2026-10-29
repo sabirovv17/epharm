@@ -23,6 +23,10 @@ class PlacementController(private val placements: PlacementService) {
         @RequestParam month:java.time.LocalDate,@RequestParam(required=false) branchId:UUID?,@RequestParam(defaultValue="50") limit:Int,
         @RequestParam(defaultValue="0") offset:Int)=placements.adminCatalog(PlacementActor.Internal(actor.userId),producerId,month,branchId,limit,offset)
     @GetMapping("/placements/{id}") fun view(@PathVariable id: UUID,@AuthenticationPrincipal actor: AdminPrincipal)=placements.view(id,PlacementActor.Internal(actor.userId))
+    @PostMapping("/placements/{id}/producer-binding")
+    @PreAuthorize("hasAnyRole('SYSTEM_ADMIN','HQ_HEAD')")
+    fun bindProducer(@PathVariable id:UUID,@Valid @RequestBody request:BindPlacementProducer,@AuthenticationPrincipal actor:AdminPrincipal)=
+        placements.bindProducer(id,request,PlacementActor.Internal(actor.userId))
     @PostMapping("/placements") fun create(@Valid @RequestBody request: CreatePlacementDraft,@AuthenticationPrincipal actor: AdminPrincipal)=placements.create(request,PlacementActor.Internal(actor.userId))
     @PutMapping("/placements/{id}/draft") fun save(@PathVariable id: UUID,@Valid @RequestBody request: SavePlacementDraft,@AuthenticationPrincipal actor: AdminPrincipal)=placements.save(id,request,PlacementActor.Internal(actor.userId))
     @PostMapping("/placements/{id}/submit") fun submit(@PathVariable id: UUID,@Valid @RequestBody request: PlacementTransition,@AuthenticationPrincipal actor: AdminPrincipal)=placements.transition(id,"submit",request,PlacementActor.Internal(actor.userId))

@@ -2,6 +2,7 @@ package kz.epharm.merch.placements.dto
 
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Min
+import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotEmpty
 import jakarta.validation.constraints.Size
 import java.time.Instant
@@ -22,6 +23,11 @@ data class CreatePlacementDraft(val producerId: UUID, val placementMonth: LocalD
 data class SavePlacementDraft(@field:Min(0) val expectedRevision: Long,
     @field:NotEmpty @field:Size(max=500) @field:Valid val items: List<PlacementSelection>, @field:Size(max=500) val note: String? = null)
 data class PlacementTransition(@field:Min(0) val expectedRevision: Long, @field:Size(max=1000) val reason: String? = null)
+class BindPlacementProducer(@field:Min(0) val expectedRevision:Long,val producerId:UUID,
+    @field:NotBlank @field:Size(min=3,max=1000) val reason:String,
+    @field:NotBlank @field:Size(max=128) val currentPassword:String) {
+    override fun toString()="BindPlacementProducer(expectedRevision=$expectedRevision, producerId=$producerId, reason=[REDACTED], currentPassword=[REDACTED])"
+}
 data class ProducerListItem(val id: UUID, val name: String?, val active: Boolean,val profileComplete:Boolean=!name.isNullOrBlank())
 data class PlacementItemDto(val id: UUID, val shelfId: UUID, val branchId: UUID, val shelfCode: String,
     val placementMonth: LocalDate, val portion: PlacementPortion, val status: PlacementStatus, val monthlyPrice: Long?)
@@ -30,7 +36,7 @@ data class PlacementDto(val id: UUID, val producerId: UUID?, val producerName: S
     val totalAmount: Long?, val heldUntil: Instant?, val reservationState: String, val reservationBusinessDays: Int,
     val reservationTimezone: String, val reviewNote: String?, val note: String?, val items: List<PlacementItemDto>,
     val canEdit: Boolean, val canSubmit: Boolean, val canApprove: Boolean, val canReject: Boolean, val canCancel: Boolean,
-    val createdAt: Instant, val updatedAt: Instant, val producerBindingStatus: String)
+    val createdAt: Instant, val updatedAt: Instant, val producerBindingStatus: String,val canBindProducer:Boolean=false)
 data class PlacementPage(val items: List<PlacementDto>, val total: Long, val limit: Int, val offset: Int)
 data class ProducerBranchOption(val id:UUID,val name:String,val address:String,val city:String)
 data class ProducerBranchOptions(val items:List<ProducerBranchOption>,val total:Long,val limit:Int,val offset:Int)

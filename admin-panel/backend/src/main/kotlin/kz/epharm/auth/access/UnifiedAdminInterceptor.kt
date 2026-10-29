@@ -38,7 +38,7 @@ class UnifiedAdminInterceptor(private val store: UnifiedAccessStore, private val
         val scope = if (access.actor.primaryHqOwner && route.permission.kind == PermissionKind.ORDINARY) {
             catalog.allScope(key)
         } else grant?.scope ?: AdministrativeScope.deny()
-        if (route.mode == ScopeIntegration.ALL_ONLY && scope.pharmacies !is PharmacyScope.All) AdministrativeScope.deny()
+        if (route.mode == ScopeIntegration.ALL_ONLY && !catalog.isAllScope(key, scope)) AdministrativeScope.deny()
         if (!catalog.policy.authorizeScope(access.actor, AccessRequest(key, scope), Instant.now()).allowed) AdministrativeScope.deny()
         request.setAttribute(AdministrativeScope.ATTRIBUTE, AuthorizedAdminRequest(access, key, scope))
         return true

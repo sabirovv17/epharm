@@ -1,5 +1,6 @@
 package kz.epharm.finance.merch
 
+import kz.epharm.auth.access.UnifiedAuthorityLock
 import java.security.SecureRandom
 import java.sql.Timestamp
 import java.time.Instant
@@ -43,6 +44,7 @@ class MerchRewardService(
     private val phoneLock: StaffPhoneLock,
     private val provider: OtpProvider,
     private val wallet: PharmacistWalletService,
+    private val recipients: VerifiedMerchRecipientPolicy,
 ) {
     private val random = SecureRandom()
 
@@ -56,6 +58,7 @@ class MerchRewardService(
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = [AppException::class])
     fun requestOtp(personId: String, token: String): MerchOtpResponse {
+        UnifiedAuthorityLock.acquire(jdbc)
         val claim = security.challenge(token)
         val initial = person(personId, claim.pharmacyId)
         phoneLock.lock(initial.phone)
@@ -85,6 +88,7 @@ class MerchRewardService(
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = [AppException::class])
     fun issueGrant(personId: String, request: MerchGrantRequest): MerchGrantResponse {
+        UnifiedAuthorityLock.acquire(jdbc)
         val claim = security.challenge(request.crmChallenge)
         if (!request.code.matches(Regex("[0-9]{4,8}"))) invalidOtp()
         val initial = person(personId, claim.pharmacyId)
@@ -127,6 +131,7 @@ class MerchRewardService(
 
     @Transactional
     fun redeem(request: MerchRedeemRequest): MerchBindingResponse {
+        UnifiedAuthorityLock.acquire(jdbc)
         security.requireEnabled()
         if (!request.grant.matches(Regex("[A-Za-z0-9_-]{43}")) || request.nonce.length != 43) invalid()
         lockDispatch(request.dispatchId)
@@ -155,6 +160,7 @@ class MerchRewardService(
 
     @Transactional
     fun reward(event: MerchRewardEvent, payload: ByteArray): MerchRewardAck {
+        UnifiedAuthorityLock.acquire(jdbc)
         security.requireEnabled()
         if (event.schemaVersion != 1 || event.type != "merch_task_approved" || event.currency != "KZT" || event.amountKzt <= 0) invalid()
         // Event id serializes cross-dispatch reuse; dispatch id serializes different approval ids.
@@ -182,34 +188,16 @@ class MerchRewardService(
     }
 
     private fun lockDispatch(dispatch: UUID) {
+        UnifiedAuthorityLock.acquire(jdbc)
         jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?, 817105))", dispatch.toString())
     }
-    private fun person(id: String, pharmacy: String, locked: Boolean = false): Person {
-        val person = jdbc.query("""SELECT p.phone,p.status,p.pharmacy_id,h.name,h.active AS pharmacy_active
-            FROM pharmacists p JOIN pharmacies h ON h.id=p.pharmacy_id WHERE p.id=?${if (locked) " FOR UPDATE OF p" else ""}""",
-            { rs, _ -> Person(PhoneUtil.normalize(rs.getString("phone")), rs.getString("status"), rs.getString("pharmacy_id"),
-                rs.getString("name"), rs.getBoolean("pharmacy_active")) }, id).singleOrNull()
-            ?: throw AppException(ErrorCode.USER_NOT_ACTIVE, "Нужна активная учётная запись фармацевта", HttpStatus.FORBIDDEN)
-        if (person.status != "active" || !person.pharmacyActive) throw AppException(ErrorCode.USER_NOT_ACTIVE, "Учётная запись или аптека не активна", HttpStatus.FORBIDDEN)
-        if (person.pharmacy != pharmacy) throw AppException(ErrorCode.FORBIDDEN, "Задание назначено другой аптеке", HttpStatus.FORBIDDEN)
-        if (!person.phone.matches(Regex("\\+7[0-9]{10}"))) throw AppException(ErrorCode.VALIDATION_FAILED, "В профиле не указан корректный телефон")
-        val proven = jdbc.query("""SELECT m.id FROM posm_pharmacist_mappings m
-            JOIN LATERAL (SELECT a.action,a.pharmacy_id,a.pharmacist_id,a.actor_id
-                FROM posm_pharmacist_mapping_audit a WHERE a.mapping_id=m.id ORDER BY a.id DESC LIMIT 1) a ON true
-            JOIN admin_users hq ON hq.id=a.actor_id AND hq.role IN ('SYSTEM_ADMIN','HQ_HEAD') AND hq.status='active'
-            WHERE m.pharmacist_id=? AND m.pharmacy_id=? AND m.active=true AND m.revoked_at IS NULL
-                AND trim(m.external_user_id)<>'' AND a.pharmacist_id=m.pharmacist_id AND a.pharmacy_id=m.pharmacy_id
-                AND a.action IN ('created','remapped','reactivated')
-            ORDER BY m.id LIMIT 1 ${if (locked) "FOR SHARE OF m,hq" else ""}""",{ rs,_ -> rs.getObject(1) },id,pharmacy).isNotEmpty()
-        if (!proven) throw AppException(ErrorCode.FORBIDDEN,"HQ должен подтвердить привязку фармацевта к аптеке перед начислением за мерч",HttpStatus.FORBIDDEN)
-        return person
-    }
+    private fun person(id: String, pharmacy: String, locked: Boolean = false) =
+        recipients.requireRecipient(id, pharmacy, locked)
     private fun binding(dispatch: UUID) = jdbc.query("SELECT * FROM merch_executor_bindings WHERE dispatch_id=?", { rs, _ -> Binding(
         rs.getObject("id", UUID::class.java), rs.getString("pharmacist_id"), rs.getString("pharmacy_id"), rs.getLong("reward_kzt"),
         rs.getTimestamp("task_due_at").toInstant(), rs.getTimestamp("created_at").toInstant(),
     ) }, dispatch).singleOrNull()
     private fun invalidOtp(): Nothing = throw AppException(ErrorCode.OTP_INVALID, "Код недействителен — запросите новый")
-    private data class Person(val phone: String, val status: String, val pharmacy: String, val pharmacyName: String, val pharmacyActive: Boolean)
     private data class Otp(val challengeHash: String, val person: String, val phone: String, val provider: String,
         val codeHash: String?, val attempts: Int, val expires: Instant, val consumed: Boolean)
     private data class Grant(val dispatch: UUID, val person: String, val pharmacy: String, val phoneHash: String, val nonceHash: String,

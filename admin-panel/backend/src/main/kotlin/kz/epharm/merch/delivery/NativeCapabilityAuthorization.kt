@@ -51,6 +51,16 @@ class NativeCapabilityAuthorization(private val jdbc:JdbcTemplate,private val cl
         return cap
     }
 
+    /** Paid access still needs a separately verified executor; this only locks and validates the task capability. */
+    @Transactional(propagation=Propagation.MANDATORY)
+    fun requirePaidMutation(rawToken:String):AuthorizedTaskCapability {
+        val cap=load(rawToken,true)?:unauthorized()
+        if(cap.readOnly) conflict()
+        if(cap.rewardAmountKzt<=0L) throw AppException(ErrorCode.FORBIDDEN,
+            "Подтверждение исполнителя доступно только для оплачиваемого задания",HttpStatus.FORBIDDEN)
+        return cap
+    }
+
     internal fun lockDispatch(id:UUID) {
         jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?,817105))",id.toString())
         jdbc.query("SELECT id FROM merch_task_dispatches WHERE id=? FOR UPDATE",{rs,_->rs.getObject(1,UUID::class.java)},id)

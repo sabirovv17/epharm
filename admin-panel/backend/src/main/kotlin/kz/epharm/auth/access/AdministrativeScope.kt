@@ -65,6 +65,18 @@ class AdministrativeScope(private val catalog: UnifiedAdminCatalog, private val 
         if (!canMerchBranchPermission(permission, branchId)) deny()
     }
 
+    fun canAllMerchPlacementPermission(permission: PermissionKey): Boolean {
+        val context = current() ?: return false
+        if (permission.module != AdministrationModule.MERCHANDISING || permission.subsection != "placements" ||
+            context.access.role !in catalog.availableRoles(permission)) return false
+        return catalog.policy.decide(context.access.actor, AccessRequest(permission,
+            DataScope(PharmacyScope.AllMerchBranches, OwnerScope.AllCustomers)), Instant.now()).allowed
+    }
+
+    fun requireAllMerchPlacementPermission(permission: PermissionKey) {
+        if (!canAllMerchPlacementPermission(permission)) deny()
+    }
+
     fun currentProducerIds(): Set<UUID>? = when (val scope = (current() ?: deny()).scope.owners) {
         OwnerScope.AllCustomers -> null
         is OwnerScope.Customers -> scope.ids.map { UUID.fromString(it.id) }.toSet()

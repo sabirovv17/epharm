@@ -26,28 +26,33 @@ class ProducerAuthService(private val jdbc:JdbcTemplate,private val provider:Otp
     private val clock:Clock=Clock.systemUTC()) {
     private val random=SecureRandom()
     private data class Customer(val id:UUID,val name:String?,val phone:String)
-    private data class Challenge(val phone:String,val customer:UUID?,val eligible:Boolean,val provider:String,val hash:String?,
+    private data class PhoneState(val customer:Customer?=null,val canRegister:Boolean=false) {
+        val eligible get()=customer!=null || canRegister
+    }
+    private data class Challenge(val phone:String,val customer:UUID?,val eligible:Boolean,val registrationPending:Boolean,val provider:String,val hash:String?,
         val attempts:Int,val expires:Instant,val consumed:Boolean)
 
     @Transactional(propagation=Propagation.REQUIRES_NEW,noRollbackFor=[AppException::class])
     fun requestOtp(request:ProducerSmsRequest,clientAddress:String):ProducerSmsChallenge {
         gate()
-        val phone=normalize(request.phone);val now=clock.instant()
+        val phone=normalize(request.phone)
         phoneLock.lock(phone)
+        val now=clock.instant()
         limit("phone:$phone",5,3600,now);limit("ip:${clientAddress.take(128)}",20,3600,now)
         val recent=jdbc.queryForObject("SELECT count(*) FROM merch_producer_challenges WHERE phone=? AND created_at>?",Long::class.java,phone,Timestamp.from(now.minusSeconds(60)))!!
         if(recent>0) throw AppException(ErrorCode.OTP_RESEND_TOO_SOON,"Запросите новый код через минуту",HttpStatus.TOO_MANY_REQUESTS)
-        val customer=customers(phone).singleOrNull()
-        if(customer!=null) {
+        val identity=phoneState(phone)
+        if(identity.eligible) {
             phoneLock.limitSharedSms(phone,now)
             phoneLock.invalidateStaff(phone)
             jdbc.update("UPDATE mobile_otps SET expires_at=?,verified_at=NULL WHERE phone=?",Timestamp.from(now),phone)
         } else jdbc.update("UPDATE merch_producer_challenges SET consumed_at=? WHERE phone=? AND consumed_at IS NULL",Timestamp.from(now),phone)
         val id=UUID.randomUUID()
         val code=if(provider.verificationMode==OtpVerificationMode.LOCAL) random.nextInt(1_000_000).toString().padStart(6,'0') else null
-        jdbc.update("""INSERT INTO merch_producer_challenges(id,purpose,customer_id,phone,eligible,provider,code_hash,created_at,expires_at)
-            VALUES(?,'login',?,?,?,?,?,?,?)""",id,customer?.id,phone,customer!=null,provider.id,code?.let {tokens.codeHash(id,it)},Timestamp.from(now),Timestamp.from(now.plusSeconds(300)))
-        if(customer!=null) try { provider.requestOtp(phone,code) } catch(_:Exception) {
+        jdbc.update("""INSERT INTO merch_producer_challenges(id,purpose,customer_id,phone,eligible,registration_pending,provider,code_hash,created_at,expires_at)
+            VALUES(?,'login',?,?,?,?,?,?,?,?)""",id,identity.customer?.id,phone,identity.eligible,identity.canRegister,provider.id,
+            code?.let {tokens.codeHash(id,it)},Timestamp.from(now),Timestamp.from(now.plusSeconds(300)))
+        if(identity.eligible) try { provider.requestOtp(phone,code) } catch(_:Exception) {
             jdbc.update("UPDATE merch_producer_challenges SET consumed_at=? WHERE id=?",Timestamp.from(now),id)
             unavailable()
         }
@@ -61,12 +66,14 @@ class ProducerAuthService(private val jdbc:JdbcTemplate,private val provider:Otp
         phoneLock.lock(phone)
         val now=clock.instant()
         val challenge=jdbc.query("SELECT * FROM merch_producer_challenges WHERE id=? AND purpose='login' FOR UPDATE",{rs,_->Challenge(rs.getString("phone"),rs.getObject("customer_id",UUID::class.java),
-            rs.getBoolean("eligible"),rs.getString("provider"),rs.getString("code_hash"),rs.getInt("attempts"),rs.getTimestamp("expires_at").toInstant(),rs.getTimestamp("consumed_at")!=null)},request.challengeId).singleOrNull()?:invalidOtp()
+            rs.getBoolean("eligible"),rs.getBoolean("registration_pending"),rs.getString("provider"),rs.getString("code_hash"),rs.getInt("attempts"),rs.getTimestamp("expires_at").toInstant(),rs.getTimestamp("consumed_at")!=null)},request.challengeId).singleOrNull()?:invalidOtp()
         if(challenge.consumed || !challenge.expires.isAfter(now)) invalidOtp()
         if(challenge.attempts>=5) attempts()
         jdbc.update("UPDATE merch_producer_challenges SET attempts=attempts+1 WHERE id=?",request.challengeId)
-        val customer=customers(phone).singleOrNull()
-        if(!challenge.eligible || customer?.id!=challenge.customer || challenge.provider!=provider.id) invalidOtp()
+        if(!matches(challenge,phoneState(phone)) || challenge.provider!=provider.id) {
+            jdbc.update("UPDATE merch_producer_challenges SET consumed_at=? WHERE id=?",Timestamp.from(now),request.challengeId)
+            invalidOtp()
+        }
         val result=try {
             if(provider.verificationMode==OtpVerificationMode.LOCAL) {
                 if(challenge.hash!=null && MessageDigest.isEqual(tokens.codeHash(request.challengeId,request.code).toByteArray(),challenge.hash.toByteArray()))
@@ -83,13 +90,15 @@ class ProducerAuthService(private val jdbc:JdbcTemplate,private val provider:Otp
             }
             invalidOtp()
         }
-        val current=challenge.customer?.let {this.customer(it,lock=true)}
+        val currentState=phoneState(phone,lock=true)
         val verifiedAt=clock.instant()
-        if(!challenge.expires.isAfter(verifiedAt) || current==null || current.phone!=phone || customers(phone).singleOrNull()?.id!=current.id) {
+        if(!challenge.expires.isAfter(verifiedAt) || !matches(challenge,currentState)) {
             jdbc.update("UPDATE merch_producer_challenges SET consumed_at=? WHERE id=?",Timestamp.from(verifiedAt),request.challengeId)
             invalidOtp()
         }
-        jdbc.update("UPDATE merch_producer_challenges SET consumed_at=? WHERE id=?",Timestamp.from(verifiedAt),request.challengeId)
+        val current=currentState.customer?:registerCustomer(phone,verifiedAt)
+        jdbc.update("UPDATE merch_producer_challenges SET consumed_at=?,customer_id=?,registration_pending=false WHERE id=?",
+            Timestamp.from(verifiedAt),current.id,request.challengeId)
         phoneLock.invalidateStaff(phone)
         jdbc.update("UPDATE mobile_otps SET expires_at=?,verified_at=NULL WHERE phone=?",Timestamp.from(verifiedAt),phone)
         jdbc.update("UPDATE merch_producers SET phone_verified_at=?,updated_at=? WHERE id=? AND phone_normalized=?",Timestamp.from(verifiedAt),Timestamp.from(verifiedAt),current.id,phone)
@@ -161,8 +170,35 @@ class ProducerAuthService(private val jdbc:JdbcTemplate,private val provider:Otp
         return ProducerAuthResponse(access,raw,expiresIn=minOf(900,java.time.Duration.between(now,expires).seconds),sessionExpiresAt=expires,
             customer=ProducerProfile(customer.id,customer.name,PhoneUtil.mask(customer.phone)))
     }
-    private fun customers(phone:String):List<Customer> = jdbc.query("SELECT id,name,phone_normalized FROM merch_producers WHERE phone_normalized=? AND active AND source_account_role='advertiser'",
-        {rs,_->Customer(rs.getObject("id",UUID::class.java),rs.getString("name"),rs.getString("phone_normalized"))},phone)
+    private fun matches(challenge:Challenge,state:PhoneState)=challenge.eligible &&
+        if(challenge.registrationPending) challenge.customer==null && state.canRegister
+        else challenge.customer!=null && state.customer?.id==challenge.customer
+
+    /** All preserved roles and inactive rows participate; a missing active match never means the phone is free. */
+    private fun phoneState(phone:String,lock:Boolean=false):PhoneState {
+        val customers=jdbc.queryForList("""SELECT id,name,phone_normalized,active,source_account_role FROM merch_producers
+            WHERE ${normalizedPhoneSql("COALESCE(NULLIF(phone_normalized,''),phone)")}=? ORDER BY id LIMIT 2 ${if(lock) "FOR UPDATE" else ""}""",phone)
+        val external=jdbc.queryForList("""SELECT id,source_role,active FROM unified_external_accounts
+            WHERE ${normalizedPhoneSql("phone")}=? ORDER BY id LIMIT 2 ${if(lock) "FOR UPDATE" else ""}""",phone)
+        if(customers.isEmpty()) return PhoneState(canRegister=external.isEmpty())
+        val row=customers.singleOrNull()?:return PhoneState()
+        val id=row["id"] as UUID
+        if(row["active"]!=true || row["source_account_role"]!="advertiser" || row["phone_normalized"]!=phone ||
+            external.any {it["id"]!=id || it["source_role"]!="advertiser" || it["active"]!=true} || external.size>1) return PhoneState()
+        return PhoneState(Customer(id,row["name"] as? String,phone))
+    }
+    private fun registerCustomer(phone:String,now:Instant):Customer {
+        val id=UUID.randomUUID()
+        jdbc.update("""INSERT INTO merch_producers(id,source_system,source_origin,source_id,source_payload,name,phone,phone_normalized,
+            phone_verified_at,source_account_role,active,created_at,updated_at)
+            VALUES(?,'EPHARM','https://epharm.inkar.kz',?,'{"registration":"producer_sms"}',NULL,?,?,?,'advertiser',true,?,?)""",
+            id,id,phone,phone,Timestamp.from(now),Timestamp.from(now),Timestamp.from(now))
+        return Customer(id,null,phone)
+    }
+    private fun normalizedPhoneSql(column:String):String {
+        val digits="regexp_replace(COALESCE($column,''),'[^0-9]','','g')"
+        return "(CASE WHEN $digits ~ '^[78][0-9]{10}$' THEN '+7'||right($digits,10) WHEN $digits ~ '^[0-9]{10}$' THEN '+7'||$digits ELSE '+'||$digits END)"
+    }
     private fun customer(id:UUID,lock:Boolean=false):Customer?=jdbc.query("SELECT id,name,phone_normalized FROM merch_producers WHERE id=? AND active AND source_account_role='advertiser' AND phone_normalized IS NOT NULL"+if(lock) " FOR UPDATE" else "",
         {rs,_->Customer(rs.getObject("id",UUID::class.java),rs.getString("name"),rs.getString("phone_normalized"))},id).singleOrNull()
     private fun limit(scope:String,max:Int,seconds:Long,now:Instant) {

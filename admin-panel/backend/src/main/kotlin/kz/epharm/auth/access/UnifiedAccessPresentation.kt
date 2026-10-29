@@ -49,10 +49,15 @@ class UnifiedAccessPresentation(private val catalog: UnifiedAdminCatalog) {
                     }
                 }
             }
+            val delegatedScope = scope?.takeIf {
+                mode != ScopeIntegration.ALL_ONLY || if (key.module == AdministrationModule.MERCHANDISING)
+                    it.allMerchBranches && (key.subsection !in setOf("placements", "producers") || it.allProducers)
+                else it.allPharmacies
+            }
             PermissionOption(key.module.identifier, key.subsection, key.action, kind,
                 MODULE_TITLES.getValue(key.module), TITLES[key.subsection] ?: key.subsection.replace('_', ' '),
                 ACTION_TITLES[key.action] ?: key.action.replace('_', ' '), mode, roles,
-                definition?.requiresPasswordReauthentication ?: false, scope != null, scope,
+                definition?.requiresPasswordReauthentication ?: false, delegatedScope != null, delegatedScope,
                 if (key.module == AdministrationModule.MERCHANDISING) "MERCH_BRANCH" else "PHARMACY",
                 key.module == AdministrationModule.MERCHANDISING && key.subsection in setOf("placements", "producers"))
         }
@@ -82,7 +87,9 @@ class UnifiedAccessPresentation(private val catalog: UnifiedAdminCatalog) {
             "publish" to "Публикация", "record_result" to "Фиксация результата", "refresh" to "Обновление", "reject" to "Отклонение",
             "reorder" to "Порядок", "restore" to "Восстановление", "revoke" to "Отзыв", "show_qr" to "Показ QR",
             "submit" to "Отправка", "sync" to "Синхронизация", "transition" to "Изменение статуса", "unblock" to "Разблокировка",
-            "upload" to "Загрузка", "manage" to "Выдача прав", "personal_data" to "ИИН и телефон",
+            "upload" to "Загрузка", "bind_producer" to "Подтвердить производителя старого размещения",
+            "manage_producer" to "Подтвердить производителя акции",
+            "manage" to "Выдача прав", "personal_data" to "ИИН и телефон",
             "financial_data" to "Финансовые данные", "configure_bonus" to "Настройка бонусов", "manage_availability" to "Доступность мест")
     }
 }

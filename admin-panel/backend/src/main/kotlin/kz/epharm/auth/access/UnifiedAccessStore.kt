@@ -92,11 +92,12 @@ class UnifiedAccessStore(
 
     /** All writers acquire account rows, then profiles, in UUID order to serialize revocation/delegation. */
     fun lockAccounts(ids: Set<UUID>) {
+        UnifiedAuthorityLock.acquire(jdbc)
         check(TransactionSynchronizationManager.isActualTransactionActive()) { "Account locks require an active write transaction" }
         require(ids.isNotEmpty() && ids.size <= 2)
         val placeholders = ids.joinToString(",") { "?" }
         val args = ids.toTypedArray()
-        jdbc.queryForList("select id from admin_users where id in ($placeholders) order by id for update", *args)
+        jdbc.queryForList("select id from admin_users where id in ($placeholders) order by id for no key update", *args)
         jdbc.queryForList("select account_id from unified_admin_profiles where account_id in ($placeholders) order by account_id for update", *args)
     }
 

@@ -211,7 +211,7 @@ class UnifiedAdminAccessIntegrationTest {
     }
 
     @Test fun `catalog never advertises unmigrated routes as grantable and scope empty is invalid`() {
-        assertThat(catalog.routes).hasSize(191)
+        assertThat(catalog.routes).hasSize(193)
         val reviewedNative = setOf(
             "GET /api/admin/merch/placements/catalog",
             "GET /api/admin/merch/placements/producers",
@@ -241,6 +241,7 @@ class UnifiedAdminAccessIntegrationTest {
             "POST /api/admin/merch/tasks/items/{itemId}/evidence",
             "POST /api/admin/merch/tasks/items/{itemId}/submit",
             "POST /api/admin/merch/tasks/items/{itemId}/reviews",
+            "POST /api/admin/merch/tasks/items/{itemId}/source-continuation",
             "GET /api/admin/merch/tasks/evidence/{id}",
         )
         assertThat(catalog.routes.filter { it.mode == ScopeIntegration.SCOPED }.all {

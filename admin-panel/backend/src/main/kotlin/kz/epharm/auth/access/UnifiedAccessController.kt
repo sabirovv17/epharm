@@ -125,6 +125,7 @@ data class AccessCapabilities(
     val canViewMerchInventory: Boolean = false,
     val canViewMerchPlacements: Boolean = false,
     val canViewMerchTasks: Boolean = false,
+    val canBindMerchProducer: Boolean = false,
     val canCreateMerchTasks: Boolean = false,
     val canExecuteMerchTasks: Boolean = false,
     val canReviewMerchTasks: Boolean = false,
@@ -151,6 +152,7 @@ class UnifiedAccountAccessService(
             canViewMerchInventory = canUseExplicit(access, catalog.inventoryView),
             canViewMerchPlacements = canUseExplicit(access, catalog.placementView),
             canViewMerchTasks = canUseExplicit(access, catalog.taskView),
+            canBindMerchProducer = canUseExplicit(access, catalog.placementBindProducer),
             canCreateMerchTasks = canUseExplicit(access, catalog.taskCreate),
             canExecuteMerchTasks = canUseExplicit(access, catalog.taskExecute),
             canReviewMerchTasks = canUseExplicit(access, catalog.taskReview),
@@ -165,7 +167,7 @@ class UnifiedAccountAccessService(
         if (access.profile == null || access.role !in catalog.availableRoles(key)) return false
         val scope = if (access.actor.primaryHqOwner) catalog.allScope(key)
             else access.actor.grants.singleOrNull { it.permission == key }?.scope ?: return false
-        if (catalog.integration(key) == ScopeIntegration.ALL_ONLY && scope.pharmacies !is PharmacyScope.All) return false
+        if (catalog.integration(key) == ScopeIntegration.ALL_ONLY && !catalog.isAllScope(key, scope)) return false
         // Menu eligibility only; item review still requires the current executor and ReviewContext.
         return catalog.policy.authorizeScope(access.actor, AccessRequest(key, scope), Instant.now()).allowed
     }
@@ -398,7 +400,7 @@ class UnifiedAccountAccessService(
             throw AppException(ErrorCode.VALIDATION_FAILED, "Неизвестное, повторное или ещё не подключённое разрешение")
         }
         if (grants.any { recipient.role !in catalog.availableRoles(it.permission) ||
-                catalog.integration(it.permission) == ScopeIntegration.ALL_ONLY && it.scope.pharmacies !is PharmacyScope.All }) {
+                catalog.integration(it.permission) == ScopeIntegration.ALL_ONLY && !catalog.isAllScope(it.permission, it.scope) }) {
             throw AppException(ErrorCode.VALIDATION_FAILED, "Разрешение несовместимо с ролью или областью аккаунта")
         }
         val ids = req.grants.flatMap { it.pharmacyIds }.toSet()

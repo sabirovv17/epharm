@@ -9,9 +9,11 @@ import java.time.Instant
 import java.util.UUID
 import javax.imageio.ImageIO
 import kz.epharm.auth.access.AdministrativeScope
+import kz.epharm.auth.access.UnifiedAuthorityLock
 import kz.epharm.auth.policy.PermissionKey
 import kz.epharm.finance.service.PharmacistWalletService
 import kz.epharm.finance.service.WalletCreditSource
+import kz.epharm.finance.merch.VerifiedMerchRecipientPolicy
 import kz.epharm.merch.delivery.NativeCapabilityAuthorization
 import kz.epharm.merch.delivery.AuthorizedTaskCapability
 import kz.epharm.shared.error.AppException
@@ -32,7 +34,8 @@ object MerchTaskPermissions {
 @Service
 class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectMapper,
     private val access: AdministrativeScope, private val wallet: PharmacistWalletService,
-    private val storage: TaskEvidenceStorage, private val capabilities: NativeCapabilityAuthorization) {
+    private val storage: TaskEvidenceStorage, private val capabilities: NativeCapabilityAuthorization,
+    private val recipients: VerifiedMerchRecipientPolicy) {
 
     @Transactional
     fun create(req: CreateMerchTaskDispatch, actor: UUID): MerchTaskDispatchDto {
@@ -163,6 +166,7 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
 
     @Transactional
     fun startPharmacist(itemId: UUID, pharmacistId: String): MerchTaskAttemptDto {
+        UnifiedAuthorityLock.acquire(jdbc)
         val pair = locked(itemId)
         return start(pair.first, pair.second, pharmacistExecutor(pair.first, pharmacistId,lockPharmacist=true))
     }
@@ -196,6 +200,7 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
     }
     @Transactional
     fun uploadPharmacist(itemId: UUID, clientUploadId: UUID, file: MultipartFile, pharmacistId: String): MerchTaskEvidenceDto {
+        UnifiedAuthorityLock.acquire(jdbc)
         val pair = locked(itemId)
         return upload(pair.first, pair.second, pharmacistExecutor(pair.first, pharmacistId,lockPharmacist=true).personId, clientUploadId, file)
     }
@@ -240,6 +245,7 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
     }
     @Transactional
     fun submitPharmacist(itemId: UUID, req: SubmitMerchTaskAttempt, pharmacistId: String): MerchTaskAttemptDto {
+        UnifiedAuthorityLock.acquire(jdbc)
         val pair = locked(itemId)
         return submit(pair.first, pair.second, pharmacistExecutor(pair.first, pharmacistId,lockPharmacist=true).personId, null, req)
     }
@@ -271,7 +277,9 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
         if (attempt.id != currentAttempt(item).id) conflict("Проверяется другая попытка")
         val reviewer = access.currentVerifiedPersonId()
         val executor = attempt.executorPersonId
-        val manual = executor==null && d.reward==0L && capabilityOwner(attempt.id)!=null && req.manualUnverifiedExecutor
+        val sourceManual=executor==null && d.source=="MERCH_CRM" && capabilityOwner(attempt.id)==null && req.manualSourcePreserved
+        if(sourceManual && !preservedSourceReview(attempt.id)) conflict("Сохранённая исходная попытка не подтверждена неизменяемым снимком")
+        val manual = executor==null && d.reward==0L && capabilityOwner(attempt.id)!=null && req.manualUnverifiedExecutor || sourceManual
         if(manual) access.requireManualUnverifiedTaskReview(MerchTaskPermissions.review,d.branchId)
         else {
             if(executor==null) forbidden()
@@ -285,7 +293,8 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
                 return dto(d, access.canMerchBranchPermission(MerchTaskPermissions.financial, d.branchId))
             conflict("Попытка уже проверена")
         }
-        if (item.version != req.expectedItemVersion || item.status != "submitted" || attempt.status != "submitted") conflict("Пункт уже изменён")
+        if (item.version != req.expectedItemVersion || item.status != "submitted" ||
+            attempt.status != "submitted" && !(sourceManual && attempt.status=="source_preserved")) conflict("Пункт уже изменён")
         jdbc.update("""INSERT INTO merch_task_reviews(id,item_id,attempt_id,reviewer_account_id,reviewer_person_id,decision,reason,created_at)
             VALUES (?,?,?,?,?,?,?,now())""", UUID.randomUUID(), itemId, attempt.id, actor, reviewer, req.decision, req.reason.trim())
         val approved = req.decision == "approve"
@@ -293,8 +302,10 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
         jdbc.update("UPDATE merch_task_items SET status=?,version=version+1,updated_at=now() WHERE id=?", if (approved) "completed" else "revision_required", itemId)
         refresh(d.id)
         event(d.id, itemId, actor, reviewer, req.decision, mapOf("attemptId" to attempt.id, "reason" to req.reason.trim(),
-            "reviewMode" to if(manual) "manual_unverified_executor" else "independent_verified_person",
+            "reviewMode" to when {sourceManual->"manual_source_preserved";manual->"manual_unverified_executor";else->"independent_verified_person"},
             "executorIdentityStatus" to attempt.executorIdentityStatus))
+        if(sourceManual && approved && d.reward>0 && jdbc.queryForObject("SELECT count(*) FROM merch_task_rewards WHERE dispatch_id=?",Int::class.java,d.id)==0)
+            rewardState(d,"held","source_preserved_approval_requires_HQ_reconciliation")
         creditIfComplete(dispatch(d.id))
         return dto(dispatch(d.id), access.canMerchBranchPermission(MerchTaskPermissions.financial, d.branchId))
     }
@@ -319,6 +330,8 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
         if (verified == null || verified.personId != identity.second || verified.bindingId != identity.third) {
             rewardState(d, "held", "executor_moved_inactive_or_binding_changed"); return
         }
+        try { recipients.requireRecipient(identity.first!!,d.pharmacyId!!,locked=true) }
+        catch (_: AppException) { rewardState(d,"held","recipient_HQ_mapping_no_longer_verified");return }
         val existing = jdbc.query("SELECT id,pharmacist_id,amount_kzt FROM pharmacist_wallet_entries WHERE source='merch_task' AND source_id=?",
             { rs, _ -> Triple(rs.uuid("id"),rs.getString("pharmacist_id"),rs.getLong("amount_kzt")) }, d.id.toString()).singleOrNull()
         if (existing != null) {
@@ -382,7 +395,8 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
         val binding = if (d.dueAt == null) null else jdbc.query("""SELECT id FROM merch_executor_bindings WHERE dispatch_id=? AND pharmacist_id=?
             AND pharmacy_id=? AND reward_kzt=? AND task_due_at=?""", { rs, _ -> rs.getObject(1, UUID::class.java) },
             d.id, pharmacistId, d.pharmacyId, d.reward, Timestamp.from(d.dueAt)).singleOrNull()
-        if (d.reward > 0 && binding == null) forbidden()
+        if (d.reward > 0 && binding == null) throw AppException(ErrorCode.OTP_NOT_VERIFIED,
+            "Подтвердите получателя оплачиваемого задания кодом SMS",HttpStatus.FORBIDDEN)
         return TaskExecutor(person, null, pharmacistId, binding)
     }
 
@@ -402,6 +416,14 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
     }
     private fun capabilityOwner(attemptId:UUID):UUID? = jdbc.query("SELECT capability_link_id FROM merch_task_attempts WHERE id=?",
         {rs,_->rs.getObject(1,UUID::class.java)},attemptId).singleOrNull()
+    private fun preservedSourceReview(attemptId:UUID):Boolean {
+        val payload=jdbc.query("SELECT source_payload::text FROM merch_task_attempts WHERE id=?",{rs,_->rs.getString(1)},attemptId).singleOrNull()?:return false
+        val tree=json.readTree(payload)
+        if(tree["kind"]?.asText()!="epharm.source-task-continuation.v1" || tree["mode"]?.asText()!="review") return false
+        return jdbc.queryForObject("""SELECT EXISTS(SELECT 1 FROM merch_task_events WHERE event_type='source_continuation'
+            AND details->>'attemptId'=? AND details->>'mode'='review' AND details->>'snapshotSha256'=?)""",Boolean::class.java,
+            attemptId.toString(),TaskEvidenceStorage.hash(payload.toByteArray(Charsets.UTF_8)))==true
+    }
     private fun publicAttempt(value:MerchTaskAttemptDto)=value.copy(executorPersonId=null,pharmacistId=null,
         review=value.review?.copy(reviewerAccountId=null,reviewerPersonId=null))
     private fun capabilityDto(d:TaskDispatchRow,cap:AuthorizedTaskCapability):MerchTaskDispatchDto {
@@ -445,7 +467,8 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
         MerchTaskAttemptDto(id, rs.getInt("attempt_no"), rs.getString("status"), rs.getObject("executor_person_id", UUID::class.java),
             rs.getString("pharmacist_id"), rs.getTimestamp("submitted_at")?.toInstant(), rs.instant("created_at"), evidence, review,
             rs.getString("employee_comment"),json.readValue(rs.getString("completed_checklist_ids")),
-            if(rs.getObject("executor_person_id")!=null) "verified_person" else if(rs.getObject("capability_link_id")!=null) "capability_unverified" else "source_unresolved")
+            when {rs.getObject("executor_person_id")!=null->"verified_person";rs.getObject("capability_link_id")!=null->"capability_unverified"
+                json.readTree(rs.getString("source_payload"))["kind"]?.asText()=="epharm.source-task-continuation.v1"->"source_preserved_unverified";else->"source_unresolved"})
     }, id).singleOrNull() ?: notFound()
 
     private fun evidence(id: UUID): MerchTaskEvidenceDto = jdbc.query("SELECT * FROM merch_task_evidence WHERE id=?", { rs, _ ->
@@ -462,17 +485,21 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
             val attempt = if (it.attempt==0) null else currentAttempt(it)
             val available=writable && it.availableFrom?.isAfter(now)!=true
             val ownDraft=available && execute && it.status=="in_progress" && attempt?.status=="draft" && attempt.executorPersonId==person
-            val review=mobileExecutor==null && person!=null && it.status=="submitted" && attempt?.status=="submitted" &&
+            val sourceReview=attempt!=null && d.source=="MERCH_CRM" && attempt.executorPersonId==null && preservedSourceReview(attempt.id)
+            val manualAllowed=mobileExecutor==null && person!=null && allowed { access.requireManualUnverifiedTaskReview(MerchTaskPermissions.review,d.branchId) }
+            val review=mobileExecutor==null && person!=null && attempt!=null && it.status=="submitted" &&
+                (attempt.status=="submitted" || sourceReview && attempt.status=="source_preserved") &&
                 attempt.review==null && if(attempt.executorPersonId!=null) attempt.executorPersonId!=person && allowed {
                     access.requireTaskReviewPermission(MerchTaskPermissions.review,d.branchId,attempt.executorPersonId) }
-                else d.reward==0L && capabilityOwner(attempt.id)!=null && allowed {
-                    access.requireManualUnverifiedTaskReview(MerchTaskPermissions.review,d.branchId) }
+                else manualAllowed && (sourceReview || d.reward==0L && capabilityOwner(attempt.id)!=null)
             MerchTaskItemDto(it.id, it.title, it.instructions, it.type, it.status, it.required, it.requiredPhotos, it.checklist,
                 it.version, attempt, jdbc.query(
                     "SELECT id FROM merch_task_evidence WHERE item_id=? AND attempt_id IS NULL ORDER BY created_at,id",
                     { rs, _ -> rs.uuid("id") }, it.id).map(::evidence),it.availableFrom,it.dueAt,
                 canStart=available && execute && it.status in setOf("assigned","accepted","revision_required"),
-                canUpload=ownDraft && attempt!!.evidence.size<12,canSubmit=ownDraft && attempt!!.evidence.size>=it.requiredPhotos,canReview=review)
+                canUpload=ownDraft && attempt!!.evidence.size<12,canSubmit=ownDraft && attempt!!.evidence.size>=it.requiredPhotos,canReview=review,
+                canResumeSource=manualAllowed && d.source=="MERCH_CRM" && it.attempt==0 && it.status in setOf("in_progress","submitted"),
+                canAdoptSourceReview=manualAllowed && d.source=="MERCH_CRM" && it.attempt==0 && it.status=="submitted")
         } }
         val reward = if (!money) null else jdbc.query("SELECT * FROM merch_task_rewards WHERE dispatch_id=?", { rs, _ ->
             MerchTaskRewardDto(rs.getString("state"), rs.getLong("amount_kzt"), rs.getString("reason"), rs.getObject("wallet_entry_id", UUID::class.java))

@@ -184,8 +184,11 @@ class NativeTaskDeliveryIntegrationTest {
             .andExpect(jsonPath("$.deliveryToken").doesNotExist()).andExpect(jsonPath("$.personId").doesNotExist())
         assertThatThrownBy {tx.execute {capabilities.requireFreeMutation(task.deliveryToken)}}
             .isInstanceOfSatisfying(AppException::class.java){assertThat(it.status).isEqualTo(HttpStatus.FORBIDDEN)}
+        assertThat(tx.execute {capabilities.requirePaidMutation(task.deliveryToken).rewardAmountKzt}).isEqualTo(300)
         jdbc.update("UPDATE merch_task_dispatches SET reward_amount_kzt=0 WHERE id=?",id)
         assertThat(tx.execute {capabilities.requireFreeMutation(task.deliveryToken).linkId}).isNotNull()
+        assertThatThrownBy {tx.execute {capabilities.requirePaidMutation(task.deliveryToken)}}
+            .isInstanceOfSatisfying(AppException::class.java){assertThat(it.status).isEqualTo(HttpStatus.FORBIDDEN)}
         assertThat(count("unified_persons")).isZero();assertThat(count("pharmacists")).isZero();assertThat(count("merch_task_rewards")).isZero()
     }
     @Test fun `preserved generic or kiosk links are not claimed as native POSM but verified imported POSM is reusable`() {

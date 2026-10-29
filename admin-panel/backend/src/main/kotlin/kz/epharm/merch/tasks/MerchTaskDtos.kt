@@ -11,7 +11,7 @@ data class CreateMerchTaskDispatch(val branchId: UUID, val title: String, val du
 data class TaskChecklistItem(val id: UUID, val title: String, val required: Boolean = true)
 data class SubmitMerchTaskAttempt(val expectedAttempt: Int, val completedChecklistIds: Set<UUID>, val comment: String = "")
 data class ReviewMerchTaskItem(val attemptId: UUID, val expectedItemVersion: Long, val decision: String, val reason: String,
-    val manualUnverifiedExecutor: Boolean = false)
+    val manualUnverifiedExecutor: Boolean = false, val manualSourcePreserved: Boolean = false)
 data class MerchTaskEvidenceDto(val id: UUID, val mimeType: String, val byteSize: Long, val sha256: String?,
     val originalFilename: String?, val createdAt: Instant, val verification: String = "manual_review_required")
 data class MerchTaskReviewDto(val id: UUID, val attemptId: UUID, val reviewerAccountId: UUID?, val reviewerPersonId: UUID?,
@@ -24,7 +24,8 @@ data class MerchTaskItemDto(val id: UUID, val title: String, val instructions: S
     val required: Boolean, val requiredPhotos: Int, val checklist: List<TaskChecklistItem>, val version: Long,
     val currentAttempt: MerchTaskAttemptDto?, val legacyEvidence: List<MerchTaskEvidenceDto>,
     val availableFrom: Instant?, val dueAt: Instant?, val canStart: Boolean = false, val canUpload: Boolean = false,
-    val canSubmit: Boolean = false, val canReview: Boolean = false)
+    val canSubmit: Boolean = false, val canReview: Boolean = false, val canResumeSource: Boolean = false,
+    val canAdoptSourceReview: Boolean = false)
 data class MerchTaskBranchDto(val id: UUID, val name: String, val city: String, val address: String,
     val active: Boolean, val createEligible: Boolean, val canConfigureReward: Boolean = false)
 data class MerchTaskRewardDto(val state: String, val amountKzt: Long, val reason: String, val walletEntryId: UUID?)

@@ -8,6 +8,8 @@ import kz.epharm.auth.repository.AdminUserRepository
 import kz.epharm.auth.service.JwtService
 import kz.epharm.merch.placements.dto.*
 import kz.epharm.merch.placements.service.PlacementService
+import kz.epharm.merch.producer.auth.ProducerPrincipal
+import kz.epharm.merch.producer.auth.ProducerTokenCodec
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
@@ -19,6 +21,7 @@ import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
+import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
@@ -39,7 +42,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
-@SpringBootTest
+@SpringBootTest(properties=["app.merch.producer-auth-enabled=true"])
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Testcontainers
@@ -59,6 +62,8 @@ class PlacementIntegrationTest {
     @Autowired lateinit var jwt: JwtService
     @Autowired lateinit var service: PlacementService
     @Autowired lateinit var transactions:PlatformTransactionManager
+    @Autowired lateinit var passwords:PasswordEncoder
+    @Autowired lateinit var producerTokens:ProducerTokenCodec
     private lateinit var admin: AdminUserEntity
     private lateinit var bearer: String
     private lateinit var branch: UUID
@@ -69,6 +74,7 @@ class PlacementIntegrationTest {
     private lateinit var otherProducer: UUID
     private val month get()=LocalDate.now(ZoneId.of("Asia/Almaty")).withDayOfMonth(1).plusMonths(1)
     private val actions=listOf("view","edit","submit","approve","reject","cancel","assign","financial_data")
+    private val bindingPassword="Synthetic-only-482!"
 
     @BeforeEach fun seed() {
         jdbc.execute("""TRUNCATE merch_placement_audit,merch_inventory_audit,merch_media_plan_items,merch_media_plans,merch_monthly_inventory,
@@ -111,6 +117,98 @@ class PlacementIntegrationTest {
         CreatePlacementDraft(owner,month,listOf(PlacementSelection(shelf,portion)))).andExpect(status().isOk).andReturn().response.contentAsByteArray)
     private fun action(plan:PlacementDto,action:String,reason:String?=null):PlacementDto=json.readValue(request("/api/admin/merch/placements/${plan.id}/$action",
         PlacementTransition(plan.revision,reason)).andExpect(status().isOk).andReturn().response.contentAsByteArray)
+    private fun bindingAccess(all:Boolean=true,allowed:List<String> = actions+"bind_producer") {
+        grants(allowed,all)
+        jdbc.update("UPDATE admin_users SET password_hash=? WHERE id=?",passwords.encode(bindingPassword),admin.id)
+    }
+    private fun unownedPlan():UUID {
+        val id=source("merch_media_plans",mapOf("advertiser_name" to "Preserved original company label","placement_month" to month,
+            "status" to "approved","origin" to "admin_assignment","total_amount" to 15000,"submitted_at" to Timestamp.from(Instant.now()),
+            "review_note" to "Original public review note","assignment_note" to "Original public note"))
+        source("merch_media_plan_items",mapOf("media_plan_id" to id,"shelf_id" to shelf,"placement_month" to month,"monthly_price" to 15000,"status" to "approved","sale_portion" to "whole"))
+        return id
+    }
+    private fun bind(id:UUID,target:UUID=producer,revision:Long=0,password:String=bindingPassword,reason:String="Private verified customer proof")=
+        request("/api/admin/merch/placements/$id/producer-binding",BindPlacementProducer(revision,target,reason,password))
+    private fun producerBearer(id:UUID,phone:String):String {
+        // Synthetic session fixture for the real dedicated producer filter; no SMS or production identity is used.
+        jdbc.update("UPDATE merch_producers SET phone=?,phone_normalized=?,phone_verified_at=now() WHERE id=?",phone,phone,id)
+        val now=Instant.now();val expiry=now.plusSeconds(86400);val principal=ProducerPrincipal(id,UUID.randomUUID())
+        val token=producerTokens.issue(principal,now,expiry)
+        jdbc.update("""INSERT INTO merch_producer_sessions(id,customer_id,access_token_hash,phone_fingerprint,created_at,expires_at)
+            VALUES(?,?,?,?,?,?)""",principal.sessionId,id,ProducerTokenCodec.hash(token),producerTokens.fingerprint(id,phone),Timestamp.from(now),Timestamp.from(expiry))
+        return "Bearer $token"
+    }
+
+    @Test fun `HQ binding changes only the confirmed owner and records private proof without exposing it to the producer`() {
+        bindingAccess();val id=unownedPlan()
+        val columns="source_id,source_payload::text,advertiser_name,status,origin,total_amount,held_until,submitted_at,review_note,assignment_note"
+        val original=jdbc.queryForMap("SELECT $columns FROM merch_media_plans WHERE id=?",id)
+        val originalItems=jdbc.queryForList("SELECT row_to_json(i)::text FROM merch_media_plan_items i WHERE media_plan_id=? ORDER BY id",String::class.java,id)
+        mvc.perform(get("/api/admin/merch/placements/$id").header("Authorization",bearer)).andExpect(status().isOk).andExpect(jsonPath("$.canBindProducer").value(true))
+        val bound:PlacementDto=json.readValue(bind(id).andExpect(status().isOk).andExpect(jsonPath("$.canBindProducer").value(false)).andReturn().response.contentAsByteArray)
+        assertThat(bound.producerId).isEqualTo(producer);assertThat(bound.revision).isEqualTo(1)
+        assertThat(jdbc.queryForMap("SELECT $columns FROM merch_media_plans WHERE id=?",id)).isEqualTo(original)
+        assertThat(jdbc.queryForList("SELECT row_to_json(i)::text FROM merch_media_plan_items i WHERE media_plan_id=? ORDER BY id",String::class.java,id)).isEqualTo(originalItems)
+        val audit=jdbc.queryForMap("SELECT action,details::text FROM merch_placement_audit WHERE plan_id=?",id)
+        assertThat(audit["action"]).isEqualTo("producer_bound");assertThat(audit["details"] as String).contains("Private verified customer proof").doesNotContain(bindingPassword)
+        val own=mvc.perform(get("/api/producer/placements/$id").header("Authorization",producerBearer(producer,"+77000000001")))
+            .andExpect(status().isOk).andReturn().response.contentAsString
+        assertThat(own).doesNotContain("Private verified customer proof",bindingPassword,"verificationReason","verifiedPersonId")
+        mvc.perform(get("/api/producer/placements/$id").header("Authorization",producerBearer(otherProducer,"+77000000002"))).andExpect(status().isForbidden)
+        assertThat(BindPlacementProducer(0,producer,"Private verified customer proof",bindingPassword).toString()).doesNotContain(bindingPassword,"Private verified customer proof")
+    }
+    @Test fun `binding denies scoped HQ missing explicit grant and non HQ roles even with a grant`() {
+        val id=unownedPlan();bindingAccess(all=false)
+        bind(id).andExpect(status().isForbidden)
+        bindingAccess(allowed=actions);bind(id).andExpect(status().isForbidden)
+        bindingAccess()
+        for(role in listOf(AdminRole.REGIONAL_MANAGER,AdminRole.CATEGORY_LEAD)) {
+            jdbc.update("UPDATE admin_users SET role=? WHERE id=?",role.name,admin.id)
+            bind(id).andExpect(status().isForbidden)
+        }
+        assertThat(jdbc.queryForObject("SELECT producer_id IS NULL FROM merch_media_plans WHERE id=?",Boolean::class.java,id)).isTrue()
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_placement_audit",Long::class.java)).isZero()
+    }
+    @Test fun `binding verifies the current password and verified person and refuses incomplete or inactive producers`() {
+        bindingAccess();val id=unownedPlan()
+        bind(id,password="wrong-current-password").andExpect(status().isUnauthorized)
+        jdbc.update("UPDATE merch_producers SET name=NULL WHERE id=?",producer)
+        bind(id).andExpect(status().isConflict).andExpect(jsonPath("$.code").value("COMPLETE_PROFILE"))
+        jdbc.update("UPDATE merch_producers SET name='Synthetic',active=false WHERE id=?",producer)
+        bind(id).andExpect(status().isForbidden)
+        jdbc.update("UPDATE merch_producers SET active=true WHERE id=?",producer)
+        jdbc.update("UPDATE unified_persons SET verification_reference='   ' WHERE id=(SELECT person_id FROM unified_admin_profiles WHERE account_id=?)",admin.id)
+        bind(id).andExpect(status().isForbidden)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_placement_audit",Long::class.java)).isZero()
+    }
+    @Test fun `stale binding and reassignment cannot overwrite the original confirmed customer`() {
+        bindingAccess();val id=unownedPlan()
+        bind(id,revision=1).andExpect(status().isConflict)
+        bind(id).andExpect(status().isOk)
+        bind(id,target=otherProducer,revision=1).andExpect(status().isConflict)
+        assertThat(jdbc.queryForObject("SELECT producer_id FROM merch_media_plans WHERE id=?",UUID::class.java,id)).isEqualTo(producer)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_placement_audit",Long::class.java)).isEqualTo(1)
+    }
+    @Test fun `parallel HQ binding of one source plan accepts exactly one owner and one append only proof`() {
+        bindingAccess();val id=unownedPlan();val go=CountDownLatch(1);val pool=Executors.newFixedThreadPool(2)
+        try {
+            val results=listOf(producer,otherProducer).map {target->pool.submit<Int>{check(go.await(5,TimeUnit.SECONDS));bind(id,target).andReturn().response.status}}
+            go.countDown();assertThat(results.map {it.get(10,TimeUnit.SECONDS)}).containsExactlyInAnyOrder(200,409)
+            assertThat(jdbc.queryForObject("SELECT revision FROM merch_media_plans WHERE id=?",Long::class.java,id)).isEqualTo(1)
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_placement_audit",Long::class.java)).isEqualTo(1)
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM pharmacist_wallet_entries",Long::class.java)).isZero()
+        } finally {go.countDown();pool.shutdownNow()}
+    }
+    @Test fun `binding audit failure rolls back owner and revision without deleting preserved records`() {
+        bindingAccess();val id=unownedPlan()
+        jdbc.execute("ALTER TABLE merch_placement_audit ADD CONSTRAINT synthetic_binding_failure CHECK(false)")
+        try {
+            bind(id).andExpect(status().isConflict)
+            assertThat(jdbc.queryForObject("SELECT producer_id IS NULL AND revision=0 FROM merch_media_plans WHERE id=?",Boolean::class.java,id)).isTrue()
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_media_plan_items WHERE media_plan_id=?",Long::class.java,id)).isEqualTo(1)
+        } finally {jdbc.execute("ALTER TABLE merch_placement_audit DROP CONSTRAINT synthetic_binding_failure")}
+    }
 
     @Test fun `draft submit approve cancel uses server prices stable IDs and a real protected calendar`() {
         val draft=create();assertThat(draft.totalAmount).isEqualTo(15000);assertThat(draft.status).isEqualTo(PlacementStatus.draft)
