@@ -125,6 +125,7 @@ async function publicationFixture(page: Page, baseURL: string, unavailable = fal
     if (!url.pathname.startsWith('/api/')) return route.continue()
     const path = url.pathname
     const method = request.method()
+    if (method === 'GET' && path === '/api/admin/access/me') return route.fulfill({ json: { managed: false, version: null, grants: [], roleCeiling: 'HQ_HEAD', canViewAccounts: false, canManageAccounts: false, canViewMerchInventory: false } })
     const campaignPath = `/api/admin/promo/${published.id}`
     if (method === 'GET' && path === campaignPath) return route.fulfill({ json: published })
     if (method === 'GET' && path === `${campaignPath}/changes`)

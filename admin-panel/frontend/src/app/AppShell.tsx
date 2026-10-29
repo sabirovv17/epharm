@@ -10,6 +10,8 @@ import { ToastHost } from '@/ui'
 import { useT } from '@/i18n'
 import { useUiStore } from './store'
 import { SECTION_ROUTES } from './routes'
+import { adminNavigationForRole } from './adminNavigation'
+import { useAdministrativeCapabilities } from './useAdministrativeCapabilities'
 import {
   canAccessSection,
   defaultSectionForRole,
@@ -27,6 +29,7 @@ export function AppShell() {
   const navigate = useNavigate()
   const location = useLocation()
   const t = useT()
+  const { canViewMerchInventory } = useAdministrativeCapabilities()
 
   const {
     authedUser,
@@ -67,11 +70,25 @@ export function AppShell() {
       : t(`nav.${activeSection}`)
 
   const onSelectSection = (id: SectionId) => {
-    if (authedUser && canAccessSection(authedUser.role, id)) navigate(SECTION_ROUTES[id])
+    if (
+      authedUser &&
+      (id === 'merch_inventory' ? canViewMerchInventory : canAccessSection(authedUser.role, id))
+    )
+      navigate(SECTION_ROUTES[id])
   }
 
   const onSelectTrainingTab = (tab: TrainingTab) => {
     if (authedUser && canAccessSection(authedUser.role, 'lms')) navigate(trainingPath(tab))
+  }
+
+  const onNavigate = (path: string) => {
+    if (
+      authedUser &&
+      adminNavigationForRole(authedUser.role, canViewMerchInventory).some((module) =>
+        module.items.some((item) => item.available && item.path === path),
+      )
+    )
+      navigate(path)
   }
 
   // Global ⌘K / Ctrl+K — toggle command palette
@@ -114,6 +131,9 @@ export function AppShell() {
           user={authedUser}
           activeTrainingTab={activeTrainingTab}
           onSelectTrainingTab={onSelectTrainingTab}
+          pathname={location.pathname}
+          onNavigate={onNavigate}
+          canViewMerchInventory={canViewMerchInventory}
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <Topbar
@@ -140,7 +160,13 @@ export function AppShell() {
         )}
         <ContractModal open={contractModalOpen} onClose={closeContractModal} user={authedUser} />
         {commandPaletteOpen && (
-          <CommandPalette user={authedUser} onClose={closeCommandPalette} onNav={onSelectSection} />
+          <CommandPalette
+            user={authedUser}
+            onClose={closeCommandPalette}
+            onNav={onSelectSection}
+            onNavigate={onNavigate}
+            canViewMerchInventory={canViewMerchInventory}
+          />
         )}
       </div>
     </ToastHost>

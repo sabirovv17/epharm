@@ -52,6 +52,18 @@ export const ru: Dict = {
   'nav.lift': 'Аналитика lift',
   'nav.lms': 'Обучение',
   'nav.settings': 'Настройки',
+  'module.analytics': 'Аналитика',
+  'module.motivation': 'Мотивация фармацевтов',
+  'module.training': 'Обучение',
+  'module.merch': 'Мерчендайзинг',
+  'module.network': 'Аптеки и товары',
+  'module.pharmacists': 'Фармацевты',
+  'module.management': 'Управление',
+  'nav.campaign_reports': 'Отчёты по кампаниям',
+  'nav.merch_manufacturer': 'Кабинет производителя',
+  'nav.merch_tasks': 'Задания фармацевтов',
+  'nav.merch_inventory': 'Календарь и доступность',
+  'nav.not_connected': 'Не подключено',
   'nav.storefront': 'Витрина / Каталог',
   'nav.fulfillment': 'Интернет-заказы',
 
@@ -987,7 +999,8 @@ export const ru: Dict = {
   'pp.searchError': 'Не удалось загрузить товары',
   'pp.notFound': 'Ничего не найдено',
   'pp.startTyping': 'Начните вводить название товара',
-  'pp.noScanIdentity': 'Источник каталога не передал корректный штрихкод или iPartID — товар нельзя выбрать как триггер на кассе',
+  'pp.noScanIdentity':
+    'Источник каталога не передал корректный штрихкод или iPartID — товар нельзя выбрать как триггер на кассе',
   'pp.barcodesCount': 'Штрихкоды: {count}',
   'pp.change': 'Сменить',
   'pp.shownOf': 'Показано {shown} из {total}',
@@ -995,7 +1008,8 @@ export const ru: Dict = {
   'pp.loading': 'Загружаем…',
 
   // ── Campaign product fields (T1) ───────────────────────────────────────
-  'pm.triggerFirstSub': 'Сначала выберите, что вызовет подсказку на кассе. Затем укажите, что предложить.',
+  'pm.triggerFirstSub':
+    'Сначала выберите, что вызовет подсказку на кассе. Затем укажите, что предложить.',
   'pm.triggerFirstHint': 'Выберите конкретный товар или категорию из классификатора ACC.',
   'pm.offerSection': 'Что предложить фармацевту',
   'pm.offerHint': 'Товар для рекомендации выбирается отдельно от товара или категории-триггера.',
@@ -1005,7 +1019,8 @@ export const ru: Dict = {
   'pm.fldOfferProduct': 'Рекомендуемый товар из каталога',
   'pm.sameProductError': 'Товар-триггер и рекомендуемый товар должны различаться.',
   'pm.campaignDetails': 'Детали кампании',
-  'pm.draftReviewHint': 'После создания проверьте карточку и включите правило вручную. До этого кассы его не покажут.',
+  'pm.draftReviewHint':
+    'После создания проверьте карточку и включите правило вручную. До этого кассы его не покажут.',
   'pm.additionalSettings': 'Дополнительные настройки: сроки, обложка и идентификаторы',
   'pm.modalProductSub': 'Один товар из витрины + бонус фармацевту. Цена — из Medusa.',
   'pm.fldProduct': 'Товар из каталога',
@@ -1070,8 +1085,10 @@ export const ru: Dict = {
   'pr.triggerNoSnapshot': 'Классификатор ACC пока не загружен. Широкие правила создавать нельзя.',
   'pr.triggerParent': 'Группа: {parent}',
   'pr.triggerMembers': '{count} товаров со штрихкодом',
-  'pr.triggerScopeHint': 'Рекомендация сработает при сканировании товара из выбранной категории ACC.',
-  'pr.triggerBroadDraftHint': 'Новая широкая рекомендация создаётся неактивной. Проверьте состав категории перед включением.',
+  'pr.triggerScopeHint':
+    'Рекомендация сработает при сканировании товара из выбранной категории ACC.',
+  'pr.triggerBroadDraftHint':
+    'Новая широкая рекомендация создаётся неактивной. Проверьте состав категории перед включением.',
   'pr.previewScopeActualProduct': 'На кассе здесь будет название отсканированного товара.',
   'pr.offersOnRegister': 'Предложения на кассе',
   'pr.offersCount': '{n} из {max} препаратов',
@@ -1138,7 +1155,8 @@ export const ru: Dict = {
   'pr.validationMaxLength': 'Не больше {max} символов',
   'pr.validationPositiveInteger': 'Укажите целое число больше нуля',
   'pr.validationNonNegativeInteger': 'Укажите целое число не меньше нуля',
-  'pr.validationInvalidProduct': 'Некорректный идентификатор товара — удалите и добавьте товар заново',
+  'pr.validationInvalidProduct':
+    'Некорректный идентификатор товара — удалите и добавьте товар заново',
   'pr.validationInvalidTrigger': 'Некорректная категория ACC — удалите и выберите её заново',
   'pr.validationGoalLabelRequired': 'Укажите название цели',
   'pr.validationGoalTargetRequired': 'Укажите количество для цели',
@@ -1245,6 +1263,18 @@ export const kk: Dict = {
   'nav.lift': 'Lift аналитикасы',
   'nav.lms': 'Оқыту / LMS',
   'nav.settings': 'Баптаулар',
+  'module.analytics': 'Аналитика',
+  'module.motivation': 'Фармацевттерді ынталандыру',
+  'module.training': 'Оқыту',
+  'module.merch': 'Мерчендайзинг',
+  'module.network': 'Дәріханалар мен тауарлар',
+  'module.pharmacists': 'Фармацевттер',
+  'module.management': 'Басқару',
+  'nav.campaign_reports': 'Науқандар бойынша есептер',
+  'nav.merch_manufacturer': 'Өндіруші кабинеті',
+  'nav.merch_tasks': 'Фармацевт тапсырмалары',
+  'nav.merch_inventory': 'Күнтізбе және қолжетімділік',
+  'nav.not_connected': 'Қосылмаған',
   'nav.storefront': 'Дүкен / Каталог',
   'nav.fulfillment': 'Интернет-тапсырыстар',
 
@@ -2178,7 +2208,8 @@ export const kk: Dict = {
   'pp.searchError': 'Тауарлар жүктелмеді',
   'pp.notFound': 'Ештеңе табылмады',
   'pp.startTyping': 'Тауар атауын тере бастаңыз',
-  'pp.noScanIdentity': 'Каталог көзі дұрыс штрихкод немесе iPartID жібермеді — тауарды кассадағы триггер ретінде таңдау мүмкін емес',
+  'pp.noScanIdentity':
+    'Каталог көзі дұрыс штрихкод немесе iPartID жібермеді — тауарды кассадағы триггер ретінде таңдау мүмкін емес',
   'pp.barcodesCount': 'Штрихкодтар: {count}',
   'pp.change': 'Ауыстыру',
   'pp.shownOf': '{total} ішінен {shown} көрсетілді',
@@ -2186,7 +2217,8 @@ export const kk: Dict = {
   'pp.loading': 'Жүктелуде…',
 
   // ── Campaign product fields (T1) ───────────────────────────────────────
-  'pm.triggerFirstSub': 'Алдымен кассадағы ұсынысты не іске қосатынын, содан кейін не ұсынатынын таңдаңыз.',
+  'pm.triggerFirstSub':
+    'Алдымен кассадағы ұсынысты не іске қосатынын, содан кейін не ұсынатынын таңдаңыз.',
   'pm.triggerFirstHint': 'Нақты тауарды немесе ACC жіктеуішіндегі санатты таңдаңыз.',
   'pm.offerSection': 'Фармацевтке не ұсыну керек',
   'pm.offerHint': 'Ұсынылатын тауар триггер тауарынан немесе санатынан бөлек таңдалады.',
@@ -2196,7 +2228,8 @@ export const kk: Dict = {
   'pm.fldOfferProduct': 'Каталогтан ұсынылатын тауар',
   'pm.sameProductError': 'Триггер тауар мен ұсынылатын тауар әртүрлі болуы керек.',
   'pm.campaignDetails': 'Науқан мәліметтері',
-  'pm.draftReviewHint': 'Жасағаннан кейін карточканы тексеріп, ережені қолмен қосыңыз. Оған дейін кассада көрсетілмейді.',
+  'pm.draftReviewHint':
+    'Жасағаннан кейін карточканы тексеріп, ережені қолмен қосыңыз. Оған дейін кассада көрсетілмейді.',
   'pm.additionalSettings': 'Қосымша баптаулар: мерзім, мұқаба және идентификаторлар',
   'pm.modalProductSub': 'Витринадан бір тауар + фармацевтке бонус. Баға — Medusa-дан.',
   'pm.fldProduct': 'Каталогтағы тауар',
@@ -2261,7 +2294,8 @@ export const kk: Dict = {
   'pr.triggerParent': 'Топ: {parent}',
   'pr.triggerMembers': 'Штрихкоды бар {count} тауар',
   'pr.triggerScopeHint': 'Ұсыныс таңдалған ACC санатындағы тауар сканерленгенде іске қосылады.',
-  'pr.triggerBroadDraftHint': 'Жаңа кең ауқымды ұсыныс белсенді емес күйде жасалады. Іске қоспас бұрын санат құрамын тексеріңіз.',
+  'pr.triggerBroadDraftHint':
+    'Жаңа кең ауқымды ұсыныс белсенді емес күйде жасалады. Іске қоспас бұрын санат құрамын тексеріңіз.',
   'pr.previewScopeActualProduct': 'Кассада бұл жерде сканерленген тауардың атауы көрсетіледі.',
   'pr.offersOnRegister': 'Кассадағы ұсыныстар',
   'pr.offersCount': '{max} препараттың {n}',

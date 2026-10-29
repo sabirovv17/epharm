@@ -31,6 +31,7 @@ const LMS = lazy(() => import('@/features/lms/LMSPage'))
 const Settings = lazy(() => import('@/features/settings/SettingsPage'))
 const Storefront = lazy(() => import('@/features/storefront/StorefrontPage'))
 const Fulfillment = lazy(() => import('@/features/fulfillment/FulfillmentPage'))
+const MerchInventory = lazy(() => import('@/features/merch/MerchInventoryPage'))
 
 function PageFallback() {
   return (
@@ -48,9 +49,12 @@ function protectedPage(section: SectionId, page: React.ReactNode) {
 
 function HomeRedirect() {
   const user = useUiStore((state) => state.authedUser)
-  const isPhone = typeof window !== 'undefined'
-    && (window.matchMedia?.('(max-width: 767px)').matches || window.innerWidth < 768)
-  return <Navigate to={user ? defaultPathForRole(user.role) : isPhone ? '/learn' : '/login'} replace />
+  const isPhone =
+    typeof window !== 'undefined' &&
+    (window.matchMedia?.('(max-width: 767px)').matches || window.innerWidth < 768)
+  return (
+    <Navigate to={user ? defaultPathForRole(user.role) : isPhone ? '/learn' : '/login'} replace />
+  )
 }
 
 export function AppRouter() {
@@ -78,7 +82,10 @@ export function AppRouter() {
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
           <Route path="/dashboard" element={protectedPage('dashboard', <Dashboard />)} />
-          <Route path="/dashboard/reports" element={protectedPage('dashboard', <CampaignReports />)} />
+          <Route
+            path="/dashboard/reports"
+            element={protectedPage('dashboard', <CampaignReports />)}
+          />
           <Route path="/promo" element={protectedPage('promo', <Promo />)} />
           <Route path="/promo/:id" element={protectedPage('promo', <PromoDetail />)} />
           <Route path="/rules" element={protectedPage('rules', <Rules />)} />
@@ -93,6 +100,8 @@ export function AppRouter() {
           <Route path="/finance" element={protectedPage('finance', <Finance />)} />
           <Route path="/lift" element={protectedPage('lift', <Lift />)} />
           <Route path="/lms" element={protectedPage('lms', <LMS />)} />
+          {/* New scope is verified by the server capability, independent of legacy role navigation. */}
+          <Route path="/merch/inventory" element={withSuspense(<MerchInventory />)} />
           <Route path="/settings" element={protectedPage('settings', <Settings />)} />
           <Route path="/storefront" element={protectedPage('storefront', <Storefront />)} />
           <Route path="/fulfillment" element={protectedPage('fulfillment', <Fulfillment />)} />

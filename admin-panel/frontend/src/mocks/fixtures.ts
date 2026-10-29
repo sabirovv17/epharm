@@ -45,6 +45,7 @@ export type SectionId =
   | 'settings'
   | 'storefront'
   | 'fulfillment'
+  | 'merch_inventory'
 
 export interface Section {
   id: SectionId
@@ -71,6 +72,12 @@ export const SECTIONS: Section[] = [
   { id: 'lift', label: 'Аналитика lift', group: 'Аналитика', Icon: IconLift },
   { id: 'lms', label: 'Обучение', group: 'Аналитика', Icon: IconLMS },
   { id: 'settings', label: 'Настройки', group: 'Система', Icon: IconSettings },
+  {
+    id: 'merch_inventory',
+    label: 'Календарь и доступность',
+    group: 'Операции',
+    Icon: IconPharmacy,
+  },
 ]
 
 // ─── Users — UserDto из api-types (синхронизирован с backend) ────────────

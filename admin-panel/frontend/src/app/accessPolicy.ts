@@ -4,7 +4,7 @@ import { SECTIONS, type Section, type SectionId } from '@/mocks/fixtures'
 const TRAINING_SECTION_IDS: readonly SectionId[] = ['lms', 'ai_exam']
 const TRAINING_READ_ONLY_SECTION_IDS: readonly SectionId[] = ['lms']
 const CORE_SECTION_IDS: readonly SectionId[] = SECTIONS.map((section) => section.id).filter(
-  (id) => !TRAINING_SECTION_IDS.includes(id) && id !== 'fulfillment',
+  (id) => !TRAINING_SECTION_IDS.includes(id) && id !== 'fulfillment' && id !== 'merch_inventory',
 )
 
 const sectionById = new Map(SECTIONS.map((section) => [section.id, section]))
@@ -13,7 +13,7 @@ export function sectionIdsForRole(role: AdminRole): readonly SectionId[] {
   switch (role) {
     case 'SYSTEM_ADMIN':
     case 'HQ_HEAD':
-      return SECTIONS.map((section) => section.id)
+      return SECTIONS.map((section) => section.id).filter((id) => id !== 'merch_inventory')
     case 'TRAINING_MANAGER':
       return TRAINING_SECTION_IDS
     case 'REGIONAL_MANAGER':

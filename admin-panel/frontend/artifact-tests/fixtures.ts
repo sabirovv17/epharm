@@ -57,6 +57,7 @@ export const test = base.extend<{ artifactApi: ArtifactApi }>({
       // All API calls, including expected writes, are fulfilled in memory.
       // An unexpected API route or external asset never reaches its server.
       if (path.startsWith('/api/')) {
+        if (method === 'GET' && path === '/api/admin/access/me') return json(route, { managed: false, version: null, grants: [], roleCeiling: 'HQ_HEAD', canViewAccounts: false, canManageAccounts: false, canViewMerchInventory: false })
         if (method === 'POST' && path === '/api/admin/auth/login') {
           return json(route, {
             user: { id: 'artifact-user', email: 'artifact@example.invalid', name: 'Проверка артефакта', role: 'BRAND_MANAGER', company: 'Артефакт' },

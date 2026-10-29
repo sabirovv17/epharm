@@ -14,6 +14,7 @@ test('built report page downloads a private PDF with the selected Almaty dates',
       unexpected.push(request.url()); return route.abort()
     }
     if (!url.pathname.startsWith('/api/')) return route.continue()
+    if (request.method() === 'GET' && url.pathname === '/api/admin/access/me') return route.fulfill({ json: { managed: false, version: null, grants: [], roleCeiling: 'HQ_HEAD', canViewAccounts: false, canManageAccounts: false, canViewMerchInventory: false } })
     if (request.method() === 'GET' && url.pathname === '/api/admin/promo') {
       return route.fulfill({ json: [{ id: 'demo-report', title: 'DEMO · Тестовая кампания', brand: 'DEMO', status: 'archived' }] })
     }
@@ -53,6 +54,7 @@ test('built direct report route denies a brand manager without issuing report re
   })
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url())
+    if (url.origin === new URL(baseURL!).origin && route.request().method() === 'GET' && url.pathname === '/api/admin/access/me') return route.fulfill({ json: { managed: false, version: null, grants: [], roleCeiling: 'BRAND_MANAGER', canViewAccounts: false, canManageAccounts: false, canViewMerchInventory: false } })
     if (url.origin !== new URL(baseURL!).origin || url.pathname.startsWith('/api/')) {
       apiRequests.push(url.pathname); return route.abort()
     }

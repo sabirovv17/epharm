@@ -8,6 +8,8 @@ export interface AccessGrant {
   action: string
   allPharmacies: boolean
   pharmacyIds: string[]
+  allMerchBranches?: boolean
+  merchBranchIds?: string[]
 }
 
 export interface AccessCapabilities {
@@ -17,6 +19,7 @@ export interface AccessCapabilities {
   roleCeiling: AdminRole
   canViewAccounts: boolean
   canManageAccounts: boolean
+  canViewMerchInventory?: boolean
 }
 
 export interface AccessAccount {
@@ -58,13 +61,20 @@ export interface AccessPermission {
   availableForRoles: AdminRole[]
   requiresPasswordReauthentication: boolean
   delegatable: boolean
-  delegationScope: { allPharmacies: boolean; pharmacyIds: string[] } | null
+  scopeType?: 'PHARMACY' | 'MERCH_BRANCH'
+  delegationScope: {
+    allPharmacies: boolean
+    pharmacyIds: string[]
+    allMerchBranches?: boolean
+    merchBranchIds?: string[]
+  } | null
 }
 
 export interface AccessCatalog {
   permissions: AccessPermission[]
   assignableRoles: AdminRole[]
   pharmacies: { id: string; name: string; city: string; address: string }[]
+  merchBranches?: { id: string; name: string; city: string; address: string }[]
 }
 
 export interface CreateAccessAccount {
@@ -138,7 +148,6 @@ export function validateGrants(
   catalog: AccessCatalog,
   role: AdminRole,
 ): string | null {
-  const knownPharmacies = new Set(catalog.pharmacies.map((p) => p.id))
   const seen = new Set<string>()
   for (const grant of grants) {
     const id = permissionId(grant)
@@ -152,21 +161,31 @@ export function validateGrants(
       return `${label} — у вас нет права выдавать это разрешение.`
     if (!permission.availableForRoles.includes(role))
       return `${label} — недоступно для выбранной роли.`
-    if (grant.allPharmacies && grant.pharmacyIds.length)
-      return `${label} — выберите одну область аптек.`
+    const merch = permission.scopeType === 'MERCH_BRANCH'
     if (
-      !grant.allPharmacies &&
-      (!grant.pharmacyIds.length || grant.pharmacyIds.some((id) => !knownPharmacies.has(id)))
-    ) {
+      merch
+        ? grant.allPharmacies || grant.pharmacyIds.length
+        : grant.allMerchBranches || grant.merchBranchIds?.length
+    )
+      return `${label} — область другого раздела не даёт доступ к этим аптекам.`
+    const all = merch ? grant.allMerchBranches === true : grant.allPharmacies
+    const ids = merch ? (grant.merchBranchIds ?? []) : grant.pharmacyIds
+    const known = new Set(
+      (merch ? (catalog.merchBranches ?? []) : catalog.pharmacies).map((p) => p.id),
+    )
+    const delegatedAll = merch
+      ? permission.delegationScope.allMerchBranches === true
+      : permission.delegationScope.allPharmacies
+    const delegatedIds = merch
+      ? (permission.delegationScope.merchBranchIds ?? [])
+      : permission.delegationScope.pharmacyIds
+    if (all && ids.length) return `${label} — выберите одну область аптек.`
+    if (!all && (!ids.length || ids.some((id) => !known.has(id)))) {
       return `${label} — выберите подтверждённые аптеки. Пустой список не означает всю сеть.`
     }
-    if (permission.mode === 'ALL_ONLY' && !grant.allPharmacies)
+    if (permission.mode === 'ALL_ONLY' && !all)
       return `${label} — доступно только для явно выбранной всей сети.`
-    if (
-      !permission.delegationScope.allPharmacies &&
-      (grant.allPharmacies ||
-        grant.pharmacyIds.some((id) => !permission.delegationScope!.pharmacyIds.includes(id)))
-    ) {
+    if (!delegatedAll && (all || ids.some((id) => !delegatedIds.includes(id)))) {
       return `${label} — область превышает ваши права.`
     }
   }

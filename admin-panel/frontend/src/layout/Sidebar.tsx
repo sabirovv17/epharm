@@ -6,18 +6,20 @@ import {
   getUserContract,
   roleLabel,
   type Contract,
-  type Section,
   type SectionId,
   type User,
 } from '@/mocks/fixtures'
 import { IconChevLeft, IconChevRight, IconShield } from '@/ui/icons'
 import { useT } from '@/i18n'
-import { isTrainingWorkspaceRole, sectionsForRole } from '@/app/accessPolicy'
+import { useState } from 'react'
+import { isTrainingWorkspaceRole } from '@/app/accessPolicy'
 import {
-  TRAINING_NAVIGATION,
-  TRAINING_NAVIGATION_GROUPS,
-  type TrainingTab,
-} from '@/app/trainingNavigation'
+  activeNavigationItem,
+  adminNavigationForRole,
+  type AdminNavigationItem,
+  type AdminNavigationModule,
+} from '@/app/adminNavigation'
+import type { TrainingTab } from '@/app/trainingNavigation'
 import { Logo } from './Logo'
 
 interface SidebarProps {
@@ -29,9 +31,10 @@ interface SidebarProps {
   user: User
   activeTrainingTab?: TrainingTab
   onSelectTrainingTab?: (tab: TrainingTab) => void
+  pathname?: string
+  onNavigate?: (path: string) => void
+  canViewMerchInventory?: boolean
 }
-
-const GROUP_ORDER = ['Обзор', 'Кампании', 'Сеть', 'Операции', 'Аналитика', 'Система'] as const
 
 export function Sidebar({
   active,
@@ -42,16 +45,78 @@ export function Sidebar({
   user,
   activeTrainingTab = 'overview',
   onSelectTrainingTab,
+  pathname = '',
+  onNavigate,
+  canViewMerchInventory = false,
 }: SidebarProps) {
   const t = useT()
   const trainingWorkspace = isTrainingWorkspaceRole(user.role)
-  const availableSections = sectionsForRole(user.role).filter(
-    (section) => !trainingWorkspace || section.id !== 'lms',
-  )
-  const groups = availableSections.reduce<Record<string, Section[]>>((acc, s) => {
-    ;(acc[s.group] = acc[s.group] || []).push(s)
-    return acc
-  }, {})
+  const modules = adminNavigationForRole(user.role, canViewMerchInventory)
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const pick = (item: AdminNavigationItem) => {
+    if (!item.available) return
+    if (onNavigate && item.path) onNavigate(item.path)
+    else if (item.trainingTab) onSelectTrainingTab?.(item.trainingTab)
+    else if (item.section) onSelect(item.section)
+  }
+  const renderModule = (module: AdminNavigationModule) => {
+    const selected = module.items.some((item) =>
+      activeNavigationItem(item, active, activeTrainingTab, pathname),
+    )
+    const open = expanded[module.id] ?? selected
+    const single = module.items.length === 1
+    const Icon = module.Icon
+    return (
+      <div key={module.id} className="px-2 py-0.5">
+        <button
+          type="button"
+          title={t(`module.${module.id}`)}
+          aria-expanded={collapsed || single ? undefined : open}
+          onClick={() =>
+            collapsed || single
+              ? pick(module.items.find((item) => item.available) ?? module.items[0])
+              : setExpanded((current) => ({ ...current, [module.id]: !open }))
+          }
+          className={`cursor-sidebar__item sidebar-hover flex min-h-[38px] w-full items-center gap-2.5 rounded-md px-2 text-left ${selected ? 'sidebar-active text-white' : 'text-white/75'} ${collapsed ? 'justify-center' : ''}`}
+        >
+          <Icon size={18} className="flex-none text-brand-green-200/80" />
+          {!collapsed && (
+            <>
+              <span className="min-w-0 flex-1 text-[12.5px] font-bold">
+                {t(`module.${module.id}`)}
+              </span>
+              {!single && <IconChevRight size={12} className={open ? 'rotate-90' : ''} />}
+            </>
+          )}
+        </button>
+        {!collapsed && !single && open && (
+          <ul className="ml-4 mt-1 flex flex-col gap-0.5 border-l border-white/10 pl-2">
+            {module.items.map((item) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  disabled={!item.available}
+                  onClick={() => pick(item)}
+                  data-training-tab={item.trainingTab}
+                  aria-current={
+                    activeNavigationItem(item, active, activeTrainingTab, pathname)
+                      ? 'page'
+                      : undefined
+                  }
+                  className={`sidebar-hover flex min-h-[32px] w-full flex-col justify-center rounded-md px-2 py-1 text-left text-[12px] font-semibold disabled:cursor-default disabled:opacity-40 ${activeNavigationItem(item, active, activeTrainingTab, pathname) ? 'sidebar-active text-white' : 'text-white/70'}`}
+                >
+                  <span>{item.labelKey ? t(item.labelKey) : item.label}</span>
+                  {!item.available && (
+                    <span className="text-[10px] font-normal">{t('nav.not_connected')}</span>
+                  )}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    )
+  }
 
   const contract = getUserContract(user)
   const initials = user.name
@@ -109,114 +174,24 @@ export function Sidebar({
         )}
       </div>
 
-      {/* Navigation */}
       <nav className="cursor-sidebar__nav min-h-0 flex-1 overflow-y-auto overscroll-contain py-2">
-        {GROUP_ORDER.map(
-          (g) =>
-            groups[g] && (
-              <div key={g} className="mb-1.5">
-                {!collapsed && (
-                  <div className="mb-0.5 px-3 pt-1.5 text-[9px] font-bold uppercase tracking-[0.11em] text-brand-green-100/45">
-                    {t(`group.${g}`)}
-                  </div>
-                )}
-                <ul className="flex flex-col gap-px px-2">
-                  {groups[g].map((s) => {
-                    const Icon = s.Icon
-                    const isActive = active === s.id
-                    return (
-                      <li key={s.id}>
-                        <button
-                          onClick={() => onSelect(s.id)}
-                          className={`cursor-sidebar__item sidebar-hover flex h-[34px] w-full items-center gap-2.5 rounded-md px-2 ${
-                            isActive ? 'sidebar-active text-white' : 'text-white/75'
-                          } ${collapsed ? 'justify-center' : ''}`}
-                          title={collapsed ? t(`nav.${s.id}`) : ''}
-                        >
-                          <span className={`flex flex-none ${isActive ? 'text-brand-green-200' : 'text-white/55'}`}>
-                            <Icon size={18} />
-                          </span>
-                          {!collapsed && (
-                            <>
-                              <span className="flex-1 truncate text-left text-[12.5px] font-semibold leading-none">
-                                {t(`nav.${s.id}`)}
-                              </span>
-                              {s.badge && (
-                                <span
-                                  className={`inline-flex h-[18px] items-center rounded-full px-1.5 text-[10px] font-bold ${
-                                    s.badge === '!'
-                                      ? 'bg-accent-danger text-white'
-                                      : 'bg-white/15 text-white/80'
-                                  }`}
-                                >
-                                  {s.badge}
-                                </span>
-                              )}
-                            </>
-                          )}
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </div>
-            ),
-        )}
-
-        {trainingWorkspace &&
-          TRAINING_NAVIGATION_GROUPS.map((group) => {
-            const items = TRAINING_NAVIGATION.filter((item) => item.group === group)
-            return (
-              <div key={group} className="mb-1.5">
-                {!collapsed && (
-                  <div className="mb-0.5 px-3 pt-1.5 text-[9px] font-bold uppercase tracking-[0.11em] text-brand-green-100/45">
-                    {group}
-                  </div>
-                )}
-                <ul className="flex flex-col gap-px px-2">
-                  {items.map((item) => {
-                    const Icon = item.Icon
-                    const isActive = active === 'lms' && activeTrainingTab === item.value
-                    return (
-                      <li key={item.value}>
-                        <button
-                          type="button"
-                          onClick={() => onSelectTrainingTab?.(item.value)}
-                          className={`cursor-sidebar__item sidebar-hover flex h-[34px] w-full items-center gap-2.5 rounded-md px-2 ${
-                            isActive ? 'sidebar-active text-white' : 'text-white/75'
-                          } ${collapsed ? 'justify-center' : ''}`}
-                          title={collapsed ? item.sidebarLabel : ''}
-                          aria-current={isActive ? 'page' : undefined}
-                          data-training-tab={item.value}
-                        >
-                          <span
-                            className={`flex-none ${
-                              isActive ? 'text-brand-green-200' : 'text-white/55'
-                            }`}
-                          >
-                            <Icon size={18} />
-                          </span>
-                          {!collapsed && (
-                            <span className="min-w-0 flex-1 truncate text-left text-[12.5px] font-semibold leading-none">
-                              {item.sidebarLabel}
-                            </span>
-                          )}
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </div>
-            )
-          })}
+        {modules.filter((module) => module.id !== 'management').map(renderModule)}
       </nav>
+      <div
+        className="flex-none border-t border-white/[0.08] py-1"
+        aria-label={t('module.management')}
+      >
+        {modules.filter((module) => module.id === 'management').map(renderModule)}
+      </div>
 
       {/* Contract widget — рендерится всегда. Без контракта — empty state без цифр. */}
       {!trainingWorkspace && (
         <ContractWidget contract={contract} collapsed={collapsed} onOpen={onContractOpen} />
       )}
 
-      <div className={`flex flex-none items-center border-t border-white/[0.08] ${collapsed ? 'justify-center p-2' : 'gap-2.5 px-3 py-2.5'}`}>
+      <div
+        className={`flex flex-none items-center border-t border-white/[0.08] ${collapsed ? 'justify-center p-2' : 'gap-2.5 px-3 py-2.5'}`}
+      >
         <div
           className="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-brand-green-400/15 text-[10px] font-extrabold tracking-[0.04em] text-brand-green-100 ring-1 ring-inset ring-brand-green-200/15"
           title={collapsed ? `${user.name} · ${roleLabel(user.role)}` : undefined}
@@ -226,7 +201,9 @@ export function Sidebar({
         </div>
         {!collapsed && (
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[12px] font-bold leading-4 text-white/90">{user.name}</div>
+            <div className="truncate text-[12px] font-bold leading-4 text-white/90">
+              {user.name}
+            </div>
             <div className="truncate text-[10px] font-medium leading-4 text-white/40">
               {roleLabel(user.role)} · {user.company}
             </div>

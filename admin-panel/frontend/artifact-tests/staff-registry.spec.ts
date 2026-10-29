@@ -19,6 +19,7 @@ const connectedDevices = ['authenticated', 'database_unavailable', rawDiagnostic
   lastSeen: '2026-10-21T10:00:00Z', staffAuthStatus,
 }))
 const getFixtures = new Map<string, unknown>([
+  ['/api/admin/access/me', { managed: false, version: null, grants: [], roleCeiling: 'HQ_HEAD', canViewAccounts: false, canManageAccounts: false, canViewMerchInventory: false }],
   ['/api/admin/pharmacists', [pharmacist]],
   ['/api/admin/pharmacies', []],
   ['/api/admin/training/preferences', []],

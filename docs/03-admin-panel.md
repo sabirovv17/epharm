@@ -20,6 +20,32 @@ goal because mobile users have the Flutter app.
 
 ## Routes
 
+The local unified-admin candidate groups the existing routes into seven modules: Analytics;
+Pharmacist motivation; Training; Merchandising; Pharmacies and products; Pharmacists; Management.
+Management stays at the bottom of the sidebar. Grouping does not change canonical URLs or grant
+permissions. The command palette uses the same available destinations, including every LMS tab.
+The separate `/learn` cabinet and its personal session are unchanged.
+
+The native `/merch/inventory` screen reads branch equipment and a six-month availability calendar.
+It is shown only after a fresh `/api/admin/access/me` response explicitly grants
+`canViewMerchInventory`; a legacy HQ or regional role alone is insufficient. A regional manager
+with that capability keeps the existing training boundary and gains this Merch screen only.
+Manufacturer booking and pharmacist task administration are marked **not connected** until their
+native flows are integrated; the inventory screen is not a substitute for those flows.
+
+The inventory screen paginates authorized branches and uses the native `/api/admin/merch/branches`
+API. Block/unblock requires selected shelf IDs, an explicit month range, and confirmation.
+Server-owned `canManage`, `canEdit`, and protected-placement checks remain authoritative. Failed
+writes are not retried automatically. Withheld prices render as `—`, never as a zero price.
+No inventory GET creates bookings or expires existing reservations.
+
+Access Management distinguishes `PHARMACY` from `MERCH_BRANCH` permission scopes. The
+**Аптеки мерча** selector stores `allMerchBranches/merchBranchIds` independently from
+`allPharmacies/pharmacyIds`; the two identity domains are never guessed or combined. An empty
+selection gives no access. Per-action delegation limits, role ceilings, CAS version and fresh
+password confirmation are retained. Capabilities and inventory projections are not persisted in
+the offline query cache.
+
 Public:
 
 - `/login`
@@ -215,16 +241,16 @@ pharmacist registry displays balances read-only; ordinary profile/password PATCH
 `SYSTEM_ADMIN` and `HQ_HEAD`, not `FINANCE_REVIEWER`; password reset controls follow that policy.
 Backend authorization remains authoritative even if browser controls are bypassed.
 
-Navigation and direct routes are role-aware:
+Legacy navigation and direct routes keep their existing role ceilings; managed accounts also require current server permissions:
 
 - `TRAINING_MANAGER` gets the dedicated training workspace plus `AI Exam` and lands on `/lms` after login;
 - `REGIONAL_MANAGER` and `TRAINER` get the training workspace with actions narrowed by backend capabilities;
 - in the dedicated training workspace, dashboard, programs, courses, offline events, assignments,
   attendance, results, certificates, analytics, and training settings are first-class sidebar items;
-  the redundant generic `Training` item and the duplicate horizontal LMS tab bar are hidden;
+  these destinations are grouped under the expandable Training module; the duplicate horizontal tab bar remains hidden in the dedicated training workspace;
 - `HQ_HEAD` keeps all operational sections and also sees `Training` and `AI Exam` in read-only mode;
 - other core business roles keep operational and analytics sections without training navigation;
-- `SYSTEM_ADMIN` retains full emergency access.
+- `SYSTEM_ADMIN` retains its legacy navigation ceiling. It is not inferred to be the designated HQ owner and receives no new Merch access from that role alone.
 
 This is not only a visual restriction. `SecurityConfig` separates `/api/admin/training/**`,
 `/api/admin/lms/**`, and `/api/admin/ai-exam/**` from the rest of `/api/admin/**`. A training token

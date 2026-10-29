@@ -47,6 +47,8 @@ const grant = (action = 'view', pharmacyIds = ['ph-01']): AccessGrant => ({
   action,
   allPharmacies: false,
   pharmacyIds,
+  allMerchBranches: false,
+  merchBranchIds: [],
 })
 const profile = (grants: AccessGrant[] = [grant()]): AccessProfile => ({
   accountId: account.accountId,
@@ -138,6 +140,55 @@ async function fillCreate(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('Server-authorized access management', () => {
+  it('edits a merch action with a separate branch selector without widening pharmacy access', async () => {
+    const current = catalog()
+    current.merchBranches = [
+      { id: 'branch-01', name: 'Мерч 01', city: 'Демо', address: 'Демо, 1' },
+      { id: 'branch-02', name: 'Мерч 02', city: 'Демо', address: 'Демо, 2' },
+    ]
+    current.permissions.push({
+      ...current.permissions[0],
+      module: 'merchandising',
+      subsection: 'inventory',
+      scopeType: 'MERCH_BRANCH',
+      delegationScope: {
+        allPharmacies: false,
+        pharmacyIds: [],
+        allMerchBranches: true,
+        merchBranchIds: [],
+      },
+    })
+    const branch: AccessGrant = {
+      ...grant(),
+      module: 'merchandising',
+      subsection: 'inventory',
+      pharmacyIds: [],
+      merchBranchIds: ['branch-01'],
+    }
+    vi.mocked(accessApi.catalog).mockResolvedValue(current)
+    vi.mocked(accessApi.profile).mockResolvedValue(profile([grant(), branch]))
+    const user = await editor()
+    await user.click(screen.getByRole('button', { name: 'Аптеки мерча: 1' }))
+    expect(screen.getByRole('radio', { name: 'Аптеки мерча' })).toBeChecked()
+    expect(
+      screen.queryByLabelText('Демо-город, Демо-аптека 01, Демо-адрес, 1'),
+    ).not.toBeInTheDocument()
+    await user.click(screen.getByLabelText('Демо, Мерч 02, Демо, 2'))
+    await user.click(screen.getByRole('button', { name: 'Проверить и сохранить' }))
+    await user.type(
+      screen.getByLabelText('Ваш текущий пароль для сохранения'),
+      'SyntheticProof-1234',
+    )
+    await user.click(screen.getByRole('button', { name: 'Подтвердить права' }))
+    await waitFor(() =>
+      expect(accessApi.replace).toHaveBeenCalledWith(
+        account.accountId,
+        7,
+        [grant(), { ...branch, merchBranchIds: ['branch-01', 'branch-02'] }],
+        'SyntheticProof-1234',
+      ),
+    )
+  })
   it('does not fetch accounts or show controls when the server denies management view', async () => {
     vi.mocked(accessApi.me).mockResolvedValue({
       managed: true,
@@ -369,6 +420,49 @@ describe('Server-authorized access management', () => {
 })
 
 describe('Grant boundary validation', () => {
+  it('keeps merch branch scopes independent from ordinary pharmacy scopes', () => {
+    const current = catalog()
+    current.merchBranches = [{ id: 'branch-01', name: 'Мерч 01', city: 'Демо', address: 'Демо, 1' }]
+    current.permissions.push({
+      ...current.permissions[0],
+      module: 'merchandising',
+      subsection: 'inventory',
+      scopeType: 'MERCH_BRANCH',
+      delegationScope: {
+        allPharmacies: false,
+        pharmacyIds: [],
+        allMerchBranches: false,
+        merchBranchIds: ['branch-01'],
+      },
+    })
+    const branch: AccessGrant = {
+      ...grant(),
+      module: 'merchandising',
+      subsection: 'inventory',
+      pharmacyIds: [],
+      merchBranchIds: ['branch-01'],
+    }
+    expect(validateGrants([grant(), branch], current, 'HQ_HEAD')).toBeNull()
+    expect(validateGrants([{ ...branch, allPharmacies: true }], current, 'HQ_HEAD')).toContain(
+      'другого раздела',
+    )
+    expect(
+      validateGrants([{ ...branch, merchBranchIds: ['ph-01'] }], current, 'HQ_HEAD'),
+    ).toContain('подтверждённые аптеки')
+    expect(validateGrants([{ ...branch, merchBranchIds: [] }], current, 'HQ_HEAD')).toContain(
+      'Пустой список',
+    )
+    expect(
+      validateGrants(
+        [{ ...branch, allMerchBranches: true, merchBranchIds: [] }],
+        current,
+        'HQ_HEAD',
+      ),
+    ).toContain('превышает ваши права')
+    expect(
+      validateGrants([{ ...grant(), merchBranchIds: ['branch-01'] }], current, 'HQ_HEAD'),
+    ).toContain('другого раздела')
+  })
   it('allows empty replacement only as revocation; never interprets an empty selected scope as ALL', () => {
     expect(validateGrants([], catalog(), 'HQ_HEAD')).toBeNull()
     expect(validateGrants([grant('view', [])], catalog(), 'HQ_HEAD')).toContain('Пустой список')

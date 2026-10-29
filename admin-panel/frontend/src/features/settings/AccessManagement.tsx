@@ -442,7 +442,13 @@ function GrantEditor({
       .then((result) => {
         if (controller.signal.aborted) return
         setProfile(result)
-        setGrants(result.grants.map((grant) => ({ ...grant, pharmacyIds: [...grant.pharmacyIds] })))
+        setGrants(
+          result.grants.map((grant) => ({
+            ...grant,
+            pharmacyIds: [...grant.pharmacyIds],
+            merchBranchIds: [...(grant.merchBranchIds ?? [])],
+          })),
+        )
       })
       .catch((reason) => {
         if (!controller.signal.aborted) setError(accessFailure(reason))
@@ -459,6 +465,22 @@ function GrantEditor({
     (permission) => permissionId(permission) === activePermission,
   )
   const activeGrant = grants.find((grant) => permissionId(grant) === activePermission)
+  const merchScope = active?.scopeType === 'MERCH_BRANCH'
+  const scopeItems = merchScope ? (catalog.merchBranches ?? []) : catalog.pharmacies
+  const scopeAll = merchScope
+    ? activeGrant?.allMerchBranches === true
+    : activeGrant?.allPharmacies === true
+  const scopeIds = (merchScope ? activeGrant?.merchBranchIds : activeGrant?.pharmacyIds) ?? []
+  const delegatableAll = merchScope
+    ? active?.delegationScope?.allMerchBranches === true
+    : active?.delegationScope?.allPharmacies === true
+  const delegatableIds =
+    (merchScope ? active?.delegationScope?.merchBranchIds : active?.delegationScope?.pharmacyIds) ??
+    []
+  const scopePatch = (all: boolean, ids: string[]): Partial<AccessGrant> =>
+    merchScope
+      ? { allPharmacies: false, pharmacyIds: [], allMerchBranches: all, merchBranchIds: ids }
+      : { allPharmacies: all, pharmacyIds: ids, allMerchBranches: false, merchBranchIds: [] }
   const unknownGrants = grants.filter(
     (grant) =>
       !catalog.permissions.some((permission) => permissionId(permission) === permissionId(grant)),
@@ -642,6 +664,8 @@ function GrantEditor({
                                         action: permission.action,
                                         allPharmacies: false,
                                         pharmacyIds: [],
+                                        allMerchBranches: false,
+                                        merchBranchIds: [],
                                       },
                                     ])
                                     setActivePermission(id)
@@ -670,9 +694,13 @@ function GrantEditor({
                                   setPharmacySearch('')
                                 }}
                               >
-                                {grant.allPharmacies
-                                  ? 'Вся сеть'
-                                  : `Аптеки: ${grant.pharmacyIds.length}`}
+                                {permission.scopeType === 'MERCH_BRANCH'
+                                  ? grant.allMerchBranches
+                                    ? 'Все аптеки мерча'
+                                    : `Аптеки мерча: ${grant.merchBranchIds?.length ?? 0}`
+                                  : grant.allPharmacies
+                                    ? 'Вся сеть'
+                                    : `Аптеки: ${grant.pharmacyIds.length}`}
                               </button>
                             )}
                           </div>
@@ -692,11 +720,11 @@ function GrantEditor({
                       Пустой список не предоставляет доступ. Выбор относится только к этому
                       действию.
                     </p>
-                    {!activeGrant.allPharmacies && activeGrant.pharmacyIds.length > 0 && (
+                    {!scopeAll && scopeIds.length > 0 && (
                       <div className="text-[12px] text-ink-500">
                         <p className="font-semibold">Текущая выбранная область:</p>
-                        {activeGrant.pharmacyIds.map((id) => {
-                          const pharmacy = catalog.pharmacies.find((item) => item.id === id)
+                        {scopeIds.map((id) => {
+                          const pharmacy = scopeItems.find((item) => item.id === id)
                           return (
                             <p key={id}>
                               {pharmacy
@@ -712,32 +740,30 @@ function GrantEditor({
                       <input
                         type="radio"
                         name="access-scope"
-                        checked={!activeGrant.allPharmacies}
+                        checked={!scopeAll}
                         disabled={locked}
-                        onChange={() =>
-                          changeGrant(activePermission, { allPharmacies: false, pharmacyIds: [] })
-                        }
+                        onChange={() => changeGrant(activePermission, scopePatch(false, []))}
                       />
-                      Выбранные аптеки
+                      {merchScope ? 'Аптеки мерча' : 'Выбранные аптеки'}
                     </label>
                     <label className="flex items-center gap-2 text-[13px]">
                       <input
                         type="radio"
                         name="access-scope"
-                        checked={activeGrant.allPharmacies}
-                        disabled={locked || !active.delegationScope?.allPharmacies}
-                        onChange={() =>
-                          changeGrant(activePermission, { allPharmacies: true, pharmacyIds: [] })
-                        }
+                        checked={scopeAll}
+                        disabled={locked || !delegatableAll}
+                        onChange={() => changeGrant(activePermission, scopePatch(true, []))}
                       />
-                      Вся сеть — явное разрешение
+                      {merchScope
+                        ? 'Все аптеки мерча — явное разрешение'
+                        : 'Вся сеть — явное разрешение'}
                     </label>
                     {active.mode === 'ALL_ONLY' && (
                       <p className="text-[12px] text-ink-500">
                         Для этого действия сервер поддерживает только всю сеть.
                       </p>
                     )}
-                    {!activeGrant.allPharmacies && (
+                    {!scopeAll && (
                       <>
                         <Input
                           aria-label="Поиск аптек для доступа"
@@ -746,11 +772,10 @@ function GrantEditor({
                           onChange={(event) => setPharmacySearch(event.target.value)}
                         />
                         <div className="max-h-64 overflow-auto">
-                          {catalog.pharmacies
+                          {scopeItems
                             .filter(
                               (pharmacy) =>
-                                (active.delegationScope?.allPharmacies ||
-                                  active.delegationScope?.pharmacyIds.includes(pharmacy.id)) &&
+                                (delegatableAll || delegatableIds.includes(pharmacy.id)) &&
                                 `${pharmacy.city} ${pharmacy.name} ${pharmacy.address}`
                                   .toLocaleLowerCase()
                                   .includes(pharmacySearch.toLocaleLowerCase()),
@@ -763,16 +788,18 @@ function GrantEditor({
                                 <input
                                   type="checkbox"
                                   aria-label={`${pharmacy.city}, ${pharmacy.name}, ${pharmacy.address}`}
-                                  checked={activeGrant.pharmacyIds.includes(pharmacy.id)}
+                                  checked={scopeIds.includes(pharmacy.id)}
                                   disabled={locked || active.mode === 'ALL_ONLY'}
                                   onChange={(event) =>
-                                    changeGrant(activePermission, {
-                                      pharmacyIds: event.target.checked
-                                        ? [...activeGrant.pharmacyIds, pharmacy.id]
-                                        : activeGrant.pharmacyIds.filter(
-                                            (id) => id !== pharmacy.id,
-                                          ),
-                                    })
+                                    changeGrant(
+                                      activePermission,
+                                      scopePatch(
+                                        false,
+                                        event.target.checked
+                                          ? [...scopeIds, pharmacy.id]
+                                          : scopeIds.filter((id) => id !== pharmacy.id),
+                                      ),
+                                    )
                                   }
                                 />
                                 <span>
@@ -784,7 +811,7 @@ function GrantEditor({
                               </label>
                             ))}
                         </div>
-                        {!catalog.pharmacies.length && (
+                        {!scopeItems.length && (
                           <p className="text-[12px] text-ink-500">
                             Нет подтверждённых аптек для выбора.
                           </p>
@@ -804,7 +831,7 @@ function GrantEditor({
                 <h3 className="font-bold">Подтвердите изменение прав</h3>
                 <p className="text-[13px]">
                   {grants.length
-                    ? `Будет сохранено разрешений: ${grants.length}. На всю сеть: ${grants.filter((grant) => grant.allPharmacies).length}.`
+                    ? `Будет сохранено разрешений: ${grants.length}. На всю сеть ePharm: ${grants.filter((grant) => grant.allPharmacies).length}; на все аптеки мерча: ${grants.filter((grant) => grant.allMerchBranches).length}.`
                     : 'Все управляемые права аккаунта будут отозваны.'}{' '}
                   Сохранение использует проверенную версию {profile.version}.
                 </p>
