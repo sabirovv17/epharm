@@ -8,6 +8,7 @@ import java.time.ZoneId
 import java.util.Base64
 import java.util.UUID
 import kz.epharm.merchtasks.dto.MerchTaskDeliveryResult
+import kz.epharm.merch.automation.AutomationOwnerEligibility
 import kz.epharm.merchtasks.dto.MerchTaskDto
 import kz.epharm.merchtasks.dto.MerchTaskEnvelope
 import kz.epharm.merchtasks.dto.MerchTaskShownRequest
@@ -106,8 +107,9 @@ internal object NativeDeliveryEligibility {
         AND ($alias.available_from IS NULL OR $alias.available_from<=?)
         AND NOT EXISTS(SELECT 1 FROM merch_task_items future WHERE future.dispatch_id=$alias.id
           AND future.status NOT IN ('completed','cancelled') AND future.available_from>?)
-        AND ($alias.source_mass_owner_id IS NOT NULL OR ($alias.source_system='EPHARM' AND $alias.created_by IS NOT NULL)
-          OR EXISTS(SELECT 1 FROM merch_task_items training WHERE training.dispatch_id=$alias.id AND training.training_material_id IS NOT NULL))
+        AND (($alias.native_automation_generated AND ${AutomationOwnerEligibility.sql("$alias.branch_id")}) OR
+          (NOT $alias.native_automation_generated AND ($alias.source_mass_owner_id IS NOT NULL OR ($alias.source_system='EPHARM' AND $alias.created_by IS NOT NULL)
+          OR EXISTS(SELECT 1 FROM merch_task_items training WHERE training.dispatch_id=$alias.id AND training.training_material_id IS NOT NULL))))
         AND ($alias.source_system<>'MERCH_CRM' OR NULLIF($alias.source_payload->>'media_plan_id','') IS NULL OR $alias.source_media_plan_id IS NOT NULL)
         AND ($alias.source_media_plan_id IS NULL OR $alias.media_plan_id=$alias.source_media_plan_id)
         AND ($alias.media_plan_id IS NULL OR EXISTS(SELECT 1 FROM merch_media_plans plan WHERE plan.id=$alias.media_plan_id AND plan.status='approved'))

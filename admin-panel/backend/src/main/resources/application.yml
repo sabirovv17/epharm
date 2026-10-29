@@ -88,6 +88,11 @@ app:
     native-delivery-enabled: ${MERCH_NATIVE_DELIVERY_ENABLED:false}
     native-executor-enabled: ${MERCH_NATIVE_EXECUTOR_ENABLED:false}
     producer-auth-enabled: ${MERCH_PRODUCER_AUTH_ENABLED:false}
+    automation:
+      # Enable only after the source-cycle projection and explicit single-writer cutover.
+      enabled: ${MERCH_AUTOMATION_ENABLED:false}
+      delay-ms: ${MERCH_AUTOMATION_DELAY_MS:300000}
+      initial-delay-ms: ${MERCH_AUTOMATION_INITIAL_DELAY_MS:60000}
     placements:
       expiry-enabled: ${MERCH_PLACEMENT_EXPIRY_ENABLED:false}
       expiry-delay-ms: ${MERCH_PLACEMENT_EXPIRY_DELAY_MS:60000}

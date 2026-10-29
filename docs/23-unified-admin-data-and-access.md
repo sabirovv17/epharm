@@ -213,7 +213,7 @@ DELETE аптеки пока NOT_READY: старый `playlists.pharmacy_id ON D
 
 ### Управление аккаунтами
 
-Семь `/api/admin/access` endpoint имеют отдельные проверки. Каталог содержит
+Операции `/api/admin/access` имеют отдельные проверки. Каталог содержит
 также недоступные пока действия; это не обещание их подключения. Для создания
 аккаунта нужен заранее проверенный person_id, а не совпадение имени/email.
 Свежий пароль делегирующего проверяется непосредственно при каждой записи;
@@ -274,3 +274,51 @@ account aliases. A free capability report with an unverified executor has an
 explicit HQ-only manual decision, reason and audit mode; it cannot earn money or
 claim verified independence. Producer sessions are a separate token realm and
 never impersonate an administrator or learner.
+
+### Controlled first HQ profile
+
+`tools/unification/bootstrap_hq.py` prepares the first verified HQ profile only in
+the designated, pinned, offline PostgreSQL16 candidate. Its default `--plan` is
+read-only. `--apply` additionally needs an explicitly selected account/PERSON,
+verification reference and exact grants in an owner-only input file, pinned input,
+route catalogue and database identities, and a new private report path. It never
+derives a person from a name, changes the existing admin row, activates the trusted
+primary-owner configuration, switches legacy accounts to MANAGED, or grants
+credential exports. A repeated application is a no-op only while the complete
+profile, proof, grants and original audit markers still agree. Subsequent profile
+edits are conflicts, never an invitation to reset permissions. The synthetic
+fixture is not authorization to bootstrap a real operator or production.
+
+### Separate Excel projections
+
+Ledger, payouts, pharmacist registry, campaign, producer, merch inventory,
+placements, tasks, course/program authoring and learning assignments/results have
+separate XLSX endpoints and explicit export grants. Export permission alone does
+not replace view, personal-data or financial permission. Branch/customer filters
+apply before counts, sums and rows; ambiguous historical money is not attributed to
+the pharmacist's current pharmacy. Formula-like values remain text. Capacity limits
+reject an oversized report explicitly instead of silently dropping rows.
+
+Producer attribution is an explicit, versioned campaign binding with a dated
+interval, reason and append-only retraction. A brand name is not a verified
+manufacturer. HQ may create a business manufacturer record without creating a
+producer login, canonical person or pharmacy organization. Ordinary exports never
+contain password hashes, private verification references, SMS or QR capabilities.
+
+### Weekly placement task derivation
+
+The native weekly worker is opt-in and must remain off until the source-cycle
+projection and a single-writer cutover are accepted. Plan approval publishes an
+event after its audit succeeds; derivation runs after commit in a new transaction.
+A failure leaves the approved plan intact and the worker retries idempotently.
+Calendar deadlines use Asia/Almaty, seven calendar days and the placement month end;
+a future placement first gets preparation until its month starts. Existing source
+cycles keep their IDs, dates and state; unprojected cycles block regeneration.
+
+Each plan/branch/cycle and plan-item/cycle is unique. More than 500 items is a
+diagnostic, never an implicit split. Current source MAS membership or an explicitly
+verified native assignment is a business ownership fact, not an authorization grant
+or a proven reward recipient. Missing ownership blocks delivery without inventing
+a person. The worker creates no reward and cannot bypass the paid-executor proof.
+`owned_automation.py` projects preserved metadata only; it does not start workers,
+issue links, replay ACKs or overwrite source data.

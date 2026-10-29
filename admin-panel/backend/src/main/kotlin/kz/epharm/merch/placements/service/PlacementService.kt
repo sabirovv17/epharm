@@ -5,11 +5,13 @@ import kz.epharm.auth.access.AdministrativeScope
 import kz.epharm.auth.policy.PermissionKey
 import kz.epharm.merch.placements.dto.*
 import kz.epharm.merch.placements.repository.*
+import kz.epharm.merch.automation.PlacementApprovedForAutomation
 import kz.epharm.merch.producer.auth.ProducerAuthService
 import kz.epharm.merch.producer.auth.ProducerPrincipal
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import org.springframework.http.HttpStatus
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.security.crypto.password.PasswordEncoder
@@ -30,7 +32,7 @@ object PlacementPermissions {
 @Service
 class PlacementService(private val repository: PlacementRepository,private val access: AdministrativeScope,
     private val json: ObjectMapper,private val transactions: PlatformTransactionManager,private val producerSessions:ProducerAuthService,
-    private val jdbc:JdbcTemplate,private val passwordEncoder:PasswordEncoder) {
+    private val jdbc:JdbcTemplate,private val passwordEncoder:PasswordEncoder,private val events:ApplicationEventPublisher) {
     @Transactional(readOnly=true)
     fun producerBranches(actor:PlacementActor.Producer,limit:Int,offset:Int):ProducerBranchOptions {
         activeProducer(actor.customerId)
@@ -165,6 +167,7 @@ class PlacementService(private val repository: PlacementRepository,private val a
             repository.transition(id,PlacementStatus.approved,null,actor,null,now)
         }
         audit(id,actor,if(assignment) "assigned" else "draft_created",now)
+        if(assignment) events.publishEvent(PlacementApprovedForAutomation(id))
         return dto(load(id),repository.items(id),actor)
     }
     @Transactional
@@ -228,6 +231,7 @@ class PlacementService(private val repository: PlacementRepository,private val a
             }
         }
         audit(id,actor,action,now)
+        if(action=="approve") events.publishEvent(PlacementApprovedForAutomation(id))
         return dto(load(id),repository.items(id),actor)
     }
 

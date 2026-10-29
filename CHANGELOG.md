@@ -7,6 +7,11 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ### Added
 
+- Unified-admin development candidate: seven navigation sections, verified account and grant
+  management, native merchandising inventory, producer workspace, placement review, pharmacy task
+  attempts/evidence/review, compatible POSM task delivery, and separate scoped Excel reports.
+- Offline-only rehearsal tools preserve source rows, identities, capabilities and private evidence;
+  native automation and new authentication realms remain opt-in pending migration acceptance.
 - Added fail-open merchandising recommendations and structured pharmacy/network/warehouse stock
   context to the existing POSM recommendation flow, while preserving ePharm's canonical rules,
   event attribution and pharmacist balance accounting.
@@ -14,8 +19,11 @@ All notable production changes to Epharm are recorded here. The format follows
   interactive content, downloadable attachments, required lessons and minimum video-view targets;
   the mobile app now renders and opens every published material.
 - Added local search and operational sorting to the pharmacist training list.
+
 ### Fixed
 
+- Prevent a delayed pharmacist course response from reopening a course after navigation away from
+  it; preserve the separate Training tab and bank-card placeholder from the latest main.
 - Added a bounded mobile API timeout so unavailable services fail with an actionable retry state
   instead of leaving the application waiting indefinitely.
 - POSM 1.0.65 spreads healthy QR-task polling over 24–36 seconds per device, reducing
