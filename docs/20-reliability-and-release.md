@@ -165,6 +165,15 @@ available. Prefer a tested roll-forward; any exceptional rollback requires freez
 writers and reconciling projection/ledger before reopening them. Disabling CRM rewards alone is
 not sufficient. Never drop migrations or rewrite entries to make an old binary appear compatible.
 
+The actual v0.1.47 artifact is wallet-capable; its isolated forward-schema financial rehearsal is
+not an authorization recovery approval. Once the V066 managed-access schema exists, a recovery
+artifact must also contain the reviewed scope and fresh-revocation implementation.
+`verify-financial-transition.py` checks both boundaries on the exact image and refuses v0.1.47
+on that expanded schema. The existing archive transaction saves only its real predecessor; it
+cannot substitute an unpromoted development image as recovery. Before the first unified release,
+review and rehearse a pinned RBAC-compatible recovery/roll-forward procedure. Do not weaken this
+guard, relabel an older binary as current main, or restore an old database over new POSM sales.
+
 ## Monitoring and alerting
 
 The `monitoring` Compose profile includes Prometheus, Alertmanager, Grafana, blackbox exporter,

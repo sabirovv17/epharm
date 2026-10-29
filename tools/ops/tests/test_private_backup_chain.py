@@ -76,10 +76,10 @@ if '--entrypoint' in args:
         archive = minio / 'epharm-minio-20261030T010000Z.tar.gz'
         with tarfile.open(archive, 'w:gz') as output:
             for name in ['data', 'data/epharm-receipts', 'policies']:
-                entry = tarfile.TarInfo(name); entry.type = tarfile.DIRTYPE; output.addfile(entry)
+                entry = tarfile.TarInfo(name); entry.type = tarfile.DIRTYPE; entry.mode = 0o700; output.addfile(entry)
             for name, body in [('manifest.txt', b'buckets=epharm-receipts\nminio_policy_format=1\n'),
                                ('data/epharm-receipts/object', b'fixture'), ('policies/epharm-receipts.json', b'{}')]:
-                entry = tarfile.TarInfo(name); entry.size = len(body); output.addfile(entry, io.BytesIO(body))
+                entry = tarfile.TarInfo(name); entry.size = len(body); entry.mode = 0o600; output.addfile(entry, io.BytesIO(body))
         archive.chmod(0o600)
         for path in (dump, archive):
             self.write(Path(str(path) + '.sha256'), f'{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n'.encode())

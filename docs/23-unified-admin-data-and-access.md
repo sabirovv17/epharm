@@ -370,6 +370,30 @@ A pinned task reference remains readable after archive even if JVM and database
 clocks differ: its exact immutable UUID and verified parent lineage are authority,
 not a cross-clock ordering predicate.
 
+### Verified legacy QR capabilities and selective promotion
+
+V088 adds an immutable alias for each exact imported CRM dispatch capability. The
+projection refuses unknown kiosk lineage or issuer channels and verifies source payload,
+branch, dispatch, token hash, original expiry and the exact typed-source artifact marker.
+The default-off legacy cutover flag admits these aliases only to the public task workflow;
+it does not turn them into POSM-issued tokens, shown acknowledgements or human identity.
+Free source tasks may be submitted late until their original link expiry; paid tasks keep
+their deadline and executor checks. Source revocation/submission cannot be cleared to
+resurrect an imported alias. Cached old-browser mutations receive an honest rescan error.
+
+`tools/unification/prepare_live_promotion.py` generates a private, target-bound package;
+it never connects to the target or applies SQL. Its compiled allowlist is the reviewed
+68 new public tables plus the single V088 alias table. The 72 original business tables
+and Flyway history are never copied or overwritten. The target must already have the
+exact plain-Flyway V088 schema, all 69 native tables empty and no CRM staging schema.
+The generated transaction recreates the 57 source tables inertly, imports native rows
+in FK order and verifies counts, keys, values and original-table hashes. A repeat or
+partial import is refused without changes; there is no implicit seed reconciliation.
+Execute only through the manifest's exact pinned container command after rechecking its
+identity and package checksums. SQL additionally checks database/OID/system identifier,
+version, locale, schema and migration checksums. HQ bootstrap and native writers follow
+promotion. Fresh source deltas and a single-writer freeze remain operational release gates.
+
 ### D9: current learner credential export
 
 `LearnerCredentialExportFacade` commits bounded attempt accounting before the domain

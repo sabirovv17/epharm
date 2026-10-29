@@ -7,33 +7,33 @@
   "domain": "https://epharm.inkar.kz",
   "separateLearnPreserved": true,
   "posmRpsEnabled": false,
-  "jarSha256": "df351555f03c33c44c915802f7d2f811862fa11a40e9db7eb98aa2b78ca02475",
+  "jarSha256": "e5723ec8cc1e7cddb7f0273c386258808bb94317220cb4a953163b77c8d03453",
   "checks": {
     "backend": {
-      "tests": 1285,
+      "tests": 1292,
       "failures": 0,
       "errors": 0,
       "skipped": 1,
       "suites": 142,
-      "jarSha256": "df351555f03c33c44c915802f7d2f811862fa11a40e9db7eb98aa2b78ca02475",
-      "gradle": "test check --max-workers=2"
+      "jarSha256": "e5723ec8cc1e7cddb7f0273c386258808bb94317220cb4a953163b77c8d03453",
+      "gradle": "test check bootJar --no-daemon"
     },
     "backendSkippedReason": "Explicit old-v038 rollback test needs WALLET_ROLLBACK_JAR; separate exact-running-v047 compatibility rehearsal passed",
     "frontend": {
-      "passed": 907,
+      "passed": 916,
       "failed": 0,
       "suites": 98,
       "lint": "passed",
       "build": "passed"
     },
     "builtChromium": {
-      "passed": 39,
+      "passed": 41,
       "failed": 0,
       "optInSyntheticLabSkipped": 7,
-      "separateOptInExecution": "Seven unique live cases passed across focused runs; see qa-general-acceptance.json"
+      "separateOptInExecution": "One clean 7/7 run on final V088 JAR; clean-seven-case-acceptance-088.json"
     },
     "migrationTools": {
-      "total": 133,
+      "total": 142,
       "failed": 0,
       "skipped": 1,
       "disposablePgOptIns": ["RUN_BOOTSTRAP_HQ_PG_TESTS=1", "RUN_OWNED_AUTOMATION_PG_TESTS=1"]
@@ -64,25 +64,40 @@
     "ci404888f": {
       "ops": "failed on an invalid legacy restore-readiness test archive; fixture now has a real required manifest",
       "currentSourceRequiresNewCi": true
+    },
+    "composeNativeFlags": {
+      "falseAndTrueRender": "passed",
+      "backendFlags": 6,
+      "caddyFlags": 1,
+      "productionChanged": false
+    },
+    "ciAeda3cc": {
+      "passedJobs": 19,
+      "failedJobs": ["ops/config fixture directory traversal mode", "dependent P0 merge gate"],
+      "fixtureFixed": "non-root uid1001 Python111/111 and shell10/10 passed; exact final CI pending"
     }
   },
   "preservationEvidence": [
     "fresh-database-preservation-087.json",
     "fresh-owned-pipeline-087.json",
-    "ops-fresh-source-preservation.json"
+    "ops-fresh-source-preservation.json",
+    "fresh-legacy-capability-preservation-088.json"
   ],
   "runtimeEvidence": [
     "qa-general-acceptance.json",
     "synthetic-disaster-recovery-087.json",
     "v47-forward087-synthetic-compatibility.json",
-    "rbac-baseline-forward087-synthetic-compatibility.json"
+    "rbac-baseline-forward087-synthetic-compatibility.json",
+    "clean-seven-case-acceptance-088.json",
+    "selective-promotion-rehearsal-088.json"
   ],
   "openReleaseGates": [
-    "Actual Standard-N scan, WPF overlay/customer display and current-candidate QR pilot",
+    "Windows clone row fix and overlay passed; Standard-N current check vs active DB document/complete customer display boundary is still inconsistent",
     "Fresh full live backup and isolated recovery including both MinIO buckets, private files and independently recoverable D9 key",
     "Reviewed pinned RBAC-compatible recovery artifact and controlled single-writer/cutover with fresh deltas",
     "Exact-main CI/P0 and immutable release images after review/promotion",
-    "Remaining business acceptance/full function coverage must not be inferred from source inventory"
+    "Remaining business acceptance/full function coverage must not be inferred from source inventory",
+    "Optional legacy recommendation-context/stock feed still calls CRM; native port not implemented; source signal/balance tables currently empty"
   ],
   "limitations": [
     "Synthetic engineering tests do not prove physical visibility or a live pharmacy sale",
@@ -90,5 +105,6 @@
     "Source CRM test plans are preserved as diagnostic history without inventing producer ownership; no production data deletion"
   ],
   "inventorySha256": "94224645e5510b5415456ee7bd939ced93e32e5fb6fd6b664cf7f4461de0425d",
-  "frontendIndexSha256": "a9f11e724c35b4806c98ee880bc6322b66d21502d8541908cefc3ae396eb289f"
+  "frontendIndexSha256": "61def0dcc5baf53c80661344fcecb2e4e7e0f6614dd6d9558b345aeee74b3fd7",
+  "previousAcceptanceJarSha256": "df351555f03c33c44c915802f7d2f811862fa11a40e9db7eb98aa2b78ca02475"
 }

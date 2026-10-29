@@ -162,7 +162,7 @@ class DevDataSeeder(private val jdbc: JdbcTemplate) {
         // Disposable dev fixtures only. DELETE is intentionally forbidden by the monetary/publication
         // append-only triggers; truncate the complete, explicit FK set in this transaction.
         // Never weaken the production ledger or use CASCADE to erase unrelated domains.
-        jdbc.execute("""TRUNCATE TABLE merch_reward_events, merch_executor_grants,
+        jdbc.execute("""TRUNCATE TABLE merch_legacy_capability_aliases, merch_reward_events, merch_executor_grants,
             merch_executor_bindings, merch_executor_otp_challenges,
             merch_task_reviews, merch_task_evidence, merch_task_stock_observations, merch_task_attempts, merch_task_rewards,
             pharmacist_wallet_entries, pharmacist_wallet_checkpoints, learner_password_vault,

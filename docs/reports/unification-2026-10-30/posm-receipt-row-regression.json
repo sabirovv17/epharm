@@ -55,9 +55,29 @@
     }
   ],
   "regression": "Actual linked production upsert; ObservableCollection replace distinct old/new instances; DB and log observations; fields, identity preservation, computed row values and total, decrease, zero/negative/removal.",
-  "productionWpfAssemblyBuilt": false,
-  "releaseOrMetadataChanged": false,
+  "productionWpfAssemblyBuilt": true,
+  "releaseOrMetadataChanged": true,
   "productionTouched": false,
   "candidateVersion": "1.0.73",
-  "fleetPublished": false
+  "fleetPublished": false,
+  "metadataChange": "Candidate 1.0.73 only; no release tag, signed update or fleet publication",
+  "windowsCi": {
+    "run": 40962270485,
+    "head": "aeda3cc5a3469169f9f8ead373c106629227146b",
+    "testedPrMerge": "7ab40f190d726d88f8f450ffe1d2402f548e1e3f",
+    "windowsBuild": "passed",
+    "dllSha256": "a3ebfa0bcdb34ed042294579a5f1684e96df383765bffff6d6241c4196138a81",
+    "wholeCi": "failed ops test fixture; corrected locally; exact final CI required"
+  },
+  "renderedFixedBinaryRetest": "Row replacement and topmost overlay passed; complete receipt boundary remains under investigation",
+  "vmObservation": {
+    "quantityBefore": 1,
+    "quantityAfter": 2,
+    "lineAmountBefore": 1690,
+    "lineAmountAfter": 3380,
+    "standardNCurrentCheckTotalAfter": 6560,
+    "customerDisplayActiveDocumentTotalAfter": 3380,
+    "completeReceiptVerified": false,
+    "productionWrites": false
+  }
 }

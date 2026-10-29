@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "state": "offline_selective_promotion_verified",
+  "databaseSchemaVersion": "088",
+  "productionWrites": false,
+  "sourceCandidateWrites": false,
+  "applicationStarted": false,
+  "jobsStarted": false,
+  "productionCutoverApproved": false,
+  "sourceDumpSha256": "9c12cbf910f7269cf8003553be9f9d2c4e736f8d69a628e682e243784ab127c2",
+  "crmArtifactSha256": "682ad2cfdd784e59048e08e97dd1be1a56434c5b7a907e215c10e3ae5648d1d0",
+  "sourceIdentitySha256": "18ed9d8faa66288c0e17f5222899c38b0aa814a79c45a24d43cba399b5a540d4",
+  "targetIdentitySha256": "f611488cae6d3ebd694bbe12c27bb2b572fb9a54caff1364622ca46913b98a3d",
+  "targetIsolation": {
+    "network": "none",
+    "publishedPorts": false,
+    "newTargetFromFresh76Dump": true
+  },
+  "preservation": {
+    "originalBusinessTables": 72,
+    "originalRowsBeforeExtraSale": 1932894,
+    "originalRowsAfterExtraSaleAndPromotion": 1932895,
+    "controlledExtraOriginalSales": 1,
+    "all72CountsPrimaryKeysAndFullValuesUnchanged": true,
+    "allFlywayRowsAndFullValuesUnchanged": true,
+    "nativeTables": 69,
+    "nativeRows": 41472,
+    "nativeCountPrimaryKeysAndFullValuesMatchSource": true,
+    "typedCrmTables": 57,
+    "typedCrmRows": 42414,
+    "typedCrmSchemaManifestRowsExact": true,
+    "sourceFunctionsTriggersJobsReplayed": false,
+    "legacyAliases": 36
+  },
+  "negativeChecks": {
+    "missingOriginalFkParent": {
+      "sqlstate": "23503",
+      "all69NativeTablesEmptyAfterRollback": true,
+      "crmStageAbsentAfterRollback": true,
+      "controlledOriginalSalePreserved": true
+    },
+    "repeat": {
+      "sqlstate": "23514",
+      "behavior": "refuse before data writes; no upsert, merging or seed reconciliation"
+    },
+    "schemaVariant": {
+      "fullUnknownSchemaRejected": true,
+      "changedLiteralOrMissingCheckRejected": true,
+      "reviewedExactCheckDefinitionSubstitutions": 29,
+      "sourceSchemaSha256": "658db80a0cc75a7f045853ecd1acfa21e3ea4bd92c24d0d76a12ea1885db97f6",
+      "plainFlywayTargetSchemaSha256": "fb0b8c4a087c63fdaa43789419f724b2d1dd2ccd50e1af0a52bc2a69b0878415"
+    }
+  },
+  "package": {
+    "sha256": "a6a4fabb3a190595b0476f6e35d87c4b1ac39180a1d963082e2ec7a28ebd88d8",
+    "manifestSha256": "75162e8f11e5bd23a5a1b8073e49d0edcbbf609e73503ef91be5bffb620fe09e",
+    "sqlSha256": "906d8e240df5a123fc19f3d1e2762d75e80961b8f633448430350e2355bee70a",
+    "generatorNeverExecutesGeneratedSql": true,
+    "targetDatabasePinsEnforcedInSql": true,
+    "dockerIdentityRequiresExactManifestOperatorCommand": true,
+    "filesOwnerOnly": true
+  },
+  "timingSeconds": {
+    "missingFkRollback": 61.556,
+    "successfulAtomicPromotion": 85.243,
+    "independentPostVerification": 34.841
+  },
+  "verification": {
+    "focusedTests": 7,
+    "focusedFailures": 0,
+    "actualPostgresWorkflow": true,
+    "fixtureOnlySyntheticSchemaProfileMock": true
+  },
+  "sourceFilesSha256": {
+    "tools/unification/prepare_live_promotion.py": "b58cbf0ba2a5efa7ecbd2ab02542280ca7267c82e1c705e65d18ef286c2bef8e",
+    "tools/unification/promotion_schema_088.json": "717f2304b312eac58778bd744dad438593f6dd14b2327879526110f5bb252a39",
+    "tools/unification/tests/test_prepare_live_promotion.py": "af691de54061532913ca911f922478636683b5ac8ad83560af4a83787eb190eb"
+  },
+  "limitations": [
+    "Offline rehearsal only; no production transfer was attempted.",
+    "This frozen CRM source was captured on29October. Actual cutover needs all CRM writer fences, fresh recapture/materialization and regenerated exact-target package if source changed.",
+    "SQL pins DB/system/OID/schema; Docker container identity requires the manifest exact-container command and external package SHA verification.",
+    "Pristine69 target and absent CRM stage are required. Existing seeds or operational rows are refused, never overwritten.",
+    "No deployment, live financial/POSM acceptance, or disaster-recovery approval follows merely from this result."
+  ]
+}

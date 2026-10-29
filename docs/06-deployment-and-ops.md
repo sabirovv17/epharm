@@ -38,7 +38,7 @@ tunnel or VPN.
 
 ## Caddy
 
-Current `Caddyfile` intentionally uses one site block for `{$ADMIN_DOMAIN}` and handles:
+`Caddyfile` uses one site block for `{$ADMIN_DOMAIN}`. Before native cutover it handles:
 
 - `/s3/*` -> MinIO with prefix stripped;
 - `/api/*` -> backend;
@@ -63,6 +63,29 @@ vhost and rollback procedure are described in
 [`storefront/deploy/inkar-server/README.md`](../storefront/deploy/inkar-server/README.md).
 The CRM must filter overdue assignments before returning active tasks. After the CRM URL switch,
 scan a newly issued QR in a browser; old cached legacy QR links are not a compatibility guarantee.
+
+Native cutover is an explicit, default-off operation. Compose forwards
+`MERCH_NATIVE_DELIVERY_ENABLED`, `MERCH_NATIVE_EXECUTOR_ENABLED`,
+`MERCH_PRODUCER_AUTH_ENABLED`, `MERCH_AUTOMATION_ENABLED`,
+`MERCH_PLACEMENT_EXPIRY_ENABLED` and `MERCH_LEGACY_PORTAL_CUTOVER_ENABLED` to the
+backend; the last flag also reaches Caddy. Do not enable schedulers before stopping the
+source CRM's in-process weekly/expiry loops and the old reward drainer. The flags are
+independent gates, not permission to enable payments, rewards or RPS login.
+
+With legacy portal cutover enabled, exact GET `/merch/staff` and `/staff` task entries
+serve the native SPA without forwarding a query bearer or the integration key upstream.
+The browser consumes only the supported old `?task=CAP` / `?task=1#task=CAP` shapes,
+scrubs them before telemetry and continues at `/tasks/staff`. A historical capability
+also needs the verified immutable V088 alias and import provenance; merely enabling the
+flag does not authorize arbitrary old links. Native POSM issuer/ACK ownership remains
+unchanged. Existing free links retain late submission until their original expiry;
+paid deadlines and current branch/parent/revocation checks remain enforced.
+
+Cached old task API/media requests return explicit no-store HTTP 409 asking to reopen
+the QR. They must not silently write to the retired CRM database after its writer freeze.
+The external `crm.inkar.kz` edge route needs a separately verified switch, including
+corporate direct DNS/TLS; editing this Caddyfile alone does not migrate that hostname.
+`/staff` without a task still uses the old staff portal until that separate flow is moved.
 
 The merchandising server credential must use HTTPS when the upstream is outside the private
 INKAR network. The public QR portal is a separate browser route with a deny-by-default allowlist;

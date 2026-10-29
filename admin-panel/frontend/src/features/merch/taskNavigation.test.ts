@@ -30,4 +30,37 @@ describe('native task capability bootstrap', () => {
     expect(window.location.hash).toBe('')
     expect(window.location.search).toBe('?task=1')
   })
+  it.each(['/staff', '/merch/staff'])(
+    'consumes both exact legacy task URL shapes at %s before telemetry',
+    (path) => {
+      for (const suffix of [`?task=${token}&unknown=discard`, `?task=1#task=${token}`]) {
+        window.history.replaceState({}, '', path + suffix)
+        captureTaskNavigation()
+        expect(taskCapabilityToken()).toBe(token)
+        expect(window.location.pathname + window.location.search + window.location.hash).toBe(
+          '/tasks/staff?task=1',
+        )
+        expect(localStorage.length + sessionStorage.length).toBe(0)
+      }
+    },
+  )
+  it.each([
+    `?task=${token}#task=${token}`,
+    `?task=${token}&task=${token}`,
+    `?task=1#task=${token}&task=${token}`,
+    `?access=${token}`,
+    `?token=${token}`,
+    '?task=short',
+  ])('rejects ambiguous or invented legacy token keys and still scrubs them: %s', (suffix) => {
+    window.history.replaceState({}, '', '/merch/staff' + suffix)
+    captureTaskNavigation()
+    expect(taskCapabilityToken()).toBeNull()
+    expect(window.location.href).not.toContain(token)
+    expect(window.location.pathname).toBe('/tasks/staff')
+  })
+  it('does not capture a capability from a lookalike route', () => {
+    window.history.replaceState({}, '', `/merch/staff-other?task=${token}`)
+    captureTaskNavigation()
+    expect(window.location.pathname).toBe('/merch/staff-other')
+  })
 })

@@ -7,6 +7,27 @@
 	auto_https disable_certs
 }
 
+(legacy_staff_entry) {
+	@native_legacy_task {
+		query task=*
+		expression `"{$MERCH_LEGACY_PORTAL_CUTOVER_ENABLED:false}" == "true"`
+	}
+	handle @native_legacy_task {
+		header Referrer-Policy no-referrer
+		header Cache-Control no-store
+		# Keep the browser URL until its synchronous bootstrap consumes and scrubs the capability.
+		rewrite * /tasks/staff?
+		reverse_proxy frontend:80 {
+			header_up -X-Pharmapay-Key
+		}
+	}
+	handle {
+		header Referrer-Policy no-referrer
+		header Cache-Control no-store
+		redir https://crm.inkar.kz/staff{?query} 302
+	}
+}
+
 # API/ADMIN/S3 используют один публичный хост (epharm.inkar.kz). Этот snippet
 # обеспечивает единые маршруты для прямого Caddy TLS и внешнего TLS ingress.
 (epharm_routes) {
@@ -35,6 +56,15 @@
 	# server-to-server credential is never forwarded to a browser route.
 	handle /merch/* {
 		route {
+			@retired_legacy_api {
+				path /merch/api/public/task-dispatch /merch/api/public/task-dispatch/queue /merch/api/public/task-dispatch/start /merch/api/public/task-dispatch/checklist /merch/api/public/task-dispatch/evidence /merch/api/public/task-dispatch/submit /merch/api/task-files/* /merch/api/request-item-files/* /merch/api/placement-files/*
+				expression `"{$MERCH_LEGACY_PORTAL_CUTOVER_ENABLED:false}" == "true"`
+			}
+			handle @retired_legacy_api {
+				header Cache-Control no-store
+				header Content-Type application/json
+				respond `{"code":"MERCH_PORTAL_MOVED","message":"Повторно откройте QR-код: портал заданий обновлён. Неотправленные действия не подтверждены."}` 409
+			}
 			@merch_staff {
 				path /merch/staff
 				method GET
@@ -52,12 +82,7 @@
 				method GET
 			}
 			handle @merch_staff {
-				# Legacy QR only. Move the browser to CRM so its root-absolute
-				# /assets and /api requests stay on the CRM host. New QR codes use
-				# the fragment-token URL directly and never traverse this redirect.
-				header Referrer-Policy no-referrer
-				header Cache-Control no-store
-				redir https://crm.inkar.kz/staff{?query} 302
+				import legacy_staff_entry
 			}
 			handle @merch_assets {
 				uri strip_prefix /merch
@@ -79,6 +104,14 @@
 			}
 			respond 404
 		}
+	}
+	# The external CRM edge may forward only this task entry after its controlled cutover.
+	handle /staff {
+		@staff_get method GET
+		handle @staff_get {
+			import legacy_staff_entry
+		}
+		respond 404
 	}
 
 	# API для касс (/api/posm), телефонов (/api/mobile) и самой админки.

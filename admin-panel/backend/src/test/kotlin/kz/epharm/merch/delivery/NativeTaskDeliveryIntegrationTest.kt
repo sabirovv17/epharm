@@ -71,6 +71,7 @@ class NativeTaskDeliveryIntegrationTest {
         jdbc.execute("TRUNCATE merch_task_dispatches,merch_branches,merch_organizations,merch_media_plans,unified_persons,admin_users,pharmacies,chains CASCADE")
         now=Instant.parse("2026-10-29T09:00:00Z");every {clock.instant()} answers {now}
         ReflectionTestUtils.setField(delivery,"enabled",true)
+        ReflectionTestUtils.setField(capabilities,"legacyCutover",false)
         admin=users.saveAndFlush(AdminUserEntity(email="native-delivery@example.invalid",name="Synthetic author",passwordHash="unused",roleRaw=AdminRole.HQ_HEAD.name))
         jdbc.update("""INSERT INTO chains(id,name,color,"group",points) VALUES('native-chain','Synthetic','#000000','pilot',0)""")
         for(id in listOf("native-pharmacy","foreign-pharmacy")) jdbc.update("""INSERT INTO pharmacies(id,name,chain_id,chain_name,city,district,addr,"group")
@@ -88,7 +89,8 @@ class NativeTaskDeliveryIntegrationTest {
         jdbc.update("""INSERT INTO merch_task_dispatches(id,source_system,source_origin,source_id,source_payload,branch_id,title,status,
             priority,task_type,due_at,reward_amount_kzt,created_by,source_mass_owner_id,source_media_plan_id,media_plan_id,automation_kind,created_at,updated_at)
             VALUES(?,?,?,?,CAST(? AS jsonb),?,'Synthetic task',?,?,'photo_report',?,?,?,?,?,?,?,now(),now())""",id,source,
-            if(source=="EPHARM") "https://epharm.inkar.kz" else "https://crm.inkar.kz",id,json.writeValueAsString(payload),branch,status,priority,
+            if(source=="EPHARM") "https://epharm.inkar.kz" else "https://crm.inkar.kz",id,json.writeValueAsString(
+                if(source=="MERCH_CRM") mapOf("id" to id,"branch_id" to branch)+payload else payload),branch,status,priority,
             due?.let(Timestamp::from),reward,if(source=="EPHARM")admin.id else null,sourceOwner,sourcePlan,plan,automation)
         val item=UUID.randomUUID()
         jdbc.update("""INSERT INTO merch_task_items(id,dispatch_id,source_id,source_payload,title,instructions,task_type,available_from,due_at,
@@ -106,6 +108,127 @@ class NativeTaskDeliveryIntegrationTest {
     private fun receipt(task:MerchTaskDto,device:String="SYNTHETIC-POS-01",pharmacy:String="native-pharmacy")=
         MerchTaskShownRequest(task.id,pharmacy,device,task.deliveryToken)
     private fun count(table:String)=jdbc.queryForObject("SELECT count(*) FROM $table",Long::class.java)!!
+
+    private fun legacy(id:UUID,native:Boolean=false,proof:Boolean=true,aliasBranch:UUID?=null,
+        sourceRevoked:Boolean=false,sourceSubmitted:Boolean=false):String {
+        val link=UUID.randomUUID();val token=UUID.randomUUID().toString().replace("-","")+"syntheticlegacycap"
+        val hash=NativeCapabilityAuthorization.tokenHash(token);val expires=now.plusSeconds(7200)
+        val channel=if(native) "pharmapay_posm" else null
+        val payload=mapOf("id" to link,"dispatch_id" to id,"token_hash" to hash,"issued_channel" to channel,"expires_at" to expires,
+            "revoked_at" to if(sourceRevoked) now else null,"submitted_at" to if(sourceSubmitted) now else null)
+        jdbc.update("""INSERT INTO merch_task_links(id,dispatch_id,token_hash,issued_channel,expires_at,native_owned,source_payload,revoked_at,submitted_at)
+            VALUES(?,?,?,?,?,?,?::jsonb,?,?)""",link,id,hash,channel,Timestamp.from(expires),native,json.writeValueAsString(payload),
+            if(sourceRevoked) Timestamp.from(now) else null,if(sourceSubmitted) Timestamp.from(now) else null)
+        if(proof) {
+            val source="a".repeat(64)
+            jdbc.update("""INSERT INTO unified_import_runs(operation_key,source_sha256,identity_sha256,result_json)
+                VALUES(?,?,?,'{}') ON CONFLICT DO NOTHING""","owned_merch_legacy_caps:"+source.take(24),source,source)
+            jdbc.update("""INSERT INTO merch_legacy_capability_aliases(link_id,dispatch_id,branch_id,token_hash,source_channel,
+                source_expires_at,source_payload_sha256,source_artifact_sha256)
+                SELECT l.id,l.dispatch_id,COALESCE(CAST(? AS uuid),d.branch_id),l.token_hash,l.issued_channel,l.expires_at,
+                  encode(sha256(convert_to(l.source_payload::text,'UTF8')),'hex'),? FROM merch_task_links l
+                JOIN merch_task_dispatches d ON d.id=l.dispatch_id WHERE l.id=?""",aliasBranch,source,link)
+        }
+        return token
+    }
+
+    @Test fun `legacy alias is opt in and never becomes a native POSM issuer`() {
+        val id=dispatch(source="MERCH_CRM");val token=legacy(id)
+        assertThatThrownBy {capabilities.authorize(token)}.isInstanceOf(AppException::class.java)
+        ReflectionTestUtils.setField(capabilities,"legacyCutover",true)
+        assertThat(capabilities.authorize(token).dispatchId).isEqualTo(id)
+        assertThat(delivery.ownsNativeDeliveryToken(token)).isFalse()
+        assertThat(delivery.markShown(MerchTaskShownRequest(id.toString(),"native-pharmacy","synthetic",token)).accepted).isFalse()
+        assertThatThrownBy {capabilities.authorize("random".repeat(10))}.isInstanceOf(AppException::class.java)
+        assertThatThrownBy {capabilities.authorize(legacy(id,proof=false))}.isInstanceOf(AppException::class.java)
+    }
+
+    @Test fun `verified historical free late capability can submit until link expiry without inventing a person`() {
+        ReflectionTestUtils.setField(capabilities,"legacyCutover",true)
+        val id=dispatch(source="MERCH_CRM",due=now.minusSeconds(60));val token=legacy(id)
+        assertThat(capabilities.authorize(token).readOnly).isFalse()
+        val item=jdbc.queryForObject("SELECT id FROM merch_task_items WHERE dispatch_id=?",UUID::class.java,id)!!
+        mvc.perform(post("/api/public/merch/tasks/items/$item/attempts").header("X-Merch-Task-Token",token))
+            .andExpect(status().isOk).andExpect(jsonPath("$.executorPersonId").doesNotExist())
+        mvc.perform(post("/api/public/merch/tasks/items/$item/submit").header("X-Merch-Task-Token",token)
+            .contentType("application/json").content("""{"expectedAttempt":1,"completedChecklistIds":[],"comment":"synthetic late report"}"""))
+            .andExpect(status().isOk).andExpect(jsonPath("$.status").value("submitted"))
+        assertThat(count("unified_persons")).isZero();assertThat(count("merch_task_rewards")).isZero()
+    }
+
+    @Test fun `verified imported POSM free link gets late compatibility but native generated and paid do not`() {
+        ReflectionTestUtils.setField(capabilities,"legacyCutover",true)
+        val imported=legacy(dispatch(source="MERCH_CRM",due=now.minusSeconds(1)),native=true)
+        assertThat(capabilities.authorize(imported).readOnly).isFalse()
+        assertThat(delivery.ownsNativeDeliveryToken(imported)).isTrue()
+        val paid=legacy(dispatch(source="MERCH_CRM",due=now.minusSeconds(1),reward=400))
+        assertThat(capabilities.authorize(paid).readOnly).isTrue()
+        assertThatThrownBy {tx.execute {capabilities.requirePaidMutation(paid)}}.isInstanceOf(AppException::class.java)
+        assertThatThrownBy {tx.execute {capabilities.requireFreeMutation(paid)}}.isInstanceOf(AppException::class.java)
+        dispatch();val generated=issued();now=now.plusSeconds(3601)
+        assertThat(capabilities.authorize(generated.deliveryToken).readOnly).isTrue()
+    }
+
+    @Test fun `alias requires exact link hash expiry payload branch and import provenance`() {
+        ReflectionTestUtils.setField(capabilities,"legacyCutover",true)
+        val id=dispatch(source="MERCH_CRM");val token=legacy(id)
+        jdbc.update("UPDATE merch_task_links SET source_payload=source_payload||'{\"tampered\":true}' WHERE dispatch_id=?",id)
+        assertThatThrownBy {capabilities.authorize(token)}.isInstanceOf(AppException::class.java)
+        val other=dispatch(source="MERCH_CRM");val second=legacy(other)
+        jdbc.update("UPDATE merch_task_links SET expires_at=expires_at+interval '1 second' WHERE dispatch_id=?",other)
+        assertThatThrownBy {capabilities.authorize(second)}.isInstanceOf(AppException::class.java)
+        val third=legacy(dispatch(source="MERCH_CRM"))
+        jdbc.execute("TRUNCATE unified_import_runs")
+        assertThatThrownBy {capabilities.authorize(third)}.isInstanceOf(AppException::class.java)
+    }
+
+    @Test fun `legacy current branch parent future revoked submitted and expiry gates remain authoritative`() {
+        ReflectionTestUtils.setField(capabilities,"legacyCutover",true)
+        val parent=plan();val id=dispatch(source="MERCH_CRM",payload=mapOf("media_plan_id" to parent),sourcePlan=parent,plan=parent)
+        val token=legacy(id)
+        jdbc.update("UPDATE merch_media_plans SET status='cancelled' WHERE id=?",parent)
+        assertThatThrownBy {capabilities.authorize(token)}.isInstanceOf(AppException::class.java)
+        val future=legacy(dispatch(source="MERCH_CRM",future=now.plusSeconds(1)))
+        assertThat(capabilities.authorize(future).readOnly).isTrue()
+        val submitted=legacy(dispatch(source="MERCH_CRM"))
+        jdbc.update("UPDATE merch_task_links SET submitted_at=now() WHERE token_hash=?",NativeCapabilityAuthorization.tokenHash(submitted))
+        assertThat(capabilities.authorize(submitted).readOnly).isTrue()
+        val revoked=legacy(dispatch(source="MERCH_CRM"))
+        jdbc.update("UPDATE merch_task_links SET revoked_at=now() WHERE token_hash=?",NativeCapabilityAuthorization.tokenHash(revoked))
+        assertThatThrownBy {capabilities.authorize(revoked)}.isInstanceOf(AppException::class.java)
+        val current=legacy(dispatch(source="MERCH_CRM"));jdbc.update("UPDATE merch_branches SET pharmacy_binding_verified=false,epharm_pharmacy_id=NULL WHERE id=?",branch)
+        assertThatThrownBy {capabilities.authorize(current)}.isInstanceOf(AppException::class.java)
+        jdbc.update("UPDATE merch_branches SET pharmacy_binding_verified=true,epharm_pharmacy_id='native-pharmacy' WHERE id=?",branch)
+        now=now.plusSeconds(7201)
+        assertThatThrownBy {capabilities.authorize(current)}.isInstanceOf(AppException::class.java)
+    }
+
+    @Test fun `alias evidence is append only and a foreign branch tuple cannot authorize`() {
+        ReflectionTestUtils.setField(capabilities,"legacyCutover",true)
+        val foreign=UUID.randomUUID();val organizationId=jdbc.queryForObject("SELECT organization_id FROM merch_branches WHERE id=?",UUID::class.java,branch)!!
+        jdbc.update("""INSERT INTO merch_branches(id,source_system,source_origin,source_id,source_payload,organization_id,epharm_pharmacy_id,
+            pharmacy_binding_verified,code,name,address,city,active,created_at,updated_at)
+            VALUES(?,'EPHARM','https://epharm.inkar.kz',?,'{}',?,'foreign-pharmacy',true,'002','Synthetic foreign','Synthetic','Synthetic',true,now(),now())""",foreign,foreign,organizationId)
+        val forged=legacy(dispatch(source="MERCH_CRM"),aliasBranch=foreign)
+        assertThatThrownBy {capabilities.authorize(forged)}.isInstanceOf(AppException::class.java)
+        val token=legacy(dispatch(source="MERCH_CRM"))
+        assertThatThrownBy {jdbc.update("UPDATE merch_legacy_capability_aliases SET source_artifact_sha256=?","b".repeat(64))}
+            .isInstanceOf(org.springframework.dao.DataIntegrityViolationException::class.java)
+        assertThat(capabilities.authorize(token).branchId).isEqualTo(branch)
+        jdbc.update("UPDATE merch_task_links SET token_hash=? WHERE token_hash=?","f".repeat(64),NativeCapabilityAuthorization.tokenHash(token))
+        assertThatThrownBy {capabilities.authorize(token)}.isInstanceOf(AppException::class.java)
+    }
+
+    @Test fun `source revoked and submitted capability snapshots cannot be resurrected by clearing current flags`() {
+        ReflectionTestUtils.setField(capabilities,"legacyCutover",true)
+        val revoked=legacy(dispatch(source="MERCH_CRM"),sourceRevoked=true)
+        jdbc.update("UPDATE merch_task_links SET revoked_at=NULL WHERE token_hash=?",NativeCapabilityAuthorization.tokenHash(revoked))
+        assertThatThrownBy {capabilities.authorize(revoked)}.isInstanceOf(AppException::class.java)
+        val submitted=legacy(dispatch(source="MERCH_CRM"),sourceSubmitted=true)
+        jdbc.update("UPDATE merch_task_links SET submitted_at=NULL WHERE token_hash=?",NativeCapabilityAuthorization.tokenHash(submitted))
+        assertThat(capabilities.authorize(submitted).readOnly).isTrue()
+        assertThatThrownBy {tx.execute {capabilities.requireFreeMutation(submitted)}}.isInstanceOf(AppException::class.java)
+    }
 
     @Test fun `poll reuses one opaque capability and never records a display until actual ACK`() {
         val id=dispatch();val first=issued();val second=issued()

@@ -1,0 +1,181 @@
+{
+  "schemaVersion": "088",
+  "sourceSchemaSha256": "658db80a0cc75a7f045853ecd1acfa21e3ea4bd92c24d0d76a12ea1885db97f6",
+  "plainSchemaSha256": "fb0b8c4a087c63fdaa43789419f724b2d1dd2ccd50e1af0a52bc2a69b0878415",
+  "substitutions": [
+    {
+      "table": "admin_users",
+      "constraint": "admin_users_access_mode_check",
+      "sourceDefinition": "CHECK (access_mode::text = ANY (ARRAY['LEGACY'::character varying::text, 'MANAGED'::character varying::text]))",
+      "targetDefinition": "CHECK (access_mode::text = ANY (ARRAY['LEGACY'::character varying, 'MANAGED'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_automation_branch_owners",
+      "constraint": "merch_automation_branch_owners_source_system_check",
+      "sourceDefinition": "CHECK (source_system::text = ANY (ARRAY['EPHARM'::character varying::text, 'MERCH_CRM'::character varying::text]))",
+      "targetDefinition": "CHECK (source_system::text = ANY (ARRAY['EPHARM'::character varying, 'MERCH_CRM'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_branches",
+      "constraint": "merch_branches_source_system_check",
+      "sourceDefinition": "CHECK (source_system::text = ANY (ARRAY['MERCH_CRM'::character varying::text, 'EPHARM'::character varying::text]))",
+      "targetDefinition": "CHECK (source_system::text = ANY (ARRAY['MERCH_CRM'::character varying, 'EPHARM'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_inventory_audit",
+      "constraint": "merch_inventory_audit_action_check",
+      "sourceDefinition": "CHECK (action::text = ANY (ARRAY['block'::character varying::text, 'unblock'::character varying::text]))",
+      "targetDefinition": "CHECK (action::text = ANY (ARRAY['block'::character varying, 'unblock'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_inventory_containers",
+      "constraint": "merch_inventory_containers_source_system_check",
+      "sourceDefinition": "CHECK (source_system::text = ANY (ARRAY['MERCH_CRM'::character varying::text, 'EPHARM'::character varying::text]))",
+      "targetDefinition": "CHECK (source_system::text = ANY (ARRAY['MERCH_CRM'::character varying, 'EPHARM'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_inventory_media",
+      "constraint": "merch_inventory_media_angle_check",
+      "sourceDefinition": "CHECK (angle::text = ANY (ARRAY['facade'::character varying::text, 'entrance'::character varying::text, 'hall'::character varying::text, 'checkout'::character varying::text, 'panorama'::character varying::text, 'shelf'::character varying::text]))",
+      "targetDefinition": "CHECK (angle::text = ANY (ARRAY['facade'::character varying, 'entrance'::character varying, 'hall'::character varying, 'checkout'::character varying, 'panorama'::character varying, 'shelf'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_inventory_media",
+      "constraint": "merch_inventory_media_mime_type_check",
+      "sourceDefinition": "CHECK (mime_type::text = ANY (ARRAY['image/jpeg'::character varying::text, 'image/png'::character varying::text, 'image/webp'::character varying::text]))",
+      "targetDefinition": "CHECK (mime_type::text = ANY (ARRAY['image/jpeg'::character varying, 'image/png'::character varying, 'image/webp'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_media_plan_items",
+      "constraint": "merch_media_plan_items_sale_portion_check",
+      "sourceDefinition": "CHECK (sale_portion::text = ANY (ARRAY['whole'::character varying::text, 'left'::character varying::text, 'right'::character varying::text]))",
+      "targetDefinition": "CHECK (sale_portion::text = ANY (ARRAY['whole'::character varying, 'left'::character varying, 'right'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_media_plan_items",
+      "constraint": "merch_media_plan_items_source_system_check",
+      "sourceDefinition": "CHECK (source_system::text = ANY (ARRAY['MERCH_CRM'::character varying::text, 'EPHARM'::character varying::text]))",
+      "targetDefinition": "CHECK (source_system::text = ANY (ARRAY['MERCH_CRM'::character varying, 'EPHARM'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_media_plan_items",
+      "constraint": "merch_media_plan_items_status_check",
+      "sourceDefinition": "CHECK (status::text = ANY (ARRAY['draft'::character varying::text, 'pending'::character varying::text, 'approved'::character varying::text, 'rejected'::character varying::text, 'cancelled'::character varying::text]))",
+      "targetDefinition": "CHECK (status::text = ANY (ARRAY['draft'::character varying, 'pending'::character varying, 'approved'::character varying, 'rejected'::character varying, 'cancelled'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_media_plans",
+      "constraint": "merch_media_plans_origin_check",
+      "sourceDefinition": "CHECK (origin::text = ANY (ARRAY['request'::character varying::text, 'admin_assignment'::character varying::text]))",
+      "targetDefinition": "CHECK (origin::text = ANY (ARRAY['request'::character varying, 'admin_assignment'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_media_plans",
+      "constraint": "merch_media_plans_source_system_check",
+      "sourceDefinition": "CHECK (source_system::text = ANY (ARRAY['MERCH_CRM'::character varying::text, 'EPHARM'::character varying::text]))",
+      "targetDefinition": "CHECK (source_system::text = ANY (ARRAY['MERCH_CRM'::character varying, 'EPHARM'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_media_plans",
+      "constraint": "merch_media_plans_status_check",
+      "sourceDefinition": "CHECK (status::text = ANY (ARRAY['draft'::character varying::text, 'pending'::character varying::text, 'approved'::character varying::text, 'rejected'::character varying::text, 'cancelled'::character varying::text]))",
+      "targetDefinition": "CHECK (status::text = ANY (ARRAY['draft'::character varying, 'pending'::character varying, 'approved'::character varying, 'rejected'::character varying, 'cancelled'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_monthly_inventory",
+      "constraint": "merch_monthly_inventory_block_reason_check",
+      "sourceDefinition": "CHECK (block_reason::text = ANY (ARRAY['repair'::character varying::text, 'own_promo'::character varying::text, 'reserve'::character varying::text]))",
+      "targetDefinition": "CHECK (block_reason::text = ANY (ARRAY['repair'::character varying, 'own_promo'::character varying, 'reserve'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_monthly_inventory",
+      "constraint": "merch_monthly_inventory_source_system_check",
+      "sourceDefinition": "CHECK (source_system::text = ANY (ARRAY['MERCH_CRM'::character varying::text, 'EPHARM'::character varying::text]))",
+      "targetDefinition": "CHECK (source_system::text = ANY (ARRAY['MERCH_CRM'::character varying, 'EPHARM'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_monthly_inventory",
+      "constraint": "merch_monthly_inventory_status_check",
+      "sourceDefinition": "CHECK (status::text = ANY (ARRAY['available'::character varying::text, 'held'::character varying::text, 'booked'::character varying::text, 'blocked'::character varying::text]))",
+      "targetDefinition": "CHECK (status::text = ANY (ARRAY['available'::character varying, 'held'::character varying, 'booked'::character varying, 'blocked'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_organizations",
+      "constraint": "merch_organizations_source_system_check",
+      "sourceDefinition": "CHECK (source_system::text = ANY (ARRAY['MERCH_CRM'::character varying::text, 'EPHARM'::character varying::text]))",
+      "targetDefinition": "CHECK (source_system::text = ANY (ARRAY['MERCH_CRM'::character varying, 'EPHARM'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_placement_audit",
+      "constraint": "merch_placement_audit_actor_type_check",
+      "sourceDefinition": "CHECK (actor_type::text = ANY (ARRAY['ADMIN'::character varying::text, 'PRODUCER'::character varying::text, 'SYSTEM'::character varying::text]))",
+      "targetDefinition": "CHECK (actor_type::text = ANY (ARRAY['ADMIN'::character varying, 'PRODUCER'::character varying, 'SYSTEM'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_placement_campaigns",
+      "constraint": "merch_placement_campaigns_source_system_check",
+      "sourceDefinition": "CHECK (source_system::text = ANY (ARRAY['EPHARM'::character varying::text, 'MERCH_CRM'::character varying::text]))",
+      "targetDefinition": "CHECK (source_system::text = ANY (ARRAY['EPHARM'::character varying, 'MERCH_CRM'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_placement_item_product_details",
+      "constraint": "merch_placement_item_product_details_source_system_check",
+      "sourceDefinition": "CHECK (source_system::text = ANY (ARRAY['EPHARM'::character varying::text, 'MERCH_CRM'::character varying::text]))",
+      "targetDefinition": "CHECK (source_system::text = ANY (ARRAY['EPHARM'::character varying, 'MERCH_CRM'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_producers",
+      "constraint": "merch_producers_source_system_check",
+      "sourceDefinition": "CHECK (source_system::text = ANY (ARRAY['EPHARM'::character varying::text, 'MERCH_CRM'::character varying::text]))",
+      "targetDefinition": "CHECK (source_system::text = ANY (ARRAY['EPHARM'::character varying, 'MERCH_CRM'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_shelves",
+      "constraint": "merch_shelves_place_type_check",
+      "sourceDefinition": "CHECK (place_type::text = ANY (ARRAY['shelf'::character varying::text, 'screen'::character varying::text, 'tv'::character varying::text]))",
+      "targetDefinition": "CHECK (place_type::text = ANY (ARRAY['shelf'::character varying, 'screen'::character varying, 'tv'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_shelves",
+      "constraint": "merch_shelves_sale_mode_check",
+      "sourceDefinition": "CHECK (sale_mode::text = ANY (ARRAY['whole_only'::character varying::text, 'whole_or_halves'::character varying::text]))",
+      "targetDefinition": "CHECK (sale_mode::text = ANY (ARRAY['whole_only'::character varying, 'whole_or_halves'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_shelves",
+      "constraint": "merch_shelves_source_system_check",
+      "sourceDefinition": "CHECK (source_system::text = ANY (ARRAY['MERCH_CRM'::character varying::text, 'EPHARM'::character varying::text]))",
+      "targetDefinition": "CHECK (source_system::text = ANY (ARRAY['MERCH_CRM'::character varying, 'EPHARM'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_supplier_budget_plan_items",
+      "constraint": "merch_supplier_budget_plan_items_source_system_check",
+      "sourceDefinition": "CHECK (source_system::text = ANY (ARRAY['EPHARM'::character varying::text, 'MERCH_CRM'::character varying::text]))",
+      "targetDefinition": "CHECK (source_system::text = ANY (ARRAY['EPHARM'::character varying, 'MERCH_CRM'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_supplier_budget_plans",
+      "constraint": "merch_supplier_budget_plans_source_system_check",
+      "sourceDefinition": "CHECK (source_system::text = ANY (ARRAY['EPHARM'::character varying::text, 'MERCH_CRM'::character varying::text]))",
+      "targetDefinition": "CHECK (source_system::text = ANY (ARRAY['EPHARM'::character varying, 'MERCH_CRM'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_supplier_company_members",
+      "constraint": "merch_supplier_company_members_source_system_check",
+      "sourceDefinition": "CHECK (source_system::text = ANY (ARRAY['EPHARM'::character varying::text, 'MERCH_CRM'::character varying::text]))",
+      "targetDefinition": "CHECK (source_system::text = ANY (ARRAY['EPHARM'::character varying, 'MERCH_CRM'::character varying]::text[]))"
+    },
+    {
+      "table": "merch_task_dispatches",
+      "constraint": "merch_task_dispatches_source_system_check",
+      "sourceDefinition": "CHECK (source_system::text = ANY (ARRAY['EPHARM'::character varying::text, 'MERCH_CRM'::character varying::text]))",
+      "targetDefinition": "CHECK (source_system::text = ANY (ARRAY['EPHARM'::character varying, 'MERCH_CRM'::character varying]::text[]))"
+    },
+    {
+      "table": "unified_source_links",
+      "constraint": "unified_source_links_source_system_check",
+      "sourceDefinition": "CHECK (source_system::text = ANY (ARRAY['EPHARM'::character varying::text, 'MERCH_CRM'::character varying::text]))",
+      "targetDefinition": "CHECK (source_system::text = ANY (ARRAY['EPHARM'::character varying, 'MERCH_CRM'::character varying]::text[]))"
+    }
+  ]
+}

@@ -24,6 +24,9 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ### Fixed
 
+- Preserve verified historical CRM task capabilities during an explicit native cutover,
+  including free late submission until original link expiry, without expanding POSM issuer
+  authority. Selective migration tooling keeps new live sales and refuses partial/repeated imports.
 - POSM 1.0.73 candidate: replace changed receipt rows with a fresh object so quantity,
   price, discount and line amount refresh together with the total after a Standard-N scan.
   The real shared upsert is covered by both log and Firebird lifecycle regression tests.

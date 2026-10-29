@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "jarSha256": "df351555f03c33c44c915802f7d2f811862fa11a40e9db7eb98aa2b78ca02475",
+  "provider": "synthetic-HTTPS-Daribar-protocol-only",
+  "isolationVerified": true,
+  "aggregate": {
+    "adminAccounts": 6,
+    "managedProfiles": 6,
+    "verifiedPeople": 7,
+    "accessAuditRows": 11,
+    "trainingAssignments": 2,
+    "approvedPlacements": 1,
+    "approvedTaskItems": 1,
+    "evidenceRows": 1,
+    "taskShownReceipts": 1,
+    "recommendationEvents": 1,
+    "recommendationsAcked": 1,
+    "recommendationsRejected": 1,
+    "posSales": 1,
+    "walletEntries": 0,
+    "capturedPasswordCopies": 1,
+    "unconsumedCredentialExports": 0,
+    "credentialAuditRows": 3
+  },
+  "renderedOverlayProven": false,
+  "businessUserAcceptanceProven": false,
+  "state": "single_clean_seven_case_acceptance_passed_before_V088",
+  "browser": {
+    "passed": 7,
+    "failed": 0,
+    "duration": "7.6 minutes",
+    "apiMocks": false,
+    "externalSms": false,
+    "screenshotsOrTracesWithSecrets": false
+  },
+  "cases": [
+    "HQ creates scoped MAS; foreign resources denied",
+    "Regional and training scope boundaries",
+    "Producer OTP, media plan, approval and XLSX",
+    "Separate learner login, photo task, independent review, POSM ACK",
+    "Fresh revocation with existing JWT",
+    "D9-only HQ selected workbook and secret boundaries",
+    "Installed POSM heartbeat shapes and duplicate synthetic sale"
+  ],
+  "afterVerification": "Owned app and synthetic OTP transport stopped; private PG/files retained"
+}

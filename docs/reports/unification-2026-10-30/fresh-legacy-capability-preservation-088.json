@@ -1,0 +1,32 @@
+{
+  "applicationStarted": false,
+  "collate": "en_US.utf8",
+  "ctype": "en_US.utf8",
+  "currentFlywayVersion": 88,
+  "encoding": "UTF8",
+  "identitySha256": "18ed9d8faa66288c0e17f5222899c38b0aa814a79c45a24d43cba399b5a540d4",
+  "kind": "isolated088clone_plainFlyway_and_verified_alias_projection",
+  "localeProvider": "c",
+  "migration088Sha256": "89f4967697ede0608906e3dbecc78fa4f0da26876d904e7b1283c2fb339507a0",
+  "network": "none",
+  "newAliasTable": "merch_legacy_capability_aliases",
+  "newLinks": 0,
+  "newRewards": 0,
+  "original72BusinessPreserved": true,
+  "portsPublished": false,
+  "postgresImageId": "sha256:7e7dbab8d3b431a20793a6d99cb5a6bc84e44914309917f1bf5589a7568cdefd",
+  "productionChanged": false,
+  "publicTableCount": 142,
+  "source087Unchanged": true,
+  "sourceArtifactSha256": "682ad2cfdd784e59048e08e97dd1be1a56434c5b7a907e215c10e3ae5648d1d0",
+  "verifiedAliases": 36,
+  "versionNum": 160014,
+  "newPublicTables": 69,
+  "projectionReplay": "exact verified NOOP; aliases immutable",
+  "nativeIssuerOrAckAuthorityExpanded": false,
+  "limitations": [
+    "Private source capture is not a live writer freeze",
+    "Imported in-progress work still requires the explicit existing HQ source-continuation workflow",
+    "Free source capability expiry is preserved; paid deadlines and separate identity checks are not relaxed"
+  ]
+}
