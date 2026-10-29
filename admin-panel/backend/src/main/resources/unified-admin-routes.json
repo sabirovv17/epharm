@@ -437,7 +437,7 @@
       "action": "view",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "GET /api/admin/promo/{id}",
@@ -447,7 +447,7 @@
       "action": "view",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "GET /api/admin/promo/{id}/rules",
@@ -457,7 +457,7 @@
       "action": "view",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "GET /api/admin/reconcile",
@@ -517,7 +517,7 @@
       "action": "view",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "GET /api/admin/rules/{id}",
@@ -527,7 +527,7 @@
       "action": "view",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "GET /api/admin/screens/broadcast",
@@ -907,7 +907,7 @@
       "action": "edit",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "PATCH /api/admin/rules/{id}",
@@ -917,7 +917,7 @@
       "action": "edit",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "PATCH /api/admin/screens/playlists/{id}",
@@ -1267,7 +1267,7 @@
       "action": "create",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "POST /api/admin/promo/refresh-prices",
@@ -1287,7 +1287,7 @@
       "action": "archive",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "POST /api/admin/promo/{id}/restore",
@@ -1297,7 +1297,7 @@
       "action": "restore",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "POST /api/admin/reconcile/import-excel",
@@ -1347,7 +1347,7 @@
       "action": "create",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "POST /api/admin/rules/{id}/archive",
@@ -1357,7 +1357,7 @@
       "action": "archive",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "POST /api/admin/rules/{id}/duplicate",
@@ -1367,7 +1367,7 @@
       "action": "duplicate",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "POST /api/admin/screens/broadcast",
@@ -1507,7 +1507,7 @@
       "action": "edit",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "PUT /api/admin/screens/broadcast/profiles/{id}/pharmacies",

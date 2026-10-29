@@ -1,5 +1,6 @@
 package kz.epharm.promo.service
 
+import kz.epharm.auth.access.AdministrativeScope
 import kz.epharm.medusa.service.MedusaPriceService
 import kz.epharm.pharmacies.repository.PharmacyRepository
 import kz.epharm.promo.dto.CreatePromoRequest
@@ -38,6 +39,7 @@ class PromoService(
     private val ruleRepository: RuleRepository,
     private val pharmacyRepository: PharmacyRepository,
     private val promoRulesService: PromoRulesService,
+    private val administrativeScope: AdministrativeScope,
 ) {
 
     @Transactional(readOnly = true)
@@ -56,6 +58,12 @@ class PromoService(
 
     @Transactional
     fun create(req: CreatePromoRequest, createdBy: String): PromoDto {
+        if (req.status != null && req.status != PromoStatus.draft) {
+            administrativeScope.requireAllPermission(MotivationPermissions.campaignPublish)
+        }
+        if (req.pharmacistBonus != 0L || req.budget != 0L) {
+            administrativeScope.requireAllPermission(MotivationPermissions.configureBonus)
+        }
         val medusaProductId = req.medusaProductId?.trim()?.takeIf { it.isNotBlank() }
         val initialRecommendation = req.initialRecommendation
         if (initialRecommendation != null) {
@@ -124,7 +132,20 @@ class PromoService(
 
     @Transactional
     fun update(id: String, req: UpdatePromoRequest): PromoDto {
-        val entity = loadOrThrow(id)
+        val entity = loadOrThrow(id, forUpdate = true)
+        if (entity.status == PromoStatus.active || req.status != null && req.status != entity.status) {
+            administrativeScope.requireAllPermission(MotivationPermissions.campaignPublish)
+        }
+        val nextProduct = req.medusaProductId?.trim()?.takeIf(String::isNotBlank)
+            ?: entity.medusaProductId.takeIf { req.medusaProductId == null }
+        val nextBonus = if (nextProduct == null) 0L else req.pharmacistBonus ?: entity.pharmacistBonus
+        val paidTiers = entity.tiers.filter { it.bonus != 0L }.map { it.minQty to it.bonus }
+        val nextPaidTiers = if (nextBonus != 0L) listOf(1 to nextBonus) else emptyList()
+        val hasPaidTerms = nextBonus != 0L || paidTiers.isNotEmpty() || (entity.goalBonus ?: 0) != 0
+        if (req.budget != null && req.budget != entity.budget || paidTiers != nextPaidTiers ||
+            hasPaidTerms && nextProduct != entity.medusaProductId) {
+            administrativeScope.requireAllPermission(MotivationPermissions.configureBonus)
+        }
         if (entity.status == PromoStatus.archived) {
             throw AppException(
                 ErrorCode.CONFLICT,
@@ -192,8 +213,9 @@ class PromoService(
 
     @Transactional
     fun archive(id: String): PromoDto {
-        val entity = loadOrThrow(id)
+        val entity = loadOrThrow(id, forUpdate = true)
         if (entity.status == PromoStatus.archived) return dto(entity)
+        administrativeScope.requireAllPermission(MotivationPermissions.campaignPublish)
         entity.status = PromoStatus.archived
         val saved = promoRepository.save(entity)
         syncGeneratedRuleStatuses(saved)
@@ -206,8 +228,9 @@ class PromoService(
      */
     @Transactional
     fun restore(id: String): PromoDto {
-        val entity = loadOrThrow(id)
+        val entity = loadOrThrow(id, forUpdate = true)
         if (entity.status != PromoStatus.archived) return dto(entity)
+        administrativeScope.requireAllPermission(MotivationPermissions.campaignPublish)
         entity.status = PromoStatus.draft
         val saved = promoRepository.save(entity)
         syncGeneratedRuleStatuses(saved)
@@ -234,6 +257,9 @@ class PromoService(
      *     (при refetchPrice=true), иначе сохраняем текущую цену.
      */
     private fun syncTier(e: PromoEntity, desiredBonus: Long, refetchPrice: Boolean) {
+        if (desiredBonus !in 0L..Int.MAX_VALUE.toLong()) {
+            throw AppException(ErrorCode.VALIDATION_FAILED, "Бонус превышает допустимый размер", HttpStatus.BAD_REQUEST)
+        }
         val mpid = e.medusaProductId
         if (mpid == null) {
             e.tiers = emptyList()
@@ -281,7 +307,7 @@ class PromoService(
      * При активации включаем только пары, которые админ не оставил черновиками.
      */
     private fun syncGeneratedRuleStatuses(promo: PromoEntity) {
-        val rules = ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc(promo.id)
+        val rules = ruleRepository.findAllByPromoIdForUpdate(promo.id)
         if (rules.isEmpty()) return
 
         val effectiveStatus: (Boolean) -> RuleStatus = when (promo.status) {
@@ -297,8 +323,8 @@ class PromoService(
         ruleRepository.saveAllAndFlush(rules)
     }
 
-    private fun loadOrThrow(id: String): PromoEntity =
-        promoRepository.findById(id).orElseThrow {
+    private fun loadOrThrow(id: String, forUpdate: Boolean = false): PromoEntity =
+        (if (forUpdate) promoRepository.findForUpdate(id) else promoRepository.findById(id)).orElseThrow {
             AppException(ErrorCode.NOT_FOUND, "Promo $id not found", HttpStatus.NOT_FOUND)
         }
 

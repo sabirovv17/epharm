@@ -1,5 +1,6 @@
 package kz.epharm.promo.service
 
+import kz.epharm.auth.access.AdministrativeScope
 import kz.epharm.catalog.entity.ProductEntity
 import kz.epharm.catalog.repository.ProductRepository
 import kz.epharm.catalog.service.AccCatalogTaxonomy
@@ -51,6 +52,7 @@ class PromoRulesService(
     private val productRepository: ProductRepository,
     private val medusaPriceService: MedusaPriceService,
     private val accCatalogTaxonomy: AccCatalogTaxonomy,
+    private val administrativeScope: AdministrativeScope,
 ) {
 
     @Transactional(readOnly = true)
@@ -91,7 +93,7 @@ class PromoRulesService(
      */
     @Transactional
     fun replace(promoId: String, config: PromoRulesConfigDto, createdBy: String): PromoRulesViewDto {
-        val promo = loadPromo(promoId)
+        val promo = loadPromo(promoId, forUpdate = true)
         val promotedMedusaId = promo.medusaProductId
             ?: throw AppException(
                 ErrorCode.VALIDATION_FAILED,
@@ -101,6 +103,9 @@ class PromoRulesService(
         // Validate all scopes before deleting existing campaign rules.
         val replacementTriggers = config.replacements.map { it to triggerFor(it) }
         val crossSellTriggers = config.crossSells.map { it to triggerFor(it) }
+        val currentRules = ruleRepository.findAllByPromoIdForUpdate(promoId)
+        val campaignBonus = checkedCampaignBonus(promo)
+        authorizeReplacement(promo, config, currentRules, replacementTriggers, crossSellTriggers, campaignBonus)
         // Локальный товар-продвигаемый (recommend для замен и кросс-селла).
         val promoted = upsertPromotedProduct(promo, promotedMedusaId)
 
@@ -116,7 +121,6 @@ class PromoRulesService(
 
         // Старые клиенты не передают per-offer bonus и сохраняют бонус кампании.
         // Явный 0 в новом редакторе означает «без бонуса» для конкретного препарата.
-        val campaignBonus = promo.pharmacistBonus.toInt()
         // Кампания — мастер-выключатель: правило active только если И кампания active,
         // И сама пара active (ref.active). Иначе — draft.
         val campaignActive = promo.status == PromoStatus.active
@@ -184,8 +188,60 @@ class PromoRulesService(
 
     // ── Internals ─────────────────────────────────────────────────────────
 
-    private fun loadPromo(promoId: String): PromoEntity =
-        promoRepository.findById(promoId).orElseThrow {
+    private data class PairIntent(val type: RuleType, val kind: String, val value: Any)
+    private data class PaidOffer(val pair: PairIntent, val productId: String, val bonus: Int)
+
+    private fun checkedCampaignBonus(promo: PromoEntity): Int {
+        if (promo.pharmacistBonus !in 0L..Int.MAX_VALUE.toLong()) {
+            throw AppException(ErrorCode.VALIDATION_FAILED, "Бонус кампании превышает допустимый размер", HttpStatus.BAD_REQUEST)
+        }
+        return promo.pharmacistBonus.toInt()
+    }
+
+    private fun authorizeReplacement(
+        promo: PromoEntity, config: PromoRulesConfigDto, currentRules: List<RuleEntity>,
+        replacements: List<Pair<PromoRuleProductRefDto, RuleTrigger>>,
+        crossSells: List<Pair<PromoRuleProductRefDto, RuleTrigger>>, campaignBonus: Int,
+    ) {
+        val pairs = listOf(RuleType.substitution to replacements, RuleType.crosssell to crossSells).flatMap { (type, refs) ->
+            refs.filter { (_, trigger) -> trigger.kind != "product" || trigger.value != promo.medusaProductId }
+                .distinctBy { (_, trigger) -> trigger.kind to trigger.value }
+                .map { (ref, trigger) -> PairIntent(type, trigger.kind, trigger.value) to ref }
+        }
+        val enabledBefore = currentRules.filter { it.card?.pairActive != false }
+            .map { PairIntent(it.type, it.trigger.kind, it.trigger.value) }.toSet()
+        val enabledAfter = pairs.filter { it.second.active }.map { it.first }.toSet()
+        if (promo.status == PromoStatus.active || enabledBefore != enabledAfter) {
+            administrativeScope.requireAllPermission(MotivationPermissions.recommendationPublish)
+        }
+
+        val paidBefore = currentRules.filter { it.bonus != 0 }.map {
+            PaidOffer(PairIntent(it.type, it.trigger.kind, it.trigger.value), it.recommend, it.bonus)
+        }.toSet()
+        val paidAfter = pairs.flatMap { (pair, ref) ->
+            val offers = listOf(promo.medusaProductId!! to (ref.bonus ?: campaignBonus)) +
+                ref.additionalRecommendations.filter {
+                    it.medusaProductId != promo.medusaProductId && it.medusaProductId != ref.medusaProductId
+                }.distinctBy { it.medusaProductId }.take(4).map { it.medusaProductId to (it.bonus ?: campaignBonus) }
+            offers.filter { it.second != 0 }.map { PaidOffer(pair, it.first, it.second) }
+        }.toSet()
+        fun paidGoal(target: Int?, bonus: Int?) =
+            if (target != null && target > 0 && bonus != null && bonus != 0) target to bonus else null
+        // Old per-rule cards may contain paid goals predating the campaign-level source of truth.
+        val cardGoalsBefore = currentRules.mapNotNull { rule -> rule.card?.goalBonus?.takeIf { it != 0 }?.let {
+            Triple(PairIntent(rule.type, rule.trigger.kind, rule.trigger.value), rule.card?.goalTarget, it)
+        } }.toSet()
+        val cardGoalsAfter = pairs.mapNotNull { (pair, _) -> paidGoal(config.goalTarget, config.goalBonus)?.let {
+            Triple(pair, it.first, it.second)
+        } }.toSet()
+        if (paidBefore != paidAfter || cardGoalsBefore != cardGoalsAfter ||
+            paidGoal(promo.goalTarget, promo.goalBonus) != paidGoal(config.goalTarget, config.goalBonus)) {
+            administrativeScope.requireAllPermission(MotivationPermissions.configureBonus)
+        }
+    }
+
+    private fun loadPromo(promoId: String, forUpdate: Boolean = false): PromoEntity =
+        (if (forUpdate) promoRepository.findForUpdate(promoId) else promoRepository.findById(promoId)).orElseThrow {
             AppException(ErrorCode.NOT_FOUND, "Promo $promoId not found", HttpStatus.NOT_FOUND)
         }
 

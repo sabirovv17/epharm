@@ -217,4 +217,44 @@ class UnifiedAdminAccessIntegrationTest {
         }).isTrue()
         org.junit.jupiter.api.assertThrows<IllegalArgumentException> { grant("pharmacies_products", "pharmacies", "view", emptySet()).toGrant() }
     }
+
+    @Test fun `HQ management selector returns current account metadata without credentials or private proof`() {
+        grants(grant("management", "accounts", "view", all = true), grant("management", "accounts", "manage", all = true),
+            grant("pharmacies_products", "pharmacies", "view"))
+        mvc.perform(get("/api/admin/access/me").header("Authorization", auth())).andExpect(status().isOk)
+            .andExpect(jsonPath("$.canViewAccounts").value(true)).andExpect(jsonPath("$.canManageAccounts").value(true))
+        val list = mvc.perform(get("/api/admin/access/accounts").header("Authorization", auth())).andExpect(status().isOk).andReturn()
+        val self = mapper.readTree(list.response.contentAsString).first { it["accountId"].asText() == admin.id.toString() }
+        assertThat(self["editable"].asBoolean()).isFalse()
+        assertThat(self["email"].asText()).isEqualTo(admin.email)
+        assertThat(list.response.contentAsString).doesNotContain("passwordHash", password, "grants_json", "verification_reference")
+        val other = UUID.randomUUID()
+        jdbc.update("insert into unified_persons values(?,?)", other, "private-proof-path-must-not-leak")
+        mvc.perform(get("/api/admin/access/people").header("Authorization", auth())).andExpect(status().isOk)
+            .andExpect(jsonPath("$[?(@.personId == '$other')].referenceLabel").value("Связь подтверждена"))
+            .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("private-proof-path"))))
+    }
+
+    @Test fun `management catalog uses actor scope without inferring permissions from HQ title`() {
+        grants(grant("management", "accounts", "view", all = true), grant("management", "accounts", "manage", all = true),
+            grant("pharmacies_products", "pharmacies", "view"))
+        val result = mvc.perform(get("/api/admin/access/catalog").header("Authorization", auth())).andExpect(status().isOk).andReturn()
+        val body = mapper.readTree(result.response.contentAsString)
+        assertThat(body["pharmacies"].map { it["id"].asText() }).containsExactly("scope-a")
+        val options = body["permissions"].toList()
+        val view = options.single { it["module"].asText() == "pharmacies_products" && it["subsection"].asText() == "pharmacies" && it["action"].asText() == "view" }
+        assertThat(view["delegatable"].asBoolean()).isTrue()
+        assertThat(view["delegationScope"]["pharmacyIds"].map { it.asText() }).containsExactly("scope-a")
+        val finance = options.single { it["module"].asText() == "pharmacists" && it["action"].asText() == "financial_data" }
+        assertThat(finance["delegatable"].asBoolean()).isFalse()
+        assertThat(options.filter { it["mode"].asText() == "NOT_READY" }.all { !it["delegatable"].asBoolean() }).isTrue()
+    }
+
+    @Test fun `management view only account gets no grant authority and no pharmacy selector data`() {
+        grants(grant("management", "accounts", "view", all = true))
+        mvc.perform(get("/api/admin/access/me").header("Authorization", auth())).andExpect(status().isOk)
+            .andExpect(jsonPath("$.canViewAccounts").value(true)).andExpect(jsonPath("$.canManageAccounts").value(false))
+        mvc.perform(get("/api/admin/access/catalog").header("Authorization", auth())).andExpect(status().isOk)
+            .andExpect(jsonPath("$.pharmacies").isEmpty).andExpect(jsonPath("$.assignableRoles").isEmpty)
+    }
 }

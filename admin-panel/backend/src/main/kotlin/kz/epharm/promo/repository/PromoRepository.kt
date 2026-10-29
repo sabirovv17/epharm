@@ -1,11 +1,19 @@
 package kz.epharm.promo.repository
 
+import jakarta.persistence.LockModeType
 import kz.epharm.promo.entity.PromoEntity
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Lock
+import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
+import java.util.Optional
 
 @Repository
 interface PromoRepository : JpaRepository<PromoEntity, String> {
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM PromoEntity p WHERE p.id = :id")
+    fun findForUpdate(id: String): Optional<PromoEntity>
+
     fun findAllByOrderByUpdatedAtDesc(): List<PromoEntity>
     fun findAllByStatusRawOrderByUpdatedAtDesc(statusRaw: String): List<PromoEntity>
 

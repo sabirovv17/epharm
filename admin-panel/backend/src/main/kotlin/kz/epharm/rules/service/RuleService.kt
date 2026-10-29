@@ -1,5 +1,7 @@
 package kz.epharm.rules.service
 
+import kz.epharm.auth.access.AdministrativeScope
+import kz.epharm.promo.service.MotivationPermissions
 import kz.epharm.catalog.repository.ProductRepository
 import kz.epharm.catalog.service.AccCatalogTaxonomy
 import kz.epharm.catalog.service.AccScopeKind
@@ -23,6 +25,7 @@ class RuleService(
     private val ruleRepository: RuleRepository,
     private val productRepository: ProductRepository,
     private val accCatalogTaxonomy: AccCatalogTaxonomy,
+    private val administrativeScope: AdministrativeScope,
 ) {
 
     @Transactional(readOnly = true)
@@ -42,6 +45,12 @@ class RuleService(
 
     @Transactional
     fun create(req: CreateRuleRequest, createdBy: String): RuleDto {
+        if (req.status != null && req.status != RuleStatus.draft) {
+            administrativeScope.requireAllPermission(MotivationPermissions.recommendationPublish)
+        }
+        if (req.bonus != 0 || (req.card?.goalBonus ?: 0) != 0) {
+            administrativeScope.requireAllPermission(MotivationPermissions.configureBonus)
+        }
         val trigger = canonicalTrigger(req.trigger)
         ensureProductExists(req.recommend)
         ensureNotSelfReference(req.trigger, req.recommend)
@@ -65,7 +74,33 @@ class RuleService(
 
     @Transactional
     fun update(id: String, req: UpdateRuleRequest): RuleDto {
-        val entity = loadOrThrow(id)
+        val entity = loadOrThrow(id, forUpdate = true)
+        val nextCard = when {
+            req.clearCard -> null
+            req.card != null -> req.card.toEntity()
+            else -> entity.card
+        }
+        if (entity.status == RuleStatus.active || req.status != null && req.status != entity.status ||
+            entity.card?.pairActive == false && nextCard?.pairActive != false) {
+            administrativeScope.requireAllPermission(MotivationPermissions.recommendationPublish)
+        }
+        val nextBonus = req.bonus ?: entity.bonus
+        val nextTrigger = req.trigger?.toEntity() ?: entity.trigger
+        val nextAbTest = when {
+            req.clearAbTest -> null
+            req.abTest != null -> req.abTest.toEntity()
+            else -> entity.abTest
+        }
+        val hasPaidTerms = nextBonus != 0 || entity.bonus != 0 ||
+            (nextCard?.goalBonus ?: 0) != 0 || (entity.card?.goalBonus ?: 0) != 0
+        val paidConditionChanged = hasPaidTerms && (req.recommend?.let { it != entity.recommend } == true ||
+            nextTrigger.copy(label = null) != entity.trigger.copy(label = null) || nextAbTest != entity.abTest)
+        val paidGoalChanged = (nextCard?.goalBonus ?: 0) != (entity.card?.goalBonus ?: 0) ||
+            nextCard?.goalTarget != entity.card?.goalTarget &&
+            ((nextCard?.goalBonus ?: 0) != 0 || (entity.card?.goalBonus ?: 0) != 0)
+        if (nextBonus != entity.bonus || paidConditionChanged || paidGoalChanged) {
+            administrativeScope.requireAllPermission(MotivationPermissions.configureBonus)
+        }
         if (entity.status == RuleStatus.archived) {
             throw AppException(
                 ErrorCode.CONFLICT,
@@ -120,15 +155,19 @@ class RuleService(
 
     @Transactional
     fun archive(id: String): RuleDto {
-        val entity = loadOrThrow(id)
+        val entity = loadOrThrow(id, forUpdate = true)
         if (entity.status == RuleStatus.archived) return RuleDto.of(entity)
+        administrativeScope.requireAllPermission(MotivationPermissions.recommendationPublish)
         entity.status = RuleStatus.archived
         return RuleDto.of(ruleRepository.save(entity))
     }
 
     @Transactional
     fun duplicate(id: String, createdBy: String): RuleDto {
-        val src = loadOrThrow(id)
+        val src = loadOrThrow(id, forUpdate = true)
+        if (src.bonus != 0 || (src.card?.goalBonus ?: 0) != 0) {
+            administrativeScope.requireAllPermission(MotivationPermissions.configureBonus)
+        }
         val copy = RuleEntity(
             id = generateId(src.type),
             recommend = src.recommend,
@@ -149,8 +188,8 @@ class RuleService(
 
     // ── Internals ─────────────────────────────────────────────────────────
 
-    private fun loadOrThrow(id: String): RuleEntity =
-        ruleRepository.findById(id).orElseThrow {
+    private fun loadOrThrow(id: String, forUpdate: Boolean = false): RuleEntity =
+        (if (forUpdate) ruleRepository.findForUpdate(id) else ruleRepository.findById(id)).orElseThrow {
             AppException(
                 ErrorCode.NOT_FOUND,
                 "Rule $id not found",

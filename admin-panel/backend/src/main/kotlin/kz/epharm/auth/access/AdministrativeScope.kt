@@ -28,6 +28,12 @@ class AdministrativeScope(private val catalog: UnifiedAdminCatalog) {
         else -> null // Legacy/internal callers and explicitly verified ALL requests retain their contract.
     }
 
+    fun requireAllPermission(permission: PermissionKey) {
+        val context = current() ?: return
+        if (context.scope.pharmacies !is PharmacyScope.All ||
+            !catalog.policy.decide(context.access.actor, AccessRequest(permission, DataScope(PharmacyScope.All)), Instant.now()).allowed) deny()
+    }
+
     fun requirePharmacistUpdate(req: UpdatePharmacistRequest) {
         if (current() == null) return
         // Generic edit never doubles as credential recovery, ledger adjustment or result correction.

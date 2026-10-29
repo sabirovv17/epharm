@@ -1,0 +1,83 @@
+package kz.epharm.auth.access
+
+import kz.epharm.auth.domain.AdminRole
+import kz.epharm.auth.policy.*
+
+data class DelegationScope(val allPharmacies: Boolean, val pharmacyIds: Set<String>)
+data class PermissionOption(
+    val module: String, val subsection: String, val action: String, val kind: PermissionKind,
+    val moduleTitle: String, val subsectionTitle: String, val actionTitle: String,
+    val mode: ScopeIntegration, val availableForRoles: Set<AdminRole>, val requiresPasswordReauthentication: Boolean,
+    val delegatable: Boolean, val delegationScope: DelegationScope?,
+)
+
+/** Display eligibility only; every write rechecks current grants, person, scope, password and version. */
+class UnifiedAccessPresentation(private val catalog: UnifiedAdminCatalog) {
+    fun permissions(access: LoadedAccess, manage: Boolean): List<PermissionOption> {
+        val grouped = catalog.routes.groupBy { it.permission.key() }
+        val definitions = catalog.definitions.associateBy { it.key }
+        return (grouped.keys + definitions.keys).sortedWith(compareBy({ it.module.identifier }, { it.subsection }, { it.action })).map { key ->
+            val routes = grouped[key].orEmpty()
+            val definition = definitions[key]
+            val kind = definition?.kind ?: routes.first().permission.kind
+            val mode = when {
+                !catalog.supported(key) -> ScopeIntegration.NOT_READY
+                key in setOf(catalog.accountView, catalog.accountManage, catalog.financial,
+                    catalog.campaignPublish, catalog.recommendationPublish, catalog.configureBonus) -> ScopeIntegration.ALL_ONLY
+                routes.any { it.mode == ScopeIntegration.ALL_ONLY } -> ScopeIntegration.ALL_ONLY
+                else -> ScopeIntegration.SCOPED
+            }
+            val roles = when {
+                key == catalog.accountManage -> setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD)
+                key.module == AdministrationModule.TRAINING -> TRAINING_ROLES
+                else -> CORE_ROLES
+            }
+            val scope = if (!manage || mode == ScopeIntegration.NOT_READY || access.role !in roles) null else {
+                val own = if (access.actor.primaryHqOwner && kind == PermissionKind.ORDINARY) PharmacyScope.All
+                    else access.actor.grants.singleOrNull { it.permission == key }?.scope?.pharmacies
+                when {
+                    own is PharmacyScope.All -> DelegationScope(true, emptySet())
+                    own is PharmacyScope.Assigned && own.ids.isNotEmpty() && mode == ScopeIntegration.SCOPED ->
+                        DelegationScope(false, own.ids.map { it.id }.toSet())
+                    else -> null
+                }
+            }
+            PermissionOption(key.module.identifier, key.subsection, key.action, kind,
+                MODULE_TITLES.getValue(key.module), TITLES[key.subsection] ?: key.subsection.replace('_', ' '),
+                ACTION_TITLES[key.action] ?: key.action.replace('_', ' '), mode, roles,
+                definition?.requiresPasswordReauthentication ?: false, scope != null, scope)
+        }
+    }
+
+    companion object {
+        private val CORE_ROLES = setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD, AdminRole.CATEGORY_LEAD,
+            AdminRole.BRAND_MANAGER, AdminRole.FINANCE_REVIEWER)
+        private val TRAINING_ROLES = setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD, AdminRole.TRAINING_MANAGER,
+            AdminRole.REGIONAL_MANAGER, AdminRole.TRAINER)
+        private val MODULE_TITLES = mapOf(AdministrationModule.ANALYTICS to "Аналитика",
+            AdministrationModule.MOTIVATION to "Мотивация фармацевтов", AdministrationModule.TRAINING to "Обучение",
+            AdministrationModule.MERCHANDISING to "Мерчендайзинг", AdministrationModule.PHARMACIES_PRODUCTS to "Аптеки и товары",
+            AdministrationModule.PHARMACISTS to "Фармацевты", AdministrationModule.MANAGEMENT to "Управление")
+        private val TITLES = mapOf("accounts" to "Аккаунты и права", "assignments" to "Назначения", "attendance" to "Посещаемость",
+            "banners" to "Баннеры", "bonuses" to "Условия бонусов", "campaign_reports" to "Отчёты по акциям",
+            "campaigns" to "Промо-кампании", "catalog_sync" to "Обновление каталога", "certificates" to "Сертификаты",
+            "chains" to "Аптечные сети", "classifier" to "Классификатор АСС", "courses" to "Курсы", "events" to "Мероприятия",
+            "fulfillment" to "Интернет-заказы", "live" to "Онлайн-обучение", "media" to "Экраны и материалы",
+            "motivation" to "Мотивация", "motivation_effect" to "Эффективность мотивации", "overview" to "Обзор",
+            "payouts" to "Начисления и выплаты", "pharmacies" to "Аптеки", "posm_releases" to "Обновления касс",
+            "preferences" to "Предпочтения обучения", "products" to "Товары", "profiles" to "Профили", "programs" to "Программы",
+            "question_bank" to "Банк вопросов", "recommendations" to "Правила рекомендаций", "registers" to "Ведомости",
+            "registry" to "Реестр фармацевтов", "results" to "Результаты", "roster" to "Фармацевты на обучении",
+            "sales_review" to "Сверка продаж", "seller_mappings" to "Сопоставление кассиров", "standardn_directory" to "Справочник Стандарт-Н")
+        private val ACTION_TITLES = mapOf("view" to "Просмотр", "create" to "Создание", "edit" to "Редактирование",
+            "delete" to "Удаление", "activate" to "Активация", "approve" to "Подтверждение", "archive" to "В архив",
+            "assign" to "Назначение", "block" to "Блокировка", "change_format" to "Смена формата", "duplicate" to "Копирование",
+            "export" to "Выгрузка", "generate" to "Формирование", "import" to "Импорт", "map" to "Сопоставление",
+            "mark" to "Отметка", "moderate" to "Проверка", "participate" to "Участие", "provision" to "Подключение",
+            "publish" to "Публикация", "record_result" to "Фиксация результата", "refresh" to "Обновление", "reject" to "Отклонение",
+            "reorder" to "Порядок", "restore" to "Восстановление", "revoke" to "Отзыв", "show_qr" to "Показ QR",
+            "submit" to "Отправка", "sync" to "Синхронизация", "transition" to "Изменение статуса", "unblock" to "Разблокировка",
+            "upload" to "Загрузка", "manage" to "Выдача прав", "personal_data" to "ИИН и телефон",
+            "financial_data" to "Финансовые данные", "configure_bonus" to "Настройка бонусов")
+    }
+}

@@ -24,6 +24,9 @@ class UnifiedAdminCatalog(mapper: ObjectMapper) {
     val pharmacyFinancial = key("pharmacies_products", "pharmacies", "financial_data")
     val accountView = key("management", "accounts", "view")
     val accountManage = key("management", "accounts", "manage")
+    val campaignPublish = key("motivation", "campaigns", "publish")
+    val recommendationPublish = key("motivation", "recommendations", "publish")
+    val configureBonus = key("motivation", "bonuses", "configure_bonus")
     final val definitions: List<PermissionDefinition>
     final val policy: UnifiedAccessPolicy
 
@@ -37,12 +40,16 @@ class UnifiedAdminCatalog(mapper: ObjectMapper) {
             PermissionDefinition(pharmacyFinancial, PermissionKind.FINANCIAL),
             PermissionDefinition(accountView, PermissionKind.SENSITIVE_DATA),
             PermissionDefinition(accountManage, PermissionKind.ACCESS_ADMINISTRATION, requiresPasswordReauthentication = true),
+            PermissionDefinition(campaignPublish),
+            PermissionDefinition(recommendationPublish),
+            PermissionDefinition(configureBonus, PermissionKind.FINANCIAL),
         )
         policy = UnifiedAccessPolicy(definitions, Duration.ofMinutes(5))
     }
 
     fun route(method: String, pattern: String) = routes.singleOrNull { it.api == "$method $pattern" }
-    fun supported(key: PermissionKey) = key in setOf(sensitive, financial, pharmacyFinancial, accountView, accountManage) ||
+    fun supported(key: PermissionKey) = key in setOf(sensitive, financial, pharmacyFinancial, accountView, accountManage,
+        campaignPublish, recommendationPublish, configureBonus) ||
         routes.any { it.permission.key() == key && it.mode != ScopeIntegration.NOT_READY }
 
     companion object {

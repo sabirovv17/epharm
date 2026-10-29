@@ -45,6 +45,7 @@ class UnifiedAdminInterceptor(private val store: UnifiedAccessStore, private val
     companion object {
         private val SELF_ROUTES = setOf("/api/admin/auth/login", "/api/admin/auth/refresh", "/api/admin/auth/me", "/api/admin/auth/logout")
         private val ACCESS_ROUTES = setOf("GET /api/admin/access/me", "GET /api/admin/access/catalog",
+            "GET /api/admin/access/accounts", "GET /api/admin/access/people",
             "GET /api/admin/access/accounts/{id}", "POST /api/admin/access/accounts", "PUT /api/admin/access/accounts/{id}/grants")
     }
 }

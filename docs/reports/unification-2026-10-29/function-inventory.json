@@ -13030,5 +13030,65 @@
       "Первый серверный срез, не готовность всего U2; NOT_READY маршруты закрыты; frontend настроек и импорт людей отдельно"
     ],
     "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H14.15",
+    "group": "H14",
+    "name": "Список административных аккаунтов по серверному праву",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "working-tree:codex/unified-admin-development",
+      "ui": ["admin-panel/frontend/src/features/settings/AccessManagement.tsx"],
+      "api": ["GET /api/admin/access/accounts"],
+      "jobs": [],
+      "data": ["admin_users", "unified_persons", "unified_admin_profiles"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/auth/access/UnifiedAccessController.kt"
+      ]
+    },
+    "target": {
+      "section": "Управление",
+      "subsection": "Аккаунты и права",
+      "actions": ["Список административных аккаунтов по серверному праву"],
+      "scope": "Explicit account-view ALL; no password hashes or proof text; actor self protected"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Learner/non-authorized account receives denial",
+      "Server capabilities, per-action delegation scopes and verified person IDs drive UI",
+      "Data and password-bearing requests bypass persisted query cache"
+    ],
+    "risks": ["Not an automatic legacy account/person migration"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H14.16",
+    "group": "H14",
+    "name": "Выбор проверенной личности для административного аккаунта",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "working-tree:codex/unified-admin-development",
+      "ui": ["admin-panel/frontend/src/features/settings/AccessManagement.tsx"],
+      "api": ["GET /api/admin/access/people"],
+      "jobs": [],
+      "data": ["admin_users", "unified_persons", "unified_admin_profiles"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/auth/access/UnifiedAccessController.kt"
+      ]
+    },
+    "target": {
+      "section": "Управление",
+      "subsection": "Аккаунты и права",
+      "actions": ["Выбор проверенной личности для административного аккаунта"],
+      "scope": "Explicit account-view ALL; no password hashes or proof text; actor self protected"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Learner/non-authorized account receives denial",
+      "Server capabilities, per-action delegation scopes and verified person IDs drive UI",
+      "Data and password-bearing requests bypass persisted query cache"
+    ],
+    "risks": ["Not an automatic legacy account/person migration"],
+    "owner": "ePharm unification integration owner"
   }
 ]

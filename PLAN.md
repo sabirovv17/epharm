@@ -2248,6 +2248,38 @@ U3, полная репетиция переноса U4 и release gates K2/U8. 
 среза не закрывает весь RBAC или объединение. D9/учебные C1/C2/C4, реальная оплата,
 Windows overlay и полный rollout не объявляются выполненными этой работой.
 
+### Следующий срез: рабочие права мотивации, настройки HQ и подготовка переноса
+
+Продолжаем в `codex/unified-admin-development`, без production rollout. Main при
+повторной сверке остался `b946592`; предыдущий ShellCheck gate PR130 уже успешен.
+
+- U2: подключены global ALL_ONLY операции акций/правил. Публикация и смена денежных
+  условий требуют отдельных прав; draft edit не даёт обойти publish/configure_bonus.
+  Проверяются эффективные условия, включая обнуление/удаление/наследование бонуса.
+  Campaign/rule mutations блокируют строки в проверенном порядке; draft→active
+  race не обходит conditional permissions. Переполнение Long→POSM Int отклоняется,
+  отрицательный бонус не создаётся и деньги не обрезаются молча.
+- U3/F1: настройки HQ подключены к настоящему API аккаунтов, проверенных людей,
+  каталога действий и аптек. Должность не выдаёт прав; empty scope не ALL, область
+  хранится для каждого действия отдельно. CAS конфликт требует обновления;
+  свежий пароль не попадает в query/mutation cache или UI store. NOT_READY,
+  role ceiling и пределы делегирующего показаны явно. Это не перевод legacy users.
+- Проверка этого среза:118 backend cases10 классов без failures;675 frontend tests,
+  TypeScript/build/lint успешны. Guard393 actions/57groups/236routes/47POSM contracts.
+- G13 локально: у Docker оставалось около758MiB. Удалена только наша повторяемая
+  epharm_access_candidate:73 source counts и admin column hash совпали, новые
+  profiles/person/audit пусты, чужих соединений0. Source PG16/PG18, private backups,
+  образы и остальные проекты сохранены; создан пустой epharm_unified_candidate.
+  Свободно около2.4GiB. Это не очистка прода и не доказательство его будущей ёмкости.
+- U4: typed staging всех57 CRM tables готовится с exact types/PK/FK/rows и инертным
+  сохранением исходной логики. Import только в назначенную локальную схему,
+  с pin fingerprints, минимум1GiB headroom и идемпотентной сверкой. Это подготовка
+  сохранности, а не готовый объединённый backend мерча.
+- D28/U5 следующий: текущий replace physically removes old rules, теряя привязку
+  событий к campaign report; active bonus PATCH также не обновляет generated rule.
+  Исправление в работе: устойчивые ID/retirement, сохранённый pending bundle,
+  явный Apply и конфликт ревизии. До его проверки D28 не закрывается.
+
 ### Технические факты выясняет разработчик без нового общего согласования
 
 | Проверка                                                                             | Где закрывается и что сохраняем                                                                                                                                                                              |

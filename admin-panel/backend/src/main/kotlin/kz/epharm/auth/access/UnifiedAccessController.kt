@@ -40,18 +40,20 @@ class ReplaceGrantsRequest(
 
 @RestController
 @RequestMapping("/api/admin/access")
-class UnifiedAccessController(private val service: UnifiedAccountAccessService, private val catalog: UnifiedAdminCatalog) {
+class UnifiedAccessController(private val service: UnifiedAccountAccessService) {
     @GetMapping("/me")
     fun capabilities(@AuthenticationPrincipal principal: AdminPrincipal) = service.capabilities(principal)
 
     @GetMapping("/catalog")
     fun catalog(@AuthenticationPrincipal principal: AdminPrincipal): Map<String, Any> {
-        service.requireManagementView(principal)
-        return mapOf("routes" to catalog.routes, "permissions" to catalog.definitions.map {
-            mapOf("module" to it.key.module.identifier, "subsection" to it.key.subsection,
-                "action" to it.key.action, "kind" to it.kind, "requiresPasswordReauthentication" to it.requiresPasswordReauthentication)
-        })
+        return service.catalog(principal)
     }
+
+    @GetMapping("/accounts")
+    fun accounts(@AuthenticationPrincipal principal: AdminPrincipal) = service.accounts(principal)
+
+    @GetMapping("/people")
+    fun people(@AuthenticationPrincipal principal: AdminPrincipal) = service.people(principal)
 
     @GetMapping("/accounts/{id}")
     fun account(@AuthenticationPrincipal principal: AdminPrincipal, @PathVariable id: UUID): AccessProfile {
@@ -72,6 +74,8 @@ class UnifiedAccessController(private val service: UnifiedAccountAccessService, 
 data class AccessCapabilities(
     val managed: Boolean, val version: Long?, val grants: List<StoredGrant>,
     val roleCeiling: AdminRole,
+    val canViewAccounts: Boolean,
+    val canManageAccounts: Boolean,
     val note: String = "Explicit grants also require existing role checks; NOT_READY routes deny managed accounts",
 )
 
@@ -85,14 +89,69 @@ class UnifiedAccountAccessService(
 ) {
     fun capabilities(principal: AdminPrincipal): AccessCapabilities {
         val access = store.load(principal) ?: AdministrativeScope.deny()
-        return AccessCapabilities(access.managed, access.profile?.version, access.profile?.grants.orEmpty(), access.role)
+        return AccessCapabilities(access.managed, access.profile?.version, access.profile?.grants.orEmpty(), access.role,
+            canView(access), canManage(access))
     }
 
+    private fun canView(access: LoadedAccess) = access.role in CORE_ROLES && catalog.policy.decide(
+        access.actor, AccessRequest(catalog.accountView, DataScope(PharmacyScope.All)), Instant.now()).allowed
+
+    private fun canManage(access: LoadedAccess) = access.actor.hqAccount && access.profile != null &&
+        access.actor.grants.any { it.permission == catalog.accountManage && it.scope.pharmacies is PharmacyScope.All }
+
     fun requireManagementView(principal: AdminPrincipal) {
-        val actor = store.load(principal)?.actor ?: AdministrativeScope.deny()
-        if (!catalog.policy.decide(actor, AccessRequest(catalog.accountView, DataScope(PharmacyScope.All)), Instant.now()).allowed) {
-            AdministrativeScope.deny()
-        }
+        val access = store.load(principal) ?: AdministrativeScope.deny()
+        if (!canView(access)) AdministrativeScope.deny()
+    }
+
+    @Transactional(readOnly = true)
+    fun accounts(principal: AdminPrincipal): List<ManagedAccountRow> {
+        requireManagementView(principal)
+        val access = store.load(principal)!!
+        return jdbc.query("""select a.id,a.name,a.email,a.role,a.status,a.access_mode,
+            p.person_id,p.job_title,p.version from admin_users a
+            left join unified_admin_profiles p on p.account_id=a.id order by lower(a.name),a.id""", { rs, _ ->
+            val id = rs.getObject(1, UUID::class.java)
+            val person = rs.getObject(7, UUID::class.java)
+            val managed = rs.getString(6) == "MANAGED"
+            val owner = store.isDesignatedOwner(id)
+            ManagedAccountRow(id, person, rs.getString(2), rs.getString(3), rs.getString(8).orEmpty(),
+                AdminRole.valueOf(rs.getString(4)), rs.getString(5), managed,
+                rs.getObject(9)?.let { (it as Number).toLong() }, owner,
+                canManage(access) && managed && person != null && id != principal.userId &&
+                    person.toString() != access.actor.person?.id && !owner && rs.getString(5) == "active")
+        })
+    }
+
+    @Transactional(readOnly = true)
+    fun people(principal: AdminPrincipal): List<VerifiedPersonRow> {
+        requireManagementView(principal)
+        // Proof text can contain private source references; the selector only receives a generic label.
+        val person = store.load(principal)?.actor?.person?.id.orEmpty()
+        return jdbc.query("""select p.id,coalesce(nullif(min(a.name),''),'Проверенная личность '||left(p.id::text,8))
+            from unified_persons p left join unified_admin_profiles ap on ap.person_id=p.id
+            left join admin_users a on a.id=ap.account_id where length(btrim(p.verification_reference))>0 and p.id::text<>?
+            group by p.id order by 2,p.id""", { rs, _ ->
+            VerifiedPersonRow(rs.getObject(1, UUID::class.java), rs.getString(2))
+        }, person)
+    }
+
+    @Transactional(readOnly = true)
+    fun catalog(principal: AdminPrincipal): Map<String, Any> {
+        requireManagementView(principal)
+        val access = store.load(principal)!!
+        val presentation = UnifiedAccessPresentation(catalog)
+        val permissions = presentation.permissions(access, canManage(access))
+        val scopes = permissions.filter { it.mode == ScopeIntegration.SCOPED }.mapNotNull { it.delegationScope }
+        val all = scopes.any { it.allPharmacies }
+        val ids = scopes.flatMap { it.pharmacyIds }.toSet()
+        val pharmacies = if (!all && ids.isEmpty()) emptyList() else jdbc.query(
+            "select id,name,city,addr from pharmacies" + (if (all) "" else " where id in (${ids.joinToString(",") { "?" }})") + " order by city,name,id",
+            { rs, _ -> AccessPharmacyRow(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4)) },
+            *(if (all) emptyArray() else ids.toTypedArray()),
+        )
+        return mapOf("routes" to catalog.routes, "permissions" to permissions, "pharmacies" to pharmacies,
+            "assignableRoles" to if (canManage(access)) AdminRole.entries else emptyList<AdminRole>())
     }
 
     fun profile(id: UUID) = store.profile(id) ?: throw AppException(ErrorCode.NOT_FOUND, "Аккаунт доступа не найден", HttpStatus.NOT_FOUND)
@@ -120,7 +179,8 @@ class UnifiedAccountAccessService(
             throw AppException(ErrorCode.VALIDATION_FAILED, "Пароль превышает допустимую длину UTF-8")
         }
         // Human links must be verified before provisioning; a name/email match cannot create one.
-        if (jdbc.queryForObject("select count(*) from unified_persons where id=?", Long::class.java, req.verifiedPersonId) != 1L) {
+        if (jdbc.queryForObject("select count(*) from unified_persons where id=? and length(btrim(verification_reference))>0",
+                Long::class.java, req.verifiedPersonId) != 1L) {
             throw AppException(ErrorCode.VALIDATION_FAILED, "Требуется проверенная связь с человеком")
         }
         if (users.findByEmailIgnoreCase(req.email).isPresent) throw AppException(ErrorCode.CONFLICT, "Email уже используется", HttpStatus.CONFLICT)
@@ -166,4 +226,17 @@ class UnifiedAccountAccessService(
         }
         return profile(target)
     }
+
+    companion object {
+        private val CORE_ROLES = setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD, AdminRole.CATEGORY_LEAD,
+            AdminRole.BRAND_MANAGER, AdminRole.FINANCE_REVIEWER)
+    }
 }
+
+data class ManagedAccountRow(
+    val accountId: UUID, val personId: UUID?, val name: String, val email: String, val jobTitle: String,
+    val roleCeiling: AdminRole, val status: String, val managed: Boolean, val version: Long?,
+    val primaryHqOwner: Boolean, val editable: Boolean,
+)
+data class VerifiedPersonRow(val personId: UUID, val displayName: String, val referenceLabel: String = "Связь подтверждена")
+data class AccessPharmacyRow(val id: String, val name: String, val city: String, val address: String)

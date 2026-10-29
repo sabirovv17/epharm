@@ -1,6 +1,7 @@
 package kz.epharm.promo.dto
 
 import jakarta.validation.constraints.Min
+import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 import kz.epharm.promo.entity.PromoEntity
@@ -148,6 +149,7 @@ data class CreatePromoRequest(
     val overrideDescription: String? = null,
     val overrideCharacteristics: String? = null,
     @field:Min(0)
+    @field:Max(2147483647)
     val pharmacistBonus: Long = 0,
     val dateStart: LocalDate? = null,
     val dateEnd: LocalDate? = null,
@@ -202,6 +204,7 @@ data class UpdatePromoRequest(
     val overrideDescription: String? = null,
     val overrideCharacteristics: String? = null,
     @field:Min(0)
+    @field:Max(2147483647)
     val pharmacistBonus: Long? = null,
     val dateStart: LocalDate? = null,
     val dateEnd: LocalDate? = null,

@@ -41,6 +41,7 @@ class UnifiedAccessStore(
     private val mapper: ObjectMapper,
     @Value("\${app.unified-admin.primary-owner-id:}") private val primaryOwnerId: String,
 ) {
+    fun isDesignatedOwner(id: UUID) = primaryOwnerId == id.toString()
     @Transactional(readOnly = true)
     fun load(principal: AdminPrincipal): LoadedAccess? {
         // JDBC deliberately avoids an OSIV/JPA first-level cache containing pre-lock JWT lookup facts.
@@ -49,7 +50,7 @@ class UnifiedAccessStore(
         if (facts.first != AdminUserStatus.ACTIVE.toDbValue()) return null
         val role = AdminRole.entries.singleOrNull { it.name == facts.second } ?: return null
         val profile = profile(principal.userId)
-        val owner = primaryOwnerId == principal.userId.toString() && role in setOf(AdminRole.HQ_HEAD, AdminRole.SYSTEM_ADMIN)
+        val owner = isDesignatedOwner(principal.userId) && role in setOf(AdminRole.HQ_HEAD, AdminRole.SYSTEM_ADMIN)
         val actor = AdministrativeActor(
             CanonicalIdentity(CanonicalEntityType.ADMIN_ACCOUNT, principal.userId.toString()), AccessRealm.ADMINISTRATION, true,
             profile?.let { CanonicalIdentity(CanonicalEntityType.PERSON, it.personId.toString()) },

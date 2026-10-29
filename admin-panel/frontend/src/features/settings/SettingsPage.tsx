@@ -17,6 +17,7 @@ import { useUiStore } from '@/app/store'
 import { roleLabel } from '@/mocks/fixtures'
 import { useT } from '@/i18n'
 import { useNavigate } from 'react-router-dom'
+import AccessManagement from './AccessManagement'
 
 const TZ_OPTIONS: SelectOption[] = [
   { value: 'Asia/Almaty', label: 'Алматы (UTC+5)' },
@@ -69,6 +70,10 @@ export default function SettingsPage() {
           </Field>
         </div>
       </SectionCard>
+
+      {(authedUser?.role === 'HQ_HEAD' || authedUser?.role === 'SYSTEM_ADMIN') && (
+        <AccessManagement key={authedUser.id} />
+      )}
 
       <SectionCard title={t('settings.localization')} subtitle={t('settings.localizationSub')}>
         <div className="grid grid-cols-2 gap-4">
