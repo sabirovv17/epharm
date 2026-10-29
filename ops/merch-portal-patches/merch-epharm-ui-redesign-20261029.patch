@@ -163,10 +163,10 @@ index 57e0168f156b3164fb04e7bd8effaa6d510c0a78..e0271f298815fded291d9ae54786505c
  const RootApplication = taskAccess ? PublicTaskDispatchPortal : window.location.pathname.startsWith("/staff") ? StaffPortal : App;
 diff --git a/src/merchRedesign.css b/src/merchRedesign.css
 new file mode 100644
-index 0000000000000000000000000000000000000000..39fba78c3d3fcf7f70ebd7f7b14ae1ed4a6e7df5
+index 0000000000000000000000000000000000000000..e1c0a17c896d33e2317d67e19e21b7430a18ca05
 --- /dev/null
 +++ b/src/merchRedesign.css
-@@ -0,0 +1,559 @@
+@@ -0,0 +1,595 @@
 +/*
 + * Merchandising workspace v3.
 + * Intentionally scoped to staff tasks and the public QR flow so the customer,
@@ -365,23 +365,26 @@ index 0000000000000000000000000000000000000000..39fba78c3d3fcf7f70ebd7f7b14ae1ed
 +
 +/* Clear, scannable operational rows */
 +.ops-tasks-page.task-workspace .ops-dispatch-list {
++  display: grid;
++  gap: 8px;
 +  overflow: visible;
-+  border: 1px solid var(--merch-line);
-+  border-radius: 14px;
-+  background: #fff;
-+  box-shadow: 0 12px 34px rgba(7,63,70,.055);
++  border: 0;
++  border-radius: 0;
++  background: transparent;
++  box-shadow: none;
 +}
 +.ops-tasks-page.task-workspace .ops-dispatch-table-head {
 +  position: sticky;
 +  top: 6px;
 +  z-index: 3;
-+  grid-template-columns: minmax(330px, 2.7fr) minmax(150px, 1fr) minmax(150px, 1fr) minmax(135px, .9fr) minmax(145px, .9fr) 84px;
-+  min-height: 42px;
++  grid-template-columns: minmax(310px, 2.5fr) minmax(132px, .9fr) minmax(140px, .95fr) minmax(120px, .8fr) minmax(132px, .9fr) 116px;
++  min-height: 44px;
++  gap: 14px;
 +  padding: 0 18px;
-+  border-bottom: 1px solid var(--merch-line);
-+  border-radius: 14px 14px 0 0;
++  border: 1px solid var(--merch-line);
++  border-radius: 11px;
 +  background: rgba(247,250,249,.97);
-+  box-shadow: 0 5px 12px rgba(7,63,70,.045);
++  box-shadow: 0 5px 14px rgba(7,63,70,.04);
 +  backdrop-filter: blur(10px);
 +  color: #718184;
 +  font-size: 10px;
@@ -389,9 +392,8 @@ index 0000000000000000000000000000000000000000..39fba78c3d3fcf7f70ebd7f7b14ae1ed
 +  letter-spacing: .035em;
 +  text-transform: uppercase;
 +}
-+.ops-tasks-page.task-workspace .ops-dispatch-card { position: relative; border: 0; border-bottom: 1px solid #e5ecea; border-radius: 0; }
-+.ops-tasks-page.task-workspace .ops-dispatch-card:last-child { border-bottom: 0; }
-+.ops-tasks-page.task-workspace .ops-dispatch-card::before { position: absolute; top: 12px; bottom: 12px; left: 0; width: 3px; border-radius: 0 4px 4px 0; background: #b7c6c4; content: ""; }
++.ops-tasks-page.task-workspace .ops-dispatch-card { position: relative; overflow: hidden; border: 1px solid var(--merch-line); border-radius: 12px; background: #fff; box-shadow: 0 5px 18px rgba(7,63,70,.035); }
++.ops-tasks-page.task-workspace .ops-dispatch-card::before { position: absolute; top: 0; bottom: 0; left: 0; width: 3px; border-radius: 0; background: #b7c6c4; content: ""; }
 +.ops-tasks-page.task-workspace .ops-dispatch-card.submitted::before,
 +.ops-tasks-page.task-workspace .ops-dispatch-card.in_progress::before,
 +.ops-tasks-page.task-workspace .ops-dispatch-card.completed::before { background: #8fb4b0; }
@@ -399,15 +401,18 @@ index 0000000000000000000000000000000000000000..39fba78c3d3fcf7f70ebd7f7b14ae1ed
 +.ops-tasks-page.task-workspace .ops-dispatch-card.needs_assignment::before,
 +.ops-tasks-page.task-workspace .ops-dispatch-card.overdue::before { background: var(--merch-danger); }
 +.ops-tasks-page.task-workspace .ops-dispatch-summary {
-+  grid-template-columns: minmax(330px, 2.7fr) minmax(150px, 1fr) minmax(150px, 1fr) minmax(135px, .9fr) minmax(145px, .9fr) 84px;
-+  min-height: 112px;
++  grid-template-columns: minmax(310px, 2.5fr) minmax(132px, .9fr) minmax(140px, .95fr) minmax(120px, .8fr) minmax(132px, .9fr) 116px;
++  min-height: 108px;
++  gap: 14px;
 +  padding: 16px 18px;
 +  background: #fff;
-+  transition: background .15s ease;
++  transition: background .15s ease, box-shadow .15s ease;
 +}
 +.ops-tasks-page.task-workspace .ops-dispatch-summary:hover { background: #fbfdfc; }
++.ops-tasks-page.task-workspace .ops-dispatch-summary:focus-visible { position: relative; z-index: 1; outline: 3px solid rgba(9,130,118,.2); outline-offset: -3px; }
 +.task-workspace-row .ops-dispatch-pharmacy > i { background: var(--merch-teal-100); color: var(--merch-teal-700); }
-+.task-workspace-row .ops-dispatch-pharmacy > span > small { color: #718184; font-size: 10px; font-weight: 750; }
++.task-workspace-row .ops-dispatch-pharmacy > span { min-width: 0; }
++.task-workspace-row .ops-dispatch-pharmacy > span > small { display: block; max-width: 100%; overflow: hidden; color: #718184; font-size: 10px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
 +.task-workspace-row .ops-dispatch-pharmacy > span > strong { color: var(--merch-ink); font-size: 16px; line-height: 1.35; }
 +.task-workspace-row .task-row-pharmacy-name { margin-top: 4px; color: #3e5456; font-size: 13px; font-weight: 750; }
 +.task-workspace-row .ops-dispatch-pharmacy p { margin-top: 4px; color: #7d8b8d; font-size: 10.5px; }
@@ -417,7 +422,25 @@ index 0000000000000000000000000000000000000000..39fba78c3d3fcf7f70ebd7f7b14ae1ed
 +.task-workspace-row .task-row-owner > strong { color: #405456; font-size: 12.5px; font-weight: 700; }
 +.task-workspace-row .task-row-deadline > strong { color: var(--merch-ink); font-size: 14px; font-weight: 800; line-height: 1.35; }
 +.task-workspace-row .task-row-status { align-content: center; }
-+.task-workspace-row .task-row-open { min-height: 36px; justify-content: center; border: 1px solid #acd5d0; border-radius: 8px; color: var(--merch-teal-700); font-weight: 800; }
++.task-workspace-row .task-row-open {
++  min-width: 0;
++  min-height: 40px;
++  gap: 7px;
++  justify-content: center;
++  padding: 0 12px;
++  border: 1px solid #9dcfc9;
++  border-radius: 9px;
++  background: #fff;
++  box-shadow: 0 2px 7px rgba(9,105,95,.06);
++  color: var(--merch-teal-700);
++  font-size: 12.5px;
++  font-weight: 800;
++  line-height: 1;
++  white-space: nowrap;
++  transition: border-color .15s ease, background .15s ease, color .15s ease, transform .15s ease;
++}
++.task-workspace-row .task-row-open svg { width: 17px; height: 17px; flex: 0 0 17px; }
++.ops-dispatch-summary:hover .task-row-open { border-color: var(--merch-teal-600); background: var(--merch-teal-50); color: var(--merch-teal-800); transform: translateX(1px); }
 +.task-workspace .ops-task-status { border-radius: 6px; }
 +.task-workspace .ops-task-status.ready,
 +.task-workspace .ops-task-status.sent,
@@ -435,8 +458,8 @@ index 0000000000000000000000000000000000000000..39fba78c3d3fcf7f70ebd7f7b14ae1ed
 +.task-workspace .task-card-completion { accent-color: var(--merch-teal-600); background: var(--merch-teal-600); }
 +
 +.task-workspace-skeleton { display: grid; }
-+.task-workspace-skeleton article { min-height: 110px; display: grid; grid-template-columns: minmax(330px,2.7fr) repeat(4,minmax(135px,1fr)) 84px; align-items: center; gap: 18px; padding: 16px 18px; border-bottom: 1px solid #e5ecea; background: #fff; }
-+.task-workspace-skeleton article:last-child { border-bottom: 0; border-radius: 0 0 14px 14px; }
++.task-workspace-skeleton { gap: 8px; }
++.task-workspace-skeleton article { min-height: 108px; display: grid; grid-template-columns: minmax(310px,2.5fr) repeat(4,minmax(120px,1fr)) 116px; align-items: center; gap: 14px; padding: 16px 18px; border: 1px solid var(--merch-line); border-radius: 12px; background: #fff; }
 +.task-workspace-skeleton span { height: 18px; border-radius: 7px; background: linear-gradient(90deg,#edf2f1 25%,#f7f9f9 45%,#edf2f1 65%); background-size: 250% 100%; animation: merch-skeleton 1.25s ease-in-out infinite; }
 +.task-workspace-skeleton .wide { height: 56px; }
 +.task-workspace-skeleton .short { width: 64px; justify-self: center; }
@@ -610,6 +633,19 @@ index 0000000000000000000000000000000000000000..39fba78c3d3fcf7f70ebd7f7b14ae1ed
 +.ops-task-viewer-footer > div { flex-wrap: wrap; }
 +.ops-task-viewer-footer button svg { width: 16px; }
 +
++@media (max-width: 1250px) and (min-width: 761px) {
++  .ops-tasks-page.task-workspace .ops-dispatch-summary {
++    grid-template-columns: minmax(280px, 1.8fr) minmax(150px, 1fr) minmax(160px, 1fr);
++    gap: 14px 18px;
++  }
++  .ops-tasks-page.task-workspace .ops-dispatch-summary .ops-dispatch-pharmacy { grid-column: 1; grid-row: 1 / span 3; }
++  .ops-tasks-page.task-workspace .task-row-owner { grid-column: 2; grid-row: 1; }
++  .ops-tasks-page.task-workspace .task-row-deadline { grid-column: 3; grid-row: 1; }
++  .ops-tasks-page.task-workspace .task-row-status { grid-column: 2; grid-row: 2; }
++  .ops-tasks-page.task-workspace .ops-task-progress { grid-column: 3; grid-row: 2; }
++  .ops-tasks-page.task-workspace .task-row-open { width: 138px; grid-column: 2 / -1; grid-row: 3; justify-self: end; }
++}
++
 +@media (max-width: 1180px) {
 +  .task-workspace-focus { grid-template-columns: 44px minmax(240px,1fr) auto; }
 +  .task-workspace-focus dl { display: none; }
@@ -770,3 +806,22 @@ index 3402b8373d633fc016e4d076db4591d72eb69df6..da2c7aa7b35c0850475994a214588e2c
 +  .checkout-summary-panel{height:auto;display:block;overflow:visible;border-top:1px solid #dce4df;border-left:0}.checkout-summary-scroll{overflow:visible;scrollbar-gutter:auto}.checkout-summary-scroll>section{padding:16px}.checkout-summary-scroll>section:first-child,.checkout-summary-scroll>section:nth-child(2){display:none}.checkout-monthly{padding-inline:16px}.checkout-summary-panel>footer{position:fixed;right:0;bottom:0;left:0;z-index:230;padding:8px 14px max(8px,env(safe-area-inset-bottom));box-shadow:0 -10px 24px #102b2314}.checkout-total{min-height:0;margin-bottom:7px;padding:7px 10px}.checkout-total strong{font-size:20px}.checkout-summary-panel .checkout-back{display:none}.checkout-summary-panel .primary-action{min-height:46px}
  }
  @media(max-height:620px) and (min-width:761px){.checkout-review.placement-request-modal{height:100dvh;max-height:100dvh}.checkout-header{padding-block:10px}.checkout-header p{display:none}.checkout-campaign-context{padding-block:10px}.checkout-progress{margin-top:10px}.checkout-summary-scroll>section{padding-block:12px}.checkout-summary-panel>footer{padding-block:10px}}
+diff --git a/src/taskWorkspace.css b/src/taskWorkspace.css
+index c442a6c..d1767c0 100644
+--- a/src/taskWorkspace.css
++++ b/src/taskWorkspace.css
+@@ -21,10 +21,10 @@
+ .task-workspace-results > div { display: inline-flex; gap: 4px; }
+ .task-workspace-results button[aria-pressed=true] { background: #eaf7ef; border-color: #07964b; color: #087943; }
+ .task-workspace-row .task-row-pharmacy-name { display: block; font-size: 14px; line-height: 1.4; margin-top: 6px; color: #253b2e; }
+-.task-workspace-row .task-row-open { display: inline-flex; align-items: center; gap: 2px; color: #087943; font-size: 13px; }
+-.task-workspace-row .task-row-open svg { width: 18px; height: 18px; }
+-.ops-tasks-page.task-workspace .ops-dispatch-summary { grid-template-columns: minmax(300px, 2.7fr) minmax(140px, 1fr) minmax(140px, 1fr) minmax(130px, 1fr) minmax(130px, .9fr) 78px; padding: 18px; }
+-.ops-tasks-page.task-workspace .ops-dispatch-table-head { grid-template-columns: minmax(300px, 2.7fr) minmax(140px, 1fr) minmax(140px, 1fr) minmax(130px, 1fr) minmax(130px, .9fr) 78px; }
++.task-workspace-row .task-row-open { display: inline-flex; align-items: center; gap: 7px; color: #087943; font-size: 13px; white-space: nowrap; }
++.task-workspace-row .task-row-open svg { width: 18px; height: 18px; flex: 0 0 18px; }
++.ops-tasks-page.task-workspace .ops-dispatch-summary { grid-template-columns: minmax(310px, 2.5fr) minmax(132px, .9fr) minmax(140px, .95fr) minmax(120px, .8fr) minmax(132px, .9fr) 116px; padding: 18px; }
++.ops-tasks-page.task-workspace .ops-dispatch-table-head { grid-template-columns: minmax(310px, 2.5fr) minmax(132px, .9fr) minmax(140px, .95fr) minmax(120px, .8fr) minmax(132px, .9fr) 116px; }
+ .ops-tasks-page.task-workspace .ops-dispatch-summary strong { white-space: normal; overflow-wrap: anywhere; }
+ .task-workspace .task-kanban-grid { grid-template-columns: repeat(5, minmax(270px, 1fr)); gap: 12px; }
+ .task-workspace .task-kanban-card { padding: 14px; gap: 10px; cursor: default; box-shadow: none; }
