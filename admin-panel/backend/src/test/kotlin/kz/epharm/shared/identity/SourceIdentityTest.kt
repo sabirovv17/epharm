@@ -53,18 +53,41 @@ class SourceIdentityTest {
     }
 
     @Test
-    fun `only an exact verified branch crosswalk resolves a crm branch`() {
-        val resolver = SourceIdentityResolver(listOf(binding("Branch-Synthetic-001")))
-        assertEquals(pharmacy, resolver.resolve(branch("Branch-Synthetic-001")))
+    fun `verified pharmacy relation does not replace the preserved branch identity`() {
+        val source = branch("Branch-Synthetic-001")
+        val resolver = SourceIdentityResolver(listOf(binding(source.originalId)), listOf(source))
+        assertEquals(CanonicalIdentity(CanonicalEntityType.MERCH_BRANCH, source.originalId), resolver.resolve(source))
+        assertEquals(pharmacy, resolver.pharmacyFor(source))
         assertNull(resolver.resolve(branch("branch-synthetic-001")))
         assertNull(resolver.resolve(branch("Branch-Synthetic-002")))
         assertNull(resolver.resolve(SourceIdentity(SourceSystem.MERCH_CRM, SourceEntityType.ACCOUNT, "Branch-Synthetic-001")))
+        assertNull(resolver.pharmacyFor(SourceIdentity(SourceSystem.MERCH_CRM, SourceEntityType.ACCOUNT, source.originalId)))
+    }
+
+    @Test
+    fun `crm only branch is preserved without creating a pharmacy or person`() {
+        val source = branch(pharmacy.id)
+        val resolver = SourceIdentityResolver(merchBranches = listOf(source))
+        assertEquals(CanonicalIdentity(CanonicalEntityType.MERCH_BRANCH, pharmacy.id), resolver.resolve(source))
+        assertNull(resolver.pharmacyFor(source))
+        assertEquals(pharmacy, resolver.pharmacyFor(SourceIdentity(SourceSystem.EPHARM, SourceEntityType.PHARMACY, pharmacy.id)))
+        assertNotEquals(pharmacy, resolver.resolve(source))
+    }
+
+    @Test
+    fun `case distinct branches remain distinct even without pharmacy relations`() {
+        val sources = listOf(branch("Case-Synthetic"), branch("case-synthetic"))
+        val resolver = SourceIdentityResolver(merchBranches = sources)
+        assertEquals(2, sources.map(resolver::resolve).toSet().size)
+        assertEquals(sources.map { it.originalId }, sources.map { resolver.resolve(it)!!.id })
     }
 
     @Test
     fun `opaque ids are not trimmed or interpreted as numbers or UUIDs`() {
-        val resolver = SourceIdentityResolver(listOf(binding(" 0007-Synthetic ")))
-        assertEquals(pharmacy, resolver.resolve(branch(" 0007-Synthetic ")))
+        val source = branch(" 0007-Synthetic ")
+        val resolver = SourceIdentityResolver(listOf(binding(source.originalId)), listOf(source))
+        assertEquals(pharmacy, resolver.pharmacyFor(source))
+        assertEquals(source.originalId, resolver.resolve(source)!!.id)
         assertNull(resolver.resolve(branch("0007-Synthetic")))
         for (id in listOf("0007", "person_Synthetic", "11111111-2222-4333-8444-555555555555")) {
             for (system in SourceSystem.entries) {
@@ -104,30 +127,48 @@ class SourceIdentityTest {
     @Test
     fun `same source cannot alias two canonical pharmacies`() {
         assertThrows(IllegalArgumentException::class.java) {
-            SourceIdentityResolver(listOf(binding("synthetic"), binding("synthetic", pharmacy.copy(id = "another-Synthetic"))))
+            SourceIdentityResolver(listOf(binding("synthetic"), binding("synthetic", pharmacy.copy(id = "another-Synthetic"))),
+                listOf(branch("synthetic")))
         }
     }
 
     @Test
     fun `two crm branches cannot silently collapse to one canonical pharmacy`() {
         assertThrows(IllegalArgumentException::class.java) {
-            SourceIdentityResolver(listOf(binding("synthetic-A"), binding("synthetic-B")))
+            SourceIdentityResolver(listOf(binding("synthetic-A"), binding("synthetic-B")),
+                listOf(branch("synthetic-A"), branch("synthetic-B")))
         }
     }
 
     @Test
     fun `repeated identical binding is idempotent and resolver snapshots its input`() {
         val bindings = mutableListOf(binding("synthetic"), binding("synthetic"))
-        val resolver = SourceIdentityResolver(bindings)
+        val sources = mutableListOf(branch("synthetic"), branch("synthetic"))
+        val resolver = SourceIdentityResolver(bindings, sources)
         bindings.clear()
-        assertEquals(pharmacy, resolver.resolve(branch("synthetic")))
+        sources.clear()
+        assertEquals(pharmacy, resolver.pharmacyFor(branch("synthetic")))
+        assertEquals(CanonicalIdentity(CanonicalEntityType.MERCH_BRANCH, "synthetic"), resolver.resolve(branch("synthetic")))
+    }
+
+    @Test
+    fun `crosswalk cannot refer to an unregistered source branch`() {
+        assertThrows(IllegalArgumentException::class.java) { SourceIdentityResolver(listOf(binding("missing"))) }
+    }
+
+    @Test
+    fun `branch registry rejects wrong source and entity`() {
+        for (source in listOf(SourceIdentity(SourceSystem.EPHARM, SourceEntityType.BRANCH, "synthetic"),
+            SourceIdentity(SourceSystem.MERCH_CRM, SourceEntityType.ACCOUNT, "synthetic"))) {
+            assertThrows(IllegalArgumentException::class.java) { SourceIdentityResolver(merchBranches = listOf(source)) }
+        }
     }
 
     @Test
     fun `account person pharmacist and customer canonical identities never imply each other`() {
         val ids = listOf(CanonicalEntityType.ADMIN_ACCOUNT, CanonicalEntityType.ACCOUNT,
-            CanonicalEntityType.PERSON, CanonicalEntityType.PHARMACIST, CanonicalEntityType.CUSTOMER)
+            CanonicalEntityType.PERSON, CanonicalEntityType.PHARMACIST, CanonicalEntityType.CUSTOMER, CanonicalEntityType.MERCH_BRANCH)
             .map { CanonicalIdentity(it, "synthetic-same-opaque-id") }
-        assertEquals(5, ids.toSet().size)
+        assertEquals(6, ids.toSet().size)
     }
 }
