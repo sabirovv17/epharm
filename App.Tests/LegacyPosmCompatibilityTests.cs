@@ -22,6 +22,53 @@ public sealed class LegacyPosmCompatibilityTests
     [Theory]
     [InlineData("1.0.57")]
     [InlineData("1.0.66")]
+    public async Task HistoricalClientsPreserveFullOpaqueIdentifiersThroughShownAndOutcome(string version)
+    {
+        const string eventId = "rec_0123456789abcdef0123456789abcdef";
+        const string ruleId = "rule_fedcba9876543210fedcba9876543210";
+        var steps = Fixture(version)["steps"]!.AsArray();
+        var response = steps[0]!["response"]!.DeepClone();
+        response["recommendations"]![0]!["eventId"] = eventId;
+        response["recommendations"]![0]!["ruleId"] = ruleId;
+        await using var server = new LoopbackServer([
+            (HttpStatusCode.OK, response),
+            (HttpStatusCode.OK, steps[1]!["response"]!),
+            (HttpStatusCode.OK, steps[2]!["response"]!),
+        ]);
+        dynamic api = Api(version, server.Origin);
+        using var disposeApi = (IDisposable)api;
+        var ct = TestContext.Current.CancellationToken;
+        dynamic result = await api.RecommendAsync((dynamic)Model(version, "RecommendRequest", steps[0]!["body"]!), ct);
+        var parsed = Json((object)result)["recommendations"]![0]!;
+        Assert.Equal(eventId, parsed["eventId"]!.GetValue<string>());
+        Assert.Equal(ruleId, parsed["ruleId"]!.GetValue<string>());
+        Assert.True((bool)await api.MarkShownAsync(eventId, DateTimeOffset.Parse("2026-10-29T00:00:00Z"), ct));
+        Assert.True((bool)await api.RecordOutcomeAsync(eventId, (dynamic)Model(version, "OutcomeRequest", steps[2]!["body"]!), ct));
+        await server.Completion.WaitAsync(TimeSpan.FromSeconds(10), ct);
+        Assert.Contains(eventId + "/shown", server.Requests[1].Path);
+        Assert.Contains(eventId + "/outcome", server.Requests[2].Path);
+    }
+
+    [Theory]
+    [InlineData("1.0.57")]
+    [InlineData("1.0.66")]
+    public async Task HistoricalClientsIgnoreInternalBonusInheritanceMetadata(string version)
+    {
+        var step = Fixture(version)["steps"]![0]!;
+        var response = step["response"]!.DeepClone();
+        response["recommendations"]![0]!["card"] = new JsonObject { ["bonusInherited"] = true };
+        await using var server = new LoopbackServer(new[] { (HttpStatusCode.OK, response) });
+        dynamic api = Api(version, server.Origin);
+        using var disposeApi = (IDisposable)api;
+        dynamic result = await api.RecommendAsync((dynamic)Model(version, "RecommendRequest", step["body"]!), TestContext.Current.CancellationToken);
+        var parsed = Json((object)result)["recommendations"]![0]!;
+        Assert.Equal(50, parsed["bonus"]!.GetValue<int>());
+        Assert.Null(parsed["card"]); // These releases use their original recommendation fields, not the newer card object.
+    }
+
+    [Theory]
+    [InlineData("1.0.57")]
+    [InlineData("1.0.66")]
     public async Task HistoricalClientsExecuteGoldenHttpPathsHeadersBodiesAndParseCurrentResponses(string version)
     {
         var fixture = Fixture(version);
