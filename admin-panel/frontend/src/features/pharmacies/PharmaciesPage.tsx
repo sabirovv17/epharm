@@ -259,7 +259,7 @@ export default function PharmaciesPage() {
                       {formatNum(p.receipts30d)}
                     </td>
                     <td className="num px-3 py-2.5 text-right align-middle">
-                      {formatKzt(p.gmv30d)}
+                      {p.gmv30d == null ? '—' : formatKzt(p.gmv30d)}
                     </td>
                     <td
                       className={`num px-5 py-2.5 text-right align-middle font-extrabold ${

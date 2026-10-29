@@ -115,7 +115,13 @@ export interface MnnGroupDto {
 export type RuleType = 'substitution' | 'crosssell'
 export type RuleStatus = 'active' | 'paused' | 'draft' | 'archived'
 
-export type TriggerKind = 'product' | 'mnn' | 'product_any' | 'acc_group' | 'acc_subgroup' | 'acc_mnn'
+export type TriggerKind =
+  | 'product'
+  | 'mnn'
+  | 'product_any'
+  | 'acc_group'
+  | 'acc_subgroup'
+  | 'acc_mnn'
 
 /** Stable ACC taxonomy scope used by campaign recommendation triggers. */
 export type PromoTriggerKind = 'product' | 'acc_group' | 'acc_subgroup' | 'acc_mnn'
@@ -280,7 +286,7 @@ export interface PharmacyDto {
   group: PharmacyGroup
   pharmacists: number
   receipts30d: number
-  gmv30d: number
+  gmv30d: number | null
   liftPct: number
   rulesAccepted: number
   active: boolean
@@ -316,16 +322,16 @@ export type PharmacistStatus = 'active' | 'pending' | 'blocked'
 export interface PharmacistDto {
   id: string
   name: string
-  iin: string
-  phone: string
+  iin: string | null
+  phone: string | null
   pharmacyId: string
   pharmacyName: string
   city: string
   tier: PharmacistTier
-  receipts30d: number
-  rulesAccepted30d: number
-  earned30d: number
-  balance: number
+  receipts30d: number | null
+  rulesAccepted30d: number | null
+  earned30d: number | null
+  balance: number | null
   coursesDone: number
   coursesTotal: number
   status: PharmacistStatus

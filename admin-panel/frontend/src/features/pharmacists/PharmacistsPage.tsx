@@ -115,7 +115,14 @@ export default function PharmacistsPage() {
     }
   }, [pharmacists])
 
-  const totalBalance = useMemo(() => pharmacists.reduce((a, p) => a + p.balance, 0), [pharmacists])
+  const totalBalance = useMemo(
+    () =>
+      pharmacists.reduce<number | null>(
+        (sum, p) => (sum == null || p.balance == null ? null : sum + p.balance),
+        0,
+      ),
+    [pharmacists],
+  )
 
   const filtered = useMemo<PharmacistDto[]>(() => {
     return pharmacists.filter((p) => {
@@ -129,7 +136,7 @@ export default function PharmacistsPage() {
       )
         return false
       if (!q) return true
-      return `${p.name} ${p.pharmacyName} ${p.city} ${p.iin} ${p.phone}`
+      return `${p.name} ${p.pharmacyName} ${p.city} ${p.iin ?? ''} ${p.phone ?? ''}`
         .toLowerCase()
         .includes(q.toLowerCase())
     })
@@ -228,7 +235,7 @@ export default function PharmacistsPage() {
         <Metric label={t('phc.mPending')} value={formatNum(counts.pending)} accent="amber" />
         <Metric
           label={t('phc.mBalances')}
-          value={formatKzt(totalBalance)}
+          value={totalBalance == null ? '—' : formatKzt(totalBalance)}
           accent="purple"
           sub={t('phc.toPayout')}
         />
@@ -324,7 +331,9 @@ export default function PharmacistsPage() {
                     </th>
                   )}
                   <th className="px-5 py-2.5">{t('phc.thName')}</th>
-                  <th scope="col" className="w-[132px] whitespace-nowrap px-3 py-2.5">{t('phc.thIin')}</th>
+                  <th scope="col" className="w-[132px] whitespace-nowrap px-3 py-2.5">
+                    {t('phc.thIin')}
+                  </th>
                   <th className="px-3 py-2.5">{t('phc.thPharmacy')}</th>
                   <th className="px-3 py-2.5">Формат обучения</th>
                   <th className="px-3 py-2.5">{t('phc.thTier')}</th>
@@ -359,11 +368,13 @@ export default function PharmacistsPage() {
                         </span>
                         <div>
                           <div className="font-extrabold text-ink-900">{p.name}</div>
-                          <div className="text-[11px] text-ink-500">{p.phone}</div>
+                          <div className="text-[11px] text-ink-500">{p.phone ?? '—'}</div>
                         </div>
                       </div>
                     </td>
-                    <td className="num whitespace-nowrap px-3 py-2.5 text-ink-700">{p.iin || '—'}</td>
+                    <td className="num whitespace-nowrap px-3 py-2.5 text-ink-700">
+                      {p.iin || '—'}
+                    </td>
                     <td className="px-3 py-2.5 text-ink-700">
                       <div className={!p.pharmacyName ? 'font-bold text-accent-warning' : ''}>
                         {p.pharmacyName || t('phc.unassigned')}
@@ -405,9 +416,11 @@ export default function PharmacistsPage() {
                       </span>
                     </td>
                     <td className="num px-3 py-2.5 text-right font-extrabold text-brand-green-700">
-                      {formatKzt(p.balance)}
+                      {p.balance == null ? '—' : formatKzt(p.balance)}
                     </td>
-                    <td className="num px-3 py-2.5 text-right">{formatNum(p.receipts30d)}</td>
+                    <td className="num px-3 py-2.5 text-right">
+                      {p.receipts30d == null ? '—' : formatNum(p.receipts30d)}
+                    </td>
                     <td className="px-3 py-2.5">
                       <span
                         className={`chip ${
@@ -522,11 +535,13 @@ export default function PharmacistsPage() {
           open
           onClose={() => setPasswordTarget(null)}
           title={passwordTarget.hasPassword ? 'Сменить пароль' : 'Задать пароль'}
-          subtitle={`${passwordTarget.name} · ИИН ${passwordTarget.iin}`}
+          subtitle={`${passwordTarget.name} · ИИН ${passwordTarget.iin || '—'}`}
           width={460}
           footer={
             <>
-              <Button variant="ghost" onClick={() => setPasswordTarget(null)}>Отмена</Button>
+              <Button variant="ghost" onClick={() => setPasswordTarget(null)}>
+                Отмена
+              </Button>
               <Button
                 variant="primary"
                 disabled={updatePharmacist.isPending || passwordValue.length < 6}
@@ -541,7 +556,8 @@ export default function PharmacistsPage() {
                         setPasswordTarget(null)
                         setPasswordValue('')
                       },
-                      onError: (passwordRequestError) => setPasswordError(describeError(passwordRequestError)),
+                      onError: (passwordRequestError) =>
+                        setPasswordError(describeError(passwordRequestError)),
                     },
                   )
                 }}
@@ -570,7 +586,8 @@ export default function PharmacistsPage() {
               />
             </Field>
             <p className="text-[11px] leading-5 text-ink-500">
-              Передайте пароль фармацевту безопасным способом. В интерфейсе он больше не отображается.
+              Передайте пароль фармацевту безопасным способом. В интерфейсе он больше не
+              отображается.
             </p>
           </div>
         </Modal>
