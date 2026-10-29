@@ -83,7 +83,17 @@ app:
     password: ${STANDARDN_PASSWORD:}
     sync-delay-ms: ${STANDARDN_SYNC_DELAY_MS:21600000}
     initial-delay-ms: ${STANDARDN_INITIAL_DELAY_MS:30000}
+  merch:
+    # These switches do not migrate data or enable the legacy CRM writer.
+    native-delivery-enabled: ${MERCH_NATIVE_DELIVERY_ENABLED:false}
+    producer-auth-enabled: ${MERCH_PRODUCER_AUTH_ENABLED:false}
+    placements:
+      expiry-enabled: ${MERCH_PLACEMENT_EXPIRY_ENABLED:false}
+      expiry-delay-ms: ${MERCH_PLACEMENT_EXPIRY_DELAY_MS:60000}
   merch-tasks:
+    # Owner-only directories, never the public screens/S3 bucket. Empty means unavailable.
+    evidence-root: ${MERCH_TASK_EVIDENCE_ROOT:}
+    legacy-files-root: ${MERCH_TASK_LEGACY_FILES_ROOT:}
     enabled: ${MERCH_TASKS_ENABLED:false}
     base-url: ${MERCH_TASKS_BASE_URL:}
     integration-key: ${MERCH_TASKS_INTEGRATION_KEY:}

@@ -111,6 +111,16 @@ class DevWalletResetIntegrationTest {
             assertThat(jdbc.queryForList("SELECT id FROM admin_users ORDER BY id")).isEqualTo(originalAdmins)
         }
     }
+    @Test @org.springframework.transaction.annotation.Transactional
+    fun `dev reset refuses a preserved unification candidate before any destructive operation`() {
+        val people = jdbc.queryForObject("select count(*) from pharmacists", Long::class.java)
+        val id = "synthetic-import-proof-" + UUID.randomUUID()
+        jdbc.update("""insert into unified_import_runs(operation_key,source_sha256,identity_sha256,result_json)
+            values(?,?,?,'{}'::jsonb)""", id, "a".repeat(64), "b".repeat(64))
+        mvc.perform(post("/api/admin/dev/reset")).andExpect(status().isConflict)
+        assertThat(jdbc.queryForObject("select count(*) from pharmacists", Long::class.java)).isEqualTo(people)
+        assertThat(jdbc.queryForObject("select count(*) from unified_import_runs where operation_key=?", Long::class.java,id)).isEqualTo(1)
+    }
 }
 
 class DevWalletResetProfileGuardTest {
@@ -123,4 +133,6 @@ class DevWalletResetProfileGuardTest {
             assertThat(context.getBeanNamesForType(DevController::class.java)).isEmpty()
         }
     }
+
+
 }

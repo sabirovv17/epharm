@@ -17,6 +17,8 @@ import kz.epharm.merchtasks.dto.MerchTaskDeliveryResult
 import kz.epharm.merchtasks.dto.MerchTaskEnvelope
 import kz.epharm.merchtasks.dto.MerchTaskShownRequest
 import kz.epharm.merchtasks.service.MerchTaskClient
+import kz.epharm.merchtasks.service.MerchTaskDelivery
+import kz.epharm.merch.delivery.NativeMerchTaskDeliveryService
 import kz.epharm.posm.controller.PosmController
 import kz.epharm.posm.dto.MarkShownRequest
 import kz.epharm.posm.dto.OutcomeRequest
@@ -126,7 +128,8 @@ class LegacyPosmWireContractTest {
         .standaloneSetup(
             PosmController(
                 recommendations, sales, mockk<ScreenService>(), mockk<CdpService>(), releases,
-                presence, identity, authentication, tasks,
+                presence, identity, authentication, MerchTaskDelivery(tasks,
+                    mockk<NativeMerchTaskDeliveryService> { every { ownsNativeDeliveryToken(any()) } returns false }, false),
             ),
         )
         .setControllerAdvice(GlobalExceptionHandler())

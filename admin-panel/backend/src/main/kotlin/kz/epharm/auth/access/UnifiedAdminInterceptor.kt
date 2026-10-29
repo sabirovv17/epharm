@@ -27,17 +27,19 @@ class UnifiedAdminInterceptor(private val store: UnifiedAccessStore, private val
             "${request.method} $path" in ACCESS_ROUTES) return true
         val principal = SecurityContextHolder.getContext().authentication?.principal as? AdminPrincipal ?: return true
         val access = store.load(principal) ?: AdministrativeScope.deny()
-        if (!access.managed) return true
+        val route = catalog.route(request.method, path)
+        if (!access.managed && route?.explicitAccess != true) return true
         if (access.profile == null || handler !is HandlerMethod) AdministrativeScope.deny()
-        val route = catalog.route(request.method, path) ?: AdministrativeScope.deny()
+        if (route == null) AdministrativeScope.deny()
         if (route.mode == ScopeIntegration.NOT_READY) AdministrativeScope.deny()
         val key = route.permission.key()
+        if (access.role !in catalog.availableRoles(key)) AdministrativeScope.deny()
         val grant = access.actor.grants.singleOrNull { it.permission == key }
         val scope = if (access.actor.primaryHqOwner && route.permission.kind == PermissionKind.ORDINARY) {
-            DataScope(PharmacyScope.All)
+            catalog.allScope(key)
         } else grant?.scope ?: AdministrativeScope.deny()
         if (route.mode == ScopeIntegration.ALL_ONLY && scope.pharmacies !is PharmacyScope.All) AdministrativeScope.deny()
-        if (!catalog.policy.decide(access.actor, AccessRequest(key, scope), Instant.now()).allowed) AdministrativeScope.deny()
+        if (!catalog.policy.authorizeScope(access.actor, AccessRequest(key, scope), Instant.now()).allowed) AdministrativeScope.deny()
         request.setAttribute(AdministrativeScope.ATTRIBUTE, AuthorizedAdminRequest(access, key, scope))
         return true
     }
@@ -46,6 +48,9 @@ class UnifiedAdminInterceptor(private val store: UnifiedAccessStore, private val
         private val SELF_ROUTES = setOf("/api/admin/auth/login", "/api/admin/auth/refresh", "/api/admin/auth/me", "/api/admin/auth/logout")
         private val ACCESS_ROUTES = setOf("GET /api/admin/access/me", "GET /api/admin/access/catalog",
             "GET /api/admin/access/accounts", "GET /api/admin/access/people",
+            "POST /api/admin/access/people", "GET /api/admin/access/source-accounts",
+            "POST /api/admin/access/source-accounts/{id}/bind", "POST /api/admin/access/pharmacist-person-links",
+            "POST /api/admin/access/source-accounts/{id}/provision",
             "GET /api/admin/access/accounts/{id}", "POST /api/admin/access/accounts", "PUT /api/admin/access/accounts/{id}/grants")
     }
 }

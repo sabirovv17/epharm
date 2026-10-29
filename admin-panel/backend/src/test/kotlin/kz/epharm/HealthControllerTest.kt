@@ -8,6 +8,7 @@ import kz.epharm.auth.security.JwtAuthenticationFilter
 import kz.epharm.auth.service.JwtService
 import kz.epharm.shared.ApiAccessDeniedHandler
 import kz.epharm.shared.ApiAuthenticationEntryPoint
+import kz.epharm.merch.producer.auth.ProducerAuthService
 import kz.epharm.shared.HealthController
 import kz.epharm.shared.SecurityConfig
 import kz.epharm.shared.error.GlobalExceptionHandler
@@ -42,6 +43,8 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 class HealthControllerTest(@Autowired val mvc: MockMvc) {
     @MockkBean
     lateinit var adminSessionLoader: AdminSessionLoader
+
+    @MockkBean lateinit var producerSessions: ProducerAuthService
 
     @MockkBean lateinit var accessStore: UnifiedAccessStore
     @MockkBean lateinit var accessCatalog: UnifiedAdminCatalog

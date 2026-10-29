@@ -10,22 +10,108 @@ import kz.epharm.shared.error.ErrorCode
 import kz.epharm.shared.identity.*
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.context.request.RequestContextHolder
 import org.springframework.web.context.request.ServletRequestAttributes
 import java.time.Instant
+import java.util.UUID
 
 data class AuthorizedAdminRequest(val access: LoadedAccess, val permission: PermissionKey, val scope: DataScope)
 
 /** Request-bound context, never a client filter or a scope supplied in JSON/query parameters. */
 @Component
-class AdministrativeScope(private val catalog: UnifiedAdminCatalog) {
+class AdministrativeScope(private val catalog: UnifiedAdminCatalog, private val store: UnifiedAccessStore) {
     private fun current(): AuthorizedAdminRequest? =
         (RequestContextHolder.getRequestAttributes() as? ServletRequestAttributes)?.request
             ?.getAttribute(ATTRIBUTE) as? AuthorizedAdminRequest
 
     fun currentPharmacyIds(): Set<String>? = when (val scope = current()?.scope?.pharmacies) {
         is PharmacyScope.Assigned -> scope.ids.map { it.id }.toSet()
-        else -> null // Legacy/internal callers and explicitly verified ALL requests retain their contract.
+        null, PharmacyScope.All -> null // Existing legacy/internal callers retain their old contract.
+        else -> deny()
+    }
+
+    fun requireExplicitPermission(permission: PermissionKey) {
+        val context = current() ?: deny()
+        if (!catalog.policy.decide(context.access.actor, AccessRequest(permission, context.scope), Instant.now()).allowed) deny()
+    }
+
+    /** Lock the current authority before domain locks; revocation and money writes serialize. */
+    fun lockCurrentActor() {
+        check(TransactionSynchronizationManager.isActualTransactionActive()) { "Authority locks require a write transaction" }
+        val previous = current() ?: deny()
+        val id = UUID.fromString(previous.access.actor.account.id)
+        store.lockAccounts(setOf(id))
+        val fresh = store.loadAccount(id) ?: deny()
+        if (fresh.profile == null || fresh.role !in catalog.availableRoles(previous.permission) ||
+            !catalog.policy.authorizeScope(fresh.actor, AccessRequest(previous.permission, previous.scope), Instant.now()).allowed) deny()
+        (RequestContextHolder.getRequestAttributes() as? ServletRequestAttributes)?.request
+            ?.setAttribute(ATTRIBUTE, previous.copy(access = fresh)) ?: deny()
+    }
+
+    fun currentMerchBranchIds(): Set<UUID>? = when (val scope = (current() ?: deny()).scope.pharmacies) {
+        PharmacyScope.AllMerchBranches -> null
+        is PharmacyScope.MerchBranches -> scope.ids.map { UUID.fromString(it.id) }.toSet()
+        else -> deny()
+    }
+
+    fun canMerchBranchPermission(permission: PermissionKey, branchId: UUID): Boolean {
+        val context = current() ?: return false
+        return catalog.policy.decide(context.access.actor, AccessRequest(permission, DataScope(
+            PharmacyScope.MerchBranches(listOf(CanonicalIdentity(CanonicalEntityType.MERCH_BRANCH, branchId.toString()))))), Instant.now()).allowed
+    }
+
+    fun requireMerchBranchPermission(permission: PermissionKey, branchId: UUID) {
+        if (!canMerchBranchPermission(permission, branchId)) deny()
+    }
+
+    fun currentProducerIds(): Set<UUID>? = when (val scope = (current() ?: deny()).scope.owners) {
+        OwnerScope.AllCustomers -> null
+        is OwnerScope.Customers -> scope.ids.map { UUID.fromString(it.id) }.toSet()
+        else -> deny()
+    }
+
+    fun requireMerchPlacementPermission(permission: PermissionKey, branchIds: Set<UUID>, producerId: UUID) {
+        if (!canMerchPlacementPermission(permission, branchIds, producerId)) deny()
+    }
+
+    fun canMerchPlacementPermission(permission: PermissionKey, branchIds: Set<UUID>, producerId: UUID): Boolean {
+        val context = current() ?: return false
+        if (branchIds.isEmpty()) return false
+        val scope = DataScope(PharmacyScope.MerchBranches(branchIds.map {
+            CanonicalIdentity(CanonicalEntityType.MERCH_BRANCH, it.toString()) }),
+            OwnerScope.Customers(listOf(CanonicalIdentity(CanonicalEntityType.CUSTOMER, producerId.toString()))))
+        return catalog.policy.decide(context.access.actor, AccessRequest(permission, scope), Instant.now()).allowed
+    }
+
+    fun requireTaskReviewPermission(permission: PermissionKey, branchId: UUID, executorPersonId: UUID) {
+        val context = current() ?: deny()
+        val person = CanonicalIdentity(CanonicalEntityType.PERSON, executorPersonId.toString())
+        val scope = DataScope(PharmacyScope.MerchBranches(listOf(
+            CanonicalIdentity(CanonicalEntityType.MERCH_BRANCH, branchId.toString()))), OwnerScope.Persons(listOf(person)))
+        if (!catalog.policy.decide(context.access.actor, AccessRequest(permission, scope,
+                ReviewContext(person)), Instant.now()).allowed) deny()
+    }
+
+    fun currentVerifiedPersonId(): UUID = (current() ?: deny()).access.actor.person?.id?.let(UUID::fromString) ?: deny()
+
+    /** An explicit HQ exception for a free anonymous report, never proof of an independent executor. */
+    fun requireManualUnverifiedTaskReview(permission: PermissionKey, branchId: UUID) {
+        check(TransactionSynchronizationManager.isActualTransactionActive())
+        val context = current() ?: deny()
+        val actor = context.access.actor
+        val scope = DataScope(PharmacyScope.MerchBranches(listOf(
+            CanonicalIdentity(CanonicalEntityType.MERCH_BRANCH, branchId.toString()))))
+        if (permission != catalog.taskReview || !actor.hqAccount || actor.person == null ||
+            actor.grants.none { it.permission == permission && it.scope.covers(scope) } ||
+            !catalog.policy.authorizeScope(actor, AccessRequest(permission, scope), Instant.now()).allowed) deny()
+    }
+
+    fun canPharmacyPermission(permission: PermissionKey, pharmacyId: String): Boolean {
+        val context = current() ?: return false
+        val scope = if (pharmacyId.isBlank()) DataScope(PharmacyScope.All) else DataScope(PharmacyScope.Assigned(
+            listOf(CanonicalIdentity(CanonicalEntityType.PHARMACY, pharmacyId))))
+        return catalog.policy.decide(context.access.actor, AccessRequest(permission, scope), Instant.now()).allowed
     }
 
     fun requireAllPermission(permission: PermissionKey) {

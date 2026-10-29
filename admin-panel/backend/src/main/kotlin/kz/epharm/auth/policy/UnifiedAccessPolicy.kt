@@ -40,6 +40,12 @@ sealed interface PharmacyScope {
         val ids = frozen(ids)
         init { require(this.ids.all { it.entityType == CanonicalEntityType.PHARMACY }) }
     }
+    // The legacy scope name remains compatible; branch identities form a disjoint resource domain.
+    data object AllMerchBranches : PharmacyScope
+    class MerchBranches(ids: Collection<CanonicalIdentity>) : PharmacyScope {
+        val ids = frozen(ids)
+        init { require(this.ids.all { it.entityType == CanonicalEntityType.MERCH_BRANCH }) }
+    }
 }
 
 sealed interface OwnerScope {
@@ -47,6 +53,11 @@ sealed interface OwnerScope {
     class Persons(ids: Collection<CanonicalIdentity>) : OwnerScope {
         val ids = frozen(ids)
         init { require(this.ids.all { it.entityType == CanonicalEntityType.PERSON }) }
+    }
+    data object AllCustomers : OwnerScope
+    class Customers(ids: Collection<CanonicalIdentity>) : OwnerScope {
+        val ids = frozen(ids)
+        init { require(this.ids.all { it.entityType == CanonicalEntityType.CUSTOMER }) }
     }
 }
 
@@ -61,15 +72,25 @@ class DataScope(
 
     internal fun valid() =
         (pharmacies !is PharmacyScope.Assigned || pharmacies.ids.isNotEmpty()) &&
-            (owners !is OwnerScope.Persons || owners.ids.isNotEmpty())
+            (pharmacies !is PharmacyScope.MerchBranches || pharmacies.ids.isNotEmpty()) &&
+            (owners !is OwnerScope.Persons || owners.ids.isNotEmpty()) &&
+            (owners !is OwnerScope.Customers || owners.ids.isNotEmpty())
 
     internal fun withFields(fields: Collection<String>) = DataScope(pharmacies, owners, fields)
 
     internal fun covers(other: DataScope): Boolean = valid() && other.valid() &&
-        (pharmacies is PharmacyScope.All || pharmacies is PharmacyScope.Assigned &&
-            other.pharmacies is PharmacyScope.Assigned && pharmacies.ids.containsAll(other.pharmacies.ids)) &&
-        (owners is OwnerScope.All || owners is OwnerScope.Persons &&
-            other.owners is OwnerScope.Persons && owners.ids.containsAll(other.owners.ids)) &&
+        (when (pharmacies) {
+            PharmacyScope.All -> other.pharmacies is PharmacyScope.All || other.pharmacies is PharmacyScope.Assigned
+            is PharmacyScope.Assigned -> other.pharmacies is PharmacyScope.Assigned && pharmacies.ids.containsAll(other.pharmacies.ids)
+            PharmacyScope.AllMerchBranches -> other.pharmacies is PharmacyScope.AllMerchBranches || other.pharmacies is PharmacyScope.MerchBranches
+            is PharmacyScope.MerchBranches -> other.pharmacies is PharmacyScope.MerchBranches && pharmacies.ids.containsAll(other.pharmacies.ids)
+        }) &&
+        (when (owners) {
+            OwnerScope.All -> other.owners is OwnerScope.All || other.owners is OwnerScope.Persons
+            is OwnerScope.Persons -> other.owners is OwnerScope.Persons && owners.ids.containsAll(other.owners.ids)
+            OwnerScope.AllCustomers -> other.owners is OwnerScope.AllCustomers || other.owners is OwnerScope.Customers
+            is OwnerScope.Customers -> other.owners is OwnerScope.Customers && owners.ids.containsAll(other.owners.ids)
+        }) &&
         fields.containsAll(other.fields)
 }
 
@@ -155,6 +176,11 @@ class UnifiedAccessPolicy(definitions: Collection<PermissionDefinition>, private
         DecisionReason.DELEGATION_REQUIRED // A generic request has no recipient/self-change context.
     } else evaluate(actor!!, request, now, reauthentication, emptySet()))
 
+    /** Route authorization cannot approve a report: the domain service supplies verified execution proof. */
+    fun authorizeScope(actor: AdministrativeActor?, request: AccessRequest, now: Instant): AccessDecision =
+        decision(boundary(actor) ?: if (catalog[request.permission]?.kind == PermissionKind.ACCESS_ADMINISTRATION)
+            DecisionReason.DELEGATION_REQUIRED else evaluate(actor!!, request, now, null, emptySet(), reviewOperation = false))
+
     /** Granting access requires a separate control permission and never exceeds the actor's own grant. */
     fun delegate(
         actor: AdministrativeActor?, recipient: AdministrativeActor, grant: PermissionGrant,
@@ -172,7 +198,10 @@ class UnifiedAccessPolicy(definitions: Collection<PermissionDefinition>, private
             return decision(DecisionReason.SELF_PERMISSION_CHANGE)
         }
         if (catalog[controlPermission]?.kind != PermissionKind.ACCESS_ADMINISTRATION) return decision(DecisionReason.DELEGATION_REQUIRED)
-        val control = evaluate(actor, AccessRequest(controlPermission, grant.scope.withFields(emptySet())), now, reauthentication, emptySet())
+        val controlScope = if (grant.scope.pharmacies is PharmacyScope.MerchBranches ||
+            grant.scope.pharmacies is PharmacyScope.AllMerchBranches) DataScope(PharmacyScope.All)
+            else grant.scope.withFields(emptySet())
+        val control = evaluate(actor, AccessRequest(controlPermission, controlScope), now, reauthentication, emptySet())
         if (control != DecisionReason.ALLOWED) return decision(control)
         if (catalog[grant.permission]?.kind == PermissionKind.CREDENTIAL_EXPORT && !recipient.hqAccount && !recipient.primaryHqOwner) {
             return decision(DecisionReason.HQ_REQUIRED)

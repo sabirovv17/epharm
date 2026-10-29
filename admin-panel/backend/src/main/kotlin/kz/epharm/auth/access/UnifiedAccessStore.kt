@@ -1,6 +1,7 @@
 package kz.epharm.auth.access
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.module.kotlin.readValue
 import kz.epharm.auth.domain.AdminRole
 import kz.epharm.auth.domain.AdminUserStatus
@@ -17,12 +18,34 @@ import java.util.UUID
 data class StoredGrant(
     val module: String, val subsection: String, val action: String,
     val allPharmacies: Boolean = false, val pharmacyIds: Set<String> = emptySet(),
+    val allMerchBranches: Boolean = false, val merchBranchIds: Set<String> = emptySet(),
+    val allProducers: Boolean = false, val producerIds: Set<String> = emptySet(),
 ) {
     fun toGrant(): PermissionGrant {
+        val key = requireNotNull(PermissionKey.parse(module, subsection, action))
+        if (module == AdministrationModule.MERCHANDISING.identifier) {
+            require(!allPharmacies && pharmacyIds.isEmpty()) { "Merch branches are not pharmacy identities" }
+            require(!allMerchBranches || merchBranchIds.isEmpty()) { "Choose explicit ALL or assigned branches" }
+            require(allMerchBranches || merchBranchIds.isNotEmpty()) { "Empty scope is never ALL" }
+            require(merchBranchIds.all { UUID.fromString(it).toString() == it }) { "Invalid branch UUID" }
+            val ownerScope = if (subsection in setOf("placements", "producers")) {
+                require(!allProducers || producerIds.isEmpty()) { "Choose explicit ALL or assigned producers" }
+                require(allProducers || producerIds.isNotEmpty()) { "Empty producer scope is never ALL" }
+                require(producerIds.all { UUID.fromString(it).toString() == it }) { "Invalid producer UUID" }
+                if (allProducers) OwnerScope.AllCustomers else OwnerScope.Customers(producerIds.map {
+                    CanonicalIdentity(CanonicalEntityType.CUSTOMER, it) })
+            } else {
+                require(!allProducers && producerIds.isEmpty()) { "This permission has no producer dimension" }
+                OwnerScope.All
+            }
+            return PermissionGrant(key, DataScope(if (allMerchBranches) PharmacyScope.AllMerchBranches
+                else PharmacyScope.MerchBranches(merchBranchIds.map { CanonicalIdentity(CanonicalEntityType.MERCH_BRANCH, it) }), ownerScope))
+        }
+        require(!allMerchBranches && merchBranchIds.isEmpty() && !allProducers && producerIds.isEmpty()) { "Branch/producer scope cannot authorize pharmacy operations" }
         require(!allPharmacies || pharmacyIds.isEmpty()) { "Choose explicit ALL or assigned pharmacies" }
         require(allPharmacies || pharmacyIds.isNotEmpty()) { "Empty scope is never ALL" }
         require(pharmacyIds.all { it.isNotBlank() && it.length <= 64 })
-        return PermissionGrant(requireNotNull(PermissionKey.parse(module, subsection, action)), DataScope(
+        return PermissionGrant(key, DataScope(
             if (allPharmacies) PharmacyScope.All else PharmacyScope.Assigned(
                 pharmacyIds.map { CanonicalIdentity(CanonicalEntityType.PHARMACY, it) }),
         ))
@@ -43,19 +66,25 @@ class UnifiedAccessStore(
 ) {
     fun isDesignatedOwner(id: UUID) = primaryOwnerId == id.toString()
     @Transactional(readOnly = true)
-    fun load(principal: AdminPrincipal): LoadedAccess? {
+    fun load(principal: AdminPrincipal): LoadedAccess? = loadAccount(principal.userId)
+
+    @Transactional(readOnly = true)
+    fun loadAccount(accountId: UUID): LoadedAccess? {
         // JDBC deliberately avoids an OSIV/JPA first-level cache containing pre-lock JWT lookup facts.
         val facts = jdbc.query("select status,role,access_mode from admin_users where id=?",
-            { rs, _ -> Triple(rs.getString(1), rs.getString(2), rs.getString(3)) }, principal.userId).singleOrNull() ?: return null
+            { rs, _ -> Triple(rs.getString(1), rs.getString(2), rs.getString(3)) }, accountId).singleOrNull() ?: return null
         if (facts.first != AdminUserStatus.ACTIVE.toDbValue()) return null
         val role = AdminRole.entries.singleOrNull { it.name == facts.second } ?: return null
-        val profile = profile(principal.userId)
-        val owner = isDesignatedOwner(principal.userId) && role in setOf(AdminRole.HQ_HEAD, AdminRole.SYSTEM_ADMIN)
+        val profile = try { profile(accountId) } catch (_: JsonProcessingException) { return null }
+            catch (_: IllegalArgumentException) { return null }
+        val grants = try { profile?.grants?.map { it.toGrant() }.orEmpty() }
+            catch (_: IllegalArgumentException) { return null }
+        val owner = isDesignatedOwner(accountId) && role in setOf(AdminRole.HQ_HEAD, AdminRole.SYSTEM_ADMIN)
         val actor = AdministrativeActor(
-            CanonicalIdentity(CanonicalEntityType.ADMIN_ACCOUNT, principal.userId.toString()), AccessRealm.ADMINISTRATION, true,
+            CanonicalIdentity(CanonicalEntityType.ADMIN_ACCOUNT, accountId.toString()), AccessRealm.ADMINISTRATION, true,
             profile?.let { CanonicalIdentity(CanonicalEntityType.PERSON, it.personId.toString()) },
             primaryHqOwner = owner, hqAccount = role in setOf(AdminRole.HQ_HEAD, AdminRole.SYSTEM_ADMIN),
-            jobTitle = profile?.jobTitle, grants = profile?.grants?.map { it.toGrant() }.orEmpty(),
+            jobTitle = profile?.jobTitle, grants = grants,
         )
         // MANAGED with a missing profile remains managed and empty-deny, never legacy fallback.
         return LoadedAccess(facts.third == "MANAGED", profile, actor, role)

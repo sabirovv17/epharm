@@ -58,6 +58,7 @@ class MerchTaskClient(
         listOfNotNull(
             publicBaseUrl.trimEnd('/') + "/merch/staff",
             publicStaffUrl.takeIf { it.isNotBlank() },
+            publicBaseUrl.trimEnd('/') + "/tasks/staff",
         ).distinct().map { raw ->
             URI.create(raw).also { uri ->
                 require(uri.scheme.equals("https", ignoreCase = true) && uri.host != null &&

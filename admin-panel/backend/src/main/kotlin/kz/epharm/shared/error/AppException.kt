@@ -26,6 +26,7 @@ enum class ErrorCode {
     FORBIDDEN,
     NOT_FOUND,
     CONFLICT,
+    COMPLETE_PROFILE,
     INTERNAL,
 
     // Внешний сервис (Medusa-витрина Module 3) недоступен/ответил ошибкой.

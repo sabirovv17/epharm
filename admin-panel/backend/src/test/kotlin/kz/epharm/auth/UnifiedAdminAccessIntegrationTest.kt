@@ -211,10 +211,41 @@ class UnifiedAdminAccessIntegrationTest {
     }
 
     @Test fun `catalog never advertises unmigrated routes as grantable and scope empty is invalid`() {
-        assertThat(catalog.routes).hasSize(155)
+        assertThat(catalog.routes).hasSize(191)
+        val reviewedNative = setOf(
+            "GET /api/admin/merch/placements/catalog",
+            "GET /api/admin/merch/placements/producers",
+            "GET /api/admin/merch/branches",
+            "GET /api/admin/merch/branches/{id}/inventory",
+            "GET /api/admin/merch/branches/{id}/availability",
+            "POST /api/admin/merch/branches/{id}/availability",
+            "GET /api/admin/reports/ledger",
+            "GET /api/admin/reports/ledger.xlsx",
+            "GET /api/admin/reports/pharmacists.xlsx",
+            "GET /api/admin/merch/producers",
+            "GET /api/admin/merch/placements",
+            "GET /api/admin/merch/placements/{id}",
+            "POST /api/admin/merch/placements",
+            "PUT /api/admin/merch/placements/{id}/draft",
+            "POST /api/admin/merch/placements/{id}/submit",
+            "POST /api/admin/merch/placements/{id}/approve",
+            "POST /api/admin/merch/placements/{id}/reject",
+            "POST /api/admin/merch/placements/{id}/cancel",
+            "POST /api/admin/merch/admin-assignments",
+            "GET /api/admin/merch/tasks",
+            "GET /api/admin/merch/tasks/branches",
+            "POST /api/admin/merch/tasks",
+            "GET /api/admin/merch/tasks/{id}",
+            "GET /api/admin/merch/tasks/items/{itemId}/attempts",
+            "POST /api/admin/merch/tasks/items/{itemId}/attempts",
+            "POST /api/admin/merch/tasks/items/{itemId}/evidence",
+            "POST /api/admin/merch/tasks/items/{itemId}/submit",
+            "POST /api/admin/merch/tasks/items/{itemId}/reviews",
+            "GET /api/admin/merch/tasks/evidence/{id}",
+        )
         assertThat(catalog.routes.filter { it.mode == ScopeIntegration.SCOPED }.all {
             it.api.contains(" /api/admin/pharmacists") || it.api.contains(" /api/admin/pharmacies") ||
-                it.api == "GET /api/admin/training/pharmacists"
+                it.api == "GET /api/admin/training/pharmacists" || it.explicitAccess && it.api in reviewedNative
         }).isTrue()
         org.junit.jupiter.api.assertThrows<IllegalArgumentException> { grant("pharmacies_products", "pharmacies", "view", emptySet()).toGrant() }
     }
@@ -258,4 +289,90 @@ class UnifiedAdminAccessIntegrationTest {
         mvc.perform(get("/api/admin/access/catalog").header("Authorization", auth())).andExpect(status().isOk)
             .andExpect(jsonPath("$.pharmacies").isEmpty).andExpect(jsonPath("$.assignableRoles").isEmpty)
     }
+    private fun managementGrants() = grants(
+        grant("management", "accounts", "view", all = true),
+        grant("management", "accounts", "manage", all = true))
+
+    private fun sourceAccount(sourceRole: String = "admin"): Pair<UUID, String> {
+        val sourceId = UUID.randomUUID()
+        val hash = encoder.encode("Synthetic-source-password")
+        jdbc.update("""insert into unified_external_accounts(id,source_system,source_origin,source_payload,email,
+            full_name,source_role,active,password_hash,created_at,updated_at)
+            values(?,'MERCH_CRM','https://crm.inkar.kz','{}'::jsonb,?,'Source person',?,true,?,now(),now())""",
+            sourceId, "source-$sourceId@example.invalid", sourceRole, hash)
+        return sourceId to hash
+    }
+
+    @Test fun `HQ verifies identity and explicitly provisions source hash without granting access or exposing credentials`() {
+        managementGrants()
+        val proof = "private-source-reference-only"
+        val verified = mvc.perform(post("/api/admin/access/people").header("Authorization", auth())
+            .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(mapOf(
+                "name" to "Verified source person", "verificationReference" to proof, "currentPassword" to password))))
+            .andExpect(status().isCreated).andReturn().response.contentAsString
+        assertThat(verified).doesNotContain(proof, password)
+        val verifiedId = mapper.readTree(verified)["personId"].asText()
+        val (sourceId, sourceHash) = sourceAccount()
+        val request = mapper.writeValueAsString(mapOf("verifiedPersonId" to verifiedId, "role" to "REGIONAL_MANAGER",
+            "jobTitle" to "МАС", "verificationReference" to proof, "currentPassword" to password))
+        val result = mvc.perform(post("/api/admin/access/source-accounts/$sourceId/provision").header("Authorization", auth())
+            .contentType(MediaType.APPLICATION_JSON).content(request)).andExpect(status().isCreated)
+            .andExpect(jsonPath("$.grants").isEmpty).andReturn().response.contentAsString
+        val id = UUID.fromString(mapper.readTree(result)["accountId"].asText())
+        assertThat(result).doesNotContain(sourceHash, "passwordHash", proof, password)
+        assertThat(jdbc.queryForObject("select password_hash from admin_users where id=?", String::class.java, id)).isEqualTo(sourceHash)
+        assertThat(jdbc.queryForObject("select password_hash from unified_external_accounts where id=?", String::class.java, sourceId)).isEqualTo(sourceHash)
+        val newToken = jwt.issueAccessToken(users.findById(id).orElseThrow())
+        mvc.perform(get("/api/admin/merch/tasks").header("Authorization", "Bearer $newToken")).andExpect(status().isForbidden)
+        mvc.perform(get("/api/admin/access/source-accounts").header("Authorization", auth())).andExpect(status().isOk)
+            .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(sourceHash))))
+        mvc.perform(post("/api/admin/access/source-accounts/$sourceId/provision").header("Authorization", auth())
+            .contentType(MediaType.APPLICATION_JSON).content(request)).andExpect(status().isConflict)
+    }
+
+    @Test fun `source provisioning rejects producer realm unknown person blank reference and stale management authority`() {
+        managementGrants()
+        val (producer, _) = sourceAccount("advertiser")
+        fun request(source: UUID, personId: UUID = person, proof: String = "explicit-proof", pwd: String = password) =
+            mvc.perform(post("/api/admin/access/source-accounts/$source/provision").header("Authorization", auth())
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(mapOf(
+                    "verifiedPersonId" to personId, "role" to "HQ_HEAD", "verificationReference" to proof, "currentPassword" to pwd))))
+        request(producer).andExpect(status().isBadRequest)
+        val (source, _) = sourceAccount()
+        request(source, UUID.randomUUID()).andExpect(status().isBadRequest)
+        request(source, proof = "   ").andExpect(status().isBadRequest)
+        request(source, pwd = "wrong").andExpect(status().isForbidden)
+        grants(grant("management", "accounts", "view", all = true))
+        request(source).andExpect(status().isForbidden)
+        assertThat(jdbc.queryForObject("select count(*) from unified_external_account_bindings where source_account_id=?", Long::class.java, source)).isZero()
+    }
+
+    @Test fun `pharmacist identity binding is explicit immutable and password protected`() {
+        managementGrants()
+        fun bind(pwd: String = password) = mvc.perform(post("/api/admin/access/pharmacist-person-links").header("Authorization", auth())
+            .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(mapOf(
+                "pharmacistId" to "staff-a", "verifiedPersonId" to person, "verificationReference" to "explicit-person-proof", "currentPassword" to pwd))))
+        bind("wrong").andExpect(status().isForbidden)
+        bind().andExpect(status().isOk)
+        bind().andExpect(status().isConflict)
+        assertThat(jdbc.queryForObject("select person_id from pharmacist_person_links where pharmacist_id='staff-a'", UUID::class.java)).isEqualTo(person)
+        assertThat(jdbc.queryForObject("select count(*) from unified_identity_audit where entity_id='staff-a'", Long::class.java)).isEqualTo(1)
+    }
+
+    @Test fun `global authoring catalog views require explicit ALL and never imply mutations or broader roles`() {
+        grants(grant("pharmacies_products", "products", "view"))
+        mvc.perform(get("/api/admin/catalog/brands").header("Authorization", auth())).andExpect(status().isForbidden)
+        grants(grant("pharmacies_products", "products", "view", all=true))
+        mvc.perform(get("/api/admin/catalog/brands").header("Authorization", auth())).andExpect(status().isOk)
+        mvc.perform(post("/api/admin/banners").header("Authorization", auth()).contentType(MediaType.APPLICATION_JSON)
+            .content("{}" )).andExpect(status().isForbidden)
+        admin.role=AdminRole.TRAINER;users.saveAndFlush(admin)
+        grants(grant("training", "courses", "view", all=true))
+        mvc.perform(get("/api/admin/lms/courses").header("Authorization", auth())).andExpect(status().isOk)
+        mvc.perform(post("/api/admin/lms/courses").header("Authorization", auth()).contentType(MediaType.APPLICATION_JSON)
+            .content("{}" )).andExpect(status().isForbidden)
+        grants(grant("training", "question_bank", "view", all=true))
+        mvc.perform(get("/api/admin/ai-exam/questions").header("Authorization", auth())).andExpect(status().isForbidden)
+    }
+
 }
