@@ -227,6 +227,20 @@ are uploaded through the backend and stored as returned URLs rather than typed a
 
 ## Pharmacist Onboarding
 
+### Learner home, training and card placeholder
+
+The separate pharmacist portal keeps its own authentication and never enters the HQ shell.
+`/learn` shows the canonical personal balance/rating and one current available course: started
+assignments first, then existing priority/deadline order. Completed, cancelled, paused and future
+assignments do not occupy the home card. The `Training` navigation item and `All courses` action
+open `/learn/training`, listing all non-cancelled assignments returned for that account, including
+completed courses. Status, progress and deadline are visible; existing course/lesson URLs and
+server-side progression checks remain unchanged. Desktop and mobile share five navigation items.
+
+The profile contains an explicitly disconnected bank-card placeholder. Its `Link card` button
+only expands an explanation: there are no editable payment fields, API requests, storage writes,
+card-link success state or transfers. Connecting a bank requires a separate implementation.
+
 ### Merchandising executor confirmation
 
 CRM may open `https://epharm.inkar.kz/learn/merch/claim#challenge=...` for a rewarded task.
