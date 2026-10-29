@@ -12,7 +12,7 @@ const makeAssignment = (id: string, programName: string, status: string, dueAt: 
 })
 const current = makeAssignment('current', 'Первый текущий курс', 'in_progress', '2026-11-02T10:00:00Z', 30)
 const later = makeAssignment('later', 'Другой текущий курс', 'in_progress', '2026-11-10T10:00:00Z', 10)
-const assigned = makeAssignment('assigned', 'Назначенный курс', 'assigned', '2026-10-30T10:00:00Z')
+const assigned = makeAssignment('assigned', 'Назначенный курс', 'not_started', '2026-10-30T10:00:00Z')
 const completed = makeAssignment('completed', 'Завершённый доступный курс', 'completed', '2026-10-01T10:00:00Z', 100)
 const cancelled = makeAssignment('cancelled', 'Отменённый курс', 'cancelled', '2026-10-01T10:00:00Z')
 let assignments: ReturnType<typeof makeAssignment>[]
@@ -118,6 +118,23 @@ describe('real learner training navigation and payment placeholder', () => {
       expect(within(card!).queryByRole('button', { name: 'Начать курс', exact: true })).not.toBeInTheDocument()
       expect(within(card!).queryByRole('button', { name: 'Продолжить обучение', exact: true })).not.toBeInTheDocument()
     }
+  })
+
+  it('offers a scheduled course after its start date but not a scheduled course without a date', async () => {
+    const elapsedScheduled = {
+      ...makeAssignment('elapsed-scheduled', 'Курс уже доступен по дате', 'scheduled', '2099-12-31T10:00:00Z'),
+      startsAt: new Date(Date.now() - 86_400_000).toISOString(),
+    }
+    const undatedScheduled = {
+      ...makeAssignment('undated-scheduled', 'Курс пока без даты старта', 'scheduled', '2026-10-30T10:00:00Z', 80),
+      priority: 'critical',
+    }
+    assignments = [undatedScheduled, completed, cancelled, elapsedScheduled]
+    renderRouter()
+    expect(await screen.findByRole('heading', { name: 'Текущий курс', exact: true })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: elapsedScheduled.programName, exact: true })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Начать курс', exact: true })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: undatedScheduled.programName, exact: true })).not.toBeInTheDocument()
   })
 
   it('links to all courses from home without presenting a completed course as current', async () => {

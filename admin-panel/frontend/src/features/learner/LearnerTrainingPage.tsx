@@ -2372,7 +2372,8 @@ function OverviewView({
 }) {
   const t = useLearnerT()
   const availableNow = (assignment: Assignment) =>
-    !['completed', 'cancelled', 'paused', 'planned', 'scheduled'].includes(assignment.status)
+    !['completed', 'cancelled', 'paused', 'planned'].includes(assignment.status)
+    && (assignment.status !== 'scheduled' || !!assignment.startsAt)
     && (!assignment.startsAt || new Date(assignment.startsAt).getTime() <= loadedAt)
   const assignments = (overview?.assignments ?? [])
     .filter((assignment) => assignment.status !== 'cancelled')

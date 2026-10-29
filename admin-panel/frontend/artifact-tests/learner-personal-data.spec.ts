@@ -133,7 +133,7 @@ for (const viewport of [{ name: 'desktop', width: 1440, height: 1000 }, { name: 
     test.use({ viewport: { width: viewport.width, height: viewport.height } })
     test('training has its own route, home keeps the current course and card linking stays a safe preview', async ({ page, learnerApi }, testInfo) => {
       const assignments = [
-        { id: 'next', programName: 'Следующий курс', status: 'assigned', progressPct: 0 },
+        { id: 'next', programName: 'Следующий курс', status: 'not_started', progressPct: 0 },
         { id: 'current', programName: 'Текущий учебный курс', status: 'in_progress', progressPct: 40 },
         { id: 'done', programName: 'Завершённый учебный курс', status: 'completed', progressPct: 100 },
         { id: 'cancelled', programName: 'Отменённый учебный курс', status: 'cancelled', progressPct: 0 },
