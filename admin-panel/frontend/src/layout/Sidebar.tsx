@@ -36,6 +36,7 @@ interface SidebarProps {
   canViewMerchInventory?: boolean
   canViewMerchPlacements?: boolean
   canViewMerchTasks?: boolean
+  canViewLedger?: boolean
 }
 
 export function Sidebar({
@@ -52,6 +53,7 @@ export function Sidebar({
   canViewMerchInventory = false,
   canViewMerchPlacements = false,
   canViewMerchTasks = false,
+  canViewLedger = false,
 }: SidebarProps) {
   const t = useT()
   const trainingWorkspace = isTrainingWorkspaceRole(user.role)
@@ -59,6 +61,7 @@ export function Sidebar({
     inventory: canViewMerchInventory,
     placements: canViewMerchPlacements,
     tasks: canViewMerchTasks,
+    ledger: canViewLedger,
   })
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const pick = (item: AdminNavigationItem) => {

@@ -29,7 +29,7 @@ export function AppShell() {
   const navigate = useNavigate()
   const location = useLocation()
   const t = useT()
-  const { canViewMerchInventory, canViewMerchPlacements, canViewMerchTasks } =
+  const { canViewMerchInventory, canViewMerchPlacements, canViewMerchTasks, canViewLedger } =
     useAdministrativeCapabilities()
 
   const {
@@ -51,9 +51,9 @@ export function AppShell() {
 
   // Sync active section with current pathname.
   const activeSection = useMemo<SectionId>(() => {
-    const entry = (Object.entries(SECTION_ROUTES) as [SectionId, string][]).find(([, path]) =>
-      location.pathname.startsWith(path),
-    )
+    const entry = (Object.entries(SECTION_ROUTES) as [SectionId, string][])
+      .sort((a, b) => b[1].length - a[1].length)
+      .find(([, path]) => location.pathname.startsWith(path))
     return entry?.[0] ?? defaultSectionForRole(authedUser?.role ?? 'HQ_HEAD')
   }, [authedUser?.role, location.pathname])
 
@@ -73,13 +73,15 @@ export function AppShell() {
   const onSelectSection = (id: SectionId) => {
     if (
       authedUser &&
-      (id === 'merch_inventory'
-        ? canViewMerchInventory
-        : id === 'merch_placements'
-          ? canViewMerchPlacements
-          : id === 'merch_tasks'
-            ? canViewMerchTasks
-            : canAccessSection(authedUser.role, id))
+      (id === 'ledger'
+        ? canViewLedger
+        : id === 'merch_inventory'
+          ? canViewMerchInventory
+          : id === 'merch_placements'
+            ? canViewMerchPlacements
+            : id === 'merch_tasks'
+              ? canViewMerchTasks
+              : canAccessSection(authedUser.role, id))
     )
       navigate(SECTION_ROUTES[id])
   }
@@ -95,6 +97,7 @@ export function AppShell() {
         inventory: canViewMerchInventory,
         placements: canViewMerchPlacements,
         tasks: canViewMerchTasks,
+        ledger: canViewLedger,
       }).some((module) => module.items.some((item) => item.available && item.path === path))
     )
       navigate(path)
@@ -145,6 +148,7 @@ export function AppShell() {
           canViewMerchInventory={canViewMerchInventory}
           canViewMerchPlacements={canViewMerchPlacements}
           canViewMerchTasks={canViewMerchTasks}
+          canViewLedger={canViewLedger}
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <Topbar
@@ -179,6 +183,7 @@ export function AppShell() {
             canViewMerchInventory={canViewMerchInventory}
             canViewMerchPlacements={canViewMerchPlacements}
             canViewMerchTasks={canViewMerchTasks}
+            canViewLedger={canViewLedger}
           />
         )}
       </div>

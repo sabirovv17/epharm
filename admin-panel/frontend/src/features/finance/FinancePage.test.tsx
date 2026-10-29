@@ -91,7 +91,8 @@ describe('FinancePage — рендер', () => {
     renderPage()
     expect(screen.getByRole('heading', { level: 1, name: /Финансы/i })).toBeInTheDocument()
     expect(screen.getByText('К выплате текущий период')).toBeInTheDocument()
-    expect(screen.getByText('Выплачено всего')).toBeInTheDocument()
+    expect(screen.getByText('Одобрено к выплате')).toBeInTheDocument()
+    expect(screen.queryByText('Выплачено всего')).not.toBeInTheDocument()
   })
 
   it('Empty state на пустом списке', () => {

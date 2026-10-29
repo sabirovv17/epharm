@@ -70,7 +70,7 @@ export default function ProducerLoginPage() {
             </p>
           </div>
           <p className="text-xs leading-6 text-white/55">
-            Вход только для подключённых производителей. Доступ к админке и личному кабинету
+            Вход и регистрация производителя по телефону. Доступ к админке и личному кабинету
             фармацевта выдаётся отдельно.
           </p>
         </aside>
@@ -79,12 +79,12 @@ export default function ProducerLoginPage() {
             Личный кабинет
           </p>
           <h2 className="mt-3 text-3xl font-extrabold">
-            {challenge ? 'Введите код из SMS' : 'Вход по телефону'}
+            {challenge ? 'Введите код из SMS' : 'Вход и регистрация'}
           </h2>
           <p className="mb-7 mt-3 text-sm leading-6 text-ink-500">
             {challenge
               ? `${challenge.message}. ${challenge.phoneMasked}`
-              : 'Используйте номер, который привязан к вашему производителю. Самостоятельная регистрация не открывает доступ.'}
+              : 'Подтвердите телефон кодом из SMS. При первом входе заполните профиль компании.'}
           </p>
           <form
             className="flex flex-col gap-4"

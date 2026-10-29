@@ -48,6 +48,7 @@ export const ru: Dict = {
   'nav.pharmacists': 'Фармацевты',
   'nav.reconcile': 'Сверка чеков',
   'nav.ai_exam': 'AI-Экзаменация',
+  'nav.ledger': 'Начисления',
   'nav.finance': 'Финансы / выплаты',
   'nav.lift': 'Аналитика lift',
   'nav.lms': 'Обучение',
@@ -495,7 +496,7 @@ export const ru: Dict = {
   // ── Finance ───────────────────────────────────────────────────────────
   'fin.mPending': 'К выплате текущий период',
   'fin.pendingCount': '{n} pending',
-  'fin.mPaid': 'Выплачено всего',
+  'fin.mPaid': 'Одобрено к выплате',
   'fin.approvedCount': '{n} утв. батчей',
   'fin.mPharm': 'Фарм. в утв. батчах',
   'fin.mFlags': 'С флагами (требуют ревью)',
@@ -1260,6 +1261,7 @@ export const kk: Dict = {
   'nav.pharmacists': 'Фармацевттер',
   'nav.reconcile': 'Чектерді салыстыру',
   'nav.ai_exam': 'AI-емтихан',
+  'nav.ledger': 'Есептеулер',
   'nav.finance': 'Қаржы / төлемдер',
   'nav.lift': 'Lift аналитикасы',
   'nav.lms': 'Оқыту / LMS',
@@ -1706,7 +1708,7 @@ export const kk: Dict = {
   // ── Finance ───────────────────────────────────────────────────────────
   'fin.mPending': 'Ағымдағы кезеңде төленеді',
   'fin.pendingCount': '{n} pending',
-  'fin.mPaid': 'Барлығы төленді',
+  'fin.mPaid': 'Төлеуге бекітілді',
   'fin.approvedCount': '{n} бекіт. партия',
   'fin.mPharm': 'Бекіт. партиялардағы фарм.',
   'fin.mFlags': 'Жалаушалармен (ревью керек)',

@@ -13,6 +13,7 @@ export function useAdministrativeCapabilities() {
     placeholderData: undefined,
     retry: false,
   })
+  const fresh = query.isSuccess && query.isFetchedAfterMount && !query.isError
   return {
     ...query,
     canViewMerchInventory:
@@ -30,5 +31,13 @@ export function useAdministrativeCapabilities() {
       query.isFetchedAfterMount &&
       !query.isError &&
       query.data?.canViewMerchTasks === true,
+    canCreateMerchTasks: fresh && query.data?.canCreateMerchTasks === true,
+    canExecuteMerchTasks: fresh && query.data?.canExecuteMerchTasks === true,
+    canReviewMerchTasks: fresh && query.data?.canReviewMerchTasks === true,
+    canViewLedger: fresh && query.data?.canViewLedger === true,
+    canExportLedger: fresh && query.data?.canExportLedger === true,
+    canExportPayouts: fresh && query.data?.canExportPayouts === true,
+    canExportPharmacists: fresh && query.data?.canExportPharmacists === true,
+    canExportCampaignReports: fresh && query.data?.canExportCampaignReports === true,
   }
 }

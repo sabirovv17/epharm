@@ -48,6 +48,7 @@ export type SectionId =
   | 'merch_inventory'
   | 'merch_placements'
   | 'merch_tasks'
+  | 'ledger'
 
 export interface Section {
   id: SectionId
@@ -76,6 +77,7 @@ export const SECTIONS: Section[] = [
   { id: 'settings', label: 'Настройки', group: 'Система', Icon: IconSettings },
   { id: 'merch_placements', label: 'Кабинет производителя', group: 'Операции', Icon: IconPharmacy },
   { id: 'merch_tasks', label: 'Задания фармацевтов', group: 'Операции', Icon: IconPharmacist },
+  { id: 'ledger', label: 'Начисления', group: 'Операции', Icon: IconFinance },
   {
     id: 'merch_inventory',
     label: 'Календарь и доступность',

@@ -3,6 +3,8 @@
 
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import ReportDownloadButton from '@/features/reports/ReportDownloadButton'
+import { useAdministrativeCapabilities } from '@/app/useAdministrativeCapabilities'
 import {
   Button,
   Empty,
@@ -62,6 +64,7 @@ const TAB_KEYS: Record<PhTab, string> = {
 
 export default function PharmacistsPage() {
   const t = useT()
+  const access = useAdministrativeCapabilities()
   const toast = useToast()
   const navigate = useNavigate()
   const [tab, setTab] = useState<PhTab>('all')
@@ -206,6 +209,18 @@ export default function PharmacistsPage() {
         subtitle={t('page.pharmacists.subtitle')}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <ReportDownloadButton
+              allowed={access.canExportPharmacists}
+              path="/api/admin/reports/pharmacists.xlsx"
+              params={{ status: tab === 'all' ? undefined : tab }}
+              filename="pharmacists.xlsx"
+              label="Excel: реестр"
+              note={
+                q.trim() || formatFilter !== 'all'
+                  ? 'Выгружается реестр по статусу. Поиск и формат обучения не учитываются.'
+                  : undefined
+              }
+            />
             {canManageStandardN && (
               <Button variant="outline" onClick={() => setStandardNMappingsOpen(true)}>
                 Продавцы Standard-N

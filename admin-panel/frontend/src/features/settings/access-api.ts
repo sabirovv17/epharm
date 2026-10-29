@@ -24,6 +24,14 @@ export interface AccessCapabilities {
   canViewMerchInventory?: boolean
   canViewMerchPlacements?: boolean
   canViewMerchTasks?: boolean
+  canCreateMerchTasks?: boolean
+  canExecuteMerchTasks?: boolean
+  canReviewMerchTasks?: boolean
+  canViewLedger?: boolean
+  canExportLedger?: boolean
+  canExportPayouts?: boolean
+  canExportPharmacists?: boolean
+  canExportCampaignReports?: boolean
 }
 
 export interface AccessAccount {

@@ -11,6 +11,7 @@ export const SECTION_ROUTES: Record<SectionId, string> = {
   reconcile: '/reconcile',
   ai_exam: '/ai-exam',
   finance: '/finance',
+  ledger: '/finance/ledger',
   lift: '/lift',
   lms: '/lms',
   settings: '/settings',

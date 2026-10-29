@@ -19,6 +19,7 @@ interface CommandPaletteProps {
   canViewMerchInventory?: boolean
   canViewMerchPlacements?: boolean
   canViewMerchTasks?: boolean
+  canViewLedger?: boolean
 }
 
 interface Item {
@@ -40,6 +41,7 @@ export function CommandPalette({
   canViewMerchInventory = false,
   canViewMerchPlacements = false,
   canViewMerchTasks = false,
+  canViewLedger = false,
 }: CommandPaletteProps) {
   const t = useT()
   const [q, setQ] = useState('')
@@ -48,6 +50,7 @@ export function CommandPalette({
     inventory: canViewMerchInventory,
     placements: canViewMerchPlacements,
     tasks: canViewMerchTasks,
+    ledger: canViewLedger,
   }).flatMap((module) =>
     module.items
       .filter((item) => item.available && item.path)

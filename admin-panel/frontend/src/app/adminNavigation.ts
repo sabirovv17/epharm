@@ -67,7 +67,13 @@ export const ADMIN_NAVIGATION: readonly AdminNavigationModule[] = [
   {
     id: 'motivation',
     Icon: IconPromo,
-    items: [section('promo'), section('rules'), section('reconcile'), section('finance')],
+    items: [
+      section('promo'),
+      section('rules'),
+      section('reconcile'),
+      section('ledger'),
+      section('finance'),
+    ],
   },
   {
     id: 'training',
@@ -87,11 +93,7 @@ export const ADMIN_NAVIGATION: readonly AdminNavigationModule[] = [
   {
     id: 'merch',
     Icon: IconLayers,
-    items: [
-      section('merch_placements'),
-      { ...section('merch_tasks'), available: false, path: undefined },
-      section('merch_inventory'),
-    ],
+    items: [section('merch_placements'), section('merch_tasks'), section('merch_inventory')],
   },
   {
     id: 'network',
@@ -111,6 +113,7 @@ export interface MerchNavigationCapabilities {
   inventory?: boolean
   placements?: boolean
   tasks?: boolean
+  ledger?: boolean
 }
 export function adminNavigationForRole(
   role: AdminRole,
@@ -121,6 +124,7 @@ export function adminNavigationForRole(
   return ADMIN_NAVIGATION.map((module) => ({
     ...module,
     items: module.items.flatMap((item) => {
+      if (item.section === 'ledger') return caps.ledger ? [item] : []
       if (item.section?.startsWith('merch_')) {
         const permitted =
           item.section === 'merch_inventory'

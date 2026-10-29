@@ -15,8 +15,8 @@ Stack:
 - lucide-react;
 - Vitest, Testing Library, Playwright.
 
-The admin console is a desktop-only HQ tool. Root minimum width is 1280px; mobile adaptation is not a
-goal because mobile users have the Flutter app.
+The admin console is a desktop HQ tool with a 1280px minimum width. The separate `/learn`,
+`/producer` and public task portals do not inherit that minimum and support narrow screens.
 
 ## Routes
 
@@ -31,8 +31,8 @@ It is shown only after a fresh `/api/admin/access/me` response explicitly grants
 `canViewMerchInventory`; a legacy HQ or regional role alone is insufficient. A regional manager
 with that capability keeps the existing training boundary and gains this Merch screen only.
 Manufacturer plans now have the native `/merch/placements` workspace, guarded independently by
-`canViewMerchPlacements`. Pharmacist task administration remains **not connected** until its own
-native flow is integrated; the inventory screen is not a substitute for those flows.
+`canViewMerchPlacements`. The native `/merch/tasks` queue is independently guarded by
+`canViewMerchTasks`; inventory or placement rights do not grant task rights.
 
 The inventory screen paginates authorized branches and uses the native `/api/admin/merch/branches`
 API. Block/unblock requires selected shelf IDs, an explicit month range, and confirmation.
@@ -64,7 +64,9 @@ The dedicated fetch client sends producer bearer tokens with `credentials: omit`
 admin/mobile tokens or interceptors. Its session-storage namespace is `epharm.producer.session.v1`.
 Refresh is single-flight; logout changes the local epoch immediately and late old-session responses
 cannot restore a logged-out or different producer. OTP values are never stored. Disabled auth
-(including default-off feature responses) is shown as unavailable, without fake registration.
+(including default-off feature responses) is shown as unavailable. When enabled, a verified SMS
+may create a new producer identity; the first login then completes the typed company profile.
+The frontend never invents a registered company or derives one from a matching name.
 
 The external picker reads active branches and fetches the quote for the selected branch only.
 Create omits `producerId`; the server derives identity from its producer principal. External
@@ -84,6 +86,53 @@ Placement permissions require both branch scope and a separate manufacturer scop
 between actions, or populated by an empty selection. Server delegation limits remain authoritative.
 These flows are source/tested locally; they are not evidence of a production release or real SMS delivery.
 
+### Native pharmacist tasks and financial exports (local candidate)
+
+The HQ task queue uses `/api/admin/merch/tasks` and its task-scoped branch selector, not the
+inventory API. New tasks require an active authorized branch, a title, a future due date and
+at least one required item. Deadlines are entered in Asia/Almaty time. Per-item instructions,
+photo minimums and checklist rows are preserved; a reward can only be configured when the
+selected branch explicitly returns `canConfigureReward`. Queue pagination does not invent a
+global count or a server-side status/search filter.
+
+Every item action uses fresh server `canStart/canUpload/canSubmit/canReview` flags. Photo uploads
+are authenticated private JPG/PNG bytes (20 MB / 12 MP server gate); failed uploads are not
+retried automatically. A retained `clientUploadId` protects an explicit retry of the same file.
+Submission includes the current attempt number and completed checklist IDs. Review requires
+the selected attempt ID, current item version, an explicit reason and confirmation. A 409
+requires reloading, not a silent retry. Prior photos and attempts remain history and cannot
+satisfy a new attempt's photo minimum. The UI never overrides server self-review restrictions.
+
+Imported in-progress/submitted items with no current attempt cannot be claimed by opening a
+new QR link. Only explicit HQ leaf capabilities reveal source continuation actions: request a
+new attempt or adopt the submitted historical report for review, with current version and a
+reason. Preserved-source review requires its own manual acknowledgement; this is distinct from
+the unverified free-link executor acknowledgement. Neither acknowledgement confirms identity
+or credits a paid historical report automatically.
+
+`/tasks/staff?task=1#task=...` is the new native public task route. Its capability is consumed from
+the fragment into memory and removed from history before telemetry starts. It is never accepted
+from query parameters or written to storage. Public task requests send `X-Merch-Task-Token`
+without cookies/admin/learner authorization and use a no-referrer policy. Free tasks support
+their own allowed photo workflow. Paid tasks expose only metadata before linking to the separate
+`/learn/merch/tasks/:id` pharmacist session; there is no RPS or Standard-N lock.
+
+For an unbound paid task, only `OTP_NOT_VERIFIED` opens the native executor confirmation flow.
+The original QR capability plus the current learner session fetch immutable task context.
+SMS is requested only by the user; the recipient phone is read-only and server-derived. Verify
+sends only challenge ID and code. An existing binding skips SMS; a wrong pharmacy/person remains
+denied. SMS/delivery feature flags remain default-off and tests use mocked providers. Legacy
+`/merch/staff` CRM compatibility routes are unchanged.
+
+`/finance/ledger` reads wallet postings, not a new sum of underlying rewards. Period/source
+filters apply identically to the report and its separate Excel button. Missing historical
+pharmacy or balance is shown as unknown, never replaced by the current pharmacy or zero.
+Scoped unresolved counts may be withheld. Registry, payout and single-campaign XLSX downloads
+have separate server export capabilities; the payout period means batch creation, and an
+approved batch is not proof of a bank transfer. Registry search/training filters not supported
+by its export API are explicitly excluded. XLSX MIME is checked so an error page is not saved
+as a spreadsheet. These local flows do not constitute a production deployment.
+
 Public:
 
 - `/login`
@@ -96,6 +145,10 @@ Public:
   empty feed. Sign-out clears personal data and rejects late responses from that session.
 - `/learn/merch/claim` — mobile-friendly pharmacist identity confirmation for a CRM task; it uses
   pharmacist authentication, not the HQ admin session, and does not grant access to the admin shell.
+- `/learn/merch/tasks/:taskId` — native task detail and paid executor confirmation in that same
+  personal pharmacist session.
+- `/tasks/staff` — native fragment-capability free task / paid task metadata portal.
+- `/producer/login`, `/producer` — separate producer SMS realm.
 
 Protected under `AppShell`:
 
@@ -111,6 +164,8 @@ Protected under `AppShell`:
 - `/reconcile`
 - `/ai-exam`
 - `/finance`
+- `/finance/ledger`
+- `/merch/inventory`, `/merch/placements`, `/merch/tasks`
 - `/lift`
 - `/lms`
 - `/settings`

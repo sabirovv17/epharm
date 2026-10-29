@@ -14,6 +14,7 @@ import {
 import { describeError } from '@/lib/describeError'
 import { formatKzt, formatNum } from '@/mocks/fixtures'
 import { useT } from '@/i18n'
+import PayoutReportTools from '@/features/reports/PayoutReportTools'
 
 type FinTab = 'pending' | 'history'
 
@@ -80,29 +81,32 @@ export default function FinancePage() {
         }
       />
 
-      <div className="grid grid-cols-4 gap-4">
-        <Metric
-          label={t('fin.mPending')}
-          value={formatKzt(totalPendingAmount)}
-          accent="amber"
-          icon={<IconFinance size={18} />}
-          sub={t('fin.pendingCount', { n: pending.length })}
-        />
-        <Metric
-          label={t('fin.mPaid')}
-          value={formatKzt(totalApprovedAmount)}
-          accent="green"
-          icon={<IconArrowUp size={18} />}
-          sub={t('fin.approvedCount', { n: approved.length })}
-        />
-        <Metric label={t('fin.mPharm')} value={formatNum(totalApprovedItems)} accent="blue" />
-        <Metric
-          label={t('fin.mFlags')}
-          value={formatNum(flaggedCount)}
-          accent="purple"
-          icon={<IconReconcile size={18} />}
-        />
-      </div>
+      <PayoutReportTools />
+      {!isLoading && !showFullError && (
+        <div className="grid grid-cols-4 gap-4">
+          <Metric
+            label={t('fin.mPending')}
+            value={formatKzt(totalPendingAmount)}
+            accent="amber"
+            icon={<IconFinance size={18} />}
+            sub={t('fin.pendingCount', { n: pending.length })}
+          />
+          <Metric
+            label={t('fin.mPaid')}
+            value={formatKzt(totalApprovedAmount)}
+            accent="green"
+            icon={<IconArrowUp size={18} />}
+            sub={t('fin.approvedCount', { n: approved.length })}
+          />
+          <Metric label={t('fin.mPharm')} value={formatNum(totalApprovedItems)} accent="blue" />
+          <Metric
+            label={t('fin.mFlags')}
+            value={formatNum(flaggedCount)}
+            accent="purple"
+            icon={<IconReconcile size={18} />}
+          />
+        </div>
+      )}
 
       <div className="card flex min-h-[480px] flex-col">
         <div className="hairline border-b px-5 py-3">
