@@ -2152,7 +2152,7 @@ function ProfileView({
           <div className="mt-4 flex items-center gap-4 rounded-2xl border border-ink-100 bg-paper-hover p-4">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-brand-green-700"><CreditCard size={23} /></span>
             <div>
-              <div className="text-lg tracking-[0.16em] text-ink-400" aria-hidden="true">•••• •••• •••• ••••</div>
+              <div className="whitespace-nowrap text-base tracking-[0.1em] text-ink-400" aria-hidden="true">•••• •••• •••• ••••</div>
               <p className="mt-1 text-xs font-semibold text-ink-500">{t('Карта для будущих выплат')}</p>
             </div>
           </div>
