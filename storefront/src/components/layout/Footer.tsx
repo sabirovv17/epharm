@@ -65,8 +65,11 @@ export function Footer() {
 
         <div className="mt-12 grid gap-6 border-t border-white/10 pt-8 md:grid-cols-2">
           <div className="space-y-2 text-sm">
-            <a href="tel:+77000000000" className="flex items-center gap-2 font-semibold text-white">
-              <Phone className="h-4 w-4 text-brand-400" /> +7 700 000 00 00
+            <a href="tel:+77000001464" className="flex items-center gap-2 font-semibold text-white">
+              <Phone className="h-4 w-4 text-brand-400" /> +7 (700) 000-14-64
+            </a>
+            <a href="tel:+77273410546" className="flex items-center gap-2 font-semibold text-white">
+              <Phone className="h-4 w-4 text-brand-400" /> +7 (727) 341-05-46
             </a>
             <p className="flex items-center gap-2 text-slate-400">
               <Mail className="h-4 w-4 text-brand-400" /> support@inkar.kz
