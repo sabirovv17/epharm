@@ -275,6 +275,17 @@ class MerchTaskWorkflowIntegrationTest {
         assertEquals(27,d.itemCount);assertEquals(27,d.items.size)
     }
 
+    @Test fun `packet keeps all 500 placement items and rejects 501 without splitting or truncating`() {
+        val packet=create(amount=0,count=500)
+        assertEquals(500,packet.itemCount);assertEquals(500,packet.items.size)
+        val tooMany=CreateMerchTaskDispatch(branch,"Oversized native packet",Instant.now().plusSeconds(3600),items=
+            (1..501).map {CreateMerchTaskItem("Concrete placement $it")})
+        mvc.perform(post("/api/admin/merch/tasks").header("Authorization",adminAuth).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsBytes(tooMany))).andExpect(status().isBadRequest)
+        assertEquals(1,jdbc.queryForObject("select count(*) from merch_task_dispatches",Int::class.java))
+        assertEquals(500,jdbc.queryForObject("select count(*) from merch_task_items",Int::class.java))
+    }
+
     @Test fun `changed legacy evidence size fails closed without deleting its original file`() {
         val d=create(amount=0,count=1);val item=d.items.single();val id=UUID.randomUUID()
         val key="synthetic-legacy-$id.png";Files.write(files.resolve(key),photo)

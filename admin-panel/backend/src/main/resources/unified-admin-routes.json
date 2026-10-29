@@ -1966,5 +1966,93 @@
     },
     "mode": "SCOPED",
     "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/exports/inventory.xlsx",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "inventory",
+      "action": "export",
+      "kind": "EXPORT"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/exports/placements.xlsx",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "export",
+      "kind": "EXPORT"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/exports/tasks.xlsx",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "export",
+      "kind": "EXPORT"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/training/exports/courses.xlsx",
+    "permission": {
+      "module": "training",
+      "subsection": "courses",
+      "action": "export",
+      "kind": "EXPORT"
+    },
+    "mode": "ALL_ONLY",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/training/exports/programs.xlsx",
+    "permission": {
+      "module": "training",
+      "subsection": "programs",
+      "action": "export",
+      "kind": "EXPORT"
+    },
+    "mode": "ALL_ONLY",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/training/exports/assignments.xlsx",
+    "permission": {
+      "module": "training",
+      "subsection": "assignments",
+      "action": "export",
+      "kind": "EXPORT"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/training/exports/results.xlsx",
+    "permission": {
+      "module": "training",
+      "subsection": "results",
+      "action": "export",
+      "kind": "EXPORT"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/promo/producers",
+    "permission": {
+      "module": "motivation",
+      "subsection": "campaigns",
+      "action": "manage_producer",
+      "kind": "SENSITIVE_DATA"
+    },
+    "mode": "ALL_ONLY",
+    "explicitAccess": true
   }
 ]

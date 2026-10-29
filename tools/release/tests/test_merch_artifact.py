@@ -27,7 +27,7 @@ class MerchArtifactTests(unittest.TestCase):
                 write(omit=name)
                 with self.assertRaises(KeyError):
                     artifact.verify(jar)
-            for marker in ('writeValueAsBytes', 'IPV4_OCTET', 'MERCH_TASKS_STAFF_URL'):
+            for marker in ('writeValueAsBytes', 'IPV4_OCTET', 'MERCH_TASKS_STAFF_URL', 'ownsNativeDeliveryToken', 'requirePaidMutation', 'source_preserved'):
                 write(marker=marker)
                 with self.assertRaises(ValueError):
                     artifact.verify(jar)

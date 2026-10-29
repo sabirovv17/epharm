@@ -51,7 +51,7 @@ class ProducerBindingService(private val jdbc: JdbcTemplate, private val access:
         val revision = expectRevision(promoId, request.expectedRevision)
         val producer = jdbc.queryForList("SELECT name,active,source_account_role FROM merch_producers WHERE id=? FOR UPDATE", request.producerId)
             .singleOrNull() ?: notFound("Производитель не найден")
-        if (producer["active"] != true || producer["source_account_role"] != "advertiser") forbidden()
+        if (producer["active"] != true || producer["source_account_role"] !in setOf("advertiser","internal_manufacturer")) forbidden()
         if ((producer["name"] as? String).isNullOrBlank()) throw AppException(ErrorCode.COMPLETE_PROFILE,
             "Заполните название компании в профиле производителя", HttpStatus.CONFLICT)
         val overlap = jdbc.queryForObject("""SELECT EXISTS(SELECT 1 FROM promo_producer_bindings b

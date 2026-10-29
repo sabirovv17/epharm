@@ -211,7 +211,7 @@ class UnifiedAdminAccessIntegrationTest {
     }
 
     @Test fun `catalog never advertises unmigrated routes as grantable and scope empty is invalid`() {
-        assertThat(catalog.routes).hasSize(193)
+        assertThat(catalog.routes).hasSize(201)
         val reviewedNative = setOf(
             "GET /api/admin/merch/placements/catalog",
             "GET /api/admin/merch/placements/producers",
@@ -234,6 +234,9 @@ class UnifiedAdminAccessIntegrationTest {
             "POST /api/admin/merch/admin-assignments",
             "GET /api/admin/merch/tasks",
             "GET /api/admin/merch/tasks/branches",
+            "GET /api/admin/merch/exports/inventory.xlsx",
+            "GET /api/admin/merch/exports/placements.xlsx",
+            "GET /api/admin/merch/exports/tasks.xlsx",
             "POST /api/admin/merch/tasks",
             "GET /api/admin/merch/tasks/{id}",
             "GET /api/admin/merch/tasks/items/{itemId}/attempts",
@@ -246,7 +249,8 @@ class UnifiedAdminAccessIntegrationTest {
         )
         assertThat(catalog.routes.filter { it.mode == ScopeIntegration.SCOPED }.all {
             it.api.contains(" /api/admin/pharmacists") || it.api.contains(" /api/admin/pharmacies") ||
-                it.api == "GET /api/admin/training/pharmacists" || it.explicitAccess && it.api in reviewedNative
+                it.api == "GET /api/admin/training/pharmacists" || it.explicitAccess && it.api in setOf(
+                    "GET /api/admin/training/exports/assignments.xlsx", "GET /api/admin/training/exports/results.xlsx") || it.explicitAccess && it.api in reviewedNative
         }).isTrue()
         org.junit.jupiter.api.assertThrows<IllegalArgumentException> { grant("pharmacies_products", "pharmacies", "view", emptySet()).toGrant() }
     }
@@ -374,6 +378,19 @@ class UnifiedAdminAccessIntegrationTest {
             .content("{}" )).andExpect(status().isForbidden)
         grants(grant("training", "question_bank", "view", all=true))
         mvc.perform(get("/api/admin/ai-exam/questions").header("Authorization", auth())).andExpect(status().isForbidden)
+    }
+
+    @Test fun `identity pharmacist picker is bounded and contains no phone IIN balance or password`() {
+        managementGrants()
+        mvc.perform(get("/api/admin/access/pharmacist-options?q=staff-&limit=1").header("Authorization", auth()))
+            .andExpect(status().isOk).andExpect(jsonPath("$.items.length()").value(1)).andExpect(jsonPath("$.hasMore").value(true))
+            .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("000000000001"))))
+            .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("77000000001"))))
+        mvc.perform(get("/api/admin/access/pharmacist-options?q=%25").header("Authorization", auth()))
+            .andExpect(status().isOk).andExpect(jsonPath("$.items").isEmpty)
+        mvc.perform(get("/api/admin/access/pharmacist-options?limit=101").header("Authorization", auth())).andExpect(status().isBadRequest)
+        grants()
+        mvc.perform(get("/api/admin/access/pharmacist-options").header("Authorization", auth())).andExpect(status().isForbidden)
     }
 
 }

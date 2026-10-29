@@ -219,6 +219,105 @@ class ProducerReportsIntegrationTest {
         assertEquals(3L,canonicalCounts.confirmed);assertEquals(1L,canonicalCounts.attributedSales)
     }
 
+    @Test fun `HQ manufacturer creation is idempotent exact resource provenance with no phone login person or organization`() {
+        val before=identityCounts()
+        val request=CreateManufacturer(UUID.randomUUID(),"Explicit business manufacturer",reference)
+        val response=createManufacturer(request).andExpect(status().isOk).andExpect(header().string("Cache-Control","no-store"))
+            .andExpect(jsonPath("$.id").value(request.requestId.toString())).andExpect(jsonPath("$.name").value(request.name))
+            .andExpect(jsonPath("$.profileComplete").value(true)).andReturn().response.contentAsString
+        assertEquals(3,json.readTree(response).size());assertFalse(response.contains(reference))
+        createManufacturer(request).andExpect(status().isOk)
+        val row=jdbc.queryForMap("select * from merch_producers where id=?",request.requestId)
+        assertEquals("EPHARM",row["source_system"]);assertEquals("https://epharm.inkar.kz",row["source_origin"]);assertEquals(request.requestId,row["source_id"])
+        assertEquals("internal_manufacturer",row["source_account_role"])
+        for(field in listOf("phone","phone_normalized","phone_verified_at")) assertNull(row[field])
+        assertEquals("HQ_DEFINED_MANUFACTURER",json.readTree(row["source_payload"].toString())["kind"].asText())
+        assertEquals(admin.id.toString(),json.readTree(row["source_payload"].toString())["createdByAdminId"].asText())
+        assertFalse(row["source_payload"].toString().contains(reference))
+        assertEquals(1,jdbc.queryForObject("select count(*) from unified_source_links where source_entity_type='MANUFACTURER' AND source_id=? AND canonical_entity_type='CUSTOMER' AND canonical_id=? AND verification_reference=?",
+            Int::class.java,request.requestId.toString(),request.requestId.toString(),reference))
+        assertEquals(1,jdbc.queryForObject("select count(*) from unified_identity_audit where operation='CREATE_MANUFACTURER' AND entity_id=?",Int::class.java,request.requestId.toString()))
+        assertEquals(before,identityCounts())
+    }
+
+    @Test fun `manufacturer request cannot overwrite a different name proof or creator with the same resource UUID`() {
+        val request=CreateManufacturer(UUID.randomUUID(),"Stable manufacturer",reference)
+        createManufacturer(request).andExpect(status().isOk)
+        createManufacturer(request.copy(name="Different manufacturer")).andExpect(status().isConflict)
+        createManufacturer(request.copy(reference="Different private proof")).andExpect(status().isConflict)
+        val otherAdmin=users.saveAndFlush(AdminUserEntity(email="other-manufacturer-hq@example.invalid",name="Synthetic HQ",passwordHash="unused",roleRaw=AdminRole.HQ_HEAD.name))
+        val person=UUID.randomUUID();jdbc.update("insert into unified_persons values(?,?)",person,"synthetic-proof")
+        jdbc.update("insert into unified_admin_profiles(account_id,person_id,grants_json) values(?,?,?)",otherAdmin.id,person,json.writeValueAsString(listOf(
+            grant("motivation","campaigns","view"),grant("motivation","campaigns","manage_producer"))))
+        jdbc.update("update admin_users set access_mode='MANAGED' where id=?",otherAdmin.id)
+        createManufacturer(request,"Bearer ${jwt.issueAccessToken(otherAdmin)}").andExpect(status().isConflict)
+        assertEquals(request.name,jdbc.queryForObject("select name from merch_producers where id=?",String::class.java,request.requestId))
+        assertEquals(reference,jdbc.queryForObject("select verification_reference from unified_source_links where source_entity_type='MANUFACTURER' AND source_id=?",String::class.java,request.requestId.toString()))
+        assertEquals(1,jdbc.queryForObject("select count(*) from unified_identity_audit where entity_id=? AND operation='CREATE_MANUFACTURER'",Int::class.java,request.requestId.toString()))
+    }
+
+    @Test fun `imported customer UUID is never overwritten and a duplicate company name is a separate explicit resource`() {
+        val id=UUID.randomUUID();val source="{\"legacy\":\"preserved source evidence\"}"
+        jdbc.update("""insert into merch_producers(id,source_system,source_origin,source_id,source_payload,name,created_at,updated_at)
+            values(?,'MERCH_CRM','https://crm.inkar.kz',?,?::jsonb,'Imported company',now(),now())""",id,id,source)
+        val before=jdbc.queryForObject("select source_payload::text from merch_producers where id=?",String::class.java,id)
+        createManufacturer(CreateManufacturer(id,"Imported company",reference)).andExpect(status().isConflict)
+        assertEquals(before,jdbc.queryForObject("select source_payload::text from merch_producers where id=?",String::class.java,id))
+        val fresh=UUID.randomUUID()
+        createManufacturer(CreateManufacturer(fresh,"Imported company",reference)).andExpect(status().isOk)
+        assertEquals(2,jdbc.queryForObject("select count(*) from merch_producers where name='Imported company'",Int::class.java))
+        assertEquals(0,jdbc.queryForObject("select count(*) from unified_source_links where source_entity_type='MANUFACTURER' AND source_id=?",Int::class.java,id.toString()))
+    }
+
+    @Test fun `manufacturer create requires HQ explicit sensitive ALL and separate campaign view without legacy role fallback`() {
+        val request=CreateManufacturer(UUID.randomUUID(),"Denied manufacturer",reference)
+        permissions(manage=false);createManufacturer(request).andExpect(status().isForbidden)
+        permissions(all=false);createManufacturer(request).andExpect(status().isForbidden)
+        permissions();jdbc.update("update admin_users set role='FINANCE_REVIEWER' where id=?",admin.id)
+        createManufacturer(request).andExpect(status().isForbidden)
+        jdbc.update("update admin_users set role='HQ_HEAD' where id=?",admin.id)
+        jdbc.update("update unified_admin_profiles set grants_json=? where account_id=?",json.writeValueAsString(listOf(grant("motivation","campaigns","manage_producer"))),admin.id)
+        createManufacturer(request).andExpect(status().isForbidden)
+        jdbc.update("update admin_users set access_mode='LEGACY' where id=?",admin.id)
+        jdbc.update("delete from unified_admin_profiles where account_id=?",admin.id)
+        createManufacturer(request).andExpect(status().isForbidden)
+        assertEquals(0,jdbc.queryForObject("select count(*) from merch_producers where id=?",Int::class.java,request.requestId))
+    }
+
+    @Test fun `manufacturer input cannot smuggle portal phone identity blank names or missing proof`() {
+        val request=CreateManufacturer(UUID.randomUUID(),"Valid manufacturer",reference)
+        for(invalid in listOf(request.copy(name="  "),request.copy(reference="  "),request.copy(name="x".repeat(256)),request.copy(name="Bad\u0000name")))
+            createManufacturer(invalid).andExpect(status().isBadRequest)
+        mvc.perform(post("/api/admin/promo/producers").header("Authorization",auth).contentType(MediaType.APPLICATION_JSON)
+            .content("""{"requestId":"${request.requestId}","name":"Valid","reference":"proof","phone":"+77000000001"}"""))
+            .andExpect(status().isBadRequest)
+        assertEquals(0,jdbc.queryForObject("select count(*) from merch_producers where id=?",Int::class.java,request.requestId))
+    }
+
+    @Test fun `HQ manufacturer can bind a campaign and enter report picker without exposing provenance or creating an advertiser login`() {
+        val request=CreateManufacturer(UUID.randomUUID(),"=Literal business manufacturer",reference)
+        createManufacturer(request).andExpect(status().isOk)
+        bind(target=request.requestId).andExpect(status().isOk)
+        val index=mvc.perform(get("/api/admin/reports/producers").header("Authorization",auth)).andExpect(status().isOk).andReturn().response.contentAsString
+        val entry=json.readTree(index)["producers"].first {it["id"].asText()==request.requestId.toString()}
+        assertTrue(entry["profileComplete"].asBoolean());assertEquals(1,entry["activeBindingCount"].asInt())
+        assertFalse(index.contains(reference));assertFalse(index.contains("createdByAdminId"));assertFalse(index.contains("HQ_DEFINED_MANUFACTURER"))
+        val file=workbook(request.requestId).andExpect(status().isOk).andReturn().response.contentAsByteArray
+        XSSFWorkbook(ByteArrayInputStream(file)).use {book->
+            val text=book.flatMap {sheet->sheet.flatMap {row->row.map {it.toString()}}}.joinToString("\n")
+            for(privateValue in listOf(reference,"createdByAdminId","HQ_DEFINED_MANUFACTURER")) assertFalse(text.contains(privateValue))
+            assertEquals(1,book.getSheet("Кампании").lastRowNum)
+            assertTrue(book.all {sheet->sheet.all {row->row.none {it.cellType==CellType.FORMULA}}})
+        }
+        assertEquals(0,jdbc.queryForObject("select count(*) from merch_producer_sessions where customer_id=?",Int::class.java,request.requestId))
+        assertEquals(0,jdbc.queryForObject("select count(*) from merch_producer_challenges where customer_id=?",Int::class.java,request.requestId))
+    }
+
+    private fun createManufacturer(request:CreateManufacturer,bearer:String=auth)=mvc.perform(post("/api/admin/promo/producers")
+        .header("Authorization",bearer).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(request)))
+    private fun identityCounts()=listOf("admin_users","unified_persons","pharmacists","unified_external_accounts","merch_organizations","merch_producer_sessions","merch_producer_challenges")
+        .associateWith {jdbc.queryForObject("select count(*) from $it",Long::class.java)}
+
     private fun event(id:String,promo:String,display:String,sale:String?=null,sold:String?=null) {
         val rule="rule-$promo"
         jdbc.update("""insert into rules(id,type,status,trigger,recommend,promo_id) values(?,'substitution','active',

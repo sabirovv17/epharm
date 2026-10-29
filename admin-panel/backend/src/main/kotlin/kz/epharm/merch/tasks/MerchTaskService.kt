@@ -540,7 +540,7 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
             UUID.randomUUID(), dispatch, item, actor, person, type, json.writeValueAsString(details))
     }
     private fun validateCreate(req: CreateMerchTaskDispatch) {
-        if (req.title.trim().length !in 2..160 || req.items.size !in 1..200 || req.items.none { it.required } ||
+        if (req.title.trim().length !in 2..160 || req.items.size !in 1..500 || req.items.none { it.required } ||
             req.priority !in setOf("low","normal","high","urgent") || req.availableFrom?.isAfter(req.dueAt)==true ||
             req.rewardAmountKzt !in 0L..1_000_000L || !req.dueAt.isAfter(Instant.now()) ||
             req.dueAt.isAfter(Instant.now().plusSeconds(366L * 86400)) || req.items.any {

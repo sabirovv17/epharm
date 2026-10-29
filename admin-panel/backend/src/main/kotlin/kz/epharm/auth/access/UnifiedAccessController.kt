@@ -85,6 +85,11 @@ class UnifiedAccessController(private val service: UnifiedAccountAccessService) 
     fun verifyPerson(@AuthenticationPrincipal principal: AdminPrincipal, @Valid @RequestBody body: VerifyPersonRequest) =
         service.verifyPerson(principal, body)
 
+    @GetMapping("/pharmacist-options")
+    fun pharmacistOptions(@AuthenticationPrincipal principal: AdminPrincipal,
+        @RequestParam(defaultValue = "") q: String, @RequestParam(defaultValue = "50") limit: Int,
+        @RequestParam(defaultValue = "0") offset: Int) = service.pharmacistOptions(principal, q, limit, offset)
+
     @GetMapping("/source-accounts")
     fun sourceAccounts(@AuthenticationPrincipal principal: AdminPrincipal) = service.sourceAccounts(principal)
 
@@ -125,10 +130,18 @@ data class AccessCapabilities(
     val canViewMerchInventory: Boolean = false,
     val canViewMerchPlacements: Boolean = false,
     val canViewMerchTasks: Boolean = false,
+    val canManageCampaignProducer: Boolean = false,
     val canBindMerchProducer: Boolean = false,
     val canCreateMerchTasks: Boolean = false,
     val canExecuteMerchTasks: Boolean = false,
     val canReviewMerchTasks: Boolean = false,
+    val canExportMerchInventory: Boolean = false,
+    val canExportMerchPlacements: Boolean = false,
+    val canExportMerchTasks: Boolean = false,
+    val canExportTrainingAssignments: Boolean = false,
+    val canExportTrainingResults: Boolean = false,
+    val canExportTrainingCourses: Boolean = false,
+    val canExportTrainingPrograms: Boolean = false,
     val canViewLedger: Boolean = false,
     val canExportLedger: Boolean = false,
     val canExportPayouts: Boolean = false,
@@ -152,10 +165,18 @@ class UnifiedAccountAccessService(
             canViewMerchInventory = canUseExplicit(access, catalog.inventoryView),
             canViewMerchPlacements = canUseExplicit(access, catalog.placementView),
             canViewMerchTasks = canUseExplicit(access, catalog.taskView),
+            canManageCampaignProducer = canUseExplicit(access, catalog.producerBindingManage),
             canBindMerchProducer = canUseExplicit(access, catalog.placementBindProducer),
             canCreateMerchTasks = canUseExplicit(access, catalog.taskCreate),
             canExecuteMerchTasks = canUseExplicit(access, catalog.taskExecute),
             canReviewMerchTasks = canUseExplicit(access, catalog.taskReview),
+            canExportMerchInventory = canUseExplicit(access, catalog.inventoryExport),
+            canExportMerchPlacements = canUseExplicit(access, catalog.placementExport),
+            canExportMerchTasks = canUseExplicit(access, catalog.taskExport),
+            canExportTrainingAssignments = canUseExplicit(access, catalog.trainingAssignmentExport),
+            canExportTrainingResults = canUseExplicit(access, catalog.trainingResultExport),
+            canExportTrainingCourses = canUseExplicit(access, catalog.trainingCourseExport),
+            canExportTrainingPrograms = canUseExplicit(access, catalog.trainingProgramExport),
             canViewLedger = canUseExplicit(access, catalog.accrualView),
             canExportLedger = canUseExplicit(access, catalog.accrualExport),
             canExportPayouts = canUseExplicit(access, catalog.payoutExport),
@@ -193,6 +214,22 @@ class UnifiedAccountAccessService(
             id, req.verificationReference.trim(), req.name.trim())
         identityAudit(principal.userId, "PERSON", id.toString(), "VERIFY_NEW_PERSON")
         return VerifiedPersonRow(id, req.name.trim())
+    }
+
+    @Transactional(readOnly = true)
+    fun pharmacistOptions(principal: AdminPrincipal, query: String, limit: Int, offset: Int): PharmacistIdentityOptions {
+        requireManagementView(principal)
+        if (query.length > 120 || limit !in 1..100 || offset !in 0..1_000_000)
+            throw AppException(ErrorCode.VALIDATION_FAILED, "Некорректный поиск фармацевта")
+        val escaped = query.trim().replace("!", "!!").replace("%", "!%").replace("_", "!_")
+        val pattern = "%$escaped%"
+        val rows = jdbc.query("""select p.id,p.name,p.pharmacy_name,l.person_id from pharmacists p
+            left join pharmacist_person_links l on l.pharmacist_id=p.id
+            where p.id ilike ? escape '!' or p.name ilike ? escape '!' or p.pharmacy_name ilike ? escape '!'
+            order by lower(p.name),p.id limit ? offset ?""", { rs, _ ->
+            PharmacistIdentityOption(rs.getString(1),rs.getString(2),rs.getString(3),rs.getObject(4,UUID::class.java))
+        },pattern,pattern,pattern,limit+1,offset)
+        return PharmacistIdentityOptions(rows.take(limit),limit,offset,rows.size>limit)
     }
 
     @Transactional(readOnly = true)
@@ -447,3 +484,6 @@ data class VerifiedPersonRow(val personId: UUID, val displayName: String, val re
 data class SourceAccountRow(val sourceAccountId: UUID, val name: String, val email: String?, val sourceRole: String,
     val active: Boolean, val hasPassword: Boolean, val accountId: UUID?, val personId: UUID?)
 data class AccessPharmacyRow(val id: String, val name: String, val city: String, val address: String)
+
+data class PharmacistIdentityOption(val id: String, val name: String, val pharmacyName: String?, val personId: UUID?)
+data class PharmacistIdentityOptions(val items: List<PharmacistIdentityOption>, val limit: Int, val offset: Int, val hasMore: Boolean)

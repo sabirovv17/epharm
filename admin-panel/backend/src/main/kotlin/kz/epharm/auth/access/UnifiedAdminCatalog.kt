@@ -31,6 +31,15 @@ class UnifiedAdminCatalog(mapper: ObjectMapper) {
     val configureBonus = key("motivation", "bonuses", "configure_bonus")
     val inventoryView = key("merchandising", "inventory", "view")
     val inventoryManage = key("merchandising", "inventory", "manage_availability")
+    val inventoryExport = key("merchandising", "inventory", "export")
+    val placementExport = key("merchandising", "placements", "export")
+    val taskExport = key("merchandising", "tasks", "export")
+    val trainingAssignmentView = key("training", "assignments", "view")
+    val trainingResultView = key("training", "results", "view")
+    val trainingAssignmentExport = key("training", "assignments", "export")
+    val trainingResultExport = key("training", "results", "export")
+    val trainingCourseExport = key("training", "courses", "export")
+    val trainingProgramExport = key("training", "programs", "export")
     val inventoryFinancial = key("merchandising", "inventory", "financial_data")
     val accrualView = key("motivation", "accruals", "view")
     val accrualExport = key("motivation", "accruals", "export")
@@ -65,6 +74,14 @@ class UnifiedAdminCatalog(mapper: ObjectMapper) {
             PermissionDefinition(configureBonus, PermissionKind.FINANCIAL),
             PermissionDefinition(inventoryView), PermissionDefinition(inventoryManage),
             PermissionDefinition(inventoryFinancial, PermissionKind.FINANCIAL),
+            PermissionDefinition(inventoryExport, PermissionKind.EXPORT, viewPermission = inventoryView),
+            PermissionDefinition(placementExport, PermissionKind.EXPORT, viewPermission = placementView),
+            PermissionDefinition(taskExport, PermissionKind.EXPORT, viewPermission = taskView),
+            PermissionDefinition(trainingAssignmentView), PermissionDefinition(trainingResultView),
+            PermissionDefinition(trainingAssignmentExport, PermissionKind.EXPORT, viewPermission = trainingAssignmentView),
+            PermissionDefinition(trainingResultExport, PermissionKind.EXPORT, viewPermission = trainingResultView),
+            PermissionDefinition(trainingCourseExport, PermissionKind.EXPORT, viewPermission = key("training", "courses", "view")),
+            PermissionDefinition(trainingProgramExport, PermissionKind.EXPORT, viewPermission = key("training", "programs", "view")),
             PermissionDefinition(accrualView, PermissionKind.FINANCIAL),
             PermissionDefinition(accrualExport, PermissionKind.EXPORT, viewPermission = accrualView),
             PermissionDefinition(payoutView, PermissionKind.FINANCIAL),
@@ -73,7 +90,7 @@ class UnifiedAdminCatalog(mapper: ObjectMapper) {
             PermissionDefinition(campaignReportExport, PermissionKind.EXPORT, viewPermission = campaignReportView),
             PermissionDefinition(pharmacistExport, PermissionKind.EXPORT, viewPermission = viewRegistry),
             PermissionDefinition(producerView), PermissionDefinition(placementView),
-            PermissionDefinition(producerBindingManage, PermissionKind.SENSITIVE_DATA),
+            PermissionDefinition(producerBindingManage, PermissionKind.SENSITIVE_DATA, viewPermission = key("motivation", "campaigns", "view")),
             PermissionDefinition(placementBindProducer, PermissionKind.SENSITIVE_DATA, viewPermission = placementView),
             PermissionDefinition(taskView), PermissionDefinition(taskReview, independentReview = true),
         ) + listOf("edit", "submit", "approve", "reject", "cancel", "assign", "financial_data").map { action ->

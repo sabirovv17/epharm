@@ -49,6 +49,7 @@ class UnifiedAdminInterceptor(private val store: UnifiedAccessStore, private val
         private val ACCESS_ROUTES = setOf("GET /api/admin/access/me", "GET /api/admin/access/catalog",
             "GET /api/admin/access/accounts", "GET /api/admin/access/people",
             "POST /api/admin/access/people", "GET /api/admin/access/source-accounts",
+            "GET /api/admin/access/pharmacist-options",
             "POST /api/admin/access/source-accounts/{id}/bind", "POST /api/admin/access/pharmacist-person-links",
             "POST /api/admin/access/source-accounts/{id}/provision",
             "GET /api/admin/access/accounts/{id}", "POST /api/admin/access/accounts", "PUT /api/admin/access/accounts/{id}/grants")

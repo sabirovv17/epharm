@@ -62,6 +62,7 @@ class NativeTaskExecutorIntegrationTest {
     @Autowired lateinit var jwt:JwtService
     @Autowired lateinit var security:MerchRewardSecurity
     @MockkBean lateinit var provider:OtpProvider
+    @Autowired lateinit var transactionManager:org.springframework.transaction.PlatformTransactionManager
     @MockkBean lateinit var clock:Clock
     private lateinit var now:Instant
     private lateinit var admin:AdminUserEntity
@@ -229,4 +230,14 @@ class NativeTaskExecutorIntegrationTest {
         assertEquals(0,jdbc.queryForObject("select count(*) from merch_executor_bindings",Int::class.java))
         io.mockk.verify(exactly=0) {provider.verifyOtp(any(),any())}
     }
+    @Test fun `new phone purpose invalidates an old native proof even while issuance switches are disabled`() {
+        val task=makeTask();val otp=challenge(task)
+        org.springframework.transaction.support.TransactionTemplate(transactionManager).executeWithoutResult {
+            val disabled=kz.epharm.posm.staff.StaffPhoneLock(jdbc,false,false,false)
+            disabled.lock(PHONE);disabled.invalidateStaff(PHONE)
+        }
+        verify(task,otp.otpChallengeId).andExpect(status().isBadRequest)
+        assertEquals(0,jdbc.queryForObject("select count(*) from merch_executor_bindings",Int::class.java))
+    }
+
 }

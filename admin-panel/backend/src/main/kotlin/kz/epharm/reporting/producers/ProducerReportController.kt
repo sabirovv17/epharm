@@ -17,7 +17,11 @@ import org.springframework.web.bind.annotation.*
 
 @RestController
 class ProducerReportController(private val bindings:ProducerBindingService,private val reports:ProducerReportReader,
-    private val workbook:ProducerReportWorkbook,private val access:AdministrativeScope,private val catalog:UnifiedAdminCatalog) {
+    private val workbook:ProducerReportWorkbook,private val access:AdministrativeScope,private val catalog:UnifiedAdminCatalog,
+    private val manufacturers:ManufacturerRegistryService) {
+    @PostMapping("/api/admin/promo/producers")
+    fun createManufacturer(@RequestBody request:CreateManufacturer,@AuthenticationPrincipal actor:AdminPrincipal)=
+        ResponseEntity.ok().header(HttpHeaders.CACHE_CONTROL,"no-store").body(manufacturers.create(request,actor.userId))
     @GetMapping("/api/admin/promo/{id}/producer")
     fun binding(@PathVariable id:String)=ResponseEntity.ok().header(HttpHeaders.CACHE_CONTROL,"no-store").body(bindings.view(id))
     @PutMapping("/api/admin/promo/{id}/producer")

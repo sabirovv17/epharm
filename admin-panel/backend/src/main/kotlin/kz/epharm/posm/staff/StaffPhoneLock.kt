@@ -18,13 +18,14 @@ class StaffPhoneLock(private val jdbc: JdbcTemplate,
     fun lock(phone: String) {
         jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?, 718094))", phone)
     }
+    // Issuance flags do not resurrect an older proof after a disable/re-enable cycle.
     fun invalidateStaff(phone: String) {
         jdbc.update("UPDATE posm_staff_challenges SET consumed_at=now() WHERE phone=? AND consumed_at IS NULL",phone)
-        if (merchRewardsEnabled || nativeExecutorEnabled) jdbc.update("UPDATE merch_executor_otp_challenges SET consumed_at=now() WHERE phone=? AND consumed_at IS NULL",phone)
+        jdbc.update("UPDATE merch_executor_otp_challenges SET consumed_at=now() WHERE phone=? AND consumed_at IS NULL",phone)
         invalidateProducer(phone)
     }
     fun invalidateProducer(phone: String) {
-        if (producerAuthEnabled) jdbc.update("UPDATE merch_producer_challenges SET consumed_at=now() WHERE phone=? AND consumed_at IS NULL", phone)
+        jdbc.update("UPDATE merch_producer_challenges SET consumed_at=now() WHERE phone=? AND consumed_at IS NULL", phone)
     }
     /** Opt-in money verification shares Daribar's phone-wide issuance budget with login. */
     fun limitSharedSms(phone: String, now: Instant = Instant.now()) {
