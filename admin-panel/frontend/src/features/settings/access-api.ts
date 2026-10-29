@@ -10,6 +10,8 @@ export interface AccessGrant {
   pharmacyIds: string[]
   allMerchBranches?: boolean
   merchBranchIds?: string[]
+  allProducers?: boolean
+  producerIds?: string[]
 }
 
 export interface AccessCapabilities {
@@ -20,6 +22,8 @@ export interface AccessCapabilities {
   canViewAccounts: boolean
   canManageAccounts: boolean
   canViewMerchInventory?: boolean
+  canViewMerchPlacements?: boolean
+  canViewMerchTasks?: boolean
 }
 
 export interface AccessAccount {
@@ -62,11 +66,14 @@ export interface AccessPermission {
   requiresPasswordReauthentication: boolean
   delegatable: boolean
   scopeType?: 'PHARMACY' | 'MERCH_BRANCH'
+  requiresProducerScope?: boolean
   delegationScope: {
     allPharmacies: boolean
     pharmacyIds: string[]
     allMerchBranches?: boolean
     merchBranchIds?: string[]
+    allProducers?: boolean
+    producerIds?: string[]
   } | null
 }
 
@@ -75,6 +82,7 @@ export interface AccessCatalog {
   assignableRoles: AdminRole[]
   pharmacies: { id: string; name: string; city: string; address: string }[]
   merchBranches?: { id: string; name: string; city: string; address: string }[]
+  producers?: { id: string; name: string | null }[]
 }
 
 export interface CreateAccessAccount {
@@ -187,6 +195,25 @@ export function validateGrants(
       return `${label} — доступно только для явно выбранной всей сети.`
     if (!delegatedAll && (all || ids.some((id) => !delegatedIds.includes(id)))) {
       return `${label} — область превышает ваши права.`
+    }
+    const producers = grant.producerIds ?? []
+    if (!permission.requiresProducerScope && (grant.allProducers || producers.length))
+      return `${label} — у этого действия нет области производителей.`
+    if (permission.requiresProducerScope) {
+      if (grant.allProducers && producers.length)
+        return `${label} — выберите одну область производителей.`
+      if (
+        !grant.allProducers &&
+        (!producers.length ||
+          producers.some((id) => !catalog.producers?.some((producer) => producer.id === id)))
+      )
+        return `${label} — выберите подтверждённых производителей. Пустой список не означает всех.`
+      if (
+        !permission.delegationScope.allProducers &&
+        (grant.allProducers ||
+          producers.some((id) => !permission.delegationScope!.producerIds?.includes(id)))
+      )
+        return `${label} — область производителей превышает ваши права.`
     }
   }
   return null

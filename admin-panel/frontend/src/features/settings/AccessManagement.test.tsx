@@ -420,6 +420,54 @@ describe('Server-authorized access management', () => {
 })
 
 describe('Grant boundary validation', () => {
+  it('requires both customer and branch dimensions on the same placement action without implicit ALL', () => {
+    const current = catalog()
+    current.producers = [
+      { id: 'producer-01', name: 'Демо 01' },
+      { id: 'producer-02', name: 'Демо 02' },
+    ]
+    current.merchBranches = [{ id: 'branch-01', name: 'Демо', city: 'Демо', address: 'Демо, 1' }]
+    current.permissions.push({
+      ...current.permissions[0],
+      module: 'merchandising',
+      subsection: 'placements',
+      scopeType: 'MERCH_BRANCH',
+      requiresProducerScope: true,
+      delegationScope: {
+        allPharmacies: false,
+        pharmacyIds: [],
+        allMerchBranches: false,
+        merchBranchIds: ['branch-01'],
+        allProducers: false,
+        producerIds: ['producer-01'],
+      },
+    })
+    const scoped: AccessGrant = {
+      ...grant(),
+      module: 'merchandising',
+      subsection: 'placements',
+      pharmacyIds: [],
+      merchBranchIds: ['branch-01'],
+      allProducers: false,
+      producerIds: ['producer-01'],
+    }
+    expect(validateGrants([scoped], current, 'HQ_HEAD')).toBeNull()
+    expect(validateGrants([{ ...scoped, producerIds: [] }], current, 'HQ_HEAD')).toContain(
+      'Пустой список',
+    )
+    expect(
+      validateGrants([{ ...scoped, allProducers: true, producerIds: [] }], current, 'HQ_HEAD'),
+    ).toContain('превышает ваши права')
+    expect(
+      validateGrants([{ ...scoped, producerIds: ['producer-02'] }], current, 'HQ_HEAD'),
+    ).toContain('превышает ваши права')
+    expect(validateGrants([{ ...scoped, merchBranchIds: [] }], current, 'HQ_HEAD')).toContain(
+      'Пустой список',
+    )
+    expect(validateGrants([{ ...grant(), allProducers: true }], current, 'HQ_HEAD')).toContain(
+      'нет области производителей',
+    )
+  })
   it('keeps merch branch scopes independent from ordinary pharmacy scopes', () => {
     const current = catalog()
     current.merchBranches = [{ id: 'branch-01', name: 'Мерч 01', city: 'Демо', address: 'Демо, 1' }]

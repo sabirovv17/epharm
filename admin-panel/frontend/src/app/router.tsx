@@ -32,6 +32,9 @@ const Settings = lazy(() => import('@/features/settings/SettingsPage'))
 const Storefront = lazy(() => import('@/features/storefront/StorefrontPage'))
 const Fulfillment = lazy(() => import('@/features/fulfillment/FulfillmentPage'))
 const MerchInventory = lazy(() => import('@/features/merch/MerchInventoryPage'))
+const MerchPlacements = lazy(() => import('@/features/merch/MerchPlacementsPage'))
+const ProducerLogin = lazy(() => import('@/features/merch/ProducerLoginPage'))
+const Producer = lazy(() => import('@/features/merch/ProducerPage'))
 
 function PageFallback() {
   return (
@@ -62,6 +65,8 @@ export function AppRouter() {
     <Routes>
       {/* Public — login screen без AppShell */}
       <Route path="/login" element={withSuspense(<LoginPage />)} />
+      <Route path="/producer/login" element={withSuspense(<ProducerLogin />)} />
+      <Route path="/producer" element={withSuspense(<Producer />)} />
       <Route path="/learn" element={withSuspense(<LearnerTraining />)} />
       <Route path="/learn/merch/claim" element={withSuspense(<MerchClaim />)} />
       <Route path="/learn/catalog" element={withSuspense(<LearnerTraining />)} />
@@ -102,6 +107,7 @@ export function AppRouter() {
           <Route path="/lms" element={protectedPage('lms', <LMS />)} />
           {/* New scope is verified by the server capability, independent of legacy role navigation. */}
           <Route path="/merch/inventory" element={withSuspense(<MerchInventory />)} />
+          <Route path="/merch/placements" element={withSuspense(<MerchPlacements />)} />
           <Route path="/settings" element={protectedPage('settings', <Settings />)} />
           <Route path="/storefront" element={protectedPage('storefront', <Storefront />)} />
           <Route path="/fulfillment" element={protectedPage('fulfillment', <Fulfillment />)} />

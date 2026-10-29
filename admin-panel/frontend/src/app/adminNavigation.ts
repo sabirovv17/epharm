@@ -88,8 +88,8 @@ export const ADMIN_NAVIGATION: readonly AdminNavigationModule[] = [
     id: 'merch',
     Icon: IconLayers,
     items: [
-      { id: 'merch_manufacturer', labelKey: 'nav.merch_manufacturer', available: false },
-      { id: 'merch_tasks', labelKey: 'nav.merch_tasks', available: false },
+      section('merch_placements'),
+      { ...section('merch_tasks'), available: false, path: undefined },
       section('merch_inventory'),
     ],
   },
@@ -107,21 +107,39 @@ export const ADMIN_NAVIGATION: readonly AdminNavigationModule[] = [
   { id: 'management', Icon: IconSettings, items: [section('settings')] },
 ]
 
+export interface MerchNavigationCapabilities {
+  inventory?: boolean
+  placements?: boolean
+  tasks?: boolean
+}
 export function adminNavigationForRole(
   role: AdminRole,
-  canViewMerchInventory = false,
+  capabilities: boolean | MerchNavigationCapabilities = false,
 ): AdminNavigationModule[] {
+  const caps = typeof capabilities === 'boolean' ? { inventory: capabilities } : capabilities
+  const merchGranted = caps.inventory || caps.placements || caps.tasks
   return ADMIN_NAVIGATION.map((module) => ({
     ...module,
-    items: module.items.filter(
-      (item) =>
-        (item.section === 'merch_inventory'
-          ? canViewMerchInventory
-          : !item.section
-            ? canViewMerchInventory || !isTrainingWorkspaceRole(role)
-            : canAccessSection(role, item.section)) &&
-        (!item.hqOnly || role === 'HQ_HEAD' || role === 'SYSTEM_ADMIN'),
-    ),
+    items: module.items.flatMap((item) => {
+      if (item.section?.startsWith('merch_')) {
+        const permitted =
+          item.section === 'merch_inventory'
+            ? caps.inventory
+            : item.section === 'merch_placements'
+              ? caps.placements
+              : caps.tasks
+        if (permitted) return [item]
+        return item.section !== 'merch_inventory' &&
+          (!isTrainingWorkspaceRole(role) || merchGranted)
+          ? [{ ...item, available: false, path: undefined }]
+          : []
+      }
+      return item.section &&
+        canAccessSection(role, item.section) &&
+        (!item.hqOnly || role === 'HQ_HEAD' || role === 'SYSTEM_ADMIN')
+        ? [item]
+        : []
+    }),
   })).filter((module) => module.items.length > 0)
 }
 

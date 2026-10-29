@@ -17,4 +17,6 @@ export const SECTION_ROUTES: Record<SectionId, string> = {
   storefront: '/storefront',
   fulfillment: '/fulfillment',
   merch_inventory: '/merch/inventory',
+  merch_placements: '/merch/placements',
+  merch_tasks: '/merch/tasks',
 }

@@ -34,6 +34,8 @@ interface SidebarProps {
   pathname?: string
   onNavigate?: (path: string) => void
   canViewMerchInventory?: boolean
+  canViewMerchPlacements?: boolean
+  canViewMerchTasks?: boolean
 }
 
 export function Sidebar({
@@ -48,10 +50,16 @@ export function Sidebar({
   pathname = '',
   onNavigate,
   canViewMerchInventory = false,
+  canViewMerchPlacements = false,
+  canViewMerchTasks = false,
 }: SidebarProps) {
   const t = useT()
   const trainingWorkspace = isTrainingWorkspaceRole(user.role)
-  const modules = adminNavigationForRole(user.role, canViewMerchInventory)
+  const modules = adminNavigationForRole(user.role, {
+    inventory: canViewMerchInventory,
+    placements: canViewMerchPlacements,
+    tasks: canViewMerchTasks,
+  })
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const pick = (item: AdminNavigationItem) => {
     if (!item.available) return

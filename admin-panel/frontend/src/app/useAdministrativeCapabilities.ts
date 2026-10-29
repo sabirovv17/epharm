@@ -20,5 +20,15 @@ export function useAdministrativeCapabilities() {
       query.isFetchedAfterMount &&
       !query.isError &&
       query.data?.canViewMerchInventory === true,
+    canViewMerchPlacements:
+      query.isSuccess &&
+      query.isFetchedAfterMount &&
+      !query.isError &&
+      query.data?.canViewMerchPlacements === true,
+    canViewMerchTasks:
+      query.isSuccess &&
+      query.isFetchedAfterMount &&
+      !query.isError &&
+      query.data?.canViewMerchTasks === true,
   }
 }

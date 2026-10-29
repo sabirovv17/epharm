@@ -29,7 +29,8 @@ export function AppShell() {
   const navigate = useNavigate()
   const location = useLocation()
   const t = useT()
-  const { canViewMerchInventory } = useAdministrativeCapabilities()
+  const { canViewMerchInventory, canViewMerchPlacements, canViewMerchTasks } =
+    useAdministrativeCapabilities()
 
   const {
     authedUser,
@@ -72,7 +73,13 @@ export function AppShell() {
   const onSelectSection = (id: SectionId) => {
     if (
       authedUser &&
-      (id === 'merch_inventory' ? canViewMerchInventory : canAccessSection(authedUser.role, id))
+      (id === 'merch_inventory'
+        ? canViewMerchInventory
+        : id === 'merch_placements'
+          ? canViewMerchPlacements
+          : id === 'merch_tasks'
+            ? canViewMerchTasks
+            : canAccessSection(authedUser.role, id))
     )
       navigate(SECTION_ROUTES[id])
   }
@@ -84,9 +91,11 @@ export function AppShell() {
   const onNavigate = (path: string) => {
     if (
       authedUser &&
-      adminNavigationForRole(authedUser.role, canViewMerchInventory).some((module) =>
-        module.items.some((item) => item.available && item.path === path),
-      )
+      adminNavigationForRole(authedUser.role, {
+        inventory: canViewMerchInventory,
+        placements: canViewMerchPlacements,
+        tasks: canViewMerchTasks,
+      }).some((module) => module.items.some((item) => item.available && item.path === path))
     )
       navigate(path)
   }
@@ -134,6 +143,8 @@ export function AppShell() {
           pathname={location.pathname}
           onNavigate={onNavigate}
           canViewMerchInventory={canViewMerchInventory}
+          canViewMerchPlacements={canViewMerchPlacements}
+          canViewMerchTasks={canViewMerchTasks}
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <Topbar
@@ -166,6 +177,8 @@ export function AppShell() {
             onNav={onSelectSection}
             onNavigate={onNavigate}
             canViewMerchInventory={canViewMerchInventory}
+            canViewMerchPlacements={canViewMerchPlacements}
+            canViewMerchTasks={canViewMerchTasks}
           />
         )}
       </div>

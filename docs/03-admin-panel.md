@@ -30,8 +30,9 @@ The native `/merch/inventory` screen reads branch equipment and a six-month avai
 It is shown only after a fresh `/api/admin/access/me` response explicitly grants
 `canViewMerchInventory`; a legacy HQ or regional role alone is insufficient. A regional manager
 with that capability keeps the existing training boundary and gains this Merch screen only.
-Manufacturer booking and pharmacist task administration are marked **not connected** until their
-native flows are integrated; the inventory screen is not a substitute for those flows.
+Manufacturer plans now have the native `/merch/placements` workspace, guarded independently by
+`canViewMerchPlacements`. Pharmacist task administration remains **not connected** until its own
+native flow is integrated; the inventory screen is not a substitute for those flows.
 
 The inventory screen paginates authorized branches and uses the native `/api/admin/merch/branches`
 API. Block/unblock requires selected shelf IDs, an explicit month range, and confirmation.
@@ -45,6 +46,43 @@ Access Management distinguishes `PHARMACY` from `MERCH_BRANCH` permission scopes
 selection gives no access. Per-action delegation limits, role ceilings, CAS version and fresh
 password confirmation are retained. Capabilities and inventory projections are not persisted in
 the offline query cache.
+
+### Manufacturer plans and separate producer portal (local candidate)
+
+The internal workspace lists authorized plans, opens fresh details and preserves cancelled item
+history. The picker uses `/api/admin/merch/placements/producers` and `/placements/catalog`, scoped
+to the intersection of a manufacturer and CRM branch. It does not require or borrow inventory
+permissions. Draft creation/save do not reserve places. Submit, approve, reject, cancel and direct
+administrative assignment require explicit confirmation, the fetched revision and current server
+`can*` flags. Reject/cancel require a reason. Conflicts are never retried or rebased automatically.
+Server quotes are authoritative, withheld amounts render `—`, and unresolved historical producer
+links remain read-only. The saved plan and each item retain their status and origin.
+
+`/producer/login` and `/producer` are a separate public producer realm, outside the admin shell and
+`/learn`. SMS request/verification and rotating refresh tokens use `/api/producer/**` exclusively.
+The dedicated fetch client sends producer bearer tokens with `credentials: omit`; it never uses
+admin/mobile tokens or interceptors. Its session-storage namespace is `epharm.producer.session.v1`.
+Refresh is single-flight; logout changes the local epoch immediately and late old-session responses
+cannot restore a logged-out or different producer. OTP values are never stored. Disabled auth
+(including default-off feature responses) is shown as unavailable, without fake registration.
+
+The external picker reads active branches and fetches the quote for the selected branch only.
+Create omits `producerId`; the server derives identity from its producer principal. External
+screens have no manufacturer selector, approval/rejection or administrative assignment actions.
+Reservations show the server's three-business-day period, state, deadline and Asia/Almaty timezone.
+No read expires a hold, and no booking status proves a bank payment. Payment remains disconnected.
+
+The producer may read/edit its own typed company profile using GET/PUT `/api/producer/profile`,
+with revision CAS. Null legacy names show “Компания не указана”; names are never guessed from a
+brand. An incomplete profile can retain drafts but must be completed before submit/assignment.
+The form preserves optional legal/bank metadata, supports explicit empty values and never writes
+phone/password/tariff fields. Bank metadata does not enable payments. Profile conflicts require
+an explicit reload; a stale profile cannot silently overwrite newer values.
+
+Placement permissions require both branch scope and a separate manufacturer scope on each action.
+`allProducers/producerIds` cannot be inferred from `allMerchBranches/merchBranchIds`, combined
+between actions, or populated by an empty selection. Server delegation limits remain authoritative.
+These flows are source/tested locally; they are not evidence of a production release or real SMS delivery.
 
 Public:
 

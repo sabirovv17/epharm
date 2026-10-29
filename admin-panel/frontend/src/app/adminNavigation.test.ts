@@ -27,6 +27,15 @@ describe('unified navigation preserves route identities and separate boundaries'
       regional.flatMap((module) => module.items).some((item) => item.section === 'finance'),
     ).toBe(false)
   })
+  it('enables placements independently from inventory for an explicitly authorized regional manager', () => {
+    const merch = adminNavigationForRole('REGIONAL_MANAGER', { placements: true }).find(
+      (module) => module.id === 'merch',
+    )!
+    expect(merch.items.filter((item) => item.available).map((item) => item.path)).toEqual([
+      '/merch/placements',
+    ])
+    expect(merch.items.some((item) => item.section === 'merch_inventory')).toBe(false)
+  })
   it('distinguishes campaign reports from dashboard and each LMS query tab', () => {
     const items = adminNavigationForRole('HQ_HEAD').flatMap((module) => module.items)
     expect(

@@ -447,6 +447,7 @@ function GrantEditor({
             ...grant,
             pharmacyIds: [...grant.pharmacyIds],
             merchBranchIds: [...(grant.merchBranchIds ?? [])],
+            ...(grant.producerIds ? { producerIds: [...grant.producerIds] } : {}),
           })),
         )
       })
@@ -666,6 +667,9 @@ function GrantEditor({
                                         pharmacyIds: [],
                                         allMerchBranches: false,
                                         merchBranchIds: [],
+                                        ...(permission.requiresProducerScope
+                                          ? { allProducers: false, producerIds: [] }
+                                          : {}),
                                       },
                                     ])
                                     setActivePermission(id)
@@ -701,6 +705,13 @@ function GrantEditor({
                                   : grant.allPharmacies
                                     ? 'Вся сеть'
                                     : `Аптеки: ${grant.pharmacyIds.length}`}
+                                {permission.requiresProducerScope && (
+                                  <span className="block text-[11px] font-normal">
+                                    {grant.allProducers
+                                      ? 'Все производители'
+                                      : `Производители: ${grant.producerIds?.length ?? 0}`}
+                                  </span>
+                                )}
                               </button>
                             )}
                           </div>
@@ -817,6 +828,85 @@ function GrantEditor({
                           </p>
                         )}
                       </>
+                    )}
+                    {active.requiresProducerScope && (
+                      <div className="flex flex-col gap-2 border-t border-paper-line pt-3">
+                        <h4 className="text-[13px] font-bold">
+                          Производители — пересечение с выбранными аптеками
+                        </h4>
+                        <p className="text-[12px] text-ink-500">
+                          Разрешение действует только для сочетаний этой области аптек и этих
+                          производителей.
+                        </p>
+                        <label className="flex items-center gap-2 text-[13px]">
+                          <input
+                            type="radio"
+                            name="producer-scope"
+                            checked={!activeGrant.allProducers}
+                            disabled={locked}
+                            onChange={() =>
+                              changeGrant(activePermission, {
+                                allProducers: false,
+                                producerIds: [],
+                              })
+                            }
+                          />
+                          Выбранные производители
+                        </label>
+                        <label className="flex items-center gap-2 text-[13px]">
+                          <input
+                            type="radio"
+                            name="producer-scope"
+                            checked={activeGrant.allProducers === true}
+                            disabled={locked || !active.delegationScope?.allProducers}
+                            onChange={() =>
+                              changeGrant(activePermission, { allProducers: true, producerIds: [] })
+                            }
+                          />
+                          Все производители — явное разрешение
+                        </label>
+                        {!activeGrant.allProducers && (
+                          <div className="max-h-48 overflow-auto">
+                            {(catalog.producers ?? [])
+                              .filter(
+                                (producer) =>
+                                  active.delegationScope?.allProducers ||
+                                  active.delegationScope?.producerIds?.includes(producer.id),
+                              )
+                              .map((producer) => (
+                                <label
+                                  key={producer.id}
+                                  className="flex gap-2 border-b py-2 text-[12px]"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    aria-label={`Производитель ${producer.name ?? 'Компания не указана'}`}
+                                    checked={
+                                      activeGrant.producerIds?.includes(producer.id) ?? false
+                                    }
+                                    disabled={locked}
+                                    onChange={(event) =>
+                                      changeGrant(activePermission, {
+                                        producerIds: event.target.checked
+                                          ? [...(activeGrant.producerIds ?? []), producer.id]
+                                          : (activeGrant.producerIds?.filter(
+                                              (id) => id !== producer.id,
+                                            ) ?? []),
+                                      })
+                                    }
+                                  />
+                                  {producer.name ?? 'Компания не указана'}
+                                </label>
+                              ))}
+                          </div>
+                        )}
+                        {!catalog.producers?.length && (
+                          <p className="text-[12px] text-ink-500">
+                            Нет подтверждённых производителей для выбора. Пустая область не даёт
+                            доступ.
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
                 ) : (

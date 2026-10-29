@@ -17,6 +17,8 @@ interface CommandPaletteProps {
   user: UserDto
   onNavigate?: (path: string) => void
   canViewMerchInventory?: boolean
+  canViewMerchPlacements?: boolean
+  canViewMerchTasks?: boolean
 }
 
 interface Item {
@@ -36,11 +38,17 @@ export function CommandPalette({
   user,
   onNavigate,
   canViewMerchInventory = false,
+  canViewMerchPlacements = false,
+  canViewMerchTasks = false,
 }: CommandPaletteProps) {
   const t = useT()
   const [q, setQ] = useState('')
 
-  const items: Item[] = adminNavigationForRole(user.role, canViewMerchInventory).flatMap((module) =>
+  const items: Item[] = adminNavigationForRole(user.role, {
+    inventory: canViewMerchInventory,
+    placements: canViewMerchPlacements,
+    tasks: canViewMerchTasks,
+  }).flatMap((module) =>
     module.items
       .filter((item) => item.available && item.path)
       .map((item) => {
