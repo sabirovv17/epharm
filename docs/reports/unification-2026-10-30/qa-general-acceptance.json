@@ -1,0 +1,174 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-29T21:13:10.498931+00:00",
+  "scope": "synthetic-engineering-acceptance-only",
+  "productionCalls": false,
+  "preservedCandidateApplicationStarted": false,
+  "realSmsSent": false,
+  "deploymentApproved": false,
+  "source": {
+    "head": "0bc8d24f3ca83683d03640d6f89a3755f2cdd0e7",
+    "jarSha256": "df351555f03c33c44c915802f7d2f811862fa11a40e9db7eb98aa2b78ca02475",
+    "jarIncludesUncommittedD9": true,
+    "inventoryActions": 495,
+    "inventoryGroups": 57,
+    "inventorySha256": "94224645e5510b5415456ee7bd939ced93e32e5fb6fd6b664cf7f4461de0425d",
+    "posmContracts": 47,
+    "posmContractsSha256": "6d3d379a581697eaf9d220674ee3c713239843ae1cf45b935df6f1f5d0468550",
+    "frontendIndexSha256": "a9f11e724c35b4806c98ee880bc6322b66d21502d8541908cefc3ae396eb289f",
+    "harnessSha256": {
+      "tools/unification/acceptance_runtime.py": "6981133ea9c6db5e6280e78a88058079562926c1f97c5877316c7b12fc1e6090",
+      "tools/unification/acceptance_otp.py": "6e13ddbe33a381ad73ea6d8f202d593d1b390d6c31fe0c8ebeaeb112e0c1cca3",
+      "tools/unification/tests/test_acceptance_runtime.py": "7b6a646c1d7f905b708c73d487ef120e6386e992a4980e776a8789b3f955c7d0",
+      "admin-panel/frontend/artifact-tests/unified-acceptance.spec.ts": "6036b05dbb85cf90757058be3fc3277bd6637b32582b0bb42f2741e3647e0bce"
+    },
+    "publicOriginContract": "https://epharm.inkar.kz"
+  },
+  "isolation": {
+    "database": "new-empty-synthetic-PG16",
+    "network": "single-Docker-internal-bridge-per-run",
+    "api": "HTTP127.0.0.1:18087",
+    "frontend": "HTTP127.0.0.1:4177",
+    "imagesPinned": true,
+    "externalProvider": "allowlisted-synthetic-HTTPS-Daribar-protocol-fixture",
+    "tlsVerification": "dedicated-synthetic-Java-truststore",
+    "transport": "loopback-to-pinned-container-docker-exec-curl; real status/headers/binary; no redirects",
+    "privateArtifacts": "owner-only; no traces/video/automatic screenshots"
+  },
+  "checks": {
+    "runtimeGuardAndProviderProtocol": {
+      "passed": 12,
+      "failed": 0
+    },
+    "posmNet10Core": {
+      "passed": 300,
+      "failed": 0,
+      "skipped": 0,
+      "command": "dotnet test App.Tests/CustomerDisplay.Core.Tests.csproj --no-restore --verbosity quiet"
+    },
+    "liveBrowserAndHttp": {
+      "state": "passed-across-focused-runs",
+      "uniqueCasesPassed": 7,
+      "remainingCases": 0,
+      "unresolvedFailures": 0,
+      "apiMocks": false,
+      "initialDatabase": "new empty PG16",
+      "backendJarUnchangedDuringFinalRuns": true,
+      "singleCleanFullRun": false,
+      "execution": "Five base flows passed; POSM wire case passed separately; D9 passed after the root-owned UI selection fix. Historical diagnostic runs are retained, not counted as clean successes.",
+      "caseCoverage": [
+        "HQ provisions a verified-person managed MAS and scoped grants; own task allowed, foreign task and ungranted APIs denied",
+        "Regional branch scope and training-manager current-pharmacy scope; one of two learning assignments visible and real scoped XLSX",
+        "Real browser producer SMS login, authenticated plan create/submit, HQ approval, XLSX and separate JWT realm denial",
+        "Learner browser login while admin and producer sessions remain separate; real photo upload/submit, independent HQ review, POSM poll/shown and recommendation dedup",
+        "Grant revocation denies the existing JWT and renders a fresh browser denial without relogin",
+        "D9: ordinary HQ role alone denied; scoped HQ without training permission selects one learner, proves password, downloads real current-password XLSX; foreign row denied, replay denied, no browser persistence",
+        "Legacy 1.0.57 and 1.0.66 heartbeat shapes; individual-device pharmacy binding; repeated sale persisted once"
+      ],
+      "privateLogNames": ["live-result.log", "live-posm.log", "live-d9-final.log"]
+    }
+  },
+  "gates": {
+    "G1": {
+      "state": "partial",
+      "scope": "HQ, scoped MAS, scoped regional and training manager; explicit grants, foreign rows/export denial, existing-JWT revocation; not every role combination/action"
+    },
+    "G2": {
+      "state": "partial",
+      "scope": "provisioning, producer placement, learning assignment and photo-task independent review; full campaign publication-to-checkout journey excluded"
+    },
+    "G3": {
+      "state": "partial",
+      "scope": "synthetic persistence/idempotence only; no source-data/financial migration reconciliation performed here"
+    },
+    "G4": {
+      "state": "open",
+      "scope": "client core/DTO/loopback and device-bound HTTP contracts; physical Standard-N scan/WPF popup/customer display/installed update not proven"
+    },
+    "G7": {
+      "state": "engineering-only",
+      "scope": "automated synthetic browser flows; not human business acceptance"
+    },
+    "G9": {
+      "state": "partial",
+      "scope": "selected real XLSX MIME/ZIP/privacy/scope checks; not every surface/period/total or concurrent POSM performance"
+    },
+    "G10": {
+      "state": "bounded-live-pass; recovery-separate",
+      "scope": "One synthetic captured password; explicit scoped HQ, current password, selected one-time workbook and privacy checks. Does not imply legacy passwords can be recovered or production keys/backups are provisioned."
+    },
+    "G11": {
+      "state": "open",
+      "scope": "495-row source inventory is traceability, not 495 executed scenarios; source data/files/in-process workflows and every action need independent evidence."
+    }
+  },
+  "legacyClientSources": [
+    {
+      "version": "1.0.57",
+      "commit": "0d2bb3ba2291ecb0ee10aaf39268e713f45af61c"
+    },
+    {
+      "version": "1.0.66",
+      "commit": "84d50b29871de7a7ce460376f05c474c74de06ac"
+    }
+  ],
+  "limits": [
+    "HTTP200, heartbeat and synthetic shown ACK are not proof of a rendered POSM popup.",
+    "No production/cash-register remote operation or real pharmacy/learner identity is used.",
+    "Windows disposable-VM work is parent-owned and is not asserted by this report.",
+    "The synthetic external OTP provider replaces only external delivery/verification; application challenges, expiry, eligibility, sessions and business services remain real."
+  ],
+  "findings": [
+    {
+      "id": "D9_SELECTION_WITHOUT_TRAINING",
+      "priority": "P1",
+      "state": "resolved",
+      "path": "admin-panel/frontend/src/features/pharmacists/PharmacistsPage.tsx",
+      "originalLines": [363, 394],
+      "trigger": "HQ with explicit registry view/personal_data/export_credentials but no training preferences authority",
+      "observed": "Credential export capability/button is present, but all selection checkboxes are hidden; no row can be selected.",
+      "requiredFix": "Selection capability independent of training actions; preserve their existing permission checks.",
+      "verification": "Root added independent selection capability, preserved training action checks, passed 40 focused tests/lint/build; actual D9 browser/API retry passed."
+    }
+  ],
+  "persistenceEvidence": {
+    "adminAccounts": 9,
+    "managedProfiles": 9,
+    "verifiedPeople": 10,
+    "accessAuditRows": 16,
+    "trainingAssignments": 2,
+    "approvedPlacements": 1,
+    "approvedTaskItems": 1,
+    "evidenceRows": 1,
+    "taskShownReceipts": 1,
+    "recommendationEvents": 1,
+    "recommendationsAcked": 1,
+    "recommendationsRejected": 1,
+    "posSales": 1,
+    "walletEntries": 0,
+    "capturedPasswordCopies": 1,
+    "unconsumedCredentialExports": 0,
+    "credentialAuditRows": 4
+  },
+  "persistenceEvidenceNotes": [
+    "Counts include retained synthetic accounts/audit rows from diagnostic permission-denial runs.",
+    "Two task ACKs produced one receipt; repeated recommendation produced one event; repeated sale produced one row.",
+    "One encrypted current password copy exists after normal learner login. The consumed credential job count is zero.",
+    "No wallet entry was created; all rehearsed task/recommendation rewards were zero."
+  ],
+  "fixtureNotes": [
+    "Bootstrap HQ needs explicit personal_data/export_credentials for the same synthetic pharmacy before delegating them; application correctly refused missing delegator authority.",
+    "Initial root authority is test setup only. Ordinary HQ without credential grant is tested separately.",
+    "Producer session is created by the real browser SMS login and remains in sessionStorage.",
+    "All identities, phones, passwords, keys, photos, catalog products and sales in this runtime are synthetic."
+  ],
+  "recoveryHandoff": {
+    "state": "application-and-loopback-transport-quiesced; independent-DR-pending",
+    "databaseStillRunning": true,
+    "sourceDatabaseWritesFinished": true,
+    "keyAndNativeFilesRetained": true,
+    "legacyFilesInThisSyntheticRuntime": 0,
+    "legacyRootConfiguredInApp": false,
+    "privateDownloadsExcludedFromBackup": true
+  }
+}

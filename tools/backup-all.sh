@@ -8,6 +8,9 @@ source "$SCRIPT_DIR/ops/lib.sh"
 BACKUP_ROOT="${BACKUP_ROOT:-$(ops_root_dir)/backups}"
 keep="${BACKUP_KEEP_COUNT:-7}"
 dry_run="${BACKUP_RETENTION_DRY_RUN:-false}"
+[[ "${BACKUP_PRIVATE_FILES_REQUIRED:-false}" == true || "${BACKUP_PRIVATE_FILES_REQUIRED:-false}" == false ]] || {
+  echo 'ERROR: BACKUP_PRIVATE_FILES_REQUIRED must be true/false' >&2; exit 2;
+}
 [[ "$keep" =~ ^[0-9]+$ && "$keep" -ge 2 ]] || {
   echo 'ERROR: BACKUP_KEEP_COUNT must be at least 2' >&2; exit 2;
 }
@@ -24,6 +27,7 @@ require_command python3
 lock_backup_suite "$BACKUP_ROOT"
 "$SCRIPT_DIR/pg-backup.sh"
 "$SCRIPT_DIR/minio-backup.sh"
+"$SCRIPT_DIR/private-files-backup.sh"
 "$SCRIPT_DIR/offsite-backup.sh"
 
 # Standalone producers are additive. Only a completed full chain may evict copies.
@@ -34,14 +38,16 @@ release_retention_locks() {
 }
 trap release_retention_locks EXIT
 trap 'exit 1' INT TERM
-for component in postgres minio; do
+components=(postgres minio)
+if [[ "${BACKUP_PRIVATE_FILES_REQUIRED:-false}" == true ]]; then components+=(native-files); fi
+for component in "${components[@]}"; do
   component_lock="$BACKUP_ROOT/.$component-backup.lock"
   mkdir "$component_lock" || {
     echo "ERROR: standalone $component backup is running; retention deferred" >&2; exit 1;
   }
   component_locks+=("$component_lock")
 done
-for component in postgres minio; do
+for component in "${components[@]}"; do
   python3 "$SCRIPT_DIR/ops/prune-backups.py" --kind "$component" \
     --directory "$BACKUP_ROOT/$component" --keep "$keep"
 done
@@ -72,7 +78,7 @@ if [[ "$dry_run" == true ]]; then
   echo 'Backup chain completed; retention dry-run only'
   exit 0
 fi
-for component in postgres minio; do
+for component in "${components[@]}"; do
   python3 "$SCRIPT_DIR/ops/prune-backups.py" --kind "$component" \
     --directory "$BACKUP_ROOT/$component" --keep "$keep" --apply
 done

@@ -109,7 +109,7 @@ class Database:
                 "database container must be running with network=none")
         ports = parse_json(parts[3])
         require(not ports or all(value is None for value in ports.values()), "published database ports are forbidden")
-        info = parse_json(self.readonly("SELECT json_build_object('database',current_database(),'oid',(SELECT oid FROM pg_database WHERE datname=current_database()),'systemIdentifier',(SELECT system_identifier::text FROM pg_control_system()),'versionNum',current_setting('server_version_num')::integer,'dataDirectory',current_setting('data_directory'),'collate',(SELECT datcollate FROM pg_database WHERE datname=current_database()),'ctype',(SELECT datctype FROM pg_database WHERE datname=current_database()),'localeProvider',(SELECT datlocprovider FROM pg_database WHERE datname=current_database()),'sha256Available',to_regprocedure('pg_catalog.sha256(bytea)') IS NOT NULL);"))
+        info = parse_json(self.readonly("SELECT json_build_object('database',current_database(),'oid',(SELECT oid FROM pg_database WHERE datname=current_database()),'systemIdentifier',(SELECT system_identifier::text FROM pg_control_system()),'versionNum',current_setting('server_version_num')::integer,'encoding',current_setting('server_encoding'),'dataDirectory',current_setting('data_directory'),'collate',(SELECT datcollate FROM pg_database WHERE datname=current_database()),'ctype',(SELECT datctype FROM pg_database WHERE datname=current_database()),'localeProvider',(SELECT datlocprovider FROM pg_database WHERE datname=current_database()),'sha256Available',to_regprocedure('pg_catalog.sha256(bytea)') IS NOT NULL);"))
         identity = {key: info[key] for key in ("database", "oid", "systemIdentifier", "versionNum")}
         identity["containerId"] = parse_json(parts[0])
         info["identitySha256"] = digest(encoded(identity))
@@ -429,8 +429,17 @@ def load_artifact(db, artifact_path, expected_sha, expected_target, expected_tab
     info = db.inspect()
     require(info["identitySha256"] == hash_arg(expected_target), "candidate identity differs from approved target pin")
     require(info["versionNum"] // 10000 == 16 and info["sha256Available"], "target must be PostgreSQL16 with core sha256")
-    for field in ("collate", "ctype", "localeProvider"):
-        require(info[field] == artifact["metadata"]["database"][field], "source and candidate database locales differ")
+    source_locale = artifact["metadata"]["database"]
+    require(info["encoding"] == "UTF8", "candidate must use UTF8")
+    require(info["localeProvider"] == source_locale["localeProvider"], "source and candidate database locales differ")
+    # The two observed libc names are spelling aliases, not permission to change locale/provider.
+    locale_alias = False
+    for field in ("collate", "ctype"):
+        same = info[field] == source_locale[field]
+        alias = (info["localeProvider"] == "c" and
+                 {info[field], source_locale[field]} == {"en_US.utf8", "en_US.UTF-8"})
+        require(same or alias, "source and candidate database locales differ")
+        locale_alias |= alias
     schema = "crm_stage_" + expected_sha[:16]
     exists = db.readonly("SELECT to_regnamespace(" + literal(schema) + ") IS NOT NULL;").strip()
     require(exists in {"t", "f"}, "unsupported candidate schema probe")
@@ -447,6 +456,9 @@ def load_artifact(db, artifact_path, expected_sha, expected_target, expected_tab
                "artifactSha256": expected_sha, "sourceBackupSha256": artifact["sourceBackupSha256"],
                "sourceSchemaSha256": artifact["sourceSchemaSha256"], "targetIdentitySha256": expected_target,
                "sourceVersion": artifact["metadata"]["database"]["version"], "targetMajorVersion": 16,
+               "sourceLocale": {key: source_locale[key] for key in ("encoding", "collate", "ctype", "localeProvider")},
+               "targetLocale": {key: info[key] for key in ("encoding", "collate", "ctype", "localeProvider")},
+               "knownLibcLocaleSpellingAlias": locale_alias,
                "tables": len(artifact["tables"]), "columns": sum(len(t["columns"]) for t in artifact["metadata"]["tables"]),
                "rows": sum(c["rowCount"] for c in artifact["checksums"]), "foreignKeys": constraints["f"],
                "primaryKeys": constraints["p"], "uniqueConstraints": constraints["u"],

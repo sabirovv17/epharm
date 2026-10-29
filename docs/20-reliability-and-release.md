@@ -12,7 +12,8 @@ The backup chain is:
    SHA-256 sidecar.
 2. `tools/minio-backup.sh` mirrors every `MINIO_BACKUP_BUCKETS` bucket through the private container
    network, archives it atomically and stores a SHA-256 sidecar.
-3. `tools/offsite-backup.sh` encrypts and copies both artifact sets to restic, applies independent
+3. `tools/offsite-backup.sh` encrypts and copies the artifacts to restic (including both private-file
+   sets when required below), applies independent
    daily/weekly/monthly retention and runs a repository check.
 4. `tools/restore-test.sh` checksum-validates the newest artifacts, restores them into disposable
    PostgreSQL and MinIO containers and verifies Flyway history, public tables and restored buckets.
@@ -20,6 +21,65 @@ The backup chain is:
    `BACKUP_KEEP_COUNT` newest PostgreSQL and MinIO backups (default 7 per component, minimum 2).
    Archives and their checksums are treated together. Failed creation, missing/bad checksum, corrupt
    gzip/tar, or required off-site failure stops rotation without evicting the old restore points.
+
+For the current source, `MINIO_BACKUP_BUCKETS=epharm-receipts,pim-product-images` is the complete
+known set and the code/example default. A configured missing bucket fails the backup; it is never
+silently omitted or created on the source. New MinIO artifacts contain versioned per-bucket
+anonymous policy JSON in addition to preserved objects and metadata. `{}` means the source bucket
+is private. Isolated restoration applies exactly that policy (`private` or the saved custom JSON),
+reads it back and compares semantic JSON before reporting success. It does not replace a restricted
+prefix with a general download/public grant. Policy/path/inventory validation runs before extraction.
+Older artifacts without policies remain an explicitly labelled legacy restore mode only when the
+native/private requirement is false; they cannot satisfy the new native release recovery gate.
+
+### Native private files and recoverable credential keys
+
+Before enabling the native merchandising runtime or D9 credential capture, the protected backup
+environment must explicitly set `BACKUP_PRIVATE_FILES_REQUIRED=true` and all three physical host
+paths: `MERCH_EVIDENCE_HOST_ROOT`, `MERCH_LEGACY_FILES_HOST_ROOT`, and
+`LEARNER_CREDENTIALS_HOST_KEY_DIRECTORY`. These are the same host directories mounted into the
+backend; there are no inferred defaults in the backup producer. Keep roots and all nested
+directories owned by the backup user with mode `0700`, files `0600` (or read-only `0400`), and do not
+use symlinks or hardlinks. An unset requirement preserves the older PG/MinIO-only installation;
+it is not an acceptable native-runtime release configuration.
+
+`tools/private-files-backup.sh` runs between MinIO and offsite backup. It creates two distinct
+artifacts: `native-files/epharm-native-files-<UTC>.tar.gz` for native evidence, instructions,
+reference photos and imported private files; and
+`credential-keys/epharm-credential-keys-<UTC>.tar.gz` for the whole explicitly configured key ring
+(including `keys.json`). The latter is a separate mode-`0600` recovery artifact outside PostgreSQL,
+never embedded in a database dump, normal report, log, or native-file archive. Both archives have
+an external SHA-256 sidecar and an internal path/size/SHA-256 manifest. The producer rejects changed
+source files, unsafe filesystem objects, overlapping roots and insufficient temporary free space.
+The same restic run encrypts and copies all four artifact directories; a missing or invalid required
+private snapshot fails before offsite backup and prevents subsequent local rotation.
+
+Native snapshots use `BACKUP_KEEP_COUNT` (minimum 2) through the existing verified, race-checked
+rotation, only after the entire chain succeeds. Credential-key recovery archives are deliberately
+not locally pruned: rotation requires a separate key-custody review proving every retained vault
+key version remains recoverable. Monitor their cumulative size. The producer refuses a new archive
+unless its uncompressed estimate plus 5% and a 256 MiB reserve fit; this is a stop-safe floor,
+not a forecast of database/WAL/image/migration headroom. Neither producer nor retention deletes
+business files in the source host directories.
+
+`restore-test.sh` with the requirement enabled needs both private artifacts as well as PG/MinIO.
+It validates each manifest and byte digest and restores files into a fresh, mode-`0700` disposable
+stage before recording success. It never targets the mounted source roots or replaces live keys.
+For a manual offline file recovery drill, select a specific artifact recovered from restic, then run:
+
+```bash
+python3 tools/ops/private_backup.py verify --kind native-files --archive /protected/native-files/epharm-native-files-<UTC>.tar.gz
+python3 tools/ops/private_backup.py restore --kind native-files --archive /protected/native-files/epharm-native-files-<UTC>.tar.gz --destination /protected/drill/new-native-files
+python3 tools/ops/private_backup.py restore --kind credential-keys --archive /protected/credential-keys/epharm-credential-keys-<UTC>.tar.gz --destination /protected/drill/new-key-recovery
+```
+
+The destination must not already exist, its parent must be private, and original relative paths are
+retained below `merch`, `merch-legacy` or `learner-credentials`. A file-copy drill proves file integrity;
+full D9 disaster recovery additionally requires restoring a matching database in isolation and
+decrypting a synthetic vault record with the recovered key ring. Preserve the independent restic
+recovery secret outside both application and backup hosts; having a key archive accessible only
+through credentials lost with the application host is not sufficient recovery. No acceptance gate
+is passed merely by adding these scripts or by an old PG/MinIO-only restore success metric.
 
 No restore script mounts a production volume. Local retention is count-based, not unbounded by
 repeated deployments on the same day. Standalone `pg-backup.sh` and `minio-backup.sh` are additive;

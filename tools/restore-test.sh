@@ -15,6 +15,7 @@ load_env_file "$ENV_FILE"
 require_command docker
 require_command gzip
 require_command tar
+require_command python3
 require_nonempty MINIO_ROOT_USER
 require_nonempty MINIO_ROOT_PASSWORD
 
@@ -26,24 +27,54 @@ MC_IMAGE="${MINIO_MC_IMAGE:-quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z}"
 MINIO_IMAGE="${MINIO_RESTORE_IMAGE:-quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z}"
 PG_BACKUP="${POSTGRES_BACKUP_FILE:-$(latest_matching_file "$BACKUP_ROOT/postgres" 'epharm-postgres-*.dump.gz')}"
 MINIO_BACKUP="${MINIO_BACKUP_FILE:-$(latest_matching_file "$BACKUP_ROOT/minio" 'epharm-minio-*.tar.gz')}"
+private_required="${BACKUP_PRIVATE_FILES_REQUIRED:-false}"
+[[ "$private_required" == true || "$private_required" == false ]] || { echo 'ERROR: invalid private backup requirement' >&2; exit 2; }
+if [[ "$private_required" == true ]]; then
+  require_command python3
+  NATIVE_BACKUP="${NATIVE_BACKUP_FILE:-$(latest_matching_file "$BACKUP_ROOT/native-files" 'epharm-native-files-*.tar.gz')}"
+  KEY_BACKUP="${CREDENTIAL_KEY_BACKUP_FILE:-$(latest_matching_file "$BACKUP_ROOT/credential-keys" 'epharm-credential-keys-*.tar.gz')}"
+  [[ -n "$NATIVE_BACKUP" && -n "$KEY_BACKUP" ]] || { echo 'ERROR: required private restore snapshots missing' >&2; exit 1; }
+fi
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-$$"
 PG_CONTAINER="epharm-restore-pg-$RUN_ID"
 MINIO_CONTAINER_TEST="epharm-restore-minio-$RUN_ID"
 NETWORK="epharm-restore-$RUN_ID"
-STAGE="$BACKUP_ROOT/.restore-$RUN_ID"
 
 [[ -n "$PG_BACKUP" && -f "$PG_BACKUP" ]] || { echo "ERROR: no PostgreSQL backup found" >&2; exit 1; }
 [[ -n "$MINIO_BACKUP" && -f "$MINIO_BACKUP" ]] || { echo "ERROR: no MinIO backup found" >&2; exit 1; }
 
-mkdir -p "$STAGE"
-acquire_lock "$BACKUP_ROOT/.restore-test.lock"
+STAGE="$(mktemp -d "$BACKUP_ROOT/.restore-$RUN_ID.XXXXXXXX")"
+STAGE_IDENTITY="$(python3 - "$STAGE" <<'PY'
+import os, pathlib, stat, sys
+path = pathlib.Path(sys.argv[1]); info = path.lstat()
+if (path.resolve(strict=True) != path or not stat.S_ISDIR(info.st_mode)
+        or info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o700):
+    raise SystemExit('ERROR: restore stage is not a fresh physical private directory')
+print(f'{info.st_dev}:{info.st_ino}')
+PY
+)"
 cleanup() {
   docker_cleanup_container "$PG_CONTAINER"
   docker_cleanup_container "$MINIO_CONTAINER_TEST"
   docker network rm "$NETWORK" >/dev/null 2>&1 || true
-  rm -rf "$STAGE"
+  python3 - "$STAGE" "$STAGE_IDENTITY" <<'PY' || echo 'WARNING: private restore stage preserved; cleanup ownership not proven' >&2
+import os, pathlib, shutil, stat, sys
+path = pathlib.Path(sys.argv[1])
+try:
+    info = path.lstat()
+except FileNotFoundError:
+    raise SystemExit(0)
+if (not stat.S_ISDIR(info.st_mode) or f'{info.st_dev}:{info.st_ino}' != sys.argv[2]
+        or info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o700
+        or path.resolve(strict=True) != path or not shutil.rmtree.avoids_symlink_attacks):
+    raise SystemExit(1)
+shutil.rmtree(path)
+PY
   release_lock
 }
+trap cleanup EXIT INT TERM
+acquire_lock "$BACKUP_ROOT/.restore-test.lock"
+# acquire_lock installs its own trap; the restore owns both stage and component lock.
 trap cleanup EXIT INT TERM
 
 started="$(date +%s)"
@@ -55,6 +86,11 @@ echo "[$(date -u +%FT%TZ)] Isolated restore-test started"
 [[ "$(sha256_file "$MINIO_BACKUP")" == "$(awk '{print $1}' "$MINIO_BACKUP.sha256")" ]]
 gzip -t "$PG_BACKUP"
 tar -tzf "$MINIO_BACKUP" >/dev/null
+python3 "$SCRIPT_DIR/ops/minio_policy.py" --archive "$MINIO_BACKUP"
+if [[ "$private_required" == true ]]; then
+  python3 "$SCRIPT_DIR/ops/private_backup.py" restore --kind native-files --archive "$NATIVE_BACKUP" --destination "$STAGE/native-files"
+  python3 "$SCRIPT_DIR/ops/private_backup.py" restore --kind credential-keys --archive "$KEY_BACKUP" --destination "$STAGE/credential-keys"
+fi
 
 docker network create "$NETWORK" >/dev/null
 docker run -d --rm --name "$PG_CONTAINER" --network "$NETWORK" \
@@ -91,6 +127,10 @@ migration_count="$(docker exec "$PG_CONTAINER" psql -At -U epharm_restore -d eph
 }
 
 tar -C "$STAGE" -xzf "$MINIO_BACKUP"
+policy_legacy_args=()
+if [[ "$private_required" == false ]]; then policy_legacy_args=(--allow-legacy); fi
+python3 "$SCRIPT_DIR/ops/minio_policy.py" --stage "$STAGE" "${policy_legacy_args[@]}"
+mkdir -p "$STAGE/policies" "$STAGE/restored-policies"
 docker run -d --rm --name "$MINIO_CONTAINER_TEST" --network "$NETWORK" \
   -e MINIO_ROOT_USER=restore -e MINIO_ROOT_PASSWORD=restore-only-password \
   "$MINIO_IMAGE" server /data >/dev/null
@@ -102,6 +142,9 @@ done
 
 docker run --rm --network "$NETWORK" \
   -v "$STAGE/data:/backup:ro" \
+  -v "$STAGE/policies:/policies:ro" \
+  -v "$STAGE/restored-policies:/restored-policies" \
+  -e POLICY_REQUIRED="$private_required" \
   -e TEST_MINIO_HOST="$MINIO_CONTAINER_TEST" \
   --entrypoint /bin/sh "$MC_IMAGE" -eu -c '
     mc alias set target "http://$TEST_MINIO_HOST:9000" restore restore-only-password >/dev/null
@@ -112,10 +155,22 @@ docker run --rm --network "$NETWORK" \
       mc mb --ignore-existing "target/$bucket" >/dev/null
       mc mirror "$path" "target/$bucket"
       mc stat "target/$bucket" >/dev/null
+      policy="/policies/$bucket.json"
+      if [ -f "$policy" ]; then
+        if [ "$(tr -d "[:space:]" < "$policy")" = "{}" ]; then
+          mc anonymous set private "target/$bucket" >/dev/null
+        else
+          mc anonymous set-json "$policy" "target/$bucket" >/dev/null
+        fi
+        mc anonymous get-json "target/$bucket" > "/restored-policies/$bucket.json"
+      else
+        [ "$POLICY_REQUIRED" = false ]
+      fi
       restored=$((restored + 1))
     done
     [ "$restored" -gt 0 ]
   '
+python3 "$SCRIPT_DIR/ops/minio_policy.py" --stage "$STAGE" --actual "$STAGE/restored-policies" "${policy_legacy_args[@]}"
 
 finished="$(date +%s)"
 write_metric "$METRIC_DIR" "epharm_restore_test.prom" \

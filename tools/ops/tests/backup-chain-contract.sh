@@ -23,11 +23,11 @@ mkdir -p "$BACKUP_ROOT/postgres" "$BACKUP_ROOT/minio" "$BACKUP_RELEASE_ROOT"
 cat > "$test_root/bin/producer" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
-case "${0##*/}" in pg-backup.sh) stage=pg ;; minio-backup.sh) stage=minio ;; offsite-backup.sh) stage=offsite ;; *) exit 99 ;; esac
+case "${0##*/}" in pg-backup.sh) stage=pg ;; minio-backup.sh) stage=minio ;; private-files-backup.sh) stage=private ;; offsite-backup.sh) stage=offsite ;; *) exit 99 ;; esac
 printf '%s\n' "$stage" >> "$CHAIN_EVENTS"
 [[ "${CHAIN_FAIL:-}" != "$stage" ]]
 SH
-for producer in pg-backup.sh minio-backup.sh offsite-backup.sh; do cp "$test_root/bin/producer" "$test_root/tools/$producer"; done
+for producer in pg-backup.sh minio-backup.sh private-files-backup.sh offsite-backup.sh; do cp "$test_root/bin/producer" "$test_root/tools/$producer"; done
 cat > "$test_root/bin/python3" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -72,7 +72,7 @@ chmod +x "$test_root/bin/"* "$test_root/tools/"*.sh
 export PATH="$test_root/bin:$PATH"
 expect_events() {
   printf '%s\n' "$@" > "$test_root/expected"
-  diff -u "$test_root/expected" "$CHAIN_EVENTS"
+  diff -u "$test_root/expected" "$CHAIN_EVENTS" || { cat "$test_root/rejected.log" >&2; return 1; }
 }
 reject_chain() {
   : > "$CHAIN_EVENTS"
@@ -89,9 +89,11 @@ for value in 0 1 -1 invalid; do
 done
 reject_chain BACKUP_RETENTION_DRY_RUN=invalid
 [[ ! -s "$CHAIN_EVENTS" ]]
-for stage in pg minio offsite; do
+reject_chain BACKUP_PRIVATE_FILES_REQUIRED=invalid
+[[ ! -s "$CHAIN_EVENTS" ]]
+for stage in pg minio private offsite; do
   reject_chain "CHAIN_FAIL=$stage"
-  case "$stage" in pg) expect_events pg ;; minio) expect_events pg minio ;; offsite) expect_events pg minio offsite ;; esac
+  case "$stage" in pg) expect_events pg ;; minio) expect_events pg minio ;; private) expect_events pg minio private ;; offsite) expect_events pg minio private offsite ;; esac
 done
 for component in postgres minio release; do
   reject_chain "CHAIN_FAIL=preflight:$component"
@@ -99,13 +101,17 @@ for component in postgres minio release; do
 done
 : > "$CHAIN_EVENTS"
 BACKUP_RETENTION_DRY_RUN=true "$test_root/tools/backup-all.sh" >/dev/null
-expect_events pg minio offsite preflight:postgres preflight:minio preflight:release
+expect_events pg minio private offsite preflight:postgres preflight:minio preflight:release
 : > "$CHAIN_EVENTS"
 "$test_root/tools/backup-all.sh" >/dev/null
-expect_events pg minio offsite preflight:postgres preflight:minio preflight:release apply:postgres apply:minio apply:release
+expect_events pg minio private offsite preflight:postgres preflight:minio preflight:release apply:postgres apply:minio apply:release
 : > "$CHAIN_EVENTS"
 BACKUP_RELEASE_ROOT='' "$test_root/tools/backup-all.sh" >/dev/null
-expect_events pg minio offsite preflight:postgres preflight:minio apply:postgres apply:minio
+expect_events pg minio private offsite preflight:postgres preflight:minio apply:postgres apply:minio
+: > "$CHAIN_EVENTS"
+BACKUP_PRIVATE_FILES_REQUIRED=true "$test_root/tools/backup-all.sh" >/dev/null
+expect_events pg minio private offsite preflight:postgres preflight:minio preflight:native-files preflight:release apply:postgres apply:minio apply:native-files apply:release
+reject_chain BACKUP_PRIVATE_FILES_REQUIRED=true CHAIN_FAIL=preflight:native-files
 
 # Real kernel lock contention must stop the chain and restore before any producer/selection.
 exec 7>"$BACKUP_ROOT/.backup-suite.lock"

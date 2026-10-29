@@ -1,0 +1,205 @@
+{
+  "aggregateBoundaries": {
+    "adminProfiles": 0,
+    "blankProducerNames": 1,
+    "importRuns": 5,
+    "learnerVaultCopies": 0,
+    "nativeGeneratedDispatches": 0,
+    "newTaskAttempts": 0,
+    "newTaskRewards": 0,
+    "unboundPlans": 3,
+    "unifiedPeople": 0
+  },
+  "applicationStarted": false,
+  "boundary": "Only exact preserved IDs and explicit crosswalk/provenance. Blank companies, canonical PERSON, administrative access and reward recipients are not invented. Physical file-copy acceptance is separate; no source event/API/worker replay.",
+  "container": "epharm-unify-candidate-20261030-d9-10e63b28",
+  "containerId": "430215a4f22b766e7ed9295c45658107347aa516828889a2676ab3a61996dbfe",
+  "currentFlywayVersion": 87,
+  "functionalMergeAccepted": false,
+  "identityCounts": {
+    "merchBranches": 680,
+    "pharmacyRelations": 532,
+    "retainedRecords": {
+      "accessCodes": 10,
+      "accessScopes": 530,
+      "accounts": 6,
+      "containers": 5080,
+      "directBranchRecords": 109,
+      "memberScopes": 32,
+      "monthlyInventory": 16935,
+      "organizations": 9,
+      "shelves": 16914
+    },
+    "stagedPharmacyRelations": 530,
+    "supplementPharmacyRelations": 2,
+    "unresolvedPharmacyRelations": 148
+  },
+  "identityMapSha256": "8408f072a25fffe653418ac2eb6637aae4b9ee042d0bfdb6cea5106a74b78068",
+  "identitySourceArtifactSha256": "f8a2a4ab5bfda4e674e8fa44cb1b96f0a20ab756e7ab46fad3be41c08236fbf6",
+  "network": "none",
+  "operations": {
+    "automation_first": {
+      "ambiguousOwnerBranches": 0,
+      "generatedTasks": 0,
+      "issuedLinks": 0,
+      "mode": "materialized_and_verified",
+      "newRewards": 0,
+      "productionChanged": false,
+      "projectedDispatches": 27,
+      "projectedItems": 82,
+      "projectedPlans": 3,
+      "sourceArtifactSha256": "682ad2cfdd784e59048e08e97dd1be1a56434c5b7a907e215c10e3ae5648d1d0",
+      "targetIdentitySha256": "247c536804e175b1b401cf364aa735fbed8dae9f2bdbd1ec5f268cf96b7f3f05",
+      "verifiedSourceOwnerBranches": 16
+    },
+    "automation_noop": {
+      "ambiguousOwnerBranches": 0,
+      "generatedTasks": 0,
+      "issuedLinks": 0,
+      "mode": "verified_existing_noop",
+      "newRewards": 0,
+      "productionChanged": false,
+      "projectedDispatches": 27,
+      "projectedItems": 82,
+      "projectedPlans": 3,
+      "sourceArtifactSha256": "682ad2cfdd784e59048e08e97dd1be1a56434c5b7a907e215c10e3ae5648d1d0",
+      "targetIdentitySha256": "247c536804e175b1b401cf364aa735fbed8dae9f2bdbd1ec5f268cf96b7f3f05",
+      "verifiedSourceOwnerBranches": 16
+    },
+    "delivery_first": {
+      "issuedLinks": 0,
+      "legacyCompatibleLinks": 11,
+      "missingParentPlans": 0,
+      "mode": "materialized_and_verified",
+      "nativeOwnedLinks": 25,
+      "productionChanged": false,
+      "replayedAcknowledgements": 0,
+      "sourceArtifactSha256": "682ad2cfdd784e59048e08e97dd1be1a56434c5b7a907e215c10e3ae5648d1d0",
+      "targetIdentitySha256": "247c536804e175b1b401cf364aa735fbed8dae9f2bdbd1ec5f268cf96b7f3f05",
+      "verifiedParentPlans": 13
+    },
+    "delivery_noop": {
+      "issuedLinks": 0,
+      "legacyCompatibleLinks": 11,
+      "missingParentPlans": 0,
+      "mode": "verified_existing_noop",
+      "nativeOwnedLinks": 25,
+      "productionChanged": false,
+      "replayedAcknowledgements": 0,
+      "sourceArtifactSha256": "682ad2cfdd784e59048e08e97dd1be1a56434c5b7a907e215c10e3ae5648d1d0",
+      "targetIdentitySha256": "247c536804e175b1b401cf364aa735fbed8dae9f2bdbd1ec5f268cf96b7f3f05",
+      "verifiedParentPlans": 13
+    },
+    "extended_first": {
+      "generatedTasks": 0,
+      "issuedLinks": 0,
+      "mode": "materialized_and_verified",
+      "newRewards": 0,
+      "placementCampaigns": 1,
+      "productionChanged": false,
+      "projectedRecords": 72,
+      "sourceArtifactSha256": "682ad2cfdd784e59048e08e97dd1be1a56434c5b7a907e215c10e3ae5648d1d0",
+      "targetIdentitySha256": "247c536804e175b1b401cf364aa735fbed8dae9f2bdbd1ec5f268cf96b7f3f05",
+      "unresolvedBudgetReferences": 15,
+      "verifiedBudgetLinks": 3
+    },
+    "extended_noop": {
+      "generatedTasks": 0,
+      "issuedLinks": 0,
+      "mode": "verified_existing_noop",
+      "newRewards": 0,
+      "placementCampaigns": 1,
+      "productionChanged": false,
+      "projectedRecords": 72,
+      "sourceArtifactSha256": "682ad2cfdd784e59048e08e97dd1be1a56434c5b7a907e215c10e3ae5648d1d0",
+      "targetIdentitySha256": "247c536804e175b1b401cf364aa735fbed8dae9f2bdbd1ec5f268cf96b7f3f05",
+      "unresolvedBudgetReferences": 15,
+      "verifiedBudgetLinks": 3
+    },
+    "m0_first": {
+      "identityArtifactSha256": "8408f072a25fffe653418ac2eb6637aae4b9ee042d0bfdb6cea5106a74b78068",
+      "mode": "materialized_and_verified",
+      "operationKey": "owned_merch_m0:682ad2cfdd784e59048e08e9:8408f072a25fffe653418ac2",
+      "productionChanged": false,
+      "result": {
+        "pharmacyRelations": 532,
+        "scope": "owned M0 materialization; no account/person merge, activation, rewards, jobs or source writes",
+        "sourceRows": 39627,
+        "tables": 7
+      },
+      "sourceArtifactSha256": "682ad2cfdd784e59048e08e97dd1be1a56434c5b7a907e215c10e3ae5648d1d0",
+      "targetIdentitySha256": "247c536804e175b1b401cf364aa735fbed8dae9f2bdbd1ec5f268cf96b7f3f05"
+    },
+    "m0_noop": {
+      "identityArtifactSha256": "8408f072a25fffe653418ac2eb6637aae4b9ee042d0bfdb6cea5106a74b78068",
+      "mode": "verified_existing_noop",
+      "operationKey": "owned_merch_m0:682ad2cfdd784e59048e08e9:8408f072a25fffe653418ac2",
+      "productionChanged": false,
+      "result": {
+        "pharmacyRelations": 532,
+        "scope": "owned M0 materialization; no account/person merge, activation, rewards, jobs or source writes",
+        "sourceRows": 39627,
+        "tables": 7
+      },
+      "sourceArtifactSha256": "682ad2cfdd784e59048e08e97dd1be1a56434c5b7a907e215c10e3ae5648d1d0",
+      "targetIdentitySha256": "247c536804e175b1b401cf364aa735fbed8dae9f2bdbd1ec5f268cf96b7f3f05"
+    },
+    "tasks_first": {
+      "mode": "materialized_and_verified",
+      "productionChanged": false,
+      "result": {
+        "checklistItems": 246,
+        "dispatches": 27,
+        "evidence": 11,
+        "limitations": [
+          "source in-progress/submitted attempts need explicit verified resume/review; no invented executor",
+          "native QR ownership is a separate verified V074 projection",
+          "physical legacy media must be configured from the verified private manifest"
+        ],
+        "newAttempts": 0,
+        "newRewards": 0,
+        "sourceRows": 706,
+        "tasks": 82
+      },
+      "sourceArtifactSha256": "682ad2cfdd784e59048e08e97dd1be1a56434c5b7a907e215c10e3ae5648d1d0",
+      "targetIdentitySha256": "247c536804e175b1b401cf364aa735fbed8dae9f2bdbd1ec5f268cf96b7f3f05"
+    },
+    "tasks_noop": {
+      "mode": "verified_existing_noop",
+      "productionChanged": false,
+      "result": {
+        "checklistItems": 246,
+        "dispatches": 27,
+        "evidence": 11,
+        "limitations": [
+          "source in-progress/submitted attempts need explicit verified resume/review; no invented executor",
+          "native QR ownership is a separate verified V074 projection",
+          "physical legacy media must be configured from the verified private manifest"
+        ],
+        "newAttempts": 0,
+        "newRewards": 0,
+        "sourceRows": 706,
+        "tasks": 82
+      },
+      "sourceArtifactSha256": "682ad2cfdd784e59048e08e97dd1be1a56434c5b7a907e215c10e3ae5648d1d0",
+      "targetIdentitySha256": "247c536804e175b1b401cf364aa735fbed8dae9f2bdbd1ec5f268cf96b7f3f05"
+    }
+  },
+  "originalBusinessRows": 1932894,
+  "originalBusinessTables": 72,
+  "originalColumnsUnchanged": true,
+  "originalPrimaryKeysUnchanged": true,
+  "originalValuesAndCountsUnchanged": true,
+  "portsPublished": false,
+  "previousAnalysisSha256": "ab4b8287f5eb2df40a6acff8032aebd123eb4cfdb63fde0891c0b04e7e65185c",
+  "previousCrosswalkAllCurrentIdsAndForeignKeysVerified": true,
+  "productionChanged": false,
+  "refusedOperations": [],
+  "sourceArchiveSha256": "9c12cbf910f7269cf8003553be9f9d2c4e736f8d69a628e682e243784ab127c2",
+  "sourceArtifactSha256": "682ad2cfdd784e59048e08e97dd1be1a56434c5b7a907e215c10e3ae5648d1d0",
+  "sourceFilesManifestSha256": "718037ade6e843d41448c8fdd30425073448c6b80cd8c67bb551226db91d16c3",
+  "state": "verified_fresh_owned_pipeline_and_noop",
+  "targetIdentitySha256": "247c536804e175b1b401cf364aa735fbed8dae9f2bdbd1ec5f268cf96b7f3f05",
+  "versionNum": 160014,
+  "workersStarted": false
+}

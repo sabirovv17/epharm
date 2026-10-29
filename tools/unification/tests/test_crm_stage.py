@@ -78,7 +78,7 @@ class FakeDatabase:
     def __init__(self):
         self.schema_exists = False
         self.writes, self.reads = [], []
-        self.info = {"identitySha256": "c" * 64, "versionNum": 160014, "sha256Available": True,
+        self.info = {"identitySha256": "c" * 64, "versionNum": 160014, "sha256Available": True, "encoding": "UTF8",
                      "collate": "en_US.utf8", "ctype": "en_US.utf8", "localeProvider": "c", "freeBytes": stage.MIN_HEADROOM + 1024 * 1024}
 
     def inspect(self):
@@ -183,6 +183,20 @@ class CrmStageTest(unittest.TestCase):
 
     def test_artifact_cannot_be_overwritten_by_report(self):
         self.assert_rejected("must not replace", report=self.path)
+
+    def test_only_observed_utf8_libc_spelling_alias_is_accepted(self):
+        self.db.info.update(collate="en_US.UTF-8", ctype="en_US.UTF-8")
+        result = self.load()
+        self.assertTrue(result["knownLibcLocaleSpellingAlias"])
+        self.assertEqual("en_US.utf8", result["sourceLocale"]["collate"])
+        self.assertEqual("en_US.UTF-8", result["targetLocale"]["collate"])
+        self.db.writes.clear()
+        self.db.info["localeProvider"] = "i"
+        self.assert_rejected("locales differ")
+        self.db.info.update(localeProvider="c", collate="en_GB.UTF-8")
+        self.assert_rejected("locales differ")
+        self.db.info.update(collate="en_US.utf8", encoding="LATIN1")
+        self.assert_rejected("must use UTF8")
 
     def test_missing_dependent_table_and_unknown_type_fail_closed(self):
         self.artifact["metadata"]["tables"][1]["constraints"][0]["foreignTable"] = "missing"

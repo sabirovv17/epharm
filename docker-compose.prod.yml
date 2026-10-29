@@ -89,6 +89,24 @@ services:
         RELEASE_COMMIT: ${BACKEND_RELEASE_COMMIT:-${RELEASE_COMMIT:-unknown}}
     container_name: epharm-backend
     restart: always
+    volumes:
+      - type: bind
+        source: ${MERCH_EVIDENCE_HOST_ROOT:-/srv/epharm-private/merch}
+        target: /var/lib/epharm/merch
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${MERCH_LEGACY_FILES_HOST_ROOT:-/srv/epharm-private/merch-legacy}
+        target: /var/lib/epharm/merch-legacy
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${LEARNER_CREDENTIALS_HOST_KEY_DIRECTORY:-/etc/epharm/learner-credentials}
+        target: /run/epharm-learner-credentials
+        read_only: true
+        bind:
+          create_host_path: false
     # JVM в контейнере: ограничиваем память, чтобы backend не съел весь RAM сервера
     # (7 ГБ на всех сервисах). MaxRAMPercentage=65 от mem_limit → heap ~1.3 ГБ.
     mem_limit: 2g
@@ -144,6 +162,13 @@ services:
       # Optional employee sign-in never gates Standard-N sales or the POSM outbox.
       # Enable for a controlled client pilot; old clients keep their current behavior.
       POSM_STAFF_AUTH_ENABLED: ${POSM_STAFF_AUTH_ENABLED:-false}
+      LEARNER_CREDENTIALS_ENABLED: ${LEARNER_CREDENTIALS_ENABLED:-false}
+      LEARNER_CREDENTIALS_KEY_FILE: /run/epharm-learner-credentials/keys.json
+      LEARNER_CREDENTIALS_EXPORT_TTL_SECONDS: ${LEARNER_CREDENTIALS_EXPORT_TTL_SECONDS:-120}
+      LEARNER_CREDENTIALS_MAX_BATCH_SIZE: ${LEARNER_CREDENTIALS_MAX_BATCH_SIZE:-25}
+      LEARNER_CREDENTIALS_MAX_EXPORTS_PER_HOUR: ${LEARNER_CREDENTIALS_MAX_EXPORTS_PER_HOUR:-4}
+      APP_MERCH_TASKS_EVIDENCE_ROOT: /var/lib/epharm/merch
+      APP_MERCH_TASKS_LEGACY_FILES_ROOT: /var/lib/epharm/merch-legacy
       POSM_UPDATE_PUBLIC_KEY_SPKI: ${POSM_UPDATE_PUBLIC_KEY_SPKI:?set the pinned POSM update public key}
       MERCH_TASKS_ENABLED: ${MERCH_TASKS_ENABLED:-false}
       MERCH_TASKS_BASE_URL: ${MERCH_TASKS_BASE_URL:-}

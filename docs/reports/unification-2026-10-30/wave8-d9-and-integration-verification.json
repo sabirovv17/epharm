@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "state": "engineering-verified-release-gates-open",
+  "baselineCommit": "0bc8d24f3ca83683d03640d6f89a3755f2cdd0e7",
+  "d9Commit": "a92975e",
+  "productionChanged": false,
+  "domain": "https://epharm.inkar.kz",
+  "separateLearnPreserved": true,
+  "posmRpsEnabled": false,
+  "jarSha256": "df351555f03c33c44c915802f7d2f811862fa11a40e9db7eb98aa2b78ca02475",
+  "checks": {
+    "backend": {
+      "tests": 1285,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1,
+      "suites": 142,
+      "jarSha256": "df351555f03c33c44c915802f7d2f811862fa11a40e9db7eb98aa2b78ca02475",
+      "gradle": "test check --max-workers=2"
+    },
+    "backendSkippedReason": "Explicit old-v038 rollback test needs WALLET_ROLLBACK_JAR; separate exact-running-v047 compatibility rehearsal passed",
+    "frontend": {
+      "passed": 907,
+      "failed": 0,
+      "suites": 98,
+      "lint": "passed",
+      "build": "passed"
+    },
+    "builtChromium": {
+      "passed": 39,
+      "failed": 0,
+      "optInSyntheticLabSkipped": 7,
+      "separateOptInExecution": "Seven unique live cases passed across focused runs; see qa-general-acceptance.json"
+    },
+    "migrationTools": {
+      "total": 133,
+      "failed": 0,
+      "skipped": 1,
+      "disposablePgOptIns": ["RUN_BOOTSTRAP_HQ_PG_TESTS=1", "RUN_OWNED_AUTOMATION_PG_TESTS=1"]
+    },
+    "sourceInventory": {
+      "actions": 495,
+      "groups": 57,
+      "posmContracts": 47,
+      "backendEndpoints": 413,
+      "state": "traceability-only-not-runtime-proof"
+    },
+    "releaseTools": {
+      "passed": 47,
+      "failed": 0
+    },
+    "releaseTransitionGuard": {
+      "passed": 20,
+      "failed": 0,
+      "actualFinalJar": "passed wallet and V066 access protection"
+    }
+  },
+  "preservationEvidence": [
+    "fresh-database-preservation-087.json",
+    "fresh-owned-pipeline-087.json",
+    "ops-fresh-source-preservation.json"
+  ],
+  "runtimeEvidence": [
+    "qa-general-acceptance.json",
+    "synthetic-disaster-recovery-087.json",
+    "v47-forward087-synthetic-compatibility.json",
+    "rbac-baseline-forward087-synthetic-compatibility.json"
+  ],
+  "openReleaseGates": [
+    "Actual Standard-N scan, WPF overlay/customer display and current-candidate QR pilot",
+    "Fresh full live backup and isolated recovery including both MinIO buckets, private files and independently recoverable D9 key",
+    "Reviewed pinned RBAC-compatible recovery artifact and controlled single-writer/cutover with fresh deltas",
+    "Exact-main CI/P0 and immutable release images after review/promotion",
+    "Remaining business acceptance/full function coverage must not be inferred from source inventory"
+  ],
+  "limitations": [
+    "Synthetic engineering tests do not prove physical visibility or a live pharmacy sale",
+    "Exact v047 wallet/schema compatibility does not support new managed access scopes; the transition guard now rejects this unsafe rollback",
+    "Source CRM test plans are preserved as diagnostic history without inventing producer ownership; no production data deletion"
+  ],
+  "inventorySha256": "94224645e5510b5415456ee7bd939ced93e32e5fb6fd6b664cf7f4461de0425d",
+  "frontendIndexSha256": "a9f11e724c35b4806c98ee880bc6322b66d21502d8541908cefc3ae396eb289f"
+}
