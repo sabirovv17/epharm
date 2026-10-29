@@ -1,0 +1,772 @@
+diff --git a/src/OperationalTasksPage.jsx b/src/OperationalTasksPage.jsx
+index 5560ebd55638e6760b855c4ca8ec4bb73d7cdf96..02e5f46bcf9c69cbc3748d55896622876062b903 100644
+--- a/src/OperationalTasksPage.jsx
++++ b/src/OperationalTasksPage.jsx
+@@ -250,6 +250,13 @@ function CreateTaskDrawer({ pharmacies, initialScope, onClose, onCreated }) {
+     dueAt: form.dueAt,
+   });
+   const confirmed = confirmedKey === confirmationKey;
++  const selectedShelfMode = {
++    occupied: "Занятые",
++    all: "Все активные",
++    specific: `${form.shelfIds.length} выбранных`,
++    none: "Без полок",
++  }[form.shelfMode];
++  const selectedDeadline = form.dueAt ? deadlineFormat.format(new Date(form.dueAt)) : "Не задан";
+   const update = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+   const applyTemplate = (taskType) => {
+     const template = templates[taskType];
+@@ -348,11 +355,19 @@ function CreateTaskDrawer({ pharmacies, initialScope, onClose, onCreated }) {
+               <span><small>Ответственные</small><strong>{new Set(selectedPharmacies.map((item) => item.massOwnerId)).size}</strong></span>
+               <span><small>Режим полок</small><strong>{{ occupied: "Занятые", all: "Все активные", specific: `${form.shelfIds.length} выбранных`, none: "Без полок" }[form.shelfMode]}</strong></span>
+             </div>
++            <div className="ops-task-next-step"><Send /><span><strong>Что произойдёт дальше</strong><small>Откроется карточка созданного задания. Сформируйте в ней QR и ссылку, затем передайте их аптеке.</small></span></div>
+             <label className="ops-task-confirm-check"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmedKey(event.target.checked ? confirmationKey : "")} /><i>{confirmed && <Check />}</i><span>Я проверил аптеки, ответственных, полки и срок задания</span></label>
+           </section>
+           {error && <div className="ops-task-error"><Info /> {error}</div>}
+         </div>
+-        <footer><span><strong>{form.branchIds.length}</strong> аптек выбрано</span><div><button type="button" onClick={onClose}>Отмена</button><button className="primary" disabled={saving || !confirmed || !form.branchIds.length || (form.shelfMode === "specific" && !form.shelfIds.length)}><Plus /> {saving ? "Создаём..." : "Создать пакеты"}</button></div></footer>
++        <footer>
++          <div className="ops-task-create-summary" aria-label="Сводка нового задания">
++            <span><small>Аптеки</small><strong>{form.branchIds.length || "—"}</strong></span>
++            <span><small>Полки</small><strong>{selectedShelfMode}</strong></span>
++            <span><small>Срок</small><strong>{selectedDeadline}</strong></span>
++          </div>
++          <div className="ops-task-create-actions"><button type="button" onClick={onClose}>Отмена</button><button className="primary" disabled={saving || !confirmed || !form.branchIds.length || (form.shelfMode === "specific" && !form.shelfIds.length)}><Plus /> {saving ? "Создаём..." : "Создать пакеты"}</button></div>
++        </footer>
+       </form>
+     </div>
+   );
+@@ -370,9 +385,9 @@ function DispatchCard({ dispatch, onOpen, canReview = true }) {
+     <article className={`ops-dispatch-card task-workspace-row ${displayStatus} ${taskTiming(dispatch) === 'overdue' ? "overdue" : ""}`}>
+       <button type="button" className="ops-dispatch-summary" onClick={onOpen} aria-label={`Открыть задание: ${dispatch.branchName}`}>
+         <span className="ops-dispatch-pharmacy"><i><Storefront /></i><span><small>Аптека №{dispatch.branchCode || '—'} · {taskTiming(dispatch) === 'planned' ? 'Запланировано' : automatic ? `Неделя ${dispatch.cycleNumber || 1}` : 'Ручное задание'}</small><strong>{taskNextAction(dispatch, canReview)}</strong><span className="task-row-pharmacy-name">{dispatch.branchName}</span><p><MapPin /> {[dispatch.city, dispatch.address].filter(Boolean).join(' · ')}</p>{(placement.requestNumber || placement.advertiserName) && <em>{placement.requestNumber ? campaignReference(placement) : "По заказу"}{placement.advertiserName ? ` · ${placement.advertiserName}` : ""}</em>}</span></span>
+-        <span><small>Ответственный МАС</small><strong className={dispatch.massOwnerName ? "" : "missing"}><UserCircle /> {displayMassName(dispatch.massOwnerName)}</strong></span>
+-        <span><small>{automatic ? "Недельный срок" : "Срок"}</small><strong><CalendarBlank /> {dispatch.dueAt ? deadlineFormat.format(new Date(dispatch.dueAt)) : dispatch.massOwnerId ? "Начнётся после ссылки" : "Ожидает назначения"}</strong>{automatic && !['history', 'planned'].includes(timing) && dispatch.status !== 'submitted' ? <WeeklyDeadline dueAt={dispatch.dueAt} overdue={timing === 'overdue'} /> : timing === 'overdue' && <b>Просрочено</b>}</span>
+-        <span><StatusBadge status={displayStatus} /><small>{active} активных · {awaiting} на проверке</small></span>
++        <span className="task-row-owner"><small>Ответственный МАС</small><strong className={dispatch.massOwnerName ? "" : "missing"}><UserCircle /> {displayMassName(dispatch.massOwnerName)}</strong></span>
++        <span className="task-row-deadline"><small>{automatic ? "Недельный срок" : "Срок"}</small><strong><CalendarBlank /> {dispatch.dueAt ? deadlineFormat.format(new Date(dispatch.dueAt)) : dispatch.massOwnerId ? "Начнётся после ссылки" : "Ожидает назначения"}</strong>{automatic && !['history', 'planned'].includes(timing) && dispatch.status !== 'submitted' ? <WeeklyDeadline dueAt={dispatch.dueAt} overdue={timing === 'overdue'} /> : timing === 'overdue' && <b>Просрочено</b>}</span>
++        <span className="task-row-status"><StatusBadge status={displayStatus} /><small>{active} активных · {awaiting} на проверке</small></span>
+         <TaskProgress summary={dispatch} />
+         <span className="task-row-open">Открыть <CaretRight /></span>
+       </button>
+@@ -494,7 +509,7 @@ export function OperationalTasksPage({ initialTaskId, onInitialTaskConsumed, pha
+   const [error, setError] = useState("");
+   const [loadError, setLoadError] = useState("");
+   const [filters, setFilters] = useState(() => normalizeTaskFilters(initialFilter || savedFilters));
+-  const [boardView, setBoardView] = useState(() => savedView || (typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches ? 'list' : 'board'));
++  const [boardView, setBoardView] = useState(() => savedView || 'list');
+   const [showAlerts, setShowAlerts] = useState(false);
+   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+   const [selectedDispatchId, setSelectedDispatchId] = useState("");
+@@ -631,6 +646,7 @@ export function OperationalTasksPage({ initialTaskId, onInitialTaskConsumed, pha
+       return [];
+     }).slice(0, 8);
+   }, [dispatches]);
++  const focusAlert = alerts[0] ?? null;
+   const issue = async (dispatch) => {
+     setBusy(true);
+     setError("");
+@@ -681,6 +697,25 @@ export function OperationalTasksPage({ initialTaskId, onInitialTaskConsumed, pha
+   return (
+     <main ref={pageRef} className="ops-tasks-page task-workspace">
+       <header className="ops-tasks-heading"><div><span className="eyebrow">Контроль полок</span><h1>Задания</h1><p>{user?.role === "mass_manager" ? "Здесь сразу появляются фотоотчёты по утверждённым заказам ваших аптек. Передайте аптеке одноразовую ссылку и контролируйте недельный срок." : user?.role === "admin" ? "Администратор может выдавать задания любой аптеке. По утверждённым заказам задания создаются автоматически на 7 дней." : "Контролируйте еженедельные фотоотчёты по утверждённым заказам аптек своего дивизиона."}</p></div><div className="ops-task-heading-actions"><button className="mobile-task-filter-toggle" type="button" aria-expanded={mobileFiltersOpen} onClick={() => setMobileFiltersOpen((value) => !value)}><MagnifyingGlass /> Фильтры</button><button data-tour="tasks-create" className="primary" type="button" disabled={loading || Boolean(loadError) || setupRequired || !eligiblePharmacies.length} title={setupRequired ? "Сначала завершите обновление базы данных" : !eligiblePharmacies.length ? "Сначала назначьте аптекам ответственных МАС" : ""} onClick={() => { setCreateScope(null); setCreateOpen(true); }}><Plus /> Выдать задание</button></div></header>
++      {!loading && !loadError && !setupRequired && <section className={`task-workspace-focus ${focusAlert ? focusAlert.kind : 'clear'}`} aria-label="Следующее действие">
++        <span className="task-workspace-focus-icon">{focusAlert ? <AlertTriangle /> : <CheckCircle />}</span>
++        <div><small>Сейчас требуется</small><h2>{focusAlert?.title || 'Очередь под контролем'}</h2><p>{focusAlert ? `${focusAlert.dispatch.branchName} · ${focusAlert.copy}` : 'Нет просроченных заданий и новых фотоотчётов, требующих немедленной проверки.'}</p></div>
++        <dl><div><dt>Активные</dt><dd>{dispatches.filter((item) => !['completed', 'cancelled'].includes(item.status)).length}</dd></div><div><dt>На проверке</dt><dd>{metrics.review}</dd></div><div><dt>Просрочено</dt><dd>{metrics.overdue}</dd></div></dl>
++        {focusAlert && <button type="button" onClick={() => setSelectedDispatchId(focusAlert.dispatch.id)}>Открыть задание <ArrowRight /></button>}
++      </section>}
++      {!loading && !loadError && !setupRequired && <details className="task-workspace-flow" open>
++        <summary><span><small>Как проходит работа</small><strong>От создания задания до принятого отчёта</strong></span><b>Свернуть схему <CaretDown /></b></summary>
++        <ol>
++          {[
++            ["Создать", "Аптеки, тип, полки и срок"],
++            ["Получить QR", "Сформировать ссылку в карточке"],
++            ["Передать аптеке", "Отправить QR исполнителю"],
++            ["Контролировать", "Открытие, выполнение и срок"],
++            ["Проверить", "Фото и чек-лист по каждой полке"],
++            ["Завершить", "Принять или вернуть с комментарием"],
++          ].map(([title, copy], index) => <li key={title}><b>{index + 1}</b><span><strong>{title}</strong><small>{copy}</small></span></li>)}
++        </ol>
++      </details>}
+       {["admin","division_manager"].includes(user?.role) && <details><summary>Материалы обучения на согласовании</summary><TrainingMaterials user={user} onAssigned={load} /></details>}
+       <section data-tour="tasks-metrics" className="ops-task-metrics">
+         <button className={filters.assignment === 'unassigned' ? 'active critical' : 'critical'} aria-pressed={filters.assignment === 'unassigned'} onClick={() => toggleFilter('assignment', 'unassigned')}><span><AlertTriangle /></span><strong>{metrics.needsAssignment}</strong><small>Без МАС</small></button>
+@@ -731,7 +766,9 @@ export function OperationalTasksPage({ initialTaskId, onInitialTaskConsumed, pha
+         </div>
+         {visible.map((dispatch) => <DispatchCard dispatch={dispatch} canReview={!dispatch.isTraining || user?.role !== 'mass_manager'} onOpen={() => setSelectedDispatchId(dispatch.id)} key={dispatch.id} />)}
+         {!visible.length && !loading && !loadError && !setupRequired && <div className="ops-task-empty"><ClipboardList /><h2>В этой очереди заданий нет</h2><p>{activeFilters.length ? 'Все выбранные условия применяются вместе. Уберите одно из них или сбросьте фильтры.' : eligiblePharmacies.length ? 'Здесь появятся задания по вашим аптекам.' : 'Сначала назначьте ответственных МАС в оргструктуре.'}</p>{activeFilters.length ? <button type="button" onClick={() => setFilters(normalizeTaskFilters())}>Сбросить фильтры</button> : eligiblePharmacies.length > 0 && <button className="primary" onClick={() => { setCreateScope(null); setCreateOpen(true); }}><Plus /> Выдать задание</button>}</div>}
+-        {loading && <div className="ops-task-loading"><ArrowsClockwise /> Загружаем задания...</div>}
++        {loading && <div className="task-workspace-skeleton" aria-busy="true" aria-label="Загружаем задания">
++          {[0, 1, 2].map((item) => <article key={item}><span className="wide" /><span /><span /><span /><span className="short" /></article>)}
++        </div>}
+       </section>
+       {createOpen && <CreateTaskDrawer pharmacies={eligiblePharmacies} initialScope={createScope} onClose={() => { setCreateOpen(false); setCreateScope(null); }} onCreated={created} />}
+       {linkValue && <LinkDialog value={linkValue} onClose={() => setLinkValue(null)} />}
+diff --git a/src/PublicTaskDispatch.jsx b/src/PublicTaskDispatch.jsx
+index 8610ffa36a855581ef32557247f3c6708f127b3b..72e4efcdb99551e4de846886a96e55ea433f5097 100644
+--- a/src/PublicTaskDispatch.jsx
++++ b/src/PublicTaskDispatch.jsx
+@@ -53,6 +53,10 @@ function PublicTaskCard({ task, editable, access, problemReason, onProblem, onCh
+     }
+   };
+   const complete = taskIsComplete(task, problemReason);
++  const checklistDone = (task.checklist ?? []).filter((item) => item.required && item.completed).length;
++  const checklistTotal = (task.checklist ?? []).filter((item) => item.required).length;
++  const freshEvidence = (task.attachments ?? []).filter((attachment) => !task.evidenceAfter || new Date(attachment.createdAt) > new Date(task.evidenceAfter)).length;
++  const photoTarget = task.trainingMaterialId ? 1 : Number(task.requiredPhotoCount || 0);
+   return (
+     <article className={`public-task-card ${complete ? "complete" : ""} ${task.status}`}>
+       <header>
+@@ -61,6 +65,11 @@ function PublicTaskCard({ task, editable, access, problemReason, onProblem, onCh
+         <span className={`public-task-state ${complete ? "done" : "pending"}`}>{complete ? "Готово" : "Нужно выполнить"}</span>
+       </header>
+       {task.reviewNote && <div className="public-task-revision"><Info /><span><strong>Задание возвращено</strong><small>{task.reviewNote} · Прикрепите новое фото после исправления. Предыдущие фотографии сохранены в истории.</small></span></div>}
++      <div className="public-task-guide" aria-label="Этапы выполнения">
++        <span className="done"><i><Check /></i><b>1</b><small>Прочитать</small></span>
++        <span className={!checklistTotal || checklistDone >= checklistTotal ? "done" : "active"}><i>{!checklistTotal || checklistDone >= checklistTotal ? <Check /> : <ClipboardList />}</i><b>2</b><small>{checklistTotal ? `Чек-лист ${checklistDone}/${checklistTotal}` : 'Проверить'}</small></span>
++        <span className={freshEvidence >= photoTarget ? "done" : "active"}><i>{freshEvidence >= photoTarget ? <Check /> : <Camera />}</i><b>3</b><small>{task.trainingMaterialId ? 'Видео' : photoTarget ? `Фото ${freshEvidence}/${photoTarget}` : 'Подтверждение'}</small></span>
++      </div>
+       <div className="public-task-context">
+         {task.referenceImageUrl && <figure><img src={task.referenceImageUrl} alt={`Эталон полки ${task.shelfCode || ""}`} /><figcaption><Eye /> Как должно выглядеть</figcaption></figure>}
+         <div><h3>Что сделать</h3><p>{task.description || "Выполните поручение по инструкции и приложите подтверждение."}</p></div>
+@@ -158,7 +167,7 @@ export function PublicTaskDispatchPortal() {
+   if (!confirmed && dispatch.editable) return (
+     <main className="public-task-shell public-task-welcome">
+       {queueControl}
+-      <section><span className="public-task-logo"><Storefront /></span><small>Временный доступ к заданию</small><h1>{dispatch.branch.name}</h1><p><MapPin /> {dispatch.branch.city} · {dispatch.branch.address}</p><div className="public-task-welcome-summary"><span><ClipboardList /><strong>{tasks.length}</strong><small>заданий</small></span><span><ClockCountdown /><strong>{dispatch.dueAt ? deadlineFormat.format(new Date(dispatch.dueAt)) : "Без срока"}</strong><small>срок выполнения</small></span></div><LocationNotice location={location} busy={locating} onLocate={async () => {setLocating(true);setLocation(await locateExecution());setLocating(false);}} /><form onSubmit={start}>{!dispatch.isTraining && <label><span>Как вас зовут?</span><div><UserCircle /><input value={executorName} onChange={(event) => setExecutorName(event.target.value)} minLength="2" maxLength="160" placeholder="Имя исполнителя" required autoFocus /></div></label>}{error && <div className="public-task-inline-error"><Info /> {error}</div>}<button disabled={submitting || (!dispatch.isTraining && executorName.trim().length < 2)}>{submitting ? "Открываем..." : "Начать выполнение"}<ArrowRight /></button></form><small className="public-task-security">Регистрация и пароль не требуются. Доступ действует только для этой аптеки.</small></section>
++      <section><span className="public-task-logo"><Storefront /></span><small>Временный доступ к заданию</small><h1>{dispatch.branch.name}</h1><p><MapPin /> {dispatch.branch.city} · {dispatch.branch.address}</p><div className="public-task-welcome-summary"><span><ClipboardList /><strong>{tasks.length}</strong><small>заданий</small></span><span><ClockCountdown /><strong>{dispatch.dueAt ? deadlineFormat.format(new Date(dispatch.dueAt)) : "Без срока"}</strong><small>срок выполнения</small></span></div><div className="public-task-welcome-flow" aria-label="Как выполнить задание"><strong>Как выполнить</strong><ol><li><b>1</b><span>Разрешите геолокацию</span></li><li><b>2</b><span>Введите своё имя</span></li><li><b>3</b><span>Чек-лист и фото</span></li><li><b>4</b><span>Отправьте отчёт</span></li></ol></div><LocationNotice location={location} busy={locating} onLocate={async () => {setLocating(true);setLocation(await locateExecution());setLocating(false);}} /><form onSubmit={start}>{!dispatch.isTraining && <label><span>Как вас зовут?</span><div><UserCircle /><input value={executorName} onChange={(event) => setExecutorName(event.target.value)} minLength="2" maxLength="160" placeholder="Имя исполнителя" required autoFocus /></div></label>}{error && <div className="public-task-inline-error"><Info /> {error}</div>}<button disabled={submitting || (!dispatch.isTraining && executorName.trim().length < 2)}>{submitting ? "Открываем..." : "Начать выполнение"}<ArrowRight /></button></form><small className="public-task-security">Регистрация и пароль не требуются. Доступ действует только для этой аптеки.</small></section>
+     </main>
+   );
+   const receipt = !dispatch.editable;
+@@ -167,7 +176,7 @@ export function PublicTaskDispatchPortal() {
+       {queueControl}
+       <header className="public-task-header"><span><Storefront /></span><div><small>{receipt ? "Фотоотчёт отправлен" : "Задания аптеки"}</small><h1>{dispatch.branch.name}</h1><p><MapPin /> {dispatch.branch.city} · {dispatch.branch.address}</p></div><div><small>Исполнитель</small><strong>{dispatch.executorName || executorName}</strong><span><ClockCountdown /> {dispatch.dueAt ? deadlineFormat.format(new Date(dispatch.dueAt)) : "Без срока"}</span></div></header>
+       {receipt && <section className="public-task-success"><CheckCircle /><div><h2>Отчёт успешно отправлен</h2><p>Ответственный сотрудник проверит результат. Если потребуется исправление, вам пришлют новую ссылку только на нужные полки.</p></div></section>}
+-      {!receipt && <section className="public-task-overview"><div><span className="eyebrow">Пакет аптеки</span><h2>{dispatch.title}</h2><p>Выполните задания последовательно. Прогресс сохраняется после каждого действия.</p></div><strong>{completedCount}<small>из {tasks.length}</small></strong><div><span style={{ width: `${tasks.length ? Math.round((completedCount / tasks.length) * 100) : 0}%` }} /></div></section>}
++      {!receipt && <section className="public-task-overview"><div><span className="eyebrow">Текущее задание</span><h2>{dispatch.title}</h2><p>Сначала прочитайте инструкцию, затем отметьте чек-лист и приложите фото. Всё сохраняется автоматически.</p></div><strong>{completedCount}<small>из {tasks.length}</small></strong><div><span style={{ width: `${tasks.length ? Math.round((completedCount / tasks.length) * 100) : 0}%` }} /></div></section>}
+       {!!tasks.length && <nav className="public-task-stepper" aria-label="Переход между полками">
+         <button type="button" disabled={currentTaskIndex === 0} onClick={() => setCurrentTaskIndex((index) => Math.max(0, index - 1))}>Назад</button>
+         <label><span>Текущая полка</span><select value={currentTaskIndex} onChange={(event) => setCurrentTaskIndex(Number(event.target.value))}>{tasks.map((task, index) => <option value={index} key={task.id}>{index + 1}. {task.shelfCode ? `Полка ${task.shelfCode}` : task.title}{taskIsComplete(task, problems[task.id]) ? " — готово" : ""}</option>)}</select></label>
+diff --git a/src/main.jsx b/src/main.jsx
+index 57e0168f156b3164fb04e7bd8effaa6d510c0a78..e0271f298815fded291d9ae54786505c54252e90 100644
+--- a/src/main.jsx
++++ b/src/main.jsx
+@@ -10,6 +10,7 @@ import "./platform-redesign.css";
+ import "./catalog-showcase.css";
+ import "./mobile-platform.css";
+ import "./auditImprovements.css";
++import "./merchRedesign.css";
+
+ const taskAccess = window.location.pathname.startsWith("/staff") && new URLSearchParams(window.location.search).has("task");
+ const RootApplication = taskAccess ? PublicTaskDispatchPortal : window.location.pathname.startsWith("/staff") ? StaffPortal : App;
+diff --git a/src/merchRedesign.css b/src/merchRedesign.css
+new file mode 100644
+index 0000000000000000000000000000000000000000..39fba78c3d3fcf7f70ebd7f7b14ae1ed4a6e7df5
+--- /dev/null
++++ b/src/merchRedesign.css
+@@ -0,0 +1,559 @@
++/*
++ * Merchandising workspace v3.
++ * Intentionally scoped to staff tasks and the public QR flow so the customer,
++ * advertiser and platform shells keep their existing behaviour and layout.
++ */
++
++.task-workspace,
++.ops-task-create-drawer,
++.task-workspace-viewer,
++.public-task-page,
++.public-task-shell {
++  --merch-teal-950: #073f46;
++  --merch-teal-800: #075f5d;
++  --merch-teal-700: #087b77;
++  --merch-teal-600: #0d918a;
++  --merch-teal-100: #dcf4f0;
++  --merch-teal-50: #effaf8;
++  --merch-ink: #173438;
++  --merch-muted: #607174;
++  --merch-line: #d8e4e2;
++  --merch-canvas: #f4f7f7;
++  --merch-danger: #c7473d;
++  --merch-warning: #a96912;
++  --merch-shadow: 0 16px 42px rgba(7, 63, 70, .09);
++}
++
++/* Desktop command centre */
++.ops-tasks-page.task-workspace {
++  max-width: none;
++  padding: 30px clamp(18px, 3vw, 46px) 64px;
++  background:
++    radial-gradient(circle at 92% 0, rgba(13, 145, 138, .08), transparent 28rem),
++    var(--merch-canvas);
++  color: var(--merch-ink);
++}
++
++.task-workspace .ops-tasks-heading {
++  max-width: 1560px;
++  margin: 0 auto 18px;
++  padding: 0 2px;
++}
++
++.ops-tasks-page.task-workspace .ops-tasks-heading h1 {
++  margin: 2px 0 5px;
++  color: var(--merch-ink);
++  font-size: clamp(30px, 3vw, 40px);
++  letter-spacing: -.035em;
++}
++
++.ops-tasks-page.task-workspace .ops-tasks-heading p {
++  max-width: 760px;
++  color: var(--merch-muted);
++  font-size: 13px;
++}
++
++.task-workspace .eyebrow { color: var(--merch-teal-700); }
++.task-workspace .ops-task-heading-actions > .primary,
++.ops-task-create-drawer button.primary,
++.task-workspace-viewer button.primary {
++  min-height: 46px;
++  border-radius: 10px;
++  background: var(--merch-teal-700);
++  box-shadow: 0 8px 20px rgba(8, 123, 119, .16);
++}
++
++.task-workspace-focus {
++  max-width: 1560px;
++  min-height: 104px;
++  display: grid;
++  grid-template-columns: 48px minmax(260px, 1fr) auto auto;
++  align-items: center;
++  gap: 16px;
++  margin: 0 auto 14px;
++  padding: 18px 20px;
++  border: 1px solid #b9d8d4;
++  border-radius: 16px;
++  background: linear-gradient(118deg, #eaf8f5, #fff 55%);
++  box-shadow: var(--merch-shadow);
++}
++
++.task-workspace-focus.review { border-color: #ecd19f; background: linear-gradient(118deg, #fff8e9, #fff 55%); }
++.task-workspace-focus.overdue,
++.task-workspace-focus.critical { border-color: #efbcb6; background: linear-gradient(118deg, #fff1ef, #fff 55%); }
++.task-workspace-focus.clear { box-shadow: none; }
++.task-workspace-focus-icon {
++  width: 48px;
++  height: 48px;
++  display: grid;
++  place-items: center;
++  border-radius: 14px;
++  background: var(--merch-teal-100);
++  color: var(--merch-teal-700);
++}
++.task-workspace-focus.review .task-workspace-focus-icon { background: #fff0d4; color: var(--merch-warning); }
++.task-workspace-focus.overdue .task-workspace-focus-icon,
++.task-workspace-focus.critical .task-workspace-focus-icon { background: #ffe0dc; color: var(--merch-danger); }
++.task-workspace-focus-icon svg { width: 24px; height: 24px; }
++.task-workspace-focus > div { min-width: 0; }
++.task-workspace-focus small { color: var(--merch-teal-700); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
++.task-workspace-focus h2 { margin: 3px 0 4px; color: var(--merch-ink); font-size: 20px; }
++.task-workspace-focus p { margin: 0; color: var(--merch-muted); font-size: 13px; line-height: 1.45; }
++.task-workspace-focus dl { display: flex; align-items: stretch; margin: 0; }
++.task-workspace-focus dl > div { min-width: 82px; display: grid; gap: 2px; padding: 2px 16px; border-left: 1px solid var(--merch-line); }
++.task-workspace-focus dt { color: var(--merch-muted); font-size: 10px; }
++.task-workspace-focus dd { margin: 0; color: var(--merch-ink); font-size: 22px; font-weight: 850; }
++.task-workspace-focus > button {
++  min-height: 44px;
++  display: inline-flex;
++  align-items: center;
++  gap: 7px;
++  padding: 0 15px;
++  border: 1px solid #8dc8c1;
++  border-radius: 10px;
++  background: #fff;
++  color: var(--merch-teal-700);
++  font-weight: 800;
++  white-space: nowrap;
++}
++.task-workspace-focus > button svg { width: 17px; }
++
++.task-workspace-flow {
++  margin: 0 0 12px;
++  padding: 14px 16px 16px;
++  border: 1px solid var(--merch-line);
++  border-radius: 13px;
++  background: #fff;
++}
++.task-workspace-flow > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; list-style: none; }
++.task-workspace-flow > summary::-webkit-details-marker { display: none; }
++.task-workspace-flow > summary > span { min-width: 0; display: flex; align-items: baseline; gap: 10px; }
++.task-workspace-flow > summary small { color: var(--merch-teal-700); font-size: 10px; font-weight: 850; letter-spacing: .07em; text-transform: uppercase; }
++.task-workspace-flow > summary strong { color: var(--merch-ink); font-size: 14px; }
++.task-workspace-flow > summary > b { display: inline-flex; align-items: center; gap: 5px; color: var(--merch-muted); font-size: 10px; font-weight: 750; white-space: nowrap; }
++.task-workspace-flow > summary > b svg { width: 14px; transition: transform .15s ease; }
++.task-workspace-flow:not([open]) > summary > b svg { transform: rotate(-90deg); }
++.task-workspace-flow:not([open]) > summary > b { font-size: 0; }
++.task-workspace-flow:not([open]) > summary > b::before { font-size: 10px; content: "Показать схему"; }
++.task-workspace-flow ol { display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); gap: 7px; margin: 0; padding: 0; list-style: none; }
++.task-workspace-flow[open] ol { margin-top: 11px; }
++.task-workspace-flow li { position: relative; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 9px 8px; border: 1px solid #d7e6e3; border-radius: 9px; background: #f8fbfa; }
++.task-workspace-flow li > b { flex: 0 0 auto; width: 25px; height: 25px; display: grid; place-items: center; border-radius: 8px; background: var(--merch-teal-100); color: var(--merch-teal-700); font-size: 12px; }
++.task-workspace-flow li > span { min-width: 0; display: grid; gap: 2px; }
++.task-workspace-flow li strong { color: var(--merch-ink); font-size: 11px; }
++.task-workspace-flow li small { overflow: hidden; color: var(--merch-muted); font-size: 9.5px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
++
++.ops-tasks-page.task-workspace .ops-task-metrics {
++  max-width: 1560px;
++  grid-template-columns: repeat(6, minmax(0, 1fr));
++  gap: 8px;
++  margin: 0 auto 12px;
++}
++.ops-tasks-page.task-workspace .ops-task-metrics button {
++  min-height: 68px;
++  grid-template-columns: 32px 34px minmax(0, 1fr);
++  gap: 8px;
++  padding: 9px 11px;
++  border: 1px solid var(--merch-line);
++  border-radius: 11px;
++  background: rgba(255,255,255,.9);
++  box-shadow: none;
++}
++.ops-tasks-page.task-workspace .ops-task-metrics button:hover,
++.ops-tasks-page.task-workspace .ops-task-metrics button.active { border-color: #83c6bf; background: var(--merch-teal-50); }
++.ops-tasks-page.task-workspace .ops-task-metrics button > span { width: 32px; height: 32px; border-radius: 9px; background: var(--merch-teal-100); color: var(--merch-teal-700); }
++.ops-tasks-page.task-workspace .ops-task-metrics button strong { color: var(--merch-ink); font-size: 20px; }
++.ops-tasks-page.task-workspace .ops-task-metrics button small { color: var(--merch-muted); font-size: 11px; }
++
++.task-workspace-filters {
++  max-width: 1560px;
++  box-sizing: border-box;
++  margin: 0 auto 10px;
++  padding: 12px;
++  border-color: var(--merch-line);
++  border-radius: 12px;
++  box-shadow: 0 8px 28px rgba(7, 63, 70, .045);
++}
++.task-workspace-filter-main { grid-template-columns: minmax(280px, 2fr) repeat(2, minmax(170px, .75fr)) auto; gap: 9px; }
++.task-workspace-filters label { gap: 5px; color: var(--merch-muted); font-size: 11px; font-weight: 750; }
++.task-workspace-filters input,
++.task-workspace-filters select { min-height: 42px; border-color: var(--merch-line); border-radius: 9px; color: var(--merch-ink); }
++.task-workspace-filters input:focus,
++.task-workspace-filters select:focus { outline-color: var(--merch-teal-600); }
++.task-workspace-filters button,
++.task-workspace-results button { min-height: 42px; border-color: var(--merch-line); border-radius: 9px; color: var(--merch-teal-800); }
++
++.task-workspace .task-attention-toggle,
++.task-workspace .ops-task-alert-center,
++.task-workspace .task-workspace-results,
++.task-workspace .ops-dispatch-list,
++.task-workspace > section[data-tour="tasks-list"] { max-width: 1560px; margin-left: auto; margin-right: auto; }
++.task-workspace-results { margin-top: 12px; }
++.task-workspace-results > strong { color: var(--merch-ink); }
++.task-workspace-results > div { padding: 3px; border: 1px solid var(--merch-line); border-radius: 10px; background: #fff; }
++.task-workspace-results > div button { min-height: 34px; border: 0; }
++.task-workspace-results button[aria-pressed=true] { border-color: transparent; background: var(--merch-teal-100); color: var(--merch-teal-800); }
++
++/* Clear, scannable operational rows */
++.ops-tasks-page.task-workspace .ops-dispatch-list {
++  overflow: visible;
++  border: 1px solid var(--merch-line);
++  border-radius: 14px;
++  background: #fff;
++  box-shadow: 0 12px 34px rgba(7,63,70,.055);
++}
++.ops-tasks-page.task-workspace .ops-dispatch-table-head {
++  position: sticky;
++  top: 6px;
++  z-index: 3;
++  grid-template-columns: minmax(330px, 2.7fr) minmax(150px, 1fr) minmax(150px, 1fr) minmax(135px, .9fr) minmax(145px, .9fr) 84px;
++  min-height: 42px;
++  padding: 0 18px;
++  border-bottom: 1px solid var(--merch-line);
++  border-radius: 14px 14px 0 0;
++  background: rgba(247,250,249,.97);
++  box-shadow: 0 5px 12px rgba(7,63,70,.045);
++  backdrop-filter: blur(10px);
++  color: #718184;
++  font-size: 10px;
++  font-weight: 800;
++  letter-spacing: .035em;
++  text-transform: uppercase;
++}
++.ops-tasks-page.task-workspace .ops-dispatch-card { position: relative; border: 0; border-bottom: 1px solid #e5ecea; border-radius: 0; }
++.ops-tasks-page.task-workspace .ops-dispatch-card:last-child { border-bottom: 0; }
++.ops-tasks-page.task-workspace .ops-dispatch-card::before { position: absolute; top: 12px; bottom: 12px; left: 0; width: 3px; border-radius: 0 4px 4px 0; background: #b7c6c4; content: ""; }
++.ops-tasks-page.task-workspace .ops-dispatch-card.submitted::before,
++.ops-tasks-page.task-workspace .ops-dispatch-card.in_progress::before,
++.ops-tasks-page.task-workspace .ops-dispatch-card.completed::before { background: #8fb4b0; }
++.ops-tasks-page.task-workspace .ops-dispatch-card.revision_required::before,
++.ops-tasks-page.task-workspace .ops-dispatch-card.needs_assignment::before,
++.ops-tasks-page.task-workspace .ops-dispatch-card.overdue::before { background: var(--merch-danger); }
++.ops-tasks-page.task-workspace .ops-dispatch-summary {
++  grid-template-columns: minmax(330px, 2.7fr) minmax(150px, 1fr) minmax(150px, 1fr) minmax(135px, .9fr) minmax(145px, .9fr) 84px;
++  min-height: 112px;
++  padding: 16px 18px;
++  background: #fff;
++  transition: background .15s ease;
++}
++.ops-tasks-page.task-workspace .ops-dispatch-summary:hover { background: #fbfdfc; }
++.task-workspace-row .ops-dispatch-pharmacy > i { background: var(--merch-teal-100); color: var(--merch-teal-700); }
++.task-workspace-row .ops-dispatch-pharmacy > span > small { color: #718184; font-size: 10px; font-weight: 750; }
++.task-workspace-row .ops-dispatch-pharmacy > span > strong { color: var(--merch-ink); font-size: 16px; line-height: 1.35; }
++.task-workspace-row .task-row-pharmacy-name { margin-top: 4px; color: #3e5456; font-size: 13px; font-weight: 750; }
++.task-workspace-row .ops-dispatch-pharmacy p { margin-top: 4px; color: #7d8b8d; font-size: 10.5px; }
++.task-workspace-row .task-row-owner > small,
++.task-workspace-row .task-row-deadline > small,
++.task-workspace-row .task-row-status > small { color: #849193; font-size: 10px; }
++.task-workspace-row .task-row-owner > strong { color: #405456; font-size: 12.5px; font-weight: 700; }
++.task-workspace-row .task-row-deadline > strong { color: var(--merch-ink); font-size: 14px; font-weight: 800; line-height: 1.35; }
++.task-workspace-row .task-row-status { align-content: center; }
++.task-workspace-row .task-row-open { min-height: 36px; justify-content: center; border: 1px solid #acd5d0; border-radius: 8px; color: var(--merch-teal-700); font-weight: 800; }
++.task-workspace .ops-task-status { border-radius: 6px; }
++.task-workspace .ops-task-status.ready,
++.task-workspace .ops-task-status.sent,
++.task-workspace .ops-task-status.assigned,
++.task-workspace .ops-task-status.accepted,
++.task-workspace .ops-task-status.in_progress,
++.task-workspace .ops-task-status.submitted,
++.task-workspace .ops-task-status.completed { background: #edf3f2; color: #4f6866; }
++.task-workspace .ops-task-status.revision_required,
++.task-workspace .ops-task-status.blocked,
++.task-workspace .ops-task-status.needs_assignment { background: #fff0ed; color: #a83d31; }
++.task-workspace .ops-task-progress { min-width: 0; gap: 5px; }
++.task-workspace .ops-task-progress small { overflow: visible; color: #627476; font-size: 10.5px; line-height: 1.35; text-overflow: clip; white-space: normal; }
++.task-workspace .ops-task-progress > div span,
++.task-workspace .task-card-completion { accent-color: var(--merch-teal-600); background: var(--merch-teal-600); }
++
++.task-workspace-skeleton { display: grid; }
++.task-workspace-skeleton article { min-height: 110px; display: grid; grid-template-columns: minmax(330px,2.7fr) repeat(4,minmax(135px,1fr)) 84px; align-items: center; gap: 18px; padding: 16px 18px; border-bottom: 1px solid #e5ecea; background: #fff; }
++.task-workspace-skeleton article:last-child { border-bottom: 0; border-radius: 0 0 14px 14px; }
++.task-workspace-skeleton span { height: 18px; border-radius: 7px; background: linear-gradient(90deg,#edf2f1 25%,#f7f9f9 45%,#edf2f1 65%); background-size: 250% 100%; animation: merch-skeleton 1.25s ease-in-out infinite; }
++.task-workspace-skeleton .wide { height: 56px; }
++.task-workspace-skeleton .short { width: 64px; justify-self: center; }
++@keyframes merch-skeleton { from { background-position: 100% 0; } to { background-position: -100% 0; } }
++
++/* Creation workspace: the same data, far less scrolling */
++.ops-task-drawer-backdrop { align-items: center; justify-content: center; padding: 18px; }
++.ops-task-create-drawer {
++  width: min(1120px, calc(100vw - 36px));
++  height: min(900px, calc(100dvh - 36px));
++  overflow: hidden;
++  border: 1px solid rgba(255,255,255,.4);
++  border-radius: 18px;
++  background: var(--merch-canvas);
++  box-shadow: 0 30px 90px rgba(5,42,45,.28);
++}
++.ops-task-create-drawer > header { padding: 18px 22px; border-color: var(--merch-line); }
++.ops-task-create-drawer > header h2 { color: var(--merch-ink); font-size: 23px; }
++.ops-task-create-drawer > header p { max-width: 680px; color: var(--merch-muted); font-size: 12px; }
++.ops-task-create-body { grid-template-columns: 1.15fr .85fr; align-items: start; gap: 12px; padding: 14px; background: var(--merch-canvas); }
++.ops-task-create-body > section { min-width: 0; padding: 16px; border-color: var(--merch-line); border-radius: 12px; box-shadow: 0 6px 18px rgba(7,63,70,.035); }
++.ops-task-create-body > section:first-child { grid-row: span 2; }
++.ops-task-create-body > section:nth-child(4),
++.ops-task-create-body > section:nth-child(5) { grid-column: 1 / -1; }
++.ops-task-section-title > span { border-radius: 8px; background: var(--merch-teal-100); color: var(--merch-teal-700); }
++.ops-task-section-title h3 { color: var(--merch-ink); font-size: 15px; }
++.ops-task-branch-picker { max-height: 340px; border-color: var(--merch-line); border-radius: 9px; }
++.ops-task-branch-picker > label { min-height: 54px; padding: 9px 11px; }
++.ops-task-branch-picker > label.selected { background: var(--merch-teal-50); }
++.ops-task-branch-picker .selected i,
++.ops-task-shelf-picker .selected i { border-color: var(--merch-teal-600); background: var(--merch-teal-600); }
++.ops-task-type-grid { grid-template-columns: repeat(5, minmax(0,1fr)); }
++.ops-task-type-grid button { min-height: 64px; border-radius: 9px; }
++.ops-task-type-grid button.active,
++.ops-task-shelf-modes button.active { border-color: #68bbb3; background: var(--merch-teal-100); color: var(--merch-teal-800); }
++.ops-task-create-body input:focus,
++.ops-task-create-body textarea:focus,
++.ops-task-create-body select:focus { border-color: var(--merch-teal-600); outline: 3px solid rgba(13,145,138,.1); }
++.ops-task-confirmation { background: linear-gradient(120deg, var(--merch-teal-50), #fff 70%) !important; }
++.ops-task-confirmation-summary > span { border-color: #cce3e0; background: #fff; }
++.ops-task-create-body .ops-task-confirm-check { border-color: #a7d1cc; }
++.ops-task-confirm-check input:checked + i { border-color: var(--merch-teal-600); background: var(--merch-teal-600); }
++.ops-task-create-drawer > footer { min-height: 76px; gap: 16px; padding: 10px 22px; border-color: var(--merch-line); }
++.ops-task-create-drawer > footer > .ops-task-create-summary { min-width: 0; display: grid; grid-template-columns: 70px minmax(120px,1fr) minmax(150px,1fr); gap: 8px; }
++.ops-task-create-summary > span { min-width: 0; display: grid; gap: 2px; padding-right: 10px; border-right: 1px solid var(--merch-line); }
++.ops-task-create-summary > span:last-child { border-right: 0; }
++.ops-task-create-summary small { color: var(--merch-muted); font-size: 9px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
++.ops-task-create-summary strong { overflow: hidden; color: var(--merch-ink); font-size: 12px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
++.ops-task-create-summary > span:first-child strong { color: var(--merch-teal-700); font-size: 17px; }
++.ops-task-create-drawer > footer > .ops-task-create-actions { flex: 0 0 auto; }
++
++/* Review workspace */
++.ops-task-viewer.task-workspace-viewer {
++  width: min(1380px, calc(100vw - 36px));
++  max-height: calc(100dvh - 36px);
++  border-color: var(--merch-line);
++  border-radius: 18px;
++  background: var(--merch-canvas);
++  box-shadow: 0 30px 90px rgba(5,42,45,.3);
++}
++.task-workspace-viewer .ops-task-viewer-header { border-color: var(--merch-line); }
++.task-workspace-viewer .ops-task-viewer-header h2 { color: var(--merch-ink); }
++.task-workspace-action { grid-template-columns: minmax(0,1.5fr) repeat(2,minmax(160px,.7fr)); padding: 14px 20px; border-color: #bcdcd8; background: linear-gradient(100deg, var(--merch-teal-100), #f8fcfb); }
++.task-workspace-action span { color: var(--merch-teal-800); font-weight: 750; }
++.task-workspace-action strong { color: var(--merch-ink); }
++.ops-task-viewer.task-workspace-viewer .ops-task-viewer-body { grid-template-columns: 280px minmax(0,1fr); background: #fff; }
++.ops-task-viewer.task-workspace-viewer .ops-task-viewer-list { border-color: var(--merch-line); background: #f7faf9; }
++.ops-task-viewer.task-workspace-viewer .ops-task-viewer-list > button.active { box-shadow: inset 4px 0 var(--merch-teal-600); background: var(--merch-teal-100); }
++.ops-task-viewer.task-workspace-viewer .ops-task-viewer-detail { padding: 22px 26px 34px; }
++.task-workspace-viewer .task-evidence-heading { color: var(--merch-ink); }
++.task-workspace-viewer .task-workspace-reference img { border-radius: 10px; }
++.task-workspace-viewer .ops-task-viewer-checklist,
++.task-workspace-viewer .ops-task-viewer-history,
++.task-workspace-viewer .task-workspace-delivery { border-radius: 10px; }
++
++/* Public QR experience: one clear action at a time */
++.public-task-shell,
++.public-task-page { background: linear-gradient(180deg, #eef7f5 0, var(--merch-canvas) 220px); color: var(--merch-ink); }
++.public-task-welcome > section { border-color: var(--merch-line); border-radius: 18px; box-shadow: var(--merch-shadow); }
++.public-task-logo,
++.public-task-header > span { background: var(--merch-teal-700); }
++.public-task-welcome section > small,
++.public-task-header small { color: var(--merch-teal-700); }
++.public-task-welcome form button,
++.public-task-submit button { border-radius: 10px; background: var(--merch-teal-700); }
++.public-task-welcome .execution-location { border: 1px solid var(--merch-line); border-radius: 10px; background: var(--merch-teal-50); }
++.public-task-welcome .execution-location button {
++  min-height: 42px;
++  padding: 9px 16px;
++  border: 1px solid #9bc9c4;
++  border-radius: 9px;
++  background: #fff;
++  color: var(--merch-teal-800);
++  font: inherit;
++  font-weight: 750;
++  cursor: pointer;
++}
++.public-task-welcome .execution-location button:hover { border-color: var(--merch-teal-600); background: #f7fcfb; }
++.public-task-welcome .execution-location button:disabled { cursor: wait; opacity: .62; }
++.public-task-welcome-flow { margin: 18px 0 14px; padding: 13px; border: 1px solid var(--merch-line); border-radius: 10px; background: #f8fbfa; text-align: left; }
++.public-task-welcome-flow > strong { display: block; margin-bottom: 9px; color: var(--merch-ink); font-size: 12px; }
++.public-task-welcome-flow ol { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 7px; margin: 0; padding: 0; list-style: none; }
++.public-task-welcome-flow li { min-width: 0; display: flex; align-items: center; gap: 6px; color: var(--merch-muted); font-size: 10px; line-height: 1.2; }
++.public-task-welcome-flow li b { flex: 0 0 auto; width: 21px; height: 21px; display: grid; place-items: center; border-radius: 7px; background: var(--merch-teal-100); color: var(--merch-teal-700); font-size: 10px; }
++.public-task-header { border-color: var(--merch-line); background: rgba(255,255,255,.96); }
++.public-task-overview,
++.public-task-card,
++.public-task-comment,
++.public-task-stepper,
++.public-task-continue { border-color: var(--merch-line); border-radius: 13px; box-shadow: none; }
++.public-task-overview { border-top: 4px solid var(--merch-teal-600); }
++.public-task-overview > strong { color: var(--merch-teal-700); }
++.public-task-overview > div:last-child { height: 8px; background: #e4efed; }
++.public-task-overview > div:last-child span { background: var(--merch-teal-600); }
++.public-task-stepper { top: 8px; border-color: #bcd8d5; box-shadow: 0 8px 26px rgba(7,63,70,.08); }
++.public-task-stepper > button,
++.public-task-stepper select,
++.public-task-continue button { border-color: #b8d7d3; border-radius: 9px; color: var(--merch-teal-800); }
++.public-task-card { overflow: visible; }
++.public-task-card > header { border-color: var(--merch-line); border-radius: 13px 13px 0 0; background: #fbfdfc; }
++.public-task-number { border-radius: 10px; background: var(--merch-teal-100); color: var(--merch-teal-700); }
++.public-task-state { border-radius: 6px; }
++.public-task-state.done { background: var(--merch-teal-100); color: var(--merch-teal-800); }
++.public-task-guide {
++  display: grid;
++  grid-template-columns: repeat(3,minmax(0,1fr));
++  gap: 8px;
++  padding: 14px 16px 0;
++}
++.public-task-guide > span {
++  min-width: 0;
++  min-height: 48px;
++  display: grid;
++  grid-template-columns: 28px minmax(0,1fr);
++  grid-template-rows: auto auto;
++  column-gap: 8px;
++  align-content: center;
++  padding: 8px 10px;
++  border: 1px solid var(--merch-line);
++  border-radius: 10px;
++  background: #f8fbfa;
++}
++.public-task-guide i { grid-row: 1 / 3; width: 28px; height: 28px; display: grid; place-items: center; align-self: center; border-radius: 8px; background: #e7efed; color: #6d7f80; }
++.public-task-guide i svg { width: 15px; height: 15px; }
++.public-task-guide b { color: var(--merch-muted); font-size: 10px; line-height: 1; }
++.public-task-guide small { min-width: 0; overflow: hidden; color: var(--merch-ink); font-size: 11px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
++.public-task-guide .active { border-color: #e5c98f; background: #fffaf0; }
++.public-task-guide .active i { background: #fff0d0; color: var(--merch-warning); }
++.public-task-guide .done { border-color: #b9ddd8; background: var(--merch-teal-50); }
++.public-task-guide .done i { background: var(--merch-teal-600); color: #fff; }
++.public-task-context { padding-top: 14px; }
++.public-task-context > div:only-child { grid-column: 1 / -1; }
++.public-task-context > div:only-child p { max-width: 760px; }
++.public-task-checklist button { min-height: 50px; border-color: var(--merch-line); border-radius: 9px; background: #fff; }
++.public-task-checklist button.done { border-color: #93cbc4; background: var(--merch-teal-50); color: var(--merch-teal-800); }
++.public-task-checklist button.done i { border-color: var(--merch-teal-600); background: var(--merch-teal-600); }
++.public-task-submit { border-color: var(--merch-line); box-shadow: 0 -10px 32px rgba(7,63,70,.1); }
++
++/* Evidence block belongs to merchandising only when nested in these workspaces. */
++.public-task-card .execution-panel,
++.task-workspace-viewer .execution-panel { border-color: var(--merch-line); border-radius: 11px; background: #fbfdfc; }
++.public-task-card .execution-panel > button,
++.task-workspace-viewer .execution-panel > button { min-height: 48px; border-radius: 9px; background: var(--merch-teal-700); color: #fff; font-weight: 800; }
++.public-task-card .execution-location,
++.task-workspace-viewer .execution-location { border-color: #bfdeda; background: var(--merch-teal-50); }
++.ops-task-next-step { display: flex; align-items: flex-start; gap: 10px; margin: 11px 0; padding: 11px 12px; border: 1px solid #b9dcd7; border-radius: 9px; background: var(--merch-teal-50); }
++.ops-task-next-step > svg { flex: 0 0 auto; width: 19px; color: var(--merch-teal-700); }
++.ops-task-next-step > span { display: grid; gap: 2px; }
++.ops-task-next-step strong { color: var(--merch-ink); font-size: 12px; }
++.ops-task-next-step small { color: var(--merch-muted); font-size: 11px; line-height: 1.4; }
++.ops-task-viewer-footer > div { flex-wrap: wrap; }
++.ops-task-viewer-footer button svg { width: 16px; }
++
++@media (max-width: 1180px) {
++  .task-workspace-focus { grid-template-columns: 44px minmax(240px,1fr) auto; }
++  .task-workspace-focus dl { display: none; }
++  .task-workspace-flow ol { grid-template-columns: repeat(3,minmax(0,1fr)); }
++  .ops-tasks-page.task-workspace .ops-task-metrics { grid-template-columns: repeat(3,minmax(0,1fr)); }
++  .task-workspace-skeleton article { grid-template-columns: minmax(250px,2fr) repeat(2,minmax(130px,1fr)); }
++  .task-workspace-skeleton article span:nth-child(n+4) { display: none; }
++  .ops-task-create-body { grid-template-columns: 1fr; }
++  .ops-task-create-body > section:first-child { grid-row: auto; }
++  .ops-task-create-body > section:nth-child(4),
++  .ops-task-create-body > section:nth-child(5) { grid-column: auto; }
++}
++
++@media (max-width: 760px) {
++  .ops-tasks-page.task-workspace { padding: 14px 10px 30px; background: var(--merch-canvas); }
++  .task-workspace .ops-tasks-heading { align-items: stretch; margin-bottom: 10px; }
++  .ops-tasks-page.task-workspace .ops-tasks-heading h1 { font-size: 28px; }
++  .ops-tasks-page.task-workspace .ops-tasks-heading p { display: none; }
++  .ops-tasks-page.task-workspace .ops-task-heading-actions { display: grid; grid-template-columns: 1fr; }
++  .task-workspace-focus { min-height: 0; grid-template-columns: 40px minmax(0,1fr); gap: 11px; margin-bottom: 10px; padding: 13px; border-radius: 12px; }
++  .task-workspace-focus-icon { width: 40px; height: 40px; border-radius: 11px; }
++  .task-workspace-focus-icon svg { width: 20px; }
++  .task-workspace-focus h2 { font-size: 16px; }
++  .task-workspace-focus p { display: -webkit-box; overflow: hidden; font-size: 12px; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
++  .task-workspace-focus > button { grid-column: 1 / -1; width: 100%; justify-content: center; }
++  .task-workspace-flow { margin-bottom: 8px; padding: 10px 11px; }
++  .task-workspace-flow > summary > span { display: grid; gap: 1px; }
++  .task-workspace-flow > summary > b { font-size: 0; }
++  .task-workspace-flow > summary > b::before { font-size: 10px; content: "Свернуть"; }
++  .task-workspace-flow:not([open]) > summary > b::before { content: "Показать"; }
++  .task-workspace-flow ol { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }
++  .task-workspace-flow li { padding: 8px 6px; }
++  .task-workspace-flow li small { display: none; }
++  .ops-tasks-page.task-workspace .ops-task-metrics { display: grid !important; grid-template-columns: repeat(3,minmax(0,1fr)) !important; gap: 6px; }
++  .ops-tasks-page.task-workspace .ops-task-metrics button { min-height: 66px; display: grid; grid-template-columns: 1fr; justify-items: center; gap: 2px; padding: 7px 3px; text-align: center; }
++  .ops-tasks-page.task-workspace .ops-task-metrics button > span { display: none; }
++  .ops-tasks-page.task-workspace .ops-task-metrics button strong { font-size: 19px; }
++  .ops-tasks-page.task-workspace .ops-task-metrics button small { font-size: 10px; }
++  .task-workspace-filters { margin-bottom: 7px; padding: 8px; border-radius: 11px; }
++  .task-workspace-filter-main { grid-template-columns: 1fr 1fr; gap: 7px 6px; }
++  .task-workspace-filter-main > .task-workspace-search { grid-column: 1 / -1; }
++  .task-workspace-filter-main > button { min-height: 38px; grid-column: 1 / -1; padding: 7px 10px; }
++  .task-workspace-filters label { gap: 3px; font-size: 10px; }
++  .task-workspace-filters input,
++  .task-workspace-filters select { min-height: 40px; padding: 7px 9px; font-size: 16px; }
++  .task-workspace-filter-extra { gap: 7px; margin-top: 8px; padding-top: 8px; }
++  .task-workspace-filter-chips { gap: 5px; margin-top: 7px; }
++  .task-workspace-filter-chips button { min-height: 36px; padding: 6px 8px; font-size: 11px; }
++  .task-workspace-results { margin: 7px 0 7px; }
++  .ops-tasks-page.task-workspace .ops-dispatch-list { gap: 9px; overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
++  .ops-tasks-page.task-workspace .ops-dispatch-card { overflow: hidden; border: 1px solid var(--merch-line); border-radius: 12px; background: #fff; }
++  .ops-tasks-page.task-workspace .ops-dispatch-card::before { top: 0; bottom: auto; width: 100%; height: 3px; }
++  .ops-tasks-page.task-workspace .ops-dispatch-summary { grid-template-columns: 1fr 1fr; min-height: 0; padding: 15px 13px 13px; }
++  .task-workspace-row .ops-dispatch-pharmacy > span > strong { font-size: 17px; }
++  .task-workspace-row .task-row-pharmacy-name { font-size: 13px; }
++  .task-workspace-row .task-row-open { background: var(--merch-teal-50); }
++  .task-workspace-skeleton { gap: 9px; }
++  .task-workspace-skeleton article { min-height: 180px; grid-template-columns: 1fr 1fr; gap: 12px 8px; padding: 15px 13px; border: 1px solid var(--merch-line); border-radius: 12px; }
++  .task-workspace-skeleton article span { display: block !important; }
++  .task-workspace-skeleton article .wide { grid-column: 1 / -1; height: 62px; }
++  .task-workspace-skeleton article .short { width: 100%; grid-column: 1 / -1; }
++
++  .ops-task-drawer-backdrop { padding: 0; }
++  .ops-task-create-drawer { width: 100%; height: 100dvh; border: 0; border-radius: 0; }
++  .ops-task-create-drawer > header { padding: calc(12px + env(safe-area-inset-top)) 14px 12px; }
++  .ops-task-create-drawer > header h2 { font-size: 20px; }
++  .ops-task-create-body { display: grid; grid-template-columns: 1fr; gap: 9px; padding: 10px; }
++  .ops-task-create-body > section { padding: 13px; }
++  .ops-task-section-title p { display: none; }
++  .ops-task-branch-picker { max-height: 260px; }
++  .ops-task-type-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
++  .ops-task-create-drawer > footer { display: grid; grid-template-columns: 1fr; gap: 8px; padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); }
++  .ops-task-create-drawer > footer > .ops-task-create-summary { width: 100%; grid-template-columns: 54px minmax(0,1fr) minmax(110px,1.2fr); gap: 6px; }
++  .ops-task-create-summary strong { font-size: 10.5px; }
++  .ops-task-create-summary > span:first-child strong { font-size: 15px; }
++  .ops-task-create-drawer > footer > .ops-task-create-actions { width: 100%; display: grid; grid-template-columns: .7fr 1.3fr; }
++
++  .ops-task-viewer.task-workspace-viewer { width: 100%; border: 0; border-radius: 0; }
++  .task-workspace-action { grid-template-columns: 1fr 1fr; padding: 12px; }
++  .task-workspace-action > div:first-child { grid-column: 1 / -1; }
++
++  .public-task-page { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
++  .public-task-header { min-height: 64px; padding: 9px 10px; }
++  .public-task-header > span { width: 38px; height: 38px; }
++  .public-task-overview,
++  .public-task-list,
++  .public-task-comment,
++  .public-task-stepper,
++  .public-task-continue { width: calc(100% - 16px); }
++  .public-task-overview { margin: 8px auto; padding: 12px; border-top-width: 3px; }
++  .public-task-overview h2 { font-size: 17px; }
++  .public-task-overview p { font-size: 12px; line-height: 1.45; }
++  .public-task-overview > strong { font-size: 28px; }
++  .public-task-stepper { top: 4px; margin-bottom: 8px; padding: 6px; border-radius: 10px; }
++  .public-task-stepper > button { min-height: 44px; }
++  .public-task-card { border-radius: 11px; }
++  .public-task-card > header { min-height: 58px; padding: 10px; border-radius: 11px 11px 0 0; }
++  .public-task-card > header h2 { font-size: 17px; }
++  .public-task-state { max-width: 78px; }
++  .public-task-guide { gap: 5px; padding: 10px 10px 0; }
++  .public-task-guide > span { min-height: 54px; display: flex; align-items: center; flex-direction: column; justify-content: center; gap: 4px; padding: 6px 3px; text-align: center; }
++  .public-task-guide i { width: 24px; height: 24px; }
++  .public-task-guide b { display: none; }
++  .public-task-guide small { width: 100%; font-size: 9.5px; }
++  .public-task-welcome-flow ol { grid-template-columns: repeat(2,minmax(0,1fr)); }
++  .public-task-context { grid-template-columns: 92px minmax(0,1fr); padding: 10px; }
++  .public-task-checklist { padding: 0 10px 10px; }
++  .public-task-checklist button { min-height: 52px; font-size: 14px; }
++  .public-task-card .execution-panel { margin: 10px; padding: 12px; }
++  .public-task-submit { min-height: calc(82px + env(safe-area-inset-bottom)); padding: 8px 9px calc(8px + env(safe-area-inset-bottom)); }
++  .public-task-submit button { min-height: 50px; }
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .task-workspace *, .public-task-page * { scroll-behavior: auto !important; transition: none !important; }
++}
+diff --git a/src/placementCheckout.css b/src/placementCheckout.css
+index 3402b8373d633fc016e4d076db4591d72eb69df6..da2c7aa7b35c0850475994a214588e2cced95f3f 100644
+--- a/src/placementCheckout.css
++++ b/src/placementCheckout.css
+@@ -8,7 +8,7 @@
+ .checkout-header h2{margin:4px 0 5px;font-size:29px;font-weight:700;line-height:1.15;letter-spacing:-.55px}.checkout-header p{margin:0;color:#6b7b72;font-size:13px}
+ .checkout-icon{width:38px;height:38px;min-width:38px;padding:8px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #d8e2dc;border-radius:7px;background:#fff;color:#687b70}.checkout-icon svg{width:18px;height:18px}
+
+-.checkout-review-layout{display:grid;grid-template-columns:minmax(0,1fr) 278px;min-height:0;flex:1;overflow:hidden}
++.checkout-review-layout{display:grid;grid-template-columns:minmax(0,1fr) 316px;min-height:0;flex:1;overflow:hidden}
+ .checkout-review-main{min-height:0;padding:0 28px 28px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+ .checkout-campaign-context{padding:18px 0 16px;border-bottom:1px solid #dce4df}
+ .checkout-campaign-context>div{display:flex;align-items:center;gap:11px}.checkout-campaign-context>div>svg{width:20px;color:#078f4e}.checkout-campaign-context small{display:block;color:#6c7b72;font-size:11px}.checkout-campaign-context strong{font-size:14px;font-weight:650}
+@@ -29,18 +29,18 @@
+ .checkout-pharmacy>footer{display:flex;align-items:center;justify-content:flex-end;gap:24px;padding:8px 88px 12px;color:#67786e;font-size:11px}.checkout-pharmacy>footer strong{min-width:122px;color:#17251e;font-size:13px;text-align:right}
+ .checkout-request-total-row{display:grid;grid-template-columns:1fr auto 122px;gap:18px;align-items:center;padding:13px 8px;border-bottom:1px solid #d6e0da;font-size:11px}.checkout-request-total-row>span{color:#64756b}.checkout-request-total-row>strong:last-child{text-align:right;font-size:15px}
+
+-.checkout-summary-panel{min-height:0;display:flex;flex-direction:column;overflow:hidden;border-left:1px solid #dce4df;background:#fcfdfc;overscroll-behavior:contain}.checkout-summary-scroll{min-height:0;flex:1;overflow-y:auto;overscroll-behavior:contain}.checkout-summary-scroll>section{padding:20px 20px;border-bottom:1px solid #e0e7e3}.checkout-summary-panel h3{margin:0 0 14px;font-size:14px;font-weight:700}
++.checkout-summary-panel{min-height:0;height:100%;display:grid;grid-template-rows:minmax(0,1fr) auto;overflow:hidden;border-left:1px solid #dce4df;background:#f8faf9;overscroll-behavior:contain}.checkout-summary-scroll{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}.checkout-summary-scroll>section{padding:20px;border-bottom:1px solid #e0e7e3}.checkout-summary-panel h3{margin:0 0 14px;font-size:14px;font-weight:700}
+ .checkout-summary-list{margin:0}.checkout-summary-list>div{display:grid;grid-template-columns:1fr auto;gap:8px;padding:9px 0;border-bottom:1px solid #e4e9e6}.checkout-summary-list>div:first-child{display:block;padding-top:0}.checkout-summary-list>div:last-child{border-bottom:0}.checkout-summary-list dt{display:flex;align-items:center;gap:7px;color:#697a70;font-size:11px}.checkout-summary-list dt svg{width:15px;height:15px;color:#078f4e}.checkout-summary-list dd{margin:2px 0 0;font-size:12px;font-weight:650;text-align:right}.checkout-summary-list>div:first-child dd{text-align:left}
+ .checkout-readiness{display:flex;flex-direction:column;gap:9px;margin:0;padding:0;list-style:none}.checkout-readiness li{display:grid;grid-template-columns:16px 1fr auto;gap:7px;align-items:center;color:#5f7166;font-size:11px}.checkout-readiness svg{width:15px;height:15px;padding:2px;border-radius:50%}.checkout-readiness .ready svg{background:#078f4e;color:#fff}.checkout-readiness .error{color:#a0472f}.checkout-readiness .error svg{background:#fff0eb;color:#a0472f}.checkout-readiness .optional{color:#a66512}.checkout-readiness .optional svg{padding:0}.checkout-readiness small{font-size:9px;color:#8a765b}
+ .checkout-reservation p{display:flex;align-items:center;gap:8px;margin:0 0 7px}.checkout-reservation p svg{width:17px;color:#587166}.checkout-reservation p strong{font-size:13px}.checkout-reservation>small{display:block;color:#6c7b72;font-size:10.5px;line-height:1.55}
+ .checkout-monthly{margin:0;padding:14px 20px;border-bottom:1px solid #e0e7e3}.checkout-monthly summary{padding:2px 0;font-size:11px;font-weight:650;cursor:pointer}.checkout-monthly>div{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;color:#66776d;font-size:10.5px}.checkout-monthly>div strong{color:#17251e}.checkout-edit{min-height:34px;padding:6px 0;border:0;background:none;color:#078849;font-size:11px}
+-.checkout-summary-panel>footer{margin-top:auto;padding:18px 14px 16px;background:#fff;border-top:1px solid #dce5e0}.checkout-total{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;margin-bottom:14px;padding:12px;border-radius:6px;background:#f2f4ee}.checkout-total span{color:#68796f;font-size:10.5px}.checkout-total strong{font-size:23px;line-height:1.1;font-weight:720;white-space:nowrap;font-variant-numeric:tabular-nums}.checkout-submit-error{max-height:84px;overflow:auto;margin:0 0 10px;padding:8px 10px;border-radius:5px;background:#fff2ed;color:#a13720;font-size:10.5px;line-height:1.45}
+-.checkout-summary-panel .checkout-back,.checkout-summary-panel .primary-action{width:100%;min-height:42px;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:6px;font-size:12px;font-weight:650}.checkout-summary-panel .checkout-back{margin-bottom:8px;border:1px solid #89b79d;background:#fff;color:#087a45}.checkout-summary-panel .primary-action{border:1px solid #078f4e;background:#078f4e;color:#fff}.checkout-summary-panel .primary-action:hover:not(:disabled){background:#067c44}.checkout-summary-panel .primary-action svg{width:16px;height:16px}
++.checkout-summary-panel>footer{position:relative;z-index:1;margin:0;padding:16px 18px 18px;background:#fff;border-top:1px solid #dce5e0;box-shadow:0 -8px 22px #102b230a}.checkout-total{min-height:58px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;padding:11px 13px;border-radius:7px;background:#f2f4ee}.checkout-total span{color:#68796f;font-size:11px}.checkout-total strong{font-size:23px;line-height:1.1;font-weight:720;white-space:nowrap;font-variant-numeric:tabular-nums}.checkout-submit-error{max-height:84px;overflow:auto;margin:0 0 10px;padding:8px 10px;border-radius:5px;background:#fff2ed;color:#a13720;font-size:10.5px;line-height:1.45}
++.checkout-summary-panel .checkout-back,.checkout-summary-panel .primary-action{width:100%;min-height:44px;margin:0;display:flex;align-items:center;justify-content:center;gap:8px;border-radius:6px;font-size:12px;font-weight:650}.checkout-summary-panel .checkout-back{margin-bottom:9px;border:1px solid #89b79d;background:#fff;color:#087a45}.checkout-summary-panel .primary-action{border:1px solid #078f4e;background:#078f4e;color:#fff}.checkout-summary-panel .primary-action:hover:not(:disabled){background:#067c44}.checkout-summary-panel .primary-action:disabled{opacity:.7;color:#e8f4ed}.checkout-summary-panel .primary-action svg{width:16px;height:16px}
+
+ .checkout-success{padding:40px 32px;text-align:center;overflow:auto}.checkout-success>svg{width:44px;height:44px;color:#07964b}.checkout-success h3{font-size:22px}.checkout-success p{color:#68786f}.checkout-success p svg{width:18px;vertical-align:middle;margin-right:6px}.checkout-success .primary-action{min-height:44px;margin:28px auto 0;padding:10px 18px;border:0;border-radius:6px;background:#078f4e;color:#fff}
+
+ @media(max-width:1080px){
+-  .checkout-review.placement-request-modal{width:100%;max-width:100%}.checkout-review-layout{grid-template-columns:minmax(0,1fr) 252px}.checkout-review-main{padding-inline:20px}.checkout-summary-scroll>section{padding-inline:16px}
++  .checkout-review.placement-request-modal{width:100%;max-width:100%}.checkout-review-layout{grid-template-columns:minmax(0,1fr) 280px}.checkout-review-main{padding-inline:20px}.checkout-summary-scroll>section{padding-inline:16px}
+   .checkout-shelf-table-head{display:none}.checkout-shelf{grid-template-columns:72px minmax(150px,1fr) 112px 88px;gap:10px}.checkout-shelf-months{grid-column:2}.checkout-photo{grid-column:3;grid-row:1 / span 2}.checkout-shelf-cost{grid-column:4;grid-row:1}.checkout-shelf-actions{grid-column:4;grid-row:2}.checkout-pharmacy>footer{padding-right:8px}
+ }
+ @media(max-width:760px){
+@@ -49,6 +49,6 @@
+   .checkout-pharmacy>summary{grid-template-columns:72px minmax(0,1fr) 18px;gap:9px}.checkout-pharmacy>summary>img{width:72px;height:52px}.checkout-pharmacy-count,.checkout-pharmacy-total{display:none}.checkout-pharmacy>summary>span:nth-of-type(1)>strong{font-size:13px}.checkout-pharmacy>summary>span:nth-of-type(1)>small{font-size:10px}
+   .checkout-shelf{grid-template-columns:64px minmax(0,1fr) auto;gap:8px;padding:13px 4px}.checkout-shelf-identity{grid-column:1}.checkout-products{grid-column:2 / -1}.checkout-shelf-months{grid-column:2}.checkout-photo{grid-column:1;grid-row:2 / span 2;width:58px;min-height:45px}.checkout-photo>img,.checkout-photo label{width:58px;height:45px;min-height:45px}.checkout-photo.has-photo label{width:21px;min-height:21px;height:21px}.checkout-photo .checkout-icon{width:20px;height:20px;min-width:20px}.checkout-shelf-cost{grid-column:2;grid-row:3;text-align:left}.checkout-shelf-actions{grid-column:3;grid-row:3}.checkout-pharmacy>footer{padding:8px 4px 12px}.checkout-pharmacy>footer strong{min-width:0}
+   .checkout-request-total-row{grid-template-columns:1fr auto;padding-inline:4px}.checkout-request-total-row>span{display:none}
+-  .checkout-summary-panel{overflow:visible;border-top:1px solid #dce4df;border-left:0}.checkout-summary-scroll{overflow:visible}.checkout-summary-scroll>section{padding:16px}.checkout-summary-scroll>section:first-child,.checkout-summary-scroll>section:nth-child(2){display:none}.checkout-monthly{padding-inline:16px}.checkout-summary-panel>footer{position:fixed;right:0;bottom:0;left:0;z-index:230;padding:8px 14px max(8px,env(safe-area-inset-bottom));box-shadow:0 -10px 24px #102b2314}.checkout-total{margin-bottom:7px;padding:7px 10px}.checkout-total strong{font-size:20px}.checkout-summary-panel .checkout-back{display:none}.checkout-summary-panel .primary-action{min-height:46px}
++  .checkout-summary-panel{height:auto;display:block;overflow:visible;border-top:1px solid #dce4df;border-left:0}.checkout-summary-scroll{overflow:visible;scrollbar-gutter:auto}.checkout-summary-scroll>section{padding:16px}.checkout-summary-scroll>section:first-child,.checkout-summary-scroll>section:nth-child(2){display:none}.checkout-monthly{padding-inline:16px}.checkout-summary-panel>footer{position:fixed;right:0;bottom:0;left:0;z-index:230;padding:8px 14px max(8px,env(safe-area-inset-bottom));box-shadow:0 -10px 24px #102b2314}.checkout-total{min-height:0;margin-bottom:7px;padding:7px 10px}.checkout-total strong{font-size:20px}.checkout-summary-panel .checkout-back{display:none}.checkout-summary-panel .primary-action{min-height:46px}
+ }
+ @media(max-height:620px) and (min-width:761px){.checkout-review.placement-request-modal{height:100dvh;max-height:100dvh}.checkout-header{padding-block:10px}.checkout-header p{display:none}.checkout-campaign-context{padding-block:10px}.checkout-progress{margin-top:10px}.checkout-summary-scroll>section{padding-block:12px}.checkout-summary-panel>footer{padding-block:10px}}
