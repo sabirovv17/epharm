@@ -644,4 +644,12 @@ data class MobileTrainingOverviewDto(
     val certificates: List<TrainingCertificateDto>,
     val notifications: List<TrainingNotificationDto>,
     val defaultFormat: TrainingFormat?,
+    val cityRanking: CityTrainingRankingDto,
+)
+
+data class CityTrainingRankingDto(
+    val city: String,
+    val position: Int,
+    val total: Int,
+    val score: Int,
 )

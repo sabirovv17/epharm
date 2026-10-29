@@ -58,6 +58,7 @@ interface OfflineEventRepository : JpaRepository<OfflineEventEntity, UUID> {
 interface TrainingAssignmentRepository : JpaRepository<TrainingAssignmentEntity, UUID> {
     fun findAllByOrderByCreatedAtDesc(): List<TrainingAssignmentEntity>
     fun findAllByPharmacistIdOrderByCreatedAtDesc(pharmacistId: String): List<TrainingAssignmentEntity>
+    fun findAllByPharmacistIdInOrderByCreatedAtDesc(pharmacistIds: Collection<String>): List<TrainingAssignmentEntity>
     fun findAllByPharmacistIdAndStatusRawNotInOrderByDueAtAsc(
         pharmacistId: String,
         excludedStatuses: Collection<String>,
