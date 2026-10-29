@@ -39,6 +39,23 @@ function setup() {
   return { client, transport, storage, values }
 }
 describe('dedicated producer realm', () => {
+  it('downloads original WebP with the producer bearer and image MIME allowlist', async () => {
+    const { client, transport } = setup()
+    transport.mockResolvedValueOnce(json(session()))
+    await client.verify('synthetic-challenge', '1234')
+    transport.mockResolvedValueOnce(
+      new Response(new Uint8Array([82, 73, 70, 70]), { headers: { 'Content-Type': 'image/webp' } }),
+    )
+    const image = await client.downloadImage(
+      '/api/producer/placements/plan/items/item/reference-photo/photo/file',
+      new AbortController().signal,
+    )
+    expect(image.type).toBe('image/webp')
+    const init = transport.mock.calls.at(-1)![1]!
+    expect(new Headers(init.headers).get('Accept')).toContain('image/webp')
+    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer a')
+    expect(init.credentials).toBe('omit')
+  })
   it('stores only its own namespace and never sends admin/mobile credentials or cookies', async () => {
     const { client, transport, values } = setup()
     values.set('epharm.auth.tokens', 'unchanged-admin')
@@ -97,7 +114,14 @@ describe('dedicated producer realm', () => {
     await vi.waitFor(() =>
       expect(transport.mock.calls.some(([path]) => String(path).endsWith('/refresh'))).toBe(true),
     )
+    sessionStorage.setItem('epharm.commercial.draft.v1.producer.synthetic', 'synthetic-owned-draft')
+    sessionStorage.setItem('epharm.commercial.draft.v1.admin.synthetic', 'separate-admin-draft')
     void client.logout()
+    expect(sessionStorage.getItem('epharm.commercial.draft.v1.producer.synthetic')).toBeNull()
+    expect(sessionStorage.getItem('epharm.commercial.draft.v1.admin.synthetic')).toBe(
+      'separate-admin-draft',
+    )
+    sessionStorage.removeItem('epharm.commercial.draft.v1.admin.synthetic')
     expect(client.snapshot().session).toBeNull()
     await client.verify('challenge-b', '1234')
     refresh.resolve(json(session('producer-a', 'rotated-a')))

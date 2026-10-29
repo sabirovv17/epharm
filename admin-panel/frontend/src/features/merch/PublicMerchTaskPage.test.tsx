@@ -81,6 +81,33 @@ describe('public free-task boundary', () => {
       'href',
       '/learn/merch/tasks/dispatch-demo',
     )
+    expect(screen.getByRole('heading', { name: 'Задание с вознаграждением' })).toBeInTheDocument()
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1))
+    expect(fetcher.mock.calls[0][0]).toBe('/api/public/merch/tasks/session')
+  })
+  it('a zero reward monthly report requests its existing personal login without claiming a reward or opening an anonymous form', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(json({ ...metadata, identityRequired: true }))
+    vi.stubGlobal('fetch', fetcher)
+    render(
+      <MemoryRouter>
+        <PublicMerchTaskPage />
+      </MemoryRouter>,
+    )
+    expect(
+      await screen.findByRole('heading', { name: 'Подтвердите исполнителя' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Задание с вознаграждением')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        'Задание без вознаграждения. Личный вход для его выполнения не требуется.',
+      ),
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Войти и открыть задание' })).toHaveAttribute(
+      'href',
+      '/learn/merch/tasks/dispatch-demo',
+    )
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1))
     expect(fetcher.mock.calls[0][0]).toBe('/api/public/merch/tasks/session')
   })

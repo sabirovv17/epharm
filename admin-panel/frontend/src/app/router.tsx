@@ -78,6 +78,7 @@ export function AppRouter() {
       <Route path="/producer" element={publicPortal(<Producer />)} />
       <Route path="/learn" element={withSuspense(<LearnerTraining />)} />
       <Route path="/learn/merch/tasks/:taskId" element={withSuspense(<LearnerTraining />)} />
+      <Route path="/learn/merch/visits" element={withSuspense(<LearnerTraining />)} />
       <Route path="/learn/merch/claim" element={withSuspense(<MerchClaim />)} />
       <Route path="/learn/catalog" element={withSuspense(<LearnerTraining />)} />
       <Route path="/learn/receipts" element={withSuspense(<LearnerTraining />)} />

@@ -44,14 +44,19 @@ data class PlacementDto(val id: UUID, val producerId: UUID?, val producerName: S
     val createdAt: Instant, val updatedAt: Instant, val producerBindingStatus: String,val canBindProducer:Boolean=false,
     val approvedAmount:Long?=null,val pendingAmount:Long?=null)
 data class PlacementPage(val items: List<PlacementDto>, val total: Long, val limit: Int, val offset: Int)
-data class ProducerBranchOption(val id:UUID,val name:String,val address:String,val city:String)
+data class ProducerBranchOption(val id:UUID,val name:String,val address:String,val city:String,
+    val latitude:Double?=null,val longitude:Double?=null,
+    val floorPlan:kz.epharm.merch.inventory.dto.MerchFloorPlan?=null,val floorPlanWarning:String?=null)
 data class ProducerBranchOptions(val items:List<ProducerBranchOption>,val total:Long,val limit:Int,val offset:Int)
 data class ProducerPlaceOffer(val price:Long?,val available:Boolean)
 data class ProducerAvailablePlace(val shelfId:UUID,val code:String,val saleMode:String,
-    val whole:ProducerPlaceOffer,val left:ProducerPlaceOffer?,val right:ProducerPlaceOffer?)
+    val whole:ProducerPlaceOffer,val left:ProducerPlaceOffer?,val right:ProducerPlaceOffer?,
+    val category:String?=null,val widthMetres:Double?=null,val containerCode:String?=null,val facingMonthPrice:String?=null)
 data class ProducerAvailability(val branchId:UUID,val placementMonth:LocalDate,val items:List<ProducerAvailablePlace>,
     val paymentStatus:String="not_connected")
 data class AdminPlacementCatalogBranch(val id:UUID,val name:String,val address:String,val city:String,val canCreate:Boolean,
-    val canAssign:Boolean,val canViewPrices:Boolean,val items:List<ProducerAvailablePlace>)
+    val canAssign:Boolean,val canViewPrices:Boolean,val items:List<ProducerAvailablePlace>,
+    val latitude:Double?=null,val longitude:Double?=null,
+    val floorPlan:kz.epharm.merch.inventory.dto.MerchFloorPlan?=null,val floorPlanWarning:String?=null)
 data class AdminPlacementCatalog(val producerId:UUID,val producerName:String?,val month:LocalDate,
     val branches:List<AdminPlacementCatalogBranch>,val total:Long,val limit:Int,val offset:Int,val canCreate:Boolean,val canAssign:Boolean)

@@ -139,12 +139,14 @@ class WeeklyPlacementAutomation(private val jdbc:JdbcTemplate,private val named:
                 .map {TaskChecklistItem(UUID.randomUUID(),it)}
             val portion=when(item.portion){"left"->"левая половина";"right"->"правая половина";else->"целая полка"}
             val reference=referenceImage(item)
+            val privateReference=jdbc.query("SELECT id FROM merch_placement_reference_photos WHERE media_plan_item_id=? AND archived_at IS NULL",
+                {rs,_->rs.getObject(1,UUID::class.java)},item.id).singleOrNull()
             jdbc.update("""INSERT INTO merch_task_items(id,dispatch_id,source_id,source_payload,title,instructions,task_type,status,required,required_photo_count,checklist,
-                available_from,due_at,media_plan_item_id,shelf_id,recurring_cycle_number,automation_kind,reference_image_ref,created_at,updated_at)
-                VALUES(?,?,?,CAST(? AS jsonb),?,?,'photo_report','assigned',true,1,CAST(? AS jsonb),?,?,?,?,?,'weekly_placement_photo_report',?,?,?)""",
+                available_from,due_at,media_plan_item_id,shelf_id,recurring_cycle_number,automation_kind,reference_image_ref,created_at,updated_at,client_reference_photo_id)
+                VALUES(?,?,?,CAST(? AS jsonb),?,?,'photo_report','assigned',true,1,CAST(? AS jsonb),?,?,?,?,?,'weekly_placement_photo_report',?,?,?,?)""",
                 id,dispatch,id,json.writeValueAsString(mapOf("mediaPlanItemId" to item.id,"shelfId" to item.shelf,"cycleNumber" to cycle.number)),
                 "Фотоотчёт: полка ${item.code}".take(240),"Кампания «${plan.advertiser?:"Размещение"}». Сверьте код шкафа и полки, проверьте выкладку и прикрепите актуальную фотографию всей полки. Полка ${item.code} ($portion).",
-                json.writeValueAsString(checklist),Timestamp.from(cycle.startsAt),Timestamp.from(cycle.dueAt),item.id,item.shelf,cycle.number,reference,Timestamp.from(now),Timestamp.from(now))
+                json.writeValueAsString(checklist),Timestamp.from(cycle.startsAt),Timestamp.from(cycle.dueAt),item.id,item.shelf,cycle.number,reference,Timestamp.from(now),Timestamp.from(now),privateReference)
             jdbc.update("""INSERT INTO merch_task_events(id,dispatch_id,item_id,event_type,details,created_at)
                 VALUES(?,?,?,'weekly_photo_report_generated',CAST(? AS jsonb),?)""",UUID.randomUUID(),dispatch,id,
                 json.writeValueAsString(mapOf("mediaPlanId" to plan.id,"mediaPlanItemId" to item.id,"cycleNumber" to cycle.number)),Timestamp.from(now))

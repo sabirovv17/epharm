@@ -1,0 +1,121 @@
+{
+  "baseCommit": "a14afa71a0b070c8189f730b6767ab5c9b775707",
+  "mainVerified": "a3feef372acf6509c8c088fea4265b8aaae57581",
+  "branch": "codex/unified-admin-development",
+  "productionChanged": false,
+  "publicOrigin": "https://epharm.inkar.kz",
+  "closedNativeWorkflows": [
+    "HQ tariff matrix with scoped denial, exact prices, CAS and immutable audit",
+    "identified comments, personal impediment, cancel item/dispatch without reversing posted money",
+    "five templates, atomic all/occupied targeting up to 500 items",
+    "monthly branch/month/person visit start/resume in admin and separate /learn",
+    "private immutable placement reference versions and exact task snapshot lineage",
+    "published floorplan and clustered map selection; bounded exact-budget preliminary auto-pick",
+    "same-owner/revision/session browser draft recovery and explicit unsaved JSON preview",
+    "JPEG/PNG/WebP reference, evidence and inventory inputs with original byte preservation"
+  ],
+  "finalDefectsFixed": [
+    "zero-reward monthly QR identity path",
+    "inactive organization capability denial",
+    "cross-JVM/database-clock photo archive mismatch",
+    "tariff UI role ceiling matches HQ-only endpoint"
+  ],
+  "checks": {
+    "backendJoint": {
+      "tests": 128,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "suites": {
+        "taskWorkflow": 59,
+        "tariff": 7,
+        "referencePhotos": 10,
+        "inventoryEditor": 16,
+        "access": 23,
+        "commercial": 13
+      }
+    },
+    "backendSeparatelyVerifiedSuites": {
+      "placements": 19,
+      "weeklyAutomation": 16,
+      "instructions": 12,
+      "delivery": 15
+    },
+    "backendSuiteUnion": {
+      "tests": 190,
+      "singleRun": false
+    },
+    "frontendUnit": {
+      "tests": 897,
+      "suites": 96,
+      "failures": 0
+    },
+    "frontendBuild": "PASS",
+    "frontendLint": "PASS",
+    "builtBrowser": {
+      "tests": 39,
+      "failures": 0
+    },
+    "backendCheckAndBootJar": "PASS",
+    "merchJarArtifactContract": "PASS",
+    "mockedBrowser": {
+      "taskTemplatesCommentsReferencesCancel": true,
+      "learnerMonthlyVisit390px": true,
+      "mapFloorplanAutopick": true,
+      "externalRequests": 0,
+      "pageErrors": 0,
+      "componentMapMinWidthIsolated": true,
+      "fullAdminMobileClaim": false
+    },
+    "python": {
+      "tests": 119,
+      "failures": 0,
+      "skipped": 1,
+      "disposablePostgresCases": 7
+    },
+    "sourceInventory": {
+      "actions": 494,
+      "groups": 57,
+      "backendEndpoints": 410,
+      "posmContracts": 47
+    },
+    "ci": {
+      "authoritativeChecks": "https://github.com/sabirovv17/epharm/pull/130/checks",
+      "exactHeadRequired": true,
+      "notInferredFromLocalChecks": true
+    },
+    "requiredDecoderAndStandardNDriverPackaged": true,
+    "localBootJarSha256": "32dd434e8fe2c6bbc2da7665c8f5f52e7309104917456dbeb13910486b561cc8"
+  },
+  "preservedCandidate": {
+    "flywayVersion": "086",
+    "newMigrationFiles": ["V081", "V082", "V083", "V084", "V085", "V086"],
+    "runner": "plain Flyway; pinned network=none copy; no app/worker",
+    "originalTables": 72,
+    "originalRows": 1905710,
+    "originalColumnHashesAndPrimaryKeysUnchanged": true,
+    "evidenceFiles": 11,
+    "evidenceBytes": 4426601,
+    "exactPathsAndAllSha256Match": true,
+    "projectionReplay": "verified_existing_noop",
+    "generatedTasks": 0,
+    "issuedLinks": 0,
+    "newRewards": 0,
+    "sourceComments": 0,
+    "sourceReferencePhotos": 0,
+    "missingHistoricalRequestReferencesRetained": 15,
+    "sourcePlacementOwnersAwaitConfirmation": 3
+  },
+  "remainingFirstReleaseGates": [
+    "D9 credential export is not implemented",
+    "explicit verified operator identities and historical producer-owner bindings",
+    "cross-role functional acceptance and XLSX reconciliation",
+    "capacity, restore and rollback rehearsal",
+    "actual Windows/Standard-N recommendation and QR/SMS pilot",
+    "approved production cutover; no deployment is authorized now"
+  ],
+  "separateAgreedStages": [
+    "D5 C1/C2/C4 grading/certificates/answer disclosure",
+    "real payment and bank provider integration"
+  ]
+}

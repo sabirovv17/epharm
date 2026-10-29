@@ -106,9 +106,9 @@ class UnifiedAdminCatalog(mapper: ObjectMapper) {
         ) + listOf("edit", "submit", "approve", "reject", "cancel", "assign", "financial_data").map { action ->
             PermissionDefinition(key("merchandising", "placements", action),
                 if (action == "edit") PermissionKind.ORDINARY else PermissionKind.FINANCIAL)
-        } + listOf("create", "execute", "financial_data").map { action ->
+        } + listOf("create", "execute", "comment", "cancel", "financial_data").map { action ->
             PermissionDefinition(key("merchandising", "tasks", action),
-                if (action == "financial_data") PermissionKind.FINANCIAL else PermissionKind.ORDINARY)
+                if (action == "financial_data") PermissionKind.FINANCIAL else PermissionKind.ORDINARY,viewPermission=taskView)
         }
         require(explicit.all { definition -> keys[definition.key]?.all { it.kind == definition.kind } != false })
         val explicitKeys = explicit.map { it.key }.toSet()

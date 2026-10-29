@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -132,6 +132,27 @@ beforeEach(() => {
   vi.spyOn(window, 'confirm').mockReturnValue(true)
 })
 describe('native inventory editor', () => {
+  it('accepts a WebP file unchanged for an explicitly permitted private passport upload', async () => {
+    vi.mocked(inventoryEditorApi.upload).mockResolvedValue({ revision: state.revision + 1 })
+    const user = setup()
+    const input = await screen.findByLabelText('Файл JPG/PNG/WebP')
+    expect(input).toHaveAttribute('accept', 'image/jpeg,image/png,image/webp')
+    const file = new File(['synthetic-webp'], 'synthetic.webp', { type: 'image/webp' })
+    await user.upload(input, file)
+    expect((input as HTMLInputElement).files?.[0]).toBe(file)
+    // jsdom's native required-file validation does not observe user-event's mocked FileList.
+    fireEvent.submit(input.closest('form')!)
+    await waitFor(() =>
+      expect(inventoryEditorApi.upload).toHaveBeenCalledWith(
+        'branch-1',
+        state.revision,
+        file,
+        'facade',
+        '',
+        null,
+      ),
+    )
+  })
   it('uses fresh server controls and never presents withheld prices as zero', async () => {
     vi.mocked(inventoryEditorApi.get).mockResolvedValue({
       ...state,

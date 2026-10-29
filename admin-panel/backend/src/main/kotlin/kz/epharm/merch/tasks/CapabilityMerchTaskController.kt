@@ -11,6 +11,8 @@ import org.springframework.web.multipart.MultipartFile
 @RestController
 @RequestMapping("/api/public/merch/tasks")
 class CapabilityMerchTaskController(private val tasks:MerchTaskService) {
+    @GetMapping("/items/{itemId}/comments") fun comments(@PathVariable itemId:UUID,@RequestHeader("X-Merch-Task-Token") token:String,
+        @RequestParam(defaultValue="20") limit:Int,@RequestParam(defaultValue="0") offset:Int)=response(tasks.commentsCapability(itemId,token,limit,offset))
     @GetMapping
     fun get(@RequestHeader("X-Merch-Task-Token") token:String)=response(tasks.getCapability(token))
     @PostMapping("/items/{itemId}/attempts")
@@ -20,6 +22,7 @@ class CapabilityMerchTaskController(private val tasks:MerchTaskService) {
         @RequestHeader("X-Merch-Task-Token") token:String,@RequestPart(required=false) capture:TaskCapture?)=response(tasks.uploadCapability(itemId,clientUploadId,file,token,capture))
     @PostMapping("/items/{itemId}/stock")
     fun stock(@PathVariable itemId:UUID,@RequestBody request:SaveTaskStock,@RequestHeader("X-Merch-Task-Token") token:String)=response(tasks.saveStockCapability(itemId,request,token))
+    @GetMapping("/items/{itemId}/reference") fun reference(@PathVariable itemId:UUID,@RequestHeader("X-Merch-Task-Token") token:String)=evidenceResponse(tasks.referenceCapability(itemId,token))
     @GetMapping("/items/{itemId}/instruction")
     fun instruction(@PathVariable itemId:UUID,@RequestHeader("X-Merch-Task-Token") token:String)=evidenceResponse(tasks.instructionCapability(itemId,token))
     @PostMapping("/items/{itemId}/submit")

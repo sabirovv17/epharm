@@ -17,7 +17,8 @@ internal data class Plan(val id: UUID, val producerId: UUID?, val producerName: 
 internal data class PlanItem(val id: UUID, val shelfId: UUID, val branchId: UUID, val code: String,
     val month: LocalDate, val portion: PlacementPortion, val status: PlacementStatus, val price: Long)
 internal data class QuoteShelf(val id: UUID, val branch: UUID, val active: Boolean, val code: String,
-    val mode: String, val base: Long, val half: Long?, val adjustment: BigDecimal, val rawStatus: String)
+    val mode: String, val base: Long, val half: Long?, val adjustment: BigDecimal, val rawStatus: String,
+    val category:String?,val width:Double?,val containerCode:String?)
 
 @Repository
 class PlacementRepository(private val jdbc: JdbcTemplate, private val named: NamedParameterJdbcTemplate) {
@@ -77,12 +78,14 @@ class PlacementRepository(private val jdbc: JdbcTemplate, private val named: Nam
     internal fun quoteShelves(ids: Collection<UUID>, month: LocalDate): List<QuoteShelf> {
         if(ids.isEmpty()) return emptyList()
         return named.query("""SELECT s.*,b.price_adjustment_percent,(s.active AND b.active AND o.active) AS fully_active,
-            coalesce(m.status,'available') AS inventory_status,coalesce(m.monthly_price,s.base_monthly_price) AS month_price
+            coalesce(m.status,'available') AS inventory_status,coalesce(m.monthly_price,s.base_monthly_price) AS month_price,c.code AS container_code
             FROM merch_shelves s JOIN merch_branches b ON b.id=s.branch_id JOIN merch_organizations o ON o.id=b.organization_id
+            LEFT JOIN merch_inventory_containers c ON c.id=s.container_id
             LEFT JOIN merch_monthly_inventory m ON m.shelf_id=s.id AND m.placement_month=:month WHERE s.id IN (:ids)""",
             mapOf("ids" to ids,"month" to month)) { rs,_ -> QuoteShelf(rs.uuid("id"),rs.uuid("branch_id"),rs.getBoolean("fully_active"),rs.getString("code"),
             rs.getString("sale_mode"),rs.getLong("month_price"),rs.getObject("half_monthly_price",Int::class.javaObjectType)?.toLong(),
-            rs.getBigDecimal("price_adjustment_percent"),rs.getString("inventory_status")) }
+            rs.getBigDecimal("price_adjustment_percent"),rs.getString("inventory_status"),rs.getString("category"),
+            rs.getBigDecimal("width_m")?.toDouble(),rs.getString("container_code")) }
     }
     internal fun lock(branches: Set<UUID>, shelves: Set<UUID>) {
         if(branches.isNotEmpty()) named.queryForList("SELECT id FROM merch_branches WHERE id IN (:ids) ORDER BY id FOR UPDATE",mapOf("ids" to branches))

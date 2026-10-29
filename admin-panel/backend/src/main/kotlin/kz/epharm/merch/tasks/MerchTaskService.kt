@@ -27,6 +27,7 @@ import org.springframework.web.multipart.MultipartFile
 object MerchTaskPermissions {
     val view = key("view"); val create = key("create"); val execute = key("execute")
     val review = key("review"); val financial = key("financial_data")
+    val comment = key("comment"); val cancel = key("cancel")
     private fun key(action: String) = requireNotNull(PermissionKey.parse("merchandising", "tasks", action))
 }
 
@@ -43,7 +44,7 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
         access.requireMerchBranchPermission(MerchTaskPermissions.create, req.branchId)
         val creatorPerson = access.currentVerifiedPersonId()
         validateCreate(req)
-        val branch = jdbc.query("SELECT active FROM merch_branches WHERE id=?", { rs, _ -> rs.getBoolean(1) }, req.branchId).singleOrNull()
+        val branch = jdbc.query("SELECT b.active AND o.active FROM merch_branches b JOIN merch_organizations o ON o.id=b.organization_id WHERE b.id=?", { rs, _ -> rs.getBoolean(1) }, req.branchId).singleOrNull()
         if (branch != true) invalid("Нужна активная аптека мерча")
         if (req.rewardAmountKzt > 0) access.requireMerchBranchPermission(MerchTaskPermissions.financial, req.branchId)
         req.assignedPharmacistId?.let {
@@ -51,25 +52,35 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
                 ON b.epharm_pharmacy_id=p.pharmacy_id AND b.pharmacy_binding_verified
                 WHERE p.id=? AND p.status='active' AND b.id=?""", Long::class.java, it, req.branchId) != 1L) invalid("Исполнитель не подтверждён в этой аптеке")
         }
+        val id=insertTask(req,actor,creatorPerson)
+        return dto(dispatch(id), true)
+    }
+
+    internal fun insertTask(req: CreateMerchTaskDispatch, actor: UUID?, creatorPerson: UUID): UUID {
+        validateCreate(req)
         val id = UUID.randomUUID(); val now = Instant.now()
         jdbc.update("""INSERT INTO merch_task_dispatches(id,source_system,source_origin,source_id,source_payload,branch_id,title,
-            status,due_at,reward_amount_kzt,assigned_pharmacist_id,created_by,created_at,updated_at,priority,available_from)
-            VALUES (?,'EPHARM','https://epharm.inkar.kz',?,?::jsonb,?,?,'ready',?,?,?,?,?,?,?,?)""",
+            status,due_at,reward_amount_kzt,assigned_pharmacist_id,created_by,created_at,updated_at,priority,available_from,task_type)
+            VALUES (?,'EPHARM','https://epharm.inkar.kz',?,?::jsonb,?,?,'ready',?,?,?,?,?,?,?,?,?)""",
             id, id, json.writeValueAsString(req), req.branchId, req.title.trim(), Timestamp.from(req.dueAt), req.rewardAmountKzt,
-            req.assignedPharmacistId, actor, Timestamp.from(now), Timestamp.from(now), req.priority, req.availableFrom?.let(Timestamp::from))
+            req.assignedPharmacistId, actor, Timestamp.from(now), Timestamp.from(now), req.priority, req.availableFrom?.let(Timestamp::from),req.taskType)
         for (item in req.items) {
             item.shelfId?.let { shelf -> if(jdbc.queryForObject("SELECT count(*) FROM merch_shelves WHERE id=? AND branch_id=? AND active",Int::class.java,shelf,req.branchId)!=1)
                 invalid("Полка не принадлежит выбранной аптеке") }
+            item.mediaPlanItemId?.let {placement->
+                if(item.shelfId==null || jdbc.queryForObject("SELECT count(*) FROM merch_media_plan_items WHERE id=? AND shelf_id=?",Int::class.java,placement,item.shelfId)!=1)
+                    invalid("Строка размещения не принадлежит полке пункта")
+            }
             val itemId = UUID.randomUUID()
             val checklist = item.checklist.map { TaskChecklistItem(UUID.randomUUID(), it.trim()) }
             jdbc.update("""INSERT INTO merch_task_items(id,dispatch_id,source_id,source_payload,title,instructions,task_type,status,
-                required,required_photo_count,checklist,created_at,updated_at,available_from,due_at,shelf_id,stock_products)
-                VALUES (?,?,?,'{}',?,?,'photo_report','assigned',?,?,?::jsonb,?,?,?,?,?,?::jsonb)""", itemId, id, itemId, item.title.trim(),
-                item.instructions, item.required, item.requiredPhotos, json.writeValueAsString(checklist), Timestamp.from(now), Timestamp.from(now),
-                req.availableFrom?.let(Timestamp::from), Timestamp.from(req.dueAt), item.shelfId,json.writeValueAsString(item.stockProducts))
+                required,required_photo_count,checklist,created_at,updated_at,available_from,due_at,shelf_id,stock_products,media_plan_item_id,client_reference_photo_id)
+                VALUES (?,?,?,'{}',?,?,?,'assigned',?,?,?::jsonb,?,?,?,?,?,?::jsonb,?,(SELECT id FROM merch_placement_reference_photos WHERE media_plan_item_id=? AND archived_at IS NULL))""", itemId, id, itemId, item.title.trim(),
+                item.instructions, req.taskType, item.required, item.requiredPhotos, json.writeValueAsString(checklist), Timestamp.from(now), Timestamp.from(now),
+                req.availableFrom?.let(Timestamp::from), Timestamp.from(req.dueAt), item.shelfId,json.writeValueAsString(item.stockProducts),item.mediaPlanItemId,item.mediaPlanItemId)
         }
         event(id, null, actor, creatorPerson, "created", mapOf("itemCount" to req.items.size))
-        return dto(dispatch(id), true)
+        return id
     }
 
     @Transactional
@@ -89,7 +100,7 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
             if(existing.first!=actor || json.readTree(existing.second)!=json.readTree(canonical)) conflict("Номер массового назначения уже использован с другими условиями")
             return MerchTaskBulkResult(json.readValue(existing.third))
         }
-        val requests=branches.map {branch->CreateMerchTaskDispatch(branch,req.title,req.dueAt,req.rewardAmountKzt,null,req.items,req.priority,req.availableFrom)}
+        val requests=branches.map {branch->CreateMerchTaskDispatch(branch,req.title,req.dueAt,req.rewardAmountKzt,null,req.items,req.priority,req.availableFrom,req.taskType)}
         requests.forEach(::validateCreate)
         val ids=requests.map {create(it,actor).id}
         jdbc.update("INSERT INTO merch_task_bulk_receipts(id,created_by,request_payload,dispatch_ids,created_at) VALUES(?,?,?::jsonb,?::jsonb,now())",
@@ -145,9 +156,9 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
         val scope = access.currentMerchBranchIds()
         if (scope?.isEmpty() == true) forbidden()
         val args = scope?.toTypedArray() ?: emptyArray()
-        val where = if (scope == null) "" else " WHERE id IN (${scope.joinToString(",") { "?" }})"
+        val where = if (scope == null) "" else " WHERE b.id IN (${scope.joinToString(",") { "?" }})"
         val person = currentAdminPerson()
-        return jdbc.query("SELECT id,name,city,address,active FROM merch_branches$where ORDER BY id LIMIT 50001", { rs, _ ->
+        return jdbc.query("SELECT b.id,b.name,b.city,b.address,(b.active AND o.active) AS active FROM merch_branches b JOIN merch_organizations o ON o.id=b.organization_id$where ORDER BY b.id LIMIT 50001", { rs, _ ->
             val id=rs.uuid("id");val active=rs.getBoolean("active")
             val create=active && person!=null && access.canMerchBranchPermission(MerchTaskPermissions.create,id)
             MerchTaskBranchDto(id,rs.getString("name"),rs.getString("city"),rs.getString("address"),active,
@@ -212,6 +223,14 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
     private fun start(d: TaskDispatchRow, item: TaskItemRow, executor: TaskExecutor): MerchTaskAttemptDto {
         writable(d)
         available(item)
+        requireMonthlyPerson(d.id,executor.personId)
+        if(item.status=="blocked") {
+            val existing=currentAttempt(item);requireExecutor(existing.id,executor.personId,executor.capabilityLinkId)
+            if(existing.status!="draft") conflict("Заблокированная попытка требует проверки")
+            jdbc.update("UPDATE merch_task_items SET status='in_progress',blocked_reason=NULL,version=version+1,updated_at=now() WHERE id=?",item.id)
+            event(d.id,item.id,executor.accountId,executor.personId,"unblocked",mapOf("attemptId" to existing.id))
+            return existing
+        }
         if (item.status == "in_progress") {
             val existing = currentAttempt(item)
             requireExecutor(existing.id, executor.personId, executor.capabilityLinkId)
@@ -253,7 +272,8 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
         val attempt = currentAttempt(item)
         requireExecutor(attempt.id, person, capabilityLinkId)
         val video=execution.policy(item.id,attempt.id).requiresVideo
-        val bytes = if(video) videoBytes(file) else imageBytes(file)
+        val photo = if(video) null else imageBytes(file)
+        val bytes = photo?.second ?: videoBytes(file)
         val hash = TaskEvidenceStorage.hash(bytes)
         val prior = jdbc.query("SELECT id,sha256 FROM merch_task_evidence WHERE attempt_id=? AND client_upload_id=?",
             { rs, _ -> rs.getObject(1, UUID::class.java) to rs.getString(2) }, attempt.id, uploadId).singleOrNull()
@@ -263,8 +283,8 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
         }
         if (jdbc.queryForObject("SELECT count(*) FROM merch_task_evidence WHERE attempt_id=?", Int::class.java, attempt.id)!! >= 12) invalid("Не больше 12 фотографий в попытке")
         val id = UUID.randomUUID()
-        val mime = if(video) file.contentType!! else if (bytes[0] == 0x89.toByte()) "image/png" else "image/jpeg"
-        val extension=when(mime){"image/png"->"png";"video/mp4"->"mp4";"video/quicktime"->"mov";"video/webm"->"webm";else->"jpg"}
+        val mime = photo?.first ?: file.contentType!!
+        val extension=when(mime){"image/png"->"png";"image/webp"->"webp";"video/mp4"->"mp4";"video/quicktime"->"mov";"video/webm"->"webm";else->"jpg"}
         val key = "native/${d.id}/${item.id}/${attempt.id}/$id.$extension"
         val captureMetadata=execution.capture(item.id,capture)
         storage.write(key, bytes)
@@ -316,6 +336,22 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
     fun instructionCapability(itemId:UUID,token:String):Pair<MerchTaskEvidenceDto,ByteArray> {
         val cap=freeReadCapability(token);if(item(itemId).dispatchId!=cap.dispatchId) notFound()
         return execution.instruction(itemId)
+    }
+
+    @Transactional(readOnly=true)
+    fun referenceAdmin(itemId:UUID):Pair<MerchTaskEvidenceDto,ByteArray> {
+        val i=item(itemId);access.requireMerchBranchPermission(MerchTaskPermissions.view,dispatch(i.dispatchId).branchId)
+        return execution.reference(itemId)
+    }
+    @Transactional(readOnly=true)
+    fun referencePharmacist(itemId:UUID,pharmacist:String):Pair<MerchTaskEvidenceDto,ByteArray> {
+        val i=item(itemId);pharmacistExecutor(dispatch(i.dispatchId),pharmacist)
+        return execution.reference(itemId)
+    }
+    @Transactional(readOnly=true)
+    fun referenceCapability(itemId:UUID,token:String):Pair<MerchTaskEvidenceDto,ByteArray> {
+        val cap=freeReadCapability(token);if(item(itemId).dispatchId!=cap.dispatchId) notFound()
+        return execution.reference(itemId)
     }
 
     @Transactional
@@ -476,6 +512,7 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
             JOIN pharmacists p ON p.id=l.pharmacist_id AND p.status='active' AND p.pharmacy_id=?
             WHERE l.pharmacist_id=? AND length(btrim(l.verification_reference))>0 ${if (lockPharmacist) "FOR UPDATE OF p" else ""}""",
             { rs, _ -> rs.getObject(1, UUID::class.java) }, d.pharmacyId, pharmacistId).singleOrNull() ?: forbidden()
+        requireMonthlyPerson(d.id,person)
         val binding = if (d.dueAt == null) null else jdbc.query("""SELECT id FROM merch_executor_bindings WHERE dispatch_id=? AND pharmacist_id=?
             AND pharmacy_id=? AND reward_kzt=? AND task_due_at=?""", { rs, _ -> rs.getObject(1, UUID::class.java) },
             d.id, pharmacistId, d.pharmacyId, d.reward, Timestamp.from(d.dueAt)).singleOrNull()
@@ -513,19 +550,20 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
     private fun capabilityDto(d:TaskDispatchRow,cap:AuthorizedTaskCapability):MerchTaskDispatchDto {
         val result=dto(d,true)
         val editable=!cap.readOnly
-        return result.copy(reward=null,items=result.items.map { item ->
+        return result.copy(reward=null,canCancel=false,items=result.items.map { item ->
             val own=item.currentAttempt?.let { capabilityOwner(it.id)==cap.linkId }==true
             val available=editable && item.availableFrom?.isAfter(Instant.now())!=true
             val draft=available && own && item.status=="in_progress" && item.currentAttempt?.status=="draft"
             item.copy(currentAttempt=if(own) item.currentAttempt?.let(::publicAttempt) else null,
                 canStart=available && item.status in setOf("assigned","accepted","revision_required"),
+                canBlock=false,canComment=false,canCancel=false,
                 canUpload=draft && item.currentAttempt!!.evidence.size<12,
                 canSubmit=draft && item.currentAttempt!!.evidence.size>=item.requiredPhotos,canReview=false,
                 execution=item.execution?.copy(stock=if(own) item.execution.stock else null))
         })
     }
     private fun dispatch(id: UUID, lock: Boolean = false): TaskDispatchRow = jdbc.query("""SELECT d.*,b.epharm_pharmacy_id,
-        b.pharmacy_binding_verified,b.active AS branch_active FROM merch_task_dispatches d JOIN merch_branches b ON b.id=d.branch_id
+        b.pharmacy_binding_verified,(b.active AND o.active) AS branch_active FROM merch_task_dispatches d JOIN merch_branches b ON b.id=d.branch_id JOIN merch_organizations o ON o.id=b.organization_id
         WHERE d.id=? ${if (lock) "FOR UPDATE OF d" else ""}""", { rs, _ ->
         TaskDispatchRow(rs.uuid("id"), rs.uuid("branch_id"), rs.getString("title"), rs.getString("status"), rs.getTimestamp("due_at")?.toInstant(),
             rs.getLong("reward_amount_kzt"), rs.getString("assigned_pharmacist_id"), rs.getString("source_system"),
@@ -566,9 +604,11 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
     private fun dto(d: TaskDispatchRow, money: Boolean, details: Boolean = true, mobileExecutor: TaskExecutor? = null): MerchTaskDispatchDto {
         val ids = jdbc.query("SELECT id FROM merch_task_items WHERE dispatch_id=? ORDER BY created_at,id", { rs, _ -> rs.uuid("id") }, d.id)
         val person = if (mobileExecutor==null) currentAdminPerson() else mobileExecutor.personId
-        val execute = person!=null && (mobileExecutor!=null || access.canMerchBranchPermission(MerchTaskPermissions.execute,d.branchId))
+        val execute = person!=null && monthlyPersonAllowed(d.id,person) && (mobileExecutor!=null || access.canMerchBranchPermission(MerchTaskPermissions.execute,d.branchId))
         val now=Instant.now()
         val writable=d.branchActive && d.status !in setOf("completed","cancelled") && d.availableFrom?.isAfter(now)!=true
+        val commentAllowed=person!=null && (mobileExecutor!=null || access.canMerchBranchPermission(MerchTaskPermissions.comment,d.branchId))
+        val cancelAllowed=mobileExecutor==null && person!=null && d.status !in setOf("completed","cancelled") && access.canMerchBranchPermission(MerchTaskPermissions.cancel,d.branchId) && !hasPostedReward(d.id)
         val rows = if (!details) emptyList() else ids.map { id -> item(id).let {
             val attempt = if (it.attempt==0) null else currentAttempt(it)
             val available=writable && it.availableFrom?.isAfter(now)!=true
@@ -584,18 +624,120 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
                 it.version, attempt, jdbc.query(
                     "SELECT id FROM merch_task_evidence WHERE item_id=? AND attempt_id IS NULL ORDER BY created_at,id",
                     { rs, _ -> rs.uuid("id") }, it.id).map(::evidence),it.availableFrom,it.dueAt,
-                canStart=available && execute && it.status in setOf("assigned","accepted","revision_required"),
+                canStart=available && execute && (it.status in setOf("assigned","accepted","revision_required") || it.status=="blocked" && attempt?.executorPersonId==person && attempt.status=="draft"),
                 canUpload=ownDraft && attempt!!.evidence.size<12,canSubmit=ownDraft && attempt!!.evidence.size>=it.requiredPhotos,canReview=review,
                 canResumeSource=manualAllowed && d.source=="MERCH_CRM" && it.attempt==0 && it.status in setOf("in_progress","submitted"),
                 canAdoptSourceReview=manualAllowed && d.source=="MERCH_CRM" && it.attempt==0 && it.status=="submitted",
-                execution=execution.policy(it.id,attempt?.id))
+                execution=execution.policy(it.id,attempt?.id),
+                canBlock=ownDraft,blockedReason=jdbc.queryForObject("SELECT blocked_reason FROM merch_task_items WHERE id=?",String::class.java,it.id),
+                canComment=commentAllowed,canCancel=cancelAllowed && it.status !in setOf("completed","cancelled"))
         } }
         val reward = if (!money) null else jdbc.query("SELECT * FROM merch_task_rewards WHERE dispatch_id=?", { rs, _ ->
             MerchTaskRewardDto(rs.getString("state"), rs.getLong("amount_kzt"), rs.getString("reason"), rs.getObject("wallet_entry_id", UUID::class.java))
         }, d.id).singleOrNull()
         return MerchTaskDispatchDto(d.id, d.branchId, d.title, d.status, d.dueAt, d.source, d.version, if (money) d.reward else null,
-            rows, reward, ids.size, details,d.priority,d.taskType)
+            rows, reward, ids.size, details,d.priority,d.taskType,
+            canCancel=cancelAllowed)
     }
+
+    @Transactional(readOnly=true)
+    fun commentsAdmin(itemId:UUID,limit:Int,offset:Int):TaskCommentPage {
+        val i=item(itemId);access.requireMerchBranchPermission(MerchTaskPermissions.view,dispatch(i.dispatchId).branchId)
+        return comments(itemId,currentAdminPerson(),limit,offset)
+    }
+    @Transactional(readOnly=true)
+    fun commentsPharmacist(itemId:UUID,pharmacist:String,limit:Int,offset:Int):TaskCommentPage {
+        val i=item(itemId);val person=pharmacistExecutor(dispatch(i.dispatchId),pharmacist).personId
+        return comments(itemId,person,limit,offset)
+    }
+    @Transactional(readOnly=true)
+    fun commentsCapability(itemId:UUID,token:String,limit:Int,offset:Int):TaskCommentPage {
+        val cap=freeReadCapability(token)
+        if(item(itemId).dispatchId!=cap.dispatchId) notFound()
+        return comments(itemId,null,limit,offset)
+    }
+    private fun comments(itemId:UUID,person:UUID?,limit:Int,offset:Int):TaskCommentPage {
+        page(limit,offset)
+        val rows=jdbc.query("SELECT id,body,author_person_id,author_account_id,created_at FROM merch_task_comments WHERE item_id=? ORDER BY created_at DESC,id LIMIT ? OFFSET ?",{rs,_->
+            TaskCommentDto(rs.uuid("id"),rs.getString("body"),if(rs.getObject("author_account_id")==null) "Фармацевт" else "Управляющая команда",rs.getObject("author_person_id",UUID::class.java)==person,rs.instant("created_at"))},itemId,limit+1,offset)
+        return TaskCommentPage(rows.take(limit),rows.size>limit)
+    }
+    @Transactional
+    fun commentAdmin(itemId:UUID,req:AddTaskComment,actor:UUID):TaskCommentDto {
+        access.lockCurrentActor();val (d,i)=locked(itemId)
+        access.requireMerchBranchPermission(MerchTaskPermissions.comment,d.branchId)
+        access.requireMerchBranchPermission(MerchTaskPermissions.view,d.branchId)
+        return comment(d,i,req,access.currentVerifiedPersonId(),actor,null)
+    }
+    @Transactional
+    fun commentPharmacist(itemId:UUID,req:AddTaskComment,pharmacist:String):TaskCommentDto {
+        UnifiedAuthorityLock.acquire(jdbc);val (d,i)=locked(itemId);val executor=pharmacistExecutor(d,pharmacist,true)
+        return comment(d,i,req,executor.personId!!,null,pharmacist)
+    }
+    private fun comment(d:TaskDispatchRow,i:TaskItemRow,req:AddTaskComment,person:UUID,actor:UUID?,pharmacist:String?):TaskCommentDto {
+        val text=req.body.trim();if(text.length !in 1..1200 || text.any {it.isISOControl() && it!='\n' && it!='\t'}) invalid("Комментарий: от 1 до 1200 символов")
+        jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?,817108))",req.requestId.toString())
+        val prior=jdbc.query("SELECT item_id,author_person_id,body,created_at,author_account_id,pharmacist_id FROM merch_task_comments WHERE id=?",{rs,_->
+            arrayOf<Any?>(rs.uuid("item_id"),rs.uuid("author_person_id"),rs.getString("body"),rs.instant("created_at"),rs.getObject("author_account_id"),rs.getString("pharmacist_id"))},req.requestId).singleOrNull()
+        if(prior!=null) {
+            if(prior[0]!=i.id || prior[1]!=person || prior[2]!=text || prior[4]!=actor || prior[5]!=pharmacist) conflict("Идентификатор комментария уже использован")
+            return TaskCommentDto(req.requestId,text,if(actor==null) "Фармацевт" else "Управляющая команда",true,prior[3] as Instant)
+        }
+        val now=Instant.now();jdbc.update("INSERT INTO merch_task_comments(id,item_id,author_person_id,author_account_id,pharmacist_id,body,created_at) VALUES(?,?,?,?,?,?,?)",req.requestId,i.id,person,actor,pharmacist,text,Timestamp.from(now))
+        event(d.id,i.id,actor,person,"comment_added",mapOf("commentId" to req.requestId))
+        return TaskCommentDto(req.requestId,text,if(actor==null) "Фармацевт" else "Управляющая команда",true,now)
+    }
+    @Transactional
+    fun blockAdmin(itemId:UUID,req:BlockTaskItem,actor:UUID):MerchTaskAttemptDto {
+        access.lockCurrentActor();val (d,i)=locked(itemId);access.requireMerchBranchPermission(MerchTaskPermissions.execute,d.branchId)
+        return block(d,i,req,TaskExecutor(access.currentVerifiedPersonId(),actor,null,null))
+    }
+    @Transactional
+    fun blockPharmacist(itemId:UUID,req:BlockTaskItem,pharmacist:String):MerchTaskAttemptDto {
+        UnifiedAuthorityLock.acquire(jdbc);val (d,i)=locked(itemId)
+        return block(d,i,req,pharmacistExecutor(d,pharmacist,true))
+    }
+    private fun block(d:TaskDispatchRow,i:TaskItemRow,req:BlockTaskItem,executor:TaskExecutor):MerchTaskAttemptDto {
+        val reason=req.reason.trim();if(reason.length !in 3..1200 || reason.any(Char::isISOControl)) invalid("Укажите причину препятствия от 3 до 1200 символов")
+        if(i.version!=req.expectedItemVersion) conflict("Пункт изменился. Обновите задание")
+        if(i.status !in setOf("assigned","accepted","in_progress","revision_required")) conflict("Этот пункт нельзя заблокировать")
+        val attempt=start(d,i,executor)
+        jdbc.update("UPDATE merch_task_items SET status='blocked',blocked_reason=?,version=version+1,updated_at=now() WHERE id=?",reason,i.id)
+        event(d.id,i.id,executor.accountId,executor.personId,"blocked",mapOf("reason" to reason,"attemptId" to attempt.id))
+        return attempt
+    }
+    @Transactional
+    fun cancel(id:UUID,req:CancelTaskDispatch,actor:UUID):MerchTaskDispatchDto {
+        access.lockCurrentActor();val person=access.currentVerifiedPersonId()
+        jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?,817105))",id.toString())
+        val d=dispatch(id,true);access.requireMerchBranchPermission(MerchTaskPermissions.view,d.branchId);access.requireMerchBranchPermission(MerchTaskPermissions.cancel,d.branchId)
+        val reason=req.reason.trim();if(reason.length !in 3..1200 || reason.any(Char::isISOControl)) invalid("Укажите причину отмены от 3 до 1200 символов")
+        if(d.version!=req.expectedVersion || d.status in setOf("completed","cancelled") || hasPostedReward(id)) conflict("Задание уже изменено, завершено или начислено; отмена не выполнена")
+        jdbc.queryForList("SELECT id FROM merch_task_items WHERE dispatch_id=? ORDER BY id FOR UPDATE",id)
+        jdbc.update("UPDATE merch_task_items SET status='cancelled',version=version+1,updated_at=now() WHERE dispatch_id=? AND status<>'completed'",id)
+        jdbc.update("UPDATE merch_task_dispatches SET status='cancelled',version=version+1,updated_at=now() WHERE id=?",id)
+        event(id,null,actor,person,"cancelled",mapOf("reason" to reason,"previousVersion" to req.expectedVersion))
+        return dto(dispatch(id),access.canMerchBranchPermission(MerchTaskPermissions.financial,d.branchId))
+    }
+
+    @Transactional
+    fun cancelItem(itemId:UUID,req:CancelTaskItem,actor:UUID):MerchTaskDispatchDto {
+        access.lockCurrentActor();val person=access.currentVerifiedPersonId();val (d,i)=locked(itemId)
+        access.requireMerchBranchPermission(MerchTaskPermissions.view,d.branchId);access.requireMerchBranchPermission(MerchTaskPermissions.cancel,d.branchId)
+        val reason=req.reason.trim();if(reason.length !in 3..1200 || reason.any(Char::isISOControl)) invalid("Укажите причину отмены пункта от 3 до 1200 символов")
+        if(i.version!=req.expectedItemVersion || i.status in setOf("completed","cancelled") || d.status in setOf("completed","cancelled") || hasPostedReward(d.id)) conflict("Пункт изменён, завершён или относится к начисленному заданию")
+        jdbc.update("UPDATE merch_task_items SET status='cancelled',version=version+1,updated_at=now() WHERE id=?",i.id)
+        event(d.id,i.id,actor,person,"item_cancelled",mapOf("reason" to reason,"previousVersion" to req.expectedItemVersion))
+        if(i.required && d.reward>0 && jdbc.queryForObject("SELECT count(*) FROM merch_task_rewards WHERE dispatch_id=?",Int::class.java,d.id)==0)
+            rewardState(d,"held","cancelled_required_item_requires_HQ")
+        refresh(d.id)
+        return dto(dispatch(d.id),access.canMerchBranchPermission(MerchTaskPermissions.financial,d.branchId))
+    }
+
+    private fun monthlyPersonAllowed(dispatch: UUID,person: UUID?)=jdbc.query("SELECT executor_person_id FROM merch_monthly_visits WHERE dispatch_id=?",{rs,_->rs.uuid("executor_person_id")},dispatch).singleOrNull()?.let{it==person}?:true
+    private fun requireMonthlyPerson(dispatch: UUID,person: UUID?) {if(!monthlyPersonAllowed(dispatch,person)) forbidden()}
+    private fun hasPostedReward(dispatch: UUID)=jdbc.queryForObject("""SELECT EXISTS(SELECT 1 FROM merch_task_rewards WHERE dispatch_id=? AND (wallet_entry_id IS NOT NULL OR state IN ('credited','already_credited')))
+        OR EXISTS(SELECT 1 FROM pharmacist_wallet_entries WHERE source='merch_task' AND source_id=?)""",Boolean::class.java,dispatch,dispatch.toString())==true
 
     private fun currentAdminPerson(): UUID? = try { access.currentVerifiedPersonId() }
         catch (error: AppException) { if(error.code==ErrorCode.FORBIDDEN) null else throw error }
@@ -617,6 +759,7 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
     private fun refresh(id: UUID) {
         val states = jdbc.query("SELECT status FROM merch_task_items WHERE dispatch_id=? AND status<>'cancelled'", { rs, _ -> rs.getString(1) }, id)
         val status = when {
+            states.isEmpty() -> "cancelled"
             states.isNotEmpty() && states.all { it == "completed" } -> "completed"
             states.any { it == "revision_required" } -> "revision_required"
             states.all { it in setOf("completed", "submitted") } -> "submitted"
@@ -630,6 +773,7 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
     }
     private fun validateCreate(req: CreateMerchTaskDispatch) {
         if (req.title.trim().length !in 2..160 || req.items.size !in 1..500 || req.items.none { it.required } ||
+            req.taskType !in setOf("photo_report","placement","maintenance","inventory","general") ||
             req.priority !in setOf("low","normal","high","urgent") || req.availableFrom?.isAfter(req.dueAt)==true ||
             req.rewardAmountKzt !in 0L..1_000_000L || !req.dueAt.isAfter(Instant.now()) ||
             req.dueAt.isAfter(Instant.now().plusSeconds(366L * 86400)) || req.items.any {
@@ -639,21 +783,19 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
                     it.stockProducts.map {p->p.key}.distinct().size!=it.stockProducts.size
             }) invalid("Некорректные поля задания или сроки")
     }
-    private fun imageBytes(file: MultipartFile): ByteArray {
+    private fun imageBytes(file: MultipartFile): Pair<String,ByteArray> {
         if (file.size > 20 * 1024 * 1024) throw AppException(ErrorCode.VALIDATION_FAILED,
             "Уменьшите фотографию до 20 МБ",HttpStatus.PAYLOAD_TOO_LARGE)
         if (file.isEmpty || file.originalFilename.orEmpty().length > 255 ||
-            file.originalFilename.orEmpty().any(Char::isISOControl)) invalid("Нужна фотография JPG/PNG до 20 МБ")
+            file.originalFilename.orEmpty().any(Char::isISOControl)) invalid("Нужна фотография JPG/PNG/WebP до 20 МБ")
         val bytes = file.bytes
-        val jpeg = bytes.size >= 3 && bytes[0] == 0xff.toByte() && bytes[1] == 0xd8.toByte() && bytes[2] == 0xff.toByte()
-        val png = bytes.size >= 8 && bytes.copyOfRange(0,8).contentEquals(byteArrayOf(0x89.toByte(), 80,78,71,13,10,26,10))
-        if (!jpeg && !png) invalid("Файл не является JPG/PNG")
-        ImageIO.createImageInputStream(ByteArrayInputStream(bytes)).use { stream ->
+        return ImageIO.createImageInputStream(ByteArrayInputStream(bytes)).use { stream ->
             val readers = ImageIO.getImageReaders(stream)
             if (!readers.hasNext()) invalid("Фотография не читается")
             val reader = readers.next()
             try {
                 reader.input = stream
+                val mime=when(reader.formatName.lowercase(java.util.Locale.ROOT)) {"jpeg","jpg"->"image/jpeg";"png"->"image/png";"webp"->"image/webp";else->invalid("Файл не является JPG/PNG/WebP")}
                 val width = reader.getWidth(0); val height = reader.getHeight(0)
                 if (width < 1 || height < 1) invalid("Недопустимый размер фотографии")
                 if(width.toLong()*height>12_000_000) throw AppException(ErrorCode.VALIDATION_FAILED,
@@ -661,16 +803,16 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
                 // Decode only after the long pixel-count check, within TaskPhotoGate's single slot.
                 // Retain the original file bytes; decoding proves the submitted image is readable.
                 val outputType = reader.getImageTypes(0).asSequence().firstOrNull { it.colorModel.pixelSize <= 32 }
-                    ?: invalid("Используйте фотографию JPG/PNG с глубиной цвета до 32 бит")
+                    ?: invalid("Используйте фотографию JPG/PNG/WebP с глубиной цвета до 32 бит")
                 val parameters = reader.defaultReadParam.apply { destinationType = outputType }
                 val decoded = reader.read(0, parameters) ?: invalid("Фотография не читается")
                 try {
                     if (decoded.width != width || decoded.height != height) invalid("Недопустимый размер фотографии")
                 } finally { decoded.flush() }
+                mime to bytes
             } catch (error: AppException) { throw error }
             catch (_: Exception) { invalid("Фотография не читается") } finally { reader.dispose() }
         }
-        return bytes
     }
     private fun videoBytes(file:MultipartFile):ByteArray {
         if(file.isEmpty || file.size>30L*1024*1024) invalid("Нужно видео до 30 МБ")

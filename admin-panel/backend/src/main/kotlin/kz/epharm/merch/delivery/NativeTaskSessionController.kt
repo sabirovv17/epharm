@@ -20,6 +20,6 @@ class NativeTaskSessionController(private val capabilities:NativeCapabilityAutho
         val cap=capabilities.authorize(token)
         return ResponseEntity.ok().header(HttpHeaders.CACHE_CONTROL,"no-store")
             .header("Referrer-Policy","no-referrer").header("X-Content-Type-Options","nosniff")
-            .body(NativeTaskSession(cap.dispatchId,cap.branchId,cap.expiresAt,cap.readOnly,cap.rewardAmountKzt,cap.rewardAmountKzt>0))
+            .body(NativeTaskSession(cap.dispatchId,cap.branchId,cap.expiresAt,cap.readOnly,cap.rewardAmountKzt,cap.identityRequired))
     }
 }

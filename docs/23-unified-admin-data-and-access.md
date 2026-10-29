@@ -339,3 +339,30 @@ the source arrays and are counted as unresolved, never reconstructed by name.
 Nonempty instruction/photo source sets require a separately verified private-file
 mapping. The projection starts no app/worker, creates no task/link/reward, and
 does not rewrite the original business tables or applied Flyway migrations.
+
+### Planning read projection and private task references
+
+The placement catalog adds coordinates, normalized published geometry and shelf
+classification only after its existing branch/customer checks. Editor drafts are
+excluded; an unrecognized saved plan yields a diagnostic without rewriting it.
+Facing fees use verified supplier tariffs and are masked together with prices.
+Map tiles load only after a user opens the map, have visible attribution and an
+origin-only image referrer; the application's private no-referrer policy is not
+weakened. Viewport requests use ordinary browser caching; no offline/prefetch or
+server proxy is introduced. Provider requirements: [OSMF tile policy](https://operations.osmfoundation.org/policies/tiles/).
+Overlapping points are grouped, including a selectable list for identical
+coordinates. A failed base map leaves the authorized points and list available.
+
+New weekly/monthly tasks pin `client_reference_photo_id` with the matching
+`media_plan_item_id`; a composite FK rejects a different item's photo. Protected
+task downloads independently verify the task/placement/shelf/branch lineage and
+file hash. An archived version remains the historical snapshot, never a mutable
+URL. Native reference, task-evidence and inventory validators accept JPG/PNG/WebP,
+using a bounded actual decoder before persisting the original bytes. JPEG/PNG
+behavior and existing video validation remain intact; malformed/truncated images
+and excessive dimensions are rejected. The small WebP decoder is packaged as a
+normal backend dependency. XLSX thumbnails are regenerated as JPEG; stored files
+and SHA-256 are unchanged. The pinned source reference-photo set contains zero rows.
+A pinned task reference remains readable after archive even if JVM and database
+clocks differ: its exact immutable UUID and verified parent lineage are authority,
+not a cross-clock ordering predicate.

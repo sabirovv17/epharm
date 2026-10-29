@@ -49,6 +49,10 @@ function capabilityGateway(token: string) {
   }
   const gateway: TaskGateway = {
     realm: 'capability',
+    comments: (itemId, offset, signal) =>
+      request(`${base}/items/${encodeURIComponent(itemId)}/comments?limit=20&offset=${offset}`, {
+        signal,
+      }),
     get: (_id, signal) => request<MerchTask>(base, { signal }),
     start: (itemId) =>
       request<TaskAttempt>(`${base}/items/${encodeURIComponent(itemId)}/attempts`, {
@@ -69,6 +73,8 @@ function capabilityGateway(token: string) {
         method: 'POST',
         body: JSON.stringify(body),
       }),
+    reference: (itemId, signal) =>
+      request<Blob>(`${base}/items/${encodeURIComponent(itemId)}/reference`, { signal }, true),
     instruction: (itemId, signal) =>
       request<Blob>(`${base}/items/${encodeURIComponent(itemId)}/instruction`, { signal }, true),
     submit: (itemId, expectedAttempt, completedChecklistIds, comment) =>
@@ -126,7 +132,11 @@ function CapabilityTask({ token }: { token: string }) {
   if (session.data.identityRequired || session.data.rewardAmountKzt > 0)
     return (
       <div className="card p-6">
-        <h1 className="text-xl font-bold">Задание с вознаграждением</h1>
+        <h1 className="text-xl font-bold">
+          {session.data.rewardAmountKzt > 0
+            ? 'Задание с вознаграждением'
+            : 'Подтвердите исполнителя'}
+        </h1>
         <p className="my-4 text-sm leading-6 text-ink-500">
           Войдите в свой личный кабинет, чтобы подтвердить исполнителя. Стандарт-Н продолжает
           работать.

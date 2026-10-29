@@ -32,8 +32,9 @@ class MerchInventoryEditorController(private val editor: MerchInventoryEditorSer
         privateResponse(mapOf("revision" to editor.archivePhoto(id,photoId,body,actor.userId)))
     @GetMapping("/media/{photoId}") fun media(@PathVariable id: UUID,@PathVariable photoId: UUID): ResponseEntity<ByteArray> {
         val (mime,bytes)=editor.media(id,photoId)
+        val extension=when(mime){"image/png"->"png";"image/webp"->"webp";else->"jpg"}
         return ResponseEntity.ok().contentType(MediaType.parseMediaType(mime)).header(HttpHeaders.CACHE_CONTROL,"no-store")
-            .header("X-Content-Type-Options","nosniff").header(HttpHeaders.CONTENT_DISPOSITION,"inline; filename=\"$photoId\"").body(bytes)
+            .header("X-Content-Type-Options","nosniff").header(HttpHeaders.CONTENT_DISPOSITION,"inline; filename=\"$photoId.$extension\"").body(bytes)
     }
 }
 private fun <T> privateResponse(value: T): ResponseEntity<T> = ResponseEntity.ok().header(HttpHeaders.CACHE_CONTROL,"no-store").body(value)

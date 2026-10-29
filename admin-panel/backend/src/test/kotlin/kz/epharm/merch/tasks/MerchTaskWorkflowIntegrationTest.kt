@@ -698,6 +698,199 @@ class MerchTaskWorkflowIntegrationTest {
             values(?,?,?,'pharmapay_posm',now()+interval '1 day',true,'{}')""",UUID.randomUUID(),dispatch,NativeCapabilityAuthorization.tokenHash(token))
         return token
     }
+    @Test fun `separate comments are person authored idempotent scoped and independent of submitted comment`() {
+        val d=create(0,1);val item=d.items.single();grants(admin.id,"view","comment")
+        val request=AddTaskComment(UUID.randomUUID(),"Проверьте верхнюю полку")
+        fun postComment(auth:String=adminAuth,body:AddTaskComment=request)=mvc.perform(post("/api/admin/merch/tasks/items/${item.id}/comments").header("Authorization",auth).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(body)))
+        repeat(2){postComment().andExpect(status().isOk)}
+        postComment(body=request.copy(body="Другой текст")).andExpect(status().isConflict)
+        assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM merch_task_comments",Int::class.java))
+        assertEquals(adminPerson,jdbc.queryForObject("SELECT author_person_id FROM merch_task_comments",UUID::class.java))
+        val mobile=mvc.perform(post("/api/mobile/merch/tasks/items/${item.id}/comments").header("Authorization",mobileAuth).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsBytes(AddTaskComment(UUID.randomUUID(),"Принято, проверяю")))).andExpect(status().isOk).andReturn().response.contentAsString
+        assertFalse(mobile.contains(pharmacistPerson.toString()));assertFalse(mobile.contains("task-pharmacist"))
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM merch_task_attempts",Int::class.java))
+        grants(admin.id,"view");postComment(body=AddTaskComment(UUID.randomUUID(),"Нет права")).andExpect(status().isForbidden)
+        mvc.perform(get("/api/admin/merch/tasks/items/${item.id}/comments").header("Authorization",adminAuth)).andExpect(status().isOk).andExpect(jsonPath("$.items.length()").value(2))
+    }
+    @Test fun `personal block resumes same attempt and retains evidence while aliases cannot steal ownership`() {
+        val d=create(0,1);val item=d.items.single();val a=start(item.id);val evidence=upload(item.id)
+        val version=get(d.id).items.single().version
+        val req=BlockTaskItem(version,"На полке отсутствует материал")
+        mvc.perform(post("/api/mobile/merch/tasks/items/${item.id}/block").header("Authorization",mobileAuth).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(req))).andExpect(status().isOk)
+        assertEquals("blocked",get(d.id).items.single().status)
+        mvc.perform(post("/api/admin/merch/tasks/items/${item.id}/attempts").header("Authorization",adminAuth)).andExpect(status().isForbidden)
+        mvc.perform(post("/api/mobile/merch/tasks/items/${item.id}/block").header("Authorization",mobileAuth).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(req))).andExpect(status().isConflict)
+        val resumed=start(item.id);assertEquals(a.id,resumed.id);assertEquals(listOf(evidence.id),resumed.evidence.map{it.id})
+        assertNull(get(d.id).items.single().blockedReason)
+    }
+    @Test fun `manager cancel is versioned requires a reason and never removes evidence or rewinds money`() {
+        val d=create(0,1);val item=d.items.single();start(item.id);val e=upload(item.id)
+        grants(admin.id,"view","cancel");val current=get(d.id)
+        fun cancel(version:Long,reason:String)=mvc.perform(post("/api/admin/merch/tasks/${d.id}/cancel").header("Authorization",adminAuth).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(CancelTaskDispatch(version,reason))))
+        cancel(current.version,"x").andExpect(status().isBadRequest);cancel(current.version-1,"Не актуально").andExpect(status().isConflict)
+        cancel(current.version,"Размещение отменено").andExpect(status().isOk).andExpect(jsonPath("$.status").value("cancelled"))
+        assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM merch_task_evidence WHERE id=?",Int::class.java,e.id))
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM pharmacist_wallet_entries WHERE source='merch_task'",Int::class.java))
+        cancel(current.version,"Повтор отмены").andExpect(status().isConflict)
+        mvc.perform(post("/api/mobile/merch/tasks/items/${item.id}/attempts").header("Authorization",mobileAuth)).andExpect(status().isConflict)
+    }
+    private fun planningShelf(occupied:Boolean=true):UUID {
+        val shelf=UUID.randomUUID()
+        jdbc.update("""INSERT INTO merch_shelves(id,source_system,source_origin,source_id,source_payload,branch_id,code,category,width_m,base_monthly_price,active,place_type,position_index,specifications,sale_mode,created_at,updated_at)
+            VALUES(?,'EPHARM','https://epharm.inkar.kz',?,'{}',?,?,'AA',0.8,30000,true,'shelf',0,'{}'::jsonb,'whole_only',now(),now())""",shelf,shelf,branch,shelf.toString())
+        if(occupied) {
+            val plan=UUID.randomUUID();val item=UUID.randomUUID()
+            jdbc.update("""INSERT INTO merch_media_plans(id,source_system,source_origin,source_id,source_payload,advertiser_name,placement_month,status,origin,total_amount,submitted_at,created_at,updated_at)
+                VALUES(?,'EPHARM','https://epharm.inkar.kz',?,'{}','Synthetic',?,'approved','request',30000,now(),now(),now())""",plan,plan,java.time.LocalDate.now().withDayOfMonth(1))
+            jdbc.update("""INSERT INTO merch_media_plan_items(id,source_system,source_origin,source_id,source_payload,media_plan_id,shelf_id,placement_month,monthly_price,status,sale_portion,created_at)
+                VALUES(?,'EPHARM','https://epharm.inkar.kz',?,'{}',?,?,?,30000,'approved','whole',now())""",item,item,plan,shelf,java.time.LocalDate.now().withDayOfMonth(1))
+        }
+        return shelf
+    }
+    @Test fun `templates resolve occupied all and none as a transaction snapshot without replaying assignments`() {
+        val occupied=planningShelf();planningShelf(false);val month=java.time.LocalDate.now().withDayOfMonth(1)
+        fun make(mode:String,type:String="maintenance",id:UUID=UUID.randomUUID())=CreateTemplatedTasks(id,setOf(branch),type,mode,month,Instant.now().plusSeconds(3600))
+        fun send(req:CreateTemplatedTasks)=mvc.perform(post("/api/admin/merch/tasks/templated").header("Authorization",adminAuth).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(req)))
+        val request=make("occupied");val first=send(request).andExpect(status().isOk).andReturn().response.contentAsString
+        val ids=json.readTree(first)["dispatchIds"].map{UUID.fromString(it.asText())};assertEquals(1,ids.size)
+        assertEquals(1,get(ids.single()).itemCount);assertEquals("maintenance",get(ids.single()).items.single().taskType);assertEquals(2,get(ids.single()).items.single().requiredPhotos)
+        assertEquals(occupied,jdbc.queryForObject("SELECT shelf_id FROM merch_task_items WHERE dispatch_id=?",UUID::class.java,ids.single()))
+        planningShelf();assertEquals(first,send(request).andExpect(status().isOk).andReturn().response.contentAsString)
+        send(request.copy(shelfMode="all")).andExpect(status().isConflict)
+        val all=json.readTree(send(make("all")).andExpect(status().isOk).andReturn().response.contentAsString)["dispatchIds"][0].asText()
+        assertEquals(3,get(UUID.fromString(all)).itemCount)
+        val none=json.readTree(send(make("none","general")).andExpect(status().isOk).andReturn().response.contentAsString)["dispatchIds"][0].asText()
+        assertEquals(1,get(UUID.fromString(none)).itemCount);assertEquals(0,get(UUID.fromString(none)).items.single().requiredPhotos)
+    }
+    @Test fun `template rejects unknown types foreign branches and empty occupied selection atomically`() {
+        val month=java.time.LocalDate.now().withDayOfMonth(1)
+        val req=CreateTemplatedTasks(UUID.randomUUID(),setOf(branch),"photo_report","occupied",month,Instant.now().plusSeconds(3600))
+        fun send(req:CreateTemplatedTasks)=mvc.perform(post("/api/admin/merch/tasks/templated").header("Authorization",adminAuth).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(req)))
+        send(req).andExpect(status().isBadRequest);send(req.copy(templateType="unknown")).andExpect(status().isBadRequest)
+        send(req.copy(branchIds=setOf(UUID.randomUUID()))).andExpect(status().isForbidden)
+        send(req.copy(month=month.plusDays(1))).andExpect(status().isBadRequest)
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM merch_task_dispatches",Int::class.java))
+    }
+    @Test fun `monthly visit start and resume reuse verified person packet and source placements without rewards`() {
+        planningShelf();val req=StartMonthlyVisit(branch,java.time.LocalDate.now().withDayOfMonth(1))
+        fun send()=mvc.perform(post("/api/mobile/merch/tasks/visits").header("Authorization",mobileAuth).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(req))).andExpect(status().isOk).andReturn()
+        val first=json.readTree(send().response.contentAsString);val second=json.readTree(send().response.contentAsString)
+        assertEquals(first["dispatchId"],second["dispatchId"]);assertTrue(second["resumed"].asBoolean())
+        val d=get(UUID.fromString(first["dispatchId"].asText()));assertEquals(0L,d.rewardAmountKzt);assertEquals("monthly_visit",d.taskType)
+        assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM merch_monthly_visits",Int::class.java))
+        assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM merch_task_items WHERE media_plan_item_id IS NOT NULL",Int::class.java))
+        val a=start(d.items.single().id);assertEquals(pharmacistPerson,a.executorPersonId)
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM merch_task_rewards",Int::class.java))
+    }
+    @Test fun `monthly visit wrong pharmacy missing proof and missing placements fail closed`() {
+        val req=StartMonthlyVisit(branch,java.time.LocalDate.now().withDayOfMonth(1))
+        fun send(req:StartMonthlyVisit,auth:String=mobileAuth)=mvc.perform(post("/api/mobile/merch/tasks/visits").header("Authorization",auth).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(req)))
+        send(req).andExpect(status().isBadRequest);planningShelf()
+        send(req.copy(branchId=UUID.randomUUID())).andExpect(status().isForbidden)
+        jdbc.update("""INSERT INTO pharmacists(id,name,iin,phone,pharmacy_id,pharmacy_name,city,tier,status,joined_at,balance)
+            VALUES('task-unlinked','Synthetic unlinked','000000000002','+77000000002','task-pharmacy','Synthetic','Synthetic','Silver','active',current_date,0)""")
+        val unlinked="Bearer ${jwt.issuePharmacistToken("task-unlinked","Synthetic unlinked","+77000000002")}"
+        send(req,unlinked).andExpect(status().isForbidden)
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM merch_monthly_visits",Int::class.java))
+    }
+
+    @Test fun `cancel cannot erase an existing wallet posting even if operational status is still ready`() {
+        val d=create(300,1);wallet.credit(WalletCreditSource.MERCH_TASK,d.id.toString(),"task-pharmacist",300,"synthetic-prior-credit")
+        grants(admin.id,"view","cancel")
+        mvc.perform(post("/api/admin/merch/tasks/${d.id}/cancel").header("Authorization",adminAuth).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsBytes(CancelTaskDispatch(d.version,"Отмена после начисления")))).andExpect(status().isConflict)
+        assertEquals("ready",get(d.id).status);assertEquals(800L,jdbc.queryForObject("SELECT balance FROM pharmacists WHERE id='task-pharmacist'",Long::class.java))
+        assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM pharmacist_wallet_entries WHERE source='merch_task'",Int::class.java))
+    }
+    @Test fun `concurrent monthly starts and canonical account alias return a single existing person visit`() {
+        planningShelf();val req=StartMonthlyVisit(branch,java.time.LocalDate.now().withDayOfMonth(1));val pool=Executors.newFixedThreadPool(2)
+        fun send(auth:String=mobileAuth,mobile:Boolean=true)=mvc.perform(post("/api/${if(mobile) "mobile" else "admin"}/merch/tasks/visits").header("Authorization",auth).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(req))).andExpect(status().isOk).andReturn().response.contentAsString
+        try {
+            val ids=(1..2).map{pool.submit<String>{json.readTree(send())["dispatchId"].asText()}}.map{it.get(15,TimeUnit.SECONDS)}
+            assertEquals(1,ids.distinct().size)
+            jdbc.update("UPDATE unified_admin_profiles SET person_id=? WHERE account_id=?",pharmacistPerson,admin.id)
+            assertEquals(ids.first(),json.readTree(send(adminAuth,false))["dispatchId"].asText())
+            assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM merch_monthly_visits",Int::class.java))
+            assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM merch_task_dispatches",Int::class.java))
+        } finally{pool.shutdownNow()}
+    }
+    @Test fun `monthly report preserves two separately approved half placements on the same shelf`() {
+        val shelf=planningShelf();val plan=UUID.randomUUID();val item=UUID.randomUUID();val month=java.time.LocalDate.now().withDayOfMonth(1)
+        jdbc.update("UPDATE merch_media_plan_items SET sale_portion='left' WHERE shelf_id=?",shelf)
+        jdbc.update("""INSERT INTO merch_media_plans(id,source_system,source_origin,source_id,source_payload,advertiser_name,placement_month,status,origin,total_amount,submitted_at,created_at,updated_at)
+            VALUES(?,'EPHARM','https://epharm.inkar.kz',?,'{}','Other half',?,'approved','request',15000,now(),now(),now())""",plan,plan,month)
+        jdbc.update("""INSERT INTO merch_media_plan_items(id,source_system,source_origin,source_id,source_payload,media_plan_id,shelf_id,placement_month,monthly_price,status,sale_portion,created_at)
+            VALUES(?,'EPHARM','https://epharm.inkar.kz',?,'{}',?,?,?,15000,'approved','right',now())""",item,item,plan,shelf,month)
+        mvc.perform(post("/api/mobile/merch/tasks/visits").header("Authorization",mobileAuth).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(StartMonthlyVisit(branch,month)))).andExpect(status().isOk)
+        assertEquals(2,jdbc.queryForObject("SELECT count(DISTINCT media_plan_item_id) FROM merch_task_items",Int::class.java))
+        assertEquals(2,jdbc.queryForObject("SELECT count(*) FROM merch_task_items WHERE shelf_id=?",Int::class.java,shelf))
+    }
+
+    @Test fun `inactive parent organization closes existing task execution and new authoring without rewriting history`() {
+        val d=create(0,1);val item=d.items.single();val original=jdbc.queryForObject("SELECT source_payload::text FROM merch_task_dispatches WHERE id=?",String::class.java,d.id)
+        jdbc.update("UPDATE merch_organizations SET active=false WHERE id=(SELECT organization_id FROM merch_branches WHERE id=?)",branch)
+        assertFalse(get(d.id).items.single().canStart)
+        mvc.perform(post("/api/mobile/merch/tasks/items/${item.id}/attempts").header("Authorization",mobileAuth)).andExpect(status().isForbidden)
+        mvc.perform(post("/api/admin/merch/tasks/items/${item.id}/attempts").header("Authorization",adminAuth)).andExpect(status().isConflict)
+        mvc.perform(post("/api/admin/merch/tasks").header("Authorization",adminAuth).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(CreateMerchTaskDispatch(branch,"New disabled task",Instant.now().plusSeconds(3600),items=listOf(CreateMerchTaskItem("Shelf")))))).andExpect(status().isBadRequest)
+        assertEquals(original,jdbc.queryForObject("SELECT source_payload::text FROM merch_task_dispatches WHERE id=?",String::class.java,d.id))
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM merch_task_attempts",Int::class.java))
+    }
+
+    @Test fun `monthly reference snapshot retains archived version and rejects mismatched parent or corrupt bytes`() {
+        val shelf=planningShelf();val placement=jdbc.queryForObject("SELECT id FROM merch_media_plan_items WHERE shelf_id=?",UUID::class.java,shelf)!!
+        fun reference(parent:UUID):Pair<UUID,java.nio.file.Path> {
+            val id=UUID.randomUUID();val key="placement-reference/$parent/$id";val path=files.resolve(key);Files.createDirectories(path.parent);Files.write(path,photo)
+            jdbc.update("""INSERT INTO merch_placement_reference_photos(id,media_plan_item_id,storage_backend,object_key,mime_type,byte_size,sha256,file_name,created_by_admin,created_at)
+                VALUES(?,?,'private_host',?,'image/png',?,?,'synthetic.png',?,now()-interval '1 minute')""",id,parent,key,photo.size.toLong(),TaskEvidenceStorage.hash(photo),admin.id)
+            return id to path
+        }
+        val (oldRef,path)=reference(placement)
+        val start=mvc.perform(post("/api/mobile/merch/tasks/visits").header("Authorization",mobileAuth).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(StartMonthlyVisit(branch,java.time.LocalDate.now().withDayOfMonth(1))))).andExpect(status().isOk).andReturn()
+        val id=UUID.fromString(json.readTree(start.response.contentAsByteArray)["dispatchId"].asText());val item=get(id).items.single()
+        assertEquals(oldRef,item.execution!!.clientReferencePhotoId)
+        fun download()=mvc.perform(get("/api/mobile/merch/tasks/items/${item.id}/reference").header("Authorization",mobileAuth))
+        download().andExpect(status().isOk).andExpect(content().bytes(photo)).andExpect(header().string("X-Content-SHA256",TaskEvidenceStorage.hash(photo)))
+        // Model a PostgreSQL clock just behind the JVM clock which stamped the task. The photo was
+        // active when the native writer pinned it; replacing it must not invalidate that snapshot.
+        jdbc.update("UPDATE merch_placement_reference_photos SET archived_at=(SELECT created_at FROM merch_task_items WHERE id=?)-interval '1 microsecond',archived_by_admin=? WHERE id=?",item.id,admin.id,oldRef)
+        assertEquals(true,jdbc.queryForObject("SELECT r.archived_at<i.created_at FROM merch_task_items i JOIN merch_placement_reference_photos r ON r.id=i.client_reference_photo_id WHERE i.id=?",Boolean::class.java,item.id))
+        val newer=reference(placement).first;assertNotEquals(newer,get(id).items.single().execution!!.clientReferencePhotoId)
+        download().andExpect(status().isOk).andExpect(content().bytes(photo))
+        val foreignShelf=planningShelf();val foreignParent=jdbc.queryForObject("SELECT id FROM merch_media_plan_items WHERE shelf_id=?",UUID::class.java,foreignShelf)!!
+        val wrong=reference(foreignParent).first
+        assertThrows(org.springframework.dao.DataIntegrityViolationException::class.java) {
+            jdbc.update("UPDATE merch_task_items SET client_reference_photo_id=? WHERE id=?",wrong,item.id)
+        }
+        assertEquals(oldRef,jdbc.queryForObject("SELECT client_reference_photo_id FROM merch_task_items WHERE id=?",UUID::class.java,item.id))
+        download().andExpect(status().isOk).andExpect(content().bytes(photo))
+        Files.write(path,byteArrayOf(1,2,3))
+        download().andExpect(status().isConflict)
+        assertEquals(3,jdbc.queryForObject("SELECT count(*) FROM merch_placement_reference_photos",Int::class.java))
+    }
+
+    @Test fun `cancel one concrete item preserves sibling evidence and holds paid packet without ledger effects`() {
+        val d=create(300,2);val first=d.items.first();val sibling=d.items.last();binding(d);start(sibling.id);val photo=upload(sibling.id)
+        grants(admin.id,"view","cancel","financial_data")
+        fun send(version:Long=first.version,reason:String="Полка снята с задания")=mvc.perform(post("/api/admin/merch/tasks/items/${first.id}/cancel").header("Authorization",adminAuth).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(CancelTaskItem(version,reason))))
+        send(reason="x").andExpect(status().isBadRequest);send(version=99).andExpect(status().isConflict)
+        send().andExpect(status().isOk);val next=get(d.id)
+        assertEquals("cancelled",next.items.first{it.id==first.id}.status);assertEquals("in_progress",next.items.first{it.id==sibling.id}.status)
+        assertEquals(photo.id,next.items.first{it.id==sibling.id}.currentAttempt!!.evidence.single().id)
+        assertEquals("held",next.reward!!.state);assertEquals("cancelled_required_item_requires_HQ",next.reward.reason)
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM pharmacist_wallet_entries WHERE source='merch_task'",Int::class.java))
+        send().andExpect(status().isConflict)
+    }
+    @Test fun `item cancel requires separate permission and cannot undo an already posted reward`() {
+        val d=create(300,1);val item=d.items.single();val request=CancelTaskItem(item.version,"Снятие пункта")
+        fun send()=mvc.perform(post("/api/admin/merch/tasks/items/${item.id}/cancel").header("Authorization",adminAuth).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(request)))
+        send().andExpect(status().isForbidden);grants(admin.id,"view","cancel")
+        wallet.credit(WalletCreditSource.MERCH_TASK,d.id.toString(),"task-pharmacist",300,"synthetic-prior-item-credit")
+        send().andExpect(status().isConflict)
+        assertEquals("assigned",get(d.id).items.single().status);assertEquals(800L,jdbc.queryForObject("SELECT balance FROM pharmacists WHERE id='task-pharmacist'",Long::class.java))
+    }
+
     private fun capStart(item:UUID,token:String)=json.readValue(mvc.perform(post("/api/public/merch/tasks/items/$item/attempts")
         .header("X-Merch-Task-Token",token)).andExpect(status().isOk).andReturn().response.contentAsByteArray,MerchTaskAttemptDto::class.java)
     private fun capUpload(item:UUID,token:String)=json.readValue(mvc.perform(multipart("/api/public/merch/tasks/items/$item/evidence")
@@ -900,4 +1093,36 @@ class MerchTaskWorkflowIntegrationTest {
         mvc.perform(get("/api/admin/merch/tasks").header("Authorization",adminAuth).param("queue","invented")).andExpect(status().isBadRequest)
     }
 
+    private fun webpFixture(name:String)=javaClass.getResourceAsStream("/placement-reference/$name.webp")!!.use {it.readBytes()}
+    private fun uploadWebp(item:UUID,bytes:ByteArray)=mvc.perform(multipart("/api/mobile/merch/tasks/items/$item/evidence")
+        .file(MockMultipartFile("file","synthetic.webp","image/webp",bytes)).param("clientUploadId",UUID.randomUUID().toString()).header("Authorization",mobileAuth))
+    @Test fun `task evidence keeps original lossy and lossless WebP bytes correct MIME extension and hash`() {
+        val d=create(0,1);val item=d.items.single();start(item.id)
+        for(name in listOf("lossy","lossless")) {
+            val bytes=webpFixture(name)
+            val evidence=json.readValue(uploadWebp(item.id,bytes).andExpect(status().isOk).andReturn().response.contentAsByteArray,MerchTaskEvidenceDto::class.java)
+            assertEquals("image/webp",evidence.mimeType);assertEquals(TaskEvidenceStorage.hash(bytes),evidence.sha256)
+            val key=jdbc.queryForObject("SELECT object_key FROM merch_task_evidence WHERE id=?",String::class.java,evidence.id)!!
+            assertTrue(key.endsWith(".webp"));assertArrayEquals(bytes,Files.readAllBytes(files.resolve(key)))
+            mvc.perform(get("/api/mobile/merch/tasks/evidence/${evidence.id}").header("Authorization",mobileAuth)).andExpect(status().isOk)
+                .andExpect(content().contentType("image/webp")).andExpect(content().bytes(bytes))
+        }
+    }
+    @Test fun `task WebP alpha remains in the original submitted evidence`() {
+        val d=create(0,1);val item=d.items.single();start(item.id)
+        val bytes=webpFixture("alpha");val response=uploadWebp(item.id,bytes).andExpect(status().isOk).andReturn()
+        val id=json.readTree(response.response.contentAsByteArray)["id"].asText()
+        mvc.perform(get("/api/mobile/merch/tasks/evidence/$id").header("Authorization",mobileAuth)).andExpect(status().isOk)
+            .andExpect(content().contentType("image/webp")).andExpect(content().bytes(bytes))
+        val decoded=ImageIO.read(java.io.ByteArrayInputStream(bytes))
+        try {assertTrue(decoded.colorModel.hasAlpha());assertEquals(0,decoded.getRGB(0,0) ushr 24)} finally {decoded.flush()}
+    }
+    @Test fun `task truncated corrupt and excessive pixel WebP evidence is rejected before persistence`() {
+        val d=create(0,1);val item=d.items.single();start(item.id)
+        uploadWebp(item.id,webpFixture("lossless").copyOf(24)).andExpect(status().isBadRequest)
+        uploadWebp(item.id,webpFixture("lossy").also {java.util.Arrays.fill(it,20,it.size,0.toByte())}).andExpect(status().isBadRequest)
+        val huge=webpFixture("alpha").also {bytes->for(offset in listOf(24,27)) {bytes[offset]=0xff.toByte();bytes[offset+1]=0x0f;bytes[offset+2]=0}}
+        uploadWebp(item.id,huge).andExpect(status().isPayloadTooLarge)
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM merch_task_evidence WHERE item_id=?",Int::class.java,item.id))
+    }
 }

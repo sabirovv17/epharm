@@ -69,6 +69,25 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 describe('task item review and evidence boundary', () => {
+  it('cancels only the selected item version with a reason and never invokes review or packet cancellation', async () => {
+    gateway.cancelItem = vi.fn().mockResolvedValue(task)
+    gateway.cancel = vi.fn()
+    vi.mocked(gateway.get).mockResolvedValue({
+      ...task,
+      items: task.items.map((item) => ({ ...item, canCancel: true })),
+    })
+    render(<MerchTaskDetail id={task.id} gateway={gateway} canCancel />)
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Отменить этот пункт' }))
+    expect(screen.getByRole('button', { name: 'Подтвердить отмену пункта' })).toBeDisabled()
+    await user.type(screen.getByLabelText('Причина отмены пункта'), 'Полка временно недоступна')
+    await user.click(screen.getByRole('button', { name: 'Подтвердить отмену пункта' }))
+    await waitFor(() =>
+      expect(gateway.cancelItem).toHaveBeenCalledWith('item-demo', 7, 'Полка временно недоступна'),
+    )
+    expect(gateway.cancel).not.toHaveBeenCalled()
+    expect(gateway.review).not.toHaveBeenCalled()
+  })
   it('reviews only the selected attempt/version with a mandatory reason and explicit confirmation', async () => {
     const user = userEvent.setup()
     render(<MerchTaskDetail id={task.id} gateway={gateway} canReview />)
@@ -132,46 +151,50 @@ describe('task item review and evidence boundary', () => {
       ),
     )
   })
-  it('legacy photos cannot satisfy the current attempt minimum', async () => {
-    const evidence = {
-      id: 'legacy-photo',
-      mimeType: 'image/png',
-      byteSize: 10,
-      sha256: null,
-      originalFilename: null,
-      createdAt: '2026-10-29T00:00:00Z',
-      verification: 'manual_review_required',
-    }
-    vi.mocked(gateway.evidence).mockResolvedValue(new Blob(['fixture'], { type: 'image/png' }))
-    const NativeUrl = URL
-    vi.stubGlobal(
-      'URL',
-      class extends NativeUrl {
-        static createObjectURL() {
-          return 'blob:synthetic-only'
-        }
-        static revokeObjectURL() {}
-      },
-    )
-    vi.mocked(gateway.get).mockResolvedValue({
-      ...task,
-      items: [
-        {
-          ...task.items[0],
-          status: 'in_progress',
-          canSubmit: true,
-          canReview: false,
-          legacyEvidence: [evidence],
-          currentAttempt: { ...task.items[0].currentAttempt!, status: 'draft', evidence: [] },
+  it.each(['image/png', 'image/webp'])(
+    'legacy %s photos preview but cannot satisfy the current attempt minimum',
+    async (mimeType) => {
+      const evidence = {
+        id: 'legacy-photo',
+        mimeType,
+        byteSize: 10,
+        sha256: null,
+        originalFilename: null,
+        createdAt: '2026-10-29T00:00:00Z',
+        verification: 'manual_review_required',
+      }
+      vi.mocked(gateway.evidence).mockResolvedValue(new Blob(['fixture'], { type: mimeType }))
+      const NativeUrl = URL
+      vi.stubGlobal(
+        'URL',
+        class extends NativeUrl {
+          static createObjectURL() {
+            return 'blob:synthetic-only'
+          }
+          static revokeObjectURL() {}
         },
-      ],
-    })
-    render(<MerchTaskDetail id={task.id} gateway={gateway} />)
-    expect(
-      await screen.findByRole('button', { name: 'Отправить пункт на проверку' }),
-    ).toBeDisabled()
-    expect(gateway.submit).not.toHaveBeenCalled()
-  })
+      )
+      vi.mocked(gateway.get).mockResolvedValue({
+        ...task,
+        items: [
+          {
+            ...task.items[0],
+            status: 'in_progress',
+            canSubmit: true,
+            canReview: false,
+            legacyEvidence: [evidence],
+            currentAttempt: { ...task.items[0].currentAttempt!, status: 'draft', evidence: [] },
+          },
+        ],
+      })
+      render(<MerchTaskDetail id={task.id} gateway={gateway} />)
+      expect(await screen.findByRole('img')).toHaveAttribute('src', 'blob:synthetic-only')
+      expect(
+        await screen.findByRole('button', { name: 'Отправить пункт на проверку' }),
+      ).toBeDisabled()
+      expect(gateway.submit).not.toHaveBeenCalled()
+    },
+  )
   it('does not adopt an imported executor; explicit HQ source continuation uses its current version and reason', async () => {
     gateway.continueSource = vi.fn().mockResolvedValue({ mode: 'resume' })
     vi.mocked(gateway.get).mockResolvedValue({

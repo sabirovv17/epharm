@@ -379,11 +379,11 @@ function Passport({ data, write, busy }: EditorProps) {
                 onChange={(e) => setCaption(e.target.value)}
               />
             </Field>
-            <Field label="Файл JPG/PNG">
+            <Field label="Файл JPG/PNG/WebP">
               <input
-                aria-label="Файл JPG/PNG"
+                aria-label="Файл JPG/PNG/WebP"
                 type="file"
-                accept="image/jpeg,image/png"
+                accept="image/jpeg,image/png,image/webp"
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
                 required
               />

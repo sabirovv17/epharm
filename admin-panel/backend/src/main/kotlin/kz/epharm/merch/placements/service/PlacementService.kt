@@ -32,17 +32,21 @@ object PlacementPermissions {
 @Service
 class PlacementService(private val repository: PlacementRepository,private val access: AdministrativeScope,
     private val json: ObjectMapper,private val transactions: PlatformTransactionManager,private val producerSessions:ProducerAuthService,
-    private val jdbc:JdbcTemplate,private val passwordEncoder:PasswordEncoder,private val events:ApplicationEventPublisher) {
+    private val jdbc:JdbcTemplate,private val passwordEncoder:PasswordEncoder,private val events:ApplicationEventPublisher,
+    private val planning:PlacementPlanningProjection) {
     @Transactional(readOnly=true)
     fun producerBranches(actor:PlacementActor.Producer,limit:Int,offset:Int):ProducerBranchOptions {
         activeProducer(actor.customerId)
         if(limit !in 1..200 || offset !in 0..1_000_000) invalid("Некорректная страница аптек")
-        return repository.publicBranches(limit,offset)
+        val result=repository.publicBranches(limit,offset)
+        return result.copy(items=result.items.map {branch->
+            val geo=planning.branch(branch.id)
+            branch.copy(latitude=geo.latitude,longitude=geo.longitude,floorPlan=geo.floorPlan,floorPlanWarning=geo.warning) })
     }
     @Transactional(readOnly=true)
     fun producerAvailability(actor:PlacementActor.Producer,branch:UUID,month:LocalDate):ProducerAvailability {
         activeProducer(actor.customerId);validateMonth(month)
-        return ProducerAvailability(branch,month,availablePlaces(branch,month))
+        return ProducerAvailability(branch,month,availablePlaces(branch,month,actor.customerId))
     }
     @Transactional(readOnly=true)
     fun adminCatalog(actor:PlacementActor.Internal,producerId:UUID,month:LocalDate,branchId:UUID?,limit:Int,offset:Int):AdminPlacementCatalog {
@@ -55,15 +59,18 @@ class PlacementService(private val repository: PlacementRepository,private val a
             (branchId==null || branch.id==branchId) && can(actor,"view",setOf(branch.id),producerId)}
         val page=allowed.drop(offset).take(limit).map {branch->
             val scope=setOf(branch.id);val money=can(actor,"financial_data",scope,producerId)
+            val geo=planning.branch(branch.id)
             AdminPlacementCatalogBranch(branch.id,branch.name,branch.address,branch.city,can(actor,"edit",scope,producerId),
-                producer.profileComplete && money && can(actor,"assign",scope,producerId),money,availablePlaces(branch.id,month).map {place->
-                    if(money) place else place.copy(whole=place.whole.copy(price=null),left=place.left?.copy(price=null),right=place.right?.copy(price=null))})
+                producer.profileComplete && money && can(actor,"assign",scope,producerId),money,availablePlaces(branch.id,month,producerId).map {place->
+                    if(money) place else place.copy(whole=place.whole.copy(price=null),left=place.left?.copy(price=null),right=place.right?.copy(price=null),facingMonthPrice=null)},
+                geo.latitude,geo.longitude,geo.floorPlan,geo.warning)
         }
         return AdminPlacementCatalog(producerId,producer.name,month,page,allowed.size.toLong(),limit,offset,
             allowed.any {can(actor,"edit",setOf(it.id),producerId)},producer.profileComplete && allowed.any {can(actor,"assign",setOf(it.id),producerId) && can(actor,"financial_data",setOf(it.id),producerId)})
     }
-    private fun availablePlaces(branch:UUID,month:LocalDate):List<ProducerAvailablePlace> {
+    private fun availablePlaces(branch:UUID,month:LocalDate,producer:UUID):List<ProducerAvailablePlace> {
         val ids=repository.activeShelfIds(branch)
+        val fee=planning.facingFee(producer)
         val occupied=repository.occupiedPortions(branch,month,Instant.now())
         val rows=repository.quoteShelves(ids,month).map {shelf->
             val portions=occupied[shelf.id].orEmpty()
@@ -71,7 +78,7 @@ class PlacementService(private val repository: PlacementRepository,private val a
                 (if(portion==PlacementPortion.whole) portions.isEmpty() else portion.name !in portions))
             ProducerAvailablePlace(shelf.id,shelf.code,shelf.mode,offer(PlacementPortion.whole),
                 if(shelf.mode=="whole_or_halves") offer(PlacementPortion.left) else null,
-                if(shelf.mode=="whole_or_halves") offer(PlacementPortion.right) else null)
+                if(shelf.mode=="whole_or_halves") offer(PlacementPortion.right) else null,shelf.category,shelf.width,shelf.containerCode,fee)
         }
         return rows
     }
@@ -312,6 +319,16 @@ class PlacementService(private val repository: PlacementRepository,private val a
             true
         }==true }
     }
+    internal fun referenceContext(id:UUID,actor:PlacementActor,write:Boolean=false):Pair<Plan,List<PlanItem>> {
+        if(write) lockActor(actor)
+        val context=if(write) locked(id,actor=actor,action="edit") else load(id) to repository.items(id)
+        require(actor,"view",context.second.branches(),context.first.producerId)
+        if(write) require(actor,"edit",context.second.branches(),context.first.producerId)
+        return context
+    }
+    internal fun canManageReference(plan:Plan,item:PlanItem,items:List<PlanItem>,actor:PlacementActor):Boolean =
+        plan.producerId!=null && plan.producerActive && item.status==PlacementStatus.pending && plan.status==PlacementStatus.pending &&
+            can(actor,"edit",items.branches(),plan.producerId)
     private fun locked(id: UUID,extra: Set<UUID> = emptySet(),actor: PlacementActor?=null,action: String="view"): Pair<Plan,List<PlanItem>> {
         val before=load(id);val old=repository.items(id)
         val shelves=old.map { it.shelfId }.toSet()+extra

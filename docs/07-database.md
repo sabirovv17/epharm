@@ -167,3 +167,18 @@ The disposable dev reset refuses a candidate containing import evidence, native
 tasks or preserved identity/producer links before any destructive SQL. Production
 profiles still exclude the reset utilities. Aggregate evidence is in
 [wave3-native-merch-verification.json](reports/unification-2026-10-29/wave3-native-merch-verification.json).
+
+V075–V086 have also been rehearsed with plain Flyway on that isolated candidate;
+they are immutable there. The latest additions retain private placement-photo
+versions, authored comments, template receipts, unique branch/month/PERSON visits,
+append-only tariff audits and a composite task-to-photo/placement-item FK. A new
+weekly or monthly task pins an exact private photo version; old task references
+are not backfilled or rewritten. None of these migrations starts a worker or
+replays a wallet operation. `owned_extended.py` preserves exact commercial fields
+and explicitly refuses nonempty legacy photo/material/comment sets until their
+private-file/author lineage is separately mapped. The current pinned sets are empty.
+
+V085/V086 extend only the placement-reference and inventory-media MIME checks to
+WebP. They do not rewrite files or source rows. Original reference, inventory and
+task evidence bytes and hashes remain authoritative; a generated XLSX thumbnail
+may be JPEG so spreadsheet clients do not need native WebP support.

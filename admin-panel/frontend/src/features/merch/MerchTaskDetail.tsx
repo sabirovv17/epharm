@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Button, Field, Input, Modal } from '@/ui'
 import { describeError } from '@/lib/describeError'
 import { formatKzt } from '@/mocks/fixtures'
+import TaskReference from './TaskReference'
+import TaskConversation from './TaskConversation'
 import { usePlacementRead } from './usePlacementRead'
 import { TaskStockFields, InstructionDownload } from './TaskStockFields'
 import type { TaskCapture } from './tasks-api'
@@ -21,6 +23,7 @@ const taskStatusLabel = (value: string) =>
       revision_required: 'Нужна доработка',
       draft: 'Черновик',
       cancelled: 'Отменено',
+      blocked: 'Есть препятствие',
       overdue: 'Просрочено',
       rejected: 'Отклонено',
     }) as Record<string, string>
@@ -40,16 +43,24 @@ export default function MerchTaskDetail({
   gateway,
   canExecute = true,
   canReview = false,
+  canComment = false,
+  canCancel = false,
   onChanged,
 }: {
   id: string
   gateway: TaskGateway
   canExecute?: boolean
   canReview?: boolean
+  canComment?: boolean
+  canCancel?: boolean
   onChanged?: () => void
 }) {
   const load = useCallback((signal: AbortSignal) => gateway.get(id, signal), [gateway, id])
   const read = usePlacementRead(load)
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
+  const [cancelPending, setCancelPending] = useState(false)
+  const [cancelError, setCancelError] = useState('')
   const refresh = () => {
     read.reload()
     onChanged?.()
@@ -75,6 +86,66 @@ export default function MerchTaskDetail({
                 ` · До ${new Date(read.data.dueAt).toLocaleString('ru-RU', { timeZone: 'Asia/Almaty' })}, время Алматы`}
             </p>
             <TaskReward task={read.data} />
+            {canCancel && read.data.canCancel && gateway.cancel && (
+              <Button
+                variant="outline"
+                className="mt-3"
+                onClick={() => {
+                  setCancelReason('')
+                  setCancelError('')
+                  setCancelOpen(true)
+                }}
+              >
+                Отменить задание
+              </Button>
+            )}
+            {cancelOpen && canCancel && read.data.canCancel && gateway.cancel && (
+              <Modal
+                open
+                title="Отмена задания"
+                subtitle="Файлы и история сохраняются. Отмена не списывает и не возвращает деньги."
+                onClose={() => {
+                  if (!cancelPending) setCancelOpen(false)
+                }}
+              >
+                <form
+                  className="space-y-3"
+                  onSubmit={async (event) => {
+                    event.preventDefault()
+                    if (!read.data) return
+                    setCancelPending(true)
+                    setCancelError('')
+                    try {
+                      await gateway.cancel!(id, read.data.version, cancelReason)
+                      setCancelOpen(false)
+                      refresh()
+                    } catch (error) {
+                      setCancelError(describeError(error))
+                      setCancelOpen(false)
+                      read.reload()
+                    } finally {
+                      setCancelPending(false)
+                    }
+                  }}
+                >
+                  <Field label="Причина отмены">
+                    <textarea
+                      aria-label="Причина отмены"
+                      className="inp min-h-20 w-full"
+                      minLength={3}
+                      maxLength={1200}
+                      required
+                      value={cancelReason}
+                      onChange={(event) => setCancelReason(event.target.value)}
+                    />
+                  </Field>
+                  <Button type="submit" disabled={cancelPending || cancelReason.trim().length < 3}>
+                    Подтвердить отмену
+                  </Button>
+                </form>
+              </Modal>
+            )}
+            {cancelError && <p role="alert">{cancelError}</p>}
           </div>
           {read.data.items.map((item) => (
             <TaskItemCard
@@ -83,6 +154,8 @@ export default function MerchTaskDetail({
               gateway={gateway}
               canExecute={canExecute}
               canReview={canReview}
+              canComment={canComment}
+              canCancel={canCancel}
               refresh={refresh}
             />
           ))}
@@ -126,12 +199,16 @@ function TaskItemCard({
   gateway,
   canExecute,
   canReview,
+  canComment,
+  canCancel,
   refresh,
 }: {
   item: TaskItem
   gateway: TaskGateway
   canExecute: boolean
   canReview: boolean
+  canComment: boolean
+  canCancel: boolean
   refresh: () => void
 }) {
   const [checked, setChecked] = useState<string[]>(item.currentAttempt?.completedChecklistIds ?? [])
@@ -147,6 +224,9 @@ function TaskItemCard({
   const [manual, setManual] = useState(false)
   const [continuation, setContinuation] = useState<'resume' | 'review' | null>(null)
   const [history, setHistory] = useState(false)
+  const [blockOpen, setBlockOpen] = useState(false)
+  const [itemCancelOpen, setItemCancelOpen] = useState(false)
+  const [conversationOpen, setConversationOpen] = useState(false)
   const attempt = item.currentAttempt
   const perform = async (action: () => Promise<unknown>) => {
     if (pending) return
@@ -159,11 +239,15 @@ function TaskItemCard({
       setComment('')
       setReview(null)
       setContinuation(null)
+      setBlockOpen(false)
+      setItemCancelOpen(false)
       refresh()
     } catch (error) {
       setFailure(describeError(error))
       setReview(null)
       setContinuation(null)
+      setBlockOpen(false)
+      setItemCancelOpen(false)
       const status = error as { status?: number; response?: { status?: number } }
       setFailureStatus(status?.response?.status ?? status?.status)
     } finally {
@@ -211,7 +295,117 @@ function TaskItemCard({
           </Button>
         )}
       </div>
+      {canCancel && item.canCancel && gateway.cancelItem && (
+        <Button
+          variant="outline"
+          disabled={locked}
+          onClick={() => {
+            setReason('')
+            setItemCancelOpen(true)
+          }}
+        >
+          Отменить этот пункт
+        </Button>
+      )}
+      {itemCancelOpen && gateway.cancelItem && (
+        <Modal
+          open
+          title="Отмена одного пункта"
+          subtitle="Остальные пункты и фотографии сохраняются. Начисления автоматически не отменяются."
+          onClose={() => {
+            if (!pending) setItemCancelOpen(false)
+          }}
+        >
+          <form
+            className="space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void perform(() => gateway.cancelItem!(item.id, item.version, reason))
+            }}
+          >
+            <Field label="Причина отмены пункта">
+              <textarea
+                aria-label="Причина отмены пункта"
+                className="inp min-h-20 w-full"
+                required
+                minLength={3}
+                maxLength={1200}
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+              />
+            </Field>
+            <Button type="submit" disabled={pending || reason.trim().length < 3}>
+              Подтвердить отмену пункта
+            </Button>
+          </form>
+        </Modal>
+      )}
+      {item.blockedReason && (
+        <p className="rounded-lg bg-paper-input p-3 text-sm">Препятствие: {item.blockedReason}</p>
+      )}
+      {gateway.comments && (
+        <Button variant="ghost" onClick={() => setConversationOpen((value) => !value)}>
+          {conversationOpen ? 'Скрыть обсуждение' : 'Обсуждение пункта'}
+        </Button>
+      )}
+      {conversationOpen && gateway.comments && (
+        <TaskConversation
+          key={item.id}
+          itemId={item.id}
+          gateway={gateway}
+          canWrite={item.canComment === true && (canComment || gateway.realm === 'pharmacist')}
+        />
+      )}
+      {canExecute && item.canBlock && gateway.block && (
+        <Button
+          variant="outline"
+          disabled={locked}
+          onClick={() => {
+            setReason('')
+            setBlockOpen(true)
+          }}
+        >
+          Сообщить о препятствии
+        </Button>
+      )}
+      {blockOpen && gateway.block && (
+        <Modal
+          open
+          title="Препятствие выполнению"
+          onClose={() => {
+            if (!pending) setBlockOpen(false)
+          }}
+        >
+          <form
+            className="space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void perform(() => gateway.block!(item.id, item.version, reason))
+            }}
+          >
+            <Field label="Причина препятствия">
+              <textarea
+                aria-label="Причина препятствия"
+                className="inp min-h-20 w-full"
+                minLength={3}
+                maxLength={1200}
+                required
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+              />
+            </Field>
+            <Button type="submit" disabled={pending || reason.trim().length < 3}>
+              Сохранить препятствие
+            </Button>
+          </form>
+        </Modal>
+      )}
       <p className="whitespace-pre-wrap break-words text-[13px] leading-6">{item.instructions}</p>
+      <TaskReference
+        key={`${item.id}:${item.execution?.clientReferencePhotoId ?? 'none'}`}
+        item={item}
+        gateway={gateway}
+      />
       {item.execution?.requiresVideo && <InstructionDownload item={item} gateway={gateway} />}
       {item.execution?.requiresStock && (
         <TaskStockFields
@@ -320,14 +514,20 @@ function TaskItemCard({
       {canExecute && item.canStart === true && (
         <div>
           <Button disabled={locked} onClick={() => perform(() => gateway.start(item.id))}>
-            {item.status === 'revision_required' ? 'Начать новую попытку' : 'Начать выполнение'}
+            {item.status === 'blocked'
+              ? 'Продолжить после препятствия'
+              : item.status === 'revision_required'
+                ? 'Начать новую попытку'
+                : 'Начать выполнение'}
           </Button>
         </div>
       )}
       {canExecute && item.canUpload === true && (
         <div className="rounded-lg border border-paper-line p-3">
           <Field
-            label={item.execution?.requiresVideo ? 'Видео MP4, MOV или WebM' : 'Фото JPG или PNG'}
+            label={
+              item.execution?.requiresVideo ? 'Видео MP4, MOV или WebM' : 'Фото JPG, PNG или WebP'
+            }
             hint={
               item.execution?.requiresVideo
                 ? 'До 30 МБ. Видео просматривает проверяющий.'
@@ -339,7 +539,7 @@ function TaskItemCard({
               accept={
                 item.execution?.requiresVideo
                   ? 'video/mp4,video/quicktime,video/webm'
-                  : 'image/jpeg,image/png'
+                  : 'image/jpeg,image/png,image/webp'
               }
               capture="environment"
               disabled={locked}
@@ -351,7 +551,7 @@ function TaskItemCard({
                   !(
                     item.execution?.requiresVideo
                       ? ['video/mp4', 'video/quicktime', 'video/webm']
-                      : ['image/jpeg', 'image/png']
+                      : ['image/jpeg', 'image/png', 'image/webp']
                   ).includes(value.type) ||
                   value.size === 0 ||
                   value.size > (item.execution?.requiresVideo ? 30 : 20) * 1024 * 1024
@@ -359,7 +559,7 @@ function TaskItemCard({
                   setFailure(
                     item.execution?.requiresVideo
                       ? 'Выберите видео до 30 МБ.'
-                      : 'Выберите JPG или PNG до 20 МБ.',
+                      : 'Выберите JPG, PNG или WebP до 20 МБ.',
                   )
                   setFile(null)
                   return
@@ -686,9 +886,14 @@ function PrivateEvidence({ row, gateway }: { row: TaskEvidence; gateway: TaskGat
       .then((blob) => {
         if (controller.signal.aborted) return
         if (
-          !['image/jpeg', 'image/png', 'video/mp4', 'video/quicktime', 'video/webm'].includes(
-            blob.type,
-          )
+          ![
+            'image/jpeg',
+            'image/png',
+            'image/webp',
+            'video/mp4',
+            'video/quicktime',
+            'video/webm',
+          ].includes(blob.type)
         )
           throw new Error('Предпросмотр этого формата недоступен.')
         url = URL.createObjectURL(blob)

@@ -11,7 +11,16 @@ import org.springframework.web.multipart.MultipartFile
 
 @RestController
 @RequestMapping("/api/admin/merch/tasks")
-class MerchTaskController(private val tasks: MerchTaskService) {
+class MerchTaskController(private val tasks: MerchTaskService,private val planning:TaskPlanningService) {
+    @GetMapping("/templates") fun templates()=privateResponse(planning.catalog())
+    @PostMapping("/templated") fun templated(@RequestBody request:CreateTemplatedTasks,@AuthenticationPrincipal actor:AdminPrincipal)=privateResponse(planning.create(request,actor.userId))
+    @GetMapping("/visits/branches") fun visitBranches()=privateResponse(planning.visitBranches())
+    @PostMapping("/visits") fun visit(@RequestBody request:StartMonthlyVisit,@AuthenticationPrincipal actor:AdminPrincipal)=privateResponse(planning.visit(request,actor=actor.userId))
+    @GetMapping("/items/{itemId}/comments") fun comments(@PathVariable itemId:UUID,@RequestParam(defaultValue="20") limit:Int,@RequestParam(defaultValue="0") offset:Int)=privateResponse(tasks.commentsAdmin(itemId,limit,offset))
+    @PostMapping("/items/{itemId}/comments") fun comment(@PathVariable itemId:UUID,@RequestBody request:AddTaskComment,@AuthenticationPrincipal actor:AdminPrincipal)=privateResponse(tasks.commentAdmin(itemId,request,actor.userId))
+    @PostMapping("/items/{itemId}/block") fun block(@PathVariable itemId:UUID,@RequestBody request:BlockTaskItem,@AuthenticationPrincipal actor:AdminPrincipal)=privateResponse(tasks.blockAdmin(itemId,request,actor.userId))
+    @PostMapping("/{id}/cancel") fun cancel(@PathVariable id:UUID,@RequestBody request:CancelTaskDispatch,@AuthenticationPrincipal actor:AdminPrincipal)=privateResponse(tasks.cancel(id,request,actor.userId))
+    @PostMapping("/items/{itemId}/cancel") fun cancelItem(@PathVariable itemId:UUID,@RequestBody request:CancelTaskItem,@AuthenticationPrincipal actor:AdminPrincipal)=privateResponse(tasks.cancelItem(itemId,request,actor.userId))
     @GetMapping
     fun list(@RequestParam(defaultValue = "20") limit: Int, @RequestParam(defaultValue = "0") offset: Int,
         @RequestParam(defaultValue = "all") queue:String, @RequestParam(required=false) q:String?) =
@@ -36,6 +45,7 @@ class MerchTaskController(private val tasks: MerchTaskService) {
         @AuthenticationPrincipal actor: AdminPrincipal, @RequestPart(required=false) capture:TaskCapture?) = privateResponse(tasks.uploadAdmin(itemId, clientUploadId, file, actor.userId,capture))
     @PostMapping("/items/{itemId}/stock")
     fun stock(@PathVariable itemId:UUID,@RequestBody request:SaveTaskStock,@AuthenticationPrincipal actor:AdminPrincipal)=privateResponse(tasks.saveStockAdmin(itemId,request,actor.userId))
+    @GetMapping("/items/{itemId}/reference") fun reference(@PathVariable itemId:UUID)=evidenceResponse(tasks.referenceAdmin(itemId))
     @GetMapping("/items/{itemId}/instruction")
     fun instruction(@PathVariable itemId:UUID)=evidenceResponse(tasks.instructionAdmin(itemId))
     @PostMapping("/items/{itemId}/submit")

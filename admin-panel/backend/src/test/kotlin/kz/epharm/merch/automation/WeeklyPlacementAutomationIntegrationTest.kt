@@ -286,4 +286,18 @@ class WeeklyPlacementAutomationIntegrationTest {
         assertThat(count("merch_task_dispatches")).isEqualTo(1);assertThat(count("merch_task_items")).isEqualTo(1)
         assertThat(count("pharmacist_wallet_entries")).isZero()
     }
+    @Test fun `new cycle pins the exact private client photo version without changing source reference or historic snapshots`() {
+        val id=plan();val item=jdbc.queryForObject("SELECT id FROM merch_media_plan_items WHERE media_plan_id=?",UUID::class.java,id)!!
+        val photo=UUID.randomUUID()
+        jdbc.update("""INSERT INTO merch_placement_reference_photos(id,media_plan_item_id,storage_backend,object_key,mime_type,byte_size,sha256,file_name,created_by_admin)
+            VALUES(?,?,'private_host',?,'image/png',100,?,'synthetic.png',?)""",photo,item,"placement-reference/$item/$photo","a".repeat(64),admin.id)
+        assertThat(engine.generateForPlan(id).itemsCreated).isEqualTo(1)
+        val task=jdbc.queryForObject("SELECT id FROM merch_task_items",UUID::class.java)!!
+        assertThat(jdbc.queryForObject("SELECT client_reference_photo_id FROM merch_task_items WHERE id=?",UUID::class.java,task)).isEqualTo(photo)
+        jdbc.update("UPDATE merch_placement_reference_photos SET archived_at=now(),archived_by_admin=? WHERE id=?",admin.id,photo)
+        assertThat(engine.generateForPlan(id).itemsCreated).isZero()
+        assertThat(jdbc.queryForObject("SELECT client_reference_photo_id FROM merch_task_items WHERE id=?",UUID::class.java,task)).isEqualTo(photo)
+        assertThat(jdbc.queryForObject("SELECT reference_image_ref FROM merch_task_items WHERE id=?",String::class.java,task)).isEqualTo("/api/request-item-files/client.png")
+    }
+
 }

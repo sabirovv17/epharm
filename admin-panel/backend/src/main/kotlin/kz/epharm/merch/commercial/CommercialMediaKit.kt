@@ -135,7 +135,7 @@ class CommercialMediaKit(private val commercial:CommercialService,private val jd
         } finally {slot.release()}
     }
     private fun thumbnail(bytes:ByteArray,mime:String):ByteArray=TaskPhotoGate.run {
-        if(mime !in setOf("image/jpeg","image/png")) conflict("Формат фото требует проверки")
+        if(mime !in setOf("image/jpeg","image/png","image/webp")) conflict("Формат фото требует проверки")
         ImageIO.createImageInputStream(ByteArrayInputStream(bytes)).use {stream->
             val readers=ImageIO.getImageReaders(stream)
             if(!readers.hasNext()) conflict("Подтверждённое фото повреждено")

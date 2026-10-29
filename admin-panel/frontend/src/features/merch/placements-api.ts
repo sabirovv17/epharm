@@ -60,6 +60,10 @@ export interface BranchOption {
   name: string
   address: string
   city: string
+  latitude?: number | null
+  longitude?: number | null
+  floorPlan?: import('./inventory-editor/api').FloorPlan | null
+  floorPlanWarning?: string | null
 }
 export interface PlaceOffer {
   price: number | null
@@ -69,6 +73,10 @@ export interface AvailablePlace {
   shelfId: string
   code: string
   saleMode: string
+  category?: string | null
+  widthMetres?: number | null
+  containerCode?: string | null
+  facingMonthPrice?: string | null
   whole: PlaceOffer
   left: PlaceOffer | null
   right: PlaceOffer | null

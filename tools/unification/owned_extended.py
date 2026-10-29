@@ -45,7 +45,7 @@ def projection_sql(schema, source_hash, verification):
          owned.assertion("NOT EXISTS(SELECT 1 FROM public.unified_import_runs WHERE operation_key="+stage.literal(key)+' AND (source_sha256 IS DISTINCT FROM '+stage.literal(source_hash)+' OR identity_sha256 IS DISTINCT FROM '+stage.literal(source_hash)+'))','extended provenance differs'),
          'CREATE TEMP TABLE _extended_replay AS SELECT EXISTS(SELECT 1 FROM public.unified_import_runs WHERE operation_key='+stage.literal(key)+') AS done;']
     # These three source sets are empty in the approved snapshot. Nonempty inputs require explicit private-file lineage.
-    for name in ('branch_passport_photos','advertising_place_photos','pharmacy_training_materials'):
+    for name in ('branch_passport_photos','advertising_place_photos','pharmacy_training_materials','staff_task_comments'):
         sql.append(owned.assertion('NOT EXISTS(SELECT 1 FROM '+q+'.'+name+')','private media projection requires verified object mapping'))
     for target,source,pk,fields in projections():
         names=','.join(map(stage.qi,fields));values=','.join(fields.values())

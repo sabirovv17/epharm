@@ -6,6 +6,8 @@ import { formatKzt } from '@/mocks/fixtures'
 import MerchTaskDetail from './MerchTaskDetail'
 import { adminTaskApi, adminTaskGateway, type CreateTask, type TaskBranch } from './tasks-api'
 import { usePlacementRead } from './usePlacementRead'
+import TaskTemplateDialog from './TaskTemplateDialog'
+import { AdminMonthlyVisitPanel } from './MonthlyVisitPanel'
 import ReportDownloadButton from '@/features/reports/ReportDownloadButton'
 
 export default function MerchTasksPage() {
@@ -27,6 +29,8 @@ export default function MerchTasksPage() {
       canExecute={access.canExecuteMerchTasks}
       canReview={access.canReviewMerchTasks}
       canExport={access.canExportMerchTasks}
+      canComment={access.canCommentMerchTasks}
+      canCancel={access.canCancelMerchTasks}
     />
   )
 }
@@ -35,11 +39,15 @@ function TaskWorkspace({
   canExecute,
   canReview,
   canExport,
+  canComment,
+  canCancel,
 }: {
   canCreate: boolean
   canExecute: boolean
   canReview: boolean
   canExport: boolean
+  canComment: boolean
+  canCancel: boolean
 }) {
   const [offset, setOffset] = useState(0)
   const [queue, setQueue] = useState('all')
@@ -47,6 +55,8 @@ function TaskWorkspace({
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState('')
   const [creating, setCreating] = useState(false)
+  const [templateOpen, setTemplateOpen] = useState(false)
+  const [visitOpen, setVisitOpen] = useState(false)
   const load = useCallback(
     (signal: AbortSignal) => adminTaskApi.list(offset, signal, { queue, q: query }),
     [offset, queue, query],
@@ -60,7 +70,17 @@ function TaskWorkspace({
         title="Задания фармацевтов"
         subtitle="Задания, фотоотчёты и проверка отдельных пунктов в вашей области аптек."
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {canExecute && (
+              <Button variant="outline" onClick={() => setVisitOpen((value) => !value)}>
+                Месячный визит
+              </Button>
+            )}
+            {canCreate && (
+              <Button variant="outline" onClick={() => setTemplateOpen(true)}>
+                По шаблону
+              </Button>
+            )}
             <ReportDownloadButton
               allowed={canExport}
               path="/api/admin/merch/exports/tasks.xlsx"
@@ -75,6 +95,25 @@ function TaskWorkspace({
           </div>
         }
       />
+      {visitOpen && (
+        <AdminMonthlyVisitPanel
+          onStarted={(id) => {
+            setSelected(id)
+            setVisitOpen(false)
+            list.reload()
+          }}
+        />
+      )}
+      {templateOpen && (
+        <TaskTemplateDialog
+          onClose={() => setTemplateOpen(false)}
+          onCreated={(id) => {
+            setTemplateOpen(false)
+            setSelected(id)
+            list.reload()
+          }}
+        />
+      )}
       <form
         className="card flex flex-wrap gap-3 p-3"
         onSubmit={(event) => {
@@ -205,6 +244,8 @@ function TaskWorkspace({
             gateway={adminTaskGateway}
             canExecute={canExecute}
             canReview={canReview}
+            canComment={canComment}
+            canCancel={canCancel}
             onChanged={list.reload}
           />
         </div>

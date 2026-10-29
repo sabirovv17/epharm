@@ -26,6 +26,20 @@ export default function LearnerMerchTask({
     const base = '/api/mobile/merch/tasks'
     return {
       realm: 'pharmacist',
+      comments: (itemId, offset, signal) =>
+        request(`${base}/items/${encodeURIComponent(itemId)}/comments?limit=20&offset=${offset}`, {
+          signal,
+        }),
+      comment: (itemId, requestId, body) =>
+        request(`${base}/items/${encodeURIComponent(itemId)}/comments`, {
+          method: 'POST',
+          body: JSON.stringify({ requestId, body }),
+        }),
+      block: (itemId, expectedItemVersion, reason) =>
+        request(`${base}/items/${encodeURIComponent(itemId)}/block`, {
+          method: 'POST',
+          body: JSON.stringify({ expectedItemVersion, reason }),
+        }),
       get: async (taskId, signal) => {
         try {
           return await request<MerchTask>(`${base}/${encodeURIComponent(taskId)}`, { signal })
@@ -53,6 +67,8 @@ export default function LearnerMerchTask({
           method: 'POST',
           body: JSON.stringify(body),
         }),
+      reference: (itemId, signal) =>
+        photo(`${base}/items/${encodeURIComponent(itemId)}/reference`, signal),
       instruction: (itemId, signal) =>
         photo(`${base}/items/${encodeURIComponent(itemId)}/instruction`, signal),
       submit: (itemId, expectedAttempt, completedChecklistIds, comment) =>

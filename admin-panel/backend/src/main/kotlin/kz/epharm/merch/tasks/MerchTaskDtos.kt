@@ -5,13 +5,13 @@ import java.util.UUID
 
 data class CreateMerchTaskItem(val title: String, val instructions: String = "", val required: Boolean = true,
     val requiredPhotos: Int = 1, val checklist: List<String> = emptyList(),
-    val shelfId: UUID? = null, val stockProducts: List<TaskStockProduct> = emptyList())
+    val shelfId: UUID? = null, val stockProducts: List<TaskStockProduct> = emptyList(), val mediaPlanItemId: UUID? = null)
 data class CreateMerchTaskDispatch(val branchId: UUID, val title: String, val dueAt: Instant,
     val rewardAmountKzt: Long = 0, val assignedPharmacistId: String? = null, val items: List<CreateMerchTaskItem>,
-    val priority: String = "normal", val availableFrom: Instant? = null)
+    val priority: String = "normal", val availableFrom: Instant? = null, val taskType: String = "photo_report")
 data class CreateMerchTaskBulk(val requestId: UUID, val branchIds: Set<UUID>, val title: String, val dueAt: Instant,
     val rewardAmountKzt: Long = 0, val items: List<CreateMerchTaskItem>,
-    val priority: String = "normal", val availableFrom: Instant? = null)
+    val priority: String = "normal", val availableFrom: Instant? = null, val taskType: String = "photo_report")
 data class MerchTaskBulkResult(val dispatchIds: List<UUID>)
 data class TaskChecklistItem(val id: UUID, val title: String, val required: Boolean = true)
 data class SubmitMerchTaskAttempt(val expectedAttempt: Int, val completedChecklistIds: Set<UUID>, val comment: String = "")
@@ -31,13 +31,16 @@ data class MerchTaskItemDto(val id: UUID, val title: String, val instructions: S
     val currentAttempt: MerchTaskAttemptDto?, val legacyEvidence: List<MerchTaskEvidenceDto>,
     val availableFrom: Instant?, val dueAt: Instant?, val canStart: Boolean = false, val canUpload: Boolean = false,
     val canSubmit: Boolean = false, val canReview: Boolean = false, val canResumeSource: Boolean = false,
-    val canAdoptSourceReview: Boolean = false, val execution: TaskExecutionPolicy? = null)
+    val canAdoptSourceReview: Boolean = false, val execution: TaskExecutionPolicy? = null,
+    val canBlock: Boolean = false, val blockedReason: String? = null, val canComment: Boolean = false,
+    val canCancel: Boolean = false)
 data class MerchTaskBranchDto(val id: UUID, val name: String, val city: String, val address: String,
     val active: Boolean, val createEligible: Boolean, val canConfigureReward: Boolean = false)
 data class MerchTaskRewardDto(val state: String, val amountKzt: Long, val reason: String, val walletEntryId: UUID?)
 data class MerchTaskDispatchDto(val id: UUID, val branchId: UUID, val title: String, val status: String, val dueAt: Instant?,
     val sourceSystem: String, val version: Long, val rewardAmountKzt: Long?, val items: List<MerchTaskItemDto>,
-    val reward: MerchTaskRewardDto?, val itemCount: Int, val detailsIncluded: Boolean, val priority: String, val taskType: String)
+    val reward: MerchTaskRewardDto?, val itemCount: Int, val detailsIncluded: Boolean, val priority: String, val taskType: String,
+    val canCancel: Boolean = false)
 data class MerchTaskDispatchPage(val items: List<MerchTaskDispatchDto>, val limit: Int, val offset: Int, val hasMore: Boolean)
 data class MerchTaskAttemptPage(val items: List<MerchTaskAttemptDto>, val limit: Int, val offset: Int, val hasMore: Boolean)
 

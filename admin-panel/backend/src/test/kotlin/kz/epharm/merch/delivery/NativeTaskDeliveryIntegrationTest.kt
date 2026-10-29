@@ -33,6 +33,7 @@ import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.util.ReflectionTestUtils
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.*
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
@@ -67,7 +68,7 @@ class NativeTaskDeliveryIntegrationTest {
     private val tx get()=TransactionTemplate(manager)
 
     @BeforeEach fun seed() {
-        jdbc.execute("TRUNCATE merch_task_dispatches,merch_branches,merch_organizations,merch_media_plans,admin_users,pharmacies,chains CASCADE")
+        jdbc.execute("TRUNCATE merch_task_dispatches,merch_branches,merch_organizations,merch_media_plans,unified_persons,admin_users,pharmacies,chains CASCADE")
         now=Instant.parse("2026-10-29T09:00:00Z");every {clock.instant()} answers {now}
         ReflectionTestUtils.setField(delivery,"enabled",true)
         admin=users.saveAndFlush(AdminUserEntity(email="native-delivery@example.invalid",name="Synthetic author",passwordHash="unused",roleRaw=AdminRole.HQ_HEAD.name))
@@ -118,6 +119,9 @@ class NativeTaskDeliveryIntegrationTest {
     }
     @Test fun `only an active verified pharmacy branch receives tasks`() {
         dispatch();assertThat(delivery.activeTask("foreign-pharmacy").task).isNull()
+        jdbc.update("UPDATE merch_organizations SET active=false")
+        assertThat(delivery.activeTask("native-pharmacy").task).isNull();assertThat(count("merch_task_links")).isZero()
+        jdbc.update("UPDATE merch_organizations SET active=true")
         jdbc.update("UPDATE merch_branches SET active=false WHERE id=?",branch)
         assertThat(delivery.activeTask("native-pharmacy").task).isNull()
         jdbc.update("UPDATE merch_branches SET active=true,epharm_pharmacy_id=NULL,pharmacy_binding_verified=false WHERE id=?",branch)
@@ -186,10 +190,41 @@ class NativeTaskDeliveryIntegrationTest {
             .isInstanceOfSatisfying(AppException::class.java){assertThat(it.status).isEqualTo(HttpStatus.FORBIDDEN)}
         assertThat(tx.execute {capabilities.requirePaidMutation(task.deliveryToken).rewardAmountKzt}).isEqualTo(300)
         jdbc.update("UPDATE merch_task_dispatches SET reward_amount_kzt=0 WHERE id=?",id)
+        assertThat(capabilities.authorize(task.deliveryToken).identityRequired).isFalse()
+        mvc.perform(get("/api/public/merch/tasks/session").header("X-Merch-Task-Token",task.deliveryToken))
+            .andExpect(status().isOk).andExpect(jsonPath("$.identityRequired").value(false))
         assertThat(tx.execute {capabilities.requireFreeMutation(task.deliveryToken).linkId}).isNotNull()
         assertThatThrownBy {tx.execute {capabilities.requirePaidMutation(task.deliveryToken)}}
             .isInstanceOfSatisfying(AppException::class.java){assertThat(it.status).isEqualTo(HttpStatus.FORBIDDEN)}
         assertThat(count("unified_persons")).isZero();assertThat(count("pharmacists")).isZero();assertThat(count("merch_task_rewards")).isZero()
+    }
+    @Test fun `zero reward monthly capability requires existing personal login while an ordinary free task does not`() {
+        val id=dispatch();val person=UUID.randomUUID()
+        jdbc.update("INSERT INTO unified_persons(id,verification_reference) VALUES(?,'synthetic-monthly-person-proof')",person)
+        jdbc.update("INSERT INTO merch_monthly_visits(branch_id,placement_month,executor_person_id,dispatch_id,created_at) VALUES(?,?,?,?,now())",
+            branch,LocalDate.of(2026,10,1),person,id)
+        val task=issued();val cap=capabilities.authorize(task.deliveryToken)
+        assertThat(cap.rewardAmountKzt).isZero();assertThat(cap.identityRequired).isTrue()
+        mvc.perform(get("/api/public/merch/tasks/session").header("X-Merch-Task-Token",task.deliveryToken))
+            .andExpect(status().isOk).andExpect(jsonPath("$.identityRequired").value(true)).andExpect(jsonPath("$.rewardAmountKzt").value(0))
+            .andExpect(jsonPath("$.personId").doesNotExist())
+        assertThatThrownBy {tx.execute {capabilities.requireFreeMutation(task.deliveryToken)}}
+            .isInstanceOfSatisfying(AppException::class.java){assertThat(it.status).isEqualTo(HttpStatus.FORBIDDEN)}
+        val item=jdbc.queryForObject("SELECT id FROM merch_task_items WHERE dispatch_id=?",UUID::class.java,id)!!
+        mvc.perform(post("/api/public/merch/tasks/items/$item/attempts").header("X-Merch-Task-Token",task.deliveryToken)).andExpect(status().isForbidden)
+        assertThatThrownBy {tx.execute {capabilities.requirePaidMutation(task.deliveryToken)}}
+            .isInstanceOfSatisfying(AppException::class.java){assertThat(it.status).isEqualTo(HttpStatus.FORBIDDEN)}
+        assertThat(count("unified_persons")).isEqualTo(1);assertThat(count("pharmacists")).isZero()
+        assertThat(count("merch_task_attempts")).isZero();assertThat(count("merch_task_rewards")).isZero()
+    }
+    @Test fun `inactive organization invalidates existing capability session and ACK without issuing another link`() {
+        dispatch();val task=issued();val links=count("merch_task_links")
+        jdbc.update("UPDATE merch_organizations SET active=false")
+        mvc.perform(get("/api/public/merch/tasks/session").header("X-Merch-Task-Token",task.deliveryToken)).andExpect(status().isUnauthorized)
+        assertThatThrownBy {capabilities.authorize(task.deliveryToken)}.isInstanceOfSatisfying(AppException::class.java){assertThat(it.status).isEqualTo(HttpStatus.UNAUTHORIZED)}
+        assertThat(delivery.markShown(receipt(task)).accepted).isFalse()
+        dispatch();assertThat(delivery.activeTask("native-pharmacy").task).isNull()
+        assertThat(count("merch_task_links")).isEqualTo(links);assertThat(count("merch_task_delivery_receipts")).isZero()
     }
     @Test fun `preserved generic or kiosk links are not claimed as native POSM but verified imported POSM is reusable`() {
         val id=dispatch(source="MERCH_CRM",sourceOwner=UUID.randomUUID());val token="z".repeat(48);val expiry=now.plusSeconds(4000)

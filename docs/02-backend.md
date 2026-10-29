@@ -489,6 +489,16 @@ in the screens bucket. `/api/public/merch/tasks/**` requires the task capability
 header per object. A capability never grants an administrator or pharmacist identity.
 Paid recipient confirmation remains a separate purpose-bound proof.
 
+`GET /api/admin/merch/tariffs` and `PUT /api/admin/merch/tariffs/{category}` expose
+the supplier tariff matrix to HQ accounts with explicit global merchandising view
+and financial access; writes additionally require global edit access. The update
+uses the returned `updatedAt` as a compare-and-set token and records immutable
+before/after audit entries. Amounts travel as exact integer strings in the full
+nonnegative bigint range; the multiplier retains the source range 0.1–10 with
+three decimal places. Editing a tariff never rewrites its source snapshot or
+reprices saved placement items, submitted requests, rewards or wallet entries.
+The UI entry uses fresh `canViewMerchTariffs`; stale edits require a fresh fetch.
+
 `reporting/exports`, `reporting/producers` and `reporting/xlsx` create separate XLSX
 workbooks with explicit view/export permissions. Producer associations are explicit
 versioned facts, not brand/name heuristics. Wallet reports read postings once and

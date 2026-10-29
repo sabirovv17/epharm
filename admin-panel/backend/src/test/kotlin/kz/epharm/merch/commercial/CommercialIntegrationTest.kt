@@ -331,4 +331,17 @@ class CommercialIntegrationTest {
         mvc.perform(get("/api/producer/commercial/plans/$id/media-kit.xlsx").header("Authorization",otherToken)).andExpect(status().isForbidden)
         assertThat(count("merch_inventory_media")).isEqualTo(2)
     }
+    @Test fun `media kit converts a bounded WebP preview to Excel compatible JPEG while retaining the original private bytes`() {
+        val bytes=javaClass.getResourceAsStream("/placement-reference/alpha.webp")!!.use {it.readBytes()}
+        val plan=save(value=data(false));val id=UUID.randomUUID();val key="inventory/$branch/$id";val sha=files.write(key,bytes)
+        jdbc.update("INSERT INTO merch_inventory_media(id,branch_id,shelf_id,angle,caption,storage_backend,object_key,mime_type,byte_size,sha256,created_by) VALUES(?,?,?,'shelf','','private_host',?,'image/webp',?,?,?)",id,branch,shelf,key,bytes.size,sha,admin.id)
+        val response=mvc.perform(get("/api/producer/commercial/plans/${plan["id"].asText()}/media-kit.xlsx").header("Authorization",producerToken)).andExpect(status().isOk).andReturn().response
+        XSSFWorkbook(ByteArrayInputStream(response.contentAsByteArray)).use {book->
+            assertThat(book.allPictures).hasSize(1)
+            assertThat(book.allPictures.single().pictureType).isEqualTo(org.apache.poi.ss.usermodel.Workbook.PICTURE_TYPE_JPEG)
+            val preview=ImageIO.read(ByteArrayInputStream(book.allPictures.single().data))
+            try {assertThat(preview.width).isEqualTo(16);assertThat(preview.height).isEqualTo(12)} finally {preview.flush()}
+        }
+        assertThat(files.read("private_host",key,sha)).isEqualTo(bytes)
+    }
 }

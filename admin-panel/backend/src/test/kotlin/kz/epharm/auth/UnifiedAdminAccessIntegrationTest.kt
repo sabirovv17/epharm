@@ -89,6 +89,30 @@ class UnifiedAdminAccessIntegrationTest {
             .andExpect(jsonPath("$.managed").value(true)).andExpect(jsonPath("$.grants").isEmpty)
     }
 
+    @Test fun `tariff capability matches HQ-only endpoint and requires global branch and producer authority`() {
+        fun tariffGrants(allBranches:Boolean=true,allProducers:Boolean=true) = arrayOf("view","financial_data").map {action->
+            StoredGrant("merchandising","placements",action,allMerchBranches=allBranches,
+                merchBranchIds=if(allBranches) emptySet() else setOf("00000000-0000-0000-0000-000000000101"),
+                allProducers=allProducers,producerIds=if(allProducers) emptySet() else setOf("00000000-0000-0000-0000-000000000102"))
+        }.toTypedArray()
+        fun expectCapability(expected:Boolean) {
+            mvc.perform(get("/api/admin/access/me").header("Authorization",auth())).andExpect(status().isOk)
+                .andExpect(jsonPath("$.canViewMerchTariffs").value(expected))
+        }
+        grants(*tariffGrants())
+        for(role in listOf(AdminRole.CATEGORY_LEAD,AdminRole.REGIONAL_MANAGER)) {
+            jdbc.update("UPDATE admin_users SET role=? WHERE id=?",role.name,admin.id)
+            expectCapability(false)
+        }
+        for(role in listOf(AdminRole.SYSTEM_ADMIN,AdminRole.HQ_HEAD)) {
+            jdbc.update("UPDATE admin_users SET role=? WHERE id=?",role.name,admin.id)
+            expectCapability(true)
+        }
+        grants(*tariffGrants(allBranches=false));expectCapability(false)
+        grants(*tariffGrants(allProducers=false));expectCapability(false)
+        grants();expectCapability(false)
+    }
+
     @Test fun `pharmacy SQL scope intersects both optional filters and direct id`() {
         grants(grant("pharmacies_products", "pharmacies", "view"))
         mvc.perform(get("/api/admin/pharmacies?group=pilot&chainId=access-chain").header("Authorization", auth()))
@@ -211,7 +235,7 @@ class UnifiedAdminAccessIntegrationTest {
     }
 
     @Test fun `catalog never advertises unmigrated routes as grantable and scope empty is invalid`() {
-        assertThat(catalog.routes).hasSize(240)
+        assertThat(catalog.routes).hasSize(256)
         val reviewedTraining = setOf(
             "GET /api/admin/training/assignments",
             "GET /api/admin/training/assignments/export.csv",
@@ -234,6 +258,22 @@ class UnifiedAdminAccessIntegrationTest {
             "POST /api/admin/training/assignments"
         )
         val reviewedNative = setOf(
+            "POST /api/admin/merch/tasks/items/{itemId}/cancel",
+            "GET /api/admin/merch/tasks/items/{itemId}/reference",
+            "GET /api/admin/merch/placements/{plan}/items/{item}/reference-photo",
+            "GET /api/admin/merch/placements/{plan}/items/{item}/reference-photo/{photo}/file",
+            "GET /api/admin/merch/tariffs",
+            "GET /api/admin/merch/tasks/items/{itemId}/comments",
+            "GET /api/admin/merch/tasks/templates",
+            "GET /api/admin/merch/tasks/visits/branches",
+            "POST /api/admin/merch/placements/{plan}/items/{item}/reference-photo",
+            "POST /api/admin/merch/placements/{plan}/items/{item}/reference-photo/archive",
+            "POST /api/admin/merch/tasks/items/{itemId}/block",
+            "POST /api/admin/merch/tasks/items/{itemId}/comments",
+            "POST /api/admin/merch/tasks/templated",
+            "POST /api/admin/merch/tasks/visits",
+            "POST /api/admin/merch/tasks/{id}/cancel",
+            "PUT /api/admin/merch/tariffs/{category}",
             "GET /api/admin/merch/commercial/plans",
             "GET /api/admin/merch/commercial/plans/{id}",
             "GET /api/admin/merch/commercial/plans/{id}/media-kit.xlsx",

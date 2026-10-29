@@ -15985,5 +15985,239 @@
     ],
     "risks": ["Physical Windows acceptance and source operator bindings remain rollout gates"],
     "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.71",
+    "group": "H16",
+    "name": "Native AdminTariffController follow-up",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged candidate)",
+      "api": ["GET /api/admin/merch/tariffs", "PUT /api/admin/merch/tariffs/{category}"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/commercial/AdminTariffController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Тарифы / Задания / Эталоны",
+      "actions": ["GET /api/admin/merch/tariffs", "PUT /api/admin/merch/tariffs/{category}"],
+      "scope": "Fresh action and branch/customer/verified-person scopes; public capabilities cannot author comments"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "CAS/revocation/private file lineage and immutable history verified in focused PostgreSQL tests",
+      "No production writer, no source owner inference, no ledger replay"
+    ],
+    "risks": ["Physical acceptance and real source-person bindings remain separate rollout gates"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.72",
+    "group": "H16",
+    "name": "Native PlacementReferencePhotoController follow-up",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged candidate)",
+      "api": [
+        "GET /api/admin/merch/placements/{plan}/items/{item}/reference-photo",
+        "GET /api/admin/merch/placements/{plan}/items/{item}/reference-photo/{photo}/file",
+        "POST /api/admin/merch/placements/{plan}/items/{item}/reference-photo",
+        "POST /api/admin/merch/placements/{plan}/items/{item}/reference-photo/archive"
+      ],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/placements/reference/PlacementReferencePhotoController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Тарифы / Задания / Эталоны",
+      "actions": [
+        "GET /api/admin/merch/placements/{plan}/items/{item}/reference-photo",
+        "GET /api/admin/merch/placements/{plan}/items/{item}/reference-photo/{photo}/file",
+        "POST /api/admin/merch/placements/{plan}/items/{item}/reference-photo",
+        "POST /api/admin/merch/placements/{plan}/items/{item}/reference-photo/archive"
+      ],
+      "scope": "Fresh action and branch/customer/verified-person scopes; public capabilities cannot author comments"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "CAS/revocation/private file lineage and immutable history verified in focused PostgreSQL tests",
+      "No production writer, no source owner inference, no ledger replay"
+    ],
+    "risks": ["Physical acceptance and real source-person bindings remain separate rollout gates"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.73",
+    "group": "H16",
+    "name": "Native ProducerReferencePhotoController follow-up",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged candidate)",
+      "api": [
+        "GET /api/producer/placements/{plan}/items/{item}/reference-photo",
+        "GET /api/producer/placements/{plan}/items/{item}/reference-photo/{photo}/file",
+        "POST /api/producer/placements/{plan}/items/{item}/reference-photo",
+        "POST /api/producer/placements/{plan}/items/{item}/reference-photo/archive"
+      ],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/placements/reference/ProducerReferencePhotoController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Тарифы / Задания / Эталоны",
+      "actions": [
+        "GET /api/producer/placements/{plan}/items/{item}/reference-photo",
+        "GET /api/producer/placements/{plan}/items/{item}/reference-photo/{photo}/file",
+        "POST /api/producer/placements/{plan}/items/{item}/reference-photo",
+        "POST /api/producer/placements/{plan}/items/{item}/reference-photo/archive"
+      ],
+      "scope": "Fresh action and branch/customer/verified-person scopes; public capabilities cannot author comments"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "CAS/revocation/private file lineage and immutable history verified in focused PostgreSQL tests",
+      "No production writer, no source owner inference, no ledger replay"
+    ],
+    "risks": ["Physical acceptance and real source-person bindings remain separate rollout gates"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.74",
+    "group": "H16",
+    "name": "Native CapabilityMerchTaskController follow-up",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged candidate)",
+      "api": [
+        "GET /api/public/merch/tasks/items/{itemId}/comments",
+        "GET /api/public/merch/tasks/items/{itemId}/reference"
+      ],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/CapabilityMerchTaskController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Тарифы / Задания / Эталоны",
+      "actions": [
+        "GET /api/public/merch/tasks/items/{itemId}/comments",
+        "GET /api/public/merch/tasks/items/{itemId}/reference"
+      ],
+      "scope": "Fresh action and branch/customer/verified-person scopes; public capabilities cannot author comments"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "CAS/revocation/private file lineage and immutable history verified in focused PostgreSQL tests",
+      "No production writer, no source owner inference, no ledger replay"
+    ],
+    "risks": ["Physical acceptance and real source-person bindings remain separate rollout gates"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.75",
+    "group": "H16",
+    "name": "Native MerchTaskController follow-up",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged candidate)",
+      "api": [
+        "GET /api/admin/merch/tasks/items/{itemId}/comments",
+        "GET /api/admin/merch/tasks/items/{itemId}/reference",
+        "GET /api/admin/merch/tasks/templates",
+        "GET /api/admin/merch/tasks/visits/branches",
+        "POST /api/admin/merch/tasks/items/{itemId}/block",
+        "POST /api/admin/merch/tasks/items/{itemId}/comments",
+        "POST /api/admin/merch/tasks/templated",
+        "POST /api/admin/merch/tasks/visits",
+        "POST /api/admin/merch/tasks/{id}/cancel",
+        "POST /api/admin/merch/tasks/items/{itemId}/cancel"
+      ],
+      "files": ["admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/MerchTaskController.kt"],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Тарифы / Задания / Эталоны",
+      "actions": [
+        "GET /api/admin/merch/tasks/items/{itemId}/comments",
+        "GET /api/admin/merch/tasks/items/{itemId}/reference",
+        "GET /api/admin/merch/tasks/templates",
+        "GET /api/admin/merch/tasks/visits/branches",
+        "POST /api/admin/merch/tasks/items/{itemId}/block",
+        "POST /api/admin/merch/tasks/items/{itemId}/comments",
+        "POST /api/admin/merch/tasks/templated",
+        "POST /api/admin/merch/tasks/visits",
+        "POST /api/admin/merch/tasks/{id}/cancel",
+        "POST /api/admin/merch/tasks/items/{itemId}/cancel"
+      ],
+      "scope": "Fresh action and branch/customer/verified-person scopes; public capabilities cannot author comments"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "CAS/revocation/private file lineage and immutable history verified in focused PostgreSQL tests",
+      "No production writer, no source owner inference, no ledger replay"
+    ],
+    "risks": ["Physical acceptance and real source-person bindings remain separate rollout gates"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.76",
+    "group": "H16",
+    "name": "Native PharmacistMerchTaskController follow-up",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged candidate)",
+      "api": [
+        "GET /api/mobile/merch/tasks/items/{itemId}/comments",
+        "GET /api/mobile/merch/tasks/items/{itemId}/reference",
+        "GET /api/mobile/merch/tasks/visits/branches",
+        "POST /api/mobile/merch/tasks/items/{itemId}/block",
+        "POST /api/mobile/merch/tasks/items/{itemId}/comments",
+        "POST /api/mobile/merch/tasks/visits"
+      ],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/PharmacistMerchTaskController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Тарифы / Задания / Эталоны",
+      "actions": [
+        "GET /api/mobile/merch/tasks/items/{itemId}/comments",
+        "GET /api/mobile/merch/tasks/items/{itemId}/reference",
+        "GET /api/mobile/merch/tasks/visits/branches",
+        "POST /api/mobile/merch/tasks/items/{itemId}/block",
+        "POST /api/mobile/merch/tasks/items/{itemId}/comments",
+        "POST /api/mobile/merch/tasks/visits"
+      ],
+      "scope": "Fresh action and branch/customer/verified-person scopes; public capabilities cannot author comments"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "CAS/revocation/private file lineage and immutable history verified in focused PostgreSQL tests",
+      "No production writer, no source owner inference, no ledger replay"
+    ],
+    "risks": ["Physical acceptance and real source-person bindings remain separate rollout gates"],
+    "owner": "ePharm unification integration owner"
   }
 ]

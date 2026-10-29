@@ -350,4 +350,30 @@ class PlacementIntegrationTest {
             assertThat(jdbc.queryForObject("SELECT count(*) FROM merch_placement_audit",Long::class.java)).isEqualTo(2)
         } finally {release.countDown();pool.shutdownNow()}
     }
+    @Test fun `planning catalog exposes only authorized published geometry and safe shelf classification`() {
+        val plan="""{"version":3,"room":{"width":18,"depth":11},"fixtures":[],"cabinetPositions":[]}"""
+        jdbc.update("UPDATE merch_branches SET latitude=43.26,longitude=76.93,floor_plan=?::jsonb,floor_plan_draft=?::jsonb WHERE id=?",plan,"{\"privateDraft\":\"DO-NOT-EXPOSE\"}",branch)
+        jdbc.update("UPDATE merch_branches SET floor_plan=?::jsonb WHERE id=?",plan,foreign)
+        val data=mvc.perform(get("/api/admin/merch/placements/catalog").header("Authorization",bearer).param("producerId",producer.toString()).param("month",month.toString()))
+            .andExpect(status().isOk).andReturn().response.contentAsString
+        val rows=json.readTree(data)["branches"]
+        assertThat(rows.size()).isEqualTo(1)
+        assertThat(rows[0]["latitude"].asDouble()).isEqualTo(43.26)
+        assertThat(rows[0]["floorPlan"]["version"].asInt()).isEqualTo(3)
+        assertThat(rows[0]["items"][0]["category"].asText()).isEqualTo("AA")
+        assertThat(data).doesNotContain("DO-NOT-EXPOSE",foreign.toString(),foreignShelf.toString())
+        grants(listOf("view"))
+        mvc.perform(get("/api/admin/merch/placements/catalog").header("Authorization",bearer).param("producerId",producer.toString()).param("month",month.toString()))
+            .andExpect(status().isOk).andExpect(jsonPath("$.branches[0].items[0].whole.price").isEmpty)
+        assertThat(jdbc.queryForObject("SELECT floor_plan_draft->>'privateDraft' FROM merch_branches WHERE id=?",String::class.java,branch)).isEqualTo("DO-NOT-EXPOSE")
+    }
+
+    @Test fun `invalid saved floor plan remains intact and catalog returns an explicit fallback instead of failing the booking`() {
+        val raw="""{"version":99,"untrusted":"retained"}"""
+        jdbc.update("UPDATE merch_branches SET floor_plan=?::jsonb WHERE id=?",raw,branch)
+        mvc.perform(get("/api/admin/merch/placements/catalog").header("Authorization",bearer).param("producerId",producer.toString()).param("month",month.toString()))
+            .andExpect(status().isOk).andExpect(jsonPath("$.branches[0].floorPlan").isEmpty).andExpect(jsonPath("$.branches[0].floorPlanWarning").isNotEmpty)
+        assertThat(jdbc.queryForObject("SELECT floor_plan->>'untrusted' FROM merch_branches WHERE id=?",String::class.java,branch)).isEqualTo("retained")
+    }
+
 }

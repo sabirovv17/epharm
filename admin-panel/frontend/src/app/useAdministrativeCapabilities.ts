@@ -32,8 +32,11 @@ export function useAdministrativeCapabilities() {
       !query.isError &&
       query.data?.canViewMerchTasks === true,
     canCreateMerchTasks: fresh && query.data?.canCreateMerchTasks === true,
+    canViewMerchTariffs: fresh && query.data?.canViewMerchTariffs === true,
     canExecuteMerchTasks: fresh && query.data?.canExecuteMerchTasks === true,
     canReviewMerchTasks: fresh && query.data?.canReviewMerchTasks === true,
+    canCommentMerchTasks: fresh && query.data?.canCommentMerchTasks === true,
+    canCancelMerchTasks: fresh && query.data?.canCancelMerchTasks === true,
     canViewLedger: fresh && query.data?.canViewLedger === true,
     canExportLedger: fresh && query.data?.canExportLedger === true,
     canExportPayouts: fresh && query.data?.canExportPayouts === true,

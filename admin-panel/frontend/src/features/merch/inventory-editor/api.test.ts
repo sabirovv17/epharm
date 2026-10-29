@@ -6,7 +6,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(api.post).mockResolvedValue({ data: { revision: 5 } })
   vi.mocked(api.put).mockResolvedValue({ data: { revision: 5 } })
-  vi.mocked(api.get).mockResolvedValue({ data: new Blob(['synthetic']) })
+  vi.mocked(api.get).mockResolvedValue({ data: new Blob(['synthetic'], { type: 'image/png' }) })
 })
 it('binds mutations to the exact branch and expected revision without altering existing prices', async () => {
   await inventoryEditorApi.shelf('branch/a', 'shelf?b', 4, {
@@ -34,6 +34,18 @@ it('fetches private photos through the authenticated API without public keys or 
     responseType: 'blob',
     signal,
   })
+})
+it('accepts original WebP blobs and rejects executable media in the private passport viewer', async () => {
+  vi.mocked(api.get).mockResolvedValue({
+    data: new Blob(['synthetic-webp'], { type: 'image/webp' }),
+  })
+  await expect(
+    inventoryEditorApi.photo('branch1', 'photo1', new AbortController().signal),
+  ).resolves.toMatchObject({ type: 'image/webp' })
+  vi.mocked(api.get).mockResolvedValue({ data: new Blob(['<svg/>'], { type: 'image/svg+xml' }) })
+  await expect(
+    inventoryEditorApi.photo('branch1', 'photo1', new AbortController().signal),
+  ).rejects.toThrow('JPG/PNG/WebP')
 })
 it('submits bounded period and explicit future-price intent unchanged', async () => {
   const input = {

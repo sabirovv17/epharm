@@ -18,14 +18,14 @@ import org.springframework.transaction.annotation.Transactional
 /** A capability proves access to one dispatch, never the identity of a pharmacist or an administrator. */
 class AuthorizedTaskCapability internal constructor(
     val linkId:UUID,val dispatchId:UUID,val branchId:UUID,val rewardAmountKzt:Long,
-    val expiresAt:Instant,val readOnly:Boolean,
+    val expiresAt:Instant,val readOnly:Boolean,val identityRequired:Boolean,
 )
 
 internal data class DeliveryDispatch(
     val id:UUID,val branchId:UUID,val pharmacyId:String?,val branchActive:Boolean,val bindingVerified:Boolean,
     val title:String,val priority:String,val status:String,val dueAt:Instant?,val reward:Long,
     val editable:Boolean,val deliveryEligible:Boolean,val parentApproved:Boolean,
-    val automationKind:String?,val placementMonth:LocalDate?,
+    val automationKind:String?,val placementMonth:LocalDate?,val identityRequired:Boolean,
 )
 
 @Service
@@ -46,8 +46,8 @@ class NativeCapabilityAuthorization(private val jdbc:JdbcTemplate,private val cl
     fun requireFreeMutation(rawToken:String):AuthorizedTaskCapability {
         val cap=load(rawToken,true)?:unauthorized()
         if(cap.readOnly) conflict()
-        if(cap.rewardAmountKzt!=0L) throw AppException(ErrorCode.FORBIDDEN,
-            "Для оплачиваемого задания подтвердите исполнителя через ePharm",HttpStatus.FORBIDDEN)
+        if(cap.identityRequired) throw AppException(ErrorCode.FORBIDDEN,
+            "Для этого задания подтвердите исполнителя через ePharm",HttpStatus.FORBIDDEN)
         return cap
     }
 
@@ -91,22 +91,25 @@ class NativeCapabilityAuthorization(private val jdbc:JdbcTemplate,private val cl
         if(!dispatch.branchActive || !dispatch.bindingVerified || dispatch.pharmacyId.isNullOrBlank() ||
             dispatch.status=="cancelled" || !dispatch.parentApproved) return null
         return AuthorizedTaskCapability(link.id,id,dispatch.branchId,dispatch.reward,link.expires,
-            link.submitted || !dispatch.editable || !dispatch.deliveryEligible)
+            link.submitted || !dispatch.editable || !dispatch.deliveryEligible,dispatch.identityRequired)
     }
 
     internal fun dispatch(id:UUID,now:Instant):DeliveryDispatch?=jdbc.query("""SELECT d.*,b.epharm_pharmacy_id,
-        b.active AS branch_active,b.pharmacy_binding_verified,p.placement_month,
+        (b.active AND org.active) AS branch_active,b.pharmacy_binding_verified,p.placement_month,
+        (d.reward_amount_kzt>0 OR EXISTS(SELECT 1 FROM merch_monthly_visits visit WHERE visit.dispatch_id=d.id)) AS identity_required,
         (${NativeDeliveryEligibility.sql("d")}) AS delivery_eligible,
         ((d.source_system<>'MERCH_CRM' OR NULLIF(d.source_payload->>'media_plan_id','') IS NULL OR d.source_media_plan_id IS NOT NULL)
           AND (d.source_media_plan_id IS NULL OR d.media_plan_id=d.source_media_plan_id)
           AND (d.media_plan_id IS NULL OR p.status='approved')) AS parent_approved
         FROM merch_task_dispatches d JOIN merch_branches b ON b.id=d.branch_id
+        JOIN merch_organizations org ON org.id=b.organization_id
         LEFT JOIN merch_media_plans p ON p.id=d.media_plan_id WHERE d.id=?""",{rs,_->
         val status=rs.getString("status")
         DeliveryDispatch(rs.getObject("id",UUID::class.java),rs.getObject("branch_id",UUID::class.java),rs.getString("epharm_pharmacy_id"),
             rs.getBoolean("branch_active"),rs.getBoolean("pharmacy_binding_verified"),rs.getString("title"),rs.getString("priority"),status,
             rs.getTimestamp("due_at")?.toInstant(),rs.getLong("reward_amount_kzt"),status in setOf("ready","sent","in_progress","revision_required"),
-            rs.getBoolean("delivery_eligible"),rs.getBoolean("parent_approved"),rs.getString("automation_kind"),rs.getDate("placement_month")?.toLocalDate())
+            rs.getBoolean("delivery_eligible"),rs.getBoolean("parent_approved"),rs.getString("automation_kind"),rs.getDate("placement_month")?.toLocalDate(),
+            rs.getBoolean("identity_required"))
     },Timestamp.from(now),Timestamp.from(now),Timestamp.from(now),id).singleOrNull()
 
     private data class Link(val id:UUID,val expires:Instant,val revoked:Boolean,val submitted:Boolean)

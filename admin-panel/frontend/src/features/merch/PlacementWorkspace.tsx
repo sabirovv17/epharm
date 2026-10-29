@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { Button, Field, Input, Modal, PageHeader, Select } from '@/ui'
 import { formatKzt } from '@/mocks/fixtures'
 import type {
@@ -12,6 +12,8 @@ import type {
   ProducerOption,
 } from './placements-api'
 import { usePlacementRead } from './usePlacementRead'
+import PlacementReferencePanel from './PlacementReferencePanel'
+import { referencePhotoApi } from './placement-reference-api'
 
 const labels: Record<PlacementStatus, string> = {
   draft: 'Черновик',
@@ -279,6 +281,8 @@ function PlacementDetail({
   const [reason, setReason] = useState('')
   const [selectedItems, setSelectedItems] = useState<string[]>([])
   const [partial, setPartial] = useState(false)
+  const [referenceItem, setReferenceItem] = useState('')
+  const photoApi = useMemo(() => referencePhotoApi(gateway.realm), [gateway.realm])
   const [pending, setPending] = useState(false)
   const [failure, setFailure] = useState<unknown>(null)
   const reload = () => {
@@ -408,6 +412,7 @@ function PlacementDetail({
                     <th className="p-2">Часть</th>
                     <th className="p-2">Статус позиции</th>
                     <th className="p-2">Цена</th>
+                    <th className="p-2">Фото заказчика</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -438,10 +443,33 @@ function PlacementDetail({
                       <td className="p-2">{portions[row.portion]}</td>
                       <td className="p-2">{labels[row.status]}</td>
                       <td className="p-2">{amount(row.monthlyPrice)}</td>
+                      <td className="p-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            setReferenceItem((value) => (value === row.id ? '' : row.id))
+                          }
+                        >
+                          Фото позиции {row.shelfCode}
+                        </Button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              {referenceItem && item.items.some((row) => row.id === referenceItem) && (
+                <PlacementReferencePanel
+                  key={`${item.id}:${referenceItem}`}
+                  planId={item.id}
+                  itemId={referenceItem}
+                  api={photoApi}
+                  onChanged={() => {
+                    read.reload()
+                    onChanged()
+                  }}
+                />
+              )}
               {item.note && <p className="text-[13px]">Комментарий: {item.note}</p>}
               {item.reviewNote && <p className="text-[13px]">Решение: {item.reviewNote}</p>}
               <div className="flex flex-wrap gap-2">

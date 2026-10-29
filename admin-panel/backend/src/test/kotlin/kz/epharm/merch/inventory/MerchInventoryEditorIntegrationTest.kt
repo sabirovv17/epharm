@@ -221,4 +221,40 @@ class MerchInventoryEditorIntegrationTest {
         assertThat(row["source_system"]).isEqualTo("EPHARM");assertThat(row["id"]).isEqualTo(row["source_id"]);assertThat(row["base_monthly_price"]).isEqualTo(25000)
         assertThat(editor()["revision"].asInt()).isEqualTo(3)
     }
+    private fun webpFixture(name:String)=javaClass.getResourceAsStream("/placement-reference/$name.webp")!!.use {it.readBytes()}
+    private fun uploadWebp(bytes:ByteArray,revision:Long=1,shelfPhoto:Boolean=false):MvcResult {
+        val request=multipart("/api/admin/merch/branches/$B1/editor/photos").file(MockMultipartFile("file","synthetic.webp","image/webp",bytes))
+            .param("expectedRevision",revision.toString()).param("angle",if(shelfPhoto) "shelf" else "facade").header("Authorization",bearer)
+        if(shelfPhoto) request.param("shelfId",shelf.toString())
+        return mvc.perform(request).andReturn()
+    }
+    @Test fun `passport and shelf retain original lossy lossless WebP with exact metadata and protected extension`() {
+        var revision=1L
+        for(name in listOf("lossy","lossless")) {
+            val bytes=webpFixture(name);val response=uploadWebp(bytes,revision,name=="lossless")
+            assertThat(response.response.status).isEqualTo(200);revision++
+            val row=jdbc.queryForMap("SELECT * FROM merch_inventory_media WHERE sha256=?",kz.epharm.merch.tasks.TaskEvidenceStorage.hash(bytes))
+            assertThat(row["mime_type"]).isEqualTo("image/webp")
+            assertThat(Files.readAllBytes(fileRoot.resolve(row["object_key"].toString()))).isEqualTo(bytes)
+            val file=invoke("GET","/api/admin/merch/branches/$B1/editor/media/${row["id"]}").response
+            assertThat(file.status).isEqualTo(200);assertThat(file.contentType).isEqualTo("image/webp");assertThat(file.getHeader("Content-Disposition")).endsWith(".webp\"")
+            assertThat(file.contentAsByteArray).isEqualTo(bytes)
+        }
+    }
+    @Test fun `passport alpha WebP is stored without conversion and survives archive`() {
+        val bytes=webpFixture("alpha");assertThat(uploadWebp(bytes).response.status).isEqualTo(200)
+        val row=jdbc.queryForMap("SELECT id,sha256 FROM merch_inventory_media")
+        assertThat(row["sha256"]).isEqualTo(kz.epharm.merch.tasks.TaskEvidenceStorage.hash(bytes))
+        assertThat(command("/photos/${row["id"]}/archive",mapOf("expectedRevision" to 2)).response.status).isEqualTo(200)
+        val file=invoke("GET","/api/admin/merch/branches/$B1/editor/media/${row["id"]}").response
+        assertThat(file.contentAsByteArray).isEqualTo(bytes)
+        val decoded=ImageIO.read(java.io.ByteArrayInputStream(bytes));try {assertThat(decoded.colorModel.hasAlpha()).isTrue();assertThat(decoded.getRGB(0,0) ushr 24).isZero()} finally {decoded.flush()}
+    }
+    @Test fun `passport rejects truncated corrupt and excessive pixel WebP before metadata write`() {
+        assertThat(uploadWebp(webpFixture("lossless").copyOf(24)).response.status).isEqualTo(400)
+        assertThat(uploadWebp(webpFixture("lossy").also {java.util.Arrays.fill(it,20,it.size,0.toByte())}).response.status).isEqualTo(400)
+        val huge=webpFixture("alpha").also {bytes->for(offset in listOf(24,27)) {bytes[offset]=0xff.toByte();bytes[offset+1]=0x0f;bytes[offset+2]=0}}
+        assertThat(uploadWebp(huge).response.status).isEqualTo(400)
+        assertThat(editor()["photos"].size()).isZero();assertThat(editor()["revision"].asLong()).isEqualTo(1)
+    }
 }

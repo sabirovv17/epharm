@@ -61,6 +61,12 @@ describe('Real QueryClient, persister and admin store boundary', () => {
     previous.setQueryData(['promo-changes', 'same-id'], { private: 'PENDING-A', canApply: true })
     previous.setQueryData(['promo', 'list'], 'ordinary-A')
     localStorage.setItem('epharm.learner.tokens', 'separate-learner-session')
+    sessionStorage.setItem('epharm.commercial.draft.v1.admin.a.snapshot', 'PRIVATE-ADMIN-DRAFT')
+    sessionStorage.setItem(
+      'epharm.commercial.draft.v1.producer.b.snapshot',
+      'separate-producer-draft',
+    )
+    sessionStorage.setItem('learner-unrelated', 'separate-learner-data')
     const revoke = deferred<void>()
     vi.mocked(authApi.logout).mockReturnValueOnce(revoke.promise)
     const pendingLogout = useUiStore.getState().logout()
@@ -71,6 +77,11 @@ describe('Real QueryClient, persister and admin store boundary', () => {
     expect(session.queryClient.getMutationCache().getAll()).toHaveLength(0)
     expect(localStorage.getItem('epharm.query.cache')).toBeNull()
     expect(localStorage.getItem('epharm.learner.tokens')).toBe('separate-learner-session')
+    expect(sessionStorage.getItem('epharm.commercial.draft.v1.admin.a.snapshot')).toBeNull()
+    expect(sessionStorage.getItem('epharm.commercial.draft.v1.producer.b.snapshot')).toBe(
+      'separate-producer-draft',
+    )
+    expect(sessionStorage.getItem('learner-unrelated')).toBe('separate-learner-data')
     await login(userB)
     revoke.resolve()
     await pendingLogout

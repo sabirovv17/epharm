@@ -25,6 +25,14 @@ interface StoragePort {
   removeItem(key: string): void
 }
 const STORAGE = 'epharm.producer.session.v1'
+function clearProducerDraftSnapshots() {
+  try {
+    for (const key of Object.keys(sessionStorage))
+      if (key.startsWith('epharm.commercial.draft.v1.producer.')) sessionStorage.removeItem(key)
+  } catch {
+    /* unavailable storage must not block session changes */
+  }
+}
 const cancelled = () => new DOMException('Producer session changed', 'AbortError')
 export class ProducerApiError extends Error {
   status: number
@@ -66,9 +74,13 @@ export class ProducerClient {
         Date.parse(stored.sessionExpiresAt) > Date.now()
       )
         this.value = { session: stored, epoch: 0 }
-      else storage?.removeItem(STORAGE)
+      else {
+        storage?.removeItem(STORAGE)
+        clearProducerDraftSnapshots()
+      }
     } catch {
       /* unavailable or corrupt session storage is never an authenticated session */
+      clearProducerDraftSnapshots()
     }
   }
   snapshot = () => this.value
@@ -79,7 +91,10 @@ export class ProducerClient {
     }
   }
   private change(session: ProducerSession | null, principalChange: boolean) {
-    if (principalChange) this.refreshing = null
+    if (principalChange) {
+      this.refreshing = null
+      clearProducerDraftSnapshots()
+    }
     this.value = { session, epoch: this.value.epoch + (principalChange ? 1 : 0) }
     try {
       if (session) this.storage?.setItem(STORAGE, JSON.stringify(session))
@@ -93,7 +108,7 @@ export class ProducerClient {
     path: string,
     init: RequestInit,
     token?: string,
-    format: 'json' | 'xlsx' | 'pdf' | 'video' = 'json',
+    format: 'json' | 'xlsx' | 'pdf' | 'video' | 'image' = 'json',
   ): Promise<T> {
     if (!path.startsWith('/api/producer/') || path.includes('..') || path.includes('\\'))
       throw new Error('Invalid producer API path')
@@ -106,7 +121,9 @@ export class ProducerClient {
           ? 'application/pdf'
           : format === 'video'
             ? videos.join(', ')
-            : 'application/json'
+            : format === 'image'
+              ? 'image/jpeg, image/png, image/webp'
+              : 'application/json'
     headers.set('Accept', mime)
     if (init.body instanceof FormData) headers.delete('Content-Type')
     else if (init.body) headers.set('Content-Type', 'application/json')
@@ -131,9 +148,15 @@ export class ProducerClient {
     }
     if (format !== 'json') {
       const contentType = response.headers.get('content-type')?.toLowerCase().split(';')[0].trim()
-      if (format === 'video' ? !videos.includes(contentType ?? '') : contentType !== mime)
+      if (
+        format === 'video'
+          ? !videos.includes(contentType ?? '')
+          : format === 'image'
+            ? !['image/jpeg', 'image/png', 'image/webp'].includes(contentType ?? '')
+            : contentType !== mime
+      )
         throw new Error(
-          `Сервер не вернул ${format === 'xlsx' ? 'Excel' : format === 'pdf' ? 'PDF' : 'видео'}. Файл не сохранён.`,
+          `Сервер не вернул ${format === 'xlsx' ? 'Excel' : format === 'pdf' ? 'PDF' : format === 'image' ? 'фотографию' : 'видео'}. Файл не сохранён.`,
         )
       const blob = await response.blob()
       if (format === 'pdf' && (await blob.slice(0, 5).text()) !== '%PDF-')
@@ -200,13 +223,16 @@ export class ProducerClient {
   downloadVideo(path: string, signal: AbortSignal): Promise<Blob> {
     return this.authenticated<Blob>(path, { signal }, 'video')
   }
+  downloadImage(path: string, signal: AbortSignal): Promise<Blob> {
+    return this.authenticated<Blob>(path, { signal }, 'image')
+  }
   upload<T>(path: string, form: FormData, signal?: AbortSignal): Promise<T> {
     return this.authenticated<T>(path, { method: 'POST', body: form, signal }, 'json')
   }
   private async authenticated<T>(
     path: string,
     init: RequestInit,
-    format: 'json' | 'xlsx' | 'pdf' | 'video',
+    format: 'json' | 'xlsx' | 'pdf' | 'video' | 'image',
   ): Promise<T> {
     const { session, epoch } = this.value
     if (!session) throw new ProducerApiError(401, 'Войдите в кабинет производителя.')

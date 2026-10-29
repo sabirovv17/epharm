@@ -573,12 +573,45 @@
     "explicitAccess": true
   },
   {
+    "api": "GET /api/admin/merch/placements/{plan}/items/{item}/reference-photo",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/placements/{plan}/items/{item}/reference-photo/{photo}/file",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
     "api": "GET /api/admin/merch/producers",
     "permission": {
       "module": "merchandising",
       "subsection": "producers",
       "action": "view",
       "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/tariffs",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "financial_data",
+      "kind": "FINANCIAL"
     },
     "mode": "SCOPED",
     "explicitAccess": true
@@ -628,11 +661,55 @@
     "explicitAccess": true
   },
   {
+    "api": "GET /api/admin/merch/tasks/items/{itemId}/comments",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
     "api": "GET /api/admin/merch/tasks/items/{itemId}/instruction",
     "permission": {
       "module": "merchandising",
       "subsection": "tasks",
       "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/tasks/items/{itemId}/reference",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/tasks/templates",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/tasks/visits/branches",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "execute",
       "kind": "ORDINARY"
     },
     "mode": "SCOPED",
@@ -1896,6 +1973,28 @@
     "explicitAccess": true
   },
   {
+    "api": "POST /api/admin/merch/placements/{plan}/items/{item}/reference-photo",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/placements/{plan}/items/{item}/reference-photo/archive",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
     "api": "POST /api/admin/merch/tasks",
     "permission": {
       "module": "merchandising",
@@ -1923,6 +2022,39 @@
       "module": "merchandising",
       "subsection": "tasks",
       "action": "execute",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/tasks/items/{itemId}/block",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "execute",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/tasks/items/{itemId}/cancel",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "cancel",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/tasks/items/{itemId}/comments",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "comment",
       "kind": "ORDINARY"
     },
     "mode": "SCOPED",
@@ -1978,6 +2110,39 @@
       "module": "merchandising",
       "subsection": "tasks",
       "action": "execute",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/tasks/templated",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "create",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/tasks/visits",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "execute",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/tasks/{id}/cancel",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "cancel",
       "kind": "ORDINARY"
     },
     "mode": "SCOPED",
@@ -2434,6 +2599,17 @@
   },
   {
     "api": "PUT /api/admin/merch/placements/{id}/draft",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "PUT /api/admin/merch/tariffs/{category}",
     "permission": {
       "module": "merchandising",
       "subsection": "placements",

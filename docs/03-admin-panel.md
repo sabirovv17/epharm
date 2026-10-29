@@ -129,8 +129,9 @@ or credits a paid historical report automatically.
 the fragment into memory and removed from history before telemetry starts. It is never accepted
 from query parameters or written to storage. Public task requests send `X-Merch-Task-Token`
 without cookies/admin/learner authorization and use a no-referrer policy. Free tasks support
-their own allowed photo workflow. Paid tasks expose only metadata before linking to the separate
-`/learn/merch/tasks/:id` pharmacist session; there is no RPS or Standard-N lock.
+their own allowed photo workflow. Paid tasks and identity-bound monthly visits expose only metadata
+before linking to the separate `/learn/merch/tasks/:id` pharmacist session; a zero-reward monthly
+visit still requires an identified executor, without a monetary OTP. There is no RPS or Standard-N lock.
 
 For an unbound paid task, only `OTP_NOT_VERIFIED` opens the native executor confirmation flow.
 The original QR capability plus the current learner session fetch immutable task context.
@@ -187,6 +188,8 @@ not evidence of real delivery or a production release. RPS remains disabled.
   pharmacist authentication, not the HQ admin session, and does not grant access to the admin shell.
 - `/learn/merch/tasks/:taskId` — native task detail and paid executor confirmation in that same
   personal pharmacist session.
+- `/learn/merch/visits` — start or resume an identified pharmacist’s monthly photo report,
+  using that same learner session and the authorized current pharmacy.
 - `/tasks/staff` — native fragment-capability free task / paid task metadata portal.
 - `/producer/login`, `/producer` — separate producer SMS realm.
 
@@ -476,3 +479,18 @@ webServer configuration.
 
 `admin-panel/references/` is a historical JSX prototype and visual reference. Production code lives in
 `admin-panel/frontend/src`. Use the references only to understand intent, not as current architecture.
+
+### Native merchandising operations
+
+The task workspace separates comments, a personal impediment, item cancellation and dispatch
+cancellation. A comment requires a verified author; a fragment capability reads the allowed
+conversation without granting a person identity. Cancellation requires its own permission, reason
+and current revision and cannot reverse a posted reward. Templates snapshot all or occupied shelves
+atomically, within the 500-item limit. Monthly visits resume the same branch/month/person record.
+
+A placement line keeps private reference-photo versions; an issued task pins one exact version.
+Opening a reference uses an authenticated Blob with cleanup on task/session exit. The planning
+workspace exposes authorized coordinates, published floorplans and explicit preliminary auto-pick
+with exact budgets. Adding a proposal does not reserve a place. Saved-plan draft recovery requires
+the same owner, version and current edit permission; unsaved drafts use explicit JSON preview.
+The HQ tariff entry uses the fresh server capability and compare-and-set updates.

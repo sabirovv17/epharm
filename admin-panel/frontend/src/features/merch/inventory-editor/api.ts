@@ -201,5 +201,13 @@ export const inventoryEditorApi = {
         responseType: 'blob',
         signal,
       })
-      .then((r) => r.data),
+      .then((r) => {
+        if (
+          !['image/jpeg', 'image/png', 'image/webp'].includes(
+            r.data.type.toLowerCase().split(';')[0],
+          )
+        )
+          throw new Error('Сервер не вернул фотографию JPG/PNG/WebP')
+        return r.data
+      }),
 }

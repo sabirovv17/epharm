@@ -3,6 +3,8 @@ import { Button, Field, Input, Modal, Select } from '@/ui'
 import { saveReport } from '@/features/reports/ledgerReports'
 import type { PlacementGateway, Portion } from './placements-api'
 import { usePlacementRead } from './usePlacementRead'
+import CommercialDraftRecovery from './CommercialDraftRecovery'
+import PlacementPlanningSelector from './PlacementPlanningSelector'
 import {
   placementTaxonomy,
   planMonths,
@@ -634,6 +636,12 @@ function CommercialEditor({
         }}
       >
         {failure && <p role="alert">{failure}</p>}
+        <CommercialDraftRecovery
+          initial={initial}
+          draft={draft}
+          gateway={gateway}
+          onRecover={setDraft}
+        />
         <div className="grid gap-3 sm:grid-cols-4">
           <Field label="Название плана">
             <Input
@@ -827,6 +835,19 @@ function CommercialEditor({
             />
           </Field>
         </div>
+        <PlacementPlanningSelector
+          key={`${producerId}:${catalogMonth}:${product?.id ?? ''}`}
+          catalog={catalog.data ?? null}
+          gateway={placements}
+          producerId={producerId}
+          month={catalogMonth}
+          product={product}
+          selected={draft.shelfSelection ?? []}
+          branchId={branch}
+          onBranch={setBranch}
+          onChoose={(rows) => patch({ shelfSelection: [...(draft.shelfSelection ?? []), ...rows] })}
+          disabled={busy}
+        />
         <div className="flex gap-2">
           <Button
             type="button"

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import jsQR from 'jsqr'
 import LearnerMerchTask from '@/features/merch/LearnerMerchTask'
+import MonthlyVisitPanel from '@/features/merch/MonthlyVisitPanel'
 import {
   AlertCircle,
   Award,
@@ -727,6 +728,7 @@ export default function LearnerTrainingPage() {
             ? 'profile'
             : 'home'
   const [tokens, setTokens] = useState<Tokens | null>(() => readTokens())
+  const monthlyVisit = location.pathname === '/learn/merch/visits'
   const [sessionEpoch, setSessionEpoch] = useState(0)
   const sessionVersion = useRef(0)
   const portalRequest = useRef(0)
@@ -1850,10 +1852,24 @@ export default function LearnerTrainingPage() {
           </header>
 
           {error && <ErrorMessage text={error} />}
+          {!loading && !selected && !taskId && portalSection === 'home' && (
+            <button
+              className="btn btn-outline btn-md mb-4"
+              onClick={() => navigate(monthlyVisit ? '/learn' : '/learn/merch/visits')}
+            >
+              {monthlyVisit ? t('На главную') : t('Фотоотчёт аптеки')}
+            </button>
+          )}
           {loading ? (
             <div className="flex items-center justify-center py-24 text-ink-500">
               <RefreshCw className="mr-2 animate-spin" size={20} /> {t('Загружаем обучение…')}
             </div>
+          ) : monthlyVisit ? (
+            <MonthlyVisitPanel
+              key={`${sessionEpoch}:monthly-visit`}
+              request={merchRequest}
+              onStarted={(id) => navigate(`/learn/merch/tasks/${encodeURIComponent(id)}`)}
+            />
           ) : taskId ? (
             <LearnerMerchTask
               key={`${sessionEpoch}:${taskId}`}

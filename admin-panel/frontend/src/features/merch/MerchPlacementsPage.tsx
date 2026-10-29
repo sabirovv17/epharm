@@ -12,6 +12,7 @@ import { downloadReport } from '@/features/reports/ledgerReports'
 import TaskInstructionPanel from './TaskInstructionPanel'
 import { adminInstructionApi } from './task-instructions-api'
 import { useUiStore } from '@/app/store'
+import PricingEditor from './PricingEditor'
 
 const gateway = placementGateway('admin', async <T,>(path: string, init: RequestInit = {}) => {
   const response = await api.request<T>({
@@ -38,6 +39,7 @@ const commercial = commercialGateway(
 export default function MerchPlacementsPage() {
   const [commercialOpen, setCommercialOpen] = useState(false)
   const [instructionsOpen, setInstructionsOpen] = useState(false)
+  const [tariffsOpen, setTariffsOpen] = useState(false)
   const principalId = useUiStore((state) => state.authedUser?.id ?? 'signed-out')
   const epoch = useUiStore((state) => state.querySessionEpoch)
   const access = useAdministrativeCapabilities()
@@ -67,7 +69,15 @@ export default function MerchPlacementsPage() {
         <Button variant="outline" onClick={() => setInstructionsOpen((value) => !value)}>
           {instructionsOpen ? 'Скрыть инструктажи' : 'Инструктажи по размещениям'}
         </Button>
+        {access.canViewMerchTariffs && (
+          <Button variant="outline" onClick={() => setTariffsOpen((value) => !value)}>
+            {tariffsOpen ? 'Скрыть тарифы' : 'Тарифы поставщиков'}
+          </Button>
+        )}
       </div>
+      {tariffsOpen && access.canViewMerchTariffs && (
+        <PricingEditor key={`tariffs:${principalKey}`} />
+      )}
       {commercialOpen && (
         <ProducerCommercialWorkspace
           key={`commercial:${principalKey}`}

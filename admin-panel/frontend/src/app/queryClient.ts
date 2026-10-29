@@ -58,6 +58,13 @@ let stopPersistence = storage
 
 /** A detached client contains any late callbacks; it can never become the next principal's cache. */
 export function resetQuerySession(user: Pick<UserDto, 'id' | 'role'> | null): void {
+  try {
+    for (const key of Object.keys(sessionStorage)) {
+      if (key.startsWith('epharm.commercial.draft.v1.admin.')) sessionStorage.removeItem(key)
+    }
+  } catch {
+    /* unavailable storage must not prevent logout */
+  }
   stopPersistence()
   void queryClient.cancelQueries()
   queryClient.clear()

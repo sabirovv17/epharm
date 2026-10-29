@@ -17,17 +17,17 @@ data class TaskCapture(val status:String="unavailable",val latitude:Double?=null
     val accuracy:Double?=null,val measuredAt:Instant?=null,val reason:String?=null,val captureSource:String?=null)
 data class TaskStockDto(val counts:Map<String,Int>,val shortageReason:String,val savedAt:Instant,val source:String="current_attempt")
 data class TaskExecutionPolicy(val requiresStock:Boolean,val products:List<TaskStockProduct>,val stock:TaskStockDto?,
-    val trainingMaterialId:UUID?,val requiresVideo:Boolean,val referenceImage:String?)
+    val trainingMaterialId:UUID?,val requiresVideo:Boolean,val referenceImage:String?,val clientReferencePhotoId:UUID?=null)
 
 /** The source's stock/geo requirements are execution evidence, never proof of identity or automatic approval. */
 @Component
 class TaskExecutionEvidence(private val jdbc:JdbcTemplate,private val json:ObjectMapper,private val storage:TaskEvidenceStorage) {
     fun policy(item:UUID,attempt:UUID?=null):TaskExecutionPolicy {
         val row=jdbc.query("""SELECT i.shelf_id,i.task_type,i.training_material_id,i.stock_products::text,i.reference_image_ref,
-            p.product_name,p.products::text AS placement_products FROM merch_task_items i
+            p.product_name,p.products::text AS placement_products,i.client_reference_photo_id FROM merch_task_items i
             LEFT JOIN merch_placement_item_product_details p ON p.media_plan_item_id=i.media_plan_item_id WHERE i.id=?""",
             {rs,_->arrayOf<Any?>(rs.getObject("shelf_id"),rs.getString("task_type"),rs.getObject("training_material_id",UUID::class.java),
-                rs.getString("stock_products"),rs.getString("reference_image_ref"),rs.getString("product_name"),rs.getString("placement_products"))},item).single()
+                rs.getString("stock_products"),rs.getString("reference_image_ref"),rs.getString("product_name"),rs.getString("placement_products"),rs.getObject("client_reference_photo_id",UUID::class.java))},item).single()
         val material=row[2] as UUID?
         val custom=json.readTree(row[3] as String)
         val requires=material==null && (custom.size()>0 || row[0]!=null && row[1] in setOf("photo_report","placement","inventory"))
@@ -43,7 +43,7 @@ class TaskExecutionEvidence(private val jdbc:JdbcTemplate,private val json:Objec
             {rs,_->TaskStockDto(json.readValue(rs.getString(1)),rs.getString(2),rs.getTimestamp(3).toInstant(),"preserved_source")},item).singleOrNull()
         else jdbc.query("SELECT counts::text,shortage_reason,updated_at FROM merch_task_stock_observations WHERE item_id=? AND attempt_id=?",
             {rs,_->TaskStockDto(json.readValue(rs.getString(1)),rs.getString(2),rs.getTimestamp(3).toInstant())},item,attempt).singleOrNull()
-        return TaskExecutionPolicy(requires,products,stock,material,material!=null,trustedReference(row[4] as String?))
+        return TaskExecutionPolicy(requires,products,stock,material,material!=null,trustedReference(row[4] as String?),row[7] as UUID?)
     }
     fun save(item:UUID,attempt:UUID,request:SaveTaskStock):TaskStockDto {
         val policy=policy(item,attempt)
@@ -76,6 +76,20 @@ class TaskExecutionEvidence(private val jdbc:JdbcTemplate,private val json:Objec
                 rs.getString("original_filename"),rs.getTimestamp("created_at").toInstant()) to bytes
         },item).singleOrNull()
         return row?:throw AppException(ErrorCode.NOT_FOUND,"Подтверждённый PDF-инструктаж не найден",HttpStatus.NOT_FOUND)
+    }
+    fun reference(item:UUID):Pair<MerchTaskEvidenceDto,ByteArray> {
+        // The native writer pins the active immutable version. JVM task timestamps
+        // and PostgreSQL archive timestamps are independent clocks, not an authorization boundary.
+        val row=jdbc.queryForList("""SELECT r.* FROM merch_task_items i JOIN merch_task_dispatches d ON d.id=i.dispatch_id
+            JOIN merch_placement_reference_photos r ON r.id=i.client_reference_photo_id AND r.media_plan_item_id=i.media_plan_item_id
+            JOIN merch_media_plan_items p ON p.id=i.media_plan_item_id AND p.shelf_id=i.shelf_id
+            JOIN merch_shelves s ON s.id=p.shelf_id AND s.branch_id=d.branch_id
+            WHERE i.id=?""",item).singleOrNull()
+            ?:throw AppException(ErrorCode.NOT_FOUND,"Зафиксированный эталон пункта не найден",HttpStatus.NOT_FOUND)
+        val bytes=storage.read(row["storage_backend"].toString(),row["object_key"].toString(),row["sha256"].toString())
+        if(bytes.size.toLong()!=(row["byte_size"] as Number).toLong()) conflict("Размер эталона не совпадает с сохранённым")
+        val mime=row["mime_type"].toString();if(mime !in setOf("image/png","image/jpeg","image/webp")) conflict("Формат эталона не поддерживается")
+        return MerchTaskEvidenceDto(row["id"] as UUID,mime,bytes.size.toLong(),row["sha256"].toString(),row["file_name"].toString(),(row["created_at"] as java.sql.Timestamp).toInstant()) to bytes
     }
     fun capture(item:UUID,capture:TaskCapture?):Map<String,Any?> {
         val now=Instant.now()

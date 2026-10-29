@@ -256,7 +256,7 @@ class MerchInventoryEditorService(private val jdbc: JdbcTemplate,private val rep
             if(shelf!=null&&jdbc.queryForObject("SELECT count(*) FROM merch_shelves WHERE id=? AND branch_id=?",Int::class.java,shelf,branch)!=1) missing()
             val count=jdbc.queryForObject("SELECT count(*) FROM merch_inventory_media WHERE branch_id=? AND shelf_id IS NOT DISTINCT FROM ? AND archived_at IS NULL",Int::class.java,branch,shelf)!!
             if(count>=if(shelf==null)40 else 8) invalid("Достигнут лимит фотографий")
-            val bytes=image(file);val mime=if(bytes[0]==0x89.toByte())"image/png" else "image/jpeg"
+            val (mime,bytes)=image(file)
             val id=UUID.randomUUID();val key="inventory/$branch/$id"
             val sha=files.write(key,bytes)
             jdbc.update("""INSERT INTO merch_inventory_media(id,branch_id,shelf_id,angle,caption,storage_backend,object_key,mime_type,byte_size,sha256,created_by)
@@ -385,20 +385,19 @@ class MerchInventoryEditorService(private val jdbc: JdbcTemplate,private val rep
             if((a[0]-b[0]).abs()<(a[2]+b[2])/BigDecimal(2)&&(a[1]-b[1]).abs()<(a[3]+b[3])/BigDecimal(2)) invalid("Объекты схемы пересекаются")
         }
     }
-    private fun image(file: MultipartFile): ByteArray {
-        if(file.isEmpty||file.size>20L*1024*1024) throw AppException(ErrorCode.VALIDATION_FAILED,"Нужна фотография JPG/PNG до 20 МБ",HttpStatus.PAYLOAD_TOO_LARGE)
+    private fun image(file: MultipartFile): Pair<String,ByteArray> {
+        if(file.isEmpty||file.size>20L*1024*1024) throw AppException(ErrorCode.VALIDATION_FAILED,"Нужна фотография JPG/PNG/WebP до 20 МБ",HttpStatus.PAYLOAD_TOO_LARGE)
         val bytes=file.bytes
-        val png=bytes.size>=8&&bytes.copyOfRange(0,8).contentEquals(byteArrayOf(0x89.toByte(),80,78,71,13,10,26,10))
-        val jpg=bytes.size>=3&&bytes[0]==0xff.toByte()&&bytes[1]==0xd8.toByte()&&bytes[2]==0xff.toByte()
-        if(!png&&!jpg) invalid("Файл не является JPG/PNG")
-        ImageIO.createImageInputStream(ByteArrayInputStream(bytes)).use { stream ->
+        return ImageIO.createImageInputStream(ByteArrayInputStream(bytes)).use { stream ->
             val reader=ImageIO.getImageReaders(stream).asSequence().firstOrNull()?:invalid("Фотография не читается")
-            try { reader.input=stream;val width=reader.getWidth(0);val height=reader.getHeight(0)
+            try { reader.input=stream
+                val mime=when(reader.formatName.lowercase(java.util.Locale.ROOT)) {"jpeg","jpg"->"image/jpeg";"png"->"image/png";"webp"->"image/webp";else->invalid("Файл не является JPG/PNG/WebP")}
+                val width=reader.getWidth(0);val height=reader.getHeight(0)
                 if(width<1||height<1||width.toLong()*height>12_000_000) invalid("Уменьшите фотографию до 12 мегапикселей")
                 val type=reader.getImageTypes(0).asSequence().firstOrNull{it.colorModel.pixelSize<=32}?:invalid("Недопустимая глубина цвета")
                 reader.read(0,reader.defaultReadParam.apply{destinationType=type})?.flush()?:invalid("Фотография не читается")
+                mime to bytes
             }catch(e: AppException){throw e}catch(_: Exception){invalid("Фотография не читается")}finally{reader.dispose()}
         }
-        return bytes
     }
 }
