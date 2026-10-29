@@ -186,3 +186,29 @@ NOT_READY границы. [Upgrade preservation](access-upgrade-preservation.jso
 подтверждает неизменность73 исходных таблиц на локальном клоне.
 Текущий guard:391 действий,57 групп,47 POSM contracts,234 backend endpoints.
 Production rollout/миграция аккаунтов и закрытие U1/U2 не заявляются.
+
+## Последующий проверенный срез native-кандидата
+
+Предыдущие разделы сохраняют исходные наблюдения и ограничения своего checkpoint.
+Актуальные агрегированные доказательства —
+[wave5-reset-and-integration-verification.json](wave5-reset-and-integration-verification.json)
+и предыдущий [wave4](wave4-native-unification-verification.json),
+а статусы и следующий порядок работ ведутся только в корневом `PLAN.md`.
+
+Проверены native фонд/медиапланы/задачи, отдельные producer/free-QR/learner контуры,
+типизированные области и отдельные XLSX. В полной изолированной копии применены
+миграции до V077; исходные бизнес-таблицы сверены повторно по исходным столбцам и
+PK. Материализованные данные, старые capability-ссылки и source-календари не
+превращены в новые показы, задачи или деньги. Новые worker/auth flags выключены.
+
+`bootstrap_hq.py`, `owned_merch.py`, `owned_tasks.py`, `owned_delivery.py` и
+`owned_automation.py` отличаются от read-only guard: их отдельно выбранные
+операции пишут только в закреплённый изолированный кандидат, с pins, проверкой
+происхождения, транзакцией и private-отчётом. Это не production migration tools
+и не разрешение выбрать реального человека автоматически. В Git нет исходных
+строк, паролей, токенов, частных фотографий и verification references.
+
+Сборка Windows POSM в CI проверяет компиляцию; 300 core-тестов и 47 source contracts
+не заменяют фактический показ overlay поверх Стандарт-Н на установленной кассе.
+Аналогично 57 групп/478 source actions не означают закрытие всех no-loss сценариев:
+редкие CRM/LMS операции, файлы и финальная приёмка перечислены в `PLAN.md`.

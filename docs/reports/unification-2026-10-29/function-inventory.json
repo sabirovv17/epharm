@@ -7037,7 +7037,7 @@
     "name": "Восстановление пароля через привязанный телефон",
     "source": {
       "repo": "sabirovv17/epharm",
-      "revision": "b946592549db9eab8d108c6c5bdbd7022915a655",
+      "revision": "codex/unified-admin-development (unmerged candidate)",
       "ui": [
         "admin-panel/frontend/src/features/learner/LearnerTrainingPage.tsx",
         "admin-panel/frontend/src/app/router.tsx",
@@ -7051,12 +7051,16 @@
       "jobs": [],
       "data": [
         "pharmacists",
+        "mobile_password_reset_challenges",
+        "mobile_password_reset_rate_limits",
         "mobile_otps",
         "mobile_refresh_tokens",
-        "browser learner token/session state"
+        "posm_staff_sessions",
+        "memory-only browser reset proof"
       ],
       "files": [
-        "admin-panel/backend/src/main/kotlin/kz/epharm/mobile/auth/controller/MobileAuthController.kt",
+        "admin-panel/backend/src/main/kotlin/kz/epharm/mobile/auth/reset/MobilePasswordResetController.kt",
+        "admin-panel/backend/src/main/kotlin/kz/epharm/mobile/auth/reset/MobilePasswordResetService.kt",
         "admin-panel/backend/src/main/kotlin/kz/epharm/mobile/auth/service/MobileAuthService.kt"
       ]
     },
@@ -7064,15 +7068,17 @@
       "section": "ЛК фармацевта",
       "subsection": "Вход / сессия / глубокие ссылки",
       "actions": ["Восстановление пароля через привязанный телефон"],
-      "scope": "Собственный PharmacistPrincipal; не admin principal"
+      "scope": "Own challenge/IIN/phone-bound OTP and one-shot hashed reset grant; no admin, registration or activation"
     },
-    "state": "needs_verification",
+    "state": "source_confirmed",
     "acceptance": [
-      "На стенде сопоставить deployed backend и pinned код; пройти reset только контролируемого аккаунта",
-      "Отсутствующий endpoint не выдаётся за готовое восстановление"
+      "12 HTTP/PostgreSQL cases, four real issuer/budget race cases and five learner proof-state cases pass on synthetic data",
+      "Old refresh/password cannot issue a surviving session across reset; reset proof is never persisted in browser, logs or plain database storage",
+      "Real sender integration remains a separate controlled test; no production SMS sent in this work"
     ],
     "risks": [
-      "Frontend вызывает эти пути и имеет mock tests, но MobileAuthController/Service в source их не реализуют"
+      "Existing access JWT retains its current TTL; no claim of instant global access-token revocation",
+      "Purpose-bound reset endpoints do not replace activation or device-bound RPS APIs"
     ],
     "owner": "ePharm unification integration owner"
   },
