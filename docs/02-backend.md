@@ -450,3 +450,23 @@ with its existing fixture-only FK set before reseeding campaigns. It uses no CAS
 and does not weaken append-only triggers. Both destructive utilities are excluded
 when `prod` is active, including a combined `prod+dev` profile. It must not be run
 against restored business data; migration rehearsals use plain Flyway without it.
+
+## Native unification candidate (opt-in)
+
+`merch/inventory`, `merch/placements`, `merch/producer/auth`, `merch/tasks` and
+`merch/delivery` own the new database-backed workflows. They do not proxy the CRM
+administration UI. The legacy `merchtasks/MerchTaskClient` still serves the old
+integration and recommendation context. `MerchTaskDelivery` chooses one writer for
+polling and routes acknowledged native-owned tokens independently of issuance flags.
+
+Native delivery, producer authentication and placement expiry default OFF.
+`MERCH_TASK_EVIDENCE_ROOT` and `MERCH_TASK_LEGACY_FILES_ROOT` are private owner-only
+absolute directories; missing storage returns503 rather than publishing evidence
+in the screens bucket. `/api/public/merch/tasks/**` requires the task capability
+header per object. A capability never grants an administrator or pharmacist identity.
+Paid recipient confirmation remains a separate purpose-bound proof.
+
+`reporting/exports`, `reporting/producers` and `reporting/xlsx` create separate XLSX
+workbooks with explicit view/export permissions. Producer associations are explicit
+versioned facts, not brand/name heuristics. Wallet reports read postings once and
+retain unknown/conflicting historical pharmacy attribution as unknown.

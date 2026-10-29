@@ -414,3 +414,19 @@ Useful docs:
 For Standard-N identity diagnostics, run `collect-posm-diagnostics.bat` as administrator on the
 cash-desk machine and return the ZIP created on the desktop. The collector redacts device keys and
 database passwords.
+
+## Native merchandising candidate and old-client compatibility
+
+The candidate retains `GET /api/posm/tasks` and `POST /api/posm/tasks/shown`, their
+existing device authentication, request/response DTOs and historical fixtures.
+`MERCH_NATIVE_DELIVERY_ENABLED=false` keeps polling through the existing CRM bridge.
+Enabling it selects the native writer; a native failure returns `available=false`
+without switching to another writer. An already native-owned delivery token stays
+on the native ACK path after the issuance flag is switched off. Polling is not a
+shown receipt. No RPS login or new mandatory device header is introduced.
+
+New native QR links use the same canonical domain with the exact SPA path
+`/tasks/staff?task=1#task=…`. Existing `/merch/staff` redirects and CRM links remain
+compatible; the token is kept out of the new HTTP query. Generic and kiosk
+capabilities remain explicitly legacy-owned until their complete workflow is
+ported. Windows popup/Standard-N proof remains a separate acceptance gate.

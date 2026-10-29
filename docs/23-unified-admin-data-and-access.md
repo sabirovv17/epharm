@@ -252,3 +252,25 @@ tokenStore без смены principal/cache epoch. Отдельный learner p
 финансов/обучения, MERCH_BRANCH scope, остальные SQL/field/export/bulk операции и
 перенос текущих аккаунтов ещё требуют следующих срезов PLAN.md. Staging не закрывает
 функциональный перенос M0/M2/M3 или общую приёмку.
+
+## Native merch resources and authority checks
+
+PHARMACY, MERCH_BRANCH and CUSTOMER scopes are disjoint. A pharmacy ALL grant does
+not imply branch ALL; a branch grant does not imply producer ownership. Placements
+require the intersection of branch and customer grants; the inventory/task scopes
+never borrow customer authority. New native routes require a persisted verified
+profile even for legacy users. Existing legacy routes retain their old compatibility
+path; only explicitly reviewed global GETs are grantable as ALL_ONLY. Unreviewed
+mutations and exports remain NOT_READY.
+
+Administrative writes lock and reload the current account/profile before domain
+locks, so a revoked grant cannot survive a cached JWT. HQ identity/source-account
+operations require a fresh password and an explicit management grant. Source
+password hashes may be preserved by a reviewed import but are never returned by
+API, log or ordinary Excel. No person is inferred from email, name, phone or QR.
+
+Ordinary independent task review still compares verified PERSON IDs, including
+account aliases. A free capability report with an unverified executor has an
+explicit HQ-only manual decision, reason and audit mode; it cannot earn money or
+claim verified independence. Producer sessions are a separate token realm and
+never impersonate an administrator or learner.

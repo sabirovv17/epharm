@@ -56,14 +56,14 @@ opt-in серверный адаптер — `auth/access/` (права, кат�
 Старые аккаунты автоматически не переводятся. Исторические wire fixtures:
 `App.Tests/Fixtures/LegacyPosm/`, общие с backend `LegacyPosmWireContractTest`.
 
-| Модуль          | Код                                                   | Тесты                                     | Ключевые файлы                                                                                                                           |
-| --------------- | ----------------------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| **Backend**     | `admin-panel/backend/src/main/kotlin/kz/epharm/`      | `src/test/kotlin/`                        | `application.yml` (вся конфигурация + env-переменные); Flyway: `src/main/resources/db/migration/` (V001–V059)                            |
-| **Админ-фронт** | `admin-panel/frontend/src/`                           | `*.test.tsx` рядом с кодом                | `features/*/Page.tsx` (12 разделов), `lib/api-types.ts`, `lib/queries/*`, `i18n/dict.ts` (ru+kk)                                         |
-| **Мобилка**     | `lib/`                                                | `test/`                                   | `core/config/api_config.dart` (USE_API/API_BASE), `core/network/api_client.dart`, `features/*/{data,application,presentation}`           |
-| **POSM**        | `App/` + `Models/`                                    | `App.Tests/` + VM                         | `MainWindow.xaml.cs` (лог кассы), `MainWindow.Recommendations.cs`, `Services/` (Api/Outbox/MediaCache/Updater), `Config/EpharmConfig.cs` |
-| **Merch QR**    | внешний сервис; patch в `ops/merch-portal-patches/`   | patch tests + Caddy smoke                 | `Caddyfile`, `MerchTaskClient.kt`, `App/MainWindow.TaskKiosk.cs`                                                                         |
-| **Заказы**      | `ops/acc-order-bridge/`, backend `fulfillment/`, POSM | `App.Tests/`, backend tests, bridge tests | `FulfillmentService.kt`, `App/MainWindow.Fulfillment.cs`                                                                                 |
+| Модуль          | Код                                                                                  | Тесты                                     | Ключевые файлы                                                                                                                           |
+| --------------- | ------------------------------------------------------------------------------------ | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **Backend**     | `admin-panel/backend/src/main/kotlin/kz/epharm/`                                     | `src/test/kotlin/`                        | `application.yml` (вся конфигурация + env-переменные); Flyway: `src/main/resources/db/migration/` (V001–V059)                            |
+| **Админ-фронт** | `admin-panel/frontend/src/`                                                          | `*.test.tsx` рядом с кодом                | `features/*/Page.tsx` (12 разделов), `lib/api-types.ts`, `lib/queries/*`, `i18n/dict.ts` (ru+kk)                                         |
+| **Мобилка**     | `lib/`                                                                               | `test/`                                   | `core/config/api_config.dart` (USE_API/API_BASE), `core/network/api_client.dart`, `features/*/{data,application,presentation}`           |
+| **POSM**        | `App/` + `Models/`                                                                   | `App.Tests/` + VM                         | `MainWindow.xaml.cs` (лог кассы), `MainWindow.Recommendations.cs`, `Services/` (Api/Outbox/MediaCache/Updater), `Config/EpharmConfig.cs` |
+| **Merch QR**    | legacy bridge + opt-in `merch/delivery/`; source patch в `ops/merch-portal-patches/` | patch tests + Caddy smoke                 | `Caddyfile`, `MerchTaskClient.kt`, `App/MainWindow.TaskKiosk.cs`                                                                         |
+| **Заказы**      | `ops/acc-order-bridge/`, backend `fulfillment/`, POSM                                | `App.Tests/`, backend tests, bridge tests | `FulfillmentService.kt`, `App/MainWindow.Fulfillment.cs`                                                                                 |
 
 ## Backend: пакеты kz.epharm.\*
 
@@ -119,3 +119,10 @@ opt-in серверный адаптер — `auth/access/` (права, кат�
 | p1sms (legacy fallback) | `https://admin.p1sms.kz/apiSms/create`                          | используется только при явном `OTP_PROVIDER=p1sms`                                |
 | Стандарт-Н ДЕМО         | VM пользователя, `C:\Standart-N_DEMO`                           | Firebird `db/ztrade.fdb` (localhost, SYSDBA/masterkey), лог `Kassir/zkassa.log`   |
 | Шара Mac↔VM             | Mac `~/Desktop/work` = VM `Z:\`                                 | `Z:\epharm-demo` — стейджинг POSM                                                 |
+
+Нативный кандидат объединения: `admin-panel/backend/src/main/kotlin/kz/epharm/merch/`
+(фонд, размещения, кабинет производителя, задания и доставка QR),
+`reporting/{exports,producers,xlsx}` (отдельные XLSX). Контракты доступа и переноса —
+`docs/23-unified-admin-data-and-access.md`; статусы и ограничения только в корневом
+`PLAN.md`. Legacy CRM gateway сохраняется до полной приёмки, новые runtime-флаги
+выключены по умолчанию.

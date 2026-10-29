@@ -13192,5 +13192,1928 @@
       "Publication/readiness does not prove a physical Windows overlay"
     ],
     "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H14.17",
+    "group": "H14",
+    "name": "GET /api/admin/access/source-accounts",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/admin/access/source-accounts"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/auth/access/UnifiedAccessController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Управление",
+      "subsection": "Проверенные личности и исходные аккаунты",
+      "actions": ["GET /api/admin/access/source-accounts"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.09",
+    "group": "H16",
+    "name": "GET /api/admin/merch/branches",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/admin/merch/branches"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/inventory/controller/MerchInventoryController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Фонд и размещения",
+      "actions": ["GET /api/admin/merch/branches"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.10",
+    "group": "H16",
+    "name": "GET /api/admin/merch/branches/{id}/availability",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/admin/merch/branches/{id}/availability"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/inventory/controller/MerchInventoryController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Фонд и размещения",
+      "actions": ["GET /api/admin/merch/branches/{id}/availability"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.11",
+    "group": "H16",
+    "name": "GET /api/admin/merch/branches/{id}/inventory",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/admin/merch/branches/{id}/inventory"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/inventory/controller/MerchInventoryController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Фонд и размещения",
+      "actions": ["GET /api/admin/merch/branches/{id}/inventory"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.12",
+    "group": "H16",
+    "name": "GET /api/admin/merch/placements",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/admin/merch/placements"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/placements/controller/PlacementController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Фонд и размещения",
+      "actions": ["GET /api/admin/merch/placements"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.13",
+    "group": "H16",
+    "name": "GET /api/admin/merch/placements/catalog",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/admin/merch/placements/catalog"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/placements/controller/PlacementController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Фонд и размещения",
+      "actions": ["GET /api/admin/merch/placements/catalog"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.14",
+    "group": "H16",
+    "name": "GET /api/admin/merch/placements/producers",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/admin/merch/placements/producers"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/placements/controller/PlacementController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Фонд и размещения",
+      "actions": ["GET /api/admin/merch/placements/producers"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.15",
+    "group": "H16",
+    "name": "GET /api/admin/merch/placements/{id}",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/admin/merch/placements/{id}"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/placements/controller/PlacementController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Фонд и размещения",
+      "actions": ["GET /api/admin/merch/placements/{id}"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.16",
+    "group": "H16",
+    "name": "GET /api/admin/merch/producers",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/admin/merch/producers"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/placements/controller/PlacementController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Фонд и размещения",
+      "actions": ["GET /api/admin/merch/producers"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.17",
+    "group": "H16",
+    "name": "GET /api/admin/merch/tasks",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/admin/merch/tasks"],
+      "files": ["admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/MerchTaskController.kt"],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Задания фармацевтов / отдельный ЛК и capability QR",
+      "actions": ["GET /api/admin/merch/tasks"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.18",
+    "group": "H16",
+    "name": "GET /api/admin/merch/tasks/branches",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/admin/merch/tasks/branches"],
+      "files": ["admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/MerchTaskController.kt"],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Задания фармацевтов / отдельный ЛК и capability QR",
+      "actions": ["GET /api/admin/merch/tasks/branches"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.19",
+    "group": "H16",
+    "name": "GET /api/admin/merch/tasks/evidence/{id}",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/admin/merch/tasks/evidence/{id}"],
+      "files": ["admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/MerchTaskController.kt"],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Задания фармацевтов / отдельный ЛК и capability QR",
+      "actions": ["GET /api/admin/merch/tasks/evidence/{id}"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.20",
+    "group": "H16",
+    "name": "GET /api/admin/merch/tasks/items/{itemId}/attempts",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/admin/merch/tasks/items/{itemId}/attempts"],
+      "files": ["admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/MerchTaskController.kt"],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Задания фармацевтов / отдельный ЛК и capability QR",
+      "actions": ["GET /api/admin/merch/tasks/items/{itemId}/attempts"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.21",
+    "group": "H16",
+    "name": "GET /api/admin/merch/tasks/{id}",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/admin/merch/tasks/{id}"],
+      "files": ["admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/MerchTaskController.kt"],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Задания фармацевтов / отдельный ЛК и capability QR",
+      "actions": ["GET /api/admin/merch/tasks/{id}"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H02.04",
+    "group": "H02",
+    "name": "GET /api/admin/promo/{id}/producer",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/admin/promo/{id}/producer"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/reporting/producers/ProducerReportController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Аналитика",
+      "subsection": "Отдельные Excel и принадлежность акции производителю",
+      "actions": ["GET /api/admin/promo/{id}/producer"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H02.05",
+    "group": "H02",
+    "name": "GET /api/admin/reports/campaigns/{promoId}/xlsx",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/admin/reports/campaigns/{promoId}/xlsx"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/reporting/exports/ReportExportController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Аналитика",
+      "subsection": "Отдельные Excel и принадлежность акции производителю",
+      "actions": ["GET /api/admin/reports/campaigns/{promoId}/xlsx"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H02.06",
+    "group": "H02",
+    "name": "GET /api/admin/reports/ledger",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/admin/reports/ledger"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/reporting/exports/ReportExportController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Аналитика",
+      "subsection": "Отдельные Excel и принадлежность акции производителю",
+      "actions": ["GET /api/admin/reports/ledger"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H02.07",
+    "group": "H02",
+    "name": "GET /api/admin/reports/ledger.xlsx",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/admin/reports/ledger.xlsx"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/reporting/exports/ReportExportController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Аналитика",
+      "subsection": "Отдельные Excel и принадлежность акции производителю",
+      "actions": ["GET /api/admin/reports/ledger.xlsx"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H02.08",
+    "group": "H02",
+    "name": "GET /api/admin/reports/payouts.xlsx",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/admin/reports/payouts.xlsx"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/reporting/exports/ReportExportController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Аналитика",
+      "subsection": "Отдельные Excel и принадлежность акции производителю",
+      "actions": ["GET /api/admin/reports/payouts.xlsx"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H02.09",
+    "group": "H02",
+    "name": "GET /api/admin/reports/pharmacists.xlsx",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/admin/reports/pharmacists.xlsx"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/reporting/exports/ReportExportController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Аналитика",
+      "subsection": "Отдельные Excel и принадлежность акции производителю",
+      "actions": ["GET /api/admin/reports/pharmacists.xlsx"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H02.10",
+    "group": "H02",
+    "name": "GET /api/admin/reports/producers",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/admin/reports/producers"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/reporting/producers/ProducerReportController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Аналитика",
+      "subsection": "Отдельные Excel и принадлежность акции производителю",
+      "actions": ["GET /api/admin/reports/producers"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H02.11",
+    "group": "H02",
+    "name": "GET /api/admin/reports/producers/{producerId}/xlsx",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/admin/reports/producers/{producerId}/xlsx"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/reporting/producers/ProducerReportController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Аналитика",
+      "subsection": "Отдельные Excel и принадлежность акции производителю",
+      "actions": ["GET /api/admin/reports/producers/{producerId}/xlsx"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.22",
+    "group": "H16",
+    "name": "GET /api/mobile/merch/tasks/evidence/{id}",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/mobile/merch/tasks/evidence/{id}"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/PharmacistMerchTaskController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Задания фармацевтов / отдельный ЛК и capability QR",
+      "actions": ["GET /api/mobile/merch/tasks/evidence/{id}"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.23",
+    "group": "H16",
+    "name": "GET /api/mobile/merch/tasks/{id}",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/mobile/merch/tasks/{id}"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/PharmacistMerchTaskController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Задания фармацевтов / отдельный ЛК и capability QR",
+      "actions": ["GET /api/mobile/merch/tasks/{id}"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H14.18",
+    "group": "H14",
+    "name": "GET /api/producer/auth/me",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/producer/auth/me"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/producer/auth/ProducerAuthController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Отдельный кабинет производителя",
+      "actions": ["GET /api/producer/auth/me"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.24",
+    "group": "H16",
+    "name": "GET /api/producer/branches",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/producer/branches"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/placements/controller/ProducerCatalogController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Отдельный кабинет производителя",
+      "actions": ["GET /api/producer/branches"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.25",
+    "group": "H16",
+    "name": "GET /api/producer/branches/{id}/availability",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/producer/branches/{id}/availability"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/placements/controller/ProducerCatalogController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Отдельный кабинет производителя",
+      "actions": ["GET /api/producer/branches/{id}/availability"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.26",
+    "group": "H16",
+    "name": "GET /api/producer/placements",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/producer/placements"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/placements/controller/ProducerPlacementController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Отдельный кабинет производителя",
+      "actions": ["GET /api/producer/placements"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.27",
+    "group": "H16",
+    "name": "GET /api/producer/placements/{id}",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/producer/placements/{id}"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/placements/controller/ProducerPlacementController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Отдельный кабинет производителя",
+      "actions": ["GET /api/producer/placements/{id}"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.28",
+    "group": "H16",
+    "name": "GET /api/producer/profile",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/producer/profile"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/producer/auth/ProducerCompanyProfile.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Отдельный кабинет производителя",
+      "actions": ["GET /api/producer/profile"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.29",
+    "group": "H16",
+    "name": "GET /api/public/merch/tasks",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/public/merch/tasks"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/CapabilityMerchTaskController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Задания фармацевтов / отдельный ЛК и capability QR",
+      "actions": ["GET /api/public/merch/tasks"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.30",
+    "group": "H16",
+    "name": "GET /api/public/merch/tasks/evidence/{id}",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/public/merch/tasks/evidence/{id}"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/CapabilityMerchTaskController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Задания фармацевтов / отдельный ЛК и capability QR",
+      "actions": ["GET /api/public/merch/tasks/evidence/{id}"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.31",
+    "group": "H16",
+    "name": "GET /api/public/merch/tasks/session",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["GET /api/public/merch/tasks/session"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/delivery/NativeTaskSessionController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Задания фармацевтов / отдельный ЛК и capability QR",
+      "actions": ["GET /api/public/merch/tasks/session"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H14.19",
+    "group": "H14",
+    "name": "POST /api/admin/access/people",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/admin/access/people"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/auth/access/UnifiedAccessController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Управление",
+      "subsection": "Проверенные личности и исходные аккаунты",
+      "actions": ["POST /api/admin/access/people"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H14.20",
+    "group": "H14",
+    "name": "POST /api/admin/access/pharmacist-person-links",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/admin/access/pharmacist-person-links"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/auth/access/UnifiedAccessController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Управление",
+      "subsection": "Проверенные личности и исходные аккаунты",
+      "actions": ["POST /api/admin/access/pharmacist-person-links"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H14.21",
+    "group": "H14",
+    "name": "POST /api/admin/access/source-accounts/{id}/bind",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/admin/access/source-accounts/{id}/bind"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/auth/access/UnifiedAccessController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Управление",
+      "subsection": "Проверенные личности и исходные аккаунты",
+      "actions": ["POST /api/admin/access/source-accounts/{id}/bind"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H14.22",
+    "group": "H14",
+    "name": "POST /api/admin/access/source-accounts/{id}/provision",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/admin/access/source-accounts/{id}/provision"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/auth/access/UnifiedAccessController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Управление",
+      "subsection": "Проверенные личности и исходные аккаунты",
+      "actions": ["POST /api/admin/access/source-accounts/{id}/provision"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.32",
+    "group": "H16",
+    "name": "POST /api/admin/merch/admin-assignments",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/admin/merch/admin-assignments"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/placements/controller/PlacementController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Фонд и размещения",
+      "actions": ["POST /api/admin/merch/admin-assignments"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.33",
+    "group": "H16",
+    "name": "POST /api/admin/merch/branches/{id}/availability",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/admin/merch/branches/{id}/availability"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/inventory/controller/MerchInventoryController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Фонд и размещения",
+      "actions": ["POST /api/admin/merch/branches/{id}/availability"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.34",
+    "group": "H16",
+    "name": "POST /api/admin/merch/placements",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/admin/merch/placements"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/placements/controller/PlacementController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Фонд и размещения",
+      "actions": ["POST /api/admin/merch/placements"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.35",
+    "group": "H16",
+    "name": "POST /api/admin/merch/placements/{id}/approve",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/admin/merch/placements/{id}/approve"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/placements/controller/PlacementController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Фонд и размещения",
+      "actions": ["POST /api/admin/merch/placements/{id}/approve"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.36",
+    "group": "H16",
+    "name": "POST /api/admin/merch/placements/{id}/cancel",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/admin/merch/placements/{id}/cancel"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/placements/controller/PlacementController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Фонд и размещения",
+      "actions": ["POST /api/admin/merch/placements/{id}/cancel"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.37",
+    "group": "H16",
+    "name": "POST /api/admin/merch/placements/{id}/reject",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/admin/merch/placements/{id}/reject"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/placements/controller/PlacementController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Фонд и размещения",
+      "actions": ["POST /api/admin/merch/placements/{id}/reject"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.38",
+    "group": "H16",
+    "name": "POST /api/admin/merch/placements/{id}/submit",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/admin/merch/placements/{id}/submit"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/placements/controller/PlacementController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Фонд и размещения",
+      "actions": ["POST /api/admin/merch/placements/{id}/submit"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.39",
+    "group": "H16",
+    "name": "POST /api/admin/merch/tasks",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/admin/merch/tasks"],
+      "files": ["admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/MerchTaskController.kt"],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Задания фармацевтов / отдельный ЛК и capability QR",
+      "actions": ["POST /api/admin/merch/tasks"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.40",
+    "group": "H16",
+    "name": "POST /api/admin/merch/tasks/items/{itemId}/attempts",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/admin/merch/tasks/items/{itemId}/attempts"],
+      "files": ["admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/MerchTaskController.kt"],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Задания фармацевтов / отдельный ЛК и capability QR",
+      "actions": ["POST /api/admin/merch/tasks/items/{itemId}/attempts"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.41",
+    "group": "H16",
+    "name": "POST /api/admin/merch/tasks/items/{itemId}/evidence",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/admin/merch/tasks/items/{itemId}/evidence"],
+      "files": ["admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/MerchTaskController.kt"],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Задания фармацевтов / отдельный ЛК и capability QR",
+      "actions": ["POST /api/admin/merch/tasks/items/{itemId}/evidence"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.42",
+    "group": "H16",
+    "name": "POST /api/admin/merch/tasks/items/{itemId}/reviews",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/admin/merch/tasks/items/{itemId}/reviews"],
+      "files": ["admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/MerchTaskController.kt"],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Задания фармацевтов / отдельный ЛК и capability QR",
+      "actions": ["POST /api/admin/merch/tasks/items/{itemId}/reviews"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.43",
+    "group": "H16",
+    "name": "POST /api/admin/merch/tasks/items/{itemId}/submit",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/admin/merch/tasks/items/{itemId}/submit"],
+      "files": ["admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/MerchTaskController.kt"],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Задания фармацевтов / отдельный ЛК и capability QR",
+      "actions": ["POST /api/admin/merch/tasks/items/{itemId}/submit"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H02.12",
+    "group": "H02",
+    "name": "POST /api/admin/promo/{id}/producer/retractions",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/admin/promo/{id}/producer/retractions"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/reporting/producers/ProducerReportController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Аналитика",
+      "subsection": "Отдельные Excel и принадлежность акции производителю",
+      "actions": ["POST /api/admin/promo/{id}/producer/retractions"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.44",
+    "group": "H16",
+    "name": "POST /api/mobile/merch/tasks/items/{itemId}/attempts",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/mobile/merch/tasks/items/{itemId}/attempts"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/PharmacistMerchTaskController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Задания фармацевтов / отдельный ЛК и capability QR",
+      "actions": ["POST /api/mobile/merch/tasks/items/{itemId}/attempts"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.45",
+    "group": "H16",
+    "name": "POST /api/mobile/merch/tasks/items/{itemId}/evidence",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/mobile/merch/tasks/items/{itemId}/evidence"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/PharmacistMerchTaskController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Задания фармацевтов / отдельный ЛК и capability QR",
+      "actions": ["POST /api/mobile/merch/tasks/items/{itemId}/evidence"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.46",
+    "group": "H16",
+    "name": "POST /api/mobile/merch/tasks/items/{itemId}/submit",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/mobile/merch/tasks/items/{itemId}/submit"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/PharmacistMerchTaskController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Задания фармацевтов / отдельный ЛК и capability QR",
+      "actions": ["POST /api/mobile/merch/tasks/items/{itemId}/submit"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H14.23",
+    "group": "H14",
+    "name": "POST /api/producer/auth/logout",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/producer/auth/logout"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/producer/auth/ProducerAuthController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Отдельный кабинет производителя",
+      "actions": ["POST /api/producer/auth/logout"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H14.24",
+    "group": "H14",
+    "name": "POST /api/producer/auth/refresh",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/producer/auth/refresh"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/producer/auth/ProducerAuthController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Отдельный кабинет производителя",
+      "actions": ["POST /api/producer/auth/refresh"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H14.25",
+    "group": "H14",
+    "name": "POST /api/producer/auth/sms/request",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/producer/auth/sms/request"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/producer/auth/ProducerAuthController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Отдельный кабинет производителя",
+      "actions": ["POST /api/producer/auth/sms/request"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H14.26",
+    "group": "H14",
+    "name": "POST /api/producer/auth/sms/verify",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/producer/auth/sms/verify"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/producer/auth/ProducerAuthController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Отдельный кабинет производителя",
+      "actions": ["POST /api/producer/auth/sms/verify"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.47",
+    "group": "H16",
+    "name": "POST /api/producer/placements",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/producer/placements"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/placements/controller/ProducerPlacementController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Отдельный кабинет производителя",
+      "actions": ["POST /api/producer/placements"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.48",
+    "group": "H16",
+    "name": "POST /api/producer/placements/{id}/cancel",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/producer/placements/{id}/cancel"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/placements/controller/ProducerPlacementController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Отдельный кабинет производителя",
+      "actions": ["POST /api/producer/placements/{id}/cancel"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.49",
+    "group": "H16",
+    "name": "POST /api/producer/placements/{id}/submit",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/producer/placements/{id}/submit"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/placements/controller/ProducerPlacementController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Отдельный кабинет производителя",
+      "actions": ["POST /api/producer/placements/{id}/submit"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.50",
+    "group": "H16",
+    "name": "POST /api/public/merch/tasks/items/{itemId}/attempts",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/public/merch/tasks/items/{itemId}/attempts"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/CapabilityMerchTaskController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Задания фармацевтов / отдельный ЛК и capability QR",
+      "actions": ["POST /api/public/merch/tasks/items/{itemId}/attempts"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.51",
+    "group": "H16",
+    "name": "POST /api/public/merch/tasks/items/{itemId}/evidence",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/public/merch/tasks/items/{itemId}/evidence"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/CapabilityMerchTaskController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Задания фармацевтов / отдельный ЛК и capability QR",
+      "actions": ["POST /api/public/merch/tasks/items/{itemId}/evidence"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.52",
+    "group": "H16",
+    "name": "POST /api/public/merch/tasks/items/{itemId}/submit",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["POST /api/public/merch/tasks/items/{itemId}/submit"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/CapabilityMerchTaskController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Задания фармацевтов / отдельный ЛК и capability QR",
+      "actions": ["POST /api/public/merch/tasks/items/{itemId}/submit"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.53",
+    "group": "H16",
+    "name": "PUT /api/admin/merch/placements/{id}/draft",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["PUT /api/admin/merch/placements/{id}/draft"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/placements/controller/PlacementController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Фонд и размещения",
+      "actions": ["PUT /api/admin/merch/placements/{id}/draft"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H02.13",
+    "group": "H02",
+    "name": "PUT /api/admin/promo/{id}/producer",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["PUT /api/admin/promo/{id}/producer"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/reporting/producers/ProducerReportController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Аналитика",
+      "subsection": "Отдельные Excel и принадлежность акции производителю",
+      "actions": ["PUT /api/admin/promo/{id}/producer"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.54",
+    "group": "H16",
+    "name": "PUT /api/producer/placements/{id}/draft",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["PUT /api/producer/placements/{id}/draft"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/placements/controller/ProducerPlacementController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Отдельный кабинет производителя",
+      "actions": ["PUT /api/producer/placements/{id}/draft"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.55",
+    "group": "H16",
+    "name": "PUT /api/producer/profile",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "api": ["PUT /api/producer/profile"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/producer/auth/ProducerCompanyProfile.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Отдельный кабинет производителя",
+      "actions": ["PUT /api/producer/profile"],
+      "scope": "Explicit persisted grants and disjoint PHARMACY/MERCH_BRANCH/CUSTOMER scopes; producer own session; QR is task access and never PERSON proof"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact controller route is registered in source coverage; production is not enabled by this inventory",
+      "Negative ID, realm and scope cases require current candidate tests; no source deletion or automatic reward replay"
+    ],
+    "risks": ["Source existence is not end-to-end acceptance or permission to deploy"],
+    "owner": "ePharm unification integration owner"
   }
 ]

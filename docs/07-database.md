@@ -145,3 +145,25 @@ activating a broad rule, check its scope and offered products clinically, then u
 EAN scan for acceptance; internal-only Standard-N codes cannot establish ACC membership. The
 source-quality counts and known freshness limitation are in
 `docs/reports/2026-10-06-acc-classification-quality.md`.
+
+## Native candidate migrations and source materialization
+
+V068–V074 introduce owned inventory/placements, source identity references and
+producer associations, task evidence/history, separate producer sessions/profile
+and opt-in native QR delivery. They have been applied only to the pinned isolated
+candidate and are immutable. Original CRM rows remain in typed staging with full
+checksums; owned projections preserve source UUIDs, payloads and explicit pharmacy
+links. Unmatched CRM branches are MERCH_BRANCH resources rather than invented
+ePharm pharmacies.
+
+`tools/unification/owned_merch.py`, `owned_tasks.py` and `owned_delivery.py` require
+pinned artifacts and a network-isolated PostgreSQL16 candidate. Each runs a single
+transaction and verifies a repeat as a no-op. Import never runs source functions,
+issues a QR, replays delivery receipts, promotes an account or credits a wallet.
+Source in-progress/submitted history is not fabricated into a verified native
+attempt. Runtime media are copied privately and verified independently.
+
+The disposable dev reset refuses a candidate containing import evidence, native
+tasks or preserved identity/producer links before any destructive SQL. Production
+profiles still exclude the reset utilities. Aggregate evidence is in
+[wave3-native-merch-verification.json](reports/unification-2026-10-29/wave3-native-merch-verification.json).

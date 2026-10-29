@@ -16,6 +16,7 @@ Epharm: Kotlin/Spring backend, React-админка, Flutter-приложени�
 | Backend / API                    | `docs/02-backend.md`                                                  | `admin-panel/backend/`                                                           |
 | Общие ID и права единой админки  | `PLAN.md`, `docs/23-unified-admin-data-and-access.md`                 | backend `shared/identity/`, `auth/policy/`, `auth/access/`; `tools/unification/` |
 | Админка                          | `docs/03-admin-panel.md`                                              | `admin-panel/frontend/`                                                          |
+| Нативный мерч / объединение БД   | `docs/23-unified-admin-data-and-access.md`, корневой `PLAN.md`        | `admin-panel/backend/src/main/kotlin/kz/epharm/merch/`, `tools/unification/`     |
 | Мобильное приложение             | `docs/04-mobile-app.md`                                               | `lib/`, `test/`                                                                  |
 | POSM / касса                     | `docs/05-posm-client.md`                                              | `App/`, `Models/`                                                                |
 | База / миграции                  | `docs/07-database.md`                                                 | `admin-panel/backend/src/main/resources/db/migration/`                           |
