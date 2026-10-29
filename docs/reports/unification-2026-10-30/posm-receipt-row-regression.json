@@ -1,0 +1,63 @@
+{
+  "state": "verified_red_then_green_real_production_upsert",
+  "red": {
+    "total": "22",
+    "executed": "22",
+    "passed": "16",
+    "failed": "6",
+    "error": "0",
+    "timeout": "0",
+    "aborted": "0",
+    "inconclusive": "0",
+    "passedButRunAborted": "0",
+    "notRunnable": "0",
+    "notExecuted": "0",
+    "disconnected": "0",
+    "warning": "0",
+    "completed": "0",
+    "inProgress": "0",
+    "pending": "0"
+  },
+  "green": {
+    "total": "308",
+    "executed": "308",
+    "passed": "308",
+    "failed": "0",
+    "error": "0",
+    "timeout": "0",
+    "aborted": "0",
+    "inconclusive": "0",
+    "passedButRunAborted": "0",
+    "notRunnable": "0",
+    "notExecuted": "0",
+    "disconnected": "0",
+    "warning": "0",
+    "completed": "0",
+    "inProgress": "0",
+    "pending": "0"
+  },
+  "sourceFiles": [
+    {
+      "path": "App/MainWindow.StandardNReceipt.cs",
+      "sha256": "90ec465477ff532b3f531e91f037075ff07f89be73e487a76e7d02d87818b179"
+    },
+    {
+      "path": "App/MainWindow.xaml.cs",
+      "sha256": "3c760e0f004f6f3b51fff900e302791482bc467ee4911c0bd9603e8d9704e827"
+    },
+    {
+      "path": "App.Tests/StandardNReceiptLifecycleTests.cs",
+      "sha256": "acc950e94f1f0c3fcc6f0657ea1dba5bdec1f7c54b8568df900477cd2e263a49"
+    },
+    {
+      "path": "App/CustomerDisplay.csproj",
+      "sha256": "e75b6e9db9ff140e94f40bd7ada58f4c12c0087c7f09b6752abcb0fbaf551547"
+    }
+  ],
+  "regression": "Actual linked production upsert; ObservableCollection replace distinct old/new instances; DB and log observations; fields, identity preservation, computed row values and total, decrease, zero/negative/removal.",
+  "productionWpfAssemblyBuilt": false,
+  "releaseOrMetadataChanged": false,
+  "productionTouched": false,
+  "candidateVersion": "1.0.73",
+  "fleetPublished": false
+}

@@ -430,3 +430,14 @@ New native QR links use the same canonical domain with the exact SPA path
 compatible; the token is kept out of the new HTTP query. Generic and kiosk
 capabilities remain explicitly legacy-owned until their complete workflow is
 ported. Windows popup/Standard-N proof remains a separate acceptance gate.
+
+## Receipt row refresh (1.0.73 candidate)
+
+`MainWindow.StandardNReceipt.cs` now owns the same `UpsertItemSetQty` used by
+Standard-N log and Firebird observations. ReceiptItem has plain properties, so a
+changed row must replace its previous bound instance with a clone before mutation.
+Reinserting the same mutated reference could leave WPF quantity/line amount stale
+while the separately calculated total was already current. Identity merge, row order,
+absolute quantity, zero/removal and recommendation triggers retain their contracts.
+The core lifecycle suite compiles this real method instead of a fake upsert.
+The staff module remains disabled; this candidate does not publish a fleet update.

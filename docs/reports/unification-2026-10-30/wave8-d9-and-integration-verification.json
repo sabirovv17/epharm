@@ -53,6 +53,17 @@
       "passed": 20,
       "failed": 0,
       "actualFinalJar": "passed wallet and V066 access protection"
+    },
+    "posmCore": {
+      "passed": 308,
+      "failed": 0,
+      "regressionEvidence": "posm-receipt-row-regression.json",
+      "candidateVersion": "1.0.73",
+      "fleetPublished": false
+    },
+    "ci404888f": {
+      "ops": "failed on an invalid legacy restore-readiness test archive; fixture now has a real required manifest",
+      "currentSourceRequiresNewCi": true
     }
   },
   "preservationEvidence": [

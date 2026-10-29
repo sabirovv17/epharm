@@ -653,43 +653,6 @@ if (line.Contains("Add2Cheque", StringComparison.OrdinalIgnoreCase) &&
 
 }
 
-private bool UpsertItemSetQty(ReceiptItem incoming)
-{
-    var existing = ReceiptItems.FirstOrDefault(x => x.PartId == incoming.PartId);
-
-    if (incoming.Qty <= 0)
-    {
-        RemoveItemByPartId(incoming.PartId);
-        return false;
-    }
-
-    if (existing == null)
-    {
-        ReceiptItems.Insert(0, incoming);
-        Log($"Добавили новую позицию (PartId={incoming.PartId}): {incoming.Name}, qty={incoming.Qty}");
-        return true;
-    }
-
-    // обновляем поля + ставим новое количество
-    var idx = ReceiptItems.IndexOf(existing);
-    var previousQty = existing.Qty;
-    // A duplicate observation from the other Standard-N source can omit presentation fields.
-    // Preserve already resolved identity so it cannot cancel or degrade a valid backend request.
-    if (!string.IsNullOrWhiteSpace(incoming.Name)) existing.Name = incoming.Name;
-    // Не затираем уже пойманный штрих-код, если повторная строка лога (qty-bump/скидка) его не несёт.
-    if (!string.IsNullOrWhiteSpace(incoming.Barcode)) existing.Barcode = incoming.Barcode;
-    existing.Price = incoming.Price;
-    existing.DiscountPercent = incoming.DiscountPercent;
-    existing.Qty = incoming.Qty;
-
-    // чтобы UI точно обновился без INotifyPropertyChanged — пере-вставляем
-    ReceiptItems[idx] = existing;
-
-    Log($"Обновили позицию (PartId={incoming.PartId}): qty={existing.Qty}");
-    return incoming.Qty > previousQty;
-}
-
-
 private void RefreshCurrentPharmacistFromStandardNDb()
 {
     if (_posmConfig?.StandardNDbEnabled != true || _standardNDb == null) return;

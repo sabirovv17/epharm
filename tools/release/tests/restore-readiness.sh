@@ -12,15 +12,18 @@ cp "$source_root/tools/release/tests/fixtures/fake-docker-restore.sh" "$test_roo
 chmod +x "$test_root/bin/docker"
 printf 'fixture' > "$test_root/minio-data/data/test-bucket/file"
 printf 'fixture' | gzip > "$test_root/backups/postgres/epharm-postgres-fixture.dump.gz"
-tar -C "$test_root/minio-data" -czf "$test_root/backups/minio/epharm-minio-fixture.tar.gz" data
+# A genuine legacy archive has a manifest even though it predates policy capture.
+printf 'created_at=2026-10-30T00:00:00Z\nbuckets=test-bucket\n' > "$test_root/minio-data/manifest.txt"
+tar -C "$test_root/minio-data" -czf "$test_root/backups/minio/epharm-minio-fixture.tar.gz" manifest.txt data
 for backup in "$test_root/backups/postgres/"*.gz "$test_root/backups/minio/"*.gz; do
   sha256_file "$backup" > "$backup.sha256"
 done
-printf 'MINIO_ROOT_USER=fixture\nMINIO_ROOT_PASSWORD=fixture\nBACKUP_ROOT=%s\n' \
+printf 'MINIO_ROOT_USER=fixture\nMINIO_ROOT_PASSWORD=fixture\nBACKUP_PRIVATE_FILES_REQUIRED=false\nBACKUP_ROOT=%s\n' \
   "$test_root/backups" > "$test_root/.env.prod"
 
 if ! PATH="$test_root/bin:$PATH" \
   EPHARM_ENV_FILE="$test_root/.env.prod" \
+  BACKUP_PRIVATE_FILES_REQUIRED=false \
   FAKE_DOCKER_STATE="$test_root/docker-state" \
   "$source_root/tools/restore-test.sh" > "$test_root/restore.log" 2>&1; then
   tail -n 80 "$test_root/restore.log" >&2
@@ -32,4 +35,5 @@ fi
 [[ "$(grep -c '^restore$' "$test_root/docker-state")" -eq 1 ]]
 [[ "$(grep -c '^cleanup-volumes$' "$test_root/docker-state")" -eq 2 ]]
 grep -Fq 'Restore-test OK' "$test_root/restore.log"
+grep -Fq 'legacy_not_captured' "$test_root/restore.log"
 echo 'Restore readiness and disposable anonymous-volume cleanup OK'

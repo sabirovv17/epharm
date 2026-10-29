@@ -7,6 +7,8 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ### Added
 
+- Separate D9 learner credential export for explicitly authorised HQ accounts: current-password
+  proof, scoped one-use XLSX, version-bound encrypted copy and an external recovery key ring.
 - Unified-admin development candidate: seven navigation sections, verified account and grant
   management, native merchandising inventory, producer workspace, placement review, pharmacy task
   attempts/evidence/review, compatible POSM task delivery, and separate scoped Excel reports.
@@ -22,6 +24,11 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ### Fixed
 
+- POSM 1.0.73 candidate: replace changed receipt rows with a fresh object so quantity,
+  price, discount and line amount refresh together with the total after a Standard-N scan.
+  The real shared upsert is covered by both log and Firebird lifecycle regression tests.
+- Guard expanded-schema recovery against older authorization which cannot enforce managed
+  scopes, and preserve native evidence, independent credential keys and exact MinIO policies.
 - Prevent a delayed pharmacist course response from reopening a course after navigation away from
   it; preserve the separate Training tab and bank-card placeholder from the latest main.
 - Added a bounded mobile API timeout so unavailable services fail with an actionable retry state
