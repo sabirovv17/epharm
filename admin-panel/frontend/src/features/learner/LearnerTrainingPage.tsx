@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Clock3,
   CircleDollarSign,
+  CreditCard,
   Download,
   Eye,
   EyeOff,
@@ -257,7 +258,7 @@ type MobileReceipt = {
   createdAt: string
 }
 
-type PortalSection = 'home' | 'recommendations' | 'certificates' | 'profile'
+type PortalSection = 'home' | 'training' | 'recommendations' | 'certificates' | 'profile'
 
 type Lesson = {
   id: string
@@ -716,19 +717,22 @@ export default function LearnerTrainingPage() {
   }>()
   const portalSection: PortalSection = location.pathname.startsWith('/learn/catalog')
     ? 'home'
-    : location.pathname.startsWith('/learn/recommendations')
-      ? 'recommendations'
-      : location.pathname.startsWith('/learn/certificates')
-        ? 'certificates'
-        : location.pathname.startsWith('/learn/profile')
-          ? 'profile'
-          : 'home'
+    : location.pathname.startsWith('/learn/training')
+      ? 'training'
+      : location.pathname.startsWith('/learn/recommendations')
+        ? 'recommendations'
+        : location.pathname.startsWith('/learn/certificates')
+          ? 'certificates'
+          : location.pathname.startsWith('/learn/profile')
+            ? 'profile'
+            : 'home'
   const [tokens, setTokens] = useState<Tokens | null>(() => readTokens())
   const [sessionEpoch, setSessionEpoch] = useState(0)
   const sessionVersion = useRef(0)
   const portalRequest = useRef(0)
   const [pharmacist, setPharmacist] = useState<Pharmacist | null>(null)
   const [overview, setOverview] = useState<Overview | null>(null)
+  const [portalLoadedAt, setPortalLoadedAt] = useState(0)
   const [personalBalance, setPersonalBalance] = useState<PersonalBalance | null>(null)
   const [personalRecommendations, setPersonalRecommendations] =
     useState<PersonalRecommendationsPage | null>(null)
@@ -840,6 +844,7 @@ export default function LearnerTrainingPage() {
         if (!isCurrent()) return
         setPharmacist(me)
         setOverview(training)
+        setPortalLoadedAt(Date.now())
         coreLoaded = true
       } catch (loadError) {
         if (isCurrent()) setError(messageFrom(loadError))
@@ -895,36 +900,39 @@ export default function LearnerTrainingPage() {
   }, [authenticated, clearSession, loadPortal])
 
   const loadAssignment = useCallback(
-    async (id: string, activeTokens: Tokens) => {
+    async (id: string, activeTokens: Tokens, signal: AbortSignal) => {
+      const epoch = sessionVersion.current
+      const isCurrent = () => !signal.aborted && sessionVersion.current === epoch
       setBusy(true)
       setError('')
       setAvailableEvents([])
       try {
         const detail = await request<Assignment>(
           `/api/mobile/training/assignments/${id}`,
-          {},
+          { signal },
           activeTokens,
           tokenLifecycle,
         )
+        if (!isCurrent()) return
         setSelected(detail)
         if (detail.format !== 'online' && !detail.event) {
           setEventsLoading(true)
           try {
             const events = await request<TrainingEvent[]>(
               `/api/mobile/training/assignments/${detail.id}/events`,
-              {},
+              { signal },
               activeTokens,
               tokenLifecycle,
             )
-            setAvailableEvents(events)
+            if (isCurrent()) setAvailableEvents(events)
           } finally {
-            setEventsLoading(false)
+            if (isCurrent()) setEventsLoading(false)
           }
         }
       } catch (loadError) {
-        setError(messageFrom(loadError))
+        if (isCurrent()) setError(messageFrom(loadError))
       } finally {
-        setBusy(false)
+        if (isCurrent()) setBusy(false)
       }
     },
     [tokenLifecycle],
@@ -932,8 +940,17 @@ export default function LearnerTrainingPage() {
 
   useEffect(() => {
     if (!tokens || !assignmentId) return
-    const timer = window.setTimeout(() => void loadAssignment(assignmentId, tokens), 0)
-    return () => window.clearTimeout(timer)
+    const controller = new AbortController()
+    const timer = window.setTimeout(
+      () => void loadAssignment(assignmentId, tokens, controller.signal),
+      0,
+    )
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+      setBusy(false)
+      setEventsLoading(false)
+    }
   }, [assignmentId, loadAssignment, tokens])
 
   async function checkIin(event: React.FormEvent) {
@@ -1678,6 +1695,7 @@ export default function LearnerTrainingPage() {
 
   const sectionTitle: Record<PortalSection, string> = {
     home: pharmacist?.name || t('Фармацевт'),
+    training: t('Обучение'),
     recommendations: t('Рекомендации'),
     certificates: t('Сертификаты'),
     profile: t('Профиль'),
@@ -1769,7 +1787,7 @@ export default function LearnerTrainingPage() {
               eventsLoading={eventsLoading}
               onBack={() => {
                 setSelected(null)
-                navigate('/learn')
+                navigate('/learn/training')
               }}
               onStart={() => startAssignment(selected)}
               onSelectEvent={selectTrainingEvent}
@@ -1800,6 +1818,9 @@ export default function LearnerTrainingPage() {
             />
           ) : (
             <OverviewView
+              section={portalSection === 'training' ? 'training' : 'home'}
+              loadedAt={portalLoadedAt}
+              onOpenTraining={() => navigate('/learn/training')}
               overview={overview}
               balance={personalBalance}
               personalDataLoading={personalDataLoading}
@@ -1942,6 +1963,7 @@ function PortalNavigation({
   const t = useLearnerT()
   const items = [
     { id: 'home' as const, label: t('Главная'), icon: Home },
+    { id: 'training' as const, label: t('Обучение'), icon: GraduationCap },
     { id: 'recommendations' as const, label: t('Рекомендации'), icon: Sparkles },
     { id: 'certificates' as const, label: t('Сертификаты'), icon: Award },
     { id: 'profile' as const, label: t('Профиль'), icon: UserRound },
@@ -1964,7 +1986,7 @@ function PortalNavigation({
           {t('Навигация')}
         </div>
       </div>
-      <div className="mx-auto grid max-w-6xl grid-cols-4 gap-1 lg:mx-0 lg:flex lg:w-full lg:flex-col lg:gap-1">
+      <div className="mx-auto grid max-w-6xl grid-cols-5 gap-1 lg:mx-0 lg:flex lg:w-full lg:flex-col lg:gap-1">
         {items.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -2490,6 +2512,7 @@ function ProfileView({
   onLogout: () => void | Promise<void>
 }) {
   const t = useLearnerT()
+  const [showCardInfo, setShowCardInfo] = useState(false)
   return (
     <section className="grid gap-5 lg:grid-cols-[360px_1fr]">
       <div className="rounded-3xl bg-white p-6 text-center shadow-card">
@@ -2559,6 +2582,58 @@ function ProfileView({
             />
           </div>
         </div>
+        <section
+          aria-label={t('Банковская карта')}
+          className="rounded-2xl bg-white p-5 shadow-card"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 text-lg font-extrabold text-ink-900">
+              <CreditCard size={21} /> {t('Банковская карта')}
+            </h2>
+            <span className="rounded-full bg-paper-hover px-3 py-1 text-xs font-bold text-ink-500">
+              {t('Не подключена')}
+            </span>
+          </div>
+          <div className="mt-4 flex items-center gap-4 rounded-2xl border border-ink-100 bg-paper-hover p-4">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-brand-green-700">
+              <CreditCard size={23} />
+            </span>
+            <div>
+              <div
+                className="whitespace-nowrap text-base tracking-[0.1em] text-ink-400"
+                aria-hidden="true"
+              >
+                •••• •••• •••• ••••
+              </div>
+              <p className="mt-1 text-xs font-semibold text-ink-500">
+                {t('Карта для будущих выплат')}
+              </p>
+            </div>
+          </div>
+          <p className="mt-4 text-sm leading-6 text-ink-500">
+            {t('Демонстрационный раздел. Банковские операции пока не подключены.')}
+          </p>
+          <button
+            type="button"
+            className="btn btn-outline btn-md mt-4 w-full sm:w-auto"
+            aria-expanded={showCardInfo}
+            aria-controls="learner-card-info"
+            onClick={() => setShowCardInfo((visible) => !visible)}
+          >
+            <CreditCard size={17} /> {showCardInfo ? t('Скрыть информацию') : t('Привязать карту')}
+          </button>
+          {showCardInfo && (
+            <p
+              id="learner-card-info"
+              role="status"
+              className="mt-4 rounded-xl bg-brand-green-50 p-4 text-sm leading-6 text-brand-green-800"
+            >
+              {t(
+                'Привязка карты появится позже. Сейчас реквизиты не запрашиваются, выплаты на карту недоступны.',
+              )}
+            </p>
+          )}
+        </section>
         <div className="rounded-2xl bg-white p-5 shadow-card">
           <h2 className="font-extrabold text-ink-900">{t('Безопасность')}</h2>
           <p className="mt-2 text-sm leading-6 text-ink-500">
@@ -2816,28 +2891,45 @@ function AttendanceDialog({
 }
 
 function OverviewView({
+  section,
+  loadedAt,
   overview,
   balance,
   personalDataLoading,
   balanceError,
   busy,
   onRetryPersonalData,
+  onOpenTraining,
   onOpen,
   onOpenLesson,
 }: {
+  section: 'home' | 'training'
+  loadedAt: number
   overview: Overview | null
   balance: PersonalBalance | null
   personalDataLoading: boolean
   balanceError: string
   busy: boolean
   onRetryPersonalData: () => void | Promise<void>
+  onOpenTraining: () => void
   onOpen: (assignment: Assignment) => void
   onOpenLesson: (assignment: Assignment, lessonId: string) => void
 }) {
   const t = useLearnerT()
+  const availableNow = (assignment: Assignment) =>
+    !['completed', 'cancelled', 'paused', 'planned'].includes(assignment.status) &&
+    (assignment.status !== 'scheduled' || !!assignment.startsAt) &&
+    (!assignment.startsAt || new Date(assignment.startsAt).getTime() <= loadedAt)
   const assignments = (overview?.assignments ?? [])
-    .filter((assignment) => assignment.status !== 'completed' && assignment.status !== 'cancelled')
+    .filter((assignment) => assignment.status !== 'cancelled')
     .sort((left, right) => {
+      const isStarted = (assignment: Assignment) =>
+        !!assignment.startedAt || assignment.progressPct > 0 || assignment.status === 'in_progress'
+      const completedDiff =
+        Number(left.status === 'completed') - Number(right.status === 'completed')
+      if (completedDiff) return completedDiff
+      const startedDiff = Number(isStarted(right)) - Number(isStarted(left))
+      if (startedDiff) return startedDiff
       const priority = { critical: 4, high: 3, normal: 2, low: 1 }
       const priorityDiff =
         (priority[right.priority as keyof typeof priority] ?? 2) -
@@ -2848,38 +2940,66 @@ function OverviewView({
         new Date(right.dueAt ?? '9999-12-31').getTime()
       )
     })
+  const visibleAssignments =
+    section === 'training' ? assignments : assignments.filter(availableNow).slice(0, 1)
 
   return (
     <section>
-      <BalanceOverview
-        balance={balance}
-        overview={overview}
-        loading={personalDataLoading}
-        balanceError={balanceError}
-        onRetry={onRetryPersonalData}
-      />
+      {section === 'home' && (
+        <BalanceOverview
+          balance={balance}
+          overview={overview}
+          loading={personalDataLoading}
+          balanceError={balanceError}
+          onRetry={onRetryPersonalData}
+        />
+      )}
 
       <div className="mb-5 flex items-end justify-between gap-4">
         <div>
           <div className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-brand-green-700">
             {t('Обучение')}
           </div>
-          <h2 className="mt-1 text-xl font-extrabold text-ink-900">{t('Курсы к обучению')}</h2>
-          <p className="mt-1 text-sm text-ink-500">{t('Выберите курс и продолжите обучение')}</p>
+          <h2 className="mt-1 text-xl font-extrabold text-ink-900">
+            {section === 'home' ? t('Текущий курс') : t('Все доступные курсы')}
+          </h2>
+          <p className="mt-1 text-sm text-ink-500">
+            {section === 'home'
+              ? t('Продолжите обучение с того места, где остановились')
+              : t('Ваши назначенные и завершённые курсы')}
+          </p>
         </div>
-        <span className="hidden rounded-full bg-white px-3 py-1.5 text-xs font-extrabold text-ink-500 shadow-card sm:inline-flex">
-          {t('{count} активных', { count: assignments.length })}
-        </span>
+        {section === 'home' ? (
+          <button
+            type="button"
+            className="btn btn-outline btn-md shrink-0"
+            onClick={onOpenTraining}
+          >
+            {t('Все курсы')} <ChevronRight size={16} />
+          </button>
+        ) : (
+          <span className="rounded-full bg-white px-3 py-1.5 text-xs font-extrabold text-ink-500 shadow-card">
+            {t('{count} курсов', { count: assignments.length })}
+          </span>
+        )}
       </div>
 
-      {assignments.length === 0 ? (
+      {visibleAssignments.length === 0 ? (
         <div className="rounded-2xl bg-white p-8 text-center shadow-card">
           <BookOpen className="mx-auto text-ink-300" size={36} />
-          <p className="mt-3 font-bold text-ink-700">{t('Новых курсов пока нет')}</p>
+          <p className="mt-3 font-bold text-ink-700">
+            {section === 'home' ? t('Нет текущего курса') : t('Новых курсов пока нет')}
+          </p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
-          {assignments.map((assignment) => {
+        <div
+          className={
+            section === 'home'
+              ? 'grid max-w-2xl gap-4'
+              : 'grid gap-4 sm:grid-cols-2 2xl:grid-cols-3'
+          }
+        >
+          {visibleAssignments.map((assignment) => {
             const firstLesson = assignment.stages
               .filter((stage) => stage.status !== 'locked')
               .flatMap((stage) =>
@@ -2904,6 +3024,25 @@ function OverviewView({
                 <h3 className="text-xl font-extrabold leading-7 text-ink-900">
                   {assignment.programName}
                 </h3>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-ink-500">
+                  <span>{statusText(assignment.status)}</span>
+                  <span>{t('Прогресс: {value}%', { value: assignment.progressPct })}</span>
+                </div>
+                <div
+                  className="mt-2 h-1.5 overflow-hidden rounded-full bg-brand-green-50"
+                  aria-hidden="true"
+                >
+                  <div
+                    className="h-full rounded-full bg-brand-green-500"
+                    style={{ width: `${Math.max(0, Math.min(100, assignment.progressPct))}%` }}
+                  />
+                </div>
+                {assignment.dueAt && (
+                  <p className="mt-3 flex items-center gap-1.5 text-xs text-ink-500">
+                    <CalendarDays size={14} />{' '}
+                    {t('До {date}', { date: formatDate(assignment.dueAt) })}
+                  </p>
+                )}
                 <div className="mt-4 rounded-2xl bg-brand-green-50 p-4">
                   <div className="text-xs font-extrabold uppercase tracking-[0.1em] text-brand-green-700">
                     {t('Что вы получите')}
@@ -2918,10 +3057,19 @@ function OverviewView({
                   className="btn btn-primary btn-md mt-5 w-full"
                   disabled={busy}
                   onClick={() =>
-                    firstLesson ? onOpenLesson(assignment, firstLesson.id) : onOpen(assignment)
+                    availableNow(assignment) && firstLesson
+                      ? onOpenLesson(assignment, firstLesson.id)
+                      : onOpen(assignment)
                   }
                 >
-                  <PlayCircle size={18} /> {t('Начать курс')}
+                  <PlayCircle size={18} />{' '}
+                  {!availableNow(assignment)
+                    ? t('Открыть курс')
+                    : assignment.startedAt ||
+                        assignment.progressPct > 0 ||
+                        assignment.status === 'in_progress'
+                      ? t('Продолжить обучение')
+                      : t('Начать курс')}
                 </button>
               </article>
             )

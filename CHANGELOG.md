@@ -21,6 +21,19 @@ All notable production changes to Epharm are recorded here. The format follows
 - POSM 1.0.65 spreads healthy QR-task polling over 24–36 seconds per device, reducing
   synchronized load on the merchandising fallback without changing recommendations or orders.
 
+## [0.1.53] - 2026-10-29
+
+### Added
+
+- Separate pharmacist Training navigation for all personally accessible courses, including completed
+  assignments, with status, progress and deadline. Home keeps one current available course.
+- Honest disconnected bank-card placeholder in the pharmacist profile; the action only explains the
+  future feature and never collects payment data, links a card or transfers money.
+
+### Rollout
+
+- Frontend-only release; preserve backend, POSM, training data, balances and the current admin UI.
+
 ## [0.1.52] - 2026-10-22
 
 ### Fixed

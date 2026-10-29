@@ -286,7 +286,7 @@ describe('learner training portal', () => {
     expect(sessionStorage.getItem('epharm.learner.tokens')).toBeNull()
   })
 
-  it('shows only simple course cards on the pharmacist home page', async () => {
+  it('shows a simple current course card on the pharmacist home page', async () => {
     localStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
     const assignment = {
       id: 'assignment-live',
@@ -327,16 +327,16 @@ describe('learner training portal', () => {
       return json({ message: `Unexpected request: ${path}` }, 500)
     })
 
-    renderPortal('/learn/training')
+    renderPortal('/learn')
 
     expect(await screen.findByRole('heading', { name: 'Айжан' })).toBeInTheDocument()
-    expect(screen.getByText('Курсы к обучению')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Текущий курс' })).toBeInTheDocument()
     expect(screen.getByText('Ваш рейтинг ePharm')).toBeInTheDocument()
     expect(screen.getByRole('meter', { name: 'Ваш рейтинг ePharm' })).toHaveAttribute('aria-valuenow', '25')
     expect(screen.getByText('№ 4 из 27 в городе Алматы')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Современная фармация' })).toBeInTheDocument()
     expect(screen.getByText('Что вы получите')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Начать курс' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Продолжить обучение' })).toBeInTheDocument()
     expect(screen.queryByRole('tab')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Каталог' })).not.toBeInTheDocument()
   })

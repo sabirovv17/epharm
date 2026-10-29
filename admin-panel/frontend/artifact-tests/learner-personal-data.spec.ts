@@ -32,6 +32,7 @@ interface LearnerApi {
   firstRefreshFinished: boolean
   firstLogoutWait?: Promise<void>
   firstLogoutFinished: boolean
+  trainingOverview?: unknown
 }
 
 async function json(route: Route, body: unknown, status = 200) {
@@ -94,7 +95,11 @@ const test = base.extend<{ learnerApi: LearnerApi; learnerSession: boolean }>({
           return json(route, { ...accounts[id], balance: 889_999, status: 'active', tier: 'Silver',
             phone: '+77000000000', pharmacyName: 'Тестовая аптека', city: 'Алматы' })
         }
-        if (path === '/api/mobile/training') return json(route, overview)
+        if (path === '/api/mobile/training') return json(route, api.trainingOverview ?? overview)
+        if (path.startsWith('/api/mobile/training/assignments/')) {
+          const assignment = (api.trainingOverview as { assignments?: { id: string }[] } | undefined)?.assignments?.find((item) => path === `/api/mobile/training/assignments/${item.id}`)
+          if (assignment) return json(route, assignment)
+        }
         if (path === '/api/mobile/me/balance' || path === '/api/mobile/me/recommendations') {
           if (api.personalFailure) return json(route, { code: api.personalFailure.code, message: 'Личные данные недоступны' }, api.personalFailure.status)
           if (path.endsWith('/balance')) {
@@ -130,6 +135,52 @@ async function expectOffers(page: Page) {
 for (const viewport of [{ name: 'desktop', width: 1440, height: 1000 }, { name: 'mobile', width: 390, height: 844 }]) {
   test.describe(viewport.name, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } })
+    test('training has its own route, home keeps the current course and card linking stays a safe preview', async ({ page, learnerApi }, testInfo) => {
+      const assignments = [
+        { id: 'next', programName: 'Следующий курс', status: 'not_started', progressPct: 0 },
+        { id: 'current', programName: 'Текущий учебный курс', status: 'in_progress', progressPct: 40 },
+        { id: 'done', programName: 'Завершённый учебный курс', status: 'completed', progressPct: 100 },
+        { id: 'cancelled', programName: 'Отменённый учебный курс', status: 'cancelled', progressPct: 0 },
+      ].map((assignment) => ({ ...assignment, format: 'online', priority: 'normal', pharmacyName: 'Тестовая аптека', city: 'Алматы', stages: [] }))
+      learnerApi.trainingOverview = { ...overview, total: 4, inProgress: 1, completed: 1, assignments }
+      await page.goto('/learn')
+      await expect(page.getByRole('heading', { name: 'Текущий курс', exact: true })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Текущий учебный курс', exact: true })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Следующий курс', exact: true })).toHaveCount(0)
+      await page.screenshot({ path: testInfo.outputPath(`${viewport.name}-current-course.png`), fullPage: true, animations: 'disabled' })
+      await page.getByRole('button', { name: 'Обучение', exact: true }).click()
+      await expect(page).toHaveURL(/\/learn\/training$/)
+      await expect(page.getByRole('button', { name: 'Обучение', exact: true })).toHaveAttribute('aria-current', 'page')
+      await expect(page.getByRole('heading', { name: 'Все доступные курсы', exact: true })).toBeVisible()
+      for (const assignment of assignments.filter((item) => item.status !== 'cancelled')) {
+        await expect(page.getByRole('heading', { name: assignment.programName, exact: true })).toBeVisible()
+      }
+      await expect(page.getByRole('heading', { name: 'Отменённый учебный курс', exact: true })).toHaveCount(0)
+      await page.reload()
+      await expect(page.getByRole('heading', { name: 'Все доступные курсы', exact: true })).toBeVisible()
+      const currentCourse = page.locator('article').filter({ has: page.getByRole('heading', { name: 'Текущий учебный курс', exact: true }) })
+      await currentCourse.getByRole('button', { name: 'Продолжить обучение', exact: true }).click()
+      await expect(page).toHaveURL(/\/learn\/course\/current$/)
+      await expect(page.getByRole('button', { name: 'Обучение', exact: true })).toBeVisible()
+      await page.getByRole('button', { name: 'Обучение', exact: true }).click()
+      await expect(page).toHaveURL(/\/learn\/training$/)
+      await expect(page.getByRole('heading', { name: 'Все доступные курсы', exact: true })).toBeVisible()
+      await page.screenshot({ path: testInfo.outputPath(`${viewport.name}-all-courses.png`), fullPage: true, animations: 'disabled' })
+      await page.getByRole('button', { name: 'Профиль', exact: true }).click()
+      const card = page.getByRole('region', { name: 'Банковская карта', exact: true })
+      await expect(card.getByText('Не подключена', { exact: true })).toBeVisible()
+      await expect(page.getByText(/36\s*941\s*₸/).first()).toBeVisible()
+      const requestCount = learnerApi.requests.length
+      const storage = await page.evaluate(() => JSON.stringify({ ...localStorage }))
+      await card.getByRole('button', { name: 'Привязать карту', exact: true }).click()
+      await expect(card.getByRole('status')).toHaveText('Привязка карты появится позже. Сейчас реквизиты не запрашиваются, выплаты на карту недоступны.')
+      await expect(card.locator('input, textarea, select, iframe, form')).toHaveCount(0)
+      await expect(card.getByText('Не подключена', { exact: true })).toBeVisible()
+      expect(learnerApi.requests).toHaveLength(requestCount)
+      expect(await page.evaluate(() => JSON.stringify({ ...localStorage }))).toBe(storage)
+      await expect(page.getByText('Карта привязана', { exact: true })).toHaveCount(0)
+      await page.screenshot({ path: testInfo.outputPath(`${viewport.name}-card-preview.png`), fullPage: true, animations: 'disabled' })
+    })
     test('the built AppRouter keeps learner navigation and direct reload outside HQ login', async ({ page, learnerApi }, testInfo) => {
       await page.goto('/learn')
       await expect(page.getByText(/36\s*941\s*₸/).first()).toBeVisible()
