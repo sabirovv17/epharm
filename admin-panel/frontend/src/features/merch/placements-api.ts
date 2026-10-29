@@ -15,6 +15,8 @@ export interface Placement {
   origin: string
   revision: number
   totalAmount: number | null
+  approvedAmount?: number | null
+  pendingAmount?: number | null
   heldUntil: string | null
   reservationState: string
   reservationBusinessDays: number
@@ -114,6 +116,13 @@ export interface PlacementGateway {
     expectedRevision: number,
     reason: string | null,
   ): Promise<Placement>
+  reviewItems?(
+    id: string,
+    action: 'approve' | 'reject',
+    expectedRevision: number,
+    itemIds: string[],
+    reason: string | null,
+  ): Promise<Placement>
   producers(signal: AbortSignal): Promise<ProducerOption[]>
   catalog(
     producerId: string,
@@ -169,6 +178,13 @@ export function placementGateway(
       return request(`${base}/placements/${encodeURIComponent(id)}/${action}`, {
         method: 'POST',
         body: JSON.stringify({ expectedRevision, reason }),
+      })
+    },
+    reviewItems: (id, action, expectedRevision, itemIds, reason) => {
+      if (realm !== 'admin') return Promise.reject(new Error('Действие доступно только HQ.'))
+      return request(`${base}/placements/${encodeURIComponent(id)}/items/${action}`, {
+        method: 'POST',
+        body: JSON.stringify({ expectedRevision, itemIds, reason }),
       })
     },
     producers: (signal) =>

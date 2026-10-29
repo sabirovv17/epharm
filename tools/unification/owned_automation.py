@@ -59,7 +59,7 @@ def projection_sql(schema, source_hash, verification):
     return '\n'.join(sql)
 
 
-def run(args):
+def run(args, project=projection_sql):
     stage.require(re.fullmatch(r'epharm-(?:unify-candidate|stage-test-automation)-[a-zA-Z0-9_.-]+',args.container), 'dedicated candidate or disposable automation container required')
     with os.fdopen(os.open(args.artifact,os.O_RDONLY | os.O_NOFOLLOW),'rb') as stream:
         info=os.fstat(stream.fileno())
@@ -79,7 +79,7 @@ def run(args):
             stage.require(target['versionNum']//10000 == 16 and target['freeBytes'] >= stage.MIN_HEADROOM, 'candidate capacity/version mismatch')
             schema = 'crm_stage_' + source_hash[:16]
             target_guard=owned.assertion("current_database()='epharm_unified_candidate' AND (SELECT system_identifier::text FROM pg_control_system())=" + stage.literal(target['systemIdentifier']) + " AND (SELECT oid FROM pg_database WHERE datname=current_database())=" + str(int(target['oid'])) + " AND current_setting('server_version_num')::integer=" + str(int(target['versionNum'])), 'target identity changed')
-            output = db.run(projection_sql(schema,source_hash,target_guard+'\n'+stage.verification_sql(artifact,schema,source_hash,True)))
+            output = db.run(project(schema,source_hash,target_guard+'\n'+stage.verification_sql(artifact,schema,source_hash,True)))
             result = stage.parse_json([line for line in output.splitlines() if line.startswith('{')][-1])
             result.update(sourceArtifactSha256=source_hash,targetIdentitySha256=target['identitySha256'],productionChanged=False)
             report.write(stage.encoded(result)); report.flush(); os.fsync(report.fileno()); return result

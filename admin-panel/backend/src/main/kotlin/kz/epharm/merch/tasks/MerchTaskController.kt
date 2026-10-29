@@ -13,8 +13,9 @@ import org.springframework.web.multipart.MultipartFile
 @RequestMapping("/api/admin/merch/tasks")
 class MerchTaskController(private val tasks: MerchTaskService) {
     @GetMapping
-    fun list(@RequestParam(defaultValue = "20") limit: Int, @RequestParam(defaultValue = "0") offset: Int) =
-        privateResponse(tasks.list(limit, offset))
+    fun list(@RequestParam(defaultValue = "20") limit: Int, @RequestParam(defaultValue = "0") offset: Int,
+        @RequestParam(defaultValue = "all") queue:String, @RequestParam(required=false) q:String?) =
+        privateResponse(tasks.list(limit, offset,queue,q))
     @GetMapping("/branches")
     fun branches() = privateResponse(tasks.branches())
     @GetMapping("/{id}")
@@ -22,6 +23,9 @@ class MerchTaskController(private val tasks: MerchTaskService) {
     @PostMapping
     fun create(@RequestBody request: CreateMerchTaskDispatch, @AuthenticationPrincipal actor: AdminPrincipal) =
         privateResponse(tasks.create(request, actor.userId))
+    @PostMapping("/bulk")
+    fun bulk(@RequestBody request:CreateMerchTaskBulk,@AuthenticationPrincipal actor:AdminPrincipal)=
+        privateResponse(tasks.createBulk(request,actor.userId))
     @PostMapping("/items/{itemId}/attempts")
     fun start(@PathVariable itemId: UUID, @AuthenticationPrincipal actor: AdminPrincipal) = privateResponse(tasks.startAdmin(itemId, actor.userId))
     @GetMapping("/items/{itemId}/attempts")
@@ -29,7 +33,11 @@ class MerchTaskController(private val tasks: MerchTaskService) {
         privateResponse(tasks.history(itemId, limit, offset))
     @PostMapping("/items/{itemId}/evidence", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     fun upload(@PathVariable itemId: UUID, @RequestParam clientUploadId: UUID, @RequestPart file: MultipartFile,
-        @AuthenticationPrincipal actor: AdminPrincipal) = privateResponse(tasks.uploadAdmin(itemId, clientUploadId, file, actor.userId))
+        @AuthenticationPrincipal actor: AdminPrincipal, @RequestPart(required=false) capture:TaskCapture?) = privateResponse(tasks.uploadAdmin(itemId, clientUploadId, file, actor.userId,capture))
+    @PostMapping("/items/{itemId}/stock")
+    fun stock(@PathVariable itemId:UUID,@RequestBody request:SaveTaskStock,@AuthenticationPrincipal actor:AdminPrincipal)=privateResponse(tasks.saveStockAdmin(itemId,request,actor.userId))
+    @GetMapping("/items/{itemId}/instruction")
+    fun instruction(@PathVariable itemId:UUID)=evidenceResponse(tasks.instructionAdmin(itemId))
     @PostMapping("/items/{itemId}/submit")
     fun submit(@PathVariable itemId: UUID, @RequestBody request: SubmitMerchTaskAttempt, @AuthenticationPrincipal actor: AdminPrincipal) =
         privateResponse(tasks.submitAdmin(itemId, request, actor.userId))

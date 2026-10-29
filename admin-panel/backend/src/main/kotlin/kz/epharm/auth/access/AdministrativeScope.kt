@@ -65,6 +65,18 @@ class AdministrativeScope(private val catalog: UnifiedAdminCatalog, private val 
         if (!canMerchBranchPermission(permission, branchId)) deny()
     }
 
+    fun canAllMerchBranchPermission(permission: PermissionKey): Boolean {
+        val context = current() ?: return false
+        if (permission.module != AdministrationModule.MERCHANDISING ||
+            context.access.role !in catalog.availableRoles(permission)) return false
+        return catalog.policy.decide(context.access.actor, AccessRequest(permission,
+            DataScope(PharmacyScope.AllMerchBranches)), Instant.now()).allowed
+    }
+
+    fun requireAllMerchBranchPermission(permission: PermissionKey) {
+        if (!canAllMerchBranchPermission(permission)) deny()
+    }
+
     fun canAllMerchPlacementPermission(permission: PermissionKey): Boolean {
         val context = current() ?: return false
         if (permission.module != AdministrationModule.MERCHANDISING || permission.subsection != "placements" ||
@@ -75,6 +87,19 @@ class AdministrativeScope(private val catalog: UnifiedAdminCatalog, private val 
 
     fun requireAllMerchPlacementPermission(permission: PermissionKey) {
         if (!canAllMerchPlacementPermission(permission)) deny()
+    }
+
+    fun canAllMerchPlacementForProducerPermission(permission: PermissionKey, producerId: UUID): Boolean {
+        val context = current() ?: return false
+        if (permission.module != AdministrationModule.MERCHANDISING || permission.subsection != "placements" ||
+            context.access.role !in catalog.availableRoles(permission)) return false
+        return catalog.policy.decide(context.access.actor, AccessRequest(permission,
+            DataScope(PharmacyScope.AllMerchBranches, OwnerScope.Customers(listOf(
+                CanonicalIdentity(CanonicalEntityType.CUSTOMER, producerId.toString()))))), Instant.now()).allowed
+    }
+
+    fun requireAllMerchPlacementForProducerPermission(permission: PermissionKey, producerId: UUID) {
+        if (!canAllMerchPlacementForProducerPermission(permission, producerId)) deny()
     }
 
     fun currentProducerIds(): Set<UUID>? = when (val scope = (current() ?: deny()).scope.owners) {

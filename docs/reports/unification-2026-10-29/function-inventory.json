@@ -15559,5 +15559,431 @@
     ],
     "risks": ["No silent row truncation, no source deletion, no inferred person or producer"],
     "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.61",
+    "group": "H16",
+    "name": "Native AdminCommercialController",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged candidate)",
+      "api": [
+        "GET /api/admin/merch/commercial/plans",
+        "GET /api/admin/merch/commercial/plans/{id}",
+        "GET /api/admin/merch/commercial/plans/{id}/media-kit.xlsx",
+        "GET /api/admin/merch/commercial/pricing",
+        "GET /api/admin/merch/commercial/producers/{id}/settings",
+        "POST /api/admin/merch/commercial/plans/import-preview",
+        "POST /api/admin/merch/commercial/plans/{id}/copy",
+        "POST /api/admin/merch/commercial/plans/{id}/submit",
+        "PUT /api/admin/merch/commercial/plans/{id}",
+        "PUT /api/admin/merch/commercial/producers/{id}/category"
+      ],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/commercial/AdminCommercialController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Кабинет производителя / Задания фармацевтов",
+      "actions": [
+        "GET /api/admin/merch/commercial/plans",
+        "GET /api/admin/merch/commercial/plans/{id}",
+        "GET /api/admin/merch/commercial/plans/{id}/media-kit.xlsx",
+        "GET /api/admin/merch/commercial/pricing",
+        "GET /api/admin/merch/commercial/producers/{id}/settings",
+        "POST /api/admin/merch/commercial/plans/import-preview",
+        "POST /api/admin/merch/commercial/plans/{id}/copy",
+        "POST /api/admin/merch/commercial/plans/{id}/submit",
+        "PUT /api/admin/merch/commercial/plans/{id}",
+        "PUT /api/admin/merch/commercial/producers/{id}/category"
+      ],
+      "scope": "Fresh explicit branch/customer grants; producer own realm only; capabilities never PERSON"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact owned source IDs/history; no production deployment implied",
+      "Revoked/foreign scopes, replay/CAS, private evidence and integer money verified separately"
+    ],
+    "risks": ["Physical Windows acceptance and source operator bindings remain rollout gates"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.62",
+    "group": "H16",
+    "name": "Native ProducerCommercialController",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged candidate)",
+      "api": [
+        "GET /api/producer/commercial/plans",
+        "GET /api/producer/commercial/plans/{id}",
+        "GET /api/producer/commercial/plans/{id}/media-kit.xlsx",
+        "GET /api/producer/commercial/workspace",
+        "POST /api/producer/commercial/plans/import-preview",
+        "POST /api/producer/commercial/plans/{id}/copy",
+        "POST /api/producer/commercial/plans/{id}/submit",
+        "PUT /api/producer/commercial/members/{id}",
+        "PUT /api/producer/commercial/plans/{id}",
+        "PUT /api/producer/commercial/settings"
+      ],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/commercial/ProducerCommercialController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Кабинет производителя / Задания фармацевтов",
+      "actions": [
+        "GET /api/producer/commercial/plans",
+        "GET /api/producer/commercial/plans/{id}",
+        "GET /api/producer/commercial/plans/{id}/media-kit.xlsx",
+        "GET /api/producer/commercial/workspace",
+        "POST /api/producer/commercial/plans/import-preview",
+        "POST /api/producer/commercial/plans/{id}/copy",
+        "POST /api/producer/commercial/plans/{id}/submit",
+        "PUT /api/producer/commercial/members/{id}",
+        "PUT /api/producer/commercial/plans/{id}",
+        "PUT /api/producer/commercial/settings"
+      ],
+      "scope": "Fresh explicit branch/customer grants; producer own realm only; capabilities never PERSON"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact owned source IDs/history; no production deployment implied",
+      "Revoked/foreign scopes, replay/CAS, private evidence and integer money verified separately"
+    ],
+    "risks": ["Physical Windows acceptance and source operator bindings remain rollout gates"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.63",
+    "group": "H16",
+    "name": "Native AdminInstructionController",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged candidate)",
+      "api": [
+        "GET /api/admin/merch/instructions",
+        "GET /api/admin/merch/instructions/targets",
+        "GET /api/admin/merch/instructions/{id}/pdf",
+        "GET /api/admin/merch/instructions/{id}/results",
+        "GET /api/admin/merch/instructions/{id}/results/{evidenceId}/file",
+        "POST /api/admin/merch/instructions",
+        "POST /api/admin/merch/instructions/{id}/review"
+      ],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/instructions/AdminInstructionController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Кабинет производителя / Задания фармацевтов",
+      "actions": [
+        "GET /api/admin/merch/instructions",
+        "GET /api/admin/merch/instructions/targets",
+        "GET /api/admin/merch/instructions/{id}/pdf",
+        "GET /api/admin/merch/instructions/{id}/results",
+        "GET /api/admin/merch/instructions/{id}/results/{evidenceId}/file",
+        "POST /api/admin/merch/instructions",
+        "POST /api/admin/merch/instructions/{id}/review"
+      ],
+      "scope": "Fresh explicit branch/customer grants; producer own realm only; capabilities never PERSON"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact owned source IDs/history; no production deployment implied",
+      "Revoked/foreign scopes, replay/CAS, private evidence and integer money verified separately"
+    ],
+    "risks": ["Physical Windows acceptance and source operator bindings remain rollout gates"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.64",
+    "group": "H16",
+    "name": "Native ProducerInstructionController",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged candidate)",
+      "api": [
+        "GET /api/producer/instructions",
+        "GET /api/producer/instructions/targets",
+        "GET /api/producer/instructions/{id}/pdf",
+        "GET /api/producer/instructions/{id}/results",
+        "GET /api/producer/instructions/{id}/results/{evidenceId}/file",
+        "POST /api/producer/instructions"
+      ],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/instructions/ProducerInstructionController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Кабинет производителя / Задания фармацевтов",
+      "actions": [
+        "GET /api/producer/instructions",
+        "GET /api/producer/instructions/targets",
+        "GET /api/producer/instructions/{id}/pdf",
+        "GET /api/producer/instructions/{id}/results",
+        "GET /api/producer/instructions/{id}/results/{evidenceId}/file",
+        "POST /api/producer/instructions"
+      ],
+      "scope": "Fresh explicit branch/customer grants; producer own realm only; capabilities never PERSON"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact owned source IDs/history; no production deployment implied",
+      "Revoked/foreign scopes, replay/CAS, private evidence and integer money verified separately"
+    ],
+    "risks": ["Physical Windows acceptance and source operator bindings remain rollout gates"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.65",
+    "group": "H16",
+    "name": "Native MerchInventoryEditorController",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged candidate)",
+      "api": [
+        "GET /api/admin/merch/branches/{id}/editor",
+        "GET /api/admin/merch/branches/{id}/editor/media/{photoId}",
+        "POST /api/admin/merch/branches/{id}/editor/containers",
+        "POST /api/admin/merch/branches/{id}/editor/containers/{containerId}/configure",
+        "POST /api/admin/merch/branches/{id}/editor/floor-plan/publish",
+        "POST /api/admin/merch/branches/{id}/editor/photos",
+        "POST /api/admin/merch/branches/{id}/editor/photos/{photoId}/archive",
+        "POST /api/admin/merch/branches/{id}/editor/prices",
+        "POST /api/admin/merch/branches/{id}/editor/shelves",
+        "PUT /api/admin/merch/branches/{id}/editor",
+        "PUT /api/admin/merch/branches/{id}/editor/containers/{containerId}",
+        "PUT /api/admin/merch/branches/{id}/editor/floor-plan",
+        "PUT /api/admin/merch/branches/{id}/editor/shelves/{shelfId}"
+      ],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/inventory/controller/MerchInventoryEditorController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Кабинет производителя / Задания фармацевтов",
+      "actions": [
+        "GET /api/admin/merch/branches/{id}/editor",
+        "GET /api/admin/merch/branches/{id}/editor/media/{photoId}",
+        "POST /api/admin/merch/branches/{id}/editor/containers",
+        "POST /api/admin/merch/branches/{id}/editor/containers/{containerId}/configure",
+        "POST /api/admin/merch/branches/{id}/editor/floor-plan/publish",
+        "POST /api/admin/merch/branches/{id}/editor/photos",
+        "POST /api/admin/merch/branches/{id}/editor/photos/{photoId}/archive",
+        "POST /api/admin/merch/branches/{id}/editor/prices",
+        "POST /api/admin/merch/branches/{id}/editor/shelves",
+        "PUT /api/admin/merch/branches/{id}/editor",
+        "PUT /api/admin/merch/branches/{id}/editor/containers/{containerId}",
+        "PUT /api/admin/merch/branches/{id}/editor/floor-plan",
+        "PUT /api/admin/merch/branches/{id}/editor/shelves/{shelfId}"
+      ],
+      "scope": "Fresh explicit branch/customer grants; producer own realm only; capabilities never PERSON"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact owned source IDs/history; no production deployment implied",
+      "Revoked/foreign scopes, replay/CAS, private evidence and integer money verified separately"
+    ],
+    "risks": ["Physical Windows acceptance and source operator bindings remain rollout gates"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.66",
+    "group": "H16",
+    "name": "Native MerchInventoryStructureController",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged candidate)",
+      "api": [
+        "GET /api/admin/merch/inventory/organizations",
+        "POST /api/admin/merch/inventory/branches",
+        "POST /api/admin/merch/inventory/organizations",
+        "PUT /api/admin/merch/inventory/organizations/{id}"
+      ],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/inventory/controller/MerchInventoryStructureController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Кабинет производителя / Задания фармацевтов",
+      "actions": [
+        "GET /api/admin/merch/inventory/organizations",
+        "POST /api/admin/merch/inventory/branches",
+        "POST /api/admin/merch/inventory/organizations",
+        "PUT /api/admin/merch/inventory/organizations/{id}"
+      ],
+      "scope": "Fresh explicit branch/customer grants; producer own realm only; capabilities never PERSON"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact owned source IDs/history; no production deployment implied",
+      "Revoked/foreign scopes, replay/CAS, private evidence and integer money verified separately"
+    ],
+    "risks": ["Physical Windows acceptance and source operator bindings remain rollout gates"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.67",
+    "group": "H16",
+    "name": "Native PlacementController",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged candidate)",
+      "api": [
+        "POST /api/admin/merch/placements/{id}/items/approve",
+        "POST /api/admin/merch/placements/{id}/items/reject"
+      ],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/placements/controller/PlacementController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Кабинет производителя / Задания фармацевтов",
+      "actions": [
+        "POST /api/admin/merch/placements/{id}/items/approve",
+        "POST /api/admin/merch/placements/{id}/items/reject"
+      ],
+      "scope": "Fresh explicit branch/customer grants; producer own realm only; capabilities never PERSON"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact owned source IDs/history; no production deployment implied",
+      "Revoked/foreign scopes, replay/CAS, private evidence and integer money verified separately"
+    ],
+    "risks": ["Physical Windows acceptance and source operator bindings remain rollout gates"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.68",
+    "group": "H16",
+    "name": "Native CapabilityMerchTaskController",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged candidate)",
+      "api": [
+        "GET /api/public/merch/tasks/items/{itemId}/instruction",
+        "POST /api/public/merch/tasks/items/{itemId}/stock"
+      ],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/CapabilityMerchTaskController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Кабинет производителя / Задания фармацевтов",
+      "actions": [
+        "GET /api/public/merch/tasks/items/{itemId}/instruction",
+        "POST /api/public/merch/tasks/items/{itemId}/stock"
+      ],
+      "scope": "Fresh explicit branch/customer grants; producer own realm only; capabilities never PERSON"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact owned source IDs/history; no production deployment implied",
+      "Revoked/foreign scopes, replay/CAS, private evidence and integer money verified separately"
+    ],
+    "risks": ["Physical Windows acceptance and source operator bindings remain rollout gates"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.69",
+    "group": "H16",
+    "name": "Native MerchTaskController",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged candidate)",
+      "api": [
+        "GET /api/admin/merch/tasks/items/{itemId}/instruction",
+        "POST /api/admin/merch/tasks/bulk",
+        "POST /api/admin/merch/tasks/items/{itemId}/stock"
+      ],
+      "files": ["admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/MerchTaskController.kt"],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Кабинет производителя / Задания фармацевтов",
+      "actions": [
+        "GET /api/admin/merch/tasks/items/{itemId}/instruction",
+        "POST /api/admin/merch/tasks/bulk",
+        "POST /api/admin/merch/tasks/items/{itemId}/stock"
+      ],
+      "scope": "Fresh explicit branch/customer grants; producer own realm only; capabilities never PERSON"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact owned source IDs/history; no production deployment implied",
+      "Revoked/foreign scopes, replay/CAS, private evidence and integer money verified separately"
+    ],
+    "risks": ["Physical Windows acceptance and source operator bindings remain rollout gates"],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.70",
+    "group": "H16",
+    "name": "Native PharmacistMerchTaskController",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged candidate)",
+      "api": [
+        "GET /api/mobile/merch/tasks/items/{itemId}/instruction",
+        "POST /api/mobile/merch/tasks/items/{itemId}/stock"
+      ],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/PharmacistMerchTaskController.kt"
+      ],
+      "ui": [],
+      "jobs": [],
+      "data": []
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Кабинет производителя / Задания фармацевтов",
+      "actions": [
+        "GET /api/mobile/merch/tasks/items/{itemId}/instruction",
+        "POST /api/mobile/merch/tasks/items/{itemId}/stock"
+      ],
+      "scope": "Fresh explicit branch/customer grants; producer own realm only; capabilities never PERSON"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Exact owned source IDs/history; no production deployment implied",
+      "Revoked/foreign scopes, replay/CAS, private evidence and integer money verified separately"
+    ],
+    "risks": ["Physical Windows acceptance and source operator bindings remain rollout gates"],
+    "owner": "ePharm unification integration owner"
   }
 ]

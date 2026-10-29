@@ -5,6 +5,7 @@ import { describeError } from '@/lib/describeError'
 import { formatKzt } from '@/mocks/fixtures'
 import ReportDownloadButton from '@/features/reports/ReportDownloadButton'
 import { Button, Field, Input, Modal, PageHeader, Select } from '@/ui'
+import InventoryEditor, { NetworkStructureButton } from './inventory-editor/InventoryEditor'
 import {
   inventoryApi,
   type AvailabilityRequest,
@@ -53,6 +54,7 @@ function InventoryWorkspace({ canExport }: { canExport: boolean }) {
   const [offset, setOffset] = useState(0)
   const [branchId, setBranchId] = useState('')
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7))
+  const [editorOpen, setEditorOpen] = useState(false)
   const branches = useQuery({
     queryKey: [...key, 'branches', offset],
     queryFn: ({ signal }) => inventoryApi.branches(offset, signal),
@@ -102,6 +104,11 @@ function InventoryWorkspace({ canExport }: { canExport: boolean }) {
         }
       />
       <div className="card flex flex-wrap items-end gap-3 p-4">
+        <NetworkStructureButton
+          onChanged={() => {
+            void branches.refetch()
+          }}
+        />
         <Field label="Аптека мерча">
           <Select
             ariaLabel="Аптека мерча"
@@ -163,12 +170,32 @@ function InventoryWorkspace({ canExport }: { canExport: boolean }) {
         inventory.isSuccess &&
         inventory.isFetchedAfterMount &&
         !inventory.isError && (
-          <CalendarWorkspace
-            key={`${branchId}:${month}`}
-            calendar={freshCalendar}
-            inventory={inventory.data}
-            refresh={() => calendar.refetch()}
-          />
+          <>
+            <div>
+              <Button variant="outline" onClick={() => setEditorOpen(true)}>
+                Паспорт и рекламные места
+              </Button>
+            </div>
+            <CalendarWorkspace
+              key={`${branchId}:${month}`}
+              calendar={freshCalendar}
+              inventory={inventory.data}
+              refresh={() => calendar.refetch()}
+            />
+            {editorOpen && (
+              <InventoryEditor
+                key={branchId}
+                branchId={branchId}
+                month={month}
+                onClose={() => setEditorOpen(false)}
+                onChanged={() => {
+                  void inventory.refetch()
+                  void calendar.refetch()
+                  void branches.refetch()
+                }}
+              />
+            )}
+          </>
         )}
     </div>
   )

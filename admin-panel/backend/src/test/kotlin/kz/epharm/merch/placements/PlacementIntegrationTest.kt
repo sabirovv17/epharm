@@ -91,8 +91,8 @@ class PlacementIntegrationTest {
         fun shelf(branch:UUID)=source("merch_shelves",mapOf("branch_id" to branch,"code" to UUID.randomUUID().toString(),"category" to "AA","width_m" to java.math.BigDecimal.ONE,
             "base_monthly_price" to 15000,"half_monthly_price" to 8000,"active" to true,"place_type" to "shelf","position_index" to 0,"specifications" to "{}","sale_mode" to "whole_or_halves"))
         shelf=shelf(branch);foreignShelf=shelf(foreign)
-        producer=source("merch_producers",mapOf("name" to "Synthetic producer","active" to true))
-        otherProducer=source("merch_producers",mapOf("name" to "Other producer","active" to true))
+        producer=source("merch_producers",mapOf("name" to "Synthetic producer","source_account_role" to "advertiser","active" to true))
+        otherProducer=source("merch_producers",mapOf("name" to "Other producer","source_account_role" to "advertiser","active" to true))
         grants()
     }
     private fun grants(allowed:List<String> = actions,all:Boolean=false) {

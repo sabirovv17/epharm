@@ -211,8 +211,68 @@ class UnifiedAdminAccessIntegrationTest {
     }
 
     @Test fun `catalog never advertises unmigrated routes as grantable and scope empty is invalid`() {
-        assertThat(catalog.routes).hasSize(201)
+        assertThat(catalog.routes).hasSize(240)
+        val reviewedTraining = setOf(
+            "GET /api/admin/training/assignments",
+            "GET /api/admin/training/assignments/export.csv",
+            "GET /api/admin/training/assignments/page",
+            "GET /api/admin/training/assignments/{assignmentId}/format-history",
+            "GET /api/admin/training/assignments/{assignmentId}/results",
+            "GET /api/admin/training/certificates",
+            "GET /api/admin/training/dashboard",
+            "GET /api/admin/training/events",
+            "GET /api/admin/training/events/{eventId}/participants",
+            "GET /api/admin/training/events/{eventId}/qr",
+            "GET /api/admin/training/pharmacists/{pharmacistId}/preference-history",
+            "GET /api/admin/training/pharmacists/{pharmacistId}/profile",
+            "GET /api/admin/training/preferences",
+            "PATCH /api/admin/training/assignments/{assignmentId}/format",
+            "PATCH /api/admin/training/assignments/{assignmentId}/stages/{stageId}/result",
+            "PATCH /api/admin/training/events/{eventId}/participants/{participantId}",
+            "PATCH /api/admin/training/pharmacists/preferences",
+            "PATCH /api/admin/training/pharmacists/{pharmacistId}/preference",
+            "POST /api/admin/training/assignments"
+        )
         val reviewedNative = setOf(
+            "GET /api/admin/merch/commercial/plans",
+            "GET /api/admin/merch/commercial/plans/{id}",
+            "GET /api/admin/merch/commercial/plans/{id}/media-kit.xlsx",
+            "GET /api/admin/merch/commercial/pricing",
+            "GET /api/admin/merch/commercial/producers/{id}/settings",
+            "GET /api/admin/merch/instructions",
+            "GET /api/admin/merch/instructions/targets",
+            "GET /api/admin/merch/instructions/{id}/pdf",
+            "GET /api/admin/merch/instructions/{id}/results",
+            "GET /api/admin/merch/instructions/{id}/results/{evidenceId}/file",
+            "POST /api/admin/merch/commercial/plans/import-preview",
+            "POST /api/admin/merch/commercial/plans/{id}/copy",
+            "POST /api/admin/merch/commercial/plans/{id}/submit",
+            "POST /api/admin/merch/instructions",
+            "POST /api/admin/merch/instructions/{id}/review",
+            "POST /api/admin/merch/tasks/bulk",
+            "PUT /api/admin/merch/commercial/plans/{id}",
+            "PUT /api/admin/merch/commercial/producers/{id}/category",
+            "GET /api/admin/merch/branches/{id}/editor",
+            "GET /api/admin/merch/branches/{id}/editor/media/{photoId}",
+            "GET /api/admin/merch/inventory/organizations",
+            "GET /api/admin/merch/tasks/items/{itemId}/instruction",
+            "POST /api/admin/merch/branches/{id}/editor/containers",
+            "POST /api/admin/merch/branches/{id}/editor/containers/{containerId}/configure",
+            "POST /api/admin/merch/branches/{id}/editor/floor-plan/publish",
+            "POST /api/admin/merch/branches/{id}/editor/photos",
+            "POST /api/admin/merch/branches/{id}/editor/photos/{photoId}/archive",
+            "POST /api/admin/merch/branches/{id}/editor/prices",
+            "POST /api/admin/merch/branches/{id}/editor/shelves",
+            "POST /api/admin/merch/inventory/branches",
+            "POST /api/admin/merch/inventory/organizations",
+            "POST /api/admin/merch/placements/{id}/items/approve",
+            "POST /api/admin/merch/placements/{id}/items/reject",
+            "POST /api/admin/merch/tasks/items/{itemId}/stock",
+            "PUT /api/admin/merch/branches/{id}/editor",
+            "PUT /api/admin/merch/branches/{id}/editor/containers/{containerId}",
+            "PUT /api/admin/merch/branches/{id}/editor/floor-plan",
+            "PUT /api/admin/merch/branches/{id}/editor/shelves/{shelfId}",
+            "PUT /api/admin/merch/inventory/organizations/{id}",
             "GET /api/admin/merch/placements/catalog",
             "GET /api/admin/merch/placements/producers",
             "GET /api/admin/merch/branches",
@@ -249,7 +309,7 @@ class UnifiedAdminAccessIntegrationTest {
         )
         assertThat(catalog.routes.filter { it.mode == ScopeIntegration.SCOPED }.all {
             it.api.contains(" /api/admin/pharmacists") || it.api.contains(" /api/admin/pharmacies") ||
-                it.api == "GET /api/admin/training/pharmacists" || it.explicitAccess && it.api in setOf(
+                it.api in reviewedTraining || it.api == "GET /api/admin/training/pharmacists" || it.explicitAccess && it.api in setOf(
                     "GET /api/admin/training/exports/assignments.xlsx", "GET /api/admin/training/exports/results.xlsx") || it.explicitAccess && it.api in reviewedNative
         }).isTrue()
         org.junit.jupiter.api.assertThrows<IllegalArgumentException> { grant("pharmacies_products", "pharmacies", "view", emptySet()).toGrant() }

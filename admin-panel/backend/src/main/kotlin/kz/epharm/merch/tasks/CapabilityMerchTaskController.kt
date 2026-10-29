@@ -17,7 +17,11 @@ class CapabilityMerchTaskController(private val tasks:MerchTaskService) {
     fun start(@PathVariable itemId:UUID,@RequestHeader("X-Merch-Task-Token") token:String)=response(tasks.startCapability(itemId,token))
     @PostMapping("/items/{itemId}/evidence",consumes=[MediaType.MULTIPART_FORM_DATA_VALUE])
     fun upload(@PathVariable itemId:UUID,@RequestParam clientUploadId:UUID,@RequestPart file:MultipartFile,
-        @RequestHeader("X-Merch-Task-Token") token:String)=response(tasks.uploadCapability(itemId,clientUploadId,file,token))
+        @RequestHeader("X-Merch-Task-Token") token:String,@RequestPart(required=false) capture:TaskCapture?)=response(tasks.uploadCapability(itemId,clientUploadId,file,token,capture))
+    @PostMapping("/items/{itemId}/stock")
+    fun stock(@PathVariable itemId:UUID,@RequestBody request:SaveTaskStock,@RequestHeader("X-Merch-Task-Token") token:String)=response(tasks.saveStockCapability(itemId,request,token))
+    @GetMapping("/items/{itemId}/instruction")
+    fun instruction(@PathVariable itemId:UUID,@RequestHeader("X-Merch-Task-Token") token:String)=evidenceResponse(tasks.instructionCapability(itemId,token))
     @PostMapping("/items/{itemId}/submit")
     fun submit(@PathVariable itemId:UUID,@RequestBody request:SubmitMerchTaskAttempt,
         @RequestHeader("X-Merch-Task-Token") token:String)=response(tasks.submitCapability(itemId,request,token))

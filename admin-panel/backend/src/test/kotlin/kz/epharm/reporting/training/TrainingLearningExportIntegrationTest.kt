@@ -74,7 +74,7 @@ class TrainingLearningExportIntegrationTest {
         for((id,city) in listOf("learning-a" to "City A","learning-b" to "City B")) jdbc.update("""insert into pharmacies(id,name,chain_id,chain_name,city,district,addr,"group")
             values(?,?,'learning-chain','Business chain',?,'','','pilot')""",id,"Business $id",city)
         for((id,pharmacy,city) in listOf(Triple("learning-person-a","learning-a","City A"),Triple("learning-person-b","learning-b","City B"))) jdbc.update("""insert into pharmacists(id,name,iin,phone,password_hash,pharmacy_id,pharmacy_name,city,tier,status,joined_at,balance)
-            values(?,?,?,?,?,?,?,?,'Silver','active',current_date,700)""",id,privateMarker,if(id.endsWith("a")) "000000000001" else "000000000002",
+            values(?,?,?,?,?,?,?,?,'Silver','active',current_date,700)""",id,"Synthetic public ${id.takeLast(1)}",if(id.endsWith("a")) "000000000001" else "000000000002",
             if(id.endsWith("a")) "+77000000001" else "+77000000002",privateMarker,pharmacy,"Business $pharmacy",city)
         program=UUID.randomUUID();version=UUID.randomUUID()
         jdbc.update("insert into training_programs(id,name,status,allowed_formats,created_by) values(?,'=Literal program','published','online,offline',?)",program,admin.id)
@@ -88,7 +88,7 @@ class TrainingLearningExportIntegrationTest {
         stageA=stage(assignmentA,definition);stageB=stage(assignmentB,definition)
         resultA=UUID.randomUUID()
         for((result,assignment,stage) in listOf(Triple(resultA,assignmentA,stageA),Triple(UUID.randomUUID(),assignmentB,stageB))) jdbc.update("""insert into training_assessment_results(id,assignment_id,assignment_stage_id,source_type,attempt_no,score,passed,feedback,competency_json,recorded_by,recorded_at)
-            values(?,?,?,'test',1,88,false,?,?,?,TIMESTAMPTZ '2026-10-02 12:00:00+05')""",result,assignment,stage,privateMarker,"{\"private\":\"$privateMarker\"}",admin.id)
+            values(?,?,?,'test',1,88,false,?,?,?,TIMESTAMPTZ '2026-10-02 12:00:00+05')""",result,assignment,stage,privateMarker,"{\"$privateMarker\":42}",admin.id)
         certificateQr=UUID.randomUUID()
         jdbc.update("""insert into training_certificates(id,certificate_number,assignment_id,pharmacist_id,program_version_id,format,issued_at,score,signer_name,qr_token,status,pdf_url)
             values(?,'000001-CERT',?,'learning-person-a',?,'online',now(),null,?,?,'valid',?)""",UUID.randomUUID(),assignmentA,version,privateMarker,certificateQr,"https://private.invalid/$privateMarker.pdf")
@@ -103,7 +103,7 @@ class TrainingLearningExportIntegrationTest {
     private fun stage(assignment:UUID,definition:UUID)=UUID.randomUUID().also {id->jdbc.update("""insert into training_assignment_stages(id,assignment_id,program_stage_id,status,progress_pct,score,attempts_used)
         values(?,?,?,'in_progress',42,null,1)""",id,assignment,definition)}
 
-    @Test fun `D6 learning history follows current pharmacy while foreign rows and all financial source fields stay excluded`() {
+    @Test fun `D6 learning history follows current pharmacy while foreign rows and financial fields without explicit access stay excluded`() {
         jdbc.update("update pharmacists set pharmacy_id='learning-b',pharmacy_name='Business learning-b',city='City B' where id='learning-person-a'")
         grants(setOf("learning-a"))
         book("assignments") {book->assertEquals(0,book.getSheet("Назначения").lastRowNum);assertEquals(0,book.getSheet("Сертификаты").lastRowNum)}
@@ -145,6 +145,56 @@ class TrainingLearningExportIntegrationTest {
         assertEquals(42,jdbc.queryForObject("select progress_pct from training_assignments where id=?",Int::class.java,assignmentA))
     }
 
+    @Test fun `separate learning files retain scoped employee names with formula-safe text and blank money without financial authority`() {
+        jdbc.update("UPDATE pharmacists SET name='=Synthetic public learner' WHERE id='learning-person-a'")
+        grants(setOf("learning-a"))
+        book("assignments") { workbook ->
+            val sheet=workbook.getSheet("Назначения");val row=sheet.getRow(1)
+            assertEquals(1,sheet.lastRowNum);assertEquals(27,sheet.getRow(0).lastCellNum.toInt())
+            assertEquals("=Synthetic public learner",row.getCell(24).stringCellValue)
+            assertEquals(CellType.STRING,row.getCell(24).cellType)
+            assertEquals(CellType.BLANK,row.getCell(25).cellType);assertEquals(CellType.BLANK,row.getCell(26).cellType)
+            assertFalse(sheet.any { it.any { cell -> cell.toString().contains("Synthetic public b") } })
+            assertSafe(workbook)
+        }
+        book("results") { workbook ->
+            val row=workbook.getSheet("Результаты").getRow(1)
+            assertEquals("=Synthetic public learner",row.getCell(21).stringCellValue)
+            assertEquals(CellType.STRING,row.getCell(21).cellType);assertSafe(workbook)
+        }
+    }
+
+    @Test fun `historical training reward needs global financial access remains its saved amount and disappears immediately on revocation`() {
+        val view=grant("assignments","view");val export=grant("assignments","export")
+        val localMoney=StoredGrant("pharmacists","registry","financial_data",pharmacyIds=setOf("learning-a"))
+        val globalMoney=StoredGrant("pharmacists","registry","financial_data",allPharmacies=true)
+        setGrants(view,export,localMoney)
+        book("assignments") { assertEquals(CellType.BLANK,it.getSheet("Назначения").getRow(1).getCell(25).cellType) }
+        setGrants(view,export,globalMoney)
+        book("assignments") { workbook ->
+            val sheet=workbook.getSheet("Назначения")
+            val own=sheet.first { it.rowNum>0 && it.getCell(5).stringCellValue=="learning-person-a" }
+            val other=sheet.first { it.rowNum>0 && it.getCell(5).stringCellValue=="learning-person-b" }
+            assertEquals(900.0,own.getCell(25).numericCellValue);assertEquals("issued",own.getCell(26).stringCellValue)
+            assertEquals(CellType.BLANK,other.getCell(25).cellType);assertEquals(CellType.BLANK,other.getCell(26).cellType)
+            assertSafe(workbook,financialAllowed=true)
+        }
+        setGrants(view,export)
+        book("assignments") { assertEquals(CellType.BLANK,it.getSheet("Назначения").getRow(1).getCell(25).cellType) }
+        assertEquals(900L,jdbc.queryForObject("SELECT amount FROM training_rewards",Long::class.java))
+        assertEquals(700L,jdbc.queryForObject("SELECT balance FROM pharmacists WHERE id='learning-person-a'",Long::class.java))
+        assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM training_rewards",Int::class.java))
+    }
+
+    @Test fun `financial export refuses a reward assigned to another person without rewriting either source row`() {
+        setGrants(grant("assignments","view"),grant("assignments","export"),
+            StoredGrant("pharmacists","registry","financial_data",allPharmacies=true))
+        jdbc.update("UPDATE training_rewards SET pharmacist_id='learning-person-b' WHERE assignment_id=?",assignmentA)
+        val before=jdbc.queryForMap("SELECT * FROM training_rewards WHERE assignment_id=?",assignmentA)
+        mvc.perform(request("assignments")).andExpect(status().isConflict)
+        assertEquals(before,jdbc.queryForMap("SELECT * FROM training_rewards WHERE assignment_id=?",assignmentA))
+    }
+
     @Test fun `assignment and result exports require separate explicit view export grants and revoke before next request`() {
         setGrants(grant("assignments","view"));mvc.perform(request("assignments")).andExpect(status().isForbidden)
         setGrants(grant("assignments","export"));mvc.perform(request("assignments")).andExpect(status().isForbidden)
@@ -177,18 +227,26 @@ class TrainingLearningExportIntegrationTest {
         mvc.perform(request("assignments")).andExpect(status().isConflict)
     }
 
-    @Test fun `new metadata reports do not open old NOT READY CSV or result APIs or accept a pharmacist as trainer`() {
-        mvc.perform(get("/api/admin/training/assignments/export.csv").header("Authorization",auth)).andExpect(status().isForbidden)
+    @Test fun `managed assignments require XLSX while results honour explicit scoped grants without accepting a pharmacist as trainer`() {
+        mvc.perform(get("/api/admin/training/assignments/export.csv").header("Authorization",auth)).andExpect(status().isConflict)
+        mvc.perform(get("/api/admin/training/assignments/$assignmentA/results").header("Authorization",auth)).andExpect(status().isOk)
+        grants(setOf("learning-b"))
         mvc.perform(get("/api/admin/training/assignments/$assignmentA/results").header("Authorization",auth)).andExpect(status().isForbidden)
         jdbc.update("update admin_users set role='CATEGORY_LEAD' where id=?",admin.id)
         mvc.perform(request("assignments")).andExpect(status().isForbidden)
         mvc.perform(get("/api/admin/training/exports/results.xlsx").header("Authorization","Bearer ${jwt.issuePharmacistToken("learning-person-a",privateMarker,"+77000000001")}"))
             .andExpect(status().isForbidden)
     }
-    private fun assertSafe(book:XSSFWorkbook) {
+    private fun assertSafe(book:XSSFWorkbook,financialAllowed:Boolean=false) {
         val text=book.flatMap {sheet->sheet.flatMap {row->row.map {it.toString()}}}.joinToString("\n")
         for(secret in listOf(privateMarker,"000000000001","+77000000001",certificateQr.toString(),"https://private.invalid/")) assertFalse(text.contains(secret))
-        assertFalse(text.contains("₸"));assertTrue(book.all {sheet->sheet.all {row->row.none {it.cellType==CellType.FORMULA}}})
-        assertTrue(book.flatMap {sheet->sheet.flatMap {row->row.filter {it.cellType==CellType.NUMERIC}}}.none {it.numericCellValue==900.0})
+        assertTrue(book.all {sheet->sheet.all {row->row.none {it.cellType==CellType.FORMULA}}})
+        if(!financialAllowed) {
+            book.getSheet("Назначения")?.filter {it.rowNum>0}?.forEach {row->
+                assertEquals(CellType.BLANK,row.getCell(25).cellType)
+                assertEquals(CellType.BLANK,row.getCell(26).cellType)
+            }
+            assertTrue(book.flatMap {sheet->sheet.flatMap {row->row.filter {it.cellType==CellType.NUMERIC}}}.none {it.numericCellValue==900.0})
+        }
     }
 }

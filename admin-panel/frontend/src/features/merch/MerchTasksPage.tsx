@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useAdministrativeCapabilities } from '@/app/useAdministrativeCapabilities'
 import { Button, Field, Input, Modal, PageHeader, Select } from '@/ui'
 import { describeError } from '@/lib/describeError'
@@ -42,9 +42,15 @@ function TaskWorkspace({
   canExport: boolean
 }) {
   const [offset, setOffset] = useState(0)
+  const [queue, setQueue] = useState('all')
+  const [search, setSearch] = useState('')
+  const [query, setQuery] = useState('')
   const [selected, setSelected] = useState('')
   const [creating, setCreating] = useState(false)
-  const load = useCallback((signal: AbortSignal) => adminTaskApi.list(offset, signal), [offset])
+  const load = useCallback(
+    (signal: AbortSignal) => adminTaskApi.list(offset, signal, { queue, q: query }),
+    [offset, queue, query],
+  )
   const list = usePlacementRead(load)
   const branchLoad = useCallback((signal: AbortSignal) => adminTaskApi.branches(signal), [])
   const branchNames = usePlacementRead(branchLoad)
@@ -69,6 +75,41 @@ function TaskWorkspace({
           </div>
         }
       />
+      <form
+        className="card flex flex-wrap gap-3 p-3"
+        onSubmit={(event) => {
+          event.preventDefault()
+          setQuery(search.trim())
+          setOffset(0)
+        }}
+      >
+        <Select
+          ariaLabel="Рабочая очередь заданий"
+          value={queue}
+          onChange={(value) => {
+            setQueue(value)
+            setOffset(0)
+          }}
+          options={[
+            { value: 'all', label: 'Вся история' },
+            { value: 'review', label: 'Ожидают проверки' },
+            { value: 'revision', label: 'На доработке' },
+            { value: 'overdue', label: 'Просрочены' },
+            { value: 'active', label: 'В работе' },
+            { value: 'completed', label: 'Завершены' },
+          ]}
+        />
+        <Input
+          aria-label="Поиск заданий"
+          placeholder="Название задания"
+          maxLength={120}
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+        <Button type="submit" variant="outline">
+          Найти
+        </Button>
+      </form>
       {list.pending && <p role="status">Загружаем задания…</p>}
       {!!list.error && (
         <div role="alert" className="card p-4">
@@ -191,6 +232,9 @@ function CreateTaskDialog({
   const load = useCallback((signal: AbortSignal) => adminTaskApi.branches(signal), [])
   const branches = usePlacementRead(load)
   const [branchId, setBranchId] = useState('')
+  const [multiple, setMultiple] = useState(false)
+  const [branchIds, setBranchIds] = useState<string[]>([])
+  const lastBulk = useRef<{ body: string; id: string } | null>(null)
   const [title, setTitle] = useState('')
   const [due, setDue] = useState('')
   const [availableFrom, setAvailableFrom] = useState('')
@@ -203,51 +247,62 @@ function CreateTaskDialog({
   const [now] = useState(Date.now)
   const [failure, setFailure] = useState('')
   const branch = branches.data?.find((item) => item.id === branchId)
+  const selectedBranches = multiple
+    ? (branches.data ?? []).filter((item) => branchIds.includes(item.id))
+    : branch
+      ? [branch]
+      : []
+  const financial =
+    selectedBranches.length > 0 && selectedBranches.every((item) => item.canConfigureReward)
   const dueTime = due ? Date.parse(`${due}+05:00`) : NaN
   const fromTime = availableFrom ? Date.parse(`${availableFrom}+05:00`) : null
   const validation =
-    !branch?.active || !branch.createEligible
+    !selectedBranches.length ||
+    selectedBranches.some((item) => !item.active || !item.createEligible)
       ? 'Выберите доступную активную аптеку.'
-      : !branch.canConfigureReward && Number(reward) > 0
-        ? 'Нет права задавать вознаграждение. Уберите сумму, чтобы создать задание без бонуса.'
-        : title.trim().length < 2 || title.trim().length > 160
-          ? 'Название задания: от 2 до 160 символов.'
-          : !Number.isFinite(dueTime) || dueTime <= now || dueTime > now + 366 * 86400000
-            ? 'Срок должен быть в будущем, не дальше 366 дней.'
-            : fromTime !== null && (!Number.isFinite(fromTime) || fromTime > dueTime)
-              ? 'Начало доступности должно быть не позже срока.'
-              : !Number.isSafeInteger(Number(reward)) ||
-                  Number(reward) < 0 ||
-                  Number(reward) > 1000000
-                ? 'Вознаграждение: целое число от 0 до 1 000 000 ₸.'
-                : !items.some((item) => item.required)
-                  ? 'Нужен хотя бы один обязательный пункт.'
-                  : items.some(
-                        (item) =>
-                          item.title.trim().length < 2 ||
-                          item.title.trim().length > 240 ||
-                          item.instructions.length > 4000 ||
-                          !Number.isInteger(item.requiredPhotos) ||
-                          item.requiredPhotos < 0 ||
-                          item.requiredPhotos > 12 ||
-                          item.checklist.map((value) => value.trim()).filter(Boolean).length > 20 ||
-                          item.checklist.some(
-                            (value) =>
-                              value.trim() &&
-                              (value.trim().length < 2 || value.trim().length > 240),
-                          ),
-                      )
-                    ? 'Проверьте пункты: название 2–240 символов, инструкция до 4000, фото 0–12, чек-лист до 20 строк по 2–240 символов.'
-                    : ''
+      : branchIds.length > 50 || (multiple && branchIds.length * items.length > 500)
+        ? 'Не больше 50 аптек и 500 пунктов в одном назначении.'
+        : !financial && Number(reward) > 0
+          ? 'Нет права задавать вознаграждение. Уберите сумму, чтобы создать задание без бонуса.'
+          : title.trim().length < 2 || title.trim().length > 160
+            ? 'Название задания: от 2 до 160 символов.'
+            : !Number.isFinite(dueTime) || dueTime <= now || dueTime > now + 366 * 86400000
+              ? 'Срок должен быть в будущем, не дальше 366 дней.'
+              : fromTime !== null && (!Number.isFinite(fromTime) || fromTime > dueTime)
+                ? 'Начало доступности должно быть не позже срока.'
+                : !Number.isSafeInteger(Number(reward)) ||
+                    Number(reward) < 0 ||
+                    Number(reward) > 1000000
+                  ? 'Вознаграждение: целое число от 0 до 1 000 000 ₸.'
+                  : !items.some((item) => item.required)
+                    ? 'Нужен хотя бы один обязательный пункт.'
+                    : items.some(
+                          (item) =>
+                            item.title.trim().length < 2 ||
+                            item.title.trim().length > 240 ||
+                            item.instructions.length > 4000 ||
+                            !Number.isInteger(item.requiredPhotos) ||
+                            item.requiredPhotos < 0 ||
+                            item.requiredPhotos > 12 ||
+                            item.checklist.map((value) => value.trim()).filter(Boolean).length >
+                              20 ||
+                            item.checklist.some(
+                              (value) =>
+                                value.trim() &&
+                                (value.trim().length < 2 || value.trim().length > 240),
+                            ),
+                        )
+                      ? 'Проверьте пункты: название 2–240 символов, инструкция до 4000, фото 0–12, чек-лист до 20 строк по 2–240 символов.'
+                      : ''
   const valid = !validation
 
   const save = async () => {
-    if (!valid || !branch || pending) return
+    if (!valid || !selectedBranches.length || pending) return
     setPending(true)
     setFailure('')
     try {
-      const result = await adminTaskApi.create({
-        branchId,
+      const body = {
+        branchId: selectedBranches[0].id,
         title: title.trim(),
         dueAt: new Date(`${due}+05:00`).toISOString(),
         rewardAmountKzt: Number(reward),
@@ -258,8 +313,19 @@ function CreateTaskDialog({
           title: item.title.trim(),
           checklist: item.checklist.map((value) => value.trim()).filter(Boolean),
         })),
-      })
-      onCreated(result.id)
+      }
+      if (multiple) {
+        const { branchId: _branchId, ...template } = body
+        const payload = { ...template, branchIds: [...branchIds].sort() }
+        const serialized = JSON.stringify(payload)
+        if (lastBulk.current?.body !== serialized)
+          lastBulk.current = { body: serialized, id: crypto.randomUUID() }
+        const result = await adminTaskApi.createBulk({ ...payload, requestId: lastBulk.current.id })
+        onCreated(result.dispatchIds[0])
+      } else {
+        const result = await adminTaskApi.create(body)
+        onCreated(result.id)
+      }
     } catch (error) {
       setFailure(describeError(error))
     } finally {
@@ -290,23 +356,65 @@ function CreateTaskDialog({
       <div className="flex flex-col gap-4">
         {branches.pending && <p role="status">Загружаем доступные аптеки…</p>}
         {!!branches.error && <p role="alert">{describeError(branches.error)}</p>}
-        <Field label="Аптека мерча *">
-          <Select
-            ariaLabel="Аптека нового задания"
-            value={branchId}
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={multiple}
             disabled={pending}
-            onChange={(value) => {
-              setBranchId(value)
+            onChange={(event) => {
+              setMultiple(event.target.checked)
               setReward('0')
             }}
-            options={(branches.data ?? [])
-              .filter((item: TaskBranch) => item.active && item.createEligible)
-              .map((item) => ({
-                value: item.id,
-                label: `${item.city} · ${item.name} · ${item.address}`,
-              }))}
           />
-        </Field>
+          Назначить нескольким аптекам
+        </label>
+        {multiple ? (
+          <Field
+            label="Аптеки мерча *"
+            hint="Выберите до 50 аптек; для каждой создаётся отдельное задание. Ctrl/⌘ — несколько строк."
+          >
+            <select
+              aria-label="Аптеки массового задания"
+              multiple
+              className="inp min-h-36"
+              value={branchIds}
+              disabled={pending}
+              onChange={(event) => {
+                setBranchIds(Array.from(event.target.selectedOptions, (option) => option.value))
+                setReward('0')
+              }}
+            >
+              {(branches.data ?? [])
+                .filter((item) => item.active && item.createEligible)
+                .map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.city} · {item.name} · {item.address}
+                  </option>
+                ))}
+            </select>
+            <p>
+              Выбрано: {branchIds.length}. Пунктов всего: {branchIds.length * items.length}.
+            </p>
+          </Field>
+        ) : (
+          <Field label="Аптека мерча *">
+            <Select
+              ariaLabel="Аптека нового задания"
+              value={branchId}
+              disabled={pending}
+              onChange={(value) => {
+                setBranchId(value)
+                setReward('0')
+              }}
+              options={(branches.data ?? [])
+                .filter((item: TaskBranch) => item.active && item.createEligible)
+                .map((item) => ({
+                  value: item.id,
+                  label: `${item.city} · ${item.name} · ${item.address}`,
+                }))}
+            />
+          </Field>
+        )}
         {branches.data && !branches.data.some((item) => item.active && item.createEligible) && (
           <p className="text-[13px] text-ink-500">
             Нет активных аптек, в которых разрешено создание. Существующие задания остаются доступны
@@ -348,7 +456,7 @@ function CreateTaskDialog({
           <Field
             label="Вознаграждение, ₸"
             hint={
-              !branch?.canConfigureReward
+              !financial
                 ? 'Нет права задавать денежное вознаграждение'
                 : 'Предусмотренная сумма; начисление после проверки'
             }
@@ -359,7 +467,7 @@ function CreateTaskDialog({
               min={0}
               step={1}
               value={reward}
-              disabled={pending || !branch?.canConfigureReward}
+              disabled={pending || !financial}
               onChange={(event) => setReward(event.target.value)}
             />
           </Field>
@@ -445,7 +553,10 @@ function CreateTaskDialog({
         <div>
           <Button
             variant="outline"
-            disabled={pending || items.length >= 200}
+            disabled={
+              pending ||
+              items.length >= (multiple ? Math.floor(500 / Math.max(1, branchIds.length)) : 200)
+            }
             onClick={() =>
               setItems((current) => [
                 ...current,

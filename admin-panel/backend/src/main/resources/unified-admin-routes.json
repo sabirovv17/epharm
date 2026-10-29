@@ -7,7 +7,7 @@
       "action": "delete",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "DELETE /api/admin/banners/{id}",
@@ -47,7 +47,7 @@
       "action": "archive",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "DELETE /api/admin/lms/courses/{id}/lessons/{lessonId}",
@@ -57,7 +57,7 @@
       "action": "delete",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "DELETE /api/admin/lms/courses/{id}/lessons/{lessonId}/attachments/{attachmentId}",
@@ -67,7 +67,7 @@
       "action": "delete",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "DELETE /api/admin/pharmacies/chains/{id}",
@@ -317,7 +317,337 @@
       "action": "view",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
+  },
+  {
+    "api": "GET /api/admin/merch/branches",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "inventory",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/branches/{id}/availability",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "inventory",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/branches/{id}/editor",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "inventory",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/branches/{id}/editor/media/{photoId}",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "inventory",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/branches/{id}/inventory",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "inventory",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/commercial/plans",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/commercial/plans/{id}",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/commercial/plans/{id}/media-kit.xlsx",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "export",
+      "kind": "EXPORT"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/commercial/pricing",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "financial_data",
+      "kind": "FINANCIAL"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/commercial/producers/{id}/settings",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/exports/inventory.xlsx",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "inventory",
+      "action": "export",
+      "kind": "EXPORT"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/exports/placements.xlsx",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "export",
+      "kind": "EXPORT"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/exports/tasks.xlsx",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "export",
+      "kind": "EXPORT"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/instructions",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/instructions/targets",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/instructions/{id}/pdf",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/instructions/{id}/results",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/instructions/{id}/results/{evidenceId}/file",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/inventory/organizations",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "inventory",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/placements",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/placements/catalog",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/placements/producers",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/placements/{id}",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/producers",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "producers",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/tasks",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/tasks/branches",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/tasks/evidence/{id}",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/tasks/items/{itemId}/attempts",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/tasks/items/{itemId}/instruction",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/tasks/{id}",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
   },
   {
     "api": "GET /api/admin/payouts",
@@ -460,6 +790,17 @@
     "mode": "ALL_ONLY"
   },
   {
+    "api": "GET /api/admin/promo/{id}/producer",
+    "permission": {
+      "module": "motivation",
+      "subsection": "campaigns",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "ALL_ONLY",
+    "explicitAccess": true
+  },
+  {
     "api": "GET /api/admin/promo/{id}/rules",
     "permission": {
       "module": "motivation",
@@ -518,6 +859,83 @@
       "kind": "EXPORT"
     },
     "mode": "NOT_READY"
+  },
+  {
+    "api": "GET /api/admin/reports/campaigns/{promoId}/xlsx",
+    "permission": {
+      "module": "analytics",
+      "subsection": "campaign_reports",
+      "action": "export",
+      "kind": "EXPORT"
+    },
+    "mode": "ALL_ONLY",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/reports/ledger",
+    "permission": {
+      "module": "motivation",
+      "subsection": "accruals",
+      "action": "view",
+      "kind": "FINANCIAL"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/reports/ledger.xlsx",
+    "permission": {
+      "module": "motivation",
+      "subsection": "accruals",
+      "action": "export",
+      "kind": "EXPORT"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/reports/payouts.xlsx",
+    "permission": {
+      "module": "motivation",
+      "subsection": "payouts",
+      "action": "export",
+      "kind": "EXPORT"
+    },
+    "mode": "ALL_ONLY",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/reports/pharmacists.xlsx",
+    "permission": {
+      "module": "pharmacists",
+      "subsection": "registry",
+      "action": "export",
+      "kind": "EXPORT"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/reports/producers",
+    "permission": {
+      "module": "analytics",
+      "subsection": "campaign_reports",
+      "action": "view",
+      "kind": "FINANCIAL"
+    },
+    "mode": "ALL_ONLY",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/reports/producers/{producerId}/xlsx",
+    "permission": {
+      "module": "analytics",
+      "subsection": "campaign_reports",
+      "action": "export",
+      "kind": "EXPORT"
+    },
+    "mode": "ALL_ONLY",
+    "explicitAccess": true
   },
   {
     "api": "GET /api/admin/rules",
@@ -657,7 +1075,7 @@
       "action": "view",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "SCOPED"
   },
   {
     "api": "GET /api/admin/training/assignments/export.csv",
@@ -667,7 +1085,7 @@
       "action": "export",
       "kind": "EXPORT"
     },
-    "mode": "NOT_READY"
+    "mode": "SCOPED"
   },
   {
     "api": "GET /api/admin/training/assignments/page",
@@ -677,7 +1095,7 @@
       "action": "view",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "SCOPED"
   },
   {
     "api": "GET /api/admin/training/assignments/{assignmentId}/format-history",
@@ -687,7 +1105,7 @@
       "action": "view",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "SCOPED"
   },
   {
     "api": "GET /api/admin/training/assignments/{assignmentId}/results",
@@ -697,7 +1115,7 @@
       "action": "view",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "SCOPED"
   },
   {
     "api": "GET /api/admin/training/certificates",
@@ -707,7 +1125,7 @@
       "action": "view",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "SCOPED"
   },
   {
     "api": "GET /api/admin/training/dashboard",
@@ -717,7 +1135,7 @@
       "action": "view",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "SCOPED"
   },
   {
     "api": "GET /api/admin/training/events",
@@ -727,7 +1145,7 @@
       "action": "view",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "SCOPED"
   },
   {
     "api": "GET /api/admin/training/events/{eventId}/participants",
@@ -737,7 +1155,7 @@
       "action": "view",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "SCOPED"
   },
   {
     "api": "GET /api/admin/training/events/{eventId}/qr",
@@ -747,7 +1165,51 @@
       "action": "show_qr",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "SCOPED"
+  },
+  {
+    "api": "GET /api/admin/training/exports/assignments.xlsx",
+    "permission": {
+      "module": "training",
+      "subsection": "assignments",
+      "action": "export",
+      "kind": "EXPORT"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/training/exports/courses.xlsx",
+    "permission": {
+      "module": "training",
+      "subsection": "courses",
+      "action": "export",
+      "kind": "EXPORT"
+    },
+    "mode": "ALL_ONLY",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/training/exports/programs.xlsx",
+    "permission": {
+      "module": "training",
+      "subsection": "programs",
+      "action": "export",
+      "kind": "EXPORT"
+    },
+    "mode": "ALL_ONLY",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/training/exports/results.xlsx",
+    "permission": {
+      "module": "training",
+      "subsection": "results",
+      "action": "export",
+      "kind": "EXPORT"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
   },
   {
     "api": "GET /api/admin/training/pharmacists",
@@ -767,7 +1229,7 @@
       "action": "view",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "SCOPED"
   },
   {
     "api": "GET /api/admin/training/pharmacists/{pharmacistId}/profile",
@@ -777,7 +1239,7 @@
       "action": "view",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "SCOPED"
   },
   {
     "api": "GET /api/admin/training/preferences",
@@ -787,7 +1249,7 @@
       "action": "view",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "SCOPED"
   },
   {
     "api": "GET /api/admin/training/programs",
@@ -817,7 +1279,7 @@
       "action": "edit",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "PATCH /api/admin/banners/{id}",
@@ -847,7 +1309,7 @@
       "action": "edit",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "PATCH /api/admin/lms/courses/{id}/lessons/{lessonId}",
@@ -857,7 +1319,7 @@
       "action": "edit",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "PATCH /api/admin/lms/courses/{id}/lessons/{lessonId}/live/messages/{messageId}",
@@ -867,7 +1329,7 @@
       "action": "moderate",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "PATCH /api/admin/lms/courses/{id}/lessons/{lessonId}/live/status",
@@ -877,7 +1339,7 @@
       "action": "publish",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "PATCH /api/admin/pharmacies/chains/{id}",
@@ -947,7 +1409,7 @@
       "action": "change_format",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "SCOPED"
   },
   {
     "api": "PATCH /api/admin/training/assignments/{assignmentId}/stages/{stageId}/result",
@@ -957,7 +1419,7 @@
       "action": "record_result",
       "kind": "SENSITIVE_DATA"
     },
-    "mode": "NOT_READY"
+    "mode": "SCOPED"
   },
   {
     "api": "PATCH /api/admin/training/events/{eventId}",
@@ -967,7 +1429,7 @@
       "action": "edit",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "PATCH /api/admin/training/events/{eventId}/participants/{participantId}",
@@ -977,7 +1439,7 @@
       "action": "mark",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "SCOPED"
   },
   {
     "api": "PATCH /api/admin/training/pharmacists/preferences",
@@ -987,7 +1449,7 @@
       "action": "edit",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "SCOPED"
   },
   {
     "api": "PATCH /api/admin/training/pharmacists/{pharmacistId}/preference",
@@ -997,7 +1459,7 @@
       "action": "edit",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "SCOPED"
   },
   {
     "api": "PATCH /api/admin/training/programs/{id}",
@@ -1007,7 +1469,7 @@
       "action": "edit",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "POST /api/admin/ai-exam/questions",
@@ -1017,7 +1479,7 @@
       "action": "create",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "POST /api/admin/app-releases",
@@ -1097,7 +1559,7 @@
       "action": "create",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "POST /api/admin/lms/courses/import/excel",
@@ -1107,7 +1569,7 @@
       "action": "import",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "POST /api/admin/lms/courses/{id}/lessons",
@@ -1117,7 +1579,7 @@
       "action": "create",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "POST /api/admin/lms/courses/{id}/lessons/{lessonId}/attachments",
@@ -1127,7 +1589,7 @@
       "action": "upload",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "POST /api/admin/lms/courses/{id}/lessons/{lessonId}/live/messages",
@@ -1137,7 +1599,7 @@
       "action": "participate",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "POST /api/admin/lms/courses/{id}/lessons/{lessonId}/live/polls/{pollId}/vote",
@@ -1147,7 +1609,7 @@
       "action": "participate",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "POST /api/admin/lms/courses/{id}/lessons/{lessonId}/live/reactions",
@@ -1157,7 +1619,7 @@
       "action": "participate",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "POST /api/admin/lms/courses/{id}/lessons/{lessonId}/video",
@@ -1167,7 +1629,359 @@
       "action": "upload",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
+  },
+  {
+    "api": "POST /api/admin/merch/admin-assignments",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "assign",
+      "kind": "FINANCIAL"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/branches/{id}/availability",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "inventory",
+      "action": "manage_availability",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/branches/{id}/editor/containers",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "inventory",
+      "action": "edit_structure",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/branches/{id}/editor/containers/{containerId}/configure",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "inventory",
+      "action": "edit_structure",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/branches/{id}/editor/floor-plan/publish",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "inventory",
+      "action": "edit_passport",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/branches/{id}/editor/photos",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "inventory",
+      "action": "edit_passport",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/branches/{id}/editor/photos/{photoId}/archive",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "inventory",
+      "action": "edit_passport",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/branches/{id}/editor/prices",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "inventory",
+      "action": "configure_prices",
+      "kind": "FINANCIAL"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/branches/{id}/editor/shelves",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "inventory",
+      "action": "edit_structure",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/commercial/plans/import-preview",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/commercial/plans/{id}/copy",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/commercial/plans/{id}/submit",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "submit",
+      "kind": "FINANCIAL"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/instructions",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/instructions/{id}/review",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "approve",
+      "kind": "FINANCIAL"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/inventory/branches",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "inventory",
+      "action": "edit_structure",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/inventory/organizations",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "inventory",
+      "action": "edit_structure",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/placements",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/placements/{id}/approve",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "approve",
+      "kind": "FINANCIAL"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/placements/{id}/cancel",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "cancel",
+      "kind": "FINANCIAL"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/placements/{id}/items/approve",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "approve",
+      "kind": "FINANCIAL"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/placements/{id}/items/reject",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "reject",
+      "kind": "FINANCIAL"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/placements/{id}/producer-binding",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "bind_producer",
+      "kind": "SENSITIVE_DATA"
+    },
+    "mode": "ALL_ONLY",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/placements/{id}/reject",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "reject",
+      "kind": "FINANCIAL"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/placements/{id}/submit",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "submit",
+      "kind": "FINANCIAL"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/tasks",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "create",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/tasks/bulk",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "create",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/tasks/items/{itemId}/attempts",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "execute",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/tasks/items/{itemId}/evidence",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "execute",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/tasks/items/{itemId}/reviews",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "review",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/tasks/items/{itemId}/source-continuation",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "review",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/tasks/items/{itemId}/stock",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "execute",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/tasks/items/{itemId}/submit",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "tasks",
+      "action": "execute",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
   },
   {
     "api": "POST /api/admin/payouts/generate",
@@ -1280,6 +2094,17 @@
     "mode": "ALL_ONLY"
   },
   {
+    "api": "POST /api/admin/promo/producers",
+    "permission": {
+      "module": "motivation",
+      "subsection": "campaigns",
+      "action": "manage_producer",
+      "kind": "SENSITIVE_DATA"
+    },
+    "mode": "ALL_ONLY",
+    "explicitAccess": true
+  },
+  {
     "api": "POST /api/admin/promo/refresh-prices",
     "permission": {
       "module": "pharmacies_products",
@@ -1308,6 +2133,17 @@
       "kind": "ORDINARY"
     },
     "mode": "ALL_ONLY"
+  },
+  {
+    "api": "POST /api/admin/promo/{id}/producer/retractions",
+    "permission": {
+      "module": "motivation",
+      "subsection": "campaigns",
+      "action": "manage_producer",
+      "kind": "SENSITIVE_DATA"
+    },
+    "mode": "ALL_ONLY",
+    "explicitAccess": true
   },
   {
     "api": "POST /api/admin/promo/{id}/restore",
@@ -1457,7 +2293,7 @@
       "action": "assign",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "SCOPED"
   },
   {
     "api": "POST /api/admin/training/events",
@@ -1467,7 +2303,7 @@
       "action": "create",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "POST /api/admin/training/programs",
@@ -1477,7 +2313,7 @@
       "action": "create",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "POST /api/admin/training/programs/certificate-asset",
@@ -1487,7 +2323,7 @@
       "action": "upload",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "POST /api/admin/training/programs/cover",
@@ -1497,7 +2333,7 @@
       "action": "upload",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
   },
   {
     "api": "PUT /api/admin/fulfillment/pharmacy-links",
@@ -1517,7 +2353,95 @@
       "action": "reorder",
       "kind": "ORDINARY"
     },
-    "mode": "NOT_READY"
+    "mode": "ALL_ONLY"
+  },
+  {
+    "api": "PUT /api/admin/merch/branches/{id}/editor",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "inventory",
+      "action": "edit_structure",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "PUT /api/admin/merch/branches/{id}/editor/containers/{containerId}",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "inventory",
+      "action": "edit_structure",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "PUT /api/admin/merch/branches/{id}/editor/floor-plan",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "inventory",
+      "action": "edit_passport",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "PUT /api/admin/merch/branches/{id}/editor/shelves/{shelfId}",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "inventory",
+      "action": "edit_structure",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "PUT /api/admin/merch/commercial/plans/{id}",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "PUT /api/admin/merch/commercial/producers/{id}/category",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "PUT /api/admin/merch/inventory/organizations/{id}",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "inventory",
+      "action": "edit_structure",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "PUT /api/admin/merch/placements/{id}/draft",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "placements",
+      "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
   },
   {
     "api": "PUT /api/admin/promo/{id}/changes",
@@ -1528,6 +2452,17 @@
       "kind": "ORDINARY"
     },
     "mode": "ALL_ONLY"
+  },
+  {
+    "api": "PUT /api/admin/promo/{id}/producer",
+    "permission": {
+      "module": "motivation",
+      "subsection": "campaigns",
+      "action": "manage_producer",
+      "kind": "SENSITIVE_DATA"
+    },
+    "mode": "ALL_ONLY",
+    "explicitAccess": true
   },
   {
     "api": "PUT /api/admin/promo/{id}/rules",
@@ -1548,511 +2483,5 @@
       "kind": "ORDINARY"
     },
     "mode": "NOT_READY"
-  },
-  {
-    "api": "GET /api/admin/merch/branches",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "inventory",
-      "action": "view",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/merch/branches/{id}/inventory",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "inventory",
-      "action": "view",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/merch/branches/{id}/availability",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "inventory",
-      "action": "view",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "POST /api/admin/merch/branches/{id}/availability",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "inventory",
-      "action": "manage_availability",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/reports/ledger",
-    "permission": {
-      "module": "motivation",
-      "subsection": "accruals",
-      "action": "view",
-      "kind": "FINANCIAL"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/reports/ledger.xlsx",
-    "permission": {
-      "module": "motivation",
-      "subsection": "accruals",
-      "action": "export",
-      "kind": "EXPORT"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/reports/payouts.xlsx",
-    "permission": {
-      "module": "motivation",
-      "subsection": "payouts",
-      "action": "export",
-      "kind": "EXPORT"
-    },
-    "mode": "ALL_ONLY",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/reports/pharmacists.xlsx",
-    "permission": {
-      "module": "pharmacists",
-      "subsection": "registry",
-      "action": "export",
-      "kind": "EXPORT"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/reports/campaigns/{promoId}/xlsx",
-    "permission": {
-      "module": "analytics",
-      "subsection": "campaign_reports",
-      "action": "export",
-      "kind": "EXPORT"
-    },
-    "mode": "ALL_ONLY",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/merch/producers",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "producers",
-      "action": "view",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/merch/placements",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "placements",
-      "action": "view",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/merch/placements/{id}",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "placements",
-      "action": "view",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "POST /api/admin/merch/placements",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "placements",
-      "action": "edit",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "PUT /api/admin/merch/placements/{id}/draft",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "placements",
-      "action": "edit",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "POST /api/admin/merch/placements/{id}/submit",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "placements",
-      "action": "submit",
-      "kind": "FINANCIAL"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "POST /api/admin/merch/placements/{id}/approve",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "placements",
-      "action": "approve",
-      "kind": "FINANCIAL"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "POST /api/admin/merch/placements/{id}/reject",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "placements",
-      "action": "reject",
-      "kind": "FINANCIAL"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "POST /api/admin/merch/placements/{id}/cancel",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "placements",
-      "action": "cancel",
-      "kind": "FINANCIAL"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "POST /api/admin/merch/admin-assignments",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "placements",
-      "action": "assign",
-      "kind": "FINANCIAL"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/merch/tasks",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "tasks",
-      "action": "view",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "POST /api/admin/merch/tasks",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "tasks",
-      "action": "create",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/merch/tasks/{id}",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "tasks",
-      "action": "view",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/merch/tasks/items/{itemId}/attempts",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "tasks",
-      "action": "view",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "POST /api/admin/merch/tasks/items/{itemId}/attempts",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "tasks",
-      "action": "execute",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "POST /api/admin/merch/tasks/items/{itemId}/evidence",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "tasks",
-      "action": "execute",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "POST /api/admin/merch/tasks/items/{itemId}/submit",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "tasks",
-      "action": "execute",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "POST /api/admin/merch/tasks/items/{itemId}/reviews",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "tasks",
-      "action": "review",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/merch/tasks/evidence/{id}",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "tasks",
-      "action": "view",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/merch/placements/catalog",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "placements",
-      "action": "view",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/merch/placements/producers",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "placements",
-      "action": "view",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/promo/{id}/producer",
-    "permission": {
-      "module": "motivation",
-      "subsection": "campaigns",
-      "action": "view",
-      "kind": "ORDINARY"
-    },
-    "mode": "ALL_ONLY",
-    "explicitAccess": true
-  },
-  {
-    "api": "PUT /api/admin/promo/{id}/producer",
-    "permission": {
-      "module": "motivation",
-      "subsection": "campaigns",
-      "action": "manage_producer",
-      "kind": "SENSITIVE_DATA"
-    },
-    "mode": "ALL_ONLY",
-    "explicitAccess": true
-  },
-  {
-    "api": "POST /api/admin/promo/{id}/producer/retractions",
-    "permission": {
-      "module": "motivation",
-      "subsection": "campaigns",
-      "action": "manage_producer",
-      "kind": "SENSITIVE_DATA"
-    },
-    "mode": "ALL_ONLY",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/reports/producers",
-    "permission": {
-      "module": "analytics",
-      "subsection": "campaign_reports",
-      "action": "view",
-      "kind": "FINANCIAL"
-    },
-    "mode": "ALL_ONLY",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/reports/producers/{producerId}/xlsx",
-    "permission": {
-      "module": "analytics",
-      "subsection": "campaign_reports",
-      "action": "export",
-      "kind": "EXPORT"
-    },
-    "mode": "ALL_ONLY",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/merch/tasks/branches",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "tasks",
-      "action": "view",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "POST /api/admin/merch/placements/{id}/producer-binding",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "placements",
-      "action": "bind_producer",
-      "kind": "SENSITIVE_DATA"
-    },
-    "mode": "ALL_ONLY",
-    "explicitAccess": true
-  },
-  {
-    "api": "POST /api/admin/merch/tasks/items/{itemId}/source-continuation",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "tasks",
-      "action": "review",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/merch/exports/inventory.xlsx",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "inventory",
-      "action": "export",
-      "kind": "EXPORT"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/merch/exports/placements.xlsx",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "placements",
-      "action": "export",
-      "kind": "EXPORT"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/merch/exports/tasks.xlsx",
-    "permission": {
-      "module": "merchandising",
-      "subsection": "tasks",
-      "action": "export",
-      "kind": "EXPORT"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/training/exports/courses.xlsx",
-    "permission": {
-      "module": "training",
-      "subsection": "courses",
-      "action": "export",
-      "kind": "EXPORT"
-    },
-    "mode": "ALL_ONLY",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/training/exports/programs.xlsx",
-    "permission": {
-      "module": "training",
-      "subsection": "programs",
-      "action": "export",
-      "kind": "EXPORT"
-    },
-    "mode": "ALL_ONLY",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/training/exports/assignments.xlsx",
-    "permission": {
-      "module": "training",
-      "subsection": "assignments",
-      "action": "export",
-      "kind": "EXPORT"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "GET /api/admin/training/exports/results.xlsx",
-    "permission": {
-      "module": "training",
-      "subsection": "results",
-      "action": "export",
-      "kind": "EXPORT"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "POST /api/admin/promo/producers",
-    "permission": {
-      "module": "motivation",
-      "subsection": "campaigns",
-      "action": "manage_producer",
-      "kind": "SENSITIVE_DATA"
-    },
-    "mode": "ALL_ONLY",
-    "explicitAccess": true
   }
 ]

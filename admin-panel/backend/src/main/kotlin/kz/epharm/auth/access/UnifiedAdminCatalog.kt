@@ -20,6 +20,9 @@ class UnifiedAdminCatalog(mapper: ObjectMapper) {
     val routes: List<AdminRoute> = javaClass.getResourceAsStream("/unified-admin-routes.json")!!.use {
         mapper.readValue<List<AdminRoute>>(it)
     }
+    private val trainingRoleCeilings: Map<String,Set<AdminRole>> = javaClass.getResourceAsStream("/training-role-ceilings.json")!!.use {
+        mapper.readValue<Map<String,Set<AdminRole>>>(it)
+    }
     val viewRegistry = key("pharmacists", "registry", "view")
     val sensitive = key("pharmacists", "registry", "personal_data")
     val financial = key("pharmacists", "registry", "financial_data")
@@ -73,6 +76,13 @@ class UnifiedAdminCatalog(mapper: ObjectMapper) {
             PermissionDefinition(recommendationPublish),
             PermissionDefinition(configureBonus, PermissionKind.FINANCIAL),
             PermissionDefinition(inventoryView), PermissionDefinition(inventoryManage),
+            PermissionDefinition(key("merchandising", "inventory", "edit_structure"), viewPermission = inventoryView),
+            PermissionDefinition(key("merchandising", "inventory", "edit_passport"), viewPermission = inventoryView),
+            PermissionDefinition(key("merchandising", "inventory", "configure_prices"), PermissionKind.FINANCIAL, viewPermission = inventoryView),
+            PermissionDefinition(key("training", "programs", "publish")),
+            PermissionDefinition(key("training", "programs", "configure_bonus"), PermissionKind.FINANCIAL),
+            PermissionDefinition(key("training", "courses", "publish")),
+            PermissionDefinition(key("training", "courses", "configure_bonus"), PermissionKind.FINANCIAL),
             PermissionDefinition(inventoryFinancial, PermissionKind.FINANCIAL),
             PermissionDefinition(inventoryExport, PermissionKind.EXPORT, viewPermission = inventoryView),
             PermissionDefinition(placementExport, PermissionKind.EXPORT, viewPermission = placementView),
@@ -111,8 +121,7 @@ class UnifiedAdminCatalog(mapper: ObjectMapper) {
 
     fun availableRoles(key: PermissionKey): Set<AdminRole> = when {
         key in setOf(accountManage, producerBindingManage, placementBindProducer) -> setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD)
-        key.module == AdministrationModule.TRAINING -> setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD,
-            AdminRole.TRAINING_MANAGER, AdminRole.REGIONAL_MANAGER, AdminRole.TRAINER)
+        key.module == AdministrationModule.TRAINING -> trainingRoleCeilings["${key.subsection}.${key.action}"].orEmpty()
         key.module == AdministrationModule.MERCHANDISING -> setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD,
             AdminRole.CATEGORY_LEAD, AdminRole.REGIONAL_MANAGER)
         else -> setOf(AdminRole.SYSTEM_ADMIN, AdminRole.HQ_HEAD, AdminRole.CATEGORY_LEAD, AdminRole.BRAND_MANAGER, AdminRole.FINANCE_REVIEWER)
@@ -120,6 +129,8 @@ class UnifiedAdminCatalog(mapper: ObjectMapper) {
 
     fun integration(key: PermissionKey): ScopeIntegration = when {
         !supported(key) -> ScopeIntegration.NOT_READY
+        key.module == AdministrationModule.TRAINING && key.subsection in setOf("courses", "programs") &&
+            key.action in setOf("publish", "configure_bonus") -> ScopeIntegration.ALL_ONLY
         key in setOf(accountView, accountManage, financial, campaignPublish, recommendationPublish, configureBonus,
             payoutView, payoutExport, campaignReportView, campaignReportExport, producerBindingManage, placementBindProducer) -> ScopeIntegration.ALL_ONLY
         routes.any { it.permission.key() == key && it.mode == ScopeIntegration.ALL_ONLY } -> ScopeIntegration.ALL_ONLY

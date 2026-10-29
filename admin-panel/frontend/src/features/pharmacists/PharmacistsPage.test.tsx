@@ -574,4 +574,19 @@ describe('PharmacistsPage — список и actions', () => {
       '/api/public/training/certificates/verify-token/pdf',
     )
   })
+
+  it('не показывает ноль вместо скрытой истории учебных начислений в профиле', async () => {
+    setPharmacists([mkPharmacist()])
+    const previous = lmsHooks.usePharmacistTrainingProfile.getMockImplementation()!
+    lmsHooks.usePharmacistTrainingProfile.mockImplementation((...args: unknown[]) => {
+      const result = previous(...args)
+      return { ...result, data: { ...result.data, totalRewards: null, rewards: [] } }
+    })
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(screen.getByRole('button', { name: 'Обучение' }))
+    const dialog = screen.getByRole('dialog', { name: 'Айгерим Касенова' })
+    expect(within(dialog).getByText('Нет доступа')).toBeInTheDocument()
+    expect(within(dialog).getByText('Бонусы за обучение')).toBeInTheDocument()
+  })
 })

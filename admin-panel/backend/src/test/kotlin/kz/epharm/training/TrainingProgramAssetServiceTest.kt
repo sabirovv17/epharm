@@ -12,12 +12,13 @@ import java.io.ByteArrayOutputStream
 import javax.imageio.ImageIO
 
 class TrainingProgramAssetServiceTest {
+    private val access = io.mockk.mockk<kz.epharm.training.access.TrainingAdministrativeAccess>(relaxed = true)
     @Test
     fun `uploads valid cover photo`() {
         val storage = RecordingStorage()
         val file = MockMultipartFile("file", "cover.png", "image/png", imageBytes(800, 600))
 
-        val result = TrainingProgramAssetService(storage).uploadCover(file)
+        val result = TrainingProgramAssetService(storage, access).uploadCover(file)
 
         assertThat(result.coverUrl).isEqualTo("https://media.test/cover.png")
         assertThat(storage.lastContentType).isEqualTo("image/png")
@@ -27,7 +28,7 @@ class TrainingProgramAssetServiceTest {
     fun `rejects too small cover`() {
         val file = MockMultipartFile("file", "cover.png", "image/png", imageBytes(120, 120))
 
-        assertThatThrownBy { TrainingProgramAssetService(RecordingStorage()).uploadCover(file) }
+        assertThatThrownBy { TrainingProgramAssetService(RecordingStorage(), access).uploadCover(file) }
             .isInstanceOf(AppException::class.java)
             .hasMessageContaining("240×240")
     }
@@ -37,7 +38,7 @@ class TrainingProgramAssetServiceTest {
         val storage = RecordingStorage()
         val file = MockMultipartFile("file", "logo.png", "image/png", imageBytes(120, 64))
 
-        val result = TrainingProgramAssetService(storage).uploadCertificateAsset(file)
+        val result = TrainingProgramAssetService(storage, access).uploadCertificateAsset(file)
 
         assertThat(result.assetUrl).isEqualTo("https://media.test/logo.png")
     }
@@ -46,7 +47,7 @@ class TrainingProgramAssetServiceTest {
     fun `rejects image with excessive decompressed pixel count`() {
         val file = MockMultipartFile("file", "cover.png", "image/png", imageBytes(4_000, 2_500))
 
-        assertThatThrownBy { TrainingProgramAssetService(RecordingStorage()).uploadCover(file) }
+        assertThatThrownBy { TrainingProgramAssetService(RecordingStorage(), access).uploadCover(file) }
             .isInstanceOf(AppException::class.java)
             .hasMessageContaining("8000000")
     }

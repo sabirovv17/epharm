@@ -691,7 +691,7 @@ function PharmacistTrainingProfileModal({
             <div className="rounded-lg bg-paper-hover px-4 py-3">
               <div className="text-[10px] font-bold uppercase text-ink-500">Бонусы за обучение</div>
               <div className="num mt-1 text-xl font-extrabold text-brand-green-700">
-                {formatKzt(data.totalRewards)}
+                {data.totalRewards == null ? 'Нет доступа' : formatKzt(data.totalRewards)}
               </div>
             </div>
           </div>

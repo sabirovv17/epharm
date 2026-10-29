@@ -65,6 +65,7 @@ import { useUiStore } from '@/app/store'
 import { useAdministrativeCapabilities } from '@/app/useAdministrativeCapabilities'
 import ReportDownloadButton from '@/features/reports/ReportDownloadButton'
 import TrainingLearningExport from './TrainingLearningExport'
+import { trainingAllowed, type TrainingActions } from './training-actions'
 import {
   TRAINING_NAVIGATION,
   trainingItem,
@@ -100,6 +101,11 @@ const TABS: TabItem<TrainingTab>[] = TRAINING_NAVIGATION.map(({ value, label }) 
 
 export default function LMSPage() {
   const exportAccess = useAdministrativeCapabilities()
+  const legacyCsvAllowed =
+    exportAccess.isSuccess &&
+    exportAccess.isFetchedAfterMount &&
+    !exportAccess.isError &&
+    exportAccess.data?.managed === false
   const [searchParams, setSearchParams] = useSearchParams()
   const role = useUiStore((state) => state.authedUser?.role)
   const isReadOnly = isTrainingReadOnlyRole(role)
@@ -158,6 +164,27 @@ export default function LMSPage() {
   const pharmacists = pharmacistsQuery.data ?? []
   const pharmacies = pharmaciesQuery.data ?? []
   const capabilities = dashboard?.capabilities
+  const authorityFresh =
+    exportAccess.isSuccess && exportAccess.isFetchedAfterMount && !exportAccess.isError
+  const trainingActions: TrainingActions =
+    authorityFresh && exportAccess.data?.managed === false
+      ? null
+      : authorityFresh
+        ? (exportAccess.data?.trainingActions ?? {})
+        : {}
+  const allow = (key: string, legacy = false) => trainingAllowed(trainingActions, key, legacy)
+  const createProgram = allow('programs.create', !!capabilities?.canManagePrograms)
+  const editProgram = allow('programs.edit', !!capabilities?.canManagePrograms)
+  const assignTraining = allow('assignments.assign', !!capabilities?.canManageAssignments)
+  const changeFormat = allow('assignments.change_format', !!capabilities?.canManageAssignments)
+  const createEvent = allow('events.create', !!capabilities?.canManageEvents)
+  const editEvent = allow('events.edit', !!capabilities?.canManageEvents)
+  const markAttendance = allow('attendance.mark', !!capabilities?.canMarkAttendance)
+  const viewParticipants = allow('attendance.view', !!capabilities?.canMarkAttendance)
+  const showEventQr = allow('events.show_qr', !!capabilities?.canMarkAttendance)
+  const createCourse = allow('courses.create', !!capabilities?.canManagePrograms)
+  const importCourse = allow('courses.import', !!capabilities?.canManagePrograms)
+  const recordResults = allow('results.record_result', !!capabilities?.canRecordResults)
   const closeAssignmentModal = () => {
     setAssignmentModalOpen(false)
     if (requestedAssignment) {
@@ -177,44 +204,48 @@ export default function LMSPage() {
         </span>
       )
     }
-    if (tab === 'programs' && capabilities?.canManagePrograms) {
+    if (tab === 'programs' && createProgram) {
       return (
         <Button leading={<IconPlus size={15} />} onClick={() => setProgramModalOpen(true)}>
           Новая программа
         </Button>
       )
     }
-    if (tab === 'assignments' && capabilities?.canManageAssignments) {
+    if (tab === 'assignments' && assignTraining) {
       return (
         <Button leading={<IconPlus size={15} />} onClick={() => setAssignmentModalOpen(true)}>
           Назначить обучение
         </Button>
       )
     }
-    if (tab === 'events' && capabilities?.canManageEvents) {
+    if (tab === 'events' && createEvent) {
       return (
         <Button leading={<IconPlus size={15} />} onClick={() => setEventModalOpen(true)}>
           Новое событие
         </Button>
       )
     }
-    if (tab === 'courses' && capabilities?.canManagePrograms) {
+    if (tab === 'courses' && (createCourse || importCourse)) {
       return (
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            leading={<IconUpload size={15} />}
-            onClick={() => setCourseImportOpen(true)}
-          >
-            Импорт из Excel
-          </Button>
-          <Button leading={<IconPlus size={15} />} onClick={() => setCourseModalOpen(true)}>
-            Новый курс
-          </Button>
+          {importCourse && (
+            <Button
+              variant="outline"
+              leading={<IconUpload size={15} />}
+              onClick={() => setCourseImportOpen(true)}
+            >
+              Импорт из Excel
+            </Button>
+          )}
+          {createCourse && (
+            <Button leading={<IconPlus size={15} />} onClick={() => setCourseModalOpen(true)}>
+              Новый курс
+            </Button>
+          )}
         </div>
       )
     }
-    if (tab === 'certificates' && capabilities?.canManagePrograms) {
+    if (tab === 'certificates' && editProgram) {
       return (
         <Button leading={<IconEdit size={15} />} onClick={() => setCertificateEditorOpen(true)}>
           Редактор сертификата
@@ -300,6 +331,7 @@ export default function LMSPage() {
           programs={programs}
           loading={programsQuery.isLoading}
           canManage={!!capabilities?.canManagePrograms}
+          actions={trainingActions}
           onEdit={(program) => setProgramTarget({ program, mode: 'edit' })}
           onDuplicate={(program) => setProgramTarget({ program, mode: 'duplicate' })}
         />
@@ -307,8 +339,8 @@ export default function LMSPage() {
         <AssignmentsTab
           dashboard={dashboard}
           programs={programs}
-          canManage={!!capabilities?.canManageAssignments}
-          canExport={!!capabilities?.canExport}
+          canManage={changeFormat}
+          canExport={legacyCsvAllowed && !!capabilities?.canExport}
           canExportXlsx={exportAccess.canExportTrainingAssignments}
           onChangeFormat={setFormatTarget}
         />
@@ -316,8 +348,9 @@ export default function LMSPage() {
         <EventsTab
           events={events}
           loading={eventsQuery.isLoading}
-          canManageEvents={!!capabilities?.canManageEvents}
-          canMarkAttendance={!!capabilities?.canMarkAttendance}
+          canManageEvents={editEvent}
+          canMarkAttendance={viewParticipants}
+          canShowQr={showEventQr}
           onEdit={setEventTarget}
           onParticipants={setAttendanceEvent}
           onQr={setQrEvent}
@@ -326,14 +359,14 @@ export default function LMSPage() {
         <CoursesTab
           courses={courses}
           loading={coursesQuery.isLoading}
-          canManage={!!capabilities?.canManagePrograms}
+          canManage={allow('courses.archive', !!capabilities?.canManagePrograms)}
           onOpen={(course) => setCourseTargetId(course.id)}
         />
       ) : tab === 'results' ? (
         <ResultsTab
           assignments={assignments}
           loading={assignmentsQuery.isLoading}
-          canRecord={!!capabilities?.canRecordResults}
+          canRecord={recordResults}
           canExportXlsx={exportAccess.canExportTrainingResults}
           onRecord={setResultTarget}
         />
@@ -343,26 +376,45 @@ export default function LMSPage() {
         <AnalyticsTab
           dashboard={dashboard}
           assignments={assignments}
-          canExport={!!capabilities?.canExport}
+          canExport={legacyCsvAllowed && !!capabilities?.canExport}
+          canExportXlsx={exportAccess.canExportTrainingAssignments}
         />
       ) : (
         <TrainingSettingsTab capabilities={capabilities} />
       )}
 
-      {programModalOpen && capabilities?.canManagePrograms && (
-        <CreateProgramModal open onClose={() => setProgramModalOpen(false)} courses={courses} />
-      )}
-      {programTarget && capabilities?.canManagePrograms && (
+      {programModalOpen && createProgram && (
         <CreateProgramModal
-          key={`${programTarget.mode}-${programTarget.program.id}-${programTarget.program.version}`}
           open
-          onClose={() => setProgramTarget(null)}
+          onClose={() => setProgramModalOpen(false)}
           courses={courses}
-          program={programTarget.program}
-          mode={programTarget.mode}
+          canPublish={allow('programs.publish', true)}
+          canConfigureBonus={allow('programs.configure_bonus', true)}
+          canUpload={allow('programs.upload', true)}
         />
       )}
-      {(assignmentModalOpen || requestedAssignment) && capabilities?.canManageAssignments && (
+      {programTarget &&
+        (programTarget.mode === 'duplicate'
+          ? createProgram &&
+            ((programTarget.program.completionBonus === 0 &&
+              programTarget.program.stages.every((stage) => stage.bonus === 0)) ||
+              allow('programs.configure_bonus', true))
+          : editProgram &&
+            (!['published', 'scheduled', 'paused'].includes(programTarget.program.status) ||
+              allow('programs.publish', true))) && (
+          <CreateProgramModal
+            key={`${programTarget.mode}-${programTarget.program.id}-${programTarget.program.version}`}
+            open
+            onClose={() => setProgramTarget(null)}
+            courses={courses}
+            program={programTarget.program}
+            mode={programTarget.mode}
+            canPublish={allow('programs.publish', true)}
+            canConfigureBonus={allow('programs.configure_bonus', true)}
+            canUpload={allow('programs.upload', true)}
+          />
+        )}
+      {(assignmentModalOpen || requestedAssignment) && assignTraining && (
         <AssignTrainingModal
           key={requestedPharmacistIds.join(':') || 'manual-assignment'}
           open
@@ -374,10 +426,10 @@ export default function LMSPage() {
           initialPharmacistIds={requestedPharmacistIds}
         />
       )}
-      {eventModalOpen && capabilities?.canManageEvents && (
+      {eventModalOpen && createEvent && (
         <CreateEventModal open onClose={() => setEventModalOpen(false)} programs={programs} />
       )}
-      {eventTarget && capabilities?.canManageEvents && (
+      {eventTarget && editEvent && (
         <CreateEventModal
           key={`event-${eventTarget.id}-${eventTarget.updatedAt}`}
           open
@@ -386,21 +438,31 @@ export default function LMSPage() {
           event={eventTarget}
         />
       )}
-      {capabilities?.canManagePrograms && (
-        <CreateCourseModal open={courseModalOpen} onClose={() => setCourseModalOpen(false)} />
+      {createCourse && (
+        <CreateCourseModal
+          open={courseModalOpen}
+          onClose={() => setCourseModalOpen(false)}
+          canPublish={allow('courses.publish', true)}
+          canConfigureBonus={allow('courses.configure_bonus', true)}
+        />
       )}
-      {courseImportOpen && capabilities?.canManagePrograms && (
+      {courseImportOpen && importCourse && (
         <ImportCourseModal
           open
           onClose={() => setCourseImportOpen(false)}
           onImported={(course) => setCourseTargetId(course.id)}
         />
       )}
-      {certificateEditorOpen && capabilities?.canManagePrograms && (
+      {certificateEditorOpen && editProgram && (
         <CertificateEditorModal
           open
           onClose={() => setCertificateEditorOpen(false)}
-          programs={programs}
+          programs={programs.filter(
+            (program) =>
+              !['published', 'scheduled', 'paused'].includes(program.status) ||
+              allow('programs.publish', true),
+          )}
+          canUpload={allow('programs.upload', true)}
         />
       )}
       <CourseEditorDrawer
@@ -408,16 +470,21 @@ export default function LMSPage() {
         courseId={courseTargetId}
         fallbackCourse={courses.find((course) => course.id === courseTargetId)}
         canManage={!!capabilities?.canManagePrograms}
+        actions={trainingActions}
         onClose={() => setCourseTargetId(null)}
       />
-      {capabilities?.canMarkAttendance && (
-        <AttendanceModal event={attendanceEvent} onClose={() => setAttendanceEvent(null)} />
+      {viewParticipants && (
+        <AttendanceModal
+          event={attendanceEvent}
+          canMark={markAttendance}
+          onClose={() => setAttendanceEvent(null)}
+        />
       )}
-      <EventQrModal event={qrEvent} onClose={() => setQrEvent(null)} />
-      {capabilities?.canRecordResults && (
+      <EventQrModal event={showEventQr ? qrEvent : null} onClose={() => setQrEvent(null)} />
+      {recordResults && (
         <AssessmentResultModal target={resultTarget} onClose={() => setResultTarget(null)} />
       )}
-      {formatTarget && capabilities?.canManageAssignments && (
+      {formatTarget && changeFormat && (
         <ChangeAssignmentFormatModal
           key={formatTarget.id}
           assignment={formatTarget}
@@ -492,7 +559,12 @@ function OverviewTab({
           <h2 className="text-[15px] font-extrabold text-ink-900">Результаты</h2>
           <dl className="mt-4 divide-y divide-ink-100 text-[13px]">
             <InfoRow label="Сертификатов выдано" value={formatNum(dashboard.certificates)} />
-            <InfoRow label="Бонусов начислено" value={formatKzt(dashboard.rewardsIssued)} />
+            <InfoRow
+              label="Бонусов начислено"
+              value={
+                dashboard.rewardsIssued == null ? 'Нет доступа' : formatKzt(dashboard.rewardsIssued)
+              }
+            />
             <InfoRow
               label="Посещение подтверждено"
               value={formatNum(dashboard.attendanceConfirmed)}
@@ -522,12 +594,14 @@ function ProgramsTab({
   programs,
   loading,
   canManage,
+  actions,
   onEdit,
   onDuplicate,
 }: {
   programs: TrainingProgramDto[]
   loading: boolean
   canManage: boolean
+  actions: TrainingActions
   onEdit: (program: TrainingProgramDto) => void
   onDuplicate: (program: TrainingProgramDto) => void
 }) {
@@ -624,45 +698,61 @@ function ProgramsTab({
                 </span>
               </td>
               <td className="px-5 py-3 text-right">
-                {canManage && program.status !== 'archived' && (
+                {program.status !== 'archived' && (
                   <div className="flex items-center justify-end gap-1.5">
-                    <IconButton
-                      aria-label="Редактировать программу"
-                      tip="Редактировать программу"
-                      disabled={update.isPending}
-                      onClick={() => onEdit(program)}
-                    >
-                      <IconEdit size={16} />
-                    </IconButton>
-                    <IconButton
-                      aria-label="Создать копию"
-                      tip="Создать копию"
-                      disabled={update.isPending}
-                      onClick={() => onDuplicate(program)}
-                    >
-                      <IconDuplicate size={16} />
-                    </IconButton>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={update.isPending}
-                      onClick={() =>
-                        changeStatus(
-                          program,
-                          program.status === 'published' ? 'paused' : 'published',
-                        )
-                      }
-                    >
-                      {program.status === 'published' ? 'Приостановить' : 'Опубликовать'}
-                    </Button>
-                    <IconButton
-                      aria-label="Архивировать программу"
-                      tip="Архивировать программу"
-                      disabled={update.isPending}
-                      onClick={() => changeStatus(program, 'archived')}
-                    >
-                      <IconArchive size={16} />
-                    </IconButton>
+                    {trainingAllowed(actions, 'programs.edit', canManage) &&
+                      (!['published', 'scheduled', 'paused'].includes(program.status) ||
+                        trainingAllowed(actions, 'programs.publish', canManage)) && (
+                        <IconButton
+                          aria-label="Редактировать программу"
+                          tip="Редактировать программу"
+                          disabled={update.isPending}
+                          onClick={() => onEdit(program)}
+                        >
+                          <IconEdit size={16} />
+                        </IconButton>
+                      )}
+                    {trainingAllowed(actions, 'programs.create', canManage) &&
+                      ((program.completionBonus === 0 &&
+                        program.stages.every((stage) => stage.bonus === 0)) ||
+                        trainingAllowed(actions, 'programs.configure_bonus', canManage)) && (
+                        <IconButton
+                          aria-label="Создать копию"
+                          tip="Создать копию"
+                          disabled={update.isPending}
+                          onClick={() => onDuplicate(program)}
+                        >
+                          <IconDuplicate size={16} />
+                        </IconButton>
+                      )}
+                    {trainingAllowed(actions, 'programs.edit', canManage) &&
+                      trainingAllowed(actions, 'programs.publish', canManage) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={update.isPending}
+                          onClick={() =>
+                            changeStatus(
+                              program,
+                              program.status === 'published' ? 'paused' : 'published',
+                            )
+                          }
+                        >
+                          {program.status === 'published' ? 'Приостановить' : 'Опубликовать'}
+                        </Button>
+                      )}
+                    {trainingAllowed(actions, 'programs.edit', canManage) &&
+                      (!['published', 'scheduled', 'paused'].includes(program.status) ||
+                        trainingAllowed(actions, 'programs.publish', canManage)) && (
+                        <IconButton
+                          aria-label="Архивировать программу"
+                          tip="Архивировать программу"
+                          disabled={update.isPending}
+                          onClick={() => changeStatus(program, 'archived')}
+                        >
+                          <IconArchive size={16} />
+                        </IconButton>
+                      )}
                   </div>
                 )}
               </td>
@@ -1110,6 +1200,7 @@ function EventsTab({
   loading,
   canManageEvents,
   canMarkAttendance,
+  canShowQr,
   onEdit,
   onParticipants,
   onQr,
@@ -1118,6 +1209,7 @@ function EventsTab({
   loading: boolean
   canManageEvents: boolean
   canMarkAttendance: boolean
+  canShowQr: boolean
   onEdit: (event: OfflineEventDto) => void
   onParticipants: (event: OfflineEventDto) => void
   onQr: (event: OfflineEventDto) => void
@@ -1155,7 +1247,7 @@ function EventsTab({
                 <EventSummary event={event} />
               </td>
               <td className="px-5 py-3 text-right">
-                {(canManageEvents || canMarkAttendance) && (
+                {(canManageEvents || canMarkAttendance || canShowQr) && (
                   <div className="flex justify-end gap-2">
                     {canManageEvents && event.status !== 'archived' && (
                       <IconButton
@@ -1166,20 +1258,20 @@ function EventsTab({
                         <IconEdit size={16} />
                       </IconButton>
                     )}
+                    {canShowQr && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        leading={<QrCode size={15} />}
+                        onClick={() => onQr(event)}
+                      >
+                        QR-код
+                      </Button>
+                    )}
                     {canMarkAttendance && (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          leading={<QrCode size={15} />}
-                          onClick={() => onQr(event)}
-                        >
-                          QR-код
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => onParticipants(event)}>
-                          Участники
-                        </Button>
-                      </>
+                      <Button size="sm" variant="outline" onClick={() => onParticipants(event)}>
+                        Участники
+                      </Button>
                     )}
                   </div>
                 )}
@@ -1351,10 +1443,12 @@ function AnalyticsTab({
   dashboard,
   assignments,
   canExport,
+  canExportXlsx,
 }: {
   dashboard: ReturnType<typeof useTrainingDashboard>['data']
   assignments: TrainingAssignmentDto[]
   canExport: boolean
+  canExportXlsx: boolean
 }) {
   const toast = useToast()
   const [exporting, setExporting] = useState(false)
@@ -1403,7 +1497,13 @@ function AnalyticsTab({
         <Metric label="Назначено" value={formatNum(dashboard.totalAssignments)} accent="blue" />
         <Metric label="Завершено" value={formatNum(dashboard.completed)} accent="green" />
         <Metric label="Просрочено" value={formatNum(dashboard.overdue)} accent="amber" />
-        <Metric label="Бонусы" value={formatKzt(dashboard.rewardsIssued)} accent="purple" />
+        <Metric
+          label="Бонусы"
+          value={
+            dashboard.rewardsIssued == null ? 'Нет доступа' : formatKzt(dashboard.rewardsIssued)
+          }
+          accent="purple"
+        />
       </div>
       <section className="card overflow-hidden">
         <div className="hairline flex items-center justify-between border-b px-5 py-3">
@@ -1424,6 +1524,7 @@ function AnalyticsTab({
               {exporting ? 'Экспорт…' : 'Экспорт CSV'}
             </Button>
           )}
+          <TrainingLearningExport mode="assignments" allowed={canExportXlsx} />
         </div>
         <table className="w-full text-[13px]" data-testid="training-analytics-table">
           <thead className="hairline border-b text-left text-[11px] font-bold uppercase text-ink-500">
@@ -1510,7 +1611,17 @@ function TrainingSettingsTab({ capabilities }: { capabilities?: TrainingCapabili
   )
 }
 
-function CreateCourseModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+function CreateCourseModal({
+  open,
+  onClose,
+  canPublish = true,
+  canConfigureBonus = true,
+}: {
+  open: boolean
+  onClose: () => void
+  canPublish?: boolean
+  canConfigureBonus?: boolean
+}) {
   const toast = useToast()
   const create = useCreateCourse()
   const [title, setTitle] = useState('')
@@ -1521,6 +1632,9 @@ function CreateCourseModal({ open, onClose }: { open: boolean; onClose: () => vo
   const [error, setError] = useState<string | null>(null)
   const submit = () => {
     if (!title.trim()) return setError('Введите название курса')
+    if (status === 'published' && !canPublish) return setError('Нет права на публикацию курса')
+    if ((Number(bonus) || 0) !== 0 && !canConfigureBonus)
+      return setError('Нет права на настройку бонуса')
     create.mutate(
       {
         title: title.trim(),
@@ -1585,6 +1699,7 @@ function CreateCourseModal({ open, onClose }: { open: boolean; onClose: () => vo
               type="number"
               min={0}
               value={bonus}
+              disabled={!canConfigureBonus}
               onChange={(event) => setBonus(event.target.value)}
             />
           </Field>
@@ -1592,6 +1707,7 @@ function CreateCourseModal({ open, onClose }: { open: boolean; onClose: () => vo
         <Field label="Статус">
           <Select
             value={status}
+            disabled={!canPublish}
             onChange={(value) => setStatus(value as CourseStatus)}
             options={[
               { value: 'draft', label: 'Черновик' },

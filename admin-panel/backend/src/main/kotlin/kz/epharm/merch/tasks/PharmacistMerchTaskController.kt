@@ -17,7 +17,11 @@ class PharmacistMerchTaskController(private val tasks: MerchTaskService) {
         privateResponse(tasks.startPharmacist(itemId, actor.pharmacistId))
     @PostMapping("/items/{itemId}/evidence", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     fun upload(@PathVariable itemId: UUID, @RequestParam clientUploadId: UUID, @RequestPart file: MultipartFile,
-        @AuthenticationPrincipal actor: PharmacistPrincipal) = privateResponse(tasks.uploadPharmacist(itemId, clientUploadId, file, actor.pharmacistId))
+        @AuthenticationPrincipal actor: PharmacistPrincipal,@RequestPart(required=false) capture:TaskCapture?) = privateResponse(tasks.uploadPharmacist(itemId, clientUploadId, file, actor.pharmacistId,capture))
+    @PostMapping("/items/{itemId}/stock")
+    fun stock(@PathVariable itemId:UUID,@RequestBody request:SaveTaskStock,@AuthenticationPrincipal actor:PharmacistPrincipal)=privateResponse(tasks.saveStockPharmacist(itemId,request,actor.pharmacistId))
+    @GetMapping("/items/{itemId}/instruction")
+    fun instruction(@PathVariable itemId:UUID,@AuthenticationPrincipal actor:PharmacistPrincipal)=evidenceResponse(tasks.instructionPharmacist(itemId,actor.pharmacistId))
     @PostMapping("/items/{itemId}/submit")
     fun submit(@PathVariable itemId: UUID, @RequestBody request: SubmitMerchTaskAttempt, @AuthenticationPrincipal actor: PharmacistPrincipal) =
         privateResponse(tasks.submitPharmacist(itemId, request, actor.pharmacistId))

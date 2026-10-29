@@ -707,6 +707,136 @@ class MerchTaskWorkflowIntegrationTest {
         .header("X-Merch-Task-Token",token).contentType(MediaType.APPLICATION_JSON)
         .content(json.writeValueAsBytes(SubmitMerchTaskAttempt(attempt.number,item.checklist.map { it.id }.toSet(),"Synthetic free evidence")))).andExpect(status().isOk)
 
+    @Test fun `stock is required for every configured product and accepts only bounded integers with an explicit shortage reason`() {
+        val d=stockPacket();binding(d);val item=d.items.single();val a=start(item.id);upload(item.id)
+        stockSubmit(item,a).andExpect(status().isBadRequest)
+        for(counts in listOf(mapOf("a" to 5),mapOf("a" to 5,"b" to 6,"extra" to 8),mapOf("a" to 5.5,"b" to 5),
+            mapOf("a" to "5","b" to 5),mapOf("a" to -1,"b" to 5),mapOf("a" to 100001,"b" to 5),mapOf("a" to 0,"b" to 5))) {
+            stock(item.id,a.number,counts).andExpect(status().isBadRequest)
+        }
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM merch_task_stock_observations",Int::class.java))
+        stock(item.id,a.number,mapOf("a" to 0,"b" to 100000),"Awaiting the next delivery").andExpect(status().isOk)
+        stockSubmit(item,a).andExpect(status().isOk)
+        val saved=json.readTree(jdbc.queryForObject("SELECT counts::text FROM merch_task_stock_observations WHERE attempt_id=?",String::class.java,a.id))
+        assertEquals(0,saved["a"].asInt());assertEquals(100000,saved["b"].asInt())
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM pharmacist_wallet_entries",Int::class.java))
+    }
+
+    @Test fun `revision keeps old stock as history and requires a fresh observation for the new attempt`() {
+        val d=stockPacket();binding(d);val item=d.items.single();val first=start(item.id);upload(item.id)
+        stock(item.id,first.number,mapOf("a" to 8,"b" to 9)).andExpect(status().isOk);stockSubmit(item,first).andExpect(status().isOk)
+        review(d.id,item.id,"revision")
+        val second=start(item.id);assertEquals(2,second.number);upload(item.id)
+        assertNull(get(d.id).items.single().execution!!.stock)
+        stockSubmit(item,second).andExpect(status().isBadRequest)
+        stock(item.id,first.number,mapOf("a" to 10,"b" to 10)).andExpect(status().isConflict)
+        assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM merch_task_stock_observations",Int::class.java))
+        stock(item.id,second.number,mapOf("a" to 10,"b" to 11)).andExpect(status().isOk)
+        stockSubmit(item,second).andExpect(status().isOk)
+        assertEquals(2,jdbc.queryForObject("SELECT count(*) FROM merch_task_stock_observations",Int::class.java))
+        assertEquals(8,jdbc.queryForObject("SELECT (counts->>'a')::int FROM merch_task_stock_observations WHERE attempt_id=?",Int::class.java,first.id))
+    }
+
+    @Test fun `stock cannot cross a capability dispatch another pharmacist or a revoked administrative execute grant`() {
+        val first=stockPacket(0);val second=stockPacket(0);val token=nativeLink(first.id)
+        val item=first.items.single();val a=capStart(item.id,token)
+        mvc.perform(post("/api/public/merch/tasks/items/${second.items.single().id}/stock").header("X-Merch-Task-Token",token)
+            .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(mapOf("expectedAttempt" to a.number,"counts" to mapOf("a" to 5,"b" to 5)))))
+            .andExpect(status().is4xxClientError)
+        val otherAuth="Bearer ${jwt.issuePharmacistToken("missing-pharmacist","Synthetic other","+77000000999")}"
+        stock(item.id,a.number,mapOf("a" to 5,"b" to 5),auth=otherAuth).andExpect(status().isForbidden)
+        grants(admin.id,"view")
+        mvc.perform(post("/api/admin/merch/tasks/items/${item.id}/stock").header("Authorization",adminAuth)
+            .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(mapOf("expectedAttempt" to a.number,"counts" to mapOf("a" to 5,"b" to 5)))))
+            .andExpect(status().isForbidden)
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM merch_task_stock_observations",Int::class.java))
+        // The original link still owns its draft; the forbidden calls did not change its attempt.
+        mvc.perform(post("/api/public/merch/tasks/items/${item.id}/stock").header("X-Merch-Task-Token",token)
+            .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(mapOf("expectedAttempt" to a.number,"counts" to mapOf("a" to 5,"b" to 5)))))
+            .andExpect(status().isOk)
+    }
+
+    @Test fun `nonfinite and out of range location evidence is rejected before file persistence and nearby coordinates never auto approve`() {
+        val d=create(count=1);binding(d);val item=d.items.single();start(item.id)
+        jdbc.update("UPDATE merch_branches SET latitude=43.25,longitude=76.95 WHERE id=?",branch)
+        for(lat in listOf(Double.NaN,Double.POSITIVE_INFINITY,91.0)) {
+            captureUpload(item.id,mapOf("status" to "available","latitude" to lat,"longitude" to 76.95,"accuracy" to 15,
+                "measuredAt" to Instant.now())).andExpect(status().isBadRequest)
+        }
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM merch_task_evidence",Int::class.java))
+        val result=captureUpload(item.id,mapOf("status" to "available","latitude" to 43.25,"longitude" to 76.95,"accuracy" to 15,
+            "measuredAt" to Instant.now(),"captureSource" to "browser_camera")).andExpect(status().isOk).andReturn()
+        val evidence=json.readValue(result.response.contentAsByteArray,MerchTaskEvidenceDto::class.java)
+        assertEquals("location_nearby_manual_review",evidence.verification)
+        assertEquals("in_progress",get(d.id).items.single().status)
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM pharmacist_wallet_entries",Int::class.java))
+    }
+
+    @Test fun `stale far and unavailable capture remain explicit manual evidence without inventing a successful location check`() {
+        val d=create(count=1);binding(d);val item=d.items.single();start(item.id)
+        jdbc.update("UPDATE merch_branches SET latitude=43.25,longitude=76.95 WHERE id=?",branch)
+        val stale=captureUpload(item.id,mapOf("status" to "available","latitude" to 43.25,"longitude" to 76.95,"accuracy" to 15,
+            "measuredAt" to Instant.now().minusSeconds(601))).andExpect(status().isOk).andReturn()
+        val old=json.readValue(stale.response.contentAsByteArray,MerchTaskEvidenceDto::class.java)
+        assertEquals("manual_review_required",old.verification)
+        assertEquals("unavailable",(old.capture["location"] as Map<*,*>)["status"])
+        val far=captureUpload(item.id,mapOf("status" to "available","latitude" to 44.25,"longitude" to 76.95,"accuracy" to 15,
+            "measuredAt" to Instant.now())).andExpect(status().isOk).andReturn()
+        val distant=json.readValue(far.response.contentAsByteArray,MerchTaskEvidenceDto::class.java)
+        assertEquals("manual_review_required",distant.verification)
+        assertTrue((distant.capture["distanceMeters"] as Number).toLong()>200)
+        val unavailable=captureUpload(item.id,mapOf("status" to "unavailable","reason" to "Permission denied"))
+            .andExpect(status().isOk).andReturn()
+        assertEquals("manual_review_required",json.readValue(unavailable.response.contentAsByteArray,MerchTaskEvidenceDto::class.java).verification)
+        assertEquals("in_progress",get(d.id).items.single().status)
+    }
+
+    @Test fun `a training instruction requires a newly uploaded video while an ordinary photo task cannot accept that video`() {
+        val ordinary=create(count=1);binding(ordinary);val plain=ordinary.items.single();start(plain.id)
+        val video=Files.readAllBytes(java.nio.file.Path.of("../frontend/public/training/fire-safety-training-video.mp4"))
+        fun videoUpload(item:UUID)=mvc.perform(multipart("/api/mobile/merch/tasks/items/$item/evidence")
+            .file(MockMultipartFile("file","synthetic-training.mp4","video/mp4",video)).param("clientUploadId",UUID.randomUUID().toString()).header("Authorization",mobileAuth))
+        videoUpload(plain.id).andExpect(status().isBadRequest)
+        val d=create(count=1);binding(d);val item=d.items.single()
+        val material=UUID.randomUUID();val key="synthetic-instructions/$material.pdf";val pdf="%PDF-1.4\n% synthetic test instruction\n%%EOF".toByteArray()
+        val path=files.resolve(key);Files.createDirectories(path.parent);Files.write(path,pdf)
+        jdbc.update("""INSERT INTO merch_instruction_materials(id,source_system,source_id,source_payload,title,instructions,due_at,status,
+            storage_backend,object_key,sha256,byte_size,original_filename,created_at,updated_at)
+            VALUES(?,'EPHARM',?,'{}','Synthetic instruction','Read the synthetic instruction',now()+interval '1 day','approved',
+            'legacy_reference',?,?,?,'synthetic.pdf',now(),now())""",material,material,key,TaskEvidenceStorage.hash(pdf),pdf.size)
+        jdbc.update("UPDATE merch_task_items SET training_material_id=? WHERE id=?",material,item.id)
+        val a=start(item.id)
+        mvc.perform(get("/api/mobile/merch/tasks/items/${item.id}/instruction").header("Authorization",mobileAuth))
+            .andExpect(status().isOk).andExpect(content().bytes(pdf))
+        mvc.perform(multipart("/api/mobile/merch/tasks/items/${item.id}/evidence")
+            .file(MockMultipartFile("file","photo.png","image/png",photo)).param("clientUploadId",UUID.randomUUID().toString()).header("Authorization",mobileAuth))
+            .andExpect(status().isBadRequest)
+        stockSubmit(item,a).andExpect(status().isBadRequest)
+        videoUpload(item.id).andExpect(status().isOk)
+        stockSubmit(item,a).andExpect(status().isOk)
+        review(d.id,item.id,"revision")
+        val second=start(item.id);stockSubmit(item,second).andExpect(status().isBadRequest)
+        assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM merch_task_evidence WHERE item_id=?",Int::class.java,item.id))
+        assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM pharmacist_wallet_entries",Int::class.java))
+    }
+
+    private fun stockPacket(amount:Long=300):MerchTaskDispatchDto {
+        val request=CreateMerchTaskDispatch(branch,"Synthetic stock packet",Instant.now().plusSeconds(3600),amount,"task-pharmacist",
+            listOf(CreateMerchTaskItem("Synthetic stock shelf",requiredPhotos=1,stockProducts=listOf(TaskStockProduct("a","Synthetic A"),TaskStockProduct("b","Synthetic B")))))
+        return json.readValue(mvc.perform(post("/api/admin/merch/tasks").header("Authorization",adminAuth).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsBytes(request))).andExpect(status().isOk).andReturn().response.contentAsByteArray,MerchTaskDispatchDto::class.java)
+    }
+    private fun stock(item:UUID,attempt:Int,counts:Map<String,Any>,reason:String="",auth:String=mobileAuth)=mvc.perform(
+        post("/api/mobile/merch/tasks/items/$item/stock").header("Authorization",auth).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsBytes(mapOf("expectedAttempt" to attempt,"counts" to counts,"shortageReason" to reason))))
+    private fun stockSubmit(item:MerchTaskItemDto,attempt:MerchTaskAttemptDto)=mvc.perform(
+        post("/api/mobile/merch/tasks/items/${item.id}/submit").header("Authorization",mobileAuth).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsBytes(SubmitMerchTaskAttempt(attempt.number,item.checklist.map {it.id}.toSet()))))
+    private fun captureUpload(item:UUID,capture:Map<String,Any>)=mvc.perform(multipart("/api/mobile/merch/tasks/items/$item/evidence")
+        .file(MockMultipartFile("file","synthetic.png","image/png",photo))
+        .file(MockMultipartFile("capture","","application/json",json.writeValueAsBytes(capture)))
+        .param("clientUploadId",UUID.randomUUID().toString()).header("Authorization",mobileAuth))
+
     private fun submittedReview(): Pair<UUID,ReviewMerchTaskItem> {
         val d=create(count=1);binding(d);val item=d.items.single();val a=start(item.id);upload(item.id);submit(item,a)
         val current=get(d.id).items.single()
@@ -724,4 +854,50 @@ class MerchTaskWorkflowIntegrationTest {
         }
         fail<Unit>("Expected real PostgreSQL lock wait on $table")
     }
+    @Test fun `bulk creation is atomic exact retry safe and rechecks revoked scope before returning IDs`() {
+        val request=CreateMerchTaskBulk(UUID.randomUUID(),setOf(branch),"Bulk synthetic",Instant.now().plusSeconds(3600),0,
+            listOf(CreateMerchTaskItem("Required proof",requiredPhotos=0)))
+        fun send(body:CreateMerchTaskBulk)=mvc.perform(post("/api/admin/merch/tasks/bulk").header("Authorization",adminAuth)
+            .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(body)))
+        val first=json.readTree(send(request).andExpect(status().isOk).andReturn().response.contentAsByteArray)
+        assertEquals(first,json.readTree(send(request).andExpect(status().isOk).andReturn().response.contentAsByteArray))
+        assertEquals(1,jdbc.queryForObject("select count(*) from merch_task_dispatches",Int::class.java))
+        send(request.copy(title="Changed request")).andExpect(status().isConflict)
+        grants(admin.id,"view")
+        send(request).andExpect(status().isForbidden)
+        assertEquals(1,jdbc.queryForObject("select count(*) from merch_task_bulk_receipts",Int::class.java))
+    }
+
+    @Test fun `bulk never leaves a partial assignment when any selected branch is inactive or outside grant`() {
+        val second=UUID.randomUUID()
+        jdbc.update("""INSERT INTO merch_branches(id,source_system,source_origin,source_id,source_payload,organization_id,
+            code,name,address,city,active,created_at,updated_at)
+            SELECT ?,'EPHARM',source_origin,?,'{}',organization_id,'BULK2','Other branch','','',false,now(),now()
+            FROM merch_branches WHERE id=?""",second,second,branch)
+        val request=CreateMerchTaskBulk(UUID.randomUUID(),setOf(branch,second),"Atomic synthetic",Instant.now().plusSeconds(3600),0,
+            listOf(CreateMerchTaskItem("Required proof",requiredPhotos=0)))
+        fun send()=mvc.perform(post("/api/admin/merch/tasks/bulk").header("Authorization",adminAuth).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(request)))
+        send().andExpect(status().isForbidden)
+        jdbc.update("update unified_admin_profiles set grants_json=?::jsonb where account_id=?",json.writeValueAsString(listOf("view","create").map {
+            StoredGrant("merchandising","tasks",it,merchBranchIds=setOf(branch.toString(),second.toString())) }),admin.id)
+        send().andExpect(status().isBadRequest)
+        assertEquals(0,jdbc.queryForObject("select count(*) from merch_task_dispatches",Int::class.java))
+        assertEquals(0,jdbc.queryForObject("select count(*) from merch_task_bulk_receipts",Int::class.java))
+    }
+
+    @Test fun `review queue includes pending siblings even when dispatch already requires revision and escapes literal search`() {
+        val task=create(0,2)
+        jdbc.update("update merch_task_dispatches set status='revision_required',title='Mixed 100% packet' where id=?",task.id)
+        jdbc.update("update merch_task_items set status='submitted' where id=?",task.items[0].id)
+        jdbc.update("update merch_task_items set status='revision_required' where id=?",task.items[1].id)
+        fun query(queue:String,q:String="")=json.readTree(mvc.perform(get("/api/admin/merch/tasks").header("Authorization",adminAuth)
+            .param("queue",queue).param("q",q)).andExpect(status().isOk).andReturn().response.contentAsByteArray)
+        assertEquals(1,query("review")["items"].size())
+        assertEquals(1,query("revision")["items"].size())
+        assertEquals(1,query("review","100%")["items"].size())
+        assertEquals(0,query("review","100_")["items"].size())
+        assertEquals(0,query("completed")["items"].size())
+        mvc.perform(get("/api/admin/merch/tasks").header("Authorization",adminAuth).param("queue","invented")).andExpect(status().isBadRequest)
+    }
+
 }

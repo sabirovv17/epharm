@@ -8,6 +8,11 @@ export interface TaskEvidence {
   originalFilename: string | null
   createdAt: string
   verification: string
+  capture?: {
+    verification?: string
+    distanceMeters?: number
+    location?: { status: string; accuracy?: number; reason?: string }
+  }
 }
 export interface TaskReview {
   id: string
@@ -52,6 +57,14 @@ export interface TaskItem {
   canReview?: boolean
   canResumeSource?: boolean
   canAdoptSourceReview?: boolean
+  execution?: {
+    requiresStock: boolean
+    products: { key: string; name: string }[]
+    stock: { counts: Record<string, number>; shortageReason: string; source: string } | null
+    trainingMaterialId: string | null
+    requiresVideo: boolean
+    referenceImage: string | null
+  }
 }
 export interface MerchTask {
   id: string
@@ -104,7 +117,12 @@ export interface TaskGateway {
   realm: 'admin' | 'pharmacist' | 'capability'
   get(id: string, signal: AbortSignal): Promise<MerchTask>
   start(id: string): Promise<TaskAttempt>
-  upload(id: string, uploadId: string, file: File): Promise<TaskEvidence>
+  upload(id: string, uploadId: string, file: File, capture?: TaskCapture): Promise<TaskEvidence>
+  saveStock?(
+    id: string,
+    body: { expectedAttempt: number; counts: Record<string, number>; shortageReason: string },
+  ): Promise<unknown>
+  instruction?(id: string, signal: AbortSignal): Promise<Blob>
   submit(
     id: string,
     expectedAttempt: number,
@@ -133,14 +151,29 @@ export interface TaskGateway {
   ): Promise<unknown>
   evidence(id: string, signal: AbortSignal): Promise<Blob>
 }
+export interface TaskCapture {
+  status: 'available' | 'unavailable'
+  latitude?: number
+  longitude?: number
+  accuracy?: number
+  measuredAt?: string
+  reason?: string
+  captureSource?: string
+}
 const base = '/api/admin/merch/tasks'
 export const adminTaskApi = {
-  list: (offset: number, signal: AbortSignal) =>
+  list: (offset: number, signal: AbortSignal, filters?: { queue: string; q: string }) =>
     api
-      .get<MerchTaskPage>(base, { params: { offset, limit: 20 }, signal })
+      .get<MerchTaskPage>(base, { params: { offset, limit: 20, ...filters }, signal })
       .then((response) => response.data),
   branches: (signal: AbortSignal) =>
     api.get<TaskBranch[]>(`${base}/branches`, { signal }).then((response) => response.data),
+  createBulk: (
+    body: Omit<CreateTask, 'branchId' | 'assignedPharmacistId'> & {
+      requestId: string
+      branchIds: string[]
+    },
+  ) => api.post<{ dispatchIds: string[] }>(`${base}/bulk`, body).then((response) => response.data),
   create: (body: CreateTask) => api.post<MerchTask>(base, body).then((response) => response.data),
 }
 export const adminTaskGateway: TaskGateway = {
@@ -153,9 +186,11 @@ export const adminTaskGateway: TaskGateway = {
     api
       .post<TaskAttempt>(`${base}/items/${encodeURIComponent(id)}/attempts`)
       .then((response) => response.data),
-  upload: (id, uploadId, file) => {
+  upload: (id, uploadId, file, capture) => {
     const body = new FormData()
     body.append('file', file)
+    if (capture)
+      body.append('capture', new Blob([JSON.stringify(capture)], { type: 'application/json' }))
     return api
       .post<TaskEvidence>(`${base}/items/${encodeURIComponent(id)}/evidence`, body, {
         params: { clientUploadId: uploadId },
@@ -163,6 +198,15 @@ export const adminTaskGateway: TaskGateway = {
       })
       .then((response) => response.data)
   },
+  saveStock: (id, body) =>
+    api.post(`${base}/items/${encodeURIComponent(id)}/stock`, body).then((r) => r.data),
+  instruction: (id, signal) =>
+    api
+      .get<Blob>(`${base}/items/${encodeURIComponent(id)}/instruction`, {
+        responseType: 'blob',
+        signal,
+      })
+      .then((r) => r.data),
   submit: (id, expectedAttempt, completedChecklistIds, comment) =>
     api
       .post<TaskAttempt>(`${base}/items/${encodeURIComponent(id)}/submit`, {

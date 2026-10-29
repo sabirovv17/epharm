@@ -76,6 +76,15 @@ class PlacementService(private val repository: PlacementRepository,private val a
         return rows
     }
     @Transactional(readOnly=true)
+    fun commercialBaseQuotes(actor:PlacementActor,producer:UUID,month:LocalDate,selections:List<PlacementSelection>):Map<PlacementSelection,Long> {
+        validateMonth(month);validateSelections(selections)
+        val shelves=repository.quoteShelves(selections.map {it.shelfId},month)
+        if(shelves.size!=selections.map {it.shelfId}.distinct().size) invalid("Выбранное место не найдено")
+        require(actor,"view",shelves.map {it.branch}.toSet(),producer)
+        require(actor,"financial_data",shelves.map {it.branch}.toSet(),producer)
+        return quotes(selections,month)
+    }
+    @Transactional(readOnly=true)
     fun producers(): List<ProducerListItem> {
         access.requireExplicitPermission(PlacementPermissions.producers)
         return repository.producers(access.currentProducerIds())
@@ -149,7 +158,7 @@ class PlacementService(private val repository: PlacementRepository,private val a
         validateMonth(request.placementMonth);validateSelections(request.items)
         if(actor is PlacementActor.Producer && actor.customerId!=request.producerId) forbidden()
         val shelves=repository.quoteShelves(request.items.map { it.shelfId },request.placementMonth)
-        if(shelves.size!=request.items.size) invalid("Выбранное место не найдено")
+        if(shelves.size!=request.items.map {it.shelfId}.distinct().size) invalid("Выбранное место не найдено")
         val branches=shelves.map { it.branch }.toSet()
         require(actor,if(assignment) "assign" else "edit",branches,request.producerId)
         if(assignment) require(actor,"financial_data",branches,request.producerId)
@@ -170,6 +179,28 @@ class PlacementService(private val repository: PlacementRepository,private val a
         if(assignment) events.publishEvent(PlacementApprovedForAutomation(id))
         return dto(load(id),repository.items(id),actor)
     }
+    /** Commercial plans enter the same quote, reservation and audit writer as an ordinary monthly request. */
+    @Transactional
+    fun createCommercialDraft(request:CreatePlacementDraft,products:Map<PlacementSelection,PlacementProductSnapshot>,actor:PlacementActor):PlacementDto {
+        lockActor(actor)
+        if(products.keys!=request.items.toSet()) invalid("Для каждого места укажите точный набор препаратов")
+        val created=create(request,actor,false)
+        val now=Instant.now()
+        for(item in repository.items(created.id)) {
+            val data=products.getValue(PlacementSelection(item.shelfId,item.portion))
+            val array=json.readTree(data.productsJson)
+            if(data.facingCount !in 1..100 || !array.isArray || array.size() !in 1..20) invalid("Некорректные препараты на полке")
+            val unit=jdbc.query("SELECT facing_month_price FROM merch_supplier_pricing_tiers WHERE category=? AND active FOR SHARE",
+                {rs,_->rs.getLong(1)},data.supplierCategory).singleOrNull()?:conflict("Тарифная категория ещё не подтверждена: отправка недоступна")
+            jdbc.update("""INSERT INTO merch_placement_item_product_details(media_plan_item_id,source_system,source_origin,source_id,source_payload,
+                product_name,sku,facing_count,unit_price,base_shelf_price,supplier_category,products,created_at)
+                VALUES(?,'EPHARM','https://epharm.inkar.kz',?,'{}'::jsonb,?,?,?,?,?,?,?::jsonb,?)""",item.id,item.id,data.productName,data.sku,
+                data.facingCount,unit,item.price,data.supplierCategory,data.productsJson,java.sql.Timestamp.from(now))
+        }
+        repository.saveItems(load(created.id),request.items,quotes(request.items,request.placementMonth,created.id),request.note,now)
+        audit(created.id,actor,"products_quoted",now)
+        return dto(load(created.id),repository.items(created.id),actor)
+    }
     @Transactional
     fun save(id: UUID,request: SavePlacementDraft,actor: PlacementActor): PlacementDto {
         lockActor(actor)
@@ -181,7 +212,7 @@ class PlacementService(private val repository: PlacementRepository,private val a
         require(actor,"edit",allBranches.toSet(),producer);activeProducer(producer)
         if(plan.status!=PlacementStatus.draft) conflict("Редактировать можно только черновик")
         validateMonth(plan.month)
-        repository.saveItems(plan,request.items,quotes(request.items,plan.month),request.note?.trim(),Instant.now())
+        repository.saveItems(plan,request.items,quotes(request.items,plan.month,plan.id,refreshProducts=true),request.note?.trim(),Instant.now())
         audit(id,actor,"draft_saved",Instant.now())
         return dto(load(id),repository.items(id),actor)
     }
@@ -203,8 +234,8 @@ class PlacementService(private val repository: PlacementRepository,private val a
                 validateMonth(plan.month)
                 val selections=current.map { PlacementSelection(it.shelfId,it.portion) }
                 repository.ensureMonthCells(selections.map { it.shelfId },plan.month,now)
-                val actual=quotes(selections,plan.month)
-                if(current.any { actual[it.shelfId]!=it.price }) conflict("Цены изменились: сохраните черновик и проверьте новую сумму")
+                val actual=quotes(selections,plan.month,plan.id)
+                if(current.any { actual[PlacementSelection(it.shelfId,it.portion)]!=it.price }) conflict("Цены изменились: сохраните черновик и проверьте новую сумму")
                 available(id,selections,plan.month,now)
                 repository.snapshotCompany(id,company)
                 repository.setItemStatus(id,setOf(PlacementStatus.draft),PlacementStatus.pending)
@@ -225,14 +256,45 @@ class PlacementService(private val repository: PlacementRepository,private val a
                 if(plan.status !in setOf(PlacementStatus.draft,PlacementStatus.pending,PlacementStatus.approved)) conflict("Медиаплан уже закрыт")
                 if(reason==null) invalid("Укажите причину отмены")
                 if(actor is PlacementActor.Producer && plan.status==PlacementStatus.approved) forbidden()
-                repository.setItemStatus(id,setOf(PlacementStatus.draft,PlacementStatus.pending,PlacementStatus.approved),PlacementStatus.cancelled)
-                repository.transition(id,PlacementStatus.cancelled,null,actor,reason,now)
+                val keepApproved=actor is PlacementActor.Producer && items.any {it.status==PlacementStatus.approved}
+                repository.setItemStatus(id,if(keepApproved) setOf(PlacementStatus.draft,PlacementStatus.pending) else setOf(PlacementStatus.draft,PlacementStatus.pending,PlacementStatus.approved),PlacementStatus.cancelled)
+                repository.transition(id,if(keepApproved) PlacementStatus.approved else PlacementStatus.cancelled,null,actor,reason,now)
                 repository.clearLegacyHold(items,now)
             }
         }
         audit(id,actor,action,now)
-        if(action=="approve") events.publishEvent(PlacementApprovedForAutomation(id))
+        if(action=="approve" || action=="cancel" && plan.status==PlacementStatus.pending && repository.items(id).any {it.status==PlacementStatus.approved}) events.publishEvent(PlacementApprovedForAutomation(id))
         return dto(load(id),repository.items(id),actor)
+    }
+
+    /** Pending siblings retain their own decision and live reservation; no approved line is rewritten. */
+    @Transactional
+    fun reviewItems(id:UUID,action:String,request:PlacementItemReview,actor:PlacementActor.Internal):PlacementDto {
+        lockActor(actor)
+        if(action !in setOf("approve","reject") || request.itemIds.isEmpty() || request.itemIds.size>500 || request.itemIds.distinct().size!=request.itemIds.size)
+            invalid("Выберите конкретные позиции без повторений")
+        val (plan,items)=locked(id,actor=actor,action=action)
+        requireRevision(plan,request.expectedRevision)
+        val producer=plan.producerId?:conflict("Сначала подтвердите владельца исторического медиаплана")
+        require(actor,action,items.branches(),producer);require(actor,"financial_data",items.branches(),producer)
+        activeProducer(producer)
+        val now=Instant.now()
+        if(plan.status!=PlacementStatus.pending || plan.heldUntil==null || !plan.heldUntil.isAfter(now)) conflict("Резерв закрыт или срок подтверждения истёк")
+        val selected=items.filter {it.id in request.itemIds}
+        if(selected.size!=request.itemIds.size || selected.any {it.status!=PlacementStatus.pending}) conflict("Позиции уже изменились или не принадлежат медиаплану")
+        val reason=request.reason?.trim()?.takeIf(String::isNotBlank)
+        if(action=="reject" && reason==null) invalid("Укажите причину отклонения")
+        if(action=="approve") available(id,selected.map {PlacementSelection(it.shelfId,it.portion)},plan.month,now,allowLegacyHeld=true)
+        repository.setSelectedItemStatus(id,request.itemIds.toSet(),if(action=="approve") PlacementStatus.approved else PlacementStatus.rejected)
+        val after=repository.items(id)
+        val status=when {after.any {it.status==PlacementStatus.pending}->PlacementStatus.pending
+            after.any {it.status==PlacementStatus.approved}->PlacementStatus.approved
+            else->PlacementStatus.rejected}
+        repository.reviewSelectedPlan(id,status,actor,reason,now)
+        if(action=="reject") repository.clearLegacyHold(selected,now)
+        audit(id,actor,"items_$action",now)
+        if(status==PlacementStatus.approved) events.publishEvent(PlacementApprovedForAutomation(id))
+        return dto(load(id),after,actor)
     }
 
     /** One transaction per plan avoids holding unrelated branches across a batch; scheduler has one disabled owner. */
@@ -246,6 +308,7 @@ class PlacementService(private val repository: PlacementRepository,private val a
             repository.transition(id,if(remaining) PlacementStatus.approved else PlacementStatus.cancelled,null,PlacementActor.System,"Срок резерва истёк",now)
             repository.clearLegacyHold(items,now)
             audit(id,PlacementActor.System,"expired",now)
+            if(remaining) events.publishEvent(PlacementApprovedForAutomation(id))
             true
         }==true }
     }
@@ -268,12 +331,24 @@ class PlacementService(private val repository: PlacementRepository,private val a
                 repository.hasOverlap(selection.shelfId,month,selection.portion,id,now)) conflict("Место или выбранная часть заняты, заблокированы либо недоступны")
         }
     }
-    private fun quotes(selections: List<PlacementSelection>,month: LocalDate): Map<UUID,Long> {
+    private fun quotes(selections: List<PlacementSelection>,month: LocalDate,planId:UUID?=null,refreshProducts:Boolean=false): Map<PlacementSelection,Long> {
         val shelves=repository.quoteShelves(selections.map { it.shelfId },month).associateBy { it.id }
+        val productRows=if(planId==null) emptyMap() else jdbc.query("""SELECT i.shelf_id,coalesce(i.sale_portion,'whole') AS portion,
+            d.facing_count,t.facing_month_price FROM merch_media_plan_items i JOIN merch_placement_item_product_details d ON d.media_plan_item_id=i.id
+            LEFT JOIN merch_supplier_pricing_tiers t ON t.category=d.supplier_category AND t.active WHERE i.media_plan_id=?""",
+            {rs,_->PlacementSelection(rs.getObject("shelf_id",UUID::class.java),PlacementPortion.valueOf(rs.getString("portion"))) to
+                (rs.getInt("facing_count") to rs.getObject("facing_month_price",java.lang.Long::class.java)?.toLong())},planId).toMap()
         val result=selections.associate { selection ->
             val shelf=shelves[selection.shelfId]?:invalid("Место не найдено")
             if(!shelf.active || selection.portion!=PlacementPortion.whole && shelf.mode!="whole_or_halves") invalid("Место неактивно или не продаётся частями")
-            selection.shelfId to price(shelf,selection.portion)
+            val product=productRows[selection]
+            val base=price(shelf,selection.portion)
+            val total=try {Math.addExact(base,if(product==null) 0L else Math.multiplyExact(product.first.toLong(),product.second?:conflict("Тарифная категория ещё не подтверждена")))}
+                catch(_:ArithmeticException) {conflict("Стоимость превышает допустимый диапазон суммы")}
+            if(refreshProducts && product!=null) jdbc.update("""UPDATE merch_placement_item_product_details d SET unit_price=?,base_shelf_price=?
+                FROM merch_media_plan_items i WHERE d.media_plan_item_id=i.id AND i.media_plan_id=? AND i.shelf_id=? AND coalesce(i.sale_portion,'whole')=?""",
+                product.second,base,planId,selection.shelfId,selection.portion.name)
+            selection to total
         }
         try { PlacementRepository.sum(result.values) } catch(_:ArithmeticException) { conflict("Общая сумма слишком велика") } catch(_:IllegalArgumentException) { conflict("Общая сумма слишком велика") }
         return result
@@ -302,7 +377,9 @@ class PlacementService(private val repository: PlacementRepository,private val a
             active && plan.status in setOf(PlacementStatus.draft,PlacementStatus.pending,PlacementStatus.approved) && money && can("cancel") && !(actor is PlacementActor.Producer && plan.status==PlacementStatus.approved),
             plan.createdAt,plan.updatedAt,if(plan.producerId==null) "unresolved" else "verified",
             actor is PlacementActor.Internal && plan.producerId==null && access.canAllMerchPlacementPermission(PlacementPermissions.key("bind_producer")) &&
-                jdbc.queryForObject("SELECT source_system='MERCH_CRM' FROM merch_media_plans WHERE id=?",Boolean::class.java,plan.id)==true)
+                jdbc.queryForObject("SELECT source_system='MERCH_CRM' FROM merch_media_plans WHERE id=?",Boolean::class.java,plan.id)==true,
+            if(money) PlacementRepository.sum(items.filter {it.status==PlacementStatus.approved}.map {it.price}) else null,
+            if(money) PlacementRepository.sum(items.filter {it.status==PlacementStatus.pending}.map {it.price}) else null)
     }
     private fun require(actor: PlacementActor,action: String,branches: Set<UUID>,producer: UUID?) {
         when(actor) {
@@ -319,7 +396,9 @@ class PlacementService(private val repository: PlacementRepository,private val a
     } catch(e:AppException) { if(e.code==ErrorCode.FORBIDDEN) false else throw e }
     private fun audit(id: UUID,actor: PlacementActor,action: String,now: Instant) {
         val revision=repository.bump(id)
-        repository.audit(id,revision,actor,action,json.writeValueAsString(mapOf("state" to load(id),"items" to repository.items(id))),now)
+        val products=jdbc.queryForList("""SELECT d.media_plan_item_id,d.product_name,d.sku,d.facing_count,d.unit_price,d.base_shelf_price,d.supplier_category,d.products
+            FROM merch_placement_item_product_details d JOIN merch_media_plan_items i ON i.id=d.media_plan_item_id WHERE i.media_plan_id=? ORDER BY d.media_plan_item_id""",id)
+        repository.audit(id,revision,actor,action,json.writeValueAsString(mapOf("state" to load(id),"items" to repository.items(id),"products" to products)),now)
     }
     private fun lockActor(actor:PlacementActor) {when(actor){
         is PlacementActor.Internal->access.lockCurrentActor()
@@ -331,7 +410,10 @@ class PlacementService(private val repository: PlacementRepository,private val a
     private fun List<PlanItem>.branches()=map { it.branchId }.toSet()
     private fun load(id: UUID)=repository.plan(id)?:missing()
     private fun requireRevision(plan: Plan,expected: Long) { if(plan.revision!=expected) conflict("Медиаплан изменился: загрузите актуальную версию") }
-    private fun validateSelections(items: List<PlacementSelection>) { if(items.size !in 1..500 || items.map { it.shelfId }.distinct().size!=items.size) invalid("Выберите от 1 до 500 мест без повторения полки") }
+    private fun validateSelections(items: List<PlacementSelection>) {
+        if(items.size !in 1..500 || items.distinct().size!=items.size || items.groupBy {it.shelfId}.values.any {rows->rows.size>1 && rows.any {it.portion==PlacementPortion.whole}})
+            invalid("Выберите от 1 до 500 мест без пересекающихся частей полки")
+    }
     private fun validateMonth(month: LocalDate) { if(month.dayOfMonth!=1 || month.year !in 1..9999 || month<LocalDate.now(KazakhstanReservationCalendar.timezone).withDayOfMonth(1)) invalid("Выберите полный текущий или будущий календарный месяц") }
     private fun missing(): Nothing=throw AppException(ErrorCode.NOT_FOUND,"Медиаплан не найден",HttpStatus.NOT_FOUND)
     private fun forbidden(): Nothing=throw AppException(ErrorCode.FORBIDDEN,"Недостаточно прав на медиаплан",HttpStatus.FORBIDDEN)

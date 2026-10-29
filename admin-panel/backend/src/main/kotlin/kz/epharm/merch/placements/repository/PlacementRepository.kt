@@ -111,18 +111,18 @@ class PlacementRepository(private val jdbc: JdbcTemplate, private val named: Nam
             VALUES(?,'EPHARM','https://epharm.inkar.kz',?,'{}'::jsonb,?, ?,?,'draft',?,0,?,?,?,?,?,?)""",id,id,producer.id,producer.name,month,origin,
             Timestamp.from(now),Timestamp.from(now),Timestamp.from(now),(actor as? PlacementActor.Internal)?.accountId,(actor as? PlacementActor.Producer)?.customerId,note)
     }
-    internal fun saveItems(plan: Plan, selections: List<PlacementSelection>, quotes: Map<UUID,Long>, note: String?, now: Instant) {
-        val old=items(plan.id).associateBy { it.shelfId }
-        for(item in old.values.filter { existing -> selections.none { it.shelfId==existing.shelfId } })
+    internal fun saveItems(plan: Plan, selections: List<PlacementSelection>, quotes: Map<PlacementSelection,Long>, note: String?, now: Instant) {
+        val old=items(plan.id).associateBy { PlacementSelection(it.shelfId,it.portion) }
+        for(item in old.values.filter { existing -> PlacementSelection(existing.shelfId,existing.portion) !in selections })
             jdbc.update("UPDATE merch_media_plan_items SET status='cancelled' WHERE id=?",item.id)
         for(selection in selections) {
-            val previous=old[selection.shelfId]
+            val previous=old[selection]
             if(previous==null) {
                 val id=UUID.randomUUID()
                 jdbc.update("""INSERT INTO merch_media_plan_items(id,source_system,source_origin,source_id,source_payload,
                     media_plan_id,shelf_id,placement_month,monthly_price,status,sale_portion,created_at)
-                    VALUES(?,'EPHARM','https://epharm.inkar.kz',?,'{}'::jsonb,?,?,?,?,'draft',?,?)""",id,id,plan.id,selection.shelfId,plan.month,quotes.getValue(selection.shelfId),selection.portion.name,Timestamp.from(now))
-            } else jdbc.update("UPDATE merch_media_plan_items SET status='draft',sale_portion=?,monthly_price=? WHERE id=?",selection.portion.name,quotes.getValue(selection.shelfId),previous.id)
+                    VALUES(?,'EPHARM','https://epharm.inkar.kz',?,'{}'::jsonb,?,?,?,?,'draft',?,?)""",id,id,plan.id,selection.shelfId,plan.month,quotes.getValue(selection),selection.portion.name,Timestamp.from(now))
+            } else jdbc.update("UPDATE merch_media_plan_items SET status='draft',sale_portion=?,monthly_price=? WHERE id=?",selection.portion.name,quotes.getValue(selection),previous.id)
         }
         jdbc.update("UPDATE merch_media_plans SET total_amount=?,assignment_note=?,updated_at=? WHERE id=?",sum(quotes.values),note,Timestamp.from(now),plan.id)
     }
@@ -136,6 +136,14 @@ class PlacementRepository(private val jdbc: JdbcTemplate, private val named: Nam
     internal fun setItemStatus(plan: UUID, from: Set<PlacementStatus>, target: PlacementStatus) {
         named.update("UPDATE merch_media_plan_items SET status=:status WHERE media_plan_id=:id AND status IN (:from)",
             mapOf("status" to target.name,"id" to plan,"from" to from.map { it.name }))
+    }
+    internal fun setSelectedItemStatus(plan:UUID,ids:Set<UUID>,target:PlacementStatus) {
+        named.update("UPDATE merch_media_plan_items SET status=:status WHERE media_plan_id=:plan AND id IN (:ids) AND status='pending'",
+            mapOf("status" to target.name,"plan" to plan,"ids" to ids))
+    }
+    internal fun reviewSelectedPlan(id:UUID,status:PlacementStatus,actor:PlacementActor.Internal,reason:String?,now:Instant) {
+        jdbc.update("UPDATE merch_media_plans SET status=?,reviewed_by_admin=?,reviewed_at=?,review_note=?,updated_at=? WHERE id=?",
+            status.name,actor.accountId,Timestamp.from(now),reason,Timestamp.from(now),id)
     }
     internal fun bump(id: UUID): Long {
         jdbc.update("UPDATE merch_media_plans SET revision=revision+1 WHERE id=?",id)

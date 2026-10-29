@@ -54,14 +54,23 @@ function capabilityGateway(token: string) {
       request<TaskAttempt>(`${base}/items/${encodeURIComponent(itemId)}/attempts`, {
         method: 'POST',
       }),
-    upload: (itemId, uploadId, file) => {
+    upload: (itemId, uploadId, file, capture) => {
       const body = new FormData()
       body.append('file', file)
+      if (capture)
+        body.append('capture', new Blob([JSON.stringify(capture)], { type: 'application/json' }))
       return request<TaskEvidence>(
         `${base}/items/${encodeURIComponent(itemId)}/evidence?clientUploadId=${encodeURIComponent(uploadId)}`,
         { method: 'POST', body },
       )
     },
+    saveStock: (itemId, body) =>
+      request(`${base}/items/${encodeURIComponent(itemId)}/stock`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    instruction: (itemId, signal) =>
+      request<Blob>(`${base}/items/${encodeURIComponent(itemId)}/instruction`, { signal }, true),
     submit: (itemId, expectedAttempt, completedChecklistIds, comment) =>
       request<TaskAttempt>(`${base}/items/${encodeURIComponent(itemId)}/submit`, {
         method: 'POST',

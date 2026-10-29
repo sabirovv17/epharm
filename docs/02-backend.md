@@ -269,6 +269,29 @@ projects its lessons as completed without rewriting history. Legacy URL-only onl
 accept stage-level progress, while linked courses require the lesson endpoint. Lessons with recorded
 progress cannot be deleted (HTTP 409); archiving the course preserves referential integrity.
 
+Managed administrative training requests additionally use
+`training/access/TrainingAdministrativeAccess`. Assignment, participant, result,
+preference and certificate visibility follows the pharmacist's **current** pharmacy,
+intersected with the existing regional-manager/trainer restrictions. SQL selects
+the permitted IDs before loading child records, computing totals or paging. Shared
+program/course authoring and event creation/editing require explicit network-wide
+access; a participant's pharmacy grant cannot authorize editing a shared event.
+Administrative writes recheck the current authority before domain writes. Publishing
+programs/courses and configuring their bonuses require separate exact permissions.
+Historical person-wide rewards require the existing global financial permission;
+without it, reward payloads are omitted and monetary totals are `null`, not zero.
+The managed assignment report is the separate XLSX endpoint; the legacy CSV endpoint
+explicitly rejects managed callers and remains compatible for LEGACY accounts.
+The separate assignment/result XLSX files retain saved employee names within their
+learning scope. Assignment reward amount/status stay blank without global financial
+authority and a global report scope; they use saved training rewards, not a wallet
+balance or a newly calculated payment. Phones, IINs, passwords, answer keys and private
+feedback/competency data remain excluded. The frontend reads exact action flags from
+a fresh `/api/admin/access/me.trainingActions` response; an unknown or stale managed
+permission never falls back to a role title or the old coarse management flags.
+These checks do not change learner authentication, quiz scoring, certificate rules,
+mobile endpoints or the legacy HQ read-only ceiling.
+
 Public training verification:
 
 - `GET /api/public/training/certificates/{qrToken}`

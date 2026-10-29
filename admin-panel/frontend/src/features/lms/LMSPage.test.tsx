@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
@@ -17,6 +17,12 @@ import { USERS } from '@/mocks/fixtures'
 import { useUiStore } from '@/app/store'
 import LMSPage from './LMSPage'
 const exportCaps = vi.hoisted(() => ({
+  isSuccess: true,
+  isFetchedAfterMount: true,
+  isError: false,
+  data: { managed: false } as
+    | { managed: boolean; trainingActions?: Record<string, boolean> }
+    | undefined,
   canExportTrainingCourses: false,
   canExportTrainingPrograms: false,
   canExportTrainingAssignments: false,
@@ -302,6 +308,10 @@ const participant: EventParticipantDto = {
 beforeEach(() => {
   vi.clearAllMocks()
   Object.assign(exportCaps, {
+    isSuccess: true,
+    isFetchedAfterMount: true,
+    isError: false,
+    data: { managed: false },
     canExportTrainingCourses: false,
     canExportTrainingPrograms: false,
     canExportTrainingAssignments: false,
@@ -399,6 +409,122 @@ function renderPage(initialEntry = '/lms') {
 }
 
 describe('Обучение — операционный раздел', () => {
+  it('MANAGED create-only открывает создание, не выдавая редактирование или публикацию', async () => {
+    exportCaps.data = { managed: true, trainingActions: { 'programs.create': true } }
+    lmsHooks.useTrainingDashboard.mockReturnValue(
+      queryResult({
+        ...dashboard,
+        capabilities: { ...dashboard.capabilities, canManagePrograms: false },
+      }),
+    )
+    renderPage('/lms?tab=programs')
+    expect(screen.getByRole('button', { name: 'Новая программа' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Редактировать программу' }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Создать копию' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Новая программа' }))
+    expect(screen.getByRole('combobox', { name: 'Статус программы' })).toBeDisabled()
+  })
+
+  it('MANAGED edit-only может редактировать черновик, но не создавать и не публиковать', () => {
+    exportCaps.data = { managed: true, trainingActions: { 'programs.edit': true } }
+    lmsHooks.useTrainingPrograms.mockReturnValue(queryResult([{ ...program, status: 'draft' }]))
+    renderPage('/lms?tab=programs')
+    expect(screen.getByRole('button', { name: 'Редактировать программу' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Новая программа' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Опубликовать' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Создать копию' })).not.toBeInTheDocument()
+  })
+
+  it('upload-only загружает материал существующего урока без скрытого PATCH содержания', async () => {
+    exportCaps.data = {
+      managed: true,
+      trainingActions: { 'courses.view': true, 'courses.upload': true, 'courses.publish': true },
+    }
+    const upload = vi.fn().mockResolvedValue(course)
+    const edit = vi.fn()
+    lmsHooks.useUploadCourseLessonAttachment.mockReturnValue(mutationResult(vi.fn(), upload))
+    lmsHooks.useUpdateCourseLesson.mockReturnValue(mutationResult(vi.fn(), edit))
+    const user = userEvent.setup()
+    renderPage('/lms?tab=courses')
+    await user.click(screen.getByRole('button', { name: 'Основы категории' }))
+    expect(screen.queryByRole('button', { name: 'Добавить урок' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Сохранить курс' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /1\. Введение/ }))
+    const editor = screen.getByRole('dialog', { name: 'Введение' })
+    const picker = editor.querySelector('input[type="file"][multiple]') as HTMLInputElement
+    expect(picker).toBeEnabled()
+    const file = new File(['synthetic-only'], 'handout.pdf', { type: 'application/pdf' })
+    await user.upload(picker, file)
+    await user.click(within(editor).getByRole('button', { name: 'Загрузить материалы' }))
+    await waitFor(() =>
+      expect(upload).toHaveBeenCalledExactlyOnceWith({
+        courseId: course.id,
+        lessonId: 'lesson-1',
+        file,
+      }),
+    )
+    expect(edit).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [{ 'assignments.assign': true }, true, false],
+    [{ 'assignments.change_format': true }, false, true],
+  ] as const)('разделяет назначение и смену формата у MANAGED: %j', (actions, create, change) => {
+    exportCaps.data = { managed: true, trainingActions: actions }
+    lmsHooks.useTrainingAssignmentPage.mockReturnValue(
+      queryResult({ items: [assignment], total: 1, page: 0, size: 25, totalPages: 1 }),
+    )
+    renderPage('/lms?tab=assignments')
+    expect(!!screen.queryByRole('button', { name: 'Назначить обучение' })).toBe(create)
+    expect(!!screen.queryByRole('button', { name: 'Сменить формат' })).toBe(change)
+  })
+
+  it('не применяет закэшированные MANAGED actions до свежей загрузки прав', () => {
+    exportCaps.data = { managed: true, trainingActions: { 'programs.create': true } }
+    exportCaps.isFetchedAfterMount = false
+    renderPage('/lms?tab=programs')
+    expect(screen.queryByRole('button', { name: 'Новая программа' })).not.toBeInTheDocument()
+  })
+
+  it.each(['assignments', 'analytics'])(
+    'для MANAGED предлагает только отдельный Excel, без CSV fallback: %s',
+    (tab) => {
+      exportCaps.data = { managed: true }
+      renderPage(`/lms?tab=${tab}`)
+      expect(screen.queryByRole('button', { name: /CSV/ })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Excel: назначения' })).toBeDisabled()
+      expect(screen.getByText('Нет права на эту выгрузку Excel')).toBeInTheDocument()
+      expect(lmsHooks.downloadTrainingAssignments).not.toHaveBeenCalled()
+    },
+  )
+
+  it('не возвращает CSV по старым данным LEGACY до свежего подтверждения сервера', () => {
+    exportCaps.isFetchedAfterMount = false
+    renderPage('/lms?tab=assignments')
+    expect(screen.queryByRole('button', { name: 'CSV', exact: true })).not.toBeInTheDocument()
+  })
+
+  it.each(['overview', 'analytics'])(
+    'не превращает скрытый финансовый итог в ноль на вкладке %s даже для HQ',
+    (tab) => {
+      lmsHooks.useTrainingDashboard.mockReturnValue(
+        queryResult({ ...dashboard, rewardsIssued: null }),
+      )
+      renderPage(`/lms?tab=${tab}`)
+      expect(screen.getByText('Нет доступа')).toBeInTheDocument()
+      expect(screen.queryByText('2 250 ₸')).not.toBeInTheDocument()
+    },
+  )
+
+  it('показывает настоящий нулевой итог отдельно от отсутствия финансового доступа', () => {
+    lmsHooks.useTrainingDashboard.mockReturnValue(queryResult({ ...dashboard, rewardsIssued: 0 }))
+    renderPage()
+    expect(screen.getByText('0 ₸')).toBeInTheDocument()
+    expect(screen.queryByText('Нет доступа')).not.toBeInTheDocument()
+  })
+
   it('показывает сводные показатели', () => {
     renderPage()
     expect(screen.getByRole('heading', { level: 1, name: 'Обучение' })).toBeInTheDocument()

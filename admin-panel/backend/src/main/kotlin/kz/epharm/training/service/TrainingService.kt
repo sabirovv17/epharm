@@ -108,6 +108,7 @@ import kotlin.math.roundToInt
 
 @Service
 class TrainingService(
+    private val administrativeAccess: kz.epharm.training.access.TrainingAdministrativeAccess,
     private val programRepository: TrainingProgramRepository,
     private val versionRepository: TrainingProgramVersionRepository,
     private val programStageRepository: TrainingProgramStageRepository,
@@ -162,6 +163,9 @@ class TrainingService(
 
     @Transactional
     fun createProgram(req: CreateTrainingProgramRequest, principal: AdminPrincipal): TrainingProgramDto {
+        administrativeAccess.lockWriter()
+        if (req.status in setOf(TrainingProgramStatus.scheduled, TrainingProgramStatus.published, TrainingProgramStatus.paused)) administrativeAccess.requireAll("programs", "publish")
+        if (req.completionBonus != 0L || req.stages.any { it.bonus != 0L }) administrativeAccess.requireAll("programs", "configure_bonus")
         validateProgramRequest(req)
         val program = TrainingProgramEntity(
             name = req.name.trim(),
@@ -211,11 +215,18 @@ class TrainingService(
         req: UpdateTrainingProgramRequest,
         principal: AdminPrincipal,
     ): TrainingProgramDto {
+        administrativeAccess.lockWriter()
         val program = loadProgram(id)
         if (program.status == TrainingProgramStatus.archived) {
             conflict("Архивную программу нельзя изменять")
         }
         val currentVersion = loadCurrentVersion(program)
+        if (program.status in setOf(TrainingProgramStatus.published, TrainingProgramStatus.scheduled, TrainingProgramStatus.paused) ||
+            req.status in setOf(TrainingProgramStatus.published, TrainingProgramStatus.scheduled, TrainingProgramStatus.paused)) administrativeAccess.requireAll("programs", "publish")
+        val oldBonuses = programStageRepository.findAllByVersionIdOrderByOrderNoAsc(currentVersion.id)
+            .filter { it.bonus != 0L }.associate { it.stageKey to it.bonus }
+        if ((req.completionBonus != null && req.completionBonus != currentVersion.completionBonus) ||
+            (req.stages != null && req.stages.filter { it.bonus != 0L }.associate { it.key to it.bonus } != oldBonuses)) administrativeAccess.requireAll("programs", "configure_bonus")
         req.name?.let { require(it.isNotBlank()) { "Название программы не может быть пустым" }; program.name = it.trim() }
         req.shortDescription?.let { program.shortDescription = it.trim() }
         req.description?.let { program.description = it.trim() }
@@ -315,7 +326,7 @@ class TrainingService(
 
     @Transactional(readOnly = true)
     fun dashboard(principal: AdminPrincipal): TrainingDashboardDto {
-        val assignments = scopedAssignments(principal, assignmentRepository.findAllByOrderByCreatedAtDesc())
+        val assignments = administrativeAssignments(principal)
         val completed = assignments.count { it.status == TrainingAssignmentStatus.completed }
         val inProgressStatuses = setOf(
             TrainingAssignmentStatus.in_progress,
@@ -328,10 +339,13 @@ class TrainingService(
             TrainingAssignmentStatus.waiting_review,
             TrainingAssignmentStatus.retake_required,
         )
-        val participants = scopedEvents(principal, eventRepository.findAllByOrderByStartsAtDesc())
-            .flatMap { participantRepository.findAllByEventIdOrderByRegisteredAtAsc(it.id) }
+        val participants = administrativeEvents(principal)
+            .flatMap { administrativeParticipants(it.id, principal) }
         return TrainingDashboardDto(
-            activePrograms = programRepository.findAllByOrderByUpdatedAtDesc().count {
+            activePrograms = (if (administrativeAccess.managed) {
+                val versionIds = assignments.map { it.programVersionId }.distinct()
+                programRepository.findAllById(versionRepository.findAllById(versionIds).map { it.programId }.distinct())
+            } else programRepository.findAllByOrderByUpdatedAtDesc()).count {
                 it.status in setOf(
                     TrainingProgramStatus.published,
                     TrainingProgramStatus.scheduled,
@@ -348,7 +362,7 @@ class TrainingService(
             completionRatePct = if (assignments.isEmpty()) 0 else (completed * 100.0 / assignments.size).roundToInt(),
             averageScore = assignments.mapNotNull { it.score }.takeIf(List<Int>::isNotEmpty)?.average()?.roundToInt(),
             certificates = assignments.count { certificateRepository.findByAssignmentId(it.id) != null }.toLong(),
-            rewardsIssued = assignments.sumOf { rewardRepository.findByAssignmentId(it.id)?.amount ?: 0 },
+            rewardsIssued = if (administrativeAccess.financial()) assignments.sumOf { rewardRepository.findByAssignmentId(it.id)?.amount ?: 0 } else null,
             attendanceConfirmed = participants.count {
                 it.status in setOf(EventParticipantStatus.attended, EventParticipantStatus.late)
             }.toLong(),
@@ -365,14 +379,14 @@ class TrainingService(
         val regional = principal.role == AdminRole.REGIONAL_MANAGER
         val trainer = principal.role == AdminRole.TRAINER
         return TrainingCapabilitiesDto(
-            canManagePrograms = systemAdmin || manager,
-            canManageAssignments = systemAdmin || manager || regional,
-            canManageEvents = systemAdmin || manager || regional,
-            canMarkAttendance = systemAdmin || manager || regional || trainer,
-            canAdjustRewards = systemAdmin,
-            canRecordResults = systemAdmin || manager || regional || trainer,
-            canManagePreferences = systemAdmin || manager || regional,
-            canExport = systemAdmin || hqViewer || manager || regional || trainer,
+            canManagePrograms = (systemAdmin || manager) && administrativeAccess.can("programs", "edit"),
+            canManageAssignments = (systemAdmin || manager || regional) && administrativeAccess.canScoped("assignments", "assign"),
+            canManageEvents = (systemAdmin || manager || regional) && administrativeAccess.can("events", "edit"),
+            canMarkAttendance = (systemAdmin || manager || regional || trainer) && administrativeAccess.canScoped("attendance", "mark"),
+            canAdjustRewards = systemAdmin && administrativeAccess.financial(),
+            canRecordResults = (systemAdmin || manager || regional || trainer) && administrativeAccess.canScoped("results", "record_result"),
+            canManagePreferences = (systemAdmin || manager || regional) && administrativeAccess.canScoped("preferences", "edit"),
+            canExport = (systemAdmin || hqViewer || manager || regional || trainer) && administrativeAccess.canScoped("assignments", "export"),
             regionalScope = if (regional) regionsFor(principal.userId) else emptyList(),
         )
     }
@@ -381,10 +395,11 @@ class TrainingService(
 
     @Transactional(readOnly = true)
     fun listEvents(principal: AdminPrincipal): List<OfflineEventDto> =
-        scopedEvents(principal, eventRepository.findAllByOrderByStartsAtDesc()).map(::eventDto)
+        administrativeEvents(principal).map(::eventDto)
 
     @Transactional
     fun createEvent(req: CreateOfflineEventRequest, principal: AdminPrincipal): OfflineEventDto {
+        administrativeAccess.lockWriter()
         if (!req.endsAt.isAfter(req.startsAt)) badRequest("Окончание события должно быть позже начала")
         val program = loadProgram(req.programId)
         val version = loadCurrentVersion(program)
@@ -423,6 +438,7 @@ class TrainingService(
 
     @Transactional
     fun updateEvent(eventId: UUID, req: UpdateOfflineEventRequest, principal: AdminPrincipal): OfflineEventDto {
+        administrativeAccess.lockWriter()
         val event = loadEvent(eventId)
         ensureEventVisible(event, principal)
         if (event.status == OfflineEventStatus.archived) conflict("Архивное событие нельзя изменять")
@@ -540,7 +556,7 @@ class TrainingService(
     fun listParticipants(eventId: UUID, principal: AdminPrincipal): List<EventParticipantDto> {
         val event = loadEvent(eventId)
         ensureEventVisible(event, principal)
-        return participantRepository.findAllByEventIdOrderByRegisteredAtAsc(eventId).map(::participantDto)
+        return administrativeParticipants(eventId, principal).map(::participantDto)
     }
 
     @Transactional(readOnly = true)
@@ -562,6 +578,7 @@ class TrainingService(
         req: MarkAttendanceRequest,
         principal: AdminPrincipal,
     ): EventParticipantDto {
+        administrativeAccess.lockWriter()
         val event = loadEvent(eventId)
         ensureEventVisible(event, principal)
         if (principal.role == AdminRole.TRAINER && event.trainerId != principal.userId) {
@@ -571,6 +588,11 @@ class TrainingService(
             AppException(ErrorCode.NOT_FOUND, "Участник не найден", HttpStatus.NOT_FOUND)
         }
         if (participant.eventId != eventId) badRequest("Участник не относится к этому событию")
+        if (administrativeAccess.managed) {
+            administrativeAccess.requireAssignment(participant.assignmentId, principal)
+            val parent = loadAssignment(participant.assignmentId)
+            if (parent.pharmacistId != participant.pharmacistId || parent.eventId != eventId) conflict("Связь участника и назначения требует сверки")
+        }
         participant.status = req.status
         participant.checkMethod = req.method
         participant.trainerComment = req.comment?.trim()
@@ -639,7 +661,7 @@ class TrainingService(
         query: String? = null,
     ): List<TrainingAssignmentDto> {
         val normalizedQuery = query?.trim()?.lowercase()?.takeIf(String::isNotEmpty)
-        return mapAssignments(scopedAssignments(principal, assignmentRepository.findAllByOrderByCreatedAtDesc()))
+        return mapAssignments(administrativeAssignments(principal))
             .asSequence()
             .filter { format == null || it.format == format }
             .filter { status == null || it.status == status }
@@ -684,6 +706,7 @@ class TrainingService(
         programId: UUID? = null,
         query: String? = null,
     ): ByteArray {
+        administrativeAccess.forbidManagedCsv()
         val rows = listAssignments(principal, format, status, programId, query)
         val generatedAt = DateTimeFormatter.ISO_INSTANT.format(Instant.now())
         val csv = buildString {
@@ -728,6 +751,7 @@ class TrainingService(
         req: CreateTrainingAssignmentsRequest,
         principal: AdminPrincipal,
     ): MassAssignmentResultDto {
+        administrativeAccess.lockWriter()
         val program = loadProgram(req.programId)
         if (program.status !in setOf(TrainingProgramStatus.published, TrainingProgramStatus.scheduled, TrainingProgramStatus.paused)) {
             badRequest("Назначать можно только опубликованную или запланированную программу")
@@ -743,6 +767,7 @@ class TrainingService(
             badRequest("Дедлайн должен быть позже даты начала")
         }
 
+        if (administrativeAccess.managed) req.pharmacistIds.forEach { administrativeAccess.requirePharmacist(it, principal) }
         val pharmacists = pharmacistRepository.findAllById(req.pharmacistIds).associateBy { it.id }
         val missing = req.pharmacistIds - pharmacists.keys
         if (missing.isNotEmpty()) badRequest("Фармацевты не найдены: ${missing.joinToString()}")
@@ -847,6 +872,7 @@ class TrainingService(
         req: ChangeAssignmentFormatRequest,
         principal: AdminPrincipal,
     ): TrainingAssignmentDto {
+        administrativeAccess.lockWriter()
         val assignment = loadAssignment(assignmentId)
         ensureAssignmentVisible(assignment, principal)
         if (assignment.status == TrainingAssignmentStatus.cancelled) conflict("Отменённое назначение нельзя изменить")
@@ -963,6 +989,8 @@ class TrainingService(
         req: MassChangeTrainingPreferencesRequest,
         principal: AdminPrincipal,
     ): List<TrainingPreferenceDto> {
+        administrativeAccess.lockWriter()
+        if (administrativeAccess.managed) req.pharmacistIds.forEach { administrativeAccess.requirePharmacist(it, principal) }
         val result = req.pharmacistIds.sorted().map { pharmacistId ->
             savePreference(pharmacistId, req.defaultFormat, req.reason, principal)
         }
@@ -979,7 +1007,7 @@ class TrainingService(
 
     @Transactional(readOnly = true)
     fun listCurrentPreferences(principal: AdminPrincipal): List<TrainingPreferenceDto> =
-        preferenceRepository.findAllByValidToIsNullOrderByPharmacistIdAsc()
+        (if (administrativeAccess.managed) preferenceRepository.findAllById(administrativeAccess.preferenceIds(principal)) else preferenceRepository.findAllByValidToIsNullOrderByPharmacistIdAsc())
             .filter { preference ->
                 val pharmacist = pharmacistRepository.findById(preference.pharmacistId).orElse(null)
                     ?: return@filter false
@@ -1000,6 +1028,7 @@ class TrainingService(
         reason: String,
         principal: AdminPrincipal,
     ): TrainingPreferenceDto {
+        administrativeAccess.lockWriter()
         val pharmacist = loadPharmacist(pharmacistId)
         ensurePharmacistVisible(pharmacist, principal)
         val now = Instant.now()
@@ -1488,6 +1517,7 @@ class TrainingService(
         req: RecordAssessmentResultRequest,
         principal: AdminPrincipal,
     ): TrainingAssignmentDto {
+        administrativeAccess.lockWriter()
         val assignment = assignmentRepository.findById(assignmentId).orElseThrow {
             AppException(ErrorCode.NOT_FOUND, "Назначение не найдено", HttpStatus.NOT_FOUND)
         }
@@ -1501,6 +1531,7 @@ class TrainingService(
         if (stage.assignmentId != assignmentId) badRequest("Этап относится к другому назначению")
         if (stage.status == TrainingStageStatus.locked) conflict("Предыдущий обязательный этап ещё не завершён")
         val definition = programStageRepository.findById(stage.programStageId).orElseThrow()
+        if (administrativeAccess.managed && definition.versionId != assignment.programVersionId) conflict("Этап относится к другой версии программы")
         if (definition.type !in setOf(TrainingStageType.test, TrainingStageType.ai_exam, TrainingStageType.manual_review)) {
             badRequest("Для этого этапа результат проверки не применяется")
         }
@@ -1561,8 +1592,16 @@ class TrainingService(
             AppException(ErrorCode.NOT_FOUND, "Назначение не найдено", HttpStatus.NOT_FOUND)
         }
         ensureAssignmentVisible(assignment, principal)
-        return assessmentResultRepository.findAllByAssignmentIdOrderByRecordedAtDesc(assignmentId)
-            .map(::assessmentResultDto)
+        val results = assessmentResultRepository.findAllByAssignmentIdOrderByRecordedAtDesc(assignmentId)
+        if (administrativeAccess.managed) results.forEach { result ->
+            val stage = assignmentStageRepository.findById(result.assignmentStageId).orElse(null)
+                ?: conflict("Связь результата и этапа требует сверки")
+            val definition = programStageRepository.findById(stage.programStageId).orElse(null)
+                ?: conflict("Связь результата и версии требует сверки")
+            if (stage.assignmentId != assignment.id || definition.versionId != assignment.programVersionId)
+                conflict("Результат относится к другому назначению или версии")
+        }
+        return results.map(::assessmentResultDto)
     }
 
     @Transactional
@@ -1631,9 +1670,9 @@ class TrainingService(
 
     @Transactional(readOnly = true)
     fun listCertificates(principal: AdminPrincipal): List<TrainingCertificateDto> {
-        val visibleAssignmentIds = scopedAssignments(principal, assignmentRepository.findAllByOrderByCreatedAtDesc())
+        val visibleAssignmentIds = administrativeAssignments(principal)
             .map { it.id }.toSet()
-        return certificateRepository.findAllByOrderByIssuedAtDesc()
+        return (if (administrativeAccess.managed) certificateRepository.findAllByAssignmentIdIn(visibleAssignmentIds) else certificateRepository.findAllByOrderByIssuedAtDesc())
             .filter { it.assignmentId in visibleAssignmentIds }
             .map(::certificateDto)
     }
@@ -1677,7 +1716,7 @@ class TrainingService(
         val assignments = mapAssignments(
             assignmentRepository.findAllByPharmacistIdOrderByCreatedAtDesc(pharmacistId),
         )
-        val rewards = rewardRepository.findAllByPharmacistIdOrderByIssuedAtDesc(pharmacistId).map(::rewardDto)
+        val rewards = if (administrativeAccess.financial()) rewardRepository.findAllByPharmacistIdOrderByIssuedAtDesc(pharmacistId).map(::rewardDto) else emptyList()
         return PharmacistTrainingProfileDto(
             pharmacistId = pharmacist.id,
             pharmacistName = pharmacist.name,
@@ -1689,7 +1728,7 @@ class TrainingService(
             inProgressAssignments = assignments.count {
                 it.status !in setOf(TrainingAssignmentStatus.completed, TrainingAssignmentStatus.cancelled)
             },
-            totalRewards = rewards.filter { it.status == "issued" }.sumOf { it.amount },
+            totalRewards = if (administrativeAccess.financial()) rewards.filter { it.status == "issued" }.sumOf { it.amount } else null,
             assignments = assignments,
             certificates = certificateRepository.findAllByPharmacistIdOrderByIssuedAtDesc(pharmacistId)
                 .map(::certificateDto),
@@ -1893,10 +1932,7 @@ class TrainingService(
         }
         if (lockedEvent.registrationDeadline?.isBefore(Instant.now()) == true) conflict("Регистрация на событие закрыта")
         val assignmentParticipant = participantRepository.findByAssignmentId(assignment.id)
-        val occupied = participantRepository.countByEventIdAndStatusRawIn(
-            event.id,
-            activeParticipantStatusNames(),
-        )
+        val occupied = participantRepository.countByEventIdAndStatusRawIn(event.id, activeParticipantStatusNames())
         val participantAtTarget = participantRepository.findByEventIdAndPharmacistId(event.id, pharmacistId)
         if (participantAtTarget != null && participantAtTarget.assignmentId != assignment.id) {
             conflict("Фармацевт уже зарегистрирован на это событие по другому назначению")
@@ -2179,10 +2215,7 @@ class TrainingService(
         val version = versionRepository.findById(event.programVersionId).orElseThrow()
         val program = loadProgram(version.programId)
         val trainerName = event.trainerId?.let { adminUserRepository.findById(it).orElse(null)?.name }
-        val occupied = participantRepository.countByEventIdAndStatusRawIn(
-            event.id,
-            activeParticipantStatusNames(),
-        )
+        val occupied = administrativeOccupied(event)
         return OfflineEventDto(
             id = event.id,
             programId = program.id,
@@ -2348,7 +2381,7 @@ class TrainingService(
                 completedAt = assignment.completedAt,
                 stages = stageDtos,
                 certificate = certificates[assignment.id]?.let(::certificateDto),
-                reward = rewards[assignment.id]?.let(::rewardDto),
+                reward = if (administrativeAccess.financial()) rewards[assignment.id]?.let(::rewardDto) else null,
                 createdAt = assignment.createdAt,
                 updatedAt = assignment.updatedAt,
             )
@@ -2356,10 +2389,7 @@ class TrainingService(
     }
 
     private fun eventSummary(event: OfflineEventEntity): OfflineEventSummaryDto {
-        val occupied = participantRepository.countByEventIdAndStatusRawIn(
-            event.id,
-            activeParticipantStatusNames(),
-        )
+        val occupied = administrativeOccupied(event)
         return OfflineEventSummaryDto(
             id = event.id,
             title = event.title,
@@ -2376,6 +2406,14 @@ class TrainingService(
     }
 
     private fun certificateDto(row: TrainingCertificateEntity): TrainingCertificateDto {
+        if (administrativeAccess.managed) {
+            val principal = org.springframework.security.core.context.SecurityContextHolder.getContext().authentication?.principal as? AdminPrincipal
+                ?: forbidden("Не подтверждён административный контекст")
+            administrativeAccess.requireAssignment(row.assignmentId, principal)
+            val parent = loadAssignment(row.assignmentId)
+            if (row.pharmacistId != parent.pharmacistId || row.programVersionId != parent.programVersionId)
+                conflict("Связь сертификата, сотрудника и назначения требует сверки")
+        }
         val pharmacist = loadPharmacist(row.pharmacistId)
         val version = versionRepository.findById(row.programVersionId).orElseThrow()
         val program = loadProgram(version.programId)
@@ -2483,6 +2521,26 @@ class TrainingService(
 
     // Access scope and persistence helpers
 
+    private fun administrativeOccupied(event: OfflineEventEntity): Long {
+        if (!administrativeAccess.managed) return participantRepository.countByEventIdAndStatusRawIn(event.id, activeParticipantStatusNames())
+        val principal = org.springframework.security.core.context.SecurityContextHolder.getContext().authentication?.principal as? AdminPrincipal
+            ?: forbidden("Не подтверждён административный контекст")
+        return administrativeParticipants(event.id, principal).count { it.status.name in activeParticipantStatusNames() }.toLong()
+    }
+
+    private fun administrativeAssignments(principal: AdminPrincipal): List<TrainingAssignmentEntity> =
+        if (administrativeAccess.managed) assignmentRepository.findAllById(administrativeAccess.assignmentIds(principal)).sortedByDescending { it.createdAt }
+        else scopedAssignments(principal, assignmentRepository.findAllByOrderByCreatedAtDesc())
+
+    private fun administrativeEvents(principal: AdminPrincipal): List<OfflineEventEntity> =
+        if (administrativeAccess.managed) eventRepository.findAllById(administrativeAccess.eventIds(principal)).sortedByDescending { it.startsAt }
+        else scopedEvents(principal, eventRepository.findAllByOrderByStartsAtDesc())
+
+    private fun administrativeParticipants(eventId: UUID, principal: AdminPrincipal): List<EventParticipantEntity> =
+        if (administrativeAccess.managed) participantRepository.findAllById(administrativeAccess.participantIds(eventId, principal)).sortedBy { it.registeredAt }
+        else participantRepository.findAllByEventIdOrderByRegisteredAtAsc(eventId)
+
+
     private fun scopedAssignments(principal: AdminPrincipal, rows: List<TrainingAssignmentEntity>): List<TrainingAssignmentEntity> {
         return when (principal.role) {
             AdminRole.REGIONAL_MANAGER -> {
@@ -2506,6 +2564,7 @@ class TrainingService(
     }
 
     private fun ensurePharmacistVisible(pharmacist: PharmacistEntity, principal: AdminPrincipal) {
+        administrativeAccess.requirePharmacist(pharmacist.id, principal)
         if (principal.role == AdminRole.REGIONAL_MANAGER && pharmacist.city !in regionsFor(principal.userId)) {
             forbidden("Фармацевт находится вне закреплённых регионов")
         }
@@ -2519,12 +2578,14 @@ class TrainingService(
     }
 
     private fun ensureAssignmentVisible(assignment: TrainingAssignmentEntity, principal: AdminPrincipal) {
+        administrativeAccess.requireAssignment(assignment.id, principal)
         if (assignment !in scopedAssignments(principal, listOf(assignment))) {
             forbidden("Назначение находится вне вашей области доступа")
         }
     }
 
     private fun ensureEventVisible(event: OfflineEventEntity, principal: AdminPrincipal) {
+        administrativeAccess.requireEvent(event.id, principal)
         if (event !in scopedEvents(principal, listOf(event))) forbidden("Событие находится вне вашей области доступа")
     }
 
@@ -2543,10 +2604,7 @@ class TrainingService(
             event.city.equals(pharmacist.city, ignoreCase = true) ||
             event.region.equals(pharmacist.city, ignoreCase = true)
         if (!locationMatches) return false
-        val occupied = participantRepository.countByEventIdAndStatusRawIn(
-            event.id,
-            activeParticipantStatusNames(),
-        )
+        val occupied = participantRepository.countByEventIdAndStatusRawIn(event.id, activeParticipantStatusNames())
         val existing = participantRepository.findByEventIdAndPharmacistId(event.id, pharmacist.id)
         return existing != null || occupied < event.capacity
     }

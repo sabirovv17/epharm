@@ -322,3 +322,20 @@ or a proven reward recipient. Missing ownership blocks delivery without inventin
 a person. The worker creates no reward and cannot bypass the paid-executor proof.
 `owned_automation.py` projects preserved metadata only; it does not start workers,
 issue links, replay ACKs or overwrite source data.
+
+### Commercial and execution source projections
+
+`owned_extended.py` reuses the pinned, private-artifact/candidate-only runner.
+It projects exact tariffs, supplier settings, metadata team seats, budget plans,
+budget items, placement product snapshots and source stock observations after the
+editor/commercial/execution migrations. Team seats do not become login accounts.
+Source stock never becomes a new attempt. Repeat execution compares all mapped
+fields and source payloads; collisions or drift abort the complete transaction.
+
+CRM placement campaign UUIDs have their own namespace and table. They are not
+ePharm recommendation campaign IDs. Budget-to-request links use only explicit
+`request_ids` plus the same source supplier; missing historic requests stay in
+the source arrays and are counted as unresolved, never reconstructed by name.
+Nonempty instruction/photo source sets require a separately verified private-file
+mapping. The projection starts no app/worker, creates no task/link/reward, and
+does not rewrite the original business tables or applied Flyway migrations.

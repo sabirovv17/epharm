@@ -1315,7 +1315,7 @@ export interface TrainingDashboardDto {
   completionRatePct: number
   averageScore: number | null
   certificates: number
-  rewardsIssued: number
+  rewardsIssued: number | null
   attendanceConfirmed: number
   noShows: number
   byFormat: Partial<Record<TrainingFormat, number>>
@@ -1586,7 +1586,7 @@ export interface PharmacistTrainingProfileDto {
   totalAssignments: number
   completedAssignments: number
   inProgressAssignments: number
-  totalRewards: number
+  totalRewards: number | null
   assignments: TrainingAssignmentDto[]
   certificates: TrainingCertificateDto[]
   rewards: TrainingRewardDto[]

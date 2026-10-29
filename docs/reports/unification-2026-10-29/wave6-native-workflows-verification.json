@@ -1,0 +1,106 @@
+{
+  "baseCommit": "91d9da4c713eeab802f8fb30b562f46f42ba8346",
+  "branch": "codex/unified-admin-development",
+  "productionChanged": false,
+  "modules": {
+    "training": {
+      "managedRoutes": 45,
+      "scoped": 19,
+      "globalOnly": 26,
+      "pgCases": 13
+    },
+    "inventory": "native structure/passport/floorplan/price/private media editor",
+    "commercial": "budgets/products/1-12 months/tariffs snapshots/CSV/copy/partial approvals/media-kit XLSX",
+    "execution": "bulk/queues/attempt stock/manual geo/private video/instruction PDF-to-approved-results"
+  },
+  "checks": {
+    "backendFullBeforeResetFix": {
+      "tests": 1211,
+      "suites": 138,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 1,
+      "reason": "dev-only reset explicit truncate set missing new stock FK table; fixed without CASCADE or weakening immutable ledger"
+    },
+    "backendChangedSuitesAfterFix": {
+      "tests": 45,
+      "suites": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "backendCombinedBeforeFinalDefensiveCases": {
+      "tests": 132,
+      "failures": 0
+    },
+    "backendCheckAndBootJar": "PASS",
+    "merchJarArtifactContract": "PASS",
+    "frontendUnit": {
+      "tests": 853,
+      "suites": 87,
+      "failures": 0
+    },
+    "frontendBuild": "PASS",
+    "frontendLint": "PASS",
+    "builtBrowser": {
+      "tests": 39,
+      "failures": 0
+    },
+    "instructionsMockedChromium": {
+      "upload": 1,
+      "pdfDownload": 1,
+      "approvedVideoDownload": 1,
+      "externalRequests": 0,
+      "pageErrors": 0,
+      "mobileWidth": 390,
+      "overflow": false
+    },
+    "python": {
+      "tests": 119,
+      "failures": 0,
+      "skipped": 1,
+      "disposablePgCases": 7
+    },
+    "sourceInventory": {
+      "actions": 488,
+      "groups": 57,
+      "endpoints": 382,
+      "posmContracts": 47
+    }
+  },
+  "preservedCandidate": {
+    "flywayVersion": "080",
+    "newMigrationsApplied": 3,
+    "originalTables": 72,
+    "originalRows": 1905710,
+    "originalColumnHashesAndPrimaryKeysUnchanged": true,
+    "evidenceFiles": 11,
+    "evidenceBytes": 4426601,
+    "allSha256Match": true,
+    "extendedRecords": 72,
+    "placementCampaigns": 1,
+    "exactSourceBudgetRelations": 3,
+    "missingHistoricalRequestReferences": 15,
+    "sourcePlacementOwnersAwaitExplicitConfirmation": 3,
+    "projectionReplay": "verified_existing_noop",
+    "generatedTasks": 0,
+    "issuedLinks": 0,
+    "newRewards": 0,
+    "appOrWorkerStarted": false
+  },
+  "remainingCode": [
+    "HQ tariff mutation",
+    "independent task comments/block/cancel",
+    "task templates and occupied/all-shelf targeting",
+    "producer per-placement reference photo",
+    "map/floorplan selection/auto-pick and browser draft recovery",
+    "native monthly visit start/resume"
+  ],
+  "separateAgreedStages": [
+    "C1/C2/C4 grading and answer disclosure D5",
+    "D9 credential export",
+    "operator identity/source owner confirmation",
+    "actual Windows/Standard-N QR/SMS acceptance",
+    "full capacity/restore/rollback/cutover acceptance"
+  ]
+}

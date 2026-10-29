@@ -4,16 +4,22 @@ import java.time.Instant
 import java.util.UUID
 
 data class CreateMerchTaskItem(val title: String, val instructions: String = "", val required: Boolean = true,
-    val requiredPhotos: Int = 1, val checklist: List<String> = emptyList())
+    val requiredPhotos: Int = 1, val checklist: List<String> = emptyList(),
+    val shelfId: UUID? = null, val stockProducts: List<TaskStockProduct> = emptyList())
 data class CreateMerchTaskDispatch(val branchId: UUID, val title: String, val dueAt: Instant,
     val rewardAmountKzt: Long = 0, val assignedPharmacistId: String? = null, val items: List<CreateMerchTaskItem>,
     val priority: String = "normal", val availableFrom: Instant? = null)
+data class CreateMerchTaskBulk(val requestId: UUID, val branchIds: Set<UUID>, val title: String, val dueAt: Instant,
+    val rewardAmountKzt: Long = 0, val items: List<CreateMerchTaskItem>,
+    val priority: String = "normal", val availableFrom: Instant? = null)
+data class MerchTaskBulkResult(val dispatchIds: List<UUID>)
 data class TaskChecklistItem(val id: UUID, val title: String, val required: Boolean = true)
 data class SubmitMerchTaskAttempt(val expectedAttempt: Int, val completedChecklistIds: Set<UUID>, val comment: String = "")
 data class ReviewMerchTaskItem(val attemptId: UUID, val expectedItemVersion: Long, val decision: String, val reason: String,
     val manualUnverifiedExecutor: Boolean = false, val manualSourcePreserved: Boolean = false)
 data class MerchTaskEvidenceDto(val id: UUID, val mimeType: String, val byteSize: Long, val sha256: String?,
-    val originalFilename: String?, val createdAt: Instant, val verification: String = "manual_review_required")
+    val originalFilename: String?, val createdAt: Instant, val verification: String = "manual_review_required",
+    val capture: Map<String,Any?> = emptyMap())
 data class MerchTaskReviewDto(val id: UUID, val attemptId: UUID, val reviewerAccountId: UUID?, val reviewerPersonId: UUID?,
     val decision: String, val reason: String, val createdAt: Instant)
 data class MerchTaskAttemptDto(val id: UUID, val number: Int, val status: String, val executorPersonId: UUID?,
@@ -25,7 +31,7 @@ data class MerchTaskItemDto(val id: UUID, val title: String, val instructions: S
     val currentAttempt: MerchTaskAttemptDto?, val legacyEvidence: List<MerchTaskEvidenceDto>,
     val availableFrom: Instant?, val dueAt: Instant?, val canStart: Boolean = false, val canUpload: Boolean = false,
     val canSubmit: Boolean = false, val canReview: Boolean = false, val canResumeSource: Boolean = false,
-    val canAdoptSourceReview: Boolean = false)
+    val canAdoptSourceReview: Boolean = false, val execution: TaskExecutionPolicy? = null)
 data class MerchTaskBranchDto(val id: UUID, val name: String, val city: String, val address: String,
     val active: Boolean, val createEligible: Boolean, val canConfigureReward: Boolean = false)
 data class MerchTaskRewardDto(val state: String, val amountKzt: Long, val reason: String, val walletEntryId: UUID?)

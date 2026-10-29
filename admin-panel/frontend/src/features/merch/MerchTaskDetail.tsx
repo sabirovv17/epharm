@@ -3,6 +3,8 @@ import { Button, Field, Input, Modal } from '@/ui'
 import { describeError } from '@/lib/describeError'
 import { formatKzt } from '@/mocks/fixtures'
 import { usePlacementRead } from './usePlacementRead'
+import { TaskStockFields, InstructionDownload } from './TaskStockFields'
+import type { TaskCapture } from './tasks-api'
 import type { MerchTask, TaskAttempt, TaskEvidence, TaskGateway, TaskItem } from './tasks-api'
 
 const taskStatusLabel = (value: string) =>
@@ -135,6 +137,8 @@ function TaskItemCard({
   const [checked, setChecked] = useState<string[]>(item.currentAttempt?.completedChecklistIds ?? [])
   const [comment, setComment] = useState('')
   const [file, setFile] = useState<{ value: File; uploadId: string } | null>(null)
+  const [capture, setCapture] = useState<TaskCapture>()
+  const [locating, setLocating] = useState(false)
   const [pending, setPending] = useState(false)
   const [failure, setFailure] = useState('')
   const [failureStatus, setFailureStatus] = useState<number>()
@@ -179,6 +183,9 @@ function TaskItemCard({
   const complete =
     !!attempt &&
     attempt.evidence.length >= item.requiredPhotos &&
+    (!item.execution?.requiresStock || !!item.execution.stock) &&
+    (!item.execution?.requiresVideo ||
+      attempt.evidence.some((e) => e.mimeType.startsWith('video/'))) &&
     item.checklist.filter((row) => row.required).every((row) => checked.includes(row.id))
   const manualSource = attempt?.executorIdentityStatus === 'source_preserved_unverified'
   const needsManualReview =
@@ -205,6 +212,20 @@ function TaskItemCard({
         )}
       </div>
       <p className="whitespace-pre-wrap break-words text-[13px] leading-6">{item.instructions}</p>
+      {item.execution?.requiresVideo && <InstructionDownload item={item} gateway={gateway} />}
+      {item.execution?.requiresStock && (
+        <TaskStockFields
+          key={`${item.id}:${attempt?.number ?? 0}`}
+          item={item}
+          gateway={gateway}
+          editable={
+            canExecute &&
+            attempt?.status === 'draft' &&
+            (item.canUpload === true || item.canSubmit === true)
+          }
+          onSaved={refresh}
+        />
+      )}
       {item.availableFrom && (
         <p className="text-[12px] text-ink-500">
           Доступно с{' '}
@@ -306,23 +327,40 @@ function TaskItemCard({
       {canExecute && item.canUpload === true && (
         <div className="rounded-lg border border-paper-line p-3">
           <Field
-            label="Фото JPG или PNG"
-            hint="До 20 МБ и 12 Мп; исходное фото проверяется сервером."
+            label={item.execution?.requiresVideo ? 'Видео MP4, MOV или WebM' : 'Фото JPG или PNG'}
+            hint={
+              item.execution?.requiresVideo
+                ? 'До 30 МБ. Видео просматривает проверяющий.'
+                : 'До 20 МБ и 12 Мп; исходное фото проверяется сервером.'
+            }
           >
             <input
               type="file"
-              accept="image/jpeg,image/png"
+              accept={
+                item.execution?.requiresVideo
+                  ? 'video/mp4,video/quicktime,video/webm'
+                  : 'image/jpeg,image/png'
+              }
+              capture="environment"
               disabled={locked}
-              aria-label={`Фото для ${item.title}`}
+              aria-label={`${item.execution?.requiresVideo ? 'Видео' : 'Фото'} для ${item.title}`}
               onChange={(event) => {
                 const value = event.target.files?.[0]
                 if (!value) return
                 if (
-                  !['image/jpeg', 'image/png'].includes(value.type) ||
+                  !(
+                    item.execution?.requiresVideo
+                      ? ['video/mp4', 'video/quicktime', 'video/webm']
+                      : ['image/jpeg', 'image/png']
+                  ).includes(value.type) ||
                   value.size === 0 ||
-                  value.size > 20 * 1024 * 1024
+                  value.size > (item.execution?.requiresVideo ? 30 : 20) * 1024 * 1024
                 ) {
-                  setFailure('Выберите JPG или PNG до 20 МБ.')
+                  setFailure(
+                    item.execution?.requiresVideo
+                      ? 'Выберите видео до 30 МБ.'
+                      : 'Выберите JPG или PNG до 20 МБ.',
+                  )
                   setFile(null)
                   return
                 }
@@ -332,14 +370,62 @@ function TaskItemCard({
             />
           </Field>
           <Button
+            variant="ghost"
+            disabled={locating || locked}
+            onClick={() => {
+              setLocating(true)
+              if (!navigator.geolocation) {
+                setCapture({ status: 'unavailable', reason: 'Браузер не поддерживает геолокацию' })
+                setLocating(false)
+                return
+              }
+              navigator.geolocation.getCurrentPosition(
+                (position) => {
+                  setCapture({
+                    status: 'available',
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude,
+                    accuracy: position.coords.accuracy,
+                    measuredAt: new Date(position.timestamp).toISOString(),
+                    captureSource: 'file_picker',
+                  })
+                  setLocating(false)
+                },
+                () => {
+                  setCapture({ status: 'unavailable', reason: 'Местоположение не получено' })
+                  setLocating(false)
+                },
+                { timeout: 8000, maximumAge: 0 },
+              )
+            }}
+          >
+            {locating ? 'Определяем местоположение…' : 'Прикрепить местоположение'}
+          </Button>
+          {capture && (
+            <p className="text-xs text-ink-500">
+              {capture.status === 'available'
+                ? 'Местоположение прикреплено; требуется ручная проверка.'
+                : 'Местоположение недоступно; потребуется ручная проверка.'}
+            </p>
+          )}
+          <Button
             className="mt-2"
             variant="outline"
             disabled={!file || locked}
             onClick={() => {
-              if (file) void perform(() => gateway.upload(item.id, file.uploadId, file.value))
+              if (file)
+                void perform(() =>
+                  capture
+                    ? gateway.upload(item.id, file.uploadId, file.value, capture)
+                    : gateway.upload(item.id, file.uploadId, file.value),
+                )
             }}
           >
-            {pending ? 'Загружаем…' : 'Загрузить фото'}
+            {pending
+              ? 'Загружаем…'
+              : item.execution?.requiresVideo
+                ? 'Загрузить видео'
+                : 'Загрузить фото'}
           </Button>
         </div>
       )}
@@ -367,7 +453,8 @@ function TaskItemCard({
           </div>
           {!complete && (
             <p className="text-[12px] text-ink-500">
-              Для отправки нужны фото текущей попытки и обязательные пункты чек-листа.
+              Для отправки нужны доказательства текущей попытки, сохранённые остатки (если
+              запрошены) и обязательные пункты чек-листа.
             </p>
           )}
         </>
@@ -586,16 +673,23 @@ function EvidenceList({ rows, gateway }: { rows: TaskEvidence[]; gateway: TaskGa
   )
 }
 function PrivateEvidence({ row, gateway }: { row: TaskEvidence; gateway: TaskGateway }) {
+  const video = row.mimeType.startsWith('video/')
+  const [opened, setOpened] = useState(!video)
   const [image, setImage] = useState<{ id: string; url: string } | null>(null)
   const [error, setError] = useState('')
   useEffect(() => {
+    if (!opened) return
     const controller = new AbortController()
     let url: string | null = null
     gateway
       .evidence(row.id, controller.signal)
       .then((blob) => {
         if (controller.signal.aborted) return
-        if (!['image/jpeg', 'image/png'].includes(blob.type))
+        if (
+          !['image/jpeg', 'image/png', 'video/mp4', 'video/quicktime', 'video/webm'].includes(
+            blob.type,
+          )
+        )
           throw new Error('Предпросмотр этого формата недоступен.')
         url = URL.createObjectURL(blob)
         setImage({ id: row.id, url })
@@ -607,17 +701,45 @@ function PrivateEvidence({ row, gateway }: { row: TaskEvidence; gateway: TaskGat
       controller.abort()
       if (url) URL.revokeObjectURL(url)
     }
-  }, [gateway, row.id])
+  }, [gateway, row.id, opened])
   return (
     <figure className="rounded-lg border border-paper-line bg-paper-input p-2">
-      {image?.id === row.id ? (
-        <a href={image.url} target="_blank" rel="noreferrer">
-          <img
-            src={image.url}
-            alt="Фотоотчёт по пункту задания"
-            className="h-40 w-full rounded-md object-contain"
-          />
-        </a>
+      {video && !opened ? (
+        <Button variant="outline" onClick={() => setOpened(true)}>
+          Открыть видео
+        </Button>
+      ) : image?.id === row.id ? (
+        video ? (
+          <div>
+            <video
+              src={image.url}
+              controls
+              playsInline
+              preload="metadata"
+              className="max-h-60 w-full"
+            />
+            <a href={image.url} download>
+              Скачать видео
+            </a>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setOpened(false)
+                setImage(null)
+              }}
+            >
+              Закрыть видео
+            </Button>
+          </div>
+        ) : (
+          <a href={image.url} target="_blank" rel="noreferrer">
+            <img
+              src={image.url}
+              alt="Фотоотчёт по пункту задания"
+              className="h-40 w-full rounded-md object-contain"
+            />
+          </a>
+        )
       ) : error ? (
         <p role="alert" className="text-[12px]">
           {error}
@@ -626,7 +748,10 @@ function PrivateEvidence({ row, gateway }: { row: TaskEvidence; gateway: TaskGat
         <p className="py-5 text-[12px]">Загружаем закрытое фото…</p>
       )}
       <figcaption className="mt-2 text-[11px] text-ink-500">
-        Фото требует ручной проверки.
+        Доказательство требует ручной проверки.{' '}
+        {row.capture?.distanceMeters !== undefined &&
+          `Расстояние: ${row.capture.distanceMeters} м. `}
+        {row.capture?.location?.reason}
       </figcaption>
     </figure>
   )

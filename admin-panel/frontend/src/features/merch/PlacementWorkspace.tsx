@@ -277,21 +277,35 @@ function PlacementDetail({
   const [editing, setEditing] = useState(false)
   const [action, setAction] = useState<PlacementAction | null>(null)
   const [reason, setReason] = useState('')
+  const [selectedItems, setSelectedItems] = useState<string[]>([])
+  const [partial, setPartial] = useState(false)
   const [pending, setPending] = useState(false)
   const [failure, setFailure] = useState<unknown>(null)
   const reload = () => {
     setFailure(null)
     setAction(null)
     setReason('')
+    setSelectedItems([])
+    setPartial(false)
     read.reload()
   }
   const transition = async () => {
     if (!action || !read.data || pending) return
     setPending(true)
     try {
-      await gateway.transition(id, action, read.data.revision, reason.trim() || null)
+      if (partial && (action === 'approve' || action === 'reject') && gateway.reviewItems)
+        await gateway.reviewItems(
+          id,
+          action,
+          read.data.revision,
+          selectedItems,
+          reason.trim() || null,
+        )
+      else await gateway.transition(id, action, read.data.revision, reason.trim() || null)
       setAction(null)
       setReason('')
+      setSelectedItems([])
+      setPartial(false)
       read.reload()
       onChanged()
     } catch (error) {
@@ -360,6 +374,12 @@ function PlacementDetail({
                 })}
               <div className="rounded-lg bg-paper-input p-3">
                 <p className="font-bold">Сумма по данным сервера: {amount(item.totalAmount)}</p>
+                {(item.approvedAmount !== undefined || item.pendingAmount !== undefined) && (
+                  <p className="mt-1 text-sm">
+                    Подтверждено: {amount(item.approvedAmount ?? null)} · Ожидает решения:{' '}
+                    {amount(item.pendingAmount ?? null)}
+                  </p>
+                )}
                 <p className="mt-1 text-[12px]">
                   Резерв:{' '}
                   {(
@@ -381,6 +401,9 @@ function PlacementDetail({
               <table className="w-full text-left text-[12px]">
                 <thead>
                   <tr>
+                    {gateway.realm === 'admin' && gateway.reviewItems && (
+                      <th className="p-2">Решение по позиции</th>
+                    )}
                     <th className="p-2">Место</th>
                     <th className="p-2">Часть</th>
                     <th className="p-2">Статус позиции</th>
@@ -390,6 +413,27 @@ function PlacementDetail({
                 <tbody>
                   {item.items.map((row) => (
                     <tr key={row.id} className="border-t border-paper-line">
+                      {gateway.realm === 'admin' && gateway.reviewItems && (
+                        <td className="p-2">
+                          <input
+                            type="checkbox"
+                            aria-label={`Выбрать позицию ${row.shelfCode} ${portions[row.portion]}`}
+                            disabled={
+                              pending ||
+                              row.status !== 'pending' ||
+                              !(item.canApprove || item.canReject)
+                            }
+                            checked={selectedItems.includes(row.id)}
+                            onChange={() =>
+                              setSelectedItems((values) =>
+                                values.includes(row.id)
+                                  ? values.filter((value) => value !== row.id)
+                                  : [...values, row.id],
+                              )
+                            }
+                          />
+                        </td>
+                      )}
                       <td className="p-2">{row.shelfCode}</td>
                       <td className="p-2">{portions[row.portion]}</td>
                       <td className="p-2">{labels[row.status]}</td>
@@ -401,6 +445,35 @@ function PlacementDetail({
               {item.note && <p className="text-[13px]">Комментарий: {item.note}</p>}
               {item.reviewNote && <p className="text-[13px]">Решение: {item.reviewNote}</p>}
               <div className="flex flex-wrap gap-2">
+                {gateway.realm === 'admin' && gateway.reviewItems && selectedItems.length > 0 && (
+                  <>
+                    {item.canApprove && (
+                      <Button
+                        disabled={pending || !!failure}
+                        onClick={() => {
+                          setPartial(true)
+                          setAction('approve')
+                          setReason('')
+                        }}
+                      >
+                        Подтвердить выбранные позиции ({selectedItems.length})
+                      </Button>
+                    )}
+                    {item.canReject && (
+                      <Button
+                        variant="outline"
+                        disabled={pending || !!failure}
+                        onClick={() => {
+                          setPartial(true)
+                          setAction('reject')
+                          setReason('')
+                        }}
+                      >
+                        Отклонить выбранные позиции ({selectedItems.length})
+                      </Button>
+                    )}
+                  </>
+                )}
                 {bound && item.canEdit && (
                   <Button
                     variant="outline"
@@ -418,6 +491,7 @@ function PlacementDetail({
                     onClick={() => {
                       setAction(name)
                       setReason('')
+                      setPartial(false)
                     }}
                   >
                     {actions[name]}
@@ -468,6 +542,12 @@ function PlacementDetail({
           <p className="text-[13px]">
             Версия {item.revision}. Сумма: {amount(item.totalAmount)}.
           </p>
+          {partial && (
+            <p className="my-2 text-sm">
+              Решение применяется только к выбранным {selectedItems.length} позициям. Остальные
+              позиции и их резерв сохраняются.
+            </p>
+          )}
           {action === 'submit' && (
             <p className="my-3 text-[13px]">
               Будет создан резерв на {item.reservationBusinessDays} рабочих дня. Подтверждение и

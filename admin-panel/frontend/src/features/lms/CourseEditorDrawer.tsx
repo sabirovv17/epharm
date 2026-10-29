@@ -37,11 +37,13 @@ import {
 } from '@/lib/queries/lms'
 import { describeError } from '@/lib/describeError'
 import { LiveLessonStudio } from './LiveLessonStudio'
+import { trainingAllowed, type TrainingActions } from './training-actions'
 
 interface CourseEditorDrawerProps {
   courseId: string | null
   fallbackCourse?: CourseDto
   canManage: boolean
+  actions?: TrainingActions
   onClose: () => void
 }
 
@@ -108,6 +110,7 @@ export function CourseEditorDrawer({
   courseId,
   fallbackCourse,
   canManage,
+  actions = null,
   onClose,
 }: CourseEditorDrawerProps) {
   const toast = useToast()
@@ -125,13 +128,26 @@ export function CourseEditorDrawer({
   const [status, setStatus] = useState<CourseStatus>(fallbackCourse?.status ?? 'draft')
   const [metadataError, setMetadataError] = useState<string | null>(null)
 
-  const editable = canManage && course?.status !== 'archived'
+  const allow = (key: string) => trainingAllowed(actions, key, canManage)
+  const contentAllowed =
+    course?.status !== 'archived' && (course?.status !== 'published' || allow('courses.publish'))
+  const editable = allow('courses.edit') && contentAllowed
+  const canCreateLesson = allow('courses.create') && contentAllowed
+  const canEditLesson = allow('courses.edit') && contentAllowed
+  const canReorder = allow('courses.reorder') && contentAllowed
+  const canDelete = allow('courses.delete') && contentAllowed
+  const canUpload = allow('courses.upload') && contentAllowed
   const lessons = useMemo(
     () => [...(course?.lessonItems ?? [])].sort((a, b) => a.order - b.order),
     [course?.lessonItems],
   )
 
   const saveMetadata = () => {
+    if (!editable) return
+    if (course && Number(bonus) !== course.bonus && !allow('courses.configure_bonus')) {
+      setMetadataError('Нет права на изменение бонуса')
+      return
+    }
     if (!course || !title.trim()) {
       setMetadataError('Введите название курса')
       return
@@ -156,7 +172,7 @@ export function CourseEditorDrawer({
   }
 
   const moveLesson = (index: number, direction: -1 | 1) => {
-    if (!course) return
+    if (!course || !canReorder) return
     const nextIndex = index + direction
     if (nextIndex < 0 || nextIndex >= lessons.length) return
     const lessonIds = lessons.map((lesson) => lesson.id)
@@ -211,14 +227,14 @@ export function CourseEditorDrawer({
                     type="number"
                     min={0}
                     value={bonus}
-                    disabled={!editable}
+                    disabled={!editable || !allow('courses.configure_bonus')}
                     onChange={(event) => setBonus(event.target.value)}
                   />
                 </Field>
                 <Field label="Статус">
                   <Select
                     value={status}
-                    disabled={!editable}
+                    disabled={!editable || !allow('courses.publish')}
                     onChange={(value) => setStatus(value as CourseStatus)}
                     options={[
                       { value: 'draft', label: 'Черновик' },
@@ -251,7 +267,7 @@ export function CourseEditorDrawer({
                     </span>
                   </div>
                 </div>
-                {editable && (
+                {canCreateLesson && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -273,7 +289,7 @@ export function CourseEditorDrawer({
                   }
                   icon={<BookOpen size={26} />}
                   action={
-                    editable ? (
+                    canCreateLesson ? (
                       <Button size="sm" onClick={() => setLessonTarget('new')}>
                         Добавить урок
                       </Button>
@@ -317,48 +333,56 @@ export function CourseEditorDrawer({
                           )}
                         </button>
                         <div className="flex shrink-0 items-center gap-0.5">
-                          {editable && (
+                          {(canReorder || canEditLesson || canDelete) && (
                             <>
-                              <IconButton
-                                tip="Выше"
-                                aria-label={`Переместить урок ${lesson.title} выше`}
-                                disabled={index === 0 || reorder.isPending}
-                                onClick={() => moveLesson(index, -1)}
-                              >
-                                <ArrowUp size={16} />
-                              </IconButton>
-                              <IconButton
-                                tip="Ниже"
-                                aria-label={`Переместить урок ${lesson.title} ниже`}
-                                disabled={index === lessons.length - 1 || reorder.isPending}
-                                onClick={() => moveLesson(index, 1)}
-                              >
-                                <ArrowDown size={16} />
-                              </IconButton>
-                              <IconButton
-                                tip="Редактировать"
-                                aria-label={`Редактировать урок ${lesson.title}`}
-                                onClick={() => setLessonTarget(lesson)}
-                              >
-                                <Pencil size={16} />
-                              </IconButton>
-                              <IconButton
-                                tip="Удалить"
-                                aria-label={`Удалить урок ${lesson.title}`}
-                                disabled={removeLesson.isPending}
-                                onClick={() => {
-                                  if (!confirm(`Удалить урок «${lesson.title}»?`)) return
-                                  removeLesson.mutate(
-                                    { courseId: course.id, lessonId: lesson.id },
-                                    {
-                                      onSuccess: () => toast.push('Урок удалён'),
-                                      onError: (error) => toast.push(describeError(error)),
-                                    },
-                                  )
-                                }}
-                              >
-                                <Trash2 size={16} />
-                              </IconButton>
+                              {canReorder && (
+                                <IconButton
+                                  tip="Выше"
+                                  aria-label={`Переместить урок ${lesson.title} выше`}
+                                  disabled={index === 0 || reorder.isPending}
+                                  onClick={() => moveLesson(index, -1)}
+                                >
+                                  <ArrowUp size={16} />
+                                </IconButton>
+                              )}
+                              {canReorder && (
+                                <IconButton
+                                  tip="Ниже"
+                                  aria-label={`Переместить урок ${lesson.title} ниже`}
+                                  disabled={index === lessons.length - 1 || reorder.isPending}
+                                  onClick={() => moveLesson(index, 1)}
+                                >
+                                  <ArrowDown size={16} />
+                                </IconButton>
+                              )}
+                              {canEditLesson && (
+                                <IconButton
+                                  tip="Редактировать"
+                                  aria-label={`Редактировать урок ${lesson.title}`}
+                                  onClick={() => setLessonTarget(lesson)}
+                                >
+                                  <Pencil size={16} />
+                                </IconButton>
+                              )}
+                              {canDelete && (
+                                <IconButton
+                                  tip="Удалить"
+                                  aria-label={`Удалить урок ${lesson.title}`}
+                                  disabled={removeLesson.isPending}
+                                  onClick={() => {
+                                    if (!confirm(`Удалить урок «${lesson.title}»?`)) return
+                                    removeLesson.mutate(
+                                      { courseId: course.id, lessonId: lesson.id },
+                                      {
+                                        onSuccess: () => toast.push('Урок удалён'),
+                                        onError: (error) => toast.push(describeError(error)),
+                                      },
+                                    )
+                                  }}
+                                >
+                                  <Trash2 size={16} />
+                                </IconButton>
+                              )}
                             </>
                           )}
                         </div>
@@ -376,15 +400,23 @@ export function CourseEditorDrawer({
                           {lesson.content}
                         </div>
                       )}
-                      {lesson.kind === 'live' && (
+                      {lesson.kind === 'live' && trainingAllowed(actions, 'live.view', true) && (
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#cce8e5] bg-[#f0faf8] px-3 py-2.5">
                           <div className="flex items-center gap-2 text-[12px] font-bold text-[#087b77]">
                             <CalendarClock size={15} />
                             {lesson.liveStartAt
-                              ? new Date(lesson.liveStartAt).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' })
+                              ? new Date(lesson.liveStartAt).toLocaleString('ru-RU', {
+                                  dateStyle: 'medium',
+                                  timeStyle: 'short',
+                                })
                               : 'Дата эфира не указана'}
                           </div>
-                          <Button size="sm" variant="outline" leading={<Radio size={14} />} onClick={() => setLiveStudioTarget(lesson)}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            leading={<Radio size={14} />}
+                            onClick={() => setLiveStudioTarget(lesson)}
+                          >
                             Студия эфира
                           </Button>
                         </div>
@@ -403,7 +435,9 @@ export function CourseEditorDrawer({
           key={lessonTarget === 'new' ? `new-${course.id}` : lessonTarget.id}
           course={course}
           lesson={lessonTarget === 'new' ? null : lessonTarget}
-          canManage={editable}
+          canManage={lessonTarget === 'new' ? canCreateLesson : canEditLesson}
+          canUpload={canUpload}
+          canDeleteAttachments={canDelete}
           onClose={() => setLessonTarget(null)}
         />
       )}
@@ -411,7 +445,8 @@ export function CourseEditorDrawer({
         <LiveLessonStudio
           courseId={course.id}
           lesson={liveStudioTarget}
-          canManage={editable}
+          canManage={canManage}
+          actions={actions}
           onClose={() => setLiveStudioTarget(null)}
         />
       )}
@@ -423,11 +458,15 @@ function LessonEditorModal({
   course,
   lesson,
   canManage,
+  canUpload = canManage,
+  canDeleteAttachments = canManage,
   onClose,
 }: {
   course: CourseDto
   lesson: CourseLessonDto | null
   canManage: boolean
+  canUpload?: boolean
+  canDeleteAttachments?: boolean
   onClose: () => void
 }) {
   const toast = useToast()
@@ -441,21 +480,21 @@ function LessonEditorModal({
   const [content, setContent] = useState(lesson?.content ?? '')
   const [kind, setKind] = useState<CourseLessonKind>(lesson?.kind ?? 'text')
   const [externalUrl, setExternalUrl] = useState(lesson?.externalUrl ?? '')
-  const [liveProvider, setLiveProvider] = useState<CourseLiveProvider>(lesson?.liveProvider ?? 'custom')
+  const [liveProvider, setLiveProvider] = useState<CourseLiveProvider>(
+    lesson?.liveProvider ?? 'custom',
+  )
   const liveStatus = lesson?.liveStatus ?? 'scheduled'
   const [liveStartAt, setLiveStartAt] = useState(toDateTimeLocal(lesson?.liveStartAt))
   const [liveEndAt, setLiveEndAt] = useState(toDateTimeLocal(lesson?.liveEndAt))
   const [liveChatEnabled, setLiveChatEnabled] = useState(lesson?.liveChatEnabled ?? true)
   const [liveQaEnabled, setLiveQaEnabled] = useState(lesson?.liveQaEnabled ?? true)
-  const [liveReactionsEnabled, setLiveReactionsEnabled] = useState(lesson?.liveReactionsEnabled ?? true)
+  const [liveReactionsEnabled, setLiveReactionsEnabled] = useState(
+    lesson?.liveReactionsEnabled ?? true,
+  )
   const [livePolls, setLivePolls] = useState<CourseLivePoll[]>(() => lesson?.livePolls ?? [])
   const [required, setRequired] = useState(lesson?.required ?? true)
-  const [minimumWatchPct, setMinimumWatchPct] = useState(
-    String(lesson?.minimumWatchPct ?? 80),
-  )
-  const [quizPassingScore, setQuizPassingScore] = useState(
-    String(lesson?.quizPassingScore ?? 80),
-  )
+  const [minimumWatchPct, setMinimumWatchPct] = useState(String(lesson?.minimumWatchPct ?? 80))
+  const [quizPassingScore, setQuizPassingScore] = useState(String(lesson?.quizPassingScore ?? 80))
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestionDraft[]>(() =>
     (lesson?.quizQuestions ?? []).map((question) => ({
       id: question.id,
@@ -480,14 +519,18 @@ function LessonEditorModal({
 
   const submit = async () => {
     if (!canManage) return
+    if ((file || attachmentFiles.length > 0) && !canUpload)
+      return setError('Нет права на загрузку материалов')
     if (!title.trim()) return setError('Введите название урока')
     if (file && file.size > 60 * 1024 * 1024)
       return setError('Размер видео не должен превышать 60 МБ')
     if (attachmentFiles.some((attachment) => attachment.size > 25 * 1024 * 1024))
       return setError('Размер каждого вложения не должен превышать 25 МБ')
     if (kind === 'live') {
-      if (liveStatus === 'scheduled' && !liveStartAt) return setError('Укажите дату и время начала эфира')
-      if (liveStatus === 'live' && !externalUrl.trim()) return setError('Для запуска укажите ссылку на трансляцию')
+      if (liveStatus === 'scheduled' && !liveStartAt)
+        return setError('Укажите дату и время начала эфира')
+      if (liveStatus === 'live' && !externalUrl.trim())
+        return setError('Для запуска укажите ссылку на трансляцию')
       if (externalUrl.trim()) {
         try {
           if (new URL(externalUrl.trim()).protocol !== 'https:') {
@@ -498,9 +541,13 @@ function LessonEditorModal({
         }
       }
       const invalidPoll = livePolls.findIndex(
-        (poll) => !poll.prompt.trim() || poll.options.length < 2 || poll.options.some((option) => !option.label.trim()),
+        (poll) =>
+          !poll.prompt.trim() ||
+          poll.options.length < 2 ||
+          poll.options.some((option) => !option.label.trim()),
       )
-      if (invalidPoll >= 0) return setError(`Проверьте интерактив ${invalidPoll + 1} и варианты ответа`)
+      if (invalidPoll >= 0)
+        return setError(`Проверьте интерактив ${invalidPoll + 1} и варианты ответа`)
     }
     if (quizMode) {
       if (quizQuestions.length === 0) return setError('Добавьте хотя бы один вопрос теста')
@@ -512,7 +559,8 @@ function LessonEditorModal({
           question.correctOption < 0 ||
           question.correctOption >= question.options.length,
       )
-      if (invalidQuestion >= 0) return setError(`Проверьте вопрос ${invalidQuestion + 1} и варианты ответа`)
+      if (invalidQuestion >= 0)
+        return setError(`Проверьте вопрос ${invalidQuestion + 1} и варианты ответа`)
     }
     setError(null)
     try {
@@ -584,6 +632,24 @@ function LessonEditorModal({
     }
   }
 
+  const uploadOnly = async () => {
+    if (!lesson || !canUpload) return
+    setError(null)
+    try {
+      if (file) await upload.mutateAsync({ courseId: course.id, lessonId: lesson.id, file })
+      for (const attachment of attachmentFiles)
+        await uploadAttachment.mutateAsync({
+          courseId: course.id,
+          lessonId: lesson.id,
+          file: attachment,
+        })
+      toast.push('Материалы загружены')
+      onClose()
+    } catch (error) {
+      setError(describeError(error))
+    }
+  }
+
   return (
     <Modal
       open
@@ -596,6 +662,11 @@ function LessonEditorModal({
           <Button variant="ghost" onClick={onClose}>
             {canManage ? 'Отмена' : 'Закрыть'}
           </Button>
+          {!canManage && canUpload && lesson && (file || attachmentFiles.length > 0) && (
+            <Button disabled={pending} onClick={() => void uploadOnly()}>
+              Загрузить материалы
+            </Button>
+          )}
           {canManage && (
             <Button disabled={pending} onClick={submit}>
               {pending ? 'Сохраняем…' : 'Сохранить урок'}
@@ -669,12 +740,17 @@ function LessonEditorModal({
           Обязательный урок
         </label>
         {(kind === 'link' || kind === 'interactive' || kind === 'live') && (
-          <Field label={kind === 'live' ? 'Ссылка на трансляцию' : 'Ссылка'} optional={kind === 'live' && liveStatus === 'scheduled'}>
+          <Field
+            label={kind === 'live' ? 'Ссылка на трансляцию' : 'Ссылка'}
+            optional={kind === 'live' && liveStatus === 'scheduled'}
+          >
             <Input
               type="url"
               value={externalUrl}
               disabled={!canManage}
-              placeholder={kind === 'live' ? 'https://youtube.com/live/… или ссылка провайдера' : 'https://…'}
+              placeholder={
+                kind === 'live' ? 'https://youtube.com/live/… или ссылка провайдера' : 'https://…'
+              }
               onChange={(event) => setExternalUrl(event.target.value)}
             />
           </Field>
@@ -683,11 +759,21 @@ function LessonEditorModal({
           <section className="rounded-2xl border border-[#cce8e5] bg-[#f4fbfa] p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="flex items-center gap-2 text-[14px] font-extrabold text-[#075f61]"><Radio size={17} /> Настройки прямого эфира</div>
-                <p className="mt-1 text-[11px] leading-5 text-ink-500">Трансляция, чат, вопросы, реакции и быстрые опросы в одном окне.</p>
+                <div className="flex items-center gap-2 text-[14px] font-extrabold text-[#075f61]">
+                  <Radio size={17} /> Настройки прямого эфира
+                </div>
+                <p className="mt-1 text-[11px] leading-5 text-ink-500">
+                  Трансляция, чат, вопросы, реакции и быстрые опросы в одном окне.
+                </p>
               </div>
-              <span className={`rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase ${liveStatus === 'live' ? 'bg-red-100 text-red-700' : liveStatus === 'ended' ? 'bg-ink-100 text-ink-600' : 'bg-[#dff4f1] text-[#087b77]'}`}>
-                {liveStatus === 'live' ? 'В эфире' : liveStatus === 'ended' ? 'Завершён' : 'Запланирован'}
+              <span
+                className={`rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase ${liveStatus === 'live' ? 'bg-red-100 text-red-700' : liveStatus === 'ended' ? 'bg-ink-100 text-ink-600' : 'bg-[#dff4f1] text-[#087b77]'}`}
+              >
+                {liveStatus === 'live'
+                  ? 'В эфире'
+                  : liveStatus === 'ended'
+                    ? 'Завершён'
+                    : 'Запланирован'}
               </span>
             </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -709,10 +795,20 @@ function LessonEditorModal({
                 Статус эфира меняется только в студии после сохранения урока.
               </p>
               <Field label="Начало">
-                <Input type="datetime-local" value={liveStartAt} disabled={!canManage || liveStatus !== 'scheduled'} onChange={(event) => setLiveStartAt(event.target.value)} />
+                <Input
+                  type="datetime-local"
+                  value={liveStartAt}
+                  disabled={!canManage || liveStatus !== 'scheduled'}
+                  onChange={(event) => setLiveStartAt(event.target.value)}
+                />
               </Field>
               <Field label="Окончание" optional>
-                <Input type="datetime-local" value={liveEndAt} disabled={!canManage || liveStatus !== 'scheduled'} onChange={(event) => setLiveEndAt(event.target.value)} />
+                <Input
+                  type="datetime-local"
+                  value={liveEndAt}
+                  disabled={!canManage || liveStatus !== 'scheduled'}
+                  onChange={(event) => setLiveEndAt(event.target.value)}
+                />
               </Field>
             </div>
             <div className="mt-4 grid gap-2 sm:grid-cols-3">
@@ -721,8 +817,16 @@ function LessonEditorModal({
                 ['Вопросы ведущему', liveQaEnabled, setLiveQaEnabled],
                 ['Реакции', liveReactionsEnabled, setLiveReactionsEnabled],
               ].map(([label, checked, setter]) => (
-                <label key={String(label)} className="flex items-center gap-2 rounded-xl border border-[#d9ebe9] bg-white px-3 py-2.5 text-[11px] font-bold text-ink-700">
-                  <input type="checkbox" checked={Boolean(checked)} disabled={!canManage} onChange={(event) => (setter as (value: boolean) => void)(event.target.checked)} />
+                <label
+                  key={String(label)}
+                  className="flex items-center gap-2 rounded-xl border border-[#d9ebe9] bg-white px-3 py-2.5 text-[11px] font-bold text-ink-700"
+                >
+                  <input
+                    type="checkbox"
+                    checked={Boolean(checked)}
+                    disabled={!canManage}
+                    onChange={(event) => (setter as (value: boolean) => void)(event.target.checked)}
+                  />
                   {String(label)}
                 </label>
               ))}
@@ -730,35 +834,159 @@ function LessonEditorModal({
             <div className="mt-4 border-t border-[#d9ebe9] pt-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-[12px] font-extrabold text-ink-800">Интерактивы во время эфира</div>
-                  <div className="text-[10px] text-ink-500">Запускайте и закрывайте опросы прямо в студии.</div>
+                  <div className="text-[12px] font-extrabold text-ink-800">
+                    Интерактивы во время эфира
+                  </div>
+                  <div className="text-[10px] text-ink-500">
+                    Запускайте и закрывайте опросы прямо в студии.
+                  </div>
                 </div>
-                {canManage && <Button size="sm" variant="outline" leading={<Plus size={14} />} onClick={() => setLivePolls((current) => [...current, newLivePoll()])}>Добавить опрос</Button>}
+                {canManage && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    leading={<Plus size={14} />}
+                    onClick={() => setLivePolls((current) => [...current, newLivePoll()])}
+                  >
+                    Добавить опрос
+                  </Button>
+                )}
               </div>
               <div className="mt-3 space-y-3">
                 {livePolls.map((poll, pollIndex) => (
-                  <article key={poll.id} className="rounded-xl border border-[#dcecea] bg-white p-3">
+                  <article
+                    key={poll.id}
+                    className="rounded-xl border border-[#dcecea] bg-white p-3"
+                  >
                     <div className="flex items-start gap-2">
                       <div className="min-w-0 flex-1">
-                        <Input value={poll.prompt} disabled={!canManage} placeholder={`Вопрос опроса ${pollIndex + 1}`} onChange={(event) => setLivePolls((current) => current.map((item) => item.id === poll.id ? { ...item, prompt: event.target.value } : item))} />
+                        <Input
+                          value={poll.prompt}
+                          disabled={!canManage}
+                          placeholder={`Вопрос опроса ${pollIndex + 1}`}
+                          onChange={(event) =>
+                            setLivePolls((current) =>
+                              current.map((item) =>
+                                item.id === poll.id
+                                  ? { ...item, prompt: event.target.value }
+                                  : item,
+                              ),
+                            )
+                          }
+                        />
                       </div>
-                      {canManage && <IconButton tip="Удалить опрос" aria-label={`Удалить опрос ${pollIndex + 1}`} onClick={() => setLivePolls((current) => current.filter((item) => item.id !== poll.id))}><Trash2 size={15} /></IconButton>}
+                      {canManage && (
+                        <IconButton
+                          tip="Удалить опрос"
+                          aria-label={`Удалить опрос ${pollIndex + 1}`}
+                          onClick={() =>
+                            setLivePolls((current) => current.filter((item) => item.id !== poll.id))
+                          }
+                        >
+                          <Trash2 size={15} />
+                        </IconButton>
+                      )}
                     </div>
                     <div className="mt-2 grid gap-2 sm:grid-cols-2">
                       {poll.options.map((option, optionIndex) => (
                         <div key={option.id} className="flex items-center gap-1.5">
-                          <Input value={option.label} disabled={!canManage} placeholder={`Вариант ${optionIndex + 1}`} onChange={(event) => setLivePolls((current) => current.map((item) => item.id === poll.id ? { ...item, options: item.options.map((entry) => entry.id === option.id ? { ...entry, label: event.target.value } : entry) } : item))} />
-                          {canManage && poll.options.length > 2 && <IconButton tip="Удалить вариант" aria-label={`Удалить вариант ${optionIndex + 1}`} onClick={() => setLivePolls((current) => current.map((item) => item.id === poll.id ? { ...item, options: item.options.filter((entry) => entry.id !== option.id) } : item))}><Trash2 size={13} /></IconButton>}
+                          <Input
+                            value={option.label}
+                            disabled={!canManage}
+                            placeholder={`Вариант ${optionIndex + 1}`}
+                            onChange={(event) =>
+                              setLivePolls((current) =>
+                                current.map((item) =>
+                                  item.id === poll.id
+                                    ? {
+                                        ...item,
+                                        options: item.options.map((entry) =>
+                                          entry.id === option.id
+                                            ? { ...entry, label: event.target.value }
+                                            : entry,
+                                        ),
+                                      }
+                                    : item,
+                                ),
+                              )
+                            }
+                          />
+                          {canManage && poll.options.length > 2 && (
+                            <IconButton
+                              tip="Удалить вариант"
+                              aria-label={`Удалить вариант ${optionIndex + 1}`}
+                              onClick={() =>
+                                setLivePolls((current) =>
+                                  current.map((item) =>
+                                    item.id === poll.id
+                                      ? {
+                                          ...item,
+                                          options: item.options.filter(
+                                            (entry) => entry.id !== option.id,
+                                          ),
+                                        }
+                                      : item,
+                                  ),
+                                )
+                              }
+                            >
+                              <Trash2 size={13} />
+                            </IconButton>
+                          )}
                         </div>
                       ))}
                     </div>
                     <div className="mt-2 flex items-center justify-between gap-2">
-                      {canManage && poll.options.length < 8 ? <button type="button" className="text-[11px] font-bold text-[#087b77]" onClick={() => setLivePolls((current) => current.map((item) => item.id === poll.id ? { ...item, options: [...item.options, { id: `opt_${Date.now().toString(36)}`, label: '' }] } : item))}>+ Вариант</button> : <span />}
-                      <label className="flex items-center gap-2 text-[11px] font-bold text-ink-600"><input type="checkbox" checked={poll.active} disabled={!canManage} onChange={(event) => setLivePolls((current) => current.map((item) => item.id === poll.id ? { ...item, active: event.target.checked } : item))} /> Активен сейчас</label>
+                      {canManage && poll.options.length < 8 ? (
+                        <button
+                          type="button"
+                          className="text-[11px] font-bold text-[#087b77]"
+                          onClick={() =>
+                            setLivePolls((current) =>
+                              current.map((item) =>
+                                item.id === poll.id
+                                  ? {
+                                      ...item,
+                                      options: [
+                                        ...item.options,
+                                        { id: `opt_${Date.now().toString(36)}`, label: '' },
+                                      ],
+                                    }
+                                  : item,
+                              ),
+                            )
+                          }
+                        >
+                          + Вариант
+                        </button>
+                      ) : (
+                        <span />
+                      )}
+                      <label className="flex items-center gap-2 text-[11px] font-bold text-ink-600">
+                        <input
+                          type="checkbox"
+                          checked={poll.active}
+                          disabled={!canManage}
+                          onChange={(event) =>
+                            setLivePolls((current) =>
+                              current.map((item) =>
+                                item.id === poll.id
+                                  ? { ...item, active: event.target.checked }
+                                  : item,
+                              ),
+                            )
+                          }
+                        />{' '}
+                        Активен сейчас
+                      </label>
                     </div>
                   </article>
                 ))}
-                {livePolls.length === 0 && <div className="rounded-xl border border-dashed border-[#cfe2df] px-4 py-5 text-center text-[11px] text-ink-500">Опросов пока нет. Их можно добавить сейчас или перед эфиром.</div>}
+                {livePolls.length === 0 && (
+                  <div className="rounded-xl border border-dashed border-[#cfe2df] px-4 py-5 text-center text-[11px] text-ink-500">
+                    Опросов пока нет. Их можно добавить сейчас или перед эфиром.
+                  </div>
+                )}
               </div>
             </div>
           </section>
@@ -801,7 +1029,10 @@ function LessonEditorModal({
             </div>
             <div className="mt-4 space-y-4">
               {quizQuestions.map((question, questionIndex) => (
-                <article key={question.id} className="rounded-lg border border-ink-100 bg-white p-4">
+                <article
+                  key={question.id}
+                  className="rounded-lg border border-ink-100 bg-white p-4"
+                >
                   <div className="flex items-start gap-3">
                     <div className="min-w-0 flex-1">
                       <Field label={`Вопрос ${questionIndex + 1}`}>
@@ -812,7 +1043,9 @@ function LessonEditorModal({
                           onChange={(event) =>
                             setQuizQuestions((current) =>
                               current.map((item) =>
-                                item.id === question.id ? { ...item, prompt: event.target.value } : item,
+                                item.id === question.id
+                                  ? { ...item, prompt: event.target.value }
+                                  : item,
                               ),
                             )
                           }
@@ -824,7 +1057,9 @@ function LessonEditorModal({
                         tip="Удалить вопрос"
                         aria-label={`Удалить вопрос ${questionIndex + 1}`}
                         onClick={() =>
-                          setQuizQuestions((current) => current.filter((item) => item.id !== question.id))
+                          setQuizQuestions((current) =>
+                            current.filter((item) => item.id !== question.id),
+                          )
                         }
                       >
                         <Trash2 size={16} />
@@ -833,7 +1068,10 @@ function LessonEditorModal({
                   </div>
                   <div className="mt-3 space-y-2">
                     {question.options.map((option, optionIndex) => (
-                      <div key={`${question.id}-${optionIndex}`} className="flex items-center gap-2">
+                      <div
+                        key={`${question.id}-${optionIndex}`}
+                        className="flex items-center gap-2"
+                      >
                         <input
                           type="radio"
                           name={`correct-${question.id}`}
@@ -843,7 +1081,9 @@ function LessonEditorModal({
                           onChange={() =>
                             setQuizQuestions((current) =>
                               current.map((item) =>
-                                item.id === question.id ? { ...item, correctOption: optionIndex } : item,
+                                item.id === question.id
+                                  ? { ...item, correctOption: optionIndex }
+                                  : item,
                               ),
                             )
                           }
@@ -871,12 +1111,15 @@ function LessonEditorModal({
                               setQuizQuestions((current) =>
                                 current.map((item) => {
                                   if (item.id !== question.id) return item
-                                  const options = item.options.filter((_, index) => index !== optionIndex)
-                                  const correctOption = item.correctOption === optionIndex
-                                    ? 0
-                                    : item.correctOption > optionIndex
-                                      ? item.correctOption - 1
-                                      : item.correctOption
+                                  const options = item.options.filter(
+                                    (_, index) => index !== optionIndex,
+                                  )
+                                  const correctOption =
+                                    item.correctOption === optionIndex
+                                      ? 0
+                                      : item.correctOption > optionIndex
+                                        ? item.correctOption - 1
+                                        : item.correctOption
                                   return { ...item, options, correctOption }
                                 }),
                               )
@@ -895,7 +1138,9 @@ function LessonEditorModal({
                       onClick={() =>
                         setQuizQuestions((current) =>
                           current.map((item) =>
-                            item.id === question.id ? { ...item, options: [...item.options, ''] } : item,
+                            item.id === question.id
+                              ? { ...item, options: [...item.options, ''] }
+                              : item,
                           ),
                         )
                       }
@@ -912,7 +1157,9 @@ function LessonEditorModal({
                       onChange={(event) =>
                         setQuizQuestions((current) =>
                           current.map((item) =>
-                            item.id === question.id ? { ...item, explanation: event.target.value } : item,
+                            item.id === question.id
+                              ? { ...item, explanation: event.target.value }
+                              : item,
                           ),
                         )
                       }
@@ -956,7 +1203,7 @@ function LessonEditorModal({
                 className="sr-only"
                 type="file"
                 accept="video/mp4,video/webm,.mp4,.webm"
-                disabled={!canManage}
+                disabled={!canUpload}
                 onChange={(event) => setFile(event.target.files?.[0] ?? null)}
               />
             </label>
@@ -987,16 +1234,25 @@ function LessonEditorModal({
               type="file"
               multiple
               accept="image/*,audio/*,.mp3,.m4a,.aac,.wav,.ogg,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv"
-              disabled={!canManage}
-              onChange={(event) => setAttachmentFiles(Array.from(event.target.files ?? []).slice(0, 10))}
+              disabled={!canUpload}
+              onChange={(event) =>
+                setAttachmentFiles(Array.from(event.target.files ?? []).slice(0, 10))
+              }
             />
           </label>
         </Field>
         {attachmentFiles.length > 0 && (
           <div className="space-y-1 rounded-md bg-paper-hover p-3">
             {attachmentFiles.map((attachment) => (
-              <div key={`${attachment.name}-${attachment.size}`} className="flex items-center gap-2 text-[12px] text-ink-600">
-                {attachment.type.startsWith('image/') ? <Image size={14} /> : <FileText size={14} />}
+              <div
+                key={`${attachment.name}-${attachment.size}`}
+                className="flex items-center gap-2 text-[12px] text-ink-600"
+              >
+                {attachment.type.startsWith('image/') ? (
+                  <Image size={14} />
+                ) : (
+                  <FileText size={14} />
+                )}
                 <span className="min-w-0 flex-1 truncate">{attachment.name}</span>
                 <span>{formatBytes(attachment.size)}</span>
               </div>
@@ -1007,7 +1263,10 @@ function LessonEditorModal({
           <div className="space-y-2">
             <div className="text-[12px] font-bold text-ink-700">Уже прикреплено</div>
             {(lesson.attachments ?? []).map((attachment) => (
-              <div key={attachment.id} className="flex items-center gap-2 rounded-md border border-ink-100 px-3 py-2">
+              <div
+                key={attachment.id}
+                className="flex items-center gap-2 rounded-md border border-ink-100 px-3 py-2"
+              >
                 {attachment.kind === 'image' ? <Image size={16} /> : <FileText size={16} />}
                 <a
                   className="min-w-0 flex-1 truncate text-[12px] font-semibold text-brand-green-700"
@@ -1017,7 +1276,7 @@ function LessonEditorModal({
                 >
                   {attachment.title}
                 </a>
-                {canManage && (
+                {canDeleteAttachments && (
                   <IconButton
                     tip="Удалить материал"
                     aria-label={`Удалить материал ${attachment.title}`}

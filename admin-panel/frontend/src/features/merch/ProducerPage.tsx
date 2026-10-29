@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { Button } from '@/ui'
 import { Logo } from '@/layout/Logo'
@@ -8,9 +8,18 @@ import { producerClient, producerError, type ProducerProfile } from './producer-
 import { useProducerSession } from './useProducerSession'
 import { usePlacementRead } from './usePlacementRead'
 import ProducerCompanyProfile from './ProducerCompanyProfile'
+import ProducerCommercialWorkspace from './ProducerCommercialWorkspace'
+import { commercialGateway } from './producer-commercial-api'
+import TaskInstructionPanel from './TaskInstructionPanel'
+import { producerInstructionApi } from './task-instructions-api'
 
 const gateway = placementGateway('producer', <T,>(path: string, init?: RequestInit) =>
   producerClient.request<T>(path, init),
+)
+const commercial = commercialGateway(
+  'producer',
+  <T,>(path: string, init?: RequestInit) => producerClient.request<T>(path, init),
+  (path, signal) => producerClient.download(path, signal),
 )
 export default function ProducerPage() {
   const { session, epoch } = useProducerSession()
@@ -19,6 +28,9 @@ export default function ProducerPage() {
 }
 function VerifiedProducerWorkspace() {
   const [profileOpen, setProfileOpen] = useState(false)
+  const [commercialOpen, setCommercialOpen] = useState(false)
+  const [instructionsOpen, setInstructionsOpen] = useState(false)
+  const instructionApi = useMemo(() => producerInstructionApi(producerClient), [])
   const load = useCallback(
     (signal: AbortSignal) =>
       producerClient.request<ProducerProfile>('/api/producer/auth/me', { signal }),
@@ -32,8 +44,8 @@ function VerifiedProducerWorkspace() {
           <Logo size={28} />
           <span className="font-extrabold">ePharm · Производитель</span>
         </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-ink-500">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-4">
+          <span className="min-w-0 max-w-full break-words text-sm text-ink-500">
             {me.data ? (me.data.name ?? 'Компания не указана') : ''}
           </span>
           {me.data && (
@@ -73,10 +85,28 @@ function VerifiedProducerWorkspace() {
           </div>
         )}
         {me.data && (
-          <PlacementWorkspace
-            gateway={gateway}
-            customerName={me.data.name ?? 'Компания не указана'}
-          />
+          <>
+            <div className="mb-4 flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => setCommercialOpen((value) => !value)}>
+                {commercialOpen ? 'Скрыть планирование периода' : 'Бюджет, период и команда'}
+              </Button>
+              <Button variant="outline" onClick={() => setInstructionsOpen((value) => !value)}>
+                {instructionsOpen ? 'Скрыть инструктажи' : 'Инструктажи по размещениям'}
+              </Button>
+            </div>
+            {commercialOpen && (
+              <ProducerCommercialWorkspace
+                gateway={commercial}
+                placements={gateway}
+                ownProducerId={me.data.id}
+              />
+            )}
+            {instructionsOpen && <TaskInstructionPanel api={instructionApi} />}
+            <PlacementWorkspace
+              gateway={gateway}
+              customerName={me.data.name ?? 'Компания не указана'}
+            />
+          </>
         )}
         {profileOpen && me.data && (
           <ProducerCompanyProfile

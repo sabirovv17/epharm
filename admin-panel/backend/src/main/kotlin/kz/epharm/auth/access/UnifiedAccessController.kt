@@ -142,6 +142,7 @@ data class AccessCapabilities(
     val canExportTrainingResults: Boolean = false,
     val canExportTrainingCourses: Boolean = false,
     val canExportTrainingPrograms: Boolean = false,
+    val trainingActions: Map<String,Boolean> = emptyMap(),
     val canViewLedger: Boolean = false,
     val canExportLedger: Boolean = false,
     val canExportPayouts: Boolean = false,
@@ -177,6 +178,8 @@ class UnifiedAccountAccessService(
             canExportTrainingResults = canUseExplicit(access, catalog.trainingResultExport),
             canExportTrainingCourses = canUseExplicit(access, catalog.trainingCourseExport),
             canExportTrainingPrograms = canUseExplicit(access, catalog.trainingProgramExport),
+            trainingActions = catalog.definitions.filter {it.key.module==AdministrationModule.TRAINING}.associate {
+                "${it.key.subsection}.${it.key.action}" to canUseExplicit(access,it.key) },
             canViewLedger = canUseExplicit(access, catalog.accrualView),
             canExportLedger = canUseExplicit(access, catalog.accrualExport),
             canExportPayouts = canUseExplicit(access, catalog.payoutExport),

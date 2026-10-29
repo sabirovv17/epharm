@@ -41,6 +41,7 @@ export interface AccessCapabilities {
   canManageCampaignProducer?: boolean
   canExportTrainingAssignments?: boolean
   canExportTrainingResults?: boolean
+  trainingActions?: Record<string, boolean>
 }
 
 export interface AccessAccount {

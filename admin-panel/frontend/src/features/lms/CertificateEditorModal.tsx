@@ -1,10 +1,7 @@
 import { useMemo, useState, type ChangeEvent } from 'react'
 import { Check, Monitor, QrCode, RefreshCw, Trash2 } from 'lucide-react'
 import type { TrainingProgramDto } from '@/lib/api-types'
-import {
-  useUpdateTrainingProgram,
-  useUploadTrainingCertificateAsset,
-} from '@/lib/queries/lms'
+import { useUpdateTrainingProgram, useUploadTrainingCertificateAsset } from '@/lib/queries/lms'
 import { describeError } from '@/lib/describeError'
 import { Button, Field, Input, Modal, Select, useToast } from '@/ui'
 import { IconUpload } from '@/ui/icons'
@@ -13,6 +10,7 @@ interface CertificateEditorModalProps {
   open: boolean
   onClose: () => void
   programs: TrainingProgramDto[]
+  canUpload?: boolean
 }
 
 const SAMPLE_PARTICIPANT = 'Грущак Василий Григорьевич'
@@ -35,11 +33,17 @@ function draftFromProgram(program: TrainingProgramDto): CertificateDraft {
   }
 }
 
-export function CertificateEditorModal({ open, onClose, programs }: CertificateEditorModalProps) {
+export function CertificateEditorModal({
+  open,
+  onClose,
+  programs,
+  canUpload = true,
+}: CertificateEditorModalProps) {
   const toast = useToast()
   const updateProgram = useUpdateTrainingProgram()
   const uploadAsset = useUploadTrainingCertificateAsset()
-  const initialProgramId = programs.find((program) => program.status === 'published')?.id ?? programs[0]?.id ?? ''
+  const initialProgramId =
+    programs.find((program) => program.status === 'published')?.id ?? programs[0]?.id ?? ''
   const [programId, setProgramId] = useState(initialProgramId)
   const program = useMemo(
     () => programs.find((item) => item.id === programId) ?? programs[0] ?? null,
@@ -47,7 +51,9 @@ export function CertificateEditorModal({ open, onClose, programs }: CertificateE
   )
   const [draft, setDraft] = useState<CertificateDraft | null>(null)
   const currentDraft = program
-    ? draft?.programId === program.id ? draft : draftFromProgram(program)
+    ? draft?.programId === program.id
+      ? draft
+      : draftFromProgram(program)
     : null
   const epharmLogoUrl = currentDraft?.epharmLogoUrl ?? null
   const partnerLogoUrl = currentDraft?.partnerLogoUrl ?? null
@@ -65,6 +71,7 @@ export function CertificateEditorModal({ open, onClose, programs }: CertificateE
   const pending = updateProgram.isPending || uploadAsset.isPending
 
   const upload = (file: File, onSuccess: (url: string) => void) => {
+    if (!canUpload) return
     uploadAsset.mutate(file, {
       onSuccess: ({ assetUrl }) => onSuccess(assetUrl),
       onError: (error) => toast.push(describeError(error)),
@@ -78,7 +85,11 @@ export function CertificateEditorModal({ open, onClose, programs }: CertificateE
       return
     }
     const parsedValidityMonths = Number(validityMonths)
-    if (!Number.isInteger(parsedValidityMonths) || parsedValidityMonths < 1 || parsedValidityMonths > 120) {
+    if (
+      !Number.isInteger(parsedValidityMonths) ||
+      parsedValidityMonths < 1 ||
+      parsedValidityMonths > 120
+    ) {
       toast.push('Укажите срок действия от 1 до 120 месяцев')
       return
     }
@@ -113,7 +124,9 @@ export function CertificateEditorModal({ open, onClose, programs }: CertificateE
       width={1180}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>Отмена</Button>
+          <Button variant="ghost" onClick={onClose}>
+            Отмена
+          </Button>
           <Button leading={<Check size={15} />} disabled={!program || pending} onClick={save}>
             {updateProgram.isPending ? 'Сохраняем…' : 'Сохранить шаблон'}
           </Button>
@@ -122,7 +135,8 @@ export function CertificateEditorModal({ open, onClose, programs }: CertificateE
     >
       {!program ? (
         <div className="rounded-xl border border-dashed border-ink-200 px-5 py-10 text-center text-sm text-ink-500">
-          Сначала создайте программу обучения — сертификат настраивается для каждой программы отдельно.
+          Сначала создайте программу обучения — сертификат настраивается для каждой программы
+          отдельно.
         </div>
       ) : (
         <div className="grid gap-5 xl:grid-cols-[330px_minmax(0,1fr)]">
@@ -141,6 +155,7 @@ export function CertificateEditorModal({ open, onClose, programs }: CertificateE
                 label="Лого ePharm"
                 url={epharmLogoUrl}
                 busy={uploadAsset.isPending}
+                disabled={!canUpload}
                 onUpload={(file) => upload(file, (url) => updateDraft({ epharmLogoUrl: url }))}
                 onClear={() => updateDraft({ epharmLogoUrl: null })}
               />
@@ -148,13 +163,18 @@ export function CertificateEditorModal({ open, onClose, programs }: CertificateE
                 label="Лого партнёра"
                 url={partnerLogoUrl}
                 busy={uploadAsset.isPending}
+                disabled={!canUpload}
                 onUpload={(file) => upload(file, (url) => updateDraft({ partnerLogoUrl: url }))}
                 onClear={() => updateDraft({ partnerLogoUrl: null })}
               />
             </div>
 
             <Field label="Подписант">
-              <Input value={signerName} maxLength={255} onChange={(event) => updateDraft({ signerName: event.target.value })} />
+              <Input
+                value={signerName}
+                maxLength={255}
+                onChange={(event) => updateDraft({ signerName: event.target.value })}
+              />
             </Field>
             <Field label="Срок действия" hint="От 1 до 120 месяцев">
               <Input
@@ -173,7 +193,10 @@ export function CertificateEditorModal({ open, onClose, programs }: CertificateE
               <AutoRow label="ФИО участника" value="Из назначения" />
               <AutoRow label="Название курса" value={program.name} />
               <AutoRow label="Компания-партнёр" value={partnerName} />
-              <AutoRow label="Обложка курса" value={program.coverUrl ? 'Подключена' : 'Не загружена'} />
+              <AutoRow
+                label="Обложка курса"
+                value={program.coverUrl ? 'Подключена' : 'Не загружена'}
+              />
             </div>
           </div>
 
@@ -181,7 +204,9 @@ export function CertificateEditorModal({ open, onClose, programs }: CertificateE
             <div className="mb-2 flex items-center justify-between gap-3">
               <div>
                 <div className="text-[13px] font-bold text-ink-800">Предпросмотр A4</div>
-                <div className="text-[11px] text-ink-400">Итоговый PDF сохранит этот состав и QR-проверку</div>
+                <div className="text-[11px] text-ink-400">
+                  Итоговый PDF сохранит этот состав и QR-проверку
+                </div>
               </div>
               <span className="chip chip-green">Выбранный вариант</span>
             </div>
@@ -248,18 +273,20 @@ function LogoUpload({
   label,
   url,
   busy,
+  disabled = false,
   onUpload,
   onClear,
 }: {
   label: string
   url: string | null
   busy: boolean
+  disabled?: boolean
   onUpload: (file: File) => void
   onClear: () => void
 }) {
   const onChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    if (file) onUpload(file)
+    if (file && !disabled) onUpload(file)
     event.target.value = ''
   }
   return (
@@ -269,7 +296,11 @@ function LogoUpload({
         {url ? (
           <img src={url} alt={label} className="max-h-full max-w-full object-contain" />
         ) : (
-          <span className="text-center text-[11px] text-ink-400">PNG или JPG<br />до 5 МБ</span>
+          <span className="text-center text-[11px] text-ink-400">
+            PNG или JPG
+            <br />
+            до 5 МБ
+          </span>
         )}
       </div>
       <div className="mt-2 flex items-center gap-1">
@@ -281,12 +312,17 @@ function LogoUpload({
             type="file"
             accept="image/png,image/jpeg"
             aria-label={`Загрузить ${label}`}
-            disabled={busy}
+            disabled={busy || disabled}
             onChange={onChange}
           />
         </label>
         {url && (
-          <button type="button" className="btn btn-sm btn-ghost btn-icon" aria-label={`Удалить ${label}`} onClick={onClear}>
+          <button
+            type="button"
+            className="btn btn-sm btn-ghost btn-icon"
+            aria-label={`Удалить ${label}`}
+            onClick={onClear}
+          >
             <Trash2 size={14} />
           </button>
         )}
@@ -328,29 +364,53 @@ function CertificatePreview({
       <div className="absolute inset-[1.35%] overflow-hidden rounded-[10px] bg-white" />
       <div className="absolute inset-x-[2.65%] top-[4%] grid h-[23%] grid-cols-[1fr_2.2fr_1fr] items-center rounded-[8px] bg-[#044b51] px-[2.5%] text-white">
         {program.coverUrl && (
-          <img src={program.coverUrl} alt="Обложка курса в шапке сертификата" className="absolute inset-0 h-full w-full rounded-[8px] object-cover opacity-[0.16]" />
+          <img
+            src={program.coverUrl}
+            alt="Обложка курса в шапке сертификата"
+            className="absolute inset-0 h-full w-full rounded-[8px] object-cover opacity-[0.16]"
+          />
         )}
         <div className="relative z-10 flex h-full items-center border-r border-[#5bc4be] pr-[10%]">
           {epharmLogoUrl ? (
-            <img src={epharmLogoUrl} alt="Логотип ePharm в сертификате" className="max-h-[62%] max-w-full object-contain" />
+            <img
+              src={epharmLogoUrl}
+              alt="Логотип ePharm в сертификате"
+              className="max-h-[62%] max-w-full object-contain"
+            />
           ) : (
             <div>
-              <div className="text-[clamp(13px,3.4cqw,27px)] font-black tracking-[-0.055em]">ePharm</div>
-              <div className="mt-0.5 text-[clamp(4px,.9cqw,7px)] font-extrabold uppercase tracking-[0.13em] text-[#bce8e4]">обучение для фармацевтов</div>
+              <div className="text-[clamp(13px,3.4cqw,27px)] font-black tracking-[-0.055em]">
+                ePharm
+              </div>
+              <div className="mt-0.5 text-[clamp(4px,.9cqw,7px)] font-extrabold uppercase tracking-[0.13em] text-[#bce8e4]">
+                обучение для фармацевтов
+              </div>
             </div>
           )}
         </div>
         <div className="relative z-10 px-[5%] text-center">
-          <div className="text-[clamp(20px,5.7cqw,49px)] font-black leading-none tracking-[-0.055em]">СЕРТИФИКАТ</div>
-          <div className="mt-[4%] text-[clamp(4px,1.1cqw,8px)] font-extrabold uppercase tracking-[0.31em] text-[#bce8e4]">знания сегодня — здоровье завтра</div>
+          <div className="text-[clamp(20px,5.7cqw,49px)] font-black leading-none tracking-[-0.055em]">
+            СЕРТИФИКАТ
+          </div>
+          <div className="mt-[4%] text-[clamp(4px,1.1cqw,8px)] font-extrabold uppercase tracking-[0.31em] text-[#bce8e4]">
+            знания сегодня — здоровье завтра
+          </div>
         </div>
         <div className="relative z-10 flex h-full items-center justify-center border-l border-[#5bc4be] pl-[10%] text-center">
           {partnerLogoUrl ? (
-            <img src={partnerLogoUrl} alt="Логотип партнёра в сертификате" className="max-h-[62%] max-w-full object-contain" />
+            <img
+              src={partnerLogoUrl}
+              alt="Логотип партнёра в сертификате"
+              className="max-h-[62%] max-w-full object-contain"
+            />
           ) : (
             <div>
-              <div className="line-clamp-2 text-[clamp(9px,2.4cqw,20px)] font-black uppercase leading-tight">{partnerName}</div>
-              <div className="mt-1 text-[clamp(4px,.9cqw,7px)] font-extrabold uppercase tracking-[0.14em] text-[#bce8e4]">компания-партнёр</div>
+              <div className="line-clamp-2 text-[clamp(9px,2.4cqw,20px)] font-black uppercase leading-tight">
+                {partnerName}
+              </div>
+              <div className="mt-1 text-[clamp(4px,.9cqw,7px)] font-extrabold uppercase tracking-[0.14em] text-[#bce8e4]">
+                компания-партнёр
+              </div>
             </div>
           )}
         </div>
@@ -358,11 +418,19 @@ function CertificatePreview({
 
       <div className="absolute bottom-[12%] left-[4.2%] right-[27%] top-[30%] overflow-hidden">
         <div className="relative z-10">
-          <div className="text-[clamp(5px,1.4cqw,12px)] font-medium text-[#657a8e]">Настоящим подтверждается, что</div>
-          <div className="mt-[2%] whitespace-nowrap text-[clamp(13px,3.5cqw,34px)] font-black tracking-[-0.05em] text-[#0a2d34]">{SAMPLE_PARTICIPANT}</div>
-          <div className="mt-[2.5%] text-[clamp(5px,1.4cqw,12px)] font-medium text-[#657a8e]">завершил программу обучения</div>
+          <div className="text-[clamp(5px,1.4cqw,12px)] font-medium text-[#657a8e]">
+            Настоящим подтверждается, что
+          </div>
+          <div className="mt-[2%] whitespace-nowrap text-[clamp(13px,3.5cqw,34px)] font-black tracking-[-0.05em] text-[#0a2d34]">
+            {SAMPLE_PARTICIPANT}
+          </div>
+          <div className="mt-[2.5%] text-[clamp(5px,1.4cqw,12px)] font-medium text-[#657a8e]">
+            завершил программу обучения
+          </div>
           <div className="mt-[1.5%] max-w-[91%] border-l-[5px] border-[#009a8f] pl-[2.2%]">
-            <div className="line-clamp-2 text-[clamp(11px,3cqw,27px)] font-black leading-[1.08] tracking-[-0.04em] text-[#009a8f]">{program.name}</div>
+            <div className="line-clamp-2 text-[clamp(11px,3cqw,27px)] font-black leading-[1.08] tracking-[-0.04em] text-[#009a8f]">
+              {program.name}
+            </div>
           </div>
         </div>
         <div className="absolute bottom-[6%] left-0 z-10">
@@ -370,17 +438,25 @@ function CertificatePreview({
             <Monitor className="h-[1.2em] w-[1.2em]" /> Онлайн-формат
           </div>
           <div className="mt-[12%] text-[clamp(5px,1.25cqw,10px)] text-[#657a8e]">Результат</div>
-          <div className="text-[clamp(15px,3.8cqw,36px)] font-black leading-none text-[#009a8f]">100%</div>
+          <div className="text-[clamp(15px,3.8cqw,36px)] font-black leading-none text-[#009a8f]">
+            100%
+          </div>
         </div>
-        <div className="absolute bottom-[-7%] right-[4%] select-none text-[clamp(52px,14cqw,145px)] font-black leading-none text-[#bceee9]/60">100%</div>
+        <div className="absolute bottom-[-7%] right-[4%] select-none text-[clamp(52px,14cqw,145px)] font-black leading-none text-[#bceee9]/60">
+          100%
+        </div>
       </div>
 
       <div className="absolute bottom-[12%] right-[3.1%] top-[30%] w-[23%] border-l border-[#c6dada] pl-[3%]">
-        <div className="text-center text-[clamp(6px,1.8cqw,15px)] font-black text-[#0a2d34]">Проверить сертификат</div>
+        <div className="text-center text-[clamp(6px,1.8cqw,15px)] font-black text-[#0a2d34]">
+          Проверить сертификат
+        </div>
         <div className="mx-auto mt-[9%] flex aspect-square w-[70%] items-center justify-center text-[#0a2d34]">
           <QrCode className="h-full w-full" strokeWidth={1.7} aria-hidden="true" />
         </div>
-        <div className="mt-[7%] text-[clamp(4px,1.05cqw,9px)] leading-snug text-[#657a8e]">QR-код появится на выданном сертификате</div>
+        <div className="mt-[7%] text-[clamp(4px,1.05cqw,9px)] leading-snug text-[#657a8e]">
+          QR-код появится на выданном сертификате
+        </div>
       </div>
 
       <div className="absolute inset-x-[2.65%] bottom-[4%] grid h-[7.5%] grid-cols-[1.1fr_1fr_2fr_1.25fr] items-center rounded-[6px] bg-[#dcf7f3] px-[2.6%] text-[clamp(4px,1.05cqw,9px)] font-bold text-[#294753]">

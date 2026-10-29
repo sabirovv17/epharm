@@ -38,14 +38,23 @@ export default function LearnerMerchTask({
         request<TaskAttempt>(`${base}/items/${encodeURIComponent(itemId)}/attempts`, {
           method: 'POST',
         }),
-      upload: (itemId, uploadId, file) => {
+      upload: (itemId, uploadId, file, capture) => {
         const body = new FormData()
         body.append('file', file)
+        if (capture)
+          body.append('capture', new Blob([JSON.stringify(capture)], { type: 'application/json' }))
         return form<TaskEvidence>(
           `${base}/items/${encodeURIComponent(itemId)}/evidence?clientUploadId=${encodeURIComponent(uploadId)}`,
           body,
         )
       },
+      saveStock: (itemId, body) =>
+        request(`${base}/items/${encodeURIComponent(itemId)}/stock`, {
+          method: 'POST',
+          body: JSON.stringify(body),
+        }),
+      instruction: (itemId, signal) =>
+        photo(`${base}/items/${encodeURIComponent(itemId)}/instruction`, signal),
       submit: (itemId, expectedAttempt, completedChecklistIds, comment) =>
         request<TaskAttempt>(`${base}/items/${encodeURIComponent(itemId)}/submit`, {
           method: 'POST',

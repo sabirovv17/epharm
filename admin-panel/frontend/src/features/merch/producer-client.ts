@@ -89,12 +89,27 @@ export class ProducerClient {
     }
     this.listeners.forEach((listener) => listener())
   }
-  private async send<T>(path: string, init: RequestInit, token?: string): Promise<T> {
+  private async send<T>(
+    path: string,
+    init: RequestInit,
+    token?: string,
+    format: 'json' | 'xlsx' | 'pdf' | 'video' = 'json',
+  ): Promise<T> {
     if (!path.startsWith('/api/producer/') || path.includes('..') || path.includes('\\'))
       throw new Error('Invalid producer API path')
     const headers = new Headers(init.headers)
-    headers.set('Accept', 'application/json')
-    if (init.body) headers.set('Content-Type', 'application/json')
+    const videos = ['video/mp4', 'video/quicktime', 'video/webm']
+    const mime =
+      format === 'xlsx'
+        ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        : format === 'pdf'
+          ? 'application/pdf'
+          : format === 'video'
+            ? videos.join(', ')
+            : 'application/json'
+    headers.set('Accept', mime)
+    if (init.body instanceof FormData) headers.delete('Content-Type')
+    else if (init.body) headers.set('Content-Type', 'application/json')
     if (token) headers.set('Authorization', `Bearer ${token}`)
     const response = await this.transport(`${this.base}${path}`, {
       ...init,
@@ -113,6 +128,17 @@ export class ProducerClient {
         body.fields ?? {},
         body.code,
       )
+    }
+    if (format !== 'json') {
+      const contentType = response.headers.get('content-type')?.toLowerCase().split(';')[0].trim()
+      if (format === 'video' ? !videos.includes(contentType ?? '') : contentType !== mime)
+        throw new Error(
+          `Сервер не вернул ${format === 'xlsx' ? 'Excel' : format === 'pdf' ? 'PDF' : 'видео'}. Файл не сохранён.`,
+        )
+      const blob = await response.blob()
+      if (format === 'pdf' && (await blob.slice(0, 5).text()) !== '%PDF-')
+        throw new Error('Сервер не вернул действительный PDF. Файл не сохранён.')
+      return blob as T
     }
     return response.status === 204 ? (undefined as T) : (response.json() as Promise<T>)
   }
@@ -163,10 +189,29 @@ export class ProducerClient {
     return promise
   }
   async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+    return this.authenticated<T>(path, init, 'json')
+  }
+  download(path: string, signal: AbortSignal): Promise<Blob> {
+    return this.authenticated<Blob>(path, { signal }, 'xlsx')
+  }
+  downloadPdf(path: string, signal: AbortSignal): Promise<Blob> {
+    return this.authenticated<Blob>(path, { signal }, 'pdf')
+  }
+  downloadVideo(path: string, signal: AbortSignal): Promise<Blob> {
+    return this.authenticated<Blob>(path, { signal }, 'video')
+  }
+  upload<T>(path: string, form: FormData, signal?: AbortSignal): Promise<T> {
+    return this.authenticated<T>(path, { method: 'POST', body: form, signal }, 'json')
+  }
+  private async authenticated<T>(
+    path: string,
+    init: RequestInit,
+    format: 'json' | 'xlsx' | 'pdf' | 'video',
+  ): Promise<T> {
     const { session, epoch } = this.value
     if (!session) throw new ProducerApiError(401, 'Войдите в кабинет производителя.')
     try {
-      const data = await this.send<T>(path, init, session.accessToken)
+      const data = await this.send<T>(path, init, session.accessToken, format)
       if (epoch !== this.value.epoch) throw cancelled()
       return data
     } catch (error) {
@@ -174,7 +219,7 @@ export class ProducerClient {
       if (!(error instanceof ProducerApiError) || error.status !== 401) throw error
       await this.refresh(epoch)
       if (epoch !== this.value.epoch || !this.value.session) throw cancelled()
-      const data = await this.send<T>(path, init, this.value.session.accessToken)
+      const data = await this.send<T>(path, init, this.value.session.accessToken, format)
       if (epoch !== this.value.epoch) throw cancelled()
       return data
     }
