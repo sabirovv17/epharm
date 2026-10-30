@@ -276,6 +276,7 @@ services:
       S3_DOMAIN: ${S3_DOMAIN:?set S3_DOMAIN (напр. epharm.inkar.kz) in .env.prod}
       MERCH_PORTAL_UPSTREAM: ${MERCH_PORTAL_UPSTREAM:-10.10.1.80:8080}
       MERCH_LEGACY_PORTAL_CUTOVER_ENABLED: ${MERCH_LEGACY_PORTAL_CUTOVER_ENABLED:-false}
+      UNIFIED_MIGRATION_WRITE_FREEZE_ENABLED: ${UNIFIED_MIGRATION_WRITE_FREEZE_ENABLED:-false}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ${TLS_CERT_DIR:-./tls}:/etc/caddy/tls:ro

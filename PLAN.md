@@ -3345,3 +3345,23 @@ cross-resource regression. Все15проверок bootstrap прошли с р
 Явный private input109grants подготовлен для ранее указанного пользователем
 существующего HQ, но не применён ни к источнику, ни к production; PERSON не слит
 с CRM/фармацевтами. Автоматическое объединение по имени/телефону не используется.
+
+Первый native import имеет отдельный P1-barrier: после startup migration, но до
+selective import новый HTTP writer мог заполнить pristine native tables. Новый
+UNIFIED_MIGRATION_WRITE_FREEZE_ENABLED по умолчаниюfalse. При явном включении
+Caddy временно закрывает POST/PUT/PATCH/DELETE вне POSM и staff-auth мутации POSM
+ответом503/Retry-After30/no-store. Gate есть также на internal hostname перед
+frontend proxy; основной POSM, всеGET и origin сохраняются. Все6native flags,
+D9 capture и кассовый РПС остаютсяfalse до проверенного импорта: GET tasks при
+включённом native delivery тоже способен создать состояние. CRM writers замораживаются
+отдельно. Неожиданные target rows по-прежнему требуют STOP, не truncate/перезапись.
+
+Actual Caddy HTTP regression: прежний config RED, новый GREEN на8060 и internal80;
+32запрещённые мутации не дошли до upstream,6core POSM записей прошли, false-default
+и чтение сохранены. Shared publicTLS snippet адаптирован, отдельного новогоTLS
+connection этот тест не доказывает. Независимый review не нашёл bypass в diff;
+реальные directports и source freeze проверяются на cutover. После снятия gate/
+смены Caddy требуется fresh backup и normal SAME-pair healthy transaction с фактическим
+новым CaddyID, не переписывание прежнего rollback record.
+[Routing proof](docs/reports/unification-2026-10-30/first-import-write-freeze.json).
+Это только подготовка source; production gate/ingress пока не включались.

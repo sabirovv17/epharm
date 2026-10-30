@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "state": "default_off_first_import_write_freeze_routing_verified",
+  "productionChanged": false,
+  "oldReviewedCaddyfileFailsNewRegression": true,
+  "newActualCaddyHttpRegressionPassed": true,
+  "httpIngresses": ["public_trusted_8060", "internal_hostname_80"],
+  "blockedMutationRequests": 32,
+  "mutatingMethods": ["POST", "PUT", "PATCH", "DELETE"],
+  "blockedWritesReachedUpstream": 0,
+  "allowedCorePosmWrites": 6,
+  "defaultFalseOrdinaryWritesPreserved": true,
+  "readRequestsPreserved": true,
+  "retryAfterSeconds": 30,
+  "noStore": true,
+  "legacyQrRouteRegressionPreserved": true,
+  "publicTlsUsesSameSnippet": true,
+  "separateTlsConnectionTestInThisProof": false,
+  "independentSourceReviewOpenFindings": 0,
+  "requiredFirstImportPreconditions": [
+    "source_CRM_writers_frozen_and_final_delta_verified",
+    "all_six_native_flags_false",
+    "learner_credentials_capture_false",
+    "POSM_staff_auth_remains_false",
+    "no_externally_published_backend_or_frontend_bypass",
+    "unexpected_nonempty_native_tables_refuse_without_deletion"
+  ],
+  "limits": [
+    "Routing fixture only; does not prove a business mutation succeeded",
+    "Production ingress transition and current-main OCI release rehearsal remain separate gates",
+    "Caddy recreation requires fresh backup and a truthful new healthy application transaction baseline"
+  ]
+}

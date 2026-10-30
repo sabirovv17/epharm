@@ -7,6 +7,34 @@
 	auto_https disable_certs
 }
 
+(unified_migration_write_freeze) {
+	route {
+		@frozen_nonposm {
+			path /api/*
+			method POST PUT PATCH DELETE
+			not path /api/posm/*
+			expression `"{$UNIFIED_MIGRATION_WRITE_FREEZE_ENABLED:false}" == "true"`
+		}
+		@frozen_staff {
+			path /api/posm/staff /api/posm/staff/*
+			method POST PUT PATCH DELETE
+			expression `"{$UNIFIED_MIGRATION_WRITE_FREEZE_ENABLED:false}" == "true"`
+		}
+		handle @frozen_nonposm {
+			header Cache-Control no-store
+			header Retry-After 30
+			header Content-Type application/json
+			respond `{"code":"MIGRATION_WRITE_FREEZE","message":"Обновление системы. Повторите действие через минуту."}` 503
+		}
+		handle @frozen_staff {
+			header Cache-Control no-store
+			header Retry-After 30
+			header Content-Type application/json
+			respond `{"code":"MIGRATION_WRITE_FREEZE","message":"Обновление системы. Повторите действие через минуту."}` 503
+		}
+	}
+}
+
 (legacy_staff_entry) {
 	@native_legacy_task {
 		query task=*
@@ -116,6 +144,7 @@
 
 	# API для касс (/api/posm), телефонов (/api/mobile) и самой админки.
 	handle /api/* {
+		import unified_migration_write_freeze
 		reverse_proxy backend:8080
 	}
 
@@ -154,5 +183,6 @@ http://{$ADMIN_DOMAIN}:8060 {
 # Windows это делает корп. DNS (10.10.1.119/120) сам; на macOS + Check Point VPN, где
 # getaddrinfo не видит inkar.kz, нужна строка в /etc/hosts: «10.10.1.76 inkpim.inkar.kz».
 http://{$INTERNAL_DOMAIN:inkpim.inkar.kz} {
+	import unified_migration_write_freeze
 	reverse_proxy frontend:80
 }

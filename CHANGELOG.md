@@ -45,6 +45,8 @@ All notable production changes to Epharm are recorded here. The format follows
   backup, preserving physical database identity, migration history, grants and new sales.
 - Forward the explicitly designated HQ owner through production configuration; an empty value
   creates no owner or additional permissions.
+- Add a default-off first-import write freeze on public and internal ingress while core POSM
+  sales and heartbeat continue; retain strict refusal to overwrite unexpected native data.
 - Guard expanded-schema recovery against older authorization which cannot enforce managed
   scopes, and preserve native evidence, independent credential keys and exact MinIO policies.
 - Preserve MinIO object headers, user metadata and tags alongside exact bodies; validate the

@@ -72,6 +72,25 @@ backend; the last flag also reaches Caddy. Do not enable schedulers before stopp
 source CRM's in-process weekly/expiry loops and the old reward drainer. The flags are
 independent gates, not permission to enable payments, rewards or RPS login.
 
+The first native import requires pristine native tables. Before the first new backend starts,
+install the reviewed ingress configuration and enable `UNIFIED_MIGRATION_WRITE_FREEZE_ENABLED`
+on Caddy. It temporarily returns no-store HTTP 503 with `Retry-After: 30` for non-POSM API
+mutations and POSM staff-auth mutations on public TLS, the 8060 ingress and the internal hostname.
+Reads and core POSM sales, heartbeat and recommendation traffic continue. Verify that backend
+and frontend have no externally published bypass ports. During this initial phase keep D9
+capture and all six native flags **false**: even a task GET can issue native state when enabled.
+Freeze the source CRM writers separately, capture/verify their final delta, and run the pinned
+selective import without deleting unexpected target rows. The import retains concurrent sales in
+the original tables; a nonempty or changed native target is a refusal, never a truncate request.
+
+After import, identity/grant and file checks pass, enable only the reviewed native capabilities
+and remove the write freeze. Treat Caddy recreation as a separately audited ingress transition:
+the old application transaction's saved Caddy container identity is no longer its current baseline.
+Take a fresh backup and perform the normal healthy same-pair application transaction to record
+the actual new baseline. Never rewrite an old transaction or use an unhealthy-baseline bypass.
+`ops/merch-portal-patches/test-caddy-redirect.sh` checks the real proxy, both HTTP ingress paths,
+all four mutating verbs, the default-off behavior and unchanged core POSM traffic.
+
 With legacy portal cutover enabled, exact GET `/merch/staff` and `/staff` task entries
 serve the native SPA without forwarding a query bearer or the integration key upstream.
 The browser consumes only the supported old `?task=CAP` / `?task=1#task=CAP` shapes,
