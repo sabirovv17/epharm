@@ -150,7 +150,7 @@ jobs:
           xcrun altool --upload-app --type ios --file "$IPA_PATH" --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
 
       - name: Retain IPA for release audit
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: epharm-ios-${{ inputs.release_tag }}-${{ inputs.build_number }}
           path: build/ios/ipa/*.ipa
