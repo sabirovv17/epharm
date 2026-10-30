@@ -366,6 +366,78 @@ class TrainingIntegrationTest {
     }
 
     @Test
+    fun `first successful quiz replaces failed high score after threshold change and later retries retain only successful best`() {
+        for (bestSuccessfulScore in listOf(80, 100)) {
+            val courseId = "crs_changed_threshold_$bestSuccessfulScore"
+            courseRepository.save(CourseEntity(id = courseId, title = "Synthetic changed threshold", lessons = 2)
+                .also { it.status = CourseStatus.published })
+            val quiz = courseLessonRepository.save(CourseLessonEntity(
+                id = "cls_changed_threshold_$bestSuccessfulScore", courseId = courseId, title = "Assessed lesson",
+                order = 0, quizPassingScore = 90,
+                quizQuestions = (1..15).map { index ->
+                    CourseQuizQuestion("q-$index", "Question $index", listOf("A", "B"), 0, "Private explanation")
+                },
+            ).also { it.kind = CourseLessonKind.test })
+            val material = courseLessonRepository.save(CourseLessonEntity(
+                id = "cls_changed_material_$bestSuccessfulScore", courseId = courseId,
+                title = "Remaining required material", order = 1, content = "Read after the test",
+            ).also { it.kind = CourseLessonKind.text })
+            val program = objectMapper.readTree(mockMvc.perform(post("/api/admin/training/programs")
+                .header("Authorization", adminBearer).contentType(MediaType.APPLICATION_JSON).content("""
+                    {"name":"Synthetic changed threshold $bestSuccessfulScore","allowedFormats":["online"],"status":"published",
+                     "onlineCourseId":"$courseId","completionBonus":0,"stages":[
+                     {"key":"course","type":"online_course","title":"Assessed course","order":0,"applicableFormats":["online"]}]}
+                """.trimIndent())).andExpect(status().isOk).andReturn().response.contentAsString)
+            val programId = program["id"].asText()
+            val assignment = objectMapper.readTree(mockMvc.perform(post("/api/admin/training/assignments")
+                .header("Authorization", adminBearer).contentType(MediaType.APPLICATION_JSON)
+                .content("""{"programId":"$programId","pharmacistIds":["ph_training"],"format":"online"}"""))
+                .andExpect(status().isOk).andReturn().response.contentAsString)["assignments"][0]
+            val assignmentId = assignment["id"].asText()
+            val stageId = assignment["stages"][0]["id"].asText()
+            val lessonPath = "/api/mobile/training/assignments/$assignmentId/stages/$stageId/lessons"
+            fun submit(correct: Int) = mockMvc.perform(post("$lessonPath/${quiz.id}/quiz")
+                .header("Authorization", pharmacistBearer).contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(mapOf("answers" to (1..15).associate {
+                    "q-$it" to if (it <= correct) 0 else 1
+                }))))
+
+            submit(13).andExpect(status().isOk)
+                .andExpect(jsonPath("$.passed").value(false))
+                .andExpect(jsonPath("$.score").value(87))
+            mockMvc.perform(patch("/api/admin/lms/courses/$courseId/lessons/${quiz.id}")
+                .header("Authorization", adminBearer).contentType(MediaType.APPLICATION_JSON)
+                .content("""{"quizPassingScore":80}"""))
+                .andExpect(status().isOk)
+            submit(12).andExpect(status().isOk)
+                .andExpect(jsonPath("$.passed").value(true))
+                .andExpect(jsonPath("$.score").value(80))
+                .andExpect(jsonPath("$.assignment.stages[0].course.lessons[0].quizScore").value(80))
+                .andExpect(jsonPath("$.assignment.stages[0].score").value(80))
+            if (bestSuccessfulScore == 100) {
+                submit(15).andExpect(status().isOk)
+                    .andExpect(jsonPath("$.assignment.stages[0].score").value(100))
+                submit(12).andExpect(status().isOk)
+                    .andExpect(jsonPath("$.score").value(80))
+                    .andExpect(jsonPath("$.assignment.stages[0].course.lessons[0].quizScore").value(100))
+                    .andExpect(jsonPath("$.assignment.stages[0].score").value(100))
+                submit(0).andExpect(status().isOk)
+                    .andExpect(jsonPath("$.passed").value(false))
+                    .andExpect(jsonPath("$.score").value(0))
+                    .andExpect(jsonPath("$.assignment.stages[0].course.lessons[0].quizScore").value(100))
+            }
+            mockMvc.perform(patch("$lessonPath/${material.id}")
+                .header("Authorization", pharmacistBearer).contentType(MediaType.APPLICATION_JSON)
+                .content("""{"progressPct":100}"""))
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$.status").value("completed"))
+                .andExpect(jsonPath("$.score").value(bestSuccessfulScore))
+                .andExpect(jsonPath("$.certificate.score").value(bestSuccessfulScore))
+            assertEquals(bestSuccessfulScore, certificateRepository.findByAssignmentId(UUID.fromString(assignmentId))!!.score)
+        }
+    }
+
+    @Test
     fun `certificate averages required test results once and preserves passed grade after a failed retry`() {
         courseLessonRepository.deleteAll()
         listOf("first", "second", "optional").forEachIndexed { index, key ->

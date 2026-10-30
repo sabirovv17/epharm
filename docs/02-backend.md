@@ -308,7 +308,8 @@ correctness, answer key or explanations. Required previous lessons gate both pas
 submissions; the passing threshold is checked before display rounding. In the current legacy
 lesson schema, required `quiz`/`test` lessons contribute their best successful scores to the course
 stage and individually to the assignment average alongside required scored stages; optional tests
-do not contribute. A failed retry preserves a previously passed grade. Missing grades remain absent,
+do not contribute. A failed retry preserves a previously passed grade. If the passing threshold changes before the
+first success, that first success replaces any higher failed score. Missing grades remain absent,
 and certificate PDFs show `Без оценки` instead of inventing 100%. Existing issued scores are unchanged.
 This compatibility fix does not implement the planned explicit final/practice/intermediate roles,
 immutable course/test versions, exact-ratio score storage or an immutable quiz attempt history.

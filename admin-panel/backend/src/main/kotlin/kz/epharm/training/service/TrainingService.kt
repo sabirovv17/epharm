@@ -1480,7 +1480,8 @@ class TrainingService(
             )
         progress.quizAttempts += 1
         if (passed || progress.completedAt == null) {
-            progress.quizScore = maxOf(progress.quizScore ?: 0, score)
+            progress.quizScore = if (passed && progress.completedAt == null) score
+                else maxOf(progress.quizScore ?: 0, score)
         }
         lessonProgressRepository.save(progress)
         if (assignment.startedAt == null) assignment.startedAt = now
