@@ -182,6 +182,60 @@ cannot substitute an unpromoted development image as recovery. Before the first 
 review and rehearse a pinned RBAC-compatible recovery/roll-forward procedure. Do not weaken this
 guard, relabel an older binary as current main, or restore an old database over new POSM sales.
 
+For an unresolved **post-switch** archive failure, the deploy writer retains
+`candidate.release.env` and creates a caller-owned 0600 `failed-state.json` in its
+0700 transaction directory. This records the actual application container/image IDs,
+Caddy/PostgreSQL container IDs, immutable predecessor/candidate record hashes and protected
+configuration hashes. It does not replace the healthy-baseline check for normal deployment.
+An absent, altered or incomplete record requires manual investigation; do not manufacture one.
+
+`tools/release/recover-archive-two-image.sh` is the dedicated forward-only entrypoint:
+
+```bash
+tools/release/recover-archive-two-image.sh \
+  /absolute/deploy/releases/archive-two-image/TRANSACTION/failed-state.json \
+  FAILURE_SHA256 BACKEND_TAG FRONTEND_TAG EXACT_MAIN_COMMIT \
+  sha256:BACKEND_IMAGE_ID sha256:FRONTEND_IMAGE_ID \
+  /absolute/epharm-backend-only-backups COMPOSE_SHA256 --dry-run
+```
+
+After reviewing the preflight, repeat the same command without `--dry-run`. The helper
+accepts only the exactly observed saved pair, including an explicitly recorded mixed
+previous/candidate pair. It refuses unknown or missing containers and any config, pins,
+artifact, physical database identity/Flyway-history or failure-record drift. It retains all existing source,
+artifact, current-main/CI and financial/RBAC checks. A fresh PostgreSQL/config/image backup is
+created **before** taking the shared deployment lock, then revalidated under the lock; the
+unhealthy observed pair is not a healthy rollback baseline. Sales can continue: the helper
+does not restore PostgreSQL, rewind migrations or compare mutable business row counts.
+The target's ordinary Flyway startup may complete a partially applied reviewed suffix.
+All pre-existing successful Flyway rows must remain an exact prefix, while the completed
+version/script/checksum list must match the exact target JAR. Checksums use the verified
+Flyway 10.20.1 line/BOM/CRC32 algorithm; unknown implementations or history edits are refused.
+
+Only backend/frontend are recreated using the same capable pair or a newly reviewed exact-main
+pair. Full release smoke is mandatory. Each attempt gets a separate protected audit directory;
+the original predecessor and failure evidence remain unchanged. If another forward fails, it
+records the actual partial state in that attempt's `failed-state.json`, which can be supplied
+with its new digest for a later reviewed retry. There is no automatic predecessor fallback.
+Configuration/Caddy/PostgreSQL drift during a failed attempt still requires investigation.
+Successful recovery does not rewrite the original rollback record or claim a different image
+was the predecessor. A later normal healthy deployment establishes its own actual baseline.
+Before recreating application containers, the helper atomically records the fresh bundle in
+the separate 0600 `releases/archive-two-image/recovery-backup` reference under the deployment
+flock. The previous reference is retained in the new immutable attempt audit. Reviewed release
+retention protects this one exact bundle independently of an active/healthy transaction,
+using the same strict configured backup-root checks; corrupt, stale or escaping references
+stop retention. The ordinary keep count is unchanged. Retain the incident reference until
+reviewed closure; do not delete a bundle merely because recovery has become healthy.
+**Before real use, install the reviewed retention reader together with this helper.** Older
+backup tooling which only reads active transactions cannot protect this new incident reference.
+
+The inert Docker contract suite proves orchestration and refusals; it is not a real main-image
+deployment, Windows popup proof or authorization to deploy. Rehearse the exact promoted main
+artifacts before the first production application switch, including fault/restart with new
+sales, wallet entries, managed grants and revocations retained. A branch JAR restart can prove
+application persistence separately, but cannot substitute for that main/CI image rehearsal.
+
 ## Monitoring and alerting
 
 The `monitoring` Compose profile includes Prometheus, Alertmanager, Grafana, blackbox exporter,

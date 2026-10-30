@@ -202,6 +202,10 @@ write_pins "$transaction_dir/rollback.release.env" \
   "$previous_backend_tag" "$previous_backend_commit" "$previous_frontend_tag" "$previous_frontend_commit"
 staged_env="$(mktemp "$RELEASE_ROOT/.release.archive-candidate.XXXXXX")"
 write_pins "$staged_env" "$candidate_backend_tag" "$candidate_commit" "$candidate_frontend_tag" "$candidate_commit"
+# Retain the reviewed pins even when the atomic switch or a later rollback fails.
+cp -p "$staged_env" "$transaction_dir/candidate.release.env"
+chmod 600 "$transaction_dir/candidate.release.env" "$transaction_dir/original.release.env"
+printf 'previous_postgres_container=%s\n' "$(docker inspect --format '{{.Id}}' epharm-postgres 2>/dev/null || true)" >> "$transaction_dir/manifest"
 
 # Rendering is parsed internally; Compose output can contain credentials.
 verify_compose() {
@@ -288,6 +292,54 @@ rollback_on_exit() {
       echo "Rollback verified: $previous_backend_tag/$previous_frontend_tag" >&2
     else
       echo "CRITICAL: rollback verification failed; inspect $transaction_dir before further deployment" >&2
+      # This is evidence of an observed failure, never permission to skip the
+      # normal healthy-baseline gate. The separate forward helper requires its
+      # exact digest and rechecks every observed container/configuration.
+      python3 - "$RELEASE_ROOT" "$transaction_dir" "$original_env_sha" "$original_caddy_sha" "$expected_compose_sha" "$SCRIPT_DIR/verify-image-archive.py" <<'PY' || echo 'CRITICAL: failed-state capture failed; automatic forward recovery is unavailable' >&2
+import hashlib, json, os, pathlib, subprocess
+root, tx = map(pathlib.Path, __import__('sys').argv[1:3])
+env_sha, caddy_sha, compose_sha, archive_verifier = __import__('sys').argv[3:]
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+def rows(path):
+    return dict(line.split('=', 1) for line in path.read_text().splitlines())
+def inspect(name, field):
+    result = subprocess.run(['docker', 'inspect', '--format', '{{.' + field + '}}', name], capture_output=True, text=True)
+    return result.stdout.strip() if result.returncode == 0 else ''
+manifest = rows(tx / 'manifest')
+known = {component: [] for component in ('backend', 'frontend')}
+for phase, filename in (('previous', 'rollback.release.env'), ('candidate', 'candidate.release.env')):
+    pins = rows(tx / filename)
+    for component in known:
+        known[component].append({'tag': manifest[f'{phase}_{component}_tag'], 'image_id': manifest[f'{phase}_{component}_id'],
+                                 'commit': pins[f'{component.upper()}_RELEASE_COMMIT']})
+# A verified docker-save reload may receive a different OCI/config image ID.
+# Record that exact alias only after checking its saved runnable content again.
+for component in known:
+    original = known[component][0]
+    image = 'epharm/' + component + ':' + original['tag']
+    result = subprocess.run(['docker', 'image', 'inspect', '--format', '{{.Id}}', image], capture_output=True, text=True)
+    actual = result.stdout.strip()
+    if result.returncode == 0 and actual != original['image_id']:
+        checked = subprocess.run([__import__('sys').executable, archive_verifier,
+            str(pathlib.Path(manifest['backup_dir']) / (component + '-' + original['tag'] + '.tar.gz')), image],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if checked.returncode == 0: known[component].append({**original, 'image_id': actual})
+record = {'format': 1, 'transaction_dir': str(tx), 'known_images': known,
+          'records': {name: digest(tx / name) for name in ('manifest', 'original.release.env', 'rollback.release.env', 'candidate.release.env')},
+          'configs': {name: digest(root / name) for name in ('.env.prod', '.release.env', 'docker-compose.prod.yml', 'Caddyfile')},
+          'containers': {component: {'image_id': inspect('epharm-' + component, 'Image'), 'container_id': inspect('epharm-' + component, 'Id')}
+                         for component in ('backend', 'frontend')},
+          'caddy_container': inspect('epharm-caddy', 'Id'), 'postgres_container': inspect('epharm-postgres', 'Id')}
+record['configs'].update({'.env.prod': env_sha, 'Caddyfile': caddy_sha, 'docker-compose.prod.yml': compose_sha})
+path = tx / 'failed-state.json'
+fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+with os.fdopen(fd, 'w') as output:
+    json.dump(record, output, sort_keys=True); output.write('\n'); output.flush(); os.fsync(output.fileno())
+directory = os.open(tx, os.O_RDONLY | os.O_DIRECTORY)
+try: os.fsync(directory)
+finally: os.close(directory)
+PY
     fi
   fi
   rm -f -- "$staged_env" "$rollback_ready"

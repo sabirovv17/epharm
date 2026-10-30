@@ -103,6 +103,7 @@ jobs:
         run: |
           bash tools/release/tests/archive-two-image-contract.sh
           bash tools/release/tests/archive-rollback-contract.sh
+          python3 -m unittest discover -s tools/release/tests -p 'test_archive_forward_recovery.py' -v
       - name: Verify release route readiness and bounded failure
         run: bash tools/release/tests/smoke-readiness.sh
       - name: Verify isolated PostgreSQL restore readiness

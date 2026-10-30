@@ -3270,3 +3270,40 @@ LINK/perphysical/late-print G4, текущий final CI/общий browser по�
 forward recovery и свежие source deltas/single-writer/ingress cutover. App-deploy
 по-прежнему разрешён только после обязательных проверок; домен и отдельный /learn
 не меняются, РПС на кассах не включается.
+
+### Десятый срез: контроль восстановления и финальная конфигурация выпуска
+
+G7 технического release runbook дополнен отдельным forward-only entrypoint:
+строгое исходное failure evidence, exact main/CI/OCI guards, свежий backup до
+shared flock, неизменные конфигурация/физическая БД и полная проверка исходной
+Flyway-истории. Разрешено завершение только проверенного suffix из exact JAR;
+старый v0.1.47 после V066 не подставляется как допустимый RBAC rollback. Реальная
+проверка SIGKILL/restart prior JAR cb16 сохранила все144таблицы/238строк, файл и
+ключ; новый POSM sale/replay и отзыв уже выданного JWT проверены. Запись кошелька
+в этом тесте — явный synthetic ledger/projection fixture, не боевое начисление.
+[Агрегат восстановления](docs/reports/unification-2026-10-30/forward-recovery-089.json).
+
+Отдельный protected recovery-backup reference удерживает одну точную свежую копию
+инцидента, не подменяя active-transaction или healthy baseline. Reader учитывает
+его до проверки active pointer; повреждение, подмена, stale/escape/symlink останавливают
+удаление. Keep3 не изменён. Linux ops77PASS/1прежнийskip, recovery17проверок,
+прежние deploy/rollback shell contracts и независимый review прошли. Установленный
+backup runtime3cdd пока не содержит новый reader: его reviewed update и реальная
+репетиция exact promoted-main OCI-пары обязательны до первого app cutover.
+
+Текущий checkpoint a7b90f4 прошёл весь CI/P0/CodeQL, main остаётся a3feef3.
+Чистый повтор семи browser-сценариев на V089/cb16 прошёл7/7 без API mocks и внешних
+SMS; отдельный `/learn` и старые POSM heartbeat/sales сохранены.
+[Семь сценариев](docs/reports/unification-2026-10-30/clean-seven-case-acceptance-089.json).
+Затем найден deploy-only дефект: UNIFIED_ADMIN_PRIMARY_OWNER_ID отсутствовал в
+Compose/application mapping, а synthetic harness скрывал это аргументом CLI.
+Env-only запуск прежнего cb16 подтвердил RED. Mapping добавлен с пустым безопасным
+default; он никого не создаёт и не выдаёт sensitive/D9 grants. Новый resource-only
+JAR d701 и env-only browser повтор проверяются отдельно; старый proof не переименован.
+
+Свежий readonly контроль production: backend v0.1.47/frontend v0.1.53, schema065,
+оба backup таймера active/waiting, CRM отвечает200. Сохранён ровно один существующий
+активный HQ аккаунт, ранее указанный пользователем, без назначения PERSON или изменения
+прав. App/env/ingress/native flags и данные не переключались. Финальные POSM LINK/
+physical-print проверки, source deltas/single-writer cutoff, новый main CI и main OCI
+rehearsal остаются обязательными. Условное разрешение на деплой не заменяет эти проверки.
