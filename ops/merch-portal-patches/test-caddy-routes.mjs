@@ -59,20 +59,21 @@ for (const server of servers) {
       const handlers = compatibility[index + 1].handle?.[0]?.routes?.[0]?.handle ?? [];
       if (index === 0) {
         const routes = compatibility[index + 1].handle[0].routes;
-        assert.equal(routes.length, 3, 'shared staff entry, task-only compatibility and legacy default');
-        assert.equal(routes[0].match[0].expression.expr, `"${cutover}" == "true" && "${staffAccess}" == "true"`);
-        const shared = flatten([routes[0]]);
-        assert.equal(shared.find(({ handler }) => handler === 'rewrite')?.uri, '/staff?');
-        const sharedProxy = shared.find(({ handler }) => handler === 'reverse_proxy');
-        assert.deepEqual(sharedProxy?.upstreams, [{ dial: 'frontend:80' }]);
-        assert.deepEqual(sharedProxy?.headers?.request?.delete, ['X-Pharmapay-Key', 'X-Staff-Session']);
-        assert.deepEqual(routes[1].match[0].query, { task: ['*'] });
-        assert.equal(routes[1].match[0].expression.expr, `"${cutover}" == "true"`);
-        const native = flatten([routes[1]]);
+        assert.equal(routes.length, 3, 'task-only compatibility, retired staff entry and legacy default');
+        assert.deepEqual(routes[0].match[0].query, { task: ['*'] });
+        assert.equal(routes[0].match[0].expression.expr, `"${cutover}" == "true"`);
+        const native = flatten([routes[0]]);
         assert.equal(native.find(({ handler }) => handler === 'rewrite')?.uri, '/tasks/staff?');
         const proxy = native.find(({ handler }) => handler === 'reverse_proxy');
         assert.deepEqual(proxy?.upstreams, [{ dial: 'frontend:80' }]);
         assert.deepEqual(proxy?.headers?.request?.delete, ['X-Pharmapay-Key', 'X-Staff-Session']);
+        assert.equal(routes[1].match[0].expression.expr, `"${cutover}" == "true"`);
+        assert.equal(routes[1].match[0].query, undefined, 'retired entry also handles plain/access when shared codes are off');
+        const retiredEntry = flatten([routes[1]]);
+        assert.equal(retiredEntry.find(({ handler }) => handler === 'rewrite')?.uri, '/staff?');
+        const retiredProxy = retiredEntry.find(({ handler }) => handler === 'reverse_proxy');
+        assert.deepEqual(retiredProxy?.upstreams, [{ dial: 'frontend:80' }]);
+        assert.deepEqual(retiredProxy?.headers?.request?.delete, ['X-Pharmapay-Key', 'X-Staff-Session']);
         const fallback = flatten([routes[2]]);
         assert.equal(fallback.find(({ status_code }) => status_code)?.status_code, 302);
         assert.deepEqual(fallback.find(({ headers }) => headers?.Location)?.headers?.Location,

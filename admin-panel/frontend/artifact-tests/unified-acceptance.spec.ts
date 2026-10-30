@@ -364,8 +364,12 @@ test('M13 retired shared codes lead to personal learn while an existing task QR 
     localStorage.setItem('epharm.auth.user', JSON.stringify(value.user))
     sessionStorage.setItem('epharm.merch.staff-session.v1', 'synthetic_retired_staff_session_000000000000000000')
   }, hq)
+  const administratorAccess = page.waitForResponse(response => new URL(response.url()).pathname === '/api/admin/access/me')
   await page.goto('/merch/staff-access')
   await liveExpect(page.getByRole('heading', { name: 'Общие коды доступа отключены' })).toBeVisible()
+  const accessResponse = await administratorAccess
+  expect(accessResponse.status()).toBe(200)
+  await accessResponse.finished()
   await liveExpect(page.getByRole('button', { name: 'Коды доступа', exact: true })).toHaveCount(0)
   await liveExpect(page.getByRole('button', { name: 'Создать код и QR', exact: true })).toHaveCount(0)
   const retiredAccess = 'synthetic_retired_access_000000000000000000000000'
@@ -382,9 +386,16 @@ test('M13 retired shared codes lead to personal learn while an existing task QR 
   const capability = new URLSearchParams(new URL(legacyTaskUrl).hash.slice(1)).get('task')
   expect(capability && /^[A-Za-z0-9_-]{32,256}$/.test(capability)).toBe(true)
   const sessionResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/public/merch/tasks/session')
+  const taskResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/public/merch/tasks')
   await page.goto(`/staff?task=1#task=${capability}`)
   expect((await sessionResponse).status()).toBe(200)
   await liveExpect(page).toHaveURL(/\/tasks\/staff\?task=1$/)
+  // Session headers precede the real task read; finish it before Playwright disposes transport responses.
+  const taskDetails = await taskResponse
+  expect(taskDetails.status()).toBe(200)
+  await taskDetails.finished()
+  await liveExpect(page.getByRole('heading', { name: 'Synthetic acceptance task', exact: true })).toBeVisible()
+  await liveExpect(page.getByRole('alert')).toHaveCount(0)
   expect(staffRequests).toEqual([])
   expect(blocked).toEqual([])
   const after = counts()
