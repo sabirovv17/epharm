@@ -36,7 +36,8 @@ const lmsHooks = vi.hoisted(() => ({
   useCourses: vi.fn(),
   useCourse: vi.fn(),
   useCreateCourse: vi.fn(),
-  useImportCourse: vi.fn(),
+  useImportCoursePackage: vi.fn(),
+  usePreviewCoursePackage: vi.fn(),
   useUpdateCourse: vi.fn(),
   useDeleteCourse: vi.fn(),
   useCreateCourseLesson: vi.fn(),
@@ -346,7 +347,8 @@ beforeEach(() => {
   )
   lmsHooks.useTrainingPharmacists.mockReturnValue(queryResult([pharmacist]))
   lmsHooks.useCreateCourse.mockReturnValue(mutationResult())
-  lmsHooks.useImportCourse.mockReturnValue(mutationResult())
+  lmsHooks.useImportCoursePackage.mockReturnValue(mutationResult())
+  lmsHooks.usePreviewCoursePackage.mockReturnValue(mutationResult())
   lmsHooks.useUpdateCourse.mockReturnValue(mutationResult())
   lmsHooks.useDeleteCourse.mockReturnValue(mutationResult())
   lmsHooks.useCreateCourseLesson.mockReturnValue(mutationResult())
@@ -561,14 +563,14 @@ describe('Обучение — операционный раздел', () => {
     expect(screen.getAllByText('Онлайн-курс')).not.toHaveLength(0)
   })
 
-  it('предлагает шаблон и отправляет выбранный Excel-файл на импорт курса', async () => {
+  it('предлагает шаблон и проверяет Excel до создания курса', async () => {
     const mutate = vi.fn()
-    lmsHooks.useImportCourse.mockReturnValue(mutationResult(mutate))
+    lmsHooks.usePreviewCoursePackage.mockReturnValue(mutationResult(mutate))
     const user = userEvent.setup()
     renderPage('/lms?tab=courses')
 
     await user.click(screen.getByRole('button', { name: 'Импорт из Excel' }))
-    const dialog = screen.getByRole('dialog', { name: 'Импорт курса из Excel' })
+    const dialog = screen.getByRole('dialog', { name: 'Импорт курса из Excel или ZIP' })
     expect(within(dialog).getByRole('link', { name: 'Скачать шаблон Excel' })).toHaveAttribute(
       'href',
       '/templates/epharm-course-import-template.xlsx',
@@ -576,8 +578,8 @@ describe('Обучение — операционный раздел', () => {
     const file = new File(['xlsx'], 'course.xlsx', {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     })
-    await user.upload(within(dialog).getByLabelText(/Выбрать заполненный Excel-файл/), file)
-    await user.click(within(dialog).getByRole('button', { name: 'Импортировать курс' }))
+    await user.upload(within(dialog).getByLabelText('Файл курса'), file)
+    await user.click(within(dialog).getByRole('button', { name: 'Проверить файл' }))
     expect(mutate).toHaveBeenCalledWith(
       file,
       expect.objectContaining({

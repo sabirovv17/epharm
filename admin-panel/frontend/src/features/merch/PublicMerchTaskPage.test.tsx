@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import PublicMerchTaskPage from './PublicMerchTaskPage'
 import { captureTaskNavigation } from './taskNavigation'
@@ -52,6 +53,10 @@ describe('public free-task boundary', () => {
       </MemoryRouter>,
     )
     expect(await screen.findByText('Демо-задание без оплаты')).toBeInTheDocument()
+    expect(screen.getByText('Загрузка фото сама по себе не отправляет отчёт.')).not.toBeVisible()
+    await userEvent.click(screen.getByText('Как выполнить задание', { selector: 'summary' }))
+    expect(screen.getByRole('list', { name: 'Как выполнить задание' })).toBeVisible()
+    expect(screen.getByText('Загрузка фото сама по себе не отправляет отчёт.')).toBeVisible()
     expect(fetcher).toHaveBeenCalledTimes(2)
     for (const [path, init] of fetcher.mock.calls) {
       expect(String(path)).toMatch(/^\/api\/public\/merch\/tasks/)
@@ -123,5 +128,49 @@ describe('public free-task boundary', () => {
     )
     expect(screen.getByText('Откройте задание по QR-коду')).toBeInTheDocument()
     expect(fetcher).not.toHaveBeenCalled()
+  })
+  it('shows explicit link verification while metadata is pending without fetching task detail', () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(() => new Promise(() => {}))
+    vi.stubGlobal('fetch', fetcher)
+    render(
+      <MemoryRouter>
+        <PublicMerchTaskPage />
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('status')).toHaveTextContent('Проверяем ссылку задания')
+    expect(screen.queryByRole('list', { name: 'Как выполнить задание' })).not.toBeInTheDocument()
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+  it('read-only free task retains details without presenting execution steps', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async (path) =>
+      String(path).endsWith('/session')
+        ? json({ ...metadata, readOnly: true })
+        : json({
+            id: metadata.dispatchId,
+            title: 'Архивный отчёт',
+            status: 'completed',
+            sourceSystem: 'EPHARM',
+            version: 1,
+            rewardAmountKzt: 0,
+            reward: null,
+            items: [],
+            itemCount: 0,
+            detailsIncluded: true,
+            taskType: 'photo_report',
+            priority: 'normal',
+          }),
+    )
+    vi.stubGlobal('fetch', fetcher)
+    render(
+      <MemoryRouter>
+        <PublicMerchTaskPage />
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('Только просмотр')).toBeVisible()
+    expect(await screen.findByText('Архивный отчёт')).toBeVisible()
+    expect(screen.queryByRole('list', { name: 'Как выполнить задание' })).not.toBeInTheDocument()
+    expect(fetcher.mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(
+      true,
+    )
   })
 })

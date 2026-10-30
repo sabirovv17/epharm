@@ -120,4 +120,18 @@ class UnifiedAccessStore(
         jdbc.update("insert into unified_admin_access_audit(id,actor_id,target_id,operation,target_version) values(?,?,?,?,?)",
             UUID.randomUUID(), actor, target, operation, version)
     }
+
+    @Transactional
+    fun changeStatus(actor: UUID, target: UUID, expectedVersion: Long, status: String): Long? {
+        require(status in setOf("active", "blocked"))
+        val updated = jdbc.update("""update unified_admin_profiles set version=version+1,updated_at=now()
+            where account_id=? and version=?""", target, expectedVersion)
+        if (updated != 1) return null
+        check(jdbc.update("update admin_users set status=?,updated_at=now() where id=? and access_mode='MANAGED'", status, target) == 1)
+        if (status == "blocked") {
+            jdbc.update("update refresh_tokens set revoked_at=now() where user_id=? and revoked_at is null", target)
+        }
+        audit(actor, target, if (status == "blocked") "BLOCK_ACCOUNT" else "UNBLOCK_ACCOUNT", expectedVersion + 1)
+        return expectedVersion + 1
+    }
 }

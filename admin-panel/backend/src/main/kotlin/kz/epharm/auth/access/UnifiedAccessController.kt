@@ -37,6 +37,14 @@ class ReplaceGrantsRequest(
     @field:Size(max = 200) val grants: List<StoredGrant>,
     @field:Size(max = 128) val currentPassword: String,
 )
+enum class ManagedAccountStatus { ACTIVE, BLOCKED }
+class ChangeManagedAccountStatusRequest(
+    val expectedVersion: Long,
+    val status: ManagedAccountStatus,
+    @field:NotBlank @field:Size(max = 128) val currentPassword: String,
+)
+data class ManagedAccountStatusResult(val accountId: UUID, val status: String, val version: Long)
+private data class ManagedStatusTarget(val mode: String, val status: String, val person: UUID, val version: Long)
 class VerifyPersonRequest(
     @field:NotBlank @field:Size(max=255) val name: String,
     @field:NotBlank @field:Size(min=3,max=1000) val verificationReference: String,
@@ -120,6 +128,10 @@ class UnifiedAccessController(private val service: UnifiedAccountAccessService) 
     @PutMapping("/accounts/{id}/grants")
     fun replace(@AuthenticationPrincipal principal: AdminPrincipal, @PathVariable id: UUID,
         @Valid @RequestBody req: ReplaceGrantsRequest) = service.replace(principal, id, req)
+
+    @PutMapping("/accounts/{id}/status")
+    fun changeStatus(@AuthenticationPrincipal principal: AdminPrincipal, @PathVariable id: UUID,
+        @Valid @RequestBody req: ChangeManagedAccountStatusRequest) = service.changeStatus(principal, id, req)
 }
 
 data class AccessCapabilities(
@@ -361,11 +373,13 @@ class UnifiedAccountAccessService(
             val person = rs.getObject(7, UUID::class.java)
             val managed = rs.getString(6) == "MANAGED"
             val owner = store.isDesignatedOwner(id)
+            val changeable = canManage(access) && managed && person != null && id != principal.userId &&
+                person.toString() != access.actor.person?.id && !owner
             ManagedAccountRow(id, person, rs.getString(2), rs.getString(3), rs.getString(8).orEmpty(),
                 AdminRole.valueOf(rs.getString(4)), rs.getString(5), managed,
                 rs.getObject(9)?.let { (it as Number).toLong() }, owner,
-                canManage(access) && managed && person != null && id != principal.userId &&
-                    person.toString() != access.actor.person?.id && !owner && rs.getString(5) == "active")
+                changeable && rs.getString(5) == "active",
+                changeable && rs.getString(5) in setOf("active", "blocked"))
         })
     }
 
@@ -457,6 +471,30 @@ class UnifiedAccountAccessService(
     }
 
     @Transactional
+    fun changeStatus(principal: AdminPrincipal, target: UUID, req: ChangeManagedAccountStatusRequest): ManagedAccountStatusResult {
+        store.lockAccounts(setOf(principal.userId, target))
+        val (access, _) = passwordProof(principal, req.currentPassword)
+        // A blocked target cannot be loaded as an authenticated actor. Read its locked persisted identity instead.
+        val recipient = jdbc.query("""select a.access_mode,a.status,p.person_id,p.version
+            from admin_users a join unified_admin_profiles p on p.account_id=a.id
+            join unified_persons u on u.id=p.person_id
+            where a.id=? and length(btrim(u.verification_reference))>0""",
+            { rs, _ -> ManagedStatusTarget(rs.getString(1), rs.getString(2), rs.getObject(3, UUID::class.java), rs.getLong(4)) }, target)
+            .singleOrNull() ?: AdministrativeScope.deny()
+        if (recipient.mode != "MANAGED" || recipient.status !in setOf("active", "blocked") ||
+            target == principal.userId || store.isDesignatedOwner(target) ||
+            recipient.person.toString() == access.actor.person?.id) AdministrativeScope.deny()
+        if (recipient.version != req.expectedVersion) {
+            throw AppException(ErrorCode.CONFLICT, "Аккаунт уже изменился: обновите страницу", HttpStatus.CONFLICT)
+        }
+        val status = req.status.name.lowercase()
+        if (recipient.status == status) return ManagedAccountStatusResult(target, status, req.expectedVersion)
+        val version = store.changeStatus(principal.userId, target, req.expectedVersion, status)
+            ?: throw AppException(ErrorCode.CONFLICT, "Аккаунт уже изменился: обновите страницу", HttpStatus.CONFLICT)
+        return ManagedAccountStatusResult(target, status, version)
+    }
+
+    @Transactional
     fun replace(principal: AdminPrincipal, target: UUID, req: ReplaceGrantsRequest): AccessProfile {
         store.lockAccounts(setOf(principal.userId, target))
         val (access, proof) = passwordProof(principal, req.currentPassword)
@@ -513,7 +551,7 @@ class UnifiedAccountAccessService(
 data class ManagedAccountRow(
     val accountId: UUID, val personId: UUID?, val name: String, val email: String, val jobTitle: String,
     val roleCeiling: AdminRole, val status: String, val managed: Boolean, val version: Long?,
-    val primaryHqOwner: Boolean, val editable: Boolean,
+    val primaryHqOwner: Boolean, val editable: Boolean, val canChangeStatus: Boolean = false,
 )
 data class VerifiedPersonRow(val personId: UUID, val displayName: String, val referenceLabel: String = "Связь подтверждена")
 data class SourceAccountRow(val sourceAccountId: UUID, val name: String, val email: String?, val sourceRole: String,

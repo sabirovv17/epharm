@@ -112,6 +112,53 @@ export function useCreateCourse() {
   })
 }
 
+export type CoursePackagePreview = {
+  digest: string
+  title: string
+  lessons: { code: string; title: string; type: string; questions: number }[]
+  files: number
+  expandedBytes: number
+  createsProgram: boolean
+  partner: string | null
+  existingCourseId: string | null
+}
+
+export function usePreviewCoursePackage() {
+  return useMutation({
+    mutationFn: (file: File) => {
+      const body = new FormData()
+      body.append('file', file)
+      return api
+        .post<CoursePackagePreview>('/api/admin/lms/courses/import/package/preview', body, {
+          timeout: 120_000,
+        })
+        .then((response) => response.data)
+    },
+  })
+}
+
+export function useImportCoursePackage() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ file, digest }: { file: File; digest: string }) => {
+      const body = new FormData()
+      body.append('file', file)
+      body.append('digest', digest)
+      return api
+        .post<{
+          course: CourseDto
+          programId: string | null
+          reused: boolean
+        }>('/api/admin/lms/courses/import/package', body, { timeout: 120_000 })
+        .then((response) => response.data)
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: lmsKeys.all })
+      void qc.invalidateQueries({ queryKey: ['training'] })
+    },
+  })
+}
+
 export function useImportCourse() {
   const qc = useQueryClient()
   return useMutation({
@@ -324,7 +371,7 @@ export function useCourseLiveRoom(courseId: string, lessonId: string, enabled = 
         .get<CourseLiveRoomDto>(`/api/admin/lms/courses/${courseId}/lessons/${lessonId}/live`)
         .then((response) => response.data),
     enabled: enabled && !!courseId && !!lessonId,
-    refetchInterval: (query) => query.state.data?.status === 'live' ? 3_000 : 15_000,
+    refetchInterval: (query) => (query.state.data?.status === 'live' ? 3_000 : 15_000),
   })
 }
 
@@ -344,24 +391,30 @@ function useLiveRoomMutation<TVariables>(
 }
 
 export function usePostCourseLiveMessage(courseId: string, lessonId: string) {
-  return useLiveRoomMutation<{ kind: 'comment' | 'question'; body: string }>(courseId, lessonId, (body) =>
-    api
-      .post<CourseLiveRoomDto>(
-        `/api/admin/lms/courses/${courseId}/lessons/${lessonId}/live/messages`,
-        body,
-      )
-      .then((response) => response.data),
+  return useLiveRoomMutation<{ kind: 'comment' | 'question'; body: string }>(
+    courseId,
+    lessonId,
+    (body) =>
+      api
+        .post<CourseLiveRoomDto>(
+          `/api/admin/lms/courses/${courseId}/lessons/${lessonId}/live/messages`,
+          body,
+        )
+        .then((response) => response.data),
   )
 }
 
 export function useVoteCourseLivePoll(courseId: string, lessonId: string) {
-  return useLiveRoomMutation<{ pollId: string; optionId: string }>(courseId, lessonId, ({ pollId, optionId }) =>
-    api
-      .post<CourseLiveRoomDto>(
-        `/api/admin/lms/courses/${courseId}/lessons/${lessonId}/live/polls/${pollId}/vote`,
-        { optionId },
-      )
-      .then((response) => response.data),
+  return useLiveRoomMutation<{ pollId: string; optionId: string }>(
+    courseId,
+    lessonId,
+    ({ pollId, optionId }) =>
+      api
+        .post<CourseLiveRoomDto>(
+          `/api/admin/lms/courses/${courseId}/lessons/${lessonId}/live/polls/${pollId}/vote`,
+          { optionId },
+        )
+        .then((response) => response.data),
   )
 }
 

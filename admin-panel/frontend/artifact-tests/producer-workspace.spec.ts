@@ -233,6 +233,16 @@ test('external SMS session creates its own draft and explicitly submits a hold w
   await expect(page.getByRole('heading', { name: 'Мои размещения' })).toBeVisible()
   await expect(page.getByRole('combobox', { name: 'Фильтр производителя' })).toHaveCount(0)
   await page.getByRole('button', { name: 'Новый медиаплан' }).click()
+  const editor = page.getByRole('dialog', { name: 'Новый медиаплан', exact: true })
+  await expect(editor).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(editor.getByRole('button', { name: 'Закрыть окно' })).toBeFocused()
+  await page.keyboard.press('Shift+Tab')
+  await expect(editor.getByRole('button', { name: 'Отмена', exact: true })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(editor).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Новый медиаплан' })).toBeFocused()
+  await page.getByRole('button', { name: 'Новый медиаплан' }).click()
   await page.getByRole('combobox', { name: 'Аптека для размещения' }).selectOption(branch.id)
   await page.getByRole('combobox', { name: 'Часть места DEMO-01' }).selectOption('whole')
   expect(state.writes).toEqual([])
@@ -249,6 +259,32 @@ test('external SMS session creates its own draft and explicitly submits a hold w
     fullPage: true,
     animations: 'disabled',
   })
+  await page.setViewportSize({ width: 390, height: 844 })
+  const details = page.getByRole('dialog', { name: 'Медиаплан', exact: true })
+  await expect(details).toBeVisible()
+  const bounds = await details.boundingBox()
+  expect(bounds).not.toBeNull()
+  expect(bounds!.x).toBeGreaterThanOrEqual(0)
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390)
+  expect(bounds!.height).toBeLessThanOrEqual(844)
+  await page.screenshot({
+    path: testInfo.outputPath('producer-own-placement-mobile.png'),
+    animations: 'disabled',
+  })
+  await page.keyboard.press('Escape')
+  await expect(details).toHaveCount(0)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+  await page.screenshot({
+    path: testInfo.outputPath('producer-workspace-mobile.png'),
+    fullPage: true,
+    animations: 'disabled',
+  })
+  const mobilePlanLink = page.getByRole('button', {
+    name: 'Открыть медиаплан: Демо-производитель, 2026-10',
+  })
+  await expect(mobilePlanLink).toBeInViewport()
+  await mobilePlanLink.click()
+  await expect(details).toBeVisible()
   expect(await page.evaluate(() => localStorage.getItem('epharm.auth.tokens'))).toBe(
     'SYNTHETIC-ADMIN-SENTINEL',
   )

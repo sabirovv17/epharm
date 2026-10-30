@@ -7,6 +7,7 @@ import kz.epharm.training.dto.CertificateVerificationDto
 import kz.epharm.training.service.TrainingCertificatePdfService
 import org.apache.pdfbox.Loader
 import org.apache.pdfbox.text.PDFTextStripper
+import org.apache.pdfbox.rendering.PDFRenderer
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import java.awt.AlphaComposite
@@ -81,6 +82,16 @@ class TrainingCertificatePdfServiceTest {
         Loader.loadPDF(pdf).use { document ->
             val text = PDFTextStripper().getText(document)
             assertThat(text).contains("Әли Құнанбаев", "Ғылым, дәрі және жаңа өмір", "Үміт Һасенова Ілиясқызы")
+            assertThat(text).contains("95%").doesNotContain("100%")
+        }
+
+        val unscoredPdf = TrainingCertificatePdfService("https://epharm.inkar.kz", InMemoryMediaStorage())
+            .render(UUID.fromString("ad632d6e-1da0-4705-9be9-5d17236f47cf"), certificate.copy(score = null))
+        Loader.loadPDF(unscoredPdf).use { document ->
+            assertThat(PDFTextStripper().getText(document)).contains("Без оценки").doesNotContain("100%", "95%")
+            val preview = Path.of("build", "reports", "certificate-unscored-preview.png")
+            Files.createDirectories(preview.parent)
+            ImageIO.write(PDFRenderer(document).renderImageWithDPI(0, 110f), "png", preview.toFile())
         }
     }
 

@@ -1,5 +1,9 @@
 package kz.epharm.auth.service
 
+import com.fasterxml.jackson.core.JacksonException
+import com.fasterxml.jackson.core.JsonParser
+import com.fasterxml.jackson.databind.DeserializationFeature
+import com.fasterxml.jackson.databind.ObjectMapper
 import io.jsonwebtoken.Claims
 import io.jsonwebtoken.JwtException
 import io.jsonwebtoken.Jwts
@@ -11,6 +15,7 @@ import java.nio.charset.StandardCharsets
 import java.time.Duration
 import java.time.Instant
 import java.util.Date
+import java.util.Base64
 import java.util.UUID
 import javax.crypto.SecretKey
 import javax.crypto.spec.SecretKeySpec
@@ -25,6 +30,9 @@ class JwtService(
     @Value("\${app.jwt.secret}") private val secret: String,
     @Value("\${app.jwt.access-ttl-minutes:15}") private val accessTtlMinutes: Long,
 ) {
+    private val signedClaimsMapper = ObjectMapper()
+        .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+        .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
     private val key: SecretKey by lazy {
         val bytes = secret.toByteArray(StandardCharsets.UTF_8)
         require(bytes.size >= 32) { "JWT secret must be at least 32 bytes (256 bits) for HS256" }
@@ -44,6 +52,7 @@ class JwtService(
             .claim("name", user.name)
             .claim("role", user.role.name)
             .claim("company", user.company)
+            .claim("sv", user.sessionVersion)
             .issuedAt(Date.from(now))
             .expiration(Date.from(exp))
             .signWith(key, Jwts.SIG.HS256)
@@ -80,11 +89,21 @@ class JwtService(
             .build()
             .parseSignedClaims(token)
             .payload
-            .takeIf(::hasValidAccessClaims)
+            .takeIf { hasValidAccessClaims(it) && (isPharmacistToken(it) || hasValidSignedAdminVersion(token)) }
     } catch (_: JwtException) {
         null
     } catch (_: IllegalArgumentException) {
         null
+    } catch (_: JacksonException) {
+        null
+    }
+
+    private fun hasValidSignedAdminVersion(verifiedToken: String): Boolean {
+        // JJWT normalizes explicit null claims away. Inspect only the already signature-verified
+        // JSON so an explicit null cannot masquerade as an absent legacy version claim.
+        val raw = signedClaimsMapper.readTree(Base64.getUrlDecoder().decode(verifiedToken.substringAfter('.').substringBefore('.')))
+        val version = raw.get("sv") ?: return true
+        return version.isIntegralNumber && version.canConvertToLong() && version.longValue() >= 0
     }
 
     private fun hasValidAccessClaims(claims: Claims): Boolean {
@@ -95,13 +114,21 @@ class JwtService(
             null -> {
                 UUID.fromString(claims.subject)
                 claims["email"] is String && claims["company"] is String &&
-                    AdminRole.entries.any { it.name == claims["role"] }
+                    AdminRole.entries.any { it.name == claims["role"] } &&
+                    (!claims.containsKey("sv") || when (val version = claims["sv"]) {
+                        is Int -> version >= 0
+                        is Long -> version >= 0
+                        else -> false
+                    })
             }
             else -> false
         }
     }
 
     fun userIdOf(claims: Claims): UUID = UUID.fromString(claims.subject)
+
+    /** Legacy admin JWTs have version zero; only a matching current DB version authenticates. */
+    fun adminSessionVersionOf(claims: Claims): Long = (claims["sv"] as? Number)?.toLong() ?: 0L
 
     fun roleOf(claims: Claims): AdminRole = AdminRole.valueOf(claims["role"] as String)
 

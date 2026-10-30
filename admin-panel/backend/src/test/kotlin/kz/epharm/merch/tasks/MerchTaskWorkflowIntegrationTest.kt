@@ -24,6 +24,7 @@ import kz.epharm.finance.service.WalletCreditSource
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
@@ -135,6 +136,228 @@ class MerchTaskWorkflowIntegrationTest {
         val req=ReviewMerchTaskItem(item.currentAttempt!!.id,item.version,decision,"Manually verified original photo")
         return json.readValue(mvc.perform(post("/api/admin/merch/tasks/items/$itemId/reviews").header("Authorization",auth).contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsBytes(req))).andExpect(status().isOk).andReturn().response.contentAsByteArray,MerchTaskDispatchDto::class.java)
+    }
+
+    private fun mine(limit: Int = 20, offset: Int = 0, auth: String = adminAuth, query: String? = null): MerchTaskDispatchPage {
+        val request = get("/api/admin/merch/tasks").param("queue", "mine").param("limit", limit.toString())
+            .param("offset", offset.toString()).header("Authorization", auth)
+        query?.let { request.param("q", it) }
+        return json.readValue(mvc.perform(request).andExpect(status().isOk).andReturn().response.contentAsByteArray,
+            MerchTaskDispatchPage::class.java)
+    }
+
+    private fun personallyAssignedSource(
+        count: Int = 1,
+        boundAccountId: UUID? = admin.id,
+        boundPersonId: UUID = adminPerson,
+    ): Pair<MerchTaskDispatchDto, UUID> {
+        val task = create(amount = 0, count = count)
+        val source = UUID.randomUUID()
+        jdbc.update("""insert into unified_external_accounts(id,source_system,source_origin,source_payload,full_name,source_role,active,created_at,updated_at)
+            values(?,'MERCH_CRM','https://crm.inkar.kz','{}','Synthetic author','mass_manager',true,now(),now())""", source)
+        if (boundAccountId != null) {
+            jdbc.update("""insert into unified_external_account_bindings(source_account_id,admin_account_id,person_id,verification_reference,verified_by)
+                values(?,?,?,'synthetic-explicit-person-binding',?)""", source, boundAccountId, boundPersonId, admin.id)
+        }
+        jdbc.update("update merch_task_dispatches set source_system='MERCH_CRM',source_origin='https://crm.inkar.kz',source_mass_owner_id=? where id=?", source, task.id)
+        jdbc.update("update merch_task_items set source_assignee_id=? where dispatch_id=?", source, task.id)
+        return task to source
+    }
+
+    @Test fun `mine uses explicit source assignee binding and never creator branch owner or matching name`() {
+        val unassigned = create(amount = 0, count = 1)
+        val (assigned, source) = personallyAssignedSource()
+        assertEquals(listOf(assigned.id), mine().items.map { it.id })
+        assertEquals(assigned.items.single().id, mine().items.single().nextExecutionItemId)
+        assertNull(get(assigned.id).nextExecutionItemId)
+        val ordinary = json.readValue(mvc.perform(get("/api/admin/merch/tasks").header("Authorization", adminAuth))
+            .andExpect(status().isOk).andReturn().response.contentAsByteArray, MerchTaskDispatchPage::class.java)
+        assertTrue(ordinary.items.all { it.nextExecutionItemId == null })
+        grants(reviewer.id, "view", "execute")
+        assertTrue(mine(auth = reviewerAuth).items.isEmpty())
+        jdbc.update("update merch_task_items set source_assignee_id=null where dispatch_id=?", assigned.id)
+        assertTrue(mine().items.isEmpty()) // source_mass_owner_id and creator are still this actor.
+        jdbc.update("update merch_task_items set source_assignee_id=? where dispatch_id=?", source, unassigned.id)
+        assertTrue(mine().items.isEmpty()) // A source UUID on an EPHARM task is not a CRM assignment.
+    }
+
+    @Test fun `mine fails closed for inactive source while verified binding remains append only`() {
+        val (assigned, source) = personallyAssignedSource()
+        jdbc.update("update unified_external_accounts set active=false where id=?", source)
+        assertTrue(mine().items.isEmpty())
+        assertEquals(assigned.id, get(assigned.id).id)
+        jdbc.update("update unified_external_accounts set active=true where id=?", source)
+        assertEquals(assigned.id, mine().items.single().id)
+        assertThrows(DataIntegrityViolationException::class.java) {
+            jdbc.update("update unified_external_account_bindings set person_id=? where source_account_id=?", pharmacistPerson, source)
+        }
+        assertThrows(DataIntegrityViolationException::class.java) {
+            jdbc.update("delete from unified_external_account_bindings where source_account_id=?", source)
+        }
+        assertEquals(assigned.id, mine().items.single().id)
+    }
+
+    @Test fun `mine rejects a source binding to a different verified person`() {
+        val (assigned, _) = personallyAssignedSource(boundPersonId = pharmacistPerson)
+        assertTrue(mine().items.isEmpty())
+        assertEquals(assigned.id, get(assigned.id).id)
+    }
+
+    @Test fun `mine checks the bound account profile and current active status`() {
+        val (assigned, _) = personallyAssignedSource(boundAccountId = reviewer.id)
+        assertTrue(mine().items.isEmpty())
+        assertEquals(assigned.id, get(assigned.id).id)
+        jdbc.update("update unified_admin_profiles set person_id=? where account_id=?", adminPerson, reviewer.id)
+        assertEquals(assigned.id, mine().items.single().id)
+        jdbc.update("update admin_users set status='blocked' where id=?", reviewer.id)
+        assertTrue(mine().items.isEmpty())
+        jdbc.update("update admin_users set status='active' where id=?", reviewer.id)
+        assertEquals(assigned.id, mine().items.single().id)
+    }
+
+    @Test fun `mine never infers a personal assignment from an unbound source account`() {
+        val (assigned, _) = personallyAssignedSource(boundAccountId = null)
+        assertTrue(mine().items.isEmpty())
+        assertEquals(assigned.id, get(assigned.id).id)
+    }
+
+    @Test fun `mine requires verified person and execution permission independently of assigned source identity`() {
+        val (assigned, _) = personallyAssignedSource()
+        grants(admin.id, "view")
+        assertTrue(mine().items.isEmpty())
+        assertEquals(assigned.id, get(assigned.id).id)
+        grants(admin.id, "view", "execute")
+        jdbc.update("update unified_persons set verification_reference=' ' where id=?", adminPerson)
+        assertTrue(mine().items.isEmpty())
+        jdbc.update("update unified_persons set verification_reference='synthetic-proof' where id=?", adminPerson)
+        assertEquals(assigned.id, mine().items.single().id)
+    }
+
+    @Test fun `mine scopes execution before pagination including ALL view and narrower execute grants`() {
+        val otherBranch = UUID.randomUUID()
+        jdbc.update("""insert into merch_branches(id,source_system,source_origin,source_id,source_payload,organization_id,epharm_pharmacy_id,
+            pharmacy_binding_verified,code,name,address,city,active,created_at,updated_at)
+            select ?,'EPHARM','https://epharm.inkar.kz',?,'{}',organization_id,null,
+            false,'002','Other synthetic','','Synthetic',true,now(),now() from merch_branches where id=?""", otherBranch, otherBranch, branch)
+        val first = personallyAssignedSource().first
+        val second = personallyAssignedSource().first
+        val outside = personallyAssignedSource().first
+        jdbc.update("update merch_task_dispatches set created_at=now()-interval '2 hours',title='Personal first' where id=?", first.id)
+        jdbc.update("update merch_task_dispatches set created_at=now()-interval '1 hour',title='Personal second' where id=?", second.id)
+        jdbc.update("update merch_task_dispatches set branch_id=?,title='Personal outside' where id=?", otherBranch, outside.id)
+        fun scopes(viewAll: Boolean, executeAll: Boolean) {
+            val permissions = listOf(
+                StoredGrant("merchandising", "tasks", "view", allMerchBranches = viewAll,
+                    merchBranchIds = if (viewAll) emptySet() else setOf(branch.toString())),
+                StoredGrant("merchandising", "tasks", "execute", allMerchBranches = executeAll,
+                    merchBranchIds = if (executeAll) emptySet() else setOf(branch.toString())),
+            )
+            jdbc.update("update unified_admin_profiles set grants_json=?::jsonb,version=version+1 where account_id=?", json.writeValueAsString(permissions), admin.id)
+        }
+        scopes(viewAll = true, executeAll = false)
+        val pageOne = mine(limit = 1)
+        assertEquals(listOf(second.id), pageOne.items.map { it.id }); assertTrue(pageOne.hasMore)
+        val pageTwo = mine(limit = 1, offset = 1)
+        assertEquals(listOf(first.id), pageTwo.items.map { it.id }); assertFalse(pageTwo.hasMore)
+        assertTrue(mine(limit = 1, offset = 2).items.isEmpty())
+        assertEquals(listOf(first.id), mine(query = "first").items.map { it.id })
+        scopes(viewAll = false, executeAll = true)
+        assertEquals(setOf(first.id, second.id), mine().items.map { it.id }.toSet())
+        scopes(viewAll = true, executeAll = true)
+        assertEquals(3, mine().items.size)
+    }
+
+    @Test fun `mine uses only the current attempt and never past participation or another current executor`() {
+        val (task, _) = personallyAssignedSource(count = 2)
+        val item = task.items.first()
+        val own = start(item.id, adminAuth, false)
+        jdbc.update("update merch_task_items set source_assignee_id=null where dispatch_id=?", task.id)
+        assertEquals(item.id, mine().items.single().nextExecutionItemId)
+        jdbc.update("update merch_task_attempts set status='revision_required' where id=?", own.id)
+        jdbc.update("""insert into merch_task_attempts(id,item_id,attempt_no,executor_person_id,status,created_at)
+            values(?,?,2,?,'draft',now())""", UUID.randomUUID(), item.id, pharmacistPerson)
+        jdbc.update("update merch_task_items set current_attempt=2 where id=?", item.id)
+        assertTrue(mine().items.isEmpty())
+        // A source assignment must not select an item whose current attempt belongs to someone else.
+        val source = jdbc.queryForObject("select source_mass_owner_id from merch_task_dispatches where id=?", UUID::class.java, task.id)
+        jdbc.update("update merch_task_items set source_assignee_id=?,status='revision_required' where id=?", source, item.id)
+        assertTrue(mine().items.isEmpty())
+        val secondItem = task.items.last()
+        start(secondItem.id, adminAuth, false)
+        assertEquals(secondItem.id, mine().items.single().nextExecutionItemId)
+        jdbc.update("update merch_task_items set status='blocked' where id=?", secondItem.id)
+        assertEquals(secondItem.id, mine().items.single().nextExecutionItemId)
+        jdbc.update("update merch_task_items set status='submitted' where id=?", secondItem.id)
+        assertTrue(mine().items.isEmpty())
+    }
+
+    @Test fun `mine includes only the confirmed personal monthly executor and respects foreign monthly ownership`() {
+        val task = create(amount = 0, count = 1)
+        jdbc.update("""insert into merch_monthly_visits(branch_id,placement_month,executor_person_id,dispatch_id,created_at)
+            values(?,date_trunc('month',current_date)::date,?,?,now())""", branch, pharmacistPerson, task.id)
+        assertTrue(mine().items.isEmpty())
+        jdbc.update("update merch_monthly_visits set executor_person_id=? where dispatch_id=?", adminPerson, task.id)
+        assertEquals(task.items.single().id, mine().items.single().nextExecutionItemId)
+        grants(reviewer.id, "view", "execute")
+        assertTrue(mine(auth = reviewerAuth).items.isEmpty())
+        val (sourceTask, _) = personallyAssignedSource()
+        jdbc.update("""insert into merch_monthly_visits(branch_id,placement_month,executor_person_id,dispatch_id,created_at)
+            values(?,date_trunc('month',current_date)::date,?,?,now())""", branch, pharmacistPerson, sourceTask.id)
+        assertEquals(listOf(task.id), mine().items.map { it.id })
+    }
+
+    @Test fun `mine never adopts anonymous QR attempts or shared staff visits as personal work`() {
+        val (task, _) = personallyAssignedSource()
+        val item = task.items.single().id
+        val anonymous = capStart(item, nativeLink(task.id))
+        assertNull(anonymous.executorPersonId)
+        assertTrue(mine().items.isEmpty())
+        jdbc.update("update merch_task_attempts set status='revision_required' where id=?", anonymous.id)
+        jdbc.update("update merch_task_items set status='revision_required' where id=?", item)
+        assertTrue(mine().items.isEmpty()) // Source assignment does not claim a prior anonymous attempt.
+
+        val (shared, _) = personallyAssignedSource()
+        jdbc.update("""insert into merch_staff_visits(id,branch_id,placement_month,dispatch_id,employee_name,created_at,updated_at)
+            values(?,?,date_trunc('month',current_date)::date,?,'Synthetic author',now(),now())""",
+            UUID.randomUUID(), branch, shared.id)
+        assertTrue(mine().items.isEmpty()) // A matching display name and branch are not verified identity.
+    }
+
+    @Test fun `mine excludes terminal future and unresolved legacy work and selects the next eligible item`() {
+        val (task, _) = personallyAssignedSource(count = 2)
+        jdbc.update("update merch_task_items set status='completed' where id=?", task.items.first().id)
+        val actionable = task.items.last().id
+        assertEquals(actionable, mine().items.single().nextExecutionItemId)
+        for (status in listOf("in_progress", "submitted", "blocked", "cancelled")) {
+            jdbc.update("update merch_task_items set status=? where id=?", status, actionable)
+            assertTrue(mine().items.isEmpty(), "Raw legacy $status cannot become a fresh personal attempt")
+        }
+        jdbc.update("update merch_task_items set status='assigned',available_from=now()+interval '1 hour' where id=?", actionable)
+        assertTrue(mine().items.isEmpty())
+        jdbc.update("update merch_task_items set available_from=null where id=?", actionable)
+        for (status in listOf("completed", "cancelled")) {
+            jdbc.update("update merch_task_dispatches set status=? where id=?", status, task.id)
+            assertTrue(mine().items.isEmpty())
+        }
+        jdbc.update("update merch_task_dispatches set status='ready',available_from=now()+interval '1 hour' where id=?", task.id)
+        assertTrue(mine().items.isEmpty())
+        jdbc.update("update merch_task_dispatches set available_from=null where id=?", task.id)
+        jdbc.update("update merch_branches set active=false where id=?", branch)
+        assertTrue(mine().items.isEmpty())
+    }
+
+    @Test fun `mine can navigate an explicitly resumed source assignment without claiming historical executor identity`() {
+        val (task, _) = personallyAssignedSource()
+        val item = task.items.single().id
+        val preserved = UUID.randomUUID()
+        jdbc.update("""insert into merch_task_attempts(id,item_id,attempt_no,status,created_at,source_payload)
+            values(?,?,1,'source_preserved',now(),'{"kind":"epharm.source-task-continuation.v1"}')""", preserved, item)
+        jdbc.update("update merch_task_items set current_attempt=1,status='revision_required' where id=?", item)
+        assertEquals(item, mine().items.single().nextExecutionItemId)
+        val fresh = start(item, adminAuth, false)
+        assertEquals(2, fresh.number)
+        assertNull(jdbc.queryForObject("select executor_person_id from merch_task_attempts where id=?", UUID::class.java, preserved))
+        assertEquals(adminPerson, fresh.executorPersonId)
     }
 
     @Test fun `creator can review another verified executor and only complete required packet credits one dispatch once`() {
@@ -1086,11 +1309,66 @@ class MerchTaskWorkflowIntegrationTest {
         fun query(queue:String,q:String="")=json.readTree(mvc.perform(get("/api/admin/merch/tasks").header("Authorization",adminAuth)
             .param("queue",queue).param("q",q)).andExpect(status().isOk).andReturn().response.contentAsByteArray)
         assertEquals(1,query("review")["items"].size())
+        val summary=query("review")["items"][0]
+        assertEquals(1,summary["pendingReviewCount"].asInt())
+        assertEquals(task.items[0].id.toString(),summary["nextPendingReviewItemId"].asText())
+        assertFalse(summary["detailsIncluded"].asBoolean())
+        assertEquals(0,summary["items"].size())
         assertEquals(1,query("revision")["items"].size())
         assertEquals(1,query("review","100%")["items"].size())
         assertEquals(0,query("review","100_")["items"].size())
         assertEquals(0,query("completed")["items"].size())
         mvc.perform(get("/api/admin/merch/tasks").header("Authorization",adminAuth).param("queue","invented")).andExpect(status().isBadRequest)
+    }
+
+    @Test fun `pending review navigation follows sibling decisions and does not authorize a view only reader`() {
+        val task=create(0,2)
+        assertEquals(0,task.pendingReviewCount);assertNull(task.nextPendingReviewItemId)
+        task.items.forEach { item -> val attempt=start(item.id);upload(item.id);submit(item,attempt) }
+        val submitted=get(task.id)
+        assertEquals(2,submitted.pendingReviewCount)
+        assertEquals(task.items.first().id,submitted.nextPendingReviewItemId)
+        assertTrue(submitted.items.all { it.canReview })
+        val revised=review(task.id,task.items.first().id,"revision")
+        assertEquals("revision_required",revised.status)
+        assertEquals(1,revised.pendingReviewCount)
+        assertEquals(task.items.last().id,revised.nextPendingReviewItemId)
+        grants(admin.id,"view")
+        val readOnly=get(task.id)
+        assertEquals(1,readOnly.pendingReviewCount)
+        assertEquals(task.items.last().id,readOnly.nextPendingReviewItemId)
+        assertTrue(readOnly.items.none { it.canReview })
+        val finished=review(task.id,task.items.last().id,auth=reviewerAuth)
+        assertEquals(0,finished.pendingReviewCount);assertNull(finished.nextPendingReviewItemId)
+        assertEquals("revision_required",finished.status)
+    }
+
+    @Test fun `pending review summaries preserve branch scope and page boundaries`() {
+        val first=create(0,2);val second=create(0,1);val hidden=create(0,3)
+        jdbc.update("update merch_task_items set status='submitted'")
+        val outside=UUID.randomUUID()
+        jdbc.update("""INSERT INTO merch_branches(id,source_system,source_origin,source_id,source_payload,organization_id,
+            code,name,address,city,active,created_at,updated_at)
+            SELECT ?,'EPHARM',source_origin,?,'{}',organization_id,'OUTSIDE','Outside scope','','',true,now(),now()
+            FROM merch_branches WHERE id=?""",outside,outside,branch)
+        jdbc.update("update merch_task_dispatches set branch_id=? where id=?",outside,hidden.id)
+        jdbc.update("update merch_task_dispatches set created_at=? where id=?",Timestamp.from(Instant.parse("2026-01-03T00:00:00Z")),hidden.id)
+        jdbc.update("update merch_task_dispatches set created_at=? where id=?",Timestamp.from(Instant.parse("2026-01-02T00:00:00Z")),first.id)
+        jdbc.update("update merch_task_dispatches set created_at=? where id=?",Timestamp.from(Instant.parse("2026-01-01T00:00:00Z")),second.id)
+        grants(admin.id,"view")
+        fun page(offset:Int)=json.readValue(mvc.perform(get("/api/admin/merch/tasks").header("Authorization",adminAuth)
+            .param("queue","review").param("limit","1").param("offset",offset.toString()))
+            .andExpect(status().isOk).andReturn().response.contentAsByteArray,MerchTaskDispatchPage::class.java)
+        val firstPage=page(0)
+        assertTrue(firstPage.hasMore);assertEquals(first.id,firstPage.items.single().id)
+        assertEquals(2,firstPage.items.single().pendingReviewCount)
+        assertEquals(first.items.first().id,firstPage.items.single().nextPendingReviewItemId)
+        assertTrue(firstPage.items.single().items.isEmpty());assertNull(firstPage.items.single().rewardAmountKzt)
+        val lastPage=page(1)
+        assertFalse(lastPage.hasMore);assertEquals(second.id,lastPage.items.single().id)
+        assertEquals(1,lastPage.items.single().pendingReviewCount)
+        assertTrue(page(2).items.isEmpty())
+        mvc.perform(get("/api/admin/merch/tasks/${hidden.id}").header("Authorization",adminAuth)).andExpect(status().isForbidden)
     }
 
     private fun webpFixture(name:String)=javaClass.getResourceAsStream("/placement-reference/$name.webp")!!.use {it.readBytes()}

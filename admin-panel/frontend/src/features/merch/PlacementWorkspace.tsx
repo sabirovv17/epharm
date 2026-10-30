@@ -87,7 +87,7 @@ export default function PlacementWorkspace({
     list.reload()
   }
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-4">
       <PageHeader
         title={gateway.realm === 'admin' ? 'Кабинет производителя' : 'Мои размещения'}
         subtitle={
@@ -96,7 +96,7 @@ export default function PlacementWorkspace({
             : `${customerName ?? 'Производитель'} · собственные медиапланы и доступные места.`
         }
       />
-      <div className="card flex flex-wrap items-end gap-3 p-4">
+      <div className="card flex min-w-0 flex-wrap items-end gap-3 p-4 [&>label]:min-w-0 [&>label]:w-full sm:[&>label]:w-auto">
         {gateway.realm === 'admin' && (
           <Field label="Производитель">
             <Select
@@ -148,53 +148,74 @@ export default function PlacementWorkspace({
       {list.pending && <p role="status">Загружаем медиапланы…</p>}
       {!!list.error && <Notice error={list.error} onReload={list.reload} />}
       {list.data && (
-        <div className="card overflow-auto">
-          <table className="w-full text-left text-[13px]">
-            <thead className="bg-paper-input">
-              <tr>
-                {['Производитель', 'Месяц', 'Статус', 'Сумма', 'Резерв', ''].map((title) => (
-                  <th key={title} className="p-3">
-                    {title}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {list.data.items.map((item) => (
-                <tr key={item.id} className="border-t border-paper-line">
-                  <td className="p-3 font-semibold">
-                    {item.producerName ?? item.advertiserName ?? 'Компания не указана'}
-                    {item.producerBindingStatus === 'unresolved' && (
-                      <span className="block text-[11px] font-normal text-ink-500">
-                        Владелец не подтверждён
-                      </span>
-                    )}
-                  </td>
-                  <td className="p-3">{item.placementMonth.slice(0, 7)}</td>
-                  <td className="p-3">{labels[item.status]}</td>
-                  <td className="p-3">{amount(item.totalAmount)}</td>
-                  <td className="p-3">
-                    {item.reservationState === 'expired'
-                      ? 'Истёк'
-                      : item.heldUntil
-                        ? new Date(item.heldUntil).toLocaleString('ru-RU', {
-                            timeZone: item.reservationTimezone,
-                          })
-                        : '—'}
-                  </td>
-                  <td className="p-3">
-                    <Button variant="outline" size="sm" onClick={() => setDetailId(item.id)}>
-                      Открыть
-                    </Button>
-                  </td>
+        <div className="card min-w-0 overflow-hidden">
+          <p className="border-b border-paper-line px-3 py-2 text-xs text-ink-500 sm:hidden">
+            Нажмите на название, чтобы открыть план. Остальные столбцы — по горизонтальной
+            прокрутке.
+          </p>
+          <div
+            role="region"
+            aria-label="Список медиапланов — горизонтальная прокрутка"
+            tabIndex={0}
+            className="max-w-full overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-green-500"
+          >
+            <table className="w-full min-w-[680px] text-left text-[13px]">
+              <caption className="sr-only">
+                Медиапланы: производитель, месяц, статус, сумма и резерв
+              </caption>
+              <thead className="bg-paper-input">
+                <tr>
+                  {['Производитель', 'Месяц', 'Статус', 'Сумма', 'Резерв', ''].map((title) => (
+                    <th key={title} className="p-3">
+                      {title}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {list.data.items.map((item) => (
+                  <tr key={item.id} className="border-t border-paper-line">
+                    <td className="p-3 font-semibold">
+                      <button
+                        type="button"
+                        className="min-h-10 text-left underline decoration-ink-200 underline-offset-4 hover:text-brand-green-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-green-500"
+                        aria-label={`Открыть медиаплан: ${item.producerName ?? item.advertiserName ?? 'Компания не указана'}, ${item.placementMonth.slice(0, 7)}`}
+                        onClick={() => setDetailId(item.id)}
+                      >
+                        {item.producerName ?? item.advertiserName ?? 'Компания не указана'}
+                      </button>
+                      {item.producerBindingStatus === 'unresolved' && (
+                        <span className="block text-[11px] font-normal text-ink-500">
+                          Владелец не подтверждён
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-3">{item.placementMonth.slice(0, 7)}</td>
+                    <td className="p-3">{labels[item.status]}</td>
+                    <td className="p-3">{amount(item.totalAmount)}</td>
+                    <td className="p-3">
+                      {item.reservationState === 'expired'
+                        ? 'Истёк'
+                        : item.heldUntil
+                          ? new Date(item.heldUntil).toLocaleString('ru-RU', {
+                              timeZone: item.reservationTimezone,
+                            })
+                          : '—'}
+                    </td>
+                    <td className="p-3">
+                      <Button variant="outline" size="sm" onClick={() => setDetailId(item.id)}>
+                        Открыть
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           {!list.data.items.length && (
             <p className="p-6 text-ink-500">Медиапланов по этим условиям нет.</p>
           )}
-          <div className="flex items-center gap-3 border-t p-3">
+          <div className="flex flex-wrap items-center gap-3 border-t p-3">
             <Button
               variant="outline"
               disabled={offset === 0}
@@ -356,9 +377,9 @@ function PlacementDetail({
           {!!read.error && <Notice error={read.error} onReload={reload} />}
           {failure !== null && <Notice error={failure} onReload={reload} />}
           {item && (
-            <div className="flex flex-col gap-4">
+            <div className="flex min-w-0 flex-col gap-4">
               <div>
-                <h2 className="text-lg font-bold">
+                <h2 className="break-words text-lg font-bold">
                   {item.producerName ?? item.advertiserName ?? 'Компания не указана'}
                 </h2>
                 <p className="mt-1 text-[13px] text-ink-500">
@@ -402,62 +423,70 @@ function PlacementDetail({
                   Это резервирование места. Оплата не подключена.
                 </p>
               </div>
-              <table className="w-full text-left text-[12px]">
-                <thead>
-                  <tr>
-                    {gateway.realm === 'admin' && gateway.reviewItems && (
-                      <th className="p-2">Решение по позиции</th>
-                    )}
-                    <th className="p-2">Место</th>
-                    <th className="p-2">Часть</th>
-                    <th className="p-2">Статус позиции</th>
-                    <th className="p-2">Цена</th>
-                    <th className="p-2">Фото заказчика</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {item.items.map((row) => (
-                    <tr key={row.id} className="border-t border-paper-line">
+              <div
+                role="region"
+                aria-label="Позиции медиаплана — горизонтальная прокрутка"
+                tabIndex={0}
+                className="max-w-full overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-green-500"
+              >
+                <table className="w-full min-w-[600px] text-left text-[12px]">
+                  <caption className="sr-only">Позиции медиаплана и доступные действия</caption>
+                  <thead>
+                    <tr>
                       {gateway.realm === 'admin' && gateway.reviewItems && (
-                        <td className="p-2">
-                          <input
-                            type="checkbox"
-                            aria-label={`Выбрать позицию ${row.shelfCode} ${portions[row.portion]}`}
-                            disabled={
-                              pending ||
-                              row.status !== 'pending' ||
-                              !(item.canApprove || item.canReject)
-                            }
-                            checked={selectedItems.includes(row.id)}
-                            onChange={() =>
-                              setSelectedItems((values) =>
-                                values.includes(row.id)
-                                  ? values.filter((value) => value !== row.id)
-                                  : [...values, row.id],
-                              )
-                            }
-                          />
-                        </td>
+                        <th className="p-2">Решение по позиции</th>
                       )}
-                      <td className="p-2">{row.shelfCode}</td>
-                      <td className="p-2">{portions[row.portion]}</td>
-                      <td className="p-2">{labels[row.status]}</td>
-                      <td className="p-2">{amount(row.monthlyPrice)}</td>
-                      <td className="p-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            setReferenceItem((value) => (value === row.id ? '' : row.id))
-                          }
-                        >
-                          Фото позиции {row.shelfCode}
-                        </Button>
-                      </td>
+                      <th className="p-2">Место</th>
+                      <th className="p-2">Часть</th>
+                      <th className="p-2">Статус позиции</th>
+                      <th className="p-2">Цена</th>
+                      <th className="p-2">Фото заказчика</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {item.items.map((row) => (
+                      <tr key={row.id} className="border-t border-paper-line">
+                        {gateway.realm === 'admin' && gateway.reviewItems && (
+                          <td className="p-2">
+                            <input
+                              type="checkbox"
+                              aria-label={`Выбрать позицию ${row.shelfCode} ${portions[row.portion]}`}
+                              disabled={
+                                pending ||
+                                row.status !== 'pending' ||
+                                !(item.canApprove || item.canReject)
+                              }
+                              checked={selectedItems.includes(row.id)}
+                              onChange={() =>
+                                setSelectedItems((values) =>
+                                  values.includes(row.id)
+                                    ? values.filter((value) => value !== row.id)
+                                    : [...values, row.id],
+                                )
+                              }
+                            />
+                          </td>
+                        )}
+                        <td className="p-2">{row.shelfCode}</td>
+                        <td className="p-2">{portions[row.portion]}</td>
+                        <td className="p-2">{labels[row.status]}</td>
+                        <td className="p-2">{amount(row.monthlyPrice)}</td>
+                        <td className="p-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              setReferenceItem((value) => (value === row.id ? '' : row.id))
+                            }
+                          >
+                            Фото позиции {row.shelfCode}
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
               {referenceItem && item.items.some((row) => row.id === referenceItem) && (
                 <PlacementReferencePanel
                   key={`${item.id}:${referenceItem}`}
@@ -710,7 +739,7 @@ function PlacementEditor({
           }
         >
           <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 [&>label]:min-w-0">
               {gateway.realm === 'admin' && (
                 <Field label="Производитель">
                   <Select
@@ -770,7 +799,7 @@ function PlacementEditor({
                     }))}
                   />
                 </Field>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <Button
                     variant="outline"
                     size="sm"
@@ -796,8 +825,13 @@ function PlacementEditor({
                   </Button>
                 </div>
                 {branch && (
-                  <div className="rounded-lg border border-paper-line">
-                    <table className="w-full text-left text-[12px]">
+                  <div
+                    className="max-w-full overflow-x-auto rounded-lg border border-paper-line"
+                    role="region"
+                    aria-label="Доступные места — горизонтальная прокрутка"
+                    tabIndex={0}
+                  >
+                    <table className="w-full min-w-[360px] text-left text-[12px]">
                       <thead className="bg-paper-input">
                         <tr>
                           <th className="p-2">Место</th>

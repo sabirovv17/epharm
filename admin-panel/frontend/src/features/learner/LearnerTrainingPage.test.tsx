@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import LearnerTrainingPage from './LearnerTrainingPage'
@@ -1031,136 +1031,260 @@ describe('learner training portal', () => {
     })
   })
 
-  it('submits a scored lesson test and completes it only after a passing result', async () => {
+  it.each([true, false])(
+    'shows only the score after a quiz attempt and reload (passed: %s)',
+    async (passed) => {
+      localStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
+      let attempt = 0
+      const score = passed ? 100 : 50
+      let releaseOverview!: () => void
+      const overviewReady = new Promise<void>((resolve) => {
+        releaseOverview = resolve
+      })
+      const quizLesson = {
+        id: 'quiz-1',
+        title: 'Итоговый тест',
+        kind: 'quiz',
+        order: 0,
+        required: true,
+        progressPct: 0,
+        quizPassingScore: 80,
+        quizQuestions: [
+          { id: 'q-1', prompt: 'Когда принимать препарат?', options: ['До еды', 'После еды'] },
+          { id: 'q-2', prompt: 'Сколько таблеток?', options: ['Одну', 'Две'] },
+        ],
+        attachments: [],
+      }
+      const assignment = {
+        id: 'assignment-quiz',
+        programName: 'Тестирование',
+        pharmacyName: 'Ауэзова 134',
+        city: 'Алматы',
+        status: 'in_progress',
+        format: 'online',
+        progressPct: 0,
+        startedAt: '2026-09-01T10:00:00Z',
+        stages: [
+          {
+            id: 'stage-quiz',
+            title: 'Проверка знаний',
+            type: 'online_course',
+            status: 'in_progress',
+            progressPct: 0,
+            course: {
+              id: 'course-quiz',
+              title: 'Проверка знаний',
+              lessons: [
+                quizLesson,
+                { ...quizLesson, id: 'quiz-2', title: 'Следующая проверка', order: 1 },
+              ],
+            },
+          },
+        ],
+      }
+      const completedAssignment = {
+        ...assignment,
+        progressPct: passed ? 50 : 0,
+        stages: [
+          {
+            ...assignment.stages[0],
+            status: 'in_progress',
+            progressPct: passed ? 50 : 0,
+            course: {
+              ...assignment.stages[0].course,
+              lessons: [
+                {
+                  ...quizLesson,
+                  progressPct: passed ? 100 : 0,
+                  quizScore: score,
+                  quizAttempts: 1,
+                  completedAt: passed ? '2026-09-01T10:10:00Z' : null,
+                },
+                assignment.stages[0].course.lessons[1],
+              ],
+            },
+          },
+        ],
+      }
+      const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+        const path = String(input)
+        if (path === '/api/mobile/auth/me') {
+          return json({
+            id: 'ph-1',
+            name: 'Айжан',
+            phone: '+77070000000',
+            pharmacyName: 'Ауэзова 134',
+            city: 'Алматы',
+          })
+        }
+        if (path === '/api/mobile/training/assignments/assignment-quiz')
+          return json(attempt ? completedAssignment : assignment)
+        if (path.endsWith('/stages/stage-quiz/lessons/quiz-1/quiz') && init?.method === 'POST') {
+          attempt += 1
+          return json({
+            score,
+            passed,
+            correctAnswers: passed ? 2 : 1,
+            totalQuestions: 2,
+            attempt,
+            questions: [
+              {
+                questionId: 'q-1',
+                correct: true,
+                correctOption: 0,
+                explanation: 'Скрытый разбор ответа',
+              },
+              { questionId: 'q-2', correct: true, correctOption: 1, explanation: '' },
+            ],
+            assignment: completedAssignment,
+          })
+        }
+        if (path === '/api/mobile/training') {
+          if (!passed && attempt === 1) await overviewReady
+          return json({
+            total: 1,
+            inProgress: 0,
+            completed: 1,
+            overdue: 0,
+            assignments: [completedAssignment],
+          })
+        }
+        return json({ message: `Unexpected request: ${path}` }, 500)
+      })
+
+      const portal = renderPortal('/learn/course/assignment-quiz/lesson/quiz-1')
+      expect(await screen.findByRole('heading', { name: 'Итоговый тест' })).toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('button', { name: 'Завершить тест' }))
+      await waitFor(() =>
+        expect(document.activeElement).toHaveAttribute('id', 'quiz-question-card-q-1'),
+      )
+      await userEvent.click(screen.getByRole('radio', { name: 'До еды' }))
+
+      await userEvent.click(screen.getByRole('button', { name: 'Завершить тест' }))
+      await waitFor(() =>
+        expect(document.activeElement).toHaveAttribute('id', 'quiz-question-card-q-2'),
+      )
+      await userEvent.click(screen.getByRole('radio', { name: 'Две' }))
+      await userEvent.click(screen.getByRole('button', { name: 'Завершить тест' }))
+
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledWith(
+          '/api/mobile/training/assignments/assignment-quiz/stages/stage-quiz/lessons/quiz-1/quiz',
+          expect.objectContaining({
+            method: 'POST',
+            body: JSON.stringify({ answers: { 'q-1': 0, 'q-2': 1 } }),
+          }),
+        )
+      })
+      expect(
+        await screen.findByText(passed ? 'Тест пройден' : 'Тест не пройден'),
+      ).toBeInTheDocument()
+      if (!passed) {
+        const retry = screen.getByRole('button', { name: 'Повторить тест' })
+        expect(retry).toBeDisabled()
+        await userEvent.click(retry)
+        expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+        releaseOverview()
+        await waitFor(() => expect(retry).toBeEnabled())
+      }
+      expect(await screen.findByText(new RegExp(`Результат: ${score}%`))).toBeInTheDocument()
+      expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+      expect(screen.queryByText('Скрытый разбор ответа')).not.toBeInTheDocument()
+      expect(
+        document.querySelector('[data-answer-state="correct"], [data-answer-state="incorrect"]'),
+      ).toBeNull()
+      if (!passed) {
+        await userEvent.click(screen.getByRole('button', { name: 'Повторить тест' }))
+        expect(
+          screen.getAllByRole('radio').every((radio) => !(radio as HTMLInputElement).checked),
+        ).toBe(true)
+        await userEvent.click(screen.getByRole('radio', { name: 'До еды' }))
+        await userEvent.click(screen.getByRole('radio', { name: 'Две' }))
+        await userEvent.click(screen.getByRole('button', { name: 'Завершить тест' }))
+        expect(await screen.findByText(/Попытка 2/)).toBeInTheDocument()
+        expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+      } else {
+        await userEvent.click(screen.getByRole('button', { name: 'Следующий урок' }))
+        expect(
+          await screen.findByRole('heading', { name: 'Следующая проверка' }),
+        ).toBeInTheDocument()
+        expect(screen.queryByText('Тест пройден')).not.toBeInTheDocument()
+        expect(
+          screen.getAllByRole('radio').every((radio) => !(radio as HTMLInputElement).checked),
+        ).toBe(true)
+      }
+      portal.unmount()
+      renderPortal('/learn/course/assignment-quiz/lesson/quiz-1')
+      expect(
+        await screen.findByText(passed ? 'Тест пройден' : 'Тест не пройден'),
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+      expect(
+        screen.queryByText(/Правильный ответ|Неправильный ответ|Скрытый разбор/),
+      ).not.toBeInTheDocument()
+    },
+  )
+
+  it('labels a saved best quiz score separately from the total attempt count', async () => {
     localStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
-    const quizLesson = {
-      id: 'quiz-1',
-      title: 'Итоговый тест',
-      kind: 'quiz',
-      order: 0,
-      required: true,
-      progressPct: 0,
-      quizPassingScore: 80,
-      quizQuestions: [
-        { id: 'q-1', prompt: 'Когда принимать препарат?', options: ['До еды', 'После еды'] },
-        { id: 'q-2', prompt: 'Сколько таблеток?', options: ['Одну', 'Две'] },
-      ],
-      attachments: [],
-    }
     const assignment = {
-      id: 'assignment-quiz',
-      programName: 'Тестирование',
-      pharmacyName: 'Ауэзова 134',
-      city: 'Алматы',
+      id: 'saved-quiz',
+      programName: 'Сохранённое обучение',
       status: 'in_progress',
+      pharmacyName: 'Аптека',
+      city: 'Алматы',
       format: 'online',
       progressPct: 0,
-      startedAt: '2026-09-01T10:00:00Z',
       stages: [
         {
-          id: 'stage-quiz',
-          title: 'Проверка знаний',
+          id: 'stage',
+          title: 'Тест',
           type: 'online_course',
           status: 'in_progress',
           progressPct: 0,
-          course: { id: 'course-quiz', title: 'Проверка знаний', lessons: [quizLesson] },
-        },
-      ],
-    }
-    const completedAssignment = {
-      ...assignment,
-      progressPct: 100,
-      stages: [
-        {
-          ...assignment.stages[0],
-          status: 'completed',
-          progressPct: 100,
           course: {
-            ...assignment.stages[0].course,
+            id: 'course',
+            title: 'Тест',
             lessons: [
               {
-                ...quizLesson,
-                progressPct: 100,
-                quizScore: 100,
-                quizAttempts: 1,
-                completedAt: '2026-09-01T10:10:00Z',
+                id: 'quiz',
+                title: 'Проверка знаний',
+                kind: 'quiz',
+                required: true,
+                progressPct: 0,
+                quizScore: 60,
+                quizAttempts: 2,
+                quizPassingScore: 80,
+                quizQuestions: [
+                  { id: 'question', prompt: 'Учебный вопрос', options: ['Вариант А', 'Вариант Б'] },
+                ],
               },
             ],
           },
         },
       ],
     }
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const path = String(input)
-      if (path === '/api/mobile/auth/me') {
-        return json({
-          id: 'ph-1',
-          name: 'Айжан',
-          phone: '+77070000000',
-          pharmacyName: 'Ауэзова 134',
-          city: 'Алматы',
-        })
-      }
-      if (path === '/api/mobile/training/assignments/assignment-quiz') return json(assignment)
-      if (path.endsWith('/stages/stage-quiz/lessons/quiz-1/quiz') && init?.method === 'POST') {
-        return json({
-          score: 100,
-          passed: true,
-          correctAnswers: 2,
-          totalQuestions: 2,
-          attempt: 1,
-          questions: [
-            { questionId: 'q-1', correct: true, correctOption: 0, explanation: '' },
-            { questionId: 'q-2', correct: true, correctOption: 1, explanation: '' },
-          ],
-          assignment: completedAssignment,
-        })
-      }
-      if (path === '/api/mobile/training') {
+      if (path === '/api/mobile/auth/me') return json({ id: 'ph-1', name: 'Айжан' })
+      if (path === '/api/mobile/training/assignments/saved-quiz') return json(assignment)
+      if (path === '/api/mobile/training')
         return json({
           total: 1,
-          inProgress: 0,
-          completed: 1,
+          inProgress: 1,
+          completed: 0,
           overdue: 0,
-          assignments: [completedAssignment],
+          assignments: [assignment],
         })
-      }
-      return json({ message: `Unexpected request: ${path}` }, 500)
+      return json({ items: [] })
     })
-
-    renderPortal('/learn/course/assignment-quiz/lesson/quiz-1')
-    expect(await screen.findByRole('heading', { name: 'Итоговый тест' })).toBeInTheDocument()
-
-    await userEvent.click(screen.getByRole('button', { name: 'Завершить тест' }))
-    await waitFor(() =>
-      expect(document.activeElement).toHaveAttribute('id', 'quiz-question-card-q-1'),
-    )
-    await userEvent.click(screen.getByRole('radio', { name: 'До еды' }))
-
-    await userEvent.click(screen.getByRole('button', { name: 'Завершить тест' }))
-    await waitFor(() =>
-      expect(document.activeElement).toHaveAttribute('id', 'quiz-question-card-q-2'),
-    )
-    await userEvent.click(screen.getByRole('radio', { name: 'Две' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Завершить тест' }))
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/mobile/training/assignments/assignment-quiz/stages/stage-quiz/lessons/quiz-1/quiz',
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify({ answers: { 'q-1': 0, 'q-2': 1 } }),
-        }),
-      )
-    })
-    expect(await screen.findByText('Тест пройден')).toBeInTheDocument()
-    expect(screen.getByText(/Результат: 100%/)).toBeInTheDocument()
-    expect(screen.getByText('До еды').closest('label')).toHaveAttribute(
-      'data-answer-state',
-      'correct',
-    )
-    expect(screen.getByText('До еды').closest('label')).toHaveClass('bg-[#e7f8ef]')
-    expect(screen.getByText('Две').closest('label')).toHaveAttribute('data-answer-state', 'correct')
+    renderPortal('/learn/course/saved-quiz/lesson/quiz')
+    expect(await screen.findByText('Тест не пройден')).toBeInTheDocument()
+    expect(screen.getByText('Лучший результат: 60% · Попыток: 2')).toBeInTheDocument()
+    expect(screen.queryByText(/Попытка 2/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Повторить тест' })).toBeEnabled()
   })
 
   it('keeps the home page focused on active training and puts certificates in a separate tab', async () => {
@@ -1273,6 +1397,103 @@ describe('learner training portal', () => {
     expect(await screen.findByRole('link', { name: /Завершённый курс/ })).toHaveAttribute(
       'href',
       '/certificate.pdf',
+    )
+  })
+
+  it('separates active courses from history, preserves actual scores and exposes no bank intake', async () => {
+    localStorage.setItem('epharm.learner.tokens', JSON.stringify(tokens))
+    const active = {
+      id: 'active',
+      programName: 'Продолжаем обучение',
+      status: 'in_progress',
+      pharmacyName: 'Аптека',
+      city: 'Алматы',
+      format: 'online',
+      progressPct: 40,
+      stages: [
+        {
+          id: 'stage',
+          title: 'Материалы',
+          status: 'in_progress',
+          type: 'online_course',
+          progressPct: 40,
+          course: {
+            id: 'course',
+            title: 'Материалы',
+            lessons: [
+              { id: 'lesson', title: 'Практический пример', kind: 'text', progressPct: 0 },
+              { id: 'quiz', title: 'Проверка знаний', kind: 'quiz', progressPct: 0 },
+            ],
+          },
+        },
+      ],
+    }
+    const completed = {
+      ...active,
+      id: 'completed',
+      programName: 'Завершено с оценкой',
+      status: 'completed',
+      progressPct: 100,
+      score: 80,
+      completedAt: '2026-10-29T10:00:00Z',
+      certificate: { id: 'cert', number: 'EPH-80', score: 80, pdfUrl: '/certificate-80.pdf' },
+    }
+    const unscored = {
+      ...completed,
+      id: 'unscored',
+      programName: 'Без аттестации',
+      score: null,
+      certificate: null,
+    }
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const path = String(input)
+      if (path === '/api/mobile/auth/me')
+        return json({ id: 'ph-1', name: 'Айжан', pharmacyName: 'Аптека', city: 'Алматы' })
+      if (path === '/api/mobile/training')
+        return json({
+          total: 3,
+          inProgress: 1,
+          completed: 2,
+          overdue: 0,
+          assignments: [active, completed, unscored],
+        })
+      if (path === '/api/mobile/me/balance') return json({ balanceKzt: 1500 })
+      return json({ items: [] })
+    })
+    renderPortal('/learn/training')
+    expect(await screen.findByRole('heading', { name: active.programName })).toBeInTheDocument()
+    expect(screen.getByText('Материалов: 1 · Тестов: 1')).toBeInTheDocument()
+    expect(screen.getByText('Следующий урок: Практический пример')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: completed.programName })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'История обучения 2' }))
+    expect(screen.getByRole('button', { name: 'История обучения 2' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.queryByRole('heading', { name: active.programName })).not.toBeInTheDocument()
+    const scoredCard = screen
+      .getByRole('heading', { name: completed.programName })
+      .closest('article')!
+    expect(within(scoredCard).getByText('Прогресс: 100%')).toBeInTheDocument()
+    expect(within(scoredCard).getByText('Результат: 80%')).toBeInTheDocument()
+    expect(within(scoredCard).getByRole('link', { name: 'Скачать сертификат' })).toHaveAttribute(
+      'href',
+      '/certificate-80.pdf',
+    )
+    expect(
+      within(scoredCard).getByRole('button', { name: 'Повторить материалы' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Курс завершён без оценки')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Мои курсы 1' }))
+    expect(screen.getByRole('heading', { name: active.programName })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Профиль' }))
+    const bank = await screen.findByRole('region', { name: 'Банковская карта' })
+    expect(within(bank).getByText('Не подключена')).toBeInTheDocument()
+    await userEvent.click(within(bank).getByRole('button', { name: 'Как подключить карту' }))
+    expect(within(bank).getByRole('status')).toHaveTextContent('реквизиты не запрашиваются')
+    expect(bank.querySelector('input, textarea, form')).toBeNull()
+    expect(fetchMock.mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(
+      true,
     )
   })
 

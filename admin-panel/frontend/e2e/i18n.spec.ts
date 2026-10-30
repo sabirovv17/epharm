@@ -1,8 +1,8 @@
 // E2E: локализация — переключение языка ru↔kk через Settings.
 // Проверяем, что меняется навигация, заголовок секции и что выбор персистится.
 //
-// Селектор языка: на /settings ровно 2 <select> — [0] часовой пояс, [1] язык.
-// Берём .locator('select').nth(1), чтобы не зависеть от меняющейся подписи (Язык/Тіл).
+// На /settings остался один рабочий combobox — язык. Неподключённый timezone
+// отображается disabled input, а не фиктивным редактируемым select.
 
 import { test, expect, openSidebarModule } from './fixtures'
 
@@ -12,7 +12,7 @@ test.describe('i18n — переключение языка ru ↔ kk', () => {
     await page.goto('/settings')
     await expect(page.getByRole('heading', { level: 1, name: 'Настройки' })).toBeVisible()
 
-    await page.locator('select').nth(1).selectOption('kk')
+    await page.getByRole('combobox').selectOption('kk')
 
     await expect(page.getByRole('heading', { level: 1, name: 'Баптаулар' })).toBeVisible()
     await openSidebarModule(page, 'Аналитика')
@@ -23,16 +23,16 @@ test.describe('i18n — переключение языка ru ↔ kk', () => {
   test('переключение назад на Русский', async ({ loggedInPage }) => {
     const page = loggedInPage
     await page.goto('/settings')
-    await page.locator('select').nth(1).selectOption('kk')
+    await page.getByRole('combobox').selectOption('kk')
     await expect(page.getByRole('heading', { level: 1, name: 'Баптаулар' })).toBeVisible()
-    await page.locator('select').nth(1).selectOption('ru')
+    await page.getByRole('combobox').selectOption('ru')
     await expect(page.getByRole('heading', { level: 1, name: 'Настройки' })).toBeVisible()
   })
 
   test('язык сохраняется после перезагрузки', async ({ loggedInPage }) => {
     const page = loggedInPage
     await page.goto('/settings')
-    await page.locator('select').nth(1).selectOption('kk')
+    await page.getByRole('combobox').selectOption('kk')
     await expect(page.getByRole('heading', { level: 1, name: 'Баптаулар' })).toBeVisible()
 
     await page.reload()
@@ -42,7 +42,7 @@ test.describe('i18n — переключение языка ru ↔ kk', () => {
   test('казахский язык виден на других секциях (Промо)', async ({ loggedInPage }) => {
     const page = loggedInPage
     await page.goto('/settings')
-    await page.locator('select').nth(1).selectOption('kk')
+    await page.getByRole('combobox').selectOption('kk')
     await expect(page.getByRole('heading', { level: 1, name: 'Баптаулар' })).toBeVisible()
 
     await openSidebarModule(page, 'Фармацевттерді ынталандыру')

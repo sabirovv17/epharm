@@ -116,10 +116,16 @@ function ExecutorVerification({
       setPending(false)
     }
   }
-  if (context.pending) return <p role="status">Проверяем исполнителя задания…</p>
+  if (context.pending)
+    return (
+      <p role="status" className="card p-5 text-sm text-ink-500">
+        Проверяем исполнителя задания…
+      </p>
+    )
   if (context.error || !context.data || context.data.dispatchId !== id)
     return (
       <div role="alert" className="card p-5">
+        <h2 className="mb-2 text-lg font-bold">Подтверждение пока недоступно</h2>
         <p>
           {context.error instanceof Error
             ? context.error.message
@@ -131,12 +137,15 @@ function ExecutorVerification({
       </div>
     )
   return (
-    <section className="card flex max-w-2xl flex-col gap-4 p-5">
+    <section className="card flex w-full max-w-2xl flex-col gap-5 p-4 sm:p-6">
+      <p role="status" className="text-xs font-bold uppercase tracking-wider text-brand-green-700">
+        {challenge ? 'Шаг 2 из 2 · Код из SMS' : 'Шаг 1 из 2 · Проверка данных'}
+      </p>
       <h2 className="text-xl font-bold">Подтвердите исполнителя</h2>
-      <p className="text-sm">
+      <p className="rounded-xl bg-paper-input p-4 text-sm font-semibold leading-6">
         {context.data.taskTitle} · {context.data.pharmacyName}
       </p>
-      <p className="text-sm text-ink-500">
+      <p className="text-sm leading-6 text-ink-500">
         Предусмотрено: {formatKzt(context.data.amountKzt)}. Код отправляется на телефон вашего
         личного аккаунта: {context.data.phoneMasked}. Подтверждение связывает задание с вами;
         начисление — после проверки выполнения.
@@ -169,7 +178,10 @@ function ExecutorVerification({
         </>
       )}
       {failure && (
-        <p role="alert" className="text-sm text-accent-danger">
+        <p
+          role="alert"
+          className="rounded-xl bg-surface-danger p-4 text-sm text-surface-danger-strong"
+        >
           {failure}
         </p>
       )}

@@ -1,7 +1,7 @@
 // Тесты SettingsPage — профиль (read-only), подтверждение выхода, порог авто-сверки.
 
 import { describe, expect, it, beforeEach, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { useUiStore } from '@/app/store'
@@ -65,9 +65,34 @@ describe('SettingsPage', () => {
     expect(navigate).toHaveBeenCalledWith('/login', { replace: true })
   })
 
-  it('порог авто-сверки по умолчанию доступен (авто-одобрение включено)', () => {
+  it('не имитирует серверные настройки безопасности и автоодобрения', () => {
     renderPage()
-    const threshold = screen.getByRole('spinbutton') // input type=number
-    expect(threshold).not.toBeDisabled()
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
+    for (const field of screen.getAllByPlaceholderText('Не настраивается на этой странице')) {
+      expect(field).toBeDisabled()
+      expect(field).toHaveValue('')
+    }
+    expect(screen.getByText(/Настройки 2FA и уведомлений не подключены/)).toBeVisible()
+    expect(screen.getByText(/Действующие серверные правила эта страница не меняет/)).toBeVisible()
+  })
+
+  it('оставляет рабочим выбор языка', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.selectOptions(screen.getByRole('combobox'), 'kk')
+    expect(setLanguage).toHaveBeenCalledWith('kk')
+  })
+
+  it('обновляет read-only профиль при изменении текущего пользователя', () => {
+    renderPage()
+    act(() =>
+      useUiStore.setState({
+        authedUser: { ...USER, name: 'Новое имя', email: 'new@example.test' },
+      }),
+    )
+    expect(screen.getByDisplayValue('Новое имя')).toBeDisabled()
+    expect(screen.getByDisplayValue('new@example.test')).toBeDisabled()
+    expect(screen.queryByDisplayValue(USER.name)).not.toBeInTheDocument()
   })
 })

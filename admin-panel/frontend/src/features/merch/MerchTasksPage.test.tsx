@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useAdministrativeCapabilities } from '@/app/useAdministrativeCapabilities'
 import MerchTasksPage from './MerchTasksPage'
-import { adminTaskApi, adminTaskGateway } from './tasks-api'
+import { adminTaskApi, adminTaskGateway, type MerchTask } from './tasks-api'
 vi.mock('@/app/useAdministrativeCapabilities', () => ({ useAdministrativeCapabilities: vi.fn() }))
 vi.mock('./tasks-api', () => ({
   adminTaskApi: { list: vi.fn(), branches: vi.fn(), create: vi.fn(), createBulk: vi.fn() },
@@ -65,6 +65,269 @@ beforeEach(() => {
   vi.mocked(adminTaskGateway.get).mockResolvedValue(created)
 })
 describe('native task creation capability and required fields', () => {
+  it('offers a server-filtered personal queue only to executors and resets pagination', async () => {
+    vi.mocked(useAdministrativeCapabilities).mockReturnValue({
+      isPending: false,
+      isError: false,
+      canViewMerchTasks: true,
+      canExecuteMerchTasks: true,
+    } as ReturnType<typeof useAdministrativeCapabilities>)
+    vi.mocked(adminTaskApi.list).mockResolvedValue({
+      items: [],
+      limit: 20,
+      offset: 0,
+      hasMore: true,
+    })
+    render(<MerchTasksPage />)
+    await screen.findByText('В вашей области заданий пока нет.')
+    await userEvent.click(screen.getByRole('button', { name: 'Далее', exact: true }))
+    await waitFor(() =>
+      expect(adminTaskApi.list).toHaveBeenLastCalledWith(20, expect.any(AbortSignal), {
+        queue: 'all',
+        q: '',
+      }),
+    )
+    await userEvent.selectOptions(screen.getByLabelText('Рабочая очередь заданий'), 'mine')
+    await waitFor(() =>
+      expect(adminTaskApi.list).toHaveBeenLastCalledWith(0, expect.any(AbortSignal), {
+        queue: 'mine',
+        q: '',
+      }),
+    )
+    expect(await screen.findByText('Личных заданий по этим условиям нет.')).toBeVisible()
+    expect(screen.getByText(/Доступ к аптеке сам по себе не делает задание вашим/)).toBeVisible()
+    expect(adminTaskGateway.get).not.toHaveBeenCalled()
+  })
+
+  it.each(['Открыть мой пункт', 'Демо-задание'])(
+    'opens the personal item via %s without choosing a pending review in the same task',
+    async (buttonName) => {
+      vi.mocked(useAdministrativeCapabilities).mockReturnValue({
+        isPending: false,
+        isError: false,
+        canViewMerchTasks: true,
+        canExecuteMerchTasks: true,
+        canReviewMerchTasks: true,
+      } as ReturnType<typeof useAdministrativeCapabilities>)
+      const task = await vi.mocked(adminTaskGateway.get)(
+        'task-new-demo',
+        new AbortController().signal,
+      )
+      const myItem = {
+        id: 'personal-item',
+        title: 'Моя полка',
+        instructions: 'Проверьте выкладку',
+        taskType: 'photo_report',
+        status: 'assigned',
+        required: true,
+        requiredPhotos: 1,
+        checklist: [],
+        version: 1,
+        currentAttempt: null,
+        legacyEvidence: [],
+        availableFrom: null,
+        dueAt: null,
+        canStart: false,
+        canUpload: false,
+        canSubmit: false,
+      }
+      vi.mocked(adminTaskApi.list).mockResolvedValue({
+        items: [{ ...task, pendingReviewCount: 2, nextExecutionItemId: myItem.id }],
+        limit: 20,
+        offset: 0,
+        hasMore: false,
+      })
+      vi.mocked(adminTaskGateway.get).mockResolvedValue({ ...task, items: [myItem] })
+      render(<MerchTasksPage />)
+      await userEvent.click(await screen.findByRole('button', { name: 'Открыть отчёт' }))
+      await screen.findByText('Моя полка')
+      await userEvent.selectOptions(screen.getByLabelText('Рабочая очередь заданий'), 'mine')
+      await userEvent.click(await screen.findByRole('button', { name: buttonName, exact: true }))
+      await waitFor(() =>
+        expect(document.getElementById('merch-task-item-personal-item')).toHaveFocus(),
+      )
+      expect(
+        screen.queryByRole('button', { name: 'Принять пункт', exact: true }),
+      ).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Начать выполнение' })).not.toBeInTheDocument()
+    },
+  )
+
+  it('does not offer personal work to a viewer even when returned rows have a navigation hint', async () => {
+    const task = await vi.mocked(adminTaskGateway.get)(
+      'task-new-demo',
+      new AbortController().signal,
+    )
+    vi.mocked(adminTaskApi.list).mockResolvedValue({
+      items: [{ ...task, nextExecutionItemId: 'personal-item' }],
+      limit: 20,
+      offset: 0,
+      hasMore: false,
+    })
+    render(<MerchTasksPage />)
+    await screen.findByRole('button', { name: 'Открыть задание' })
+    expect(screen.queryByRole('option', { name: 'Мне выполнить' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Открыть мой пункт' })).not.toBeInTheDocument()
+  })
+
+  it('does not mistake a capability request failure for denied access or fetch task data', async () => {
+    const refetch = vi.fn()
+    vi.mocked(useAdministrativeCapabilities).mockReturnValue({
+      isPending: false,
+      isError: true,
+      isFetching: false,
+      error: new Error('Сервис недоступен'),
+      canViewMerchTasks: false,
+      refetch,
+    } as unknown as ReturnType<typeof useAdministrativeCapabilities>)
+    render(<MerchTasksPage />)
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Не удалось проверить доступ к заданиям. Сервис недоступен',
+    )
+    expect(screen.queryByText('Нет доступа к заданиям мерча')).not.toBeInTheDocument()
+    expect(adminTaskApi.list).not.toHaveBeenCalled()
+    expect(adminTaskApi.branches).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: 'Повторить проверку доступа' }))
+    expect(refetch).toHaveBeenCalledOnce()
+  })
+
+  it('shows the server pending count for a mixed revision task without inferring personal ownership', async () => {
+    const task = await vi.mocked(adminTaskGateway.get)(
+      'task-new-demo',
+      new AbortController().signal,
+    )
+    vi.mocked(adminTaskApi.list).mockResolvedValue({
+      items: [
+        {
+          ...task,
+          status: 'revision_required',
+          itemCount: 4,
+          pendingReviewCount: 2,
+          nextPendingReviewItemId: 'pending-item',
+        },
+      ],
+      offset: 0,
+      limit: 20,
+      hasMore: false,
+    })
+    vi.mocked(adminTaskGateway.get).mockClear()
+    render(<MerchTasksPage />)
+    expect(await screen.findByText('Пунктов: 2')).toBeInTheDocument()
+    expect(screen.getByText('Нужна доработка')).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Всего пунктов' })).toBeInTheDocument()
+    expect(screen.getByText('Показаны 1–1')).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Мне выполнить' })).not.toBeInTheDocument()
+    expect(adminTaskGateway.get).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: 'Открыть отчёт' }))
+    await waitFor(() =>
+      expect(adminTaskGateway.get).toHaveBeenCalledWith(task.id, expect.any(AbortSignal)),
+    )
+    expect(
+      screen.queryByRole('button', { name: 'Принять пункт', exact: true }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('does not treat missing review metadata as zero pending or as an executable personal task', async () => {
+    const task = await vi.mocked(adminTaskGateway.get)(
+      'task-new-demo',
+      new AbortController().signal,
+    )
+    vi.mocked(adminTaskApi.list).mockResolvedValue({
+      items: [task],
+      offset: 0,
+      limit: 20,
+      hasMore: false,
+    })
+    render(<MerchTasksPage />)
+    expect(await screen.findByText('Нет данных')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Открыть отчёт' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Открыть задание' })).toBeInTheDocument()
+  })
+
+  it('keeps list errors distinct from empty queues and resets applied server filters', async () => {
+    vi.mocked(adminTaskApi.list).mockRejectedValueOnce(new Error('Очередь недоступна'))
+    render(<MerchTasksPage />)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Очередь недоступна')
+    expect(screen.queryByText('В вашей области заданий пока нет.')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Повторить', exact: true }))
+    await screen.findByText('В вашей области заданий пока нет.')
+    const previousCalls = vi.mocked(adminTaskApi.list).mock.calls.length
+    await userEvent.type(screen.getByLabelText('Поиск заданий'), 'Полка 100%')
+    expect(adminTaskApi.list).toHaveBeenCalledTimes(previousCalls)
+    await userEvent.click(screen.getByRole('button', { name: 'Найти' }))
+    expect(await screen.findByText('По этим условиям заданий нет.')).toBeInTheDocument()
+    expect(screen.getByText(/Применён поиск: «Полка 100%»/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Сбросить фильтры' }))
+    await waitFor(() =>
+      expect(adminTaskApi.list).toHaveBeenLastCalledWith(0, expect.any(AbortSignal), {
+        queue: 'all',
+        q: '',
+      }),
+    )
+    expect(screen.getByLabelText('Поиск заданий')).toHaveValue('')
+    expect(await screen.findByText('В вашей области заданий пока нет.')).toBeInTheDocument()
+  })
+
+  it('distinguishes unavailable pharmacy labels from a task request failure and retries them separately', async () => {
+    vi.mocked(adminTaskApi.branches).mockRejectedValueOnce(new Error('Branch lookup failed'))
+    render(<MerchTasksPage />)
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Не удалось загрузить названия и адреса аптек',
+    )
+    await screen.findByText('В вашей области заданий пока нет.')
+    const previousCalls = vi.mocked(adminTaskApi.list).mock.calls.length
+    await userEvent.click(screen.getByRole('button', { name: 'Повторить загрузку аптек' }))
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
+    expect(adminTaskApi.branches).toHaveBeenCalledTimes(2)
+    expect(adminTaskApi.list).toHaveBeenCalledTimes(previousCalls)
+  })
+
+  it('shows branch address and task status, type and priority before opening a review', async () => {
+    const task = await vi.mocked(adminTaskGateway.get)(
+      'task-new-demo',
+      new AbortController().signal,
+    )
+    vi.mocked(adminTaskApi.list).mockResolvedValue({
+      items: [{ ...task, status: 'revision_required', priority: 'urgent', itemCount: 3 }],
+      offset: 0,
+      limit: 20,
+      hasMore: false,
+    })
+    vi.mocked(adminTaskGateway.get).mockClear()
+    render(<MerchTasksPage />)
+    expect(await screen.findByText('Нужна доработка')).toBeInTheDocument()
+    expect(screen.getByText('Фотоотчёт')).toBeInTheDocument()
+    expect(screen.getByText('Срочный')).toBeInTheDocument()
+    expect(await screen.findByText('Демо · Демо, 1')).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Всего пунктов' })).toBeInTheDocument()
+    expect(adminTaskGateway.get).not.toHaveBeenCalled()
+  })
+  it('keeps unknown historical task values and unavailable branch data explicit', async () => {
+    const task = await vi.mocked(adminTaskGateway.get)(
+      'task-new-demo',
+      new AbortController().signal,
+    )
+    vi.mocked(adminTaskApi.list).mockResolvedValue({
+      items: [
+        {
+          ...task,
+          branchId: 'unavailable',
+          status: 'legacy-state',
+          taskType: '__proto__',
+          priority: 'legacy-priority',
+        } as MerchTask,
+      ],
+      offset: 0,
+      limit: 20,
+      hasMore: false,
+    })
+    render(<MerchTasksPage />)
+    expect(await screen.findByText('Исторический статус')).toBeInTheDocument()
+    expect(screen.getByText('Другой тип задания')).toBeInTheDocument()
+    expect(screen.getByText('Приоритет не указан')).toBeInTheDocument()
+    expect(screen.getByText('Название аптеки недоступно')).toBeInTheDocument()
+    expect(screen.queryByText('Демо · Демо, 1')).not.toBeInTheDocument()
+  })
   it.each([true, false])(
     'does not advertise retired code operations when task view is %s',
     async (canViewMerchTasks) => {

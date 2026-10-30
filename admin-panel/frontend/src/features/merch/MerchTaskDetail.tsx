@@ -8,26 +8,8 @@ import { usePlacementRead } from './usePlacementRead'
 import { TaskStockFields, InstructionDownload } from './TaskStockFields'
 import type { TaskCapture } from './tasks-api'
 import type { MerchTask, TaskAttempt, TaskEvidence, TaskGateway, TaskItem } from './tasks-api'
-
-const taskStatusLabel = (value: string) =>
-  (
-    ({
-      ready: 'Назначено',
-      sent: 'Отправлено',
-      assigned: 'Назначено',
-      accepted: 'Принято в работу',
-      in_progress: 'В работе',
-      submitted: 'На проверке',
-      completed: 'Выполнено',
-      approved: 'Одобрено',
-      revision_required: 'Нужна доработка',
-      draft: 'Черновик',
-      cancelled: 'Отменено',
-      blocked: 'Есть препятствие',
-      overdue: 'Просрочено',
-      rejected: 'Отклонено',
-    }) as Record<string, string>
-  )[value] ?? 'Исторический статус'
+import { taskStatusLabel } from './task-labels'
+import TaskStatusBadge from './TaskStatusBadge'
 const rewardReasons: Record<string, string> = {
   zero_reward: 'Задание без вознаграждения',
   historical_approval_or_outbox_requires_HQ:
@@ -38,6 +20,12 @@ const rewardReasons: Record<string, string> = {
   pharmacy_binding_unverified: 'Связь аптеки ещё не подтверждена',
 }
 
+function focusTaskItem(itemId: string) {
+  const element = document.getElementById(`merch-task-item-${itemId}`)
+  element?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+  element?.focus({ preventScroll: true })
+}
+
 export default function MerchTaskDetail({
   id,
   gateway,
@@ -45,6 +33,8 @@ export default function MerchTaskDetail({
   canReview = false,
   canComment = false,
   canCancel = false,
+  focusReview = false,
+  preferredItemId = null,
   onChanged,
 }: {
   id: string
@@ -53,6 +43,8 @@ export default function MerchTaskDetail({
   canReview?: boolean
   canComment?: boolean
   canCancel?: boolean
+  focusReview?: boolean
+  preferredItemId?: string | null
   onChanged?: () => void
 }) {
   const load = useCallback((signal: AbortSignal) => gateway.get(id, signal), [gateway, id])
@@ -61,6 +53,28 @@ export default function MerchTaskDetail({
   const [cancelReason, setCancelReason] = useState('')
   const [cancelPending, setCancelPending] = useState(false)
   const [cancelError, setCancelError] = useState('')
+  const pendingItems = read.data?.items.filter((item) => item.status === 'submitted') ?? []
+  const nextReviewItem =
+    gateway.realm === 'admin' && canReview && gateway.review
+      ? pendingItems.find((item) => item.canReview === true && !!item.currentAttempt)
+      : undefined
+  const nextPendingItem =
+    pendingItems.find((item) => item.id === read.data?.nextPendingReviewItemId) ?? pendingItems[0]
+  const nextItem = nextReviewItem ?? nextPendingItem
+  const nextItemId = nextItem?.id
+  useEffect(() => {
+    if (focusReview && nextItemId) focusTaskItem(nextItemId)
+  }, [focusReview, nextItemId, read.data])
+  useEffect(() => {
+    // A queue hint only navigates within the freshly authorized detail response.
+    // All action buttons continue to use the item's current server permissions.
+    if (
+      !focusReview &&
+      preferredItemId &&
+      read.data?.items.some((item) => item.id === preferredItemId)
+    )
+      focusTaskItem(preferredItemId)
+  }, [focusReview, preferredItemId, read.data])
   const refresh = () => {
     read.reload()
     onChanged?.()
@@ -78,14 +92,47 @@ export default function MerchTaskDetail({
       )}
       {read.data && (
         <>
-          <div className="card p-4">
-            <h2 className="text-xl font-bold">{read.data.title}</h2>
+          <div className="card border-t-4 border-t-brand-green-500 p-4 sm:p-6">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-500">
+              Карточка задания
+            </p>
+            <h2 className="break-words text-xl font-bold leading-7">{read.data.title}</h2>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <TaskStatusBadge status={read.data.status} />
+              <span className="text-xs text-ink-500">Пунктов: {read.data.items.length}</span>
+            </div>
             <p className="mt-2 text-[13px] text-ink-500">
-              {taskStatusLabel(read.data.status)}
               {read.data.dueAt &&
-                ` · До ${new Date(read.data.dueAt).toLocaleString('ru-RU', { timeZone: 'Asia/Almaty' })}, время Алматы`}
+                `До ${new Date(read.data.dueAt).toLocaleString('ru-RU', { timeZone: 'Asia/Almaty' })}, время Алматы`}
             </p>
             <TaskReward task={read.data} />
+            {gateway.realm === 'admin' && pendingItems.length > 0 && (
+              <div className="mt-3 rounded-xl border border-brand-green-200 bg-brand-green-50 p-4">
+                <p className="font-semibold">
+                  Непроверенных пунктов: {read.data.pendingReviewCount ?? pendingItems.length}
+                </p>
+                {nextItem && (
+                  <>
+                    <p className="mt-1 text-sm text-ink-600">Следующий пункт: {nextItem.title}</p>
+                    <Button
+                      className="mt-3"
+                      variant="outline"
+                      onClick={() => focusTaskItem(nextItem.id)}
+                    >
+                      {nextReviewItem
+                        ? 'Перейти к проверке следующего пункта'
+                        : 'Посмотреть непроверенный пункт'}
+                    </Button>
+                  </>
+                )}
+                {!nextReviewItem && gateway.realm === 'admin' && (
+                  <p className="mt-2 text-sm text-ink-500">
+                    Проверка этих пунктов недоступна для вашей текущей учётной записи. Можно
+                    просмотреть отчёт.
+                  </p>
+                )}
+              </div>
+            )}
             {canCancel && read.data.canCancel && gateway.cancel && (
               <Button
                 variant="outline"
@@ -147,17 +194,26 @@ export default function MerchTaskDetail({
             )}
             {cancelError && <p role="alert">{cancelError}</p>}
           </div>
-          {read.data.items.map((item) => (
-            <TaskItemCard
+          {read.data.items.map((item, index) => (
+            <div
               key={item.id}
-              item={item}
-              gateway={gateway}
-              canExecute={canExecute}
-              canReview={canReview}
-              canComment={canComment}
-              canCancel={canCancel}
-              refresh={refresh}
-            />
+              id={`merch-task-item-${item.id}`}
+              role="region"
+              aria-label={`Пункт: ${item.title}`}
+              tabIndex={-1}
+              className="scroll-mt-20 rounded-xl outline-none focus:ring-2 focus:ring-brand-green-400"
+            >
+              <TaskItemCard
+                item={item}
+                ordinal={index + 1}
+                gateway={gateway}
+                canExecute={canExecute}
+                canReview={canReview}
+                canComment={canComment}
+                canCancel={canCancel}
+                refresh={refresh}
+              />
+            </div>
           ))}
           {!read.data.items.length && (
             <p className="card p-4 text-ink-500">Пункты задания не найдены в источнике.</p>
@@ -196,6 +252,7 @@ function TaskReward({ task }: { task: MerchTask }) {
 }
 function TaskItemCard({
   item,
+  ordinal,
   gateway,
   canExecute,
   canReview,
@@ -204,6 +261,7 @@ function TaskItemCard({
   refresh,
 }: {
   item: TaskItem
+  ordinal: number
   gateway: TaskGateway
   canExecute: boolean
   canReview: boolean
@@ -276,28 +334,50 @@ function TaskItemCard({
     attempt?.executorIdentityStatus === 'capability_unverified' ||
     attempt?.executorIdentityStatus === 'staff_access_unverified'
   const needsManualReview = manualSource || unverifiedExecutor
+  const missingRequirements = [
+    !attempt ? 'Начните выполнение пункта.' : '',
+    attempt && attempt.evidence.length < item.requiredPhotos
+      ? `Добавьте материалы: ${attempt.evidence.length} из ${item.requiredPhotos}.`
+      : '',
+    item.execution?.requiresVideo &&
+    !attempt?.evidence.some((row) => row.mimeType.startsWith('video/'))
+      ? 'Загрузите требуемое видео.'
+      : '',
+    item.execution?.requiresStock && !item.execution.stock ? 'Сохраните остатки.' : '',
+    item.checklist.some((row) => row.required && !checked.includes(row.id))
+      ? 'Отметьте обязательные пункты чек-листа.'
+      : '',
+  ].filter(Boolean)
   return (
-    <section className="card flex flex-col gap-3 p-4">
+    <section className="card flex min-w-0 flex-col gap-4 p-4 sm:p-5">
       {attempt?.executorIdentityStatus === 'staff_access_unverified' && (
         <p className="text-sm text-ink-500">
           Общий месячный фотоотчёт: личность исполнителя не подтверждена.
         </p>
       )}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="font-bold">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-ink-200 pb-4">
+        <div className="min-w-0 flex-1 basis-48">
+          <p className="mb-2 text-xs font-semibold text-ink-500">Пункт {ordinal}</p>
+          <h3 className="break-words text-base font-bold leading-6">
             {item.title}
             {item.required && (
               <span className="ml-2 text-[11px] text-ink-500">Обязательный пункт</span>
             )}
           </h3>
-          <p className="mt-1 text-[12px] text-ink-500">
-            {taskStatusLabel(item.status)} · Фото: {attempt?.evidence.length ?? 0} /{' '}
-            {item.requiredPhotos}
-          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <TaskStatusBadge status={item.status} />
+            <span className="text-xs text-ink-500">
+              Фото: {attempt?.evidence.length ?? 0} / {item.requiredPhotos}
+            </span>
+          </div>
         </div>
         {gateway.history && (
-          <Button variant="ghost" size="sm" onClick={() => setHistory((value) => !value)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-expanded={history}
+            onClick={() => setHistory((value) => !value)}
+          >
             {history ? 'Скрыть историю' : 'История попыток'}
           </Button>
         )}
@@ -351,7 +431,12 @@ function TaskItemCard({
         <p className="rounded-lg bg-paper-input p-3 text-sm">Препятствие: {item.blockedReason}</p>
       )}
       {gateway.comments && (
-        <Button variant="ghost" onClick={() => setConversationOpen((value) => !value)}>
+        <Button
+          className="self-start"
+          variant="ghost"
+          aria-expanded={conversationOpen}
+          onClick={() => setConversationOpen((value) => !value)}
+        >
           {conversationOpen ? 'Скрыть обсуждение' : 'Обсуждение пункта'}
         </Button>
       )}
@@ -407,7 +492,12 @@ function TaskItemCard({
           </form>
         </Modal>
       )}
-      <p className="whitespace-pre-wrap break-words text-[13px] leading-6">{item.instructions}</p>
+      {item.instructions && (
+        <div className="rounded-lg bg-paper-input p-4">
+          <h4 className="mb-2 text-sm font-bold">Что нужно сделать</h4>
+          <p className="whitespace-pre-wrap break-words text-sm leading-6">{item.instructions}</p>
+        </div>
+      )}
       <TaskReference
         key={`${item.id}:${item.execution?.clientReferencePhotoId ?? 'none'}`}
         item={item}
@@ -441,10 +531,15 @@ function TaskItemCard({
         </p>
       )}
       {item.checklist.length > 0 && (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 rounded-lg border border-ink-200 p-3">
+          <h4 className="text-sm font-bold">Чек-лист выполнения</h4>
           {item.checklist.map((row) => (
-            <label key={row.id} className="flex gap-2 text-[13px]">
+            <label
+              key={row.id}
+              className="flex min-h-10 items-start gap-3 rounded-md py-2 text-sm leading-5"
+            >
               <input
+                className="mt-0.5 h-4 w-4 shrink-0"
                 type="checkbox"
                 checked={checked.includes(row.id)}
                 disabled={locked || !canExecute || item.canSubmit !== true}
@@ -659,15 +754,19 @@ function TaskItemCard({
             </Button>
           </div>
           {!complete && (
-            <p className="text-[12px] text-ink-500">
-              Для отправки нужны доказательства текущей попытки, сохранённые остатки (если
-              запрошены) и обязательные пункты чек-листа.
-            </p>
+            <div className="rounded-lg bg-paper-input p-3 text-sm text-ink-600" role="status">
+              <p className="font-semibold">Перед отправкой</p>
+              <ul className="mt-2 list-inside list-disc space-y-1">
+                {missingRequirements.map((requirement) => (
+                  <li key={requirement}>{requirement}</li>
+                ))}
+              </ul>
+            </div>
           )}
         </>
       )}
       {gateway.realm === 'admin' && canReview && item.canReview === true && attempt && (
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 border-t border-ink-200 pt-4">
           <Button
             disabled={locked}
             onClick={() => {
@@ -876,7 +975,7 @@ function AttemptHistory({ itemId, gateway }: { itemId: string; gateway: TaskGate
 }
 function EvidenceList({ rows, gateway }: { rows: TaskEvidence[]; gateway: TaskGateway }) {
   return (
-    <div className="my-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+    <div className="my-2 grid grid-cols-1 gap-3 min-[440px]:grid-cols-2 lg:grid-cols-3">
       {rows.map((row) => (
         <PrivateEvidence key={row.id} row={row} gateway={gateway} />
       ))}

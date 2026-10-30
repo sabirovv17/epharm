@@ -58,6 +58,19 @@ describe('Access API transport', () => {
       currentPassword: 'SyntheticProof-1234',
     })
   })
+  it('sends status changes with a fresh proof, exact version and abort signal', async () => {
+    const signal = new AbortController().signal
+    await accessApi.changeStatus('opaque/id', 7, 'BLOCKED', 'SyntheticProof-1234', signal)
+    expect(api.put).toHaveBeenCalledWith(
+      '/api/admin/access/accounts/opaque%2Fid/status',
+      {
+        expectedVersion: 7,
+        status: 'BLOCKED',
+        currentPassword: 'SyntheticProof-1234',
+      },
+      { signal },
+    )
+  })
   it('distinguishes email conflict from stale permission version and preserves field errors', () => {
     const response = {
       status: 409,

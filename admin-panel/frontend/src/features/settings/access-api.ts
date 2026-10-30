@@ -61,6 +61,7 @@ export interface AccessAccount {
   version: number | null
   primaryHqOwner: boolean
   editable: boolean
+  canChangeStatus?: boolean
 }
 
 export interface AccessProfile {
@@ -191,6 +192,20 @@ export const accessApi = {
         grants,
         currentPassword,
       })
+      .then((r) => r.data),
+  changeStatus: (
+    id: string,
+    expectedVersion: number,
+    status: 'ACTIVE' | 'BLOCKED',
+    currentPassword: string,
+    signal: AbortSignal,
+  ) =>
+    api
+      .put<{
+        accountId: string
+        status: string
+        version: number
+      }>(`/api/admin/access/accounts/${encodeURIComponent(id)}/status`, { expectedVersion, status, currentPassword }, { signal })
       .then((r) => r.data),
 }
 

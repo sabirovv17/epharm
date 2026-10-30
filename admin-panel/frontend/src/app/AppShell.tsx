@@ -71,11 +71,14 @@ export function AppShell() {
       ),
     [authedUser, location.search],
   )
-  const activeLabel = location.pathname.startsWith('/merch/staff-access')
-    ? 'Общие коды отключены'
-    : activeSection === 'lms' && authedUser && isTrainingWorkspaceRole(authedUser.role)
-      ? trainingItem(activeTrainingTab).sidebarLabel
-      : t(`nav.${activeSection}`)
+  const activeLabel =
+    location.pathname === '/account'
+      ? t('account.title')
+      : location.pathname.startsWith('/merch/staff-access')
+        ? 'Общие коды отключены'
+        : activeSection === 'lms' && authedUser && isTrainingWorkspaceRole(authedUser.role)
+          ? trainingItem(activeTrainingTab).sidebarLabel
+          : t(`nav.${activeSection}`)
 
   const onSelectSection = (id: SectionId) => {
     if (
@@ -166,6 +169,7 @@ export function AppShell() {
             role={authedUser}
             onRoleSwitch={roleSwitchEnabled ? openRoleSwitcher : undefined}
             onLogout={handleLogout}
+            onProfile={() => navigate('/account')}
             onMenu={toggleSidebar}
             onCommand={openCommandPalette}
           />

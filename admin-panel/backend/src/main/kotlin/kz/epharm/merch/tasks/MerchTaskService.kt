@@ -126,7 +126,8 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
         page(limit, offset)
         val scope = access.currentMerchBranchIds()
         val args = mutableListOf<Any>()
-        if(queue !in setOf("all","active","review","revision","overdue","completed") || query.orEmpty().length>120) invalid("Некорректный фильтр очереди")
+        if(queue !in setOf("all","active","review","revision","overdue","completed","mine") || query.orEmpty().length>120) invalid("Некорректный фильтр очереди")
+        if (queue == "mine") return listMine(limit, offset, scope, query)
         val conditions=mutableListOf("true")
         if (scope != null) {
             if (scope.isEmpty()) forbidden()
@@ -146,6 +147,82 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
             { rs, _ -> rs.getObject(1, UUID::class.java) }, *args.toTypedArray())
         return MerchTaskDispatchPage(rows.take(limit).map { id ->
             val d = dispatch(id); dto(d, access.canMerchBranchPermission(MerchTaskPermissions.financial, d.branchId), details = false)
+        }, limit, offset, rows.size > limit)
+    }
+
+    /** Personal provenance narrows the ordinary view scope; it is never an authorization grant. */
+    private fun listMine(limit: Int, offset: Int, viewScope: Set<UUID>?, query: String?): MerchTaskDispatchPage {
+        fun empty() = MerchTaskDispatchPage(emptyList(), limit, offset, false)
+        val person = currentAdminPerson() ?: return empty()
+        if (jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM unified_persons WHERE id=? AND length(btrim(verification_reference))>0)",
+                Boolean::class.java, person) != true) return empty()
+
+        // The same item predicate is used for branch authorization discovery and the paginated result.
+        // Never use creator, business owner, branch membership, a source name or an anonymous QR as a person.
+        val from = """merch_task_dispatches d
+            JOIN merch_branches b ON b.id=d.branch_id AND b.active
+            JOIN merch_organizations o ON o.id=b.organization_id AND o.active
+            CROSS JOIN LATERAL (
+                SELECT i.id AS execution_item_id FROM merch_task_items i
+                CROSS JOIN (SELECT ?::uuid AS person_id) me
+                LEFT JOIN merch_task_attempts a ON a.item_id=i.id AND a.attempt_no=i.current_attempt
+                LEFT JOIN merch_monthly_visits mv ON mv.dispatch_id=d.id
+                WHERE i.dispatch_id=d.id
+                  AND (i.available_from IS NULL OR i.available_from<=CURRENT_TIMESTAMP)
+                  AND (mv.dispatch_id IS NULL OR mv.executor_person_id=me.person_id)
+                  AND NOT EXISTS(SELECT 1 FROM merch_staff_visits sv WHERE sv.dispatch_id=d.id)
+                  AND (
+                    (i.status IN ('in_progress','blocked') AND a.status='draft' AND a.executor_person_id=me.person_id
+                        AND a.capability_link_id IS NULL AND a.staff_visit_id IS NULL)
+                    OR (i.status IN ('assigned','accepted','revision_required')
+                        AND ((i.current_attempt=0 AND a.id IS NULL) OR a.executor_person_id=me.person_id OR
+                            (a.status='source_preserved' AND a.executor_person_id IS NULL))
+                        AND (
+                            (a.executor_person_id=me.person_id AND a.capability_link_id IS NULL AND a.staff_visit_id IS NULL)
+                            OR mv.executor_person_id=me.person_id
+                            OR (d.source_system='MERCH_CRM' AND EXISTS(
+                                SELECT 1 FROM unified_external_accounts source_account
+                                JOIN unified_external_account_bindings binding ON binding.source_account_id=source_account.id
+                                JOIN admin_users bound_account ON bound_account.id=binding.admin_account_id AND bound_account.status='active'
+                                JOIN unified_admin_profiles bound_profile ON bound_profile.account_id=bound_account.id
+                                    AND bound_profile.person_id=binding.person_id
+                                WHERE source_account.id=i.source_assignee_id AND source_account.active
+                                  AND source_account.source_system='MERCH_CRM' AND source_account.source_origin='https://crm.inkar.kz'
+                                  AND binding.person_id=me.person_id AND length(btrim(binding.verification_reference))>0
+                            ))
+                        )
+                    )
+                  )
+                ORDER BY i.created_at,i.id LIMIT 1
+            ) mine""".trimIndent()
+        val conditions = mutableListOf("d.status NOT IN ('completed','cancelled')",
+            "(d.available_from IS NULL OR d.available_from<=CURRENT_TIMESTAMP)")
+        val args = mutableListOf<Any>(person)
+        query?.trim()?.takeIf(String::isNotEmpty)?.let { conditions += "strpos(lower(d.title),lower(?))>0"; args += it }
+
+        // Evaluate the existing execution policy before LIMIT/OFFSET, not by dropping rows from a page.
+        val executionScope = if (viewScope != null) viewScope.filter {
+            access.canMerchBranchPermission(MerchTaskPermissions.execute, it)
+        } else if (access.canAllMerchBranchPermission(MerchTaskPermissions.execute)) null else {
+            val candidates = jdbc.query("SELECT DISTINCT d.branch_id FROM $from WHERE ${conditions.joinToString(" AND ")} LIMIT 50001",
+                { rs, _ -> rs.uuid("branch_id") }, *args.toTypedArray())
+            if (candidates.size > 50_000) throw AppException(ErrorCode.VALIDATION_FAILED,
+                "Список аптек слишком велик: требуется уточнить область доступа", HttpStatus.PAYLOAD_TOO_LARGE)
+            candidates.filter { access.canMerchBranchPermission(MerchTaskPermissions.execute, it) }
+        }
+        if (executionScope != null) {
+            if (executionScope.isEmpty()) return empty()
+            conditions += "d.branch_id IN (${executionScope.joinToString(",") { "?" }})"
+            args.addAll(executionScope)
+        }
+        args += limit + 1
+        args += offset
+        val rows = jdbc.query("SELECT d.id,mine.execution_item_id FROM $from WHERE ${conditions.joinToString(" AND ")} " +
+            "ORDER BY d.created_at DESC,d.id LIMIT ? OFFSET ?", { rs, _ -> rs.uuid("id") to rs.uuid("execution_item_id") }, *args.toTypedArray())
+        return MerchTaskDispatchPage(rows.take(limit).map { (id, executionItemId) ->
+            val d = dispatch(id)
+            dto(d, access.canMerchBranchPermission(MerchTaskPermissions.financial, d.branchId), details = false)
+                .copy(nextExecutionItemId = executionItemId)
         }, limit, offset, rows.size > limit)
     }
 
@@ -709,7 +786,10 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
     }, id).singleOrNull() ?: notFound()
 
     private fun dto(d: TaskDispatchRow, money: Boolean, details: Boolean = true, mobileExecutor: TaskExecutor? = null): MerchTaskDispatchDto {
-        val ids = jdbc.query("SELECT id FROM merch_task_items WHERE dispatch_id=? ORDER BY created_at,id", { rs, _ -> rs.uuid("id") }, d.id)
+        val itemStates = jdbc.query("SELECT id,status FROM merch_task_items WHERE dispatch_id=? ORDER BY created_at,id",
+            { rs, _ -> rs.uuid("id") to rs.getString("status") }, d.id)
+        val ids = itemStates.map { it.first }
+        val pending = itemStates.filter { it.second == "submitted" }.map { it.first }
         val person = if (mobileExecutor==null) currentAdminPerson() else mobileExecutor.personId
         val execute = person!=null && staffVisitForDispatch(d.id)==null && monthlyPersonAllowed(d.id,person) && (mobileExecutor!=null || access.canMerchBranchPermission(MerchTaskPermissions.execute,d.branchId))
         val now=Instant.now()
@@ -744,7 +824,7 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
         }, d.id).singleOrNull()
         return MerchTaskDispatchDto(d.id, d.branchId, d.title, d.status, d.dueAt, d.source, d.version, if (money) d.reward else null,
             rows, reward, ids.size, details,d.priority,d.taskType,
-            canCancel=cancelAllowed)
+            canCancel=cancelAllowed,pendingReviewCount=pending.size,nextPendingReviewItemId=pending.firstOrNull())
     }
 
     @Transactional(readOnly=true)

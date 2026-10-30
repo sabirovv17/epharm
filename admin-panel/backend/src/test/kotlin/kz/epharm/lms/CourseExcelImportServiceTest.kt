@@ -13,12 +13,30 @@ import kz.epharm.lms.service.CourseExcelImportService
 import kz.epharm.lms.service.CourseService
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.springframework.mock.web.MockMultipartFile
+import java.io.ByteArrayOutputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Instant
 
 class CourseExcelImportServiceTest {
+    @Test
+    fun `sparse trailing empty rows do not alter imported content`() {
+        val bytes = Files.readAllBytes(Path.of("../frontend/public/templates/epharm-course-import-template.xlsx"))
+        val sparse = XSSFWorkbook(bytes.inputStream()).use { book ->
+            listOf("Курс", "Уроки", "Вопросы").forEach { name ->
+                book.getSheet(name).createRow(1_048_575).createCell(0).setCellValue("")
+            }
+            ByteArrayOutputStream().also { book.write(it) }.toByteArray()
+        }
+        val parsed = CourseExcelImportService(mockk()).parse(
+            MockMultipartFile("file", "course.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", sparse),
+        )
+        assertThat(parsed.lessons).hasSize(2)
+        assertThat(parsed.lessons.last().request.quizQuestions).hasSize(2)
+    }
+
     @Test
     fun `production template creates course lessons and test questions`() {
         val courseService = mockk<CourseService>()

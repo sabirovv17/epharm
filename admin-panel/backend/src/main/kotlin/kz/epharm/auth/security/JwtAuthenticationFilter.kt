@@ -48,7 +48,7 @@ class JwtAuthenticationFilter(
                         listOf(SimpleGrantedAuthority("ROLE_PHARMACIST")),
                     )
                 } else {
-                    adminSessionLoader.load(claims.subject)?.let { principal ->
+                    adminSessionLoader.load(claims.subject, jwtService.adminSessionVersionOf(claims))?.let { principal ->
                         UsernamePasswordAuthenticationToken(
                             principal,
                             null,

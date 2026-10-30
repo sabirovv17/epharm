@@ -1,19 +1,41 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAdministrativeCapabilities } from '@/app/useAdministrativeCapabilities'
 import { Button, Field, Input, Modal, PageHeader, Select } from '@/ui'
 import { describeError } from '@/lib/describeError'
 import { formatKzt } from '@/mocks/fixtures'
 import MerchTaskDetail from './MerchTaskDetail'
-import { adminTaskApi, adminTaskGateway, type CreateTask, type TaskBranch } from './tasks-api'
+import {
+  adminTaskApi,
+  adminTaskGateway,
+  type CreateTask,
+  type MerchTask,
+  type TaskBranch,
+} from './tasks-api'
 import { usePlacementRead } from './usePlacementRead'
 import TaskTemplateDialog from './TaskTemplateDialog'
 import { AdminMonthlyVisitPanel } from './MonthlyVisitPanel'
 import ReportDownloadButton from '@/features/reports/ReportDownloadButton'
+import { taskPriorityLabel, taskTypeLabel } from './task-labels'
+import TaskStatusBadge from './TaskStatusBadge'
 
 export default function MerchTasksPage() {
   const access = useAdministrativeCapabilities()
   if (access.isPending || (access.isFetching && !access.isFetchedAfterMount))
     return <p role="status">Проверяем доступ…</p>
+  if (access.isError)
+    return (
+      <div className="card p-6">
+        <p role="alert">Не удалось проверить доступ к заданиям. {describeError(access.error)}</p>
+        <Button
+          className="mt-3"
+          variant="outline"
+          disabled={access.isFetching}
+          onClick={() => void access.refetch()}
+        >
+          Повторить проверку доступа
+        </Button>
+      </div>
+    )
   if (!access.canViewMerchTasks)
     return (
       <div className="card p-6">
@@ -56,9 +78,17 @@ function TaskWorkspace({
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState('')
+  const [reviewFocus, setReviewFocus] = useState(false)
+  const [executionItemId, setExecutionItemId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [templateOpen, setTemplateOpen] = useState(false)
   const [visitOpen, setVisitOpen] = useState(false)
+  const detailRegion = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!selected || reviewFocus) return
+    detailRegion.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
+    detailRegion.current?.focus({ preventScroll: true })
+  }, [selected, reviewFocus])
   const load = useCallback(
     (signal: AbortSignal) => adminTaskApi.list(offset, signal, { queue, q: query }),
     [offset, queue, query],
@@ -66,41 +96,63 @@ function TaskWorkspace({
   const list = usePlacementRead(load)
   const branchLoad = useCallback((signal: AbortSignal) => adminTaskApi.branches(signal), [])
   const branchNames = usePlacementRead(branchLoad)
+  const filtered = queue !== 'all' || !!query
+  const openTask = (id: string, focusReview = false, itemId: string | null = null) => {
+    setSelected(id)
+    setReviewFocus(focusReview)
+    setExecutionItemId(itemId)
+  }
+  const openListedTask = (task: MerchTask) =>
+    openTask(
+      task.id,
+      queue !== 'mine' && (task.pendingReviewCount ?? 0) > 0,
+      queue === 'mine' ? (task.nextExecutionItemId ?? null) : null,
+    )
+  const resetFilters = () => {
+    setQueue('all')
+    setSearch('')
+    setQuery('')
+    setOffset(0)
+    setSelected('')
+  }
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-5">
       <PageHeader
-        title="Задания фармацевтов"
+        title="Задания мерча"
         subtitle="Задания, фотоотчёты и проверка отдельных пунктов в вашей области аптек."
         actions={
-          <div className="flex flex-wrap gap-2">
-            {canExecute && (
-              <Button variant="outline" onClick={() => setVisitOpen((value) => !value)}>
-                Месячный визит
-              </Button>
-            )}
-            {canCreate && (
-              <Button variant="outline" onClick={() => setTemplateOpen(true)}>
-                По шаблону
-              </Button>
-            )}
-            <ReportDownloadButton
-              allowed={canExport}
-              path="/api/admin/merch/exports/tasks.xlsx"
-              params={{}}
-              filename="merch-tasks.xlsx"
-              label="Excel: задания"
-              note="Вся доступная история заданий; открытая карточка не является фильтром."
-            />
-            <Button disabled={!canCreate} onClick={() => setCreating(true)}>
-              Новое задание
-            </Button>
-          </div>
+          <Button disabled={!canCreate} onClick={() => setCreating(true)}>
+            Новое задание
+          </Button>
         }
       />
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink-200 bg-white px-4 py-3">
+        <p className="text-xs font-semibold text-ink-500">Инструменты заданий</p>
+        <div className="flex flex-wrap items-center gap-2">
+          {canExecute && (
+            <Button variant="outline" onClick={() => setVisitOpen((value) => !value)}>
+              Месячный визит
+            </Button>
+          )}
+          {canCreate && (
+            <Button variant="outline" onClick={() => setTemplateOpen(true)}>
+              По шаблону
+            </Button>
+          )}
+          <ReportDownloadButton
+            allowed={canExport}
+            path="/api/admin/merch/exports/tasks.xlsx"
+            params={{}}
+            filename="merch-tasks.xlsx"
+            label="Excel: задания"
+            note="Вся доступная история заданий; открытая карточка не является фильтром."
+          />
+        </div>
+      </div>
       {visitOpen && (
         <AdminMonthlyVisitPanel
           onStarted={(id) => {
-            setSelected(id)
+            openTask(id)
             setVisitOpen(false)
             list.reload()
           }}
@@ -111,47 +163,83 @@ function TaskWorkspace({
           onClose={() => setTemplateOpen(false)}
           onCreated={(id) => {
             setTemplateOpen(false)
-            setSelected(id)
+            openTask(id)
             list.reload()
           }}
         />
       )}
       <form
-        className="card flex flex-wrap gap-3 p-3"
+        className="card flex flex-wrap items-end gap-3 p-4"
         onSubmit={(event) => {
           event.preventDefault()
           setQuery(search.trim())
           setOffset(0)
+          setSelected('')
         }}
       >
-        <Select
-          ariaLabel="Рабочая очередь заданий"
-          value={queue}
-          onChange={(value) => {
-            setQueue(value)
-            setOffset(0)
-          }}
-          options={[
-            { value: 'all', label: 'Вся история' },
-            { value: 'review', label: 'Ожидают проверки' },
-            { value: 'revision', label: 'На доработке' },
-            { value: 'overdue', label: 'Просрочены' },
-            { value: 'active', label: 'В работе' },
-            { value: 'completed', label: 'Завершены' },
-          ]}
-        />
-        <Input
-          aria-label="Поиск заданий"
-          placeholder="Название задания"
-          maxLength={120}
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
+        <Field label="Рабочая очередь">
+          <Select
+            ariaLabel="Рабочая очередь заданий"
+            value={queue}
+            onChange={(value) => {
+              setQueue(value)
+              setOffset(0)
+              setSelected('')
+            }}
+            options={[
+              { value: 'all', label: 'Вся история' },
+              ...(canExecute ? [{ value: 'mine', label: 'Мне выполнить' }] : []),
+              { value: 'review', label: 'Ожидают проверки' },
+              { value: 'revision', label: 'На доработке' },
+              { value: 'overdue', label: 'Просрочены' },
+              { value: 'active', label: 'В работе' },
+              { value: 'completed', label: 'Завершены' },
+            ]}
+          />
+        </Field>
+        <div className="min-w-0 flex-1 basis-64">
+          <Field label="Поиск по названию">
+            <Input
+              aria-label="Поиск заданий"
+              placeholder="Название задания"
+              maxLength={120}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </Field>
+        </div>
         <Button type="submit" variant="outline">
           Найти
         </Button>
+        {(filtered || search) && (
+          <Button type="button" variant="ghost" onClick={resetFilters}>
+            Сбросить фильтры
+          </Button>
+        )}
+        <p className="w-full text-[12px] text-ink-500">
+          {query ? `Применён поиск: «${query}». ` : 'Показаны задания в вашей области аптек. '}
+          {search.trim() !== query && 'Нажмите «Найти», чтобы применить новое название. '}
+          {queue === 'review' &&
+            'Здесь также задания, где часть пунктов уже возвращена на доработку.'}
+          {queue === 'mine' &&
+            'Только подтверждённые личные назначения, ваши месячные визиты и начатые вами пункты. Доступ к аптеке сам по себе не делает задание вашим.'}
+        </p>
       </form>
-      {list.pending && <p role="status">Загружаем задания…</p>}
+      {list.pending && (
+        <p role="status" className="card p-6 text-ink-500">
+          Загружаем задания…
+        </p>
+      )}
+      {!!branchNames.error && (
+        <div role="alert" className="card flex flex-wrap items-center justify-between gap-3 p-4">
+          <p className="text-sm">
+            Не удалось загрузить названия и адреса аптек. Задания доступны по текущим правам.
+          </p>
+          <Button variant="outline" onClick={branchNames.reload}>
+            Повторить загрузку аптек
+          </Button>
+        </div>
+      )}
       {!!list.error && (
         <div role="alert" className="card p-4">
           <p>{describeError(list.error)}</p>
@@ -161,53 +249,149 @@ function TaskWorkspace({
         </div>
       )}
       {list.data && (
-        <div className="card overflow-auto">
-          <table className="w-full text-left text-[13px]">
-            <thead className="bg-paper-input">
-              <tr>
-                {['Задание', 'Аптека', 'Срок, Алматы', 'Пунктов', 'Предусмотрено', ''].map(
-                  (value) => (
-                    <th key={value} className="p-3">
-                      {value}
-                    </th>
-                  ),
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {list.data.items.map((task) => (
-                <tr key={task.id} className="border-t border-paper-line">
-                  <td className="p-3 font-semibold">{task.title}</td>
-                  <td className="p-3">
-                    {branchNames.data?.find((branch) => branch.id === task.branchId)?.name ??
-                      'Название аптеки недоступно'}
-                  </td>
-                  <td className="p-3">
-                    {task.dueAt
-                      ? new Date(task.dueAt).toLocaleString('ru-RU', { timeZone: 'Asia/Almaty' })
-                      : 'Срок не записан'}
-                  </td>
-                  <td className="p-3">{task.itemCount}</td>
-                  <td className="p-3">
-                    {task.rewardAmountKzt === null
-                      ? '—'
-                      : task.rewardAmountKzt === 0
-                        ? 'Без вознаграждения'
-                        : formatKzt(task.rewardAmountKzt)}
-                  </td>
-                  <td className="p-3">
-                    <Button variant="outline" size="sm" onClick={() => setSelected(task.id)}>
-                      Открыть задание
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!list.data.items.length && (
-            <p className="p-6 text-ink-500">В вашей области заданий пока нет.</p>
+        <div className="card min-w-0 overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-200 p-4">
+            <h2 className="font-bold">
+              {queue === 'mine'
+                ? 'Мне выполнить'
+                : queue === 'review'
+                  ? 'Отчёты на проверке'
+                  : 'Очередь заданий'}
+            </h2>
+            <p className="text-sm text-ink-500">
+              {list.data.items.length
+                ? `Показаны ${offset + 1}–${offset + list.data.items.length}${list.data.hasMore ? ' · Есть следующая страница' : ''}`
+                : '0 заданий'}
+            </p>
+          </div>
+          {list.data.items.length > 0 ? (
+            <div
+              className="overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-green-400"
+              role="region"
+              aria-label="Таблица заданий"
+              tabIndex={0}
+            >
+              <table className="w-full min-w-[980px] text-left text-[13px]">
+                <caption className="sr-only">
+                  Задания доступных аптек. Откройте задание для работы с его пунктами.
+                </caption>
+                <thead className="bg-paper-input">
+                  <tr>
+                    {[
+                      'Задание / тип',
+                      'Аптека / адрес',
+                      'Статус',
+                      'Приоритет',
+                      'Срок, Алматы',
+                      'Всего пунктов',
+                      'На проверке',
+                      'Предусмотрено',
+                      '',
+                    ].map((value) => (
+                      <th
+                        key={value}
+                        scope="col"
+                        className="px-4 py-3 text-xs font-semibold text-ink-500"
+                      >
+                        {value || <span className="sr-only">Действие</span>}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.data.items.map((task) => {
+                    const branch = branchNames.data?.find((entry) => entry.id === task.branchId)
+                    return (
+                      <tr
+                        key={task.id}
+                        className={`border-t border-ink-200 ${selected === task.id ? 'bg-brand-green-50' : 'hover:bg-paper-hover'}`}
+                      >
+                        <td className="min-w-44 p-4">
+                          <button
+                            type="button"
+                            className="rounded-sm text-left font-semibold underline decoration-ink-300 underline-offset-4 hover:text-brand-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green-400"
+                            onClick={() => openListedTask(task)}
+                          >
+                            {task.title}
+                          </button>
+                          <div className="mt-1 text-ink-500">{taskTypeLabel(task.taskType)}</div>
+                        </td>
+                        <td className="p-3">
+                          {branch?.name ??
+                            (branchNames.pending
+                              ? 'Загружаем аптеку…'
+                              : 'Название аптеки недоступно')}
+                          {branch && (
+                            <div className="mt-1 text-ink-500">
+                              {[branch.city, branch.address].filter(Boolean).join(' · ') ||
+                                'Адрес не указан'}
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-3">
+                          <TaskStatusBadge status={task.status} />
+                        </td>
+                        <td className="p-3">{taskPriorityLabel(task.priority)}</td>
+                        <td className="p-3">
+                          {task.dueAt
+                            ? new Date(task.dueAt).toLocaleString('ru-RU', {
+                                timeZone: 'Asia/Almaty',
+                              })
+                            : 'Срок не записан'}
+                        </td>
+                        <td className="p-3">{task.itemCount}</td>
+                        <td className="p-3">
+                          {task.pendingReviewCount == null ? (
+                            <span className="text-ink-500">Нет данных</span>
+                          ) : task.pendingReviewCount > 0 ? (
+                            <span className="chip chip-blue whitespace-nowrap">
+                              Пунктов: {task.pendingReviewCount}
+                            </span>
+                          ) : (
+                            <span className="text-ink-500">Нет</span>
+                          )}
+                        </td>
+                        <td className="p-3">
+                          {task.rewardAmountKzt === null
+                            ? '—'
+                            : task.rewardAmountKzt === 0
+                              ? 'Без вознаграждения'
+                              : formatKzt(task.rewardAmountKzt)}
+                        </td>
+                        <td className="p-3">
+                          <Button variant="outline" size="sm" onClick={() => openListedTask(task)}>
+                            {queue === 'mine'
+                              ? 'Открыть мой пункт'
+                              : (task.pendingReviewCount ?? 0) > 0
+                                ? 'Открыть отчёт'
+                                : 'Открыть задание'}
+                          </Button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-6" role="status">
+              <h3 className="font-semibold">
+                {queue === 'mine'
+                  ? 'Личных заданий по этим условиям нет.'
+                  : filtered
+                    ? 'По этим условиям заданий нет.'
+                    : 'В вашей области заданий пока нет.'}
+              </h3>
+              <p className="mt-2 text-sm text-ink-500">
+                {queue === 'mine'
+                  ? 'Если назначение ожидается, уточните привязку учётной записи у администратора. Остальные доступные задания можно посмотреть во «Всей истории».'
+                  : filtered
+                    ? 'Измените очередь или название задания.'
+                    : 'Здесь появятся доступные вам задания и фотоотчёты.'}
+              </p>
+            </div>
           )}
-          <div className="flex gap-2 border-t p-3">
+          <div className="flex justify-end gap-2 border-t border-ink-200 bg-paper-input px-4 py-3">
             <Button
               variant="outline"
               disabled={!offset}
@@ -226,8 +410,14 @@ function TaskWorkspace({
         </div>
       )}
       {selected && (
-        <div>
-          <div className="mb-3 flex justify-between gap-2">
+        <div
+          ref={detailRegion}
+          role="region"
+          aria-label="Открытое задание"
+          tabIndex={-1}
+          className="scroll-mt-20 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand-green-400"
+        >
+          <div className="mb-3 flex flex-wrap justify-between gap-2 border-t border-ink-200 pt-5">
             <Button variant="ghost" onClick={() => setSelected('')}>
               Скрыть задание
             </Button>
@@ -248,6 +438,8 @@ function TaskWorkspace({
             canReview={canReview}
             canComment={canComment}
             canCancel={canCancel}
+            focusReview={reviewFocus}
+            preferredItemId={executionItemId}
             onChanged={list.reload}
           />
         </div>
@@ -257,7 +449,7 @@ function TaskWorkspace({
           onClose={() => setCreating(false)}
           onCreated={(id) => {
             setCreating(false)
-            setSelected(id)
+            openTask(id)
             list.reload()
           }}
         />
@@ -473,7 +665,7 @@ function CreateTaskDialog({
             onChange={(event) => setTitle(event.target.value)}
           />
         </Field>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Field label="Срок, время Алматы *">
             <Input
               aria-label="Срок задания Алматы"

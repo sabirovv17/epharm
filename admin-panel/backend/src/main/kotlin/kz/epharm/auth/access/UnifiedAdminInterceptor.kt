@@ -23,7 +23,8 @@ class UnifiedAdminInterceptor(private val store: UnifiedAccessStore, private val
     override fun preHandle(request: HttpServletRequest, response: HttpServletResponse, handler: Any): Boolean {
         val path = request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE)?.toString()
             ?: return true
-        if (path in SELF_ROUTES || handler is HandlerMethod && handler.beanType == UnifiedAccessController::class.java &&
+        if (path in SELF_ROUTES || request.method == "POST" && path == "/api/admin/auth/password" ||
+            handler is HandlerMethod && handler.beanType == UnifiedAccessController::class.java &&
             "${request.method} $path" in ACCESS_ROUTES) return true
         val principal = SecurityContextHolder.getContext().authentication?.principal as? AdminPrincipal ?: return true
         val access = store.load(principal) ?: AdministrativeScope.deny()
@@ -52,6 +53,7 @@ class UnifiedAdminInterceptor(private val store: UnifiedAccessStore, private val
             "GET /api/admin/access/pharmacist-options",
             "POST /api/admin/access/source-accounts/{id}/bind", "POST /api/admin/access/pharmacist-person-links",
             "POST /api/admin/access/source-accounts/{id}/provision",
-            "GET /api/admin/access/accounts/{id}", "POST /api/admin/access/accounts", "PUT /api/admin/access/accounts/{id}/grants")
+            "GET /api/admin/access/accounts/{id}", "POST /api/admin/access/accounts", "PUT /api/admin/access/accounts/{id}/grants",
+            "PUT /api/admin/access/accounts/{id}/status")
     }
 }

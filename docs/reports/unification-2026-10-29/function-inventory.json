@@ -16374,5 +16374,131 @@
       "Current-head runtime/ingress/cutover acceptance is recorded separately; source coverage is not deployment proof"
     ],
     "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H14.29",
+    "group": "H14",
+    "name": "Сменить собственный пароль внутреннего аккаунта",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "e92955278d24b9d26e4f64e7e6426db24ae6a060",
+      "ui": ["admin-panel/frontend/src/features/settings/PasswordChangeForm.tsx"],
+      "api": ["POST /api/admin/auth/password"],
+      "jobs": [],
+      "data": ["admin_users", "refresh_tokens", "admin_password_change_audit", "admin_password_attempt_limits"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/auth/controller/AdminAuthController.kt",
+        "admin-panel/backend/src/main/kotlin/kz/epharm/auth/service/AdminAuthService.kt",
+        "admin-panel/backend/src/test/kotlin/kz/epharm/auth/AdminPasswordIntegrationTest.kt"
+      ]
+    },
+    "target": {
+      "section": "Собственный аккаунт",
+      "subsection": "Мой профиль / безопасность",
+      "actions": ["Сменить собственный пароль с текущим доказательством"],
+      "scope": "Только текущий ADMIN principal и актуальная session version; не требует Management; learner/producer realm не допускаются"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Текущий пароль проверяется; новый пароль соответствует ограничениям BCrypt; лимит пяти попыток на 15 минут сохраняется после rollback неверного доказательства",
+      "Пароль, session version, отзыв refresh и аудит обновляются атомарно; старые access/refresh не действуют после commit; гонки login/refresh/password проверяются",
+      "UI очищает секреты, завершает собственную сессию, показывает результат после перехода ко входу; нет persistence паролей"
+    ],
+    "risks": ["V093 ещё не применена; DB-интеграции требуют CI; гарантия отзыва требует version-aware проверки на всех обслуживающих узлах"],
+    "owner": "ePharm post-deploy integration owner"
+  },
+  {
+    "id": "H14.30",
+    "group": "H14",
+    "name": "Блокировка и разблокировка управляемого внутреннего аккаунта",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "e92955278d24b9d26e4f64e7e6426db24ae6a060",
+      "ui": ["admin-panel/frontend/src/features/settings/AccessManagement.tsx"],
+      "api": ["PUT /api/admin/access/accounts/{id}/status"],
+      "jobs": [],
+      "data": ["admin_users", "unified_admin_profiles", "unified_admin_access_audit", "refresh_tokens"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/auth/access/UnifiedAccessController.kt",
+        "admin-panel/backend/src/main/kotlin/kz/epharm/auth/access/UnifiedAccessStore.kt",
+        "admin-panel/backend/src/test/kotlin/kz/epharm/auth/UnifiedAccessRevocationConcurrencyTest.kt"
+      ]
+    },
+    "target": {
+      "section": "Управление",
+      "subsection": "Аккаунты и доступ",
+      "actions": ["Явно изменить активность управляемого аккаунта"],
+      "scope": "Актуальное право управления HQ, текущий пароль и CAS; запрет собственного человека, владельца и unmanaged-цели"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Подтверждение включает текущую версию; при stale CAS требуется загрузить актуальные данные без автоматического повтора",
+      "Блокировка отзывает refresh, закрывает действующий доступ и аудируется без секретов; собственная личность и владелец защищены"
+    ],
+    "risks": ["Явная разблокировка может снова допустить старый неистёкший access JWT; действие не заявляется постоянным отзывом JWT; DB-гонки требуют проверки"],
+    "owner": "ePharm post-deploy integration owner"
+  },
+  {
+    "id": "L05.03",
+    "group": "L05",
+    "name": "Предварительная проверка пакета курса Excel или ZIP",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "e92955278d24b9d26e4f64e7e6426db24ae6a060",
+      "ui": ["admin-panel/frontend/src/features/lms/LMSPage.tsx"],
+      "api": ["POST /api/admin/lms/courses/import/package/preview"],
+      "jobs": [],
+      "data": [],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/lms/controller/CoursePackageController.kt",
+        "admin-panel/backend/src/main/kotlin/kz/epharm/lms/service/CoursePackageImportService.kt",
+        "admin-panel/backend/src/test/kotlin/kz/epharm/lms/CoursePackageImportServiceTest.kt"
+      ]
+    },
+    "target": {
+      "section": "Обучение",
+      "subsection": "Курсы / импорт",
+      "actions": ["Проверить содержимое пакета и получить digest перед явным импортом"],
+      "scope": "Текущий административный доступ к созданию курсов; явный scope программы при её наличии; не learner/public"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Preview не создаёт курс, программу или media; показывает проверенное содержимое и SHA-256",
+      "Пути, число и размеры файлов, XLSX-формулы, ссылки, MIME и обязательные поля проверяются; ошибки не раскрывают секреты"
+    ],
+    "risks": ["Source coverage не доказывает production-приёмку или транзакционный rollback последующего импорта"],
+    "owner": "ePharm post-deploy integration owner"
+  },
+  {
+    "id": "L05.04",
+    "group": "L05",
+    "name": "Подтверждённый импорт пакета курса в черновик",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "e92955278d24b9d26e4f64e7e6426db24ae6a060",
+      "ui": ["admin-panel/frontend/src/features/lms/LMSPage.tsx"],
+      "api": ["POST /api/admin/lms/courses/import/package"],
+      "jobs": [],
+      "data": ["courses", "course_lessons", "course_lesson_attachments", "training_programs", "course_package_import_receipts"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/lms/controller/CoursePackageController.kt",
+        "admin-panel/backend/src/main/kotlin/kz/epharm/lms/service/CoursePackageImportService.kt",
+        "admin-panel/backend/src/main/resources/db/migration/V092__course_package_import_receipts.sql"
+      ]
+    },
+    "target": {
+      "section": "Обучение",
+      "subsection": "Курсы / импорт",
+      "actions": ["Создать черновик из явно подтверждённого пакета"],
+      "scope": "Текущие административные права на курс/необязательную программу; исходный автор повторного пакета; без публикации и назначения"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Подтверждённый digest совпадает с заново проверенными байтами; создаются только черновики курса и необязательной программы",
+      "Точный повтор одного автора не создаёт дубль; права проверяются повторно; другой автор или изменённые байты не считаются тем же запросом",
+      "Ошибки импорта и media должны откатываться без частичного курса; DB/concurrency сценарии выполняются отдельно перед выпуском"
+    ],
+    "risks": ["V092 ещё не применена; семантическая дедупликация переупакованных ZIP не заявляется; DB rollback локально не проверен"],
+    "owner": "ePharm post-deploy integration owner"
   }
 ]

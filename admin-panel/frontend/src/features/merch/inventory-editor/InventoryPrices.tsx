@@ -28,21 +28,37 @@ export default function InventoryPrices({
           Настройка цен недоступна. Просмотр сумм зависит от отдельного финансового права.
         </p>
       )}
-      <div className="overflow-x-auto">
+      <div
+        role="region"
+        aria-label="Цены рекламных мест"
+        tabIndex={0}
+        className="max-w-full overflow-x-auto rounded-lg border border-ink-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-green-600"
+      >
         <table className="w-full text-left text-sm">
-          <thead>
+          <caption className="sr-only">Базовые и помесячные цены рекламных мест</caption>
+          <thead className="bg-paper-input text-xs">
             <tr>
-              <th>Выбор</th>
-              <th>Место</th>
-              <th>Базовая цена</th>
-              <th>Цена половины</th>
-              <th>Помесячные значения</th>
+              <th scope="col" className="p-3">
+                Выбор
+              </th>
+              <th scope="col" className="p-3">
+                Место
+              </th>
+              <th scope="col" className="p-3 text-right">
+                Базовая цена
+              </th>
+              <th scope="col" className="p-3 text-right">
+                Цена половины
+              </th>
+              <th scope="col" className="p-3">
+                Помесячные значения
+              </th>
             </tr>
           </thead>
           <tbody>
             {data.shelves.map(({ shelf }) => (
               <tr className="border-t border-ink-100" key={shelf.id}>
-                <td className="p-2">
+                <td className="p-3">
                   <input
                     aria-label={`Выбрать цену ${shelf.code}`}
                     type="checkbox"
@@ -57,17 +73,19 @@ export default function InventoryPrices({
                     }
                   />
                 </td>
-                <td className="font-bold">
+                <td className="p-3 font-bold">
                   {shelf.code}
                   {!shelf.active && ' · Архив'}
                 </td>
-                <td>
+                <td className="num whitespace-nowrap p-3 text-right">
                   {shelf.baseMonthlyPrice === null
                     ? 'Нет доступа'
                     : formatKzt(shelf.baseMonthlyPrice)}
                 </td>
-                <td>{shelf.halfMonthlyPrice === null ? '—' : formatKzt(shelf.halfMonthlyPrice)}</td>
-                <td>
+                <td className="num whitespace-nowrap p-3 text-right">
+                  {shelf.halfMonthlyPrice === null ? '—' : formatKzt(shelf.halfMonthlyPrice)}
+                </td>
+                <td className="p-3">
                   <div className="flex max-w-md flex-wrap gap-2 py-2">
                     {data.monthlyPrices
                       .filter((item) => item.shelfId === shelf.id)
@@ -92,6 +110,11 @@ export default function InventoryPrices({
           </tbody>
         </table>
       </div>
+      {data.shelves.length === 0 && (
+        <p role="status" className="rounded-lg bg-paper-input p-4 text-sm text-ink-500">
+          Рекламных мест для просмотра цен пока нет.
+        </p>
+      )}
       {data.canConfigurePrices && (
         <form
           className="space-y-3 rounded-xl bg-paper-input p-4"

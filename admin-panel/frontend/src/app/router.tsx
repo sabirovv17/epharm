@@ -30,6 +30,7 @@ const Finance = lazy(() => import('@/features/finance/FinancePage'))
 const Lift = lazy(() => import('@/features/lift/LiftPage'))
 const LMS = lazy(() => import('@/features/lms/LMSPage'))
 const Settings = lazy(() => import('@/features/settings/SettingsPage'))
+const AccountProfile = lazy(() => import('@/features/settings/AccountProfilePage'))
 const Storefront = lazy(() => import('@/features/storefront/StorefrontPage'))
 const Fulfillment = lazy(() => import('@/features/fulfillment/FulfillmentPage'))
 const MerchInventory = lazy(() => import('@/features/merch/MerchInventoryPage'))
@@ -101,6 +102,7 @@ export function AppRouter() {
       {/* Private — всё за RequireAuth → AppShell с Sidebar + Topbar */}
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
+          <Route path="/account" element={withSuspense(<AccountProfile />)} />
           <Route path="/dashboard" element={protectedPage('dashboard', <Dashboard />)} />
           <Route
             path="/dashboard/reports"

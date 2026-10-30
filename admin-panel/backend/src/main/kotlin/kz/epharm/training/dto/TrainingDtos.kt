@@ -492,20 +492,12 @@ data class QuizSubmissionRequest(
     val answers: Map<String, @Min(0) Int>,
 )
 
-data class QuizQuestionResultDto(
-    val questionId: String,
-    val correct: Boolean,
-    val correctOption: Int,
-    val explanation: String,
-)
-
 data class QuizSubmissionResultDto(
     val score: Int,
     val passed: Boolean,
     val correctAnswers: Int,
     val totalQuestions: Int,
     val attempt: Int,
-    val questions: List<QuizQuestionResultDto>,
     val assignment: TrainingAssignmentDto,
 )
 

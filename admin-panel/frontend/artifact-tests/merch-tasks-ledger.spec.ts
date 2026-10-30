@@ -416,6 +416,9 @@ test('HQ returns only the selected item with a reason and current CAS version; p
   task = {
     ...task,
     status: 'submitted',
+    itemCount: 2,
+    pendingReviewCount: 2,
+    nextPendingReviewItemId: 'item-demo',
     rewardAmountKzt: 400,
     items: [
       {
@@ -439,6 +442,13 @@ test('HQ returns only the selected item with a reason and current CAS version; p
       },
     ],
   }
+  task.items.push({
+    ...task.items[0],
+    id: 'next-item-demo',
+    title: 'Следующая полка',
+    currentAttempt: { ...task.items[0].currentAttempt!, id: 'next-attempt-demo' },
+  })
+  const queues: string[] = []
   await page.route('**/*', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
@@ -464,7 +474,8 @@ test('HQ returns only the selected item with a reason and current CAS version; p
           },
         ],
       })
-    if (path === '/api/admin/merch/tasks')
+    if (path === '/api/admin/merch/tasks') {
+      queues.push(url.searchParams.get('queue') ?? 'all')
       return route.fulfill({
         json: {
           items: [{ ...task, detailsIncluded: false, items: [] }],
@@ -473,10 +484,12 @@ test('HQ returns only the selected item with a reason and current CAS version; p
           hasMore: false,
         },
       })
+    }
     if (path === '/api/admin/merch/tasks/task-demo') return route.fulfill({ json: task })
     if (path.endsWith('/evidence/photo-demo'))
       return route.fulfill({ contentType: 'image/png', body: pixel })
     if (path.endsWith('/reviews')) {
+      expect(path).toBe('/api/admin/merch/tasks/items/item-demo/reviews')
       const body = request.postDataJSON()
       writes.push(body)
       expect(body).toEqual({
@@ -504,26 +517,135 @@ test('HQ returns only the selected item with a reason and current CAS version; p
           },
         },
       }
+      task.status = 'revision_required'
+      task.pendingReviewCount = 1
+      task.nextPendingReviewItemId = 'next-item-demo'
       return route.fulfill({ json: task })
     }
     blocked.push(path)
     return route.abort()
   })
   await page.goto('/merch/tasks')
-  await page.getByRole('button', { name: 'Открыть задание' }).click()
-  await expect(page.getByRole('img', { name: 'Фотоотчёт по пункту задания' })).toBeVisible()
-  await page.getByRole('button', { name: 'Вернуть пункт на доработку' }).click()
+  await expect(page.getByText('Пунктов: 2', { exact: true })).toBeVisible()
+  await expect(page.getByText('Демо · Демо, 1', { exact: true })).toBeVisible()
+  await page.screenshot({
+    path: testInfo.outputPath('hq-task-queue.png'),
+    fullPage: true,
+    animations: 'disabled',
+  })
+  await page.getByRole('combobox', { name: 'Рабочая очередь заданий' }).selectOption('review')
+  await expect(page.getByRole('heading', { name: 'Отчёты на проверке' })).toBeVisible()
+  expect(queues).toContain('review')
+  await page.getByRole('button', { name: 'Открыть отчёт' }).click()
+  const firstItem = page.getByRole('region', { name: 'Пункт: Проверить полку' })
+  await expect(firstItem).toBeFocused()
+  await expect(firstItem.getByRole('img', { name: 'Фотоотчёт по пункту задания' })).toBeVisible()
+  await firstItem.getByRole('button', { name: 'Вернуть пункт на доработку' }).click()
   await expect(page.getByRole('button', { name: 'Подтвердить решение' })).toBeDisabled()
   await page.getByLabel('Причина проверки пункта').fill('Нужен общий план полки')
   expect(writes).toEqual([])
   await page.getByRole('button', { name: 'Подтвердить решение' }).click()
   await expect(page.getByText('Пункт возвращён: Нужен общий план полки')).toBeVisible()
+  await expect(page.getByText('Пунктов: 1', { exact: true })).toBeVisible()
+  const nextItem = page.getByRole('region', { name: 'Пункт: Следующая полка' })
+  await expect(nextItem).toBeFocused()
+  await expect(nextItem.getByRole('button', { name: 'Вернуть пункт на доработку' })).toBeVisible()
   await page.screenshot({
     path: testInfo.outputPath('hq-item-review.png'),
     fullPage: true,
     animations: 'disabled',
   })
   expect(writes).toHaveLength(1)
+  expect(blocked).toEqual([])
+})
+
+test('personal queue opens its server-selected item rather than a pending review and does not grant actions', async ({
+  page,
+  baseURL,
+}, testInfo) => {
+  const caps = await seedAdmin(page, { canViewMerchTasks: true, canExecuteMerchTasks: true })
+  const task = freshTask()
+  task.pendingReviewCount = 1
+  task.nextExecutionItemId = 'personal-item'
+  task.itemCount = 2
+  task.items = [
+    {
+      ...task.items[0],
+      id: 'pending-item',
+      title: 'Отчёт другого сотрудника',
+      status: 'submitted',
+      canStart: false,
+    },
+    { ...task.items[0], id: 'personal-item', title: 'Моя полка', canStart: false },
+  ]
+  const blocked: string[] = []
+  const queues: string[] = []
+  await page.setViewportSize({ width: 1280, height: 1000 })
+  await page.route('**/*', async (route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+    if (url.origin !== new URL(baseURL!).origin) {
+      blocked.push(request.url())
+      return route.abort()
+    }
+    if (!url.pathname.startsWith('/api/')) return route.continue()
+    if (request.method() !== 'GET') {
+      blocked.push(`${request.method()} ${url.pathname}`)
+      return route.abort()
+    }
+    if (url.pathname === '/api/admin/access/me') return route.fulfill({ json: caps })
+    if (url.pathname === '/api/admin/merch/tasks/branches')
+      return route.fulfill({
+        json: [
+          {
+            id: task.branchId,
+            name: 'Тестовая аптека',
+            city: 'Демо',
+            address: 'Демо, 1',
+            active: true,
+            createEligible: false,
+            canConfigureReward: false,
+          },
+        ],
+      })
+    if (url.pathname === '/api/admin/merch/tasks') {
+      queues.push(url.searchParams.get('queue') ?? 'all')
+      return route.fulfill({
+        json: {
+          items: [{ ...task, items: [], detailsIncluded: false }],
+          offset: 0,
+          limit: 20,
+          hasMore: false,
+        },
+      })
+    }
+    if (url.pathname === '/api/admin/merch/tasks/task-demo') return route.fulfill({ json: task })
+    blocked.push(url.pathname)
+    return route.abort()
+  })
+  await page.goto('/merch/tasks')
+  await page.getByRole('combobox', { name: 'Рабочая очередь заданий' }).selectOption('mine')
+  await expect(page.getByText(/Доступ к аптеке сам по себе не делает задание вашим/)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Задания мерча', exact: true })).toBeVisible()
+  await page.screenshot({
+    path: testInfo.outputPath('personal-task-queue.png'),
+    fullPage: true,
+    animations: 'disabled',
+  })
+  // The first-column shortcut stays accessible without horizontal table scrolling.
+  const taskTitle = page.getByRole('button', { name: task.title, exact: true })
+  await expect(taskTitle).toBeInViewport()
+  await taskTitle.click()
+  const personalItem = page.getByRole('region', { name: 'Пункт: Моя полка' })
+  await expect(personalItem).toBeFocused()
+  await expect(page.getByRole('button', { name: 'Начать выполнение', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Принять пункт', exact: true })).toHaveCount(0)
+  expect(queues).toEqual(['all', 'mine'])
+  await personalItem.scrollIntoViewIfNeeded()
+  await personalItem.screenshot({
+    path: testInfo.outputPath('personal-task-item.png'),
+    animations: 'disabled',
+  })
   expect(blocked).toEqual([])
 })
 

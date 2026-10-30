@@ -353,12 +353,6 @@ type QuizSubmissionResult = {
   correctAnswers: number
   totalQuestions: number
   attempt: number
-  questions: Array<{
-    questionId: string
-    correct: boolean
-    correctOption: number
-    explanation: string
-  }>
   assignment: Assignment
 }
 
@@ -2108,7 +2102,7 @@ function PortalNavigation({
             aria-current={active === id ? 'page' : undefined}
           >
             <Icon size={19} />
-            <span className="truncate">{label}</span>
+            <span className="max-w-full truncate">{label}</span>
           </button>
         ))}
       </div>
@@ -2733,7 +2727,8 @@ function ProfileView({
             aria-controls="learner-card-info"
             onClick={() => setShowCardInfo((visible) => !visible)}
           >
-            <CreditCard size={17} /> {showCardInfo ? t('Скрыть информацию') : t('Привязать карту')}
+            <CreditCard size={17} />{' '}
+            {showCardInfo ? t('Скрыть информацию') : t('Как подключить карту')}
           </button>
           {showCardInfo && (
             <p
@@ -3029,6 +3024,7 @@ function OverviewView({
   onOpenLesson: (assignment: Assignment, lessonId: string) => void
 }) {
   const t = useLearnerT()
+  const [trainingFilter, setTrainingFilter] = useState<'active' | 'history'>('active')
   const availableNow = (assignment: Assignment) =>
     !['completed', 'cancelled', 'paused', 'planned'].includes(assignment.status) &&
     (assignment.status !== 'scheduled' || !!assignment.startsAt) &&
@@ -3053,8 +3049,14 @@ function OverviewView({
         new Date(right.dueAt ?? '9999-12-31').getTime()
       )
     })
+  const activeAssignments = assignments.filter((assignment) => assignment.status !== 'completed')
+  const completedAssignments = assignments.filter((assignment) => assignment.status === 'completed')
   const visibleAssignments =
-    section === 'training' ? assignments : assignments.filter(availableNow).slice(0, 1)
+    section === 'training'
+      ? trainingFilter === 'history'
+        ? completedAssignments
+        : activeAssignments
+      : assignments.filter(availableNow).slice(0, 1)
 
   return (
     <section>
@@ -3097,11 +3099,36 @@ function OverviewView({
         )}
       </div>
 
+      {section === 'training' && (
+        <div className="mb-5 flex flex-wrap gap-2" role="group" aria-label={t('Список курсов')}>
+          {(
+            [
+              ['active', t('Мои курсы'), activeAssignments.length],
+              ['history', t('История обучения'), completedAssignments.length],
+            ] as const
+          ).map(([filter, label, count]) => (
+            <button
+              key={filter}
+              type="button"
+              aria-pressed={trainingFilter === filter}
+              className={`rounded-xl px-4 py-3 text-sm font-bold transition ${trainingFilter === filter ? 'bg-brand-green-700 text-white' : 'bg-white text-ink-600 hover:bg-brand-green-50'}`}
+              onClick={() => setTrainingFilter(filter)}
+            >
+              {label} <span className="ml-2 opacity-75">{count}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {visibleAssignments.length === 0 ? (
         <div className="rounded-2xl bg-white p-8 text-center shadow-card">
           <BookOpen className="mx-auto text-ink-300" size={36} />
           <p className="mt-3 font-bold text-ink-700">
-            {section === 'home' ? t('Нет текущего курса') : t('Новых курсов пока нет')}
+            {section === 'home'
+              ? t('Нет текущего курса')
+              : trainingFilter === 'history'
+                ? t('Завершённых курсов пока нет')
+                : t('Новых курсов пока нет')}
           </p>
         </div>
       ) : (
@@ -3113,6 +3140,11 @@ function OverviewView({
           }
         >
           {visibleAssignments.map((assignment) => {
+            const lessons = assignment.stages.flatMap((stage) => stage.course?.lessons ?? [])
+            const testsCount = lessons.filter(
+              (lesson) => lesson.kind === 'quiz' || lesson.kind === 'test',
+            ).length
+            const completed = assignment.status === 'completed'
             const firstLesson = assignment.stages
               .filter((stage) => stage.status !== 'locked')
               .flatMap((stage) =>
@@ -3137,6 +3169,13 @@ function OverviewView({
                 <h3 className="text-xl font-extrabold leading-7 text-ink-900">
                   {assignment.programName}
                 </h3>
+                {lessons.length > 0 && (
+                  <p className="mt-2 text-xs font-semibold text-ink-500">
+                    {t('Материалов: {count}', { count: lessons.length - testsCount })}
+                    {' · '}
+                    {t('Тестов: {count}', { count: testsCount })}
+                  </p>
+                )}
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-ink-500">
                   <span>{statusText(assignment.status)}</span>
                   <span>{t('Прогресс: {value}%', { value: assignment.progressPct })}</span>
@@ -3150,7 +3189,19 @@ function OverviewView({
                     style={{ width: `${Math.max(0, Math.min(100, assignment.progressPct))}%` }}
                   />
                 </div>
-                {assignment.dueAt && (
+                {completed && (
+                  <p className="mt-3 text-sm font-bold text-brand-green-700">
+                    {assignment.score != null
+                      ? t('Результат: {score}%', { score: assignment.score })
+                      : t('Курс завершён без оценки')}
+                  </p>
+                )}
+                {completed && assignment.completedAt && (
+                  <p className="mt-2 text-xs text-ink-500">
+                    {t('Завершено {date}', { date: formatDate(assignment.completedAt) })}
+                  </p>
+                )}
+                {!completed && assignment.dueAt && (
                   <p className="mt-3 flex items-center gap-1.5 text-xs text-ink-500">
                     <CalendarDays size={14} />{' '}
                     {t('До {date}', { date: formatDate(assignment.dueAt) })}
@@ -3165,6 +3216,11 @@ function OverviewView({
                       t('Знания и практические навыки по теме курса.')}
                   </p>
                 </div>
+                {!completed && availableNow(assignment) && firstLesson && (
+                  <p className="mt-4 text-sm leading-5 text-ink-600">
+                    {t('Следующий урок: {title}', { title: firstLesson.title })}
+                  </p>
+                )}
                 <button
                   type="button"
                   className="btn btn-primary btn-md mt-5 w-full"
@@ -3176,14 +3232,26 @@ function OverviewView({
                   }
                 >
                   <PlayCircle size={18} />{' '}
-                  {!availableNow(assignment)
-                    ? t('Открыть курс')
-                    : assignment.startedAt ||
-                        assignment.progressPct > 0 ||
-                        assignment.status === 'in_progress'
-                      ? t('Продолжить обучение')
-                      : t('Начать курс')}
+                  {completed
+                    ? t('Повторить материалы')
+                    : !availableNow(assignment)
+                      ? t('Открыть курс')
+                      : assignment.startedAt ||
+                          assignment.progressPct > 0 ||
+                          assignment.status === 'in_progress'
+                        ? t('Продолжить обучение')
+                        : t('Начать курс')}
                 </button>
+                {completed && assignment.certificate?.pdfUrl && (
+                  <a
+                    className="btn btn-outline btn-md mt-2 w-full"
+                    href={assignment.certificate.pdfUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <Award size={18} /> {t('Скачать сертификат')}
+                  </a>
+                )}
               </article>
             )
           })}
@@ -4589,6 +4657,7 @@ function LessonPage({
 
           {quizLesson && (lesson.quizQuestions?.length ?? 0) > 0 && (
             <QuizLesson
+              key={`${assignment.id}:${lesson.id}`}
               lesson={lesson}
               completed={read}
               onSubmit={(answers) => onSubmitQuiz(currentStage, lesson, answers)}
@@ -5146,6 +5215,7 @@ function QuizLesson({
   const questions = lesson.quizQuestions ?? []
   const [answers, setAnswers] = useState<Record<string, number>>({})
   const [result, setResult] = useState<QuizSubmissionResult | null>(null)
+  const [retryStarted, setRetryStarted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
@@ -5163,24 +5233,60 @@ function QuizLesson({
     setSubmitting(true)
     setError('')
     const nextResult = await onSubmit(answers)
-    if (nextResult) setResult(nextResult)
+    if (nextResult) {
+      setResult(nextResult)
+      setAnswers({})
+    }
     setSubmitting(false)
   }
 
-  if (completed && !result) {
+  const previousAttempt =
+    !retryStarted && (lesson.quizAttempts ?? 0) > 0 && lesson.quizScore != null
+  if (result || completed || previousAttempt) {
+    const passed = result?.passed ?? completed
+    const score = result?.score ?? lesson.quizScore
+    const attempt = result?.attempt ?? lesson.quizAttempts
     return (
-      <section className="rounded-2xl border border-[#9bd8b7] bg-[#e7f8ef] p-5">
-        <div className="flex items-center gap-3 text-[#17623f]">
-          <CheckCircle2 size={24} />
+      <section
+        aria-live="polite"
+        className={`rounded-2xl border p-5 ${passed ? 'border-brand-green-200 bg-brand-green-50 text-brand-green-800' : 'border-ink-100 bg-paper-hover text-ink-800'}`}
+      >
+        <div className="flex items-center gap-3">
+          {passed ? <CheckCircle2 size={24} /> : <RefreshCw size={24} />}
           <div>
-            <div className="font-extrabold">{t('Тест пройден')}</div>
-            {lesson.quizScore != null && (
+            <div className="font-extrabold">
+              {passed ? t('Тест пройден') : t('Тест не пройден')}
+            </div>
+            {score != null && (
               <div className="mt-1 text-sm font-semibold">
-                {t('Результат: {score}%', { score: lesson.quizScore })}
+                {t(result ? 'Результат: {score}%' : 'Лучший результат: {score}%', { score })}
+                {!!attempt && (
+                  <> · {t(result ? 'Попытка {attempt}' : 'Попыток: {attempt}', { attempt })}</>
+                )}
               </div>
             )}
           </div>
         </div>
+        <p className="mt-3 text-sm leading-6">
+          {passed
+            ? t('Продолжите обучение с помощью кнопки ниже.')
+            : t('Повторите материалы и попробуйте ещё раз.')}
+        </p>
+        {!passed && (
+          <button
+            type="button"
+            className="btn btn-outline btn-md mt-4"
+            disabled={submitting}
+            onClick={() => {
+              setAnswers({})
+              setResult(null)
+              setRetryStarted(true)
+              setError('')
+            }}
+          >
+            <RefreshCw size={17} /> {t('Повторить тест')}
+          </button>
+        )}
       </section>
     )
   }
@@ -5199,27 +5305,8 @@ function QuizLesson({
         </span>
       </div>
 
-      {result && (
-        <div
-          className={`mt-4 rounded-xl p-4 ${result.passed ? 'border border-[#9bd8b7] bg-[#e7f8ef] text-[#17623f]' : 'bg-surface-danger text-accent-danger'}`}
-        >
-          <div className="font-extrabold">
-            {result.passed ? t('Тест пройден') : t('Тест не пройден')}
-          </div>
-          <div className="mt-1 text-sm font-semibold">
-            {t('Результат: {score}% · правильных ответов {correct} из {total}', {
-              score: result.score,
-              correct: result.correctAnswers,
-              total: result.totalQuestions,
-            })}{' '}
-            · {t('Попытка {attempt}', { attempt: result.attempt })}
-          </div>
-        </div>
-      )}
-
       <div className="mt-5 space-y-4">
         {questions.map((question, questionIndex) => {
-          const questionResult = result?.questions.find((item) => item.questionId === question.id)
           return (
             <div
               key={question.id}
@@ -5238,63 +5325,30 @@ function QuizLesson({
               <div className="mt-3 space-y-2">
                 {question.options.map((option, optionIndex) => {
                   const selected = answers[question.id] === optionIndex
-                  const correct = questionResult?.correctOption === optionIndex
-                  const wrongSelected = !!questionResult && selected && !correct
                   return (
                     <label
                       key={`${question.id}-${optionIndex}`}
-                      data-answer-state={
-                        correct
-                          ? 'correct'
-                          : wrongSelected
-                            ? 'incorrect'
-                            : selected
-                              ? 'selected'
-                              : 'idle'
-                      }
+                      data-answer-state={selected ? 'selected' : 'idle'}
                       className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 text-sm font-semibold transition ${
-                        correct
-                          ? 'border-[#70c795] bg-[#e7f8ef] text-[#17623f] ring-1 ring-[#70c795]/30'
-                          : wrongSelected
-                            ? 'border-red-200 bg-red-50 text-red-700'
-                            : selected
-                              ? 'border-[#46baaf] bg-[#eaf7f6] text-ink-800'
-                              : 'border-ink-100 bg-white text-ink-700 hover:bg-paper-hover'
+                        selected
+                          ? 'border-brand-green-400 bg-brand-green-50 text-ink-800'
+                          : 'border-ink-100 bg-white text-ink-700 hover:bg-paper-hover'
                       }`}
                     >
                       <input
                         type="radio"
                         name={`quiz-${lesson.id}-${question.id}`}
                         checked={selected}
-                        disabled={!!result || submitting}
+                        disabled={submitting}
                         onChange={() =>
                           setAnswers((current) => ({ ...current, [question.id]: optionIndex }))
                         }
                       />
                       <span className="min-w-0 flex-1">{option}</span>
-                      {correct && (
-                        <CheckCircle2
-                          className="mt-0.5 shrink-0 text-[#2f9e63]"
-                          size={18}
-                          aria-hidden="true"
-                        />
-                      )}
                     </label>
                   )
                 })}
               </div>
-              {questionResult && (
-                <div
-                  className={`mt-3 text-xs font-bold ${questionResult.correct ? 'text-[#238454]' : 'text-red-700'}`}
-                >
-                  {questionResult.correct ? t('Правильный ответ') : t('Неправильный ответ')}
-                  {questionResult.explanation && (
-                    <span className="ml-1 font-semibold text-ink-500">
-                      · {questionResult.explanation}
-                    </span>
-                  )}
-                </div>
-              )}
             </div>
           )
         })}
@@ -5302,29 +5356,15 @@ function QuizLesson({
 
       {error && <div className="mt-4 text-sm font-bold text-accent-danger">{error}</div>}
       <div className="mt-5 flex justify-end">
-        {result && !result.passed ? (
-          <button
-            type="button"
-            className="btn btn-outline btn-md"
-            onClick={() => {
-              setAnswers({})
-              setResult(null)
-              setError('')
-            }}
-          >
-            <RefreshCw size={17} /> {t('Повторить тест')}
-          </button>
-        ) : !result ? (
-          <button
-            type="button"
-            className="btn btn-primary btn-md"
-            disabled={submitting}
-            onClick={() => void submit()}
-          >
-            {submitting ? <Loader2 className="animate-spin" size={17} /> : <Check size={17} />}
-            {submitting ? t('Отправляем ответы…') : t('Завершить тест')}
-          </button>
-        ) : null}
+        <button
+          type="button"
+          className="btn btn-primary btn-md"
+          disabled={submitting}
+          onClick={() => void submit()}
+        >
+          {submitting ? <Loader2 className="animate-spin" size={17} /> : <Check size={17} />}
+          {submitting ? t('Отправляем ответы…') : t('Завершить тест')}
+        </button>
       </div>
     </section>
   )

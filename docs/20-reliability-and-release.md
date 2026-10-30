@@ -218,6 +218,17 @@ cannot substitute an unpromoted development image as recovery. Before the first 
 review and rehearse a pinned RBAC-compatible recovery/roll-forward procedure. Do not weaken this
 guard, relabel an older binary as current main, or restore an old database over new POSM sales.
 
+V093 adds an independent administrative-session recovery boundary. Once
+`admin_users.session_version` exists, every recovery image must retain the reviewed JWT
+issuer, authentication filter and fresh session loader that enforce it. The same verifier
+checks schema presence and target V093 migration markers, not a current count of nonzero
+versions: such a count could race a password change. Unknown schema state fails closed.
+Install this reviewed host verifier before switching to the V093 application.
+The v0.2.1 predecessor may boot on the additive schema, but it cannot enforce token
+revocation and is therefore no longer an eligible rollback. Preserve its backup for evidence;
+rehearse a session-capable exact-main forward recovery instead. Never remove the column,
+reset versions or rotate credentials merely to admit an older image.
+
 For an unresolved **post-switch** archive failure, the deploy writer retains
 `candidate.release.env` and creates a caller-owned 0600 `failed-state.json` in its
 0700 transaction directory. This records the actual application container/image IDs,

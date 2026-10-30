@@ -37,15 +37,26 @@ const commercial = commercialGateway(
   (path, signal) => downloadReport(path, {}, signal),
 )
 export default function MerchPlacementsPage() {
-  const [commercialOpen, setCommercialOpen] = useState(false)
-  const [instructionsOpen, setInstructionsOpen] = useState(false)
-  const [tariffsOpen, setTariffsOpen] = useState(false)
+  const [section, setSection] = useState('placements')
+  const [visited, setVisited] = useState<string[]>(['placements'])
   const principalId = useUiStore((state) => state.authedUser?.id ?? 'signed-out')
   const epoch = useUiStore((state) => state.querySessionEpoch)
   const access = useAdministrativeCapabilities()
   const principalKey = `${principalId}:${epoch}:${access.data?.version ?? 'legacy'}:${access.data?.roleCeiling ?? ''}`
   if (access.isPending || (access.isFetching && !access.isFetchedAfterMount))
     return <p role="status">Проверяем доступ…</p>
+  if (access.isError)
+    return (
+      <div role="alert" className="card p-6">
+        <h1 className="text-xl font-bold">Не удалось проверить доступ</h1>
+        <p className="my-3 text-ink-500">
+          Данные размещений скрыты до успешной проверки. Это не отказ в правах.
+        </p>
+        <Button variant="outline" onClick={() => access.refetch()}>
+          Повторить проверку
+        </Button>
+      </div>
+    )
   if (!access.canViewMerchPlacements)
     return (
       <div className="card p-6">
@@ -53,64 +64,100 @@ export default function MerchPlacementsPage() {
         <p className="mt-2 text-ink-500">
           Нужны отдельные права на сочетание аптек мерча и производителей.
         </p>
-        {access.isError && (
-          <Button variant="outline" onClick={() => access.refetch()}>
-            Повторить проверку
-          </Button>
-        )}
       </div>
     )
+  const activeSection =
+    section === 'tariffs' && !access.canViewMerchTariffs ? 'placements' : section
+  const sections = [
+    ['placements', 'Медиапланы'],
+    ['commercial', 'Планы на период и бюджет'],
+    ['instructions', 'Инструктажи по размещениям'],
+    ...(access.canViewMerchTariffs ? [['tariffs', 'Тарифы поставщиков']] : []),
+  ]
   return (
-    <>
-      <div className="mb-4 flex flex-wrap gap-2">
-        <Button variant="outline" onClick={() => setCommercialOpen((value) => !value)}>
-          {commercialOpen ? 'Скрыть планы на период' : 'Планы на период и бюджет'}
-        </Button>
-        <Button variant="outline" onClick={() => setInstructionsOpen((value) => !value)}>
-          {instructionsOpen ? 'Скрыть инструктажи' : 'Инструктажи по размещениям'}
-        </Button>
-        {access.canViewMerchTariffs && (
-          <Button variant="outline" onClick={() => setTariffsOpen((value) => !value)}>
-            {tariffsOpen ? 'Скрыть тарифы' : 'Тарифы поставщиков'}
+    <div className="min-w-0 space-y-5">
+      <nav aria-label="Разделы размещений" className="card flex flex-wrap gap-2 p-3">
+        {sections.map(([id, label]) => (
+          <Button
+            key={id}
+            id={`merch-section-${id}`}
+            variant={activeSection === id ? 'primary' : 'ghost'}
+            aria-expanded={activeSection === id}
+            aria-controls={`merch-panel-${id}`}
+            className="h-auto min-h-[38px] max-w-full whitespace-normal py-2 text-left"
+            onClick={() => {
+              setSection(id)
+              setVisited((values) => (values.includes(id) ? values : [...values, id]))
+            }}
+          >
+            {label}
           </Button>
+        ))}
+      </nav>
+      <div
+        id="merch-panel-tariffs"
+        role="region"
+        aria-labelledby="merch-section-tariffs"
+        hidden={activeSection !== 'tariffs'}
+      >
+        {visited.includes('tariffs') && access.canViewMerchTariffs && (
+          <PricingEditor key={`tariffs:${principalKey}`} />
         )}
       </div>
-      {tariffsOpen && access.canViewMerchTariffs && (
-        <PricingEditor key={`tariffs:${principalKey}`} />
-      )}
-      {commercialOpen && (
-        <ProducerCommercialWorkspace
-          key={`commercial:${principalKey}`}
-          gateway={commercial}
-          placements={gateway}
-        />
-      )}
-      {instructionsOpen && (
-        <TaskInstructionPanel key={`instructions:${principalKey}`} api={adminInstructionApi} />
-      )}
-      <PlacementWorkspace
-        key={`placements:${principalKey}`}
-        gateway={gateway}
-        renderExport={(filter) => (
-          <ReportDownloadButton
-            allowed={access.canExportMerchPlacements}
-            path="/api/admin/merch/exports/placements.xlsx"
-            params={filter}
-            filename="merch-placements.xlsx"
-            label="Excel: медиапланы"
-            note="Все страницы по выбранному производителю и статусу; без скрытого периода."
+      <div
+        id="merch-panel-commercial"
+        role="region"
+        aria-labelledby="merch-section-commercial"
+        hidden={activeSection !== 'commercial'}
+      >
+        {visited.includes('commercial') && (
+          <ProducerCommercialWorkspace
+            key={`commercial:${principalKey}`}
+            gateway={commercial}
+            placements={gateway}
           />
         )}
-        renderBinding={(placement, producers, onChanged) =>
-          access.canBindMerchProducer && placement.canBindProducer === true ? (
-            <PlacementProducerBinding
-              placement={placement}
-              producers={producers}
-              onChanged={onChanged}
+      </div>
+      <div
+        id="merch-panel-instructions"
+        role="region"
+        aria-labelledby="merch-section-instructions"
+        hidden={activeSection !== 'instructions'}
+      >
+        {visited.includes('instructions') && (
+          <TaskInstructionPanel key={`instructions:${principalKey}`} api={adminInstructionApi} />
+        )}
+      </div>
+      <div
+        id="merch-panel-placements"
+        role="region"
+        aria-labelledby="merch-section-placements"
+        hidden={activeSection !== 'placements'}
+      >
+        <PlacementWorkspace
+          key={`placements:${principalKey}`}
+          gateway={gateway}
+          renderExport={(filter) => (
+            <ReportDownloadButton
+              allowed={access.canExportMerchPlacements}
+              path="/api/admin/merch/exports/placements.xlsx"
+              params={filter}
+              filename="merch-placements.xlsx"
+              label="Excel: медиапланы"
+              note="Все страницы по выбранному производителю и статусу; без скрытого периода."
             />
-          ) : null
-        }
-      />
-    </>
+          )}
+          renderBinding={(placement, producers, onChanged) =>
+            access.canBindMerchProducer && placement.canBindProducer === true ? (
+              <PlacementProducerBinding
+                placement={placement}
+                producers={producers}
+                onChanged={onChanged}
+              />
+            ) : null
+          }
+        />
+      </div>
+    </div>
   )
 }

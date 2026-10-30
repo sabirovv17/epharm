@@ -41,7 +41,6 @@ import kz.epharm.training.dto.MassAssignmentResultDto
 import kz.epharm.training.dto.MobileTrainingOverviewDto
 import kz.epharm.training.dto.OfflineEventDto
 import kz.epharm.training.dto.OfflineEventSummaryDto
-import kz.epharm.training.dto.QuizQuestionResultDto
 import kz.epharm.training.dto.QuizSubmissionRequest
 import kz.epharm.training.dto.QuizSubmissionResultDto
 import kz.epharm.training.dto.RecordAssessmentResultRequest
@@ -1190,6 +1189,7 @@ class TrainingService(
 
     @Transactional
     fun startAssignment(pharmacistId: String, assignmentId: UUID): TrainingAssignmentDto {
+        lockAttemptWrites(assignmentId)
         val assignment = loadOwnedAssignment(pharmacistId, assignmentId)
         if (assignment.status == TrainingAssignmentStatus.cancelled) conflict("Назначение отменено")
         if (assignment.status == TrainingAssignmentStatus.completed) return mapAssignments(listOf(assignment)).single()
@@ -1208,6 +1208,7 @@ class TrainingService(
         stageId: UUID,
         req: StageProgressRequest,
     ): TrainingAssignmentDto {
+        lockAttemptWrites(assignmentId)
         val assignment = loadOwnedAssignment(pharmacistId, assignmentId)
         if (assignment.status in setOf(TrainingAssignmentStatus.completed, TrainingAssignmentStatus.cancelled)) {
             conflict("Завершённое или отменённое назначение нельзя изменять")
@@ -1308,6 +1309,7 @@ class TrainingService(
         req: LessonProgressRequest,
         allowQuizCompletion: Boolean,
     ): TrainingAssignmentDto {
+        lockAttemptWrites(assignmentId)
         val assignment = loadOwnedAssignment(pharmacistId, assignmentId)
         if (assignment.status in setOf(TrainingAssignmentStatus.completed, TrainingAssignmentStatus.cancelled)) {
             conflict("Завершённое или отменённое назначение нельзя изменять")
@@ -1385,6 +1387,13 @@ class TrainingService(
             ((saved * 100) / threshold.coerceAtLeast(1)).coerceIn(0, 100)
         }.average().roundToInt()
         val allComplete = requiredLessons.all { progressByLesson[it.id]?.completedAt != null }
+        val requiredTests = requiredLessons.filter { it.kind in setOf(CourseLessonKind.quiz, CourseLessonKind.test) }
+        val successfulScores = requiredTests.mapNotNull { requiredTest ->
+            progressByLesson[requiredTest.id]?.takeIf { it.completedAt != null }?.quizScore
+        }
+        assignmentStage.score = successfulScores.takeIf {
+            it.isNotEmpty() && it.size == requiredTests.size
+        }?.average()?.roundToInt()
         assignmentStage.status = when {
             allComplete && programStage.manualReview -> TrainingStageStatus.waiting_review
             allComplete -> TrainingStageStatus.completed
@@ -1416,6 +1425,7 @@ class TrainingService(
         lessonId: String,
         req: QuizSubmissionRequest,
     ): QuizSubmissionResultDto {
+        lockAttemptWrites(assignmentId)
         val assignment = loadOwnedAssignment(pharmacistId, assignmentId)
         if (assignment.status in setOf(TrainingAssignmentStatus.completed, TrainingAssignmentStatus.cancelled)) {
             conflict("Завершённое или отменённое назначение нельзя изменять")
@@ -1442,6 +1452,15 @@ class TrainingService(
         }
         if (lesson.quizQuestions.isEmpty()) conflict("В тесте нет вопросов")
 
+        val lessons = courseLessonRepository.findAllByCourseIdOrderByOrderAscCreatedAtAsc(courseId)
+        val progressByLesson = lessonProgressRepository.findAllByAssignmentStageIdIn(listOf(stageId))
+            .associateBy { it.lessonId }
+        val blockedBy = lessons.firstOrNull { previous ->
+            previous.required && previous.order < lesson.order &&
+                progressByLesson[previous.id]?.completedAt == null
+        }
+        if (blockedBy != null) conflict("Сначала завершите урок «${blockedBy.title}»")
+
         val questionIds = lesson.quizQuestions.map { it.id }.toSet()
         if (req.answers.keys != questionIds) badRequest("Ответьте на все вопросы теста")
         lesson.quizQuestions.forEach { question ->
@@ -1449,17 +1468,12 @@ class TrainingService(
             if (answer !in question.options.indices) badRequest("Некорректный вариант ответа")
         }
 
-        val questionResults = lesson.quizQuestions.map { question ->
-            QuizQuestionResultDto(
-                questionId = question.id,
-                correct = req.answers.getValue(question.id) == question.correctOption,
-                correctOption = question.correctOption,
-                explanation = question.explanation,
-            )
+        val correctAnswers = lesson.quizQuestions.count { question ->
+            req.answers.getValue(question.id) == question.correctOption
         }
-        val correctAnswers = questionResults.count { it.correct }
         val score = ((correctAnswers * 100.0) / lesson.quizQuestions.size).roundToInt()
-        val passed = score >= lesson.quizPassingScore
+        // Compare the exact ratio: display rounding must never turn a failure into a pass.
+        val passed = correctAnswers.toLong() * 100L >= lesson.quizPassingScore.toLong() * lesson.quizQuestions.size.toLong()
         val now = Instant.now()
         val progress = lessonProgressRepository.findByAssignmentStageIdAndLessonId(stageId, lessonId)
             ?: TrainingLessonProgressEntity(
@@ -1469,7 +1483,10 @@ class TrainingService(
                 startedAt = now,
             )
         progress.quizAttempts += 1
-        progress.quizScore = maxOf(progress.quizScore ?: 0, score)
+        if (passed || progress.completedAt == null) {
+            progress.quizScore = if (passed && progress.completedAt == null) score
+                else maxOf(progress.quizScore ?: 0, score)
+        }
         lessonProgressRepository.save(progress)
         if (assignment.startedAt == null) assignment.startedAt = now
         if (assignmentStage.startedAt == null) assignmentStage.startedAt = now
@@ -1502,7 +1519,6 @@ class TrainingService(
             correctAnswers = correctAnswers,
             totalQuestions = lesson.quizQuestions.size,
             attempt = progress.quizAttempts,
-            questions = questionResults,
             assignment = updatedAssignment,
         )
     }
@@ -1518,6 +1534,7 @@ class TrainingService(
         principal: AdminPrincipal,
     ): TrainingAssignmentDto {
         administrativeAccess.lockWriter()
+        lockAttemptWrites(assignmentId)
         val assignment = assignmentRepository.findById(assignmentId).orElseThrow {
             AppException(ErrorCode.NOT_FOUND, "Назначение не найдено", HttpStatus.NOT_FOUND)
         }
@@ -1545,12 +1562,21 @@ class TrainingService(
         val threshold = definition.passingScore
         val passed = req.passed ?: (threshold == null || req.score >= threshold)
         val now = Instant.now()
+        val keepsBestSuccessful = definition.type in setOf(TrainingStageType.test, TrainingStageType.ai_exam)
+        val successfulHistory = if (keepsBestSuccessful) {
+            assessmentResultRepository.findAllByAssignmentStageIdOrderByAttemptNoDesc(stage.id)
+                .filter { it.assignmentId == assignment.id && it.sourceType == definition.type && it.passed }
+        } else emptyList()
+        val bestSuccessfulScore = (successfulHistory.map { it.score } + listOfNotNull(req.score.takeIf { passed })).maxOrNull()
+        val stagePassed = if (keepsBestSuccessful) bestSuccessfulScore != null else passed
         stage.attemptsUsed = nextAttempt
-        stage.score = req.score
+        stage.score = if (keepsBestSuccessful) bestSuccessfulScore ?: req.score else req.score
         stage.progressPct = 100
         stage.startedAt = stage.startedAt ?: now
-        stage.status = if (passed) TrainingStageStatus.completed else TrainingStageStatus.failed
-        stage.completedAt = now.takeIf { passed }
+        stage.status = if (stagePassed) TrainingStageStatus.completed else TrainingStageStatus.failed
+        stage.completedAt = if (stagePassed) {
+            if (successfulHistory.isNotEmpty()) stage.completedAt ?: successfulHistory.minOf { it.recordedAt } else now
+        } else null
         assignmentStageRepository.save(stage)
         assessmentResultRepository.save(
             TrainingAssessmentResultEntity(
@@ -1565,8 +1591,15 @@ class TrainingService(
                 recordedAt = now,
             ).also { it.sourceType = definition.type },
         )
-        if (passed) {
+        if (stagePassed) {
             unlockDependentStages(assignment, definition.stageKey)
+            if (keepsBestSuccessful && assignment.status == TrainingAssignmentStatus.retake_required) {
+                val applicable = programStageRepository.findAllByVersionIdOrderByOrderNoAsc(assignment.programVersionId)
+                    .filter { assignment.format in it.applicableFormats }.map { it.id }.toSet()
+                val anotherFailed = assignmentStageRepository.findAllByAssignmentIdOrderByProgramStageIdAsc(assignment.id)
+                    .any { it.id != stage.id && it.programStageId in applicable && it.status == TrainingStageStatus.failed }
+                if (!anotherFailed) assignment.status = TrainingAssignmentStatus.in_progress
+            }
         } else {
             assignment.status = TrainingAssignmentStatus.retake_required
             assignmentRepository.save(assignment)
@@ -2100,7 +2133,7 @@ class TrainingService(
         val now = Instant.now()
         assignment.status = TrainingAssignmentStatus.completed
         assignment.progressPct = 100
-        assignment.score = stages.mapNotNull { it.score }.takeIf(List<Int>::isNotEmpty)?.average()?.roundToInt()
+        assignment.score = completionScores(assignment, stages)?.takeIf(List<Int>::isNotEmpty)?.average()?.roundToInt()
         assignment.completedAt = now
         assignmentRepository.save(assignment)
 
@@ -2151,6 +2184,29 @@ class TrainingService(
             payload = mapOf("program" to program.name, "bonus" to version.completionBonus),
         )
         audit("system", "system", "assignment_completed", "training_assignment", assignment.id.toString())
+    }
+
+    private fun completionScores(
+        assignment: TrainingAssignmentEntity,
+        stages: List<TrainingAssignmentStageEntity>,
+    ): List<Int>? {
+        val definitions = programStageRepository.findAllByVersionIdOrderByOrderNoAsc(assignment.programVersionId)
+            .associateBy { it.id }
+        val version = versionRepository.findById(assignment.programVersionId).orElseThrow()
+        return stages.filter { definitions[it.programStageId]?.required == true }.flatMap { stage ->
+            if (definitions[stage.programStageId]?.type != TrainingStageType.online_course || version.onlineCourseId == null) {
+                if (definitions[stage.programStageId]?.type in setOf(TrainingStageType.test, TrainingStageType.ai_exam) && stage.score == null) {
+                    return null
+                }
+                listOfNotNull(stage.score)
+            } else {
+                val requiredTests = courseLessonRepository.findAllByCourseIdOrderByOrderAscCreatedAtAsc(version.onlineCourseId!!)
+                    .filter { it.required && it.kind in setOf(CourseLessonKind.quiz, CourseLessonKind.test) }
+                val progress = lessonProgressRepository.findAllByAssignmentStageIdIn(listOf(stage.id))
+                    .associateBy { it.lessonId }
+                requiredTests.map { test -> progress[test.id]?.takeIf { it.completedAt != null }?.quizScore ?: return null }
+            }
+        }
     }
 
     private fun programDto(program: TrainingProgramEntity): TrainingProgramDto {
@@ -2742,6 +2798,11 @@ class TrainingService(
         val assignment = loadAssignment(id)
         if (assignment.pharmacistId != pharmacistId) forbidden("Назначение принадлежит другому фармацевту")
         return assignment
+    }
+
+    private fun lockAttemptWrites(assignmentId: UUID) {
+        // Serialize before ORM reads without reversing the existing event/stage row-lock order.
+        jdbcTemplate.queryForList("select pg_advisory_xact_lock(hashtextextended(?, 0))", "training-attempt:$assignmentId")
     }
 
     private fun loadPharmacist(id: String): PharmacistEntity = pharmacistRepository.findById(id).orElseThrow {

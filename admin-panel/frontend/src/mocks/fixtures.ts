@@ -76,7 +76,7 @@ export const SECTIONS: Section[] = [
   { id: 'lms', label: 'Обучение', group: 'Аналитика', Icon: IconLMS },
   { id: 'settings', label: 'Настройки', group: 'Система', Icon: IconSettings },
   { id: 'merch_placements', label: 'Кабинет производителя', group: 'Операции', Icon: IconPharmacy },
-  { id: 'merch_tasks', label: 'Задания фармацевтов', group: 'Операции', Icon: IconPharmacist },
+  { id: 'merch_tasks', label: 'Задания мерча', group: 'Операции', Icon: IconPharmacist },
   { id: 'ledger', label: 'Начисления', group: 'Операции', Icon: IconFinance },
   {
     id: 'merch_inventory',

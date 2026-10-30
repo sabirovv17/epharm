@@ -74,9 +74,9 @@ export function Sidebar({
     else if (item.section) onSelect(item.section)
   }
   const renderModule = (module: AdminNavigationModule) => {
-    const selected = module.items.some((item) =>
-      activeNavigationItem(item, active, activeTrainingTab, pathname),
-    )
+    const selected =
+      pathname !== '/account' &&
+      module.items.some((item) => activeNavigationItem(item, active, activeTrainingTab, pathname))
     const open = expanded[module.id] ?? selected
     const single = module.items.length === 1
     const Icon = module.Icon

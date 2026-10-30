@@ -97,6 +97,35 @@ afterEach(() => {
 })
 
 describe('producer commercial workspace', () => {
+  it('preserves unsaved company settings and team member fields across section navigation', async () => {
+    const { gateway, placements } = fixtures()
+    const user = userEvent.setup()
+    render(
+      <ProducerCommercialWorkspace
+        gateway={gateway}
+        placements={placements}
+        ownProducerId="customer-a"
+      />,
+    )
+    const company = screen.getByRole('button', { name: 'Команда и условия' })
+    await user.click(company)
+    await user.type(
+      await screen.findByRole('textbox', { name: 'Роль основного контакта' }),
+      'Несохранённая роль',
+    )
+    await user.type(screen.getByRole('textbox', { name: 'Имя участника' }), 'Новый участник')
+    await user.click(screen.getByRole('button', { name: 'Планы и бюджет' }))
+    expect(company).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByLabelText('Имя участника')).not.toBeVisible()
+    await user.click(company)
+    expect(screen.getByRole('textbox', { name: 'Роль основного контакта' })).toHaveValue(
+      'Несохранённая роль',
+    )
+    expect(screen.getByRole('textbox', { name: 'Имя участника' })).toHaveValue('Новый участник')
+    expect(gateway.member).not.toHaveBeenCalled()
+    expect(gateway.settings).not.toHaveBeenCalled()
+  })
+
   it('does not request a supplier team or expose its private contact metadata in the administrator realm', async () => {
     const { gateway, placements } = fixtures('admin')
     render(<ProducerCommercialWorkspace gateway={gateway} placements={placements} />)

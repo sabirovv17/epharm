@@ -63,6 +63,8 @@ interface UiState {
   querySessionEpoch: number
 
   // UI flags
+  // Ephemeral confirmation only; never persisted with account credentials.
+  passwordChangedNotice: boolean
   sidebarCollapsed: boolean
   commandPaletteOpen: boolean
   roleSwitcherOpen: boolean
@@ -129,6 +131,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   authedUser: initialAuth.authedUser,
   tokens: initialAuth.tokens,
   querySessionEpoch,
+  passwordChangedNotice: false,
   sidebarCollapsed: false,
   commandPaletteOpen: false,
   roleSwitcherOpen: false,
@@ -166,6 +169,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   },
 
   login: async (email, password) => {
+    set({ passwordChangedNotice: false })
     const attempt = ++authAttempt
     try {
       const resp = await authApi.login(email, password)
@@ -219,6 +223,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   },
 
   setActiveRole: (user) => {
+    set({ passwordChangedNotice: false })
     authAttempt++
     setApiTokens(get().tokens)
     resetQuerySession(user)

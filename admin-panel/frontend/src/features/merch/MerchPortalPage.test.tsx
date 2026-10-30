@@ -30,6 +30,7 @@ it('keeps producer on this origin and sends pharmacist and HQ to their canonical
     'https://epharm.inkar.kz/login',
   )
   expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Нужно выполнить конкретное задание?' })).toBeVisible()
 })
 it('opens the public portal directly without choosing a role or calling an API for a signed-in administrator', async () => {
   useUiStore.setState({ authedUser: USERS.bauyrzhan })

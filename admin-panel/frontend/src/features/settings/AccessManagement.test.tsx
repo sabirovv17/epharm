@@ -25,6 +25,7 @@ vi.mock('./access-api', async (original) => ({
     profile: vi.fn(),
     create: vi.fn(),
     replace: vi.fn(),
+    changeStatus: vi.fn(),
   },
 }))
 
@@ -140,6 +141,75 @@ async function fillCreate(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('Server-authorized access management', () => {
+  it('blocks with the listed version and fresh password, then reloads server state', async () => {
+    vi.mocked(accessApi.accounts).mockResolvedValue([{ ...account, canChangeStatus: true }])
+    let resolve!: (value: { accountId: string; status: string; version: number }) => void
+    vi.mocked(accessApi.changeStatus).mockReturnValue(
+      new Promise((done) => {
+        resolve = done
+      }),
+    )
+    const user = userEvent.setup()
+    render(<AccessManagement />)
+    await user.click(await screen.findByRole('button', { name: 'Заблокировать' }))
+    expect(screen.getByRole('button', { name: 'Подтвердить' })).toBeDisabled()
+    await user.type(screen.getByLabelText('Пароль для изменения статуса'), 'Synthetic-proof')
+    await user.click(screen.getByRole('button', { name: 'Подтвердить' }))
+    expect(screen.getByLabelText('Пароль для изменения статуса')).toHaveValue('')
+    expect(accessApi.changeStatus).toHaveBeenCalledWith(
+      account.accountId,
+      6,
+      'BLOCKED',
+      'Synthetic-proof',
+      expect.any(AbortSignal),
+    )
+    await act(async () => resolve({ accountId: account.accountId, status: 'blocked', version: 7 }))
+    expect(
+      await screen.findByText('Аккаунт заблокирован. Назначенные права и история сохранены.'),
+    ).toBeInTheDocument()
+    expect(accessApi.accounts).toHaveBeenCalledTimes(2)
+  })
+  it('offers unblock separately from editing grants and never retries stale state automatically', async () => {
+    vi.mocked(accessApi.accounts).mockResolvedValue([
+      { ...account, status: 'blocked', editable: false, canChangeStatus: true },
+    ])
+    vi.mocked(accessApi.changeStatus).mockRejectedValue(failure(409))
+    const user = userEvent.setup()
+    render(<AccessManagement />)
+    await user.click(await screen.findByRole('button', { name: 'Разблокировать' }))
+    await user.type(screen.getByLabelText('Пароль для изменения статуса'), 'Synthetic-proof')
+    await user.click(screen.getByRole('button', { name: 'Подтвердить' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Данные уже изменились')
+    expect(screen.getByLabelText('Пароль для изменения статуса')).toHaveValue('')
+    expect(screen.queryByRole('button', { name: 'Подтвердить' })).not.toBeInTheDocument()
+    expect(accessApi.changeStatus).toHaveBeenCalledWith(
+      account.accountId,
+      6,
+      'ACTIVE',
+      'Synthetic-proof',
+      expect.any(AbortSignal),
+    )
+    expect(accessApi.changeStatus).toHaveBeenCalledTimes(1)
+  })
+  it('hides account status operations without the target capability', async () => {
+    render(<AccessManagement />)
+    await screen.findByText(account.email)
+    expect(screen.queryByRole('button', { name: 'Заблокировать' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Разблокировать' })).not.toBeInTheDocument()
+  })
+  it('aborts a pending status request when the management screen is closed', async () => {
+    vi.mocked(accessApi.accounts).mockResolvedValue([{ ...account, canChangeStatus: true }])
+    vi.mocked(accessApi.changeStatus).mockReturnValue(new Promise(() => {}))
+    const user = userEvent.setup()
+    const view = render(<AccessManagement />)
+    await user.click(await screen.findByRole('button', { name: 'Заблокировать' }))
+    await user.type(screen.getByLabelText('Пароль для изменения статуса'), 'Synthetic-proof')
+    await user.click(screen.getByRole('button', { name: 'Подтвердить' }))
+    const signal = vi.mocked(accessApi.changeStatus).mock.calls[0][4]
+    expect(signal.aborted).toBe(false)
+    view.unmount()
+    expect(signal.aborted).toBe(true)
+  })
   it('edits a merch action with a separate branch selector without widening pharmacy access', async () => {
     const current = catalog()
     current.merchBranches = [
