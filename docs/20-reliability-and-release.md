@@ -29,7 +29,15 @@ anonymous policy JSON in addition to preserved objects and metadata. `{}` means 
 is private. Isolated restoration applies exactly that policy (`private` or the saved custom JSON),
 reads it back and compares semantic JSON before reporting success. It does not replace a restricted
 prefix with a general download/public grant. Policy/path/inventory validation runs before extraction.
-Older artifacts without policies remain an explicitly labelled legacy restore mode only when the
+The object companion `object-metadata.json` records exact content headers, user metadata, tags,
+body sizes and SHA-256 values. Capture checks source drift against the mirrored bodies; archive
+validation checks every body before extraction. Restore replays and verifies metadata only in a
+new isolated container with an exact Docker identity and synthetic credentials. Original ETag and
+LastModified remain source witnesses. Versioned buckets and objects over 5 GiB are refused.
+Headers retain their HTTP bytes, including semicolons and non-ASCII values, rather than being
+reconstructed from file extensions. Source credentials never enter the restore helper.
+
+Older artifacts without policies or object metadata remain an explicitly labelled legacy restore mode only when the
 native/private requirement is false; they cannot satisfy the new native release recovery gate.
 
 ### Native private files and recoverable credential keys

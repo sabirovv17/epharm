@@ -25,7 +25,8 @@ class PrivateBackupChainTest(unittest.TestCase):
         self.env = {**os.environ, 'PATH': f'{self.bin}:{os.environ["PATH"]}', 'BACKUP_ROOT': str(self.backups),
                     'BACKUP_PRIVATE_FILES_REQUIRED': 'true', 'RESTIC_REPOSITORY': 'fixture:no-network',
                     'RESTIC_PASSWORD': 'fixture-only-no-key', 'TEST_EVENTS': str(self.events),
-                    'EPHARM_ENV_FILE': str(self.root / 'fixture.env')}
+                    'EPHARM_ENV_FILE': str(self.root / 'fixture.env'),
+                    'MINIO_METADATA_PYTHON_IMAGE': 'sha256:' + 'f' * 64}
         self.write(self.root / 'fixture.env', b'MINIO_ROOT_USER=fixture\nMINIO_ROOT_PASSWORD=fixture-only\n')
         for label, variable in [('merch', 'MERCH_EVIDENCE_HOST_ROOT'), ('merch-legacy', 'MERCH_LEGACY_FILES_HOST_ROOT'),
                                 ('learner-credentials', 'LEARNER_CREDENTIALS_HOST_KEY_DIRECTORY')]:
@@ -38,6 +39,10 @@ with open(os.environ['TEST_EVENTS'],'a') as out: out.write(json.dumps(sys.argv[1
         self.program('docker', '''import os,sys,pathlib
 args=sys.argv[1:]
 with open(os.environ['TEST_EVENTS'],'a') as out: out.write('docker\\n')
+if args[0]=='inspect':
+    import json
+    if args[2]=='{{.Id}}': print('b'*64)
+    else: print('\\n'.join(json.dumps(v) for v in ['b'*64,'/'+args[-1],True,{}, {},'none']))
 if args[0]=='exec' and 'pg_restore' in args: sys.stdin.buffer.read()
 if args[0]=='exec' and 'psql' in args:
     print('87' if 'flyway_schema_history' in args[-1] else '3')
@@ -74,11 +79,17 @@ if '--entrypoint' in args:
         dump = pg / 'epharm-postgres-20261030T010000Z.dump.gz'; self.write(dump, gzip.compress(b'PGDMP fixture'))
         minio = self.backups / 'minio'; minio.mkdir(mode=0o700)
         archive = minio / 'epharm-minio-20261030T010000Z.tar.gz'
+        metadata = {'schemaVersion': 1, 'capturedAt': '2026-10-30T00:00:00Z', 'sourceContainerId': 'a' * 64,
+                    'buckets': ['epharm-receipts'], 'objectCount': 1, 'totalBytes': 7, 'objects': [{
+                    'bucket': 'epharm-receipts', 'key': 'object', 'bytes': 7,
+                    'sha256': hashlib.sha256(b'fixture').hexdigest(), 'etag': '"source"',
+                    'lastModified': '2026-10-30T00:00:00Z', 'metadata': {'content-type': 'application/octet-stream'}, 'tags': []}]}
         with tarfile.open(archive, 'w:gz') as output:
             for name in ['data', 'data/epharm-receipts', 'policies']:
                 entry = tarfile.TarInfo(name); entry.type = tarfile.DIRTYPE; entry.mode = 0o700; output.addfile(entry)
-            for name, body in [('manifest.txt', b'buckets=epharm-receipts\nminio_policy_format=1\n'),
-                               ('data/epharm-receipts/object', b'fixture'), ('policies/epharm-receipts.json', b'{}')]:
+            for name, body in [('manifest.txt', b'buckets=epharm-receipts\nminio_policy_format=1\nminio_metadata_format=1\n'),
+                               ('data/epharm-receipts/object', b'fixture'), ('policies/epharm-receipts.json', b'{}'),
+                               ('object-metadata.json', json.dumps(metadata).encode())]:
                 entry = tarfile.TarInfo(name); entry.size = len(body); entry.mode = 0o600; output.addfile(entry, io.BytesIO(body))
         archive.chmod(0o600)
         for path in (dump, archive):

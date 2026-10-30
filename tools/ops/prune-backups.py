@@ -86,15 +86,19 @@ def read_checksum(descriptor, name, files):
     return matched[1].decode('ascii')
 
 
-def validate_minio(stream):
+def validate_minio(stream, require_metadata=False):
     seen = set()
     has_manifest = has_data = has_bucket = False
     bucket_names, policies = set(), set()
     manifest_body = b''
+    metadata_body = None
+    object_bodies = {}
     with tarfile.open(fileobj=stream, mode='r|') as archive:
         for member in archive:
             path = PurePosixPath(member.name)
             if (path.is_absolute() or '..' in path.parts or not path.parts
+                    or member.name.rstrip('/') != path.as_posix() or '\\' in member.name
+                    or any(ord(c) < 32 or ord(c) == 127 for c in member.name)
                     or path.as_posix() in seen or not (member.isfile() or member.isdir())
                     or (member.isfile() and member.name.endswith('/'))):
                 raise ValueError('MinIO backup contains unsafe or duplicate tar entries')
@@ -104,6 +108,11 @@ def validate_minio(stream):
                     raise ValueError('MinIO backup manifest is invalid')
                 has_manifest = True
                 manifest_body = archive.extractfile(member).read()
+            elif path.parts == ('object-metadata.json',):
+                from minio_metadata import MAX_MANIFEST
+                if not member.isfile() or not 0 < member.size <= MAX_MANIFEST:
+                    raise ValueError('Invalid object metadata manifest')
+                metadata_body = archive.extractfile(member).read()
             elif path.parts[0] == 'data':
                 if len(path.parts) == 1:
                     if not member.isdir():
@@ -114,6 +123,10 @@ def validate_minio(stream):
                         raise ValueError('MinIO bucket root is not a directory')
                     has_bucket = True
                     bucket_names.add(path.parts[1])
+                elif member.isfile():
+                    from minio_metadata import key_path, file_hash
+                    key = '/'.join(path.parts[2:]); key_path(key)
+                    object_bodies[(path.parts[1], key)] = file_hash(archive.extractfile(member))
             elif path.parts[0] == 'policies':
                 if len(path.parts) == 1:
                     if not member.isdir():
@@ -130,19 +143,35 @@ def validate_minio(stream):
                 raise ValueError('MinIO backup contains an unexpected tar root')
     if not (has_manifest and has_data and has_bucket):
         raise ValueError('MinIO backup lacks manifest/data/bucket structure')
-    if b'minio_policy_format=' in manifest_body:
-        rows = {}
-        for line in manifest_body.decode('utf8').splitlines():
-            key, separator, value = line.partition('=')
-            if not separator or key in rows:
-                raise ValueError('Invalid MinIO policy manifest')
-            rows[key] = value
-        buckets = rows.get('buckets', '').replace(' ', '').split(',')
+    rows = {}
+    for line in manifest_body.decode('utf8').splitlines():
+        key, separator, value = line.partition('=')
+        if not separator or key in rows:
+            raise ValueError('Invalid MinIO manifest')
+        rows[key] = value
+    from minio_metadata import BUCKET
+    buckets = rows.get('buckets', '').replace(' ', '').split(',')
+    if (not all(BUCKET.fullmatch(b) for b in buckets) or len(set(buckets)) != len(buckets)
+            or set(buckets) != bucket_names):
+        raise ValueError('Invalid MinIO bucket manifest')
+    if 'minio_policy_format' in rows:
         if (rows.get('minio_policy_format') != '1' or len(set(buckets)) != len(buckets)
                 or set(buckets) != bucket_names or policies != bucket_names):
             raise ValueError('Policy/bucket inventory mismatch')
     elif policies:
         raise ValueError('Unversioned policy manifest refused')
+    # Retention can keep honest legacy archives; new/native-required restore cannot.
+    version = rows.get('minio_metadata_format')
+    if version is not None or metadata_body is not None:
+        from minio_metadata import metadata_value
+        if version != '1' or metadata_body is None or rows.get('minio_policy_format') != '1':
+            raise ValueError('Missing or unsupported metadata manifest')
+        value = metadata_value(metadata_body)
+        expected = {(r['bucket'], r['key']): (r['bytes'], r['sha256']) for r in value['objects']}
+        if value['buckets'] != sorted(bucket_names) or object_bodies != expected:
+            raise ValueError('Archived metadata/body inventory or SHA256 mismatch')
+    elif require_metadata:
+        raise ValueError('Required object metadata manifest missing')
 
 
 def validate_archive(descriptor, name, files, kind):

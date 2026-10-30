@@ -67,10 +67,16 @@ docker run --rm \
     IFS=$old_ifs
   '
 
-printf 'created_at=%s\nbuckets=%s\nminio_policy_format=1\n' "$(date -u +%FT%TZ)" "$MINIO_BACKUP_BUCKETS" > "$STAGE/manifest.txt"
+printf 'created_at=%s\nbuckets=%s\nminio_policy_format=1\nminio_metadata_format=1\n' "$(date -u +%FT%TZ)" "$MINIO_BACKUP_BUCKETS" > "$STAGE/manifest.txt"
 require_command python3
+metadata_worker_args=()
+if [[ -n "${MINIO_METADATA_PYTHON_IMAGE:-}" ]]; then
+  metadata_worker_args=(--python-image "$MINIO_METADATA_PYTHON_IMAGE")
+fi
+MINIO_METADATA_ACCESS_KEY="$MINIO_ROOT_USER" MINIO_METADATA_SECRET_KEY="$MINIO_ROOT_PASSWORD" \
+  python3 "$SCRIPT_DIR/ops/minio_metadata.py" capture --stage "$STAGE" --container "$MINIO_CONTAINER" "${metadata_worker_args[@]}"
 python3 "$SCRIPT_DIR/ops/minio_policy.py" --stage "$STAGE" >/dev/null
-tar -C "$STAGE" -czf "$TMP" manifest.txt data policies
+tar -C "$STAGE" -czf "$TMP" manifest.txt data policies object-metadata.json
 tar -tzf "$TMP" >/dev/null
 python3 "$SCRIPT_DIR/ops/minio_policy.py" --archive "$TMP"
 [[ -s "$TMP" ]] || { echo "ERROR: MinIO backup is empty" >&2; exit 1; }

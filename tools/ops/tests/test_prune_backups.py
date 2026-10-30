@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import io
 import os
+import sys
 from pathlib import Path
 import tarfile
 import tempfile
@@ -11,6 +12,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / 'tools/ops'))
 spec = importlib.util.spec_from_file_location('prune_backups', ROOT / 'tools/ops/prune-backups.py')
 retention = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(retention)

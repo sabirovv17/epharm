@@ -1,0 +1,66 @@
+{
+  "state": "synthetic_source_and_isolated_restore_verified",
+  "sourceProductionCalls": 0,
+  "sourceProductionWrites": 0,
+  "objectMetadataFormat": 1,
+  "syntheticObjects": 6,
+  "redObserved": {
+    "oldMirrorInferredWrongContentTypes": 2,
+    "oldMirrorLostTags": 5,
+    "utf8CanonicalVersusLatin1Wire": "real MinIO 403 before canonical byte fix"
+  },
+  "verified": [
+    "six_exact_http_metadata_headers",
+    "user_metadata_including_empty_value",
+    "nonempty_and_empty_tags",
+    "empty_tags_remove_extra_target_tags",
+    "semicolon_content_type",
+    "body_sha256",
+    "repeat_replay",
+    "source_unchanged",
+    "source_target_mutation_denied",
+    "wrong_pin_denied",
+    "body_drift_prewrite_denied",
+    "invalid_manifest_pre_docker_denied",
+    "versioned_source_fail_closed",
+    "latin1_content_disposition_wire_octets",
+    "utf8_content_disposition_wire_octets",
+    "nonascii_user_metadata_source_rfc2047_header_roundtrip",
+    "canonical_ascii_structure_plus_latin1_http_header_octets"
+  ],
+  "tests": {
+    "linuxNonrootPassed": 46,
+    "linuxOptInSkipped": 1,
+    "realMinioOptInPassed": 1,
+    "shellContractsPassed": 2,
+    "shellcheck": "pass"
+  },
+  "logs": [
+    "/tmp/epharm-minio-final-linux-20261030.log",
+    "/tmp/epharm-minio-metadata-integration-20261030.log",
+    "/tmp/epharm-minio-metadata-guards-20261030.log",
+    "/tmp/epharm-minio-nonascii-red-20261030.log",
+    "/tmp/epharm-minio-nonascii-green-20261030.log",
+    "/tmp/epharm-minio-nonascii-linux-20261030.log"
+  ],
+  "limits": [
+    "Actual 9485-object new archive capture/replay awaits root/A approval; not executed here",
+    "ETag and LastModified retained only as source witnesses, not restored bit-for-bit",
+    "Versioned buckets and individual objects over5GiB refused; no silent current-only downgrade"
+  ],
+  "integrationOwnerVerification": {
+    "linuxNonrootTests": 74,
+    "passed": 73,
+    "optInRealMinioSkippedInDefaultSuite": 1,
+    "shellContracts": ["backup-chain-contract", "restore-readiness"],
+    "shellcheck": "pass",
+    "log": "/tmp/epharm-root-ops-metadata-linux-20261030.log"
+  },
+  "sourceHashes": {
+    "tools/ops/minio_metadata.py": "c79cae38a7685bd7c7297191fa4c40cf1fe0092db990fdc7d953e457b8c1ec19",
+    "tools/minio-backup.sh": "6bb6324388eede9206a6b32cae2134b1997aaf2ac834f8afa6e6205c7f2ad323",
+    "tools/restore-test.sh": "365cee75a16eda160a776eb8264d954cd6eeee470d87238a118a8d86a11e474c",
+    "tools/ops/minio_policy.py": "3bcecea968fb3fc51c6c1e4ba839493cd01033bfbafd8dda12b86ed67883c00d",
+    "tools/ops/prune-backups.py": "f5fb450c9bac425ca73a5ae5840667c6a41634a8db0a1376ff8558819f912e32"
+  }
+}

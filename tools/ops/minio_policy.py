@@ -71,11 +71,14 @@ def main():
             spec = importlib.util.spec_from_file_location('minio_retention_validation', Path(__file__).with_name('prune-backups.py'))
             module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
             with gzip.open(args.archive, 'rb') as stream:
-                module.validate_minio(stream)
+                module.validate_minio(stream, require_metadata=not args.allow_legacy)
                 while stream.read(1024 * 1024):
                     pass
         elif args.stage:
             print(json.dumps(validate_stage(args.stage, args.actual, args.allow_legacy)))
+            from minio_metadata import validate_stage as validate_metadata
+            metadata = validate_metadata(args.stage, args.allow_legacy)
+            print(json.dumps({'metadataFormat': 1 if metadata else 'legacy_not_captured', 'objects': metadata['objectCount'] if metadata else None}))
         else:
             raise ValueError('Archive or stage is required')
     except (OSError, ValueError, EOFError, TypeError, KeyError, tarfile.TarError) as error:

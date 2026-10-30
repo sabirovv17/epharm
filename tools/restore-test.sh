@@ -86,13 +86,15 @@ echo "[$(date -u +%FT%TZ)] Isolated restore-test started"
 [[ "$(sha256_file "$MINIO_BACKUP")" == "$(awk '{print $1}' "$MINIO_BACKUP.sha256")" ]]
 gzip -t "$PG_BACKUP"
 tar -tzf "$MINIO_BACKUP" >/dev/null
-python3 "$SCRIPT_DIR/ops/minio_policy.py" --archive "$MINIO_BACKUP"
+policy_legacy_args=()
+if [[ "$private_required" == false ]]; then policy_legacy_args=(--allow-legacy); fi
+python3 "$SCRIPT_DIR/ops/minio_policy.py" --archive "$MINIO_BACKUP" "${policy_legacy_args[@]}"
 if [[ "$private_required" == true ]]; then
   python3 "$SCRIPT_DIR/ops/private_backup.py" restore --kind native-files --archive "$NATIVE_BACKUP" --destination "$STAGE/native-files"
   python3 "$SCRIPT_DIR/ops/private_backup.py" restore --kind credential-keys --archive "$KEY_BACKUP" --destination "$STAGE/credential-keys"
 fi
 
-docker network create "$NETWORK" >/dev/null
+docker network create --internal "$NETWORK" >/dev/null
 docker run -d --rm --name "$PG_CONTAINER" --network "$NETWORK" \
   -e POSTGRES_DB=epharm_restore -e POSTGRES_USER=epharm_restore -e POSTGRES_PASSWORD=restore-only \
   "$PG_IMAGE" >/dev/null
@@ -127,8 +129,6 @@ migration_count="$(docker exec "$PG_CONTAINER" psql -At -U epharm_restore -d eph
 }
 
 tar -C "$STAGE" -xzf "$MINIO_BACKUP"
-policy_legacy_args=()
-if [[ "$private_required" == false ]]; then policy_legacy_args=(--allow-legacy); fi
 python3 "$SCRIPT_DIR/ops/minio_policy.py" --stage "$STAGE" "${policy_legacy_args[@]}"
 mkdir -p "$STAGE/policies" "$STAGE/restored-policies"
 docker run -d --rm --name "$MINIO_CONTAINER_TEST" --network "$NETWORK" \
@@ -171,6 +171,21 @@ docker run --rm --network "$NETWORK" \
     [ "$restored" -gt 0 ]
   '
 python3 "$SCRIPT_DIR/ops/minio_policy.py" --stage "$STAGE" --actual "$STAGE/restored-policies" "${policy_legacy_args[@]}"
+
+metadata_worker_args=()
+if [[ -n "${MINIO_METADATA_PYTHON_IMAGE:-}" ]]; then
+  metadata_worker_args=(--python-image "$MINIO_METADATA_PYTHON_IMAGE")
+fi
+if [[ -f "$STAGE/object-metadata.json" ]]; then
+  # Exact newly created identity; source credentials never reach this helper.
+  minio_target_id="$(docker inspect --format '{{.Id}}' "$MINIO_CONTAINER_TEST")"
+  MINIO_METADATA_ACCESS_KEY=restore MINIO_METADATA_SECRET_KEY=restore-only-password \
+    python3 "$SCRIPT_DIR/ops/minio_metadata.py" restore --stage "$STAGE" \
+    --container "$MINIO_CONTAINER_TEST" --target-id "$minio_target_id" \
+    "${metadata_worker_args[@]}" "${policy_legacy_args[@]}"
+else
+  python3 "$SCRIPT_DIR/ops/minio_metadata.py" validate --stage "$STAGE" "${policy_legacy_args[@]}"
+fi
 
 finished="$(date +%s)"
 write_metric "$METRIC_DIR" "epharm_restore_test.prom" \
