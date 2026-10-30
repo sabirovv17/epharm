@@ -1,5 +1,5 @@
 {
-  "status": "application_and_data_cutover_verified_final_backup_pending",
+  "status": "completed_with_documented_manual_checks",
   "releaseId": "v0.2.1",
   "commit": "f80bdf38ffb5de00b4af63a6a2d5d681655b6124",
   "domain": "https://epharm.inkar.kz",
@@ -80,15 +80,47 @@
     "D9 cannot reconstruct pre-existing one-way password hashes; future captured passwords use the protected vault."
   ],
   "finalBackup": {
-    "status": "full_chain_completed_recovery_pending",
+    "status": "independent_offsite_recovery_and_isolated_restore_pass",
     "startedAt": "2026-10-30T12:19:27Z",
     "finishedAt": "2026-10-30T12:28:16Z",
     "systemdResult": "success",
     "exitCode": 0,
     "archives": 4,
-    "archiveBytes": 634098049
+    "archiveBytes": 634098049,
+    "snapshotId": "5d33bb82a59f5a9ba8bdef7ef6fee633e0c0da7aa93892fe9b0d8b4a2ea7e46c",
+    "allFourArchivesShaVerified": true,
+    "unchangedStandardRestoreExit": 0,
+    "postgresPublicTables": 149,
+    "postgresMigrations": 90,
+    "minioObjects": 9485,
+    "nativeTablesRestored": 76,
+    "rawTablesRestored": 57,
+    "rawRowsRestored": 42414,
+    "keyArchivePreservedNotEveryPasswordDecryptionProof": true,
+    "source76UsedDuringRecovery": false,
+    "proofSha256": "1172c0254b2626b358ea8165103094dff5baba50a2052908db60268c2118f5ae"
   },
   "telegram": {
-    "status": "not_sent"
+    "status": "sent_ui_verified",
+    "recipient": "user_specified_contact",
+    "sentLocalTime": "2026-10-30 17:38 Asia/Almaty",
+    "existingHqCredentialsSharedAsExplicitlyAuthorized": true,
+    "readReceiptClaimed": false,
+    "credentialsPersistedInGit": false
+  },
+  "physicalBalancer74Probes": {
+    "producer": 200,
+    "learn": 302,
+    "epharmHealth": 200,
+    "tlsVerificationEnabled": true
+  },
+  "finalRootFreeBytes": 38002814976,
+  "localTestEnvironment": {
+    "memoryRestoredMiB": 4096,
+    "diskSizePreservedMiB": 93803,
+    "engineIdPreserved": true,
+    "existingContainersPreserved": 132,
+    "existingVolumesPreserved": 129,
+    "runningContainers": 0
   }
 }
