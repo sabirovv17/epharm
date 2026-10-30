@@ -9,12 +9,15 @@ beforeEach(() => {
   localStorage.clear()
 })
 describe('one pre-telemetry staff entry dispatcher', () => {
-  it.each(['/staff', '/merch/staff'])('keeps plain %s as a code entry, not a task', (path) => {
-    window.history.replaceState({}, '', path)
-    captureStaffEntryNavigation()
-    expect(staffEntry()).toEqual({ kind: 'plain' })
-    expect(window.location.pathname + window.location.search).toBe('/staff')
-  })
+  it.each(['/staff', '/merch/staff'])(
+    'keeps retired plain %s separate from task capabilities',
+    (path) => {
+      window.history.replaceState({}, '', path)
+      captureStaffEntryNavigation()
+      expect(staffEntry()).toEqual({ kind: 'plain' })
+      expect(window.location.pathname + window.location.search).toBe('/staff')
+    },
+  )
   it.each([`/staff?access=${access}`, `/merch/staff?access=${access}`, `/staff#access=${access}`])(
     'preserves old QR and new fragment entry: %s',
     (url) => {

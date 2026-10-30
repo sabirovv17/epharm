@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Button, Field, Input } from '@/ui'
 import { Logo } from '@/layout/Logo'
 import { clearStaffEntry, staffEntry } from './staffEntryNavigation'
-import { staffClient, type StaffClient, type StaffScope } from './staff-access-api'
+import { staffClient, storeStaffToken, type StaffClient, type StaffScope } from './staff-access-api'
 import { usePlacementRead } from './usePlacementRead'
 import StaffVisitReport from './StaffVisitReport'
 
@@ -22,6 +22,40 @@ const statusLabels: Record<string, string> = {
   cancelled: 'Закрыт',
 }
 export default function StaffAccessPage() {
+  const [intent] = useState(staffEntry)
+  useEffect(() => {
+    storeStaffToken(null)
+    clearStaffEntry()
+  }, [])
+  return (
+    <main className="min-h-screen bg-paper px-4 py-10 sm:py-16">
+      <section className="card mx-auto max-w-xl space-y-4 p-6">
+        <div className="flex items-center gap-3">
+          <Logo size={28} />
+          <strong>ePharm · Задания аптек</strong>
+        </div>
+        <h1 className="text-xl font-bold">
+          {intent.kind === 'expired_claim'
+            ? 'Подтверждение задания устарело'
+            : intent.kind === 'invalid'
+              ? 'Ссылка недействительна'
+              : 'Вход по общему коду отключён'}
+        </h1>
+        <p>Используйте личный кабинет фармацевта или QR-код конкретного задания.</p>
+        {intent.kind === 'expired_claim' && (
+          <p>Повторно откройте QR-код задания. Неотправленные действия не подтверждены.</p>
+        )}
+        <p className="text-sm text-ink-500">История ранее выданных кодов и отчётов сохранена.</p>
+        <a className="btn btn-md btn-primary" href="https://epharm.inkar.kz/learn">
+          Личный кабинет фармацевта
+        </a>
+      </section>
+    </main>
+  )
+}
+
+// Kept as an unrouted component for the preserved shared-access protocol tests.
+export function ArchivedSharedStaffAccessPage() {
   const [intent, setIntent] = useState(staffEntry)
   const [scope, setScope] = useState<StaffScope | null>(null)
   const [pending, setPending] = useState(true)

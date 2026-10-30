@@ -41,19 +41,6 @@
 }
 
 (legacy_staff_entry) {
-	@native_shared_staff {
-		expression `"{$MERCH_LEGACY_PORTAL_CUTOVER_ENABLED:false}" == "true" && "{$MERCH_STAFF_ACCESS_ENABLED:false}" == "true"`
-	}
-	handle @native_shared_staff {
-		header Referrer-Policy no-referrer
-		header Cache-Control no-store
-		# The browser consumes task/access/claim/plain intent before telemetry; never forward query credentials.
-		rewrite * /staff?
-		reverse_proxy frontend:80 {
-			header_up -X-Pharmapay-Key
-			header_up -X-Staff-Session
-		}
-	}
 	@native_legacy_task {
 		query task=*
 		expression `"{$MERCH_LEGACY_PORTAL_CUTOVER_ENABLED:false}" == "true"`
@@ -63,6 +50,20 @@
 		header Cache-Control no-store
 		# Keep the browser URL until its synchronous bootstrap consumes and scrubs the capability.
 		rewrite * /tasks/staff?
+		reverse_proxy frontend:80 {
+			header_up -X-Pharmapay-Key
+			header_up -X-Staff-Session
+		}
+	}
+	@native_staff_entry {
+		expression `"{$MERCH_LEGACY_PORTAL_CUTOVER_ENABLED:false}" == "true"`
+	}
+	handle @native_staff_entry {
+		header Referrer-Policy no-referrer
+		header Cache-Control no-store
+		# Retired code/plain entries stay native too: a CRM redirect would loop through the new edge.
+		# The browser scrubs legacy access/claim fragments before telemetry.
+		rewrite * /staff?
 		reverse_proxy frontend:80 {
 			header_up -X-Pharmapay-Key
 			header_up -X-Staff-Session

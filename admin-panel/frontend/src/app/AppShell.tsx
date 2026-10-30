@@ -72,7 +72,7 @@ export function AppShell() {
     [authedUser, location.search],
   )
   const activeLabel = location.pathname.startsWith('/merch/staff-access')
-    ? 'Коды доступа'
+    ? 'Общие коды отключены'
     : activeSection === 'lms' && authedUser && isTrainingWorkspaceRole(authedUser.role)
       ? trainingItem(activeTrainingTab).sidebarLabel
       : t(`nav.${activeSection}`)

@@ -71,6 +71,9 @@ Native cutover is an explicit, default-off operation. Compose forwards
 backend; the last flag also reaches Caddy. Do not enable schedulers before stopping the
 source CRM's in-process weekly/expiry loops and the old reward drainer. The flags are
 independent gates, not permission to enable payments, rewards or RPS login.
+Shared monthly codes were retired by the approved migration decision. Keep
+`MERCH_STAFF_ACCESS_ENABLED=false`: monthly reports use personal `/learn`,
+individual tasks use QR, and historical code/visit data remains preserved.
 
 The first native import requires pristine native tables. Before the first new backend starts,
 install the reviewed ingress configuration and enable `UNIFIED_MIGRATION_WRITE_FREEZE_ENABLED`
@@ -104,7 +107,11 @@ Cached old task API/media requests return explicit no-store HTTP 409 asking to r
 the QR. They must not silently write to the retired CRM database after its writer freeze.
 The external `crm.inkar.kz` edge route needs a separately verified switch, including
 corporate direct DNS/TLS; editing this Caddyfile alone does not migrate that hostname.
-`/staff` without a task still uses the old staff portal until that separate flow is moved.
+After native cutover, plain/access `/staff` entries serve the native retirement
+page with a personal `/learn` link, independently of the disabled shared-code
+flag. They must not redirect back to CRM through its compatibility edge. Query
+task entries still reach the native task SPA. Expired legacy claim notices and
+the separate personal `/learn/merch/claim` flow retain their existing behavior.
 
 The merchandising server credential must use HTTPS when the upstream is outside the private
 INKAR network. The public QR portal is a separate browser route with a deny-by-default allowlist;

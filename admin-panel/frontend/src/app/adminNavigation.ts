@@ -93,18 +93,7 @@ export const ADMIN_NAVIGATION: readonly AdminNavigationModule[] = [
   {
     id: 'merch',
     Icon: IconLayers,
-    items: [
-      section('merch_placements'),
-      section('merch_tasks'),
-      {
-        id: 'staff_access',
-        section: 'merch_tasks',
-        label: 'Коды доступа',
-        path: '/merch/staff-access',
-        available: true,
-      },
-      section('merch_inventory'),
-    ],
+    items: [section('merch_placements'), section('merch_tasks'), section('merch_inventory')],
   },
   {
     id: 'network',
@@ -132,11 +121,10 @@ export function adminNavigationForRole(
   capabilities: boolean | MerchNavigationCapabilities = false,
 ): AdminNavigationModule[] {
   const caps = typeof capabilities === 'boolean' ? { inventory: capabilities } : capabilities
-  const merchGranted = caps.inventory || caps.placements || caps.tasks || caps.staffAccess
+  const merchGranted = caps.inventory || caps.placements || caps.tasks
   return ADMIN_NAVIGATION.map((module) => ({
     ...module,
     items: module.items.flatMap((item) => {
-      if (item.id === 'staff_access') return caps.staffAccess ? [item] : []
       if (item.section === 'ledger') return caps.ledger ? [item] : []
       if (item.section?.startsWith('merch_')) {
         const permitted =
@@ -168,7 +156,6 @@ export function activeNavigationItem(
 ): boolean {
   if (item.trainingTab) return active === 'lms' && item.trainingTab === trainingTab
   if (item.id === 'campaign_reports') return pathname.startsWith('/dashboard/reports')
-  if (item.id === 'staff_access') return pathname.startsWith('/merch/staff-access')
   return (
     item.section === active &&
     !(item.section === 'merch_tasks' && pathname.startsWith('/merch/staff-access')) &&

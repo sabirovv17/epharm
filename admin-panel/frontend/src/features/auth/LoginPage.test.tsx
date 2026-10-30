@@ -151,7 +151,7 @@ describe('LoginPage — submit (с моком authApi)', () => {
     expect(useUiStore.getState().authedUser?.role).toBe('TRAINING_MANAGER')
   })
 
-  it('managed account with only staff-access view enters codes after a fresh capability check', async () => {
+  it('a historical staff-only account reaches its retired notice route after a fresh capability check', async () => {
     authApi.login.mockResolvedValueOnce(mockLoginResponse)
     vi.mocked(accessApi.me).mockResolvedValue({
       managed: true,

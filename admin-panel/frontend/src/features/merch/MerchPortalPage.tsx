@@ -26,13 +26,13 @@ export default function MerchPortalPage() {
             </Link>
           </section>
           <section className="card flex flex-col gap-4 p-6">
-            <h2 className="text-xl font-bold">Сотрудник аптеки</h2>
+            <h2 className="text-xl font-bold">Фармацевт</h2>
             <p className="flex-1 text-sm text-ink-500">
-              Фотоотчёты по коду доступа или QR, выданному ответственным сотрудником.
+              Личные задания и обучение. Конкретное задание также можно открыть по QR-коду.
             </p>
-            <Link className="btn btn-md btn-primary" to="/staff">
-              Вход сотрудника
-            </Link>
+            <a className="btn btn-md btn-primary" href="https://epharm.inkar.kz/learn">
+              Личный кабинет фармацевта
+            </a>
           </section>
           <section className="card flex flex-col gap-4 p-6">
             <h2 className="text-xl font-bold">HQ Inkar</h2>

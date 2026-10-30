@@ -133,9 +133,18 @@ assert body['integrationHeader'] is None
 assert body['staffHeader'] is None
 PY
 done
-for entry in '/merch/staff' '/staff'; do
+for entry in '/merch/staff' '/staff' '/staff?access=retired-code' '/merch/staff?access=retired-code'; do
   request GET "$entry"
-  grep -q '^HTTP/1.1 302 ' "$test_dir/headers"
+  python3 - "$test_dir/headers" "$test_dir/body" <<'PY'
+import json,sys
+from urllib.parse import urlsplit
+raw=open(sys.argv[1]).read().lower()
+assert raw.startswith('http/1.1 200 ') and 'location:' not in raw
+assert 'no-store' in raw and 'no-referrer' in raw
+body=json.load(open(sys.argv[2]))
+assert urlsplit(body['path']).path=='/staff' and not urlsplit(body['path']).query
+assert body['integrationHeader'] is None and body['staffHeader'] is None
+PY
 done
 for entry in '/merch/api/public/task-dispatch/submit' '/merch/api/public/task-dispatch/evidence'; do
   request POST "$entry"
@@ -155,7 +164,7 @@ echo 'Caddy native cutover: same-origin SPA, no forwarded capability/key, old ca
 
 docker rm -f "$container" >/dev/null
 start_caddy true false true
-for entry in '/merch/staff' '/staff' '/staff?access=synthetic-legacy-qr' '/merch/staff?task=synthetic-capability' '/staff?claim=expired&grant=expired' '/staff?access=one&access=two'; do
+for entry in '/merch/staff' '/staff' '/staff?access=synthetic-legacy-qr' '/staff?claim=expired&grant=expired' '/staff?access=one&access=two'; do
   request GET "$entry"
   python3 - "$test_dir/headers" "$test_dir/body" <<'PY'
 import json,sys
@@ -168,9 +177,19 @@ assert urlsplit(body['path']).path=='/staff' and not urlsplit(body['path']).quer
 assert body['integrationHeader'] is None and body['staffHeader'] is None
 PY
 done
+request GET '/merch/staff?task=synthetic-capability'
+python3 - "$test_dir/headers" "$test_dir/body" <<'PY'
+import json,sys
+from urllib.parse import urlsplit
+raw=open(sys.argv[1]).read().lower()
+assert raw.startswith('http/1.1 200 ') and 'location:' not in raw
+body=json.load(open(sys.argv[2]))
+assert urlsplit(body['path']).path=='/tasks/staff' and not urlsplit(body['path']).query
+assert body['integrationHeader'] is None and body['staffHeader'] is None
+PY
 request POST '/staff?access=synthetic'
 grep -q '^HTTP/1.1 404 ' "$test_dir/headers"
-echo 'Caddy shared staff entry: all supported browser intents, no query/session/integration secret upstream: OK'
+echo 'Caddy native staff entry: retired code/plain paths never loop, task intent retained, secrets stripped: OK'
 
 # A false/default flag must preserve ordinary writes on both ingress paths.
 for host in epharm.example.test epharm-internal.example.test; do

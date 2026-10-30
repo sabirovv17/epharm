@@ -2,7 +2,7 @@ import type { AdminRole } from '@/lib/api-types'
 import type { AccessCapabilities } from '@/features/settings/access-api'
 import { defaultPathForRole } from './accessPolicy'
 
-/** A sole staff-access profile has one workspace; every other role default stays unchanged. */
+/** Historical staff-only profiles reach the retired notice; other role defaults stay unchanged. */
 export function administrativeHomePath(
   role: AdminRole,
   access: Pick<AccessCapabilities, 'managed' | 'grants' | 'canViewMerchStaffAccess'>,
