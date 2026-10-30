@@ -478,8 +478,23 @@ against restored business data; migration rehearsals use plain Flyway without it
 
 `merch/inventory`, `merch/placements`, `merch/producer/auth`, `merch/tasks` and
 `merch/delivery` own the new database-backed workflows. They do not proxy the CRM
-administration UI. The legacy `merchtasks/MerchTaskClient` still serves the old
-integration and recommendation context. `MerchTaskDelivery` chooses one writer for
+administration UI. Before cutover, `merchtasks/MerchTaskClient` serves the legacy
+integration. With `MERCH_LEGACY_PORTAL_CUTOVER_ENABLED=true`, its recommendation context
+comes only from the owned `merch_recommendation_signals` and `merch_product_balances`
+tables; missing native data does not fall back to CRM HTTP. Existing global disable,
+response validation and concurrency limits still apply. The optional SELECT uses the
+caller's connection, a savepoint and a one-second JDBC timeout so SQL errors or cancellation
+do not abort later local recommendation-event writes. Exact active verified pharmacy/branch
+scope, barcode/ipart triggers, branch precedence and stock staleness are preserved.
+Task stock observations are not authoritative product balances.
+
+`tools/unification/owned_context.py project` preserves source IDs and raw provenance from
+the pinned typed CRM snapshot. Its manual `sync` mode retains the reviewed-file workflow:
+private input and source/target hashes, dry-run by default, explicit pharmacy count and
+context hash for apply, a lock acquired before the snapshot, and immutable input audit.
+Stale/conflicting observations and generated-ID collisions across product roles are refused.
+It does not schedule refreshes, create identities, issue tasks or replay financial rewards.
+`MerchTaskDelivery` chooses one writer for
 polling and routes acknowledged native-owned tokens independently of issuance flags.
 
 Native delivery, producer authentication and placement expiry default OFF.

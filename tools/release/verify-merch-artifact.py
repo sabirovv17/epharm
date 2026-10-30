@@ -14,7 +14,7 @@ CONTRACT = ROOT / 'admin-panel/backend/src/main/resources/merch-artifact-contrac
 def verify(jar_path: Path, contract_path: Path = CONTRACT) -> None:
     rows = [line.split('=', 1) for line in contract_path.read_text().splitlines()
             if line and not line.startswith('#')]
-    if len(rows) != 11 or any(len(row) != 2 for row in rows) or len({row[0] for row in rows}) != 11:
+    if len(rows) != 13 or any(len(row) != 2 for row in rows) or len({row[0] for row in rows}) != 13:
         raise ValueError('Invalid merchandising artifact contract')
     with zipfile.ZipFile(jar_path) as jar:
         for name, markers in rows:

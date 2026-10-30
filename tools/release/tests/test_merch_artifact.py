@@ -27,7 +27,7 @@ class MerchArtifactTests(unittest.TestCase):
                 write(omit=name)
                 with self.assertRaises(KeyError):
                     artifact.verify(jar)
-            for marker in ('writeValueAsBytes', 'IPV4_OCTET', 'MERCH_TASKS_STAFF_URL', 'ownsNativeDeliveryToken', 'requirePaidMutation', 'source_preserved', 'MERCH_AUTOMATION_ENABLED', 'AFTER_COMMIT'):
+            for marker in ('writeValueAsBytes', 'IPV4_OCTET', 'MERCH_TASKS_STAFF_URL', 'ownsNativeDeliveryToken', 'requirePaidMutation', 'source_preserved', 'MERCH_AUTOMATION_ENABLED', 'AFTER_COMMIT', 'NativeRecommendationContextReader', 'setSavepoint', 'MERCH_LEGACY_PORTAL_CUTOVER_ENABLED', 'REVOKE ALL'):
                 write(marker=marker)
                 with self.assertRaises(ValueError):
                     artifact.verify(jar)

@@ -46,7 +46,7 @@ def snapshot():
     rows = {name: [] for name in promotion.NATIVE_TABLES}
     rows["unified_persons"] = [["synthetic-person", PRIVATE]]
     return {"metadata": {"tables": tables, "database": {"encoding": "UTF8", "collate": "C", "ctype": "C", "localeProvider": "c"}},
-            "rows": rows, "migrations": [[1, "SQL", "V088__synthetic.sql", 123, True]], "sourceIdentitySha256": "a" * 64}
+            "rows": rows, "migrations": [[1, "SQL", "V089__synthetic.sql", 123, True]], "sourceIdentitySha256": "a" * 64}
 
 
 def pin():
@@ -59,7 +59,7 @@ def pin():
 class PreparationTest(unittest.TestCase):
     def setUp(self):
         sha = stage.schema_hash(snapshot()["metadata"])
-        self.synthetic_profile = dict(schemaVersion="088", sourceSchemaSha256=sha, plainSchemaSha256=sha, substitutions=[])
+        self.synthetic_profile = dict(schemaVersion="089", sourceSchemaSha256=sha, plainSchemaSha256=sha, substitutions=[])
         self.profile_patch = mock.patch.object(promotion, "schema_profile", return_value=self.synthetic_profile)
         self.profile_patch.start(); self.addCleanup(self.profile_patch.stop)
 
@@ -72,7 +72,7 @@ class PreparationTest(unittest.TestCase):
             source["tables"][index]["constraints"].append(constraint(name, "c", ["value"], definition=a))
             target["tables"][index]["constraints"].append(constraint(name, "c", ["value"], definition=b))
             changes.append(dict(table=source["tables"][index]["name"], constraint=name, sourceDefinition=a, targetDefinition=b))
-        profile = dict(schemaVersion="088", sourceSchemaSha256=stage.schema_hash(source), plainSchemaSha256=stage.schema_hash(target), substitutions=changes)
+        profile = dict(schemaVersion="089", sourceSchemaSha256=stage.schema_hash(source), plainSchemaSha256=stage.schema_hash(target), substitutions=changes)
         with mock.patch.object(promotion, "schema_profile", return_value=profile):
             self.assertEqual(target, promotion.expected_target_metadata(source))
             self.assertEqual(target, promotion.expected_target_metadata(target))
@@ -84,15 +84,15 @@ class PreparationTest(unittest.TestCase):
             with mock.patch.object(promotion, "schema_profile", return_value=broken), self.assertRaises(stage.StageError): promotion.expected_target_metadata(source)
 
     def test_only_allowlisted_native_tables_are_written_and_no_source_routines_replayed(self):
-        value = snapshot(); value["migrations"][0][0] = "088"
+        value = snapshot(); value["migrations"][0][0] = "089"
         sql, checksums = promotion.build_sql(value, crm_artifact(), "b" * 64, pin())
         copied = re.findall(r'^COPY public\."([a-z_]+)"', sql, re.M)
         self.assertEqual(set(promotion.NATIVE_TABLES), set(copied))
-        self.assertEqual(69, len(copied)); self.assertEqual(69, len(checksums))
+        self.assertEqual(71, len(copied)); self.assertEqual(71, len(checksums))
         self.assertNotRegex(sql, r"(?m)^(UPDATE|DELETE|TRUNCATE|DROP|ALTER TABLE public|CREATE FUNCTION|CREATE TRIGGER) ")
         self.assertNotIn("session_replication_role", sql)
         self.assertIn("original72 changed inside promotion", sql)
-        self.assertIn("target088 Flyway checksums differ", sql)
+        self.assertIn("target089 Flyway checksums differ", sql)
         self.assertIn("refusing replay without changes", sql)
         self.assertNotIn("\\if", sql)
         self.assertIn("\\\\.\\n\\\\set ON_ERROR_STOP off\\t'Ә", sql)
@@ -110,9 +110,9 @@ class PreparationTest(unittest.TestCase):
 
     def test_unknown_tables_old_schema_ephemeral_rows_and_duplicate_keys_fail_closed(self):
         for change in ("unknown", "old_version", "session", "duplicate", "generated"):
-            value = snapshot(); value["migrations"][0][0] = "088"
+            value = snapshot(); value["migrations"][0][0] = "089"
             if change == "unknown": value["metadata"]["tables"].append(table("unexpected"))
-            if change == "old_version": value["migrations"][0][0] = "087"
+            if change == "old_version": value["migrations"][0][0] = "088"
             if change == "session": value["rows"]["merch_producer_sessions"] = [["not-transferable", PRIVATE]]
             if change == "duplicate": value["rows"]["unified_persons"] *= 2
             if change == "generated": value["metadata"]["tables"][0]["columns"][0]["identity"] = "d"
@@ -127,7 +127,7 @@ class PreparationTest(unittest.TestCase):
         with self.assertRaises(stage.StageError): promotion.validate_pin(value)
 
     def test_preparation_never_runs_generated_sql_and_outputs_are_private_and_not_replaced(self):
-        value = snapshot(); value["migrations"][0][0] = "088"
+        value = snapshot(); value["migrations"][0][0] = "089"
         class ReadOnlySource:
             def __init__(self): self.reads = 0
             def inspect(self): return dict(identitySha256="a" * 64, versionNum=160014)
@@ -180,7 +180,7 @@ class PromotionPostgresTest(unittest.TestCase):
             source, target = [stage.Database(n, "synthetic", "epharm_unified_candidate") for n in names]
             originals = ["pos_sales"] + ["original_" + str(i) for i in range(71)]
             ddl = "\n".join("CREATE TABLE public." + stage.qi(n) + "(id text PRIMARY KEY,value text);" for n in [*originals, *promotion.NATIVE_TABLES])
-            ddl += "CREATE TABLE public.flyway_schema_history(installed_rank int PRIMARY KEY,version text,type text,script text,checksum int,success boolean);INSERT INTO public.flyway_schema_history VALUES(1,'088','SQL','V088__synthetic.sql',123,true);"
+            ddl += "CREATE TABLE public.flyway_schema_history(installed_rank int PRIMARY KEY,version text,type text,script text,checksum int,success boolean);INSERT INTO public.flyway_schema_history VALUES(1,'089','SQL','V089__synthetic.sql',123,true);"
             ddl += "ALTER TABLE public.merch_branches ADD parent_sale text REFERENCES public.pos_sales(id);"
             ddl += "INSERT INTO public.pos_sales VALUES('captured','captured-value');"
             for db in (source, target): db.run(ddl)
@@ -189,7 +189,7 @@ class PromotionPostgresTest(unittest.TestCase):
             source.run(stage.load_sql(artifact, schema, artifact_sha))
             source_info = source.inspect(); data = promotion.capture(source, source_info["identitySha256"], artifact, artifact_sha)
             sha = stage.schema_hash(data["metadata"])
-            profile_patch = mock.patch.object(promotion, "schema_profile", return_value=dict(schemaVersion="088", sourceSchemaSha256=sha, plainSchemaSha256=sha, substitutions=[]))
+            profile_patch = mock.patch.object(promotion, "schema_profile", return_value=dict(schemaVersion="089", sourceSchemaSha256=sha, plainSchemaSha256=sha, substitutions=[]))
             profile_patch.start(); self.addCleanup(profile_patch.stop)
             info = target.inspect()
             target_pin = {k: info[k] for k in ("database", "oid", "systemIdentifier", "versionNum", "identitySha256")}

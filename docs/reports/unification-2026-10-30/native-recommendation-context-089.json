@@ -1,0 +1,96 @@
+{
+  "state": "source_frozen_local_synthetic_tests_passed",
+  "productionChanged": false,
+  "preservedCandidateChanged": false,
+  "backendTests": {
+    "MerchTaskClientTest": 22,
+    "NativeRecommendationContextIntegrationTest": 8,
+    "MerchRecommendationMergeTest": 20,
+    "PromoPublicationIntegrationTest": 28,
+    "LegacyPosmWireContractTest": 27,
+    "failed": 0
+  },
+  "projectorTests": {
+    "unit": 2,
+    "realPostgres16": 7,
+    "failed": 0
+  },
+  "sourceFileSha256": {
+    "admin-panel/backend/src/main/resources/db/migration/V089__native_recommendation_context.sql": "ddbf6a38f56ea56268251f837fdeb72457021675725d756188c5379b5d8304b4",
+    "admin-panel/backend/src/main/kotlin/kz/epharm/merchtasks/service/NativeRecommendationContextReader.kt": "5be3c69fad9be1946a85093080b818230cbc23f11f584f3f79cdd6386471ab87",
+    "admin-panel/backend/src/main/kotlin/kz/epharm/merchtasks/service/MerchTaskClient.kt": "3f210d4f18dc122cc8cb80c3e5868719d7d32b576ccb52278896ea5b4cfadb7f",
+    "tools/unification/owned_context.py": "c407714f08a391f20f4bdde54f1e65f04dd3257e2b8861a092831d1f5450d66a"
+  },
+  "proven": [
+    "same_connection_savepoint_SQL_error_and_JDBC_timeout_preserve_outer_commit",
+    "native_cutover_zero_CRM_HTTP_calls",
+    "disabled_and_bulkhead_guards_retained",
+    "exact_key_scope_org_branch_dedupe_time_and_staleness",
+    "source_UUID_bigint_raw_payload_preserved",
+    "synthetic_0_0_projection_stays_empty",
+    "manual_private_input_hash_pin_CAS_dryrun_and_immutable_audit",
+    "stale_equal_observation_conflict_rejected",
+    "concurrent_disjoint_sync_CAS_after_gate",
+    "auto_UUID5_cross_role_collision_requires_explicit_ID",
+    "no_money_jobs_links_or_human_identity_replay"
+  ],
+  "redLogs": [
+    "/tmp/epharm-native-context-savepoint-red-20261030.log",
+    "/tmp/epharm-context-operator-red-20261030.log",
+    "/tmp/epharm-context-projection-race-red-20261030.log"
+  ],
+  "greenLogs": [
+    "/tmp/epharm-native-context-final-20261030.log",
+    "/tmp/epharm-native-context-projector-final-20261030.log",
+    "/tmp/epharm-native-context-python-family-20261030.log",
+    "/tmp/epharm-context-projection-race-green-20261030.log"
+  ],
+  "limits": [
+    "Actual frozen source 0+0 counts supplied by root; no source/candidate query or import performed here",
+    "Root owns candidate V089 rehearsal/profile and release enablement",
+    "Native stock derives only from explicit feed tables, never task observations"
+  ],
+  "pythonFamily": {
+    "passed": 26,
+    "olderOptInSkipped": 4,
+    "failed": 0
+  },
+  "integrationOwnerVerification": {
+    "fullBackendTests": 1303,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1,
+    "suites": 143,
+    "check": "pass",
+    "bootJar": "pass",
+    "log": "/tmp/epharm-native089-full-backend-20261030.log",
+    "projectorTests": 9,
+    "projectorFailures": 0,
+    "projectionConcurrentRepeatRedThenGreen": true,
+    "sourceActualProjection": {
+      "signals": 0,
+      "balances": 0,
+      "dryRun": "rolled_back",
+      "apply": "materialized_and_verified",
+      "repeat": "verified_existing_noop"
+    },
+    "preservedOriginalBusinessTables": 72,
+    "domainUnchanged": true,
+    "existingPosmApiUnchanged": true,
+    "newPublicApi": false,
+    "unificationTests": {
+      "total": 151,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1,
+      "log": "/tmp/epharm-native089-all-unification-20261030.log"
+    },
+    "currentJarSha256": "cb16bac9d0abc7a96bd6e260eb6bc894e3dbbcc919fd53493b74e688f3de2f7b",
+    "artifactContract": "13 entries including native Reader/V089; Gradle and actual-JAR release guards passed"
+  },
+  "remaining": [
+    "Fresh final browser acceptance/CI on exact final commit",
+    "Controlled source delta/freeze/cutover",
+    "POSM G4 and first expanded-schema recovery G7"
+  ]
+}

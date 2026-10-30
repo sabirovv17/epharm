@@ -16,7 +16,7 @@ import sys
 import crm_stage as stage
 
 
-SCHEMA_VERSION = "088"
+SCHEMA_VERSION = "089"
 # Deliberately versioned, not inferred from whatever tables a source happens to contain.
 BASE_NATIVE_TABLES = tuple("""
 learner_credential_export_attempts learner_credential_export_audit learner_credential_exports learner_password_vault
@@ -37,7 +37,7 @@ promo_publication_changes promo_publication_history unified_admin_access_audit u
 unified_external_account_bindings unified_external_accounts unified_identity_audit unified_import_runs
 unified_persons unified_source_links
 """.split())
-EXPLICIT_ADDITIVE_TABLES = ("merch_legacy_capability_aliases",)
+EXPLICIT_ADDITIVE_TABLES = ("merch_legacy_capability_aliases", "merch_recommendation_signals", "merch_product_balances")
 NATIVE_TABLES = tuple(sorted((*BASE_NATIVE_TABLES, *EXPLICIT_ADDITIVE_TABLES)))
 NEVER_POPULATED = frozenset("""
 learner_credential_export_attempts learner_credential_export_audit learner_credential_exports learner_password_vault
@@ -48,18 +48,18 @@ PIN_FIELDS = {"database", "oid", "systemIdentifier", "versionNum", "containerId"
 
 
 def schema_profile():
-    return stage.parse_json(Path(__file__).with_name("promotion_schema_088.json").read_bytes())
+    return stage.parse_json(Path(__file__).with_name("promotion_schema_089.json").read_bytes())
 
 
 def expected_target_metadata(metadata):
-    """Only two reviewed complete schema088 fingerprints; no SQL equivalence engine."""
+    """Only two reviewed complete schema089 fingerprints; no SQL equivalence engine."""
     profile = schema_profile()
     stage.require(set(profile) == {"schemaVersion", "sourceSchemaSha256", "plainSchemaSha256", "substitutions"}
                   and profile["schemaVersion"] == SCHEMA_VERSION, "invalid pinned schema variant profile")
     actual = stage.schema_hash(metadata)
     source_hash = stage.hash_arg(profile["sourceSchemaSha256"])
     plain_hash = stage.hash_arg(profile["plainSchemaSha256"])
-    stage.require(actual in {source_hash, plain_hash}, "unreviewed source schema088 fingerprint")
+    stage.require(actual in {source_hash, plain_hash}, "unreviewed source schema089 fingerprint")
     if actual == plain_hash:
         return metadata
     expected = copy.deepcopy(metadata)
@@ -134,9 +134,9 @@ def migration_query():
 def validate_snapshot(snapshot):
     metadata = snapshot["metadata"]
     names = [t["name"] for t in metadata["tables"]]
-    stage.require(len(BASE_NATIVE_TABLES) == 68 and len(NATIVE_TABLES) == 69 and len(set(NATIVE_TABLES)) == 69, "invalid compiled allowlist")
-    stage.require(len(names) == 142 and set(NATIVE_TABLES).issubset(names) and "flyway_schema_history" in names,
-                  "schema088 must have exactly original72+Flyway+native69 tables")
+    stage.require(len(BASE_NATIVE_TABLES) == 68 and len(NATIVE_TABLES) == 71 and len(set(NATIVE_TABLES)) == 71, "invalid compiled allowlist")
+    stage.require(len(names) == 144 and set(NATIVE_TABLES).issubset(names) and "flyway_schema_history" in names,
+                  "schema089 must have exactly original72+Flyway+native71 tables")
     originals = [t for t in metadata["tables"] if t["name"] not in NATIVE_TABLES and t["name"] != "flyway_schema_history"]
     stage.require(len(originals) == 72, "original72 inventory differs")
     tables = [t for t in metadata["tables"] if t["name"] in NATIVE_TABLES]
@@ -223,13 +223,13 @@ def build_sql(snapshot, artifact, artifact_sha, pin):
            stage.SETTINGS,
            # Acquire all native write fences before taking the data snapshot. Originals remain writable.
            "LOCK TABLE " + native_locks + " IN SHARE ROW EXCLUSIVE MODE;",
-           "SELECT pg_advisory_xact_lock(hashtextextended('unified_native_promotion_088',0));",
+           "SELECT pg_advisory_xact_lock(hashtextextended('unified_native_promotion_089',0));",
            assertion(guard, "target database identity differs"),
            assertion(locale_sql + "=" + stage.literal(stage.encoded(locale).decode()) + "::jsonb", "target database locale differs"),
-           assertion("(" + current_meta + ")=" + stage.literal(stage.encoded(stable_meta).decode()) + "::jsonb", "target088 full schema differs")]
+           assertion("(" + current_meta + ")=" + stage.literal(stage.encoded(stable_meta).decode()) + "::jsonb", "target089 full schema differs")]
     # Compare every installed migration's code checksum; install timestamps may legitimately differ.
     sql.append(assertion("(SELECT coalesce(jsonb_agg(jsonb_build_array(version,type,script,checksum,success) ORDER BY installed_rank),'[]'::jsonb) FROM public.flyway_schema_history)="
-                         + stage.literal(stage.encoded(snapshot["migrations"]).decode()) + "::jsonb", "target088 Flyway checksums differ"))
+                         + stage.literal(stage.encoded(snapshot["migrations"]).decode()) + "::jsonb", "target089 Flyway checksums differ"))
     sql += [assertion("NOT EXISTS(SELECT 1 FROM pg_namespace WHERE nspname LIKE 'crm_stage_%')", "CRM stage exists; refusing replay without changes"),
             assertion(" AND ".join("NOT EXISTS(SELECT 1 FROM public." + stage.qi(n) + ")" for n in sorted(NATIVE_TABLES)),
                       "native targets are not pristine; refusing replay without changes"),
@@ -240,7 +240,7 @@ def build_sql(snapshot, artifact, artifact_sha, pin):
     sql += [stage.verification_sql(artifact, schema, artifact_sha, True), verify_native(tables, checksums),
             "CREATE TEMP TABLE _promotion_original_after ON COMMIT DROP AS " + " UNION ALL ".join(facts_query(t) for t in originals) + ";",
             assertion("NOT EXISTS((TABLE _promotion_original_before EXCEPT TABLE _promotion_original_after) UNION ALL (TABLE _promotion_original_after EXCEPT TABLE _promotion_original_before))", "original72 changed inside promotion; rollback required"),
-            "SELECT json_build_object('mode','imported_and_verified','nativeTables',69,'crmTables',57,'originalTablesUnchanged',72,'sourceIdentitySha256'," + stage.literal(snapshot["sourceIdentitySha256"]) + ",'targetIdentitySha256'," + stage.literal(pin["identitySha256"]) + ");", "COMMIT;"]
+            "SELECT json_build_object('mode','imported_and_verified','nativeTables',71,'crmTables',57,'originalTablesUnchanged',72,'sourceIdentitySha256'," + stage.literal(snapshot["sourceIdentitySha256"]) + ",'targetIdentitySha256'," + stage.literal(pin["identitySha256"]) + ");", "COMMIT;"]
     return "\n".join(sql) + "\n", checksums
 
 
@@ -268,7 +268,7 @@ def prepare(args, database_factory=stage.Database):
     manifest = {"formatVersion": 1, "schemaVersion": SCHEMA_VERSION, "target": pin,
                 "sourceIdentitySha256": args.source_identity_sha256, "crmArtifactSha256": args.crm_sha256,
                 "approvedProposalSha256": args.proposal_sha256, "explicitReviewedAdditiveTables": list(EXPLICIT_ADDITIVE_TABLES), "nativeTables": list(NATIVE_TABLES),
-                "schemaVariantProfileSha256": stage.file_hash(Path(__file__).with_name("promotion_schema_088.json")),
+                "schemaVariantProfileSha256": stage.file_hash(Path(__file__).with_name("promotion_schema_089.json")),
                 "nativeChecksums": checksums, "nativeRows": sum(c["rowCount"] for c in checksums),
                 "replayBehavior": "refuse_without_changes; no merging or seed reconciliation",
                 "writeTargets": {"public": list(NATIVE_TABLES), "crmStage": "crm_stage_" + args.crm_sha256[:16],

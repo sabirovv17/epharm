@@ -2,6 +2,11 @@ package kz.epharm.merchtasks
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.sun.net.httpserver.HttpServer
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
+import kz.epharm.merchtasks.service.NativeRecommendationContextReader
+import kz.epharm.merchtasks.dto.MerchRecommendationContextEnvelope
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import java.net.InetSocketAddress
 import java.time.Instant
@@ -32,6 +37,50 @@ class MerchTaskClientTest {
     fun stopServer() {
         server?.stop(0)
         serverExecutor?.shutdownNow()
+    }
+
+    @Test
+    fun `global disabled flag prevents native reads too`() {
+        val native=mockk<NativeRecommendationContextReader>()
+        val registry=SimpleMeterRegistry()
+        val client=MerchTaskClient(jacksonObjectMapper(),false,"","",900,"https://epharm.inkar.kz",registry,
+            nativeContext=native,legacyCutover=true)
+        assertThat(client.recommendationContext(MerchRecommendationContextRequest("pharmacy-7",emptyList())).recommendations).isEmpty()
+        verify(exactly=0){native.context(any())}
+        assertThat(registry.get("epharm.merch.tasks.requests").tags("operation","recommendations","outcome","disabled").counter().count()).isEqualTo(1.0)
+    }
+
+    @Test
+    fun `native requests share the bounded legacy bulkhead and saturation metrics`() {
+        val entered=CountDownLatch(1);val release=CountDownLatch(1)
+        val native=mockk<NativeRecommendationContextReader>()
+        every { native.context(any()) } answers { entered.countDown();check(release.await(5,TimeUnit.SECONDS));MerchRecommendationContextEnvelope() }
+        val registry=SimpleMeterRegistry()
+        val client=MerchTaskClient(jacksonObjectMapper(),true,"","",900,"https://epharm.inkar.kz",registry,
+            maxConcurrent=1,nativeContext=native,legacyCutover=true)
+        val req=MerchRecommendationContextRequest("pharmacy-7",emptyList())
+        val first=CompletableFuture.supplyAsync { client.recommendationContext(req) }
+        try {
+            check(entered.await(5,TimeUnit.SECONDS))
+            assertThat(client.recommendationContext(req).available).isFalse()
+            verify(exactly=1){native.context(any())}
+            assertThat(registry.get("epharm.merch.tasks.requests").tags("operation","recommendations","outcome","saturated").counter().count()).isEqualTo(1.0)
+        } finally { release.countDown() }
+        assertThat(first.get(5,TimeUnit.SECONDS).available).isTrue()
+    }
+
+    @Test
+    fun `native cutover never calls configured CRM even when native reader is absent`() {
+        val calls = java.util.concurrent.atomic.AtomicInteger()
+        server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
+            createContext("/") { exchange -> calls.incrementAndGet(); exchange.sendResponseHeaders(503, -1); exchange.close() }
+            start()
+        }
+        val client = MerchTaskClient(jacksonObjectMapper().findAndRegisterModules(), true,
+            "http://127.0.0.1:${requireNotNull(server).address.port}", "synthetic-only", 900,
+            "https://epharm.inkar.kz", SimpleMeterRegistry(), legacyCutover=true)
+        assertThat(client.recommendationContext(MerchRecommendationContextRequest("pharmacy-7",emptyList())).available).isFalse()
+        assertThat(calls.get()).isZero()
     }
 
     @Test

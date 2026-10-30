@@ -3218,3 +3218,55 @@ enqueue восстанавливается корректно, повтор не
 нового Windows binary: предыдущий VM-прогон был на более раннем row-clone кандидате.
 LINK-группа/поздняя печать и новый Windows повтор остаются обязательными для G4.
 Уже принятые сервером старые ошибочные продажи не переписываются самовольно.
+
+### Девятый срез: закрытие source-зависимости CRM и настоящий backup/restore
+
+G11 M14.08/M14.09 перенесены в исходниках: два owned typed context tables V089,
+сохранённые UUID/bigint и raw provenance, exact-key readonly reader в том же
+transaction/connection через savepoint и bounded JDBC timeout. При действующем
+cutover-флаге CRM HTTP fallback отсутствует; global disable/bulkhead/DTO validation
+сохранены. Мерч-наблюдения полок не выдаются за аптечные/сетевые/складские остатки.
+Операторский JSON sync сохранён без нового scheduler/API: private hash/pins, dry-run,
+CAS после ожидания lock, подтверждённое число аптек и неизменяемый аудит. Два
+раздельных input с коллизией legacy UUID5 по ролям barcode/ipart отклоняются, если
+редактор явно не указал ID. Повтор source projection также перечитывает состояние
+после gate и не выдаёт устаревший snapshot за проверенный NOOP.
+
+Полный backend1303теста/143suite,0fail/errors,1прежнийopt-in skip,check/bootJarPASS;
+отдельный focused105PASS включает actual Recommend outerTX после SQLerror и
+настоящей JDBC cancellation. Projector9PASS с realPG и RED→GREEN двух manual
+гонок/коллизии и concurrent projection. Весь unification151тест,0ошибок,1старыйskip
+при включённых HQ/automation/promotion/context PG opt-ins. Artifact gate теперь
+проверяет Reader/V089/cutover-конфигурацию внутри настоящего JAR.
+
+Созданы отдельные source089/target089 candidates, исходные087/088 не менялись.
+На настоящем fresh source обе context-таблицы0/0; dry-run/apply/NOOP подтвердили
+это без создания выдуманных записей. Новый selective package импортировал
+71native/41 473строки и57CRM/42 414строк. Все72исходные бизнес-таблицы/
+1 932 895строк, включая новую контрольную продажу после source capture, сохранили
+полные значения/PK/hash. FK23503 откатил весь импорт; повтор23514 ничего не
+перезаписал. Профиль089 разрешает только два проверенных полных schema fingerprints
+и те же29конкретных CHECK cast-spellings; неизвестная схема закрыта.
+Подробности — [selective-promotion-rehearsal-089.json](docs/reports/unification-2026-10-30/selective-promotion-rehearsal-089.json).
+
+Backup-only операция завершена: новый текущий offsite snapshot18 на .80 восстановлен
+без зависимости от .76 — PG16/73таблицы/1 933 464строки, все9485объектов с нулём
+body/header/tag mismatches,2точные политики,42native-файла и отдельный keyring с
+проверкой настоящим JDK crypto consumer. На самой .76 штатный restore-test.service
+тоже прошёл, обновил метрику и удалил только свои disposable ресурсы. Оба прежних
+backup/restore таймера снова active/waiting по неизменным расписаниям. Retention
+проверен readonly, ручного forget/prune/удаления истории нет. Приложение, его env,
+schema065, CRM и кассовые flags не переключались. Свободно39.57GB на .76 и16.77GB
+на .80. Отдельный старый CRM dump/download preservation point сохранён; штатная
+четырёхкомпонентная цепочка не выдаётся за непрерывный backup ещё живой CRM БД.
+[Фактическая DR и расписания](docs/reports/unification-2026-10-30/actual-offsite-and-scheduled-restore.json).
+
+CI checkpoint `f78b1c5` полностью зелёный, включая Windows build/355Core; он ещё
+не включает новый G11/phase2. Последняя disposableVM readonly-проверка установила:
+после оплаты реальные позиции находятся в DOC_DETAIL, а DOC_DETAIL_ACTIVE пуст;
+отрицательные QUANT/SUMMA совпали с физическими header sums. Это основание для
+phase2 адаптера, а не уже успешная новая кассовая приёмка. Открыты завершение
+LINK/perphysical/late-print G4, текущий final CI/общий browser повтор, G7 controlled
+forward recovery и свежие source deltas/single-writer/ingress cutover. App-deploy
+по-прежнему разрешён только после обязательных проверок; домен и отдельный /learn
+не меняются, РПС на кассах не включается.
