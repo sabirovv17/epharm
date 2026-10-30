@@ -1,7 +1,7 @@
-import { test, expect, type APIRequestContext, type Page, type Request } from '@playwright/test'
+import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
 import { chmodSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { createHash, randomUUID } from 'node:crypto'
-import { execFileSync, spawnSync } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
 
 // Opt in only against acceptance_runtime.py's empty synthetic database. No API stubs,
@@ -33,6 +33,7 @@ let task: Dispatch
 let foreignTask: Dispatch
 let producerSession: { accessToken: string; refreshToken: string; customer: Record<string, unknown> }
 let learnerSession: { tokens: { accessToken: string; refreshToken: string } }
+let legacyTaskUrl: string
 
 function loopback(value: string): URL {
   const url = new URL(value)
@@ -227,6 +228,7 @@ test('independent learner login executes and submits a task; HQ independently re
   const envelope = await poll.json() as { task: { id: string; deliveryToken: string; publicUrl: string } | null }
   expect(envelope.task?.id === task.id).toBe(true)
   expect(envelope.task?.publicUrl.startsWith('https://epharm.inkar.kz/tasks/staff?task=1#task=')).toBe(true)
+  legacyTaskUrl = envelope.task!.publicUrl
   const ackBody = { dispatchId: task.id, pharmacyId: fixture.pharmacyId, deviceId: fixture.deviceId, deliveryToken: envelope.task!.deliveryToken }
   for (let n = 0; n < 2; n++) {
     const ack = await request.post(fixture.apiUrl + '/api/posm/tasks/shown', { headers, data: ackBody, timeout: 40_000 })
@@ -343,158 +345,67 @@ test('both installed POSM version heartbeat shapes and repeated synthetic sale u
   expect([401, 403].includes(denied.status())).toBe(true)
 })
 
-test('M13 scoped staff codes preserve QR/code sessions, private whole reports and manual HQ review without a person or money', async ({ request, page, baseURL, playwright }) => {
-  test.setTimeout(360_000)
+test('M13 retired shared codes lead to personal learn while an existing task QR remains usable', async ({ request, page, baseURL }) => {
   const liveExpect = expect.configure({ timeout: 30_000 })
-  const operator = await managed(request, 'CATEGORY_LEAD', ['view', 'create', 'revoke'].map(action => scopedGrant('staff_access', action)))
   const counts = () => (JSON.parse(execFileSync('python3', [resolve('../../tools/unification/acceptance_runtime.py'), 'proof',
     '--manifest', resolve(dirname(fixturePath!), 'manifest.json')], { encoding: 'utf8' })) as { aggregate: Record<string, number> }).aggregate
   const before = counts()
-  const month = new Date(); month.setUTCMonth(month.getUTCMonth() + 1, 1)
-  const placementMonth = month.toISOString().slice(0, 7) + '-01'
-  const foreignMonth = new Date(month); foreignMonth.setUTCMonth(foreignMonth.getUTCMonth() + 1, 1)
-  const blockedAdmin = await wireBrowser(page, baseURL!)
+  // The retirement fixture must use the same OFF configuration intended for rollout.
+  await call(request, 'POST', '/api/staff/auth/code', undefined, { code: '000000' }, [403, 404])
+  await call(request, 'GET', '/api/staff/workspace', token(), undefined, [403])
+  const blocked = await wireBrowser(page, baseURL!)
+  const staffRequests: string[] = []
+  page.on('request', observed => {
+    const path = new URL(observed.url()).pathname
+    if (path.startsWith('/api/staff/')) staffRequests.push(path)
+  })
   await page.addInitScript(value => {
     localStorage.setItem('epharm.auth.tokens', JSON.stringify(value.tokens))
     localStorage.setItem('epharm.auth.user', JSON.stringify(value.user))
-  }, operator.session)
-  await page.goto('/')
-  await liveExpect(page).toHaveURL(/\/merch\/staff-access$/)
-  await liveExpect(page.getByRole('heading', { name: 'Коды доступа сотрудников' })).toBeVisible()
-  await page.getByRole('combobox', { name: 'Аптечная организация' }).selectOption(fixture.ids.organization)
-  await page.getByLabel('Месяц доступа', { exact: true }).fill(placementMonth.slice(0, 7))
-  const branch = page.getByRole('checkbox', { name: /Synthetic branch A/ })
-  await branch.check()
-  await liveExpect(page.getByRole('checkbox', { name: /Synthetic branch B/ })).toHaveCount(0)
-  const createdResponse = page.waitForResponse(response => response.url().endsWith('/api/admin/merch/staff-access') && response.request().method() === 'POST')
-  await page.getByRole('button', { name: 'Создать код и QR', exact: true }).click()
-  const created = await (await createdResponse).json() as { code: string; accessToken: string; grant: { codeId: string } }
-  expect(/^\d{3}-\d{3}$/.test(created.code)).toBe(true)
-  await liveExpect(page.getByRole('img', { name: 'QR временного доступа сотрудника' })).toBeVisible()
-  await call(request, 'POST', '/api/admin/merch/staff-access', operator.session.tokens.accessToken, {
-    organizationId: fixture.ids.organization, placementMonth, branchIds: [fixture.ids.branchB],
-  }, [403])
-  const adminStorage = await page.evaluate(() => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }))
-  expect(adminStorage.includes(created.code) || adminStorage.includes(created.accessToken)).toBe(false)
-  await page.getByRole('button', { name: 'Обновить список', exact: true }).click()
-
-  // Chromium's synthetic camera is an explicit test input, not a physical-camera or identity proof.
-  const cameraBrowser = await playwright.chromium.launch({ headless: true,
-    args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] })
-  try {
-    const context = await cameraBrowser.newContext({ permissions: ['camera'], viewport: { width: 390, height: 900 } })
-    await context.addInitScript(({ admin, learner, producer }) => {
-      localStorage.setItem('epharm.auth.tokens', JSON.stringify(admin.tokens)); localStorage.setItem('epharm.auth.user', JSON.stringify(admin.user))
-      localStorage.setItem('epharm.learner.tokens', JSON.stringify(learner.tokens))
-      sessionStorage.setItem('epharm.producer.session.v1', JSON.stringify(producer))
-    }, { admin: hq, learner: learnerSession, producer: producerSession })
-    const staffPage = await context.newPage()
-    const blockedStaff = await wireBrowser(staffPage, baseURL!)
-    let staffRequests = 0
-    let wrongRealmHeaders = 0
-    const recordStaffRequest = (observed: Request) => {
-      if (new URL(observed.url()).pathname.startsWith('/api/staff/')) {
-        staffRequests++
-        if (observed.headers().authorization) wrongRealmHeaders++
-      }
-    }
-    staffPage.on('request', recordStaffRequest)
-    await staffPage.goto(`/staff#access=${created.accessToken}`)
-    await liveExpect(staffPage.getByRole('heading', { name: 'Synthetic network', exact: true })).toBeVisible()
-    expect(staffPage.url().includes(created.accessToken)).toBe(false)
-    const sessionKey = 'epharm.merch.staff-session.v1'
-    const staffToken = await staffPage.evaluate(key => sessionStorage.getItem(key), sessionKey)
-    expect(typeof staffToken === 'string' && staffToken.length >= 32).toBe(true)
-    const limited = async (method: string, path: string, data?: unknown, statuses = [200]) => {
-      const response = await request.fetch(fixture.apiUrl + path, { method, data, headers: { 'X-Staff-Session': staffToken! }, maxRedirects: 0, timeout: 40_000 })
-      if (!statuses.includes(response.status())) throw new Error(`Staff ${method} ${path.split('?')[0]}: HTTP ${response.status()}`)
-      return response
-    }
-    await limited('GET', `/api/staff/workspace?month=${foreignMonth.toISOString().slice(0, 7)}-01`, undefined, [403])
-    await limited('POST', '/api/staff/visits', { branchId: fixture.ids.branchB, month: placementMonth, employeeName: 'Synthetic report author' }, [403])
-    for (const foreignRealm of [token(), learnerSession.tokens.accessToken])
-      await call(request, 'GET', '/api/staff/workspace', foreignRealm, undefined, [401, 403])
-    await limited('GET', '/api/admin/access/me', undefined, [401, 403])
-
-    const codePage = await context.newPage()
-    codePage.on('request', recordStaffRequest)
-    const blockedCode = await wireBrowser(codePage, baseURL!)
-    await codePage.goto('/staff')
-    await codePage.getByLabel('Код доступа', { exact: true }).fill(created.code)
-    await codePage.getByRole('button', { name: 'Войти по коду', exact: true }).click()
-    await liveExpect(codePage.getByRole('heading', { name: 'Synthetic network', exact: true })).toBeVisible()
-    const exhausted = await json<{ codes: { codeId: string; exhausted: boolean; useCount: number; maxUses: number }[] }>(request, 'GET',
-      `/api/admin/merch/staff-access?organizationId=${fixture.ids.organization}&month=${placementMonth}`, operator.session.tokens.accessToken)
-    const grant = exhausted.codes.find(row => row.codeId === created.grant.codeId)
-    expect(grant?.exhausted).toBe(true); expect(grant?.useCount).toBe(1); expect(grant?.maxUses).toBe(1)
-    await call(request, 'POST', '/api/staff/auth/code', undefined, { code: created.code }, [401])
-    await call(request, 'POST', '/api/staff/auth/qr', undefined, { access: created.accessToken }, [401])
-    await staffPage.reload()
-    await liveExpect(staffPage.getByRole('heading', { name: 'Synthetic network', exact: true })).toBeVisible()
-    expect(await staffPage.evaluate(key => sessionStorage.getItem(key) !== null, sessionKey)).toBe(true)
-
-    await staffPage.getByRole('button', { name: 'Начать фотоотчёт', exact: true }).click()
-    await staffPage.getByLabel('Имя автора фотоотчёта', { exact: true }).fill('Synthetic shared report author')
-    const openedResponse = staffPage.waitForResponse(response => new URL(response.url()).pathname === '/api/staff/visits' && response.request().method() === 'POST')
-    await staffPage.getByRole('button', { name: 'Открыть и продолжить', exact: true }).click()
-    const opened = await (await openedResponse).json() as { id: string; version: number; dispatch: Dispatch }
-    await staffPage.getByRole('button', { name: 'Сфотографировать полку', exact: true }).click()
-    await staffPage.getByRole('button', { name: 'Включить камеру', exact: true }).click()
-    await liveExpect.poll(() => staffPage.locator('video').evaluate(video => (video as HTMLVideoElement).videoWidth)).toBeGreaterThan(0)
-    await staffPage.getByRole('button', { name: 'Сделать снимок', exact: true }).click()
-    await liveExpect(staffPage.getByRole('img', { name: 'Предпросмотр снимка', exact: true })).toBeVisible()
-    const uploadedResponse = staffPage.waitForResponse(response => response.url().includes('/evidence') && response.request().method() === 'POST')
-    await staffPage.getByRole('button', { name: 'Сохранить снимок', exact: true }).click()
-    const uploaded = await (await uploadedResponse).json() as { id: string; sha256: string }
-    await liveExpect(staffPage.getByRole('button', { name: 'Отправить весь отчёт на проверку', exact: true })).toBeEnabled()
-    const bytes = await limited('GET', `/api/staff/visits/${opened.id}/evidence/${uploaded.id}`)
-    expect(bytes.headers()['content-type']).toContain('image/jpeg')
-    expect(createHash('sha256').update(await bytes.body()).digest('hex') === uploaded.sha256).toBe(true)
-    await staffPage.getByRole('button', { name: 'Снимок 1', exact: true }).click()
-    await liveExpect(staffPage.getByRole('img', { name: /Снимок полки/ })).toBeVisible()
-    const submitResponse = staffPage.waitForResponse(response => response.url().endsWith('/submit') && response.request().method() === 'POST')
-    await staffPage.getByRole('button', { name: 'Отправить весь отчёт на проверку', exact: true }).click()
-    const submitted = await (await submitResponse).json() as { id: string; identityStatus: string; dispatch: Dispatch & { rewardAmountKzt: number } }
-    expect(submitted.dispatch.status).toBe('submitted'); expect(submitted.identityStatus).toBe('staff_access_unverified')
-    expect(submitted.dispatch.rewardAmountKzt).toBe(0)
-    const item = submitted.dispatch.items[0]
-    const review = { attemptId: item.currentAttempt!.id, expectedItemVersion: item.version, decision: 'approve', reason: 'Synthetic manual unverified shared report' }
-    await call(request, 'POST', `/api/admin/merch/tasks/items/${item.id}/reviews`, operator.session.tokens.accessToken, review, [403])
-    await call(request, 'POST', `/api/admin/merch/tasks/items/${item.id}/reviews`, token(), review, [403])
-    await call(request, 'POST', `/api/admin/merch/tasks/items/${item.id}/reviews`, token(), { ...review, manualUnverifiedExecutor: true })
-
-    const storage = await staffPage.evaluate(() => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }))
-    expect(storage.includes(created.code) || storage.includes(created.accessToken)).toBe(false)
-    const manifest = JSON.parse(readFileSync(resolve(dirname(fixturePath!), 'manifest.json'), 'utf8')) as { prefix: string }
-    if (manifest.prefix !== `epharm-accept-20261030-${fixture.runId.slice(0, 8)}`) throw new Error('Refusing a foreign application log')
-    const applicationLog = spawnSync('docker', ['logs', manifest.prefix + '-app'], { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 })
-    if (applicationLog.status !== 0) throw new Error('Synthetic application log inspection failed')
-    const logText = applicationLog.stdout + applicationLog.stderr
-    expect(logText.includes(created.code) || logText.includes(created.code.replace(/\D/g, '')) || logText.includes(created.accessToken)).toBe(false)
-    const revokeResponse = page.waitForResponse(response => response.url().endsWith(`/${created.grant.codeId}/revoke`) && response.request().method() === 'POST')
-    await page.getByRole('button', { name: 'Обновить список', exact: true }).click()
-    await page.getByRole('button', { name: 'Отозвать доступ', exact: true }).click()
-    await page.getByRole('button', { name: 'Подтвердить отзыв', exact: true }).click()
-    expect((await revokeResponse).status()).toBe(200)
-    await limited('GET', '/api/staff/auth/me', undefined, [401])
-    await staffPage.reload()
-    await liveExpect(staffPage.getByRole('alert')).toContainText(/Сеанс завершён|Доступ завершён/)
-    expect(await staffPage.evaluate(key => sessionStorage.getItem(key), sessionKey)).toBeNull()
-    await liveExpect(staffPage.getByRole('heading', { name: 'Synthetic network', exact: true })).toHaveCount(0)
-    expect(staffRequests > 0).toBe(true); expect(wrongRealmHeaders).toBe(0)
-    expect(blockedAdmin).toEqual([]); expect(blockedStaff).toEqual([]); expect(blockedCode).toEqual([])
-    const after = counts()
-    expect(after.verifiedPeople).toBe(before.verifiedPeople)
-    expect(after.walletEntries).toBe(before.walletEntries)
-    writeFileSync(resolve(dirname(fixturePath!), 'm13-live-proof.json'), JSON.stringify({ schemaVersion: 1, syntheticOnly: true,
-      actualBackend: true, provider: 'isolated HTTPS synthetic OTP fixture', camera: 'Chromium synthetic media device, not physical hardware',
-      staffSessionReload: true, numericCodeQuota: 1, exhaustedQrClosed: true, existingSessionSurvivesQuota: true,
-      privatePhotoSha256Verified: true, sharedReportSubmitted: true, explicitHqManualReview: true,
-      rawCodeAndQrAbsentFromStorageAndAppLog: true,
-      foreignBranchMonthDenied: true, staffRequestsWithoutJwt: staffRequests, blockedExternalRequests: 0,
-      manualRevocation: true, peopleCreatedBySharedAccess: after.verifiedPeople - before.verifiedPeople,
-      walletEntriesCreatedBySharedAccess: after.walletEntries - before.walletEntries,
-    }, null, 2) + '\n', { mode: 0o600 })
-    await context.close()
-  } finally { await cameraBrowser.close() }
+    sessionStorage.setItem('epharm.merch.staff-session.v1', 'synthetic_retired_staff_session_000000000000000000')
+  }, hq)
+  const administratorAccess = page.waitForResponse(response => new URL(response.url()).pathname === '/api/admin/access/me')
+  await page.goto('/merch/staff-access')
+  await liveExpect(page.getByRole('heading', { name: 'Общие коды доступа отключены' })).toBeVisible()
+  const accessResponse = await administratorAccess
+  expect(accessResponse.status()).toBe(200)
+  await accessResponse.finished()
+  await liveExpect(page.getByRole('button', { name: 'Коды доступа', exact: true })).toHaveCount(0)
+  await liveExpect(page.getByRole('button', { name: 'Создать код и QR', exact: true })).toHaveCount(0)
+  const retiredAccess = 'synthetic_retired_access_000000000000000000000000'
+  for (const url of ['/staff', `/staff?access=${retiredAccess}`, `/merch/staff#access=${retiredAccess}`]) {
+    await page.goto(url)
+    await liveExpect(page.getByRole('heading', { name: 'Вход по общему коду отключён' })).toBeVisible()
+    await liveExpect(page.getByRole('link', { name: 'Личный кабинет фармацевта' })).toHaveAttribute('href', 'https://epharm.inkar.kz/learn')
+    expect(new URL(page.url()).search + new URL(page.url()).hash).toBe('')
+    expect(await page.evaluate(() => sessionStorage.getItem('epharm.merch.staff-session.v1'))).toBeNull()
+    await liveExpect(page.getByLabel('Код доступа', { exact: true })).toHaveCount(0)
+  }
+  await page.reload()
+  await liveExpect(page.getByRole('heading', { name: 'Вход по общему коду отключён' })).toBeVisible()
+  const capability = new URLSearchParams(new URL(legacyTaskUrl).hash.slice(1)).get('task')
+  expect(capability && /^[A-Za-z0-9_-]{32,256}$/.test(capability)).toBe(true)
+  const sessionResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/public/merch/tasks/session')
+  const taskResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/public/merch/tasks')
+  await page.goto(`/staff?task=1#task=${capability}`)
+  expect((await sessionResponse).status()).toBe(200)
+  await liveExpect(page).toHaveURL(/\/tasks\/staff\?task=1$/)
+  // Session headers precede the real task read; finish it before Playwright disposes transport responses.
+  const taskDetails = await taskResponse
+  expect(taskDetails.status()).toBe(200)
+  await taskDetails.finished()
+  await liveExpect(page.getByRole('heading', { name: 'Synthetic acceptance task', exact: true })).toBeVisible()
+  await liveExpect(page.getByRole('alert')).toHaveCount(0)
+  expect(staffRequests).toEqual([])
+  expect(blocked).toEqual([])
+  const after = counts()
+  expect(after.verifiedPeople).toBe(before.verifiedPeople)
+  expect(after.walletEntries).toBe(before.walletEntries)
+  writeFileSync(resolve(dirname(fixturePath!), 'm13-retirement-live-proof.json'), JSON.stringify({ schemaVersion: 1,
+    syntheticOnly: true, actualBackend: true, sharedCodeEnabled: false, personalCabinetCanonical: true,
+    retiredPlainAndAccessEntry: true, retiredLimitedSessionCleared: true, codeSessionBrowserRequests: 0,
+    adminIssueRevokeUiAbsent: true, existingTaskQrSessionVerified: true, blockedExternalRequests: 0,
+    peopleCreatedByRetiredEntry: after.verifiedPeople - before.verifiedPeople,
+    walletEntriesCreatedByRetiredEntry: after.walletEntries - before.walletEntries,
+  }, null, 2) + '\n', { mode: 0o600 })
 })

@@ -1,5 +1,4 @@
 import { useCallback, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useAdministrativeCapabilities } from '@/app/useAdministrativeCapabilities'
 import { Button, Field, Input, Modal, PageHeader, Select } from '@/ui'
 import { describeError } from '@/lib/describeError'
@@ -22,22 +21,10 @@ export default function MerchTasksPage() {
         <p className="mt-2 text-ink-500">
           Для этого раздела нужны отдельные права на аптеки мерча.
         </p>
-        {access.canViewMerchStaffAccess && (
-          <Link className="btn btn-md btn-outline mt-3" to="/merch/staff-access">
-            Коды доступа
-          </Link>
-        )}
       </div>
     )
   return (
     <>
-      {access.canViewMerchStaffAccess && (
-        <div className="mb-3">
-          <Link className="btn btn-md btn-outline" to="/merch/staff-access">
-            Коды доступа
-          </Link>
-        </div>
-      )}
       <TaskWorkspace
         canCreate={access.canCreateMerchTasks}
         canExecute={access.canExecuteMerchTasks}

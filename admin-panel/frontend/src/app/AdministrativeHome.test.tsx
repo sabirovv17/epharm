@@ -9,6 +9,7 @@ import {
 } from '@/features/settings/access-api'
 import { USERS } from '@/mocks/fixtures'
 import AdministrativeHome from './AdministrativeHome'
+import AdminStaffAccessPage from '@/features/merch/AdminStaffAccessPage'
 import { administrativeHomePath } from './administrativeHomePath'
 import { useUiStore } from './store'
 
@@ -47,7 +48,7 @@ function renderHome(cached?: AccessCapabilities) {
       <MemoryRouter initialEntries={['/']}>
         <Routes>
           <Route path="/" element={<AdministrativeHome />} />
-          <Route path="/merch/staff-access" element={<div>StaffAccessWorkspace</div>} />
+          <Route path="/merch/staff-access" element={<AdminStaffAccessPage />} />
           <Route path="/rules" element={<div>RulesWorkspace</div>} />
           <Route path="/lms" element={<div>LearningWorkspace</div>} />
         </Routes>
@@ -56,10 +57,11 @@ function renderHome(cached?: AccessCapabilities) {
   )
 }
 
-it('routes a fresh managed sole-staff profile to its one workspace', async () => {
+it('routes a fresh historical sole-staff profile to the retired notice without code APIs', async () => {
   vi.mocked(accessApi.me).mockResolvedValue(soleStaff)
   renderHome()
-  expect(await screen.findByText('StaffAccessWorkspace')).toBeInTheDocument()
+  expect(await screen.findByText('Общие коды доступа отключены')).toBeInTheDocument()
+  expect(screen.queryByRole('button')).not.toBeInTheDocument()
   expect(accessApi.me).toHaveBeenCalledOnce()
 })
 it.each(['HQ_HEAD', 'TRAINING_MANAGER'] as const)(
@@ -93,7 +95,7 @@ it('waits for the current request instead of following a cached positive staff c
   )
   renderHome(soleStaff)
   expect(screen.getByRole('status')).toHaveTextContent('Проверяем доступ')
-  expect(screen.queryByText('StaffAccessWorkspace')).not.toBeInTheDocument()
+  expect(screen.queryByText('Общие коды доступа отключены')).not.toBeInTheDocument()
   await act(async () => resolve({ ...soleStaff, canViewMerchStaffAccess: false }))
   expect(await screen.findByText('RulesWorkspace')).toBeInTheDocument()
 })
@@ -101,7 +103,7 @@ it('a failed fresh check does not open either workspace even with a cached posit
   vi.mocked(accessApi.me).mockRejectedValue(new Error('denied'))
   renderHome(soleStaff)
   expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось проверить доступ')
-  expect(screen.queryByText('StaffAccessWorkspace')).not.toBeInTheDocument()
+  expect(screen.queryByText('Общие коды доступа отключены')).not.toBeInTheDocument()
   expect(screen.queryByText('RulesWorkspace')).not.toBeInTheDocument()
 })
 it('normal training accounts still reach LMS after the fresh check', async () => {

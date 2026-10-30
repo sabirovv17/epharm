@@ -65,6 +65,20 @@ beforeEach(() => {
   vi.mocked(adminTaskGateway.get).mockResolvedValue(created)
 })
 describe('native task creation capability and required fields', () => {
+  it.each([true, false])(
+    'does not advertise retired code operations when task view is %s',
+    async (canViewMerchTasks) => {
+      vi.mocked(useAdministrativeCapabilities).mockReturnValue({
+        isPending: false,
+        canViewMerchTasks,
+        canViewMerchStaffAccess: true,
+      } as ReturnType<typeof useAdministrativeCapabilities>)
+      render(<MerchTasksPage />)
+      expect(screen.queryByRole('link', { name: 'Коды доступа' })).not.toBeInTheDocument()
+      if (canViewMerchTasks) await waitFor(() => expect(adminTaskApi.list).toHaveBeenCalledOnce())
+      else expect(adminTaskApi.list).not.toHaveBeenCalled()
+    },
+  )
   it('does not fetch tasks when the server denies section view', () => {
     vi.mocked(useAdministrativeCapabilities).mockReturnValue({
       isPending: false,

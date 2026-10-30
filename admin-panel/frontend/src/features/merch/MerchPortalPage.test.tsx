@@ -10,7 +10,7 @@ afterEach(() => {
   useUiStore.setState({ authedUser: null, tokens: null })
   vi.unstubAllGlobals()
 })
-it('keeps producer/staff navigation on this origin and sends HQ only to the canonical login', () => {
+it('keeps producer on this origin and sends pharmacist and HQ to their canonical entries', () => {
   render(
     <MemoryRouter>
       <MerchPortalPage />
@@ -20,7 +20,11 @@ it('keeps producer/staff navigation on this origin and sends HQ only to the cano
     'href',
     '/producer/login',
   )
-  expect(screen.getByRole('link', { name: 'Вход сотрудника' })).toHaveAttribute('href', '/staff')
+  expect(screen.getByRole('link', { name: 'Личный кабинет фармацевта' })).toHaveAttribute(
+    'href',
+    'https://epharm.inkar.kz/learn',
+  )
+  expect(screen.queryByText(/Фотоотчёты по коду доступа/)).not.toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'Вход HQ' })).toHaveAttribute(
     'href',
     'https://epharm.inkar.kz/login',

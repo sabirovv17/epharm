@@ -60,34 +60,23 @@ describe('unified navigation preserves route identities and separate boundaries'
         .map((item) => item.id),
     ).toEqual(['training_results'])
   })
-  it('discovers staff-access independently without ordinary tasks or inventory capability', () => {
-    const items = adminNavigationForRole('HQ_HEAD', { staffAccess: true }).flatMap(
-      (module) => module.items,
-    )
-    expect(items.find((item) => item.id === 'staff_access')).toEqual(
-      expect.objectContaining({
-        available: true,
-        path: '/merch/staff-access',
-        label: 'Коды доступа',
-      }),
-    )
-    expect(items.find((item) => item.id === 'merch_tasks')?.available).toBe(false)
-    expect(items.some((item) => item.id === 'merch_inventory')).toBe(false)
-    expect(
-      activeNavigationItem(
-        items.find((item) => item.id === 'staff_access')!,
-        'merch_tasks',
-        'overview',
-        '/merch/staff-access',
-      ),
-    ).toBe(true)
-    expect(
-      activeNavigationItem(
-        items.find((item) => item.id === 'merch_tasks')!,
-        'merch_tasks',
-        'overview',
-        '/merch/staff-access',
-      ),
-    ).toBe(false)
+  it('keeps retired shared-code operations out of navigation despite a previous server capability', () => {
+    for (const role of ['SYSTEM_ADMIN', 'HQ_HEAD', 'REGIONAL_MANAGER'] as const) {
+      const items = adminNavigationForRole(role, { staffAccess: true, tasks: true }).flatMap(
+        (module) => module.items,
+      )
+      expect(
+        items.some((item) => item.id === 'staff_access' || item.path === '/merch/staff-access'),
+      ).toBe(false)
+      expect(items.find((item) => item.id === 'merch_tasks')?.available).toBe(true)
+      expect(
+        activeNavigationItem(
+          items.find((item) => item.id === 'merch_tasks')!,
+          'merch_tasks',
+          'overview',
+          '/merch/staff-access',
+        ),
+      ).toBe(false)
+    }
   })
 })

@@ -458,8 +458,16 @@ do not rewrite a browser Origin header or enable wildcard CORS. HTTP and interna
 TLS must use the same routes, preserve the unrelated Shop upstream and strip the
 server integration key. The edge switch is not permission to stop CRM or skip
 the final writer freeze, claim-issuer drain, source delta/file check and backup.
+Enable this .80 edge switch only after the .76 native task, retired staff-entry and producer
+routes have passed their checks with the reviewed capabilities enabled. Otherwise
+the old .76 staff redirect and the new .80 forwarding path can form a redirect loop.
 
-Before enabling shared staff codes, configure the native Tomcat forward-header
+Shared monthly-code access is retired: keep `MERCH_STAFF_ACCESS_ENABLED=false`.
+Preserve its historical rows; use personal `/learn` for monthly reports and QR for
+individual tasks. Retired plain/access browser entries show the native transition
+page without issuing a shared session or forwarding query credentials.
+
+For native public authentication, configure the Tomcat forward-header
 valve with an explicitly reviewed project-proxy network pattern. Compose defaults
 to `SERVER_FORWARD_HEADERS_STRATEGY=none` and an internal-proxy pattern matching
 nothing. Do not use broad default private-network trust or FRAMEWORK trust of

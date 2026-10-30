@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "pr": 130,
+  "featureHead": "6e8674283c773bc013b18efa7aa54aa1783fa289",
+  "prCiRun": 41004174008,
+  "prCiJobs": 21,
+  "prCiConclusion": "success",
+  "backendCiTests": 1328,
+  "backendCiFailures": 0,
+  "backendCiIgnored": 0,
+  "backendArtifactZipSha256": "769476e90a35adf2062fc54e8050f92a7b4a9b6edc8d0727e72459894eadf67d",
+  "mergedMain": "5d08b3a0ce09b99fbba63c050083e5a5fb0d2565",
+  "owner": "sabirovv17",
+  "ordinaryRestSquashMerge": true,
+  "requiredStatusChecksPassed": true,
+  "codeScanningPassed": true,
+  "pullRequestRulesPassed": true,
+  "linearHistoryPassed": true,
+  "ownerOnlyUpdatePermissionUsed": true,
+  "administrativeGlobalBypassUsed": false,
+  "mainPushCiRun": 41006063905,
+  "mainPushCiState": "success",
+  "productionApplicationDeployed": false,
+  "mainImagesPrepared": true,
+  "tagPublished": false,
+  "secretsIncluded": false,
+  "mainPushCiSuccessfulJobs": 19,
+  "mainPushCiExpectedPrOnlySkipped": ["repo / PR title", "security / dependency review"],
+  "mainBackendTests": {
+    "tests": 1328,
+    "failures": 0,
+    "ignored": 0
+  },
+  "mainBackendArtifactZipSha256": "e58f02d298ac82cf965b55cdfd9a3bf754b2c943f8594ea7beaceea446596af0",
+  "releaseSourceGatePassed": true,
+  "imageBuildRun": 41008089286,
+  "imageBuildState": "success",
+  "mainImageArtifactId": 12956671005,
+  "mainImageArtifactZipSha256": "31a50c3020dfe9b7f91834c0f1f622c163ef14e270de1b4cdab5508bdd3ad1b6",
+  "mainBackendConfigSha256": "68171378c201610239b4155f6131e48edd1929edb151cb08616f51f0deb6c83b",
+  "mainFrontendConfigSha256": "a47b26d8dba37bde507f9ed88a9a3b607d6ae5e56d20a866a76e1607934cefd4",
+  "mainBackendJarSha256": "3301c1d3df05125abf52cedccf2689c7c8ffbb65bdcc7b6872310f3f330247fd",
+  "mainJarMerchFinancialAccessGuardsPassed": true,
+  "mainOciRecoveryState": "pass_in_bounded_isolated_rehearsal; original late data recovery and separate post-recovery behavior probe",
+  "mainOciRetryPreparation": {
+    "manifestSha256": "64d85bcf66c1aac487e2f548315b94b88f10f4062e874f9ca157963b3d3135a6",
+    "pristineReadOnlyProofSha256": "7d836d0c8a3ce756a22471a7a6e6ea7eb7922791fdbad2b03032a38951d6ea64",
+    "sameSyntheticPostgresCredentials": true,
+    "priorFailedAttemptRetained": true,
+    "productionDataUsed": false,
+    "smsCalls": 0,
+    "mainSourceAndReleaseGuardsChanged": false,
+    "freshMigrationClaim": false
+  },
+  "windowsMainUiAcceptanceState": "blocked_mac_locked; staged main package not executed",
+  "requiredGateWaived": false,
+  "isolatedAttemptHistory": [
+    {
+      "run": "a9116315",
+      "result": "startup_refused_missing_synthetic_provider_key",
+      "releaseHelperReached": false
+    },
+    {
+      "run": "a1b0314d",
+      "result": "fixture_expected_403_but_correct_scoped_404",
+      "initialSmokePassed": true,
+      "releaseHelperReached": false
+    },
+    {
+      "run": "6f5a41ee",
+      "result": "genuine_two_fault_incident; recovery_preflight_source_evidence_unavailable",
+      "initialSmokePassed": true,
+      "normalDeployHelperReached": true,
+      "actualFrontendFaults": 2,
+      "lateSales": 2,
+      "lateWalletEntries": 2,
+      "lateBalanceKzt": 274,
+      "genuineFailedStateSha256": "5e242f67f8f7a74079246fdc89772890c08c936a1d36af1ce1bc9c21a98be863",
+      "originalPreRevokeJwtPostRecoveryReplayed": false
+    }
+  ],
+  "samePolicyNetworkDiagnosis": {
+    "hostGatePassed": true,
+    "tlsOrAuthFailureProven": false,
+    "socketTargetWasOutsidePinnedGithubIp": true,
+    "cause": "api.github.com IPv4 rotation between resolutions",
+    "sourceGuardBypassed": false,
+    "databaseResetForContinuation": false,
+    "failedProbeSourceGuardExit": 1,
+    "pinnedProbeSourceGuardExit": 0,
+    "validTlsAndSameAllowlistRetained": true
+  },
+  "mainOciRecoveryEvidence": "main-oci-recovery-090.json",
+  "remainingApplicationRolloutPrerequisites": [
+    "Complete actual Windows/Standard-N UI compatibility acceptance on unlocked Mac",
+    "Revalidate exact main/CI/production pins and capacity",
+    "Fresh backup/restore and final CRM writer/issuer freeze, delta/files, guarded import and audited cutover"
+  ],
+  "recoveryFinalManifestSha256": "310685fac96ff61f97db990f1f9c69b4b8fd7f9eb863c77171ae726866b224cc",
+  "recoveryFinalManifestFilesReverified": 47,
+  "isolatedRuntimeStopped": true,
+  "temporaryDockerMemoryRestoredMiB": 4096
+}
