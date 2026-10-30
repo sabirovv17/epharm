@@ -3307,3 +3307,20 @@ JAR d701 и env-only browser повтор проверяются отдельн�
 прав. App/env/ingress/native flags и данные не переключались. Финальные POSM LINK/
 physical-print проверки, source deltas/single-writer cutoff, новый main CI и main OCI
 rehearsal остаются обязательными. Условное разрешение на деплой не заменяет эти проверки.
+
+POSM phase2 source frozen: полный LINK_ID cart читается согласованным readonly
+snapshot точной кассы/сессии, physical DOCS.ID и строки не объединяются под одним
+SaleID. Поздняя печать A сопоставляется с проведёнными DOC_DETAIL/counters и не
+очищает текущий B. Переход/пустота/STATUS2 не создают продажу. Atomic journal
+сохраняет исходную сессию/кассира/cue/суммы и unresolved данные через restart;
+32группы/8MiB — отказ от новой записи, не вытеснение старой истории. DB probe
+вынесен с UI, generation и реальное время commit закрывают запоздалые ответы.
+Денежные значения вне прежнего long-KZT протокола сохраняются точно как unresolved
+без округлённой продажи/ACK; дробное количество при представимой сумме разрешено.
+Это известная граница wire, не разрешение потерять исходные данные или очистить чек.
+
+Core413/413 PASS,0skip, повторены интеграционным владельцем; actual Windows-target
+WPF build0warnings/0errors. Шесть конкретных независимых замечаний закрыты
+регрессиями и повторным review. Новая Windows CI/VM приёмка обязательна и пока
+не объявлена выполненной; никакой fleet update ещё не опубликован.
+[Source proof POSM](docs/reports/unification-2026-10-30/posm-linked-cart-source.json).

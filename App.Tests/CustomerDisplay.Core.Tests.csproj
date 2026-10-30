@@ -17,6 +17,7 @@
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
+    <PackageReference Include="FirebirdSql.Data.FirebirdClient" Version="10.3.4" />
   </ItemGroup>
 
   <ItemGroup>
@@ -47,7 +48,11 @@
     <Compile Include="..\App\Services\ReceiptObservationGate.cs" Link="Services\ReceiptObservationGate.cs" />
     <Compile Include="..\App\Services\ReceiptFinalizationRules.cs" Link="Services\ReceiptFinalizationRules.cs" />
     <Compile Include="..\App\Services\StandardNReceiptSnapshot.cs" Link="Services\StandardNReceiptSnapshot.cs" />
+    <Compile Include="..\App\Services\StandardNReceiptProjection.cs" Link="Services\StandardNReceiptProjection.cs" />
+    <Compile Include="..\App\Services\StandardNDbLookup.cs" Link="Services\StandardNDbLookup.cs" />
+    <Compile Include="..\App\Services\StandardNDbLookup.Receipts.cs" Link="Services\StandardNDbLookup.Receipts.cs" />
     <Compile Include="..\App\MainWindow.StandardNReceipt.cs" Link="ReceiptLifecycle\MainWindow.StandardNReceipt.cs" />
+    <Compile Include="..\App\MainWindow.StandardNReceiptGroups.cs" Link="ReceiptLifecycle\MainWindow.StandardNReceiptGroups.cs" />
     <Compile Include="..\App\Services\StandardNWindowIdentity.cs" Link="Services\StandardNWindowIdentity.cs" />
     <Compile Include="..\App\Services\StandardNLogParser.cs" Link="Services\StandardNLogParser.cs" />
     <Compile Include="..\App\Services\PosmDeviceCredentialResolver.cs" Link="Services\PosmDeviceCredentialResolver.cs" />

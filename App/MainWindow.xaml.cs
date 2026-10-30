@@ -782,21 +782,6 @@ private int? TryParsePartIdFromDelete(string line)
     return StandardNLogParser.TryExtractPartId(line);
 }
 
-private bool RemoveItemByPartId(int partId)
-{
-    var existing = ReceiptItems.FirstOrDefault(x => x.PartId == partId);
-    if (existing == null)
-    {
-        Log($"(delete) Позиция не найдена в UI. PartId={partId}");
-        return false;
-    }
-
-    ReceiptItems.Remove(existing);
-    Log($"(delete) Удалили позицию из UI. PartId={partId}, Name={existing.Name}");
-    return true;
-}
-
-
 private static decimal ParseDecimalSmart(string s)
 {
     // приводим к единому виду: убираем пробелы, меняем запятую на точку
@@ -844,23 +829,9 @@ percent = Math.Round(percent, 2, MidpointRounding.AwayFromZero); // наприм
     }
 }
 
-private void ApplyDiscountToAllItems(decimal percent)
-{
-    for (int i = 0; i < ReceiptItems.Count; i++)
-    {
-        var item = ReceiptItems[i];
-
-percent = Math.Round(percent, 2, MidpointRounding.AwayFromZero); // например 10.00
-        item.DiscountPercent = percent;
-
-        // пере-вставляем чтобы UI обновился
-        ReceiptItems[i] = item;
-    }
-ItemsList.Items.Refresh();
-}
-
         private void OnClosed(object? sender, EventArgs e)
         {
+            StopPhysicalReceiptObservers();
             try
             {
                 StopTaskKiosk();

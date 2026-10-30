@@ -71,6 +71,7 @@ namespace CustomerDisplay
 
         private void ApplyStandardNReceipt(StandardNReceiptSnapshot? receipt)
         {
+            ConfirmPhysicalReceiptPrints();
             if (receipt == null)
             {
                 if (!_standardNReceiptInitialized)
@@ -96,6 +97,7 @@ namespace CustomerDisplay
                         StartNewCheckoutSession();
                     }
                     _standardNDocumentId = null;
+                    _standardNCurrentReceipt = null;
                     ReceiptItems.Clear();
                     RecalcTotal();
                 }
@@ -138,11 +140,15 @@ namespace CustomerDisplay
                 _standardNDocumentId = receipt.DocumentId;
             }
 
+            receipt = RememberObservedReceipt(receipt);
+
             var targetPartIds = receipt.Lines.Select(line => line.PartId).ToHashSet();
             var changed = documentChanged;
             var recommendationAction = ReceiptRecommendationAction.None;
             foreach (var stale in ReceiptItems
-                         .Where(item => item.PartId > 0 && !targetPartIds.Contains(item.PartId))
+                         .Where(item => item.PartId > 0 && (item.SourceDocumentId.HasValue
+                             ? !receipt.Lines.Any(line => line.SourceDocumentId == item.SourceDocumentId && line.LineId == item.SourceLineId)
+                             : !targetPartIds.Contains(item.PartId)))
                          .ToList())
             {
                 ReceiptItems.Remove(stale);
@@ -157,7 +163,10 @@ namespace CustomerDisplay
             long scannedLineId = long.MinValue;
             foreach (var line in receipt.Lines)
             {
-                var existing = ReceiptItems.FirstOrDefault(item => item.PartId == line.PartId);
+                var existing = line.SourceDocumentId.HasValue
+                    ? ReceiptItems.FirstOrDefault(item => item.SourceDocumentId == line.SourceDocumentId && item.SourceLineId == line.LineId)
+                      ?? ReceiptItems.FirstOrDefault(item => !item.SourceDocumentId.HasValue && item.PartId == line.PartId)
+                    : ReceiptItems.FirstOrDefault(item => item.PartId == line.PartId);
                 var incoming = new ReceiptItem
                 {
                     PartId = line.PartId,
@@ -169,6 +178,9 @@ namespace CustomerDisplay
                     Price = line.Price,
                     Qty = line.Qty,
                     DiscountPercent = line.DiscountPercent,
+                    SourceDocumentId = line.SourceDocumentId,
+                    SourceLineId = line.SourceDocumentId.HasValue ? line.LineId : null,
+                    SourceTotal = line.SourceTotal,
                 };
 
                 var lineAction = ReceiptRecommendationChange.ClassifyLine(
@@ -184,6 +196,9 @@ namespace CustomerDisplay
                                   existing.Qty != incoming.Qty ||
                                   existing.Price != incoming.Price ||
                                   existing.DiscountPercent != incoming.DiscountPercent ||
+                                  existing.SourceDocumentId != incoming.SourceDocumentId ||
+                                  existing.SourceLineId != incoming.SourceLineId ||
+                                  existing.SourceTotal != incoming.SourceTotal ||
                                   !string.Equals(existing.Name, incoming.Name, StringComparison.Ordinal) ||
                                   !string.Equals(existing.Barcode, incoming.Barcode, StringComparison.Ordinal);
                 if (!lineChanged) continue;
@@ -217,7 +232,20 @@ namespace CustomerDisplay
 
         private bool UpsertItemSetQty(ReceiptItem incoming)
         {
-            var existing = ReceiptItems.FirstOrDefault(x => x.PartId == incoming.PartId);
+            if (!incoming.SourceDocumentId.HasValue && ReceiptItems.Any(item => item.PartId == incoming.PartId && !CanMutateLogReceiptItem(item)))
+            {
+                Log("Изменение лога не относится к подтверждённой активной физической строке; ожидается снимок БД.");
+                return false;
+            }
+            if (!incoming.SourceDocumentId.HasValue && ReceiptItems.Count(item => item.PartId == incoming.PartId) > 1)
+            {
+                Log("Событие лога без DOCS.ID неоднозначно для нескольких физических строк; ожидается снимок БД.");
+                return false;
+            }
+            var existing = incoming.SourceDocumentId.HasValue
+                ? ReceiptItems.FirstOrDefault(item => item.SourceDocumentId == incoming.SourceDocumentId && item.SourceLineId == incoming.SourceLineId)
+                  ?? ReceiptItems.FirstOrDefault(item => !item.SourceDocumentId.HasValue && item.PartId == incoming.PartId)
+                : ReceiptItems.FirstOrDefault(item => item.PartId == incoming.PartId);
 
             if (incoming.Qty <= 0)
             {
@@ -245,6 +273,12 @@ namespace CustomerDisplay
             existing.Price = incoming.Price;
             existing.DiscountPercent = incoming.DiscountPercent;
             existing.Qty = incoming.Qty;
+            if (incoming.SourceDocumentId.HasValue)
+            {
+                existing.SourceDocumentId = incoming.SourceDocumentId;
+                existing.SourceLineId = incoming.SourceLineId;
+            }
+            existing.SourceTotal = incoming.SourceTotal;
 
             // чтобы UI точно обновился без INotifyPropertyChanged — пере-вставляем
             ReceiptItems[idx] = existing;
@@ -253,30 +287,58 @@ namespace CustomerDisplay
             return incoming.Qty > previousQty;
         }
 
+        private bool RemoveItemByPartId(int partId)
+        {
+            var matches = ReceiptItems.Where(item => item.PartId == partId).ToArray();
+            if (matches.Length > 1)
+            {
+                Log("Удаление из лога без DOCS.ID неоднозначно; ожидается точный снимок физических строк БД.");
+                return false;
+            }
+            if (matches.Length == 0) return false;
+            if (!CanMutateLogReceiptItem(matches[0])) return false;
+            ReceiptItems.Remove(matches[0]);
+            return true;
+        }
+
+        private void ApplyDiscountToAllItems(decimal percent)
+        {
+            percent = Math.Round(percent, 2, MidpointRounding.AwayFromZero);
+            for (var index = 0; index < ReceiptItems.Count; index++)
+            {
+                if (!CanMutateLogReceiptItem(ReceiptItems[index])) continue;
+                var item = ReceiptItems[index].Clone();
+                item.DiscountPercent = percent;
+                item.SourceTotal = null;
+                ReceiptItems[index] = item;
+            }
+        }
+
         /// <summary>
         /// Вызывается при печати/завершении чека ДО очистки позиций. Фиксирует продажу (источник №1),
         /// закрывает popup, открывает новую сессию.
         /// </summary>
-        private bool OnReceiptFinalized(string captureSource, long? sourceDocumentId = null)
+        private bool OnReceiptFinalized(string captureSource, StandardNReceiptDocument proof,
+            CheckoutSession capturedSession, DateTimeOffset markerAt)
         {
-            if (!ReceiptFinalizationRules.IsConfirmedPrint(captureSource))
+            var sourceDocumentId = proof.DocumentId;
+            if (!ReceiptFinalizationRules.IsConfirmedPrint(captureSource) ||
+                !StandardNReceiptProjection.IsPostedPhysicalSale(proof) || capturedSession.StandardNSessionId != proof.SessionId)
             {
-                Log("Завершение чека отклонено: нет подтверждённого сигнала печати Standard-N.");
+                Log("Завершение чека отклонено: сигнал печати и проведённый физический документ не подтверждены вместе.");
                 return false;
             }
-            // If the first lookup failed, SellerCaptured remains false. Retry immediately before
-            // queuing the completed receipt instead of permanently sending an empty seller.
-            if (!_session.SellerCaptured)
+            if (!StandardNReceiptProjection.CanRepresentLongKzt(proof))
             {
-                RefreshCurrentPharmacistFromStandardNDb();
-                CaptureCurrentSellerForSession();
+                Log("Точность или размер суммы физического чека не поддерживаются целочисленным KZT-отчётом; исходные наблюдения сохранены, продажа и ACK не созданы.");
+                return false;
             }
             var sale = _saleReporter?.Build(
-                _session,
-                ReceiptItems,
+                capturedSession,
+                PhysicalReceiptItems(proof),
                 sourceDocumentId,
                 captureSource,
-                DateTimeOffset.UtcNow);
+                markerAt);
             if (sale != null)
             {
                 FiscalReceiptCaptureResult? fiscalCapture = null;
@@ -313,7 +375,7 @@ namespace CustomerDisplay
                         _ => "ожидается оригинал ККМ/OFD",
                     };
                 Log($"Чек поставлен в гарантированную очередь: id={sale.SaleId}, " +
-                    $"doc={sourceDocumentId?.ToString() ?? "—"}, items={sale.Items.Count}, " +
+                    $"doc={sourceDocumentId}, items={sale.Items.Count}, " +
                     $"total={sale.TotalAmount}, fiscal={fiscalStatus}");
             }
             else
@@ -321,9 +383,6 @@ namespace CustomerDisplay
                 Log($"Завершение чека пропущено: нет реальных позиций Standard-N (source={captureSource})");
             }
 
-            _activeReceiptDraftId = null;
-            ResetRecommendationUiState(closeWindows: true);
-            StartNewCheckoutSession();
             return sale != null;
         }
 
@@ -337,24 +396,7 @@ namespace CustomerDisplay
         private void HandleStandardNReceiptPrinted()
         {
             _receiptObservations.LogChanged();
-            var documentId = _standardNDocumentId;
-            if (!documentId.HasValue)
-            {
-                _receiptObservations.AwaitPrintedReceiptBoundary();
-                Log("Печать чека без DOCS.ID: снимки БД ожидают подтверждённого пустого чека; события лога продолжают работать");
-            }
-            var hasReportableSale = _saleReporter != null && ReceiptItems.Any(item => item.PartId > 0);
-            if (!OnReceiptFinalized("standardn-print-log", documentId) && hasReportableSale)
-            {
-                // A hard local persistence/queue failure is not an ACK or a finalized receipt.
-                // Keep the current boundary/cart; durable pending can be retried independently.
-                return;
-            }
-            // Even an empty printed document must not be resurrected by an older DB snapshot.
-            if (documentId.HasValue) _lastFinalizedStandardNDocumentId = documentId.Value;
-            _standardNDocumentId = null;
-            ReceiptItems.Clear();
-            RecalcTotal();
+            RecordPhysicalReceiptPrint();
         }
 
         private void ApplyStandardNPharmacist(StandardNActivePharmacist pharmacist)

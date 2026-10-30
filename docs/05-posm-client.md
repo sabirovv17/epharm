@@ -193,9 +193,24 @@ before enabling fleet auto-update.
 ## Exact Fiscal Receipt Contract
 
 Every open Standard-N receipt gets an atomically replaced JSON draft under
-`C:\Epharm\receipts\active`. In the 1.0.73 candidate, only the explicit Standard-N print-log
-signal permits structured finalization; a document switch, disappearance or held receipt does not
-prove payment. An unconfirmed boundary leaves its draft in `active` without queueing a sale.
+`C:\Epharm\receipts\active`. The 1.0.73 candidate reads the complete `LINK_ID` cart in one
+bounded read-only Firebird snapshot, for one exact local workstation and cashier session.
+Unknown, foreign or ambiguous membership preserves the previous screen. A missing/zero link
+retains the exact single-document path. Physical document and line identities remain separate,
+including equal products with different prices or discounts.
+
+An explicit Standard-N print-log cue starts a bounded five-second correlation, rather than
+declaring the current cart paid. Finalization additionally needs the previously observed physical
+document's original session/link, `STATUS=1`, device/shift/fiscal counters and fresh signed
+`DOC_DETAIL` rows matching its header. Posted rows are not read from `DOC_DETAIL_ACTIVE`.
+A late cue can therefore confirm cart A while cart B stays on screen. A held receipt, disappearance,
+commit timestamp or status alone never proves payment. A strictly proven empty posted document
+resolves locally without inventing a sale or a financial acknowledgment.
+
+Unconfirmed groups stay in an atomic, versioned, checksummed journal (32 groups, 8 MiB bound).
+Reaching a bound or encountering corruption does not evict unresolved evidence. Anchored print
+times, original seller/session and per-document queue state survive restart. Database probes run
+off the UI thread; stale/expired first results cannot create a sale or replace a newer cart.
 A deterministic id based on `pharmacyId + DOCS.ID` deduplicates confirmed print and retry signals.
 The exact fiscal original is captured independently of the structured sale.
 
@@ -206,9 +221,11 @@ and complete SQLite queue row before promoting the canonical entry. Verified fis
 their separate recovery path. Previously delivered server sales are not silently rewritten.
 An older client does not know these replay guards, so rollback to it requires a separate review.
 
-The current receipt reader still needs acceptance for a logical cart split across linked physical
-DOCS rows and for late print correlation. Keep each physical document's sale id and fiscal evidence;
-do not combine all rows under the latest DOCS id or treat status/absence alone as payment proof.
+The legacy sales wire stores prices/totals as whole KZT. A newly confirmed amount that cannot be
+represented losslessly stays unresolved with its exact source values and a diagnostic, rather than
+being silently rounded and acknowledged. Fractional quantities with representable monetary values
+remain supported. Supporting fractional monetary values in reporting requires a separate wire and
+backend extension. Existing public DTOs and already accepted historical sales are unchanged.
 
 POSM never renders an image from cart rows. In the background it waits for an approved read-only
 KKM/OFD adapter to publish an original PDF/PNG and atomic manifest into
@@ -275,7 +292,9 @@ cashier acceptance still requires a real scan above Standard-N while scanner foc
 
 ### Closing the customer receipt
 
-An explicit Standard-N print marker clears the displayed rows and total immediately. The active
+An explicit Standard-N print marker clears an unbound log-only cart's display; it does not queue
+a sale. A tracked linked cart clears only after all its physical documents are durably queued or
+strictly resolved; a late print of another cart leaves the current one visible. The active
 receipt poll is normally 400 ms; two consecutive successful empty reads from one unambiguous,
 exact local workstation session also clear a log-only cart whose document ID was never discovered.
 This is a confirmation interval, not an arbitrary idle timeout. Unknown/ambiguous sessions and
@@ -289,9 +308,9 @@ until two authoritative empty reads confirm the receipt boundary. New log scans 
 cannot release this barrier: they do not identify the old database document. A DB-only cashier
 that immediately opens another receipt without an observed idle boundary may temporarily miss
 DB-driven updates until the next confirmed empty receipt; do not guess identity from time or names.
-The pre-existing tracked-document sale completion contract is unchanged: distinguishing a held or
-cancelled document from a paid sale still needs a real Standard-N fixture before changing financial
-semantics. POSM never writes or closes the cashier's real receipt.
+The candidate's posted-row contract was derived from the actual Standard-N demo fixture;
+other vendor schemas remain unknown until separately verified. POSM never writes or closes the
+cashier's real receipt. Unit/source proof does not replace acceptance of the exact Windows binary.
 
 ## Build
 

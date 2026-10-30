@@ -232,6 +232,24 @@ namespace CustomerDisplay
                             Log($"Захват фискального оригинала недоступен: {ex.GetBaseException().Message}");
                         }
                     }
+                    if (_receiptArtifacts == null)
+                    {
+                        try
+                        {
+                            // Physical receipt/session correlation must survive restart even when
+                            // the optional original-PDF source is disabled or temporarily unavailable.
+                            _receiptArtifacts = new ReceiptArtifactStore(_posmConfig.ReceiptCaptureDir,
+                                new UnavailableFiscalReceiptSource(), Log, _posmConfig.ReceiptCaptureActiveRetentionDays,
+                                _posmConfig.FiscalReceiptCompletedRetentionHours);
+                            _receiptArtifacts.RecoverPending(_outbox);
+                            Log("Локальные наблюдения физических чеков включены; получение фискальных оригиналов недоступно.");
+                        }
+                        catch (Exception ex)
+                        {
+                            Log("Локальное сохранение чеков недоступно; неподтверждённые продажи не отправляются: " +
+                                ex.GetBaseException().Message);
+                        }
+                    }
                     _flusher = new OutboxFlusher(
                         _outbox,
                         _epharm,
@@ -801,6 +819,11 @@ namespace CustomerDisplay
 
         private void SaveActiveReceiptDraft()
         {
+            if (_standardNCurrentReceipt?.Documents != null)
+            {
+                SavePhysicalReceiptDrafts();
+                return;
+            }
             if (_receiptArtifacts == null || _saleReporter == null || ReceiptItems.Count == 0) return;
             try
             {
@@ -826,6 +849,14 @@ namespace CustomerDisplay
             {
                 Log($"Черновик активного чека временно не сохранён: {ex.GetBaseException().Message}");
             }
+        }
+
+        private sealed class UnavailableFiscalReceiptSource : IFiscalReceiptSource
+        {
+            public FiscalReceiptLookupResult Find(SaleReport sale) =>
+                FiscalReceiptLookupResult.NotReady("optional fiscal original source is unavailable");
+            public void CleanupAccepted(FiscalReceiptManifest manifest, string sourceManifestFileName) =>
+                throw new InvalidOperationException("Fiscal handoff cleanup is unavailable.");
         }
 
         private void DiscardActiveReceiptDraft()
