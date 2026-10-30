@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-10-30T03:00:57.964048+00:00",
+  "commit": "541d7a74d37bc795f7f17f42de9629706727ab4b",
+  "runId": 40992872050,
+  "event": "pull_request",
+  "headBranch": "codex/unified-admin-development",
+  "runUrl": "https://github.com/sabirovv17/epharm/actions/runs/40992872050",
+  "conclusion": "success",
+  "checks": [
+    {
+      "name": "P0 / config policy",
+      "conclusion": "success"
+    },
+    {
+      "name": "repo / workflow and shell lint",
+      "conclusion": "success"
+    },
+    {
+      "name": "admin / browser e2e against backend",
+      "conclusion": "success"
+    },
+    {
+      "name": "pim / ETL safety tests",
+      "conclusion": "success"
+    },
+    {
+      "name": "ops / config contracts",
+      "conclusion": "success"
+    },
+    {
+      "name": "admin / lint, typecheck, test and build",
+      "conclusion": "success"
+    },
+    {
+      "name": "repo / PR title",
+      "conclusion": "success"
+    },
+    {
+      "name": "container / storefront production build",
+      "conclusion": "success"
+    },
+    {
+      "name": "security / CodeQL (java-kotlin)",
+      "conclusion": "success"
+    },
+    {
+      "name": "posm / core tests",
+      "conclusion": "success"
+    },
+    {
+      "name": "mobile / analyze, test and Android build",
+      "conclusion": "success"
+    },
+    {
+      "name": "security / dependency review",
+      "conclusion": "success"
+    },
+    {
+      "name": "backend / unit, integration and build",
+      "conclusion": "success"
+    },
+    {
+      "name": "posm / Windows production build",
+      "conclusion": "success"
+    },
+    {
+      "name": "security / CodeQL (javascript-typescript)",
+      "conclusion": "success"
+    },
+    {
+      "name": "security / CodeQL (csharp)",
+      "conclusion": "success"
+    },
+    {
+      "name": "container / admin production build",
+      "conclusion": "success"
+    },
+    {
+      "name": "container / backend production build",
+      "conclusion": "success"
+    },
+    {
+      "name": "storefront / lint, test and build",
+      "conclusion": "success"
+    },
+    {
+      "name": "mobile / iOS simulator build",
+      "conclusion": "success"
+    },
+    {
+      "name": "P0 / merge gate",
+      "conclusion": "success"
+    }
+  ],
+  "backendReport": {
+    "tests": 1303,
+    "failures": 0,
+    "ignored": 0,
+    "indexSha256": "b567d2b10a77bce9ce8a2081040f76b29be7a052adfaf922793ed68987596488"
+  },
+  "isMainPushCi": false,
+  "mainPromotionPerformed": false,
+  "applicationDeploymentPerformed": false,
+  "limits": [
+    "This CI run is for the named PR revision; subsequent commits need their own current checks.",
+    "Windows runtime evidence and main OCI recovery are separate checks.",
+    "G11 shared staff-code scope and compatible access/claim/plain entries remain unresolved."
+  ]
+}

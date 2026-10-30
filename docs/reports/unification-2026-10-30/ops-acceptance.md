@@ -1,5 +1,11 @@
 # Operational acceptance: 30 October 2026
 
+This is the original read-only observation and preparation record. Subsequent backup-only
+production work and actual recovery are recorded in `actual-offsite-and-scheduled-restore.json`;
+newer source/candidate preparation is in `fresh-release-preparation-089.json`. The application
+cutover has not occurred. In particular, the original observations below must not be read as a
+claim that no later production backup changes were made or that all release gates are closed.
+
 Production was observed read-only through existing authorised SSH access. No deploy, restart,
 backup/retention execution, schema/data change, cleanup or flag change was performed. The associated
 `ops-readonly-acceptance.json` contains sanitized aggregate observations; credentials and person-level

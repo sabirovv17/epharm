@@ -1,0 +1,214 @@
+{
+  "schemaVersion": 1,
+  "scope": "Actual disposable Windows VM running Standard-N DEMO and exact CI WPF binary; isolated synthetic loopback provider; no production endpoints",
+  "artifact": {
+    "runId": 40988155786,
+    "headSha": "6e1a16559e78f0d18a87d24eaf45a236831ecaba",
+    "testedMergeSha": "61dd1cce19a1fbde6bf24bf1d58a1f78d4bb316b",
+    "archiveSha256": "01ec38c3c5597364706c5af0f570338ca62145718d67464ebc8ef14ff3e450ec",
+    "artifactId": 12947499412,
+    "files": {
+      "CustomerDisplay.deps.json": "980cb50b6a454e7d8b8d9c91935fd70e566af3d796887279e3037b62b3b3f3b7",
+      "CustomerDisplay.dll": "ed46d06253036300fa259d891573882cda0f5a1f2b2324eaa4e651151a602ce3",
+      "CustomerDisplay.exe": "63208d525a50b8c19dce8c4cd88edd39993e3db3d979f43775c4bb51a6c56739",
+      "CustomerDisplay.runtimeconfig.json": "f93088763df733474d8df16646186166e13deab5d67f2be583356c75a31207c0",
+      "QRCoder.dll": "2c9a588e08ec91f00fac37a4a43995c8f1966a6cce615e9e8c063eec3d0f145a"
+    },
+    "buildJobId": 123844191279,
+    "buildJobConclusion": "success",
+    "overallRunConclusion": "cancelled_by_later_push; not claimed as full CI pass",
+    "sameAppTreeAtCommit": "541d7a74d37bc795f7f17f42de9629706727ab4b",
+    "appTree": "e1986e99f1026d4b2c12fe016db07b7cbd969586"
+  },
+  "sourceTreeUnmodified": true,
+  "paymentPerformed": false,
+  "realSmsPerformed": false,
+  "vm": {
+    "disposable": true,
+    "originalDiskReadOnlyVerified": true,
+    "outboundNonLoopbackDenied": true,
+    "currentlyRunning": true,
+    "appsNotStopped": true
+  },
+  "cases": [
+    {
+      "id": "CI5",
+      "state": "passed",
+      "evidence": "all five exact CI hashes verified before Session1 launch"
+    },
+    {
+      "id": "LINK_CURRENT",
+      "state": "passed_bounded",
+      "cashierRows": 2,
+      "quantities": [3, 1],
+      "amounts": [3180, 1690],
+      "readerRoot": 23638,
+      "readerPhysicalDocuments": 2,
+      "readerLines": 2,
+      "readerTotal": 4870,
+      "customerRowsObserved": 2,
+      "customerBottomTotalVisible": false,
+      "limit": "DEV preview is narrow and bottom is clipped; normal Maximize/Size controls disabled; exact UI total not claimed"
+    },
+    {
+      "id": "POPUP_TOPMOST",
+      "state": "passed",
+      "evidence": "actual WPF popup above Standard-N with offers referencing both cart rows",
+      "provider": "isolated synthetic HTTP fixture; native backend recommendation E2E not claimed"
+    },
+    {
+      "id": "HELD_SWITCH",
+      "state": "passed_bounded",
+      "fromRoot": 23638,
+      "toRoot": 23500,
+      "toCashierTotal": 455,
+      "toCustomerRowAmount": 455,
+      "toReaderTotal": 455,
+      "preservedPhysicalStatuses": [
+        {
+          "id": 23500,
+          "auditId": 1713,
+          "docType": 3,
+          "status": 0,
+          "linkId": 23500,
+          "signedTotal": -455
+        },
+        {
+          "id": 23638,
+          "auditId": 1713,
+          "docType": 3,
+          "status": 2,
+          "linkId": 23638,
+          "signedTotal": -3180
+        },
+        {
+          "id": 23639,
+          "auditId": 1713,
+          "docType": 3,
+          "status": 2,
+          "linkId": 23638,
+          "signedTotal": -1690
+        }
+      ],
+      "receiptFiles": "active drafts only; no pending/fiscal/financial ACK files at snapshot",
+      "journalQueuedPhysicalIds": 0,
+      "journalPrintCues": 0,
+      "sqliteSnapshotState": "verified",
+      "sqliteEvidence": {
+        "outboxRows": 0,
+        "fixtureEventCounts": {
+          "recommend-test-only": 2,
+          "shown": 2
+        },
+        "integrityChecks": "both ok",
+        "sourceConnectionsReadOnly": true,
+        "liveAppsNotStopped": true
+      }
+    },
+    {
+      "id": "RESTORE_ORIGINAL",
+      "state": "blocked",
+      "reason": "Mac locked; first reopen-held confirmation sent; awaiting next explicit preserve-current dialog observation; no blind Enter"
+    },
+    {
+      "id": "REPEAT_SCAN",
+      "state": "not_run",
+      "reason": "pending current restore and host unlock; unit tests are separate evidence"
+    },
+    {
+      "id": "HISTORICAL_FINAL",
+      "state": "passed_bounded",
+      "actualProductionReaderForeignSessionDenied": true,
+      "machineNotSpoofed": true,
+      "technicalFinalProjection": [
+        {
+          "documentId": 23426,
+          "sourceSignedTotal": -540,
+          "lineCount": 4,
+          "projectedTotal": 540,
+          "allOutgoing": true,
+          "technicalPostedFence": true
+        },
+        {
+          "documentId": 23427,
+          "sourceSignedTotal": -95,
+          "lineCount": 2,
+          "projectedTotal": 95,
+          "allOutgoing": true,
+          "technicalPostedFence": true
+        }
+      ],
+      "financialCallerLinked": false
+    },
+    {
+      "id": "PAY",
+      "state": "not_run",
+      "reason": "no positive vendor emulation marker; serial targets0/services0 but40 opaque payment configvalues, so safety not established"
+    }
+  ],
+  "images": [
+    {
+      "name": "cashier-popup-before.png",
+      "sha256": "5c14fcd51bc3b99ef29353286d19975dc7b579a40e1a9df25db7f05957903254"
+    },
+    {
+      "name": "current-input-state.png",
+      "sha256": "206c1401fbdd4ebe9398dfde6b88d1b0c60a4ad0ae46949da435a26b6e7b8328"
+    },
+    {
+      "name": "held-selector-before.png",
+      "sha256": "84d73d358e35fa850c618338fb2c2f037cfc303c8580e90ca5c585a5b3f2ce39"
+    },
+    {
+      "name": "cashier-held-current-455.png",
+      "sha256": "e2241901e6c67756a30188a7314fa9872edfe19c67f36791263b5e550d6bfa06"
+    },
+    {
+      "name": "restore-held-selector.png",
+      "sha256": "7d8b0345e00002bc70f1f5dadba977a0ab2e347a81e7eb095750f8ee342e38db"
+    }
+  ],
+  "openBlocker": "CUA: Mac is locked and automatic unlock could not unlock it",
+  "lastReadOnlyFactsAtUtc": "2026-10-30T02:56:39.0236607+00:00",
+  "collectedAtUtc": "2026-10-30T03:00:56.927090+00:00",
+  "sqliteProof": "sqlite-copy-proof.json",
+  "sqliteSummary": "sqlite-event-summary.json",
+  "state": "bounded_runtime_checks_passed; remaining_UI_checks_blocked_by_locked_host",
+  "integrationOwnerReview": {
+    "twoScreenshotsViewed": true,
+    "sqliteCopyHashesAndIntegrityRechecked": true,
+    "outboxCountsAndFixtureEventKindsRechecked": true,
+    "newMainBinaryNotYetTested": true
+  },
+  "sqliteEvidence": {
+    "schemaVersion": 1,
+    "fixtureEventCounts": {
+      "recommend-test-only": 2,
+      "shown": 2
+    },
+    "outboxRows": 0,
+    "outboxLegacyEvidenceRows": 0,
+    "snapshotProof": "sqlite-copy-proof.json",
+    "sourceMode": "ReadOnly/online SQLite backup; apps not stopped"
+  },
+  "sqliteFiles": [
+    {
+      "name": "outbox.sqlite",
+      "sourceReadOnly": true,
+      "method": "SQLite online backup",
+      "bytes": 20480,
+      "sha256": "a2962f1685bd3738e1a3ead42262729cafc7975a1b1f0a0ac41ed046a34da950"
+    },
+    {
+      "name": "fixture.sqlite",
+      "sourceReadOnly": true,
+      "method": "SQLite online backup",
+      "bytes": 24576,
+      "sha256": "298ba2f9790ffe24ec822696297d4ff0395ddbfee7e621377abf0b74dbed154f"
+    }
+  ],
+  "fullPhysicalCheckoutAcceptanceCompleted": false,
+  "productionApplicationDeployed": false,
+  "fleetRolloutPerformed": false,
+  "sourceAggregateSha256": "4784c266b9a175ec9047e3c157cc43bffdce2f1574993031b0795f646542b647"
+}

@@ -1,5 +1,11 @@
 # General acceptance: isolated runtime
 
+This is the original wave-eight rehearsal record. Later clean seven-case runs are recorded in
+`clean-seven-case-acceptance-089.json` and `hq-owner-config-acceptance.json`; the current named
+PR CI is recorded in `ci-541d7a7.json`. Actual bounded Windows/Standard-N observations and the
+remaining host-lock/UI limitations are separate in `posm-ci-vm-bounded-acceptance.json`.
+None of these records alone closes G11 or approves production cutover.
+
 The machine-readable result is `qa-general-acceptance.json`. This report describes an engineering rehearsal with synthetic data; it does not approve a deployment or close the complete acceptance gates in `PLAN.md`.
 
 Seven unique live flows passed across focused runs on the final pinned backend: five base flows, the POSM wire flow and the D9 retry. The D9 browser flow found a real selection blocker when HQ lacked training permission. Root separated selection capability from training actions, then the actual browser download passed. Historical diagnostics remain recorded; this is not labelled a single clean seven-test run. Runtime/transport/provider checks passed 12/12 and .NET core passed 300/300.
