@@ -97,7 +97,9 @@ namespace CustomerDisplay.Services
                 {
                     case "sale":
                         var sale = JsonSerializer.Deserialize<SaleReport>(item.Payload, EpharmJson.Options);
-                        return sale != null && await _api.PostSaleAsync(sale).ConfigureAwait(false);
+                        return sale != null &&
+                               !ReceiptFinalizationRules.IsKnownUnconfirmedLegacySource(sale.CaptureSource) &&
+                               await _api.PostSaleAsync(sale).ConfigureAwait(false);
                     case "fiscal-sale":
                         var fiscalSale = JsonSerializer.Deserialize<SaleReport>(item.Payload, EpharmJson.Options);
                         return fiscalSale != null && await _api.PostSaleAsync(fiscalSale).ConfigureAwait(false);

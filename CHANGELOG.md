@@ -30,8 +30,13 @@ All notable production changes to Epharm are recorded here. The format follows
 - POSM 1.0.73 candidate: replace changed receipt rows with a fresh object so quantity,
   price, discount and line amount refresh together with the total after a Standard-N scan.
   The real shared upsert is covered by both log and Firebird lifecycle regression tests.
+- POSM candidate: do not report unpaid receipt switches or disappearance as sales. Withhold
+  the two known unsafe legacy replay sources, preserve their files and original queue rows,
+  and recover a later confirmed print under the same physical sale id without duplicate credit.
 - Guard expanded-schema recovery against older authorization which cannot enforce managed
   scopes, and preserve native evidence, independent credential keys and exact MinIO policies.
+- Preserve MinIO object headers, user metadata and tags alongside exact bodies; validate the
+  archive before restore and replay only into an isolated, identity-pinned restore container.
 - Prevent a delayed pharmacist course response from reopening a course after navigation away from
   it; preserve the separate Training tab and bank-card placeholder from the latest main.
 - Added a bounded mobile API timeout so unavailable services fail with an actionable retry state

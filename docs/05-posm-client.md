@@ -193,9 +193,22 @@ before enabling fleet auto-update.
 ## Exact Fiscal Receipt Contract
 
 Every open Standard-N receipt gets an atomically replaced JSON draft under
-`C:\Epharm\receipts\active`. A confirmed document close or print-log marker moves the immutable
-structured sale to `pending` and queues it independently of the fiscal artifact. A deterministic id
-based on `pharmacyId + DOCS.ID` deduplicates print-log, Firebird-close and retry signals.
+`C:\Epharm\receipts\active`. In the 1.0.73 candidate, only the explicit Standard-N print-log
+signal permits structured finalization; a document switch, disappearance or held receipt does not
+prove payment. An unconfirmed boundary leaves its draft in `active` without queueing a sale.
+A deterministic id based on `pharmacyId + DOCS.ID` deduplicates confirmed print and retry signals.
+The exact fiscal original is captured independently of the structured sale.
+
+The candidate also withholds the two known unsafe legacy sources (`standardn-document-switch`
+and `standardn-firebird-close`) from raw-sale replay, without deleting their rows or starving other
+queued events. A later real print of the same physical document preserves the old pending files
+and complete SQLite queue row before promoting the canonical entry. Verified fiscal originals keep
+their separate recovery path. Previously delivered server sales are not silently rewritten.
+An older client does not know these replay guards, so rollback to it requires a separate review.
+
+The current receipt reader still needs acceptance for a logical cart split across linked physical
+DOCS rows and for late print correlation. Keep each physical document's sale id and fiscal evidence;
+do not combine all rows under the latest DOCS id or treat status/absence alone as payment proof.
 
 POSM never renders an image from cart rows. In the background it waits for an approved read-only
 KKM/OFD adapter to publish an original PDF/PNG and atomic manifest into

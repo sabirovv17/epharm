@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "state": "phase_one_financial_boundary_source_verified_G4_open",
+  "productionAppChanged": false,
+  "fleetUpdatePublished": false,
+  "candidateVersion": "1.0.73",
+  "tests": {
+    "corePassed": 355,
+    "failed": 0,
+    "skipped": 0,
+    "log": "/tmp/epharm-posm-caller-green-20261030.log",
+    "trx": "/tmp/epharm-posm-caller-green-20261030/caller-green.trx"
+  },
+  "meaningfulRed": [
+    "unpaid_document_switch_reports_false_sale",
+    "two_authoritative_empty_reads_report_false_sale",
+    "legacy_ack_cleanup_deletes_unconfirmed_evidence",
+    "legacy_canonical_queue_drops_later_true_print",
+    "real_UI_queue_conflict_escapes_and_clears_boundary",
+    "real_UI_preservation_failure_still_queues_sale"
+  ],
+  "verified": [
+    "actual_production_finalization_method_linked_into_core",
+    "legacy_raw_replay_withheld_before_limit_without_deletion",
+    "independent_verified_fiscal_recovery_preserved",
+    "complete_original_SQLite_row_archived_transactionally",
+    "exact_old_pending_bytes_preserved_before_same_physical_id_promotion",
+    "durable_confirmed_pending_then_crash_recovery",
+    "503_then_reconnect_same_physical_id_once",
+    "hard_local_failure_neither_UI_crash_nor_false_finalized_ACK",
+    "normal_missing_fiscal_source_keeps_structured_sale"
+  ],
+  "independentReview": {
+    "frozen352TestSource": "no_new_P0_P1_P2",
+    "subsequent355CallerFix": "integration_owner_review"
+  },
+  "remaining": [
+    "linked_DOCS_cart_selection_and_physical_partitions",
+    "late_print_A_after_current_B_correlation",
+    "new_Windows_binary_build_and_disposable_VM_acceptance",
+    "older_client_rollback_requires_replay_guard_review"
+  ],
+  "limits": [
+    "Earlier rendered VM proof used row-clone artifact, not this financial-boundary fix",
+    "Already accepted historical server sales are not silently rewritten",
+    "No universal Standard-N paid-status contract asserted"
+  ],
+  "sourceHashes": {
+    "App/MainWindow.StandardNReceipt.cs": "d2c355335c31bdac8fb6c4c61c9c87d99298f07585ed1f0fb80458d11079296f",
+    "App/MainWindow.Recommendations.cs": "4d7e9803071ec110fcc59d5325d6eb7a2535a90e419178b3824c3d843cf83248",
+    "App/Services/ReceiptFinalizationRules.cs": "0c9987bb9efaf5592b673b81cdec628c62bad71221162a5f5a6dec2cf332b036",
+    "App/Services/OfflineOutbox.cs": "52682fa8c70ab953dc8da3e55b6e835caf009e8c2ae10d17cc0744cd005561af",
+    "App/Services/OutboxFlusher.cs": "49112c140ca2193b374bdb532625c714b2048b3d62719094af2e240f9243ef4c",
+    "App/Services/ReceiptArtifactStore.cs": "8c4ae661665564c3180ce0b51db63f4b25b7e1c623984ee9add7be0671f15991",
+    "App.Tests/StandardNReceiptLifecycleTests.cs": "0a1e8a2e8f89d2e66455de380ff5e7c365a79fb704ce973a0e870b614302610a",
+    "App.Tests/ReceiptCaptureTests.cs": "23ada3a96320640025e1461a5139ab705d2abe6d4db840dbeb820a72f180e2f5",
+    "App.Tests/ReceiptReplaySafetyTests.cs": "5e0520fd9fec0d9115d798cc504e63439bf3b4a26260c6aaa197c59200492f87",
+    "App.Tests/ReceiptFinalizationRulesTests.cs": "2e5a34621fcc30c161f01be82e5fa50c2e4914ca52f58722afac860a5a323ba3",
+    "App.Tests/CustomerDisplay.Core.Tests.csproj": "4bd687b338dd997749f34e71a73fe85177fd628a5f0988cac11a4174db783525"
+  },
+  "integrationOwnerVerification": {
+    "corePassed": 355,
+    "failed": 0,
+    "skipped": 0,
+    "log": "/tmp/epharm-posm-root-financial-boundary-20261030.log",
+    "trx": "/tmp/epharm-posm-root-financial-boundary-20261030/root-financial-boundary.trx"
+  }
+}

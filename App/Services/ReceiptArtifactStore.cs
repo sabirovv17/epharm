@@ -54,10 +54,12 @@ namespace CustomerDisplay.Services
         private const string FiscalDeliveryFileName = "fiscal-metadata-delivered.json";
         private const string FiscalQueuedFileName = "fiscal-metadata-queued.json";
         private const string HandoffCleanedFileName = "fiscal-handoff-cleaned.json";
+        private const string PreservedHashesFileName = "preserved-files.sha256.json";
 
         private readonly string _activeRoot;
         private readonly string _pendingRoot;
         private readonly string _quarantineRoot;
+        private readonly string _legacyUnconfirmedRoot;
         private readonly IFiscalReceiptSource _source;
         private readonly Action<string>? _log;
         private readonly TimeSpan _activeRetention;
@@ -84,6 +86,7 @@ namespace CustomerDisplay.Services
             _activeRoot = Path.Combine(rootPath, "active");
             _pendingRoot = Path.Combine(rootPath, "pending");
             _quarantineRoot = Path.Combine(rootPath, "quarantine");
+            _legacyUnconfirmedRoot = Path.Combine(rootPath, "legacy-unconfirmed");
             Directory.CreateDirectory(_activeRoot);
             Directory.CreateDirectory(_pendingRoot);
             Directory.CreateDirectory(_quarantineRoot);
@@ -114,6 +117,20 @@ namespace CustomerDisplay.Services
                 if (Directory.Exists(finalDir))
                 {
                     var existing = ReadSale(finalDir);
+                    if (ReceiptFinalizationRules.IsKnownUnconfirmedLegacySource(existing.CaptureSource) &&
+                        ReceiptFinalizationRules.IsConfirmedPrint(sale.CaptureSource) &&
+                        !TryReadStoredMetadata(finalDir, out _))
+                    {
+                        if (!ReceiptFinalizationRules.IsSamePhysicalSaleConfirmedAfterLegacyFailure(existing, sale))
+                            throw new InvalidDataException("Confirmed sale does not match preserved physical receipt identity.");
+                        PreserveUnconfirmedPending(finalDir, safeId);
+                        // The original ACK is retained in the immutable archive. It cannot
+                        // acknowledge the later real print of this same physical document.
+                        File.Delete(Path.Combine(finalDir, DeliveryFileName));
+                        WriteStatusIfChanged(finalDir, "waiting", "authoritative fiscal PDF/PNG has not been validated yet");
+                        sale.ArtifactFormat = null;
+                        WriteJsonAtomic(Path.Combine(finalDir, PayloadFileName), sale, durable: true);
+                    }
                     RemoveLegacyReconstruction(finalDir, existing);
                     DeleteDirectoryQuietly(Path.Combine(_activeRoot, safeId));
                     return CurrentResult(finalDir);
@@ -235,7 +252,6 @@ namespace CustomerDisplay.Services
                     try
                     {
                         var sale = ReadSale(dir);
-                        RemoveLegacyReconstruction(dir, sale);
                         if (TryReadStoredMetadata(dir, out var metadata))
                         {
                             VerifyStoredArtifact(dir, sale, metadata!);
@@ -244,9 +260,14 @@ namespace CustomerDisplay.Services
                             CleanupAcceptedHandoff(dir, metadata);
                             if (TryEnqueueFiscalMetadata(outbox, sale, force: true)) recovered++;
                         }
-                        else if (!File.Exists(Path.Combine(dir, DeliveryFileName)))
+                        else
                         {
-                            if (TryEnqueueSale(outbox, sale)) recovered++;
+                            // Keep old, unconfirmed evidence byte-for-byte. A document switch or
+                            // disappearance was never payment proof, even if an old client put
+                            // it in pending. Only the verified fiscal branch above may recover it.
+                            if (ReceiptFinalizationRules.IsKnownUnconfirmedLegacySource(sale.CaptureSource)) continue;
+                            RemoveLegacyReconstruction(dir, sale);
+                            if (!File.Exists(Path.Combine(dir, DeliveryFileName)) && TryEnqueueSale(outbox, sale)) recovered++;
                         }
                     }
                     catch (Exception ex)
@@ -317,7 +338,8 @@ namespace CustomerDisplay.Services
             var lookup = _source.Find(sale);
             if (lookup.Status == FiscalReceiptLookupStatus.NotReady)
             {
-                WriteStatusIfChanged(dir, "waiting", lookup.Reason);
+                if (!ReceiptFinalizationRules.IsKnownUnconfirmedLegacySource(sale.CaptureSource))
+                    WriteStatusIfChanged(dir, "waiting", lookup.Reason);
                 return new FiscalReceiptCaptureResult
                 {
                     Status = FiscalReceiptCaptureStatus.WaitingForAuthoritativeSource,
@@ -326,7 +348,8 @@ namespace CustomerDisplay.Services
             }
             if (lookup.Status == FiscalReceiptLookupStatus.Rejected)
             {
-                if (WriteStatusIfChanged(dir, "rejected", lookup.Reason))
+                if (!ReceiptFinalizationRules.IsKnownUnconfirmedLegacySource(sale.CaptureSource) &&
+                    WriteStatusIfChanged(dir, "rejected", lookup.Reason))
                     _log?.Invoke($"Фискальный источник отклонён для sale={sale.SaleId}: {lookup.Reason}");
                 return new FiscalReceiptCaptureResult
                 {
@@ -399,6 +422,8 @@ namespace CustomerDisplay.Services
 
         private void RemoveLegacyReconstruction(string dir, SaleReport sale)
         {
+            // Withheld legacy evidence must also survive the periodic fiscal refresh unchanged.
+            if (ReceiptFinalizationRules.IsKnownUnconfirmedLegacySource(sale.CaptureSource)) return;
             if (TryReadStoredMetadata(dir, out _)) return;
             var changed = false;
             var legacyPath = Path.Combine(dir, "receipt.png");
@@ -451,8 +476,9 @@ namespace CustomerDisplay.Services
             {
                 try
                 {
-                    if (!TryReadStoredMetadata(dir, out _))
+                    if (!TryReadStoredMetadata(dir, out var metadata))
                     {
+                        if (ReceiptFinalizationRules.IsKnownUnconfirmedLegacySource(ReadSale(dir).CaptureSource)) continue;
                         var saleDelivery = ReadDeliveryMarker(Path.Combine(dir, DeliveryFileName));
                         var status = ReadStatus(dir);
                         if (saleDelivery == null || status == null ||
@@ -468,6 +494,7 @@ namespace CustomerDisplay.Services
                         continue;
                     }
 
+                    VerifyStoredArtifact(dir, ReadSale(dir), metadata!);
                     var fiscalDelivery = ReadDeliveryMarker(Path.Combine(dir, FiscalDeliveryFileName));
                     if (fiscalDelivery == null || _utcNow() - fiscalDelivery.DeliveredAt < _completedRetention)
                         continue;
@@ -486,6 +513,8 @@ namespace CustomerDisplay.Services
         private static SaleReport ReadSale(string dir)
         {
             var payloadPath = Path.Combine(dir, PayloadFileName);
+            RejectLink(dir);
+            RejectLink(payloadPath);
             var sale = JsonSerializer.Deserialize<SaleReport>(File.ReadAllText(payloadPath), EpharmJson.Options)
                        ?? throw new InvalidDataException("sale.json is empty");
             if (string.IsNullOrWhiteSpace(sale.SaleId)) throw new InvalidDataException("saleId is empty");
@@ -743,6 +772,77 @@ namespace CustomerDisplay.Services
             target.Flush(flushToDisk: true);
         }
 
+        private void PreserveUnconfirmedPending(string sourceDir, string safeId)
+        {
+            RejectLink(sourceDir);
+            Directory.CreateDirectory(_legacyUnconfirmedRoot);
+            RejectLink(_legacyUnconfirmedRoot);
+            var archiveDir = Path.Combine(_legacyUnconfirmedRoot, safeId);
+            if (Directory.Exists(archiveDir))
+            {
+                VerifyPreservedPending(archiveDir, sourceDir);
+                return;
+            }
+
+            var staging = Path.Combine(_legacyUnconfirmedRoot, $".{safeId}.tmp-{Guid.NewGuid():N}");
+            Directory.CreateDirectory(staging);
+            try
+            {
+                var hashes = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var path in Directory.EnumerateFileSystemEntries(sourceDir))
+                {
+                    RejectLink(path);
+                    if (Directory.Exists(path)) throw new InvalidDataException("Unexpected directory in preserved receipt evidence.");
+                    var name = Path.GetFileName(path);
+                    if (name == PreservedHashesFileName) throw new InvalidDataException("Reserved archive manifest already exists.");
+                    var copied = Path.Combine(staging, name);
+                    CopyDurably(path, copied);
+                    var hash = HashFile(path);
+                    if (hash != HashFile(copied)) throw new InvalidDataException("Receipt evidence changed during preservation.");
+                    hashes.Add(name, hash);
+                }
+                WriteJsonAtomic(Path.Combine(staging, PreservedHashesFileName), hashes, durable: true);
+                VerifyPreservedPending(staging, sourceDir);
+                Directory.Move(staging, archiveDir);
+            }
+            catch
+            {
+                DeleteDirectoryQuietly(staging);
+                throw;
+            }
+        }
+
+        private static void VerifyPreservedPending(string archiveDir, string sourceDir)
+        {
+            RejectLink(archiveDir);
+            var manifestPath = Path.Combine(archiveDir, PreservedHashesFileName);
+            RejectLink(manifestPath);
+            var hashes = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(manifestPath))
+                         ?? throw new InvalidDataException("Preserved receipt manifest is missing.");
+            if (!hashes.ContainsKey(PayloadFileName) ||
+                Directory.EnumerateFileSystemEntries(archiveDir).Count() != hashes.Count + 1)
+                throw new InvalidDataException("Preserved receipt archive is incomplete.");
+            foreach (var entry in hashes)
+            {
+                if (string.IsNullOrWhiteSpace(entry.Key) || entry.Key != Path.GetFileName(entry.Key) ||
+                    entry.Key is "." or ".." || entry.Key.Contains('\\') || entry.Key.Any(char.IsControl))
+                    throw new InvalidDataException("Preserved receipt archive path is invalid.");
+                var path = Path.Combine(archiveDir, entry.Key);
+                RejectLink(path);
+                if (Directory.Exists(path) || !string.Equals(HashFile(path), entry.Value, StringComparison.Ordinal))
+                    throw new InvalidDataException("Preserved receipt archive hash mismatch.");
+            }
+            RejectLink(Path.Combine(sourceDir, PayloadFileName));
+            if (!string.Equals(HashFile(Path.Combine(sourceDir, PayloadFileName)), hashes[PayloadFileName], StringComparison.Ordinal))
+                throw new InvalidDataException("Preserved receipt archive belongs to a different payload.");
+        }
+
+        private static void RejectLink(string path)
+        {
+            if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+                throw new InvalidDataException("Linked receipt evidence paths are not allowed.");
+        }
+
         private static string HashFile(string path)
         {
             using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
@@ -752,12 +852,16 @@ namespace CustomerDisplay.Services
         private static string FileFormat(string fileName) =>
             Path.GetExtension(fileName).TrimStart('.').ToLowerInvariant();
 
-        private static void WriteJsonAtomic<T>(string targetPath, T value)
+        private static void WriteJsonAtomic<T>(string targetPath, T value, bool durable = false)
         {
             var tempPath = targetPath + ".tmp-" + Guid.NewGuid().ToString("N");
             try
             {
-                File.WriteAllText(tempPath, JsonSerializer.Serialize(value, EpharmJson.Options));
+                using (var stream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                {
+                    JsonSerializer.Serialize(stream, value, EpharmJson.Options);
+                    stream.Flush(flushToDisk: durable);
+                }
                 File.Move(tempPath, targetPath, overwrite: true);
             }
             finally

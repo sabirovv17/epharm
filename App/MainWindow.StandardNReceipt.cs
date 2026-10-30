@@ -88,15 +88,10 @@ namespace CustomerDisplay
                     Log($"Активный чек Standard-N закрыт: doc={closingDocumentId?.ToString() ?? "—"}");
                     var finalized = closingDocumentId.HasValue &&
                                     _lastFinalizedStandardNDocumentId == closingDocumentId;
-                    if (!finalized && closingDocumentId.HasValue && ReceiptItems.Any())
-                    {
-                        finalized = OnReceiptFinalized("standardn-firebird-close", closingDocumentId);
-                        if (finalized) _lastFinalizedStandardNDocumentId = closingDocumentId;
-                    }
                     if (!finalized)
                     {
-                        // Пустой/отменённый чек не является продажей: удаляем только наш черновик.
-                        DiscardActiveReceiptDraft();
+                        // An absent receipt may be suspended/cancelled; it is not payment evidence.
+                        PreserveUnconfirmedReceiptDraft();
                         ResetRecommendationUiState(closeWindows: true);
                         StartNewCheckoutSession();
                     }
@@ -125,14 +120,9 @@ namespace CustomerDisplay
                     Log($"Standard-N переключил активный чек: {_standardNDocumentId.Value} -> {receipt.DocumentId}");
                     var previousDocumentId = _standardNDocumentId.Value;
                     var previousFinalized = _lastFinalizedStandardNDocumentId == previousDocumentId;
-                    if (!previousFinalized && ReceiptItems.Any())
-                    {
-                        previousFinalized = OnReceiptFinalized("standardn-document-switch", previousDocumentId);
-                        if (previousFinalized) _lastFinalizedStandardNDocumentId = previousDocumentId;
-                    }
                     if (!previousFinalized)
                     {
-                        DiscardActiveReceiptDraft();
+                        PreserveUnconfirmedReceiptDraft();
                         ResetRecommendationUiState(closeWindows: true);
                         StartNewCheckoutSession();
                     }
@@ -263,6 +253,87 @@ namespace CustomerDisplay
             return incoming.Qty > previousQty;
         }
 
+        /// <summary>
+        /// Вызывается при печати/завершении чека ДО очистки позиций. Фиксирует продажу (источник №1),
+        /// закрывает popup, открывает новую сессию.
+        /// </summary>
+        private bool OnReceiptFinalized(string captureSource, long? sourceDocumentId = null)
+        {
+            if (!ReceiptFinalizationRules.IsConfirmedPrint(captureSource))
+            {
+                Log("Завершение чека отклонено: нет подтверждённого сигнала печати Standard-N.");
+                return false;
+            }
+            // If the first lookup failed, SellerCaptured remains false. Retry immediately before
+            // queuing the completed receipt instead of permanently sending an empty seller.
+            if (!_session.SellerCaptured)
+            {
+                RefreshCurrentPharmacistFromStandardNDb();
+                CaptureCurrentSellerForSession();
+            }
+            var sale = _saleReporter?.Build(
+                _session,
+                ReceiptItems,
+                sourceDocumentId,
+                captureSource,
+                DateTimeOffset.UtcNow);
+            if (sale != null)
+            {
+                FiscalReceiptCaptureResult? fiscalCapture = null;
+                try
+                {
+                    fiscalCapture = _receiptArtifacts?.Complete(sale);
+                }
+                catch (Exception ex)
+                {
+                    // Waiting/Rejected are normal results. An exception here instead means local
+                    // persistence/identity preservation failed, so do not bypass that guard.
+                    Log($"Чек не сохранён в подтверждённый pending; текущая корзина оставлена для проверки: {ex.GetBaseException().Message}");
+                    return false;
+                }
+
+                try
+                {
+                    _saleReporter?.Enqueue(sale);
+                }
+                catch (Exception ex)
+                {
+                    var retained = fiscalCapture != null
+                        ? "Локальный pending сохранён; текущая корзина оставлена для проверки."
+                        : "Текущая корзина оставлена в окне для проверки; локальный pending недоступен.";
+                    Log($"Подтверждённый чек не поставлен в очередь. {retained} {ex.GetBaseException().Message}");
+                    return false;
+                }
+                var fiscalStatus = _receiptArtifacts == null
+                    ? "захват недоступен"
+                    : fiscalCapture?.Status switch
+                    {
+                        FiscalReceiptCaptureStatus.Stored => "оригинал сохранён",
+                        FiscalReceiptCaptureStatus.Rejected => "источник отклонён",
+                        _ => "ожидается оригинал ККМ/OFD",
+                    };
+                Log($"Чек поставлен в гарантированную очередь: id={sale.SaleId}, " +
+                    $"doc={sourceDocumentId?.ToString() ?? "—"}, items={sale.Items.Count}, " +
+                    $"total={sale.TotalAmount}, fiscal={fiscalStatus}");
+            }
+            else
+            {
+                Log($"Завершение чека пропущено: нет реальных позиций Standard-N (source={captureSource})");
+            }
+
+            _activeReceiptDraftId = null;
+            ResetRecommendationUiState(closeWindows: true);
+            StartNewCheckoutSession();
+            return sale != null;
+        }
+
+        private void PreserveUnconfirmedReceiptDraft()
+        {
+            // Only active/ is retained. Recovery never promotes an unconfirmed draft to pending/.
+            _activeReceiptDraftId = null;
+            Log("Граница чека Standard-N не подтверждает оплату: незавершённый черновик сохранён без продажи.");
+        }
+
         private void HandleStandardNReceiptPrinted()
         {
             _receiptObservations.LogChanged();
@@ -272,7 +343,13 @@ namespace CustomerDisplay
                 _receiptObservations.AwaitPrintedReceiptBoundary();
                 Log("Печать чека без DOCS.ID: снимки БД ожидают подтверждённого пустого чека; события лога продолжают работать");
             }
-            OnReceiptFinalized("standardn-print-log", documentId);
+            var hasReportableSale = _saleReporter != null && ReceiptItems.Any(item => item.PartId > 0);
+            if (!OnReceiptFinalized("standardn-print-log", documentId) && hasReportableSale)
+            {
+                // A hard local persistence/queue failure is not an ACK or a finalized receipt.
+                // Keep the current boundary/cart; durable pending can be retried independently.
+                return;
+            }
             // Even an empty printed document must not be resurrected by an older DB snapshot.
             if (documentId.HasValue) _lastFinalizedStandardNDocumentId = documentId.Value;
             _standardNDocumentId = null;

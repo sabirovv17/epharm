@@ -1,8 +1,11 @@
 using CustomerDisplay.Config;
 using CustomerDisplay.Models;
+using CustomerDisplay.Models.Posm;
 using CustomerDisplay.Services;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.Text.Json;
+using Microsoft.Data.Sqlite;
 using Xunit;
 
 namespace CustomerDisplay.Core.Tests
@@ -10,9 +13,146 @@ namespace CustomerDisplay.Core.Tests
     public sealed class StandardNReceiptLifecycleTests
     {
         [Fact]
+        public void RealPrintQueueConflictDoesNotEscapeOrClearCurrentCartAndKeepsDurablePending()
+        {
+            using var window = new MainWindow();
+            window.Observe(Receipt(100, 10));
+            var legacy = LegacySale(window, 100);
+            var originalPayload = JsonSerializer.Serialize(legacy, EpharmJson.Options);
+            window.Queue.Enqueue(legacy.SaleId, "sale", originalPayload);
+            window.Queue.Reschedule(legacy.SaleId, 0);
+            using (var connection = new SqliteConnection("Data Source=" + Path.Combine(window.StorageRoot, "outbox.db")))
+            {
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText = @"INSERT INTO outbox_legacy_sale_evidence
+                    SELECT id,kind,'conflicting-evidence',created_at,attempts,next_retry_at,'synthetic' FROM outbox;";
+                command.ExecuteNonQuery();
+            }
+            var sessionRestarts = window.SessionRestarts;
+
+            Assert.Null(Record.Exception(window.Print));
+
+            Assert.Equal(100, window.DocumentId);
+            Assert.Null(window.FinalizedDocumentId);
+            Assert.Single(window.ReceiptItems);
+            Assert.Empty(window.Sales);
+            Assert.Equal(sessionRestarts, window.SessionRestarts);
+            Assert.DoesNotContain(window.Messages, message => message.StartsWith("Чек поставлен в гарантированную очередь:"));
+            Assert.Contains(window.Messages, message => message.Contains("не поставлен в очередь") && message.Contains("сохранён"));
+            var pending = Path.Combine(window.StorageRoot, "receipts", "pending", legacy.SaleId, "sale.json");
+            var durable = JsonSerializer.Deserialize<SaleReport>(File.ReadAllText(pending), EpharmJson.Options)!;
+            Assert.Equal("standardn-print-log", durable.CaptureSource);
+            Assert.Equal(100, durable.SourceDocumentId);
+            Assert.Equal(0, window.Artifacts.RecoverPending(window.Queue));
+            Assert.Equal(100, window.DocumentId); // A background retry cannot pretend the failed print was finalized.
+        }
+
+        [Fact]
+        public void RealPrintHardPreservationFailureDoesNotQueueOrClaimDurableConfirmedCopy()
+        {
+            using var window = new MainWindow();
+            window.Observe(Receipt(100, 10));
+            var legacy = LegacySale(window, 100);
+            window.Artifacts.Complete(legacy);
+            var pending = Path.Combine(window.StorageRoot, "receipts", "pending", legacy.SaleId, "sale.json");
+            var original = File.ReadAllBytes(pending);
+            Directory.CreateDirectory(Path.Combine(window.StorageRoot, "receipts", "legacy-unconfirmed", legacy.SaleId));
+            legacy.CaptureSource = "standardn-active";
+            window.Artifacts.SaveDraft(legacy);
+            window.KeepDraft(legacy.SaleId);
+            var active = Path.Combine(window.StorageRoot, "receipts", "active", legacy.SaleId, "sale.json");
+            var draft = File.ReadAllBytes(active);
+
+            Assert.Null(Record.Exception(window.Print));
+
+            Assert.Empty(window.Sales);
+            Assert.Equal(100, window.DocumentId);
+            Assert.Null(window.FinalizedDocumentId);
+            Assert.Equal(legacy.SaleId, window.ActiveDraftId);
+            Assert.Single(window.ReceiptItems);
+            Assert.Equal(original, File.ReadAllBytes(pending));
+            Assert.Equal(draft, File.ReadAllBytes(active));
+            Assert.DoesNotContain(window.Messages, message => message.StartsWith("Чек поставлен в гарантированную очередь:"));
+            Assert.Contains(window.Messages, message => message.Contains("не сохранён") && message.Contains("корзина"));
+        }
+
+        [Fact]
+        public void RealPrintWithNormallyMissingFiscalSourceStillQueuesStructuredSaleAndClearsDisplay()
+        {
+            using var window = new MainWindow();
+            window.Observe(Receipt(100, 10));
+
+            window.Print();
+
+            Assert.Equal(100, Assert.Single(window.Sales).DocumentId);
+            Assert.Empty(window.ReceiptItems);
+            Assert.Null(window.DocumentId);
+            Assert.Equal(100, window.FinalizedDocumentId);
+            Assert.Contains(window.Messages, message => message.Contains("Чек поставлен в гарантированную очередь:") &&
+                message.Contains("ожидается оригинал ККМ/OFD"));
+        }
+
+        private static SaleReport LegacySale(MainWindow window, long document) => new()
+        {
+            SaleId = window.StableSaleId(document), PharmacyId = "synthetic-pharmacy", SourceDocumentId = document,
+            CaptureSource = "standardn-document-switch", TotalAmount = 100,
+            Items = [new SaleReportItem { Sku = "10", Qty = 1, Price = 100, Total = 100 }],
+        };
+
+        [Fact]
+        public void UnpaidDocumentSwitchPreservesDraftWithoutManufacturingSale()
+        {
+            using var window = new MainWindow();
+            window.Observe(new StandardNReceiptSnapshot(23639, 1713, "CASH-1", null,
+                new("synthetic-cashier", null, 1713), new[] {
+                    new StandardNReceiptLine(61030, 92715, "3838957010332", "Synthetic spray", 1690m, 2m, 0m) }));
+            window.KeepDraft("draft-23639");
+
+            window.Observe(new StandardNReceiptSnapshot(23500, 1713, "CASH-1", null,
+                new("synthetic-cashier", null, 1713), new[] {
+                    new StandardNReceiptLine(60000, 84993, "8809052586843", "Synthetic held item", 455m, 1m, 0m) }));
+
+            Assert.Empty(window.Sales);
+            Assert.Equal(0, window.FinalizationCalls);
+            Assert.Equal(23500, window.DocumentId);
+            Assert.Equal(455m, window.DisplayTotal);
+            Assert.Equal(84993, Assert.Single(window.ReceiptItems).PartId);
+            Assert.Contains("draft-23639", window.SavedDrafts);
+            Assert.Null(window.ActiveDraftId);
+            Assert.Null(window.FinalizedDocumentId);
+            Assert.Equal(0, window.DiscardedDrafts);
+            Assert.Equal(1, window.PopupClears);
+            Assert.Equal(1, window.SessionRestarts);
+        }
+
+        [Fact]
+        public void UnpaidDocumentDisappearancePreservesDraftWithoutManufacturingSale()
+        {
+            using var window = new MainWindow();
+            window.Observe(Receipt(23639, 92715));
+            window.KeepDraft("draft-23639");
+
+            window.Observe(null);
+            window.Observe(null);
+
+            Assert.Empty(window.Sales);
+            Assert.Equal(0, window.FinalizationCalls);
+            Assert.Empty(window.ReceiptItems);
+            Assert.Equal(0m, window.DisplayTotal);
+            Assert.Null(window.DocumentId);
+            Assert.Null(window.FinalizedDocumentId);
+            Assert.Contains("draft-23639", window.SavedDrafts);
+            Assert.Null(window.ActiveDraftId);
+            Assert.Equal(0, window.DiscardedDrafts);
+            Assert.Equal(1, window.PopupClears);
+            Assert.Equal(1, window.SessionRestarts);
+        }
+
+        [Fact]
         public void LogOnlyCartWithoutDiscoveredDocumentDoesNotStayOnCustomerScreenOrBecomeSale()
         {
-            var window = new MainWindow();
+            using var window = new MainWindow();
             window.AddLogItem(10);
 
             window.Observe(null);
@@ -22,13 +162,13 @@ namespace CustomerDisplay.Core.Tests
             Assert.Empty(window.ReceiptItems);
             Assert.Equal(0m, window.DisplayTotal);
             Assert.Empty(window.Sales);
-            Assert.Equal(1, window.DiscardedDrafts);
+            Assert.Equal(0, window.DiscardedDrafts);
         }
 
         [Fact]
         public void ConfirmedPrintImmediatelyClearsTotalAndCannotBeRepopulatedBySameDocument()
         {
-            var window = new MainWindow();
+            using var window = new MainWindow();
             var receipt = Receipt(100, 10);
             window.Observe(receipt);
 
@@ -49,7 +189,7 @@ namespace CustomerDisplay.Core.Tests
         [Fact]
         public void DelayedReadBeforePrintCannotResurrectPrintedCart()
         {
-            var window = new MainWindow();
+            using var window = new MainWindow();
             var receipt = Receipt(100, 10);
             window.Observe(receipt);
             var inFlightRevision = window.ReadRevision;
@@ -65,7 +205,7 @@ namespace CustomerDisplay.Core.Tests
         [Fact]
         public void UnboundPrintCannotResurrectOldDocumentOrManufactureSecondSale()
         {
-            var window = new MainWindow();
+            using var window = new MainWindow();
             window.AddLogItem(10);
             window.Print();
 
@@ -82,7 +222,7 @@ namespace CustomerDisplay.Core.Tests
         [Fact]
         public void PrintBeforeAnyObservedRowsCannotPopulateAlreadyPrintedDatabaseDocument()
         {
-            var window = new MainWindow();
+            using var window = new MainWindow();
             window.Print();
 
             window.Observe(Receipt(100, 10));
@@ -96,7 +236,7 @@ namespace CustomerDisplay.Core.Tests
         [Fact]
         public void NewLogScanDoesNotReleaseUnboundPrintDatabaseBarrier()
         {
-            var window = new MainWindow();
+            using var window = new MainWindow();
             window.AddLogItem(10);
             window.Print();
             window.AddLogItem(20);
@@ -111,7 +251,7 @@ namespace CustomerDisplay.Core.Tests
         [Fact]
         public void UnboundPrintBoundaryRequiresConsecutiveSuccessfulEmptyReads()
         {
-            var window = new MainWindow();
+            using var window = new MainWindow();
             window.AddLogItem(10);
             window.Print();
             window.Observe(null);
@@ -134,7 +274,7 @@ namespace CustomerDisplay.Core.Tests
         [Fact]
         public void DelayedEmptyReadBeforeNewScanCannotClearNewCart()
         {
-            var window = new MainWindow();
+            using var window = new MainWindow();
             window.Observe(null);
             var inFlightRevision = window.ReadRevision;
             window.AddLogItem(20);
@@ -148,7 +288,7 @@ namespace CustomerDisplay.Core.Tests
         [Fact]
         public void UnresolvedWorkstationNeverClearsLogOnlyCart()
         {
-            var window = new MainWindow();
+            using var window = new MainWindow();
             window.AddLogItem(20);
 
             window.ObserveMissingForSessions(new[] { "CASH-2" }, "CASH-2");
@@ -161,7 +301,7 @@ namespace CustomerDisplay.Core.Tests
         [Fact]
         public void AmbiguousWorkstationBreaksPreviouslyConfirmedEmptySequence()
         {
-            var window = new MainWindow();
+            using var window = new MainWindow();
             window.AddLogItem(20);
             window.ObserveMissingForSessions(new[] { "CASH-1" }, "CASH-1");
 
@@ -175,7 +315,7 @@ namespace CustomerDisplay.Core.Tests
         [Fact]
         public void DelayedReadBeforeDiscountCannotOverwriteNewDisplayedTotal()
         {
-            var window = new MainWindow();
+            using var window = new MainWindow();
             var receipt = Receipt(100, 10);
             window.Observe(receipt);
             var inFlightRevision = window.ReadRevision;
@@ -189,7 +329,7 @@ namespace CustomerDisplay.Core.Tests
         [Fact]
         public void RemovingAllRowsCancelsCartWithoutManufacturingSale()
         {
-            var window = new MainWindow();
+            using var window = new MainWindow();
             window.Observe(Receipt(100, 10));
 
             window.Observe(Receipt(100));
@@ -204,7 +344,7 @@ namespace CustomerDisplay.Core.Tests
         [Fact]
         public void DatabaseFailurePreservesLiveCartAndBreaksEmptyConfirmation()
         {
-            var window = new MainWindow();
+            using var window = new MainWindow();
             window.Observe(Receipt(100, 10));
             window.Observe(null);
 
@@ -218,7 +358,7 @@ namespace CustomerDisplay.Core.Tests
         [Fact]
         public void SwitchingDocumentsDoesNotMixOldAndNewRowsOrDuplicatePrintedSale()
         {
-            var window = new MainWindow();
+            using var window = new MainWindow();
             window.Observe(Receipt(100, 10));
             window.Print();
             window.AddLogItem(20);
@@ -236,7 +376,7 @@ namespace CustomerDisplay.Core.Tests
         [InlineData(true)]
         public void RealLogAndDatabaseUpdatesReplaceRenderedInstanceAndKeepRowsAndTotalInSync(bool database)
         {
-            var window = new MainWindow();
+            using var window = new MainWindow();
             var first = Item(10, "Resolved name", "4600000000012", 100m, 3m);
             var other = Item(20, "Other item", "4600000000029", 50m, 1m);
             Apply(window, database, first, other);
@@ -287,7 +427,7 @@ namespace CustomerDisplay.Core.Tests
         [InlineData(true)]
         public void RealUpdateOfSecondExistingItemRebindsItsRowWithoutLosingOtherItems(bool database)
         {
-            var window = new MainWindow();
+            using var window = new MainWindow();
             var first = Item(10, "First", "4600000000012", 100m, 3m);
             var second = Item(20, "Second", "4600000000029", 50m, 1m);
             Apply(window, database, first, second);
@@ -309,7 +449,7 @@ namespace CustomerDisplay.Core.Tests
         [InlineData(true)]
         public void RealQuantityDecreaseKeepsPreviousRowImmutableAndDoesNotManufactureASale(bool database)
         {
-            var window = new MainWindow();
+            using var window = new MainWindow();
             Apply(window, database, Item(10, "Item", "4600000000012", 100m, 4m, 10m));
             var rendered = Assert.Single(window.ReceiptItems);
 
@@ -328,7 +468,7 @@ namespace CustomerDisplay.Core.Tests
         [InlineData(-1)]
         public void RealLogZeroOrNegativeQuantityRemovesRowAndUnknownRemovalDoesNotInsert(int quantity)
         {
-            var window = new MainWindow();
+            using var window = new MainWindow();
             Assert.True(window.ObserveLogLine(Item(10, "Item", "4600000000012", 100m, 3m)));
             var rendered = Assert.Single(window.ReceiptItems);
 
@@ -363,22 +503,56 @@ namespace CustomerDisplay.Core.Tests
 namespace CustomerDisplay
 {
     // Compile the real reconciliation partial without WPF. Only its UI/IO boundaries are fakes.
-    public partial class MainWindow
+    public partial class MainWindow : IDisposable
     {
-        private readonly EpharmConfig? _posmConfig = null;
+        private readonly EpharmConfig _posmConfig = new() { PharmacyId = "synthetic-pharmacy", PharmacistId = "synthetic-person" };
         private readonly UnavailableReceiptDatabase? _standardNDb = null;
         private readonly ImmediateDispatcher Dispatcher = new();
+        private readonly string _storageRoot = Path.Combine(Path.GetTempPath(), "epharm-real-finalizer-" + Guid.NewGuid().ToString("N"));
+        private readonly OfflineOutbox _testOutbox;
+        private readonly SaleReporter _saleReporter;
+        private ReceiptArtifactStore? _receiptArtifacts;
+        private CheckoutSession _session = new();
         private string _currentPharmacistId = "";
         private string _currentPharmacistName = "";
         private long? _currentStandardNSessionId;
         private bool _pharmacistFromDb;
+        private string? _activeReceiptDraftId;
         internal ObservableCollection<ReceiptItem> ReceiptItems { get; } = new();
-        internal List<(long? DocumentId, int[] PartIds)> Sales { get; } = new();
+        internal List<(long? DocumentId, int[] PartIds)> Sales => _testOutbox.DequeueReady(100)
+            .Where(item => item.Kind == "sale")
+            .Select(item => JsonSerializer.Deserialize<SaleReport>(item.Payload, EpharmJson.Options)!)
+            .Select(sale => (sale.SourceDocumentId, sale.Items.Select(item => int.Parse(item.Sku!)).ToArray())).ToList();
         internal decimal DisplayTotal { get; private set; }
         internal int DiscardedDrafts { get; private set; }
+        internal HashSet<string> SavedDrafts { get; } = new();
+        internal string? ActiveDraftId => _activeReceiptDraftId;
+        internal long? FinalizedDocumentId => _lastFinalizedStandardNDocumentId;
+        internal int PopupClears { get; private set; }
+        internal int SessionRestarts { get; private set; }
+        internal int FinalizationCalls { get; private set; }
+        internal List<string> Messages { get; } = new();
+        internal OfflineOutbox Queue => _testOutbox;
+        internal ReceiptArtifactStore Artifacts => _receiptArtifacts!;
+        internal string StorageRoot => _storageRoot;
+        internal string StableSaleId(long document) => ReceiptSaleId.Create(_posmConfig.PharmacyId, document, _session.SessionId);
         internal long? DocumentId => _standardNDocumentId;
         internal long ReadRevision => _receiptObservations.Revision;
         internal bool PharmacistFromDatabase => _pharmacistFromDb;
+
+        internal MainWindow()
+        {
+            _testOutbox = new OfflineOutbox(Path.Combine(_storageRoot, "outbox.db"));
+            _saleReporter = new SaleReporter(_posmConfig, _testOutbox);
+            _receiptArtifacts = new ReceiptArtifactStore(Path.Combine(_storageRoot, "receipts"),
+                new FiscalReceiptInboxSource(Path.Combine(_storageRoot, "fiscal-inbox"), ["ofd-api"]));
+        }
+
+        public void Dispose()
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            if (Directory.Exists(_storageRoot)) Directory.Delete(_storageRoot, recursive: true);
+        }
 
         internal void Observe(StandardNReceiptSnapshot? receipt) => CompleteRead(ReadRevision, receipt);
         internal void CompleteRead(long revision, StandardNReceiptSnapshot? receipt)
@@ -386,6 +560,7 @@ namespace CustomerDisplay
             if (_receiptObservations.Admit(revision, receipt != null)) ApplyStandardNReceipt(receipt);
         }
         internal void Print() => HandleStandardNReceiptPrinted();
+        internal void KeepDraft(string id) { SavedDrafts.Add(id); _activeReceiptDraftId = id; }
         internal void DatabaseFailed() => _receiptObservations.ReadFailed();
         internal void ObserveMissingForSessions(string?[] workstations, string? selected)
         {
@@ -412,21 +587,28 @@ namespace CustomerDisplay
             return increased;
         }
 
-        private static void Log(string message) { }
+        private void Log(string message)
+        {
+            Messages.Add(message);
+            if (message.StartsWith("Завершение чека отклонено:", StringComparison.Ordinal) ||
+                message.StartsWith("Завершение чека пропущено:", StringComparison.Ordinal) ||
+                message.StartsWith("Чек поставлен в гарантированную очередь:", StringComparison.Ordinal)) FinalizationCalls++;
+        }
         private void RecalcTotal() => DisplayTotal = ReceiptItems.Sum(item => item.Total);
-        private void DiscardActiveReceiptDraft() => DiscardedDrafts++;
-        private void ResetRecommendationUiState(bool closeWindows) { }
-        private void StartNewCheckoutSession() { }
+        private void DiscardActiveReceiptDraft()
+        {
+            DiscardedDrafts++;
+            if (_activeReceiptDraftId != null) SavedDrafts.Remove(_activeReceiptDraftId);
+            _activeReceiptDraftId = null;
+        }
+        private void ResetRecommendationUiState(bool closeWindows) { if (closeWindows) PopupClears++; }
+        private void StartNewCheckoutSession() { SessionRestarts++; _session = new CheckoutSession(); }
+        private void RefreshCurrentPharmacistFromStandardNDb() { }
+        private void CaptureCurrentSellerForSession() =>
+            _session.CaptureSeller(_currentPharmacistId, _currentPharmacistName, _currentStandardNSessionId);
         private void OnProductScanned(ReceiptItem item) { }
         private void OnCartChangedLocalOnly(bool cancelPendingRecommendation) { }
         private void LogScannedItemContext(ReceiptItem item, string source) { }
-        private bool OnReceiptFinalized(string source, long? documentId)
-        {
-            var parts = ReceiptItems.Where(item => item.PartId > 0).Select(item => item.PartId).ToArray();
-            if (parts.Length == 0) return false;
-            Sales.Add((documentId, parts));
-            return true;
-        }
         // UI removal boundary; the production upsert itself is linked from the real partial.
         private bool RemoveItemByPartId(int partId)
         {
