@@ -499,7 +499,10 @@ data class QuizSubmissionResultDto(
     val totalQuestions: Int,
     val attempt: Int,
     val assignment: TrainingAssignmentDto,
-)
+) {
+    // Cached /learn clients require this array; per-question results must stay hidden.
+    val questions: List<Any> get() = emptyList()
+}
 
 data class RecordAssessmentResultRequest(
     @field:Min(0) @field:Max(100)

@@ -304,7 +304,9 @@ accept stage-level progress, while linked courses require the lesson endpoint. L
 progress cannot be deleted (HTTP 409); archiving the course preserves referential integrity.
 
 Learner quiz submissions return aggregate score/pass/attempt information only: no per-question
-correctness, answer key or explanations. Required previous lessons gate both passing and failed
+correctness, answer key or explanations. The deprecated `questions` array is always empty so
+already open older `/learn` clients can still consume the response without exposing answer analysis.
+Required previous lessons gate both passing and failed
 submissions; the passing threshold is checked before display rounding. In the current legacy
 lesson schema, required `quiz`/`test` lessons contribute their best successful scores to the course
 stage and individually to the assignment average alongside required scored stages; optional tests
