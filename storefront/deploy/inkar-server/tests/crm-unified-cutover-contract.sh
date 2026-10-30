@@ -7,7 +7,9 @@ network="epharm-crm-edge-$$"
 proxy="epharm-crm-edge-proxy-$$"
 stub="epharm-crm-edge-stub-$$"
 cleanup() {
+  local status=$?
   docker logs "$proxy" >"$tmp_dir/proxy.log" 2>&1 || true
+  if [[ "$status" -ne 0 ]]; then cat "$tmp_dir/proxy.log" >&2; fi
   docker rm -f "$proxy" "$stub" >/dev/null 2>&1 || true
   docker network rm "$network" >/dev/null 2>&1 || true
   rm -rf -- "$tmp_dir"
@@ -31,6 +33,25 @@ PYTHON
 docker network create --internal "$network" >/dev/null
 docker run -d --name "$stub" --network "$network" --network-alias native \
   -v "$tmp_dir:/app" python:3.12-slim python /app/stub.py >/dev/null
+docker exec -i "$stub" python - <<'PYTHON'
+from http.client import HTTPConnection, HTTPException
+import time
+deadline=time.monotonic()+5
+while time.monotonic()<deadline:
+    connection=HTTPConnection('127.0.0.1',8060,timeout=0.5)
+    try:
+        connection.request('GET','/')
+        response=connection.getresponse(); response.read()
+        if response.status!=200:
+            raise SystemExit('Stub readiness returned HTTP '+str(response.status))
+        break
+    except (OSError,HTTPException):
+        time.sleep(0.2)
+    finally:
+        connection.close()
+else:
+    raise SystemExit('Timed out waiting for stub HTTP 200 on 127.0.0.1:8060')
+PYTHON
 # Use the very same native routes in HTTP and internal-TLS files.
 python3 - "$bundle_dir" <<'PYTHON'
 from pathlib import Path
@@ -64,7 +85,17 @@ PYTHON
 request() {
  docker exec "$stub" python /app/request.py "$1" "$2"
 }
-for _ in $(seq 1 25); do if request GET /; then break; fi; sleep 0.2; done
+proxy_ready=false
+for _ in $(seq 1 25); do
+ if request GET /unknown; then
+  grep -q '^HTTP/1.1 404 ' "$tmp_dir/headers" || { cat "$tmp_dir/headers" >&2; exit 1; }
+  proxy_ready=true; break
+ fi
+ sleep 0.2
+done
+if [[ "$proxy_ready" != true ]]; then
+ printf 'Timed out waiting for proxy /unknown HTTP 404\n' >&2; exit 1
+fi
 assert_native() {
  local client_ip
  client_ip="$(docker inspect "$stub" --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')"
@@ -79,6 +110,7 @@ assert value.pop('forwarded')==sys.argv[3], value
 assert value==dict(path=sys.argv[2],host='epharm.inkar.kz',origin='https://crm.inkar.kz',proto='https',key=None,staff='synthetic-limited-session'),value
 PYTHON
 }
+request GET /
 assert_native /merch/portal
 for path in /producer /producer/login '/staff?access=synthetic-access' /tasks/staff /assets/synthetic.js; do
  request GET "$path"; assert_native "$path"

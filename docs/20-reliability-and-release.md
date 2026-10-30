@@ -27,7 +27,10 @@ known set and the code/example default. A configured missing bucket fails the ba
 silently omitted or created on the source. New MinIO artifacts contain versioned per-bucket
 anonymous policy JSON in addition to preserved objects and metadata. `{}` means the source bucket
 is private. Isolated restoration applies exactly that policy (`private` or the saved custom JSON),
-reads it back and compares semantic JSON before reporting success. It does not replace a restricted
+reads it back and compares semantic JSON before reporting success. Ordering of direct
+`Action`, `NotAction`, `Resource` and `NotResource` string arrays is ignored because MinIO
+serializes these IAM sets in unstable order. Every literal and duplicate remains significant;
+Principal, Effect, Condition, Version and other structures remain strict. It does not replace a restricted
 prefix with a general download/public grant. Policy/path/inventory validation runs before extraction.
 The object companion `object-metadata.json` records exact content headers, user metadata, tags,
 body sizes and SHA-256 values. Capture checks source drift against the mirrored bodies; archive
@@ -480,3 +483,31 @@ three failed code entries must not rate-limit unrelated clients behind the proxy
 A direct untrusted caller's forged XFF must not change its rate-limit identity.
 See [Caddy trusted proxies](https://caddyserver.com/docs/caddyfile/options#trusted-proxies)
 and [Spring Boot reverse proxies](https://docs.spring.io/spring-boot/3.3/how-to/webserver.html#howto.webserver.use-behind-a-proxy-server).
+
+### Moving an existing SFTP repository
+
+Move the complete retained history before changing the producer or retiring the old receiver.
+With restic 0.18.1, initialize the destination with `init --copy-chunker-params --from-repo`,
+then run `copy --from-repo` without snapshot, host, path or tag filters. Use one reviewed
+`sftp.args` transport for both URI hosts; do not combine it with `sftp.command`.
+Both SSH host keys must be pinned. Hold the existing backup-suite lock to exclude producers
+and pruning; keep restic's own repository locks enabled.
+
+A repository copy creates new encryption keys and snapshot IDs. Check the one-to-one `Original`
+reference, identical trees, times, owners, paths, tags and excludes, and retain the ID mapping.
+Run `check --read-data` before switching the protected offsite EnvironmentFile atomically.
+Keep its original bytes, required-offsite setting, independent recovery password and schedules.
+A successful first production backup and an independent restore from the **new receiver** are
+mandatory before removal of the old repository.
+
+The receiver needs a dedicated filesystem with headroom and a restricted SFTP-only identity.
+For a chroot, the jail and its parents stay root-owned; only the repository subdirectory is
+writable. If the filesystem is absent, the underlying mountpoint must not provide a writable
+fallback repository on the operating-system disk. Keep backup traffic and restore drills from
+restarting or modifying unrelated services on a shared host.
+
+Retiring an old application additionally requires a verified encrypted archive of its complete
+source tree, live configuration, exact units, historical local backups and a consistent database
+dump. Retention for normal `epharm-production` snapshots must not remove this separately tagged
+retirement archive. Cleanup uses exact inventoried paths and database names, without shared-cluster,
+Docker-volume or filesystem-wide pruning. Preserve the edge proxy, TLS and live order integration.

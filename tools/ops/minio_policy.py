@@ -26,6 +26,15 @@ def policy_value(body):
     if not isinstance(value, dict) or (value and (not isinstance(value.get('Statement'), list)
                                                 or not isinstance(value.get('Version'), str))):
         raise ValueError('Invalid S3 policy object')
+    # MinIO serializes these IAM sets from Go maps; their array order is not stable.
+    for statement in value.get('Statement', []):
+        if not isinstance(statement, dict):
+            raise ValueError('Invalid S3 policy statement')
+        for key in ['Action', 'NotAction', 'Resource', 'NotResource']:
+            if isinstance(statement.get(key), list):
+                if any(not isinstance(item, str) for item in statement[key]):
+                    raise ValueError('Invalid IAM string array')
+                statement[key] = sorted(statement[key])
     return value
 
 
