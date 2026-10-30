@@ -158,7 +158,19 @@ class BootstrapHqTest(unittest.TestCase):
             self.assertEqual(2, len(self.validate(changed, [route(), route(action=key, kind=kind)])["grants"]))
         for definitions in ([route(), route()], [route(kind="UNKNOWN")], [route(kind="FINANCIAL")]):
             with self.assertRaises(stage.StageError): bootstrap.permission_catalog(definitions)
-        self.assertEqual(12, len(bootstrap.MANUAL))
+        self.assertEqual(13, len(bootstrap.MANUAL))
+
+    def test_real_route_exports_have_their_explicit_same_domain_view(self):
+        routes = json.loads((TOOLS.parents[1] / "admin-panel/backend/src/main/resources/unified-admin-routes.json").read_text())
+        allowed = bootstrap.permission_catalog(routes, include_credential_export=True)
+        for key, kind in allowed.items():
+            if kind in {"EXPORT", "CREDENTIAL_EXPORT"}:
+                self.assertIn((*key[:2], "view"), allowed, key)
+        value = payload()
+        value["grants"] = [grant("motivation", "payouts", "view"), grant("motivation", "payouts", "export")]
+        actual = bootstrap.validate_payload(value, allowed)
+        self.assertEqual({("motivation", "payouts", "view"), ("motivation", "payouts", "export")},
+                         {bootstrap.permission_key(item) for item in actual["grants"]})
 
     def test_credential_bootstrap_requires_exact_opt_in_explicit_grant_and_registry_view(self):
         definitions = [route(), route("pharmacists", "registry", "view", "ORDINARY")]

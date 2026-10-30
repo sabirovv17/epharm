@@ -3335,3 +3335,13 @@ Env-only HQ исправление завершено реальным RED→GRE
 [Config proof](docs/reports/unification-2026-10-30/hq-owner-config-acceptance.json).
 Интеграционный владелец также повторил17/17 release-recovery contracts и15/15 retention.
 CHANGELOG подготовлен для будущего immutable v0.2.0; tag/production switch ещё не созданы.
+
+Подготовка первого существующего HQ обнаружила ещё один bootstrap-only пропуск:
+экспорт выплат требовал motivation/payouts/view, но ручной allowlist инструмента
+его не содержал. Реальный полный route catalogue воспроизвёл отказ до любых
+записей; добавлено ровно существующее серверное FINANCIAL view permission и
+cross-resource regression. Все15проверок bootstrap прошли с реальным disposablePG,
+включая отсутствие изменений исходного admin row/пароля и полный rollback ошибки.
+Явный private input109grants подготовлен для ранее указанного пользователем
+существующего HQ, но не применён ни к источнику, ни к production; PERSON не слит
+с CRM/фармацевтами. Автоматическое объединение по имени/телефону не используется.

@@ -31,6 +31,7 @@ MANUAL = {
     ("pharmacists", "registry", "financial_data"): "FINANCIAL",
     ("pharmacies_products", "pharmacies", "financial_data"): "FINANCIAL",
     ("motivation", "bonuses", "configure_bonus"): "FINANCIAL",
+    ("motivation", "payouts", "view"): "FINANCIAL",
     ("motivation", "recommendations", "publish"): "ORDINARY",
     ("merchandising", "inventory", "financial_data"): "FINANCIAL",
     ("merchandising", "placements", "financial_data"): "FINANCIAL",
