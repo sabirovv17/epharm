@@ -34,6 +34,11 @@ permissions. The hint cannot authorize execution or review. Ordinary lists and
 details do not supply this hint. This is not a new generic MAS assignment API or
 a division model; those remain separate work.
 
+The sidebar, breadcrumb and page heading consistently call this section "Задания
+мерча". A task can also be opened by its title in the first table column, so the
+primary action does not require horizontal scrolling on a smaller desktop.
+Both entry points preserve the same queue-specific item focus and fresh checks.
+
 ## Course package import and post-deploy usability
 
 Course import supports a preview before creation. The existing XLSX-only endpoint
