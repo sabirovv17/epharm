@@ -65,6 +65,108 @@ beforeEach(() => {
   vi.mocked(adminTaskGateway.get).mockResolvedValue(created)
 })
 describe('native task creation capability and required fields', () => {
+  it('offers a server-filtered personal queue only to executors and resets pagination', async () => {
+    vi.mocked(useAdministrativeCapabilities).mockReturnValue({
+      isPending: false,
+      isError: false,
+      canViewMerchTasks: true,
+      canExecuteMerchTasks: true,
+    } as ReturnType<typeof useAdministrativeCapabilities>)
+    vi.mocked(adminTaskApi.list).mockResolvedValue({
+      items: [],
+      limit: 20,
+      offset: 0,
+      hasMore: true,
+    })
+    render(<MerchTasksPage />)
+    await screen.findByText('В вашей области заданий пока нет.')
+    await userEvent.click(screen.getByRole('button', { name: 'Далее', exact: true }))
+    await waitFor(() =>
+      expect(adminTaskApi.list).toHaveBeenLastCalledWith(20, expect.any(AbortSignal), {
+        queue: 'all',
+        q: '',
+      }),
+    )
+    await userEvent.selectOptions(screen.getByLabelText('Рабочая очередь заданий'), 'mine')
+    await waitFor(() =>
+      expect(adminTaskApi.list).toHaveBeenLastCalledWith(0, expect.any(AbortSignal), {
+        queue: 'mine',
+        q: '',
+      }),
+    )
+    expect(await screen.findByText('Личных заданий по этим условиям нет.')).toBeVisible()
+    expect(screen.getByText(/Доступ к аптеке сам по себе не делает задание вашим/)).toBeVisible()
+    expect(adminTaskGateway.get).not.toHaveBeenCalled()
+  })
+
+  it('opens the personal item without choosing a pending review in the same task', async () => {
+    vi.mocked(useAdministrativeCapabilities).mockReturnValue({
+      isPending: false,
+      isError: false,
+      canViewMerchTasks: true,
+      canExecuteMerchTasks: true,
+      canReviewMerchTasks: true,
+    } as ReturnType<typeof useAdministrativeCapabilities>)
+    const task = await vi.mocked(adminTaskGateway.get)(
+      'task-new-demo',
+      new AbortController().signal,
+    )
+    const myItem = {
+      id: 'personal-item',
+      title: 'Моя полка',
+      instructions: 'Проверьте выкладку',
+      taskType: 'photo_report',
+      status: 'assigned',
+      required: true,
+      requiredPhotos: 1,
+      checklist: [],
+      version: 1,
+      currentAttempt: null,
+      legacyEvidence: [],
+      availableFrom: null,
+      dueAt: null,
+      canStart: false,
+      canUpload: false,
+      canSubmit: false,
+    }
+    vi.mocked(adminTaskApi.list).mockResolvedValue({
+      items: [{ ...task, pendingReviewCount: 2, nextExecutionItemId: myItem.id }],
+      limit: 20,
+      offset: 0,
+      hasMore: false,
+    })
+    vi.mocked(adminTaskGateway.get).mockResolvedValue({ ...task, items: [myItem] })
+    render(<MerchTasksPage />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Открыть отчёт' }))
+    await screen.findByText('Моя полка')
+    await userEvent.selectOptions(screen.getByLabelText('Рабочая очередь заданий'), 'mine')
+    await userEvent.click(await screen.findByRole('button', { name: 'Открыть мой пункт' }))
+    await waitFor(() =>
+      expect(document.getElementById('merch-task-item-personal-item')).toHaveFocus(),
+    )
+    expect(
+      screen.queryByRole('button', { name: 'Принять пункт', exact: true }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Начать выполнение' })).not.toBeInTheDocument()
+  })
+
+  it('does not offer personal work to a viewer even when returned rows have a navigation hint', async () => {
+    const task = await vi.mocked(adminTaskGateway.get)(
+      'task-new-demo',
+      new AbortController().signal,
+    )
+    vi.mocked(adminTaskApi.list).mockResolvedValue({
+      items: [{ ...task, nextExecutionItemId: 'personal-item' }],
+      limit: 20,
+      offset: 0,
+      hasMore: false,
+    })
+    render(<MerchTasksPage />)
+    await screen.findByRole('button', { name: 'Открыть задание' })
+    expect(screen.queryByRole('option', { name: 'Мне выполнить' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Открыть мой пункт' })).not.toBeInTheDocument()
+  })
+
   it('does not mistake a capability request failure for denied access or fetch task data', async () => {
     const refetch = vi.fn()
     vi.mocked(useAdministrativeCapabilities).mockReturnValue({

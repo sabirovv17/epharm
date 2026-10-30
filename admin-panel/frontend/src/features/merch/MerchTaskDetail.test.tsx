@@ -89,6 +89,30 @@ it('explains exactly what blocks submission without exposing a write before read
   expect(gateway.submit).not.toHaveBeenCalled()
 })
 describe('task item review and evidence boundary', () => {
+  it('a personal navigation hint focuses the fresh item without granting execution or review', async () => {
+    vi.mocked(gateway.get).mockResolvedValue({
+      ...task,
+      items: [{ ...task.items[0], canReview: false }],
+    })
+    render(<MerchTaskDetail id={task.id} gateway={gateway} preferredItemId="item-demo" />)
+    await waitFor(() => expect(document.getElementById('merch-task-item-item-demo')).toHaveFocus())
+    expect(
+      screen.queryByRole('button', { name: 'Принять пункт', exact: true }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Отправить пункт на проверку' }),
+    ).not.toBeInTheDocument()
+    expect(gateway.start).not.toHaveBeenCalled()
+  })
+
+  it('ignores a stale or foreign item hint missing from the authorized detail', async () => {
+    render(<MerchTaskDetail id={task.id} gateway={gateway} preferredItemId="foreign-item" />)
+    await screen.findByText('Проверить полку')
+    expect(document.getElementById('merch-task-item-item-demo')).not.toHaveFocus()
+    expect(gateway.start).not.toHaveBeenCalled()
+    expect(gateway.review).not.toHaveBeenCalled()
+  })
+
   it('focuses a freshly authorized submitted item and advances after review without granting self-review', async () => {
     const own = { ...task.items[0], id: 'own-item', title: 'Собственная работа', canReview: false }
     const reviewable = { ...task.items[0], id: 'review-item', title: 'Работа фармацевта' }

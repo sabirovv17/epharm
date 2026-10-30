@@ -19,8 +19,20 @@ Task summaries expose server-derived `pendingReviewCount` and
 navigation metadata, not authorization. The detail prioritizes a fresh item with
 `canReview=true`, and moves to the next available item after a decision. View-only
 users may inspect pending items but do not gain review actions. Old API responses
-without counts show unavailable data, not zero. Personal executor queue remains
-unimplemented: branch visibility or authorship does not prove personal assignment.
+without counts show unavailable data, not zero.
+
+The `mine` queue ("Мне выполнить") is available to users with execution capability.
+The backend intersects view and execution scope before pagination, then selects
+an eligible item from a confirmed imported personal assignment, the current
+person's monthly visit, or their current native attempt. Missing or inconsistent
+identity bindings produce no inferred assignments. Branch visibility, task
+authorship and the pharmacy's business owner are not executor identities.
+Future/terminal work and unresolved legacy reports needing HQ continuation are
+not presented as work ready to execute. `nextExecutionItemId` is a navigation hint
+only: opening the task fetches fresh details and keeps all server-owned action
+permissions. The hint cannot authorize execution or review. Ordinary lists and
+details do not supply this hint. This is not a new generic MAS assignment API or
+a division model; those remain separate work.
 
 ## Course package import and post-deploy usability
 

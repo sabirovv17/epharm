@@ -73,6 +73,7 @@ function TaskWorkspace({
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState('')
   const [reviewFocus, setReviewFocus] = useState(false)
+  const [executionItemId, setExecutionItemId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [templateOpen, setTemplateOpen] = useState(false)
   const [visitOpen, setVisitOpen] = useState(false)
@@ -90,9 +91,10 @@ function TaskWorkspace({
   const branchLoad = useCallback((signal: AbortSignal) => adminTaskApi.branches(signal), [])
   const branchNames = usePlacementRead(branchLoad)
   const filtered = queue !== 'all' || !!query
-  const openTask = (id: string, focusReview = false) => {
+  const openTask = (id: string, focusReview = false, itemId: string | null = null) => {
     setSelected(id)
     setReviewFocus(focusReview)
+    setExecutionItemId(itemId)
   }
   const resetFilters = () => {
     setQueue('all')
@@ -104,7 +106,7 @@ function TaskWorkspace({
   return (
     <div className="flex min-w-0 flex-col gap-5">
       <PageHeader
-        title="Задания фармацевтов"
+        title="Задания мерча"
         subtitle="Задания, фотоотчёты и проверка отдельных пунктов в вашей области аптек."
         actions={
           <Button disabled={!canCreate} onClick={() => setCreating(true)}>
@@ -174,6 +176,7 @@ function TaskWorkspace({
             }}
             options={[
               { value: 'all', label: 'Вся история' },
+              ...(canExecute ? [{ value: 'mine', label: 'Мне выполнить' }] : []),
               { value: 'review', label: 'Ожидают проверки' },
               { value: 'revision', label: 'На доработке' },
               { value: 'overdue', label: 'Просрочены' },
@@ -206,6 +209,8 @@ function TaskWorkspace({
           {search.trim() !== query && 'Нажмите «Найти», чтобы применить новое название. '}
           {queue === 'review' &&
             'Здесь также задания, где часть пунктов уже возвращена на доработку.'}
+          {queue === 'mine' &&
+            'Только подтверждённые личные назначения, ваши месячные визиты и начатые вами пункты. Доступ к аптеке сам по себе не делает задание вашим.'}
         </p>
       </form>
       {list.pending && (
@@ -235,7 +240,11 @@ function TaskWorkspace({
         <div className="card min-w-0 overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-200 p-4">
             <h2 className="font-bold">
-              {queue === 'review' ? 'Отчёты на проверке' : 'Очередь заданий'}
+              {queue === 'mine'
+                ? 'Мне выполнить'
+                : queue === 'review'
+                  ? 'Отчёты на проверке'
+                  : 'Очередь заданий'}
             </h2>
             <p className="text-sm text-ink-500">
               {list.data.items.length
@@ -335,11 +344,19 @@ function TaskWorkspace({
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => openTask(task.id, (task.pendingReviewCount ?? 0) > 0)}
+                            onClick={() =>
+                              openTask(
+                                task.id,
+                                queue !== 'mine' && (task.pendingReviewCount ?? 0) > 0,
+                                queue === 'mine' ? (task.nextExecutionItemId ?? null) : null,
+                              )
+                            }
                           >
-                            {(task.pendingReviewCount ?? 0) > 0
-                              ? 'Открыть отчёт'
-                              : 'Открыть задание'}
+                            {queue === 'mine'
+                              ? 'Открыть мой пункт'
+                              : (task.pendingReviewCount ?? 0) > 0
+                                ? 'Открыть отчёт'
+                                : 'Открыть задание'}
                           </Button>
                         </td>
                       </tr>
@@ -351,12 +368,18 @@ function TaskWorkspace({
           ) : (
             <div className="p-6" role="status">
               <h3 className="font-semibold">
-                {filtered ? 'По этим условиям заданий нет.' : 'В вашей области заданий пока нет.'}
+                {queue === 'mine'
+                  ? 'Личных заданий по этим условиям нет.'
+                  : filtered
+                    ? 'По этим условиям заданий нет.'
+                    : 'В вашей области заданий пока нет.'}
               </h3>
               <p className="mt-2 text-sm text-ink-500">
-                {filtered
-                  ? 'Измените очередь или название задания.'
-                  : 'Здесь появятся доступные вам задания и фотоотчёты.'}
+                {queue === 'mine'
+                  ? 'Если назначение ожидается, уточните привязку учётной записи у администратора. Остальные доступные задания можно посмотреть во «Всей истории».'
+                  : filtered
+                    ? 'Измените очередь или название задания.'
+                    : 'Здесь появятся доступные вам задания и фотоотчёты.'}
               </p>
             </div>
           )}
@@ -408,6 +431,7 @@ function TaskWorkspace({
             canComment={canComment}
             canCancel={canCancel}
             focusReview={reviewFocus}
+            preferredItemId={executionItemId}
             onChanged={list.reload}
           />
         </div>

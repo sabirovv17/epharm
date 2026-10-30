@@ -34,6 +34,7 @@ export default function MerchTaskDetail({
   canComment = false,
   canCancel = false,
   focusReview = false,
+  preferredItemId = null,
   onChanged,
 }: {
   id: string
@@ -43,6 +44,7 @@ export default function MerchTaskDetail({
   canComment?: boolean
   canCancel?: boolean
   focusReview?: boolean
+  preferredItemId?: string | null
   onChanged?: () => void
 }) {
   const load = useCallback((signal: AbortSignal) => gateway.get(id, signal), [gateway, id])
@@ -63,6 +65,16 @@ export default function MerchTaskDetail({
   useEffect(() => {
     if (focusReview && nextItemId) focusTaskItem(nextItemId)
   }, [focusReview, nextItemId, read.data])
+  useEffect(() => {
+    // A queue hint only navigates within the freshly authorized detail response.
+    // All action buttons continue to use the item's current server permissions.
+    if (
+      !focusReview &&
+      preferredItemId &&
+      read.data?.items.some((item) => item.id === preferredItemId)
+    )
+      focusTaskItem(preferredItemId)
+  }, [focusReview, preferredItemId, read.data])
   const refresh = () => {
     read.reload()
     onChanged?.()

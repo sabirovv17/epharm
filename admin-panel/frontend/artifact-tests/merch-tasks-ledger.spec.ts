@@ -559,6 +559,87 @@ test('HQ returns only the selected item with a reason and current CAS version; p
   expect(blocked).toEqual([])
 })
 
+test('personal queue opens its server-selected item rather than a pending review and does not grant actions', async ({
+  page,
+  baseURL,
+}, testInfo) => {
+  const caps = await seedAdmin(page, { canViewMerchTasks: true, canExecuteMerchTasks: true })
+  const task = freshTask()
+  task.pendingReviewCount = 1
+  task.nextExecutionItemId = 'personal-item'
+  task.itemCount = 2
+  task.items = [
+    {
+      ...task.items[0],
+      id: 'pending-item',
+      title: 'Отчёт другого сотрудника',
+      status: 'submitted',
+      canStart: false,
+    },
+    { ...task.items[0], id: 'personal-item', title: 'Моя полка', canStart: false },
+  ]
+  const blocked: string[] = []
+  const queues: string[] = []
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await page.route('**/*', async (route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+    if (url.origin !== new URL(baseURL!).origin) {
+      blocked.push(request.url())
+      return route.abort()
+    }
+    if (!url.pathname.startsWith('/api/')) return route.continue()
+    if (request.method() !== 'GET') {
+      blocked.push(`${request.method()} ${url.pathname}`)
+      return route.abort()
+    }
+    if (url.pathname === '/api/admin/access/me') return route.fulfill({ json: caps })
+    if (url.pathname === '/api/admin/merch/tasks/branches')
+      return route.fulfill({
+        json: [
+          {
+            id: task.branchId,
+            name: 'Тестовая аптека',
+            city: 'Демо',
+            address: 'Демо, 1',
+            active: true,
+            createEligible: false,
+            canConfigureReward: false,
+          },
+        ],
+      })
+    if (url.pathname === '/api/admin/merch/tasks') {
+      queues.push(url.searchParams.get('queue') ?? 'all')
+      return route.fulfill({
+        json: {
+          items: [{ ...task, items: [], detailsIncluded: false }],
+          offset: 0,
+          limit: 20,
+          hasMore: false,
+        },
+      })
+    }
+    if (url.pathname === '/api/admin/merch/tasks/task-demo') return route.fulfill({ json: task })
+    blocked.push(url.pathname)
+    return route.abort()
+  })
+  await page.goto('/merch/tasks')
+  await page.getByRole('combobox', { name: 'Рабочая очередь заданий' }).selectOption('mine')
+  await expect(page.getByText(/Доступ к аптеке сам по себе не делает задание вашим/)).toBeVisible()
+  await page.getByRole('button', { name: 'Открыть мой пункт' }).click()
+  const personalItem = page.getByRole('region', { name: 'Пункт: Моя полка' })
+  await expect(personalItem).toBeFocused()
+  await expect(page.getByRole('button', { name: 'Начать выполнение', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Принять пункт', exact: true })).toHaveCount(0)
+  expect(queues).toEqual(['all', 'mine'])
+  await page.screenshot({
+    path: testInfo.outputPath('personal-task-queue.png'),
+    fullPage: true,
+    animations: 'disabled',
+  })
+  expect(blocked).toEqual([])
+})
+
 test('ledger uses wallet-only rows, keeps unknown lineage null and exports the same applied period/source', async ({
   page,
   baseURL,

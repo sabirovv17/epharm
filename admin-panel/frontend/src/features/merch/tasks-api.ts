@@ -87,6 +87,8 @@ export interface MerchTask {
   // Older responses may omit queue metadata; absence is not a zero count or a review grant.
   pendingReviewCount?: number
   nextPendingReviewItemId?: string | null
+  // Navigation hint from the personal queue, never permission to execute an item.
+  nextExecutionItemId?: string | null
   detailsIncluded: boolean
   priority: string
   taskType: string
