@@ -15,6 +15,10 @@ account. A legacy token without `sv` is version zero and works only while the
 account remains at zero. Password update locks and reloads the account, verifies
 the principal version/current password, increments the version and revokes refresh
 tokens transactionally. Login and refresh use account-before-token lock ordering.
+Refresh validates/rotates the credential under that lock before inspecting account
+status: revoked/expired credentials return 401 even for a blocked account; an
+otherwise valid credential for an inactive account remains 403. A rejected refresh
+does not issue new credentials, and its transactional rotation rolls back.
 Pharmacist token handling is unchanged. Ordinary logout retains its existing
 refresh-only revocation semantics; it is not upgraded to global JWT revocation.
 

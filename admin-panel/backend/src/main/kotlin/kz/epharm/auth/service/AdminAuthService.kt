@@ -75,6 +75,13 @@ class AdminAuthService(
             AppException(ErrorCode.USER_NOT_FOUND, "User not found", HttpStatus.UNAUTHORIZED)
         }
         entityManager.refresh(user)
+        val now = Instant.now()
+        // Prove that the refresh credential is still active before exposing account state.
+        // Keep the account -> token lock order; a concurrent password change/block cannot
+        // resurrect a revoked token. All rotation changes roll back on a later rejection.
+        if (refreshTokenService.rotate(rawRefreshToken, now) != user.id) {
+            throw AppException(ErrorCode.INVALID_REFRESH_TOKEN, "Refresh token is invalid or expired", HttpStatus.UNAUTHORIZED)
+        }
         if (user.status != AdminUserStatus.ACTIVE) {
             // Revoke all tokens for safety
             refreshTokenService.revokeAllForUser(user.id)
@@ -83,10 +90,6 @@ class AdminAuthService(
                 "User is not active",
                 HttpStatus.FORBIDDEN,
             )
-        }
-        val now = Instant.now()
-        if (refreshTokenService.rotate(rawRefreshToken, now) != user.id) {
-            throw AppException(ErrorCode.INVALID_REFRESH_TOKEN, "Refresh token is invalid or expired", HttpStatus.UNAUTHORIZED)
         }
         val newAccess = jwtService.issueAccessToken(user, now)
         val newRefresh = refreshTokenService.issue(user.id, now)
