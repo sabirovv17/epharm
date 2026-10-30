@@ -159,6 +159,39 @@ Load these settings through an additional systemd `EnvironmentFile` rather than 
 backup settings. A second server on the same LAN protects against one host's failure, not a
 site-wide disaster; retain a separate key recovery copy and plan a truly external destination.
 
+## Build exact-main application archives
+
+`release-images.yml` is a manual build-only workflow. Dispatch it on `main` with
+`exact_commit` set to the full current main SHA and `release_id` set to the reviewed
+version. Its existing source gate requires successful **push CI** for that exact
+main before and after the build; the manual run is not a replacement for CI.
+An existing version tag must resolve to the same commit. The workflow creates no
+Git tag, registry publication, production connection or deployment.
+
+```bash
+gh workflow run release-images.yml --ref main \
+  -f exact_commit=EXACT_MAIN_40_HEX -f release_id=v0.2.0
+gh run download RUN_ID -R sabirovv17/epharm \
+  -n epharm-images-v0.2.0-EXACT_MAIN_40_HEX --dir NEW_PRIVATE_DIRECTORY
+```
+
+Both production Dockerfiles build sequentially as linux/amd64 with truthful
+version/revision arguments. A Git-object archive supplies their clean contexts and
+the required release tools, Compose and Caddy files; it does not include live dotenv,
+Git credentials or documentation containing historical credentials. The workflow
+checks unchanged source bytes, actual OCI metadata, the admin/merchandising artifacts,
+the extracted JAR's financial/access contract and each saved archive's runnable
+content. It retains archive/file/config/JAR hashes, actual Docker engine metadata
+and the Actions run/attempt in `provenance.json` and `SHA256SUMS`.
+
+Before using the download, verify its repository, workflow path, manual event,
+exact head SHA, successful run, artifact identity/digest and expiry, then validate
+`SHA256SUMS`. Preserve these exact archives rather than rebuilding an assumed
+equivalent image. Docker stores can report different local image IDs after load;
+use the existing archive verifier and record actual destination IDs. Downloaded
+artifacts are build evidence, not acceptance: main OCI recovery and all migration,
+file, identity, POSM and single-writer gates still apply before application cutover.
+
 ## Monetary release boundary
 
 The unified wallet release adds forward-only financial migrations. Keep the CRM reward and
