@@ -314,6 +314,15 @@ and certificate PDFs show `Без оценки` instead of inventing 100%. Exist
 This compatibility fix does not implement the planned explicit final/practice/intermediate roles,
 immutable course/test versions, exact-ratio score storage or an immutable quiz attempt history.
 
+Quiz submissions, administrative assessment attempts, assignment start and lesson/stage progress
+take the same PostgreSQL transaction advisory lock per assignment before their first ORM read.
+Concurrent accepted requests therefore see committed attempt counts and best grades, including
+when creating the first progress row. A request queued behind assignment completion receives 409
+without another attempt, certificate or reward. Different assignment keys do not block each other;
+rollback releases the lock. Event selection/attendance and inter-assignment counters remain outside
+this guard; the existing event/stage row-lock order is unchanged. All serving backend nodes must
+run this guard before the concurrency guarantee applies.
+
 Managed administrative training requests additionally use
 `training/access/TrainingAdministrativeAccess`. Assignment, participant, result,
 preference and certificate visibility follows the pharmacist's **current** pharmacy,

@@ -5,6 +5,28 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-31
+
+### Added
+
+- Author-scoped Excel/ZIP course import with digest preview and safe repeated imports.
+- Internal account profiles, password changes with versioned sessions, and managed account blocking.
+- Verified personal merchandising queues with current item and review-count navigation.
+
+### Fixed
+
+- Serialize quiz attempts, administrative assessments and lesson progress per assignment before
+  reading their state, preserving accepted attempt counts, best successful grades and final certificates.
+  Different assignments remain independent; rejected requests consume no attempt.
+- Use actual successful quiz and assessment grades in course results and certificates, preserve
+  successful retries, check passing thresholds before rounding and hide learner answer keys.
+- Preserve focused form inputs when opening modals and immutable source bindings in test fixtures.
+
+### Changed
+
+- Separate active courses and learning history with continuation and material review.
+- Improve merchandising calendar, task review, drafts and producer workspace navigation.
+
 ## [0.2.0] - 2026-10-30
 
 ### Added

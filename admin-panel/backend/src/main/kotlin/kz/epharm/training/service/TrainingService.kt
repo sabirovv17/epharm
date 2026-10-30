@@ -1189,6 +1189,7 @@ class TrainingService(
 
     @Transactional
     fun startAssignment(pharmacistId: String, assignmentId: UUID): TrainingAssignmentDto {
+        lockAttemptWrites(assignmentId)
         val assignment = loadOwnedAssignment(pharmacistId, assignmentId)
         if (assignment.status == TrainingAssignmentStatus.cancelled) conflict("Назначение отменено")
         if (assignment.status == TrainingAssignmentStatus.completed) return mapAssignments(listOf(assignment)).single()
@@ -1207,6 +1208,7 @@ class TrainingService(
         stageId: UUID,
         req: StageProgressRequest,
     ): TrainingAssignmentDto {
+        lockAttemptWrites(assignmentId)
         val assignment = loadOwnedAssignment(pharmacistId, assignmentId)
         if (assignment.status in setOf(TrainingAssignmentStatus.completed, TrainingAssignmentStatus.cancelled)) {
             conflict("Завершённое или отменённое назначение нельзя изменять")
@@ -1307,6 +1309,7 @@ class TrainingService(
         req: LessonProgressRequest,
         allowQuizCompletion: Boolean,
     ): TrainingAssignmentDto {
+        lockAttemptWrites(assignmentId)
         val assignment = loadOwnedAssignment(pharmacistId, assignmentId)
         if (assignment.status in setOf(TrainingAssignmentStatus.completed, TrainingAssignmentStatus.cancelled)) {
             conflict("Завершённое или отменённое назначение нельзя изменять")
@@ -1422,6 +1425,7 @@ class TrainingService(
         lessonId: String,
         req: QuizSubmissionRequest,
     ): QuizSubmissionResultDto {
+        lockAttemptWrites(assignmentId)
         val assignment = loadOwnedAssignment(pharmacistId, assignmentId)
         if (assignment.status in setOf(TrainingAssignmentStatus.completed, TrainingAssignmentStatus.cancelled)) {
             conflict("Завершённое или отменённое назначение нельзя изменять")
@@ -1530,6 +1534,7 @@ class TrainingService(
         principal: AdminPrincipal,
     ): TrainingAssignmentDto {
         administrativeAccess.lockWriter()
+        lockAttemptWrites(assignmentId)
         val assignment = assignmentRepository.findById(assignmentId).orElseThrow {
             AppException(ErrorCode.NOT_FOUND, "Назначение не найдено", HttpStatus.NOT_FOUND)
         }
@@ -2793,6 +2798,11 @@ class TrainingService(
         val assignment = loadAssignment(id)
         if (assignment.pharmacistId != pharmacistId) forbidden("Назначение принадлежит другому фармацевту")
         return assignment
+    }
+
+    private fun lockAttemptWrites(assignmentId: UUID) {
+        // Serialize before ORM reads without reversing the existing event/stage row-lock order.
+        jdbcTemplate.queryForList("select pg_advisory_xact_lock(hashtextextended(?, 0))", "training-attempt:$assignmentId")
     }
 
     private fun loadPharmacist(id: String): PharmacistEntity = pharmacistRepository.findById(id).orElseThrow {
