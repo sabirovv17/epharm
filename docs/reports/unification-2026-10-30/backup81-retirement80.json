@@ -1,0 +1,372 @@
+{
+  "state": "OFFSITE81_MOVE_AND_EXACT_CRM80_RETIREMENT_COMPLETE",
+  "completedAt": "2026-10-30T17:04:08.744360+00:00",
+  "application": {
+    "version": "v0.2.1",
+    "commit": "f80bdf38ffb5de00b4af63a6a2d5d681655b6124",
+    "deployments": 0,
+    "environmentUnchanged": true,
+    "environmentSha256": "9dc29d5d01c1734127e38a4e6e60418801e0066913742496db74855acdc10c15",
+    "domain": "epharm.inkar.kz",
+    "posmAndLearnerUnchanged": true,
+    "authoritativeDatabaseWritesByOperation": 0
+  },
+  "receiver": {
+    "host": "10.10.1.81",
+    "dedicatedVolumeGiB": 80,
+    "existingRootAndStockVolumeIdentitiesKept": true,
+    "repository": "sftp:epharm-backup@10.10.1.81:/repository",
+    "rootOwnedChroot": "/var/lib/epharm-offsite",
+    "dedicatedSftpUser": "epharm-backup",
+    "allowedSourceIp": "10.10.1.76",
+    "strictPinnedHostKey": true,
+    "plaintextResticPasswordStoredOnReceiver": false,
+    "independentRecoverySecretOutsideBothHosts": true,
+    "availableBytesAfterTransfer": 52111347712,
+    "sameSiteNotGeographicDisasterProtection": true
+  },
+  "history": {
+    "sourceCount": 20,
+    "destinationCount": 20,
+    "snapshots": [
+      {
+        "sourceSnapshotId": "8fd675ef177c8409d239bc98a7094f07fc3a6c793464df3691725edadec59e0b",
+        "destinationSnapshotId": "5522f75015bd4a9cf7f442db9b59f15e91cb5a0ea395864584974b93daf51f44",
+        "treeId": "d1159342549c1adbcfc16c0681887b3b97f6ee890b07e2ade425afa91dcb62a0",
+        "time": "2026-10-14T09:39:20.854029014Z"
+      },
+      {
+        "sourceSnapshotId": "9627e229255168a84b46eb977c04bb0f87a3ff7aba84d682b7b65ab6bf8be296",
+        "destinationSnapshotId": "e46ea25d7fec0b9f7635fe77617981a62f6a077e2c26b451a165f04e6d34deea",
+        "treeId": "4f6ca7924e591f5cb23d464b5c1d20e01d9eadeff21b631589b9d25a9e978f8f",
+        "time": "2026-10-15T03:27:36.837155214Z"
+      },
+      {
+        "sourceSnapshotId": "fc1148508ae146b8f69df1ff69ef72e6c8a2cf1ac00a82430e76020d5f5ed59f",
+        "destinationSnapshotId": "7aa7982bf634497557d84500c5531de095fc6ed0b8ece0b599869f7a423f008f",
+        "treeId": "53bd48e5b7cb46df5bfba9a96048d7e9499d3304021c9fbc6192bf1eaca4ae3b",
+        "time": "2026-10-16T10:54:14.91701009Z"
+      },
+      {
+        "sourceSnapshotId": "7b60dbd3ed85d6e7f9dbe22f758a2883b0fc4de87ee15b7696bb34e0d4bacf62",
+        "destinationSnapshotId": "82c6cafa644ebcf5b2061501ce7c72f3ce3f3d29825d7683b7f73ac141845144",
+        "treeId": "4b42b5509f8d3464602bf8afe5c43b79f18d5d6a2d034b48a7014b8dab7aef05",
+        "time": "2026-10-17T03:31:16.680729755Z"
+      },
+      {
+        "sourceSnapshotId": "796ac077b6c19585ac8405689cdf3a229aa3c2b84ec6d041defa9a8173005523",
+        "destinationSnapshotId": "beea946440479317a8671e91ab9ce5c977e3e0c9ac59f19cca00919d7a71372a",
+        "treeId": "51fb0946a30b2734b67fa9b7ecf8360f8893a42d38bcec12f029e12832fd275b",
+        "time": "2026-10-18T03:29:05.109192513Z"
+      },
+      {
+        "sourceSnapshotId": "204436fba93ae30b9f792d666ff1f0d7f35037d45623fecb44ed63b1a165b323",
+        "destinationSnapshotId": "08bf4e840a123d0dfe733cce9696bfcddeea3080417778bf26cd1109adb701d6",
+        "treeId": "c0fcfeea819f87587ffd58d5b957275d9f784f858eec766598abd69284aca573",
+        "time": "2026-10-19T03:23:53.07092499Z"
+      },
+      {
+        "sourceSnapshotId": "f1c0e005a91423618c6f4ddaebcceaf6f1a7a4493c53276304a719daec6693eb",
+        "destinationSnapshotId": "c4284378f34399de5a28e1e72b858dfc96ab593c689dad24bd9d8b0b41ddc998",
+        "treeId": "096d089d1b37b033cf42a179a13285c7cac76f1a02c040d7858a972724af4de5",
+        "time": "2026-10-20T23:44:35.024257416Z"
+      },
+      {
+        "sourceSnapshotId": "d743b4022ee4aac0b6ea62dfe860c110dd803f97e1950cacab13fd1aefaded13",
+        "destinationSnapshotId": "978216a22ead59cf6d1268da097e8a5c8ed8de73fa38fd638d01c13d9775bbb8",
+        "treeId": "a716d21006ecba68585712582d154c66353ae7f891873f349665569f8707af40",
+        "time": "2026-10-21T13:36:22.491744348Z"
+      },
+      {
+        "sourceSnapshotId": "faf04831281e7a8815e5cc744046be6c43820606ac90a4e04e1f7cd16b4a8165",
+        "destinationSnapshotId": "d0ee33130888e08be12a8db5b2ba0a33eda0b60f78762e938c991349fdd4a42b",
+        "treeId": "13cbb84a447f82b9f53358b079ff9f355a93acf7bfd61a07344567c38ddb3e8e",
+        "time": "2026-10-22T03:29:09.63432478Z"
+      },
+      {
+        "sourceSnapshotId": "8bde155fa009a961cacb58b4cad3f5b1bfde6ded786dd00f27be7a931e648553",
+        "destinationSnapshotId": "c11ef127a9ac31d78be65534d80a9710f3700a64343b478e5da36dc9dda66a13",
+        "treeId": "d78be735b449f3de88bc84c10a78195b3c68cf55058f76dfacaeb8ce3e716757",
+        "time": "2026-10-23T03:26:26.939765518Z"
+      },
+      {
+        "sourceSnapshotId": "a2b3e66ef506bd53c47387b784d87e35c2b371706efa8554f4aedab1cf50b871",
+        "destinationSnapshotId": "e1381c5fc3e7ad00e8d04cffd30f00fc569662685368822574598b01f4e56953",
+        "treeId": "204f6d29dcf55a914dc1e7399315141c239c49ad1cafc53b5193c41a90c36d3c",
+        "time": "2026-10-24T03:25:52.510519894Z"
+      },
+      {
+        "sourceSnapshotId": "d9af256f1656c14ef0d3022675a8f6d2d5997d5998c35d23f6b297d0fb2846d0",
+        "destinationSnapshotId": "0562dba51b002f843d375a349d2ee40926c074239496a885c6b17eef88d954c6",
+        "treeId": "43144695cf06b2fc48bfe59d037830a661b53c26ced6802c272a85a062ffa8dc",
+        "time": "2026-10-25T03:27:08.788778077Z"
+      },
+      {
+        "sourceSnapshotId": "f494f5e57ab95aff3c48d10cda152b6b49b1304199fe4fe7d63dc54dc321382b",
+        "destinationSnapshotId": "71b9a5bdbe27d29c2ab624e8216d5c58ee0197c16b491766ae1d4be5a830f909",
+        "treeId": "5f6a1402d5e140a32cd9553e4d44d7762e54721c5fe2ebdf0f65d1c52ebddeac",
+        "time": "2026-10-26T03:17:28.485927835Z"
+      },
+      {
+        "sourceSnapshotId": "6ccf909a879cce1d6012563c58b01f73505d81bb6c027e9d445421ffbfd884d1",
+        "destinationSnapshotId": "1d616f8ff6254d849350d4b4e953559c252caa09fc1f0cb964c8b1910cedc391",
+        "treeId": "7bd5b2776881d88254e21f69e733b7e1bf26506542d8858b73a167343e88471d",
+        "time": "2026-10-27T03:30:22.258224583Z"
+      },
+      {
+        "sourceSnapshotId": "fd0991ca531c56fd3bb68252e700a377b5276f24f51b37f928ad2414ea7732df",
+        "destinationSnapshotId": "48220041b4697ebe2a27bf303e580bf2b5db95640be9f02769dfd9fcaf403922",
+        "treeId": "de4c59aaa4635bc48971ce58316aeaf5762179a9d581ba2d43e9a47cc5339172",
+        "time": "2026-10-28T03:31:09.802530409Z"
+      },
+      {
+        "sourceSnapshotId": "a4675b25ed0d114880cb9a0b699801a6c6d94cefe148092c0b555cdd2323131e",
+        "destinationSnapshotId": "028acd85afaec980d44d671fc594c59f625f5dd4a83fae1ef6d22173593ae0ba",
+        "treeId": "9d301bd880c28edd2d0ff05bf9c8d73b735a20d3b24154bc34dd4b9c21b6ce4c",
+        "time": "2026-10-29T11:41:35.293726358Z"
+      },
+      {
+        "sourceSnapshotId": "14a3290fcaebd81d0d1de184e9fd3f416b671a3e13fbcfde2d007ccd13f2a174",
+        "destinationSnapshotId": "9c2deda581d78ea0090043cf41e243c7723f827f8e0d20e5186ff04e8ee2ffb0",
+        "treeId": "d9186dba21892a9bbe43a0809da4335ba7833b30114e1da16933557a6806db74",
+        "time": "2026-10-29T23:51:31.857509208Z"
+      },
+      {
+        "sourceSnapshotId": "54d51a9b6bd3ce05bc111c149fde3a32f8efb105b1832396e4bb3d4b9a9e9beb",
+        "destinationSnapshotId": "27b67dd178baddf1df6fa49f69942e4ef28fe4173d226d8b1da2cbbbf564b656",
+        "treeId": "9380bf6e74aadffbc01750c76d9390c39690d66484ceafecbad94c16dcbad2a4",
+        "time": "2026-10-30T00:35:19.527345206Z"
+      },
+      {
+        "sourceSnapshotId": "d7dca511f46392c597375e6abf8a9e4f6146f4840b701ca946a2edf2a3f47231",
+        "destinationSnapshotId": "0263362e442079e9dea0fc65b4ad334dd05694c71fc44e8f91ba074904fa2b90",
+        "treeId": "45787dd32c05d91afd5b315c5fc90f50483cd073654bb310b45f5e25d9bfb0ee",
+        "time": "2026-10-30T03:25:15.776864613Z"
+      },
+      {
+        "sourceSnapshotId": "5d33bb82a59f5a9ba8bdef7ef6fee633e0c0da7aa93892fe9b0d8b4a2ea7e46c",
+        "destinationSnapshotId": "cc80326e6a5f4f927b2f44e90541a30f9972c07020b5cf2127edf636efb7ce29",
+        "treeId": "299337525dde1f07b408d751ef6e30a276c3c639275ce0778b45263227e9a625",
+        "time": "2026-10-30T12:24:25.259034638Z"
+      }
+    ],
+    "treeAndMetadataEquality": true,
+    "fullReadCheck": "passed",
+    "fullReadPacks": 1310,
+    "normalRetentionAfterFirstNewBackupSnapshots": 20,
+    "retirementSnapshotCount": 1,
+    "totalSnapshotsAfterArchive": 21,
+    "manualSnapshotForgetOperations": 0,
+    "interruptedRelayCommittedSnapshots": 0
+  },
+  "automaticBackup": {
+    "requiredOffsite": true,
+    "calendarUtc": "*-*-* 03:15:00",
+    "randomizedDelayMinutes": 15,
+    "retentionDailyWeeklyMonthly": [30, 8, 12],
+    "localKeepPerComponent": 7,
+    "firstNewReceiverSnapshot": "31e32392562d960514cbc16a8df457a978ced47e7d38d966b6124c606bf73d20",
+    "snapshotTime": "2026-10-30T16:08:12.975272147Z",
+    "unitResult": {
+      "ActiveState": "inactive",
+      "Result": "success",
+      "ExecMainStartTimestamp": "Fri 2026-10-30 16:02:43 UTC",
+      "ExecMainExitTimestamp": "Fri 2026-10-30 16:11:44 UTC",
+      "ExecMainStatus": "0"
+    },
+    "artifacts": [
+      {
+        "kind": "postgres",
+        "bytes": 304275355,
+        "sha256": "2a2dbed1098fcb0dfcccded97985421a2fbf033a26f438986f302c8f8a13c182"
+      },
+      {
+        "kind": "minio",
+        "bytes": 315786028,
+        "sha256": "abb9d3dc82e942dcfdb36164e641aefacdc4562b984dc18f67afb41f699b1df6"
+      },
+      {
+        "kind": "native-files",
+        "bytes": 15295122,
+        "sha256": "466aa5faba48663e8e03a9b1ce9f4b7ee2a47dc259f84607d88b522e47e138c2"
+      },
+      {
+        "kind": "credential-keys",
+        "bytes": 470,
+        "sha256": "7f128b72b98cca8356cd079533561290e35980d3fd0d87c7a4199343729d6efd"
+      }
+    ],
+    "localAndSourceDataSameDisk": true,
+    "externalEncryptedCopyOnSeparateHost": true
+  },
+  "independentNewReceiverRestore": {
+    "snapshotId": "31e32392562d960514cbc16a8df457a978ced47e7d38d966b6124c606bf73d20",
+    "repo81": "sftp:epharm-backup@10.10.1.81:/repository",
+    "publicTables": 149,
+    "migrations": 90,
+    "version": "090",
+    "major": 16,
+    "rawTables": 57,
+    "rawRows": 42414,
+    "nativeTablesPresent": 76,
+    "allFourArchivesShaVerified": true,
+    "source76UsedDuringRecovery": false,
+    "source80UsedDuringRecovery": false,
+    "applicationStarted": false,
+    "sourceProductionMounted": false
+  },
+  "restoreContents": {
+    "minioObjects": 9485,
+    "bucketPolicies": 2,
+    "exactPermissionMatchIgnoringOnlyIamSetOrder": true,
+    "privateFilesAndCredentialKeysRecovered": true,
+    "keyArchiveRecoveryIsNotClaimedAsNewApplicationLoginTest": true
+  },
+  "source76HostRestore": {
+    "success": true,
+    "positiveRestoreMarker": "[2026-10-30T16:55:20Z] Restore-test OK: PostgreSQL tables=149 migrations=90; MinIO buckets restored",
+    "durationSeconds": 464,
+    "healthSamples": 51,
+    "allHealth200": true,
+    "maximumHealthSeconds": 0.17776698200032115,
+    "minimumAvailableMemoryBytes": 3817508864,
+    "minimumRootFreeBytes": 33429479424,
+    "postgresMinioMcPinnedToExistingSourceImageIds": true
+  },
+  "scheduledRestore": {
+    "calendarUtc": "Sun *-*-* 05:30:00",
+    "randomizedDelayMinutes": 30,
+    "onHost": "10.10.1.76",
+    "candidateUnitRemoved": true,
+    "receiver81RunsNoRestoreDatabaseService": true,
+    "finalTimers": {
+      "epharm-backup.timer": "ActiveState=active\nUnitFileState=enabled\nNextElapseUSecRealtime=Sat 2026-10-31 03:16:36 UTC\n",
+      "epharm-restore-test.timer": "ActiveState=active\nUnitFileState=enabled\nNextElapseUSecRealtime=Sun 2026-11-01 05:41:46 UTC\n"
+    }
+  },
+  "legacyPreservation": {
+    "snapshotId": "05264d43a1cd841659d952ac50bd0a9637668ff62b8c5bf82e7ecf4107c8f160",
+    "archiveBytes": 2914716067,
+    "archiveSha256": "95885b756ce175007016f579d3a38abfab0fcde90a03190deec695f06bd4bc3f",
+    "independentFullByteReadbackPassed": true,
+    "sourceManifestEntries": 9229,
+    "sourceRegularFiles": 7967,
+    "sourceDirectories": 1257,
+    "sourceSymlinks": 5,
+    "crmTables": 57,
+    "crmRows": 42414,
+    "crmSequences": 5,
+    "currentDatabaseCopyBytesAndSequencesEqualArchive": true,
+    "sourceDatabaseReadOnlyCheckWrites": 0,
+    "canonicalCopySha256": "92f2779879fe942e52b7534ab48b2cab308a0f595722dc69aef56bb1ec54f919",
+    "normalProductionRetentionDoesNotSelectRetirementTag": true
+  },
+  "cleanup80": {
+    "completedUtc": "2026-10-30T16:38:21.399147+00:00",
+    "removedRoots": [
+      "/var/lib/epharm-offsite",
+      "/var/lib/epharm-offsite-restore-postcutover-20261030-d0087cd7",
+      "/var/lib/epharm-offsite-restore-v021-20261030-348c7b3d-r2",
+      "/opt/pharmacy-crm-demo",
+      "/var/backups/pharmacy-crm-demo",
+      "/opt/epharm-backup-drill-b66b06a-20261030-378fd37e",
+      "/var/lib/epharm-unified-cutover-v021-20261030-d0087cd7"
+    ],
+    "crmDatabaseRemoved": true,
+    "crmDatabaseRoleRemoved": true,
+    "sharedPostgresClusterKept": true,
+    "crmLinuxIdentityKeptForNumericOwnership": true,
+    "offsite80SftpIdentityRemoved": true,
+    "edgeConfigUnchanged": true,
+    "composeConfigUnchanged": true,
+    "orderBridgeTimerActive": true,
+    "freeBytesBefore": 30776651776,
+    "freeBytesAfter": 58108321792,
+    "retirementArchiveStageKeptUntilControllerFinalCleanup": "/var/lib/epharm-retirement-20261030",
+    "temporaryArchiveAndHelpersRemoved": true,
+    "freeBytesAfterAllTempCleanup": 61016784896,
+    "approximateFreedBytesComparedWithInitialInventory": 27230453760,
+    "noSharedClusterOrDockerPrune": true,
+    "edgeTlsShopAndOrderIntegrationKept": true,
+    "temporaryTransferArchive76Removed": true,
+    "temporarySelectedRecoveryFiles81Removed": true
+  },
+  "fixes": {
+    "minioPolicyHelperSha256": "a1dd4ba8c074a9dfc19b8320a6d6c1b9507c2abb5b6febff678cfebe4a3bff1b",
+    "onlyDirectIamSetArraysNormalized": ["Action", "NotAction", "Resource", "NotResource"],
+    "additionalGrantsStillRejected": true,
+    "actualOldFalseNegativesOf24Reads": 21,
+    "actualNewFalseNegativesOf24Reads": 0,
+    "edgeFixtureDelayedStubOldRedNewGreen": true,
+    "opsUnitTests": 82,
+    "existingIntegrationSkips": 6,
+    "archiveVerifierSyntheticTests": 11,
+    "recoveryAdapterSyntheticTests": 4,
+    "legacyDatabaseCheckerSyntheticTests": 16
+  },
+  "gitAndRuntime": {
+    "pullRequest": "https://github.com/sabirovv17/epharm/pull/136",
+    "prChecksSuccessful": 22,
+    "mergedMainCommit": "54ca9c9c3bd6114a74f449159c56e24686a7f30a",
+    "runtimeRoot": "/opt/epharm-backup-ops/54ca9c9c3bd6114a74f449159c56e24686a7f30a",
+    "runtimeSourceCommit": "54ca9c9c3bd6114a74f449159c56e24686a7f30a",
+    "all12RuntimeFilesEqualReviewedMain": true,
+    "runtimeFileHashes": {
+      "tools/backup-all.sh": "8679e0137dc118c0178753ffc345d9bc141b27bf83e89e55c4110ff6e82ce15c",
+      "tools/pg-backup.sh": "678e5d7db0736e23fc1e51a39fa0286da4a9f46b286937a0fc5d990f6c61e050",
+      "tools/minio-backup.sh": "6bb6324388eede9206a6b32cae2134b1997aaf2ac834f8afa6e6205c7f2ad323",
+      "tools/private-files-backup.sh": "3e22973763e26c4521a02ad9ffe02b2a83003331e54f0dc98591ec7b6363d80f",
+      "tools/offsite-backup.sh": "1d776938f6f9ff7aaf1a23d45f21cc5ae4ad63bfa6fb3452382a6243dc8cc9b0",
+      "tools/restore-test.sh": "365cee75a16eda160a776eb8264d954cd6eeee470d87238a118a8d86a11e474c",
+      "tools/ops/lib.sh": "5c2eb78a4fb7840efe203bc89ecf3190ca0a711e1d55221a1095432177f34728",
+      "tools/ops/minio_policy.py": "a1dd4ba8c074a9dfc19b8320a6d6c1b9507c2abb5b6febff678cfebe4a3bff1b",
+      "tools/ops/private_backup.py": "98b877b573c8a3597cfa4cbf13c9e11451970aea62c51cbf36d5cd0987fb8c77",
+      "tools/ops/prune-backups.py": "f5fb450c9bac425ca73a5ae5840667c6a41634a8db0a1376ff8558819f912e32",
+      "tools/ops/prune-release-backups.py": "48a1bfe6d6067fc9e93f7b49670bec698616d0707ab9acbbcaf4705774c68ae9",
+      "tools/ops/minio_metadata.py": "c79cae38a7685bd7c7297191fa4c40cf1fe0092db990fdc7d953e457b8c1ec19"
+    }
+  },
+  "gatewayChecks": [
+    {
+      "host": "epharm.inkar.kz",
+      "path": "/api/health",
+      "status": 200,
+      "throughBalancer74": true,
+      "tlsVerification": true
+    },
+    {
+      "host": "epharm.inkar.kz",
+      "path": "/learn",
+      "status": 200,
+      "throughBalancer74": true,
+      "tlsVerification": true
+    },
+    {
+      "host": "epharm.inkar.kz",
+      "path": "/lms",
+      "status": 200,
+      "throughBalancer74": true,
+      "tlsVerification": true
+    },
+    {
+      "host": "crm.inkar.kz",
+      "path": "/producer",
+      "status": 200,
+      "throughBalancer74": true,
+      "tlsVerification": true
+    },
+    {
+      "host": "crm.inkar.kz",
+      "path": "/learn",
+      "status": 302,
+      "throughBalancer74": true,
+      "tlsVerification": true
+    }
+  ],
+  "limitations": {
+    "dailyLogicalBackupNotWalPitr": true,
+    "gitDoesNotReplaceDatabaseOrMediaBackups": true,
+    "dedicatedBackupVolumeCapacityMustBeMonitoredAsDataGrows": true,
+    "noNewPhysicalCheckoutOrPharmacistVisualTestClaimed": true
+  }
+}
