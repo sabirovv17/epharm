@@ -36,6 +36,9 @@ import kz.epharm.training.domain.TrainingAssignmentStatus
 import kz.epharm.training.entity.TrainingLessonProgressEntity
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
@@ -1215,6 +1218,119 @@ class TrainingIntegrationTest {
             .andExpect(jsonPath("$.notifications[?(@.eventType == 'training_event_cancelled')].title")
                 .value("Мероприятие отменено"))
     }
+
+    @Test
+    fun `test and AI stages retain best successful result across lower pass and failure while preserving every attempt`() {
+        for (type in listOf("test", "ai_exam")) {
+            val assignment = createAssessmentRoute(type)
+            val assignmentId = assignment["id"].asText()
+            val assessedId = assignment["stages"].first { it["key"].asText() == "assessed" }["id"].asText()
+            val otherId = assignment["stages"].first { it["key"].asText() == "other" }["id"].asText()
+            val materialId = assignment["stages"].first { it["key"].asText() == "material" }["id"].asText()
+            val first = recordResult(assignmentId, assessedId, 90, true)
+            val completedAt = first["stages"].first { it["id"].asText() == assessedId }["completedAt"].asText()
+            val lower = recordResult(assignmentId, assessedId, 80, true)
+            assertEquals(90, lower["stages"].first { it["id"].asText() == assessedId }["score"].asInt())
+            recordResult(assignmentId, otherId, 30, false)
+            val afterFailure = recordResult(assignmentId, assessedId, 100, false)
+            val preserved = afterFailure["stages"].first { it["id"].asText() == assessedId }
+            assertEquals("completed", preserved["status"].asText())
+            assertEquals(90, preserved["score"].asInt())
+            assertEquals(completedAt, preserved["completedAt"].asText())
+            assertEquals("retake_required", afterFailure["status"].asText()) // Other test still failed.
+            assertTrue(afterFailure["certificate"] == null || afterFailure["certificate"].isNull)
+            val history = assessmentResultRepository.findAllByAssignmentStageIdOrderByAttemptNoDesc(UUID.fromString(assessedId))
+                .sortedBy { it.attemptNo }
+            assertEquals(listOf(1, 2, 3), history.map { it.attemptNo })
+            assertEquals(listOf(90, 80, 100), history.map { it.score })
+            assertEquals(listOf(true, true, false), history.map { it.passed })
+            assertTrue(history.all { it.sourceType.name == type })
+
+            val recovered = recordResult(assignmentId, otherId, 80, true)
+            assertTrue(recovered["status"].asText() !in setOf("completed", "retake_required"))
+            mockMvc.perform(patch("/api/mobile/training/assignments/$assignmentId/stages/$materialId")
+                .header("Authorization", pharmacistBearer).contentType(MediaType.APPLICATION_JSON)
+                .content("""{"progressPct":100}"""))
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$.status").value("completed"))
+                .andExpect(jsonPath("$.score").value(85))
+                .andExpect(jsonPath("$.certificate.score").value(85))
+            assertEquals(85, certificateRepository.findByAssignmentId(UUID.fromString(assignmentId))!!.score)
+        }
+    }
+
+    @Test
+    fun `failed scored retry with successful history does not require retake when no other stage failed`() {
+        val assignment = createAssessmentRoute("test")
+        val assignmentId = assignment["id"].asText()
+        val stageId = assignment["stages"][0]["id"].asText()
+        recordResult(assignmentId, stageId, 90, true)
+        val result = recordResult(assignmentId, stageId, 20, false)
+        assertEquals("completed", result["stages"][0]["status"].asText())
+        assertEquals(90, result["stages"][0]["score"].asInt())
+        assertTrue(result["status"].asText() !in setOf("completed", "retake_required"))
+        assertNull(certificateRepository.findByAssignmentId(UUID.fromString(assignmentId)))
+    }
+
+    @Test
+    fun `manual review retains latest explicit decision instead of a previous successful grade`() {
+        val assignment = createAssessmentRoute("manual_review")
+        val assignmentId = assignment["id"].asText()
+        val stageId = assignment["stages"][0]["id"].asText()
+        recordResult(assignmentId, stageId, 90, true)
+        val result = recordResult(assignmentId, stageId, 100, false)
+        assertEquals("failed", result["stages"][0]["status"].asText())
+        assertEquals(100, result["stages"][0]["score"].asInt())
+        assertTrue(result["stages"][0]["completedAt"] == null || result["stages"][0]["completedAt"].isNull)
+        assertEquals("retake_required", result["status"].asText())
+        assertEquals(listOf(false, true), assessmentResultRepository
+            .findAllByAssignmentStageIdOrderByAttemptNoDesc(UUID.fromString(stageId)).map { it.passed })
+        assertNull(certificateRepository.findByAssignmentId(UUID.fromString(assignmentId)))
+    }
+
+    @Test
+    fun `legacy completed stage without successful assessment history does not invent a retained grade`() {
+        val assignment = createAssessmentRoute("test")
+        val assignmentId = assignment["id"].asText()
+        val stageId = UUID.fromString(assignment["stages"][0]["id"].asText())
+        val legacy = assignmentStageRepository.findById(stageId).orElseThrow()
+        legacy.status = TrainingStageStatus.completed
+        legacy.score = 100
+        legacy.attemptsUsed = 1
+        legacy.completedAt = Instant.now()
+        assignmentStageRepository.saveAndFlush(legacy)
+        val result = recordResult(assignmentId, stageId.toString(), 40, false)
+        assertEquals("failed", result["stages"][0]["status"].asText())
+        assertEquals(40, result["stages"][0]["score"].asInt())
+        val history = assessmentResultRepository.findAllByAssignmentStageIdOrderByAttemptNoDesc(stageId)
+        assertEquals(1, history.size)
+        assertEquals(2, history.single().attemptNo)
+        assertEquals(false, history.single().passed)
+        assertNull(certificateRepository.findByAssignmentId(UUID.fromString(assignmentId)))
+    }
+
+    private fun createAssessmentRoute(type: String): JsonNode {
+        val program = objectMapper.readTree(mockMvc.perform(post("/api/admin/training/programs")
+            .header("Authorization", adminBearer).contentType(MediaType.APPLICATION_JSON).content("""
+                {"name":"Synthetic best result $type","allowedFormats":["online"],"status":"published","completionBonus":0,
+                 "stages":[
+                   {"key":"assessed","type":"$type","title":"Assessed stage","order":0,"passingScore":80,"maxAttempts":4},
+                   {"key":"other","type":"test","title":"Other required test","order":1,"passingScore":80,"maxAttempts":4},
+                   {"key":"material","type":"material","title":"Remaining material","order":2,"contentUrl":"https://example.org/material"}
+                 ]}
+            """.trimIndent())).andExpect(status().isOk).andReturn().response.contentAsString)
+        val programId = program["id"].asText()
+        return objectMapper.readTree(mockMvc.perform(post("/api/admin/training/assignments")
+            .header("Authorization", adminBearer).contentType(MediaType.APPLICATION_JSON)
+            .content("""{"programId":"$programId","pharmacistIds":["ph_training"],"format":"online"}"""))
+            .andExpect(status().isOk).andReturn().response.contentAsString)["assignments"][0]
+    }
+
+    private fun recordResult(assignmentId: String, stageId: String, score: Int, passed: Boolean): JsonNode =
+        objectMapper.readTree(mockMvc.perform(patch("/api/admin/training/assignments/$assignmentId/stages/$stageId/result")
+            .header("Authorization", adminBearer).contentType(MediaType.APPLICATION_JSON)
+            .content("""{"score":$score,"passed":$passed,"feedback":"Synthetic attempt"}"""))
+            .andExpect(status().isOk).andReturn().response.contentAsString)
 
     private fun createPublishedProgram(): JsonNode {
         val body = """

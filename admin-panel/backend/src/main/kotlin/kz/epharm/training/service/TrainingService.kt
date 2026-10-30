@@ -1556,12 +1556,21 @@ class TrainingService(
         val threshold = definition.passingScore
         val passed = req.passed ?: (threshold == null || req.score >= threshold)
         val now = Instant.now()
+        val keepsBestSuccessful = definition.type in setOf(TrainingStageType.test, TrainingStageType.ai_exam)
+        val successfulHistory = if (keepsBestSuccessful) {
+            assessmentResultRepository.findAllByAssignmentStageIdOrderByAttemptNoDesc(stage.id)
+                .filter { it.assignmentId == assignment.id && it.sourceType == definition.type && it.passed }
+        } else emptyList()
+        val bestSuccessfulScore = (successfulHistory.map { it.score } + listOfNotNull(req.score.takeIf { passed })).maxOrNull()
+        val stagePassed = if (keepsBestSuccessful) bestSuccessfulScore != null else passed
         stage.attemptsUsed = nextAttempt
-        stage.score = req.score
+        stage.score = if (keepsBestSuccessful) bestSuccessfulScore ?: req.score else req.score
         stage.progressPct = 100
         stage.startedAt = stage.startedAt ?: now
-        stage.status = if (passed) TrainingStageStatus.completed else TrainingStageStatus.failed
-        stage.completedAt = now.takeIf { passed }
+        stage.status = if (stagePassed) TrainingStageStatus.completed else TrainingStageStatus.failed
+        stage.completedAt = if (stagePassed) {
+            if (successfulHistory.isNotEmpty()) stage.completedAt ?: successfulHistory.minOf { it.recordedAt } else now
+        } else null
         assignmentStageRepository.save(stage)
         assessmentResultRepository.save(
             TrainingAssessmentResultEntity(
@@ -1576,8 +1585,15 @@ class TrainingService(
                 recordedAt = now,
             ).also { it.sourceType = definition.type },
         )
-        if (passed) {
+        if (stagePassed) {
             unlockDependentStages(assignment, definition.stageKey)
+            if (keepsBestSuccessful && assignment.status == TrainingAssignmentStatus.retake_required) {
+                val applicable = programStageRepository.findAllByVersionIdOrderByOrderNoAsc(assignment.programVersionId)
+                    .filter { assignment.format in it.applicableFormats }.map { it.id }.toSet()
+                val anotherFailed = assignmentStageRepository.findAllByAssignmentIdOrderByProgramStageIdAsc(assignment.id)
+                    .any { it.id != stage.id && it.programStageId in applicable && it.status == TrainingStageStatus.failed }
+                if (!anotherFailed) assignment.status = TrainingAssignmentStatus.in_progress
+            }
         } else {
             assignment.status = TrainingAssignmentStatus.retake_required
             assignmentRepository.save(assignment)
