@@ -1,6 +1,7 @@
 package kz.epharm.auth
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import jakarta.persistence.EntityManager
 import kz.epharm.auth.access.*
 import kz.epharm.auth.domain.AdminRole
 import kz.epharm.auth.entity.AdminUserEntity
@@ -40,6 +41,7 @@ class UnifiedAdminAccessIntegrationTest {
             reg.add("spring.datasource.url") { postgres.jdbcUrl }
             reg.add("spring.datasource.username") { postgres.username }
             reg.add("spring.datasource.password") { postgres.password }
+            reg.add("app.unified-admin.primary-owner-id") { "00000000-0000-0000-0000-00000000a001" }
         }
     }
 
@@ -50,6 +52,7 @@ class UnifiedAdminAccessIntegrationTest {
     @Autowired lateinit var jwt: JwtService
     @Autowired lateinit var encoder: PasswordEncoder
     @Autowired lateinit var catalog: UnifiedAdminCatalog
+    @Autowired lateinit var entityManager: EntityManager
     private lateinit var admin: AdminUserEntity
     private lateinit var token: String
     private lateinit var person: UUID
@@ -82,6 +85,71 @@ class UnifiedAdminAccessIntegrationTest {
         jdbc.update("update unified_admin_profiles set grants_json=?,version=version+1 where account_id=?", mapper.writeValueAsString(grants.toList()), admin.id)
     }
     private fun auth() = "Bearer $token"
+
+    private fun statusTarget(personId: UUID = UUID.randomUUID(), id: UUID = UUID.randomUUID()): AdminUserEntity {
+        val target = users.saveAndFlush(AdminUserEntity(id = id, email = "status-$id@example.invalid", name = "Status target",
+            roleRaw = AdminRole.BRAND_MANAGER.name, passwordHash = encoder.encode(password)))
+        jdbc.update("insert into unified_persons values(?,?) on conflict do nothing", personId, "synthetic-status-proof")
+        jdbc.update("insert into unified_admin_profiles(account_id,person_id) values(?,?)", id, personId)
+        jdbc.update("update admin_users set access_mode='MANAGED' where id=?", id)
+        return target
+    }
+
+    private fun changeStatus(id: UUID, version: Long, newStatus: String, proof: String = password) = mvc.perform(
+        put("/api/admin/access/accounts/$id/status").header("Authorization", auth()).contentType(MediaType.APPLICATION_JSON)
+            .content(mapper.writeValueAsString(mapOf("expectedVersion" to version, "status" to newStatus, "currentPassword" to proof))))
+
+    @Test fun `block revokes refresh and old JWT fails while blocked then unblock preserves grants and history`() {
+        grants(grant("management", "accounts", "manage", all = true), grant("management", "accounts", "view", all = true))
+        val target = statusTarget()
+        val targetGrants = mapper.writeValueAsString(listOf(grant("pharmacies_products", "pharmacies", "view")))
+        jdbc.update("update unified_admin_profiles set grants_json=? where account_id=?", targetGrants, target.id)
+        val oldJwt = jwt.issueAccessToken(target)
+        val oldRefresh = "synthetic-refresh-status-test"
+        jdbc.update("insert into refresh_tokens(id,user_id,token_hash,expires_at,created_at) values(?,?,?,now()+interval '1 day',now())",
+            UUID.randomUUID(), target.id, kz.epharm.auth.service.RefreshTokenService.hash(oldRefresh))
+        changeStatus(target.id, 0, "BLOCKED").andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("blocked")).andExpect(jsonPath("$.version").value(1))
+        entityManager.clear() // Each real HTTP request uses a new persistence context.
+        mvc.perform(get("/api/admin/access/me").header("Authorization", "Bearer $oldJwt")).andExpect(status().isUnauthorized)
+        mvc.perform(post("/api/admin/auth/login").contentType(MediaType.APPLICATION_JSON)
+            .content(mapper.writeValueAsString(mapOf("email" to target.email, "password" to password)))).andExpect(status().isForbidden)
+        mvc.perform(post("/api/admin/auth/refresh").contentType(MediaType.APPLICATION_JSON)
+            .content(mapper.writeValueAsString(mapOf("refreshToken" to oldRefresh)))).andExpect(status().isUnauthorized)
+        assertThat(jdbc.queryForObject("select count(*) from refresh_tokens where user_id=? and revoked_at is not null", Long::class.java, target.id)).isEqualTo(1)
+        mvc.perform(get("/api/admin/access/accounts").header("Authorization", auth())).andExpect(status().isOk)
+            .andExpect(jsonPath("$[?(@.accountId == '${target.id}')].canChangeStatus").value(org.hamcrest.Matchers.contains(true)))
+        changeStatus(target.id, 0, "ACTIVE").andExpect(status().isConflict)
+        changeStatus(target.id, 1, "ACTIVE").andExpect(status().isOk).andExpect(jsonPath("$.version").value(2))
+        changeStatus(target.id, 2, "ACTIVE").andExpect(status().isOk).andExpect(jsonPath("$.version").value(2))
+        assertThat(jdbc.queryForObject("select grants_json from unified_admin_profiles where account_id=?", String::class.java, target.id)).isEqualTo(targetGrants)
+        assertThat(jdbc.queryForList("select operation from unified_admin_access_audit where target_id=? order by target_version", String::class.java, target.id))
+            .containsExactly("BLOCK_ACCOUNT", "UNBLOCK_ACCOUNT")
+        entityManager.clear()
+        mvc.perform(post("/api/admin/auth/refresh").contentType(MediaType.APPLICATION_JSON)
+            .content(mapper.writeValueAsString(mapOf("refreshToken" to oldRefresh)))).andExpect(status().isUnauthorized)
+        mvc.perform(post("/api/admin/auth/login").contentType(MediaType.APPLICATION_JSON)
+            .content(mapper.writeValueAsString(mapOf("email" to target.email, "password" to password)))).andExpect(status().isOk)
+    }
+
+    @Test fun `account status requires current authority password version and never mutates protected targets`() {
+        val target = statusTarget()
+        changeStatus(target.id, 0, "BLOCKED").andExpect(status().isForbidden)
+        grants(grant("management", "accounts", "manage", all = true))
+        changeStatus(target.id, 0, "BLOCKED", "wrong-password").andExpect(status().isForbidden)
+        changeStatus(target.id, 99, "BLOCKED").andExpect(status().isConflict)
+        changeStatus(target.id, 0, "DELETED").andExpect(status().isBadRequest)
+        changeStatus(admin.id, 1, "BLOCKED").andExpect(status().isForbidden)
+        val alias = statusTarget(personId = person)
+        changeStatus(alias.id, 0, "BLOCKED").andExpect(status().isForbidden)
+        val owner = statusTarget(id = UUID.fromString("00000000-0000-0000-0000-00000000a001"))
+        changeStatus(owner.id, 0, "BLOCKED").andExpect(status().isForbidden)
+        jdbc.update("update admin_users set access_mode='LEGACY' where id=?", target.id)
+        changeStatus(target.id, 0, "BLOCKED").andExpect(status().isForbidden)
+        assertThat(jdbc.queryForObject("select status from admin_users where id=?", String::class.java, target.id)).isEqualTo("active")
+        assertThat(jdbc.queryForObject("select version from unified_admin_profiles where account_id=?", Long::class.java, target.id)).isZero()
+        assertThat(jdbc.queryForObject("select count(*) from unified_admin_access_audit where operation in ('BLOCK_ACCOUNT','UNBLOCK_ACCOUNT')", Long::class.java)).isZero()
+    }
 
     @Test fun `managed empty permissions deny even signed HQ role and self capabilities survive`() {
         mvc.perform(get("/api/admin/pharmacies").header("Authorization", auth())).andExpect(status().isForbidden)
@@ -257,7 +325,7 @@ class UnifiedAdminAccessIntegrationTest {
     }
 
     @Test fun `catalog never advertises unmigrated routes as grantable and scope empty is invalid`() {
-        assertThat(catalog.routes).hasSize(263)
+        assertThat(catalog.routes).hasSize(265)
         val staffRoutes = catalog.routes.filter { it.permission.subsection == "staff_access" }
         assertThat(staffRoutes.map { it.api }).containsExactlyInAnyOrder(
             "GET /api/admin/merch/staff-access", "GET /api/admin/merch/staff-access/options",

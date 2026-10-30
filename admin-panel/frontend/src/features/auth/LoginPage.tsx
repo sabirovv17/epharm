@@ -7,10 +7,13 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Field, Input, IconLMS, IconPharmacy, IconShield } from '@/ui'
 import { Logo } from '@/layout/Logo'
 import { useUiStore } from '@/app/store'
+import { useT } from '@/i18n'
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const t = useT()
   const login = useUiStore((s) => s.login)
+  const passwordChangedNotice = useUiStore((s) => s.passwordChangedNotice)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -105,6 +108,14 @@ export default function LoginPage() {
             aria-label="Форма входа"
             noValidate
           >
+            {passwordChangedNotice && (
+              <p
+                role="status"
+                className="rounded-md bg-paper-hover p-3 text-sm text-brand-green-700"
+              >
+                {t('account.passwordChanged')}
+              </p>
+            )}
             <Field label="Email">
               <Input
                 type="email"

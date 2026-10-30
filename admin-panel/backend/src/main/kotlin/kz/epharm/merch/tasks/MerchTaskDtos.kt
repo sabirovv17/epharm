@@ -41,7 +41,9 @@ data class MerchTaskRewardDto(val state: String, val amountKzt: Long, val reason
 data class MerchTaskDispatchDto(val id: UUID, val branchId: UUID, val title: String, val status: String, val dueAt: Instant?,
     val sourceSystem: String, val version: Long, val rewardAmountKzt: Long?, val items: List<MerchTaskItemDto>,
     val reward: MerchTaskRewardDto?, val itemCount: Int, val detailsIncluded: Boolean, val priority: String, val taskType: String,
-    val canCancel: Boolean = false)
+    val canCancel: Boolean = false,
+    // Pending status is navigation metadata, not permission to review an item.
+    val pendingReviewCount: Int = 0, val nextPendingReviewItemId: UUID? = null)
 data class MerchTaskDispatchPage(val items: List<MerchTaskDispatchDto>, val limit: Int, val offset: Int, val hasMore: Boolean)
 data class MerchTaskAttemptPage(val items: List<MerchTaskAttemptDto>, val limit: Int, val offset: Int, val hasMore: Boolean)
 

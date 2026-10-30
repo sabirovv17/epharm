@@ -131,6 +131,7 @@ class SecurityConfig(
                         "/api/public/merch/tasks/**",
                         "/api/public/merch/tasks",
                     ).permitAll()
+                    .requestMatchers(HttpMethod.POST, "/api/admin/auth/password").hasAnyRole(*ADMIN_ROLES)
                     // Профиль и logout нужны любой роли HQ-консоли.
                     .requestMatchers("/api/admin/auth/me", "/api/admin/auth/logout", "/api/admin/access/me")
                     .hasAnyRole(*ADMIN_ROLES)

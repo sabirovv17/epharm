@@ -41,10 +41,12 @@ describe('native paid executor SMS binding', () => {
       />,
     )
     await screen.findByText(/телефон вашего личного аккаунта/)
+    expect(screen.getByRole('status')).toHaveTextContent('Шаг 1 из 2')
     expect(request).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('textbox', { name: /Телефон/ })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Получить код подтверждения' }))
     await user.type(await screen.findByLabelText('SMS-код исполнителя'), '1234')
+    expect(screen.getByRole('status')).toHaveTextContent('Шаг 2 из 2')
     await user.click(screen.getByRole('button', { name: 'Подтвердить исполнителя' }))
     await waitFor(() => expect(verified).toHaveBeenCalledOnce())
     const send = request.mock.calls.find(([path]) => String(path).endsWith('/sms/request'))!

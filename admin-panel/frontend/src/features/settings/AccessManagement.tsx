@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, Field, Input, Modal, SectionCard, Select } from '@/ui'
 import { roleLabel } from '@/mocks/fixtures'
 import IdentityManagement from './IdentityManagement'
@@ -38,6 +38,7 @@ export default function AccessManagement() {
   const [loading, setLoading] = useState(true)
   const [createOpen, setCreateOpen] = useState(false)
   const [selected, setSelected] = useState<AccessAccount | null>(null)
+  const [statusTarget, setStatusTarget] = useState<AccessAccount | null>(null)
   const [notice, setNotice] = useState('')
   const [tab, setTab] = useState<'accounts' | 'identity'>('accounts')
 
@@ -76,6 +77,7 @@ export default function AccessManagement() {
     setLoading(true)
     setData(null)
     setSelected(null)
+    setStatusTarget(null)
     setError(null)
     setRefresh((value) => value + 1)
   }
@@ -202,6 +204,18 @@ export default function AccessManagement() {
                                   ? 'Настроить права'
                                   : 'Посмотреть права'}
                               </Button>
+                              {data.capabilities.canManageAccounts && account.canChangeStatus && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="ml-2"
+                                  onClick={() => setStatusTarget(account)}
+                                >
+                                  {account.status.toLowerCase() === 'blocked'
+                                    ? 'Разблокировать'
+                                    : 'Заблокировать'}
+                                </Button>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -222,6 +236,21 @@ export default function AccessManagement() {
                       setCreateOpen(false)
                       setNotice(
                         'Аккаунт создан без прав. Выберите его в списке и настройте доступ.',
+                      )
+                      reload()
+                    }}
+                  />
+                )}
+                {statusTarget && data.capabilities.canManageAccounts && (
+                  <AccountStatusDialog
+                    account={statusTarget}
+                    onClose={() => setStatusTarget(null)}
+                    onReload={reload}
+                    onChanged={() => {
+                      setNotice(
+                        statusTarget.status.toLowerCase() === 'blocked'
+                          ? 'Аккаунт разблокирован. Назначенные права сохранены.'
+                          : 'Аккаунт заблокирован. Назначенные права и история сохранены.',
                       )
                       reload()
                     }}
@@ -256,6 +285,94 @@ export default function AccessManagement() {
         )}
       </div>
     </SectionCard>
+  )
+}
+
+function AccountStatusDialog({
+  account,
+  onClose,
+  onReload,
+  onChanged,
+}: {
+  account: AccessAccount
+  onClose: () => void
+  onReload: () => void
+  onChanged: () => void
+}) {
+  const [password, setPassword] = useState('')
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState<Failure | null>(null)
+  const controller = useRef<AbortController | null>(null)
+  useEffect(() => () => controller.current?.abort(), [])
+  const unblock = account.status.toLowerCase() === 'blocked'
+  const submit = async () => {
+    if (pending || !password || account.version === null || error?.conflict) return
+    const proof = password
+    setPassword('')
+    setPending(true)
+    setError(null)
+    const request = new AbortController()
+    controller.current = request
+    try {
+      await accessApi.changeStatus(
+        account.accountId,
+        account.version,
+        unblock ? 'ACTIVE' : 'BLOCKED',
+        proof,
+        request.signal,
+      )
+      if (!request.signal.aborted) onChanged()
+    } catch (reason) {
+      if (!request.signal.aborted) setError(accessFailure(reason, true))
+    } finally {
+      if (!request.signal.aborted) setPending(false)
+    }
+  }
+  return (
+    <Modal
+      open
+      title={unblock ? 'Разблокировать аккаунт' : 'Заблокировать аккаунт'}
+      onClose={() => {
+        if (!pending) onClose()
+      }}
+      footer={
+        <>
+          <Button variant="ghost" disabled={pending} onClick={onClose}>
+            Отмена
+          </Button>
+          {error?.conflict ? (
+            <Button onClick={onReload}>Обновить список</Button>
+          ) : (
+            <Button disabled={pending || !password || account.version === null} onClick={submit}>
+              {pending ? 'Сохраняем…' : 'Подтвердить'}
+            </Button>
+          )}
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <p>
+          {account.name} · {account.email}
+        </p>
+        <p className="text-[13px] text-ink-500">
+          {unblock
+            ? 'Сотрудник снова сможет войти с ранее назначенными правами.'
+            : 'Вход и административные запросы сотрудника будут запрещены. Права и история сохранятся.'}
+        </p>
+        <Field label="Ваш текущий пароль">
+          <Input
+            type="password"
+            autoComplete="current-password"
+            aria-label="Пароль для изменения статуса"
+            value={password}
+            maxLength={128}
+            disabled={pending || !!error?.conflict}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+        </Field>
+        <ErrorNotice error={error} />
+      </div>
+    </Modal>
   )
 }
 

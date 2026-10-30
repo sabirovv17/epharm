@@ -23,6 +23,7 @@ interface TopbarProps {
   /** Демо-смена роли. undefined (прод) → пункт меню скрыт. */
   onRoleSwitch?: () => void
   onLogout: () => void
+  onProfile?: () => void
   onMenu: () => void
   onCommand: () => void
 }
@@ -33,6 +34,7 @@ export function Topbar({
   role,
   onRoleSwitch,
   onLogout,
+  onProfile,
   onMenu,
   onCommand,
 }: TopbarProps) {
@@ -71,7 +73,12 @@ export function Topbar({
       <div className="ml-auto flex items-center gap-1.5">
         <PeriodPicker />
         <span className="mx-1 h-5 w-px bg-ink-200" />
-        <RolePill role={role} onRoleSwitch={onRoleSwitch} onLogout={onLogout} />
+        <RolePill
+          role={role}
+          onRoleSwitch={onRoleSwitch}
+          onLogout={onLogout}
+          onProfile={onProfile}
+        />
       </div>
     </header>
   )
@@ -85,9 +92,10 @@ interface RolePillProps {
   role: User
   onRoleSwitch?: () => void
   onLogout: () => void
+  onProfile?: () => void
 }
 
-function RolePill({ role, onRoleSwitch, onLogout }: RolePillProps) {
+function RolePill({ role, onRoleSwitch, onLogout, onProfile }: RolePillProps) {
   const t = useT()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -130,6 +138,19 @@ function RolePill({ role, onRoleSwitch, onLogout }: RolePillProps) {
           role="menu"
           className="card slide-in absolute right-0 top-full z-50 mt-1.5 w-56 overflow-hidden p-1.5 shadow-elevated"
         >
+          {onProfile && (
+            <button
+              role="menuitem"
+              onClick={() => {
+                setOpen(false)
+                onProfile()
+              }}
+              className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] font-semibold text-ink-700 hover:bg-paper-hover"
+            >
+              <IconUsers size={16} />
+              <span>{t('account.title')}</span>
+            </button>
+          )}
           {onRoleSwitch && (
             <button
               role="menuitem"

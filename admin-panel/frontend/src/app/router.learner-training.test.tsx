@@ -176,7 +176,7 @@ describe('real learner training navigation and payment placeholder', () => {
       screen.getByRole('heading', { name: 'Все доступные курсы', exact: true }),
     ).toBeInTheDocument()
   })
-  it('shows one ongoing course at home and opens all accessible courses through the sidebar', async () => {
+  it('shows one ongoing course at home and separates active courses from history through the sidebar', async () => {
     renderRouter()
     expect(
       await screen.findByRole('heading', { name: 'Текущий курс', exact: true }),
@@ -194,7 +194,7 @@ describe('real learner training navigation and payment placeholder', () => {
       await screen.findByRole('heading', { name: 'Все доступные курсы', exact: true }),
     ).toBeInTheDocument()
     expect(screen.getByTestId('training-path')).toHaveTextContent('/learn/training')
-    for (const assignment of [current, later, assigned, completed]) {
+    for (const assignment of [current, later, assigned]) {
       expect(
         screen.getByRole('heading', { name: assignment.programName, exact: true }),
       ).toBeInTheDocument()
@@ -202,12 +202,41 @@ describe('real learner training navigation and payment placeholder', () => {
     expect(
       screen.queryByRole('heading', { name: cancelled.programName, exact: true }),
     ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: completed.programName, exact: true }),
+    ).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'История обучения 1', exact: true }))
+    expect(screen.getByRole('button', { name: 'История обучения 1', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(
+      screen.getByRole('heading', { name: completed.programName, exact: true }),
+    ).toBeInTheDocument()
+    for (const assignment of [current, later, assigned, cancelled]) {
+      expect(
+        screen.queryByRole('heading', { name: assignment.programName, exact: true }),
+      ).not.toBeInTheDocument()
+    }
+    await userEvent.click(screen.getByRole('button', { name: 'Мои курсы 3', exact: true }))
+    expect(screen.getByRole('button', { name: 'Мои курсы 3', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(
+      screen.queryByRole('heading', { name: completed.programName, exact: true }),
+    ).not.toBeInTheDocument()
+    for (const assignment of [current, later, assigned]) {
+      expect(
+        screen.getByRole('heading', { name: assignment.programName, exact: true }),
+      ).toBeInTheDocument()
+    }
     expect(screen.queryByRole('textbox', { name: 'Email', exact: true })).not.toBeInTheDocument()
     expect(useUiStore.getState().authedUser).toBeNull()
   })
 
-  it('opens the all-courses page directly with a persisted pharmacist session', async () => {
-    renderRouter('/learn/training')
+  it('opens active courses directly and lets history reopen after reload with a persisted pharmacist session', async () => {
+    const router = renderRouter('/learn/training')
     expect(
       await screen.findByRole('heading', { name: 'Все доступные курсы', exact: true }),
     ).toBeInTheDocument()
@@ -217,8 +246,34 @@ describe('real learner training navigation and payment placeholder', () => {
       'page',
     )
     expect(
+      screen.getByRole('heading', { name: current.programName, exact: true }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: completed.programName, exact: true }),
+    ).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'История обучения 1', exact: true }))
+    expect(
       screen.getByRole('heading', { name: completed.programName, exact: true }),
     ).toBeInTheDocument()
+    router.unmount()
+    renderRouter('/learn/training')
+    expect(
+      await screen.findByRole('heading', { name: current.programName, exact: true }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Мои курсы 3', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(
+      screen.queryByRole('heading', { name: completed.programName, exact: true }),
+    ).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'История обучения 1', exact: true }))
+    expect(
+      screen.getByRole('heading', { name: completed.programName, exact: true }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: cancelled.programName, exact: true }),
+    ).not.toBeInTheDocument()
   })
 
   it('does not replace the current course with paused or future training and keeps their details accessible', async () => {
@@ -341,9 +396,20 @@ describe('real learner training navigation and payment placeholder', () => {
     expect(
       await screen.findByRole('heading', { name: 'Все доступные курсы', exact: true }),
     ).toBeInTheDocument()
+    expect(screen.getByText('Новых курсов пока нет')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: completed.programName, exact: true }),
+    ).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'История обучения 1', exact: true }))
     expect(
       screen.getByRole('heading', { name: completed.programName, exact: true }),
     ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Повторить материалы', exact: true }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: cancelled.programName, exact: true }),
+    ).not.toBeInTheDocument()
   })
 
   it('keeps an empty all-courses page usable without manufacturing course data', async () => {
@@ -371,7 +437,9 @@ describe('real learner training navigation and payment placeholder', () => {
     const requestCount = vi.mocked(globalThis.fetch).mock.calls.length
     const storageWrites = vi.spyOn(Storage.prototype, 'setItem')
     const user = userEvent.setup()
-    await user.click(within(card).getByRole('button', { name: 'Привязать карту', exact: true }))
+    await user.click(
+      within(card).getByRole('button', { name: 'Как подключить карту', exact: true }),
+    )
     expect(within(card).getByRole('status')).toHaveTextContent(
       'Привязка карты появится позже. Сейчас реквизиты не запрашиваются, выплаты на карту недоступны.',
     )

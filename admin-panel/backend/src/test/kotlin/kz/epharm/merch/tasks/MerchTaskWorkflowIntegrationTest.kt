@@ -1086,11 +1086,66 @@ class MerchTaskWorkflowIntegrationTest {
         fun query(queue:String,q:String="")=json.readTree(mvc.perform(get("/api/admin/merch/tasks").header("Authorization",adminAuth)
             .param("queue",queue).param("q",q)).andExpect(status().isOk).andReturn().response.contentAsByteArray)
         assertEquals(1,query("review")["items"].size())
+        val summary=query("review")["items"][0]
+        assertEquals(1,summary["pendingReviewCount"].asInt())
+        assertEquals(task.items[0].id.toString(),summary["nextPendingReviewItemId"].asText())
+        assertFalse(summary["detailsIncluded"].asBoolean())
+        assertEquals(0,summary["items"].size())
         assertEquals(1,query("revision")["items"].size())
         assertEquals(1,query("review","100%")["items"].size())
         assertEquals(0,query("review","100_")["items"].size())
         assertEquals(0,query("completed")["items"].size())
         mvc.perform(get("/api/admin/merch/tasks").header("Authorization",adminAuth).param("queue","invented")).andExpect(status().isBadRequest)
+    }
+
+    @Test fun `pending review navigation follows sibling decisions and does not authorize a view only reader`() {
+        val task=create(0,2)
+        assertEquals(0,task.pendingReviewCount);assertNull(task.nextPendingReviewItemId)
+        task.items.forEach { item -> val attempt=start(item.id);upload(item.id);submit(item,attempt) }
+        val submitted=get(task.id)
+        assertEquals(2,submitted.pendingReviewCount)
+        assertEquals(task.items.first().id,submitted.nextPendingReviewItemId)
+        assertTrue(submitted.items.all { it.canReview })
+        val revised=review(task.id,task.items.first().id,"revision")
+        assertEquals("revision_required",revised.status)
+        assertEquals(1,revised.pendingReviewCount)
+        assertEquals(task.items.last().id,revised.nextPendingReviewItemId)
+        grants(admin.id,"view")
+        val readOnly=get(task.id)
+        assertEquals(1,readOnly.pendingReviewCount)
+        assertEquals(task.items.last().id,readOnly.nextPendingReviewItemId)
+        assertTrue(readOnly.items.none { it.canReview })
+        val finished=review(task.id,task.items.last().id,auth=reviewerAuth)
+        assertEquals(0,finished.pendingReviewCount);assertNull(finished.nextPendingReviewItemId)
+        assertEquals("revision_required",finished.status)
+    }
+
+    @Test fun `pending review summaries preserve branch scope and page boundaries`() {
+        val first=create(0,2);val second=create(0,1);val hidden=create(0,3)
+        jdbc.update("update merch_task_items set status='submitted'")
+        val outside=UUID.randomUUID()
+        jdbc.update("""INSERT INTO merch_branches(id,source_system,source_origin,source_id,source_payload,organization_id,
+            code,name,address,city,active,created_at,updated_at)
+            SELECT ?,'EPHARM',source_origin,?,'{}',organization_id,'OUTSIDE','Outside scope','','',true,now(),now()
+            FROM merch_branches WHERE id=?""",outside,outside,branch)
+        jdbc.update("update merch_task_dispatches set branch_id=? where id=?",outside,hidden.id)
+        jdbc.update("update merch_task_dispatches set created_at=? where id=?",Timestamp.from(Instant.parse("2026-01-03T00:00:00Z")),hidden.id)
+        jdbc.update("update merch_task_dispatches set created_at=? where id=?",Timestamp.from(Instant.parse("2026-01-02T00:00:00Z")),first.id)
+        jdbc.update("update merch_task_dispatches set created_at=? where id=?",Timestamp.from(Instant.parse("2026-01-01T00:00:00Z")),second.id)
+        grants(admin.id,"view")
+        fun page(offset:Int)=json.readValue(mvc.perform(get("/api/admin/merch/tasks").header("Authorization",adminAuth)
+            .param("queue","review").param("limit","1").param("offset",offset.toString()))
+            .andExpect(status().isOk).andReturn().response.contentAsByteArray,MerchTaskDispatchPage::class.java)
+        val firstPage=page(0)
+        assertTrue(firstPage.hasMore);assertEquals(first.id,firstPage.items.single().id)
+        assertEquals(2,firstPage.items.single().pendingReviewCount)
+        assertEquals(first.items.first().id,firstPage.items.single().nextPendingReviewItemId)
+        assertTrue(firstPage.items.single().items.isEmpty());assertNull(firstPage.items.single().rewardAmountKzt)
+        val lastPage=page(1)
+        assertFalse(lastPage.hasMore);assertEquals(second.id,lastPage.items.single().id)
+        assertEquals(1,lastPage.items.single().pendingReviewCount)
+        assertTrue(page(2).items.isEmpty())
+        mvc.perform(get("/api/admin/merch/tasks/${hidden.id}").header("Authorization",adminAuth)).andExpect(status().isForbidden)
     }
 
     private fun webpFixture(name:String)=javaClass.getResourceAsStream("/placement-reference/$name.webp")!!.use {it.readBytes()}

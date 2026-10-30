@@ -1,7 +1,9 @@
 package kz.epharm.auth.repository
 
 import kz.epharm.auth.entity.AdminUserEntity
+import jakarta.persistence.LockModeType
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 import java.util.Optional
@@ -16,6 +18,14 @@ interface AdminUserRepository : JpaRepository<AdminUserEntity, UUID> {
      */
     @Query("SELECT u FROM AdminUserEntity u WHERE LOWER(u.email) = LOWER(TRIM(:email))")
     fun findByEmailIgnoreCase(email: String): Optional<AdminUserEntity>
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT u FROM AdminUserEntity u WHERE LOWER(u.email) = LOWER(TRIM(:email))")
+    fun findByEmailForUpdate(email: String): Optional<AdminUserEntity>
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT u FROM AdminUserEntity u WHERE u.id = :id")
+    fun findByIdForUpdate(id: UUID): Optional<AdminUserEntity>
 
     fun existsByEmail(email: String): Boolean
 }

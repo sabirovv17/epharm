@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Button, Field, Input, Modal, Select } from '@/ui'
 import { saveReport } from '@/features/reports/ledgerReports'
 import type { PlacementGateway, Portion } from './placements-api'
@@ -108,147 +108,176 @@ export default function ProducerCommercialWorkspace({
     ),
   )
   const [tab, setTab] = useState('plans')
+  const [companyVisited, setCompanyVisited] = useState(false)
+  const sectionId = useId()
   const changed = () => {
     list.reload()
     own.reload()
   }
   return (
-    <section className="card mt-6 space-y-4 p-4 sm:p-6" aria-label="Планирование производителя">
+    <section className="card min-w-0 space-y-4 p-4 sm:p-6" aria-label="Планирование производителя">
       <h2 className="text-xl font-extrabold">Планирование на период</h2>
       <p className="text-sm text-ink-500">
         Товары, места и бюджет на 1–12 месяцев. Оценка бюджета, заявка и оплата учитываются
         отдельно.
       </p>
       {gateway.realm === 'producer' && (
-        <div className="flex gap-2">
-          <Button variant={tab === 'plans' ? 'primary' : 'outline'} onClick={() => setTab('plans')}>
+        <nav aria-label="Разделы планирования" className="flex flex-wrap gap-2">
+          <Button
+            id={`${sectionId}-plans-button`}
+            aria-expanded={tab === 'plans'}
+            aria-controls={`${sectionId}-plans`}
+            variant={tab === 'plans' ? 'primary' : 'outline'}
+            onClick={() => setTab('plans')}
+          >
             Планы и бюджет
           </Button>
           <Button
             variant={tab === 'company' ? 'primary' : 'outline'}
-            onClick={() => setTab('company')}
+            id={`${sectionId}-company-button`}
+            aria-expanded={tab === 'company'}
+            aria-controls={`${sectionId}-company`}
+            onClick={() => {
+              setCompanyVisited(true)
+              setTab('company')
+            }}
           >
             Команда и условия
           </Button>
-        </div>
+        </nav>
       )}
       {own.error != null && <p role="alert">{errorText(own.error)}</p>}
-      {tab === 'company' && gateway.realm === 'producer' && own.data && (
-        <CompanyWorkspace
-          key={own.data.settings.revision}
-          value={own.data}
-          gateway={gateway}
-          onChanged={own.reload}
-        />
-      )}
-      {tab === 'plans' && (
-        <>
-          <div className="flex flex-wrap items-end gap-3">
-            {gateway.realm === 'admin' && (
-              <Field label="Производитель бюджета">
-                <Select
-                  ariaLabel="Производитель бюджета"
-                  value={producerId}
-                  options={[
-                    { value: '', label: 'Выберите производителя' },
-                    ...(options.data ?? [])
-                      .filter((p) => p.active)
-                      .map((p) => ({ value: p.id, label: p.name ?? 'Компания не указана' })),
-                  ]}
-                  onChange={(id) => {
-                    setProducerId(id)
-                    setOffset(0)
-                    setDetailId('')
-                  }}
-                />
-              </Field>
-            )}
-            <Button
-              disabled={!producerId || list.error != null}
-              onClick={() => setEditing({ id: uuid(), value: null })}
-            >
-              Новый план на период
-            </Button>
-            <Button variant="outline" onClick={changed}>
-              Обновить планы
+      <div id={`${sectionId}-company`} hidden={tab !== 'company'}>
+        {companyVisited && gateway.realm === 'producer' && own.data && (
+          <CompanyWorkspace
+            key={own.data.settings.revision}
+            value={own.data}
+            gateway={gateway}
+            onChanged={own.reload}
+          />
+        )}
+        {tab === 'company' && own.pending && <p role="status">Загружаем команду и условия…</p>}
+      </div>
+      <div id={`${sectionId}-plans`} hidden={tab !== 'plans'} className="min-w-0 space-y-4">
+        <div className="flex min-w-0 flex-wrap items-end gap-3 [&>label]:min-w-0 [&>label]:w-full sm:[&>label]:w-auto">
+          {gateway.realm === 'admin' && (
+            <Field label="Производитель бюджета">
+              <Select
+                ariaLabel="Производитель бюджета"
+                value={producerId}
+                options={[
+                  { value: '', label: 'Выберите производителя' },
+                  ...(options.data ?? [])
+                    .filter((p) => p.active)
+                    .map((p) => ({ value: p.id, label: p.name ?? 'Компания не указана' })),
+                ]}
+                onChange={(id) => {
+                  setProducerId(id)
+                  setOffset(0)
+                  setDetailId('')
+                }}
+              />
+            </Field>
+          )}
+          <Button
+            disabled={!producerId || list.error != null}
+            onClick={() => setEditing({ id: uuid(), value: null })}
+          >
+            Новый план на период
+          </Button>
+          <Button variant="outline" onClick={changed}>
+            Обновить планы
+          </Button>
+        </div>
+        {gateway.realm === 'admin' && options.error != null && (
+          <div role="alert">
+            <p>{errorText(options.error)}</p>
+            <Button variant="outline" onClick={options.reload}>
+              Повторить загрузку производителей
             </Button>
           </div>
-          {gateway.realm === 'admin' && producerId && (
-            <CategorySettings key={producerId} id={producerId} gateway={gateway} />
-          )}
-          {list.pending && <p role="status">Загружаем бюджетные планы…</p>}
-          {list.error != null && <p role="alert">{errorText(list.error)}</p>}
-          {list.data && (
-            <>
-              <div className="overflow-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr>
-                      {['Название', 'Период', 'Статус', 'Оценка', 'Бюджет', 'Заявок', ''].map(
-                        (name) => (
-                          <th key={name} className="p-2">
-                            {name}
-                          </th>
-                        ),
-                      )}
+        )}
+        {gateway.realm === 'admin' && producerId && (
+          <CategorySettings key={producerId} id={producerId} gateway={gateway} />
+        )}
+        {list.pending && <p role="status">Загружаем бюджетные планы…</p>}
+        {list.error != null && <p role="alert">{errorText(list.error)}</p>}
+        {list.data && (
+          <>
+            <div
+              className="max-w-full overflow-x-auto"
+              role="region"
+              aria-label="Бюджетные планы — горизонтальная прокрутка"
+              tabIndex={0}
+            >
+              <table className="w-full min-w-[720px] text-left text-sm">
+                <caption className="sr-only">Планы на период, оценка бюджета и заявки</caption>
+                <thead>
+                  <tr>
+                    {['Название', 'Период', 'Статус', 'Оценка', 'Бюджет', 'Заявок', ''].map(
+                      (name) => (
+                        <th key={name} className="p-2">
+                          {name}
+                        </th>
+                      ),
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.data.items.map((plan) => (
+                    <tr key={plan.id} className="border-t border-paper-line">
+                      <td className="p-2">{plan.plan.title}</td>
+                      <td className="p-2">
+                        {plan.plan.startMonth.slice(0, 7)} — {plan.plan.endMonth.slice(0, 7)}
+                      </td>
+                      <td className="p-2">
+                        {plan.requestIds.length
+                          ? 'Отправлен'
+                          : plan.plan.status === 'archived'
+                            ? 'В архиве'
+                            : 'Черновик'}
+                      </td>
+                      <td className="p-2">{amount(plan.estimatedTotal)}</td>
+                      <td className="p-2">{amount(plan.plan.budgetLimit)}</td>
+                      <td className="p-2">
+                        {plan.requestIds.length}
+                        {!!plan.unresolvedRequestIds?.length && (
+                          <p className="text-amber-700">
+                            Не подтверждено связей: {plan.unresolvedRequestIds.length}
+                          </p>
+                        )}
+                      </td>
+                      <td className="p-2">
+                        <Button variant="outline" onClick={() => setDetailId(plan.id)}>
+                          Открыть план
+                        </Button>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {list.data.items.map((plan) => (
-                      <tr key={plan.id} className="border-t border-paper-line">
-                        <td className="p-2">{plan.plan.title}</td>
-                        <td className="p-2">
-                          {plan.plan.startMonth.slice(0, 7)} — {plan.plan.endMonth.slice(0, 7)}
-                        </td>
-                        <td className="p-2">
-                          {plan.requestIds.length
-                            ? 'Отправлен'
-                            : plan.plan.status === 'archived'
-                              ? 'В архиве'
-                              : 'Черновик'}
-                        </td>
-                        <td className="p-2">{amount(plan.estimatedTotal)}</td>
-                        <td className="p-2">{amount(plan.plan.budgetLimit)}</td>
-                        <td className="p-2">
-                          {plan.requestIds.length}
-                          {!!plan.unresolvedRequestIds?.length && (
-                            <p className="text-amber-700">
-                              Не подтверждено связей: {plan.unresolvedRequestIds.length}
-                            </p>
-                          )}
-                        </td>
-                        <td className="p-2">
-                          <Button variant="outline" onClick={() => setDetailId(plan.id)}>
-                            Открыть план
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {list.data.items.length === 0 && <p className="p-4">Сохранённых планов нет.</p>}
-              </div>
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="outline"
-                  disabled={offset === 0}
-                  onClick={() => setOffset((n) => Math.max(0, n - 50))}
-                >
-                  Предыдущие планы
-                </Button>
-                <span>Всего: {list.data.total}</span>
-                <Button
-                  variant="outline"
-                  disabled={offset + 50 >= list.data.total}
-                  onClick={() => setOffset((n) => n + 50)}
-                >
-                  Следующие планы
-                </Button>
-              </div>
-            </>
-          )}
-        </>
-      )}
+                  ))}
+                </tbody>
+              </table>
+              {list.data.items.length === 0 && <p className="p-4">Сохранённых планов нет.</p>}
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <Button
+                variant="outline"
+                disabled={offset === 0}
+                onClick={() => setOffset((n) => Math.max(0, n - 50))}
+              >
+                Предыдущие планы
+              </Button>
+              <span>Всего: {list.data.total}</span>
+              <Button
+                variant="outline"
+                disabled={offset + 50 >= list.data.total}
+                onClick={() => setOffset((n) => n + 50)}
+              >
+                Следующие планы
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
       {editing && (
         <CommercialEditor
           key={editing.id}
@@ -302,7 +331,7 @@ function CategorySettings({ id, gateway }: { id: string; gateway: CommercialGate
       <p className="text-sm">
         Тарифная категория: {read.data.settings.supplierCategory ?? 'Не подтверждена'}
       </p>
-      <div className="mt-2 flex items-end gap-3">
+      <div className="mt-2 flex flex-wrap items-end gap-3">
         <Field label="Подтверждённая категория">
           <Select
             value={category}
@@ -505,9 +534,14 @@ function CommercialDetail({
             </Button>
           </div>
           {plan.monthlyRequests.length > 0 && (
-            <div className="overflow-auto">
+            <div
+              className="max-w-full overflow-x-auto"
+              role="region"
+              aria-label="Помесячные заявки — горизонтальная прокрутка"
+              tabIndex={0}
+            >
               <h3 className="font-bold">Помесячные заявки и решения</h3>
-              <table className="w-full text-left text-sm">
+              <table className="w-full min-w-[680px] text-left text-sm">
                 <thead>
                   <tr>
                     {[
@@ -848,7 +882,7 @@ function CommercialEditor({
           onChoose={(rows) => patch({ shelfSelection: [...(draft.shelfSelection ?? []), ...rows] })}
           disabled={busy}
         />
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             type="button"
             variant="outline"
@@ -1154,7 +1188,7 @@ function CommercialEditor({
             onChange={(e) => patch({ notes: e.target.value })}
           />
         </Field>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <Button type="submit" disabled={busy || !months.length}>
             {busy ? 'Сохраняем план…' : 'Сохранить черновик плана'}
           </Button>

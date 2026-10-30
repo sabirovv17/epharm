@@ -12,4 +12,5 @@ data class AdminPrincipal(
     val name: String,
     val role: AdminRole,
     val company: String,
+    val sessionVersion: Long = 0,
 )

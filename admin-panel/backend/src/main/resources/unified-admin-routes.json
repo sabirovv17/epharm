@@ -1694,6 +1694,26 @@
     "mode": "ALL_ONLY"
   },
   {
+    "api": "POST /api/admin/lms/courses/import/package",
+    "permission": {
+      "module": "training",
+      "subsection": "courses",
+      "action": "import",
+      "kind": "ORDINARY"
+    },
+    "mode": "ALL_ONLY"
+  },
+  {
+    "api": "POST /api/admin/lms/courses/import/package/preview",
+    "permission": {
+      "module": "training",
+      "subsection": "courses",
+      "action": "import",
+      "kind": "ORDINARY"
+    },
+    "mode": "ALL_ONLY"
+  },
+  {
     "api": "POST /api/admin/lms/courses/import/excel",
     "permission": {
       "module": "training",

@@ -30,6 +30,10 @@ class CourseExcelImportService(
     @Transactional
     fun importCourse(file: MultipartFile, createdBy: String): CourseDto {
         val imported = parse(file)
+        return createImported(imported, createdBy)
+    }
+
+    internal fun createImported(imported: ImportedCourse, createdBy: String): CourseDto {
         val course = courseService.create(
             CreateCourseRequest(
                 title = imported.title,
@@ -46,7 +50,7 @@ class CourseExcelImportService(
         return courseService.get(course.id)
     }
 
-    private fun parse(file: MultipartFile): ImportedCourse {
+    internal fun parse(file: MultipartFile): ImportedCourse {
         if (file.isEmpty) invalid("Выберите заполненный Excel-файл")
         if (file.size > MAX_IMPORT_BYTES) invalid("Размер Excel-файла не должен превышать 2 МБ")
         if (file.originalFilename.orEmpty().substringAfterLast('.', "").lowercase() != "xlsx") {
@@ -86,10 +90,7 @@ class CourseExcelImportService(
         val columns = headerColumns(sheet, COURSE_HEADERS)
         val row = sheet.getRow(1) ?: invalid("На листе «$COURSE_SHEET» заполните строку 2")
         if (isBlank(row, columns.values)) invalid("На листе «$COURSE_SHEET» заполните строку 2")
-        if ((2..sheet.lastRowNum).any { index ->
-                sheet.getRow(index)?.let { !isBlank(it, columns.values) } == true
-            }
-        ) {
+        if (sheet.any { it.rowNum >= 2 && !isBlank(it, columns.values) }) {
             invalid("На листе «$COURSE_SHEET» должна быть только одна строка с курсом")
         }
 
@@ -107,8 +108,8 @@ class CourseExcelImportService(
     private fun parseLessons(sheet: Sheet): List<ImportedLesson> {
         val columns = headerColumns(sheet, LESSON_HEADERS)
         val lessons = mutableListOf<ImportedLesson>()
-        for (rowIndex in 1..sheet.lastRowNum) {
-            val row = sheet.getRow(rowIndex) ?: continue
+        for (row in sheet) {
+            if (row.rowNum == 0) continue
             if (isBlank(row, columns.values)) continue
             if (lessons.size >= MAX_LESSONS) invalid("В одном курсе может быть не более $MAX_LESSONS уроков")
 
@@ -182,8 +183,8 @@ class CourseExcelImportService(
         val lessonByCode = lessons.associateBy { normalize(it.code) }
         val questions = mutableMapOf<String, MutableList<ImportedQuestion>>()
         var count = 0
-        for (rowIndex in 1..sheet.lastRowNum) {
-            val row = sheet.getRow(rowIndex) ?: continue
+        for (row in sheet) {
+            if (row.rowNum == 0) continue
             if (isBlank(row, columns.values)) continue
             if (++count > MAX_QUESTIONS_TOTAL) invalid("В одном файле может быть не более $MAX_QUESTIONS_TOTAL вопросов")
 
@@ -332,7 +333,7 @@ class CourseExcelImportService(
     private fun invalid(message: String): Nothing =
         throw AppException(ErrorCode.VALIDATION_FAILED, message, HttpStatus.BAD_REQUEST)
 
-    private data class ImportedCourse(
+    internal data class ImportedCourse(
         val title: String,
         val category: String,
         val description: String,
@@ -340,7 +341,7 @@ class CourseExcelImportService(
         val lessons: List<ImportedLesson>,
     )
 
-    private data class ImportedLesson(
+    internal data class ImportedLesson(
         val code: String,
         val order: Int,
         val request: CreateCourseLessonRequest,

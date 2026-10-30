@@ -98,10 +98,10 @@ export default function NetworkStructure({
           <div className="space-y-2">
             {query.data.map((item) => (
               <div
-                className="flex items-center justify-between gap-3 rounded-xl border border-ink-100 p-3"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink-100 p-3"
                 key={item.id}
               >
-                <div>
+                <div className="min-w-0 break-words">
                   <strong>{item.name}</strong>
                   <p className="text-sm text-ink-500">
                     {item.legalName}
@@ -122,6 +122,11 @@ export default function NetworkStructure({
               </div>
             ))}
           </div>
+          {query.data.length === 0 && (
+            <p role="status" className="rounded-lg bg-paper-input p-4 text-sm text-ink-500">
+              Организации пока не добавлены. Начните с организации, затем добавьте аптеку.
+            </p>
+          )}
           {edit && (
             <OrganizationForm
               key={typeof edit === 'string' ? edit : `${edit.id}:${edit.revision}`}

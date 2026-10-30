@@ -41,6 +41,9 @@ class AdminUserEntity(
 
     @Column(name = "updated_at", nullable = false)
     var updatedAt: Instant = Instant.now(),
+
+    @Column(name = "session_version", nullable = false)
+    var sessionVersion: Long = 0,
 ) {
     var role: AdminRole
         get() = AdminRole.valueOf(roleRaw)

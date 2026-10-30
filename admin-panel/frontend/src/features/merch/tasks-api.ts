@@ -84,6 +84,9 @@ export interface MerchTask {
   items: TaskItem[]
   reward: { state: string; amountKzt: number; reason: string; walletEntryId: string | null } | null
   itemCount: number
+  // Older responses may omit queue metadata; absence is not a zero count or a review grant.
+  pendingReviewCount?: number
+  nextPendingReviewItemId?: string | null
   detailsIncluded: boolean
   priority: string
   taskType: string

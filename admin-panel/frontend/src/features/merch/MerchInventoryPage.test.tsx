@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { keepPreviousData, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -129,6 +129,86 @@ async function chooseBranch() {
   return user
 }
 describe('native merch inventory boundary', () => {
+  it('distinguishes a failed access check from forbidden access and retries only that check', async () => {
+    const refetch = vi.fn()
+    vi.mocked(useAdministrativeCapabilities).mockReturnValue({
+      isPending: false,
+      isError: true,
+      isFetching: false,
+      canViewMerchInventory: false,
+      error: new Error('Сервис доступа недоступен'),
+      refetch,
+    } as unknown as ReturnType<typeof useAdministrativeCapabilities>)
+    const user = setup()
+    expect(screen.getByRole('heading', { name: 'Не удалось проверить доступ' })).toBeVisible()
+    expect(screen.getByRole('alert')).toHaveTextContent('Сервис доступа недоступен')
+    expect(screen.queryByText('Мерчендайзинг недоступен')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Повторить проверку' }))
+    expect(refetch).toHaveBeenCalledOnce()
+    expect(inventoryApi.branches).not.toHaveBeenCalled()
+    expect(inventoryApi.calendar).not.toHaveBeenCalled()
+  })
+  it('gives the calendar its own focusable scroll region, text legend and persistent shelf labels', async () => {
+    const user = await chooseBranch()
+    const region = screen.getByRole('region', { name: 'Календарь доступности полок' })
+    expect(region).toHaveAttribute('tabindex', '0')
+    expect(region).toHaveClass('overflow-x-auto', 'max-w-full')
+    expect(region).toHaveAccessibleDescription(/Прокрутите календарь по горизонтали/)
+    const legend = screen.getByRole('list', { name: 'Статусы доступности' })
+    expect(within(legend).getAllByRole('listitem')).toHaveLength(4)
+    for (const label of ['Свободно', 'Заблокировано', 'В резерве', 'Занято'])
+      expect(within(legend).getByText(label)).toBeVisible()
+    const table = within(region).getByRole('table', {
+      name: 'Доступность полок аптеки Демо-аптека по месяцам',
+    })
+    const shelf = within(table).getByRole('rowheader', { name: /FREE/ })
+    expect(shelf).toHaveClass('sticky', 'left-0')
+    await user.click(screen.getByLabelText('Выбрать полку FREE'))
+    expect(shelf).toHaveClass('bg-brand-green-50')
+    expect(screen.getByText('Выбрано полок: 1')).toHaveAttribute('aria-live', 'polite')
+    expect(screen.getByLabelText('Выбрать полку HELD')).toBeDisabled()
+    expect(inventoryApi.change).not.toHaveBeenCalled()
+  })
+  it('explains an empty calendar while retaining the authorized editor entry without inventing prices', async () => {
+    vi.mocked(inventoryApi.calendar).mockResolvedValue({ ...calendar, shelves: [] })
+    const user = setup()
+    await screen.findByRole('option', { name: /Демо-аптека/ })
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Аптека мерча' }), branch.id)
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Оборудование и полки пока не добавлены.',
+    )
+    expect(screen.getByRole('button', { name: 'Паспорт и рекламные места' })).toBeEnabled()
+    expect(
+      screen.queryByRole('region', { name: 'Календарь доступности полок' }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText(/0 ₸/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Проверить изменение' })).toBeDisabled()
+    expect(inventoryApi.change).not.toHaveBeenCalled()
+  })
+  it('asks for a missing month instead of showing a loading state for a disabled calendar query', async () => {
+    await chooseBranch()
+    const previousCalls = vi.mocked(inventoryApi.calendar).mock.calls.length
+    fireEvent.change(screen.getByLabelText('Начало календаря'), { target: { value: '' } })
+    expect(await screen.findByRole('alert')).toHaveTextContent('Укажите начало календаря')
+    expect(screen.queryByText('Загружаем оборудование и доступность…')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Выбрать полку FREE')).not.toBeInTheDocument()
+    expect(inventoryApi.calendar).toHaveBeenCalledTimes(previousCalls)
+    expect(inventoryApi.change).not.toHaveBeenCalled()
+  })
+  it('announces an empty authorized branch list without requesting inventory', async () => {
+    vi.mocked(inventoryApi.branches).mockResolvedValue({
+      items: [],
+      total: 0,
+      limit: 50,
+      offset: 0,
+    })
+    setup()
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent('В вашей области нет аптек мерча.'),
+    )
+    expect(inventoryApi.inventory).not.toHaveBeenCalled()
+    expect(inventoryApi.calendar).not.toHaveBeenCalled()
+  })
   it('shows verification rather than a false denial while refreshing a mounted capability', () => {
     vi.mocked(useAdministrativeCapabilities).mockReturnValue({
       isPending: false,

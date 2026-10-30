@@ -28,8 +28,8 @@ export default function ProducerPage() {
 }
 function VerifiedProducerWorkspace() {
   const [profileOpen, setProfileOpen] = useState(false)
-  const [commercialOpen, setCommercialOpen] = useState(false)
-  const [instructionsOpen, setInstructionsOpen] = useState(false)
+  const [section, setSection] = useState('placements')
+  const [visited, setVisited] = useState<string[]>(['placements'])
   const instructionApi = useMemo(() => producerInstructionApi(producerClient), [])
   const load = useCallback(
     (signal: AbortSignal) =>
@@ -63,7 +63,7 @@ function VerifiedProducerWorkspace() {
           </Button>
         </div>
       </header>
-      <main className="mx-auto max-w-[1440px] p-4 sm:p-6">
+      <main className="mx-auto min-w-0 max-w-[1440px] p-4 sm:p-6">
         {me.pending && <p role="status">Проверяем сессию производителя…</p>}
         {!!me.error && (
           <div role="alert" className="card p-6">
@@ -86,26 +86,64 @@ function VerifiedProducerWorkspace() {
         )}
         {me.data && (
           <>
-            <div className="mb-4 flex flex-wrap gap-2">
-              <Button variant="outline" onClick={() => setCommercialOpen((value) => !value)}>
-                {commercialOpen ? 'Скрыть планирование периода' : 'Бюджет, период и команда'}
-              </Button>
-              <Button variant="outline" onClick={() => setInstructionsOpen((value) => !value)}>
-                {instructionsOpen ? 'Скрыть инструктажи' : 'Инструктажи по размещениям'}
-              </Button>
+            <nav
+              aria-label="Разделы кабинета производителя"
+              className="card mb-5 flex flex-wrap gap-2 p-3"
+            >
+              {[
+                ['placements', 'Мои размещения'],
+                ['commercial', 'Бюджет, период и команда'],
+                ['instructions', 'Инструктажи по размещениям'],
+              ].map(([id, label]) => (
+                <Button
+                  key={id}
+                  id={`producer-section-${id}`}
+                  variant={section === id ? 'primary' : 'ghost'}
+                  aria-expanded={section === id}
+                  aria-controls={`producer-panel-${id}`}
+                  className="h-auto min-h-[38px] max-w-full whitespace-normal py-2 text-left"
+                  onClick={() => {
+                    setSection(id)
+                    setVisited((values) => (values.includes(id) ? values : [...values, id]))
+                  }}
+                >
+                  {label}
+                </Button>
+              ))}
+            </nav>
+            <div
+              id="producer-panel-commercial"
+              role="region"
+              aria-labelledby="producer-section-commercial"
+              hidden={section !== 'commercial'}
+            >
+              {visited.includes('commercial') && (
+                <ProducerCommercialWorkspace
+                  gateway={commercial}
+                  placements={gateway}
+                  ownProducerId={me.data.id}
+                />
+              )}
             </div>
-            {commercialOpen && (
-              <ProducerCommercialWorkspace
-                gateway={commercial}
-                placements={gateway}
-                ownProducerId={me.data.id}
+            <div
+              id="producer-panel-instructions"
+              role="region"
+              aria-labelledby="producer-section-instructions"
+              hidden={section !== 'instructions'}
+            >
+              {visited.includes('instructions') && <TaskInstructionPanel api={instructionApi} />}
+            </div>
+            <div
+              id="producer-panel-placements"
+              role="region"
+              aria-labelledby="producer-section-placements"
+              hidden={section !== 'placements'}
+            >
+              <PlacementWorkspace
+                gateway={gateway}
+                customerName={me.data.name ?? 'Компания не указана'}
               />
-            )}
-            {instructionsOpen && <TaskInstructionPanel api={instructionApi} />}
-            <PlacementWorkspace
-              gateway={gateway}
-              customerName={me.data.name ?? 'Компания не указана'}
-            />
+            </div>
           </>
         )}
         {profileOpen && me.data && (

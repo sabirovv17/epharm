@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MerchTaskDetail from './MerchTaskDetail'
 import type { MerchTask, TaskGateway } from './tasks-api'
@@ -68,7 +68,103 @@ afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
+
+it('explains exactly what blocks submission without exposing a write before readiness', async () => {
+  const draft = structuredClone(task)
+  draft.items[0].status = 'in_progress'
+  draft.items[0].canSubmit = true
+  draft.items[0].canReview = false
+  draft.items[0].currentAttempt!.status = 'draft'
+  draft.items[0].checklist = [
+    { id: 'required-row', title: 'Проверить расположение', required: true },
+  ]
+  vi.mocked(gateway.get).mockResolvedValue(draft)
+  render(<MerchTaskDetail id={task.id} gateway={gateway} />)
+  expect(await screen.findByRole('heading', { name: 'Что нужно сделать' })).toBeVisible()
+  expect(screen.getByText('Добавьте материалы: 0 из 1.')).toBeVisible()
+  expect(screen.getByText('Отметьте обязательные пункты чек-листа.')).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Отправить пункт на проверку' })).toBeDisabled()
+  await userEvent.click(screen.getByRole('checkbox', { name: /Проверить расположение/ }))
+  expect(screen.queryByText('Отметьте обязательные пункты чек-листа.')).not.toBeInTheDocument()
+  expect(gateway.submit).not.toHaveBeenCalled()
+})
 describe('task item review and evidence boundary', () => {
+  it('focuses a freshly authorized submitted item and advances after review without granting self-review', async () => {
+    const own = { ...task.items[0], id: 'own-item', title: 'Собственная работа', canReview: false }
+    const reviewable = { ...task.items[0], id: 'review-item', title: 'Работа фармацевта' }
+    const next = { ...task.items[0], id: 'next-item', title: 'Следующая полка' }
+    vi.mocked(gateway.get)
+      .mockResolvedValueOnce({
+        ...task,
+        status: 'revision_required',
+        itemCount: 3,
+        pendingReviewCount: 3,
+        nextPendingReviewItemId: own.id,
+        items: [own, reviewable, next],
+      })
+      .mockResolvedValue({
+        ...task,
+        status: 'revision_required',
+        itemCount: 3,
+        pendingReviewCount: 2,
+        nextPendingReviewItemId: own.id,
+        items: [own, { ...reviewable, status: 'revision_required', canReview: false }, next],
+      })
+    render(<MerchTaskDetail id={task.id} gateway={gateway} canReview focusReview />)
+    const ownRegion = await screen.findByRole('region', { name: 'Пункт: Собственная работа' })
+    const reviewRegion = screen.getByRole('region', { name: 'Пункт: Работа фармацевта' })
+    expect(
+      within(ownRegion).queryByRole('button', { name: 'Принять пункт', exact: true }),
+    ).not.toBeInTheDocument()
+    await waitFor(() => expect(document.activeElement).toBe(reviewRegion))
+    expect(screen.getByText('Следующий пункт: Работа фармацевта')).toBeInTheDocument()
+    await userEvent.click(
+      within(reviewRegion).getByRole('button', { name: 'Вернуть пункт на доработку' }),
+    )
+    await userEvent.type(screen.getByLabelText('Причина проверки пункта'), 'Нужен общий план полки')
+    await userEvent.click(screen.getByRole('button', { name: 'Подтвердить решение' }))
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('region', { name: 'Пункт: Следующая полка' }),
+      ),
+    )
+    expect(gateway.review).toHaveBeenCalledWith(
+      'review-item',
+      expect.objectContaining({ decision: 'revision', expectedItemVersion: 7 }),
+    )
+    expect(
+      within(screen.getByRole('region', { name: 'Пункт: Собственная работа' })).queryByRole(
+        'button',
+        { name: 'Принять пункт', exact: true },
+      ),
+    ).not.toBeInTheDocument()
+  })
+
+  it('opens pending evidence without offering a decision when no item is authorized for review', async () => {
+    vi.mocked(gateway.get).mockResolvedValue({
+      ...task,
+      pendingReviewCount: 1,
+      nextPendingReviewItemId: task.items[0].id,
+      items: [{ ...task.items[0], canReview: false }],
+    })
+    render(<MerchTaskDetail id={task.id} gateway={gateway} canReview focusReview />)
+    expect(
+      await screen.findByRole('button', { name: 'Посмотреть непроверенный пункт' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Перейти к проверке следующего пункта' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Принять пункт', exact: true }),
+    ).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('region', { name: 'Пункт: Проверить полку' }),
+      ),
+    )
+    expect(gateway.review).not.toHaveBeenCalled()
+  })
+
   it('shows each immutable staff submission name in the current attempt and history without claiming a verified person', async () => {
     const current = {
       ...task.items[0].currentAttempt!,

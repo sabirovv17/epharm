@@ -22,6 +22,14 @@ data class RefreshRequest(
     val refreshToken: String,
 )
 
+// Deliberately not a data class: generated toString must not expose either password.
+class ChangeAdminPasswordRequest(
+    @field:NotBlank @field:Size(max = 128)
+    val currentPassword: String,
+    @field:NotBlank @field:Size(min = 12, max = 72)
+    val newPassword: String,
+)
+
 data class AuthTokens(
     val accessToken: String,
     val accessTokenExpiresAt: Instant,

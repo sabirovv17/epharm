@@ -82,11 +82,38 @@ export default function TaskTemplateDialog({
         }}
       >
         {read.pending && <p role="status">Загружаем шаблоны и разрешённые аптеки…</p>}
-        {!!read.error && <p role="alert">{describeError(read.error)}</p>}
+        {!!read.error && (
+          <div role="alert" className="space-y-3 rounded-xl bg-surface-danger p-4 text-sm">
+            <p>{describeError(read.error)}</p>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setBranches([])
+                setType('')
+                read.reload()
+              }}
+            >
+              Повторить загрузку шаблонов и аптек
+            </Button>
+          </div>
+        )}
+        {read.data && !read.data.templates.length && (
+          <p role="status" className="rounded-xl bg-paper-input p-4 text-sm text-ink-500">
+            Доступных шаблонов пока нет.
+          </p>
+        )}
+        {read.data &&
+          !read.data.branches.some((branch) => branch.active && branch.createEligible) && (
+            <p role="status" className="rounded-xl bg-paper-input p-4 text-sm text-ink-500">
+              Нет аптек, в которых вам разрешено создать задание.
+            </p>
+          )}
         <Field label="Шаблон задания">
           <Select
             ariaLabel="Шаблон задания"
             value={type}
+            disabled={pending || read.pending || !!read.error}
             onChange={(value) => {
               setType(value)
               const selected = read.data?.templates.find((t) => t.id === value)
@@ -112,7 +139,10 @@ export default function TaskTemplateDialog({
           {read.data?.branches
             .filter((b) => b.active && b.createEligible)
             .map((b) => (
-              <label key={b.id} className="flex gap-2 text-sm">
+              <label
+                key={b.id}
+                className="flex items-start gap-3 rounded-lg p-2 text-sm leading-6 hover:bg-paper-input"
+              >
                 <input
                   type="checkbox"
                   checked={branches.includes(b.id)}
@@ -152,7 +182,7 @@ export default function TaskTemplateDialog({
               disabled={pending}
             />
           </Field>
-          <Field label="Срок, время Алматы">
+          <Field label="Срок, время Алматы" hint="Asia/Almaty · UTC+05:00">
             <Input
               aria-label="Срок шаблонного задания"
               type="datetime-local"
@@ -190,8 +220,12 @@ export default function TaskTemplateDialog({
           подменяют каталог.
         </p>
         {error && <p role="alert">{error}</p>}
-        <Button type="submit" disabled={pending || !template || !branches.length || !!read.error}>
-          Создать задания по шаблону
+        <Button
+          className="w-full sm:w-auto"
+          type="submit"
+          disabled={pending || !template || !branches.length || !!read.error}
+        >
+          {pending ? 'Создаём задания…' : 'Создать задания по шаблону'}
         </Button>
       </form>
     </Modal>

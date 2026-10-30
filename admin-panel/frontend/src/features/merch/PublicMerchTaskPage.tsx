@@ -98,11 +98,14 @@ export default function PublicMerchTaskPage() {
         <Logo size={28} />
         <span className="font-extrabold">ePharm · Задание аптеки</span>
       </header>
-      <main className="mx-auto max-w-5xl p-4 sm:p-6">
+      <main className="mx-auto max-w-5xl px-4 py-6 sm:p-8">
         {token ? (
           <CapabilityTask token={token} />
         ) : (
-          <div className="card p-6">
+          <div className="card mx-auto max-w-xl space-y-3 p-5 sm:p-8">
+            <p className="text-xs font-bold uppercase tracking-wider text-brand-green-700">
+              Доступ по QR-коду
+            </p>
             <h1 className="text-xl font-bold">Откройте задание по QR-коду</h1>
             <p className="mt-2 text-[13px] text-ink-500">
               Ссылка не сохраняется в браузере. После перезагрузки отсканируйте QR-код на кассе
@@ -118,10 +121,16 @@ function CapabilityTask({ token }: { token: string }) {
   const client = useMemo(() => capabilityGateway(token), [token])
   const load = useCallback((signal: AbortSignal) => client.session(signal), [client])
   const session = usePlacementRead(load)
-  if (session.pending) return <p role="status">Проверяем ссылку задания…</p>
+  if (session.pending)
+    return (
+      <p role="status" className="card p-5 text-sm text-ink-500 sm:p-8">
+        Проверяем ссылку задания…
+      </p>
+    )
   if (session.error)
     return (
       <div role="alert" className="card p-6">
+        <h1 className="mb-2 text-xl font-bold">Не удалось открыть задание</h1>
         <p>{session.error instanceof Error ? session.error.message : 'Ссылка недоступна.'}</p>
         <Button className="mt-3" variant="outline" onClick={session.reload}>
           Повторить проверку
@@ -131,7 +140,10 @@ function CapabilityTask({ token }: { token: string }) {
   if (!session.data) return null
   if (session.data.identityRequired || session.data.rewardAmountKzt > 0)
     return (
-      <div className="card p-6">
+      <div className="card mx-auto max-w-xl space-y-4 p-5 sm:p-8">
+        <p className="text-xs font-bold uppercase tracking-wider text-brand-green-700">
+          Личный вход
+        </p>
         <h1 className="text-xl font-bold">
           {session.data.rewardAmountKzt > 0
             ? 'Задание с вознаграждением'
@@ -143,7 +155,7 @@ function CapabilityTask({ token }: { token: string }) {
         </p>
         <Link
           to={`/learn/merch/tasks/${encodeURIComponent(session.data.dispatchId)}`}
-          className="btn btn-md btn-primary"
+          className="btn btn-md btn-primary w-full sm:w-auto"
         >
           Войти и открыть задание
         </Link>
@@ -151,12 +163,41 @@ function CapabilityTask({ token }: { token: string }) {
     )
   return (
     <div className="space-y-4">
-      <div className="card p-4 text-[13px]">
+      <div className="card space-y-3 p-5 text-sm sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-xl font-bold">Фотоотчёт аптеки</h1>
+          <span className="rounded-full bg-paper-input px-3 py-1 text-xs font-semibold">
+            {session.data.readOnly ? 'Только просмотр' : 'Без вознаграждения'}
+          </span>
+        </div>
         <p>Задание без вознаграждения. Личный вход для его выполнения не требуется.</p>
         <p className="mt-1 text-ink-500">
           Фотоотчёт проверит ответственный сотрудник.
           {session.data.readOnly ? ' Сейчас доступен только просмотр.' : ''}
         </p>
+        {!session.data.readOnly && (
+          <details className="border-t border-paper-line pt-3">
+            <summary className="cursor-pointer py-1 font-semibold">Как выполнить задание</summary>
+            <ol aria-label="Как выполнить задание" className="grid gap-3 pt-4 sm:grid-cols-3">
+              <li>
+                <strong className="block">1. Откройте пункт</strong>
+                <span className="text-ink-500">Прочитайте условия и начните попытку.</span>
+              </li>
+              <li>
+                <strong className="block">2. Подготовьте отчёт</strong>
+                <span className="text-ink-500">
+                  Загрузите доказательства и заполните обязательные поля.
+                </span>
+              </li>
+              <li>
+                <strong className="block">3. Отправьте на проверку</strong>
+                <span className="text-ink-500">
+                  Загрузка фото сама по себе не отправляет отчёт.
+                </span>
+              </li>
+            </ol>
+          </details>
+        )}
       </div>
       <MerchTaskDetail
         id={session.data.dispatchId}

@@ -161,12 +161,18 @@ class TrainingCertificatePdfService(
                 canvas.setNonStrokingColor(muted)
                 text(canvas, font, 10f, "Результат", 42f, 103f)
                 canvas.setNonStrokingColor(teal)
-                emphasizedText(canvas, boldFont, 33f, "${certificate.score ?: 100}%", 42f, 67f, teal)
+                if (certificate.score == null) {
+                    emphasizedText(canvas, boldFont, 14f, "Без оценки", 42f, 72f, teal)
+                } else {
+                    emphasizedText(canvas, boldFont, 33f, "${certificate.score}%", 42f, 67f, teal)
+                }
 
                 canvas.saveGraphicsState()
                 canvas.setGraphicsStateParameters(alpha(0.11f))
                 canvas.setNonStrokingColor(teal)
-                emphasizedText(canvas, boldFont, 105f, "${certificate.score ?: 100}%", 250f, 65f, teal)
+                certificate.score?.let { score ->
+                    emphasizedText(canvas, boldFont, 105f, "$score%", 250f, 65f, teal)
+                }
                 canvas.restoreGraphicsState()
 
                 canvas.setStrokingColor(Color(198, 218, 218))

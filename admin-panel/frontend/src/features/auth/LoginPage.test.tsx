@@ -52,7 +52,7 @@ beforeEach(() => {
     canViewAccounts: false,
     canManageAccounts: false,
   })
-  useUiStore.setState({ authedUser: null, tokens: null })
+  useUiStore.setState({ authedUser: null, tokens: null, passwordChangedNotice: false })
 })
 
 function renderLogin() {
@@ -74,6 +74,19 @@ function renderLogin() {
 }
 
 describe('LoginPage — рендер', () => {
+  it('keeps the transient password confirmation until the next login attempt', async () => {
+    useUiStore.setState({ passwordChangedNotice: true })
+    authApi.login.mockRejectedValue({ code: 'INVALID_CREDENTIALS' })
+    renderLogin()
+    expect(screen.getByRole('status')).toHaveTextContent('Пароль изменён')
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText(/Email/i), 'person@example.test')
+    await user.type(screen.getByLabelText(/Пароль/i), 'synthetic-password')
+    await user.click(screen.getByRole('button', { name: 'Войти', exact: true }))
+    expect(await screen.findByRole('alert')).toBeVisible()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(useUiStore.getState().passwordChangedNotice).toBe(false)
+  })
   it('показывает заголовок, поля email/пароль и кнопку «Войти»', () => {
     renderLogin()
     expect(screen.getByText(/Вход для HQ Inkar/i)).toBeInTheDocument()

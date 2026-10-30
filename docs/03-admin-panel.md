@@ -1,5 +1,48 @@
 # Admin Console
 
+## Local continuation: own account and review queue
+
+`/account` is an authenticated self-service route, available from the account menu
+to every internal role without granting Management access. It fetches only the
+current `/api/admin/auth/me` identity, rejects mismatched IDs, isolates responses
+by account/session and does not persist that query. Profile identity/role remain
+read-only. Password change sends current/new passwords only and clears all fields
+after a response. Success clears the local session/cache and returns to login;
+an uncertain network result is never automatically retried.
+
+The old Settings screen no longer simulates saved 2FA, notification, timezone or
+auto-approval settings. Those controls are explicitly unavailable; existing server
+rules are not changed. Interface language selection remains functional.
+
+Task summaries expose server-derived `pendingReviewCount` and
+`nextPendingReviewItemId` independently of the total item count. These are
+navigation metadata, not authorization. The detail prioritizes a fresh item with
+`canReview=true`, and moves to the next available item after a decision. View-only
+users may inspect pending items but do not gain review actions. Old API responses
+without counts show unavailable data, not zero. Personal executor queue remains
+unimplemented: branch visibility or authorship does not prove personal assignment.
+
+## Course package import and post-deploy usability
+
+Course import supports a preview before creation. The existing XLSX-only endpoint
+remains compatible; the new package preview/import pair accepts XLSX or one ZIP.
+The client binds confirmation to the selected file's SHA-256 digest, disables
+selection while pending, and clears preview on selection changes. Exact retries
+by the same author open the existing course rather than creating duplicates.
+The example is `public/templates/epharm-course-package-example.zip`.
+
+The merch queue shows authorized pharmacy address, task status/type/priority and
+total item count. This is not a pending-review count. Access management supports
+blocking/unblocking eligible managed accounts with fresh HQ password proof and
+optimistic version checking. It does not permit blocking the designated owner,
+the actor or another account of the same person. Existing refresh tokens are
+revoked on block. Stateless access JWTs are denied while blocked; no permanent
+invalidation after a later explicit unblock is claimed.
+
+The learner training section separates active courses and history, shows real
+scores independently of completion progress, and permits repeat material viewing.
+Bank-card UI remains informational; no financial credentials are collected.
+
 Path: `admin-panel/frontend/`.
 
 Stack:
@@ -481,6 +524,25 @@ webServer configuration.
 `admin-panel/frontend/src`. Use the references only to understand intent, not as current architecture.
 
 ### Native merchandising operations
+
+The operational UI separates placements, period budgets/team, instructions and authorized HQ
+tariffs into named sections. A section mounts on first visit and retains its unsaved fields
+when hidden; changing the session/capability boundary still resets or removes protected content.
+The inventory calendar keeps the shelf column fixed within its own horizontal scroll region,
+labels the selected branch/period and explains status colours in words. Floorplan objects can
+also be selected through a labelled select rather than only small graphical targets.
+
+Task queues separate lookup/filter controls from secondary tools. Opening a task or the next
+review item moves focus to that content. Item cards distinguish instructions, checklist, current
+attempt, attachments and discussion; the submit section lists unmet requirements without
+weakening server validation. Public free-task guidance distinguishes uploading from submission;
+paid tasks continue to require the separate learner/SMS path.
+
+Shared dialogs constrain their body to the viewport, retain visible headers/footers, wrap focus,
+restore it on close and close only the topmost dialog on Escape. External producer/public flows
+reflow on narrow screens; dense data tables scroll inside labelled regions. The existing HQ
+desktop shell remains desktop-oriented, not a new mobile HQ application. Instruction deadlines
+are explicitly entered and displayed in Asia/Almaty (UTC+05:00), independently of browser timezone.
 
 The task workspace separates comments, a personal impediment, item cancellation and dispatch
 cancellation. A comment requires a verified author; a fragment capability reads the allowed

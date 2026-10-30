@@ -46,7 +46,9 @@ import {
   downloadTrainingAssignments,
   useCourses,
   useCreateCourse,
-  useImportCourse,
+  useImportCoursePackage,
+  usePreviewCoursePackage,
+  type CoursePackagePreview,
   useDeleteCourse,
   useOfflineEvents,
   useTrainingAssignmentPage,
@@ -1720,7 +1722,7 @@ function CreateCourseModal({
   )
 }
 
-function ImportCourseModal({
+export function ImportCourseModal({
   open,
   onClose,
   onImported,
@@ -1730,41 +1732,79 @@ function ImportCourseModal({
   onImported: (course: CourseDto) => void
 }) {
   const toast = useToast()
-  const importCourse = useImportCourse()
+  const importCourse = useImportCoursePackage()
+  const previewCourse = usePreviewCoursePackage()
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [preview, setPreview] = useState<CoursePackagePreview | null>(null)
+  const pending = importCourse.isPending || previewCourse.isPending
 
   const submit = () => {
-    if (!file) return setError('Выберите заполненный файл .xlsx')
+    if (!file) return setError('Выберите файл .xlsx или .zip')
     setError(null)
-    importCourse.mutate(file, {
-      onSuccess: (course) => {
-        toast.push('Курс импортирован как черновик')
-        onClose()
-        onImported(course)
+    if (!preview) {
+      previewCourse.mutate(file, {
+        onSuccess: setPreview,
+        onError: (requestError) => setError(describeError(requestError)),
+      })
+      return
+    }
+    importCourse.mutate(
+      { file, digest: preview.digest },
+      {
+        onSuccess: ({ course, programId, reused }) => {
+          toast.push(
+            reused
+              ? 'Этот пакет уже импортирован — открыт существующий курс'
+              : programId
+                ? 'Курс и программа с сертификатом созданы как черновики'
+                : 'Курс импортирован как черновик',
+          )
+          setPreview(null)
+          setFile(null)
+          onClose()
+          onImported(course)
+        },
+        onError: (requestError) => setError(describeError(requestError)),
       },
-      onError: (requestError) => setError(describeError(requestError)),
-    })
+    )
   }
 
   return (
     <Modal
       open={open}
-      onClose={onClose}
-      title="Импорт курса из Excel"
-      subtitle="Создайте курс, уроки и тесты одним файлом"
+      onClose={() => {
+        if (!pending) {
+          setPreview(null)
+          setFile(null)
+          setError(null)
+          onClose()
+        }
+      }}
+      title="Импорт курса из Excel или ZIP"
+      subtitle="Проверка → предварительный просмотр → черновик"
       width={600}
       footer={
         <>
-          <Button variant="ghost" disabled={importCourse.isPending} onClick={onClose}>
+          <Button
+            variant="ghost"
+            disabled={pending}
+            onClick={() => {
+              setPreview(null)
+              setFile(null)
+              onClose()
+            }}
+          >
             Отмена
           </Button>
-          <Button
-            leading={<IconUpload size={15} />}
-            disabled={!file || importCourse.isPending}
-            onClick={submit}
-          >
-            {importCourse.isPending ? 'Импортируем…' : 'Импортировать курс'}
+          <Button leading={<IconUpload size={15} />} disabled={!file || pending} onClick={submit}>
+            {pending
+              ? 'Проверяем и загружаем…'
+              : preview
+                ? preview.existingCourseId
+                  ? 'Открыть существующий курс'
+                  : 'Создать черновик'
+                : 'Проверить файл'}
           </Button>
         </>
       }
@@ -1792,15 +1832,25 @@ function ImportCourseModal({
             <IconDownload size={15} />
             <span>Скачать шаблон Excel</span>
           </a>
+          <a
+            className="mt-3 block text-sm font-bold text-teal-700 underline"
+            href="/templates/epharm-course-package-example.zip"
+            download
+          >
+            Скачать пример ZIP с материалами
+          </a>
         </div>
 
         <label className="block cursor-pointer rounded-xl border border-dashed border-ink-300 bg-paper-input px-5 py-6 text-center transition hover:border-teal-500 hover:bg-teal-50/40">
           <input
             className="sr-only"
             type="file"
-            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            aria-label="Файл курса"
+            disabled={pending}
+            accept=".xlsx,.zip,application/zip,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={(event) => {
               setError(null)
+              setPreview(null)
               setFile(event.target.files?.[0] ?? null)
             }}
           />
@@ -1808,10 +1858,46 @@ function ImportCourseModal({
             <IconUpload size={20} />
           </span>
           <span className="mt-3 block text-[13px] font-extrabold text-ink-900">
-            {file ? file.name : 'Выбрать заполненный Excel-файл'}
+            {file ? file.name : 'Выбрать Excel или ZIP с материалами'}
           </span>
-          <span className="mt-1 block text-[11px] text-ink-500">Только .xlsx, до 2 МБ</span>
+          <span className="mt-1 block text-[11px] text-ink-500">
+            Excel до 2 МБ · ZIP до 60 МБ · распакованный пакет до 120 МБ
+          </span>
         </label>
+
+        {preview && (
+          <section
+            aria-label="Предварительный просмотр курса"
+            className="rounded-xl border border-teal-200 bg-teal-50/50 p-4"
+          >
+            <h3 className="font-extrabold text-ink-900">{preview.title}</h3>
+            <p className="mt-1 text-sm text-ink-600">
+              Уроков: {preview.lessons.length} · Файлов: {preview.files}
+            </p>
+            <ol className="mt-3 space-y-2 text-sm text-ink-800">
+              {preview.lessons.map((lesson, index) => (
+                <li key={lesson.code}>
+                  {index + 1}. {lesson.title}
+                  {lesson.questions > 0 ? ` · Вопросов: ${lesson.questions}` : ''}
+                </li>
+              ))}
+            </ol>
+            {preview.createsProgram && !preview.existingCourseId && (
+              <p className="mt-3 text-sm">
+                Также будет создана программа с настройками сертификата
+                {preview.partner ? ` · ${preview.partner}` : ''}.
+              </p>
+            )}
+            {preview.existingCourseId && (
+              <p className="mt-3 font-bold">
+                Этот пакет уже загружен. Повторный курс создан не будет.
+              </p>
+            )}
+            <p className="mt-3 text-xs text-ink-600">
+              Ничего не публикуется и не назначается автоматически.
+            </p>
+          </section>
+        )}
 
         <div className="grid gap-2 text-[12px] leading-5 text-ink-600 sm:grid-cols-2">
           <div className="rounded-lg bg-paper-input px-3 py-2">
@@ -1819,8 +1905,8 @@ function ImportCourseModal({
             правильные ответы.
           </div>
           <div className="rounded-lg bg-paper-input px-3 py-2">
-            <strong className="text-ink-800">После импорта:</strong> курс откроется черновиком для
-            проверки и загрузки файлов.
+            <strong className="text-ink-800">После импорта:</strong> откроется черновик с
+            материалами. Публикация и назначение выполняются отдельно после проверки.
           </div>
         </div>
       </div>

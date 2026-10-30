@@ -8,7 +8,8 @@ import kz.epharm.auth.repository.AdminUserRepository
 import kz.epharm.auth.security.AdminPrincipal
 import kz.epharm.shared.error.AppException
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.HttpStatus
@@ -48,7 +49,9 @@ class UnifiedAccessRevocationConcurrencyTest {
     @Autowired lateinit var service: UnifiedAccountAccessService
     @Autowired lateinit var transactions: PlatformTransactionManager
 
-    @Test fun `committing revocation serializes before queued delegation and cannot issue stale authority`() {
+    @ParameterizedTest
+    @ValueSource(booleans = [false, true])
+    fun `committing revocation serializes before queued access change and cannot use stale authority`(statusChange: Boolean) {
         val password = "Synthetic-concurrency-password"
         val accounts = (1..2).map { i -> users.saveAndFlush(AdminUserEntity(email = "race-$i-${UUID.randomUUID()}@example.invalid",
             name = "Synthetic", roleRaw = AdminRole.HQ_HEAD.name, passwordHash = encoder.encode(password))) }
@@ -77,8 +80,10 @@ class UnifiedAccessRevocationConcurrencyTest {
             val delegate = pool.submit<HttpStatus> {
                 val actor = accounts[0]
                 try {
-                    service.replace(AdminPrincipal(actor.id, actor.email, actor.name, actor.role, actor.company), accounts[1].id,
-                        ReplaceGrantsRequest(0, listOf(permission), password))
+                    val principal = AdminPrincipal(actor.id, actor.email, actor.name, actor.role, actor.company)
+                    if (statusChange) service.changeStatus(principal, accounts[1].id,
+                        ChangeManagedAccountStatusRequest(0, ManagedAccountStatus.BLOCKED, password))
+                    else service.replace(principal, accounts[1].id, ReplaceGrantsRequest(0, listOf(permission), password))
                     HttpStatus.OK
                 } catch (failure: AppException) { failure.status }
             }
@@ -94,6 +99,7 @@ class UnifiedAccessRevocationConcurrencyTest {
             assertThat(delegate.get(10, TimeUnit.SECONDS)).isEqualTo(HttpStatus.FORBIDDEN)
             assertThat(store.profile(accounts[1].id)!!.grants).isEmpty()
             assertThat(store.profile(accounts[1].id)!!.version).isZero()
+            assertThat(jdbc.queryForObject("select status from admin_users where id=?", String::class.java, accounts[1].id)).isEqualTo("active")
         } finally {
             commitRevocation.countDown()
             pool.shutdownNow()

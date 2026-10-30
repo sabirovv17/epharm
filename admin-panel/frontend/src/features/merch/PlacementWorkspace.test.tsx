@@ -87,6 +87,23 @@ beforeEach(() => {
   }
 })
 describe('native placement workflow', () => {
+  it('keeps wide list and detail tables in individually labelled keyboard-scrollable regions', async () => {
+    const user = userEvent.setup()
+    render(<PlacementWorkspace gateway={gateway} />)
+    const list = await screen.findByRole('region', {
+      name: 'Список медиапланов — горизонтальная прокрутка',
+    })
+    expect(list).toHaveAttribute('tabindex', '0')
+    expect(list).toHaveClass('overflow-x-auto')
+    await user.click(screen.getByRole('button', { name: 'Открыть' }))
+    const detail = await screen.findByRole('region', {
+      name: 'Позиции медиаплана — горизонтальная прокрутка',
+    })
+    expect(detail).toHaveAttribute('tabindex', '0')
+    expect(detail).toHaveClass('overflow-x-auto')
+    expect(gateway.transition).not.toHaveBeenCalled()
+  })
+
   it('creates a non-binding draft with server-selected places and no invented price', async () => {
     const user = userEvent.setup()
     render(<PlacementWorkspace gateway={gateway} />)

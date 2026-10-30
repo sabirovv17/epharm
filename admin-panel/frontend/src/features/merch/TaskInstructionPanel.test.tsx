@@ -102,8 +102,14 @@ it('a denied target refresh cannot submit a previously selected plan', async () 
   expect(screen.getByRole('button', { name: 'Отправить PDF на согласование' })).toBeEnabled()
   await user.click(screen.getByRole('button', { name: 'Следующие планы' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('Доступ отозван')
+  expect(
+    screen.queryByText('Нет медиапланов, для которых вам разрешена загрузка.'),
+  ).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Отправить PDF на согласование' })).toBeDisabled()
   expect(api.upload).not.toHaveBeenCalled()
+  await user.click(screen.getByRole('button', { name: 'Повторить загрузку медиапланов' }))
+  expect(await screen.findByRole('checkbox', { name: 'План Демо · октябрь' })).not.toBeChecked()
+  expect(screen.getByRole('button', { name: 'Отправить PDF на согласование' })).toBeDisabled()
 })
 it('an upload retry keeps the stable opaque ID and uses only selected server plan records', async () => {
   api.realm = 'producer'
@@ -122,7 +128,7 @@ it('an upload retry keeps the stable opaque ID and uses only selected server pla
     screen.getByRole('textbox', { name: 'Задание для видео' }),
     'Покажите выполнение задания',
   )
-  fireEvent.change(screen.getByLabelText('Срок выполнения (местное время)'), {
+  fireEvent.change(screen.getByLabelText('Срок выполнения, время Алматы'), {
     target: { value: '2099-01-01T12:00' },
   })
   const file = new File(['%PDF-synthetic'], 'instruction.pdf', { type: 'application/pdf' })
@@ -140,8 +146,13 @@ it('an upload retry keeps the stable opaque ID and uses only selected server pla
   expect(first.id).toMatch(/^[0-9a-f-]{36}$/)
   expect(second.id).toBe(first.id)
   expect(first.planIds).toEqual(['plan-1'])
+  expect(first.dueAt).toBe('2099-01-01T07:00:00.000Z')
   expect(first).not.toHaveProperty('producerId')
   expect(localStorage.getItem('instruction-draft')).toBeNull()
+})
+it('labels instruction deadlines in Almaty time without assuming the browser timezone', async () => {
+  render(<TaskInstructionPanel api={api} />)
+  expect(await screen.findByText(/Срок:.*17:00.*Asia\/Almaty/)).toBeVisible()
 })
 it('a stale review does not silently retry or leave stale approval controls visible', async () => {
   vi.mocked(api.review).mockRejectedValue(new Error('Материал уже изменился'))

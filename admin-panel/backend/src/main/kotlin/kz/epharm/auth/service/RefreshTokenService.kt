@@ -26,6 +26,9 @@ class RefreshTokenService(
 ) {
     val refreshTtl: Duration = Duration.ofDays(refreshTtlDays)
 
+    /** Scalar lookup only: caller locks the account before loading or mutating the token row. */
+    fun ownerOf(rawToken: String): UUID? = refreshTokenRepository.findOwnerByTokenHash(hash(rawToken))
+
     /**
      * Возвращает (rawToken, savedEntity). Raw отдаём клиенту, в БД лежит только хеш.
      */
@@ -49,7 +52,7 @@ class RefreshTokenService(
      */
     @Transactional
     fun rotate(rawToken: String, now: Instant = Instant.now()): UUID? {
-        val entity = refreshTokenRepository.findByTokenHash(hash(rawToken)).orElse(null) ?: return null
+        val entity = refreshTokenRepository.findActiveByTokenHashForUpdate(hash(rawToken), now).orElse(null) ?: return null
         if (!entity.isActive(now)) return null
         entity.revokedAt = now
         refreshTokenRepository.save(entity)

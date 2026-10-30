@@ -1,5 +1,35 @@
 # Backend
 
+## Local candidate: internal self-password change
+
+`POST /api/admin/auth/password` accepts only `currentPassword` and `newPassword`
+for the authenticated internal account. It is a self-service route for all admin
+roles, not an account-management grant and not a pharmacist/producer/device route.
+Success is 204; wrong proof or invalid new password is 400, not an authentication
+refresh challenge. New passwords require 12–72 characters and at most 72 UTF-8
+bytes. No supplied password/hash/token is written to the change audit.
+
+The local V093 migration adds admin `session_version` and password-change metadata.
+Admin access JWTs carry `sv`; every authentication compares it to the current
+account. A legacy token without `sv` is version zero and works only while the
+account remains at zero. Password update locks and reloads the account, verifies
+the principal version/current password, increments the version and revokes refresh
+tokens transactionally. Login and refresh use account-before-token lock ordering.
+Pharmacist token handling is unchanged. Ordinary logout retains its existing
+refresh-only revocation semantics; it is not upgraded to global JWT revocation.
+
+The new password endpoint has a persistent per-account attempt budget (five
+attempts per 15 minutes). Its separate transaction commits before password proof
+checking, so failed proof cannot roll back the budget. Exhaustion is 429; there
+is no permanent account lock. This is not a general limiter for existing login,
+HQ reauthentication, SMS or other proof endpoints.
+
+Release prerequisite: all serving backend nodes must enforce session versions
+before immediate old-token revocation is claimed. An old binary during a rolling
+rollout or rollback ignores this fence. V093 is only a local unapplied candidate;
+DB transactions, concurrency and the real security pipeline require PostgreSQL
+integration verification before release.
+
 Path: `admin-panel/backend/`.
 
 Stack:
@@ -268,6 +298,16 @@ Structured online courses use per-lesson progress. A completed stage created bef
 projects its lessons as completed without rewriting history. Legacy URL-only online stages still
 accept stage-level progress, while linked courses require the lesson endpoint. Lessons with recorded
 progress cannot be deleted (HTTP 409); archiving the course preserves referential integrity.
+
+Learner quiz submissions return aggregate score/pass/attempt information only: no per-question
+correctness, answer key or explanations. Required previous lessons gate both passing and failed
+submissions; the passing threshold is checked before display rounding. In the current legacy
+lesson schema, required `quiz`/`test` lessons contribute their best successful scores to the course
+stage and individually to the assignment average alongside required scored stages; optional tests
+do not contribute. A failed retry preserves a previously passed grade. Missing grades remain absent,
+and certificate PDFs show `Без оценки` instead of inventing 100%. Existing issued scores are unchanged.
+This compatibility fix does not implement the planned explicit final/practice/intermediate roles,
+immutable course/test versions, exact-ratio score storage or an immutable quiz attempt history.
 
 Managed administrative training requests additionally use
 `training/access/TrainingAdministrativeAccess`. Assignment, participant, result,

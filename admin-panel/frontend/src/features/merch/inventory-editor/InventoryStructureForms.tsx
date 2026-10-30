@@ -13,7 +13,7 @@ export default function InventoryStructureForms(props: EditorProps) {
   return (
     <div className="space-y-5">
       <section>
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h3 className="font-bold">Шкафы и зоны</h3>
           {data.canEditStructure && (
             <Button
@@ -31,7 +31,7 @@ export default function InventoryStructureForms(props: EditorProps) {
         <div className="grid gap-3 md:grid-cols-2">
           {data.containers.map((item) => (
             <div key={item.id} className="rounded-xl border border-ink-100 p-4">
-              <div className="font-bold">
+              <div className="break-words font-bold">
                 {item.code} · {item.name}
               </div>
               <p className="text-sm text-ink-500">
@@ -39,7 +39,7 @@ export default function InventoryStructureForms(props: EditorProps) {
                 {!item.active && ' · Архив'}
               </p>
               {data.canEditStructure && (
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex flex-wrap gap-2">
                   <Button
                     variant="outline"
                     disabled={busy}
@@ -69,6 +69,11 @@ export default function InventoryStructureForms(props: EditorProps) {
             </div>
           ))}
         </div>
+        {data.containers.length === 0 && (
+          <p role="status" className="rounded-lg bg-paper-input p-4 text-sm text-ink-500">
+            Шкафы и зоны пока не добавлены.
+          </p>
+        )}
         {containerId && (
           <ContainerForm
             key={containerId}
@@ -82,7 +87,7 @@ export default function InventoryStructureForms(props: EditorProps) {
         )}
       </section>
       <section className="border-t border-ink-100 pt-5">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h3 className="font-bold">Рекламные места</h3>
           {data.canEditStructure && (
             <Button
@@ -103,8 +108,14 @@ export default function InventoryStructureForms(props: EditorProps) {
             существующих мест можно менять.
           </p>
         )}
-        <div className="overflow-x-auto">
+        <div
+          role="region"
+          aria-label="Рекламные места"
+          tabIndex={0}
+          className="max-w-full overflow-x-auto rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-green-600"
+        >
           <table className="w-full text-left text-sm">
+            <caption className="sr-only">Рекламные места выбранной аптеки</caption>
             <thead>
               <tr>
                 <th className="p-2">Место</th>
@@ -155,6 +166,11 @@ export default function InventoryStructureForms(props: EditorProps) {
             </tbody>
           </table>
         </div>
+        {data.shelves.length === 0 && (
+          <p role="status" className="rounded-lg bg-paper-input p-4 text-sm text-ink-500">
+            Рекламные места пока не добавлены.
+          </p>
+        )}
         {shelfId && (
           <ShelfForm
             key={shelfId}
@@ -273,7 +289,7 @@ function ContainerForm({
         />
         Шкаф активен
       </label>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button type="submit" disabled={busy}>
           Сохранить шкаф
         </Button>
@@ -442,7 +458,7 @@ function ShelfForm({
         />
         Место активно
       </label>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button type="submit" disabled={busy}>
           Сохранить место
         </Button>
@@ -497,7 +513,7 @@ function ConfigureForm({
       }}
     >
       <h4 className="font-bold">Количество полок по категориям</h4>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {categories.map((category) => (
           <Field key={category} label={category}>
             <Input
@@ -524,7 +540,7 @@ function ConfigureForm({
           />
         </Field>
       )}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button type="submit" disabled={busy || (adding && !data.canConfigurePrices)}>
           Применить количество
         </Button>

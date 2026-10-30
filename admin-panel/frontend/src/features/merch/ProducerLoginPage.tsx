@@ -54,8 +54,8 @@ export default function ProducerLoginPage() {
   if (session) return <Navigate to="/producer" replace />
   return (
     <div className="min-h-screen bg-paper p-4 sm:p-8">
-      <div className="mx-auto grid min-h-[640px] max-w-[1080px] overflow-hidden rounded-3xl border border-paper-line bg-white shadow-card md:grid-cols-[0.9fr_1.1fr]">
-        <aside className="sidebar-bg flex flex-col justify-between gap-8 p-8 text-white sm:p-12">
+      <div className="mx-auto grid max-w-[1080px] overflow-hidden rounded-3xl border border-paper-line bg-white shadow-card md:min-h-[640px] md:grid-cols-[0.9fr_1.1fr]">
+        <aside className="sidebar-bg flex flex-col justify-between gap-5 p-5 text-white sm:gap-8 sm:p-12">
           <div className="flex items-center gap-3">
             <Logo size={32} />
             <span className="text-2xl font-extrabold">ePharm</span>
@@ -64,8 +64,10 @@ export default function ProducerLoginPage() {
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/60">
               Мерчендайзинг
             </p>
-            <h1 className="mt-4 text-3xl font-extrabold leading-tight">Кабинет производителя</h1>
-            <p className="mt-5 text-sm leading-7 text-white/75">
+            <h1 className="mt-3 text-2xl font-extrabold leading-tight sm:text-3xl">
+              Кабинет производителя
+            </h1>
+            <p className="mt-3 text-sm leading-6 text-white/75">
               Выбирайте места в аптеках, готовьте медиапланы и следите за подтверждением размещений.
             </p>
           </div>
@@ -74,9 +76,12 @@ export default function ProducerLoginPage() {
             фармацевта выдаётся отдельно.
           </p>
         </aside>
-        <main className="flex flex-col justify-center p-8 sm:p-12">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-brand-green-700">
-            Личный кабинет
+        <main className="flex min-w-0 flex-col justify-center p-5 sm:p-12">
+          <p
+            role="status"
+            className="text-xs font-bold uppercase tracking-[0.14em] text-brand-green-700"
+          >
+            {challenge ? 'Шаг 2 из 2 · Подтверждение' : 'Шаг 1 из 2 · Телефон'}
           </p>
           <h2 className="mt-3 text-3xl font-extrabold">
             {challenge ? 'Введите код из SMS' : 'Вход и регистрация'}
@@ -136,7 +141,13 @@ export default function ProducerLoginPage() {
                 (!challenge ? phone.replace(/\D/g, '').length < 10 : !/^\d{4,8}$/.test(code))
               }
             >
-              {pending ? 'Подождите…' : challenge ? 'Войти' : 'Получить SMS-код'}
+              {pending
+                ? challenge
+                  ? 'Проверяем код…'
+                  : 'Запрашиваем код…'
+                : challenge
+                  ? 'Войти'
+                  : 'Получить SMS-код'}
             </Button>
             {challenge && (
               <div className="flex flex-wrap justify-between gap-2">

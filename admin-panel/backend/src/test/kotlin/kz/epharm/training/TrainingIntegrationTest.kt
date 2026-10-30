@@ -33,6 +33,7 @@ import kz.epharm.training.repository.TrainingRewardRepository
 import kz.epharm.training.repository.TrainingLessonProgressRepository
 import kz.epharm.training.domain.TrainingStageStatus
 import kz.epharm.training.domain.TrainingAssignmentStatus
+import kz.epharm.training.entity.TrainingLessonProgressEntity
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -226,6 +227,9 @@ class TrainingIntegrationTest {
             .andExpect(jsonPath("$.score").value(0))
             .andExpect(jsonPath("$.passed").value(false))
             .andExpect(jsonPath("$.attempt").value(1))
+            .andExpect(jsonPath("$.questions").doesNotExist())
+            .andExpect(jsonPath("$.assignment.stages[0].course.lessons[0].quizQuestions[0].correctOption").doesNotExist())
+            .andExpect(jsonPath("$.assignment.stages[0].course.lessons[0].quizQuestions[0].explanation").value(""))
             .andExpect(jsonPath("$.assignment.status").value("waiting_online"))
 
         mockMvc.perform(
@@ -238,9 +242,144 @@ class TrainingIntegrationTest {
             .andExpect(jsonPath("$.score").value(100))
             .andExpect(jsonPath("$.passed").value(true))
             .andExpect(jsonPath("$.attempt").value(2))
+            .andExpect(jsonPath("$.questions").doesNotExist())
             .andExpect(jsonPath("$.assignment.status").value("waiting_test"))
             .andExpect(jsonPath("$.assignment.stages[0].course.lessons[0].quizScore").value(100))
             .andExpect(jsonPath("$.assignment.stages[0].course.lessons[0].quizAttempts").value(2))
+    }
+
+    @Test
+    fun `quiz submission requires previous lessons and does not round a failure into a pass`() {
+        val quiz = courseLessonRepository.save(
+            CourseLessonEntity(
+                id = "cls_threshold_quiz",
+                courseId = "crs_training",
+                title = "Итоговый тест",
+                required = true,
+                quizPassingScore = 67,
+                quizQuestions = (1..3).map { index ->
+                    CourseQuizQuestion("q-$index", "Вопрос $index", listOf("А", "Б"), 0, "Ответ")
+                },
+                order = 1,
+            ).also { it.kind = CourseLessonKind.test },
+        )
+        val programId = createPublishedProgram()["id"].asText()
+        val assignment = objectMapper.readTree(
+            mockMvc.perform(
+                post("/api/admin/training/assignments")
+                    .header("Authorization", adminBearer)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"programId":"$programId","pharmacistIds":["ph_training"],"format":"online"}"""),
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+        )["assignments"][0]
+        val assignmentId = assignment["id"].asText()
+        val stageId = assignment["stages"][0]["id"].asText()
+        val lessonPath = "/api/mobile/training/assignments/$assignmentId/stages/$stageId/lessons"
+        val quizPath = "$lessonPath/${quiz.id}/quiz"
+
+        mockMvc.perform(
+            post(quizPath).header("Authorization", pharmacistBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"answers":{"q-1":1,"q-2":1,"q-3":1}}"""),
+        ).andExpect(status().isConflict)
+        org.assertj.core.api.Assertions.assertThat(
+            lessonProgressRepository.findByAssignmentStageIdAndLessonId(UUID.fromString(stageId), quiz.id),
+        ).isNull()
+
+        val intro = courseLessonRepository.findById("cls_training_intro").orElseThrow()
+        intro.durationMin = 0
+        courseLessonRepository.save(intro)
+        mockMvc.perform(
+            patch("$lessonPath/${intro.id}").header("Authorization", pharmacistBearer)
+                .contentType(MediaType.APPLICATION_JSON).content("""{"progressPct":100}"""),
+        ).andExpect(status().isOk)
+
+        mockMvc.perform(
+            post(quizPath).header("Authorization", pharmacistBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"answers":{"q-1":0,"q-2":0,"q-3":1}}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.score").value(67))
+            .andExpect(jsonPath("$.passed").value(false))
+            .andExpect(jsonPath("$.attempt").value(1))
+            .andExpect(jsonPath("$.questions").doesNotExist())
+            .andExpect(jsonPath("$.assignment.stages[0].status").value("in_progress"))
+            .andExpect(jsonPath("$.assignment.certificate").doesNotExist())
+        org.assertj.core.api.Assertions.assertThat(quiz.quizQuestions.first().correctOption).isEqualTo(0)
+        org.assertj.core.api.Assertions.assertThat(quiz.quizQuestions.first().explanation).isEqualTo("Ответ")
+    }
+
+    @Test
+    fun `certificate averages required test results once and preserves passed grade after a failed retry`() {
+        courseLessonRepository.deleteAll()
+        listOf("first", "second", "optional").forEachIndexed { index, key ->
+            courseLessonRepository.save(
+                CourseLessonEntity(
+                    id = "cls_$key", courseId = "crs_training", title = key,
+                    required = key != "optional", order = index, quizPassingScore = 80,
+                    quizQuestions = (1..5).map { question ->
+                        CourseQuizQuestion("q-$question", "Вопрос $question", listOf("А", "Б"), 0, "Ответ")
+                    },
+                ).also { it.kind = CourseLessonKind.test },
+            )
+        }
+        val programId = createPublishedProgram()["id"].asText()
+        val assignment = objectMapper.readTree(
+            mockMvc.perform(
+                post("/api/admin/training/assignments").header("Authorization", adminBearer)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"programId":"$programId","pharmacistIds":["ph_training"],"format":"online"}"""),
+            ).andExpect(status().isOk).andReturn().response.contentAsString,
+        )["assignments"][0]
+        val assignmentId = assignment["id"].asText()
+        val stageId = assignment["stages"][0]["id"].asText()
+        val lessonPath = "/api/mobile/training/assignments/$assignmentId/stages/$stageId/lessons"
+        val passingAnswers = """{"answers":{"q-1":0,"q-2":0,"q-3":0,"q-4":0,"q-5":1}}"""
+        mockMvc.perform(
+            post("$lessonPath/cls_first/quiz").header("Authorization", pharmacistBearer)
+                .contentType(MediaType.APPLICATION_JSON).content(passingAnswers),
+        ).andExpect(status().isOk).andExpect(jsonPath("$.score").value(80))
+        mockMvc.perform(
+            post("$lessonPath/cls_first/quiz").header("Authorization", pharmacistBearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"answers":{"q-1":1,"q-2":1,"q-3":1,"q-4":1,"q-5":1}}"""),
+        ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.passed").value(false))
+            .andExpect(jsonPath("$.assignment.stages[0].course.lessons[0].quizScore").value(80))
+            .andExpect(jsonPath("$.questions").doesNotExist())
+        val afterCourse = objectMapper.readTree(
+            mockMvc.perform(
+                post("$lessonPath/cls_second/quiz").header("Authorization", pharmacistBearer)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"answers":{"q-1":0,"q-2":0,"q-3":0,"q-4":0,"q-5":0}}"""),
+            ).andExpect(status().isOk)
+                .andExpect(jsonPath("$.assignment.stages[0].score").value(90))
+                .andExpect(jsonPath("$.assignment.status").value("waiting_test"))
+                .andExpect(jsonPath("$.assignment.certificate").doesNotExist())
+                .andReturn().response.contentAsString,
+        )["assignment"]
+        val finalStageId = afterCourse["stages"].first { it["type"].asText() == "test" }["id"].asText()
+        val completed = objectMapper.readTree(
+            mockMvc.perform(
+                patch("/api/admin/training/assignments/$assignmentId/stages/$finalStageId/result")
+                    .header("Authorization", adminBearer).contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"score":80}"""),
+            ).andExpect(status().isOk)
+                .andExpect(jsonPath("$.progressPct").value(100))
+                .andExpect(jsonPath("$.score").value(87))
+                .andExpect(jsonPath("$.certificate.score").value(87))
+                .andReturn().response.contentAsString,
+        )
+        val token = completed["certificate"]["verificationToken"].asText()
+        mockMvc.perform(get("/api/public/training/certificates/$token"))
+            .andExpect(status().isOk).andExpect(jsonPath("$.score").value(87))
+        val pdf = mockMvc.perform(get("/api/public/training/certificates/$token/pdf"))
+            .andExpect(status().isOk).andReturn().response.contentAsByteArray
+        org.apache.pdfbox.Loader.loadPDF(pdf).use { document ->
+            org.assertj.core.api.Assertions.assertThat(org.apache.pdfbox.text.PDFTextStripper().getText(document))
+                .contains("87%").doesNotContain("100%")
+        }
     }
 
     @Test
@@ -687,6 +826,10 @@ class TrainingIntegrationTest {
 
     @Test
     fun `completed legacy online course without lesson rows retains visible completion`() {
+        courseLessonRepository.save(CourseLessonEntity(
+            id = "cls_legacy_quiz", courseId = "crs_training", title = "Старый тест", order = 1,
+            quizQuestions = listOf(CourseQuizQuestion("q-1", "Вопрос", listOf("А", "Б"), 0, "")),
+        ).also { it.kind = CourseLessonKind.test })
         val programId = createPublishedProgram()["id"].asText()
         val assignment = objectMapper.readTree(
             mockMvc.perform(
@@ -711,6 +854,23 @@ class TrainingIntegrationTest {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.stages[0].course.lessons[0].progressPct").value(100))
             .andExpect(jsonPath("$.stages[0].course.lessons[0].completedAt").isNotEmpty)
+
+        lessonProgressRepository.save(TrainingLessonProgressEntity(
+            assignmentId = UUID.fromString(assignmentId), assignmentStageId = onlineStageId,
+            lessonId = "cls_legacy_quiz", progressPct = 100, completedAt = Instant.now(), quizScore = null,
+        ))
+        val finalStageId = UUID.fromString(assignment["stages"].first { it["type"].asText() == "test" }["id"].asText())
+        val finalStage = assignmentStageRepository.findById(finalStageId).orElseThrow()
+        finalStage.status = TrainingStageStatus.available
+        assignmentStageRepository.save(finalStage)
+        mockMvc.perform(
+            patch("/api/admin/training/assignments/$assignmentId/stages/$finalStageId/result")
+                .header("Authorization", adminBearer).contentType(MediaType.APPLICATION_JSON)
+                .content("""{"score":90}"""),
+        ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("completed"))
+            .andExpect(jsonPath("$.score").doesNotExist())
+            .andExpect(jsonPath("$.certificate.score").doesNotExist())
     }
 
     @Test
@@ -748,6 +908,7 @@ class TrainingIntegrationTest {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.status").value("completed"))
             .andExpect(jsonPath("$.stages[0].progressPct").value(100))
+            .andExpect(jsonPath("$.certificate.score").doesNotExist())
     }
 
 

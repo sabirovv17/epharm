@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, Field, Input } from '@/ui'
+import { Button, Field, Input, Select } from '@/ui'
 import { inventoryEditorApi, type FloorPlan } from './api'
 import type { EditorProps } from './InventoryEditor'
 
@@ -197,6 +197,20 @@ export default function InventoryFloorPlan({ data, write, busy }: EditorProps) {
           </>
         )}
       </div>
+      <div className="max-w-md">
+        <Field
+          label="Объект схемы"
+          hint="Выберите объект в списке или на схеме, чтобы увидеть его параметры."
+        >
+          <Select
+            ariaLabel="Объект схемы"
+            value={selected}
+            onChange={setSelected}
+            placeholder="Выберите объект"
+            options={objects.map((item) => ({ value: item.key, label: item.label }))}
+          />
+        </Field>
+      </div>
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_260px]">
         <div
           className="relative min-h-[260px] overflow-hidden rounded-xl border-2 border-ink-300 bg-paper-input"
@@ -212,7 +226,7 @@ export default function InventoryFloorPlan({ data, write, busy }: EditorProps) {
               aria-label={`Объект ${item.label}`}
               aria-pressed={selected === item.key}
               onClick={() => setSelected(item.key)}
-              className={`absolute overflow-hidden rounded border text-[10px] font-bold ${selected === item.key ? 'border-brand-600 bg-brand-100' : item.type === 'cabinet' ? 'border-ink-300 bg-white' : 'border-recommendation-green-dark bg-accent-success/10'}`}
+              className={`absolute overflow-hidden rounded border text-[10px] font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-green-600 ${selected === item.key ? 'border-brand-green-600 bg-brand-green-100' : item.type === 'cabinet' ? 'border-ink-300 bg-white' : 'border-recommendation-green-dark bg-accent-success/10'}`}
               style={{
                 left: `${((item.x - item.width / 2) / plan.room.width) * 100}%`,
                 top: `${((item.y - item.depth / 2) / plan.room.depth) * 100}%`,

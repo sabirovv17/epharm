@@ -41,7 +41,6 @@ import kz.epharm.training.dto.MassAssignmentResultDto
 import kz.epharm.training.dto.MobileTrainingOverviewDto
 import kz.epharm.training.dto.OfflineEventDto
 import kz.epharm.training.dto.OfflineEventSummaryDto
-import kz.epharm.training.dto.QuizQuestionResultDto
 import kz.epharm.training.dto.QuizSubmissionRequest
 import kz.epharm.training.dto.QuizSubmissionResultDto
 import kz.epharm.training.dto.RecordAssessmentResultRequest
@@ -1385,6 +1384,13 @@ class TrainingService(
             ((saved * 100) / threshold.coerceAtLeast(1)).coerceIn(0, 100)
         }.average().roundToInt()
         val allComplete = requiredLessons.all { progressByLesson[it.id]?.completedAt != null }
+        val requiredTests = requiredLessons.filter { it.kind in setOf(CourseLessonKind.quiz, CourseLessonKind.test) }
+        val successfulScores = requiredTests.mapNotNull { requiredTest ->
+            progressByLesson[requiredTest.id]?.takeIf { it.completedAt != null }?.quizScore
+        }
+        assignmentStage.score = successfulScores.takeIf {
+            it.isNotEmpty() && it.size == requiredTests.size
+        }?.average()?.roundToInt()
         assignmentStage.status = when {
             allComplete && programStage.manualReview -> TrainingStageStatus.waiting_review
             allComplete -> TrainingStageStatus.completed
@@ -1442,6 +1448,15 @@ class TrainingService(
         }
         if (lesson.quizQuestions.isEmpty()) conflict("В тесте нет вопросов")
 
+        val lessons = courseLessonRepository.findAllByCourseIdOrderByOrderAscCreatedAtAsc(courseId)
+        val progressByLesson = lessonProgressRepository.findAllByAssignmentStageIdIn(listOf(stageId))
+            .associateBy { it.lessonId }
+        val blockedBy = lessons.firstOrNull { previous ->
+            previous.required && previous.order < lesson.order &&
+                progressByLesson[previous.id]?.completedAt == null
+        }
+        if (blockedBy != null) conflict("Сначала завершите урок «${blockedBy.title}»")
+
         val questionIds = lesson.quizQuestions.map { it.id }.toSet()
         if (req.answers.keys != questionIds) badRequest("Ответьте на все вопросы теста")
         lesson.quizQuestions.forEach { question ->
@@ -1449,17 +1464,12 @@ class TrainingService(
             if (answer !in question.options.indices) badRequest("Некорректный вариант ответа")
         }
 
-        val questionResults = lesson.quizQuestions.map { question ->
-            QuizQuestionResultDto(
-                questionId = question.id,
-                correct = req.answers.getValue(question.id) == question.correctOption,
-                correctOption = question.correctOption,
-                explanation = question.explanation,
-            )
+        val correctAnswers = lesson.quizQuestions.count { question ->
+            req.answers.getValue(question.id) == question.correctOption
         }
-        val correctAnswers = questionResults.count { it.correct }
         val score = ((correctAnswers * 100.0) / lesson.quizQuestions.size).roundToInt()
-        val passed = score >= lesson.quizPassingScore
+        // Compare the exact ratio: display rounding must never turn a failure into a pass.
+        val passed = correctAnswers * 100 >= lesson.quizPassingScore * lesson.quizQuestions.size
         val now = Instant.now()
         val progress = lessonProgressRepository.findByAssignmentStageIdAndLessonId(stageId, lessonId)
             ?: TrainingLessonProgressEntity(
@@ -1469,7 +1479,9 @@ class TrainingService(
                 startedAt = now,
             )
         progress.quizAttempts += 1
-        progress.quizScore = maxOf(progress.quizScore ?: 0, score)
+        if (passed || progress.completedAt == null) {
+            progress.quizScore = maxOf(progress.quizScore ?: 0, score)
+        }
         lessonProgressRepository.save(progress)
         if (assignment.startedAt == null) assignment.startedAt = now
         if (assignmentStage.startedAt == null) assignmentStage.startedAt = now
@@ -1502,7 +1514,6 @@ class TrainingService(
             correctAnswers = correctAnswers,
             totalQuestions = lesson.quizQuestions.size,
             attempt = progress.quizAttempts,
-            questions = questionResults,
             assignment = updatedAssignment,
         )
     }
@@ -2100,7 +2111,7 @@ class TrainingService(
         val now = Instant.now()
         assignment.status = TrainingAssignmentStatus.completed
         assignment.progressPct = 100
-        assignment.score = stages.mapNotNull { it.score }.takeIf(List<Int>::isNotEmpty)?.average()?.roundToInt()
+        assignment.score = completionScores(assignment, stages)?.takeIf(List<Int>::isNotEmpty)?.average()?.roundToInt()
         assignment.completedAt = now
         assignmentRepository.save(assignment)
 
@@ -2151,6 +2162,29 @@ class TrainingService(
             payload = mapOf("program" to program.name, "bonus" to version.completionBonus),
         )
         audit("system", "system", "assignment_completed", "training_assignment", assignment.id.toString())
+    }
+
+    private fun completionScores(
+        assignment: TrainingAssignmentEntity,
+        stages: List<TrainingAssignmentStageEntity>,
+    ): List<Int>? {
+        val definitions = programStageRepository.findAllByVersionIdOrderByOrderNoAsc(assignment.programVersionId)
+            .associateBy { it.id }
+        val version = versionRepository.findById(assignment.programVersionId).orElseThrow()
+        return stages.filter { definitions[it.programStageId]?.required == true }.flatMap { stage ->
+            if (definitions[stage.programStageId]?.type != TrainingStageType.online_course || version.onlineCourseId == null) {
+                if (definitions[stage.programStageId]?.type in setOf(TrainingStageType.test, TrainingStageType.ai_exam) && stage.score == null) {
+                    return null
+                }
+                listOfNotNull(stage.score)
+            } else {
+                val requiredTests = courseLessonRepository.findAllByCourseIdOrderByOrderAscCreatedAtAsc(version.onlineCourseId!!)
+                    .filter { it.required && it.kind in setOf(CourseLessonKind.quiz, CourseLessonKind.test) }
+                val progress = lessonProgressRepository.findAllByAssignmentStageIdIn(listOf(stage.id))
+                    .associateBy { it.lessonId }
+                requiredTests.map { test -> progress[test.id]?.takeIf { it.completedAt != null }?.quizScore ?: return null }
+            }
+        }
     }
 
     private fun programDto(program: TrainingProgramEntity): TrainingProgramDto {

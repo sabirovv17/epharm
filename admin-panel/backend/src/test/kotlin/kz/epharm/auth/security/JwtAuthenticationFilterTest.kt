@@ -70,6 +70,29 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
+    fun `legacy and versioned admin tokens are invalidated by a password version increment`() {
+        every { users.findById(user.id) } returns Optional.of(user)
+        val legacy = signedClaims(emptyMap())
+        val old = jwt.issueAccessToken(user)
+        for (token in listOf(legacy, old)) {
+            assertThat(authenticate(token)).isNotNull()
+            SecurityContextHolder.clearContext()
+        }
+        user.sessionVersion = 1
+        assertThat(authenticate(legacy)).isNull()
+        assertThat(authenticate(old)).isNull()
+        assertThat((authenticate(jwt.issueAccessToken(user))!!.principal as AdminPrincipal).sessionVersion).isEqualTo(1L)
+    }
+
+    @Test
+    fun `malformed session versions cannot authenticate or reach the account repository`() {
+        for (version in listOf<Any?>(-1, 0.5, "0", true, null, listOf(0), java.math.BigInteger("9223372036854775808"))) {
+            assertThat(authenticate(signedClaims(mapOf("sv" to version)))).describedAs("version $version").isNull()
+        }
+        verify(exactly = 0) { users.findById(any()) }
+    }
+
+    @Test
     fun `valid admin token uses current database role and profile instead of signed claims`() {
         val token = jwt.issueAccessToken(user)
         user.role = AdminRole.TRAINING_MANAGER

@@ -5,6 +5,12 @@ import type { Instruction, InstructionApi, InstructionTarget } from './task-inst
 import { usePlacementRead } from './usePlacementRead'
 
 const labels = { pending: 'На согласовании', approved: 'Подтверждён', rejected: 'Отклонён' }
+function instructionDate(value: string) {
+  const date = new Date(value)
+  return Number.isFinite(date.getTime())
+    ? `${date.toLocaleString('ru-RU', { timeZone: 'Asia/Almaty', dateStyle: 'short', timeStyle: 'short' })} · Алматы (Asia/Almaty)`
+    : 'Дата не указана'
+}
 export default function TaskInstructionPanel({ api }: { api: InstructionApi }) {
   const [offset, setOffset] = useState(0)
   const [actionError, setError] = useState('')
@@ -52,7 +58,7 @@ export default function TaskInstructionPanel({ api }: { api: InstructionApi }) {
   }
   const activeResult = items.find((item) => item.id === results && item.status === 'approved')
   return (
-    <section className="card space-y-4 p-5">
+    <section className="card space-y-5 p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold">PDF-инструктаж и видеоотчёты</h2>
@@ -92,17 +98,20 @@ export default function TaskInstructionPanel({ api }: { api: InstructionApi }) {
       {!loading && (
         <div className="space-y-3">
           {items.map((item) => (
-            <article key={item.id} className="rounded-xl border border-ink-100 p-4">
+            <article
+              key={item.id}
+              className="min-w-0 rounded-xl border border-paper-line p-4 sm:p-5"
+            >
               <div className="flex flex-wrap justify-between gap-2">
-                <strong>{item.title}</strong>
+                <strong className="break-words">{item.title}</strong>
                 <span className="rounded-md bg-paper-input px-2 py-1 text-xs">
                   {labels[item.status]}
                 </span>
               </div>
               <p className="mt-2 whitespace-pre-wrap text-sm text-ink-600">{item.instructions}</p>
               <p className="mt-2 text-xs text-ink-500">
-                Срок: {new Date(item.dueAt).toLocaleString('ru-RU')} · Завершено заданий:{' '}
-                {item.completed} из {item.totalTasks}
+                Срок: {instructionDate(item.dueAt)} · Завершено заданий: {item.completed} из{' '}
+                {item.totalTasks}
               </p>
               {item.reviewNote && (
                 <p className="mt-2 rounded-lg bg-paper-input p-2 text-sm">
@@ -155,7 +164,7 @@ export default function TaskInstructionPanel({ api }: { api: InstructionApi }) {
         >
           Следующие материалы
         </Button>
-        <span className="text-xs text-ink-500">Всего: {total}</span>
+        {!loading && !error && <span className="text-xs text-ink-500">Всего: {total}</span>}
       </div>
       {uploadOpen && (
         <UploadInstruction
@@ -287,7 +296,7 @@ function UploadInstruction({
             setError('Уменьшите PDF до 20 МБ')
             return
           }
-          const date = new Date(dueAt)
+          const date = new Date(`${dueAt}+05:00`)
           if (!(date.getTime() > Date.now())) {
             setError('Укажите будущий срок выполнения')
             return
@@ -323,6 +332,20 @@ function UploadInstruction({
             {error}
           </p>
         )}
+        {!!query.error && (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy}
+            onClick={() => {
+              setSelected([])
+              changed()
+              query.reload()
+            }}
+          >
+            Повторить загрузку медиапланов
+          </Button>
+        )}
         <div>
           <h3 className="font-bold">Медиапланы для инструктажа</h3>
           {loading && <p role="status">Проверяем разрешённые планы…</p>}
@@ -354,7 +377,7 @@ function UploadInstruction({
               </label>
             ))}
           </div>
-          {!loading && !targets.length && (
+          {!loading && !query.error && !targets.length && (
             <p className="text-sm text-ink-500">
               Нет медиапланов, для которых вам разрешена загрузка.
             </p>
@@ -377,9 +400,11 @@ function UploadInstruction({
               Следующие планы
             </Button>
           </div>
-          <p className="mt-2 text-xs text-ink-500">
-            Выбрано: {selected.length}. Всего разрешено: {total}.
-          </p>
+          {!loading && !query.error && (
+            <p className="mt-2 text-xs text-ink-500">
+              Выбрано: {selected.length}. Всего разрешено: {total}.
+            </p>
+          )}
         </div>
         <Field label="Название инструктажа">
           <Input
@@ -410,9 +435,12 @@ function UploadInstruction({
             }}
           />
         </Field>
-        <Field label="Срок выполнения (местное время)">
+        <Field
+          label="Срок выполнения, время Алматы"
+          hint="Asia/Almaty · UTC+05:00. Не зависит от часового пояса браузера."
+        >
           <Input
-            aria-label="Срок выполнения (местное время)"
+            aria-label="Срок выполнения, время Алматы"
             type="datetime-local"
             value={dueAt}
             required
@@ -440,7 +468,7 @@ function UploadInstruction({
           type="submit"
           disabled={busy || loading || !!query.error || !selected.length || !file}
         >
-          Отправить PDF на согласование
+          {busy ? 'Отправляем PDF…' : 'Отправить PDF на согласование'}
         </Button>
       </form>
     </Modal>
@@ -486,8 +514,7 @@ function Results({
                 <div>
                   <strong>{result.branchName}</strong>
                   <p className="text-sm text-ink-500">
-                    {result.itemTitle} · Принято{' '}
-                    {new Date(result.approvedAt).toLocaleString('ru-RU')}
+                    {result.itemTitle} · Принято {instructionDate(result.approvedAt)}
                   </p>
                 </div>
                 <Button

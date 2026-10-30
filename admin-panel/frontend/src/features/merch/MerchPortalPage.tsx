@@ -3,14 +3,14 @@ import { Logo } from '@/layout/Logo'
 
 export default function MerchPortalPage() {
   return (
-    <main className="min-h-screen bg-paper px-4 py-10 sm:py-16">
+    <main className="min-h-screen bg-paper px-4 py-6 sm:py-16">
       <div className="mx-auto max-w-4xl space-y-8">
         <header className="space-y-4">
           <div className="flex items-center gap-3">
             <Logo size={32} />
             <strong>ePharm · Мерчендайзинг</strong>
           </div>
-          <h1 className="text-3xl font-bold">Выберите рабочую область</h1>
+          <h1 className="text-2xl font-bold sm:text-3xl">Выберите рабочую область</h1>
           <p className="text-ink-500">
             Для каждой области используется отдельный вход и выданные права доступа.
           </p>
@@ -44,6 +44,11 @@ export default function MerchPortalPage() {
             </a>
           </section>
         </div>
+        <aside className="rounded-2xl border border-paper-line bg-white p-5 text-sm leading-6 text-ink-500">
+          <h2 className="mb-1 font-bold text-ink-900">Нужно выполнить конкретное задание?</h2>
+          Отсканируйте его QR-код на кассе. Ссылка откроет нужный сценарий и подскажет, требуется ли
+          личный вход.
+        </aside>
       </div>
     </main>
   )

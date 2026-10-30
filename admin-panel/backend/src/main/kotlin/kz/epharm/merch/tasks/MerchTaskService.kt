@@ -709,7 +709,10 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
     }, id).singleOrNull() ?: notFound()
 
     private fun dto(d: TaskDispatchRow, money: Boolean, details: Boolean = true, mobileExecutor: TaskExecutor? = null): MerchTaskDispatchDto {
-        val ids = jdbc.query("SELECT id FROM merch_task_items WHERE dispatch_id=? ORDER BY created_at,id", { rs, _ -> rs.uuid("id") }, d.id)
+        val itemStates = jdbc.query("SELECT id,status FROM merch_task_items WHERE dispatch_id=? ORDER BY created_at,id",
+            { rs, _ -> rs.uuid("id") to rs.getString("status") }, d.id)
+        val ids = itemStates.map { it.first }
+        val pending = itemStates.filter { it.second == "submitted" }.map { it.first }
         val person = if (mobileExecutor==null) currentAdminPerson() else mobileExecutor.personId
         val execute = person!=null && staffVisitForDispatch(d.id)==null && monthlyPersonAllowed(d.id,person) && (mobileExecutor!=null || access.canMerchBranchPermission(MerchTaskPermissions.execute,d.branchId))
         val now=Instant.now()
@@ -744,7 +747,7 @@ class MerchTaskService(private val jdbc: JdbcTemplate, private val json: ObjectM
         }, d.id).singleOrNull()
         return MerchTaskDispatchDto(d.id, d.branchId, d.title, d.status, d.dueAt, d.source, d.version, if (money) d.reward else null,
             rows, reward, ids.size, details,d.priority,d.taskType,
-            canCancel=cancelAllowed)
+            canCancel=cancelAllowed,pendingReviewCount=pending.size,nextPendingReviewItemId=pending.firstOrNull())
     }
 
     @Transactional(readOnly=true)
