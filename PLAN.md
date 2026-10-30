@@ -24,11 +24,13 @@ workflow 41008089286; это ещё не допуск к переключени�
 task QR и отдельный `/learn/merch/claim` сохраняются. Исправление frontend/Caddy
 слито PR#133 обычным owner squash в `f80bdf38ffb5de00b4af63a6a2d5d681655b6124`
 после22/22 успешных проверок; дерево совпадает с проверенным38d20ad.
-CI самого main41026714607 и новые образы ещё требуются; артефакты5d08b3a остаются доказательством
+CI самого main41026714607 успешен; новая параv0.2.1 собрана workflow41029359488
+и проверена по ZIP/SHA/source/JAR/слоям. Репетиция новой OCI-пары ещё требуется;
+артефакты5d08b3a остаются доказательством
 предыдущего baseline, а не автоматическим допуском изменённого релиза.
 
-**Открыто перед app-deploy:** завершение CI/публикации M13 и проверка новой exact-main
-OCI-пары. Визуальная часть G4 выполнена в VM: popup поверх кассы и клиентский
+**Открыто перед app-deploy:** репетиция новой exact-main OCI-пары, финальный
+CRM-cutoff/импорт и контролируемое переключение. Визуальная часть G4 выполнена в VM: popup поверх кассы и клиентский
 итог4870→6560 подтверждены; фискальная оплата, физический сканер и второй монитор
 не проверялись. Сквозной backend-прогон M13 с shared=false —8/8.
 Далее — свежие backup/restore, остановка старых CRM-записей,
@@ -3767,3 +3769,51 @@ projection, не настоящая оплата/replay. App/Models/App.Tests н
 Свежая backup-цепочка запущена08:31:51UTC штатным service после сверки12файлов
 действующего backup-onlyruntime и отсутствия incident-reference. Это не appdeploy;
 ожидаются её результат, exactselectedrestore и отдельная финальная дельтаCRM.
+
+**Свежие исходники, образы и offsite recovery проверены.** MainCI41026714607success,
+официальный imageworkflow41029359488success. Artifact12965531047/373653347B:
+rawZIPa4204a78…a285b35 совпал с GitHubAPIdigest; root независимо проверил ZIP и6SHA.
+Все1111sourcefiles соответствуютGitf80, обеlinux/amd64/v0.2.1 пары и90JAR-миграций
+проверены офлайн; 16marker/financial/access/frontendguards прошли.
+JAR74917315…651f8cfb; BEconfig8a44f88d…20637b40; FEconfig8d0c2c9a…6a53b03.
+Loaded-image/runtime-проверка ещё относится к предстоящей G7, не к offlinePASS.
+
+Backup08:31:51–08:40:31UTCexit0 создал4свежих архива. Из actualoffsitesnapshot
+c3a913bd50bd7edb65c1949973d36bc4c7c0aafb3efb022bb97cf69deb537630 на.80
+извлечены именно эти628133935B; все4архива иsidecars byte/SHA совпали.
+Неизменённыйrestore-test.sh выполнен в локальном изолированномLinuxcontroller:
+exit0, PG73tables/65migrations, MinIO9485objects/metadataFormat1, privatefiles+keys.
+ResultSHA9cb150ca…508aae; исходные тома сохранились, runningDocker0 послеcleanup.
+Подготовительные отказы сохранены отдельно: SSHstdinframing; локальный cache-tag
+lookup; socketgroup controller до обращения к restore. Успех относится к последнему
+Linux-прогону, а не к этим отказам; рабочие DB/volumes не монтировались.
+
+Backup-onlyruntime на.76 обновлён до точных12файловf80, включая incident-reference
+retentionreader. Старый3cddruntime и исходныйrelease-ops.env сохранены; атомарно
+изменена только строкаEPHARM_DEPLOY_DIR, последующая сверка12SHA иone-line diffPASS.
+App.env/releasepins/Compose/Caddy и3runningcontainerID не изменились,
+ретенция самимinstaller не запускалась. Источникc490a19b…b1af3f6.
+НовыйG7privatefixture остановился до созданияресурсов на неустойчивом taglookup
+локальногоDockerDesktop; строгиеID/cache-проверки корректируются отдельно.
+Это не отказ новой версии приложения и не разрешение пропустить репетицию.
+
+**Кандидат подготовлен на.76 без переключения приложения.** В отдельном root-only
+каталоге размещены7официальных файловf80/v0.2.1;6SHA и1111sourcebytes проверены.
+Оба образа загружены и прошли настоящий loaded-archive verifier, JAR/16marker,
+frontend иfinancial/accessguards. Actual destination IDs:
+BE7de78ad501be6f2f7b291c3b0e0933c680296db5d8b417998a4a81434c619810,
+FE2cd5d7d53940cb77644cdd198ca327b576768ba0067731bb2f2c9fcb1f8c8279.
+Их OCIconfigSHA отличаются от destinationID по штатному containerd-контракту;
+равенство содержимого проверено, relabel/rebuild не выполнялись.
+App.env/pins/Compose/Caddy, IDs иStartedAt трёх рабочих контейнеров сохранились,
+Flyway/live-import ещё не запускались. Текущая сетьepharm_default172.18.0.0/16
+перепроверена; backup/restore timers enabled+active, расписание сохранено.
+
+Дополнительные отказы новой privateG7 сохранены до запуска приложения/БД:
+shadowinghelper локальнойпеременной и несовместимыеCLI--networkcontainer/--add-host.
+Первое исправлено двумяrename+RED/GREENрегрессией; второе —переносомDNS-pin вparent,
+проверенным настоящей минимальной tooling-only пробой.45pure+8selectorPASS.
+Остановленные родители2ce18d30/c521cad8 сохранены под архивными именами вместе
+сvolume/данными/records; второйrename подтверждён before/after canonicalmetadata.
+Для каждого повтора создаётся fresh run, исходные markers не редактируются.
+Новая парная fault/recovery-репетиция всё ещё обязательна и не объявленаPASS.
