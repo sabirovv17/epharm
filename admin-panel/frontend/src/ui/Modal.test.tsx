@@ -5,6 +5,27 @@ import { useState } from 'react'
 import { Modal } from './Modal'
 
 describe('Modal keyboard access', () => {
+  it('preserves child autofocus so typing immediately edits the field', async () => {
+    function Example() {
+      const [open, setOpen] = useState(false)
+      return (
+        <>
+          <button onClick={() => setOpen(true)}>Новый курс</button>
+          <Modal open={open} title="Курс" onClose={() => setOpen(false)}>
+            <input aria-label="Название курса" autoFocus />
+          </Modal>
+        </>
+      )
+    }
+    const user = userEvent.setup()
+    render(<Example />)
+    await user.click(screen.getByRole('button', { name: 'Новый курс' }))
+    const title = screen.getByRole('textbox', { name: 'Название курса' })
+    expect(title).toHaveFocus()
+    await user.keyboard('Новый онлайн-курс')
+    expect(title).toHaveValue('Новый онлайн-курс')
+  })
+
   it('names close, traps keyboard focus and restores the opening control', async () => {
     function Example() {
       const [open, setOpen] = useState(false)

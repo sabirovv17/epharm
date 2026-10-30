@@ -38,7 +38,8 @@ export function Modal({
     const childIndex = openDialogs.findIndex((entry) => dialog.contains(entry))
     if (childIndex < 0) openDialogs.push(dialog)
     else openDialogs.splice(childIndex, 0, dialog)
-    if (openDialogs.at(-1) === dialog) dialog.focus({ preventScroll: true })
+    if (openDialogs.at(-1) === dialog && !dialog.contains(document.activeElement))
+      dialog.focus({ preventScroll: true })
     const k = (e: KeyboardEvent) => {
       if (openDialogs.at(-1) !== dialog) return
       if (e.key === 'Escape') {
