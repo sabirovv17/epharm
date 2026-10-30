@@ -21,6 +21,8 @@ All notable production changes to Epharm are recorded here. The format follows
 - Use actual successful quiz and assessment grades in course results and certificates, preserve
   successful retries, check passing thresholds before rounding and hide learner answer keys.
 - Preserve focused form inputs when opening modals and immutable source bindings in test fixtures.
+- Retain an always-empty quiz-result array for already open learner tabs, preserving response
+  compatibility without returning answer keys, explanations or per-question correctness.
 - Refuse administrative-session downgrades once V093 exists, preventing a rollback from
   accepting access tokens already revoked by password changes.
 
