@@ -41,7 +41,7 @@
   "mainFrontendConfigSha256": "a47b26d8dba37bde507f9ed88a9a3b607d6ae5e56d20a866a76e1607934cefd4",
   "mainBackendJarSha256": "3301c1d3df05125abf52cedccf2689c7c8ffbb65bdcc7b6872310f3f330247fd",
   "mainJarMerchFinancialAccessGuardsPassed": true,
-  "mainOciRecoveryState": "genuine_failed_state_and_late_writes_retained; recovery_source_gate_network_refusal_under_diagnosis; no recovery pass claimed",
+  "mainOciRecoveryState": "pass_in_bounded_isolated_rehearsal; original late data recovery and separate post-recovery behavior probe",
   "mainOciRetryPreparation": {
     "manifestSha256": "64d85bcf66c1aac487e2f548315b94b88f10f4062e874f9ca157963b3d3135a6",
     "pristineReadOnlyProofSha256": "7d836d0c8a3ce756a22471a7a6e6ea7eb7922791fdbad2b03032a38951d6ea64",
@@ -80,12 +80,24 @@
     }
   ],
   "samePolicyNetworkDiagnosis": {
-    "sourceGuardExit": 1,
     "hostGatePassed": true,
     "tlsOrAuthFailureProven": false,
     "socketTargetWasOutsidePinnedGithubIp": true,
     "cause": "api.github.com IPv4 rotation between resolutions",
     "sourceGuardBypassed": false,
-    "databaseResetForContinuation": false
-  }
+    "databaseResetForContinuation": false,
+    "failedProbeSourceGuardExit": 1,
+    "pinnedProbeSourceGuardExit": 0,
+    "validTlsAndSameAllowlistRetained": true
+  },
+  "mainOciRecoveryEvidence": "main-oci-recovery-090.json",
+  "remainingApplicationRolloutPrerequisites": [
+    "Complete actual Windows/Standard-N UI compatibility acceptance on unlocked Mac",
+    "Revalidate exact main/CI/production pins and capacity",
+    "Fresh backup/restore and final CRM writer/issuer freeze, delta/files, guarded import and audited cutover"
+  ],
+  "recoveryFinalManifestSha256": "310685fac96ff61f97db990f1f9c69b4b8fd7f9eb863c77171ae726866b224cc",
+  "recoveryFinalManifestFilesReverified": 47,
+  "isolatedRuntimeStopped": true,
+  "temporaryDockerMemoryRestoredMiB": 4096
 }
