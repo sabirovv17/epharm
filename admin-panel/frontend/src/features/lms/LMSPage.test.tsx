@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
@@ -16,6 +16,21 @@ import type {
 import { USERS } from '@/mocks/fixtures'
 import { useUiStore } from '@/app/store'
 import LMSPage from './LMSPage'
+const exportCaps = vi.hoisted(() => ({
+  isSuccess: true,
+  isFetchedAfterMount: true,
+  isError: false,
+  data: { managed: false } as
+    | { managed: boolean; trainingActions?: Record<string, boolean> }
+    | undefined,
+  canExportTrainingCourses: false,
+  canExportTrainingPrograms: false,
+  canExportTrainingAssignments: false,
+  canExportTrainingResults: false,
+}))
+vi.mock('@/app/useAdministrativeCapabilities', () => ({
+  useAdministrativeCapabilities: () => exportCaps,
+}))
 
 const lmsHooks = vi.hoisted(() => ({
   useCourses: vi.fn(),
@@ -275,7 +290,6 @@ const assignment: TrainingAssignmentDto = {
   updatedAt: '2026-08-01T08:00:00Z',
 }
 
-
 const participant: EventParticipantDto = {
   id: 'participant-1',
   eventId: offlineEvent.id,
@@ -293,6 +307,16 @@ const participant: EventParticipantDto = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  Object.assign(exportCaps, {
+    isSuccess: true,
+    isFetchedAfterMount: true,
+    isError: false,
+    data: { managed: false },
+    canExportTrainingCourses: false,
+    canExportTrainingPrograms: false,
+    canExportTrainingAssignments: false,
+    canExportTrainingResults: false,
+  })
   // Component-level scenarios exercise the legacy HQ tab bar. The dedicated
   // training-workspace behavior is covered separately below and in Sidebar/E2E.
   useUiStore.setState({ authedUser: { ...USERS.lms, role: 'SYSTEM_ADMIN' } })
@@ -346,6 +370,31 @@ beforeEach(() => {
   lmsHooks.downloadTrainingAssignments.mockResolvedValue(new Blob(['report']))
 })
 
+describe('new XLSX does not expand legacy training list or CSV access', () => {
+  it.each(['assignments', 'results'] as const)(
+    'keeps %s export separately usable when the old dashboard/list is denied',
+    (tab) => {
+      exportCaps.canExportTrainingAssignments = true
+      exportCaps.canExportTrainingResults = true
+      lmsHooks.useTrainingDashboard.mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        isError: true,
+        error: new Error('Список не подключён к этим правам'),
+        refetch: vi.fn(),
+      })
+      renderPage(`/lms?tab=${tab}`)
+      expect(screen.getByText('Не удалось загрузить раздел обучения')).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', {
+          name: tab === 'assignments' ? 'Excel: назначения' : 'Excel: результаты',
+        }),
+      ).toBeEnabled()
+      expect(screen.queryByRole('button', { name: 'CSV', exact: true })).not.toBeInTheDocument()
+    },
+  )
+})
+
 function renderPage(initialEntry = '/lms') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
@@ -360,6 +409,122 @@ function renderPage(initialEntry = '/lms') {
 }
 
 describe('Обучение — операционный раздел', () => {
+  it('MANAGED create-only открывает создание, не выдавая редактирование или публикацию', async () => {
+    exportCaps.data = { managed: true, trainingActions: { 'programs.create': true } }
+    lmsHooks.useTrainingDashboard.mockReturnValue(
+      queryResult({
+        ...dashboard,
+        capabilities: { ...dashboard.capabilities, canManagePrograms: false },
+      }),
+    )
+    renderPage('/lms?tab=programs')
+    expect(screen.getByRole('button', { name: 'Новая программа' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Редактировать программу' }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Создать копию' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Новая программа' }))
+    expect(screen.getByRole('combobox', { name: 'Статус программы' })).toBeDisabled()
+  })
+
+  it('MANAGED edit-only может редактировать черновик, но не создавать и не публиковать', () => {
+    exportCaps.data = { managed: true, trainingActions: { 'programs.edit': true } }
+    lmsHooks.useTrainingPrograms.mockReturnValue(queryResult([{ ...program, status: 'draft' }]))
+    renderPage('/lms?tab=programs')
+    expect(screen.getByRole('button', { name: 'Редактировать программу' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Новая программа' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Опубликовать' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Создать копию' })).not.toBeInTheDocument()
+  })
+
+  it('upload-only загружает материал существующего урока без скрытого PATCH содержания', async () => {
+    exportCaps.data = {
+      managed: true,
+      trainingActions: { 'courses.view': true, 'courses.upload': true, 'courses.publish': true },
+    }
+    const upload = vi.fn().mockResolvedValue(course)
+    const edit = vi.fn()
+    lmsHooks.useUploadCourseLessonAttachment.mockReturnValue(mutationResult(vi.fn(), upload))
+    lmsHooks.useUpdateCourseLesson.mockReturnValue(mutationResult(vi.fn(), edit))
+    const user = userEvent.setup()
+    renderPage('/lms?tab=courses')
+    await user.click(screen.getByRole('button', { name: 'Основы категории' }))
+    expect(screen.queryByRole('button', { name: 'Добавить урок' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Сохранить курс' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /1\. Введение/ }))
+    const editor = screen.getByRole('dialog', { name: 'Введение' })
+    const picker = editor.querySelector('input[type="file"][multiple]') as HTMLInputElement
+    expect(picker).toBeEnabled()
+    const file = new File(['synthetic-only'], 'handout.pdf', { type: 'application/pdf' })
+    await user.upload(picker, file)
+    await user.click(within(editor).getByRole('button', { name: 'Загрузить материалы' }))
+    await waitFor(() =>
+      expect(upload).toHaveBeenCalledExactlyOnceWith({
+        courseId: course.id,
+        lessonId: 'lesson-1',
+        file,
+      }),
+    )
+    expect(edit).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [{ 'assignments.assign': true }, true, false],
+    [{ 'assignments.change_format': true }, false, true],
+  ] as const)('разделяет назначение и смену формата у MANAGED: %j', (actions, create, change) => {
+    exportCaps.data = { managed: true, trainingActions: actions }
+    lmsHooks.useTrainingAssignmentPage.mockReturnValue(
+      queryResult({ items: [assignment], total: 1, page: 0, size: 25, totalPages: 1 }),
+    )
+    renderPage('/lms?tab=assignments')
+    expect(!!screen.queryByRole('button', { name: 'Назначить обучение' })).toBe(create)
+    expect(!!screen.queryByRole('button', { name: 'Сменить формат' })).toBe(change)
+  })
+
+  it('не применяет закэшированные MANAGED actions до свежей загрузки прав', () => {
+    exportCaps.data = { managed: true, trainingActions: { 'programs.create': true } }
+    exportCaps.isFetchedAfterMount = false
+    renderPage('/lms?tab=programs')
+    expect(screen.queryByRole('button', { name: 'Новая программа' })).not.toBeInTheDocument()
+  })
+
+  it.each(['assignments', 'analytics'])(
+    'для MANAGED предлагает только отдельный Excel, без CSV fallback: %s',
+    (tab) => {
+      exportCaps.data = { managed: true }
+      renderPage(`/lms?tab=${tab}`)
+      expect(screen.queryByRole('button', { name: /CSV/ })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Excel: назначения' })).toBeDisabled()
+      expect(screen.getByText('Нет права на эту выгрузку Excel')).toBeInTheDocument()
+      expect(lmsHooks.downloadTrainingAssignments).not.toHaveBeenCalled()
+    },
+  )
+
+  it('не возвращает CSV по старым данным LEGACY до свежего подтверждения сервера', () => {
+    exportCaps.isFetchedAfterMount = false
+    renderPage('/lms?tab=assignments')
+    expect(screen.queryByRole('button', { name: 'CSV', exact: true })).not.toBeInTheDocument()
+  })
+
+  it.each(['overview', 'analytics'])(
+    'не превращает скрытый финансовый итог в ноль на вкладке %s даже для HQ',
+    (tab) => {
+      lmsHooks.useTrainingDashboard.mockReturnValue(
+        queryResult({ ...dashboard, rewardsIssued: null }),
+      )
+      renderPage(`/lms?tab=${tab}`)
+      expect(screen.getByText('Нет доступа')).toBeInTheDocument()
+      expect(screen.queryByText('2 250 ₸')).not.toBeInTheDocument()
+    },
+  )
+
+  it('показывает настоящий нулевой итог отдельно от отсутствия финансового доступа', () => {
+    lmsHooks.useTrainingDashboard.mockReturnValue(queryResult({ ...dashboard, rewardsIssued: 0 }))
+    renderPage()
+    expect(screen.getByText('0 ₸')).toBeInTheDocument()
+    expect(screen.queryByText('Нет доступа')).not.toBeInTheDocument()
+  })
+
   it('показывает сводные показатели', () => {
     renderPage()
     expect(screen.getByRole('heading', { level: 1, name: 'Обучение' })).toBeInTheDocument()
@@ -383,9 +548,7 @@ describe('Обучение — операционный раздел', () => {
 
     renderPage('/lms?tab=unknown')
 
-    expect(
-      screen.getByRole('heading', { level: 1, name: 'Дашборд обучения' }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Дашборд обучения' })).toBeInTheDocument()
     expect(screen.getByText('Активные программы')).toBeInTheDocument()
   })
 
@@ -415,10 +578,13 @@ describe('Обучение — операционный раздел', () => {
     })
     await user.upload(within(dialog).getByLabelText(/Выбрать заполненный Excel-файл/), file)
     await user.click(within(dialog).getByRole('button', { name: 'Импортировать курс' }))
-    expect(mutate).toHaveBeenCalledWith(file, expect.objectContaining({
-      onSuccess: expect.any(Function),
-      onError: expect.any(Function),
-    }))
+    expect(mutate).toHaveBeenCalledWith(
+      file,
+      expect.objectContaining({
+        onSuccess: expect.any(Function),
+        onError: expect.any(Function),
+      }),
+    )
   })
 
   it('открывает содержание онлайн-курса и показывает видеоуроки', async () => {
@@ -455,10 +621,22 @@ describe('Обучение — операционный раздел', () => {
       lessonItems: [
         ...course.lessonItems,
         {
-          id: 'quiz-new', title: 'Итоговый тест', description: '', content: '', kind: 'quiz',
-          videoUrl: null, externalUrl: null, required: true, minimumWatchPct: null,
-          quizPassingScore: 80, quizQuestions: [], attachments: [], durationMin: 0, order: 1,
-          createdAt: '2026-08-01T08:00:00Z', updatedAt: '2026-08-01T08:00:00Z',
+          id: 'quiz-new',
+          title: 'Итоговый тест',
+          description: '',
+          content: '',
+          kind: 'quiz',
+          videoUrl: null,
+          externalUrl: null,
+          required: true,
+          minimumWatchPct: null,
+          quizPassingScore: 80,
+          quizQuestions: [],
+          attachments: [],
+          durationMin: 0,
+          order: 1,
+          createdAt: '2026-08-01T08:00:00Z',
+          updatedAt: '2026-08-01T08:00:00Z',
         },
       ],
     })
@@ -478,20 +656,24 @@ describe('Обучение — операционный раздел', () => {
     await user.click(within(lessonDialog).getByRole('radio', { name: 'Правильный ответ 2' }))
     await user.click(within(lessonDialog).getByRole('button', { name: 'Сохранить урок' }))
 
-    expect(createLesson).toHaveBeenCalledWith(expect.objectContaining({
-      courseId: course.id,
-      lesson: expect.objectContaining({
-        title: 'Итоговый тест',
-        kind: 'quiz',
-        required: true,
-        quizPassingScore: 80,
-        quizQuestions: [expect.objectContaining({
-          prompt: 'Когда принимать препарат?',
-          options: ['До еды', 'После еды'],
-          correctOption: 1,
-        })],
+    expect(createLesson).toHaveBeenCalledWith(
+      expect.objectContaining({
+        courseId: course.id,
+        lesson: expect.objectContaining({
+          title: 'Итоговый тест',
+          kind: 'quiz',
+          required: true,
+          quizPassingScore: 80,
+          quizQuestions: [
+            expect.objectContaining({
+              prompt: 'Когда принимать препарат?',
+              options: ['До еды', 'После еды'],
+              correctOption: 1,
+            }),
+          ],
+        }),
       }),
-    }))
+    )
   })
 
   it('создаёт live-урок с расписанием и HTTPS-трансляцией', async () => {
@@ -509,62 +691,74 @@ describe('Обучение — операционный раздел', () => {
     await user.type(within(editor).getByLabelText('Название'), 'Прямой эфир')
     await user.selectOptions(within(editor).getByLabelText('Тип урока'), 'live')
     expect((within(editor).getByLabelText('Начало') as HTMLInputElement).value).not.toBe('')
-    await user.type(within(editor).getByLabelText(/Ссылка на трансляцию/), 'https://www.youtube.com/watch?v=demo123')
+    await user.type(
+      within(editor).getByLabelText(/Ссылка на трансляцию/),
+      'https://www.youtube.com/watch?v=demo123',
+    )
     await user.click(within(editor).getByRole('button', { name: 'Сохранить урок' }))
 
-    expect(createLesson).toHaveBeenCalledWith(expect.objectContaining({
-      courseId: course.id,
-      lesson: expect.objectContaining({
-        title: 'Прямой эфир',
-        kind: 'live',
-        liveProvider: 'custom',
-        liveStartAt: expect.any(String),
-        externalUrl: 'https://www.youtube.com/watch?v=demo123',
+    expect(createLesson).toHaveBeenCalledWith(
+      expect.objectContaining({
+        courseId: course.id,
+        lesson: expect.objectContaining({
+          title: 'Прямой эфир',
+          kind: 'live',
+          liveProvider: 'custom',
+          liveStartAt: expect.any(String),
+          externalUrl: 'https://www.youtube.com/watch?v=demo123',
+        }),
       }),
-    }))
+    )
     expect(createLesson.mock.calls[0][0].lesson).not.toHaveProperty('liveStatus')
   })
 
   it.each([
     ['live', 'В эфире'],
     ['ended', 'Завершён'],
-  ] as const)('не меняет статус и расписание %s-урока при обычном сохранении', async (status, statusLabel) => {
-    const updateLesson = vi.fn().mockResolvedValue(course)
-    lmsHooks.useUpdateCourseLesson.mockReturnValue(mutationResult(vi.fn(), updateLesson))
-    lmsHooks.useCourse.mockReturnValue(queryResult({
-      ...course,
-      lessonItems: [{
-        ...course.lessonItems[0],
-        title: 'Прямой эфир',
-        kind: 'live',
-        videoUrl: null,
-        externalUrl: 'https://www.youtube.com/watch?v=demo123',
-        liveProvider: 'youtube',
-        liveStatus: status,
-        liveStartAt: '2026-10-15T14:00:29Z',
-        liveEndAt: status === 'ended' ? '2026-10-15T15:00:47Z' : null,
-        livePolls: [],
-      }],
-    }))
-    const user = userEvent.setup()
-    renderPage('/lms?tab=courses')
-    await user.click(screen.getByRole('button', { name: 'Основы категории' }))
-    await user.click(screen.getByRole('button', { name: /1\. Прямой эфир/ }))
+  ] as const)(
+    'не меняет статус и расписание %s-урока при обычном сохранении',
+    async (status, statusLabel) => {
+      const updateLesson = vi.fn().mockResolvedValue(course)
+      lmsHooks.useUpdateCourseLesson.mockReturnValue(mutationResult(vi.fn(), updateLesson))
+      lmsHooks.useCourse.mockReturnValue(
+        queryResult({
+          ...course,
+          lessonItems: [
+            {
+              ...course.lessonItems[0],
+              title: 'Прямой эфир',
+              kind: 'live',
+              videoUrl: null,
+              externalUrl: 'https://www.youtube.com/watch?v=demo123',
+              liveProvider: 'youtube',
+              liveStatus: status,
+              liveStartAt: '2026-10-15T14:00:29Z',
+              liveEndAt: status === 'ended' ? '2026-10-15T15:00:47Z' : null,
+              livePolls: [],
+            },
+          ],
+        }),
+      )
+      const user = userEvent.setup()
+      renderPage('/lms?tab=courses')
+      await user.click(screen.getByRole('button', { name: 'Основы категории' }))
+      await user.click(screen.getByRole('button', { name: /1\. Прямой эфир/ }))
 
-    const editor = screen.getByRole('dialog', { name: 'Редактировать урок' })
-    expect(within(editor).queryByRole('combobox', { name: 'Статус' })).not.toBeInTheDocument()
-    expect(within(editor).getByText(statusLabel)).toBeInTheDocument()
-    expect(within(editor).getByLabelText('Начало')).toBeDisabled()
-    expect(within(editor).getByLabelText(/Окончание/)).toBeDisabled()
-    await user.click(within(editor).getByRole('button', { name: 'Сохранить урок' }))
+      const editor = screen.getByRole('dialog', { name: 'Редактировать урок' })
+      expect(within(editor).queryByRole('combobox', { name: 'Статус' })).not.toBeInTheDocument()
+      expect(within(editor).getByText(statusLabel)).toBeInTheDocument()
+      expect(within(editor).getByLabelText('Начало')).toBeDisabled()
+      expect(within(editor).getByLabelText(/Окончание/)).toBeDisabled()
+      await user.click(within(editor).getByRole('button', { name: 'Сохранить урок' }))
 
-    expect(updateLesson).toHaveBeenCalled()
-    const patch = updateLesson.mock.calls[0][0].patch
-    expect(patch).not.toHaveProperty('liveStatus')
-    expect(patch).not.toHaveProperty('liveStartAt')
-    expect(patch).not.toHaveProperty('liveEndAt')
-    expect(patch).not.toHaveProperty('clearLiveSchedule')
-  })
+      expect(updateLesson).toHaveBeenCalled()
+      const patch = updateLesson.mock.calls[0][0].patch
+      expect(patch).not.toHaveProperty('liveStatus')
+      expect(patch).not.toHaveProperty('liveStartAt')
+      expect(patch).not.toHaveProperty('liveEndAt')
+      expect(patch).not.toHaveProperty('clearLiveSchedule')
+    },
+  )
 
   it('показывает прикрепленные материалы в редакторе урока', async () => {
     const user = userEvent.setup()
@@ -578,7 +772,9 @@ describe('Обучение — операционный раздел', () => {
       'href',
       'https://epharm.inkar.kz/s3/handout.pdf',
     )
-    expect(screen.getByRole('button', { name: 'Удалить материал Памятка фармацевта' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Удалить материал Памятка фармацевта' }),
+    ).toBeInTheDocument()
   })
 
   it('разрешает роли только на чтение открыть курс без кнопок редактирования', async () => {
@@ -734,9 +930,11 @@ describe('Обучение — операционный раздел', () => {
   })
 
   it('загружает обложку программы и сохраняет возвращённую сервером ссылку', async () => {
-    const upload = vi.fn((_file: File, callbacks: { onSuccess: (value: { coverUrl: string }) => void }) => {
-      callbacks.onSuccess({ coverUrl: 'https://epharm.inkar.kz/media/course-cover.png' })
-    })
+    const upload = vi.fn(
+      (_file: File, callbacks: { onSuccess: (value: { coverUrl: string }) => void }) => {
+        callbacks.onSuccess({ coverUrl: 'https://epharm.inkar.kz/media/course-cover.png' })
+      },
+    )
     const update = vi.fn()
     lmsHooks.useUploadTrainingProgramCover.mockReturnValue(mutationResult(upload))
     lmsHooks.useUpdateTrainingProgram.mockReturnValue(mutationResult(update))
@@ -747,10 +945,13 @@ describe('Обучение — операционный раздел', () => {
     const dialog = screen.getByRole('dialog', { name: 'Редактировать программу' })
     const file = new File(['png'], 'cover.png', { type: 'image/png' })
     await user.upload(within(dialog).getByLabelText('Выбрать фотографию'), file)
-    expect(upload).toHaveBeenCalledWith(file, expect.objectContaining({
-      onSuccess: expect.any(Function),
-      onError: expect.any(Function),
-    }))
+    expect(upload).toHaveBeenCalledWith(
+      file,
+      expect.objectContaining({
+        onSuccess: expect.any(Function),
+        onError: expect.any(Function),
+      }),
+    )
     expect(within(dialog).getByAltText('Обложка программы')).toHaveAttribute(
       'src',
       'https://epharm.inkar.kz/media/course-cover.png',
@@ -844,7 +1045,6 @@ describe('Обучение — операционный раздел', () => {
       new URL('/learn/course/assignment-1', window.location.origin).toString(),
     )
   })
-
 
   it('предвыбирает фармацевта при переходе из реестра', () => {
     renderPage('/lms?action=assign&pharmacists=ph-1')

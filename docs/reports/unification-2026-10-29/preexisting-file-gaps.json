@@ -1,0 +1,24 @@
+{
+  "missing_s3_slides": [
+    {
+      "slide_id": "sl_promo_lite",
+      "playlist_id": "pl_promo_lite",
+      "playlist_status": "draft",
+      "created_at": "2026-07-10T14:55:51.054219+00:00",
+      "key_sha256": "a55837affdb4aa5040d3f814257e146dccbf3736b725ec743ce9462086469018"
+    },
+    {
+      "slide_id": "sl_pharm_care",
+      "playlist_id": "pl_promo_lite",
+      "playlist_status": "draft",
+      "created_at": "2026-07-10T14:55:51.054344+00:00",
+      "key_sha256": "55a5baad06e8a9699eab8fa17e4be1db45814635936a806beb8a5bb75b9d38f1"
+    }
+  ],
+  "missing_download": {
+    "version": "1.0.54",
+    "is_current": false,
+    "http_status": 404
+  },
+  "meaning": "Missing in backup and source HTTP404 before migration; references preserved and no replacement content invented. Resolving or explicitly carrying these existing defects is a release gate."
+}

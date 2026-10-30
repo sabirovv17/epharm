@@ -62,6 +62,10 @@ import { describeError } from '@/lib/describeError'
 import { formatKzt, formatNum } from '@/mocks/fixtures'
 import { isTrainingReadOnlyRole, isTrainingWorkspaceRole } from '@/app/accessPolicy'
 import { useUiStore } from '@/app/store'
+import { useAdministrativeCapabilities } from '@/app/useAdministrativeCapabilities'
+import ReportDownloadButton from '@/features/reports/ReportDownloadButton'
+import TrainingLearningExport from './TrainingLearningExport'
+import { trainingAllowed, type TrainingActions } from './training-actions'
 import {
   TRAINING_NAVIGATION,
   trainingItem,
@@ -96,6 +100,12 @@ const TABS: TabItem<TrainingTab>[] = TRAINING_NAVIGATION.map(({ value, label }) 
 }))
 
 export default function LMSPage() {
+  const exportAccess = useAdministrativeCapabilities()
+  const legacyCsvAllowed =
+    exportAccess.isSuccess &&
+    exportAccess.isFetchedAfterMount &&
+    !exportAccess.isError &&
+    exportAccess.data?.managed === false
   const [searchParams, setSearchParams] = useSearchParams()
   const role = useUiStore((state) => state.authedUser?.role)
   const isReadOnly = isTrainingReadOnlyRole(role)
@@ -154,6 +164,27 @@ export default function LMSPage() {
   const pharmacists = pharmacistsQuery.data ?? []
   const pharmacies = pharmaciesQuery.data ?? []
   const capabilities = dashboard?.capabilities
+  const authorityFresh =
+    exportAccess.isSuccess && exportAccess.isFetchedAfterMount && !exportAccess.isError
+  const trainingActions: TrainingActions =
+    authorityFresh && exportAccess.data?.managed === false
+      ? null
+      : authorityFresh
+        ? (exportAccess.data?.trainingActions ?? {})
+        : {}
+  const allow = (key: string, legacy = false) => trainingAllowed(trainingActions, key, legacy)
+  const createProgram = allow('programs.create', !!capabilities?.canManagePrograms)
+  const editProgram = allow('programs.edit', !!capabilities?.canManagePrograms)
+  const assignTraining = allow('assignments.assign', !!capabilities?.canManageAssignments)
+  const changeFormat = allow('assignments.change_format', !!capabilities?.canManageAssignments)
+  const createEvent = allow('events.create', !!capabilities?.canManageEvents)
+  const editEvent = allow('events.edit', !!capabilities?.canManageEvents)
+  const markAttendance = allow('attendance.mark', !!capabilities?.canMarkAttendance)
+  const viewParticipants = allow('attendance.view', !!capabilities?.canMarkAttendance)
+  const showEventQr = allow('events.show_qr', !!capabilities?.canMarkAttendance)
+  const createCourse = allow('courses.create', !!capabilities?.canManagePrograms)
+  const importCourse = allow('courses.import', !!capabilities?.canManagePrograms)
+  const recordResults = allow('results.record_result', !!capabilities?.canRecordResults)
   const closeAssignmentModal = () => {
     setAssignmentModalOpen(false)
     if (requestedAssignment) {
@@ -173,40 +204,48 @@ export default function LMSPage() {
         </span>
       )
     }
-    if (tab === 'programs' && capabilities?.canManagePrograms) {
+    if (tab === 'programs' && createProgram) {
       return (
         <Button leading={<IconPlus size={15} />} onClick={() => setProgramModalOpen(true)}>
           Новая программа
         </Button>
       )
     }
-    if (tab === 'assignments' && capabilities?.canManageAssignments) {
+    if (tab === 'assignments' && assignTraining) {
       return (
         <Button leading={<IconPlus size={15} />} onClick={() => setAssignmentModalOpen(true)}>
           Назначить обучение
         </Button>
       )
     }
-    if (tab === 'events' && capabilities?.canManageEvents) {
+    if (tab === 'events' && createEvent) {
       return (
         <Button leading={<IconPlus size={15} />} onClick={() => setEventModalOpen(true)}>
           Новое событие
         </Button>
       )
     }
-    if (tab === 'courses' && capabilities?.canManagePrograms) {
+    if (tab === 'courses' && (createCourse || importCourse)) {
       return (
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" leading={<IconUpload size={15} />} onClick={() => setCourseImportOpen(true)}>
-            Импорт из Excel
-          </Button>
-          <Button leading={<IconPlus size={15} />} onClick={() => setCourseModalOpen(true)}>
-            Новый курс
-          </Button>
+          {importCourse && (
+            <Button
+              variant="outline"
+              leading={<IconUpload size={15} />}
+              onClick={() => setCourseImportOpen(true)}
+            >
+              Импорт из Excel
+            </Button>
+          )}
+          {createCourse && (
+            <Button leading={<IconPlus size={15} />} onClick={() => setCourseModalOpen(true)}>
+              Новый курс
+            </Button>
+          )}
         </div>
       )
     }
-    if (tab === 'certificates' && capabilities?.canManagePrograms) {
+    if (tab === 'certificates' && editProgram) {
       return (
         <Button leading={<IconEdit size={15} />} onClick={() => setCertificateEditorOpen(true)}>
           Редактор сертификата
@@ -225,7 +264,31 @@ export default function LMSPage() {
             ? currentSection.subtitle
             : 'Программы, назначения, очные события, контроль прохождения и сертификаты фармацевтов'
         }
-        actions={action}
+        actions={
+          <div className="flex items-start gap-2">
+            {action}
+            {tab === 'courses' && (
+              <ReportDownloadButton
+                allowed={exportAccess.canExportTrainingCourses}
+                path="/api/admin/training/exports/courses.xlsx"
+                params={{}}
+                filename="training-courses.xlsx"
+                label="Excel: курсы"
+                note="Все доступные курсы и статусы, без ключей тестов."
+              />
+            )}
+            {tab === 'programs' && (
+              <ReportDownloadButton
+                allowed={exportAccess.canExportTrainingPrograms}
+                path="/api/admin/training/exports/programs.xlsx"
+                params={{}}
+                filename="training-programs.xlsx"
+                label="Excel: программы"
+                note="Все доступные программы; поиск таблицы не фильтрует выгрузку."
+              />
+            )}
+          </div>
+        }
       />
 
       {!trainingWorkspace && (
@@ -237,12 +300,30 @@ export default function LMSPage() {
       )}
 
       {dashboardQuery.isError && !dashboard ? (
-        <Empty
-          title="Не удалось загрузить раздел обучения"
-          body={describeError(dashboardQuery.error)}
-          icon={<IconLMS size={28} />}
-          action={<Button onClick={() => dashboardQuery.refetch()}>Повторить</Button>}
-        />
+        <>
+          <Empty
+            title="Не удалось загрузить раздел обучения"
+            body={describeError(dashboardQuery.error)}
+            icon={<IconLMS size={28} />}
+            action={<Button onClick={() => dashboardQuery.refetch()}>Повторить</Button>}
+          />
+          {(tab === 'assignments' || tab === 'results') && (
+            <div className="card p-4">
+              <p className="mb-3 text-[13px] text-ink-500">
+                Список сейчас недоступен. Отдельная выгрузка доступна только по своему праву и
+                охватывает всю разрешённую историю без фильтров таблицы.
+              </p>
+              <TrainingLearningExport
+                mode={tab}
+                allowed={
+                  tab === 'assignments'
+                    ? exportAccess.canExportTrainingAssignments
+                    : exportAccess.canExportTrainingResults
+                }
+              />
+            </div>
+          )}
+        </>
       ) : tab === 'overview' ? (
         <OverviewTab dashboard={dashboard} loading={dashboardQuery.isLoading} />
       ) : tab === 'programs' ? (
@@ -250,6 +331,7 @@ export default function LMSPage() {
           programs={programs}
           loading={programsQuery.isLoading}
           canManage={!!capabilities?.canManagePrograms}
+          actions={trainingActions}
           onEdit={(program) => setProgramTarget({ program, mode: 'edit' })}
           onDuplicate={(program) => setProgramTarget({ program, mode: 'duplicate' })}
         />
@@ -257,16 +339,18 @@ export default function LMSPage() {
         <AssignmentsTab
           dashboard={dashboard}
           programs={programs}
-          canManage={!!capabilities?.canManageAssignments}
-          canExport={!!capabilities?.canExport}
+          canManage={changeFormat}
+          canExport={legacyCsvAllowed && !!capabilities?.canExport}
+          canExportXlsx={exportAccess.canExportTrainingAssignments}
           onChangeFormat={setFormatTarget}
         />
       ) : tab === 'events' || tab === 'attendance' ? (
         <EventsTab
           events={events}
           loading={eventsQuery.isLoading}
-          canManageEvents={!!capabilities?.canManageEvents}
-          canMarkAttendance={!!capabilities?.canMarkAttendance}
+          canManageEvents={editEvent}
+          canMarkAttendance={viewParticipants}
+          canShowQr={showEventQr}
           onEdit={setEventTarget}
           onParticipants={setAttendanceEvent}
           onQr={setQrEvent}
@@ -275,14 +359,15 @@ export default function LMSPage() {
         <CoursesTab
           courses={courses}
           loading={coursesQuery.isLoading}
-          canManage={!!capabilities?.canManagePrograms}
+          canManage={allow('courses.archive', !!capabilities?.canManagePrograms)}
           onOpen={(course) => setCourseTargetId(course.id)}
         />
       ) : tab === 'results' ? (
         <ResultsTab
           assignments={assignments}
           loading={assignmentsQuery.isLoading}
-          canRecord={!!capabilities?.canRecordResults}
+          canRecord={recordResults}
+          canExportXlsx={exportAccess.canExportTrainingResults}
           onRecord={setResultTarget}
         />
       ) : tab === 'certificates' ? (
@@ -291,26 +376,45 @@ export default function LMSPage() {
         <AnalyticsTab
           dashboard={dashboard}
           assignments={assignments}
-          canExport={!!capabilities?.canExport}
+          canExport={legacyCsvAllowed && !!capabilities?.canExport}
+          canExportXlsx={exportAccess.canExportTrainingAssignments}
         />
       ) : (
         <TrainingSettingsTab capabilities={capabilities} />
       )}
 
-      {programModalOpen && capabilities?.canManagePrograms && (
-        <CreateProgramModal open onClose={() => setProgramModalOpen(false)} courses={courses} />
-      )}
-      {programTarget && capabilities?.canManagePrograms && (
+      {programModalOpen && createProgram && (
         <CreateProgramModal
-          key={`${programTarget.mode}-${programTarget.program.id}-${programTarget.program.version}`}
           open
-          onClose={() => setProgramTarget(null)}
+          onClose={() => setProgramModalOpen(false)}
           courses={courses}
-          program={programTarget.program}
-          mode={programTarget.mode}
+          canPublish={allow('programs.publish', true)}
+          canConfigureBonus={allow('programs.configure_bonus', true)}
+          canUpload={allow('programs.upload', true)}
         />
       )}
-      {(assignmentModalOpen || requestedAssignment) && capabilities?.canManageAssignments && (
+      {programTarget &&
+        (programTarget.mode === 'duplicate'
+          ? createProgram &&
+            ((programTarget.program.completionBonus === 0 &&
+              programTarget.program.stages.every((stage) => stage.bonus === 0)) ||
+              allow('programs.configure_bonus', true))
+          : editProgram &&
+            (!['published', 'scheduled', 'paused'].includes(programTarget.program.status) ||
+              allow('programs.publish', true))) && (
+          <CreateProgramModal
+            key={`${programTarget.mode}-${programTarget.program.id}-${programTarget.program.version}`}
+            open
+            onClose={() => setProgramTarget(null)}
+            courses={courses}
+            program={programTarget.program}
+            mode={programTarget.mode}
+            canPublish={allow('programs.publish', true)}
+            canConfigureBonus={allow('programs.configure_bonus', true)}
+            canUpload={allow('programs.upload', true)}
+          />
+        )}
+      {(assignmentModalOpen || requestedAssignment) && assignTraining && (
         <AssignTrainingModal
           key={requestedPharmacistIds.join(':') || 'manual-assignment'}
           open
@@ -322,10 +426,10 @@ export default function LMSPage() {
           initialPharmacistIds={requestedPharmacistIds}
         />
       )}
-      {eventModalOpen && capabilities?.canManageEvents && (
+      {eventModalOpen && createEvent && (
         <CreateEventModal open onClose={() => setEventModalOpen(false)} programs={programs} />
       )}
-      {eventTarget && capabilities?.canManageEvents && (
+      {eventTarget && editEvent && (
         <CreateEventModal
           key={`event-${eventTarget.id}-${eventTarget.updatedAt}`}
           open
@@ -334,21 +438,31 @@ export default function LMSPage() {
           event={eventTarget}
         />
       )}
-      {capabilities?.canManagePrograms && (
-        <CreateCourseModal open={courseModalOpen} onClose={() => setCourseModalOpen(false)} />
+      {createCourse && (
+        <CreateCourseModal
+          open={courseModalOpen}
+          onClose={() => setCourseModalOpen(false)}
+          canPublish={allow('courses.publish', true)}
+          canConfigureBonus={allow('courses.configure_bonus', true)}
+        />
       )}
-      {courseImportOpen && capabilities?.canManagePrograms && (
+      {courseImportOpen && importCourse && (
         <ImportCourseModal
           open
           onClose={() => setCourseImportOpen(false)}
           onImported={(course) => setCourseTargetId(course.id)}
         />
       )}
-      {certificateEditorOpen && capabilities?.canManagePrograms && (
+      {certificateEditorOpen && editProgram && (
         <CertificateEditorModal
           open
           onClose={() => setCertificateEditorOpen(false)}
-          programs={programs}
+          programs={programs.filter(
+            (program) =>
+              !['published', 'scheduled', 'paused'].includes(program.status) ||
+              allow('programs.publish', true),
+          )}
+          canUpload={allow('programs.upload', true)}
         />
       )}
       <CourseEditorDrawer
@@ -356,16 +470,21 @@ export default function LMSPage() {
         courseId={courseTargetId}
         fallbackCourse={courses.find((course) => course.id === courseTargetId)}
         canManage={!!capabilities?.canManagePrograms}
+        actions={trainingActions}
         onClose={() => setCourseTargetId(null)}
       />
-      {capabilities?.canMarkAttendance && (
-        <AttendanceModal event={attendanceEvent} onClose={() => setAttendanceEvent(null)} />
+      {viewParticipants && (
+        <AttendanceModal
+          event={attendanceEvent}
+          canMark={markAttendance}
+          onClose={() => setAttendanceEvent(null)}
+        />
       )}
-      <EventQrModal event={qrEvent} onClose={() => setQrEvent(null)} />
-      {capabilities?.canRecordResults && (
+      <EventQrModal event={showEventQr ? qrEvent : null} onClose={() => setQrEvent(null)} />
+      {recordResults && (
         <AssessmentResultModal target={resultTarget} onClose={() => setResultTarget(null)} />
       )}
-      {formatTarget && capabilities?.canManageAssignments && (
+      {formatTarget && changeFormat && (
         <ChangeAssignmentFormatModal
           key={formatTarget.id}
           assignment={formatTarget}
@@ -440,7 +559,12 @@ function OverviewTab({
           <h2 className="text-[15px] font-extrabold text-ink-900">Результаты</h2>
           <dl className="mt-4 divide-y divide-ink-100 text-[13px]">
             <InfoRow label="Сертификатов выдано" value={formatNum(dashboard.certificates)} />
-            <InfoRow label="Бонусов начислено" value={formatKzt(dashboard.rewardsIssued)} />
+            <InfoRow
+              label="Бонусов начислено"
+              value={
+                dashboard.rewardsIssued == null ? 'Нет доступа' : formatKzt(dashboard.rewardsIssued)
+              }
+            />
             <InfoRow
               label="Посещение подтверждено"
               value={formatNum(dashboard.attendanceConfirmed)}
@@ -470,12 +594,14 @@ function ProgramsTab({
   programs,
   loading,
   canManage,
+  actions,
   onEdit,
   onDuplicate,
 }: {
   programs: TrainingProgramDto[]
   loading: boolean
   canManage: boolean
+  actions: TrainingActions
   onEdit: (program: TrainingProgramDto) => void
   onDuplicate: (program: TrainingProgramDto) => void
 }) {
@@ -572,45 +698,61 @@ function ProgramsTab({
                 </span>
               </td>
               <td className="px-5 py-3 text-right">
-                {canManage && program.status !== 'archived' && (
+                {program.status !== 'archived' && (
                   <div className="flex items-center justify-end gap-1.5">
-                    <IconButton
-                      aria-label="Редактировать программу"
-                      tip="Редактировать программу"
-                      disabled={update.isPending}
-                      onClick={() => onEdit(program)}
-                    >
-                      <IconEdit size={16} />
-                    </IconButton>
-                    <IconButton
-                      aria-label="Создать копию"
-                      tip="Создать копию"
-                      disabled={update.isPending}
-                      onClick={() => onDuplicate(program)}
-                    >
-                      <IconDuplicate size={16} />
-                    </IconButton>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={update.isPending}
-                      onClick={() =>
-                        changeStatus(
-                          program,
-                          program.status === 'published' ? 'paused' : 'published',
-                        )
-                      }
-                    >
-                      {program.status === 'published' ? 'Приостановить' : 'Опубликовать'}
-                    </Button>
-                    <IconButton
-                      aria-label="Архивировать программу"
-                      tip="Архивировать программу"
-                      disabled={update.isPending}
-                      onClick={() => changeStatus(program, 'archived')}
-                    >
-                      <IconArchive size={16} />
-                    </IconButton>
+                    {trainingAllowed(actions, 'programs.edit', canManage) &&
+                      (!['published', 'scheduled', 'paused'].includes(program.status) ||
+                        trainingAllowed(actions, 'programs.publish', canManage)) && (
+                        <IconButton
+                          aria-label="Редактировать программу"
+                          tip="Редактировать программу"
+                          disabled={update.isPending}
+                          onClick={() => onEdit(program)}
+                        >
+                          <IconEdit size={16} />
+                        </IconButton>
+                      )}
+                    {trainingAllowed(actions, 'programs.create', canManage) &&
+                      ((program.completionBonus === 0 &&
+                        program.stages.every((stage) => stage.bonus === 0)) ||
+                        trainingAllowed(actions, 'programs.configure_bonus', canManage)) && (
+                        <IconButton
+                          aria-label="Создать копию"
+                          tip="Создать копию"
+                          disabled={update.isPending}
+                          onClick={() => onDuplicate(program)}
+                        >
+                          <IconDuplicate size={16} />
+                        </IconButton>
+                      )}
+                    {trainingAllowed(actions, 'programs.edit', canManage) &&
+                      trainingAllowed(actions, 'programs.publish', canManage) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={update.isPending}
+                          onClick={() =>
+                            changeStatus(
+                              program,
+                              program.status === 'published' ? 'paused' : 'published',
+                            )
+                          }
+                        >
+                          {program.status === 'published' ? 'Приостановить' : 'Опубликовать'}
+                        </Button>
+                      )}
+                    {trainingAllowed(actions, 'programs.edit', canManage) &&
+                      (!['published', 'scheduled', 'paused'].includes(program.status) ||
+                        trainingAllowed(actions, 'programs.publish', canManage)) && (
+                        <IconButton
+                          aria-label="Архивировать программу"
+                          tip="Архивировать программу"
+                          disabled={update.isPending}
+                          onClick={() => changeStatus(program, 'archived')}
+                        >
+                          <IconArchive size={16} />
+                        </IconButton>
+                      )}
                   </div>
                 )}
               </td>
@@ -627,12 +769,14 @@ function AssignmentsTab({
   programs,
   canManage,
   canExport,
+  canExportXlsx,
   onChangeFormat,
 }: {
   dashboard: TrainingDashboardDto | undefined
   programs: TrainingProgramDto[]
   canManage: boolean
   canExport: boolean
+  canExportXlsx: boolean
   onChangeFormat: (assignment: TrainingAssignmentDto) => void
 }) {
   const toast = useToast()
@@ -654,9 +798,12 @@ function AssignmentsTab({
   const pageData = pageQuery.data
   const visible = pageData?.items ?? []
   const totalAssignments = dashboard?.totalAssignments ?? pageData?.total ?? 0
-  const inProgressAssignments = dashboard?.inProgress ?? visible.filter((item) => item.status === 'in_progress').length
-  const completedAssignments = dashboard?.completed ?? visible.filter((item) => item.status === 'completed').length
-  const overdueAssignments = dashboard?.overdue ?? visible.filter((item) => item.status === 'overdue').length
+  const inProgressAssignments =
+    dashboard?.inProgress ?? visible.filter((item) => item.status === 'in_progress').length
+  const completedAssignments =
+    dashboard?.completed ?? visible.filter((item) => item.status === 'completed').length
+  const overdueAssignments =
+    dashboard?.overdue ?? visible.filter((item) => item.status === 'overdue').length
   const todayLabel = new Intl.DateTimeFormat('ru-RU', {
     day: 'numeric',
     month: 'long',
@@ -701,7 +848,10 @@ function AssignmentsTab({
   if (pageQuery.isLoading) return <LoadingBlock label="Загружаем назначения…" />
   return (
     <div className="flex flex-col gap-4">
-      <section className="card grid grid-cols-[repeat(4,minmax(0,1fr))_190px] overflow-hidden" data-testid="assignment-summary">
+      <section
+        className="card grid grid-cols-[repeat(4,minmax(0,1fr))_190px] overflow-hidden"
+        data-testid="assignment-summary"
+      >
         <AssignmentSummaryMetric label="Всего назначений" value={totalAssignments} />
         <AssignmentSummaryMetric
           label="В процессе"
@@ -722,8 +872,12 @@ function AssignmentsTab({
         />
         <div className="flex items-center border-l border-ink-100 px-5 py-3">
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-ink-400">Сегодня</div>
-            <div className="mt-1 text-[13px] font-extrabold capitalize text-ink-800">{todayLabel}</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-ink-400">
+              Сегодня
+            </div>
+            <div className="mt-1 text-[13px] font-extrabold capitalize text-ink-800">
+              {todayLabel}
+            </div>
           </div>
         </div>
       </section>
@@ -731,156 +885,173 @@ function AssignmentsTab({
       <TableSection
         search={
           <div className="flex w-full flex-wrap items-center gap-2">
-          <SearchInput
-            value={query}
-            onChange={(value) => {
-              setQuery(value)
-              setPage(0)
-            }}
-            placeholder="Фармацевт, аптека или программа"
-            className="!h-9 min-w-[260px] flex-1"
-          />
-          <Select
-            value={programId}
-            onChange={(value) => {
-              setProgramId(value)
-              setPage(0)
-            }}
-            className="w-[210px]"
-            options={[
-              { value: 'all', label: 'Все программы' },
-              ...programs.map((program) => ({ value: program.id, label: program.name })),
-            ]}
-          />
-          <Select
-            value={format}
-            onChange={(value) => {
-              setFormat(value as TrainingFormat | 'all')
-              setPage(0)
-            }}
-            className="w-[150px]"
-            options={[
-              { value: 'all', label: 'Все форматы' },
-              ...Object.entries(FORMAT_LABEL).map(([value, label]) => ({ value, label })),
-            ]}
-          />
-          <Select
-            value={status}
-            onChange={(value) => {
-              setStatus(value as TrainingAssignmentStatus | 'all')
-              setPage(0)
-            }}
-            className="w-[190px]"
-            options={[
-              { value: 'all', label: 'Все статусы' },
-              ...Object.entries(ASSIGNMENT_STATUS_LABEL).map(([value, label]) => ({
-                value,
-                label,
-              })),
-            ]}
-          />
-          {canExport && (
-            <Button
-              size="sm"
-              variant="outline"
-              leading={<IconDownload size={15} />}
-              disabled={exporting}
-              onClick={exportCsv}
-            >
-              {exporting ? 'Экспорт…' : 'CSV'}
-            </Button>
-          )}
+            <SearchInput
+              value={query}
+              onChange={(value) => {
+                setQuery(value)
+                setPage(0)
+              }}
+              placeholder="Фармацевт, аптека или программа"
+              className="!h-9 min-w-[260px] flex-1"
+            />
+            <Select
+              ariaLabel="Программа назначений"
+              value={programId}
+              onChange={(value) => {
+                setProgramId(value)
+                setPage(0)
+              }}
+              className="w-[210px]"
+              options={[
+                { value: 'all', label: 'Все программы' },
+                ...programs.map((program) => ({ value: program.id, label: program.name })),
+              ]}
+            />
+            <Select
+              ariaLabel="Формат назначений"
+              value={format}
+              onChange={(value) => {
+                setFormat(value as TrainingFormat | 'all')
+                setPage(0)
+              }}
+              className="w-[150px]"
+              options={[
+                { value: 'all', label: 'Все форматы' },
+                ...Object.entries(FORMAT_LABEL).map(([value, label]) => ({ value, label })),
+              ]}
+            />
+            <Select
+              ariaLabel="Статус назначений"
+              value={status}
+              onChange={(value) => {
+                setStatus(value as TrainingAssignmentStatus | 'all')
+                setPage(0)
+              }}
+              className="w-[190px]"
+              options={[
+                { value: 'all', label: 'Все статусы' },
+                ...Object.entries(ASSIGNMENT_STATUS_LABEL).map(([value, label]) => ({
+                  value,
+                  label,
+                })),
+              ]}
+            />
+            {canExport && (
+              <Button
+                size="sm"
+                variant="outline"
+                leading={<IconDownload size={15} />}
+                disabled={exporting}
+                onClick={exportCsv}
+              >
+                {exporting ? 'Экспорт…' : 'CSV'}
+              </Button>
+            )}
+            <TrainingLearningExport
+              mode="assignments"
+              allowed={canExportXlsx}
+              nameSearch={query}
+              filter={{
+                format: format === 'all' ? undefined : format,
+                status: status === 'all' ? undefined : status,
+                programId: programId === 'all' ? undefined : programId,
+              }}
+            />
           </div>
         }
         empty={visible.length === 0}
         emptyLabel="Назначений пока нет"
       >
-      <table className="w-full text-[13px]" data-testid="training-assignments-table">
-        <thead className="hairline border-b text-left text-[11px] font-bold uppercase text-ink-500">
-          <tr>
-            <th className="px-5 py-2.5">Фармацевт</th>
-            <th className="px-3 py-2.5">Программа</th>
-            <th className="px-3 py-2.5">Формат</th>
-            <th className="px-3 py-2.5">Срок</th>
-            <th className="px-3 py-2.5">Прогресс</th>
-            <th className="px-3 py-2.5">Статус</th>
-            <th className="px-5 py-2.5" />
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-ink-100">
-          {visible.map((assignment) => (
-            <tr key={assignment.id} className="hover:bg-paper-hover">
-              <td className="px-5 py-3">
-                <div className="font-extrabold text-ink-900">{assignment.pharmacistName}</div>
-                <div className="text-[11px] text-ink-500">
-                  {assignment.pharmacyName} · {assignment.city}
-                </div>
-              </td>
-              <td className="px-3 py-3 font-semibold text-ink-800">{assignment.programName}</td>
-              <td className="px-3 py-3">{FORMAT_LABEL[assignment.format]}</td>
-              <td className="num px-3 py-3 text-ink-600">{dateOnly(assignment.dueAt)}</td>
-              <td className="px-3 py-3">
-                <div className="flex min-w-[130px] items-center gap-2">
-                  <ProgressBar value={assignment.progressPct} />
-                  <span className="num w-9 text-right text-[11px] font-bold">
-                    {assignment.progressPct}%
-                  </span>
-                </div>
-              </td>
-              <td className="px-3 py-3">
-                <span className={`chip ${chipClass(assignment.status)}`}>
-                  {ASSIGNMENT_STATUS_LABEL[assignment.status]}
-                </span>
-              </td>
-              <td className="px-5 py-3 text-right">
-                <div className="flex items-center justify-end gap-1">
-                  <IconButton
-                    tip="Скопировать ссылку для фармацевта"
-                    aria-label={`Скопировать ссылку на курс для ${assignment.pharmacistName}`}
-                    onClick={() => void copyLearnerLink(assignment)}
-                  >
-                    <Copy size={16} />
-                  </IconButton>
-                  {canManage && assignment.status !== 'cancelled' && (
-                    <Button size="sm" variant="outline" onClick={() => onChangeFormat(assignment)}>
-                      Сменить формат
-                    </Button>
-                  )}
-                </div>
-              </td>
+        <table className="w-full text-[13px]" data-testid="training-assignments-table">
+          <thead className="hairline border-b text-left text-[11px] font-bold uppercase text-ink-500">
+            <tr>
+              <th className="px-5 py-2.5">Фармацевт</th>
+              <th className="px-3 py-2.5">Программа</th>
+              <th className="px-3 py-2.5">Формат</th>
+              <th className="px-3 py-2.5">Срок</th>
+              <th className="px-3 py-2.5">Прогресс</th>
+              <th className="px-3 py-2.5">Статус</th>
+              <th className="px-5 py-2.5" />
             </tr>
-          ))}
-        </tbody>
-      </table>
-      {(pageData?.total ?? 0) > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink-100 px-5 py-3 text-[12px] text-ink-600">
-          <span>
-            Показано {page * 25 + 1}–{Math.min((page + 1) * 25, pageData?.total ?? 0)} из{' '}
-            {formatNum(pageData?.total ?? 0)}
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={page === 0 || pageQuery.isFetching}
-              onClick={() => setPage((value) => Math.max(0, value - 1))}
-            >
-              Назад
-            </Button>
-            <span className="num min-w-[92px] text-center">
-              Страница {page + 1} из {Math.max(1, pageData?.totalPages ?? 1)}
+          </thead>
+          <tbody className="divide-y divide-ink-100">
+            {visible.map((assignment) => (
+              <tr key={assignment.id} className="hover:bg-paper-hover">
+                <td className="px-5 py-3">
+                  <div className="font-extrabold text-ink-900">{assignment.pharmacistName}</div>
+                  <div className="text-[11px] text-ink-500">
+                    {assignment.pharmacyName} · {assignment.city}
+                  </div>
+                </td>
+                <td className="px-3 py-3 font-semibold text-ink-800">{assignment.programName}</td>
+                <td className="px-3 py-3">{FORMAT_LABEL[assignment.format]}</td>
+                <td className="num px-3 py-3 text-ink-600">{dateOnly(assignment.dueAt)}</td>
+                <td className="px-3 py-3">
+                  <div className="flex min-w-[130px] items-center gap-2">
+                    <ProgressBar value={assignment.progressPct} />
+                    <span className="num w-9 text-right text-[11px] font-bold">
+                      {assignment.progressPct}%
+                    </span>
+                  </div>
+                </td>
+                <td className="px-3 py-3">
+                  <span className={`chip ${chipClass(assignment.status)}`}>
+                    {ASSIGNMENT_STATUS_LABEL[assignment.status]}
+                  </span>
+                </td>
+                <td className="px-5 py-3 text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    <IconButton
+                      tip="Скопировать ссылку для фармацевта"
+                      aria-label={`Скопировать ссылку на курс для ${assignment.pharmacistName}`}
+                      onClick={() => void copyLearnerLink(assignment)}
+                    >
+                      <Copy size={16} />
+                    </IconButton>
+                    {canManage && assignment.status !== 'cancelled' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onChangeFormat(assignment)}
+                      >
+                        Сменить формат
+                      </Button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {(pageData?.total ?? 0) > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink-100 px-5 py-3 text-[12px] text-ink-600">
+            <span>
+              Показано {page * 25 + 1}–{Math.min((page + 1) * 25, pageData?.total ?? 0)} из{' '}
+              {formatNum(pageData?.total ?? 0)}
             </span>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={page + 1 >= (pageData?.totalPages ?? 0) || pageQuery.isFetching}
-              onClick={() => setPage((value) => value + 1)}
-            >
-              Далее
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={page === 0 || pageQuery.isFetching}
+                onClick={() => setPage((value) => Math.max(0, value - 1))}
+              >
+                Назад
+              </Button>
+              <span className="num min-w-[92px] text-center">
+                Страница {page + 1} из {Math.max(1, pageData?.totalPages ?? 1)}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={page + 1 >= (pageData?.totalPages ?? 0) || pageQuery.isFetching}
+                onClick={() => setPage((value) => value + 1)}
+              >
+                Далее
+              </Button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
       </TableSection>
     </div>
   )
@@ -897,17 +1068,29 @@ function AssignmentSummaryMetric({
   progress?: number
   tone?: 'primary' | 'success' | 'danger'
 }) {
-  const fill = tone === 'success' ? 'bg-accent-success' : tone === 'danger' ? 'bg-accent-danger' : 'bg-brand-green-500'
+  const fill =
+    tone === 'success'
+      ? 'bg-accent-success'
+      : tone === 'danger'
+        ? 'bg-accent-danger'
+        : 'bg-brand-green-500'
   return (
     <div className="border-r border-ink-100 px-5 py-3 last:border-r-0">
       <div className="flex items-baseline justify-between gap-3">
-        <div className="num text-[22px] font-extrabold tracking-[-0.02em] text-ink-900">{formatNum(value)}</div>
-        {progress !== undefined && <span className="num text-[10px] font-bold text-ink-400">{Math.round(progress)}%</span>}
+        <div className="num text-[22px] font-extrabold tracking-[-0.02em] text-ink-900">
+          {formatNum(value)}
+        </div>
+        {progress !== undefined && (
+          <span className="num text-[10px] font-bold text-ink-400">{Math.round(progress)}%</span>
+        )}
       </div>
       <div className="mt-0.5 text-[11px] font-semibold text-ink-500">{label}</div>
       {progress !== undefined && (
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink-100">
-          <div className={`h-full rounded-full ${fill}`} style={{ width: `${Math.min(100, progress)}%` }} />
+          <div
+            className={`h-full rounded-full ${fill}`}
+            style={{ width: `${Math.min(100, progress)}%` }}
+          />
         </div>
       )}
     </div>
@@ -918,11 +1101,13 @@ function ResultsTab({
   assignments,
   loading,
   canRecord,
+  canExportXlsx,
   onRecord,
 }: {
   assignments: TrainingAssignmentDto[]
   loading: boolean
   canRecord: boolean
+  canExportXlsx: boolean
   onRecord: (target: {
     assignment: TrainingAssignmentDto
     stage: TrainingAssignmentStageDto
@@ -949,12 +1134,15 @@ function ResultsTab({
   return (
     <TableSection
       search={
-        <SearchInput
-          value={query}
-          onChange={setQuery}
-          placeholder="Фармацевт, программа или этап"
-          className="!h-9 w-[360px]"
-        />
+        <div className="flex items-start gap-3">
+          <SearchInput
+            value={query}
+            onChange={setQuery}
+            placeholder="Фармацевт, программа или этап"
+            className="!h-9 w-[360px]"
+          />
+          <TrainingLearningExport mode="results" allowed={canExportXlsx} nameSearch={query} />
+        </div>
       }
       empty={rows.length === 0}
       emptyLabel="Этапов аттестации пока нет"
@@ -1012,6 +1200,7 @@ function EventsTab({
   loading,
   canManageEvents,
   canMarkAttendance,
+  canShowQr,
   onEdit,
   onParticipants,
   onQr,
@@ -1020,6 +1209,7 @@ function EventsTab({
   loading: boolean
   canManageEvents: boolean
   canMarkAttendance: boolean
+  canShowQr: boolean
   onEdit: (event: OfflineEventDto) => void
   onParticipants: (event: OfflineEventDto) => void
   onQr: (event: OfflineEventDto) => void
@@ -1057,7 +1247,7 @@ function EventsTab({
                 <EventSummary event={event} />
               </td>
               <td className="px-5 py-3 text-right">
-                {(canManageEvents || canMarkAttendance) && (
+                {(canManageEvents || canMarkAttendance || canShowQr) && (
                   <div className="flex justify-end gap-2">
                     {canManageEvents && event.status !== 'archived' && (
                       <IconButton
@@ -1068,20 +1258,20 @@ function EventsTab({
                         <IconEdit size={16} />
                       </IconButton>
                     )}
+                    {canShowQr && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        leading={<QrCode size={15} />}
+                        onClick={() => onQr(event)}
+                      >
+                        QR-код
+                      </Button>
+                    )}
                     {canMarkAttendance && (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          leading={<QrCode size={15} />}
-                          onClick={() => onQr(event)}
-                        >
-                          QR-код
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => onParticipants(event)}>
-                          Участники
-                        </Button>
-                      </>
+                      <Button size="sm" variant="outline" onClick={() => onParticipants(event)}>
+                        Участники
+                      </Button>
                     )}
                   </div>
                 )}
@@ -1253,10 +1443,12 @@ function AnalyticsTab({
   dashboard,
   assignments,
   canExport,
+  canExportXlsx,
 }: {
   dashboard: ReturnType<typeof useTrainingDashboard>['data']
   assignments: TrainingAssignmentDto[]
   canExport: boolean
+  canExportXlsx: boolean
 }) {
   const toast = useToast()
   const [exporting, setExporting] = useState(false)
@@ -1305,7 +1497,13 @@ function AnalyticsTab({
         <Metric label="Назначено" value={formatNum(dashboard.totalAssignments)} accent="blue" />
         <Metric label="Завершено" value={formatNum(dashboard.completed)} accent="green" />
         <Metric label="Просрочено" value={formatNum(dashboard.overdue)} accent="amber" />
-        <Metric label="Бонусы" value={formatKzt(dashboard.rewardsIssued)} accent="purple" />
+        <Metric
+          label="Бонусы"
+          value={
+            dashboard.rewardsIssued == null ? 'Нет доступа' : formatKzt(dashboard.rewardsIssued)
+          }
+          accent="purple"
+        />
       </div>
       <section className="card overflow-hidden">
         <div className="hairline flex items-center justify-between border-b px-5 py-3">
@@ -1326,6 +1524,7 @@ function AnalyticsTab({
               {exporting ? 'Экспорт…' : 'Экспорт CSV'}
             </Button>
           )}
+          <TrainingLearningExport mode="assignments" allowed={canExportXlsx} />
         </div>
         <table className="w-full text-[13px]" data-testid="training-analytics-table">
           <thead className="hairline border-b text-left text-[11px] font-bold uppercase text-ink-500">
@@ -1412,7 +1611,17 @@ function TrainingSettingsTab({ capabilities }: { capabilities?: TrainingCapabili
   )
 }
 
-function CreateCourseModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+function CreateCourseModal({
+  open,
+  onClose,
+  canPublish = true,
+  canConfigureBonus = true,
+}: {
+  open: boolean
+  onClose: () => void
+  canPublish?: boolean
+  canConfigureBonus?: boolean
+}) {
   const toast = useToast()
   const create = useCreateCourse()
   const [title, setTitle] = useState('')
@@ -1423,6 +1632,9 @@ function CreateCourseModal({ open, onClose }: { open: boolean; onClose: () => vo
   const [error, setError] = useState<string | null>(null)
   const submit = () => {
     if (!title.trim()) return setError('Введите название курса')
+    if (status === 'published' && !canPublish) return setError('Нет права на публикацию курса')
+    if ((Number(bonus) || 0) !== 0 && !canConfigureBonus)
+      return setError('Нет права на настройку бонуса')
     create.mutate(
       {
         title: title.trim(),
@@ -1487,6 +1699,7 @@ function CreateCourseModal({ open, onClose }: { open: boolean; onClose: () => vo
               type="number"
               min={0}
               value={bonus}
+              disabled={!canConfigureBonus}
               onChange={(event) => setBonus(event.target.value)}
             />
           </Field>
@@ -1494,6 +1707,7 @@ function CreateCourseModal({ open, onClose }: { open: boolean; onClose: () => vo
         <Field label="Статус">
           <Select
             value={status}
+            disabled={!canPublish}
             onChange={(value) => setStatus(value as CourseStatus)}
             options={[
               { value: 'draft', label: 'Черновик' },
@@ -1568,8 +1782,7 @@ function ImportCourseModal({
         <div className="rounded-xl border border-teal-200 bg-teal-50/70 p-4">
           <div className="text-[13px] font-extrabold text-ink-900">Сначала скачайте шаблон</div>
           <div className="mt-1 text-[12px] leading-5 text-ink-600">
-            В нём уже есть пример текстового урока и теста. Не меняйте названия листов и
-            столбцов.
+            В нём уже есть пример текстового урока и теста. Не меняйте названия листов и столбцов.
           </div>
           <a
             className="btn btn-md btn-outline mt-3 inline-flex w-fit"
@@ -1602,12 +1815,12 @@ function ImportCourseModal({
 
         <div className="grid gap-2 text-[12px] leading-5 text-ink-600 sm:grid-cols-2">
           <div className="rounded-lg bg-paper-input px-3 py-2">
-            <strong className="text-ink-800">Что создаётся:</strong> карточка курса, уроки,
-            тесты и правильные ответы.
+            <strong className="text-ink-800">Что создаётся:</strong> карточка курса, уроки, тесты и
+            правильные ответы.
           </div>
           <div className="rounded-lg bg-paper-input px-3 py-2">
-            <strong className="text-ink-800">После импорта:</strong> курс откроется черновиком
-            для проверки и загрузки файлов.
+            <strong className="text-ink-800">После импорта:</strong> курс откроется черновиком для
+            проверки и загрузки файлов.
           </div>
         </div>
       </div>

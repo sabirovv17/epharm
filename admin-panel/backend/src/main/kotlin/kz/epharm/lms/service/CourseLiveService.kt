@@ -27,6 +27,7 @@ import java.util.UUID
 
 @Service
 class CourseLiveService(
+    private val administrativeAccess: kz.epharm.training.access.TrainingAdministrativeAccess,
     private val lessonRepository: CourseLessonRepository,
     private val messageRepository: CourseLiveMessageRepository,
     private val voteRepository: CourseLivePollVoteRepository,
@@ -49,6 +50,7 @@ class CourseLiveService(
         kind: CourseLiveMessageKind,
         body: String,
     ): CourseLiveRoomDto {
+        administrativeAccess.lockWriter()
         val lesson = liveLessonForUpdate(lessonId)
         if (kind == CourseLiveMessageKind.comment && !lesson.liveChatEnabled) {
             conflict("Чат этого эфира отключён")
@@ -74,6 +76,7 @@ class CourseLiveService(
 
     @Transactional
     fun vote(lessonId: String, pollId: String, optionId: String, voterId: String): CourseLiveRoomDto {
+        administrativeAccess.lockWriter()
         val lesson = liveLessonForUpdate(lessonId)
         val poll = lesson.livePolls.firstOrNull { it.id == pollId }
             ?: throw notFound("Опрос не найден")
@@ -85,6 +88,7 @@ class CourseLiveService(
 
     @Transactional
     fun react(lessonId: String, actorId: String, reaction: String): CourseLiveRoomDto {
+        administrativeAccess.lockWriter()
         val lesson = liveLessonForUpdate(lessonId)
         if (!lesson.liveReactionsEnabled) conflict("Реакции для этого эфира отключены")
         val normalized = reaction.trim().lowercase()
@@ -97,6 +101,7 @@ class CourseLiveService(
 
     @Transactional
     fun changeStatus(courseId: String, lessonId: String, status: CourseLiveStatus, actorId: String): CourseLiveRoomDto {
+        administrativeAccess.lockWriter()
         val lesson = liveLessonForUpdate(lessonId)
         if (lesson.courseId != courseId) throw notFound("Урок не найден")
         if (status == CourseLiveStatus.live &&
@@ -137,6 +142,7 @@ class CourseLiveService(
         hidden: Boolean?,
         actorId: String,
     ): CourseLiveRoomDto {
+        administrativeAccess.lockWriter()
         val lesson = liveLesson(lessonId)
         if (lesson.courseId != courseId) throw notFound("Урок не найден")
         val message = messageRepository.findById(messageId).orElseThrow { notFound("Сообщение не найдено") }

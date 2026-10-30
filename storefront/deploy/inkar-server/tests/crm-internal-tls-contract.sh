@@ -117,3 +117,6 @@ fi
 test "$(state_value CRM_INTERNAL_TLS_ENABLED)" = false
 
 printf 'CRM internal TLS Caddy and Compose contracts passed\n'
+
+# Native compatibility remains an explicit, default-off edge-only change.
+bash "$bundle_dir/tests/crm-unified-cutover-contract.sh"

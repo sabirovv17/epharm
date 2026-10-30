@@ -5,6 +5,7 @@ import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import axios from 'axios'
+import { useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ToastHost } from '@/ui'
 import type { PromoRulesViewDto } from '@/lib/api-types'
@@ -70,10 +71,20 @@ beforeEach(() => {
   accTriggerHooks.useAccTriggerOptions.mockImplementation((kind: string) => ({
     data: {
       snapshot: {
-        sha256: 'test-snapshot', sourceName: 'Каталог ACC.xlsx',
-        itemCount: 40, barcodeCount: 27, importedAt: '2026-10-06T00:00:00Z',
+        sha256: 'test-snapshot',
+        sourceName: 'Каталог ACC.xlsx',
+        itemCount: 40,
+        barcodeCount: 27,
+        importedAt: '2026-10-06T00:00:00Z',
       },
-      options: [{ key: 'scope-1', label: 'Анальгетики', parentLabel: kind === 'acc_subgroup' ? 'Лекарства' : null, count: 27 }],
+      options: [
+        {
+          key: 'scope-1',
+          label: 'Анальгетики',
+          parentLabel: kind === 'acc_subgroup' ? 'Лекарства' : null,
+          count: 27,
+        },
+      ],
     },
     isPending: false,
     isError: false,
@@ -120,16 +131,24 @@ beforeEach(() => {
 
 function renderEditor(campaignBonus = 0) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  function ControlledEditor() {
+    const [config, setConfig] = useState(rulesHooks.usePromoRules().data.config)
+    return (
+      <PromoRulesEditor
+        config={config}
+        onChange={setConfig}
+        onSave={(value, callbacks) => mutate({ promoId: 'pr_1', config: value }, callbacks)}
+        bonus={campaignBonus}
+        promotedProductId="prod_promoted"
+        promotedName="Эпигам спрей"
+        promotedPrice={1990}
+      />
+    )
+  }
   return render(
     <QueryClientProvider client={qc}>
       <ToastHost>
-        <PromoRulesEditor
-          promoId="pr_1"
-          bonus={campaignBonus}
-          promotedProductId="prod_promoted"
-          promotedName="Эпигам спрей"
-          promotedPrice={1990}
-        />
+        <ControlledEditor />
       </ToastHost>
     </QueryClientProvider>,
   )
@@ -139,7 +158,10 @@ describe('PromoRulesEditor — per-pair скрипт + «Добавить»', ()
   it('не предлагает широкие правила без загруженного снимка ACC', async () => {
     const user = userEvent.setup()
     accTriggerHooks.useAccTriggerOptions.mockReturnValue({
-      data: { snapshot: null, options: [] }, isPending: false, isError: false, refetch: vi.fn(),
+      data: { snapshot: null, options: [] },
+      isPending: false,
+      isError: false,
+      refetch: vi.fn(),
     })
     renderEditor()
     await user.click(screen.getByTestId('pr-add-replacements'))
@@ -162,13 +184,15 @@ describe('PromoRulesEditor — per-pair скрипт + «Добавить»', ()
       const refs = mutate.mock.calls[0][0].config.replacements
       expect(refs).toHaveLength(2)
       expect(refs[0].medusaProductId).toBe('prod_a')
-      expect(refs[1]).toEqual(expect.objectContaining({
-        medusaProductId: '',
-        triggerKind: kind,
-        triggerValue: 'scope-1',
-        triggerLabel: kind === 'acc_subgroup' ? 'Лекарства / Анальгетики' : 'Анальгетики',
-        active: false,
-      }))
+      expect(refs[1]).toEqual(
+        expect.objectContaining({
+          medusaProductId: '',
+          triggerKind: kind,
+          triggerValue: 'scope-1',
+          triggerLabel: kind === 'acc_subgroup' ? 'Лекарства / Анальгетики' : 'Анальгетики',
+          active: false,
+        }),
+      )
     },
   )
 
@@ -183,8 +207,11 @@ describe('PromoRulesEditor — per-pair скрипт + «Добавить»', ()
     await user.keyboard('{Escape}')
     await user.click(screen.getByTestId('promo-rules-save'))
 
-    expect(mutate.mock.calls[0][0].config.crossSells.map((ref: { triggerKind: string }) => ref.triggerKind))
-      .toEqual(['acc_group', 'acc_subgroup'])
+    expect(
+      mutate.mock.calls[0][0].config.crossSells.map(
+        (ref: { triggerKind: string }) => ref.triggerKind,
+      ),
+    ).toEqual(['acc_group', 'acc_subgroup'])
     expect(screen.getByTestId('pr-chosen-acc_group-scope-1')).toBeInTheDocument()
     expect(screen.getByTestId('pr-chosen-acc_subgroup-scope-1')).toBeInTheDocument()
   })
@@ -193,28 +220,40 @@ describe('PromoRulesEditor — per-pair скрипт + «Добавить»', ()
     const user = userEvent.setup()
     rulesHooks.usePromoRules.mockReturnValue({
       data: mkView({
-        replacements: [{
-          medusaProductId: '',
-          name: 'Анальгетики',
-          triggerKind: 'acc_group',
-          triggerValue: 'scope-1',
-          triggerLabel: 'Анальгетики',
-          active: false,
-          additionalRecommendations: [1, 2, 3, 4].map((n) => ({
-            medusaProductId: `alternative-${n}`, name: `Аналог ${n}`, bonus: n * 100,
-          })),
-        }],
+        replacements: [
+          {
+            medusaProductId: '',
+            name: 'Анальгетики',
+            triggerKind: 'acc_group',
+            triggerValue: 'scope-1',
+            triggerLabel: 'Анальгетики',
+            active: false,
+            additionalRecommendations: [1, 2, 3, 4].map((n) => ({
+              medusaProductId: `alternative-${n}`,
+              name: `Аналог ${n}`,
+              bonus: n * 100,
+            })),
+          },
+        ],
       }),
-      isLoading: false, isError: false, error: null, refetch: vi.fn(),
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
     })
     renderEditor()
     expect(screen.getByTestId('pr-add-offer-acc_group-scope-1')).toBeDisabled()
     expect(screen.getByTestId('pr-preview-offer-acc_group-scope-1').children).toHaveLength(5)
     await user.click(screen.getByTestId('promo-rules-save'))
     const [ref] = mutate.mock.calls[0][0].config.replacements
-    expect(ref).toEqual(expect.objectContaining({
-      medusaProductId: '', triggerKind: 'acc_group', triggerValue: 'scope-1', active: false,
-    }))
+    expect(ref).toEqual(
+      expect.objectContaining({
+        medusaProductId: '',
+        triggerKind: 'acc_group',
+        triggerValue: 'scope-1',
+        active: false,
+      }),
+    )
     expect(ref.additionalRecommendations).toHaveLength(4)
     expect(ref.additionalRecommendations[3].bonus).toBe(400)
   })
@@ -230,21 +269,44 @@ describe('PromoRulesEditor — per-pair скрипт + «Добавить»', ()
 
   it('редактирование и повторное сохранение пары не теряет plural-only идентификаторы и бонусы', async () => {
     rulesHooks.usePromoRules.mockReturnValue({
-      data: mkView({ replacements: [{
-        medusaProductId: 'prod_a', name: 'Триггер', barcodes: ['0012345678905', '4601164003157'], bonus: 0,
-        additionalRecommendations: [{ medusaProductId: 'prod_b', name: 'Аналог', barcodes: ['00012345', '4870000000002'], bonus: 500 }],
-      }] }),
-      isLoading: false, isError: false, error: null, refetch: vi.fn(),
+      data: mkView({
+        replacements: [
+          {
+            medusaProductId: 'prod_a',
+            name: 'Триггер',
+            barcodes: ['0012345678905', '4601164003157'],
+            bonus: 0,
+            additionalRecommendations: [
+              {
+                medusaProductId: 'prod_b',
+                name: 'Аналог',
+                barcodes: ['00012345', '4870000000002'],
+                bonus: 500,
+              },
+            ],
+          },
+        ],
+      }),
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
     })
     const user = userEvent.setup()
     renderEditor()
     expect(screen.getByTestId('pr-barcodes-prod_a')).toHaveTextContent('Штрихкоды: 2')
-    expect(screen.getByTestId('pr-barcodes-prod_a')).toHaveTextContent('0012345678905, 4601164003157')
+    expect(screen.getByTestId('pr-barcodes-prod_a')).toHaveTextContent(
+      '0012345678905, 4601164003157',
+    )
     await user.type(screen.getByTestId('pr-script-prod_a'), 'Проверенный скрипт')
     await user.click(screen.getByTestId('promo-rules-save'))
     expect(mutate.mock.calls[0][0].config.replacements[0]).toMatchObject({
-      barcode: '0012345678905', barcodes: ['0012345678905', '4601164003157'], bonus: 0,
-      additionalRecommendations: [{ barcode: '00012345', barcodes: ['00012345', '4870000000002'], bonus: 500 }],
+      barcode: '0012345678905',
+      barcodes: ['0012345678905', '4601164003157'],
+      bonus: 0,
+      additionalRecommendations: [
+        { barcode: '00012345', barcodes: ['00012345', '4870000000002'], bonus: 500 },
+      ],
     })
   })
 
@@ -297,7 +359,11 @@ describe('PromoRulesEditor — per-pair скрипт + «Добавить»', ()
     await user.click(screen.getByTestId('promo-rules-save'))
     const arg = mutate.mock.calls[0][0]
     expect(arg.config.crossSells[0]).toEqual(
-      expect.objectContaining({ medusaProductId: 'prod_b', barcode: '4604249789012', barcodes: ['4604249789012', '00012345'] }),
+      expect.objectContaining({
+        medusaProductId: 'prod_b',
+        barcode: '4604249789012',
+        barcodes: ['4604249789012', '00012345'],
+      }),
     )
   })
 
@@ -357,12 +423,21 @@ describe('PromoRulesEditor — per-pair скрипт + «Добавить»', ()
     const user = userEvent.setup()
     rulesHooks.usePromoRules.mockReturnValue({
       data: mkView({
-        replacements: [{
-          medusaProductId: 'prod_a', name: 'Аквалор Норм', bonus: 0,
-          additionalRecommendations: [{ medusaProductId: 'prod_b', name: 'Платочки', bonus: 250 }],
-        }],
+        replacements: [
+          {
+            medusaProductId: 'prod_a',
+            name: 'Аквалор Норм',
+            bonus: 0,
+            additionalRecommendations: [
+              { medusaProductId: 'prod_b', name: 'Платочки', bonus: 250 },
+            ],
+          },
+        ],
       }),
-      isLoading: false, isError: false, error: null, refetch: vi.fn(),
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
     })
     renderEditor(400)
 
@@ -389,7 +464,9 @@ describe('PromoRulesEditor — per-pair скрипт + «Добавить»', ()
   it('сохраняет совместимость: старые позиции без bonus наследуют бонус кампании', () => {
     renderEditor(200)
     expect(screen.getByTestId('pr-bonus-primary-prod_a')).toHaveValue(200)
-    expect(screen.getByTestId('pr-preview-card-prod_a-primary')).toHaveClass('bg-recommendation-green')
+    expect(screen.getByTestId('pr-preview-card-prod_a-primary')).toHaveClass(
+      'bg-recommendation-green',
+    )
   })
 
   it('строго ограничивает пару пятью предложениями вместе с основным', () => {
@@ -471,24 +548,18 @@ describe('PromoRulesEditor — per-pair скрипт + «Добавить»', ()
 
   it('показывает вложенную серверную ошибку у нужного поля', async () => {
     const user = userEvent.setup()
-    const error = new axios.AxiosError(
-      'bad request',
-      undefined,
-      undefined,
-      undefined,
-      {
-        status: 400,
-        statusText: 'Bad Request',
-        headers: {},
-        config: {} as never,
-        data: {
-          code: 'VALIDATION_FAILED',
-          message: 'Проверьте корректность данных',
-          timestamp: '2026-09-19T00:00:00Z',
-          fields: { 'replacements[0].barcode': 'size must be between 0 and 32' },
-        },
+    const error = new axios.AxiosError('bad request', undefined, undefined, undefined, {
+      status: 400,
+      statusText: 'Bad Request',
+      headers: {},
+      config: {} as never,
+      data: {
+        code: 'VALIDATION_FAILED',
+        message: 'Проверьте корректность данных',
+        timestamp: '2026-09-19T00:00:00Z',
+        fields: { 'replacements[0].barcode': 'size must be between 0 and 32' },
       },
-    )
+    })
     mutate.mockImplementation((_payload, options) => options.onError(error))
 
     renderEditor()
@@ -501,24 +572,18 @@ describe('PromoRulesEditor — per-pair скрипт + «Добавить»', ()
 
   it('раскрывает необязательную секцию, если сервер нашёл ошибку внутри неё', async () => {
     const user = userEvent.setup()
-    const error = new axios.AxiosError(
-      'bad request',
-      undefined,
-      undefined,
-      undefined,
-      {
-        status: 400,
-        statusText: 'Bad Request',
-        headers: {},
-        config: {} as never,
-        data: {
-          code: 'VALIDATION_FAILED',
-          message: 'Проверьте корректность данных',
-          timestamp: '2026-09-19T00:00:00Z',
-          fields: { 'replacements[0].partnerLabel': 'size must be between 0 and 64' },
-        },
+    const error = new axios.AxiosError('bad request', undefined, undefined, undefined, {
+      status: 400,
+      statusText: 'Bad Request',
+      headers: {},
+      config: {} as never,
+      data: {
+        code: 'VALIDATION_FAILED',
+        message: 'Проверьте корректность данных',
+        timestamp: '2026-09-19T00:00:00Z',
+        fields: { 'replacements[0].partnerLabel': 'size must be between 0 and 64' },
       },
-    )
+    })
     mutate.mockImplementation((_payload, options) => options.onError(error))
 
     renderEditor()

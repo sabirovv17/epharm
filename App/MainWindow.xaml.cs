@@ -653,43 +653,6 @@ if (line.Contains("Add2Cheque", StringComparison.OrdinalIgnoreCase) &&
 
 }
 
-private bool UpsertItemSetQty(ReceiptItem incoming)
-{
-    var existing = ReceiptItems.FirstOrDefault(x => x.PartId == incoming.PartId);
-
-    if (incoming.Qty <= 0)
-    {
-        RemoveItemByPartId(incoming.PartId);
-        return false;
-    }
-
-    if (existing == null)
-    {
-        ReceiptItems.Insert(0, incoming);
-        Log($"Добавили новую позицию (PartId={incoming.PartId}): {incoming.Name}, qty={incoming.Qty}");
-        return true;
-    }
-
-    // обновляем поля + ставим новое количество
-    var idx = ReceiptItems.IndexOf(existing);
-    var previousQty = existing.Qty;
-    // A duplicate observation from the other Standard-N source can omit presentation fields.
-    // Preserve already resolved identity so it cannot cancel or degrade a valid backend request.
-    if (!string.IsNullOrWhiteSpace(incoming.Name)) existing.Name = incoming.Name;
-    // Не затираем уже пойманный штрих-код, если повторная строка лога (qty-bump/скидка) его не несёт.
-    if (!string.IsNullOrWhiteSpace(incoming.Barcode)) existing.Barcode = incoming.Barcode;
-    existing.Price = incoming.Price;
-    existing.DiscountPercent = incoming.DiscountPercent;
-    existing.Qty = incoming.Qty;
-
-    // чтобы UI точно обновился без INotifyPropertyChanged — пере-вставляем
-    ReceiptItems[idx] = existing;
-
-    Log($"Обновили позицию (PartId={incoming.PartId}): qty={existing.Qty}");
-    return incoming.Qty > previousQty;
-}
-
-
 private void RefreshCurrentPharmacistFromStandardNDb()
 {
     if (_posmConfig?.StandardNDbEnabled != true || _standardNDb == null) return;
@@ -819,21 +782,6 @@ private int? TryParsePartIdFromDelete(string line)
     return StandardNLogParser.TryExtractPartId(line);
 }
 
-private bool RemoveItemByPartId(int partId)
-{
-    var existing = ReceiptItems.FirstOrDefault(x => x.PartId == partId);
-    if (existing == null)
-    {
-        Log($"(delete) Позиция не найдена в UI. PartId={partId}");
-        return false;
-    }
-
-    ReceiptItems.Remove(existing);
-    Log($"(delete) Удалили позицию из UI. PartId={partId}, Name={existing.Name}");
-    return true;
-}
-
-
 private static decimal ParseDecimalSmart(string s)
 {
     // приводим к единому виду: убираем пробелы, меняем запятую на точку
@@ -881,23 +829,9 @@ percent = Math.Round(percent, 2, MidpointRounding.AwayFromZero); // наприм
     }
 }
 
-private void ApplyDiscountToAllItems(decimal percent)
-{
-    for (int i = 0; i < ReceiptItems.Count; i++)
-    {
-        var item = ReceiptItems[i];
-
-percent = Math.Round(percent, 2, MidpointRounding.AwayFromZero); // например 10.00
-        item.DiscountPercent = percent;
-
-        // пере-вставляем чтобы UI обновился
-        ReceiptItems[i] = item;
-    }
-ItemsList.Items.Refresh();
-}
-
         private void OnClosed(object? sender, EventArgs e)
         {
+            StopPhysicalReceiptObservers();
             try
             {
                 StopTaskKiosk();

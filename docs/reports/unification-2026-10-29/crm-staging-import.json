@@ -1,0 +1,370 @@
+{
+  "artifactSha256": "ab54e5f10a08b53d9cab15874eb98fff5515b37271c8fa5e78f10394b889fd25",
+  "boundary": "Typed inert staging only. No source/application writes, legacy-code execution, reward/API replay, file duplication, account/person merge or release-gate acceptance.",
+  "columns": 652,
+  "enumTypes": 6,
+  "foreignKeys": 117,
+  "freeBytesBefore": 2562342912,
+  "functionalMergeAccepted": false,
+  "inertCheckDefinitions": 167,
+  "inertRoutines": 164,
+  "inertSequenceStates": 5,
+  "inertTriggers": 29,
+  "minHeadroomBytes": 1073741824,
+  "mode": "verified_existing_noop",
+  "primaryKeys": 57,
+  "rows": 42410,
+  "sourceBackupSha256": "a82beb699b391020ebebefd9c0c02d7a516232b9dfbfe82a0545d1a6bafc0023",
+  "sourceFootprintBudgetBytes": 104815356,
+  "sourceSchemaSha256": "c31939028cdb63656e5c3578416cf213e6082095422d98fcfa314cab9815443e",
+  "sourceVersion": "18.6",
+  "state": "source_confirmed",
+  "tableChecksums": [
+    {
+      "primaryKeySha256": "33b537fbfc1ca0c002dbbc6880420b8231477de7519e5472870ccddff78b2a7f",
+      "rowCount": 3,
+      "rowSha256": "d1e8112dbfabba756e74cdf1e29b1e11aaca6cfa2669f0ac47efbe98ebcbb0c6",
+      "table": "advertiser_profiles"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "advertising_place_photos"
+    },
+    {
+      "primaryKeySha256": "8456bc7b98ae6f21250aab05e7bae9c180e2ea60a51761120d0ceae5e150f44a",
+      "rowCount": 6,
+      "rowSha256": "b371d3d4b943490da27a6bdc79c43ddc9be5143ff409fe022d0fde180684143e",
+      "table": "app_users"
+    },
+    {
+      "primaryKeySha256": "49e2d45be2635487a5e36d4734cc60aa3a0ffa2025481dc027c9af01c5070df8",
+      "rowCount": 39,
+      "rowSha256": "f384df1c9ee6cd00d6dbaca3183054edaacd607524b11965e524d7622303d35b",
+      "table": "audit_log"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "branch_passport_photos"
+    },
+    {
+      "primaryKeySha256": "52959e8fa9ecda46d439941d238e48a133d8d2e4a9e77776b818f1d5a4cebe72",
+      "rowCount": 680,
+      "rowSha256": "df6fd3ff212f48afb981a78dcef4c6f1ba0839beea444971d97febc0a44d7de6",
+      "table": "branches"
+    },
+    {
+      "primaryKeySha256": "3205b1bb3ed39d3227895f7f3714ae9381d5f9e6da049e5dd8b1176c7347804a",
+      "rowCount": 532,
+      "rowSha256": "2c40fece05c69685e0e9ef7d124a68ea872bfc854b0204c74858d0cc861b39c8",
+      "table": "epharm_branch_crosswalk"
+    },
+    {
+      "primaryKeySha256": "2f2b3289d1aa267502dbb3f4912f6f8d5d7b0c501b42623f3e2541fc1b9b1dbd",
+      "rowCount": 1,
+      "rowSha256": "31335f254af72f92d978dedb397fceea7ab04ba99d564f37254af9252a60c7ea",
+      "table": "epharm_catalog_snapshots"
+    },
+    {
+      "primaryKeySha256": "77313bbe01c44496571cc9b015614ab872b9344c18af2b5fdc77ef93b83892e4",
+      "rowCount": 530,
+      "rowSha256": "32f09f66d342c764b8560ee9a60e013ea4ed47009155e33bf10e9f868c6bb28c",
+      "table": "epharm_catalog_staging"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "epharm_executor_bindings"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "epharm_executor_challenges"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "epharm_executor_links"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "epharm_reward_outbox"
+    },
+    {
+      "primaryKeySha256": "ef966b22acf9741954350d60317f48ca8089b1f090283af4819934146a1b5d85",
+      "rowCount": 5080,
+      "rowSha256": "2359958cda0d3ba8f9b1c7975f19761730a1d99cee9acb457b9cd51bd88cff01",
+      "table": "inventory_containers"
+    },
+    {
+      "primaryKeySha256": "f806500f738e767d449a3e87e0984af6c43013fdbf3b71c03d53d8664ca18220",
+      "rowCount": 6,
+      "rowSha256": "ba9ca40bcac89905b593fe78c3ad332e16e36f291093cff7c2e8d1d48e61aa84",
+      "table": "media_plan_items"
+    },
+    {
+      "primaryKeySha256": "71e3f9f4410ba0c10ffffe1ef93e464c105222e6d51a2fd2e0d7cf353fa3adc4",
+      "rowCount": 3,
+      "rowSha256": "0e728213a775e9e5a57ea136be0834b3119f986d3c7d1d2ccfab38f154f1c690",
+      "table": "media_plans"
+    },
+    {
+      "primaryKeySha256": "a4ca7267cff054ad9c04b685c2462dffffe6619ed51d1d47a6733d57460737df",
+      "rowCount": 32,
+      "rowSha256": "91a9c0d7fcef0f775fa96f7cd8f5423825acf9efee64dc69e2694aadfd1ccbf8",
+      "table": "member_branch_access"
+    },
+    {
+      "primaryKeySha256": "7a397c14000605a77557ca44a932585f0f851e45683b134d76aa75f68dcd9481",
+      "rowCount": 16935,
+      "rowSha256": "db62266329de1fa112c5c4fc470341dcd2958d27e8722fd7cd614b240e491cd9",
+      "table": "monthly_inventory"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "organization_members"
+    },
+    {
+      "primaryKeySha256": "2025044ae2dcb7c7f1fb0513953b1454f92a563d54f12008d2c306f77aed4d4b",
+      "rowCount": 9,
+      "rowSha256": "cee3cbd6d30c0fce08177846492dbeda42a8241d2c5e3e4a06f41c60d7efd930",
+      "table": "organizations"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "pharmacy_training_materials"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "pharmapay_product_balances"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "pharmapay_recommendation_signals"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "placement_item_client_photos"
+    },
+    {
+      "primaryKeySha256": "f806500f738e767d449a3e87e0984af6c43013fdbf3b71c03d53d8664ca18220",
+      "rowCount": 6,
+      "rowSha256": "df8c8a3745527fb0a05c949e598a1bc845bad9d0c8983ee50513dee0edc427f4",
+      "table": "placement_item_product_details"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "promotions"
+    },
+    {
+      "primaryKeySha256": "e9f94d91f424000d290aae031a5edf5776ec2408e6623b068ca6e4cfb222b7c4",
+      "rowCount": 87,
+      "rowSha256": "5a9c3f9e48c429814c4d996d31ea10e9d2429480c93b96e2d7daaca185c54809",
+      "table": "schema_migrations"
+    },
+    {
+      "primaryKeySha256": "27c186eb0d5afc04f76e8f97374424993194b6cfd61a46d1e8b5ae00701eb08b",
+      "rowCount": 16914,
+      "rowSha256": "7fe92c9b152234f74179561d492d03cb00cf0bce0bad9e7fa13cf901692baf95",
+      "table": "shelves"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "sms_login_challenges"
+    },
+    {
+      "primaryKeySha256": "605e1e3cd6eea76f4cbe7db4f671c456e8ea5e6c1f6d831bc9a7cdd4648741c4",
+      "rowCount": 7,
+      "rowSha256": "2e0b3de8e62552e87aba93a3b8aec91bcf8e7d189779ed8ae4e28e3a2e0bf5e7",
+      "table": "staff_access_attempts"
+    },
+    {
+      "primaryKeySha256": "ea4f9598573409a204bc7cacd84c924f17b298bb67e3e412fe84e893a3f115e1",
+      "rowCount": 530,
+      "rowSha256": "6b843174343a10e4a710403cdc080a0d46d2d286dbcbcc3b809d11fb8084838c",
+      "table": "staff_access_code_branches"
+    },
+    {
+      "primaryKeySha256": "0002216f752e22a0b3403d0b602640a0644c6b26ff07f599ecf185644e451853",
+      "rowCount": 10,
+      "rowSha256": "e1d202b8fe22c02eaf11474687f79744e720dcddaa8ba2b37d42497dda458b8a",
+      "table": "staff_access_codes"
+    },
+    {
+      "primaryKeySha256": "cda1a48aea999a7658b1092d531e72261f0e2ca52bf4b93edb78b3da33bc9b1e",
+      "rowCount": 11,
+      "rowSha256": "f6eadb3b3d0adf6a348e127d2a9f11abb5007df63f5b750a01f5f41f292f449a",
+      "table": "staff_task_attachments"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "staff_task_batches"
+    },
+    {
+      "primaryKeySha256": "6859509047b0bafc61dc79603fc535fb5d7d0ff5e0f8ab11a159fd07ed8640b1",
+      "rowCount": 246,
+      "rowSha256": "0b862de05ceaa53af3118333291a5c42ccf7a41fa11e2e25fd01c7faa03ef4e5",
+      "table": "staff_task_checklist_items"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "staff_task_comments"
+    },
+    {
+      "primaryKeySha256": "3ebe19e7bbc1b29f5ab6b2036a02e176c372abde5ee0a2a1ff223b9dd8c97c77",
+      "rowCount": 26,
+      "rowSha256": "8d730ecf8465a5c2436d80047510bdf7ccc5f07e78c410f3abf8f590df255f8b",
+      "table": "staff_task_delivery_receipts"
+    },
+    {
+      "primaryKeySha256": "326186443c5ec50f5ef096f0fc6336094e575e687382a3c763c16b2e737b4015",
+      "rowCount": 35,
+      "rowSha256": "9ddba8f0c0c7390f086f13e74d9725fccb3bc029c3525208097701026eb6b75f",
+      "table": "staff_task_dispatch_links"
+    },
+    {
+      "primaryKeySha256": "f9e1ce8aa69db38dbf28732bfdf26c1856e453c9886296f9b7ab12b3ca73540e",
+      "rowCount": 27,
+      "rowSha256": "1ca9b7bae1f35a9a2cd1039d3439d20f7bbd006efa5aa1f3eb676bbf5cac309d",
+      "table": "staff_task_dispatches"
+    },
+    {
+      "primaryKeySha256": "beac48fe4c0a54090ea46530bf5593e5a049315fc0642d107d94de6a3c8e6f08",
+      "rowCount": 275,
+      "rowSha256": "ff21100a8db461127883e0417cdbfdd8fb29028d3254378d9ddb7f75e7d0a8a8",
+      "table": "staff_task_events"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "staff_task_kiosk_devices"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "staff_task_kiosk_links"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "staff_task_stock_observations"
+    },
+    {
+      "primaryKeySha256": "4992bba35223fd9fb97a2411af9f3df4ea908f48c33cddf0f539da86468eb73a",
+      "rowCount": 82,
+      "rowSha256": "8c3c756009202bb2dd8f1e3d5cdb92f819828e635789ccae51c0e37122ebf6dc",
+      "table": "staff_tasks"
+    },
+    {
+      "primaryKeySha256": "a747ee9af3de63e703cdd65e2684a3a80022af1533fe7cfe77a9b684c5dd2a45",
+      "rowCount": 48,
+      "rowSha256": "4d6aa2d41fd569bf7ac6ed5646d69190bb310bf4d33bab943c7a5bf3e154c6a3",
+      "table": "supplier_budget_plan_items"
+    },
+    {
+      "primaryKeySha256": "e8245b9bcf341351dc0aa7d6f08ca142559118275681c96cd88fea7f1f15188c",
+      "rowCount": 10,
+      "rowSha256": "113de3e8e46684edad98fe7f9d707ac62044adad489fd089a89057d7e5fc3a18",
+      "table": "supplier_budget_plans"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "supplier_company_members"
+    },
+    {
+      "primaryKeySha256": "45a0f3068e5d94f1c96d69a562f85e1b93c05511b0787a3f6cd853a3a020619c",
+      "rowCount": 5,
+      "rowSha256": "54a4e31d5a867a0cd5b488b9eec858d9a7812280885358f9e31e8fd6f48654c0",
+      "table": "supplier_pricing_tiers"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "telegram_branch_invites"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "telegram_chat_bindings"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "telegram_chat_states"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "telegram_notification_log"
+    },
+    {
+      "primaryKeySha256": "33af9d3668e11e622a2d151b7323c3bec5c690cb8ad8c9ddd3014380984cd0a3",
+      "rowCount": 235,
+      "rowSha256": "529fd3a3e923d32af474aa88222e00a4facb8d0a5184ab737bfe1b6453918df3",
+      "table": "user_sessions"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "visit_report_attempt_photos"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "visit_report_attempts"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "visit_reports"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "visit_shelf_photos"
+    }
+  ],
+  "tables": 57,
+  "targetIdentitySha256": "f039ff3e7a06d4a848e06df6478d370f074e2957c13f82ffd39c38290acd8f80",
+  "targetMajorVersion": 16,
+  "uniqueConstraints": 30
+}

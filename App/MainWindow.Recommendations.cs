@@ -232,6 +232,24 @@ namespace CustomerDisplay
                             Log($"Захват фискального оригинала недоступен: {ex.GetBaseException().Message}");
                         }
                     }
+                    if (_receiptArtifacts == null)
+                    {
+                        try
+                        {
+                            // Physical receipt/session correlation must survive restart even when
+                            // the optional original-PDF source is disabled or temporarily unavailable.
+                            _receiptArtifacts = new ReceiptArtifactStore(_posmConfig.ReceiptCaptureDir,
+                                new UnavailableFiscalReceiptSource(), Log, _posmConfig.ReceiptCaptureActiveRetentionDays,
+                                _posmConfig.FiscalReceiptCompletedRetentionHours);
+                            _receiptArtifacts.RecoverPending(_outbox);
+                            Log("Локальные наблюдения физических чеков включены; получение фискальных оригиналов недоступно.");
+                        }
+                        catch (Exception ex)
+                        {
+                            Log("Локальное сохранение чеков недоступно; неподтверждённые продажи не отправляются: " +
+                                ex.GetBaseException().Message);
+                        }
+                    }
                     _flusher = new OutboxFlusher(
                         _outbox,
                         _epharm,
@@ -799,64 +817,13 @@ namespace CustomerDisplay
         }
 
 
-        /// <summary>
-        /// Вызывается при печати/завершении чека ДО очистки позиций. Фиксирует продажу (источник №1),
-        /// закрывает popup, открывает новую сессию.
-        /// </summary>
-        private bool OnReceiptFinalized(string captureSource, long? sourceDocumentId = null)
-        {
-            // If the first lookup failed, SellerCaptured remains false. Retry immediately before
-            // queuing the completed receipt instead of permanently sending an empty seller.
-            if (!_session.SellerCaptured)
-            {
-                RefreshCurrentPharmacistFromStandardNDb();
-                CaptureCurrentSellerForSession();
-            }
-            var sale = _saleReporter?.Build(
-                _session,
-                ReceiptItems,
-                sourceDocumentId,
-                captureSource,
-                DateTimeOffset.UtcNow);
-            if (sale != null)
-            {
-                FiscalReceiptCaptureResult? fiscalCapture = null;
-                try
-                {
-                    fiscalCapture = _receiptArtifacts?.Complete(sale);
-                }
-                catch (Exception ex)
-                {
-                    // Fiscal evidence is isolated from the cashier and structured sale reporting.
-                    Log($"Фискальный оригинал {sale.SaleId} не поставлен на захват: {ex.GetBaseException().Message}");
-                }
-
-                _saleReporter?.Enqueue(sale);
-                var fiscalStatus = _receiptArtifacts == null
-                    ? "захват недоступен"
-                    : fiscalCapture?.Status switch
-                    {
-                        FiscalReceiptCaptureStatus.Stored => "оригинал сохранён",
-                        FiscalReceiptCaptureStatus.Rejected => "источник отклонён",
-                        _ => "ожидается оригинал ККМ/OFD",
-                    };
-                Log($"Чек поставлен в гарантированную очередь: id={sale.SaleId}, " +
-                    $"doc={sourceDocumentId?.ToString() ?? "—"}, items={sale.Items.Count}, " +
-                    $"total={sale.TotalAmount}, fiscal={fiscalStatus}");
-            }
-            else
-            {
-                Log($"Завершение чека пропущено: нет реальных позиций Standard-N (source={captureSource})");
-            }
-
-            _activeReceiptDraftId = null;
-            ResetRecommendationUiState(closeWindows: true);
-            StartNewCheckoutSession();
-            return sale != null;
-        }
-
         private void SaveActiveReceiptDraft()
         {
+            if (_standardNCurrentReceipt?.Documents != null)
+            {
+                SavePhysicalReceiptDrafts();
+                return;
+            }
             if (_receiptArtifacts == null || _saleReporter == null || ReceiptItems.Count == 0) return;
             try
             {
@@ -882,6 +849,14 @@ namespace CustomerDisplay
             {
                 Log($"Черновик активного чека временно не сохранён: {ex.GetBaseException().Message}");
             }
+        }
+
+        private sealed class UnavailableFiscalReceiptSource : IFiscalReceiptSource
+        {
+            public FiscalReceiptLookupResult Find(SaleReport sale) =>
+                FiscalReceiptLookupResult.NotReady("optional fiscal original source is unavailable");
+            public void CleanupAccepted(FiscalReceiptManifest manifest, string sourceManifestFileName) =>
+                throw new InvalidOperationException("Fiscal handoff cleanup is unavailable.");
         }
 
         private void DiscardActiveReceiptDraft()

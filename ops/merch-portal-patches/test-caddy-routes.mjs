@@ -4,6 +4,14 @@ import { readFileSync } from "node:fs";
 // Feed this file the JSON produced by `caddy adapt --config Caddyfile`.
 const config = JSON.parse(readFileSync(0, "utf8"));
 const servers = Object.values(config.apps.http.servers);
+const cutover = process.argv[2] ?? 'false';
+assert.ok(['true', 'false'].includes(cutover));
+const staffAccess = process.argv[3] ?? 'false';
+assert.ok(['true', 'false'].includes(staffAccess));
+const flatten = (routes) => routes.flatMap((route) => [
+  ...route.handle ?? [],
+  ...flatten((route.handle ?? []).flatMap((handler) => handler.routes ?? [])),
+]);
 let checked = 0;
 
 for (const server of servers) {
@@ -36,16 +44,38 @@ for (const server of servers) {
       ]],
     ];
 
-    assert.equal(staffRoutes.length, allowed.length + 1, "no extra public merch routes");
+    assert.equal(staffRoutes.length, allowed.length + 3, "explicit role landing and retired-API fence; no extra public merch routes");
+    assert.deepEqual(staffRoutes[0].match, [{ method: ['GET', 'HEAD'], path: ['/merch/portal'] }]);
+    const landing = flatten([staffRoutes[0]]).find(({ handler }) => handler === 'reverse_proxy');
+    assert.deepEqual(landing?.upstreams, [{ dial: 'frontend:80' }]);
+    assert.deepEqual(landing?.headers?.request?.delete, ['X-Pharmapay-Key', 'X-Staff-Session']);
+    const compatibility = staffRoutes.slice(1);
+    assert.equal(compatibility[0].match[0].expression.expr, `"${cutover}" == "true"`);
+    const retired = flatten([compatibility[0]]);
+    assert.ok(!retired.some(({ handler }) => handler === 'reverse_proxy'), 'retired API must never reach old CRM');
+    assert.equal(retired.find(({ status_code }) => status_code)?.status_code, 409);
     for (const [index, [method, paths]] of allowed.entries()) {
-      assert.deepEqual(staffRoutes[index].match, [{ method: [method], path: paths }]);
-      const handlers = staffRoutes[index].handle?.[0]?.routes?.[0]?.handle ?? [];
+      assert.deepEqual(compatibility[index + 1].match, [{ method: [method], path: paths }]);
+      const handlers = compatibility[index + 1].handle?.[0]?.routes?.[0]?.handle ?? [];
       if (index === 0) {
-        assert.deepEqual(handlers.map(({ handler }) => handler), ["headers", "headers", "static_response"]);
-        assert.deepEqual(handlers[0].response?.set?.["Referrer-Policy"], ["no-referrer"]);
-        assert.deepEqual(handlers[1].response?.set?.["Cache-Control"], ["no-store"]);
-        assert.equal(handlers[2].status_code, 302);
-        assert.deepEqual(handlers[2].headers?.Location,
+        const routes = compatibility[index + 1].handle[0].routes;
+        assert.equal(routes.length, 3, 'shared staff entry, task-only compatibility and legacy default');
+        assert.equal(routes[0].match[0].expression.expr, `"${cutover}" == "true" && "${staffAccess}" == "true"`);
+        const shared = flatten([routes[0]]);
+        assert.equal(shared.find(({ handler }) => handler === 'rewrite')?.uri, '/staff?');
+        const sharedProxy = shared.find(({ handler }) => handler === 'reverse_proxy');
+        assert.deepEqual(sharedProxy?.upstreams, [{ dial: 'frontend:80' }]);
+        assert.deepEqual(sharedProxy?.headers?.request?.delete, ['X-Pharmapay-Key', 'X-Staff-Session']);
+        assert.deepEqual(routes[1].match[0].query, { task: ['*'] });
+        assert.equal(routes[1].match[0].expression.expr, `"${cutover}" == "true"`);
+        const native = flatten([routes[1]]);
+        assert.equal(native.find(({ handler }) => handler === 'rewrite')?.uri, '/tasks/staff?');
+        const proxy = native.find(({ handler }) => handler === 'reverse_proxy');
+        assert.deepEqual(proxy?.upstreams, [{ dial: 'frontend:80' }]);
+        assert.deepEqual(proxy?.headers?.request?.delete, ['X-Pharmapay-Key', 'X-Staff-Session']);
+        const fallback = flatten([routes[2]]);
+        assert.equal(fallback.find(({ status_code }) => status_code)?.status_code, 302);
+        assert.deepEqual(fallback.find(({ headers }) => headers?.Location)?.headers?.Location,
           ["https://crm.inkar.kz/staff{http.request.uri.prefixed_query}"]);
         continue;
       }
@@ -61,4 +91,4 @@ for (const server of servers) {
 }
 
 assert.equal(checked, 2, "both public TLS and INKAR ingress routes must protect merchandising");
-console.log("Merch Caddy routes: fixed CRM staff redirect, HTTPS proxy allowlist and default deny in both listeners.");
+console.log(`Merch Caddy routes: cutover=${cutover}, explicit SPA entry, CRM default, retired API fence and default deny.`);

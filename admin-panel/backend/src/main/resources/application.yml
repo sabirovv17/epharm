@@ -83,7 +83,25 @@ app:
     password: ${STANDARDN_PASSWORD:}
     sync-delay-ms: ${STANDARDN_SYNC_DELAY_MS:21600000}
     initial-delay-ms: ${STANDARDN_INITIAL_DELAY_MS:30000}
+  merch:
+    staff-access-enabled: ${MERCH_STAFF_ACCESS_ENABLED:false}
+    # These switches do not migrate data or enable the legacy CRM writer.
+    native-delivery-enabled: ${MERCH_NATIVE_DELIVERY_ENABLED:false}
+    native-executor-enabled: ${MERCH_NATIVE_EXECUTOR_ENABLED:false}
+    producer-auth-enabled: ${MERCH_PRODUCER_AUTH_ENABLED:false}
+    legacy-portal-cutover-enabled: ${MERCH_LEGACY_PORTAL_CUTOVER_ENABLED:false}
+    automation:
+      # Enable only after the source-cycle projection and explicit single-writer cutover.
+      enabled: ${MERCH_AUTOMATION_ENABLED:false}
+      delay-ms: ${MERCH_AUTOMATION_DELAY_MS:300000}
+      initial-delay-ms: ${MERCH_AUTOMATION_INITIAL_DELAY_MS:60000}
+    placements:
+      expiry-enabled: ${MERCH_PLACEMENT_EXPIRY_ENABLED:false}
+      expiry-delay-ms: ${MERCH_PLACEMENT_EXPIRY_DELAY_MS:60000}
   merch-tasks:
+    # Owner-only directories, never the public screens/S3 bucket. Empty means unavailable.
+    evidence-root: ${MERCH_TASK_EVIDENCE_ROOT:}
+    legacy-files-root: ${MERCH_TASK_LEGACY_FILES_ROOT:}
     enabled: ${MERCH_TASKS_ENABLED:false}
     base-url: ${MERCH_TASKS_BASE_URL:}
     integration-key: ${MERCH_TASKS_INTEGRATION_KEY:}
@@ -171,6 +189,14 @@ app:
     fiscal-artifact-trusted-sources: ${POSM_FISCAL_ARTIFACT_TRUSTED_SOURCES:standardn-kkm-sdk,ofd-api}
     # Сколько секунд пульс кассы считается «живым» (T4, GET /screens/connected).
     heartbeat-ttl-seconds: ${POSM_HEARTBEAT_TTL:90}
+  unified-admin:
+    primary-owner-id: ${UNIFIED_ADMIN_PRIMARY_OWNER_ID:}
+  learner-credentials:
+    enabled: ${LEARNER_CREDENTIALS_ENABLED:false}
+    key-file: ${LEARNER_CREDENTIALS_KEY_FILE:}
+    export-ttl-seconds: ${LEARNER_CREDENTIALS_EXPORT_TTL_SECONDS:120}
+    max-batch-size: ${LEARNER_CREDENTIALS_MAX_BATCH_SIZE:25}
+    max-exports-per-hour: ${LEARNER_CREDENTIALS_MAX_EXPORTS_PER_HOUR:4}
   fulfillment:
     # Orders are deployed dark first, then enabled for a mapped pilot pharmacy.
     enabled: ${FULFILLMENT_ENABLED:false}

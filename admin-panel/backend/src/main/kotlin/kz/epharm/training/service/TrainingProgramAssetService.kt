@@ -14,13 +14,18 @@ import javax.imageio.ImageIO
 @Service
 class TrainingProgramAssetService(
     private val mediaStorage: MediaStorage,
+    private val administrativeAccess: kz.epharm.training.access.TrainingAdministrativeAccess,
 ) {
+    @org.springframework.transaction.annotation.Transactional
     fun uploadCover(file: MultipartFile): TrainingProgramCoverUploadDto {
+        administrativeAccess.lockWriter()
         val url = uploadImage(file, "обложки", MIN_COVER_SIDE)
         return TrainingProgramCoverUploadDto(coverUrl = url)
     }
 
+    @org.springframework.transaction.annotation.Transactional
     fun uploadCertificateAsset(file: MultipartFile): TrainingProgramCertificateAssetUploadDto {
+        administrativeAccess.lockWriter()
         val url = uploadImage(file, "логотипа", MIN_LOGO_SIDE)
         return TrainingProgramCertificateAssetUploadDto(assetUrl = url)
     }

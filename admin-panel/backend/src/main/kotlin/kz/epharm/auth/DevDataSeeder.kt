@@ -1,5 +1,8 @@
 package kz.epharm.auth
 
+import kz.epharm.shared.error.AppException
+import kz.epharm.shared.error.ErrorCode
+import org.springframework.http.HttpStatus
 import kz.epharm.shared.IinUtil
 import kz.epharm.shared.PhoneUtil
 import kz.epharm.auth.domain.AdminRole
@@ -149,12 +152,21 @@ class DevDataSeeder(private val jdbc: JdbcTemplate) {
         receiptRepository: ReceiptRepository,
         bannerRepository: BannerRepository,
     ) {
-        // Disposable dev fixtures only. DELETE is intentionally forbidden by the monetary
+        // A restored/imported candidate is evidence, never a disposable demo fixture.
+        if (jdbc.queryForObject("""SELECT EXISTS(SELECT 1 FROM unified_import_runs)
+            OR EXISTS(SELECT 1 FROM merch_organizations) OR EXISTS(SELECT 1 FROM merch_task_dispatches)
+            OR EXISTS(SELECT 1 FROM promo_producer_bindings) OR EXISTS(SELECT 1 FROM pharmacist_person_links)""",
+                Boolean::class.java) == true) {
+            throw AppException(ErrorCode.CONFLICT, "Сброс запрещён: сохранены данные объединения или задания мерча", HttpStatus.CONFLICT)
+        }
+        // Disposable dev fixtures only. DELETE is intentionally forbidden by the monetary/publication
         // append-only triggers; truncate the complete, explicit FK set in this transaction.
         // Never weaken the production ledger or use CASCADE to erase unrelated domains.
-        jdbc.execute("""TRUNCATE TABLE merch_reward_events, merch_executor_grants,
+        jdbc.execute("""TRUNCATE TABLE merch_legacy_capability_aliases, merch_reward_events, merch_executor_grants,
             merch_executor_bindings, merch_executor_otp_challenges,
-            pharmacist_wallet_entries, pharmacist_wallet_checkpoints""")
+            merch_task_reviews, merch_task_evidence, merch_task_stock_observations, merch_task_attempts, merch_task_rewards,
+            pharmacist_wallet_entries, pharmacist_wallet_checkpoints, learner_password_vault,
+            promo_publication_changes, promo_publication_history""")
         // 1. Очистка в FK-безопасном порядке (зависимые сначала).
         receiptRepository.deleteAll() // FK → pending_bonuses
         pendingBonusRepository.deleteAll()

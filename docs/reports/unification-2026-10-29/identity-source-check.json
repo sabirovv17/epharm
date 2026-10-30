@@ -1,0 +1,11 @@
+{
+  "epharm_pharmacies": 532,
+  "merch_branches": 680,
+  "explicit_crosswalk_rows": 532,
+  "external_ids_missing_in_epharm": 0,
+  "branch_ids_missing": 0,
+  "distinct_source_epharm_ids": 532,
+  "distinct_target_merch_ids": 532,
+  "merch_branches_without_explicit_link": 148,
+  "method": "Existing explicit crosswalk; no match by address/name/phone, no records changed"
+}

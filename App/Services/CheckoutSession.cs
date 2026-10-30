@@ -16,6 +16,17 @@ namespace CustomerDisplay.Services
     {
         public string SessionId { get; } = "sess_" + Guid.NewGuid().ToString("N").Substring(0, 12);
 
+        public CheckoutSession() { }
+        private CheckoutSession(string sessionId) { SessionId = sessionId; }
+        internal static CheckoutSession RestoreObserved(string sessionId, string pharmacistId, string? pharmacistName, long session)
+        {
+            if (string.IsNullOrWhiteSpace(sessionId) || sessionId.Length > 128 || sessionId.Any(char.IsControl))
+                throw new ArgumentException("Invalid observed checkout session.");
+            var restored = new CheckoutSession(sessionId);
+            restored.CaptureSeller(pharmacistId, pharmacistName, session);
+            return restored;
+        }
+
         // Продавец фиксируется один раз на первом товаре чека. Смена пользователя Standard-N
         // посередине чека применяется только к следующему чеку, чтобы показ и продажа всегда
         // относились к одному человеку.

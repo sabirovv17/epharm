@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "state": "env_only_HQ_configuration_RED_then_GREEN",
+  "syntheticOnly": true,
+  "oldJarSha256": "cb16bac9d0abc7a96bd6e260eb6bc894e3dbbcc919fd53493b74e688f3de2f7b",
+  "finalJarSha256": "d7013568a7cb1452efe6cf7089233f844a8354b5b480340c2937b438769914e9",
+  "commandLineOwnerOverride": false,
+  "actualOldOwnerFalseReproduced": true,
+  "actualNewOwnerTrueAssertedThroughAccountsAPI": true,
+  "actualComposeEnvironmentForwardingVerified": true,
+  "cleanBrowserCasesPassed": 7,
+  "failed": 0,
+  "durationMinutes": 7.6,
+  "apiMocks": false,
+  "externalSms": false,
+  "newAccountOrGrantInProduction": false,
+  "actualD9WorkbookDownloaded": true,
+  "learnAndProducerRealmsIndependent": true,
+  "scopedAndRevokedAccessDenied": true,
+  "oldPosmContractsAndDuplicateSalePassed": true,
+  "runtimeStoppedDataAndKeysRetained": true,
+  "limits": [
+    "Resource-only successor of the full1303-test backend artifact; no Kotlin or migration change",
+    "Prior cb16 SIGKILL restart proof remains a separate artifact-specific result",
+    "Exact promoted-main OCI rehearsal remains required before production cutover"
+  ]
+}

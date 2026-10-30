@@ -1,0 +1,121 @@
+{
+  "date": "2026-10-29",
+  "branch": "codex/unified-admin-development",
+  "backendCheckpoint": "a9eacef",
+  "productionChanged": false,
+  "scope": "isolated candidate materialization and source/test verification; not release acceptance",
+  "mainRevision": "b946592549db9eab8d108c6c5bdbd7022915a655",
+  "mergedPrerequisites": [126, 127],
+  "candidateIdentitySha256": "4fdfb3c6c6a9a4296b178c75681cd4fc09d975fa0eb6c348cb8e49bf78853453",
+  "preservation": {
+    "allOriginalColumnHashesAndPrimaryKeysUnchanged": true,
+    "originalBusinessTables": 72,
+    "originalRows": 1905710,
+    "productionChanged": false,
+    "sourceUnchanged": true
+  },
+  "ownedInventory": {
+    "identityArtifactSha256": "116de7f8695992b77d0cf8a762c6fc6bbb67635e161d4996315abd545d513491",
+    "mode": "materialized_and_verified",
+    "operationKey": "owned_merch_m0:ab54e5f10a08b53d9cab1587:116de7f8695992b77d0cf8a7",
+    "productionChanged": false,
+    "result": {
+      "pharmacyRelations": 532,
+      "scope": "owned M0 materialization; no account/person merge, activation, rewards, jobs or source writes",
+      "sourceRows": 39627,
+      "tables": 7
+    },
+    "sourceArtifactSha256": "ab54e5f10a08b53d9cab15874eb98fff5515b37271c8fa5e78f10394b889fd25",
+    "targetIdentitySha256": "4fdfb3c6c6a9a4296b178c75681cd4fc09d975fa0eb6c348cb8e49bf78853453"
+  },
+  "ownedInventoryReplay": "verified_existing_noop",
+  "ownedTasks": {
+    "mode": "materialized_and_verified",
+    "productionChanged": false,
+    "result": {
+      "checklistItems": 246,
+      "dispatches": 27,
+      "evidence": 11,
+      "limitations": [
+        "source in-progress/submitted attempts need explicit verified resume/review; no invented executor",
+        "native QR ownership is a separate verified V074 projection",
+        "physical legacy media must be configured from the verified private manifest"
+      ],
+      "newAttempts": 0,
+      "newRewards": 0,
+      "sourceRows": 702,
+      "tasks": 82
+    },
+    "sourceArtifactSha256": "ab54e5f10a08b53d9cab15874eb98fff5515b37271c8fa5e78f10394b889fd25",
+    "targetIdentitySha256": "4fdfb3c6c6a9a4296b178c75681cd4fc09d975fa0eb6c348cb8e49bf78853453"
+  },
+  "ownedTasksReplay": "verified_existing_noop",
+  "ownedDelivery": {
+    "issuedLinks": 0,
+    "legacyCompatibleLinks": 11,
+    "missingParentPlans": 0,
+    "mode": "materialized_and_verified",
+    "nativeOwnedLinks": 24,
+    "productionChanged": false,
+    "replayedAcknowledgements": 0,
+    "sourceArtifactSha256": "ab54e5f10a08b53d9cab15874eb98fff5515b37271c8fa5e78f10394b889fd25",
+    "targetIdentitySha256": "4fdfb3c6c6a9a4296b178c75681cd4fc09d975fa0eb6c348cb8e49bf78853453",
+    "verifiedParentPlans": 13
+  },
+  "ownedDeliveryReplay": "verified_existing_noop",
+  "legacyMedia": {
+    "files": 11,
+    "bytes": 4426601,
+    "allSizeAndSha256Verified": true,
+    "publicStorageUsed": false,
+    "sourceFilesUnchanged": true
+  },
+  "migrations": {
+    "currentVersion": 74,
+    "validated": 74,
+    "applicationOrJobsStarted": false,
+    "frozenSha256": {
+      "V066__unified_admin_access.sql": "353a8485728b2990370f61742bf3da7ffe4e37687b77843a01edc8c0b029db6e",
+      "V067__campaign_publication_changes.sql": "18d2791677234ab32b11ec1014e5a7cbd8e494c21daed2525f5cef0d2770d66b",
+      "V068__merch_owned_inventory.sql": "33f2f8daaeab9610e93e1977e2684022137660f841e93bc8bcc9983238746177",
+      "V069__unified_source_links_and_producers.sql": "30bf3ce42111c6936e28d21e1fee172bd7cfa58f3e358f92538fd6da7f361473",
+      "V070__merch_placement_workflow.sql": "2db274dfc7fff9a60ccb7f84e4e9c3c4e20a30373259087520a51be47052ba88",
+      "V071__merch_native_task_workflow.sql": "d79cf0ccd30fdd53e47b1b395afd4542427f6490e917b2723b50c4835efda70a",
+      "V072__merch_producer_auth.sql": "c9f483b953f062c6b99c0ddc7e9cbc6cfbeabdb8ced0ee8d317525485c7967c5",
+      "V073__merch_producer_profile_compatibility.sql": "e324192cde6fcd44216aca3aa610ea9950a975ca17f1121bd1e7f8ac97490043",
+      "V074__merch_native_delivery.sql": "487a1cb9d0a0332b64464ad3dcf862afd0b19deef87db46f9a817d7377fb5aa8"
+    }
+  },
+  "verification": {
+    "fullBackendInitial": {
+      "tests": 1055,
+      "failures": 5,
+      "skipped": 1,
+      "explanation": "2 invalid task test fixtures, missing web-slice auth mock, and 2 dev-reset FK regressions; fixed and rerun in focused suites, not represented as an all-green full run"
+    },
+    "focusedCorrections": "Health, admin access/global GET negative cases and 30 task tests passed; final dev reset 4 tests/check passed",
+    "python": {
+      "tests": 96,
+      "postgresEngineCaseOptIn": true
+    },
+    "frontendM2": {
+      "unitTests": 742,
+      "builtArtifactScenarios": 29
+    },
+    "sourceInventory": {
+      "actions": 463,
+      "groups": 57,
+      "posmContracts": 47,
+      "backendEndpoints": 306
+    }
+  },
+  "stillRequired": [
+    "producer selfregistration compatibility",
+    "paid native task recipient OTP and shared verified mapping",
+    "explicit source in-progress/submitted continuation",
+    "generic/kiosk/recurring/video/stock CRM function ports and source-preserving cutover",
+    "HQ account association UI and remaining per-action server permission coverage",
+    "all section-specific XLSX including agreed separate credential export",
+    "current complete CI and Windows/Standard-N physical proof/QR/rollback acceptance"
+  ]
+}

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Retain three verified rollback bundles plus every active release reference.
+"""Retain three verified bundles plus active release and current recovery references.
 
 The caller holds the backend-only deploy flock across this entire command.
 Dry-run is the default; --apply removes only validated bundle files.
@@ -74,6 +74,14 @@ def references(deploy_roots: list[Path], backup_root: Path) -> tuple[set[Path], 
             parent = root / "releases" / kind
             if parent.exists() or parent.is_symlink():
                 secure(parent, True)
+            # An unresolved/just-recovered incident is not a healthy rollback
+            # baseline. Protect its one exact fresh bundle independently.
+            if kind == "archive-two-image":
+                incident_file = parent / "recovery-backup"
+                incident = record(incident_file, required=False)
+                snapshot[incident_file] = incident
+                if incident is not None:
+                    protected.add(backup_reference(one_path(incident[0], incident_file), backup_root))
             pointer = parent / "active-transaction"
             active = record(pointer, required=False)
             snapshot[pointer] = active

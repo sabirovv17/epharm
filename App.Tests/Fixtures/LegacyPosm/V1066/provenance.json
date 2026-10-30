@@ -1,0 +1,122 @@
+{
+  "clientVersion": "1.0.66",
+  "mainVersionEntryCommit": "84d50b29871de7a7ce460376f05c474c74de06ac",
+  "equivalentBranchCommit": "3f1f5144f1deee381b572c9d9ec877f75e1d7be2",
+  "versionTagExists": false,
+  "versionInCsprojConfirmed": true,
+  "appTree": "4aaa8c6003dba3f707b8b1f2536153d8e1722d29",
+  "modelsTree": "e5fa22fabb512d85b34a25699a08ef267275d745",
+  "installedBinaryCommitVerified": false,
+  "historicalConfigCopied": false,
+  "testBoundary": "Config adapter supplies synthetic key and loopback URI only; historical config loading, HTTPS/TLS, pinned installed key, WPF and real backend authorization are not executed.",
+  "sources": [
+    {
+      "path": "App/Services/EpharmApiClient.cs",
+      "commit": "84d50b29871de7a7ce460376f05c474c74de06ac",
+      "originalGitBlob": "3cbc470874283234b6a5e9517835dcacc7c19fce",
+      "originalSha256": "52dac2b6965c074bad01ba9316fe330297d06f048aaacdc330b9ab69d6a44018",
+      "fixture": "V1066/Source/EpharmApiClient.cs",
+      "fixtureSha256": "d94159432d630b78a1d2a5af04f4cfe6c06bf69fe6f5cefa2a0a4d68b41d5038",
+      "transformation": "Header comment plus namespace/using prefix relocation only; executable bodies unchanged."
+    },
+    {
+      "path": "App/Services/BackendFailoverHandler.cs",
+      "commit": "84d50b29871de7a7ce460376f05c474c74de06ac",
+      "originalGitBlob": "60e5199a061f826886d4a90953f1ed2b9ea84a2e",
+      "originalSha256": "89683248ae2b90b165e7a225c477c292aaa46bf1c5aa5d4cd8f9c9332da1e59a",
+      "fixture": "V1066/Source/BackendFailoverHandler.cs",
+      "fixtureSha256": "dbf244557933d0631243fdae828cf4cc05be4e0ef486e8f1623e69dc113f1bc9",
+      "transformation": "Header comment plus namespace/using prefix relocation only; executable bodies unchanged."
+    },
+    {
+      "path": "App/Services/TaskKioskClient.cs",
+      "commit": "84d50b29871de7a7ce460376f05c474c74de06ac",
+      "originalGitBlob": "248047c657061d3d9e9fffcb22b642877d95b08c",
+      "originalSha256": "878022e8939f9fa1cfbb9b634b4c0a2ab2f990ddc9fd62fc6aaaa1a4c64ccace",
+      "fixture": "V1066/Source/TaskKioskClient.cs",
+      "fixtureSha256": "2c98a1320ab1166caf5798a5b0e0a333842247a03cb8691dd443a27c1df8d951",
+      "transformation": "Header comment plus namespace/using prefix relocation only; executable bodies unchanged."
+    },
+    {
+      "path": "App/Services/FulfillmentClient.cs",
+      "commit": "84d50b29871de7a7ce460376f05c474c74de06ac",
+      "originalGitBlob": "809a46a297795b7f2fc0fd19d7104903260b561e",
+      "originalSha256": "236fc04ca7a501a3d929a4a33fc674a421a0d2f1b323b2712aff167e40847692",
+      "fixture": "V1066/Source/FulfillmentClient.cs",
+      "fixtureSha256": "1bc7e069dbdeb180145584c7aad40454ef0b43e22a7c3ecc4eefc9269314e0c4",
+      "transformation": "Header comment plus namespace/using prefix relocation only; executable bodies unchanged."
+    },
+    {
+      "path": "App/Services/EpharmJson.cs",
+      "commit": "84d50b29871de7a7ce460376f05c474c74de06ac",
+      "originalGitBlob": "ef6e6b7f4f4b7ee2176844e34e2f05913ec63442",
+      "originalSha256": "8b5edbc67bad1a9fb0f93aa574b90d891d3337142e5cc0144dcab8ce738f1b9a",
+      "fixture": "V1066/Source/EpharmJson.cs",
+      "fixtureSha256": "265e8b08f582768993b453995d60959e3ef4be92b1dbaa0358069757c9b12e50",
+      "transformation": "Header comment plus namespace/using prefix relocation only; executable bodies unchanged."
+    },
+    {
+      "path": "App/Services/UpdateManifestVerifier.cs",
+      "commit": "84d50b29871de7a7ce460376f05c474c74de06ac",
+      "originalGitBlob": "ffd9cdb2c1176e1b902a90e48684023bd3cfd9fc",
+      "originalSha256": "1a1d6f23077fba1401ac60168735420ae71bd02feb0362a4f99ea1c0b66e761e",
+      "fixture": "V1066/Source/UpdateManifestVerifier.cs",
+      "fixtureSha256": "23ef0601935ad51772d75aca4a3b1179acb84f15b6a85d5cd750534f976a86e0",
+      "transformation": "Header comment plus namespace/using prefix relocation only; executable bodies unchanged."
+    },
+    {
+      "path": "Models/Posm/PosmDtos.cs",
+      "commit": "84d50b29871de7a7ce460376f05c474c74de06ac",
+      "originalGitBlob": "0b2f53607693eceff7304e80e45fe2673a0c1079",
+      "originalSha256": "53b830c9e0956d9f6e01a3a4d3041c1c32718ea9a9fbef08d8e6e9f3ceca6e0c",
+      "fixture": "V1066/Source/PosmDtos.cs",
+      "fixtureSha256": "2bf0a603fc9e8149a8f8d1258fb14d9c736ac88b96e1313ec822a07bf9f71afa",
+      "transformation": "Header comment plus namespace/using prefix relocation only; executable bodies unchanged."
+    },
+    {
+      "path": "Models/Posm/SaleReport.cs",
+      "commit": "84d50b29871de7a7ce460376f05c474c74de06ac",
+      "originalGitBlob": "c8043289f3c2e1b49795e9e237e4d2270a4f7154",
+      "originalSha256": "97b687cd48b6c8543181756a0232cd38fc55fd5704b7302f92067b487b5d2bc0",
+      "fixture": "V1066/Source/SaleReport.cs",
+      "fixtureSha256": "d0eff50c14c535079e585ed13be076833ffa870e8f952c540f6965d9708b45d4",
+      "transformation": "Header comment plus namespace/using prefix relocation only; executable bodies unchanged."
+    },
+    {
+      "path": "Models/Posm/Playlist.cs",
+      "commit": "84d50b29871de7a7ce460376f05c474c74de06ac",
+      "originalGitBlob": "f0abca7f45ff3191fdc5c9b13a38d90ce677d2f2",
+      "originalSha256": "06170667a7112e84132380731423c30c18e22560ba030988ef2949d3487dfddc",
+      "fixture": "V1066/Source/Playlist.cs",
+      "fixtureSha256": "205243037790b76a186be35472f17a26e5662ca182159bb6f7aca38982ebb0b9",
+      "transformation": "Header comment plus namespace/using prefix relocation only; executable bodies unchanged."
+    },
+    {
+      "path": "Models/Posm/Cdp.cs",
+      "commit": "84d50b29871de7a7ce460376f05c474c74de06ac",
+      "originalGitBlob": "d7afdc30dd15c71b5f9a94fd9552fec8b1a51679",
+      "originalSha256": "8d0fa465afebbf626f3664054150c166684b297d2b9c20cc0dd5c5f48c6e686f",
+      "fixture": "V1066/Source/Cdp.cs",
+      "fixtureSha256": "da7acc3f8d8daa839bdf64dd0153e8fbca27e3de10341ee5fa25094da8607dfb",
+      "transformation": "Header comment plus namespace/using prefix relocation only; executable bodies unchanged."
+    },
+    {
+      "path": "Models/Posm/AppVersion.cs",
+      "commit": "84d50b29871de7a7ce460376f05c474c74de06ac",
+      "originalGitBlob": "928fffb54dad79d935c415f646533f207d45e7c0",
+      "originalSha256": "bc230abad61ab1179d02290097c72599c0adeff036eeeffa8193ddcaf0074606",
+      "fixture": "V1066/Source/AppVersion.cs",
+      "fixtureSha256": "eb494a3c68b7ee7129f39632eb7514b6f25099c36accf1990878ca179d3e3be1",
+      "transformation": "Header comment plus namespace/using prefix relocation only; executable bodies unchanged."
+    },
+    {
+      "path": "Models/Posm/Fulfillment.cs",
+      "commit": "84d50b29871de7a7ce460376f05c474c74de06ac",
+      "originalGitBlob": "192d7eb49a58ba72abda6f0d8faecf71c9e112cf",
+      "originalSha256": "4e977d6903b6cff2e469644fd6e700ec39fed4eec0327ba0553ec09a9a09c14e",
+      "fixture": "V1066/Source/Fulfillment.cs",
+      "fixtureSha256": "64c906067df134864dfb09dfb0f84fd909815d95d808e49e27fcd79383782e1b",
+      "transformation": "Header comment plus namespace/using prefix relocation only; executable bodies unchanged."
+    }
+  ]
+}

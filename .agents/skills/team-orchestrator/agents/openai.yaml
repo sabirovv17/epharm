@@ -1,0 +1,3 @@
+interface:
+  display_name: 'Team Orchestrator'
+  short_description: 'Coordinate bounded specialist agents and integrate their work'

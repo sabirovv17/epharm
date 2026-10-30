@@ -1,0 +1,418 @@
+# Общие ID и права единого ePharm
+
+Технический контракт U1/U2 по [PLAN.md](../PLAN.md), а не дополнительная дорожная
+карта. Реализация проверяется локально в ветке `codex/unified-admin-development`.
+Pure-ядро используется первым серверным адаптером `auth/access`; текущие аккаунты
+не переводятся автоматически. `/learn` и device authentication остаются отдельными.
+Production не переключался; V066/V067 применены только в изолированных проверках.
+
+## Проверенная основа данных
+
+Оба существующих backup восстановлены локально в контейнерах без сети и портов:
+ePharm — PostgreSQL 16, CRM — PostgreSQL 18. Восстановлены73/57 таблиц соответственно;
+все доступные MinIO/CRM uploads и 20 POSM download-файлов скопированы в закрытое
+хранилище вне Git. Контрольные суммы совпали. Доказательства:
+[isolated-restore-verification.json](reports/unification-2026-10-29/isolated-restore-verification.json).
+
+**Версии нельзя игнорировать:** CRM использует PostgreSQL 18.6 и dump format 1.16;
+его `pg_restore` на 16 закономерно отказался читать. Для проверки CRM был применён
+отдельный 18, а не изменён основной сервер. Объединение не строится на прямом
+`pg_restore 18 → PostgreSQL 16` и восстановлении чужих globals/RLS/functions поверх
+ePharm. На U4 нужны явные схемы/поля и перенос данных с проверенными преобразованиями.
+Обновление production PostgreSQL — отдельная операция, сейчас не выполняется.
+
+Основной backend остаётся ePharm, целевая рабочая база — одна. Таблицы/функции
+CRM на18 сохранены в изолированном source-audit. Дополнительно все57 таблиц перенесены
+в типизированную инертную staging-схему одного локального PostgreSQL16 кандидата:
+42 410 строк,652 колонки,57 PK,30 UNIQUE,117 FK и6 enum. Функции, триггеры, defaults,
+RLS/ACL и состояния генераторов сохранены как исходные определения, без исполнения.
+Это ещё не рабочий backend мерча и не постоянная связка двух backend по API.
+Повтор импорта проверяет тот же fingerprint и ничего не перезаписывает. Исходные
+и целевые row/PK hashes всех57 таблиц совпали.
+
+Полный кандидат содержит также все73 исходные таблицы ePharm: всего130 таблиц
+источников и1 948 185 строк. PGDATA кандидата размещён на закрытом локальном host
+volume с проверкой запаса места; исходные контейнеры/архивы сохранены. V065→V067
+применены plain Flyway runner без старта приложения и фоновых задач. Хеши исходных
+колонок, PK и количества бизнес-записей не изменились, account conversion и
+финансовые операции не выполнялись. Доказательства:
+[staging](reports/unification-2026-10-29/crm-staging-verification.json),
+[полный кандидат](reports/unification-2026-10-29/full-candidate-rehearsal.json),
+[миграции](reports/unification-2026-10-29/candidate-schema-upgrade.json).
+
+## Идентичность и старые ID
+
+`shared/identity/SourceIdentity.kt` задаёт точную тройку
+`source system + entity type + original ID`. Идентификатор непрозрачен:
+строка не обрезается, регистр не меняется, тип не угадывается по префиксу.
+UUID административного аккаунта берётся из доверенного значения БД через
+`UUID.toString()`, а не из произвольного текста формы.
+
+| Источник                 | Действие при сопоставлении                                                         |
+| ------------------------ | ---------------------------------------------------------------------------------- |
+| ePharm `pharmacies.id`   | Сохранить исходный canonical pharmacy ID                                           |
+| ePharm `pharmacists.id`  | Сохранить pharmacist ID; не подменять person/account ID                            |
+| ePharm `admin_users.id`  | Сохранить административный UUID                                                    |
+| ePharm `cdp_profiles.id` | Отдельный CUSTOMER; не объединять с фармацевтом по телефону                        |
+| CRM branch               | Собственный MERCH_BRANCH с исходным UUID; optional связь PHARMACY                  |
+| CRM account/person       | Исходные IDs сохранены, человеческая связь unresolved; без автоматического слияния |
+
+На восстановленных данных проверены 532 однозначные пары crosswalk: оба конца
+существуют, повторных source/target нет. Все 532 аптеки ePharm покрыты.
+В CRM 680 branch; 148 остаются без явного соответствия. Их записи, фонд, задания,
+история и старые права сохраняются. Они не считаются удалёнными/неактивными
+или автоматически одной из532аптек. Не создаются новые устройства или ключи.
+Агрегаты: [identity-source-check.json](reports/unification-2026-10-29/identity-source-check.json).
+
+`VerifiedCrosswalkBinding.verificationReference` хранит provenance; строка сама
+не доказывает согласование или существование записи. Это обязанность доверенного
+loader/migration. Resolver отклоняет конфликт в обе стороны, не генерирует ID
+и не выдаёт права. Полная проверяемая offline-карта сохраняет все680 MERCH_BRANCH с исходными UUID,
+532 отдельные связи pharmacy и148 null. Верифицируются реальные IDs/FK полок,
+контейнеров, monthly inventory, ACL и зависимых объектов. Исторические530 staged
+связей и2 поздних дополнения имеют раздельную provenance.
+[identity-disposition.json](reports/unification-2026-10-29/identity-disposition.json)
+содержит агрегаты/хеши; полная карта и исходные записи находятся вне Git.
+148 записей отключены синхронизацией `not_seen_in_epharm`; закрытие или demo не
+доказаны. Не создаются148 фиктивных аптек. Нельзя применять pharmacy-only policy
+к их старым очередям и терять MERCH_BRANCH scope при будущем переносе U4/U5.
+
+Финансовые и учебные записи сохраняют историческую аптеку и исходного исполнителя.
+`source saleId/eventId/dispatchId` и причины начисления не переиспользуются как
+новые события. Импорт не выполняется вызовами API, повторно выдающими бонус.
+Особенно сохраняются `fulfillment_devices` с device credential binding, seller
+mappings, CDP отдельно, ACC active snapshot, OTP budgets, grant/claim/outbox,
+версии курсов, попытки и незавершённые задания. Физический перечень всех 130 таблиц:
+[data-inventory.json](reports/unification-2026-10-29/data-inventory.json).
+
+## Ядро прав
+
+`auth/policy/UnifiedAccessPolicy.kt` принимает server-owned каталог точных ключей
+`module/subsection/action`, явные grants и область операции. Первый opt-in
+runtime-каталог и контроллеры подключены локально (ниже); это не production rollout.
+
+- Неизвестный ключ, wildcard, другая раскладка регистра, пустая область,
+  неактивный аккаунт и learner/device/producer principal получают отказ.
+- Название должности — только подпись. Старое имя роли не превращается в новый
+  набор прав. Главный HQ определяется доверенным account mapping, а не полем формы.
+- Обычный owner-доступ распространяется только на известные обычные действия.
+  Financial/export/credential/technical/access-admin полномочия требуют отдельных
+  grants. Их будущая первичная выдача HQ проводится явно с аудитом.
+- Область `All` задаётся явно. Пустой `Assigned` не означает всю сеть. Для строк
+  используется исходная аптека операции, для личной истории — canonical person.
+- Запрос экспорта требует соответствующего просмотра в той же области строк,
+  владельцев и полей. Несовместимые grants не склеиваются в более широкое право.
+  Доступ к телефону/ИИН — отдельное поле; обычный профиль не получает password.
+- D9 остаётся отдельным контуром: явное чувствительное право HQ, обычная свежая
+  проверка пароля того же account и ограниченная область. SMS/refresh её не заменяют.
+  Время валидности задаётся сервером; текущий адаптер имеет предел5минут,
+  при каждой административной записи пароль проверяется непосредственно.
+  D9 реализован в отдельном `learnercredentials` контуре: AEAD-копия, внешний ключ,
+  аудит и одноразовый XLSX; эксплуатационная приёмка ключей/restore обязательна отдельно.
+- Приёмка собственной работы запрещена по canonical PERSON даже через другой
+  account. Автор задания вправе принять работу другого исполнителя.
+  Неизвестная личность не считается «другим человеком».
+- Делегирование требует отдельного control grant и не расширяет полномочия/поля/
+  область выдающего. Оба account должны иметь доказанный canonical PERSON до
+  записи grants: без этого отказ, включая разные account ID. В будущем создание
+  аккаунта должно формировать/подтверждать эту связь до выдачи доступа.
+- Каталог, grants и scopes копируются и защищены от последующей мутации.
+
+`allow` относится только к конкретной операции и проверенной области/проекции.
+Это не конструктор SQL и не разрешение сначала загрузить всю сеть, а затем скрыть
+лишнее в React. Реальные scoped SQL, проверка object IDs, аудит, отзыв сессий,
+защита последнего HQ и экран создания аккаунтов выполняются в U4/U5/F1/G1.
+Текущие LEGACY-аккаунты не переводятся автоматически; MANAGED получает только
+проверенные операции первого среза ниже. Полная миграция ролей/UI остаётся открытой.
+
+## Неизменяемые внешние границы
+
+Публичный origin — **https://epharm.inkar.kz**. Старые пути, DTO, ID, per-device
+keys, update signatures и очереди сохраняются. Новая административная policy
+не применяется к POSM как требование административного логина.
+
+`/learn` остаётся отдельным фармацевтическим интерфейсом с собственным auth-контуром,
+своим обучением/балансом и readonly-рекомендациями. Его token/refresh не превращается
+в административный аккаунт. Производитель видит только свой внешний кабинет;
+его cookie/QR grant также не является административным доступом.
+
+Окно РПС в production выключено; Стандарт‑Н не блокируется. Изменения admin role,
+ID или источника выдачи рекомендации не должны нарушать установленный POSM.
+Для 1.0.57/1.0.66 выполнены cross-language wire-тесты реальных historical HTTP-клиентов;
+особенно сохраняются серверные фильтры сроков QR и ограничений fulfillment.
+Это не доказательство фактического overlay, второго монитора или installed EXE hash.
+Они остаются частью K2/G4 перед будущим выпуском.
+
+## Файлы и границы готовности
+
+Сверены восстановленные объекты и все 20 пакетов downloads по SHA‑256. Общий шаблон
+`pharmacy-shelf.png` восстановлен локально из pinned CRM source и включён в frontend
+с прежним относительным путём; в prod он пока отдаёт 404. Выкладка не выполнялась.
+Все прочие имеющиеся файлы, включая неиспользуемые сейчас, сохраняются; очистка
+не запускается на основе отсутствия одной ссылки.
+
+Три исходных 404 не скрыты: два seeded-медиа июля в **черновом** `pl_promo_lite`
+и ZIP неактивной 1.0.54. Они не являются потерей при переносе; ссылки и история
+сохранены. Нельзя подставлять другую рекламу или удалить строки ради зелёного
+отчёта. Перед выпуском нужно восстановление либо явно оформленный порядок
+сохранения этих существующих дефектов. Неизвестные внешние ссылки в offline-аудите
+не запрашивались массово и не считаются проверенными локальными файлами.
+
+U1/U2 начаты, но не закрыты. Карта branch завершена на доступных фактах; первый
+серверный срез описан ниже. Прогресс и оставшаяся работа ведутся только в PLAN.md.
+
+## Первый подключённый серверный срез
+
+Новая V066 добавляет `access_mode` (`LEGACY`/`MANAGED`), проверяемый реестр
+`unified_persons`, профили/версии прав и аудит. Действующие строки не переписываются:
+все старые аккаунты остаются LEGACY, пароли не сбрасываются. Новые аккаунты
+создаются MANAGED с пустыми правами. Удаление профиля не возвращает legacy-доступ.
+На копии восстановленной V065 проверяются количества всех73 исходных таблиц и
+хеш исходных колонок admin_users; приложение также проходит Flyway на чистой БД.
+
+JWT админа подтверждает subject, а актуальные ACTIVE/status/role берутся из БД на
+каждом запросе. Изменение роли/блокировка действуют для прежнего JWT. Ошибка БД не
+даёт fallback на старые claims. Pharmacist token, mobile, device-key, HMAC и
+отдельный `/learn` используют прежние границы авторизации.
+
+`unified-admin-routes.json` перечисляет155 business endpoint, включая три операции
+подготовки/публикации кампании. Сопоставление
+идёт по HTTP method и точному Spring handler pattern, а не префиксу URL.
+Новый/неизвестный маршрут и NOT_READY запрещены MANAGED-аккаунтам. Перенесены:
+
+- аптеки: SQL scope для списка/прямого ID/редактирования, пересечение group+chain;
+  shared chains и создание аптеки допускают только явно глобальную область;
+- фармацевты: SQL scope для списка/ID/редактирования/переходов статуса, AND status+
+  pharmacy+доступные аптеки; активация проверяет исходную и целевую аптеку;
+- учебный roster: тот же scoped query, без чужих финансовых/персональных колонок;
+- реестр аккаунтов/каталог прав/создание и замена grants: отдельные control checks.
+- акции и рекомендации: ALL_ONLY scope, отдельные view/edit/publish и финансовое
+  configure_bonus. Изменение денежного смысла, включая удаление/обнуление и переход
+  к наследованию, требует финансового права. Старые direct content endpoints не
+  обходят явный Apply у MANAGED; LEGACY сохраняет контракт до контролируемого перевода.
+
+Старая роль остаётся **дополнительным ограничением**, SYSTEM_ADMIN не подставляется
+для обхода `@PreAuthorize`. Выдача неподдержанного действия отклоняется. Режим пока
+не является полной заменой legacy-ролей для всех подразделов; UI должен учитывать
+`roleCeiling` и NOT_READY. Новая self-capability `/api/admin/access/me` доступна всем
+административным ролям, но не токену фармацевта.
+
+### Права на поля и опасные операции
+
+Обычный просмотр не раскрывает ИИН/телефон: нужен отдельный `personal_data` в той
+же области. Глобальные balance/earned/receipt counters фармацевта возвращаются
+только с отдельным **ALL** financial_data: текущая аптека не доказывает историю D6.
+Без разрешения значение `null`, а не выдуманный ноль. Оборот отдельной аптеки
+также требует своего financial_data. Legacy DTO-содержимое остаётся прежним.
+Обычный edit не меняет пароль/телефон/баланс/учебные результаты/ручные счётчики.
+Новые отдельные операции для них подключаются по мере проверки контрактов.
+
+DELETE аптеки пока NOT_READY: старый `playlists.pharmacy_id ON DELETE SET NULL`
+способен превратить адресный плейлист в общий. Архивирование и исторические связи
+нужно проверить отдельно. Наличие scope для строки не разрешает побочные эффекты
+за пределами этой строки.
+
+### Управление аккаунтами
+
+Операции `/api/admin/access` имеют отдельные проверки. Каталог содержит
+также недоступные пока действия; это не обещание их подключения. Для создания
+аккаунта нужен заранее проверенный person_id, а не совпадение имени/email.
+Свежий пароль делегирующего проверяется непосредственно при каждой записи;
+пароль не сохраняется в профиле/аудите и не возвращается в API.
+
+Главный владелец определяется только доверенным `app.unified-admin.primary-owner-id`
+и актуальной HQ-ролью. Пустая настройка никого автоматически не назначает. Простой
+HQ/SYSTEM_ADMIN в JWT и должность не дают полномочия управления. Первое проверенное
+сопоставление человека/аккаунта и явные management/sensitive/financial grants
+подготавливаются отдельным контролируемым шагом U2 на локальном кандидате; production
+bootstrap не выполнялся. Внешние пользовательские API такого назначения не имеют.
+
+Замена прав проверяет пароль, HQ, отдельный manage grant, личность обоих аккаунтов,
+запрет self/alias-person/primary-owner change, допустимость каждого права/аптеки и
+нерасширение полномочий делегирующего. CAS версии не позволяет затереть параллельную
+правку; аудит записывается в той же транзакции. Строки account/profile автора и
+получателя блокируются в общем порядке UUID до проверок и удерживаются до commit.
+Так отзыв права/блокировка сериализованы с выдачей, а JDBC-facts не берутся из
+устаревшего JPA/OSIV cache. Гонка проверяется реальными двумя PostgreSQL transactions.
+
+Настройки HQ используют эти реальные API: список аккаунтов, проверенные person refs,
+должность, права разделов/подразделов/действий и аптеки. Каталог показывает ограничения
+роли, неподключённые действия и точный предел делегирования каждого права. Сам сервер
+проверяет совместимость роли получателя и ALL_ONLY, даже при ручном запросе без UI.
+Свежий пароль и management queries не сохраняются в браузерном кэше.
+
+Кэш обычных админских данных привязан к account ID/role. Logout/смена аккаунта
+отделяют старый QueryClient, отменяют запросы и подписку persister. Поздние ответы,
+refresh и logout старой сессии не меняют новую. Prepared bundles не persist/restore;
+401/403 очищает отказанную проекцию и локальный редактор. Обычный500 того же аккаунта
+не уничтожает допустимые offline данные. Ротация refresh token синхронно обновляет
+tokenStore без смены principal/cache epoch. Отдельный learner provider/tokens и
+учебный прогресс не очищаются.
+
+Готовность всего U1/U2 не заявляется: человек/аккаунт crosswalk, исторические scopes
+финансов/обучения, MERCH_BRANCH scope, остальные SQL/field/export/bulk операции и
+перенос текущих аккаунтов ещё требуют следующих срезов PLAN.md. Staging не закрывает
+функциональный перенос M0/M2/M3 или общую приёмку.
+
+## Native merch resources and authority checks
+
+PHARMACY, MERCH_BRANCH and CUSTOMER scopes are disjoint. A pharmacy ALL grant does
+not imply branch ALL; a branch grant does not imply producer ownership. Placements
+require the intersection of branch and customer grants; the inventory/task scopes
+never borrow customer authority. New native routes require a persisted verified
+profile even for legacy users. Existing legacy routes retain their old compatibility
+path; only explicitly reviewed global GETs are grantable as ALL_ONLY. Unreviewed
+mutations and exports remain NOT_READY.
+
+Administrative writes lock and reload the current account/profile before domain
+locks, so a revoked grant cannot survive a cached JWT. HQ identity/source-account
+operations require a fresh password and an explicit management grant. Source
+password hashes may be preserved by a reviewed import but are never returned by
+API, log or ordinary Excel. No person is inferred from email, name, phone or QR.
+
+Ordinary independent task review still compares verified PERSON IDs, including
+account aliases. A free capability report with an unverified executor has an
+explicit HQ-only manual decision, reason and audit mode; it cannot earn money or
+claim verified independence. Producer sessions are a separate token realm and
+never impersonate an administrator or learner.
+
+### Controlled first HQ profile
+
+`tools/unification/bootstrap_hq.py` prepares the first verified HQ profile only in
+the designated, pinned, offline PostgreSQL16 candidate. Its default `--plan` is
+read-only. `--apply` additionally needs an explicitly selected account/PERSON,
+verification reference and exact grants in an owner-only input file, pinned input,
+route catalogue and database identities, and a new private report path. It never
+derives a person from a name, changes the existing admin row, activates the trusted
+primary-owner configuration, switches legacy accounts to MANAGED, or implicitly grants
+credential exports. D9 additionally requires `--include-credential-export` and the exact
+`pharmacists/registry/export_credentials` entry with its registry view prerequisite
+in the approved input; the option never adds grants on its own. A repeated application is a no-op only while the complete
+profile, proof, grants and original audit markers still agree. Subsequent profile
+edits are conflicts, never an invitation to reset permissions. The synthetic
+fixture is not authorization to bootstrap a real operator or production.
+
+### Separate Excel projections
+
+Ledger, payouts, pharmacist registry, campaign, producer, merch inventory,
+placements, tasks, course/program authoring and learning assignments/results have
+separate XLSX endpoints and explicit export grants. Export permission alone does
+not replace view, personal-data or financial permission. Branch/customer filters
+apply before counts, sums and rows; ambiguous historical money is not attributed to
+the pharmacist's current pharmacy. Formula-like values remain text. Capacity limits
+reject an oversized report explicitly instead of silently dropping rows.
+
+Producer attribution is an explicit, versioned campaign binding with a dated
+interval, reason and append-only retraction. A brand name is not a verified
+manufacturer. HQ may create a business manufacturer record without creating a
+producer login, canonical person or pharmacy organization. Ordinary exports never
+contain password hashes, private verification references, SMS or QR capabilities.
+
+### Weekly placement task derivation
+
+The native weekly worker is opt-in and must remain off until the source-cycle
+projection and a single-writer cutover are accepted. Plan approval publishes an
+event after its audit succeeds; derivation runs after commit in a new transaction.
+A failure leaves the approved plan intact and the worker retries idempotently.
+Calendar deadlines use Asia/Almaty, seven calendar days and the placement month end;
+a future placement first gets preparation until its month starts. Existing source
+cycles keep their IDs, dates and state; unprojected cycles block regeneration.
+
+Each plan/branch/cycle and plan-item/cycle is unique. More than 500 items is a
+diagnostic, never an implicit split. Current source MAS membership or an explicitly
+verified native assignment is a business ownership fact, not an authorization grant
+or a proven reward recipient. Missing ownership blocks delivery without inventing
+a person. The worker creates no reward and cannot bypass the paid-executor proof.
+`owned_automation.py` projects preserved metadata only; it does not start workers,
+issue links, replay ACKs or overwrite source data.
+
+### Commercial and execution source projections
+
+`owned_extended.py` reuses the pinned, private-artifact/candidate-only runner.
+It projects exact tariffs, supplier settings, metadata team seats, budget plans,
+budget items, placement product snapshots and source stock observations after the
+editor/commercial/execution migrations. Team seats do not become login accounts.
+Source stock never becomes a new attempt. Repeat execution compares all mapped
+fields and source payloads; collisions or drift abort the complete transaction.
+
+CRM placement campaign UUIDs have their own namespace and table. They are not
+ePharm recommendation campaign IDs. Budget-to-request links use only explicit
+`request_ids` plus the same source supplier; missing historic requests stay in
+the source arrays and are counted as unresolved, never reconstructed by name.
+Nonempty instruction/photo source sets require a separately verified private-file
+mapping. The projection starts no app/worker, creates no task/link/reward, and
+does not rewrite the original business tables or applied Flyway migrations.
+
+### Planning read projection and private task references
+
+The placement catalog adds coordinates, normalized published geometry and shelf
+classification only after its existing branch/customer checks. Editor drafts are
+excluded; an unrecognized saved plan yields a diagnostic without rewriting it.
+Facing fees use verified supplier tariffs and are masked together with prices.
+Map tiles load only after a user opens the map, have visible attribution and an
+origin-only image referrer; the application's private no-referrer policy is not
+weakened. Viewport requests use ordinary browser caching; no offline/prefetch or
+server proxy is introduced. Provider requirements: [OSMF tile policy](https://operations.osmfoundation.org/policies/tiles/).
+Overlapping points are grouped, including a selectable list for identical
+coordinates. A failed base map leaves the authorized points and list available.
+
+New weekly/monthly tasks pin `client_reference_photo_id` with the matching
+`media_plan_item_id`; a composite FK rejects a different item's photo. Protected
+task downloads independently verify the task/placement/shelf/branch lineage and
+file hash. An archived version remains the historical snapshot, never a mutable
+URL. Native reference, task-evidence and inventory validators accept JPG/PNG/WebP,
+using a bounded actual decoder before persisting the original bytes. JPEG/PNG
+behavior and existing video validation remain intact; malformed/truncated images
+and excessive dimensions are rejected. The small WebP decoder is packaged as a
+normal backend dependency. XLSX thumbnails are regenerated as JPEG; stored files
+and SHA-256 are unchanged. The pinned source reference-photo set contains zero rows.
+A pinned task reference remains readable after archive even if JVM and database
+clocks differ: its exact immutable UUID and verified parent lineage are authority,
+not a cross-clock ordering predicate.
+
+### Verified legacy QR capabilities and selective promotion
+
+V088 adds an immutable alias for each exact imported CRM dispatch capability. The
+projection refuses unknown kiosk lineage or issuer channels and verifies source payload,
+branch, dispatch, token hash, original expiry and the exact typed-source artifact marker.
+The default-off legacy cutover flag admits these aliases only to the public task workflow;
+it does not turn them into POSM-issued tokens, shown acknowledgements or human identity.
+Free source tasks may be submitted late until their original link expiry; paid tasks keep
+their deadline and executor checks. Source revocation/submission cannot be cleared to
+resurrect an imported alias. Cached old-browser mutations receive an honest rescan error.
+
+`tools/unification/prepare_live_promotion.py` generates a private, target-bound package;
+it never connects to the target or applies SQL. Its compiled allowlist is the reviewed
+68 new public tables plus the single V088 alias table. The 72 original business tables
+and Flyway history are never copied or overwritten. The target must already have the
+exact plain-Flyway V088 schema, all 69 native tables empty and no CRM staging schema.
+The generated transaction recreates the 57 source tables inertly, imports native rows
+in FK order and verifies counts, keys, values and original-table hashes. A repeat or
+partial import is refused without changes; there is no implicit seed reconciliation.
+Execute only through the manifest's exact pinned container command after rechecking its
+identity and package checksums. SQL additionally checks database/OID/system identifier,
+version, locale, schema and migration checksums. HQ bootstrap and native writers follow
+promotion. Fresh source deltas and a single-writer freeze remain operational release gates.
+
+### D9: current learner credential export
+
+`LearnerCredentialExportFacade` commits bounded attempt accounting before the domain
+transaction. Prepare/download reload and lock the active HQ account and access profile,
+verify the current password, then intersect registry view with the explicit credential
+grant and pharmacy scope. The download also checks the frozen credential/access snapshot.
+A legacy role or primary-owner ordinary permission is insufficient. `personal_data`
+controls IIN/phone and any login derived from them independently.
+
+Normal authentication retains BCrypt hashes. The explicitly agreed recoverable D9
+exception uses a separate AES-256-GCM copy bound to pharmacist ID and current hash;
+SMS/refresh alone cannot populate it. Password writers capture the effective untrimmed
+value after successful verification/set. Missing keys/copy do not break ordinary login.
+The key ring is an owner-only absolute JSON file outside the DB/image, mounted read-only;
+rotation keeps older key IDs for restore. Losing the matching key means no recovery.
+
+Prepared encrypted XLSX payloads expire after120seconds, can be downloaded once only,
+and are limited to25 selected rows and4 preparations/hour. Current admin password is
+required again on download; stale grants, another owner, credential mutation, tampering
+or removed key deny release. Formula-like text and whitespace remain exact string cells.
+Audit/attempt tables exclude passwords, hashes and key bytes. Coordinated DB/private-file/
+key backup and recovery is a release gate, not established by encryption unit tests.

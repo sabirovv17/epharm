@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-30",
+  "state": "local_code_and_policy_roundtrip_passed",
+  "productionWrites": 0,
+  "linuxUnitAndShellFixtureTests": 48,
+  "failures": 0,
+  "shellcheckScripts": 7,
+  "realFlockChainOrdering": "passed",
+  "realMinioPolicyRoundtrip": {
+    "servers": 2,
+    "network": "none",
+    "publishedPorts": false,
+    "serverImage": "minio/minio:RELEASE.2025-07-23T15-54-02Z",
+    "clientImage": "minio/mc:RELEASE.2025-08-13T08-35-41Z",
+    "sourcePolicies": ["private empty JSON object", "custom GetObject limited to public/allowed/*"],
+    "restoredPolicySemanticEquality": true,
+    "anonymousGetAllowedPrefix": 200,
+    "anonymousGetDeniedPrefix": 403,
+    "anonymousGetPrivateBucket": 403,
+    "additionalGrantIntroduced": false
+  },
+  "backupContract": {
+    "completeCurrentBucketDefault": ["epharm-receipts", "pim-product-images"],
+    "missingConfiguredBucket": "fail closed",
+    "newMinioManifestPolicyFormat": 1,
+    "nativeReleaseMissingPolicySnapshot": "rejected",
+    "legacyArtifactWithoutPolicies": "explicit compatibility only while native/private backup requirement is false",
+    "beforeExtraction": "unsafe tar and policy/bucket inventory validation",
+    "afterRestore": "actual policy read back and compared to captured policy before success metric",
+    "privateMeaning": "remove anonymous policy; never replace it with public/download"
+  },
+  "runtimeReferenceAudit": "separate report; pending/dangling source references are not implied green by these tests",
+  "notProven": [
+    "Production tools/configuration rollout",
+    "Production offsite recovery of both buckets/native files/keys",
+    "Windows G4"
+  ]
+}

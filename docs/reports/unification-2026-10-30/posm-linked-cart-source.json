@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "state": "phase_two_source_verified_exact_CI_Windows_runtime_pending",
+  "candidateVersion": "1.0.73",
+  "productionAppChanged": false,
+  "fleetUpdatePublished": false,
+  "tests": {
+    "corePassed": 413,
+    "failed": 0,
+    "skipped": 0,
+    "integrationOwnerRepeatedFullCore": true,
+    "fullWindowsTargetBuildPassed": true,
+    "windowsBuildWarnings": 0,
+    "windowsBuildErrors": 0
+  },
+  "localWindowsTargetDllSha256": "1756bf6f4966e4ed3e07f3f2f1bc172fa8f8c84d8d485d64f97d7227b28e682b",
+  "verified": [
+    "one_exact_workstation_session_and_readonly_transaction",
+    "complete_linked_cart_without_collapsing_physical_documents_or_lines",
+    "fresh_DOC_DETAIL_negative_signed_rows_and_exact_header_total",
+    "late_print_A_never_finalizes_or_clears_current_B",
+    "two_nearby_prints_keep_distinct_actual_times",
+    "old_partial_group_cannot_steal_new_cue",
+    "no_historical_paid_backfill",
+    "restart_anchored_cue_and_durable_physical_dedupe",
+    "strict_empty_document_without_financial_report",
+    "bounded_atomic_checksummed_journal_preserves_unresolved_groups",
+    "off_UI_thread_DB_probe_with_generation_and_fresh_commit_clock",
+    "posted_rows_immune_to_current_log_discount",
+    "lossless_long_KZT_guard_before_Build_Complete_Enqueue",
+    "unsupported_decimal_source_preserved_without_rounding_or_ACK",
+    "fractional_quantity_with_whole_monetary_values_supported",
+    "per_group_backoff_never_starves_another_checkout"
+  ],
+  "independentReview": "six_concrete_findings_fixed_and_reviewed; final_source_has_no_open_P0_P1_P2",
+  "vendorEvidence": "actual_disposable_StandardN_demo_signed_final_details_6rows_in_DOC_DETAIL; ACTIVE_empty; no_new_Pay_action",
+  "limits": [
+    "existing_sales_wire_cannot_represent_fractional_monetary_values; retain_exact_source_as_unresolved",
+    "unknown_vendor_schema_or_ambiguous_membership_never_inferred_paid",
+    "no_real_fiscal_adapter_or_physical_scanner_proof",
+    "new_exact_CI_Windows_artifact_VM_acceptance_still_required",
+    "already_accepted_historical_sales_not_rewritten"
+  ],
+  "sourceHashes": {
+    "App.Tests/CustomerDisplay.Core.Tests.csproj": "35d3a06a8db7ee88ab6aa9ed5322c7e2a5c411a2b0b07b9e0523aee6882baa95",
+    "App.Tests/ObservedReceiptGroupTests.cs": "1687894cfc0667b71d3a9b76f9292671216259f1f6f77f37e7996ed822f20b62",
+    "App.Tests/StandardNReceiptLifecycleTests.cs": "11b413844cdee9fe36f361ce80baed4d77444dbba9db05a18a1700b6a94fb9d5",
+    "App.Tests/StandardNReceiptProjectionTests.cs": "258a6cbdf761a022a6db4c236bde0c1d8adf68952e6be7dcfca064fdbe61f91c",
+    "App/MainWindow.Recommendations.cs": "962985183e1bed3c2053a6cf4d47f498e17d7898d08889fc2dc646ce2f30d453",
+    "App/MainWindow.StandardNReceipt.cs": "b91cc407e054a395b10c661c8cc4b310bf325d2db0cc0c2a7dde995c84feced3",
+    "App/MainWindow.StandardNReceiptGroups.cs": "fe0596537f321715094f9b6ec5f991b865e03ce24054dd35ddec157096babcd3",
+    "App/MainWindow.xaml.cs": "937ddf4d647e1f405c0025e4aeb9efd20e3126871bb317553a5b1316b56e007c",
+    "App/Services/CheckoutSession.cs": "126b514eda82d605d53bd58625cb8a1b1f822c997dac43fc7eb6d512ea4fbed6",
+    "App/Services/ReceiptArtifactStore.cs": "e0bae7ebfa024b9ad0ec2ecbc78a463540fcb1521d547b65aa52914c003ab709",
+    "App/Services/StandardNDbLookup.Receipts.cs": "9555db6b5d4f421cb842537ab78220cadc29a74192116a4fd237bf240e1b0f2a",
+    "App/Services/StandardNDbLookup.cs": "e539f6547147f9566aa4a30f9354f1359b690cc5011a0a8b25a15a7a06cabe17",
+    "App/Services/StandardNReceiptProjection.cs": "b0aa841e611b426a7c0f847bde5e6bd3a2050f55e66f4f632eb43a9bdf1c930c",
+    "App/Services/StandardNReceiptSnapshot.cs": "241c3810315bab61e0a54bdb0d3ab0d7658e642b3f27dcda076522e5fc7660c3",
+    "Models/ReceiptItem.cs": "d465b94afaa018c723a34a4f7b3268536e623119302649f93a98ec4413fbcab8"
+  }
+}

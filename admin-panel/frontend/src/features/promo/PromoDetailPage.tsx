@@ -1,18 +1,34 @@
 // PromoDetailPage — полная страница кампании /promo/:id.
 // Открывается по клику на карточку, поддерживает редактирование полей
-// (PATCH /promo/:id) + статус-действия (пауза/возобновить/архив/восстановить).
+// (подготовленный bundle → отдельное применение) + немедленные статус-действия.
 // Archived нельзя редактировать (backend → 409), поэтому форма read-only.
 //
 // T1: один товар Medusa, цена read-only (из Medusa, почасовой рефреш), единый
 //     бонус фармацевту, опц. override фото/описания. Порогов больше нет.
 // T2: секция «Замены и кросс-селл» — авторинг правил из кампании (см. PromoRulesEditor).
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import axios from 'axios'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Button, Empty, Field, Input, PageHeader, ProgressBar, StatusChip, useToast } from '@/ui'
+import {
+  Button,
+  Empty,
+  Field,
+  Input,
+  Modal,
+  PageHeader,
+  ProgressBar,
+  StatusChip,
+  useToast,
+} from '@/ui'
 import { IconArchive, IconArrowUp, IconPause, IconPlay, IconPromo, IconRefresh } from '@/ui/icons'
 import { formatKzt } from '@/mocks/fixtures'
-import type { PromoStatus, UpdatePromoRequest } from '@/lib/api-types'
+import type {
+  PromoDto,
+  PromoRulesConfigDto,
+  PromoStatus,
+  UpdatePromoRequest,
+} from '@/lib/api-types'
 import { describeError } from '@/lib/describeError'
 import { proxyMedia } from '@/lib/media'
 import { useT } from '@/i18n'
@@ -22,6 +38,13 @@ import type { SelectedProduct } from './PromoProductPicker'
 import { PromoRulesEditor } from './PromoRulesEditor'
 import { ProductGallery } from './ProductGallery'
 import { collectProductBarcodes } from '@/lib/productBarcodes'
+import {
+  useApplyPromoChanges,
+  usePromoChanges,
+  useSavePromoChanges,
+} from '@/lib/queries/promoChanges'
+import { normalizePromoRulesConfig } from './promoRulesValidation'
+import { promoTriggerKind } from './promoTrigger'
 
 interface FormState {
   title: string
@@ -60,6 +83,51 @@ const EMPTY_FORM: FormState = {
   overrideCharacteristics: '',
 }
 
+const EMPTY_RULES: PromoRulesConfigDto = {
+  replacements: [],
+  crossSells: [],
+  script: '',
+  advantages: [],
+  partnerLabel: null,
+  comparison: [],
+  goalLabel: null,
+  goalTarget: null,
+  goalBonus: null,
+}
+
+function campaignForm(promo: PromoDto, campaign: UpdatePromoRequest = {}): FormState {
+  const editable = { ...promo, ...campaign }
+  const barcodes = collectProductBarcodes(editable)
+  return {
+    title: editable.title ?? '',
+    brand: editable.brand ?? '',
+    period: editable.period ?? '',
+    budget: String(editable.budget ?? 0),
+    kpi: editable.kpi ?? '',
+    cover: editable.cover ?? '',
+    product: promo.medusaProductId
+      ? {
+          medusaProductId: promo.medusaProductId,
+          productName: promo.productName,
+          productImage: promo.productImage,
+          brand: promo.brand,
+          price: promo.price,
+          barcode: barcodes[0] ?? null,
+          barcodes,
+          ipartId: promo.ipartId,
+        }
+      : null,
+    dateStart: editable.dateStart ?? '',
+    dateEnd: editable.dateEnd ?? '',
+    pharmacistBonus: String(editable.pharmacistBonus ?? 0),
+    barcode: barcodes[0] ?? '',
+    ipartId: editable.ipartId ?? '',
+    overrideImage: editable.overrideImage ?? '',
+    overrideDescription: editable.overrideDescription ?? '',
+    overrideCharacteristics: editable.overrideCharacteristics ?? '',
+  }
+}
+
 export default function PromoDetailPage() {
   const t = useT()
   const { id = '' } = useParams()
@@ -70,45 +138,52 @@ export default function PromoDetailPage() {
   const updatePromo = useUpdatePromo()
   const archivePromo = useArchivePromo()
   const restorePromo = useRestorePromo()
+  const changesQuery = usePromoChanges(id || null)
+  const changes =
+    changesQuery.isFetchedAfterMount && !changesQuery.isError && changesQuery.data?.promoId === id
+      ? changesQuery.data
+      : undefined
+  const saveChanges = useSavePromoChanges()
+  const applyChanges = useApplyPromoChanges()
 
-  const [form, setForm] = useState<FormState>(EMPTY_FORM)
+  const [formDraft, setForm] = useState<FormState>(EMPTY_FORM)
+  const form = changesQuery.isError ? (promo ? campaignForm(promo) : EMPTY_FORM) : formDraft
   const [saveErr, setSaveErr] = useState<string | null>(null)
+  const [rulesConfig, setRulesConfig] = useState<PromoRulesConfigDto>(EMPTY_RULES)
+  const [staleRevision, setStaleRevision] = useState(false)
+  const [reviewOpen, setReviewOpen] = useState(false)
+  const [resetCounter, setResetCounter] = useState(0)
+  const loadedRevision = useRef('')
 
   // Синхронизируем форму при загрузке/смене кампании.
   useEffect(() => {
-    if (promo) {
-      const barcodes = collectProductBarcodes(promo)
-      setForm({
-        title: promo.title,
-        brand: promo.brand,
-        period: promo.period,
-        budget: String(promo.budget),
-        kpi: promo.kpi,
-        cover: promo.cover,
-        product: promo.medusaProductId
-          ? {
-              medusaProductId: promo.medusaProductId,
-              productName: promo.productName,
-              productImage: promo.productImage,
-              brand: promo.brand,
-              price: promo.price,
-              barcode: barcodes[0] ?? null,
-              barcodes,
-              ipartId: promo.ipartId,
-            }
-          : null,
-        dateStart: promo.dateStart ?? '',
-        dateEnd: promo.dateEnd ?? '',
-        pharmacistBonus: String(promo.pharmacistBonus),
-        barcode: barcodes[0] ?? '',
-        ipartId: promo.ipartId ?? '',
-        overrideImage: promo.overrideImage ?? '',
-        overrideDescription: promo.overrideDescription ?? '',
-        overrideCharacteristics: promo.overrideCharacteristics ?? '',
-      })
-      setSaveErr(null)
+    if (changesQuery.isError || (isError && !promo)) {
+      loadedRevision.current = ''
+      setForm(EMPTY_FORM)
+      setReviewOpen(false)
+      setRulesConfig(EMPTY_RULES)
     }
-  }, [promo])
+    if (promo) {
+      const authoritative = changes && changesQuery.isFetchedAfterMount && !changesQuery.isError
+      if (!authoritative && loadedRevision.current.startsWith(`${id}:`)) return
+      const key = authoritative ? `${id}:${changes.revision}` : `${id}:published`
+      if (loadedRevision.current === key) return
+      loadedRevision.current = key
+      setForm(campaignForm(promo, authoritative ? changes.bundle.campaign : {}))
+      setRulesConfig(authoritative ? changes.bundle.rules : EMPTY_RULES)
+      setSaveErr(null)
+      if (authoritative) setStaleRevision(false)
+      setReviewOpen(false)
+    }
+  }, [
+    promo,
+    changes,
+    id,
+    changesQuery.isFetchedAfterMount,
+    changesQuery.isError,
+    isError,
+    resetCounter,
+  ])
 
   // Описание и характеристики товара из Medusa (с уже наложенными override кампании).
   // Показываем их прямо на странице и предзаполняем поля, чтобы можно было перезаписать.
@@ -170,32 +245,67 @@ export default function PromoDetailPage() {
 
   const isArchived = promo.status === 'archived'
   const isActive = promo.status === 'active'
-  const pending = updatePromo.isPending || archivePromo.isPending || restorePromo.isPending
+  const pending =
+    updatePromo.isPending ||
+    archivePromo.isPending ||
+    restorePromo.isPending ||
+    saveChanges.isPending ||
+    applyChanges.isPending
+  const freshChanges =
+    !!changes &&
+    changesQuery.isFetchedAfterMount &&
+    !changesQuery.isFetching &&
+    !changesQuery.isError
+  const canEdit =
+    freshChanges &&
+    changes.canSave &&
+    !changes.conflict &&
+    !staleRevision &&
+    !pending &&
+    !isArchived
+  const editingDisabled = !canEdit
+  const editable = { ...promo, ...changes?.bundle.campaign }
   const cover = form.cover || promo.cover || '#6F665B'
   const progressMax = Math.max(promo.budget, 1)
   const progressPct = Math.round((promo.spent / progressMax) * 100)
-  const savedBarcodes = collectProductBarcodes(promo)
+  const savedBarcodes = collectProductBarcodes(editable)
 
   const dirty =
-    form.title !== promo.title ||
-    form.brand !== promo.brand ||
-    form.period !== promo.period ||
-    form.budget !== String(promo.budget) ||
-    form.kpi !== promo.kpi ||
-    form.cover !== promo.cover ||
-    form.dateStart !== (promo.dateStart ?? '') ||
-    form.dateEnd !== (promo.dateEnd ?? '') ||
-    form.pharmacistBonus !== String(promo.pharmacistBonus) ||
+    form.title !== editable.title ||
+    form.brand !== editable.brand ||
+    form.period !== editable.period ||
+    form.budget !== String(editable.budget) ||
+    form.kpi !== editable.kpi ||
+    form.cover !== editable.cover ||
+    form.dateStart !== (editable.dateStart ?? '') ||
+    form.dateEnd !== (editable.dateEnd ?? '') ||
+    form.pharmacistBonus !== String(editable.pharmacistBonus) ||
     form.barcode !== (savedBarcodes[0] ?? '') ||
-    form.ipartId !== (promo.ipartId ?? '') ||
-    form.overrideImage !== (promo.overrideImage ?? '') ||
-    form.overrideDescription !== (promo.overrideDescription ?? '') ||
-    form.overrideCharacteristics !== (promo.overrideCharacteristics ?? '')
+    form.ipartId !== (editable.ipartId ?? '') ||
+    form.overrideImage !== (editable.overrideImage ?? '') ||
+    form.overrideDescription !== (editable.overrideDescription ?? '') ||
+    form.overrideCharacteristics !== (editable.overrideCharacteristics ?? '')
+  const rulesDirty =
+    !!changes && JSON.stringify(rulesConfig) !== JSON.stringify(changes.bundle.rules)
+  const hasLocalChanges = dirty || rulesDirty
+  const mayApply =
+    freshChanges &&
+    changes.canApply &&
+    changes.hasPendingChanges &&
+    !changes.conflict &&
+    !hasLocalChanges &&
+    !staleRevision &&
+    !pending &&
+    !isArchived
 
   const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
-  const handleSave = () => {
+  const handleSave = (
+    config = rulesConfig,
+    callbacks?: { onSuccess: () => void; onError: (error: unknown) => void },
+  ) => {
+    if (!canEdit || !changes) return
     if (!form.title.trim()) {
       setSaveErr(t('pd.errTitleReq'))
       return
@@ -212,17 +322,18 @@ export default function PromoDetailPage() {
     // снимком (и сохранить почасовой рефреш): если значение не меняли и оно совпадает
     // с тем, что отдаёт Medusa, и своего override раньше не было — шлём null (фоллбэк).
     const descVal = form.overrideDescription.trim()
-    const hadDescOverride = !!promo.overrideDescription?.trim()
+    const hadDescOverride = !!editable.overrideDescription?.trim()
     const baseDesc = (medusaProduct?.description ?? '').trim()
     const overrideDescription = !hadDescOverride && descVal === baseDesc ? null : descVal || null
 
     const charVal = form.overrideCharacteristics.trim()
-    const hadCharOverride = !!promo.overrideCharacteristics?.trim()
+    const hadCharOverride = !!editable.overrideCharacteristics?.trim()
     const baseChar = medusaCharacteristics.trim()
     const overrideCharacteristics =
       !hadCharOverride && charVal === baseChar ? null : charVal || null
 
     const patch: UpdatePromoRequest = {
+      ...changes.bundle.campaign,
       title: form.title.trim(),
       brand: form.brand.trim(),
       period: form.period.trim(),
@@ -239,21 +350,118 @@ export default function PromoDetailPage() {
       dateStart: form.dateStart || null,
       dateEnd: form.dateEnd || null,
     }
-    updatePromo.mutate(
-      { id: promo.id, patch },
+    delete patch.status
+    saveChanges.mutate(
       {
-        onSuccess: () => toast.push(t('pd.saved')),
-        onError: (e) => setSaveErr(describeError(e)),
+        id: promo.id,
+        expectedRevision: changes.revision,
+        bundle: {
+          campaign: patch,
+          rules: normalizePromoRulesConfig(config, promo.medusaProductId ?? undefined),
+        },
+      },
+      {
+        onSuccess: () => {
+          setSaveErr(null)
+          if (callbacks) callbacks.onSuccess()
+          else toast.push('Изменения подготовлены. Опубликованная версия пока не изменилась.')
+        },
+        onError: (e) => {
+          setSaveErr(describeError(e))
+          if (axios.isAxiosError(e) && e.response?.status === 409) setStaleRevision(true)
+          callbacks?.onError(e)
+        },
+      },
+    )
+  }
+
+  const reloadChanges = async () => {
+    if (
+      hasLocalChanges &&
+      !confirm(
+        'Загрузить сохранённую версию? Несохранённые поля формы будут потеряны. Подготовленные изменения на сервере сохранятся.',
+      )
+    )
+      return
+    const result = await changesQuery.refetch()
+    if (result.data && !result.error) {
+      loadedRevision.current = ''
+      setResetCounter((value) => value + 1)
+    }
+  }
+
+  const discardChanges = () => {
+    if (
+      !changes ||
+      !changes.canSave ||
+      pending ||
+      !confirm(
+        'Отменить только подготовленные изменения? Опубликованные условия и история сохранятся. Несохранённые поля формы также будут заменены.',
+      )
+    )
+      return
+    saveChanges.mutate(
+      { id: promo.id, expectedRevision: changes.revision, discard: true },
+      {
+        onSuccess: () => {
+          setSaveErr(null)
+          toast.push('Подготовленные изменения отменены. Опубликованная версия сохранена.')
+        },
+        onError: (e) => {
+          setSaveErr(describeError(e))
+          if (axios.isAxiosError(e) && e.response?.status === 409) setStaleRevision(true)
+        },
+      },
+    )
+  }
+
+  const reviewChanges = () => {
+    if (mayApply) setReviewOpen(true)
+  }
+  const applyPrepared = () => {
+    if (!mayApply || !changes) return
+    applyChanges.mutate(
+      { id: promo.id, expectedRevision: changes.revision },
+      {
+        onSuccess: () => {
+          setReviewOpen(false)
+          toast.push(
+            promo.status === 'paused'
+              ? 'Изменения применены. Кампания остаётся на паузе.'
+              : 'Изменения применены. Действующие условия обновлены.',
+          )
+        },
+        onError: (e) => {
+          setSaveErr(describeError(e))
+          setReviewOpen(false)
+          if (axios.isAxiosError(e) && e.response?.status === 409) setStaleRevision(true)
+        },
       },
     )
   }
 
   const handleToggle = () => {
+    if (promo.status === 'draft') {
+      reviewChanges()
+      return
+    }
+    if (
+      promo.status === 'paused' &&
+      changes?.hasPendingChanges &&
+      !confirm(
+        'Возобновить опубликованную версию? Подготовленные изменения будут применены только отдельным действием.',
+      )
+    )
+      return
     const next: PromoStatus = isActive ? 'paused' : 'active'
     updatePromo.mutate(
       { id: promo.id, patch: { status: next } },
       {
-        onSuccess: () => toast.push(next === 'active' ? t('pd.resumedToast') : t('pd.pausedToast')),
+        onSuccess: () => {
+          toast.push(next === 'active' ? t('pd.resumedToast') : t('pd.pausedToast'))
+          setStaleRevision(true)
+          if (!hasLocalChanges) void reloadChanges()
+        },
         onError: (e) => toast.push(describeError(e)),
       },
     )
@@ -272,7 +480,11 @@ export default function PromoDetailPage() {
 
   const handleRestore = () => {
     restorePromo.mutate(promo.id, {
-      onSuccess: () => toast.push(t('pd.restoredToast')),
+      onSuccess: () => {
+        toast.push(t('pd.restoredToast'))
+        setStaleRevision(true)
+        if (!hasLocalChanges) void reloadChanges()
+      },
       onError: (e) => toast.push(describeError(e)),
     })
   }
@@ -312,13 +524,22 @@ export default function PromoDetailPage() {
           </Button>
         ) : (
           <>
+            {changes?.hasPendingChanges && promo.status !== 'draft' && (
+              <Button disabled={!mayApply} onClick={reviewChanges}>
+                Проверить и применить
+              </Button>
+            )}
             <Button
-              variant="outline"
+              variant={promo.status === 'draft' ? 'primary' : 'outline'}
               leading={isActive ? <IconPause size={14} /> : <IconPlay size={14} />}
-              disabled={pending}
+              disabled={promo.status === 'draft' ? !mayApply : pending}
               onClick={handleToggle}
             >
-              {isActive ? t('pd.pause') : t('pd.resume')}
+              {promo.status === 'draft'
+                ? 'Проверить и запустить'
+                : isActive
+                  ? t('pd.pause')
+                  : t('pd.resume')}
             </Button>
             <Button
               variant="danger"
@@ -335,8 +556,94 @@ export default function PromoDetailPage() {
       <div className="grid grid-cols-3 gap-5" data-testid="promo-detail">
         {/* Левая колонка: редактор */}
         <div className="col-span-2 flex flex-col gap-4">
+          <div className="card flex flex-col gap-3 p-4" data-testid="promo-publication-state">
+            {(!changesQuery.isFetchedAfterMount || changesQuery.isFetching) && (
+              <p role="status">Проверяем сохранённые условия и права…</p>
+            )}
+            {changesQuery.isError && (
+              <p role="alert" className="text-accent-danger">
+                Подготовка изменений недоступна: {describeError(changesQuery.error)}. Условия не
+                будут опубликованы через старое сохранение.
+              </p>
+            )}
+            {changes && (
+              <>
+                <div className="flex items-center justify-between gap-3">
+                  <strong>
+                    {changes.hasPendingChanges
+                      ? 'Есть подготовленные изменения'
+                      : 'Подготовленных изменений нет'}
+                  </strong>
+                  <span className="text-[12px] text-ink-500">Ревизия {changes.revision}</span>
+                </div>
+                <p className="text-[13px] text-ink-500">
+                  Сохранение подготавливает условия и правила вместе. На кассах действует
+                  опубликованная версия до отдельного применения.
+                </p>
+                {promo.status === 'draft' && !changes.hasPendingChanges && (
+                  <p className="text-[13px]">
+                    Перед первым запуском сохраните подготовленные условия и проверьте включённые
+                    пары.
+                  </p>
+                )}
+                {promo.status === 'paused' && (
+                  <p className="text-[13px]">
+                    Кампания на паузе. Применение изменений не возобновляет показы.
+                  </p>
+                )}
+                {!changes.canSave && (
+                  <p className="text-[13px] text-ink-500">
+                    Изменение условий недоступно с вашим доступом.
+                  </p>
+                )}
+                {hasLocalChanges && (
+                  <p className="text-[13px] font-semibold">
+                    Есть несохранённые поля. Сначала сохраните изменения; применяются только
+                    сохранённые условия.
+                  </p>
+                )}
+                {(changes.conflict || staleRevision) && (
+                  <p role="alert" className="text-accent-danger">
+                    Условия уже изменились. Обновите сохранённую версию. Если подготовленный
+                    черновик конфликтует с опубликованной версией, отмените только подготовленные
+                    изменения и проверьте условия заново.
+                  </p>
+                )}
+                {!!changes.readinessIssues.length && (
+                  <ul className="list-disc pl-5 text-[12px] text-ink-500">
+                    {changes.readinessIssues.map((issue, index) => (
+                      <li key={index}>{issue}</li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pending || changesQuery.isFetching}
+                onClick={reloadChanges}
+              >
+                Загрузить сохранённую версию
+              </Button>
+              {changes?.hasPendingChanges && changes.canSave && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={pending || staleRevision || !freshChanges}
+                  onClick={discardChanges}
+                >
+                  Отменить подготовленные изменения
+                </Button>
+              )}
+            </div>
+          </div>
           {saveErr && (
-            <div className="rounded-lg bg-surface-danger px-3 py-2 text-[12px] font-semibold text-accent-danger">
+            <div
+              role="alert"
+              className="rounded-lg bg-surface-danger px-3 py-2 text-[12px] font-semibold text-accent-danger"
+            >
               {saveErr}
             </div>
           )}
@@ -366,8 +673,12 @@ export default function PromoDetailPage() {
                   <div className="text-[12px] font-bold text-ink-500">{form.product.brand}</div>
                 )}
                 {savedBarcodes.length > 1 && (
-                  <div className="num max-h-16 overflow-y-auto break-all text-[11px] text-ink-500" data-testid="detail-barcodes">
-                    {t('pp.barcodesCount', { count: savedBarcodes.length })} · {savedBarcodes.join(', ')}
+                  <div
+                    className="num max-h-16 overflow-y-auto break-all text-[11px] text-ink-500"
+                    data-testid="detail-barcodes"
+                  >
+                    {t('pp.barcodesCount', { count: savedBarcodes.length })} ·{' '}
+                    {savedBarcodes.join(', ')}
                   </div>
                 )}
               </div>
@@ -379,7 +690,7 @@ export default function PromoDetailPage() {
                   className="num"
                   value={form.barcode}
                   onChange={set('barcode')}
-                  disabled={isArchived}
+                  disabled={editingDisabled}
                   data-testid="detail-barcode"
                 />
               </Field>
@@ -388,7 +699,7 @@ export default function PromoDetailPage() {
                   className="num"
                   value={form.ipartId}
                   onChange={set('ipartId')}
-                  disabled={isArchived}
+                  disabled={editingDisabled}
                   data-testid="detail-ipart"
                 />
               </Field>
@@ -410,7 +721,7 @@ export default function PromoDetailPage() {
                   min={0}
                   value={form.pharmacistBonus}
                   onChange={set('pharmacistBonus')}
-                  disabled={isArchived}
+                  disabled={editingDisabled}
                 />
               </Field>
             </div>
@@ -421,7 +732,7 @@ export default function PromoDetailPage() {
                   type="date"
                   value={form.dateStart}
                   onChange={set('dateStart')}
-                  disabled={isArchived}
+                  disabled={editingDisabled}
                 />
               </Field>
               <Field label={t('pm.fldDateEnd')}>
@@ -429,7 +740,7 @@ export default function PromoDetailPage() {
                   type="date"
                   value={form.dateEnd}
                   onChange={set('dateEnd')}
-                  disabled={isArchived}
+                  disabled={editingDisabled}
                 />
               </Field>
             </div>
@@ -439,7 +750,7 @@ export default function PromoDetailPage() {
                 value={form.overrideImage}
                 onChange={set('overrideImage')}
                 placeholder="https://…"
-                disabled={isArchived}
+                disabled={editingDisabled}
               />
             </Field>
 
@@ -465,7 +776,7 @@ export default function PromoDetailPage() {
                 rows={3}
                 value={form.overrideDescription}
                 onChange={(e) => setForm((f) => ({ ...f, overrideDescription: e.target.value }))}
-                disabled={isArchived}
+                disabled={editingDisabled}
               />
             </Field>
             <Field
@@ -481,7 +792,7 @@ export default function PromoDetailPage() {
                   setForm((f) => ({ ...f, overrideCharacteristics: e.target.value }))
                 }
                 placeholder={t('pm.charsPlaceholder')}
-                disabled={isArchived}
+                disabled={editingDisabled}
               />
             </Field>
             {medusaProduct && medusaCharacteristics && (
@@ -504,17 +815,17 @@ export default function PromoDetailPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Field label={t('pd.fldTitle')}>
-                <Input value={form.title} onChange={set('title')} disabled={isArchived} />
+                <Input value={form.title} onChange={set('title')} disabled={editingDisabled} />
               </Field>
               <Field label={t('pd.fldBrand')}>
-                <Input value={form.brand} onChange={set('brand')} disabled={isArchived} />
+                <Input value={form.brand} onChange={set('brand')} disabled={editingDisabled} />
               </Field>
               <Field label={t('pd.fldPeriod')}>
                 <Input
                   value={form.period}
                   onChange={set('period')}
                   placeholder={t('pd.periodPh')}
-                  disabled={isArchived}
+                  disabled={editingDisabled}
                 />
               </Field>
               <Field label={t('pd.fldBudget')}>
@@ -523,7 +834,7 @@ export default function PromoDetailPage() {
                   min={0}
                   value={form.budget}
                   onChange={set('budget')}
-                  disabled={isArchived}
+                  disabled={editingDisabled}
                 />
               </Field>
               <Field label={t('pd.fldKpi')} optional>
@@ -531,7 +842,7 @@ export default function PromoDetailPage() {
                   value={form.kpi}
                   onChange={set('kpi')}
                   placeholder={t('pd.kpiPh')}
-                  disabled={isArchived}
+                  disabled={editingDisabled}
                 />
               </Field>
               <Field label={t('pd.fldCover')} optional>
@@ -539,7 +850,7 @@ export default function PromoDetailPage() {
                   value={form.cover}
                   onChange={set('cover')}
                   placeholder={t('pd.coverPh')}
-                  disabled={isArchived}
+                  disabled={editingDisabled}
                 />
               </Field>
             </div>
@@ -550,24 +861,34 @@ export default function PromoDetailPage() {
                 </Button>
                 <Button
                   variant="primary"
-                  disabled={!dirty || updatePromo.isPending}
-                  onClick={handleSave}
+                  disabled={
+                    !canEdit ||
+                    (!hasLocalChanges && (promo.status !== 'draft' || changes?.hasPendingChanges))
+                  }
+                  onClick={() => handleSave()}
+                  data-testid="promo-changes-save"
                 >
-                  {updatePromo.isPending ? t('pm.creating') : t('common.save')}
+                  {saveChanges.isPending ? t('pm.creating') : 'Сохранить изменения'}
                 </Button>
               </div>
             )}
           </div>
 
           {/* T2 — Замены и кросс-селл (правила, авторинг из кампании) */}
-          <PromoRulesEditor
-            promoId={promo.id}
-            bonus={promo.pharmacistBonus}
-            disabled={isArchived}
-            promotedProductId={promo.medusaProductId ?? undefined}
-            promotedName={promo.productName}
-            promotedPrice={promo.price}
-          />
+          {changes && (
+            <PromoRulesEditor
+              key={`${promo.id}:${changes.revision}`}
+              config={rulesConfig}
+              onChange={setRulesConfig}
+              onSave={handleSave}
+              saving={saveChanges.isPending}
+              bonus={Math.max(0, Math.trunc(Number(form.pharmacistBonus) || 0))}
+              disabled={editingDisabled}
+              promotedProductId={promo.medusaProductId ?? undefined}
+              promotedName={promo.productName}
+              promotedPrice={promo.price}
+            />
+          )}
         </div>
 
         {/* Правая колонка: превью + бюджет + мета */}
@@ -608,6 +929,103 @@ export default function PromoDetailPage() {
           </div>
         </div>
       </div>
+      {reviewOpen && changes && (
+        <Modal
+          open
+          onClose={() => {
+            if (!applyChanges.isPending) setReviewOpen(false)
+          }}
+          title={
+            promo.status === 'draft'
+              ? 'Проверить и запустить кампанию'
+              : 'Проверить и применить изменения'
+          }
+          subtitle={`Применяется сохранённая ревизия ${changes.revision}.`}
+          width={700}
+          footer={
+            <>
+              <Button
+                variant="ghost"
+                disabled={applyChanges.isPending}
+                onClick={() => setReviewOpen(false)}
+              >
+                Назад к редактированию
+              </Button>
+              <Button disabled={!mayApply} onClick={applyPrepared}>
+                {applyChanges.isPending
+                  ? 'Применяем…'
+                  : promo.status === 'draft'
+                    ? 'Запустить кампанию'
+                    : 'Применить изменения'}
+              </Button>
+            </>
+          }
+        >
+          <div className="flex flex-col gap-4 text-[13px]">
+            <div>
+              <strong>{changes.bundle.campaign.title ?? promo.title}</strong>
+              <p>{promo.productName}</p>
+              <p>Вся сеть · {promo.pharmacies} аптек</p>
+              <p>
+                Сроки: {changes.bundle.campaign.dateStart || 'Без начала'} —{' '}
+                {changes.bundle.campaign.dateEnd || 'Без окончания'}
+              </p>
+              <p>
+                Бонус основного товара:{' '}
+                {formatKzt(changes.bundle.campaign.pharmacistBonus ?? promo.pharmacistBonus)}
+              </p>
+            </div>
+            {promo.status === 'paused' && (
+              <p className="font-semibold">Кампания останется на паузе после применения.</p>
+            )}
+            <p>
+              Проверьте типы триггеров, включённые пары и все предлагаемые товары. Выключенные пары
+              не включаются автоматически.
+            </p>
+            {[
+              ...changes.bundle.rules.replacements.map((pair) => ({ pair, kind: 'Замена' })),
+              ...changes.bundle.rules.crossSells.map((pair) => ({ pair, kind: 'Кросс-селл' })),
+            ].map(({ pair, kind }, index) => (
+              <div key={index} className="rounded-lg border border-ink-100 p-3">
+                <strong>
+                  {kind} · {pair.active === false ? 'Выключена' : 'Включена'}
+                </strong>
+                <p>
+                  {
+                    {
+                      product: 'Конкретный товар',
+                      acc_group: 'Группа АСС',
+                      acc_subgroup: 'Подгруппа АСС',
+                      acc_mnn: 'МНН АСС',
+                    }[promoTriggerKind(pair)]
+                  }
+                  : {pair.triggerLabel || pair.name}
+                </p>
+                <p>
+                  Предложить: {promo.productName} · бонус{' '}
+                  {formatKzt(
+                    pair.bonus ?? changes.bundle.campaign.pharmacistBonus ?? promo.pharmacistBonus,
+                  )}
+                </p>
+                {pair.additionalRecommendations?.map((offer, offerIndex) => (
+                  <p key={offerIndex}>
+                    {offer.name} · бонус{' '}
+                    {formatKzt(
+                      offer.bonus ??
+                        changes.bundle.campaign.pharmacistBonus ??
+                        promo.pharmacistBonus,
+                    )}
+                  </p>
+                ))}
+              </div>
+            ))}
+            <p className="text-[12px] text-ink-500">
+              После применения сервер использует новые условия для подходящих запросов касс.
+              Подтверждение этого действия не означает фактический показ окна на каждом устройстве.
+            </p>
+          </div>
+        </Modal>
+      )}
     </Shell>
   )
 }

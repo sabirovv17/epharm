@@ -10,6 +10,9 @@ source "$SCRIPT_DIR/ops/lib.sh"
 ROOT_DIR="$(ops_root_dir)"
 BACKUP_ROOT="${BACKUP_ROOT:-$ROOT_DIR/backups}"
 METRIC_DIR="${BACKUP_METRIC_DIR:-$BACKUP_ROOT/metrics}"
+[[ "${BACKUP_PRIVATE_FILES_REQUIRED:-false}" == true || "${BACKUP_PRIVATE_FILES_REQUIRED:-false}" == false ]] || {
+  echo 'ERROR: BACKUP_PRIVATE_FILES_REQUIRED must be true/false' >&2; exit 2;
+}
 
 if [[ -z "${RESTIC_REPOSITORY:-}" ]]; then
   if [[ "${BACKUP_REQUIRE_OFFSITE:-false}" == true ]]; then
@@ -34,6 +37,15 @@ fi
 }
 
 started="$(date +%s)"
+paths=("$BACKUP_ROOT/postgres" "$BACKUP_ROOT/minio")
+if [[ "${BACKUP_PRIVATE_FILES_REQUIRED:-false}" == true ]]; then
+  for component in native-files credential-keys; do
+    archive="$(latest_matching_file "$BACKUP_ROOT/$component" "epharm-$component-*.tar.gz")"
+    [[ -n "$archive" ]] || { echo 'ERROR: required private snapshot is missing' >&2; exit 1; }
+    python3 "$SCRIPT_DIR/ops/private_backup.py" verify --kind "$component" --archive "$archive" >/dev/null
+    paths+=("$BACKUP_ROOT/$component")
+  done
+fi
 # RESTIC_SFTP_COMMAND is our ops setting, not a native restic environment variable.
 # Pass it explicitly using restic's documented transport option, preserving one argv.
 restic_options=()
@@ -41,7 +53,7 @@ if [[ -n "${RESTIC_SFTP_COMMAND:-}" ]]; then
   restic_options+=(-o "sftp.command=$RESTIC_SFTP_COMMAND")
 fi
 restic "${restic_options[@]}" snapshots --json >/dev/null 2>&1 || restic "${restic_options[@]}" init
-restic "${restic_options[@]}" backup "$BACKUP_ROOT/postgres" "$BACKUP_ROOT/minio" --tag epharm-production
+restic "${restic_options[@]}" backup "${paths[@]}" --tag epharm-production
 restic "${restic_options[@]}" forget --prune \
   --tag epharm-production \
   --keep-daily "${RESTIC_KEEP_DAILY:-30}" \

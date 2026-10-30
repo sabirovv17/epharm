@@ -5,7 +5,10 @@ import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import LoginPage from './LoginPage'
+import AdministrativeHome from '@/app/AdministrativeHome'
+import { accessApi } from '@/features/settings/access-api'
 import { useUiStore } from '@/app/store'
 import { USERS } from '@/mocks/fixtures'
 import type { LoginResponse } from '@/lib/api-types'
@@ -15,11 +18,13 @@ const authApi = vi.hoisted(() => ({
   logout: vi.fn(),
   me: vi.fn(),
 }))
+vi.mock('@/features/settings/access-api', () => ({ accessApi: { me: vi.fn() } }))
 
 vi.mock('@/lib/api', () => ({
   authApi,
   setTokens: vi.fn(),
   onForcedLogout: vi.fn(),
+  onTokensRefreshed: vi.fn(),
   errorCodeOf: (err: unknown) => {
     if (err && typeof err === 'object' && 'code' in err) return (err as { code: string }).code
     return null
@@ -39,18 +44,32 @@ const mockLoginResponse: LoginResponse = {
 beforeEach(() => {
   authApi.login.mockReset()
   authApi.logout.mockReset()
+  vi.mocked(accessApi.me).mockReset().mockResolvedValue({
+    managed: false,
+    version: null,
+    roleCeiling: 'HQ_HEAD',
+    grants: [],
+    canViewAccounts: false,
+    canManageAccounts: false,
+  })
   useUiStore.setState({ authedUser: null, tokens: null })
 })
 
 function renderLogin() {
   return render(
-    <MemoryRouter initialEntries={['/login']}>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/rules" element={<div>RulesPage</div>} />
-        <Route path="/lms" element={<div>LearningPage</div>} />
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <MemoryRouter initialEntries={['/login']}>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/" element={<AdministrativeHome />} />
+          <Route path="/merch/staff-access" element={<div>StaffAccessPage</div>} />
+          <Route path="/rules" element={<div>RulesPage</div>} />
+          <Route path="/lms" element={<div>LearningPage</div>} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   )
 }
 
@@ -130,6 +149,37 @@ describe('LoginPage — submit (с моком authApi)', () => {
       expect(screen.getByText('LearningPage')).toBeInTheDocument()
     })
     expect(useUiStore.getState().authedUser?.role).toBe('TRAINING_MANAGER')
+  })
+
+  it('managed account with only staff-access view enters codes after a fresh capability check', async () => {
+    authApi.login.mockResolvedValueOnce(mockLoginResponse)
+    vi.mocked(accessApi.me).mockResolvedValue({
+      managed: true,
+      version: 1,
+      roleCeiling: 'HQ_HEAD',
+      grants: [
+        {
+          module: 'merchandising',
+          subsection: 'staff_access',
+          action: 'view',
+          allPharmacies: false,
+          pharmacyIds: [],
+          allMerchBranches: true,
+          merchBranchIds: [],
+        },
+      ],
+      canViewAccounts: false,
+      canManageAccounts: false,
+      canViewMerchStaffAccess: true,
+    })
+    const user = userEvent.setup()
+    renderLogin()
+    await user.type(screen.getByLabelText(/Email/i), 'synthetic-hq@example.invalid')
+    await user.type(screen.getByLabelText(/Пароль/i), 'synthetic-password')
+    await user.click(screen.getByRole('button', { name: /Войти/i }))
+    expect(await screen.findByText('StaffAccessPage')).toBeInTheDocument()
+    expect(accessApi.me).toHaveBeenCalledOnce()
+    expect(screen.queryByText('RulesPage')).not.toBeInTheDocument()
   })
 
   it('INVALID_CREDENTIALS → показывает ошибку, authedUser=null', async () => {

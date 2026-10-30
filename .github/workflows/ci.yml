@@ -51,6 +51,13 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
+      - name: Verify unified admin preservation inventory
+        run: |
+          python3 -B -m unittest discover -s tools/unification/tests -v
+          python3 -B tools/unification/check_inventory.py \
+            --inventory docs/reports/unification-2026-10-29/function-inventory.json \
+            --contracts docs/reports/unification-2026-10-29/posm-contracts.json \
+            --epharm-root .
       - name: Test ACC order bridge contract
         run: |
           node --check ops/acc-order-bridge/scripts/sync-epharm-orders.mjs
@@ -62,6 +69,7 @@ jobs:
         run: |
           node --check ops/merch-portal-patches/strip-demo-autofill.mjs
           node --check ops/merch-portal-patches/test-caddy-routes.mjs
+          node --check ops/merch-portal-patches/test-proxy-client-ip.mjs
           node --check ops/merch-portal-patches/preserve-dist-sidecars.mjs
           node --test ops/merch-portal-patches/test-preserve-dist-sidecars.mjs
           python3 ops/merch-portal-patches/test-exchange-dist.py
@@ -73,7 +81,8 @@ jobs:
             -e ACME_EMAIL=ci@example.test \
             -e MERCH_PORTAL_UPSTREAM=https://merch.example.test:8443 \
             caddy:2-alpine caddy adapt --config /etc/caddy/Caddyfile \
-            | node ops/merch-portal-patches/test-caddy-routes.mjs
+            | tee "$RUNNER_TEMP/epharm-caddy.json" | node ops/merch-portal-patches/test-caddy-routes.mjs
+          node ops/merch-portal-patches/test-proxy-client-ip.mjs < "$RUNNER_TEMP/epharm-caddy.json"
           bash ops/merch-portal-patches/test-caddy-redirect.sh
       - name: Audit reproducible merchandising patch dependencies
         run: |
@@ -96,6 +105,7 @@ jobs:
         run: |
           bash tools/release/tests/archive-two-image-contract.sh
           bash tools/release/tests/archive-rollback-contract.sh
+          python3 -m unittest discover -s tools/release/tests -p 'test_archive_forward_recovery.py' -v
       - name: Verify release route readiness and bounded failure
         run: bash tools/release/tests/smoke-readiness.sh
       - name: Verify isolated PostgreSQL restore readiness
@@ -105,6 +115,7 @@ jobs:
       - name: Verify bounded backup retention and failure preservation
         run: |
           python3 -m unittest discover -s tools/ops/tests -p 'test_*.py' -v
+          bash tools/ops/tests/root-dir-contract.sh
           bash tools/ops/tests/backup-chain-contract.sh
       - name: Validate shell syntax and executable bits
         run: |

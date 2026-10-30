@@ -90,6 +90,10 @@ class StaffAuthIntegrationTest {
     }
     private fun login(credential:String=key,password:String="Password123!",expected:Int=200)=post("/login",StaffLoginRequest(iin,password,context),credential,expected)
     private fun challenge(purpose:String="reset",id:String=iin,number:String=phone)=post("/otp/request",StaffOtpRequest(purpose,id,number)).get("challengeId").asText()
+    private fun elapseSharedSmsCooldown() {
+        // Exercise the next permitted issuance without sleeping or expiring the existing proof.
+        assertEquals(1,jdbc.update("UPDATE posm_staff_rate_limits SET window_start=now()-interval '61 seconds' WHERE scope_hash=?",hash("sms-shared-phone:$phone")))
+    }
     private fun complete(id:String,code:String="1234",purpose:String="reset",number:String=phone,personIin:String=iin,expected:Int=200)=post(
         if(purpose=="register") "/register" else "/password/$purpose",
         StaffPasswordRequest(id,code,personIin,number,"NewPassword123!","DEMO Новый"),expected=expected)
@@ -168,6 +172,7 @@ class StaffAuthIntegrationTest {
     }
     @Test fun `mobile and staff SMS invalidate prior phone challenges in both directions`() {
         val reset=challenge()
+        elapseSharedSmsCooldown()
         mvc.perform(post("/api/mobile/auth/sms/request").contentType("application/json").content("{\"phone\":\"$phone\"}")).andExpect(status().isOk)
         complete(reset,expected=400)
         jdbc.update("DELETE FROM posm_staff_rate_limits")
@@ -227,6 +232,7 @@ class StaffAuthIntegrationTest {
     }
     @Test fun `ambiguous failed mobile SMS still durably invalidates staff reset proof`() {
         val old=challenge()
+        elapseSharedSmsCooldown()
         every { provider.requestOtp(phone,null) } throws AppException(kz.epharm.shared.error.ErrorCode.SMS_SEND_FAILED,"Provider unavailable",org.springframework.http.HttpStatus.BAD_GATEWAY)
         mvc.perform(post("/api/mobile/auth/sms/request").contentType("application/json").content("{\"phone\":\"$phone\"}"))
             .andExpect(status().isBadGateway)

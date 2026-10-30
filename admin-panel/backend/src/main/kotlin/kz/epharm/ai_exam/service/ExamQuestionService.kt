@@ -15,6 +15,7 @@ import java.util.UUID
 
 @Service
 class ExamQuestionService(
+    private val administrativeAccess: kz.epharm.training.access.TrainingAdministrativeAccess,
     private val questionRepository: ExamQuestionRepository,
 ) {
 
@@ -30,6 +31,7 @@ class ExamQuestionService(
 
     @Transactional
     fun create(req: CreateExamQuestionRequest, createdBy: String): ExamQuestionDto {
+        administrativeAccess.lockWriter()
         val entity = ExamQuestionEntity(
             id = "q_${UUID.randomUUID().toString().substring(0, 8)}",
             prompt = req.prompt.trim(),
@@ -43,6 +45,7 @@ class ExamQuestionService(
 
     @Transactional
     fun update(id: String, req: UpdateExamQuestionRequest): ExamQuestionDto {
+        administrativeAccess.lockWriter()
         val entity = loadOrThrow(id)
         req.prompt?.let { entity.prompt = it.trim() }
         req.kind?.let { entity.kind = it }
@@ -54,6 +57,7 @@ class ExamQuestionService(
 
     @Transactional
     fun delete(id: String) {
+        administrativeAccess.lockWriter()
         val entity = loadOrThrow(id)
         questionRepository.delete(entity)
     }

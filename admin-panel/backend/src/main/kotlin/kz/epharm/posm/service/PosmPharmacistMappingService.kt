@@ -1,5 +1,7 @@
 package kz.epharm.posm.service
 
+import kz.epharm.auth.access.UnifiedAuthorityLock
+
 import kz.epharm.auth.security.AdminPrincipal
 import kz.epharm.pharmacies.repository.PharmacyRepository
 import kz.epharm.pharmacists.entity.PharmacistStatus
@@ -90,6 +92,7 @@ class PosmPharmacistMappingService(
 
     @Transactional
     fun upsert(req: UpsertPosmPharmacistMappingRequest, actor: AdminPrincipal): PosmPharmacistMappingDto {
+        UnifiedAuthorityLock.acquire(jdbc)
         val pharmacyId = req.pharmacyId.trim()
         val externalUserId = req.externalUserId.trim().also {
             if (it.any(Char::isISOControl)) invalid("Standard-N USER_ID contains control characters")
@@ -144,6 +147,7 @@ class PosmPharmacistMappingService(
 
     @Transactional
     fun revoke(id: UUID, actor: AdminPrincipal) {
+        UnifiedAuthorityLock.acquire(jdbc)
         val mapping = mappings.findById(id).orElseThrow {
             AppException(ErrorCode.NOT_FOUND, "Сопоставление не найдено", HttpStatus.NOT_FOUND)
         }

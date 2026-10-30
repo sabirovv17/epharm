@@ -96,6 +96,10 @@ const test = base.extend<{ learnerApi: LearnerApi; learnerSession: boolean }>({
             phone: '+77000000000', pharmacyName: 'Тестовая аптека', city: 'Алматы' })
         }
         if (path === '/api/mobile/training') return json(route, api.trainingOverview ?? overview)
+        if (path.startsWith('/api/mobile/training/assignments/')) {
+          const assignment = (api.trainingOverview as { assignments?: { id: string }[] } | undefined)?.assignments?.find((item) => path === `/api/mobile/training/assignments/${item.id}`)
+          if (assignment) return json(route, assignment)
+        }
         if (path === '/api/mobile/me/balance' || path === '/api/mobile/me/recommendations') {
           if (api.personalFailure) return json(route, { code: api.personalFailure.code, message: 'Личные данные недоступны' }, api.personalFailure.status)
           if (path.endsWith('/balance')) {
@@ -153,6 +157,13 @@ for (const viewport of [{ name: 'desktop', width: 1440, height: 1000 }, { name: 
       }
       await expect(page.getByRole('heading', { name: 'Отменённый учебный курс', exact: true })).toHaveCount(0)
       await page.reload()
+      await expect(page.getByRole('heading', { name: 'Все доступные курсы', exact: true })).toBeVisible()
+      const currentCourse = page.locator('article').filter({ has: page.getByRole('heading', { name: 'Текущий учебный курс', exact: true }) })
+      await currentCourse.getByRole('button', { name: 'Продолжить обучение', exact: true }).click()
+      await expect(page).toHaveURL(/\/learn\/course\/current$/)
+      await expect(page.getByRole('button', { name: 'Обучение', exact: true })).toBeVisible()
+      await page.getByRole('button', { name: 'Обучение', exact: true }).click()
+      await expect(page).toHaveURL(/\/learn\/training$/)
       await expect(page.getByRole('heading', { name: 'Все доступные курсы', exact: true })).toBeVisible()
       await page.screenshot({ path: testInfo.outputPath(`${viewport.name}-all-courses.png`), fullPage: true, animations: 'disabled' })
       await page.getByRole('button', { name: 'Профиль', exact: true }).click()

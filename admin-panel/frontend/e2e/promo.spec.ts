@@ -29,9 +29,9 @@ test.describe('Promo — список и метрики', () => {
   })
 
   test('Bug M regression: «⋯» меню кнопки нет на карточках', async ({ loggedInPage }) => {
-    await expect(
-      loggedInPage.getByRole('button', { name: /Дополнительные действия/ }),
-    ).toHaveCount(0)
+    await expect(loggedInPage.getByRole('button', { name: /Дополнительные действия/ })).toHaveCount(
+      0,
+    )
   })
 })
 
@@ -60,9 +60,7 @@ test.describe('Promo — фильтр и поиск', () => {
     expect(titles.some((t) => /Аквамарис/i.test(t))).toBe(true)
   })
 
-  test('поиск по несуществующему → Empty state «Ничего не найдено»', async ({
-    loggedInPage,
-  }) => {
+  test('поиск по несуществующему → Empty state «Ничего не найдено»', async ({ loggedInPage }) => {
     await loggedInPage.getByPlaceholder(/Поиск кампании/).fill('xyzzyx-no-match')
     await expect(loggedInPage.getByText(/Ничего не найдено/i)).toBeVisible()
   })
@@ -95,14 +93,75 @@ test.describe('Promo — клик по карточке открывает ст�
     await expect(loggedInPage.getByTestId('promo-grid')).toBeVisible()
   })
 
-  test('редактирование названия → Сохранить → toast', async ({ loggedInPage }) => {
-    await loggedInPage.locator('[data-testid^="promo-card-"]').first().click()
-    await expect(loggedInPage.getByTestId('promo-detail')).toBeVisible()
-    // Берём первое текстовое поле (Название) и дописываем суффикс
-    const title = loggedInPage.getByLabel('Название')
-    await title.fill((await title.inputValue()) + ' ✎')
-    await loggedInPage.getByRole('button', { name: /^Сохранить$/ }).click()
-    await expect(loggedInPage.getByText(/Изменения сохранены/i)).toBeVisible()
+  test('изменения сохраняются отдельно и публикуются только после проверки ревизии', async ({
+    loggedInPage,
+    request,
+  }) => {
+    // A valid synthetic draft is required; old seed campaigns deliberately lack an offer.
+    // Run only against a reset local dev database with its controlled catalogue adapter.
+    const bearer = await getBearer(request)
+    const headers = { Authorization: bearer }
+    const originalTitle = `E2E publication ${Date.now()}`
+    const createdResponse = await request.post(`${BACKEND_URL}/api/admin/promo`, {
+      headers,
+      data: {
+        title: originalTitle,
+        status: 'draft',
+        medusaProductId: 'p_aqm_norm_s',
+        productName: 'E2E предлагаемый товар',
+        barcode: '3858881254008',
+        pharmacistBonus: 0,
+        initialRecommendation: {
+          type: 'substitution',
+          trigger: {
+            triggerKind: 'product',
+            medusaProductId: 'p_aql_norm_s',
+            name: 'E2E триггер',
+            barcode: '4603423004936',
+            active: false,
+            bonus: 0,
+          },
+        },
+      },
+    })
+    expect(createdResponse.ok()).toBe(true)
+    const created = await createdResponse.json()
+    const campaignPath = `/api/admin/promo/${created.id}`
+    await loggedInPage.goto(`/promo/${created.id}`)
+    await expect(loggedInPage.getByLabel('Название', { exact: true })).toBeEnabled()
+    await loggedInPage.getByLabel('Название', { exact: true }).fill(`${originalTitle} применено`)
+    await loggedInPage.getByTestId('pr-status-p_aql_norm_s').getByRole('switch').click()
+    const savedResponse = loggedInPage.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `${campaignPath}/changes` &&
+        response.request().method() === 'PUT',
+    )
+    await loggedInPage.getByTestId('promo-changes-save').click()
+    const saved = await (await savedResponse).json()
+    expect(saved.hasPendingChanges).toBe(true)
+    expect(saved.revision).toBeGreaterThan(0)
+    const before = await request.get(`${BACKEND_URL}${campaignPath}`, { headers })
+    expect(await before.json()).toMatchObject({ title: originalTitle, status: 'draft' })
+    await loggedInPage.getByRole('button', { name: 'Проверить и запустить', exact: true }).click()
+    await expect(loggedInPage.getByRole('dialog')).toContainText(
+      `Применяется сохранённая ревизия ${saved.revision}`,
+    )
+    const appliedResponse = loggedInPage.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `${campaignPath}/changes/apply` &&
+        response.request().method() === 'POST',
+    )
+    await loggedInPage.getByRole('button', { name: 'Запустить кампанию', exact: true }).click()
+    const response = await appliedResponse
+    expect(response.request().postDataJSON()).toEqual({ expectedRevision: saved.revision })
+    const applied = await response.json()
+    expect(applied.hasPendingChanges).toBe(false)
+    expect(applied.revision).toBeGreaterThan(saved.revision)
+    const after = await request.get(`${BACKEND_URL}${campaignPath}`, { headers })
+    expect(await after.json()).toMatchObject({
+      title: `${originalTitle} применено`,
+      status: 'active',
+    })
   })
 })
 
@@ -153,10 +212,13 @@ test.describe('Promo — create кампанию', () => {
     // backend↔Medusa покрывается backend-тестами; здесь фиксируем контракт формы.
     await loggedInPage.route('**/api/admin/storefront/products**', async (route) => {
       const path = new URL(route.request().url()).pathname
-      const isDetail = path.endsWith(`/${storefrontProduct.id}`) || path.endsWith(`/${triggerProduct.id}`)
+      const isDetail =
+        path.endsWith(`/${storefrontProduct.id}`) || path.endsWith(`/${triggerProduct.id}`)
       const product = path.endsWith(`/${triggerProduct.id}`) ? triggerProduct : storefrontProduct
       const query = new URL(route.request().url()).searchParams.get('q')?.toLowerCase() ?? ''
-      const matches = [triggerProduct, storefrontProduct].filter((item) => item.name.toLowerCase().includes(query))
+      const matches = [triggerProduct, storefrontProduct].filter((item) =>
+        item.name.toLowerCase().includes(query),
+      )
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -180,7 +242,13 @@ test.describe('Promo — create кампанию', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          snapshot: { sha256: 'e2e', sourceName: 'Каталог АСС', itemCount: 50, barcodeCount: 40, importedAt: '2026-10-01T00:00:00Z' },
+          snapshot: {
+            sha256: 'e2e',
+            sourceName: 'Каталог АСС',
+            itemCount: 50,
+            barcodeCount: 40,
+            importedAt: '2026-10-01T00:00:00Z',
+          },
           options: [{ key: 'group:e2e', label: 'E2E группа', count: 12 }],
         }),
       })
@@ -196,7 +264,10 @@ test.describe('Promo — create кампанию', () => {
   }
 
   test('«Новая кампания» сначала запрашивает источник рекомендации', async ({ loggedInPage }) => {
-    await loggedInPage.getByRole('button', { name: /Новая кампания/ }).first().click()
+    await loggedInPage
+      .getByRole('button', { name: /Новая кампания/ })
+      .first()
+      .click()
     const dialog = loggedInPage.getByRole('dialog', { name: /Новая кампания/ })
     await expect(dialog).toBeVisible()
     await expect(dialog.getByText('Что запускает рекомендацию')).toBeVisible()
@@ -207,8 +278,13 @@ test.describe('Promo — create кампанию', () => {
     await expect(dialog.getByPlaceholder(/Поиск товара в каталоге/)).toHaveCount(0)
   })
 
-  test('выбор группы и предлагаемого товара заполняет название и показывает read-only цену', async ({ loggedInPage }) => {
-    await loggedInPage.getByRole('button', { name: /Новая кампания/ }).first().click()
+  test('выбор группы и предлагаемого товара заполняет название и показывает read-only цену', async ({
+    loggedInPage,
+  }) => {
+    await loggedInPage
+      .getByRole('button', { name: /Новая кампания/ })
+      .first()
+      .click()
     await selectGroupAndOffer(loggedInPage)
     await expect(loggedInPage.getByPlaceholder(/Майский марафон Аквамарис/)).not.toHaveValue('')
     await loggedInPage.getByText(/Дополнительные настройки/).click()
@@ -216,7 +292,10 @@ test.describe('Promo — create кампанию', () => {
   })
 
   test('выбор пресета меняет цвет обложки', async ({ loggedInPage }) => {
-    await loggedInPage.getByRole('button', { name: /Новая кампания/ }).first().click()
+    await loggedInPage
+      .getByRole('button', { name: /Новая кампания/ })
+      .first()
+      .click()
     await selectGroupAndOffer(loggedInPage)
     await loggedInPage.getByText(/Дополнительные настройки/).click()
     const preset = loggedInPage.getByRole('button', { name: '#BE5A38' })
@@ -224,16 +303,26 @@ test.describe('Promo — create кампанию', () => {
     await expect(preset).toHaveAttribute('aria-pressed', 'true')
   })
 
-  test('кнопка disabled до выбора триггера, типа рекомендации и товара', async ({ loggedInPage }) => {
-    await loggedInPage.getByRole('button', { name: /Новая кампания/ }).first().click()
+  test('кнопка disabled до выбора триггера, типа рекомендации и товара', async ({
+    loggedInPage,
+  }) => {
+    await loggedInPage
+      .getByRole('button', { name: /Новая кампания/ })
+      .first()
+      .click()
     const submit = loggedInPage.getByRole('button', { name: /Создать черновик/ })
     await expect(submit).toBeDisabled()
     await selectGroupAndOffer(loggedInPage)
     await expect(submit).toBeEnabled()
   })
 
-  test('конкретный товар можно найти поиском и использовать как триггер', async ({ loggedInPage }) => {
-    await loggedInPage.getByRole('button', { name: /Новая кампания/ }).first().click()
+  test('конкретный товар можно найти поиском и использовать как триггер', async ({
+    loggedInPage,
+  }) => {
+    await loggedInPage
+      .getByRole('button', { name: /Новая кампания/ })
+      .first()
+      .click()
     await loggedInPage.getByRole('radio', { name: 'Конкретный товар' }).click()
     await loggedInPage.getByPlaceholder(/Поиск товара в каталоге/).fill('E2E товар-триггер')
     await loggedInPage.getByTestId(`promo-product-option-${triggerProduct.id}`).click()
@@ -274,7 +363,10 @@ test.describe('Promo — create кампанию', () => {
       })
     })
 
-    await loggedInPage.getByRole('button', { name: /Новая кампания/ }).first().click()
+    await loggedInPage
+      .getByRole('button', { name: /Новая кампания/ })
+      .first()
+      .click()
     await selectGroupAndOffer(loggedInPage)
     await loggedInPage.getByPlaceholder(/Майский марафон Аквамарис/).fill(unique)
     await loggedInPage.getByRole('button', { name: /Создать черновик/ }).click()
@@ -305,10 +397,7 @@ test.describe('Promo — Bug L regression: archive + restore', () => {
     await expect(loggedInPage.getByText(/Кампания отправлена в архив/i)).toBeVisible()
   })
 
-  test('archived promo показывает «Восстановить» button', async ({
-    loggedInPage,
-    request,
-  }) => {
+  test('archived promo показывает «Восстановить» button', async ({ loggedInPage, request }) => {
     const bearer = await getBearer(request)
     await request.post(`${BACKEND_URL}/api/admin/promo/pr_001/archive`, {
       headers: { Authorization: bearer },

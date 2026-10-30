@@ -28,6 +28,7 @@ import java.util.Optional
 import java.util.UUID
 
 class CourseLiveServiceTest {
+    private val access = mockk<kz.epharm.training.access.TrainingAdministrativeAccess>(relaxed = true)
     private val lessonRepository = mockk<CourseLessonRepository>()
     private val messageRepository = mockk<CourseLiveMessageRepository>()
     private val voteRepository = mockk<CourseLivePollVoteRepository>()
@@ -52,7 +53,7 @@ class CourseLiveServiceTest {
         every { voteRepository.findAllByLessonId(lesson.id) } returns emptyList()
         every { reactionRepository.findAllByLessonIdAndCreatedAtAfter(lesson.id, any()) } returns emptyList()
 
-        val room = CourseLiveService(lessonRepository, messageRepository, voteRepository, reactionRepository)
+        val room = CourseLiveService(access, lessonRepository, messageRepository, voteRepository, reactionRepository)
             .room(lesson.id, "pharmacist-1")
 
         assertThat(room.messages.map { it.body }).containsExactly("older", "newer")
@@ -82,7 +83,7 @@ class CourseLiveServiceTest {
         } returns emptyList()
         every { voteRepository.findAllByLessonId(lesson.id) } returns emptyList()
         every { reactionRepository.findAllByLessonIdAndCreatedAtAfter(lesson.id, any()) } returns emptyList()
-        val service = CourseLiveService(lessonRepository, messageRepository, voteRepository, reactionRepository)
+        val service = CourseLiveService(access, lessonRepository, messageRepository, voteRepository, reactionRepository)
 
         val beforeStart = Instant.now()
         service.changeStatus("course-1", lesson.id, CourseLiveStatus.live, "admin-1")
@@ -112,7 +113,7 @@ class CourseLiveServiceTest {
             it.kind = CourseLessonKind.live
         }
         every { lessonRepository.findById("live-1") } returns Optional.of(lesson)
-        val service = CourseLiveService(lessonRepository, messageRepository, voteRepository, reactionRepository)
+        val service = CourseLiveService(access, lessonRepository, messageRepository, voteRepository, reactionRepository)
 
         service.requireCourseLesson("course-1", "live-1")
         assertThrows(AppException::class.java) {
@@ -129,7 +130,7 @@ class CourseLiveServiceTest {
         ).also { it.kind = CourseLessonKind.live }
         every { lessonRepository.findById("live-unsafe") } returns Optional.of(lesson)
         every { lessonRepository.findByIdForUpdate("live-unsafe") } returns lesson
-        val service = CourseLiveService(lessonRepository, messageRepository, voteRepository, reactionRepository)
+        val service = CourseLiveService(access, lessonRepository, messageRepository, voteRepository, reactionRepository)
 
         assertThrows(AppException::class.java) {
             service.changeStatus("course-1", "live-unsafe", CourseLiveStatus.live, "admin-1")
@@ -198,6 +199,7 @@ class CourseLiveServiceTest {
         } answers { reactions.toList() }
 
         val service = CourseLiveService(
+            access,
             lessonRepository,
             messageRepository,
             voteRepository,

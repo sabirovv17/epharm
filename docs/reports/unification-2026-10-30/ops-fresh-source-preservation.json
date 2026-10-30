@@ -1,0 +1,162 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-30",
+  "productionWrites": 0,
+  "boundary": "Online read-only sequential source captures and new offline restores. No application start, business activation, cleanup, credit, or production migration. Freshness is bounded by the stated snapshot; live writes continue and require a final cutover delta.",
+  "database76": {
+    "capturedAtUtc": "2026-10-29T20:43:56Z",
+    "finishedAtUtc": "2026-10-29T20:45:57Z",
+    "archiveBytes": 358246776,
+    "archiveSha256": "9c12cbf910f7269cf8003553be9f9d2c4e736f8d69a628e682e243784ab127c2",
+    "publicTables": 73,
+    "publicRows": 1932959,
+    "schemaVersionBeforeMigration": "065",
+    "restoredVersion": "16.14",
+    "localeMatchesObservedSource": true,
+    "offlineOriginalContainer": "epharm-unify-fresh-20261030-76-80ded0f0",
+    "network": "none",
+    "publishedPorts": false,
+    "baselineHealthMedianSeconds": 0.136989,
+    "maximumHealthSecondsDuringCapture": 1.600399,
+    "healthSamples": 11,
+    "health5xx": 0,
+    "captureAborted": false,
+    "olderSnapshotRows": 1905775,
+    "freshDeltaRows": 27184,
+    "olderPosSales": 1793268,
+    "freshPosSales": 1820420,
+    "posSalesDelta": 27152,
+    "otherChangedTables": [
+      "fulfillment_audit",
+      "fulfillment_devices",
+      "fulfillment_order_lines",
+      "fulfillment_order_updates",
+      "fulfillment_orders",
+      "mobile_refresh_tokens",
+      "refresh_tokens",
+      "standardn_pharmacist_directory",
+      "storefront_product_references"
+    ],
+    "originalTablesAddedOrRemoved": 0
+  },
+  "database80": {
+    "capturedAtUtc": "2026-10-29T20:46:41Z",
+    "finishedAtUtc": "2026-10-29T20:46:54Z",
+    "archiveBytes": 2802151,
+    "archiveSha256": "3687fc74eba8dfbba26ee924a105bd89912f0c83125cad6c73d1e4bb51e13f29",
+    "publicTables": 57,
+    "publicRows": 42414,
+    "restoredVersion": "18.6",
+    "localeMatchesObservedSource": true,
+    "locale": {
+      "encoding": "UTF8",
+      "collate": "en_US.UTF-8",
+      "ctype": "en_US.UTF-8",
+      "provider": "libc"
+    },
+    "offlineOriginalContainer": "epharm-unify-fresh-20261030-80-7538961c",
+    "network": "none",
+    "publishedPorts": false,
+    "typedArtifactBytes": 11946668,
+    "typedArtifactSha256": "682ad2cfdd784e59048e08e97dd1be1a56434c5b7a907e215c10e3ae5648d1d0",
+    "sourceSchemaSha256": "f8b6a20f3ab4ce899bebf699dc1c489982a2ff2b3d0abe948d06fffc062e2ea5",
+    "olderSnapshotRows": 42410,
+    "freshDeltaRows": 4,
+    "changedTables": [
+      "staff_task_delivery_receipts",
+      "staff_task_dispatch_links",
+      "staff_task_dispatches",
+      "staff_task_events",
+      "user_sessions"
+    ],
+    "limitation": "Database locale settings match. glibc versus musl collation implementation differences remain a platform compatibility consideration; original column values and primary-key digests were recorded independently."
+  },
+  "files": {
+    "crmStorage": {
+      "state": "copied_and_verified",
+      "files": 31,
+      "bytes": 11057247,
+      "manifestSha256": "718037ade6e843d41448c8fdd30425073448c6b80cd8c67bb551226db91d16c3",
+      "archiveSha256": "c8713b3f41075c1ded73c06bc64b826ed22f43eb11b07b34a3587e9378286a2e"
+    },
+    "posmDownloads": {
+      "state": "copied_and_verified",
+      "files": 20,
+      "bytes": 1020840495,
+      "manifestSha256": "906aa3246a8d7d5cbd54d27c01ade3ae5fe0b5bb72474e0c00b0486211039887",
+      "archiveSha256": "b9af2e046d486cd6dad73f6f3774657a2b72699591a991a59dd153e860145115"
+    },
+    "minio": {
+      "state": "all_current_objects_copied_and_sha256_verified",
+      "buckets": ["epharm-receipts", "pim-product-images"],
+      "versioning": "unversioned",
+      "objects": 9485,
+      "bytes": 316238925,
+      "bucketTotals": {
+        "epharm-receipts": { "objects": 16, "bytes": 114554039 },
+        "pim-product-images": { "objects": 9469, "bytes": 201684886 }
+      },
+      "inventorySha256": "26b0be39fab87dccf11b07aee5c6e52b4420420edefd17f970e2cbae6ea3274e",
+      "archiveSha256": "d6b61c8d43f5ca81ae0566b27d92208591888f6c78021bf9258e9741e37498d8",
+      "manifestSha256": "607ec5fe4404ae6d18175158d84d46b4651bbe5bad3ea0b0fac2fcdcc7ed434e",
+      "logicalBucketAndKeyPathsVerified": 9485,
+      "unsafeLogicalKeys": 0,
+      "getConsistency": "If-Match per object; full key/size/ETag/modified inventory equal before and after; current ContentType and user metadata retained privately",
+      "healthSamples": 12,
+      "health5xx": 0,
+      "maximumHealthSeconds": 0.636632,
+      "sourceCredentialsCopied": false,
+      "firstAttempt": "Stopped by the 180-second bound; protected incomplete archive retained and never accepted as success. Final one-GET/header capture completed under a 900-second bound with health abort monitoring.",
+      "observedBackupConfiguration": {
+        "MINIO_BACKUP_BUCKETS": "epharm-receipts",
+        "latestArtifact": "epharm-minio-20261029T114115Z.tar.gz",
+        "latestArtifactManifestBuckets": "epharm-receipts",
+        "newNativeAndKeyBackupRequirementConfigured": false
+      },
+      "requiredConfigurationGate": "The protected backup configuration must include both buckets plus the required native/key set and verify their actual offsite recovery; the observed receipts-only artifact omits historical product images. No configuration was changed by this audit."
+    }
+  },
+  "actualRollbackBinary": {
+    "state": "read_only_copy_verified",
+    "releaseId": "v0.1.47",
+    "revision": "aa37b1e720923334cef8265f66a507d549b32780",
+    "runningImageId": "sha256:e3ca027029cba7906972462754b77a51579853a221620e04f500a0470693a7b8",
+    "jarBytes": 115669461,
+    "jarSha256": "a2a9187063001c8faf3a687c8266331ba3f4580ba7670eac5cf23dd85d96cfac",
+    "beforeAfterImageContainerAndJarHashEqual": true,
+    "newBuildUsed": false,
+    "privateLocation": "running-v047-cb1e6dc5/app-v0.1.47.jar under the private source capture root",
+    "limitation": "Financial replay is a separate acceptance operation. The aa37 source filter trusts admin JWT role claims and lacks the new database-active/managed-grant enforcement; successful financial replay alone is not full authorization rollback proof."
+  },
+  "historicalTestDataDecision": {
+    "sourcePlans": 3,
+    "displayLabel": "Заказчик 4596",
+    "months": ["2026-09", "2026-10", "2026-11"],
+    "sourceStatuses": ["approved", "approved", "approved"],
+    "companyAndLegalNameMissing": true,
+    "userDecision": "Confirmed historical test data; preserve source history read-only, no fake company, account, producer binding, or operational obligation inferred.",
+    "sourceClosedItem": {
+      "title": "Тест QR на локальной кассе",
+      "status": "cancelled",
+      "hasMediaPlan": false,
+      "completedOrApproved": false
+    },
+    "completedSourceTasks": 0,
+    "futureAutomationGate": "NULL producer/company does not exclude approved plans from weekly generation. Native automation and financial activation remain OFF; any future activation must explicitly address these retained test plans and legacy writers. This report does not introduce a new retirement mechanism."
+  },
+  "privateArtifacts": "Database dumps, original-column/primary-key checksums, source filenames and proposed UUID bindings remain under /Users/amir/.codex/private/epharm-unification-20261030 with 0700 directories/0600 artifacts; none of their data or credentials are in this repository.",
+  "capacityObservation": {
+    "host76FreeBytesAfterReadOnlyCapture": 41875914752,
+    "localPrivateFilesystemFreeBytesAfterPreservation": 293739540480,
+    "newlyMissingDailyImageBackupBytes": 201684886,
+    "additionalSevenLocalImageSnapshotsUncompressedPlanningBytes": 1411794202,
+    "limitation": "This quantifies one newly required component, not a final compressed footprint or growth forecast. Database/WAL/temp, images/rollback bundles, source/live deltas, native immutable evidence and both servers remain in the G13 capacity gate. No cleanup or retention run was performed."
+  },
+  "notProvenByThisReport": [
+    "Final cutover delta while live writes continue",
+    "Production restore with recovered native files and D9 keys",
+    "External pharmacy Windows/Standard-N observation",
+    "Capacity growth horizon and post-write financial rollback",
+    "Operational activation of native automation/financial writers"
+  ]
+}

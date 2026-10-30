@@ -1,24 +1,29 @@
 // E2E: AppShell — Sidebar, Topbar, CommandPalette, role switcher, contract widget.
 
-import { test, expect } from './fixtures'
+import { test, expect, openSidebarModule } from './fixtures'
 
 test.describe('Sidebar — навигация', () => {
   test('доступные Brand Manager разделы кликабельны', async ({ loggedInPage }) => {
     const sections = [
-      { label: /Дашборд аналитики/, url: /\/dashboard/ },
-      { label: /Промо-кампании/, url: /\/promo/ },
-      { label: /Rules Engine/, url: /\/rules/ },
-      { label: /Управление экранами/, url: /\/screens/ },
-      { label: /Сеть аптек/, url: /\/pharmacies/ },
-      { label: /Фармацевты/, url: /\/pharmacists/ },
-      { label: /Сверка чеков/, url: /\/reconcile/ },
-      { label: /Финансы \/ выплаты/, url: /\/finance/ },
-      { label: /Аналитика lift/, url: /\/lift/ },
-      { label: /Настройки/, url: /\/settings/ },
+      { module: 'Аналитика', label: 'Дашборд аналитики', url: /\/dashboard/ },
+      { module: 'Мотивация фармацевтов', label: 'Промо-кампании', url: /\/promo/ },
+      { module: 'Мотивация фармацевтов', label: 'Rules Engine', url: /\/rules/ },
+      { module: 'Аптеки и товары', label: 'Управление экранами', url: /\/screens/ },
+      { module: 'Аптеки и товары', label: 'Сеть аптек', url: /\/pharmacies/ },
+      { label: 'Фармацевты', url: /\/pharmacists/ },
+      { module: 'Мотивация фармацевтов', label: 'Сверка чеков', url: /\/reconcile/ },
+      { module: 'Мотивация фармацевтов', label: 'Финансы / выплаты', url: /\/finance/ },
+      { module: 'Аналитика', label: 'Аналитика lift', url: /\/lift/ },
+      { label: 'Управление', url: /\/settings/ },
     ]
     for (const s of sections) {
-      await loggedInPage.getByRole('button', { name: s.label }).click()
+      if (s.module) await openSidebarModule(loggedInPage, s.module)
+      const button = loggedInPage
+        .getByRole('complementary', { name: 'Основная навигация' })
+        .getByRole('button', { name: s.label, exact: true })
+      await button.click()
       await expect(loggedInPage).toHaveURL(s.url)
+      await expect(button).toHaveClass(/sidebar-active/)
     }
   })
 
@@ -29,16 +34,18 @@ test.describe('Sidebar — навигация', () => {
   })
 
   test('актуальный брендинг: логотип-глиф + ePharm workspace', async ({ loggedInPage }) => {
-    await expect(loggedInPage.locator('aside[aria-label="Основная навигация"]').getByText('ePharm', { exact: true })).toBeVisible()
+    await expect(
+      loggedInPage
+        .locator('aside[aria-label="Основная навигация"]')
+        .getByText('ePharm', { exact: true }),
+    ).toBeVisible()
     await expect(loggedInPage.getByText('Операционный центр', { exact: true })).toBeVisible()
     await expect(loggedInPage.locator('aside svg').first()).toBeVisible()
   })
 })
 
 test.describe('Sidebar — Contract widget', () => {
-  test('Damir (без активного контракта) → empty state «Не подписан»', async ({
-    loggedInPage,
-  }) => {
+  test('Damir (без активного контракта) → empty state «Не подписан»', async ({ loggedInPage }) => {
     // MVP: ни у кого нет активного контракта
     await expect(loggedInPage.getByTestId('contract-widget-empty')).toBeVisible()
     await expect(loggedInPage.getByText(/Не подписан/i)).toBeVisible()
@@ -53,14 +60,14 @@ test.describe('Sidebar — Contract widget', () => {
 
 test.describe('Topbar — role-pill и logout', () => {
   test('role-pill показывает имя + роль', async ({ loggedInPage }) => {
-    const rolePill = loggedInPage.getByRole('banner').getByRole('button', { name: /Дамир Нурланов/ })
+    const rolePill = loggedInPage
+      .getByRole('banner')
+      .getByRole('button', { name: /Дамир Нурланов/ })
     await expect(rolePill).toBeVisible()
     await expect(rolePill).toContainText(/Brand Manager/i)
   })
 
-  test('клик по role-pill → dropdown с «Сменить роль» + «Выйти»', async ({
-    loggedInPage,
-  }) => {
+  test('клик по role-pill → dropdown с «Сменить роль» + «Выйти»', async ({ loggedInPage }) => {
     await loggedInPage.getByRole('button', { name: /Дамир Нурланов/ }).click()
     await expect(loggedInPage.getByRole('menuitem', { name: /Сменить роль/i })).toBeVisible()
     await expect(loggedInPage.getByRole('menuitem', { name: /Выйти/i })).toBeVisible()
@@ -134,9 +141,7 @@ test.describe('Empty sections (10 ещё не подключены к backend)',
   for (const e of empties) {
     test(`${e.url} рендерится без ошибок`, async ({ loggedInPage }) => {
       await loggedInPage.goto(e.url)
-      await expect(
-        loggedInPage.getByRole('heading', { level: 1, name: e.title }),
-      ).toBeVisible()
+      await expect(loggedInPage.getByRole('heading', { level: 1, name: e.title })).toBeVisible()
     })
   }
 })

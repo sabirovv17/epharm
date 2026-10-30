@@ -18,36 +18,36 @@ The backend is a modular monolith under package `kz.epharm`.
 
 ## Domains
 
-| Package                               | Responsibility                                                                              |
-| ------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `auth`                                | Admin auth, JWT, refresh tokens, roles.                                                     |
-| `mobile.auth`                         | Pharmacist OTP auth, registration, refresh/logout.                                          |
-| `mobile.profile`                      | `/api/mobile/me` profile and authenticated self balance/recommendation APIs.                 |
-| `mobile.catalog`                      | Public mobile catalog with a configured website source and local snapshot fallback.         |
-| `mobile.promotions`                   | Public active promo campaign feed.                                                          |
-| `mobile.receipts`                     | Authenticated receipt upload/history.                                                       |
-| `mobile.pharmacies`                   | Public active pharmacy list.                                                                |
-| `catalog`                             | Internal/admin product master data used by rules.                                           |
-| `promo`                               | Campaigns, Medusa product snapshots, tiers, campaign-generated rules.                       |
-| `rules`                               | Rules Engine admin CRUD and POSM matching logic.                                            |
-| `receipts`                            | Receipt storage, moderation, POS/Excel reconciliation, bonus crediting.                     |
-| `pharmacies`                          | Chains and pharmacies.                                                                      |
-| `pharmacists`                         | Pharmacist registry, status, balance.                                                       |
-| `finance`                             | Payout batches, items, approval, scheduler.                                                 |
+| Package                               | Responsibility                                                                                      |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `auth`                                | Admin auth, JWT, refresh tokens, roles.                                                             |
+| `mobile.auth`                         | Pharmacist OTP auth, registration, refresh/logout.                                                  |
+| `mobile.profile`                      | `/api/mobile/me` profile and authenticated self balance/recommendation APIs.                        |
+| `mobile.catalog`                      | Public mobile catalog with a configured website source and local snapshot fallback.                 |
+| `mobile.promotions`                   | Public active promo campaign feed.                                                                  |
+| `mobile.receipts`                     | Authenticated receipt upload/history.                                                               |
+| `mobile.pharmacies`                   | Public active pharmacy list.                                                                        |
+| `catalog`                             | Internal/admin product master data used by rules.                                                   |
+| `promo`                               | Campaigns, Medusa product snapshots, tiers, campaign-generated rules.                               |
+| `rules`                               | Rules Engine admin CRUD and POSM matching logic.                                                    |
+| `receipts`                            | Receipt storage, moderation, POS/Excel reconciliation, bonus crediting.                             |
+| `pharmacies`                          | Chains and pharmacies.                                                                              |
+| `pharmacists`                         | Pharmacist registry, status, balance.                                                               |
+| `finance`                             | Payout batches, items, approval, scheduler.                                                         |
 | `finance.merch`                       | Disabled-by-default verified CRM executor grants, signed approvals and idempotent monetary rewards. |
-| `screens`                             | Broadcast/screen media and playlists.                                                       |
-| `banners`                             | Admin-managed mobile banners.                                                               |
-| `medusa`                              | Historical Medusa client and durable read-only product snapshot.                            |
-| `storefront`                          | Read-only client and DTO mapping for the current Inkar website catalog.                     |
-| `posm`                                | POSM recommendations, outcomes, sales, playlists, heartbeat, CDP.                           |
-| `fulfillment`                         | Signed storefront order ingest, pharmacist cash-pickup queue and actions.                   |
-| `appupdate`                           | POSM app release metadata and auto-update endpoint.                                         |
-| `merchtasks`                          | Optional authenticated CRM task bridge, exact staff URL validation and bounded concurrency. |
-| `training`                            | Programs, routes, assignments, events, attendance, results and awards.                      |
-| `lms`, `ai_exam`, `lift`, `dashboard` | Admin sections and reporting.                                                               |
-| `reporting`                           | HQ-only campaign JSON/PDF, confirmed displays, attributed/0–120-second sales.               |
-| `posm.staff`                          | Optional device-scoped employee authentication and purpose-bound SMS recovery.              |
-| `shared`                              | Security, errors, media proxy, storage, validation, dev reset.                              |
+| `screens`                             | Broadcast/screen media and playlists.                                                               |
+| `banners`                             | Admin-managed mobile banners.                                                                       |
+| `medusa`                              | Historical Medusa client and durable read-only product snapshot.                                    |
+| `storefront`                          | Read-only client and DTO mapping for the current Inkar website catalog.                             |
+| `posm`                                | POSM recommendations, outcomes, sales, playlists, heartbeat, CDP.                                   |
+| `fulfillment`                         | Signed storefront order ingest, pharmacist cash-pickup queue and actions.                           |
+| `appupdate`                           | POSM app release metadata and auto-update endpoint.                                                 |
+| `merchtasks`                          | Optional authenticated CRM task bridge, exact staff URL validation and bounded concurrency.         |
+| `training`                            | Programs, routes, assignments, events, attendance, results and awards.                              |
+| `lms`, `ai_exam`, `lift`, `dashboard` | Admin sections and reporting.                                                                       |
+| `reporting`                           | HQ-only campaign JSON/PDF, confirmed displays, attributed/0–120-second sales.                       |
+| `posm.staff`                          | Optional device-scoped employee authentication and purpose-bound SMS recovery.                      |
+| `shared`                              | Security, errors, media proxy, storage, validation, dev reset.                                      |
 
 ## API Map
 
@@ -179,29 +179,44 @@ Both responses set `Cache-Control: no-store` and contain no IIN, phone or other 
 `pharmacists.balance`, without creating ledger entries or reserving funds:
 
 ```json
-{"balanceKzt":42000,"currency":"KZT"}
+{ "balanceKzt": 42000, "currency": "KZT" }
 ```
 
 `GET /api/mobile/me/recommendations` returns:
 
 ```json
 {
-  "items": [{
-    "campaign": {"id":"promo_example","title":"Example","dateStart":null,"dateEnd":null},
-    "type":"substitution",
-    "trigger":{"kind":"acc_group","value":"stable-acc-key","label":"Group label"},
-    "triggerProducts":[],
-    "offers":[{
-      "ruleId":"rule_example",
-      "product":{
-        "id":"product_example","name":"Example product","brand":"Example",
-        "mnn":"Example INN","volume":"30 tablets","barcodes":[],"ipartId":null,
-        "catalogPriceKzt":2500,"catalogUpdatedAt":"2026-01-01T00:00:00Z"
-      },
-      "bonusKzt":0,"script":"Configured text","advantages":[]
-    }]
-  }],
-  "page":0,"size":20,"total":1,"currency":"KZT"
+  "items": [
+    {
+      "campaign": { "id": "promo_example", "title": "Example", "dateStart": null, "dateEnd": null },
+      "type": "substitution",
+      "trigger": { "kind": "acc_group", "value": "stable-acc-key", "label": "Group label" },
+      "triggerProducts": [],
+      "offers": [
+        {
+          "ruleId": "rule_example",
+          "product": {
+            "id": "product_example",
+            "name": "Example product",
+            "brand": "Example",
+            "mnn": "Example INN",
+            "volume": "30 tablets",
+            "barcodes": [],
+            "ipartId": null,
+            "catalogPriceKzt": 2500,
+            "catalogUpdatedAt": "2026-01-01T00:00:00Z"
+          },
+          "bonusKzt": 0,
+          "script": "Configured text",
+          "advantages": []
+        }
+      ]
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "total": 1,
+  "currency": "KZT"
 }
 ```
 
@@ -253,6 +268,29 @@ Structured online courses use per-lesson progress. A completed stage created bef
 projects its lessons as completed without rewriting history. Legacy URL-only online stages still
 accept stage-level progress, while linked courses require the lesson endpoint. Lessons with recorded
 progress cannot be deleted (HTTP 409); archiving the course preserves referential integrity.
+
+Managed administrative training requests additionally use
+`training/access/TrainingAdministrativeAccess`. Assignment, participant, result,
+preference and certificate visibility follows the pharmacist's **current** pharmacy,
+intersected with the existing regional-manager/trainer restrictions. SQL selects
+the permitted IDs before loading child records, computing totals or paging. Shared
+program/course authoring and event creation/editing require explicit network-wide
+access; a participant's pharmacy grant cannot authorize editing a shared event.
+Administrative writes recheck the current authority before domain writes. Publishing
+programs/courses and configuring their bonuses require separate exact permissions.
+Historical person-wide rewards require the existing global financial permission;
+without it, reward payloads are omitted and monetary totals are `null`, not zero.
+The managed assignment report is the separate XLSX endpoint; the legacy CSV endpoint
+explicitly rejects managed callers and remains compatible for LEGACY accounts.
+The separate assignment/result XLSX files retain saved employee names within their
+learning scope. Assignment reward amount/status stay blank without global financial
+authority and a global report scope; they use saved training rewards, not a wallet
+balance or a newly calculated payment. Phones, IINs, passwords, answer keys and private
+feedback/competency data remain excluded. The frontend reads exact action flags from
+a fresh `/api/admin/access/me.trainingActions` response; an unknown or stale managed
+permission never falls back to a role title or the old coarse management flags.
+These checks do not change learner authentication, quiz scoring, certificate rules,
+mobile endpoints or the legacy HQ read-only ceiling.
 
 Public training verification:
 
@@ -409,3 +447,104 @@ export JAVA_HOME=/Users/amir/Library/Java/JavaVirtualMachines/temurin-22.0.2/Con
 ```
 
 Local dev needs the root `docker compose up -d` infrastructure.
+
+## Opt-in unified administrative access
+
+`auth/access` connects `auth/policy` to persisted grants and request-bound SQL
+scopes. V066 defaults existing accounts to LEGACY; new accounts are MANAGED and
+empty-deny. Current admin identity/status/role are reloaded from the database,
+while mobile, POSM and HMAC authentication remain separate. Exact handler patterns
+are catalogued; unknown/NOT_READY routes deny managed accounts. Existing role
+checks remain an additional ceiling. See [the U1/U2 contract](23-unified-admin-data-and-access.md)
+for supported surfaces, field projections, management locking and remaining gates.
+
+The local unification candidate adds `GET/PUT /api/admin/promo/{id}/changes` and
+`POST /api/admin/promo/{id}/changes/apply`. PUT accepts `expectedRevision` and one
+complete `bundle: {campaign, rules}` or explicit `discard: true`; Apply accepts the
+saved `expectedRevision`. Author identity comes from the authenticated principal.
+Both campaign and recommendation capabilities are required, globally scoped;
+financial changes require separate configure-bonus permission. V067 retains pending
+JSON separately from published tables and keeps an immutable publication history.
+Conflicting revisions/source conditions return409 without partial publication.
+These endpoints do not change POSM authentication, paths or response shapes.
+
+The disposable dev reset explicitly truncates pending/publication history together
+with its existing fixture-only FK set before reseeding campaigns. It uses no CASCADE
+and does not weaken append-only triggers. Both destructive utilities are excluded
+when `prod` is active, including a combined `prod+dev` profile. It must not be run
+against restored business data; migration rehearsals use plain Flyway without it.
+
+## Native unification candidate (opt-in)
+
+`merch/inventory`, `merch/placements`, `merch/producer/auth`, `merch/tasks` and
+`merch/delivery` own the new database-backed workflows. They do not proxy the CRM
+administration UI. Before cutover, `merchtasks/MerchTaskClient` serves the legacy
+integration. With `MERCH_LEGACY_PORTAL_CUTOVER_ENABLED=true`, its recommendation context
+comes only from the owned `merch_recommendation_signals` and `merch_product_balances`
+tables; missing native data does not fall back to CRM HTTP. Existing global disable,
+response validation and concurrency limits still apply. The optional SELECT uses the
+caller's connection, a savepoint and a one-second JDBC timeout so SQL errors or cancellation
+do not abort later local recommendation-event writes. Exact active verified pharmacy/branch
+scope, barcode/ipart triggers, branch precedence and stock staleness are preserved.
+Task stock observations are not authoritative product balances.
+
+`tools/unification/owned_context.py project` preserves source IDs and raw provenance from
+the pinned typed CRM snapshot. Its manual `sync` mode retains the reviewed-file workflow:
+private input and source/target hashes, dry-run by default, explicit pharmacy count and
+context hash for apply, a lock acquired before the snapshot, and immutable input audit.
+Stale/conflicting observations and generated-ID collisions across product roles are refused.
+It does not schedule refreshes, create identities, issue tasks or replay financial rewards.
+`MerchTaskDelivery` chooses one writer for
+polling and routes acknowledged native-owned tokens independently of issuance flags.
+
+Native delivery, producer authentication and placement expiry default OFF.
+`MERCH_TASK_EVIDENCE_ROOT` and `MERCH_TASK_LEGACY_FILES_ROOT` are private owner-only
+absolute directories; missing storage returns503 rather than publishing evidence
+in the screens bucket. `/api/public/merch/tasks/**` requires the task capability
+header per object. A capability never grants an administrator or pharmacist identity.
+Paid recipient confirmation remains a separate purpose-bound proof.
+
+`GET /api/admin/merch/tariffs` and `PUT /api/admin/merch/tariffs/{category}` expose
+the supplier tariff matrix to HQ accounts with explicit global merchandising view
+and financial access; writes additionally require global edit access. The update
+uses the returned `updatedAt` as a compare-and-set token and records immutable
+before/after audit entries. Amounts travel as exact integer strings in the full
+nonnegative bigint range; the multiplier retains the source range 0.1–10 with
+three decimal places. Editing a tariff never rewrites its source snapshot or
+reprices saved placement items, submitted requests, rewards or wallet entries.
+The UI entry uses fresh `canViewMerchTariffs`; stale edits require a fresh fetch.
+
+`reporting/exports`, `reporting/producers` and `reporting/xlsx` create separate XLSX
+workbooks with explicit view/export permissions. Producer associations are explicit
+versioned facts, not brand/name heuristics. Wallet reports read postings once and
+retain unknown/conflicting historical pharmacy attribution as unknown.
+
+## Learner credential export (D9)
+
+`learnercredentials` owns POST `/api/admin/learner-credentials/exports`, POST
+`/{id}/download` and DELETE `/{id}`. Route preflight requires scoped registry view;
+the transactional service separately requires explicit HQ2 credential authority, current
+password reauthentication and current access/credential versions. The preparatory API
+returns metadata only; download returns a no-store one-use XLSX. Ordinary roster exports
+never contain credential values. `app.learner-credentials.enabled` defaults false.
+Key file, bounded TTL/batch/attempt settings and capture behavior are documented in
+[the data/access contract](23-unified-admin-data-and-access.md#d9-current-learner-credential-export).
+
+### Scoped shared staff access (unification candidate)
+
+`/api/admin/merch/staff-access` and `/options` require explicit fresh
+`merchandising/staff_access` view/create/revoke grants over every covered branch.
+`/api/staff/auth/code|qr` exchanges a bounded monthly code or independent QR for an
+opaque12-hour session; only its SHA is stored. No admin JWT, pharmacist identity or
+reward is inferred. Manual revoke terminates sessions, including already-consumed
+codes, and repeated revoke preserves the first actor/audit. Source code hashes,
+branch links and imported auth attempts remain immutable history.
+
+Public `/api/staff/visits` operations validate that session, active organization,
+branch/month scope and deadline on each request; mutation checks join the write
+transaction before domain locks. Shared attempts carry staff_visit_id plus an
+unverified display name and cannot carry PERSON/account/pharmacist/capability
+identity. They reuse evidence/review validation, with no bonus path. A returned
+subset cannot discard submitted siblings or use rejected photos as new evidence.
+Staff sessions and native ephemeral login attempts must never be promoted from a
+rehearsal database. `MERCH_STAFF_ACCESS_ENABLED` defaults to false.

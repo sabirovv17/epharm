@@ -41,7 +41,8 @@
   }
 
   /* The learner portal is also used from phones and must not inherit the HQ desktop floor. */
-  body.learner-portal #root {
+  body.learner-portal #root,
+  body.public-portal #root {
     min-width: 0;
   }
 }
@@ -199,9 +200,7 @@
   /* ── Sidebar / Topbar surfaces ────────────────────────────────── */
   /* Cursor-like application rail in the selected pharmacy-teal direction. */
   .sidebar-bg {
-    background:
-      linear-gradient(180deg, rgba(16, 94, 96, 0.2), transparent 28%),
-      #073f46;
+    background: linear-gradient(180deg, rgba(16, 94, 96, 0.2), transparent 28%), #073f46;
     box-shadow: inset -1px 0 0 rgba(171, 232, 226, 0.09);
   }
   .cursor-sidebar {
@@ -493,7 +492,10 @@ body.learner-portal {
   color: #829a9e;
   font-size: 10px;
   font-weight: 800;
-  transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
 }
 
 .learner-nav-item:hover {
@@ -548,7 +550,10 @@ body.learner-portal {
 .learner-course-card {
   position: relative;
   overflow: hidden;
-  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 
 .learner-course-card::before {
@@ -606,7 +611,11 @@ body.learner-portal {
   font-size: 12px;
   font-weight: 800;
   line-height: 1.35;
-  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease, transform 140ms ease;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
 }
 
 .lesson-section-tab:hover {
@@ -671,7 +680,9 @@ body.learner-portal {
 }
 
 .learner-portal .shadow-card {
-  box-shadow: 0 1px 2px rgba(7, 84, 81, 0.025), 0 0 0 1px rgba(16, 43, 51, 0.08);
+  box-shadow:
+    0 1px 2px rgba(7, 84, 81, 0.025),
+    0 0 0 1px rgba(16, 43, 51, 0.08);
 }
 
 .learner-portal button:focus-visible,
@@ -715,7 +726,9 @@ body.learner-portal {
     background:
       radial-gradient(circle at 20% 0%, rgba(72, 200, 188, 0.16), transparent 15rem),
       linear-gradient(180deg, #073f46 0%, #06373d 100%);
-    box-shadow: inset -1px 0 0 rgba(171, 232, 226, 0.1), 0 22px 52px rgba(6, 63, 70, 0.17);
+    box-shadow:
+      inset -1px 0 0 rgba(171, 232, 226, 0.1),
+      0 22px 52px rgba(6, 63, 70, 0.17);
     backdrop-filter: none;
   }
 

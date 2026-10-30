@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import io.jsonwebtoken.Jwts
 import kz.epharm.auth.domain.AdminRole
 import kz.epharm.auth.entity.AdminUserEntity
+import kz.epharm.auth.repository.AdminUserRepository
 import kz.epharm.auth.service.JwtService
 import kz.epharm.catalog.entity.ProductEntity
 import kz.epharm.catalog.repository.ProductRepository
@@ -72,6 +73,7 @@ class PharmacistSelfIntegrationTest {
 
     @Autowired private lateinit var mvc: MockMvc
     @Autowired private lateinit var jwt: JwtService
+    @Autowired private lateinit var admins: AdminUserRepository
     @Autowired private lateinit var pharmacists: PharmacistRepository
     @Autowired private lateinit var rules: RuleRepository
     @Autowired private lateinit var products: ProductRepository
@@ -116,7 +118,10 @@ class PharmacistSelfIntegrationTest {
         val foreign = JwtService("foreign-provider-key-longer-than-thirty-two-bytes", 15)
             .issuePharmacistToken(account.id, account.name, account.phone)
         val adminTokens = listOf(AdminRole.BRAND_MANAGER, AdminRole.TRAINING_MANAGER).map { role ->
-            jwt.issueAccessToken(AdminUserEntity().also { it.role = role })
+            jwt.issueAccessToken(admins.saveAndFlush(AdminUserEntity(
+                email = "self-api-${role.name.lowercase()}@example.test", name = "Self API role test",
+                passwordHash = "test-only-not-used",
+            ).also { it.role = role }))
         }
         val key = SecretKeySpec(TEST_SECRET.toByteArray(), "HmacSHA256")
         val unsupported = Jwts.builder().subject(account.id).compact()

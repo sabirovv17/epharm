@@ -1,0 +1,122 @@
+{
+  "authorized_change": "User approved only atomic backup pointer repair with original bytes preserved; no deployment",
+  "cause": "root-relative pointer rejected by unchanged strict retention parser",
+  "before": {
+    "at_utc": "2026-10-29T06:22:11.832030+00:00",
+    "backup_unit_exec_path": "{ path=/usr/bin/env",
+    "pointer_sha256": "d0ed5ab01313752200f11d295093aa06975db60ad196be69b3e632e45cf1afff",
+    "target": "/home/adm-quasar/epharm/releases/frontend-only/v0.1.52-20261022T112243Z-l9VApeE8",
+    "manifest_sha256": "35ddee3d20ecd2e572969167d9bc4bd8f0d8302564b61a93b692138d8619410d",
+    "manifest": {
+      "backup_dir": "/home/adm-quasar/epharm-backend-only-backups/pre-backend-only-20261022T112130Z-vqd5TF8d",
+      "candidate_frontend_tag": "v0.1.52",
+      "candidate_frontend_commit": "ce418fd689eed7f776c212e523736bbb4efa9585",
+      "candidate_frontend_id": "sha256:a5f596c3b2a987df0aef53b5c6ea41fbda2fd0ccb06460a66629ada25d2c7824",
+      "backend_tag": "v0.1.47",
+      "backend_commit": "aa37b1e720923334cef8265f66a507d549b32780",
+      "backend_id": "sha256:e3ca027029cba7906972462754b77a51579853a221620e04f500a0470693a7b8"
+    },
+    "rollback_bundle_checks": [
+      {
+        "name": "epharm.dump",
+        "bytes": 260822989,
+        "checksum_ok": true
+      },
+      {
+        "name": "env.prod",
+        "bytes": 5474,
+        "checksum_ok": true
+      },
+      {
+        "name": "release.env",
+        "bytes": 259,
+        "checksum_ok": true
+      },
+      {
+        "name": "docker-compose.prod.yml",
+        "bytes": 17159,
+        "checksum_ok": true
+      },
+      {
+        "name": "Caddyfile",
+        "bytes": 5755,
+        "checksum_ok": true
+      },
+      {
+        "name": "backend-v0.1.47.tar.gz",
+        "bytes": 202080086,
+        "checksum_ok": true
+      },
+      {
+        "name": "frontend-v0.1.49.tar.gz",
+        "bytes": 29614042,
+        "checksum_ok": true
+      }
+    ],
+    "backup_config": {
+      "EPHARM_DEPLOY_DIR": "/opt/epharm-backup-ops/00acf498e9a53e8c32c79f9d1c7d951814e243c4",
+      "BACKUP_ROOT": "/home/adm-quasar/epharm/backups",
+      "BACKUP_RELEASE_ROOT": "/home/adm-quasar/epharm-backend-only-backups",
+      "BACKUP_RELEASE_DEPLOY_DIRS": "/home/adm-quasar/epharm:/home/adm-quasar/epharm-current",
+      "BACKUP_REQUIRE_OFFSITE": "false",
+      "BACKUP_RETENTION_DRY_RUN": "unset",
+      "BACKUP_KEEP_COUNT": "7",
+      "BACKUP_RELEASE_KEEP_COUNT": "3"
+    }
+  },
+  "apply": {
+    "mode": "apply",
+    "status": "repaired",
+    "pointer": "/home/adm-quasar/epharm/releases/frontend-only/active-transaction",
+    "transaction": "/home/adm-quasar/epharm/releases/frontend-only/v0.1.52-20261022T112243Z-l9VApeE8",
+    "expected_pointer_sha256": "d0ed5ab01313752200f11d295093aa06975db60ad196be69b3e632e45cf1afff",
+    "canonical_pointer_sha256": "b43a1b5ae4878b5579d11e8d5976dd4261d64a0500d6d5fe6708ee69ecfd1b6b",
+    "manifest_sha256": "35ddee3d20ecd2e572969167d9bc4bd8f0d8302564b61a93b692138d8619410d",
+    "image_ids": {
+      "frontend": "sha256:a5f596c3b2a987df0aef53b5c6ea41fbda2fd0ccb06460a66629ada25d2c7824",
+      "backend": "sha256:e3ca027029cba7906972462754b77a51579853a221620e04f500a0470693a7b8"
+    },
+    "protected_bundles": [
+      "/home/adm-quasar/epharm-backend-only-backups/pre-backend-only-20261022T112130Z-vqd5TF8d"
+    ],
+    "original_bytes_audit": "/home/adm-quasar/epharm/releases/frontend-only/pointer-repair-audit/d0ed5ab01313752200f11d295093aa06975db60ad196be69b3e632e45cf1afff.original",
+    "deployment_performed": false,
+    "retention_performed": false
+  },
+  "verification": {
+    "at_utc": "2026-10-29T06:38:15.184810+00:00",
+    "pointer_canonical": true,
+    "original_preserved": true,
+    "strict_deployed_retention_preflight": "passed",
+    "protected_bundles": 3,
+    "would_remove_count": 1,
+    "deleted_count": 0,
+    "deploy_roots": ["/home/adm-quasar/epharm", "/home/adm-quasar/epharm-84112f11be07"],
+    "images": [
+      {
+        "name": "/epharm-backend",
+        "image": "epharm/backend:v0.1.47",
+        "id": "sha256:e3ca027029cba7906972462754b77a51579853a221620e04f500a0470693a7b8",
+        "started_at": "2026-10-29T03:25:41.946367047Z"
+      },
+      {
+        "name": "/epharm-frontend",
+        "image": "epharm/frontend:v0.1.52",
+        "id": "sha256:a5f596c3b2a987df0aef53b5c6ea41fbda2fd0ccb06460a66629ada25d2c7824",
+        "started_at": "2026-10-22T11:22:50.12656748Z"
+      }
+    ]
+  },
+  "offsite": {
+    "effective_override_files": ["/etc/epharm/offsite.env", "/etc/epharm/release-ops.env"],
+    "required": true,
+    "snapshot_time": "2026-10-29T03:31:11.434403424Z",
+    "snapshot_short_id": "0808500e",
+    "transport": "sftp configured by explicit restic -o sftp.command; no lock/cache write",
+    "credentials_exported": false
+  },
+  "limits": [
+    "Backup unit not restarted; last systemd result remains historical failure until next normal run.",
+    "No retention, archive deletion, application deploy, container restart, database write or POSM configuration change executed."
+  ]
+}

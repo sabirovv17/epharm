@@ -1,0 +1,145 @@
+name: Prepare exact-main release images
+
+"on":
+  workflow_dispatch:
+    inputs:
+      exact_commit:
+        description: Full current main commit with successful push CI
+        required: true
+        type: string
+      release_id:
+        description: Existing-or-new version identity; no tag is published
+        default: v0.2.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  checks: read
+
+concurrency:
+  group: release-images-${{ inputs.release_id }}
+  cancel-in-progress: false
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      COMMIT: ${{ inputs.exact_commit }}
+      RELEASE_ID: ${{ inputs.release_id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate manual main identity
+        id: identity
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == sabirovv17/epharm && "$GITHUB_REF" == refs/heads/main ]] || exit 1
+          [[ "$COMMIT" =~ ^[a-f0-9]{40}$ && "$RELEASE_ID" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ && "${#RELEASE_ID}" -le 128 ]] || exit 1
+          [[ "$COMMIT" == "$GITHUB_SHA" && "$(git rev-parse HEAD)" == "$COMMIT" ]] || exit 1
+          [[ "$(docker info --format '{{.OSType}}/{{.Architecture}}')" == linux/x86_64 ]] || exit 1
+      - name: Require exact-main push CI and optional tag agreement
+        id: source_gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/release-source-gate.sh" <<'SH'
+          set -euo pipefail
+          python3 tools/release/verify-release-source.py "$COMMIT"
+          gh api "repos/sabirovv17/epharm/git/matching-refs/tags/$RELEASE_ID" > "$RUNNER_TEMP/release-tag.json"
+          python3 - <<'PY'
+          import json, os, subprocess
+          rows=json.load(open(os.environ['RUNNER_TEMP']+'/release-tag.json'))
+          assert isinstance(rows,list)
+          rows=[r for r in rows if r['ref']=='refs/tags/'+os.environ['RELEASE_ID']]
+          assert len(rows)<=1
+          if rows:
+              ref='refs/tags/'+os.environ['RELEASE_ID']
+              assert subprocess.check_output(['git','rev-parse',ref],text=True).strip()==rows[0]['object']['sha']
+              assert subprocess.check_output(['git','rev-parse',ref+'^{commit}'],text=True).strip()==os.environ['COMMIT']
+          PY
+          SH
+          bash "$RUNNER_TEMP/release-source-gate.sh"
+          python3 -B -m unittest discover -s tools/release/tests -p test_release_images_workflow.py
+      - name: Archive immutable source into an empty directory
+        id: archive
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -m 700 "$RUNNER_TEMP/release-images"
+          git archive --format=tar.gz "$COMMIT" Caddyfile docker-compose.prod.yml tools admin-panel/backend admin-panel/frontend storefront/deploy/inkar-server > "$RUNNER_TEMP/release-images/source.tar.gz"
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, tarfile
+          root=pathlib.Path(os.environ['RUNNER_TEMP']); source=root/'release-source'; source.mkdir(mode=0o700)
+          files={}
+          with tarfile.open(root/'release-images/source.tar.gz') as archive:
+              for item in archive.getmembers():
+                  name=pathlib.PurePosixPath(item.name)
+                  assert not name.is_absolute() and '..' not in name.parts and (item.isdir() or item.isfile())
+                  if item.isfile():
+                      assert not name.name.startswith('.env') and item.name not in files
+                      files[item.name]=hashlib.sha256(archive.extractfile(item).read()).hexdigest()
+              archive.extractall(source,filter='data')
+          (root/'release-images/source-files.json').write_text(json.dumps(files,sort_keys=True)+'\n')
+          PY
+      - name: Build and verify both production images sequentially
+        id: build
+        run: |
+          set -euo pipefail
+          umask 077
+          source_root="$RUNNER_TEMP/release-source"; output="$RUNNER_TEMP/release-images"
+          docker build --pull --platform linux/amd64 --build-arg "RELEASE_ID=$RELEASE_ID" --build-arg "RELEASE_COMMIT=$COMMIT" --tag "epharm/backend:$RELEASE_ID" "$source_root/admin-panel/backend"
+          docker build --pull --platform linux/amd64 --build-arg "VITE_RELEASE_ID=$RELEASE_ID" --build-arg "VITE_RELEASE_COMMIT=$COMMIT" --build-arg VITE_API_BASE_URL= --build-arg VITE_SENTRY_DSN= --tag "epharm/frontend:$RELEASE_ID" "$source_root/admin-panel/frontend"
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, subprocess
+          root=pathlib.Path(os.environ['RUNNER_TEMP']); source=root/'release-source'; output=root/'release-images'
+          files=json.loads((output/'source-files.json').read_text())
+          assert {p.relative_to(source).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in source.rglob('*') if p.is_file()}==files
+          engine=json.loads(subprocess.check_output(['docker','info','--format','{"serverVersion":"{{.ServerVersion}}","driver":"{{.Driver}}","driverStatus":{{json .DriverStatus}}}']))
+          images={}
+          for component in ('backend','frontend'):
+              tag='epharm/'+component+':'+os.environ['RELEASE_ID']; image=json.loads(subprocess.check_output(['docker','image','inspect',tag]))[0]; labels=image['Config']['Labels']
+              assert image['Os']=='linux' and image['Architecture']=='amd64'
+              assert labels['org.opencontainers.image.version']==os.environ['RELEASE_ID'] and labels['org.opencontainers.image.revision']==os.environ['COMMIT']
+              images[component]={'tag':tag,'imageId':image['Id'],'rootfs':image['RootFS']['Layers']}
+          (output/'provenance.json').write_text(json.dumps({'commit':os.environ['COMMIT'],'releaseId':os.environ['RELEASE_ID'],'runId':os.environ['GITHUB_RUN_ID'],'runAttempt':os.environ['GITHUB_RUN_ATTEMPT'],'dockerEngine':engine,'images':images},sort_keys=True)+'\n')
+          PY
+          backend_id="$(docker image inspect --format '{{.Id}}' "epharm/backend:$RELEASE_ID")"
+          python3 "$source_root/tools/release/verify-merch-artifact.py" --image "$backend_id"
+          python3 "$source_root/tools/release/verify-admin-artifact.py" --image "$(docker image inspect --format '{{.Id}}' "epharm/frontend:$RELEASE_ID")"
+          container="$(docker create --network none "$backend_id")"
+          [[ "$container" =~ ^[a-f0-9]{64}$ ]] || exit 1
+          trap 'docker rm -v "$container" >/dev/null' EXIT
+          docker cp "$container:/app/app.jar" "$output/app.jar"
+          python3 "$source_root/tools/release/verify-financial-transition.py" --jar "$output/app.jar" --schema-protected --access-protected
+          config_ids=()
+          for component in backend frontend; do
+            docker save "epharm/$component:$RELEASE_ID" | gzip -1 > "$output/$component.tar.gz"
+            config_ids+=("$(python3 "$source_root/tools/release/verify-image-archive.py" "$output/$component.tar.gz" "epharm/$component:$RELEASE_ID")")
+          done
+          python3 - "${config_ids[@]}" <<'PY'
+          import json, os, pathlib, re, sys
+          assert len(sys.argv)==3 and all(re.fullmatch('sha256:[a-f0-9]{64}',value) for value in sys.argv[1:])
+          path=pathlib.Path(os.environ['RUNNER_TEMP'])/'release-images/provenance.json'; value=json.loads(path.read_text())
+          value.update(backendConfigSha256=sys.argv[1][7:],frontendConfigSha256=sys.argv[2][7:])
+          path.write_text(json.dumps(value,sort_keys=True)+'\n')
+          PY
+          (cd "$output"; sha256sum app.jar backend.tar.gz frontend.tar.gz source.tar.gz source-files.json provenance.json > SHA256SUMS)
+      - name: Recheck current-main CI and tag immediately before upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/release-source-gate.sh"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: epharm-images-${{ inputs.release_id }}-${{ inputs.exact_commit }}
+          path: ${{ runner.temp }}/release-images/
+          if-no-files-found: error
+          compression-level: 0
+          overwrite: false
+          retention-days: 7

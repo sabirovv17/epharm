@@ -16,7 +16,7 @@ namespace CustomerDisplay.Services
     /// This service is strictly optional: every failure is swallowed and rate-limited in logs,
     /// because POSM must never block the cash desk when Firebird/path/credentials are unavailable.
     /// </summary>
-    public sealed class StandardNDbLookup : IDisposable
+    public sealed partial class StandardNDbLookup : IDisposable
     {
         private static readonly string[] DefaultDbPaths =
         {
@@ -145,108 +145,8 @@ namespace CustomerDisplay.Services
         /// must not clear the last known cart. True + null requires one exact local session whose
         /// DOCS query succeeded and confirmed that no receipt is open.
         /// </summary>
-        public bool TryGetCurrentReceipt(out StandardNReceiptSnapshot? receipt)
-        {
-            receipt = null;
-            if (!_cfg.StandardNDbEnabled) return false;
-
-            try
-            {
-                using var conn = OpenConnection();
-                var cashSession = QueryLocalCashSession(conn);
-                if (cashSession == null) return false;
-
-                using var docCmd = conn.CreateCommand();
-                docCmd.CommandTimeout = TimeoutSec();
-                docCmd.CommandText = @"
-                    select first 1 *
-                    from DOCS
-                    where STATUS = 0
-                      and DOC_TYPE = 3
-                      and AUDIT_ID = @sessionId
-                    order by ID desc";
-                docCmd.Parameters.AddWithValue("@sessionId", cashSession.SessionId);
-
-                long documentId;
-                DateTimeOffset? openedAt = null;
-                using (var reader = docCmd.ExecuteReader())
-                {
-                    if (!reader.Read()) return cashSession.CanConfirmEmptyReceipt;
-                    documentId = ReadInt64(reader, "ID") ?? 0L;
-                    if (documentId <= 0) return false;
-                    openedAt = ToDateTimeOffset(ReadValue(reader, "INSERTDT"));
-                }
-
-                using var linesCmd = conn.CreateCommand();
-                linesCmd.CommandTimeout = TimeoutSec();
-                linesCmd.CommandText = @"
-                    select *
-                    from DOC_DETAIL_ACTIVE
-                    where DOC_ID = @documentId
-                    order by ID";
-                linesCmd.Parameters.AddWithValue("@documentId", documentId);
-
-                var rawLines = new List<StandardNReceiptLine>();
-                using (var reader = linesCmd.ExecuteReader())
-                {
-                    while (reader.Read())
-                    {
-                        var partId = ReadInt32(reader, "PART_ID");
-                        var qty = Math.Abs(ReadDecimal(reader, "QUANT"));
-                        if (partId <= 0 || qty <= 0m) continue;
-
-                        var price = Math.Abs(ReadDecimal(reader, "PRICE"));
-                        var lineTotal = Math.Abs(ReadDecimal(reader, "SUMMA"));
-                        var baseTotal = price * qty;
-                        var discountPercent = baseTotal > 0m && lineTotal >= 0m && lineTotal < baseTotal
-                            ? Math.Round((baseTotal - lineTotal) / baseTotal * 100m, 2, MidpointRounding.AwayFromZero)
-                            : 0m;
-
-                        rawLines.Add(new StandardNReceiptLine(
-                            ReadInt64(reader, "ID") ?? partId,
-                            partId,
-                            SelectProductBarcode(
-                                ReadString(reader, "BCODE_IZG"),
-                                ReadString(reader, "ORIG_BCODE_IZG"),
-                                ReadString(reader, "BARCODE1"),
-                                ReadString(reader, "BARCODE")),
-                            ReadString(reader, "SNAME") ?? "",
-                            price,
-                            qty,
-                            discountPercent));
-                    }
-                }
-
-                // ReceiptItem is keyed by PARTS.ID. A cashier build may expose the same batch in
-                // more than one active detail row; aggregate it before handing state to the UI.
-                var lines = rawLines
-                    .GroupBy(line => line.PartId)
-                    .Select(group =>
-                    {
-                        var newest = group.OrderByDescending(line => line.LineId).First();
-                        return newest with { Qty = group.Sum(line => line.Qty) };
-                    })
-                    .OrderBy(line => line.LineId)
-                    .ToList();
-
-                receipt = new StandardNReceiptSnapshot(
-                    documentId,
-                    cashSession.SessionId,
-                    cashSession.WorkstationName,
-                    openedAt,
-                    new StandardNActivePharmacist(
-                        cashSession.UserId,
-                        cashSession.UserName,
-                        cashSession.SessionId),
-                    lines);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                LogErrorRateLimited($"БД Стандарт-Н недоступна (активный чек): {ex.GetBaseException().Message}");
-                return false;
-            }
-        }
+        public bool TryGetCurrentReceipt(out StandardNReceiptSnapshot? receipt) =>
+            TryReadCurrentReceiptGroup(out receipt);
 
         /// <summary>
         /// Read-only report for a pharmacy workstation. It intentionally prints table/column
@@ -1291,19 +1191,8 @@ namespace CustomerDisplay.Services
                 source);
         }
 
-        private static string? SelectProductBarcode(params string?[] values)
-        {
-            // Some Standard-N schemas keep an internal code in BARCODE and the retail EAN in
-            // BARCODE1/ORIG_BCODE_IZG. Prefer a valid GTIN-like value across all known columns.
-            foreach (var raw in values)
-            {
-                var value = raw?.Trim();
-                if (value == null || value.Length is not (8 or 12 or 13 or 14)) continue;
-                if (value.All(ch => ch is >= '0' and <= '9')) return value;
-            }
-
-            return FirstNotEmpty(values);
-        }
+        private static string? SelectProductBarcode(params string?[] values) =>
+            StandardNReceiptProjection.ProductBarcode(values);
 
         private FbConnection OpenConnection()
         {

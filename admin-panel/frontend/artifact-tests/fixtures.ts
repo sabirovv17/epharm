@@ -57,6 +57,7 @@ export const test = base.extend<{ artifactApi: ArtifactApi }>({
       // All API calls, including expected writes, are fulfilled in memory.
       // An unexpected API route or external asset never reaches its server.
       if (path.startsWith('/api/')) {
+        if (method === 'GET' && path === '/api/admin/access/me') return json(route, { managed: false, version: null, grants: [], roleCeiling: 'HQ_HEAD', canViewAccounts: false, canManageAccounts: false, canViewMerchInventory: false })
         if (method === 'POST' && path === '/api/admin/auth/login') {
           return json(route, {
             user: { id: 'artifact-user', email: 'artifact@example.invalid', name: 'Проверка артефакта', role: 'BRAND_MANAGER', company: 'Артефакт' },
@@ -74,6 +75,53 @@ export const test = base.extend<{ artifactApi: ArtifactApi }>({
           }
         }
         if (method === 'GET' && path === '/api/admin/promo/artifact-draft') return json(route, campaign(state.drafts.at(-1)))
+        if (method === 'GET' && path === '/api/admin/promo/artifact-draft/changes') {
+          const current = campaign(state.drafts.at(-1))
+          const first = state.drafts.at(-1)?.initialRecommendation
+          return json(route, {
+            promoId: current.id,
+            revision: 0,
+            hasPendingChanges: false,
+            conflict: false,
+            canSave: true,
+            canApply: false,
+            readinessIssues: [],
+            updatedAt: null,
+            updatedBy: null,
+            bundle: {
+              campaign: {
+                title: current.title,
+                brand: current.brand,
+                period: current.period,
+                budget: current.budget,
+                kpi: current.kpi,
+                cover: current.cover,
+                medusaProductId: current.medusaProductId,
+                productName: current.productName,
+                productImage: current.productImage,
+                barcode: current.barcode,
+                ipartId: current.ipartId,
+                overrideImage: null,
+                overrideDescription: null,
+                overrideCharacteristics: null,
+                pharmacistBonus: 0,
+                dateStart: null,
+                dateEnd: null,
+              },
+              rules: {
+                replacements: first?.type === 'substitution' ? [first.trigger] : [],
+                crossSells: first?.type === 'crosssell' ? [first.trigger] : [],
+                script: '',
+                advantages: [],
+                partnerLabel: null,
+                comparison: [],
+                goalLabel: null,
+                goalTarget: null,
+                goalBonus: null,
+              },
+            },
+          })
+        }
         if (method === 'GET' && path === '/api/admin/promo/artifact-draft/rules') {
           return json(route, { promoId: 'artifact-draft', ruleCount: 0, activeCount: 0,
             config: { replacements: [], crossSells: [], script: '', advantages: [], partnerLabel: null,

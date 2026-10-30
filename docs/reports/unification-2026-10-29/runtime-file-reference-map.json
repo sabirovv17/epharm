@@ -1,0 +1,1463 @@
+{
+  "schema_version": 1,
+  "repo": "sabirovv17/epharm",
+  "revision": "b946592549db9eab8d108c6c5bdbd7022915a655",
+  "schema_metadata": "epharm-schema.json",
+  "limitations": [
+    "Source and column metadata only; no production rows, credentials, backups or external links opened.",
+    "POSM local files cannot be verified by a PostgreSQL+MinIO server restore.",
+    "Historical source names Medusa do not authorize requests to its obsolete origin."
+  ],
+  "classification_rules": [
+    "Never fetch any URL during offline reference checking. An external URL is external_unchecked, not missing_local.",
+    "Use exact approved origin/path-to-storage mappings supplied by root; no hostname guessing from table names.",
+    "Managed /s3/<bucket>/<key> or s3://<bucket>/<key> must match an approved bucket manifest, URL-decode the path consistently, reject traversal/unsupported encodings.",
+    "Same-origin /downloads/* belongs to server /srv/epharm-downloads, not to MinIO.",
+    "Generated certificate/report/export/proxy routes and QR payloads do not imply stored files.",
+    "Null/empty optional values are absent references, not missing objects. A malformed nonempty value is invalid_reference and must not be silently ignored.",
+    "Extract only listed typed JSON paths. Preserve opaque JSON/text, but do not regex every text string as a physical path.",
+    "Certificate PDF branding reads only managed UUID PNG/JPEG keys, limited to 5 MiB. A preserved external branding URL still may not render; classify this separately."
+  ],
+  "references": [
+    {
+      "table": "slides",
+      "column": "media_url",
+      "json_path": null,
+      "kind": "object_url",
+      "expected_storage": {
+        "type": "managed_object_or_external_link",
+        "managed": {
+          "type": "s3_compatible_object",
+          "bucket_config": "app.s3.bucket-receipts",
+          "public_origin_config": "app.s3.public-url",
+          "key_pattern_for_current_uploads": "screens/<uuid>.<extension>",
+          "local_checker": "Resolve only an explicit approved managed URL prefix/bucket to a manifest key; compare key and nonzero size. No HTTP request."
+        },
+        "external": "Preserve URL verbatim and report external_unchecked; do not demand it in local MinIO backup or fetch it.",
+        "relative": "Resolve only using declared canonical public origin/path mappings; never filesystem-concatenate an unchecked URL."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/screens/entity/ScreenEntities.kt",
+          "line": 100,
+          "symbol_or_text": "var mediaUrl:"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/screens/service/ScreenService.kt",
+          "line": 194,
+          "symbol_or_text": "mediaStorage.upload(file.bytes"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/shared/storage/S3MediaStorage.kt",
+          "line": 54,
+          "symbol_or_text": "val key = \"screens/"
+        }
+      ],
+      "source_type": "database",
+      "note": "All profiles/slots inherit actual SlideEntity rows. Preserve active and historical rows; do not infer that only active playlist assets matter. Legacy s3://bucket/key can be resolved as an object_key only with an explicit bucket manifest mapping."
+    },
+    {
+      "table": "banners",
+      "column": "image_url",
+      "json_path": null,
+      "kind": "object_url",
+      "expected_storage": {
+        "type": "managed_object_or_external_link",
+        "managed": {
+          "type": "s3_compatible_object",
+          "bucket_config": "app.s3.bucket-receipts",
+          "public_origin_config": "app.s3.public-url",
+          "key_pattern_for_current_uploads": "screens/<uuid>.<extension>",
+          "local_checker": "Resolve only an explicit approved managed URL prefix/bucket to a manifest key; compare key and nonzero size. No HTTP request."
+        },
+        "external": "Preserve URL verbatim and report external_unchecked; do not demand it in local MinIO backup or fetch it.",
+        "relative": "Resolve only using declared canonical public origin/path mappings; never filesystem-concatenate an unchecked URL."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/banners/entity/BannerEntity.kt",
+          "line": 36,
+          "symbol_or_text": "var imageUrl:"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/banners/service/BannerService.kt",
+          "line": 93,
+          "symbol_or_text": "mediaStorage.upload(file.bytes"
+        }
+      ],
+      "source_type": "database"
+    },
+    {
+      "table": "receipts",
+      "column": "photo_url",
+      "json_path": null,
+      "kind": "object_url",
+      "expected_storage": {
+        "type": "s3_compatible_object",
+        "bucket_config": "app.s3.bucket-receipts",
+        "public_origin_config": "app.s3.public-url",
+        "key_pattern_for_current_uploads": "screens/<uuid>.<extension>",
+        "local_checker": "Resolve only an explicit approved managed URL prefix/bucket to a manifest key; compare key and nonzero size. No HTTP request."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/receipts/entity/ReceiptEntities.kt",
+          "line": 108,
+          "symbol_or_text": "var photoUrl:"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/receipts/service/ReconcileService.kt",
+          "line": 162,
+          "symbol_or_text": "mediaStorage.upload(photoBytes"
+        }
+      ],
+      "source_type": "database",
+      "note": "Uploaded moderation proof, including mobile/admin submissions. It is distinct from a local authoritative fiscal POSM PDF/PNG. Null is allowed; empty is not a missing physical object."
+    },
+    {
+      "table": "course_lessons",
+      "column": "video_url",
+      "json_path": null,
+      "kind": "object_url",
+      "expected_storage": {
+        "type": "managed_object_or_external_link",
+        "managed": {
+          "type": "s3_compatible_object",
+          "bucket_config": "app.s3.bucket-receipts",
+          "public_origin_config": "app.s3.public-url",
+          "key_pattern_for_current_uploads": "screens/<uuid>.<extension>",
+          "local_checker": "Resolve only an explicit approved managed URL prefix/bucket to a manifest key; compare key and nonzero size. No HTTP request."
+        },
+        "external": "Preserve URL verbatim and report external_unchecked; do not demand it in local MinIO backup or fetch it.",
+        "relative": "Resolve only using declared canonical public origin/path mappings; never filesystem-concatenate an unchecked URL."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/lms/entity/CourseLessonEntity.kt",
+          "line": 76,
+          "symbol_or_text": "var videoUrl:"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/lms/service/CourseService.kt",
+          "line": 360,
+          "symbol_or_text": "val newUrl = mediaStorage.upload"
+        }
+      ],
+      "source_type": "database",
+      "note": "Uploaded lesson MP4/WebM. Legacy/manual absolute URLs may be external; classify by approved origin rather than extension."
+    },
+    {
+      "table": "course_lessons",
+      "column": "external_url",
+      "json_path": null,
+      "kind": "external",
+      "expected_storage": {
+        "type": "managed_object_or_external_link",
+        "managed": {
+          "type": "s3_compatible_object",
+          "bucket_config": "app.s3.bucket-receipts",
+          "public_origin_config": "app.s3.public-url",
+          "key_pattern_for_current_uploads": "screens/<uuid>.<extension>",
+          "local_checker": "Resolve only an explicit approved managed URL prefix/bucket to a manifest key; compare key and nonzero size. No HTTP request."
+        },
+        "external": "Preserve URL verbatim and report external_unchecked; do not demand it in local MinIO backup or fetch it.",
+        "relative": "Resolve only using declared canonical public origin/path mappings; never filesystem-concatenate an unchecked URL."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/lms/entity/CourseLessonEntity.kt",
+          "line": 79,
+          "symbol_or_text": "var externalUrl:"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/lms/service/CourseService.kt",
+          "line": 149,
+          "symbol_or_text": "externalUrl = req.externalUrl"
+        }
+      ],
+      "source_type": "database",
+      "note": "PDF/image/audio/presentation/link/interactive/live URL can identify a managed object OR an external provider. Preserve both; live meeting/web links are not physical MinIO objects."
+    },
+    {
+      "table": "course_lesson_attachments",
+      "column": "media_url",
+      "json_path": null,
+      "kind": "object_url",
+      "expected_storage": {
+        "type": "s3_compatible_object",
+        "bucket_config": "app.s3.bucket-receipts",
+        "public_origin_config": "app.s3.public-url",
+        "key_pattern_for_current_uploads": "screens/<uuid>.<extension>",
+        "local_checker": "Resolve only an explicit approved managed URL prefix/bucket to a manifest key; compare key and nonzero size. No HTTP request."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/lms/entity/CourseLessonAttachmentEntity.kt",
+          "line": 30,
+          "symbol_or_text": "var mediaUrl:"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/lms/service/CourseService.kt",
+          "line": 391,
+          "symbol_or_text": "val url = mediaStorage.upload(file.bytes, contentType, fileName)"
+        }
+      ],
+      "source_type": "database",
+      "note": "Image/audio/document/Office/PDF attachment; file_name is a display/original filename, not its storage key. The exact returned media_url is the locator."
+    },
+    {
+      "table": "training_programs",
+      "column": "cover_url",
+      "json_path": null,
+      "kind": "object_url",
+      "expected_storage": {
+        "type": "managed_object_or_external_link",
+        "managed": {
+          "type": "s3_compatible_object",
+          "bucket_config": "app.s3.bucket-receipts",
+          "public_origin_config": "app.s3.public-url",
+          "key_pattern_for_current_uploads": "screens/<uuid>.<extension>",
+          "local_checker": "Resolve only an explicit approved managed URL prefix/bucket to a manifest key; compare key and nonzero size. No HTTP request."
+        },
+        "external": "Preserve URL verbatim and report external_unchecked; do not demand it in local MinIO backup or fetch it.",
+        "relative": "Resolve only using declared canonical public origin/path mappings; never filesystem-concatenate an unchecked URL."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/entity/TrainingEntities.kt",
+          "line": 35,
+          "symbol_or_text": "var coverUrl:"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/service/TrainingProgramAssetService.kt",
+          "line": 52,
+          "symbol_or_text": "return mediaStorage.upload"
+        }
+      ],
+      "source_type": "database",
+      "note": "Current mutable program branding. Certificate PDF currently reads program assets; preserve these even when no pdf object exists. External assets are not fetched by the certificate renderer: MediaStorage.read accepts managed origin/UUID PNG/JPEG keys only."
+    },
+    {
+      "table": "training_programs",
+      "column": "certificate_epharm_logo_url",
+      "json_path": null,
+      "kind": "object_url",
+      "expected_storage": {
+        "type": "managed_object_or_external_link",
+        "managed": {
+          "type": "s3_compatible_object",
+          "bucket_config": "app.s3.bucket-receipts",
+          "public_origin_config": "app.s3.public-url",
+          "key_pattern_for_current_uploads": "screens/<uuid>.<extension>",
+          "local_checker": "Resolve only an explicit approved managed URL prefix/bucket to a manifest key; compare key and nonzero size. No HTTP request."
+        },
+        "external": "Preserve URL verbatim and report external_unchecked; do not demand it in local MinIO backup or fetch it.",
+        "relative": "Resolve only using declared canonical public origin/path mappings; never filesystem-concatenate an unchecked URL."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/entity/TrainingEntities.kt",
+          "line": 37,
+          "symbol_or_text": "var certificateEpharmLogoUrl:"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/service/TrainingProgramAssetService.kt",
+          "line": 52,
+          "symbol_or_text": "return mediaStorage.upload"
+        }
+      ],
+      "source_type": "database",
+      "note": "Current mutable program branding. Certificate PDF currently reads program assets; preserve these even when no pdf object exists. External assets are not fetched by the certificate renderer: MediaStorage.read accepts managed origin/UUID PNG/JPEG keys only."
+    },
+    {
+      "table": "training_programs",
+      "column": "certificate_partner_logo_url",
+      "json_path": null,
+      "kind": "object_url",
+      "expected_storage": {
+        "type": "managed_object_or_external_link",
+        "managed": {
+          "type": "s3_compatible_object",
+          "bucket_config": "app.s3.bucket-receipts",
+          "public_origin_config": "app.s3.public-url",
+          "key_pattern_for_current_uploads": "screens/<uuid>.<extension>",
+          "local_checker": "Resolve only an explicit approved managed URL prefix/bucket to a manifest key; compare key and nonzero size. No HTTP request."
+        },
+        "external": "Preserve URL verbatim and report external_unchecked; do not demand it in local MinIO backup or fetch it.",
+        "relative": "Resolve only using declared canonical public origin/path mappings; never filesystem-concatenate an unchecked URL."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/entity/TrainingEntities.kt",
+          "line": 39,
+          "symbol_or_text": "var certificatePartnerLogoUrl:"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/service/TrainingProgramAssetService.kt",
+          "line": 52,
+          "symbol_or_text": "return mediaStorage.upload"
+        }
+      ],
+      "source_type": "database",
+      "note": "Current mutable program branding. Certificate PDF currently reads program assets; preserve these even when no pdf object exists. External assets are not fetched by the certificate renderer: MediaStorage.read accepts managed origin/UUID PNG/JPEG keys only."
+    },
+    {
+      "table": "training_program_stages",
+      "column": "content_url",
+      "json_path": null,
+      "kind": "external",
+      "expected_storage": {
+        "type": "managed_object_or_external_link",
+        "managed": {
+          "type": "s3_compatible_object",
+          "bucket_config": "app.s3.bucket-receipts",
+          "public_origin_config": "app.s3.public-url",
+          "key_pattern_for_current_uploads": "screens/<uuid>.<extension>",
+          "local_checker": "Resolve only an explicit approved managed URL prefix/bucket to a manifest key; compare key and nonzero size. No HTTP request."
+        },
+        "external": "Preserve URL verbatim and report external_unchecked; do not demand it in local MinIO backup or fetch it.",
+        "relative": "Resolve only using declared canonical public origin/path mappings; never filesystem-concatenate an unchecked URL."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/entity/TrainingEntities.kt",
+          "line": 169,
+          "symbol_or_text": "var contentUrl:"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/service/TrainingService.kt",
+          "line": 1747,
+          "symbol_or_text": "contentUrl = req.contentUrl?.trim()"
+        }
+      ],
+      "source_type": "database",
+      "note": "Legacy URL-only learning material; may be object, document or external service. Not a lesson-content snapshot."
+    },
+    {
+      "table": "offline_events",
+      "column": "materials_url",
+      "json_path": null,
+      "kind": "external",
+      "expected_storage": {
+        "type": "managed_object_or_external_link",
+        "managed": {
+          "type": "s3_compatible_object",
+          "bucket_config": "app.s3.bucket-receipts",
+          "public_origin_config": "app.s3.public-url",
+          "key_pattern_for_current_uploads": "screens/<uuid>.<extension>",
+          "local_checker": "Resolve only an explicit approved managed URL prefix/bucket to a manifest key; compare key and nonzero size. No HTTP request."
+        },
+        "external": "Preserve URL verbatim and report external_unchecked; do not demand it in local MinIO backup or fetch it.",
+        "relative": "Resolve only using declared canonical public origin/path mappings; never filesystem-concatenate an unchecked URL."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/entity/TrainingEntities.kt",
+          "line": 216,
+          "symbol_or_text": "var materialsUrl:"
+        }
+      ],
+      "source_type": "database",
+      "note": "Manual event material link; no dedicated event material upload service is proven."
+    },
+    {
+      "table": "offline_events",
+      "column": "map_url",
+      "json_path": null,
+      "kind": "external",
+      "expected_storage": {
+        "type": "external_navigation",
+        "local_checker": "Preserve only; never demand a map webpage in object backup."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/entity/TrainingEntities.kt",
+          "line": 204,
+          "symbol_or_text": "var mapUrl:"
+        },
+        {
+          "file": "admin-panel/frontend/src/features/learner/LearnerTrainingPage.tsx",
+          "line": 3959,
+          "symbol_or_text": "href={event.mapUrl}"
+        }
+      ],
+      "source_type": "database"
+    },
+    {
+      "table": "promos",
+      "column": "product_image",
+      "json_path": null,
+      "kind": "external",
+      "expected_storage": {
+        "type": "managed_object_or_external_link",
+        "managed": {
+          "type": "s3_compatible_object",
+          "bucket_config": "app.s3.bucket-receipts",
+          "public_origin_config": "app.s3.public-url",
+          "key_pattern_for_current_uploads": "screens/<uuid>.<extension>",
+          "local_checker": "Resolve only an explicit approved managed URL prefix/bucket to a manifest key; compare key and nonzero size. No HTTP request."
+        },
+        "external": "Preserve URL verbatim and report external_unchecked; do not demand it in local MinIO backup or fetch it.",
+        "relative": "Resolve only using declared canonical public origin/path mappings; never filesystem-concatenate an unchecked URL."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/promo/entity/PromoEntity.kt",
+          "line": 104,
+          "symbol_or_text": "var productImage:"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/medusa/service/MedusaPriceService.kt",
+          "line": 83,
+          "symbol_or_text": "product.thumbnail?.trim()"
+        }
+      ],
+      "source_type": "database",
+      "note": "Saved upstream product-cover URL. Keep old URLs for historical campaigns; no migration call to old Medusa origin is authorized."
+    },
+    {
+      "table": "promos",
+      "column": "override_image",
+      "json_path": null,
+      "kind": "external",
+      "expected_storage": {
+        "type": "managed_object_or_external_link",
+        "managed": {
+          "type": "s3_compatible_object",
+          "bucket_config": "app.s3.bucket-receipts",
+          "public_origin_config": "app.s3.public-url",
+          "key_pattern_for_current_uploads": "screens/<uuid>.<extension>",
+          "local_checker": "Resolve only an explicit approved managed URL prefix/bucket to a manifest key; compare key and nonzero size. No HTTP request."
+        },
+        "external": "Preserve URL verbatim and report external_unchecked; do not demand it in local MinIO backup or fetch it.",
+        "relative": "Resolve only using declared canonical public origin/path mappings; never filesystem-concatenate an unchecked URL."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/promo/entity/PromoEntity.kt",
+          "line": 108,
+          "symbol_or_text": "var overrideImage:"
+        }
+      ],
+      "source_type": "database",
+      "note": "Manual image override; current UI accepts a URL rather than persisting product image bytes. Origin classification decides whether an object is locally owned."
+    },
+    {
+      "table": "app_releases",
+      "column": "url",
+      "json_path": null,
+      "kind": "relative_path",
+      "expected_storage": {
+        "type": "server_static_file",
+        "url_prefix": "/downloads/",
+        "filesystem_root": "/srv/epharm-downloads",
+        "mount": "Caddy downloads read-only bind",
+        "local_checker": "Match an explicit downloads-root manifest and verify bytes SHA-256 against app_releases.sha256; not a MinIO key."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/appupdate/entity/AppReleaseEntity.kt",
+          "line": 28,
+          "symbol_or_text": "var url:"
+        },
+        {
+          "file": "Caddyfile",
+          "line": 28,
+          "symbol_or_text": "handle_path /downloads/*"
+        },
+        {
+          "file": "Caddyfile",
+          "line": 29,
+          "symbol_or_text": "root * /srv/epharm-downloads"
+        }
+      ],
+      "source_type": "database",
+      "condition": "relative /downloads/* OR approved same-origin absolute URL whose path begins /downloads/",
+      "note": "Release ZIP is physical even if no S3 reference exists; preserve historical releases and their signatures as well as is_current."
+    },
+    {
+      "table": "app_releases",
+      "column": "url",
+      "json_path": null,
+      "kind": "object_url",
+      "expected_storage": {
+        "type": "s3_compatible_object",
+        "bucket_config": "app.s3.bucket-receipts",
+        "public_origin_config": "app.s3.public-url",
+        "key_pattern_for_current_uploads": "screens/<uuid>.<extension>",
+        "local_checker": "Resolve only an explicit approved managed URL prefix/bucket to a manifest key; compare key and nonzero size. No HTTP request."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/appupdate/entity/AppReleaseEntity.kt",
+          "line": 28,
+          "symbol_or_text": "var url:"
+        },
+        {
+          "file": "App/Services/AppUpdater.cs",
+          "line": 99,
+          "symbol_or_text": "VerifySha256(zipPath, info.Sha256)"
+        }
+      ],
+      "source_type": "database",
+      "condition": "Explicit managed S3 origin/bucket URL",
+      "note": "If a release URL is managed S3, verify corresponding key plus app_releases.sha256; the source does not mandate /downloads for every historical release."
+    },
+    {
+      "table": "app_releases",
+      "column": "url",
+      "json_path": null,
+      "kind": "external",
+      "expected_storage": {
+        "type": "external_release_repository",
+        "local_checker": "Preserve URL/hash/signature; external_unchecked until a separately supplied artifact manifest proves bytes."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/appupdate/service/AppReleaseService.kt",
+          "line": 45,
+          "symbol_or_text": "url = req.url.trim()"
+        }
+      ],
+      "source_type": "database",
+      "condition": "Any permitted release URL outside declared managed S3/downloads origins"
+    },
+    {
+      "table": "training_certificates",
+      "column": "pdf_url",
+      "json_path": null,
+      "kind": "generated",
+      "expected_storage": {
+        "type": "http_generated_pdf",
+        "route": "/api/public/training/certificates/{qr_token}/pdf",
+        "physical_object_expected": false,
+        "dependencies": [
+          "training_certificates row",
+          "assignment/version/program identity",
+          "managed program branding objects",
+          "bundled Noto Sans fonts"
+        ]
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/service/TrainingService.kt",
+          "line": 2396,
+          "symbol_or_text": "pdfUrl = row.pdfUrl ?:"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/controller/PublicTrainingController.kt",
+          "line": 37,
+          "symbol_or_text": "body(certificatePdfService.render(token, certificate))"
+        }
+      ],
+      "source_type": "database",
+      "condition": "NULL or relative/same-origin URL matching /api/public/training/certificates/<UUID>/pdf",
+      "note": "Null pdf_url has a generated route fallback. Do not count NULL/this HTTP route as an absent S3 PDF."
+    },
+    {
+      "table": "training_certificates",
+      "column": "pdf_url",
+      "json_path": null,
+      "kind": "object_url",
+      "expected_storage": {
+        "type": "managed_object_or_external_link",
+        "managed": {
+          "type": "s3_compatible_object",
+          "bucket_config": "app.s3.bucket-receipts",
+          "public_origin_config": "app.s3.public-url",
+          "key_pattern_for_current_uploads": "screens/<uuid>.<extension>",
+          "local_checker": "Resolve only an explicit approved managed URL prefix/bucket to a manifest key; compare key and nonzero size. No HTTP request."
+        },
+        "external": "Preserve URL verbatim and report external_unchecked; do not demand it in local MinIO backup or fetch it.",
+        "relative": "Resolve only using declared canonical public origin/path mappings; never filesystem-concatenate an unchecked URL."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/entity/TrainingEntities.kt",
+          "line": 509,
+          "symbol_or_text": "var pdfUrl:"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/service/TrainingService.kt",
+          "line": 2396,
+          "symbol_or_text": "pdfUrl = row.pdfUrl ?:"
+        }
+      ],
+      "source_type": "database",
+      "condition": "Non-null stored URL not matching the generated certificate route",
+      "note": "Historical override may point to a physical PDF or external host; classify rather than assuming every pdf_url is generated."
+    },
+    {
+      "table": "medusa_catalog_products",
+      "column": "payload",
+      "json_path": "$.thumbnail",
+      "kind": "external",
+      "expected_storage": {
+        "type": "managed_object_or_external_link",
+        "managed": {
+          "type": "s3_compatible_object",
+          "bucket_config": "app.s3.bucket-receipts",
+          "public_origin_config": "app.s3.public-url",
+          "key_pattern_for_current_uploads": "screens/<uuid>.<extension>",
+          "local_checker": "Resolve only an explicit approved managed URL prefix/bucket to a manifest key; compare key and nonzero size. No HTTP request."
+        },
+        "external": "Preserve URL verbatim and report external_unchecked; do not demand it in local MinIO backup or fetch it.",
+        "relative": "Resolve only using declared canonical public origin/path mappings; never filesystem-concatenate an unchecked URL."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/medusa/dto/MedusaStoreDtos.kt",
+          "line": 38,
+          "symbol_or_text": "val thumbnail:"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/medusa/MedusaCatalogSnapshotRepository.kt",
+          "line": 40,
+          "symbol_or_text": "payload"
+        }
+      ],
+      "source_type": "database",
+      "note": "Saved MedusaProduct-shaped compatibility payload from current ASC adapter. Thumbnail and image URLs are separate physical locators; images[*].metadata.gallery is a category marker, not another URL."
+    },
+    {
+      "table": "medusa_catalog_products",
+      "column": "payload",
+      "json_path": "$.images[*].url",
+      "kind": "external",
+      "expected_storage": {
+        "type": "managed_object_or_external_link",
+        "managed": {
+          "type": "s3_compatible_object",
+          "bucket_config": "app.s3.bucket-receipts",
+          "public_origin_config": "app.s3.public-url",
+          "key_pattern_for_current_uploads": "screens/<uuid>.<extension>",
+          "local_checker": "Resolve only an explicit approved managed URL prefix/bucket to a manifest key; compare key and nonzero size. No HTTP request."
+        },
+        "external": "Preserve URL verbatim and report external_unchecked; do not demand it in local MinIO backup or fetch it.",
+        "relative": "Resolve only using declared canonical public origin/path mappings; never filesystem-concatenate an unchecked URL."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/medusa/dto/MedusaStoreDtos.kt",
+          "line": 50,
+          "symbol_or_text": "val url:"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/medusa/MedusaCatalogSnapshotRepository.kt",
+          "line": 40,
+          "symbol_or_text": "payload"
+        }
+      ],
+      "source_type": "database",
+      "note": "Saved MedusaProduct-shaped compatibility payload from current ASC adapter. Thumbnail and image URLs are separate physical locators; images[*].metadata.gallery is a category marker, not another URL."
+    },
+    {
+      "table": "medusa_catalog_products",
+      "column": "payload",
+      "json_path": "$.metadata.marketplace_links[*].url",
+      "kind": "external",
+      "expected_storage": {
+        "type": "external_navigation",
+        "physical_object_expected": false
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/mobile/catalog/service/MobileCatalogService.kt",
+          "line": 567,
+          "symbol_or_text": "private fun marketplaceLinks"
+        }
+      ],
+      "source_type": "database",
+      "note": "Marketplace webpage link; never classify as missing local media. Opaque extra metadata is retained byte-for-byte, not presumed to be local file references."
+    },
+    {
+      "table": "storefront_product_references",
+      "column": "payload",
+      "json_path": "$.thumbnail",
+      "kind": "external",
+      "expected_storage": {
+        "type": "managed_object_or_external_link",
+        "managed": {
+          "type": "s3_compatible_object",
+          "bucket_config": "app.s3.bucket-receipts",
+          "public_origin_config": "app.s3.public-url",
+          "key_pattern_for_current_uploads": "screens/<uuid>.<extension>",
+          "local_checker": "Resolve only an explicit approved managed URL prefix/bucket to a manifest key; compare key and nonzero size. No HTTP request."
+        },
+        "external": "Preserve URL verbatim and report external_unchecked; do not demand it in local MinIO backup or fetch it.",
+        "relative": "Resolve only using declared canonical public origin/path mappings; never filesystem-concatenate an unchecked URL."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/medusa/dto/MedusaStoreDtos.kt",
+          "line": 38,
+          "symbol_or_text": "val thumbnail:"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/storefront/StorefrontProductReferenceRepository.kt",
+          "line": 19,
+          "symbol_or_text": "payload"
+        }
+      ],
+      "source_type": "database",
+      "note": "Saved MedusaProduct-shaped compatibility payload from current ASC adapter. Thumbnail and image URLs are separate physical locators; images[*].metadata.gallery is a category marker, not another URL."
+    },
+    {
+      "table": "storefront_product_references",
+      "column": "payload",
+      "json_path": "$.images[*].url",
+      "kind": "external",
+      "expected_storage": {
+        "type": "managed_object_or_external_link",
+        "managed": {
+          "type": "s3_compatible_object",
+          "bucket_config": "app.s3.bucket-receipts",
+          "public_origin_config": "app.s3.public-url",
+          "key_pattern_for_current_uploads": "screens/<uuid>.<extension>",
+          "local_checker": "Resolve only an explicit approved managed URL prefix/bucket to a manifest key; compare key and nonzero size. No HTTP request."
+        },
+        "external": "Preserve URL verbatim and report external_unchecked; do not demand it in local MinIO backup or fetch it.",
+        "relative": "Resolve only using declared canonical public origin/path mappings; never filesystem-concatenate an unchecked URL."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/medusa/dto/MedusaStoreDtos.kt",
+          "line": 50,
+          "symbol_or_text": "val url:"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/storefront/StorefrontProductReferenceRepository.kt",
+          "line": 19,
+          "symbol_or_text": "payload"
+        }
+      ],
+      "source_type": "database",
+      "note": "Saved MedusaProduct-shaped compatibility payload from current ASC adapter. Thumbnail and image URLs are separate physical locators; images[*].metadata.gallery is a category marker, not another URL."
+    },
+    {
+      "table": "storefront_product_references",
+      "column": "payload",
+      "json_path": "$.metadata.marketplace_links[*].url",
+      "kind": "external",
+      "expected_storage": {
+        "type": "external_navigation",
+        "physical_object_expected": false
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/mobile/catalog/service/MobileCatalogService.kt",
+          "line": 567,
+          "symbol_or_text": "private fun marketplaceLinks"
+        }
+      ],
+      "source_type": "database",
+      "note": "Marketplace webpage link; never classify as missing local media. Opaque extra metadata is retained byte-for-byte, not presumed to be local file references."
+    },
+    {
+      "table": "training_program_versions",
+      "column": "snapshot_json",
+      "json_path": "$.coverUrl",
+      "kind": "object_url",
+      "expected_storage": {
+        "type": "managed_object_or_external_link",
+        "managed": {
+          "type": "s3_compatible_object",
+          "bucket_config": "app.s3.bucket-receipts",
+          "public_origin_config": "app.s3.public-url",
+          "key_pattern_for_current_uploads": "screens/<uuid>.<extension>",
+          "local_checker": "Resolve only an explicit approved managed URL prefix/bucket to a manifest key; compare key and nonzero size. No HTTP request."
+        },
+        "external": "Preserve URL verbatim and report external_unchecked; do not demand it in local MinIO backup or fetch it.",
+        "relative": "Resolve only using declared canonical public origin/path mappings; never filesystem-concatenate an unchecked URL."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/service/TrainingService.kt",
+          "line": 1726,
+          "symbol_or_text": "snapshotJson = objectMapper.writeValueAsString(snapshot)"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/dto/TrainingDtos.kt",
+          "line": 76,
+          "symbol_or_text": "val coverUrl:"
+        }
+      ],
+      "source_type": "database",
+      "note": "snapshot_json is serialized Create/UpdateTrainingProgramRequest (TrainingService.kt snapshot=req), not a complete immutable content dump. Missing optional keys are valid; preserve historical asset pointers even after current branding changes."
+    },
+    {
+      "table": "training_program_versions",
+      "column": "snapshot_json",
+      "json_path": "$.certificateEpharmLogoUrl",
+      "kind": "object_url",
+      "expected_storage": {
+        "type": "managed_object_or_external_link",
+        "managed": {
+          "type": "s3_compatible_object",
+          "bucket_config": "app.s3.bucket-receipts",
+          "public_origin_config": "app.s3.public-url",
+          "key_pattern_for_current_uploads": "screens/<uuid>.<extension>",
+          "local_checker": "Resolve only an explicit approved managed URL prefix/bucket to a manifest key; compare key and nonzero size. No HTTP request."
+        },
+        "external": "Preserve URL verbatim and report external_unchecked; do not demand it in local MinIO backup or fetch it.",
+        "relative": "Resolve only using declared canonical public origin/path mappings; never filesystem-concatenate an unchecked URL."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/service/TrainingService.kt",
+          "line": 1726,
+          "symbol_or_text": "snapshotJson = objectMapper.writeValueAsString(snapshot)"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/dto/TrainingDtos.kt",
+          "line": 77,
+          "symbol_or_text": "val certificateEpharmLogoUrl:"
+        }
+      ],
+      "source_type": "database",
+      "note": "snapshot_json is serialized Create/UpdateTrainingProgramRequest (TrainingService.kt snapshot=req), not a complete immutable content dump. Missing optional keys are valid; preserve historical asset pointers even after current branding changes."
+    },
+    {
+      "table": "training_program_versions",
+      "column": "snapshot_json",
+      "json_path": "$.certificatePartnerLogoUrl",
+      "kind": "object_url",
+      "expected_storage": {
+        "type": "managed_object_or_external_link",
+        "managed": {
+          "type": "s3_compatible_object",
+          "bucket_config": "app.s3.bucket-receipts",
+          "public_origin_config": "app.s3.public-url",
+          "key_pattern_for_current_uploads": "screens/<uuid>.<extension>",
+          "local_checker": "Resolve only an explicit approved managed URL prefix/bucket to a manifest key; compare key and nonzero size. No HTTP request."
+        },
+        "external": "Preserve URL verbatim and report external_unchecked; do not demand it in local MinIO backup or fetch it.",
+        "relative": "Resolve only using declared canonical public origin/path mappings; never filesystem-concatenate an unchecked URL."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/service/TrainingService.kt",
+          "line": 1726,
+          "symbol_or_text": "snapshotJson = objectMapper.writeValueAsString(snapshot)"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/dto/TrainingDtos.kt",
+          "line": 78,
+          "symbol_or_text": "val certificatePartnerLogoUrl:"
+        }
+      ],
+      "source_type": "database",
+      "note": "snapshot_json is serialized Create/UpdateTrainingProgramRequest (TrainingService.kt snapshot=req), not a complete immutable content dump. Missing optional keys are valid; preserve historical asset pointers even after current branding changes."
+    },
+    {
+      "table": "training_program_versions",
+      "column": "snapshot_json",
+      "json_path": "$.stages[*].contentUrl",
+      "kind": "object_url",
+      "expected_storage": {
+        "type": "managed_object_or_external_link",
+        "managed": {
+          "type": "s3_compatible_object",
+          "bucket_config": "app.s3.bucket-receipts",
+          "public_origin_config": "app.s3.public-url",
+          "key_pattern_for_current_uploads": "screens/<uuid>.<extension>",
+          "local_checker": "Resolve only an explicit approved managed URL prefix/bucket to a manifest key; compare key and nonzero size. No HTTP request."
+        },
+        "external": "Preserve URL verbatim and report external_unchecked; do not demand it in local MinIO backup or fetch it.",
+        "relative": "Resolve only using declared canonical public origin/path mappings; never filesystem-concatenate an unchecked URL."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/service/TrainingService.kt",
+          "line": 1726,
+          "symbol_or_text": "snapshotJson = objectMapper.writeValueAsString(snapshot)"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/dto/TrainingDtos.kt",
+          "line": 68,
+          "symbol_or_text": "val contentUrl:"
+        }
+      ],
+      "source_type": "database",
+      "note": "snapshot_json is serialized Create/UpdateTrainingProgramRequest (TrainingService.kt snapshot=req), not a complete immutable content dump. Missing optional keys are valid; preserve historical asset pointers even after current branding changes."
+    },
+    {
+      "table": null,
+      "column": null,
+      "json_path": null,
+      "kind": "generated",
+      "expected_storage": {
+        "type": "http_route",
+        "route": "GET /api/public/training/certificates/{token}",
+        "physical_object_expected": false
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/controller/PublicTrainingController.kt",
+          "line": 24,
+          "symbol_or_text": "fun verify("
+        }
+      ],
+      "source_type": "http_route",
+      "note": "JSON verification capability; not a PDF/object"
+    },
+    {
+      "table": null,
+      "column": null,
+      "json_path": null,
+      "kind": "generated",
+      "expected_storage": {
+        "type": "http_route",
+        "route": "GET /api/public/training/certificates/{token}/pdf",
+        "physical_object_expected": false
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/controller/PublicTrainingController.kt",
+          "line": 28,
+          "symbol_or_text": "fun pdf("
+        }
+      ],
+      "source_type": "http_route",
+      "note": "Generated PDF bytes with bundled fonts and managed logos; no automatic PDF upload"
+    },
+    {
+      "table": null,
+      "column": null,
+      "json_path": null,
+      "kind": "generated",
+      "expected_storage": {
+        "type": "http_route",
+        "route": "GET /api/admin/reports/campaigns/{promoId}/pdf",
+        "physical_object_expected": false
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/reporting/CampaignReportController.kt",
+          "line": 27,
+          "symbol_or_text": "fun pdf("
+        }
+      ],
+      "source_type": "http_route",
+      "note": "Baseline PDF generated as response bytes; agreed future XLSX replacement is separate"
+    },
+    {
+      "table": null,
+      "column": null,
+      "json_path": null,
+      "kind": "generated",
+      "expected_storage": {
+        "type": "http_route",
+        "route": "GET /api/admin/screens/connected/export.xlsx",
+        "physical_object_expected": false
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/screens/controller/ScreenController.kt",
+          "line": 69,
+          "symbol_or_text": "fun exportConnected("
+        }
+      ],
+      "source_type": "http_route",
+      "note": "Generated current-register XLSX, not a persisted media object"
+    },
+    {
+      "table": null,
+      "column": null,
+      "json_path": null,
+      "kind": "generated",
+      "expected_storage": {
+        "type": "http_route",
+        "route": "GET /api/admin/training/assignments/export.csv",
+        "physical_object_expected": false
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/controller/TrainingController.kt",
+          "line": 189,
+          "symbol_or_text": "fun exportAssignments("
+        }
+      ],
+      "source_type": "http_route",
+      "note": "Generated CSV, not a retained imported/downloaded file"
+    },
+    {
+      "table": null,
+      "column": null,
+      "json_path": null,
+      "kind": "generated",
+      "expected_storage": {
+        "type": "http_route",
+        "route": "GET /api/media/img?url=<encoded URL>",
+        "physical_object_expected": false
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/shared/media/MediaProxyController.kt",
+          "line": 80,
+          "symbol_or_text": "fun img("
+        }
+      ],
+      "source_type": "http_route",
+      "note": "HTTP proxy response; unwrap query URL only using explicit parser, do not seek /api/media/img in backup"
+    },
+    {
+      "table": "offline_events",
+      "column": "qr_token",
+      "json_path": null,
+      "kind": "generated",
+      "expected_storage": {
+        "type": "qr_payload",
+        "format": "epharm://training/check-in/<token>",
+        "physical_object_expected": false
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/service/TrainingService.kt",
+          "line": 553,
+          "symbol_or_text": "payload = \"epharm://training/check-in/"
+        }
+      ],
+      "source_type": "database",
+      "note": "QR is generated from token; no stored QR PNG is required."
+    },
+    {
+      "table": null,
+      "column": null,
+      "json_path": null,
+      "kind": "relative_path",
+      "expected_storage": {
+        "type": "backend_classpath_asset",
+        "path": "fonts/NotoSans-Regular.ttf"
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/service/TrainingCertificatePdfService.kt",
+          "line": 47,
+          "symbol_or_text": "ClassPathResource(\"fonts/NotoSans-Regular.ttf\")"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/reporting/CampaignReportPdf.kt",
+          "line": 25,
+          "symbol_or_text": "ClassPathResource(\"fonts/NotoSans-Regular.ttf\")"
+        }
+      ],
+      "source_type": "package_asset",
+      "note": "Must exist in built backend JAR/image, not in MinIO."
+    },
+    {
+      "table": null,
+      "column": null,
+      "json_path": null,
+      "kind": "relative_path",
+      "expected_storage": {
+        "type": "backend_classpath_asset",
+        "path": "fonts/NotoSans-ExtraBold.ttf"
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/service/TrainingCertificatePdfService.kt",
+          "line": 50,
+          "symbol_or_text": "ClassPathResource(\"fonts/NotoSans-ExtraBold.ttf\")"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/reporting/CampaignReportPdf.kt",
+          "line": 26,
+          "symbol_or_text": "ClassPathResource(\"fonts/NotoSans-ExtraBold.ttf\")"
+        }
+      ],
+      "source_type": "package_asset",
+      "note": "Must exist in built backend JAR/image, not in MinIO."
+    },
+    {
+      "table": null,
+      "column": null,
+      "json_path": null,
+      "kind": "relative_path",
+      "expected_storage": {
+        "type": "frontend_public_asset",
+        "route": "/templates/epharm-course-import-template.xlsx"
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/frontend/src/features/lms/LMSPage.tsx",
+          "line": 1576,
+          "symbol_or_text": "href=\"/templates/epharm-course-import-template.xlsx\""
+        }
+      ],
+      "source_type": "package_asset",
+      "note": "Public import template must be in frontend build; link alone is not proof that its binary is deployed."
+    },
+    {
+      "table": null,
+      "column": null,
+      "json_path": null,
+      "kind": "object_key",
+      "expected_storage": {
+        "type": "s3_compatible_object",
+        "bucket_config": "app.s3.bucket-receipts",
+        "public_origin_config": "app.s3.public-url",
+        "key_pattern_for_current_uploads": "screens/<uuid>.<extension>",
+        "local_checker": "Resolve only an explicit approved managed URL prefix/bucket to a manifest key; compare key and nonzero size. No HTTP request."
+      },
+      "code_evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/shared/storage/S3MediaStorage.kt",
+          "line": 54,
+          "symbol_or_text": "val key = \"screens/"
+        },
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/shared/storage/S3MediaStorage.kt",
+          "line": 64,
+          "symbol_or_text": "val url = \"${publicUrl"
+        }
+      ],
+      "source_type": "storage_key_rule",
+      "note": "Current backend writer emits one shared prefix for all upload domains, not just screens. No separate object_key column is present in inspected ePharm schema."
+    },
+    {
+      "table": null,
+      "column": null,
+      "json_path": null,
+      "kind": "relative_path",
+      "expected_storage": {
+        "type": "terminal_local_media_cache",
+        "root_config": "MediaCacheDir",
+        "default_root": "C:\\Epharm\\media-cache",
+        "files": ["playlist-manifest.json", "<sha256(original remote URL)><extension>"]
+      },
+      "code_evidence": [
+        {
+          "file": "App/Config/EpharmConfig.cs",
+          "line": 99,
+          "symbol_or_text": "public string MediaCacheDir"
+        },
+        {
+          "file": "App/Services/MediaCache.cs",
+          "line": 30,
+          "symbol_or_text": "_manifestPath = Path.Combine"
+        },
+        {
+          "file": "App/Services/MediaCache.cs",
+          "line": 202,
+          "symbol_or_text": "return Path.Combine(_dir, hash + ext)"
+        }
+      ],
+      "source_type": "posm_local",
+      "note": "Cache is on Windows, outside .76 backup; manifest URLs refer back to slides assets. Cache files are derived but last-known-good playback still matters."
+    },
+    {
+      "table": null,
+      "column": null,
+      "json_path": null,
+      "kind": "relative_path",
+      "expected_storage": {
+        "type": "terminal_local_fiscal_original",
+        "root_config": "FiscalReceiptInboxDir",
+        "default_root": "C:\\Epharm\\fiscal-inbox",
+        "manifest_files": [
+          "<saleId>.fiscal.json",
+          "doc-<sourceDocumentId>.fiscal.json",
+          "<sourceDocumentId>.fiscal.json"
+        ],
+        "json_path": "$.documentFile"
+      },
+      "code_evidence": [
+        {
+          "file": "App/Services/FiscalReceiptInboxSource.cs",
+          "line": 32,
+          "symbol_or_text": "public string DocumentFile"
+        },
+        {
+          "file": "App/Services/FiscalReceiptInboxSource.cs",
+          "line": 210,
+          "symbol_or_text": "var documentPath = Path.GetFullPath(Path.Combine(_inboxRoot, manifest.DocumentFile))"
+        },
+        {
+          "file": "App/Config/EpharmConfig.cs",
+          "line": 74,
+          "symbol_or_text": "public string FiscalReceiptInboxDir"
+        }
+      ],
+      "source_type": "posm_local",
+      "note": "Approved KKM/OFD adapter writes authoritative PDF/PNG+SHA manifest. documentFile is a basename confined to inbox, not a server URL; source adapter readiness is not proven merely by source."
+    },
+    {
+      "table": null,
+      "column": null,
+      "json_path": null,
+      "kind": "relative_path",
+      "expected_storage": {
+        "type": "terminal_local_fiscal_store",
+        "root_config": "ReceiptCaptureDir",
+        "default_root": "C:\\Epharm\\receipts",
+        "subdirectories": ["active/<saleId>", "pending/<saleId>", "quarantine/<generated-id>"],
+        "metadata_file": "fiscal-receipt.json",
+        "json_path": "$.storedFileName",
+        "artifact_filename": "fiscal-receipt.pdf OR fiscal-receipt.png"
+      },
+      "code_evidence": [
+        {
+          "file": "App/Services/ReceiptArtifactStore.cs",
+          "line": 28,
+          "symbol_or_text": "public string StoredFileName"
+        },
+        {
+          "file": "App/Services/ReceiptArtifactStore.cs",
+          "line": 85,
+          "symbol_or_text": "_pendingRoot = Path.Combine"
+        },
+        {
+          "file": "App/Services/ReceiptArtifactStore.cs",
+          "line": 546,
+          "symbol_or_text": "var path = Path.Combine(dir, metadata.StoredFileName)"
+        },
+        {
+          "file": "App/Config/EpharmConfig.cs",
+          "line": 73,
+          "symbol_or_text": "public string ReceiptCaptureDir"
+        }
+      ],
+      "source_type": "posm_local",
+      "note": "Local durable original and sale/ACK sidecars. Backend pos_sales receives only fiscal metadata+hash; it does not upload artifact bytes. Not a missing MinIO object."
+    },
+    {
+      "table": null,
+      "column": null,
+      "json_path": null,
+      "kind": "relative_path",
+      "expected_storage": {
+        "type": "terminal_local_update_staging",
+        "root": "<Windows temp>/epharm-update",
+        "files": ["epharm-<version>.zip", "staging-<version>/", "apply-update.cmd"]
+      },
+      "code_evidence": [
+        {
+          "file": "App/Services/AppUpdater.cs",
+          "line": 87,
+          "symbol_or_text": "var workDir = Path.Combine"
+        },
+        {
+          "file": "App/Services/AppUpdater.cs",
+          "line": 89,
+          "symbol_or_text": "var zipPath = Path.Combine"
+        }
+      ],
+      "source_type": "posm_local",
+      "note": "Derived local install staging; authoritative release artifact remains app_releases.url. Never require every historical staging file to exist."
+    },
+    {
+      "table": null,
+      "column": null,
+      "json_path": null,
+      "kind": "relative_path",
+      "expected_storage": {
+        "type": "terminal_local_queue",
+        "root_config": "OutboxDbPath",
+        "default_file": "C:\\Epharm\\outbox.db"
+      },
+      "code_evidence": [
+        {
+          "file": "App/Config/EpharmConfig.cs",
+          "line": 54,
+          "symbol_or_text": "public string OutboxDbPath"
+        }
+      ],
+      "source_type": "posm_local",
+      "note": "Durable local ACK/sale/outcome queue, not media; metadata-only preservation policy, do not read real queued payloads for inventory."
+    },
+    {
+      "table": null,
+      "column": null,
+      "json_path": null,
+      "kind": "relative_path",
+      "expected_storage": {
+        "type": "terminal_local_fulfillment_cache",
+        "root_config": "FulfillmentCachePath",
+        "default_file": "C:\\Epharm\\fulfillment-orders.json"
+      },
+      "code_evidence": [
+        {
+          "file": "App/Config/EpharmConfig.cs",
+          "line": 67,
+          "symbol_or_text": "public string FulfillmentCachePath"
+        }
+      ],
+      "source_type": "posm_local",
+      "note": "Bound to device/pharmacy; not media and not part of server MinIO. Real contents may include personal data; never log them."
+    },
+    {
+      "table": null,
+      "column": null,
+      "json_path": null,
+      "kind": "relative_path",
+      "expected_storage": {
+        "type": "terminal_protected_device_credential",
+        "root_config": "FulfillmentCredentialPath",
+        "default_file": "C:\\Epharm\\fulfillment-device.dat"
+      },
+      "code_evidence": [
+        {
+          "file": "App/Config/EpharmConfig.cs",
+          "line": 66,
+          "symbol_or_text": "public string FulfillmentCredentialPath"
+        }
+      ],
+      "source_type": "posm_local",
+      "note": "Path contract only. Do not read/copy contents into repo, reports or generic media checker."
+    }
+  ],
+  "non_file_columns": [
+    {
+      "table": "banners",
+      "column": "detail_md",
+      "why": "Despite its name and admin hint, current Flutter renders this as ordinary Text, not a Markdown image/link widget. Preserve prose; do not invent inline object references.",
+      "evidence": [
+        {
+          "file": "lib/features/home/presentation/widgets/promo_carousel.dart",
+          "line": 169
+        },
+        {
+          "file": "lib/features/home/presentation/widgets/promo_carousel.dart",
+          "line": 245
+        }
+      ]
+    },
+    {
+      "table": "excel_imports",
+      "column": "file_name",
+      "why": "Original uploaded filename for import history only; ExcelImportService parses bytes and persists row data, no source Excel object upload.",
+      "evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/receipts/service/ExcelImportService.kt",
+          "line": 32,
+          "symbol_or_text": "ExcelImportEntity(id = importId, fileName = fileName"
+        }
+      ]
+    },
+    {
+      "table": "course_lesson_attachments",
+      "column": "file_name",
+      "why": "Display filename; media_url is the locator.",
+      "evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/lms/entity/CourseLessonAttachmentEntity.kt",
+          "line": 24,
+          "symbol_or_text": "var fileName:"
+        }
+      ]
+    },
+    {
+      "table": "course_lessons",
+      "column": "content",
+      "why": "Text lesson parser renders headings/lists/plain strings, not raw HTML media. A typed URL in prose is not automatically a missing object.",
+      "evidence": [
+        {
+          "file": "admin-panel/frontend/src/features/learner/LearnerTrainingPage.tsx",
+          "line": 3081,
+          "symbol_or_text": "function LessonContent("
+        },
+        {
+          "file": "admin-panel/frontend/src/features/learner/LearnerTrainingPage.tsx",
+          "line": 3115,
+          "symbol_or_text": "{block.text}</p>"
+        }
+      ]
+    },
+    {
+      "table": "course_lessons",
+      "column": "quiz_questions",
+      "why": "Question/option/explanation text, no typed media field; keep JSON, never export answer keys in file reports.",
+      "evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/lms/entity/CourseLessonEntity.kt",
+          "line": 45,
+          "symbol_or_text": "data class CourseQuizQuestion("
+        }
+      ]
+    },
+    {
+      "table": "course_lessons",
+      "column": "live_polls",
+      "why": "Poll/options text, not file locators.",
+      "evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/lms/entity/CourseLessonEntity.kt",
+          "line": 38,
+          "symbol_or_text": "data class CourseLivePoll("
+        }
+      ]
+    },
+    {
+      "table": "pos_sales",
+      "column": "artifact_sha256",
+      "why": "Integrity/provenance metadata only, not file key/URL; artifact_format/source/fiscal fields likewise are not locators.",
+      "evidence": [
+        {
+          "file": "Models/Posm/SaleReport.cs",
+          "line": 38,
+          "symbol_or_text": "public string? ArtifactSha256"
+        },
+        {
+          "file": "App/Services/SaleReporter.cs",
+          "line": 64,
+          "symbol_or_text": "Artifact/fiscal fields stay null"
+        }
+      ]
+    },
+    {
+      "table": "products",
+      "column": "*",
+      "why": "Inspected physical products table has no image/media column. Product images are promos URLs or MedusaProduct-shaped saved payload fields; do not invent products.image_url.",
+      "evidence": [
+        {
+          "file": "/Users/amir/.codex/worktrees/unified-admin-baseline/PharmaPayV2/docs/reports/unification-2026-10-29/epharm-schema.json",
+          "metadata": "columns[table_name=products]"
+        }
+      ]
+    },
+    {
+      "table": "rules",
+      "column": "card",
+      "why": "Typed RuleCard has presentation/comparison/goal/rank fields, no media URL.",
+      "evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/rules/entity/RuleEntity.kt",
+          "line": 73,
+          "symbol_or_text": "data class RuleCard("
+        }
+      ]
+    },
+    {
+      "table": "training_notifications",
+      "column": "payload_json",
+      "why": "Typed notification payload currently holds event/program labels, times/bonus, not a persisted media URL. Preserve payload, but do not treat arbitrary prose as object paths.",
+      "evidence": [
+        {
+          "file": "admin-panel/backend/src/main/kotlin/kz/epharm/training/service/TrainingService.kt",
+          "line": 2586,
+          "symbol_or_text": "payloadJson = objectMapper.writeValueAsString(payload)"
+        }
+      ]
+    }
+  ],
+  "coverage": {
+    "references": 47,
+    "database_url_image_columns_found": 16,
+    "all_database_url_image_columns_mapped": true,
+    "by_source_type": {
+      "database": 30,
+      "http_route": 6,
+      "package_asset": 3,
+      "storage_key_rule": 1,
+      "posm_local": 7
+    },
+    "by_kind": {
+      "object_url": 14,
+      "external": 13,
+      "relative_path": 11,
+      "generated": 8,
+      "object_key": 1
+    }
+  }
+}

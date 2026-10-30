@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "jarSha256": "cb16bac9d0abc7a96bd6e260eb6bc894e3dbbcc919fd53493b74e688f3de2f7b",
+  "realJarFaultRestart": true,
+  "sameContainerAndConfigRestarted": true,
+  "observedOutage": true,
+  "restartGapSeconds": 24.399,
+  "databaseTablesVerified": 144,
+  "databaseRowsBeforeRestart": 238,
+  "databaseRowHashMismatches": 0,
+  "privateEvidenceFilesVerified": 1,
+  "credentialKeyFilesVerified": 1,
+  "privateFileMismatches": 0,
+  "existingJwtRevocationDeniedBeforeAndAfterRestart": true,
+  "freshGrantAllowedThenRevocationDeniedWithoutRelogin": true,
+  "actualPosmNewSaleAndReplayRows": 1,
+  "walletFixtureNewEntryAndReplayRows": 1,
+  "walletProofKind": "Explicit synthetic ledger/projection fixture; not a real paid business flow or bank transfer",
+  "flywayChecksumProof": {
+    "implementation": "Official Flyway 10.20.1 ChecksumCalculator",
+    "officialJavaRows": 89,
+    "pythonRows": 89,
+    "actualDatabaseRows": 89,
+    "mismatches": 0
+  },
+  "initialHarnessIssues": [
+    "A private proof query used sale_id instead of pos_sales.id; resumed using the same existing synthetic rows",
+    "The original synthetic transport occupied the Docker publish port; the final proof used a separate loopback transport with unchanged original manifest, labels, image and isolation checks"
+  ],
+  "ownedAppOtpTransportQuiesced": true,
+  "databaseAndPrivateFilesRetained": true,
+  "externalSmsUsed": false,
+  "productionTouched": false,
+  "realMainOciReleaseFlowProven": false,
+  "remainingGate": "Rehearse the exact reviewed main/CI image forward-recovery flow and install the reviewed incident-retention reader before production application cutover",
+  "releaseHelperOidBoundary": {
+    "actualPostgresNativeOidJsonType": "string",
+    "explicitBigintCastJsonType": "integer",
+    "numericValueUnchanged": true,
+    "strictParserRetained": true,
+    "removedCastRedReproduced": true,
+    "linuxContractsPassed": 18,
+    "integrationOwnerFocusedRegressionPassed": true
+  }
+}

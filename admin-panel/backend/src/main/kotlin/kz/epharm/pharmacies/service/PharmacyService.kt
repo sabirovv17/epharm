@@ -1,6 +1,7 @@
 package kz.epharm.pharmacies.service
 
 import kz.epharm.pharmacies.dto.ChainDto
+import kz.epharm.auth.access.AdministrativeScope
 import kz.epharm.pharmacies.dto.CreateChainRequest
 import kz.epharm.pharmacies.dto.CreatePharmacyRequest
 import kz.epharm.pharmacies.dto.PharmacyDto
@@ -24,6 +25,7 @@ class PharmacyService(
     private val pharmacyRepository: PharmacyRepository,
     private val chainRepository: ChainRepository,
     private val pharmacistRepository: PharmacistRepository,
+    private val administrativeScope: AdministrativeScope,
 ) {
 
     @Transactional(readOnly = true)
@@ -86,19 +88,28 @@ class PharmacyService(
 
     @Transactional(readOnly = true)
     fun list(group: PharmacyGroup? = null, chainId: String? = null): List<PharmacyDto> {
+        val scope = administrativeScope.currentPharmacyIds()
         val rows = when {
+            scope != null && scope.isEmpty() -> emptyList()
+            scope != null -> pharmacyRepository.findForAdministration(scope, group?.name, chainId)
+            group != null && chainId != null ->
+                pharmacyRepository.findAllByGroupRawAndChainIdOrderByNameAsc(group.name, chainId)
             group != null  -> pharmacyRepository.findAllByGroupRawOrderByNameAsc(group.name)
             chainId != null -> pharmacyRepository.findAllByChainIdOrderByNameAsc(chainId)
             else -> pharmacyRepository.findAllByOrderByNameAsc()
         }
-        return rows.map(PharmacyDto::of)
+        return rows.map { projected(it) }
     }
 
     @Transactional(readOnly = true)
-    fun get(id: String): PharmacyDto = PharmacyDto.of(loadOrThrow(id))
+    fun get(id: String): PharmacyDto = projected(loadOrThrow(id))
 
     @Transactional
     fun create(req: CreatePharmacyRequest): PharmacyDto {
+        // A new ID has no verified membership in an existing selected-pharmacy scope.
+        if (administrativeScope.currentPharmacyIds() != null) {
+            throw AppException(ErrorCode.FORBIDDEN, "Creating a pharmacy requires unrestricted administration", HttpStatus.FORBIDDEN)
+        }
         val chain = chainRepository.findById(req.chainId).orElseThrow {
             AppException(
                 ErrorCode.VALIDATION_FAILED,
@@ -116,12 +127,13 @@ class PharmacyService(
             addr = req.addr.trim(),
             active = req.active,
         ).also { it.group = req.group }
-        return PharmacyDto.of(pharmacyRepository.save(entity))
+        return projected(pharmacyRepository.save(entity))
     }
 
     @Transactional
     fun update(id: String, req: UpdatePharmacyRequest): PharmacyDto {
-        val entity = loadOrThrow(id)
+        administrativeScope.requirePharmacyUpdate(req)
+        val entity = loadOrThrow(id, forUpdate = true)
         req.name?.let { entity.name = it.trim() }
         req.city?.let { entity.city = it.trim() }
         req.district?.let { entity.district = it.trim() }
@@ -131,7 +143,7 @@ class PharmacyService(
         req.receipts30d?.let { entity.receipts30d = it }
         req.gmv30d?.let { entity.gmv30d = it }
         req.rulesAccepted?.let { entity.rulesAccepted = it }
-        return PharmacyDto.of(pharmacyRepository.save(entity))
+        return projected(pharmacyRepository.save(entity))
     }
 
     /**
@@ -141,7 +153,7 @@ class PharmacyService(
      */
     @Transactional
     fun delete(id: String) {
-        val entity = loadOrThrow(id)
+        val entity = loadOrThrow(id, forUpdate = true)
         val pharmacists = pharmacistRepository.countByPharmacyId(id)
         if (pharmacists > 0) {
             throw AppException(
@@ -153,14 +165,19 @@ class PharmacyService(
         pharmacyRepository.delete(entity)
     }
 
-    private fun loadOrThrow(id: String): PharmacyEntity =
-        pharmacyRepository.findById(id).orElseThrow {
-            AppException(
-                ErrorCode.NOT_FOUND,
-                "Pharmacy $id not found",
-                HttpStatus.NOT_FOUND,
-            )
+    private fun loadOrThrow(id: String, forUpdate: Boolean = false): PharmacyEntity {
+        val scope = administrativeScope.currentPharmacyIds()
+        val entity = when {
+            scope == null -> pharmacyRepository.findById(id).orElse(null)
+            scope.isEmpty() -> null
+            forUpdate -> pharmacyRepository.findInAdministrativeScopeForUpdate(id, scope).orElse(null)
+            else -> pharmacyRepository.findInAdministrativeScope(id, scope).orElse(null)
         }
+        return entity ?: throw AppException(ErrorCode.NOT_FOUND, "Pharmacy $id not found", HttpStatus.NOT_FOUND)
+    }
+
+    private fun projected(entity: PharmacyEntity): PharmacyDto =
+        administrativeScope.pharmacy(PharmacyDto.of(entity))
 
     private fun generateId(): String = "ph_${UUID.randomUUID().toString().substring(0, 8)}"
 }

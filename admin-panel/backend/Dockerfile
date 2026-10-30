@@ -7,7 +7,7 @@ ARG RELEASE_ID=dev
 ARG RELEASE_COMMIT=unknown
 WORKDIR /app
 # Сначала только gradle-метаданные — слой кэша зависимостей переживает правки кода.
-COPY gradlew settings.gradle.kts build.gradle.kts ./
+COPY gradlew settings.gradle.kts build.gradle.kts gradle.properties ./
 COPY gradle ./gradle
 # Затем исходники и сборка boot-jar (тесты гоняет CI, здесь -x test для скорости).
 COPY src ./src

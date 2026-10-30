@@ -1,0 +1,72 @@
+{
+  "all57SourceAndTargetTypedRowsAndPrimaryKeyHashesEqual": true,
+  "allSourceTableChecksumsSha256": "e50e4c58e89769256c14e7affd4abab9572f8decf5ea4d6b01179047e6dfc386",
+  "boundary": "Temporary typed staging in an isolated PG16 candidate. Checks/defaults/identity generators/index definitions/RLS/ACL metadata/user triggers/routines are retained inert in the private manifest; only typed columns, NOT NULL, PK/UNIQUE/FK and enum structure are active. Runtime file references and auth/reward/session values copied opaquely without replay. No functional migration, shared-account binding, POSM/QR runtime acceptance, release-gate closure or production change.",
+  "freeBytesAfter": 2563051520,
+  "functionalMergeAccepted": false,
+  "inertSourceMetadataRetained": {
+    "checkDefinitions": 167,
+    "columnDefaults": 211,
+    "identityColumns": 1,
+    "indexDefinitions": 174,
+    "policies": 0,
+    "routines": 164,
+    "rowSecurityTables": 0,
+    "ruleDefinitions": 0,
+    "sequenceDefinitionsAndStates": 5,
+    "triggers": 29,
+    "viewDefinitions": 0
+  },
+  "initialImportMode": "imported_and_verified",
+  "replayMode": "verified_existing_noop",
+  "sourceAndCandidatePublicBeforeAfterEqual": true,
+  "sourceAndPublicFingerprints": {
+    "candidate_public": {
+      "publicSchemaSha256": "2a15b1db23d9b6f21e882ad5955185292bc25ef6dd5caf28742c91bb64908e83",
+      "rows": 0,
+      "tableCountsSha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+      "tables": 0
+    },
+    "crm_source": {
+      "publicSchemaSha256": "c31939028cdb63656e5c3578416cf213e6082095422d98fcfa314cab9815443e",
+      "rows": 42410,
+      "tableCountsSha256": "089c02510c5da79d3a530eb3914476f6e23c01cc7554a2c95e7367ccc06f1925",
+      "tables": 57
+    },
+    "epharm_source": {
+      "publicSchemaSha256": "21c8f8dd4ace37775bba2ca56143dd2965920fa8289cff62107021103830de27",
+      "rows": 1905775,
+      "tableCountsSha256": "6441b8dba8918d9de654a97340ab7499df9806aff09c5f89c6983307b2a53cd3",
+      "tables": 73
+    }
+  },
+  "sourceArtifactSha256": "ab54e5f10a08b53d9cab15874eb98fff5515b37271c8fa5e78f10394b889fd25",
+  "sourceBackupSha256": "a82beb699b391020ebebefd9c0c02d7a516232b9dfbfe82a0545d1a6bafc0023",
+  "sourceSchemaSha256": "c31939028cdb63656e5c3578416cf213e6082095422d98fcfa314cab9815443e",
+  "state": "source_confirmed",
+  "strictMinimumHeadroomBytes": 1073741824,
+  "targetIdentitySha256": "f039ff3e7a06d4a848e06df6478d370f074e2957c13f82ffd39c38290acd8f80",
+  "targetNamespace": {
+    "activeSequences": 0,
+    "columns": 652,
+    "constraints": {
+      "f": 117,
+      "p": 57,
+      "u": 30
+    },
+    "enumTypes": 6,
+    "legacyTriggers": 0,
+    "manifestBytes": 286720,
+    "manifestRows": 1,
+    "notNullColumns": 410,
+    "routines": 0,
+    "typedTableBytes": 12492800,
+    "typedTables": 57
+  },
+  "tests": {
+    "realPG18ToPG16EngineIntegration": 1,
+    "unificationSuiteDefaultSkippedOptIn": 1,
+    "unificationSuiteTotal": 77,
+    "unit": 20
+  }
+}

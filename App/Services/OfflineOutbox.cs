@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.Json;
+using CustomerDisplay.Models.Posm;
 using Microsoft.Data.Sqlite;
 
 namespace CustomerDisplay.Services
@@ -53,6 +55,15 @@ namespace CustomerDisplay.Services
                     created_at    TEXT NOT NULL,
                     attempts      INTEGER NOT NULL DEFAULT 0,
                     next_retry_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS outbox_legacy_sale_evidence (
+                    id TEXT PRIMARY KEY,
+                    kind TEXT NOT NULL,
+                    payload TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    attempts INTEGER NOT NULL,
+                    next_retry_at TEXT NOT NULL,
+                    archived_at TEXT NOT NULL
                 );";
             cmd.ExecuteNonQuery();
         }
@@ -62,7 +73,9 @@ namespace CustomerDisplay.Services
             lock (_lock)
             {
                 using var conn = Open();
+                using var transaction = conn.BeginTransaction();
                 using var cmd = conn.CreateCommand();
+                cmd.Transaction = transaction;
                 cmd.CommandText = @"INSERT OR IGNORE INTO outbox (id, kind, payload, created_at, attempts, next_retry_at)
                                     VALUES ($id, $kind, $payload, $now, 0, $now);";
                 var now = DateTimeOffset.UtcNow.ToString("o");
@@ -70,11 +83,57 @@ namespace CustomerDisplay.Services
                 cmd.Parameters.AddWithValue("$kind", kind);
                 cmd.Parameters.AddWithValue("$payload", payloadJson);
                 cmd.Parameters.AddWithValue("$now", now);
-                cmd.ExecuteNonQuery();
+                if (cmd.ExecuteNonQuery() == 0 && kind == "sale")
+                    UpgradeConfirmedLegacySale(conn, transaction, id, payloadJson, now);
+                transaction.Commit();
             }
         }
 
-        /// <summary>Готовые к отправке записи (next_retry_at в прошлом), старые первыми.</summary>
+        private static void UpgradeConfirmedLegacySale(
+            SqliteConnection conn, SqliteTransaction transaction, string id, string payloadJson, string now)
+        {
+            SaleReport? confirmed;
+            try { confirmed = JsonSerializer.Deserialize<SaleReport>(payloadJson, EpharmJson.Options); }
+            catch (JsonException) { return; } // An invalid duplicate can never replace preserved evidence.
+            if (confirmed == null || !ReceiptFinalizationRules.IsConfirmedPrint(confirmed.CaptureSource)) return;
+
+            using var read = conn.CreateCommand();
+            read.Transaction = transaction;
+            read.CommandText = "SELECT payload FROM outbox WHERE id=$id AND kind='sale';";
+            read.Parameters.AddWithValue("$id", id);
+            if (read.ExecuteScalar() is not string original) return;
+            SaleReport? preserved;
+            try { preserved = JsonSerializer.Deserialize<SaleReport>(original, EpharmJson.Options); }
+            catch (JsonException) { return; }
+            if (preserved == null || !ReceiptFinalizationRules.IsKnownUnconfirmedLegacySource(preserved.CaptureSource)) return;
+            if (!string.Equals(id, confirmed.SaleId, StringComparison.Ordinal) ||
+                !ReceiptFinalizationRules.IsSamePhysicalSaleConfirmedAfterLegacyFailure(preserved, confirmed))
+                throw new InvalidDataException("Confirmed sale does not match preserved physical receipt identity.");
+
+            // The old queue row remains recoverable in full. Any conflicting archive aborts
+            // this transaction; neither evidence nor the canonical row is silently replaced.
+            using var archive = conn.CreateCommand();
+            archive.Transaction = transaction;
+            archive.CommandText = @"INSERT INTO outbox_legacy_sale_evidence
+                (id,kind,payload,created_at,attempts,next_retry_at,archived_at)
+                SELECT id,kind,payload,created_at,attempts,next_retry_at,$now FROM outbox WHERE id=$id;";
+            archive.Parameters.AddWithValue("$id", id);
+            archive.Parameters.AddWithValue("$now", now);
+            archive.ExecuteNonQuery();
+            using var update = conn.CreateCommand();
+            update.Transaction = transaction;
+            update.CommandText = @"UPDATE outbox SET payload=$payload,attempts=0,next_retry_at=$now
+                                   WHERE id=$id AND kind='sale';";
+            update.Parameters.AddWithValue("$id", id);
+            update.Parameters.AddWithValue("$payload", payloadJson);
+            update.Parameters.AddWithValue("$now", now);
+            update.ExecuteNonQuery();
+        }
+
+        /// <summary>
+        /// Готовые записи, старые первыми. Известные неподтверждённые legacy sale сохраняются,
+        /// но исключаются ДО LIMIT: они не должны отправляться или задерживать остальную очередь.
+        /// </summary>
         public IReadOnlyList<OutboxItem> DequeueReady(int limit = 20)
         {
             lock (_lock)
@@ -83,9 +142,17 @@ namespace CustomerDisplay.Services
                 using var conn = Open();
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = @"SELECT id, kind, payload, attempts FROM outbox
-                                    WHERE next_retry_at <= $now ORDER BY created_at LIMIT $limit;";
+                    WHERE next_retry_at <= $now
+                      AND NOT (kind = 'sale' AND EXISTS (
+                        SELECT 1 FROM json_each(CASE WHEN json_valid(payload) THEN payload ELSE '{}' END)
+                        WHERE key COLLATE NOCASE = 'captureSource' AND type = 'text'
+                          AND value IN ($documentSwitch, $disappearance)
+                      ))
+                    ORDER BY created_at LIMIT $limit;";
                 cmd.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToString("o"));
                 cmd.Parameters.AddWithValue("$limit", limit);
+                cmd.Parameters.AddWithValue("$documentSwitch", ReceiptFinalizationRules.UnconfirmedDocumentSwitchSource);
+                cmd.Parameters.AddWithValue("$disappearance", ReceiptFinalizationRules.UnconfirmedDisappearanceSource);
                 using var rd = cmd.ExecuteReader();
                 while (rd.Read())
                 {

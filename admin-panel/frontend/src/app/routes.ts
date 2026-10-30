@@ -11,9 +11,13 @@ export const SECTION_ROUTES: Record<SectionId, string> = {
   reconcile: '/reconcile',
   ai_exam: '/ai-exam',
   finance: '/finance',
+  ledger: '/finance/ledger',
   lift: '/lift',
   lms: '/lms',
   settings: '/settings',
   storefront: '/storefront',
   fulfillment: '/fulfillment',
+  merch_inventory: '/merch/inventory',
+  merch_placements: '/merch/placements',
+  merch_tasks: '/merch/tasks',
 }

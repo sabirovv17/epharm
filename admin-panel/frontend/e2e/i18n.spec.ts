@@ -4,7 +4,7 @@
 // Селектор языка: на /settings ровно 2 <select> — [0] часовой пояс, [1] язык.
 // Берём .locator('select').nth(1), чтобы не зависеть от меняющейся подписи (Язык/Тіл).
 
-import { test, expect } from './fixtures'
+import { test, expect, openSidebarModule } from './fixtures'
 
 test.describe('i18n — переключение языка ru ↔ kk', () => {
   test('смена на Қазақша переводит заголовок и навигацию', async ({ loggedInPage }) => {
@@ -15,6 +15,7 @@ test.describe('i18n — переключение языка ru ↔ kk', () => {
     await page.locator('select').nth(1).selectOption('kk')
 
     await expect(page.getByRole('heading', { level: 1, name: 'Баптаулар' })).toBeVisible()
+    await openSidebarModule(page, 'Аналитика')
     await expect(page.getByText('Аналитика дашборды')).toBeVisible() // sidebar nav
     await expect(page.getByRole('heading', { level: 1, name: 'Настройки' })).toHaveCount(0)
   })
@@ -44,7 +45,11 @@ test.describe('i18n — переключение языка ru ↔ kk', () => {
     await page.locator('select').nth(1).selectOption('kk')
     await expect(page.getByRole('heading', { level: 1, name: 'Баптаулар' })).toBeVisible()
 
-    await page.getByText('Промо-науқандар').first().click()
+    await openSidebarModule(page, 'Фармацевттерді ынталандыру')
+    await page
+      .getByRole('complementary', { name: 'Основная навигация' })
+      .getByRole('button', { name: 'Промо-науқандар', exact: true })
+      .click()
     await expect(page).toHaveURL(/\/promo$/)
     await expect(page.getByRole('heading', { level: 1, name: 'Промо-науқандар' })).toBeVisible()
   })

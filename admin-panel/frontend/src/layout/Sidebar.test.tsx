@@ -4,8 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Sidebar } from './Sidebar'
-import { SECTIONS, USERS } from '@/mocks/fixtures'
-import { sectionsForRole } from '@/app/accessPolicy'
+import { USERS } from '@/mocks/fixtures'
 
 function setup(overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) {
   const onSelect = vi.fn()
@@ -43,33 +42,34 @@ describe('Sidebar — брендинг', () => {
 })
 
 describe('Sidebar — навигация', () => {
-  it('для бизнес-роли без учебных полномочий рендерит только основные разделы', () => {
+  it('для HQ сохраняет семь групп, управление в отдельном нижнем блоке', () => {
+    const { container } = setup({ user: USERS.bauyrzhan })
+    ;[
+      'Аналитика',
+      'Мотивация фармацевтов',
+      'Обучение',
+      'Мерчендайзинг',
+      'Аптеки и товары',
+      'Фармацевты',
+      'Управление',
+    ].forEach((label) => expect(screen.getByRole('button', { name: label })).toBeInTheDocument())
+    const bottom = container.querySelector('[aria-label="Управление"]')
+    expect(bottom?.querySelector('button')).toHaveTextContent('Управление')
+    expect(bottom?.closest('nav')).toBeNull()
+  })
+
+  it('бизнес-роль не получает обучение; неподключённый мерч не становится доступом', async () => {
     setup()
-    sectionsForRole(USERS.damir.role).forEach((s) => {
-      expect(screen.getByRole('button', { name: new RegExp(s.label, 'i') })).toBeInTheDocument()
-    })
-    expect(screen.queryByRole('button', { name: /Обучение/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /AI-Экзаменация/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Обучение$/ })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Мерчендайзинг' }))
+    expect(screen.getByRole('button', { name: /Кабинет производителя/ })).toBeDisabled()
+    expect(
+      screen.queryByRole('button', { name: 'Календарь и доступность' }),
+    ).not.toBeInTheDocument()
   })
 
-  it('для HQ_HEAD показывает основные разделы, обучение и AI-экзамены', () => {
-    setup({ user: USERS.bauyrzhan })
-
-    sectionsForRole(USERS.bauyrzhan.role).forEach((section) => {
-      expect(
-        screen.getByRole('button', { name: new RegExp(section.label, 'i') }),
-      ).toBeInTheDocument()
-    })
-    expect(screen.getByRole('button', { name: /Обучение/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /AI-Экзаменация/i })).toBeInTheDocument()
-  })
-
-  it('для руководителя обучения переносит разделы LMS в sidebar без общего пункта', () => {
+  it('обучение сохраняет все десять вкладок и AI, без финансов и чужих разделов', () => {
     setup({ user: USERS.lms, active: 'lms', activeTrainingTab: 'courses' })
-
-    expect(screen.getByText(/Центр обучения/i)).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^Обучение$/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /AI-Экзаменация/i })).toBeInTheDocument()
     ;[
       'Дашборд',
       'Программы',
@@ -81,50 +81,44 @@ describe('Sidebar — навигация', () => {
       'Сертификаты',
       'Аналитика',
       'Настройки обучения',
-    ].forEach((label) => {
-      expect(screen.getByRole('button', { name: label })).toBeInTheDocument()
-    })
-    expect(screen.getByRole('button', { name: 'Онлайн-курсы' })).toHaveClass('sidebar-active')
-    SECTIONS.filter(
-      (section) => section.id !== 'lms' && section.id !== 'ai_exam' && section.id !== 'settings',
-    ).forEach(
-      (section) => {
-        expect(
-          screen.queryByRole('button', { name: new RegExp(section.label, 'i') }),
-        ).not.toBeInTheDocument()
-      },
+      'AI-Экзаменация',
+    ].forEach((label) => expect(screen.getByRole('button', { name: label })).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Онлайн-курсы' })).toHaveAttribute(
+      'aria-current',
+      'page',
     )
-    expect(screen.queryByRole('button', { name: /^Настройки$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Мотивация фармацевтов' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Мерчендайзинг' })).not.toBeInTheDocument()
     expect(screen.queryByTestId('contract-widget-empty')).not.toBeInTheDocument()
   })
 
   it('учебный пункт вызывает отдельную навигацию по вкладке', async () => {
-    const user = userEvent.setup()
     const { onSelectTrainingTab } = setup({ user: USERS.lms, active: 'lms' })
-
-    await user.click(screen.getByRole('button', { name: 'Результаты и экзамены' }))
-
+    await userEvent.click(screen.getByRole('button', { name: 'Результаты и экзамены' }))
     expect(onSelectTrainingTab).toHaveBeenCalledWith('results')
   })
 
-  it('активный пункт получает sidebar-active класс', () => {
-    setup({ active: 'reconcile' })
-    expect(screen.getByRole('button', { name: /Сверка чеков/i })).toHaveClass('sidebar-active')
-  })
-
-  it('клик по пункту вызывает onSelect с правильным id', async () => {
-    const user = userEvent.setup()
-    const { onSelect } = setup()
-    await user.click(screen.getByRole('button', { name: /Дашборд аналитики/i }))
+  it('пункты внутри групп сохраняют старый section callback и активность', async () => {
+    const { onSelect } = setup({ active: 'reconcile' })
+    expect(screen.getByRole('button', { name: /Сверка чеков/ })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Аналитика' }))
+    await userEvent.click(screen.getByRole('button', { name: /Дашборд аналитики/ }))
     expect(onSelect).toHaveBeenCalledWith('dashboard')
   })
 
-  it('badge не рендерится (в фикстурах сейчас undefined)', () => {
-    setup()
-    expect(screen.queryByText('12')).not.toBeInTheDocument()
-    expect(screen.queryByText('507')).not.toBeInTheDocument()
-    expect(screen.queryByText('24')).not.toBeInTheDocument()
-    expect(screen.queryByText('!')).not.toBeInTheDocument()
+  it('явное серверное право открывает только календарь мерча у регионала', async () => {
+    const { onSelect } = setup({
+      user: { ...USERS.lms, role: 'REGIONAL_MANAGER' },
+      canViewMerchInventory: true,
+      active: 'merch_inventory',
+    })
+    expect(screen.getByRole('button', { name: 'Календарь и доступность' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'Мотивация фармацевтов' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Календарь и доступность' }))
+    expect(onSelect).toHaveBeenCalledWith('merch_inventory')
   })
 })
 

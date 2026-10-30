@@ -1,7 +1,7 @@
 // Тесты PharmacyDetailPage — рендер формы, save, delete (confirm), loading/error/not-found.
 
 import { describe, expect, it, beforeEach, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -65,6 +65,21 @@ function renderPage() {
 }
 
 describe('PharmacyDetailPage', () => {
+  it.each([null, 0] as const)(
+    'метаданные GMV сохраняют разницу между скрытым значением %s и нулём',
+    (gmv30d) => {
+      hooks.usePharmacy.mockReturnValue({
+        data: mkPharmacy({ gmv30d }),
+        isLoading: false,
+        isError: false,
+      })
+      renderPage()
+      const metric = screen.getByText('GMV/30д').parentElement as HTMLElement
+      expect(within(metric).getByText(gmv30d == null ? '—' : /0\s*₸/)).toBeInTheDocument()
+      if (gmv30d == null) expect(metric).not.toHaveTextContent(/\b0\s*₸/)
+    },
+  )
+
   it('рендерит форму с данными аптеки', () => {
     hooks.usePharmacy.mockReturnValue({ data: mkPharmacy(), isLoading: false, isError: false })
     renderPage()

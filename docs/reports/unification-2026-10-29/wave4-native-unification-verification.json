@@ -1,0 +1,98 @@
+{
+  "capturedAt": "2026-10-29",
+  "scope": "Local unified candidate only; no production deployment or functional-loss acceptance",
+  "branch": "codex/unified-admin-development",
+  "mainRevision": "a3feef372acf6509c8c088fea4265b8aaae57581",
+  "backend": {
+    "tests": 1134,
+    "failures": 0,
+    "skipped": 1,
+    "suites": 132,
+    "command": "./gradlew test check --no-daemon",
+    "result": "PASS",
+    "skipReason": "Exact older financial-writer rollback JAR integration is opt-in; not run",
+    "subsequentChangesRequiringCheck": [
+      "explicit OFF automation environment mapping",
+      "expanded native automation artifact markers"
+    ]
+  },
+  "frontend": {
+    "unitTests": 800,
+    "builtBrowserTests": 39,
+    "build": "PASS",
+    "lint": "PASS",
+    "backendMode": "isolated mocked API fixtures",
+    "lateCourseResponseRegression": "RED then GREEN"
+  },
+  "posm": {
+    "coreTests": 300,
+    "result": "PASS",
+    "windowsDesktopVerified": false
+  },
+  "python": {
+    "tests": 116,
+    "skipped": 1,
+    "result": "PASS",
+    "disposablePostgresCases": 7,
+    "skipReason": "separate opt-in PostgreSQL18 to16 engine rehearsal; previously verified independently"
+  },
+  "preservation": {
+    "allOriginalColumnHashesAndPrimaryKeysUnchanged": true,
+    "originalBusinessTables": 72,
+    "originalRows": 1905710,
+    "productionChanged": false,
+    "sourceUnchanged": true
+  },
+  "automationProjection": {
+    "ambiguousOwnerBranches": 0,
+    "generatedTasks": 0,
+    "issuedLinks": 0,
+    "mode": "materialized_and_verified",
+    "newRewards": 0,
+    "productionChanged": false,
+    "projectedDispatches": 27,
+    "projectedItems": 82,
+    "projectedPlans": 3,
+    "sourceArtifactSha256": "ab54e5f10a08b53d9cab15874eb98fff5515b37271c8fa5e78f10394b889fd25",
+    "targetIdentitySha256": "4fdfb3c6c6a9a4296b178c75681cd4fc09d975fa0eb6c348cb8e49bf78853453",
+    "verifiedSourceOwnerBranches": 16
+  },
+  "automationReplay": {
+    "ambiguousOwnerBranches": 0,
+    "generatedTasks": 0,
+    "issuedLinks": 0,
+    "mode": "verified_existing_noop",
+    "newRewards": 0,
+    "productionChanged": false,
+    "projectedDispatches": 27,
+    "projectedItems": 82,
+    "projectedPlans": 3,
+    "sourceArtifactSha256": "ab54e5f10a08b53d9cab15874eb98fff5515b37271c8fa5e78f10394b889fd25",
+    "targetIdentitySha256": "4fdfb3c6c6a9a4296b178c75681cd4fc09d975fa0eb6c348cb8e49bf78853453",
+    "verifiedSourceOwnerBranches": 16
+  },
+  "sourceInventory": {
+    "actions": 478,
+    "groups": 57,
+    "backendEndpoints": 320,
+    "posmContracts": 47,
+    "guard": "PASS",
+    "runtimeAcceptance": false
+  },
+  "appliedLocalMigrationSha256": {
+    "V066__unified_admin_access.sql": "353a8485728b2990370f61742bf3da7ffe4e37687b77843a01edc8c0b029db6e",
+    "V067__campaign_publication_changes.sql": "18d2791677234ab32b11ec1014e5a7cbd8e494c21daed2525f5cef0d2770d66b",
+    "V068__merch_owned_inventory.sql": "33f2f8daaeab9610e93e1977e2684022137660f841e93bc8bcc9983238746177",
+    "V069__unified_source_links_and_producers.sql": "30bf3ce42111c6936e28d21e1fee172bd7cfa58f3e358f92538fd6da7f361473",
+    "V070__merch_placement_workflow.sql": "2db274dfc7fff9a60ccb7f84e4e9c3c4e20a30373259087520a51be47052ba88",
+    "V071__merch_native_task_workflow.sql": "d79cf0ccd30fdd53e47b1b395afd4542427f6490e917b2723b50c4835efda70a",
+    "V072__merch_producer_auth.sql": "c9f483b953f062c6b99c0ddc7e9cbc6cfbeabdb8ced0ee8d317525485c7967c5",
+    "V073__merch_producer_profile_compatibility.sql": "e324192cde6fcd44216aca3aa610ea9950a975ca17f1121bd1e7f8ac97490043",
+    "V074__merch_native_delivery.sql": "487a1cb9d0a0332b64464ad3dcf862afd0b19deef87db46f9a817d7377fb5aa8",
+    "V075__merch_producer_sms_registration.sql": "e1e6065ca82a2b2aa840a836a5581c9c4bc49f2ff0d74674b214faef7dc7210d",
+    "V076__merch_weekly_automation.sql": "8502d3afd6f2bc8d91592a4579cfa14e62dfc0142a295a31bbd3cfd96dc3dfdb"
+  },
+  "productionChanged": false,
+  "rpsEnabled": false,
+  "remainingAcceptance": "PLAN.md fourth implementation journal"
+}

@@ -38,6 +38,7 @@ import java.util.UUID
 
 @Service
 class CourseService(
+    private val administrativeAccess: kz.epharm.training.access.TrainingAdministrativeAccess,
     private val courseRepository: CourseRepository,
     private val lessonRepository: CourseLessonRepository,
     private val attachmentRepository: CourseLessonAttachmentRepository,
@@ -74,6 +75,9 @@ class CourseService(
 
     @Transactional
     fun create(req: CreateCourseRequest, createdBy: String): CourseDto {
+        administrativeAccess.lockWriter()
+        if (req.status == CourseStatus.published) administrativeAccess.requireAll("courses", "publish")
+        if (req.bonus != 0) administrativeAccess.requireAll("courses", "configure_bonus")
         val entity = CourseEntity(
             id = "crs_${UUID.randomUUID().toString().replace("-", "").take(12)}",
             title = req.title.trim(),
@@ -89,7 +93,10 @@ class CourseService(
 
     @Transactional
     fun update(id: String, req: UpdateCourseRequest): CourseDto {
+        administrativeAccess.lockWriter()
         val entity = editableCourse(id)
+        if (entity.status == CourseStatus.published || req.status == CourseStatus.published) administrativeAccess.requireAll("courses", "publish")
+        if (req.bonus != null && req.bonus != entity.bonus) administrativeAccess.requireAll("courses", "configure_bonus")
         req.title?.let {
             if (it.isBlank()) invalid("Название курса обязательно")
             entity.title = it.trim()
@@ -110,6 +117,7 @@ class CourseService(
 
     @Transactional
     fun delete(id: String) {
+        administrativeAccess.lockWriter()
         val entity = loadOrThrow(id)
         entity.status = CourseStatus.archived
         courseRepository.save(entity)
@@ -117,7 +125,8 @@ class CourseService(
 
     @Transactional
     fun createLesson(courseId: String, req: CreateCourseLessonRequest): CourseDto {
-        editableCourse(courseId)
+        administrativeAccess.lockWriter()
+        editableCourse(courseId).also { if (it.status == CourseStatus.published) administrativeAccess.requireAll("courses", "publish") }
         val current = lessons(courseId)
         if (current.size >= MAX_LESSONS_PER_COURSE) {
             invalid("В одном курсе может быть не более $MAX_LESSONS_PER_COURSE уроков")
@@ -172,7 +181,8 @@ class CourseService(
 
     @Transactional
     fun updateLesson(courseId: String, lessonId: String, req: UpdateCourseLessonRequest): CourseDto {
-        editableCourse(courseId)
+        administrativeAccess.lockWriter()
+        editableCourse(courseId).also { if (it.status == CourseStatus.published) administrativeAccess.requireAll("courses", "publish") }
         val lesson = loadLessonForUpdateOrThrow(courseId, lessonId)
         req.title?.let {
             if (it.isBlank()) invalid("Название урока обязательно")
@@ -294,7 +304,8 @@ class CourseService(
 
     @Transactional
     fun deleteLesson(courseId: String, lessonId: String): CourseDto {
-        editableCourse(courseId)
+        administrativeAccess.lockWriter()
+        editableCourse(courseId).also { if (it.status == CourseStatus.published) administrativeAccess.requireAll("courses", "publish") }
         val lesson = loadLessonForUpdateOrThrow(courseId, lessonId)
         if (lessonProgressRepository.existsByLessonId(lessonId)) {
             throw AppException(
@@ -334,7 +345,8 @@ class CourseService(
 
     @Transactional
     fun reorderLessons(courseId: String, req: ReorderCourseLessonsRequest): CourseDto {
-        editableCourse(courseId)
+        administrativeAccess.lockWriter()
+        editableCourse(courseId).also { if (it.status == CourseStatus.published) administrativeAccess.requireAll("courses", "publish") }
         val current = lessons(courseId)
         val expected = current.map { it.id }.toSet()
         if (req.lessonIds.size != expected.size || req.lessonIds.toSet() != expected) {
@@ -353,7 +365,8 @@ class CourseService(
 
     @Transactional
     fun uploadLessonVideo(courseId: String, lessonId: String, file: MultipartFile): CourseDto {
-        editableCourse(courseId)
+        administrativeAccess.lockWriter()
+        editableCourse(courseId).also { if (it.status == CourseStatus.published) administrativeAccess.requireAll("courses", "publish") }
         val lesson = loadLessonOrThrow(courseId, lessonId)
         validateVideo(file)
         val contentType = file.contentType.orEmpty().ifBlank { "application/octet-stream" }
@@ -375,7 +388,8 @@ class CourseService(
         file: MultipartFile,
         title: String,
     ): CourseDto {
-        editableCourse(courseId)
+        administrativeAccess.lockWriter()
+        editableCourse(courseId).also { if (it.status == CourseStatus.published) administrativeAccess.requireAll("courses", "publish") }
         loadLessonOrThrow(courseId, lessonId)
         if (attachmentRepository.findAllByLessonIdOrderByCreatedAtAsc(lessonId).size >= MAX_ATTACHMENTS_PER_LESSON) {
             invalid("К одному уроку можно прикрепить не более $MAX_ATTACHMENTS_PER_LESSON файлов")
@@ -406,7 +420,8 @@ class CourseService(
 
     @Transactional
     fun deleteLessonAttachment(courseId: String, lessonId: String, attachmentId: String): CourseDto {
-        editableCourse(courseId)
+        administrativeAccess.lockWriter()
+        editableCourse(courseId).also { if (it.status == CourseStatus.published) administrativeAccess.requireAll("courses", "publish") }
         loadLessonOrThrow(courseId, lessonId)
         val attachment = attachmentRepository.findById(attachmentId).orElse(null)
             ?.takeIf { it.lessonId == lessonId }

@@ -213,7 +213,7 @@ export default function PharmacyDetailPage() {
           <Meta label={t('phd.metaChain')} value={ph.chainName} />
           <Meta label={t('phd.metaPharm')} value={`${ph.pharmacists}`} />
           <Meta label={t('phd.metaReceipts')} value={formatNum(ph.receipts30d)} />
-          <Meta label={t('phd.metaGmv')} value={formatKzt(ph.gmv30d)} />
+          <Meta label={t('phd.metaGmv')} value={ph.gmv30d == null ? '—' : formatKzt(ph.gmv30d)} />
           <Meta
             label={t('phd.metaLift')}
             value={ph.liftPct > 0 ? `+${ph.liftPct.toFixed(1)}%` : '—'}

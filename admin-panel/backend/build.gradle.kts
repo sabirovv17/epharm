@@ -52,6 +52,7 @@ dependencies {
     implementation(libs.poi.ooxml)
     implementation(libs.pdfbox)
     implementation(libs.zxing.core)
+    implementation("com.twelvemonkeys.imageio:imageio-webp:3.15.3")
 
     implementation(libs.springdoc.openapi.starter)
 

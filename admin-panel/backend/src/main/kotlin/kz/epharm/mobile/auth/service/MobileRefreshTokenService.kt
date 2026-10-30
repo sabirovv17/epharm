@@ -21,6 +21,10 @@ class MobileRefreshTokenService(
 ) {
     val refreshTtl: Duration = Duration.ofDays(refreshTtlDays)
 
+    /** Scalar lookup does not cache a token entity before the caller locks its pharmacist. */
+    @Transactional(readOnly = true)
+    fun pharmacistIdOf(rawToken: String): String? = repository.pharmacistIdByTokenHash(RefreshTokenService.hash(rawToken))
+
     /** Возвращает (rawToken, expiresAt). Raw отдаём клиенту, в БД — только хеш. */
     @Transactional
     fun issue(pharmacistId: String, now: Instant = Instant.now()): IssuedRefresh {

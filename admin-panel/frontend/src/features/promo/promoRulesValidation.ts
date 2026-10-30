@@ -40,13 +40,9 @@ export type PromoRulesValidationMessages = {
   goalTargetRequired: string
 }
 
-const trimOrNull = (value: string | null | undefined): string | null =>
-  value?.trim() || null
+const trimOrNull = (value: string | null | undefined): string | null => value?.trim() || null
 
-const boundedSnapshot = (
-  value: string | null | undefined,
-  max: number,
-): string | null => {
+const boundedSnapshot = (value: string | null | undefined, max: number): string | null => {
   const trimmed = trimOrNull(value)
   return trimmed == null ? null : trimmed.slice(0, max)
 }
@@ -82,10 +78,7 @@ function normalizeOffer(offer: PromoOfferProductRef): PromoOfferProductRef {
   }
 }
 
-function normalizeRef(
-  ref: PromoRuleProductRef,
-  promotedProductId?: string,
-): PromoRuleProductRef {
+function normalizeRef(ref: PromoRuleProductRef, promotedProductId?: string): PromoRuleProductRef {
   const barcodes = collectProductBarcodes(ref)
   const rawBarcode = trimOrNull(ref.barcode)
   return {
@@ -96,8 +89,12 @@ function normalizeRef(
     volume: boundedSnapshot(ref.volume, PROMO_RULE_LIMITS.volume),
     script: (ref.script ?? '').trim(),
     // Keep a malformed editable scalar visible to validation rather than truncating it.
-    barcode: rawBarcode && rawBarcode.length > PROMO_RULE_LIMITS.barcode && collectProductBarcodes({ barcode: rawBarcode }).length === 0
-      ? rawBarcode : barcodes[0] ?? null,
+    barcode:
+      rawBarcode &&
+      rawBarcode.length > PROMO_RULE_LIMITS.barcode &&
+      collectProductBarcodes({ barcode: rawBarcode }).length === 0
+        ? rawBarcode
+        : (barcodes[0] ?? null),
     barcodes,
     ipartId: trimOrNull(ref.ipartId),
     ...(promoTriggerKind(ref) === 'product'
@@ -108,9 +105,7 @@ function normalizeRef(
           triggerLabel: boundedSnapshot(ref.triggerLabel, PROMO_RULE_LIMITS.triggerLabel),
         }),
     advantages: (ref.advantages ?? []).map((item) => item.trim()).filter(Boolean),
-    comparison: (ref.comparison ?? [])
-      .map(normalizeComparison)
-      .filter(comparisonHasContent),
+    comparison: (ref.comparison ?? []).map(normalizeComparison).filter(comparisonHasContent),
     partnerLabel: trimOrNull(ref.partnerLabel),
     additionalRecommendations: [
       ...new Map(
@@ -150,12 +145,8 @@ export function normalizePromoRulesConfig(
     goalLabel: trimOrNull(config.goalLabel),
     goalTarget: config.goalTarget ?? null,
     goalBonus: config.goalBonus ?? null,
-    replacements: dedupe(config.replacements).map((ref) =>
-      normalizeRef(ref, promotedProductId),
-    ),
-    crossSells: dedupe(config.crossSells).map((ref) =>
-      normalizeRef(ref, promotedProductId),
-    ),
+    replacements: dedupe(config.replacements).map((ref) => normalizeRef(ref, promotedProductId)),
+    crossSells: dedupe(config.crossSells).map((ref) => normalizeRef(ref, promotedProductId)),
   }
 }
 
@@ -231,7 +222,6 @@ function validateRef(
     PROMO_RULE_LIMITS.partnerLabel,
     messages,
   )
-
   ;(ref.comparison ?? []).forEach((row, index) => {
     const rowPath = `${path}.comparison[${index}]`
     if (comparisonHasContent(row) && !row.label.trim()) {
@@ -259,7 +249,6 @@ function validateRef(
       messages,
     )
   })
-
   ;(ref.additionalRecommendations ?? []).forEach((offer, index) =>
     validateOffer(offer, `${path}.additionalRecommendations[${index}]`, errors, messages),
   )
@@ -278,27 +267,9 @@ export function validatePromoRulesConfig(
     validateRef(ref, `crossSells[${index}]`, errors, messages),
   )
 
-  validateLength(
-    errors,
-    'goalLabel',
-    config.goalLabel,
-    PROMO_RULE_LIMITS.goalLabel,
-    messages,
-  )
-  validateInteger(
-    errors,
-    'goalTarget',
-    config.goalTarget,
-    1,
-    messages.positiveInteger,
-  )
-  validateInteger(
-    errors,
-    'goalBonus',
-    config.goalBonus,
-    0,
-    messages.nonNegativeInteger,
-  )
+  validateLength(errors, 'goalLabel', config.goalLabel, PROMO_RULE_LIMITS.goalLabel, messages)
+  validateInteger(errors, 'goalTarget', config.goalTarget, 1, messages.positiveInteger)
+  validateInteger(errors, 'goalBonus', config.goalBonus, 0, messages.nonNegativeInteger)
 
   const goalStarted = Boolean(
     config.goalLabel || config.goalTarget != null || config.goalBonus != null,
@@ -333,7 +304,7 @@ export function extractPromoRulesFieldErrors(
   return Object.fromEntries(
     Object.entries(fields).map(([path, message]) => {
       const rendered = humanizeServerMessage(path, message, messages)
-      return [path, rendered]
+      return [path.replace(/^bundle\.rules\./, ''), rendered]
     }),
   )
 }

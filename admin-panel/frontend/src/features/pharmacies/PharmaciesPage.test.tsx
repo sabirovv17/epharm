@@ -1,7 +1,7 @@
 // Тесты PharmaciesPage — пустой/loading/error/полный список + filter + search.
 
 import { describe, expect, it, beforeEach, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -127,6 +127,20 @@ describe('PharmaciesPage — loading/error', () => {
 })
 
 describe('PharmaciesPage — список', () => {
+  it('различает скрытый GMV и настоящий ноль', () => {
+    setPharmacies([
+      mkPharmacy({ id: 'hidden', gmv30d: null }),
+      mkPharmacy({ id: 'zero', gmv30d: 0 }),
+    ])
+    renderPage()
+    const hidden = screen.getByTestId('pharmacy-row-hidden')
+    expect(within(hidden).getByRole('cell', { name: '—' })).toBeInTheDocument()
+    expect(hidden).not.toHaveTextContent(/\b0\s*₸/)
+    expect(
+      within(screen.getByTestId('pharmacy-row-zero')).getByRole('cell', { name: /0\s*₸/ }),
+    ).toBeInTheDocument()
+  })
+
   it('таблица показывает строки + правильные значения', () => {
     setPharmacies([
       mkPharmacy({ id: 'ph_a', name: 'Europharma №100' }),

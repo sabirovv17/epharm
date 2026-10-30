@@ -247,7 +247,7 @@ class ReconcileMoneyAuthorizationIntegrationTest {
     }
 
     private fun bearer(role: AdminRole): String {
-        val admin = admins.save(AdminUserEntity(email = "${role.name.lowercase()}@roles.test", name = "Test reviewer",
+        val admin = admins.saveAndFlush(AdminUserEntity(email = "${role.name.lowercase()}@roles.test", name = "Test reviewer",
             passwordHash = "test-only-not-used", company = "Test").also { it.role = role })
         return "Bearer ${jwt.issueAccessToken(admin)}"
     }

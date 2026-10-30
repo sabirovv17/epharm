@@ -1,0 +1,367 @@
+{
+  "at_utc": "2026-10-29T05:54:06.189349+00:00",
+  "host": "10.10.1.80",
+  "database": {
+    "name": "pharmacy_crm",
+    "bytes": 26875583,
+    "tables": [
+      {
+        "schemaname": "public",
+        "relname": "advertiser_profiles",
+        "estimated_rows": 0,
+        "total_bytes": 32768
+      },
+      {
+        "schemaname": "public",
+        "relname": "advertising_place_photos",
+        "estimated_rows": 0,
+        "total_bytes": 32768
+      },
+      {
+        "schemaname": "public",
+        "relname": "app_users",
+        "estimated_rows": 0,
+        "total_bytes": 98304
+      },
+      {
+        "schemaname": "public",
+        "relname": "audit_log",
+        "estimated_rows": 8,
+        "total_bytes": 147456
+      },
+      {
+        "schemaname": "public",
+        "relname": "branch_passport_photos",
+        "estimated_rows": 0,
+        "total_bytes": 32768
+      },
+      {
+        "schemaname": "public",
+        "relname": "branches",
+        "estimated_rows": 0,
+        "total_bytes": 1400832
+      },
+      {
+        "schemaname": "public",
+        "relname": "epharm_branch_crosswalk",
+        "estimated_rows": 0,
+        "total_bytes": 262144
+      },
+      {
+        "schemaname": "public",
+        "relname": "epharm_catalog_snapshots",
+        "estimated_rows": 0,
+        "total_bytes": 49152
+      },
+      {
+        "schemaname": "public",
+        "relname": "epharm_catalog_staging",
+        "estimated_rows": 0,
+        "total_bytes": 688128
+      },
+      {
+        "schemaname": "public",
+        "relname": "epharm_executor_bindings",
+        "estimated_rows": 0,
+        "total_bytes": 24576
+      },
+      {
+        "schemaname": "public",
+        "relname": "epharm_executor_challenges",
+        "estimated_rows": 0,
+        "total_bytes": 24576
+      },
+      {
+        "schemaname": "public",
+        "relname": "epharm_executor_links",
+        "estimated_rows": 0,
+        "total_bytes": 8192
+      },
+      {
+        "schemaname": "public",
+        "relname": "epharm_reward_outbox",
+        "estimated_rows": 0,
+        "total_bytes": 32768
+      },
+      {
+        "schemaname": "public",
+        "relname": "inventory_containers",
+        "estimated_rows": 0,
+        "total_bytes": 1277952
+      },
+      {
+        "schemaname": "public",
+        "relname": "media_plan_items",
+        "estimated_rows": 0,
+        "total_bytes": 81920
+      },
+      {
+        "schemaname": "public",
+        "relname": "media_plans",
+        "estimated_rows": 0,
+        "total_bytes": 106496
+      },
+      {
+        "schemaname": "public",
+        "relname": "member_branch_access",
+        "estimated_rows": 12,
+        "total_bytes": 40960
+      },
+      {
+        "schemaname": "public",
+        "relname": "monthly_inventory",
+        "estimated_rows": 0,
+        "total_bytes": 3162112
+      },
+      {
+        "schemaname": "public",
+        "relname": "organization_members",
+        "estimated_rows": 0,
+        "total_bytes": 16384
+      },
+      {
+        "schemaname": "public",
+        "relname": "organizations",
+        "estimated_rows": 0,
+        "total_bytes": 49152
+      },
+      {
+        "schemaname": "public",
+        "relname": "pharmacy_training_materials",
+        "estimated_rows": 0,
+        "total_bytes": 24576
+      },
+      {
+        "schemaname": "public",
+        "relname": "pharmapay_product_balances",
+        "estimated_rows": 0,
+        "total_bytes": 49152
+      },
+      {
+        "schemaname": "public",
+        "relname": "pharmapay_recommendation_signals",
+        "estimated_rows": 0,
+        "total_bytes": 40960
+      },
+      {
+        "schemaname": "public",
+        "relname": "placement_item_client_photos",
+        "estimated_rows": 0,
+        "total_bytes": 32768
+      },
+      {
+        "schemaname": "public",
+        "relname": "placement_item_product_details",
+        "estimated_rows": 0,
+        "total_bytes": 32768
+      },
+      {
+        "schemaname": "public",
+        "relname": "promotions",
+        "estimated_rows": 0,
+        "total_bytes": 16384
+      },
+      {
+        "schemaname": "public",
+        "relname": "schema_migrations",
+        "estimated_rows": 2,
+        "total_bytes": 32768
+      },
+      {
+        "schemaname": "public",
+        "relname": "shelves",
+        "estimated_rows": 0,
+        "total_bytes": 6086656
+      },
+      {
+        "schemaname": "public",
+        "relname": "sms_login_challenges",
+        "estimated_rows": 0,
+        "total_bytes": 65536
+      },
+      {
+        "schemaname": "public",
+        "relname": "staff_access_attempts",
+        "estimated_rows": 0,
+        "total_bytes": 65536
+      },
+      {
+        "schemaname": "public",
+        "relname": "staff_access_code_branches",
+        "estimated_rows": 0,
+        "total_bytes": 106496
+      },
+      {
+        "schemaname": "public",
+        "relname": "staff_access_codes",
+        "estimated_rows": 0,
+        "total_bytes": 81920
+      },
+      {
+        "schemaname": "public",
+        "relname": "staff_task_attachments",
+        "estimated_rows": 4,
+        "total_bytes": 65536
+      },
+      {
+        "schemaname": "public",
+        "relname": "staff_task_batches",
+        "estimated_rows": 0,
+        "total_bytes": 32768
+      },
+      {
+        "schemaname": "public",
+        "relname": "staff_task_checklist_items",
+        "estimated_rows": 246,
+        "total_bytes": 163840
+      },
+      {
+        "schemaname": "public",
+        "relname": "staff_task_comments",
+        "estimated_rows": 0,
+        "total_bytes": 24576
+      },
+      {
+        "schemaname": "public",
+        "relname": "staff_task_delivery_receipts",
+        "estimated_rows": 21,
+        "total_bytes": 49152
+      },
+      {
+        "schemaname": "public",
+        "relname": "staff_task_dispatch_links",
+        "estimated_rows": 36,
+        "total_bytes": 114688
+      },
+      {
+        "schemaname": "public",
+        "relname": "staff_task_dispatches",
+        "estimated_rows": 27,
+        "total_bytes": 212992
+      },
+      {
+        "schemaname": "public",
+        "relname": "staff_task_events",
+        "estimated_rows": 277,
+        "total_bytes": 172032
+      },
+      {
+        "schemaname": "public",
+        "relname": "staff_task_kiosk_devices",
+        "estimated_rows": 0,
+        "total_bytes": 32768
+      },
+      {
+        "schemaname": "public",
+        "relname": "staff_task_kiosk_links",
+        "estimated_rows": 0,
+        "total_bytes": 24576
+      },
+      {
+        "schemaname": "public",
+        "relname": "staff_task_stock_observations",
+        "estimated_rows": 0,
+        "total_bytes": 16384
+      },
+      {
+        "schemaname": "public",
+        "relname": "staff_tasks",
+        "estimated_rows": 82,
+        "total_bytes": 335872
+      },
+      {
+        "schemaname": "public",
+        "relname": "supplier_budget_plan_items",
+        "estimated_rows": 0,
+        "total_bytes": 57344
+      },
+      {
+        "schemaname": "public",
+        "relname": "supplier_budget_plans",
+        "estimated_rows": 0,
+        "total_bytes": 57344
+      },
+      {
+        "schemaname": "public",
+        "relname": "supplier_company_members",
+        "estimated_rows": 0,
+        "total_bytes": 24576
+      },
+      {
+        "schemaname": "public",
+        "relname": "supplier_pricing_tiers",
+        "estimated_rows": 0,
+        "total_bytes": 32768
+      },
+      {
+        "schemaname": "public",
+        "relname": "telegram_branch_invites",
+        "estimated_rows": 0,
+        "total_bytes": 24576
+      },
+      {
+        "schemaname": "public",
+        "relname": "telegram_chat_bindings",
+        "estimated_rows": 0,
+        "total_bytes": 32768
+      },
+      {
+        "schemaname": "public",
+        "relname": "telegram_chat_states",
+        "estimated_rows": 0,
+        "total_bytes": 8192
+      },
+      {
+        "schemaname": "public",
+        "relname": "telegram_notification_log",
+        "estimated_rows": 0,
+        "total_bytes": 24576
+      },
+      {
+        "schemaname": "public",
+        "relname": "user_sessions",
+        "estimated_rows": 235,
+        "total_bytes": 172032
+      },
+      {
+        "schemaname": "public",
+        "relname": "visit_report_attempt_photos",
+        "estimated_rows": 0,
+        "total_bytes": 32768
+      },
+      {
+        "schemaname": "public",
+        "relname": "visit_report_attempts",
+        "estimated_rows": 0,
+        "total_bytes": 32768
+      },
+      {
+        "schemaname": "public",
+        "relname": "visit_reports",
+        "estimated_rows": 0,
+        "total_bytes": 57344
+      },
+      {
+        "schemaname": "public",
+        "relname": "visit_shelf_photos",
+        "estimated_rows": 0,
+        "total_bytes": 24576
+      }
+    ]
+  },
+  "disk": {
+    "exit_code": 0,
+    "stdout": "Filesystem                            1-blocks        Used   Available Capacity Mounted on\n/dev/mapper/ubuntu--vg-ubuntu--lv 105089261568 79176773632 20527001600      80% /",
+    "stderr": ""
+  },
+  "storage": {
+    "exit_code": 1,
+    "stdout": "11132928\t/opt/pharmacy-crm-demo/storage\n1730375680\t/var/backups/pharmacy-crm-demo",
+    "stderr": "du: cannot access '/var/backups/epharm': No such file or directory"
+  },
+  "backup_unit": {
+    "exit_code": 0,
+    "stdout": "Id=pharmacy-crm-backup.service\nResult=success\nExecMainExitTimestamp=Thu 2026-10-29 02:30:05 UTC\nExecMainStatus=0",
+    "stderr": ""
+  }
+}

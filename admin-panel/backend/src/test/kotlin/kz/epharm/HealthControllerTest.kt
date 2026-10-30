@@ -1,9 +1,14 @@
 package kz.epharm
 
+import com.ninjasquad.springmockk.MockkBean
+import kz.epharm.auth.access.UnifiedAccessStore
+import kz.epharm.auth.access.UnifiedAdminCatalog
+import kz.epharm.auth.security.AdminSessionLoader
 import kz.epharm.auth.security.JwtAuthenticationFilter
 import kz.epharm.auth.service.JwtService
 import kz.epharm.shared.ApiAccessDeniedHandler
 import kz.epharm.shared.ApiAuthenticationEntryPoint
+import kz.epharm.merch.producer.auth.ProducerAuthService
 import kz.epharm.shared.HealthController
 import kz.epharm.shared.SecurityConfig
 import kz.epharm.shared.error.GlobalExceptionHandler
@@ -36,6 +41,13 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
     "app.cors.allowed-origins=http://localhost:5173",
 ])
 class HealthControllerTest(@Autowired val mvc: MockMvc) {
+    @MockkBean
+    lateinit var adminSessionLoader: AdminSessionLoader
+
+    @MockkBean lateinit var producerSessions: ProducerAuthService
+
+    @MockkBean lateinit var accessStore: UnifiedAccessStore
+    @MockkBean lateinit var accessCatalog: UnifiedAdminCatalog
 
     @Test
     fun `health endpoint returns ok without auth`() {

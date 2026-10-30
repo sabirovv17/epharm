@@ -2,13 +2,14 @@
 // Редактирование полей (PATCH), статус-действия, cover-overlay, archived read-only.
 
 import { describe, expect, it, beforeEach, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { ToastHost } from '@/ui'
-import type { PromoDto } from '@/lib/api-types'
+import type { PromoChangesViewDto, PromoDto } from '@/lib/api-types'
 import PromoDetailPage from './PromoDetailPage'
+import { AxiosError } from 'axios'
 
 const promoHooks = vi.hoisted(() => ({
   usePromo: vi.fn(),
@@ -27,6 +28,12 @@ const promoRulesHooks = vi.hoisted(() => ({
   usePromoRules: vi.fn(),
   useSavePromoRules: vi.fn(),
 }))
+const changesHooks = vi.hoisted(() => ({
+  usePromoChanges: vi.fn(),
+  useSavePromoChanges: vi.fn(),
+  useApplyPromoChanges: vi.fn(),
+}))
+vi.mock('@/lib/queries/promoChanges', () => changesHooks)
 
 vi.mock('@/lib/queries/promo', () => promoHooks)
 vi.mock('@/lib/queries/storefront', () => ({
@@ -89,6 +96,62 @@ function setPromo(data: PromoDto | undefined, extra: Record<string, unknown> = {
     refetch: vi.fn(),
     ...extra,
   })
+  changesHooks.usePromoChanges.mockReturnValue({
+    data: data ? changesFor(data) : undefined,
+    isFetchedAfterMount: true,
+    isFetching: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  })
+}
+
+function changesFor(
+  promo = mkPromo(),
+  patch: Partial<PromoChangesViewDto> = {},
+): PromoChangesViewDto {
+  return {
+    promoId: promo.id,
+    revision: 4,
+    hasPendingChanges: false,
+    conflict: false,
+    canSave: true,
+    canApply: false,
+    readinessIssues: [],
+    updatedAt: null,
+    updatedBy: null,
+    bundle: {
+      campaign: {
+        title: promo.title,
+        brand: promo.brand,
+        period: promo.period,
+        budget: promo.budget,
+        kpi: promo.kpi,
+        cover: promo.cover,
+        barcode: promo.barcode,
+        barcodes: promo.barcodes,
+        ipartId: promo.ipartId,
+        overrideImage: promo.overrideImage,
+        overrideDescription: promo.overrideDescription,
+        overrideCharacteristics: promo.overrideCharacteristics,
+        pharmacistBonus: promo.pharmacistBonus,
+        dateStart: promo.dateStart,
+        dateEnd: promo.dateEnd,
+      },
+      rules: {
+        replacements: [],
+        crossSells: [],
+        script: '',
+        advantages: [],
+        partnerLabel: null,
+        comparison: [],
+        goalLabel: null,
+        goalTarget: null,
+        goalBonus: null,
+      },
+    },
+    ...patch,
+  }
 }
 
 beforeEach(() => {
@@ -97,6 +160,8 @@ beforeEach(() => {
   promoHooks.useUpdatePromo.mockReturnValue({ mutate: vi.fn(), isPending: false })
   promoHooks.useArchivePromo.mockReturnValue({ mutate: vi.fn(), isPending: false })
   promoHooks.useRestorePromo.mockReturnValue({ mutate: vi.fn(), isPending: false })
+  changesHooks.useSavePromoChanges.mockReturnValue({ mutate: vi.fn(), isPending: false })
+  changesHooks.useApplyPromoChanges.mockReturnValue({ mutate: vi.fn(), isPending: false })
   storefrontHooks.useStorefront.mockReturnValue({
     data: { items: [], total: 0, limit: 50, offset: 0 },
     isFetching: false,
@@ -176,46 +241,71 @@ describe('PromoDetailPage — рендер', () => {
 })
 
 describe('PromoDetailPage — редактирование', () => {
-  it.each(['prod_multi', null])('обычное редактирование кампании %s сохраняет все штрихкоды из ответа сервера', async (medusaProductId) => {
-    const mutate = vi.fn()
-    promoHooks.useUpdatePromo.mockReturnValue({ mutate, isPending: false })
-    setPromo(mkPromo({ medusaProductId, barcode: '0012345678905', barcodes: ['0012345678905', '4601164003157'] }))
-    const user = userEvent.setup()
-    renderDetail()
-    expect(screen.getByTestId('detail-barcodes')).toHaveTextContent('Штрихкоды: 2')
-    await user.type(screen.getByDisplayValue('Майский марафон'), ' новая')
-    await user.click(screen.getByRole('button', { name: /^Сохранить$/ }))
-    expect(mutate).toHaveBeenCalledWith({ id: 'pr_1', patch: expect.objectContaining({
-      barcode: '0012345678905', barcodes: ['0012345678905', '4601164003157'],
-    }) }, expect.any(Object))
-  })
+  it.each(['prod_multi', null])(
+    'обычное редактирование кампании %s сохраняет все штрихкоды из ответа сервера',
+    async (medusaProductId) => {
+      const mutate = vi.fn()
+      changesHooks.useSavePromoChanges.mockReturnValue({ mutate, isPending: false })
+      setPromo(
+        mkPromo({
+          medusaProductId,
+          barcode: '0012345678905',
+          barcodes: ['0012345678905', '4601164003157'],
+        }),
+      )
+      const user = userEvent.setup()
+      renderDetail()
+      expect(screen.getByTestId('detail-barcodes')).toHaveTextContent('Штрихкоды: 2')
+      await user.type(screen.getByDisplayValue('Майский марафон'), ' новая')
+      await user.click(screen.getByTestId('promo-changes-save'))
+      expect(mutate).toHaveBeenCalledWith(
+        {
+          id: 'pr_1',
+          expectedRevision: 4,
+          bundle: expect.objectContaining({
+            campaign: expect.objectContaining({
+              barcode: '0012345678905',
+              barcodes: ['0012345678905', '4601164003157'],
+            }),
+          }),
+        },
+        expect.any(Object),
+      )
+    },
+  )
 
   it('«Сохранить» disabled пока нет изменений, активна после правки', async () => {
     const user = userEvent.setup()
     renderDetail()
-    expect(screen.getByRole('button', { name: /^Сохранить$/ })).toBeDisabled()
+    expect(screen.getByTestId('promo-changes-save')).toBeDisabled()
     await user.type(screen.getByDisplayValue('Майский марафон'), ' 2026')
-    expect(screen.getByRole('button', { name: /^Сохранить$/ })).toBeEnabled()
+    expect(screen.getByTestId('promo-changes-save')).toBeEnabled()
   })
 
   it('Сохранить вызывает useUpdatePromo с патчем', async () => {
     const mutate = vi.fn()
-    promoHooks.useUpdatePromo.mockReturnValue({ mutate, isPending: false })
+    changesHooks.useSavePromoChanges.mockReturnValue({ mutate, isPending: false })
     const user = userEvent.setup()
     renderDetail()
     const titleInput = screen.getByDisplayValue('Майский марафон')
     await user.clear(titleInput)
     await user.type(titleInput, 'Летняя кампания')
-    await user.click(screen.getByRole('button', { name: /^Сохранить$/ }))
+    await user.click(screen.getByTestId('promo-changes-save'))
     expect(mutate).toHaveBeenCalledWith(
-      { id: 'pr_1', patch: expect.objectContaining({ title: 'Летняя кампания', brand: 'Jadran' }) },
+      {
+        id: 'pr_1',
+        expectedRevision: 4,
+        bundle: expect.objectContaining({
+          campaign: expect.objectContaining({ title: 'Летняя кампания', brand: 'Jadran' }),
+        }),
+      },
       expect.any(Object),
     )
   })
 
   it('Medusa: описание/характеристики предзаполнены, изменённые попадают в патч, неизменённые → null', async () => {
     const mutate = vi.fn()
-    promoHooks.useUpdatePromo.mockReturnValue({ mutate, isPending: false })
+    changesHooks.useSavePromoChanges.mockReturnValue({ mutate, isPending: false })
     promoHooks.usePromo.mockReturnValue({
       data: mkPromo({
         medusaProductId: 'prod_1',
@@ -239,14 +329,17 @@ describe('PromoDetailPage — редактирование', () => {
     // Меняем только характеристики
     await user.clear(charsField)
     await user.type(charsField, 'Своя характеристика')
-    await user.click(screen.getByRole('button', { name: /^Сохранить$/ }))
+    await user.click(screen.getByTestId('promo-changes-save'))
     expect(mutate).toHaveBeenCalledWith(
       {
         id: 'pr_1',
-        patch: expect.objectContaining({
-          // описание не трогали → совпадает с Medusa → null (сохраняем автоматический фоллбэк)
-          overrideDescription: null,
-          overrideCharacteristics: 'Своя характеристика',
+        expectedRevision: 4,
+        bundle: expect.objectContaining({
+          campaign: expect.objectContaining({
+            // описание не трогали → совпадает с Medusa → null (сохраняем автоматический фоллбэк)
+            overrideDescription: null,
+            overrideCharacteristics: 'Своя характеристика',
+          }),
         }),
       },
       expect.any(Object),
@@ -255,11 +348,11 @@ describe('PromoDetailPage — редактирование', () => {
 
   it('пустое название → ошибка, mutate не зовётся', async () => {
     const mutate = vi.fn()
-    promoHooks.useUpdatePromo.mockReturnValue({ mutate, isPending: false })
+    changesHooks.useSavePromoChanges.mockReturnValue({ mutate, isPending: false })
     const user = userEvent.setup()
     renderDetail()
     await user.clear(screen.getByDisplayValue('Майский марафон'))
-    await user.click(screen.getByRole('button', { name: /^Сохранить$/ }))
+    await user.click(screen.getByTestId('promo-changes-save'))
     expect(screen.getByText(/Введите название кампании/i)).toBeInTheDocument()
     expect(mutate).not.toHaveBeenCalled()
   })
@@ -282,7 +375,7 @@ describe('PromoDetailPage — статус-действия', () => {
     setPromo(mkPromo({ status: 'archived' }))
     renderDetail()
     expect(screen.getByDisplayValue('Майский марафон')).toBeDisabled()
-    expect(screen.queryByRole('button', { name: /^Сохранить$/ })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('promo-changes-save')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Восстановить из архива/ })).toBeInTheDocument()
   })
 
@@ -318,21 +411,27 @@ describe('PromoDetailPage — T1 (товар, цена read-only, бонус)', 
 
   it('бонус фармацевту редактируется и попадает в патч', async () => {
     const mutate = vi.fn()
-    promoHooks.useUpdatePromo.mockReturnValue({ mutate, isPending: false })
+    changesHooks.useSavePromoChanges.mockReturnValue({ mutate, isPending: false })
     setPromo(mkPromo({ pharmacistBonus: 100 }))
     const user = userEvent.setup()
     renderDetail()
     const bonus = screen.getByDisplayValue('100')
     await user.clear(bonus)
     await user.type(bonus, '250')
-    await user.click(screen.getByRole('button', { name: /^Сохранить$/ }))
+    await user.click(screen.getByTestId('promo-changes-save'))
     expect(mutate).toHaveBeenCalledWith(
-      { id: 'pr_1', patch: expect.objectContaining({ pharmacistBonus: 250 }) },
+      {
+        id: 'pr_1',
+        expectedRevision: 4,
+        bundle: expect.objectContaining({
+          campaign: expect.objectContaining({ pharmacistBonus: 250 }),
+        }),
+      },
       expect.any(Object),
     )
     // tiers/price НЕ должны отправляться
-    expect(mutate.mock.calls[0][0].patch).not.toHaveProperty('tiers')
-    expect(mutate.mock.calls[0][0].patch).not.toHaveProperty('price')
+    expect(mutate.mock.calls[0][0].bundle.campaign).not.toHaveProperty('tiers')
+    expect(mutate.mock.calls[0][0].bundle.campaign).not.toHaveProperty('price')
   })
 })
 
@@ -362,19 +461,32 @@ describe('PromoDetailPage — T2 (секция правил)', () => {
     })
     renderDetail()
     expect(screen.getByTestId('promo-rules-editor')).toBeInTheDocument()
-    expect(screen.getByTestId('promo-rules-counts')).toHaveTextContent('Активных: 2 / Всего: 3')
+    expect(screen.getByTestId('promo-rules-counts')).toHaveTextContent(
+      'Подготовлено пар: 0 · включено: 0',
+    )
   })
 
-  it('«Сохранить правила» зовёт useSavePromoRules с config', async () => {
+  it('сохранение правил подготавливает весь bundle, включая несохранённые условия, без legacy публикации', async () => {
     const mutate = vi.fn()
-    promoRulesHooks.useSavePromoRules.mockReturnValue({ mutate, isPending: false })
+    changesHooks.useSavePromoChanges.mockReturnValue({ mutate, isPending: false })
     const user = userEvent.setup()
     renderDetail()
+    await user.type(screen.getByDisplayValue('Майский марафон'), ' подготовленная')
     await user.click(screen.getByTestId('promo-rules-save'))
     expect(mutate).toHaveBeenCalledWith(
-      { promoId: 'pr_1', config: expect.objectContaining({ replacements: [], crossSells: [] }) },
+      {
+        id: 'pr_1',
+        expectedRevision: 4,
+        bundle: {
+          campaign: expect.objectContaining({ title: 'Майский марафон подготовленная' }),
+          rules: expect.objectContaining({ replacements: [], crossSells: [] }),
+        },
+      },
       expect.any(Object),
     )
+    expect(mutate.mock.calls[0][0].bundle.campaign).not.toHaveProperty('status')
+    expect(promoHooks.useUpdatePromo().mutate).not.toHaveBeenCalled()
+    expect(promoRulesHooks.useSavePromoRules).not.toHaveBeenCalled()
   })
 })
 
@@ -399,5 +511,210 @@ describe('PromoDetailPage — loading/error/not-found', () => {
     setPromo(undefined)
     renderDetail()
     expect(screen.getByText(/Кампания не найдена/i)).toBeInTheDocument()
+  })
+})
+
+describe('D28 — подготовка и явное применение', () => {
+  function prepared(promo = mkPromo(), patch: Partial<PromoChangesViewDto> = {}) {
+    setPromo(promo)
+    const data = changesFor(promo, { hasPendingChanges: true, canApply: true, ...patch })
+    const refetch = vi.fn().mockResolvedValue({ data })
+    changesHooks.usePromoChanges.mockReturnValue({
+      data,
+      isFetchedAfterMount: true,
+      isFetching: false,
+      isError: false,
+      error: null,
+      refetch,
+    })
+    return { data, refetch }
+  }
+
+  it('проверяет именно сохранённый bundle и применяет только его ревизию отдельным запросом', async () => {
+    const { data } = prepared()
+    data.bundle.campaign.title = 'Подготовленная кампания'
+    const apply = vi.fn()
+    changesHooks.useApplyPromoChanges.mockReturnValue({ mutate: apply, isPending: false })
+    const user = userEvent.setup()
+    renderDetail()
+    expect(screen.getByDisplayValue('Подготовленная кампания')).toBeInTheDocument()
+    expect(screen.getByTestId('promo-publication-state')).toHaveTextContent(
+      'Есть подготовленные изменения',
+    )
+    await user.click(screen.getByRole('button', { name: 'Проверить и применить' }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByText('Подготовленная кампания')).toBeInTheDocument()
+    expect(within(dialog).getByText('Вся сеть · 100 аптек')).toBeInTheDocument()
+    expect(apply).not.toHaveBeenCalled()
+    await user.click(within(dialog).getByRole('button', { name: 'Применить изменения' }))
+    expect(apply).toHaveBeenCalledWith({ id: 'pr_1', expectedRevision: 4 }, expect.any(Object))
+    expect(changesHooks.useSavePromoChanges().mutate).not.toHaveBeenCalled()
+    expect(promoHooks.useUpdatePromo().mutate).not.toHaveBeenCalled()
+  })
+
+  it('несохранённая правка условия или правила блокирует применение', async () => {
+    prepared()
+    const user = userEvent.setup()
+    renderDetail()
+    await user.type(screen.getByTestId('pr-goal-label'), 'Новая цель')
+    expect(screen.getByRole('button', { name: 'Проверить и применить' })).toBeDisabled()
+    expect(screen.getByText(/Есть несохранённые поля/)).toBeInTheDocument()
+    expect(changesHooks.useApplyPromoChanges().mutate).not.toHaveBeenCalled()
+  })
+
+  it('первая публикация требует сохранения bundle, а не PATCH status=active', async () => {
+    setPromo(mkPromo({ status: 'draft' }))
+    const user = userEvent.setup()
+    renderDetail()
+    expect(screen.getByRole('button', { name: 'Проверить и запустить' })).toBeDisabled()
+    await user.click(screen.getByTestId('promo-changes-save'))
+    expect(changesHooks.useSavePromoChanges().mutate).toHaveBeenCalledWith(
+      { id: 'pr_1', expectedRevision: 4, bundle: expect.any(Object) },
+      expect.any(Object),
+    )
+    expect(promoHooks.useUpdatePromo().mutate).not.toHaveBeenCalled()
+    expect(changesHooks.useApplyPromoChanges().mutate).not.toHaveBeenCalled()
+  })
+
+  it('первый запуск использует отдельное подтверждение и сохраняет 0 бонус', async () => {
+    prepared(mkPromo({ status: 'draft', pharmacistBonus: 0 }))
+    const user = userEvent.setup()
+    renderDetail()
+    await user.click(screen.getByRole('button', { name: 'Проверить и запустить' }))
+    expect(screen.getByRole('dialog')).toHaveTextContent('Бонус основного товара: 0 ₸')
+    await user.click(screen.getByRole('button', { name: 'Запустить кампанию' }))
+    expect(changesHooks.useApplyPromoChanges().mutate).toHaveBeenCalledWith(
+      { id: 'pr_1', expectedRevision: 4 },
+      expect.any(Object),
+    )
+    expect(promoHooks.useUpdatePromo().mutate).not.toHaveBeenCalled()
+  })
+
+  it('применение на паузе явно не возобновляет кампанию', async () => {
+    prepared(mkPromo({ status: 'paused' }))
+    const user = userEvent.setup()
+    renderDetail()
+    await user.click(screen.getByRole('button', { name: 'Проверить и применить' }))
+    expect(screen.getByRole('dialog')).toHaveTextContent('Кампания останется на паузе')
+    await user.click(screen.getByRole('button', { name: 'Применить изменения' }))
+    expect(promoHooks.useUpdatePromo().mutate).not.toHaveBeenCalled()
+  })
+
+  it.each([403, 404])(
+    'GET changes %i оставляет опубликованные поля только для чтения и не включает legacy сохранение',
+    (status) => {
+      const error = new AxiosError('Synthetic', undefined, undefined, undefined, {
+        status,
+        data: { code: status === 403 ? 'FORBIDDEN' : 'NOT_FOUND', message: 'Недоступно' },
+        statusText: '',
+        headers: {},
+        config: {} as never,
+      })
+      changesHooks.usePromoChanges.mockReturnValue({
+        data: undefined,
+        isFetchedAfterMount: true,
+        isFetching: false,
+        isError: true,
+        error,
+        refetch: vi.fn(),
+      })
+      renderDetail()
+      expect(screen.getByRole('alert')).toHaveTextContent('Подготовка изменений недоступна')
+      expect(screen.getByDisplayValue('Майский марафон')).toBeDisabled()
+      expect(screen.getByTestId('promo-changes-save')).toBeDisabled()
+      expect(screen.queryByTestId('promo-rules-editor')).not.toBeInTheDocument()
+      expect(promoHooks.useUpdatePromo().mutate).not.toHaveBeenCalled()
+      expect(promoRulesHooks.useSavePromoRules).not.toHaveBeenCalled()
+    },
+  )
+
+  it('данные из восстановленного кеша не разрешают применение до нового успешного GET', () => {
+    const { data } = prepared()
+    changesHooks.usePromoChanges.mockReturnValue({
+      data,
+      isFetchedAfterMount: false,
+      isFetching: true,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+    renderDetail()
+    expect(screen.queryByRole('button', { name: 'Проверить и применить' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('promo-changes-save')).toBeDisabled()
+  })
+
+  it.each([403, 500])(
+    'ошибка %i не показывает оставшийся cached pending bundle или его права',
+    (status) => {
+      const { data } = prepared()
+      data.bundle.campaign.title = 'PRIVATE-CACHED-PENDING'
+      changesHooks.usePromoChanges.mockReturnValue({
+        data,
+        isFetchedAfterMount: true,
+        isFetching: false,
+        isError: true,
+        error: new AxiosError('Synthetic', undefined, undefined, undefined, {
+          status,
+          data: {},
+          statusText: '',
+          headers: {},
+          config: {} as never,
+        }),
+        refetch: vi.fn(),
+      })
+      renderDetail()
+      expect(screen.queryByDisplayValue('PRIVATE-CACHED-PENDING')).not.toBeInTheDocument()
+      expect(screen.getByDisplayValue('Майский марафон')).toBeDisabled()
+      expect(screen.queryByTestId('promo-rules-editor')).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Проверить и применить' }),
+      ).not.toBeInTheDocument()
+    },
+  )
+
+  it('409 блокирует повторную запись и сохраняет несохранённые поля до явного обновления', async () => {
+    const { refetch } = prepared()
+    const save = vi.fn()
+    changesHooks.useSavePromoChanges.mockReturnValue({ mutate: save, isPending: false })
+    const user = userEvent.setup()
+    renderDetail()
+    await user.type(screen.getByDisplayValue('Майский марафон'), ' моя правка')
+    await user.click(screen.getByTestId('promo-changes-save'))
+    const error = new AxiosError('Synthetic', undefined, undefined, undefined, {
+      status: 409,
+      data: { code: 'CONFLICT', message: 'Ревизия изменилась' },
+      statusText: '',
+      headers: {},
+      config: {} as never,
+    })
+    act(() => save.mock.calls[0][1].onError(error))
+    expect(screen.getByDisplayValue('Майский марафон моя правка')).toHaveValue(
+      'Майский марафон моя правка',
+    )
+    expect(screen.getByTestId('promo-changes-save')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Проверить и применить' })).toBeDisabled()
+    expect(refetch).not.toHaveBeenCalled()
+    expect(save).toHaveBeenCalledTimes(1)
+    vi.spyOn(window, 'confirm').mockReturnValueOnce(false)
+    await user.click(screen.getByRole('button', { name: 'Загрузить сохранённую версию' }))
+    expect(refetch).not.toHaveBeenCalled()
+  })
+
+  it('конфликтный pending отменяется только явным подтверждением без изменения опубликованного', async () => {
+    prepared(mkPromo(), { conflict: true, canApply: false })
+    const user = userEvent.setup()
+    renderDetail()
+    expect(screen.getByRole('button', { name: 'Проверить и применить' })).toBeDisabled()
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false)
+    await user.click(screen.getByRole('button', { name: 'Отменить подготовленные изменения' }))
+    expect(changesHooks.useSavePromoChanges().mutate).not.toHaveBeenCalled()
+    confirm.mockReturnValueOnce(true)
+    await user.click(screen.getByRole('button', { name: 'Отменить подготовленные изменения' }))
+    expect(changesHooks.useSavePromoChanges().mutate).toHaveBeenCalledWith(
+      { id: 'pr_1', expectedRevision: 4, discard: true },
+      expect.any(Object),
+    )
+    expect(promoHooks.useUpdatePromo().mutate).not.toHaveBeenCalled()
+    expect(changesHooks.useApplyPromoChanges().mutate).not.toHaveBeenCalled()
   })
 })

@@ -12,17 +12,24 @@ import org.springframework.http.HttpStatus
 /** Daribar codes are phone-wide: serialize issuance across all application purposes. */
 @Component
 class StaffPhoneLock(private val jdbc: JdbcTemplate,
-    @Value("\${app.merch-rewards.enabled:false}") private val merchRewardsEnabled: Boolean = false) {
+    @Value("\${app.merch-rewards.enabled:false}") private val merchRewardsEnabled: Boolean = false,
+    @Value("\${app.merch.producer-auth-enabled:false}") private val producerAuthEnabled: Boolean = false,
+    @Value("\${app.merch.native-executor-enabled:false}") private val nativeExecutorEnabled: Boolean = false) {
     fun lock(phone: String) {
         jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?, 718094))", phone)
     }
+    // Issuance flags do not resurrect an older proof after a disable/re-enable cycle.
     fun invalidateStaff(phone: String) {
+        jdbc.update("UPDATE mobile_password_reset_challenges SET consumed_at=now() WHERE phone=? AND consumed_at IS NULL",phone)
         jdbc.update("UPDATE posm_staff_challenges SET consumed_at=now() WHERE phone=? AND consumed_at IS NULL",phone)
-        if (merchRewardsEnabled) jdbc.update("UPDATE merch_executor_otp_challenges SET consumed_at=now() WHERE phone=? AND consumed_at IS NULL",phone)
+        jdbc.update("UPDATE merch_executor_otp_challenges SET consumed_at=now() WHERE phone=? AND consumed_at IS NULL",phone)
+        invalidateProducer(phone)
     }
-    /** Opt-in money verification shares Daribar's phone-wide issuance budget with login. */
+    fun invalidateProducer(phone: String) {
+        jdbc.update("UPDATE merch_producer_challenges SET consumed_at=now() WHERE phone=? AND consumed_at IS NULL", phone)
+    }
+    /** Login and password recovery always share Daribar's phone-wide issuance budget. */
     fun limitSharedSms(phone: String, now: Instant = Instant.now()) {
-        if (!merchRewardsEnabled) return
         val key = kz.epharm.finance.merch.MerchRewardSecurity.hash("sms-shared-phone:$phone")
         val last = jdbc.query("SELECT window_start FROM posm_staff_rate_limits WHERE scope_hash=?", { rs, _ -> rs.getTimestamp(1).toInstant() }, key).singleOrNull()
         if (last != null && last.plusSeconds(60).isAfter(now)) {

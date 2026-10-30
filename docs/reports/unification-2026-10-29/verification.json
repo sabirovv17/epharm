@@ -1,0 +1,44 @@
+{
+  "checked_at_utc": "2026-10-29T06:15:22.840086+00:00",
+  "source_main": "b946592549db9eab8d108c6c5bdbd7022915a655",
+  "branch": "codex/unified-admin-baseline",
+  "results": {
+    "cli_unit_tests": {
+      "passed": 20,
+      "failed": 0
+    },
+    "inventory_guard": {
+      "actions": 386,
+      "groups": 57,
+      "contracts": 47,
+      "spring_endpoints": 229,
+      "epharm_root_checked": true,
+      "crm_root_checked": true
+    },
+    "physical_table_inventory": {
+      "tables": 130,
+      "columns": 1454,
+      "foreign_keys": 207,
+      "unmapped_tables": 0
+    },
+    "posm_source_sha256": {
+      "checked": 53,
+      "mismatches": 0
+    },
+    "live_flyway_source_crc32": {
+      "checked": 65,
+      "mismatches": 0
+    },
+    "workflow": "YAML syntax, added shell step parse and existing P0 dependency checked; actionlint not installed locally",
+    "json_artifacts": "all parsed",
+    "git_diff_whitespace": "checked"
+  },
+  "not_executed": [
+    "New-branch remote CI (no push)",
+    "Application build or integration tests; runtime application code unchanged",
+    "Independent binary reproducible build",
+    "Data transfer/migration, rollback or new restore",
+    "Windows/POSM actual popup and controlled sale",
+    "Production mutations/deploy"
+  ]
+}

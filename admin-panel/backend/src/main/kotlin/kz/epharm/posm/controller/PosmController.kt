@@ -11,7 +11,7 @@ import kz.epharm.cdp.service.CdpService
 import kz.epharm.merchtasks.dto.MerchTaskShownRequest
 import kz.epharm.merchtasks.dto.MerchTaskDeliveryResult
 import kz.epharm.merchtasks.dto.MerchTaskEnvelope
-import kz.epharm.merchtasks.service.MerchTaskClient
+import kz.epharm.merchtasks.service.MerchTaskDelivery
 import kz.epharm.posm.dto.HeartbeatResponse
 import kz.epharm.posm.dto.MarkShownRequest
 import kz.epharm.posm.dto.MarkShownResponse
@@ -57,7 +57,7 @@ class PosmController(
     private val devicePresenceService: DevicePresenceService,
     private val pharmacistIdentityService: PosmPharmacistIdentityService,
     private val deviceAuthentication: PosmDeviceAuthenticationService,
-    private val merchTaskClient: MerchTaskClient,
+    private val merchTaskDelivery: MerchTaskDelivery,
 ) {
     private val log = LoggerFactory.getLogger(PosmController::class.java)
 
@@ -200,7 +200,7 @@ class PosmController(
             claimedPharmacyId = pharmacyId,
             claimedDeviceId = deviceId,
         )
-        return merchTaskClient.activeTask(device.pharmacyId ?: pharmacyId.trim())
+        return merchTaskDelivery.activeTask(device.pharmacyId ?: pharmacyId.trim())
     }
 
     /** Confirms that a task QR code was actually visible on a specific authenticated device. */
@@ -215,7 +215,7 @@ class PosmController(
             claimedDeviceId = payload.deviceId,
             touchLastSeen = true,
         )
-        return merchTaskClient.markShown(
+        return merchTaskDelivery.markShown(
             payload.copy(
                 pharmacyId = device.pharmacyId ?: payload.pharmacyId.trim(),
                 deviceId = device.deviceId ?: payload.deviceId.trim(),

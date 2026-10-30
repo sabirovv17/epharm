@@ -175,10 +175,16 @@ export function CreateProgramModal({
   courses,
   program = null,
   mode = 'create',
+  canPublish = true,
+  canConfigureBonus = true,
+  canUpload = true,
 }: CommonModalProps & {
   courses: CourseDto[]
   program?: TrainingProgramDto | null
   mode?: 'create' | 'edit' | 'duplicate'
+  canPublish?: boolean
+  canConfigureBonus?: boolean
+  canUpload?: boolean
 }) {
   const toast = useToast()
   const create = useCreateTrainingProgram()
@@ -471,7 +477,11 @@ export function CreateProgramModal({
           <div className="flex flex-col gap-3 rounded-xl border border-ink-100 bg-paper-input p-3 sm:flex-row sm:items-center">
             <div className="flex h-24 w-full shrink-0 items-center justify-center overflow-hidden rounded-lg border border-ink-100 bg-white sm:w-36">
               {coverUrl ? (
-                <img className="h-full w-full object-cover" src={coverUrl} alt="Обложка программы" />
+                <img
+                  className="h-full w-full object-cover"
+                  src={coverUrl}
+                  alt="Обложка программы"
+                />
               ) : (
                 <span className="px-3 text-center text-[11px] font-semibold text-ink-400">
                   Обложка не выбрана
@@ -486,7 +496,7 @@ export function CreateProgramModal({
                   className="sr-only"
                   type="file"
                   accept="image/jpeg,image/png,.jpg,.jpeg,.png"
-                  disabled={uploadCover.isPending}
+                  disabled={!canUpload || uploadCover.isPending}
                   onChange={(event) => {
                     const file = event.target.files?.[0]
                     event.target.value = ''
@@ -683,6 +693,7 @@ export function CreateProgramModal({
                             type="button"
                             title="Удалить этап"
                             aria-label={`Удалить этап ${index + 1}`}
+                            disabled={!canConfigureBonus && (stage.bonus ?? 0) !== 0}
                             className="mt-1 grid h-8 w-7 place-items-center text-ink-400 hover:text-accent-danger"
                             onClick={() =>
                               setStages((route) =>
@@ -739,6 +750,7 @@ export function CreateProgramModal({
                             type="number"
                             min={0}
                             value={stage.bonus ?? 0}
+                            disabled={!canConfigureBonus}
                             onChange={(event) =>
                               updateStage(stage.draftId, {
                                 bonus: Math.max(0, Number(event.target.value) || 0),
@@ -872,6 +884,7 @@ export function CreateProgramModal({
               type="number"
               min={0}
               value={bonus}
+              disabled={!canConfigureBonus}
               onChange={(event) => setBonus(event.target.value)}
             />
           </Field>
@@ -880,6 +893,7 @@ export function CreateProgramModal({
           <Select
             ariaLabel="Статус программы"
             value={status}
+            disabled={!canPublish}
             onChange={(value) => setStatus(value as TrainingProgramStatus)}
             options={[
               { value: 'draft', label: 'Черновик' },
@@ -1154,14 +1168,14 @@ export function AssignTrainingModal({
   const cityOptions = useMemo(
     () =>
       Array.from(
-        new Set(
-          [
-            ...pharmacies.filter((pharmacy) => pharmacy.active && pharmacy.city).map((pharmacy) => pharmacy.city),
-            ...pharmacists
-              .filter((pharmacist) => pharmacist.status === 'active' && pharmacist.city)
-              .map((pharmacist) => pharmacist.city),
-          ],
-        ),
+        new Set([
+          ...pharmacies
+            .filter((pharmacy) => pharmacy.active && pharmacy.city)
+            .map((pharmacy) => pharmacy.city),
+          ...pharmacists
+            .filter((pharmacist) => pharmacist.status === 'active' && pharmacist.city)
+            .map((pharmacist) => pharmacist.city),
+        ]),
       ).sort(),
     [pharmacists, pharmacies],
   )
@@ -1172,8 +1186,7 @@ export function AssignTrainingModal({
           pharmacies
             .filter(
               (pharmacy) =>
-                pharmacy.active &&
-                (cityFilter === '__all__' || pharmacy.city === cityFilter),
+                pharmacy.active && (cityFilter === '__all__' || pharmacy.city === cityFilter),
             )
             .map((pharmacy) => [pharmacy.id, pharmacy.name]),
         ).entries(),
@@ -1199,8 +1212,11 @@ export function AssignTrainingModal({
     setSelected((current) => Array.from(new Set([...current, ...ids])))
   }
 
-  const selectedVisibleCount = visiblePharmacists.filter((pharmacist) => selected.includes(pharmacist.id)).length
-  const allVisibleSelected = visiblePharmacists.length > 0 && selectedVisibleCount === visiblePharmacists.length
+  const selectedVisibleCount = visiblePharmacists.filter((pharmacist) =>
+    selected.includes(pharmacist.id),
+  ).length
+  const allVisibleSelected =
+    visiblePharmacists.length > 0 && selectedVisibleCount === visiblePharmacists.length
   const toggleAllVisible = () => {
     const ids = new Set(visiblePharmacists.map((pharmacist) => pharmacist.id))
     if (allVisibleSelected) {
@@ -1252,8 +1268,12 @@ export function AssignTrainingModal({
       footer={
         <div className="flex w-full items-center justify-between gap-4">
           <div className="text-left">
-            <div className="num text-[13px] font-extrabold text-ink-900">Выбрано: {selected.length}</div>
-            <div className="text-[11px] text-ink-500">Сотрудники получат уведомление о назначении</div>
+            <div className="num text-[13px] font-extrabold text-ink-900">
+              Выбрано: {selected.length}
+            </div>
+            <div className="text-[11px] text-ink-500">
+              Сотрудники получат уведомление о назначении
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={onClose}>
@@ -1271,10 +1291,16 @@ export function AssignTrainingModal({
         {priority === 'critical' && (
           <div className="flex items-start justify-between gap-4 rounded-lg border border-red-200 bg-surface-danger px-3 py-2.5">
             <div>
-              <div className="text-[12px] font-extrabold text-surface-danger-strong">Критический приоритет</div>
-              <div className="mt-0.5 text-[11px] text-surface-danger-strong/80">Проверьте срок завершения и выбранную аудиторию перед назначением.</div>
+              <div className="text-[12px] font-extrabold text-surface-danger-strong">
+                Критический приоритет
+              </div>
+              <div className="mt-0.5 text-[11px] text-surface-danger-strong/80">
+                Проверьте срок завершения и выбранную аудиторию перед назначением.
+              </div>
             </div>
-            <span className="rounded-md bg-white/70 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-surface-danger-strong">Важно</span>
+            <span className="rounded-md bg-white/70 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-surface-danger-strong">
+              Важно
+            </span>
           </div>
         )}
         <div className="grid grid-cols-2 gap-3">
@@ -1381,7 +1407,11 @@ export function AssignTrainingModal({
           </label>
         </div>
         <div className="border-b border-ink-100">
-          <div className="flex items-center gap-6" role="tablist" aria-label="Способ выбора аудитории">
+          <div
+            className="flex items-center gap-6"
+            role="tablist"
+            aria-label="Способ выбора аудитории"
+          >
             <button
               type="button"
               role="tab"
@@ -1440,14 +1470,18 @@ export function AssignTrainingModal({
               className="!h-9 flex-1"
             />
             <div className="text-right">
-              <div className="text-[11px] font-semibold text-ink-500">Найдено {visiblePharmacists.length} сотрудников</div>
+              <div className="text-[11px] font-semibold text-ink-500">
+                Найдено {visiblePharmacists.length} сотрудников
+              </div>
               <button
                 type="button"
                 onClick={toggleAllVisible}
                 disabled={visiblePharmacists.length === 0}
                 className="mt-0.5 text-[12px] font-extrabold text-brand-green-700"
               >
-                {allVisibleSelected ? 'Снять найденных' : `Выбрать найденных (${visiblePharmacists.length})`}
+                {allVisibleSelected
+                  ? 'Снять найденных'
+                  : `Выбрать найденных (${visiblePharmacists.length})`}
               </button>
             </div>
           </div>
@@ -1492,9 +1526,11 @@ export function AssignTrainingModal({
 export function AttendanceModal({
   event,
   onClose,
+  canMark = true,
 }: {
   event: OfflineEventDto | null
   onClose: () => void
+  canMark?: boolean
 }) {
   const toast = useToast()
   const { data: participants = [], isLoading } = useEventParticipants(event?.id ?? null)
@@ -1504,7 +1540,7 @@ export function AttendanceModal({
   >({})
 
   const setStatus = (participantId: string, status: EventParticipantStatus) => {
-    if (!event) return
+    if (!event || !canMark) return
     const participant = participants.find((item) => item.id === participantId)
     const details = attendanceDetails[participantId]
     const rawScore = details?.score ?? (participant?.score == null ? '' : String(participant.score))
@@ -1575,6 +1611,7 @@ export function AttendanceModal({
                 <td className="w-24 px-3 py-2.5">
                   <Input
                     aria-label={`Оценка ${participant.pharmacistName}`}
+                    disabled={!canMark}
                     type="number"
                     min={0}
                     max={100}
@@ -1597,6 +1634,7 @@ export function AttendanceModal({
                 <td className="min-w-52 px-3 py-2.5">
                   <Input
                     aria-label={`Комментарий ${participant.pharmacistName}`}
+                    disabled={!canMark}
                     value={
                       attendanceDetails[participant.id]?.comment ?? participant.trainerComment ?? ''
                     }
@@ -1618,7 +1656,7 @@ export function AttendanceModal({
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={mark.isPending}
+                      disabled={!canMark || mark.isPending}
                       onClick={() => setStatus(participant.id, 'excused')}
                     >
                       Уважительная причина
@@ -1626,7 +1664,7 @@ export function AttendanceModal({
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={mark.isPending}
+                      disabled={!canMark || mark.isPending}
                       onClick={() => setStatus(participant.id, 'no_show')}
                     >
                       Не явился
@@ -1634,14 +1672,14 @@ export function AttendanceModal({
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={mark.isPending}
+                      disabled={!canMark || mark.isPending}
                       onClick={() => setStatus(participant.id, 'late')}
                     >
                       Опоздал
                     </Button>
                     <Button
                       size="sm"
-                      disabled={mark.isPending}
+                      disabled={!canMark || mark.isPending}
                       onClick={() => setStatus(participant.id, 'attended')}
                     >
                       Присутствовал

@@ -13,6 +13,263 @@ public sealed class ReceiptCaptureTests : IDisposable
     private DateTimeOffset _now = DateTimeOffset.UtcNow;
 
     [Fact]
+    public void PreviouslyAcknowledgedUnconfirmedLegacyEvidenceSurvivesRetentionAndRestart()
+    {
+        var sale = Sale("sale_old_held_ack");
+        sale.CaptureSource = "standardn-document-switch";
+        var store = CreateStore();
+        store.Complete(sale);
+        // Reproduce files produced by the old client, before this source was withheld.
+        File.WriteAllText(Path.Combine(Pending(sale), "fiscal-capture-status.json"),
+            JsonSerializer.Serialize(new { status = "waiting", reason = "legacy", updatedAt = _now }, EpharmJson.Options));
+        store.MarkSaleDelivered(sale.SaleId);
+        var before = Directory.GetFiles(Pending(sale)).ToDictionary(path => Path.GetFileName(path)!, File.ReadAllBytes);
+        _now = _now.AddDays(4);
+
+        Assert.Equal(0, CreateStore().CleanupCompletedArtifacts());
+        Assert.Equal(0, CreateStore().RecoverPending(new OfflineOutbox(Path.Combine(_root, "outbox.db"))));
+        Assert.Equal(0, CreateStore().RefreshFiscalArtifacts().Cleaned);
+        foreach (var file in before) Assert.Equal(file.Value, File.ReadAllBytes(Path.Combine(Pending(sale), file.Key)));
+    }
+
+    [Fact]
+    public void GenuinePrintForPreviouslyHeldSaleIsDurableBeforeQueueAndRecoversAfterCrash()
+    {
+        var held = Sale("sale_resumed_physical_doc");
+        held.CaptureSource = "standardn-firebird-close";
+        var store = CreateStore();
+        store.Complete(held);
+        store.MarkSaleDelivered(held.SaleId); // Old false ACK must not suppress the later real print.
+        var original = File.ReadAllBytes(Path.Combine(Pending(held), "sale.json"));
+        _now = _now.AddHours(1);
+        var confirmed = Sale(held.SaleId);
+        confirmed.Items[0].Qty = 2;
+        confirmed.Items[0].Total = confirmed.TotalAmount = 3000;
+        store.SaveDraft(confirmed);
+
+        store.Complete(confirmed);
+        // Crash here, BEFORE SaleReporter.Enqueue. Recovery must use the confirmed durable copy.
+        var outbox = new OfflineOutbox(Path.Combine(_root, "outbox.db"));
+        Assert.Equal(1, CreateStore().RecoverPending(outbox));
+        var recovered = JsonSerializer.Deserialize<SaleReport>(Assert.Single(outbox.DequeueReady()).Payload, EpharmJson.Options)!;
+        Assert.Equal("standardn-print-log", recovered.CaptureSource);
+        Assert.Equal(confirmed.PrintedAt, recovered.PrintedAt);
+        Assert.Equal(3000, recovered.TotalAmount);
+        Assert.Equal(2, recovered.Items[0].Qty);
+        Assert.Contains(Directory.GetFiles(Path.Combine(_root, "receipts"), "*", SearchOption.AllDirectories),
+            path => File.ReadAllBytes(path).SequenceEqual(original));
+    }
+
+    [Fact]
+    public void RetryAfterDurableArchiveBeforePayloadCommitVerifiesAndNeverReplacesOriginalArchive()
+    {
+        var held = Sale("sale_upgrade_retry");
+        held.CaptureSource = "standardn-document-switch";
+        var store = CreateStore();
+        store.Complete(held);
+        store.MarkSaleDelivered(held.SaleId);
+        var oldPayload = File.ReadAllBytes(Path.Combine(Pending(held), "sale.json"));
+        _now = _now.AddHours(1);
+        var confirmed = Sale(held.SaleId);
+        store.Complete(confirmed);
+        var archive = Path.Combine(_root, "receipts", "legacy-unconfirmed", held.SaleId);
+        var preserved = Directory.GetFiles(archive).ToDictionary(path => Path.GetFileName(path)!, File.ReadAllBytes);
+        // This is the persisted state of a crash after archival/ACK removal, before sale.json commit.
+        File.WriteAllBytes(Path.Combine(Pending(held), "sale.json"), oldPayload);
+
+        CreateStore().Complete(confirmed);
+        foreach (var file in preserved) Assert.Equal(file.Value, File.ReadAllBytes(Path.Combine(archive, file.Key)));
+        var outbox = new OfflineOutbox(Path.Combine(_root, "outbox.db"));
+        Assert.Equal(1, CreateStore().RecoverPending(outbox));
+        Assert.Equal(confirmed.PrintedAt, JsonSerializer.Deserialize<SaleReport>(Assert.Single(outbox.DequeueReady()).Payload, EpharmJson.Options)!.PrintedAt);
+    }
+
+    [Fact]
+    public void ConfirmedUpgradeRetentionRemovesOnlyWorkingCopyAndKeepsOriginalEvidence()
+    {
+        var held = Sale("sale_preserve_after_new_ack");
+        held.CaptureSource = "standardn-document-switch";
+        var store = CreateStore();
+        store.Complete(held);
+        store.MarkSaleDelivered(held.SaleId);
+        _now = _now.AddHours(1);
+        store.Complete(Sale(held.SaleId));
+        var archive = Path.Combine(_root, "receipts", "legacy-unconfirmed", held.SaleId);
+        var before = Directory.GetFiles(archive).ToDictionary(path => Path.GetFileName(path)!, File.ReadAllBytes);
+        store.MarkSaleDelivered(held.SaleId);
+        _now = _now.AddDays(3);
+
+        Assert.Equal(1, CreateStore().CleanupCompletedArtifacts());
+
+        Assert.False(Directory.Exists(Pending(held)));
+        foreach (var file in before) Assert.Equal(file.Value, File.ReadAllBytes(Path.Combine(archive, file.Key)));
+    }
+
+    [Fact]
+    public void CorruptExistingArchivePreventsAnyFurtherWorkingMutation()
+    {
+        var held = Sale("sale_archive_corruption");
+        held.CaptureSource = "standardn-firebird-close";
+        CreateStore().Complete(held);
+        CreateStore().MarkSaleDelivered(held.SaleId);
+        var oldPayload = File.ReadAllBytes(Path.Combine(Pending(held), "sale.json"));
+        var confirmed = Sale(held.SaleId);
+        CreateStore().Complete(confirmed);
+        var archive = Path.Combine(_root, "receipts", "legacy-unconfirmed", held.SaleId);
+        File.WriteAllBytes(Path.Combine(Pending(held), "sale.json"), oldPayload);
+        var oldAck = Path.Combine(archive, "sale-delivered.json");
+        File.AppendAllText(oldAck, "corrupted");
+        var corruptBytes = File.ReadAllBytes(oldAck);
+
+        Assert.Throws<InvalidDataException>(() => CreateStore().Complete(confirmed));
+
+        Assert.Equal(oldPayload, File.ReadAllBytes(Path.Combine(Pending(held), "sale.json")));
+        Assert.Equal(corruptBytes, File.ReadAllBytes(oldAck));
+    }
+
+    [Fact]
+    public void ArchiveDirectorySymlinkCannotCopyEvidenceOutsideOwnedRoot()
+    {
+        var held = Sale("sale_archive_symlink");
+        held.CaptureSource = "standardn-firebird-close";
+        CreateStore().Complete(held);
+        var original = File.ReadAllBytes(Path.Combine(Pending(held), "sale.json"));
+        var outside = Path.Combine(_root, "outside");
+        Directory.CreateDirectory(outside);
+        var archiveRoot = Path.Combine(_root, "receipts", "legacy-unconfirmed");
+        Directory.CreateSymbolicLink(archiveRoot, outside);
+
+        Assert.Throws<InvalidDataException>(() => CreateStore().Complete(Sale(held.SaleId)));
+
+        Assert.Empty(Directory.EnumerateFileSystemEntries(outside));
+        Assert.Equal(original, File.ReadAllBytes(Path.Combine(Pending(held), "sale.json")));
+    }
+
+    [Theory]
+    [InlineData("metadata")]
+    [InlineData("artifact")]
+    [InlineData("missing-artifact")]
+    public void InvalidFiscalProofNeverEnablesRetentionDeletionOfLegacyEvidence(string corruption)
+    {
+        var held = Sale("sale_invalid_proof_retention");
+        held.CaptureSource = "standardn-document-switch";
+        var store = CreateStore(completedRetentionHours: 1);
+        store.Complete(held);
+        PublishPdf(held);
+        Assert.Equal(1, store.RefreshFiscalArtifacts().Captured);
+        store.MarkFiscalMetadataDelivered(held.SaleId, ReadPendingSale(held).ArtifactSha256!);
+        if (corruption == "metadata")
+            File.WriteAllText(Path.Combine(Pending(held), "fiscal-receipt.json"), "{invalid-json");
+        else if (corruption == "artifact")
+            File.AppendAllText(Path.Combine(Pending(held), "fiscal-receipt.pdf"), "corrupted");
+        else
+            File.Delete(Path.Combine(Pending(held), "fiscal-receipt.pdf"));
+        var before = Directory.GetFiles(Pending(held)).ToDictionary(path => Path.GetFileName(path)!, File.ReadAllBytes);
+        _now = _now.AddDays(4);
+
+        Assert.Equal(0, CreateStore(completedRetentionHours: 1).CleanupCompletedArtifacts());
+        foreach (var file in before) Assert.Equal(file.Value, File.ReadAllBytes(Path.Combine(Pending(held), file.Key)));
+    }
+
+    [Fact]
+    public void LaterPrintDoesNotOverwriteAlreadyVerifiedFiscalSnapshot()
+    {
+        var held = Sale("sale_verified_immutable");
+        held.CaptureSource = "standardn-document-switch";
+        var store = CreateStore();
+        store.Complete(held);
+        PublishPdf(held);
+        Assert.Equal(1, store.RefreshFiscalArtifacts().Captured);
+        var before = Directory.GetFiles(Pending(held)).ToDictionary(path => Path.GetFileName(path)!, File.ReadAllBytes);
+        _now = _now.AddHours(1);
+        var confirmed = Sale(held.SaleId);
+        confirmed.TotalAmount = 3000;
+
+        Assert.Equal(FiscalReceiptCaptureStatus.Stored, store.Complete(confirmed).Status);
+
+        foreach (var file in before) Assert.Equal(file.Value, File.ReadAllBytes(Path.Combine(Pending(held), file.Key)));
+        Assert.False(Directory.Exists(Path.Combine(_root, "receipts", "legacy-unconfirmed")));
+    }
+
+    [Theory]
+    [InlineData("standardn-document-switch")]
+    [InlineData("standardn-firebird-close")]
+    public void KnownUnconfirmedLegacyPendingSaleIsPreservedWithoutRecovery(string source)
+    {
+        var sale = Sale("sale_legacy_unconfirmed");
+        sale.CaptureSource = source;
+        CreateStore().Complete(sale);
+        // An old, non-authoritative reconstruction must not turn this into fiscal proof,
+        // and merely reopening the store must not rewrite or remove the preserved files.
+        File.WriteAllBytes(Path.Combine(Pending(sale), "receipt.png"), [1, 2, 3]);
+        var before = Directory.GetFiles(Pending(sale)).ToDictionary(path => Path.GetFileName(path)!, File.ReadAllBytes);
+        var outbox = new OfflineOutbox(Path.Combine(_root, "outbox.db"));
+
+        Assert.Equal(0, CreateStore().RecoverPending(outbox));
+        Assert.Equal(0, CreateStore().RecoverPending(new OfflineOutbox(Path.Combine(_root, "outbox.db"))));
+        Assert.Equal(0, CreateStore().RefreshFiscalArtifacts(outbox).Captured);
+
+        Assert.Empty(outbox.DequeueReady());
+        Assert.Equal(before.Keys.Order(), Directory.GetFiles(Pending(sale)).Select(Path.GetFileName).Order());
+        foreach (var file in before) Assert.Equal(file.Value, File.ReadAllBytes(Path.Combine(Pending(sale), file.Key!)));
+    }
+
+    [Theory]
+    [InlineData("standardn-document-switch")]
+    [InlineData("standardn-firebird-close")]
+    public void KnownLegacySourceWithVerifiedFiscalArtifactRecoversOnlyFiscalSale(string source)
+    {
+        var sale = Sale("sale_legacy_fiscal_proven");
+        sale.CaptureSource = source;
+        var store = CreateStore();
+        store.Complete(sale);
+        var bytes = PublishPdf(sale);
+        Assert.Equal(1, store.RefreshFiscalArtifacts().Captured);
+        var outbox = new OfflineOutbox(Path.Combine(_root, "outbox.db"));
+
+        Assert.Equal(1, CreateStore().RecoverPending(outbox));
+
+        var queued = Assert.Single(outbox.DequeueReady());
+        Assert.Equal("fiscal-sale", queued.Kind);
+        Assert.Equal(sale.SaleId, JsonSerializer.Deserialize<SaleReport>(queued.Payload, EpharmJson.Options)!.SaleId);
+        Assert.Equal(bytes, File.ReadAllBytes(Path.Combine(Pending(sale), "fiscal-receipt.pdf")));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("older-capture-format")]
+    [InlineData("standardn-print-log")]
+    public void OtherHistoricalCaptureFormatsRetainPendingRecoveryCompatibility(string? source)
+    {
+        var sale = Sale("sale_older_compatible");
+        sale.CaptureSource = source;
+        CreateStore().Complete(sale);
+        var outbox = new OfflineOutbox(Path.Combine(_root, "outbox.db"));
+
+        Assert.Equal(1, CreateStore().RecoverPending(outbox));
+        Assert.Equal(sale.SaleId, Assert.Single(outbox.DequeueReady()).Id);
+    }
+
+    [Fact]
+    public void PreservedUnconfirmedActiveDraftIsNotPromotedOrQueuedAfterRestart()
+    {
+        var sale = Sale("sale_unconfirmed_held");
+        CreateStore().SaveDraft(sale);
+        var draft = Path.Combine(_root, "receipts", "active", sale.SaleId, "sale.json");
+        var original = File.ReadAllBytes(draft);
+        var outbox = new OfflineOutbox(Path.Combine(_root, "outbox.db"));
+        var restarted = CreateStore();
+
+        Assert.Equal(0, restarted.RecoverPending(outbox));
+        Assert.Equal(0, restarted.RefreshFiscalArtifacts(outbox).Captured);
+        Assert.Equal(0, restarted.RecoverPending(outbox));
+
+        Assert.Empty(outbox.DequeueReady());
+        Assert.False(Directory.Exists(Pending(sale)));
+        Assert.Equal(original, File.ReadAllBytes(draft));
+    }
+
+    [Fact]
     public void FirebirdDocumentIdProducesStableBoundedSaleId()
     {
         var first = ReceiptSaleId.Create("pharmacy-1", 12345, "session-a");
@@ -355,7 +612,7 @@ public sealed class ReceiptCaptureTests : IDisposable
         PharmacyId = "pharmacy-1",
         SessionId = "session-1",
         SourceDocumentId = sourceDocumentId,
-        CaptureSource = "standardn-firebird-close",
+        CaptureSource = "standardn-print-log",
         TotalAmount = 1500,
         PrintedAt = _now,
         Items =

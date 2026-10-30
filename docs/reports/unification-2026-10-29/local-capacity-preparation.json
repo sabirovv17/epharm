@@ -1,0 +1,14 @@
+{
+  "date": "2026-10-29",
+  "scope": "local Docker only",
+  "derivedCloneRemoved": "epharm_access_candidate",
+  "sourceTablesCompared": 73,
+  "sameSourceCounts": true,
+  "sameAdminOriginalColumns": true,
+  "uniqueProfilePersonAuditRows": 0,
+  "otherCloneSessions": 0,
+  "sourceDatabasesPreserved": ["epharm (PG16)", "merch_audit (PG18)"],
+  "privateBackupsPresent": true,
+  "newEmptyCandidate": "epharm_unified_candidate",
+  "note": "Removed only our reproducible verified-empty-state clone; original databases, backups, Docker images and unrelated work were not removed."
+}

@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "state": "verified_frozen_snapshot_and_prepared090_not_applied",
+  "sourceDumpSha256": "456ae586dbc55a155f1dc0faab935e0f8b3d148ff84f0cbbc8eaef914fe84ab3",
+  "crmArtifactSha256": "a081be20eb1b850719ecc11ea98c2015f4e09420da8b35a38d5e0355db34cc83",
+  "schemaVersionApplied": "090",
+  "migration090Sha256": "6d62a02d475def3f83ee296f97efd909de7b7435623dc9ca70cb4b833df38661",
+  "publicTables": 149,
+  "nativeTables": 76,
+  "nativeRows": 42025,
+  "originalBusinessTables": 72,
+  "originalBusinessRows": 1933535,
+  "originalColumnsPrimaryKeysValuesUnchanged": true,
+  "originalAdminRowHashAndLegacyUnchanged": true,
+  "ownedProjections": 8,
+  "firstAndNoopOperations": 16,
+  "hqGrants": 112,
+  "staffCodes": 10,
+  "staffBranchLinks": 530,
+  "staffHistoricalAttempts": 7,
+  "newStaffSessions": 0,
+  "newStaffVisits": 0,
+  "newCredentialsIssued": 0,
+  "newRewards": 0,
+  "applicationStarted": false,
+  "workersStarted": false,
+  "sourceWritersWereLiveAtCapture": true,
+  "finalCutoff": false,
+  "independentIntegrationOwnerVerification": {
+    "all14EvidenceInputsShaAndSize": true,
+    "actualSchemaFingerprint": "de4c7a9cb1048cd384f7aab6ebba3d9ce1040112433481d088f22ecda1d2ee17",
+    "manifestSha256": "5001a6610a9ad4031110e500947cb6a50dfd6417171b999c7c0cfe6fac0d2233"
+  },
+  "promotion": {
+    "state": "prepared_not_applied",
+    "packageFileHashesVerified": true,
+    "manifestSha256": "2ca4bb2ed4afda6c0ea730da63c4bbf9825794176f424eaaf21c18c32abfb0af",
+    "sqlSha256": "c5e5e61bf8c0bc385efa13a75f6f386710970177af30e0d4e4c05006ac4db760",
+    "generatorTargetConnections": 0,
+    "sourceWrites": false,
+    "targetSqlExecuted": false,
+    "observedTargetSchemaBeforeMigration": "065",
+    "targetPhysicalIdentityFreshReadOnlyMatched": true
+  },
+  "tests": {
+    "promoterUnitAndActualPostgres": 8
+  },
+  "remaining": [
+    "Final issuer freeze/drain and current CRM57/files delta equality or fresh regeneration",
+    "Current-head CI, real-main OCI recovery and final application/cashier acceptance",
+    "Native configuration and compatible CRM edge cutover remain off until accepted"
+  ],
+  "secretsIncluded": false
+}

@@ -42,6 +42,8 @@ const lmsHooks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/queries/lms', () => lmsHooks)
+const accessHooks = vi.hoisted(() => ({ useAdministrativeCapabilities: vi.fn() }))
+vi.mock('@/app/useAdministrativeCapabilities', () => accessHooks)
 const originalUser = useUiStore.getState().authedUser
 afterEach(() => {
   act(() => useUiStore.setState({ authedUser: originalUser }))
@@ -83,7 +85,20 @@ function setPharmacists(list: PharmacistDto[] = []) {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  useUiStore.setState({ authedUser: { id: 'hq-test', email: 'hq@test.invalid', name: 'HQ', company: 'Test', role: 'HQ_HEAD' } })
+  accessHooks.useAdministrativeCapabilities.mockReturnValue({
+    canExportLearnerCredentials: false,
+    canExportPharmacists: false,
+    data: { version: 1 },
+  })
+  useUiStore.setState({
+    authedUser: {
+      id: 'hq-test',
+      email: 'hq@test.invalid',
+      name: 'HQ',
+      company: 'Test',
+      role: 'HQ_HEAD',
+    },
+  })
   setPharmacists([])
   pharmacyHooks.usePharmacies.mockReturnValue({
     data: [
@@ -258,11 +273,32 @@ describe('PharmacistsPage — loading/error', () => {
 })
 
 describe('PharmacistsPage — список и actions', () => {
-  it.each(['FINANCE_REVIEWER', 'CATEGORY_LEAD', 'BRAND_MANAGER', 'TRAINING_MANAGER', 'REGIONAL_MANAGER', 'TRAINER', undefined] as const)('роль %s видит баланс без сброса пароля', (role) => {
-    useUiStore.setState({ authedUser: role ? { id: 'profile-test', email: 'profile@test.invalid', name: 'Profile reader', company: 'Test', role } : null })
+  it.each([
+    'FINANCE_REVIEWER',
+    'CATEGORY_LEAD',
+    'BRAND_MANAGER',
+    'TRAINING_MANAGER',
+    'REGIONAL_MANAGER',
+    'TRAINER',
+    undefined,
+  ] as const)('роль %s видит баланс без сброса пароля', (role) => {
+    useUiStore.setState({
+      authedUser: role
+        ? {
+            id: 'profile-test',
+            email: 'profile@test.invalid',
+            name: 'Profile reader',
+            company: 'Test',
+            role,
+          }
+        : null,
+    })
     const mutate = vi.fn()
     pharmacistHooks.useUpdatePharmacist.mockReturnValue({ mutate, isPending: false })
-    setPharmacists([mkPharmacist({ id: 'ordinary-read' }), mkPharmacist({ id: 'no-password', hasPassword: false })])
+    setPharmacists([
+      mkPharmacist({ id: 'ordinary-read' }),
+      mkPharmacist({ id: 'no-password', hasPassword: false }),
+    ])
     renderPage()
     const row = screen.getByTestId('pharmacist-row-ordinary-read')
     expect(within(row).getByText(/50\s000\s₸/)).toBeInTheDocument()
@@ -272,22 +308,36 @@ describe('PharmacistsPage — список и actions', () => {
     expect(mutate).not.toHaveBeenCalled()
   })
 
-  it.each(['SYSTEM_ADMIN', 'HQ_HEAD'] as const)('роль %s меняет пароль без balance в PATCH', async (role) => {
-    useUiStore.setState({ authedUser: { id: 'profile-test', email: 'profile@test.invalid', name: 'Profile editor', company: 'Test', role } })
-    const mutate = vi.fn()
-    pharmacistHooks.useUpdatePharmacist.mockReturnValue({ mutate, isPending: false })
-    setPharmacists([mkPharmacist({ id: 'ordinary-edit' })])
-    const user = userEvent.setup()
-    renderPage()
-    const row = screen.getByTestId('pharmacist-row-ordinary-edit')
-    expect(within(row).getByText(/50\s000\s₸/)).toBeInTheDocument()
-    expect(within(row).queryByRole('spinbutton')).not.toBeInTheDocument()
-    await user.click(within(row).getByRole('button', { name: 'Сменить пароль' }))
-    await user.type(screen.getByLabelText('Новый пароль'), 'TestPassword123!')
-    await user.click(screen.getByRole('button', { name: 'Сохранить пароль' }))
-    expect(mutate).toHaveBeenCalledWith({ id: 'ordinary-edit', patch: { password: 'TestPassword123!' } }, expect.any(Object))
-    expect(mutate.mock.calls[0][0].patch).not.toHaveProperty('balance')
-  })
+  it.each(['SYSTEM_ADMIN', 'HQ_HEAD'] as const)(
+    'роль %s меняет пароль без balance в PATCH',
+    async (role) => {
+      useUiStore.setState({
+        authedUser: {
+          id: 'profile-test',
+          email: 'profile@test.invalid',
+          name: 'Profile editor',
+          company: 'Test',
+          role,
+        },
+      })
+      const mutate = vi.fn()
+      pharmacistHooks.useUpdatePharmacist.mockReturnValue({ mutate, isPending: false })
+      setPharmacists([mkPharmacist({ id: 'ordinary-edit' })])
+      const user = userEvent.setup()
+      renderPage()
+      const row = screen.getByTestId('pharmacist-row-ordinary-edit')
+      expect(within(row).getByText(/50\s000\s₸/)).toBeInTheDocument()
+      expect(within(row).queryByRole('spinbutton')).not.toBeInTheDocument()
+      await user.click(within(row).getByRole('button', { name: 'Сменить пароль' }))
+      await user.type(screen.getByLabelText('Новый пароль'), 'TestPassword123!')
+      await user.click(screen.getByRole('button', { name: 'Сохранить пароль' }))
+      expect(mutate).toHaveBeenCalledWith(
+        { id: 'ordinary-edit', patch: { password: 'TestPassword123!' } },
+        expect.any(Object),
+      )
+      expect(mutate.mock.calls[0][0].patch).not.toHaveProperty('balance')
+    },
+  )
 
   it('потеря полномочий закрывает уже открытый сброс пароля', async () => {
     const mutate = vi.fn()
@@ -297,7 +347,17 @@ describe('PharmacistsPage — список и actions', () => {
     renderPage()
     await user.click(screen.getByRole('button', { name: 'Сменить пароль' }))
     await user.type(screen.getByLabelText('Новый пароль'), 'TestPassword123!')
-    act(() => useUiStore.setState({ authedUser: { id: 'finance-test', email: 'finance@test.invalid', name: 'Finance', company: 'Test', role: 'FINANCE_REVIEWER' } }))
+    act(() =>
+      useUiStore.setState({
+        authedUser: {
+          id: 'finance-test',
+          email: 'finance@test.invalid',
+          name: 'Finance',
+          company: 'Test',
+          role: 'FINANCE_REVIEWER',
+        },
+      }),
+    )
     expect(screen.queryByRole('button', { name: 'Сохранить пароль' })).not.toBeInTheDocument()
     expect(mutate).not.toHaveBeenCalled()
   })
@@ -350,6 +410,83 @@ describe('PharmacistsPage — список и actions', () => {
     expect(within(row).getAllByRole('cell')).toHaveLength(9)
     expect(within(table).getAllByRole('columnheader')).toHaveLength(9)
     expect(within(table).queryByRole('checkbox')).not.toBeInTheDocument()
+  })
+
+  it('позволяет выбрать сотрудников для D9 без прав на изменение обучения', async () => {
+    const user = userEvent.setup()
+    accessHooks.useAdministrativeCapabilities.mockReturnValue({
+      canExportLearnerCredentials: true,
+      canExportPharmacists: false,
+      data: { version: 1 },
+    })
+    lmsHooks.useTrainingDashboard.mockReturnValue({
+      data: { capabilities: { canManagePreferences: false, canManageAssignments: false } },
+    })
+    setPharmacists([mkPharmacist()])
+    renderPage()
+    const download = screen.getByRole('button', { name: 'Учётные данные ЛК' })
+    expect(download).toBeDisabled()
+    await user.click(screen.getByRole('checkbox', { name: 'Выбрать Айгерим Касенова' }))
+    expect(download).toBeEnabled()
+    expect(
+      screen.queryByRole('button', { name: /Изменить формат|Назначить обучение/ }),
+    ).not.toBeInTheDocument()
+    await user.click(download)
+    expect(screen.getByRole('dialog')).toHaveTextContent('Айгерим Касенова')
+  })
+
+  it('показывает скрытые поля прочерком и не выдаёт частичную сумму за общий баланс', () => {
+    setPharmacists([
+      mkPharmacist({ id: 'visible', name: 'Доступный баланс', balance: 50_000 }),
+      mkPharmacist({
+        id: 'restricted',
+        name: 'Скрытые поля',
+        iin: null,
+        phone: null,
+        receipts30d: null,
+        rulesAccepted30d: null,
+        earned30d: null,
+        balance: null,
+      }),
+    ])
+    renderPage()
+    const row = screen.getByTestId('pharmacist-row-restricted')
+    expect(within(row).getAllByRole('cell', { name: '—' })).toHaveLength(3)
+    expect(row).not.toHaveTextContent('null')
+    expect(row).not.toHaveTextContent(/\b0\s*₸/)
+    const balanceMetric = screen.getByText('Текущие балансы').closest('.card') as HTMLElement
+    expect(within(balanceMetric).getByText('—')).toBeInTheDocument()
+    expect(balanceMetric).not.toHaveTextContent(/50\s*000/)
+  })
+
+  it('сохраняет настоящий ноль и полную сумму для нескрытых балансов', () => {
+    setPharmacists([
+      mkPharmacist({ id: 'zero', name: 'Нулевой баланс', balance: 0, receipts30d: 0 }),
+    ])
+    renderPage()
+    const row = screen.getByTestId('pharmacist-row-zero')
+    expect(within(row).getByRole('cell', { name: /0\s*₸/ })).toBeInTheDocument()
+    expect(within(row).getByRole('cell', { name: '0' })).toBeInTheDocument()
+    const balanceMetric = screen.getByText('Текущие балансы').closest('.card') as HTMLElement
+    expect(within(balanceMetric).getByText(/0\s*₸/)).toBeInTheDocument()
+  })
+
+  it('не добавляет буквальное null в поиск скрытых персональных полей', async () => {
+    setPharmacists([mkPharmacist({ name: 'Скрытые данные', iin: null, phone: null })])
+    renderPage()
+    const user = userEvent.setup()
+    await user.type(screen.getByPlaceholderText('Поиск по имени, аптеке, ИИН, телефону'), 'null')
+    expect(screen.queryByTestId('pharmacist-row-u_1')).not.toBeInTheDocument()
+  })
+
+  it('окно активации сохраняет явные placeholders скрытого ИИН и телефона', async () => {
+    setPharmacists([mkPharmacist({ status: 'pending', iin: null, phone: null })])
+    renderPage()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Активировать' }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByText('— · —')).toBeInTheDocument()
+    expect(dialog).not.toHaveTextContent('null')
   })
 
   it('поиск по ИИН сохраняет выбор строк и выбирает только видимых сотрудников', async () => {
@@ -466,5 +603,20 @@ describe('PharmacistsPage — список и actions', () => {
       'href',
       '/api/public/training/certificates/verify-token/pdf',
     )
+  })
+
+  it('не показывает ноль вместо скрытой истории учебных начислений в профиле', async () => {
+    setPharmacists([mkPharmacist()])
+    const previous = lmsHooks.usePharmacistTrainingProfile.getMockImplementation()!
+    lmsHooks.usePharmacistTrainingProfile.mockImplementation((...args: unknown[]) => {
+      const result = previous(...args)
+      return { ...result, data: { ...result.data, totalRewards: null, rewards: [] } }
+    })
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(screen.getByRole('button', { name: 'Обучение' }))
+    const dialog = screen.getByRole('dialog', { name: 'Айгерим Касенова' })
+    expect(within(dialog).getByText('Нет доступа')).toBeInTheDocument()
+    expect(within(dialog).getByText('Бонусы за обучение')).toBeInTheDocument()
   })
 })

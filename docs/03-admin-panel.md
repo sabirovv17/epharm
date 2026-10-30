@@ -15,12 +15,166 @@ Stack:
 - lucide-react;
 - Vitest, Testing Library, Playwright.
 
-The admin console is a desktop-only HQ tool. Root minimum width is 1280px; mobile adaptation is not a
-goal because mobile users have the Flutter app.
+The admin console is a desktop HQ tool with a 1280px minimum width. The separate `/learn`,
+`/producer` and public task portals do not inherit that minimum and support narrow screens.
 
 ## Routes
 
+The local unified-admin candidate groups the existing routes into seven modules: Analytics;
+Pharmacist motivation; Training; Merchandising; Pharmacies and products; Pharmacists; Management.
+Management stays at the bottom of the sidebar. Grouping does not change canonical URLs or grant
+permissions. The command palette uses the same available destinations, including every LMS tab.
+The separate `/learn` cabinet and its personal session are unchanged.
+
+The native `/merch/inventory` screen reads branch equipment and a six-month availability calendar.
+It is shown only after a fresh `/api/admin/access/me` response explicitly grants
+`canViewMerchInventory`; a legacy HQ or regional role alone is insufficient. A regional manager
+with that capability keeps the existing training boundary and gains this Merch screen only.
+Manufacturer plans now have the native `/merch/placements` workspace, guarded independently by
+`canViewMerchPlacements`. The native `/merch/tasks` queue is independently guarded by
+`canViewMerchTasks`; inventory or placement rights do not grant task rights.
+
+The inventory screen paginates authorized branches and uses the native `/api/admin/merch/branches`
+API. Block/unblock requires selected shelf IDs, an explicit month range, and confirmation.
+Server-owned `canManage`, `canEdit`, and protected-placement checks remain authoritative. Failed
+writes are not retried automatically. Withheld prices render as `—`, never as a zero price.
+No inventory GET creates bookings or expires existing reservations.
+
+Access Management distinguishes `PHARMACY` from `MERCH_BRANCH` permission scopes. The
+**Аптеки мерча** selector stores `allMerchBranches/merchBranchIds` independently from
+`allPharmacies/pharmacyIds`; the two identity domains are never guessed or combined. An empty
+selection gives no access. Per-action delegation limits, role ceilings, CAS version and fresh
+password confirmation are retained. Capabilities and inventory projections are not persisted in
+the offline query cache.
+
+The separate **Личности и перенос** tab keeps identity migration out of the default grant editor.
+HQ explicitly records a verified person with an internal reference and current-password proof;
+then it may bind a source CRM account to an existing managed account of that exact person, or
+provision a new managed account with empty grants. No FIO/email match creates a binding. Source
+inactive status and password compatibility are validated by the server; hashes never reach the
+UI. Advertisers continue in their producer SMS realm. A narrow paginated
+`/api/admin/access/pharmacist-options` picker supports pharmacist/person links without reading
+phone, IIN, bank or balance fields. An existing link is not reassigned. Passwords/references are
+not persisted; cancelling or completing the form clears password state. Source identity actions
+do not authenticate pharmacists on POSM or activate RPS.
+
+### Manufacturer plans and separate producer portal (local candidate)
+
+The internal workspace lists authorized plans, opens fresh details and preserves cancelled item
+history. The picker uses `/api/admin/merch/placements/producers` and `/placements/catalog`, scoped
+to the intersection of a manufacturer and CRM branch. It does not require or borrow inventory
+permissions. Draft creation/save do not reserve places. Submit, approve, reject, cancel and direct
+administrative assignment require explicit confirmation, the fetched revision and current server
+`can*` flags. Reject/cancel require a reason. Conflicts are never retried or rebased automatically.
+Server quotes are authoritative, withheld amounts render `—`, and unresolved historical producer
+links remain read-only. The saved plan and each item retain their status and origin.
+For an unresolved plan with no owner, only the separate global and object-level server binding
+capabilities reveal HQ's explicit producer-binding form. It requires a complete active company,
+current revision, private audit reason, acknowledgement and current password. The reason is not
+sent to public notes or the producer profile. There is no reassignment or automatic name match.
+
+`/producer/login` and `/producer` are a separate public producer realm, outside the admin shell and
+`/learn`. SMS request/verification and rotating refresh tokens use `/api/producer/**` exclusively.
+The dedicated fetch client sends producer bearer tokens with `credentials: omit`; it never uses
+admin/mobile tokens or interceptors. Its session-storage namespace is `epharm.producer.session.v1`.
+Refresh is single-flight; logout changes the local epoch immediately and late old-session responses
+cannot restore a logged-out or different producer. OTP values are never stored. Disabled auth
+(including default-off feature responses) is shown as unavailable. When enabled, a verified SMS
+may create a new producer identity; the first login then completes the typed company profile.
+The frontend never invents a registered company or derives one from a matching name.
+
+The external picker reads active branches and fetches the quote for the selected branch only.
+Create omits `producerId`; the server derives identity from its producer principal. External
+screens have no manufacturer selector, approval/rejection or administrative assignment actions.
+Reservations show the server's three-business-day period, state, deadline and Asia/Almaty timezone.
+No read expires a hold, and no booking status proves a bank payment. Payment remains disconnected.
+
+The producer may read/edit its own typed company profile using GET/PUT `/api/producer/profile`,
+with revision CAS. Null legacy names show “Компания не указана”; names are never guessed from a
+brand. An incomplete profile can retain drafts but must be completed before submit/assignment.
+The form preserves optional legal/bank metadata, supports explicit empty values and never writes
+phone/password/tariff fields. Bank metadata does not enable payments. Profile conflicts require
+an explicit reload; a stale profile cannot silently overwrite newer values.
+
+Placement permissions require both branch scope and a separate manufacturer scope on each action.
+`allProducers/producerIds` cannot be inferred from `allMerchBranches/merchBranchIds`, combined
+between actions, or populated by an empty selection. Server delegation limits remain authoritative.
+These flows are source/tested locally; they are not evidence of a production release or real SMS delivery.
+
+### Native pharmacist tasks and financial exports (local candidate)
+
+The HQ task queue uses `/api/admin/merch/tasks` and its task-scoped branch selector, not the
+inventory API. New tasks require an active authorized branch, a title, a future due date and
+at least one required item. Deadlines are entered in Asia/Almaty time. Per-item instructions,
+photo minimums and checklist rows are preserved; a reward can only be configured when the
+selected branch explicitly returns `canConfigureReward`. Queue pagination does not invent a
+global count or a server-side status/search filter.
+
+Every item action uses fresh server `canStart/canUpload/canSubmit/canReview` flags. Photo uploads
+are authenticated private JPG/PNG bytes (20 MB / 12 MP server gate); failed uploads are not
+retried automatically. A retained `clientUploadId` protects an explicit retry of the same file.
+Submission includes the current attempt number and completed checklist IDs. Review requires
+the selected attempt ID, current item version, an explicit reason and confirmation. A 409
+requires reloading, not a silent retry. Prior photos and attempts remain history and cannot
+satisfy a new attempt's photo minimum. The UI never overrides server self-review restrictions.
+
+Imported in-progress/submitted items with no current attempt cannot be claimed by opening a
+new QR link. Only explicit HQ leaf capabilities reveal source continuation actions: request a
+new attempt or adopt the submitted historical report for review, with current version and a
+reason. Preserved-source review requires its own manual acknowledgement; this is distinct from
+the unverified free-link executor acknowledgement. Neither acknowledgement confirms identity
+or credits a paid historical report automatically.
+
+`/tasks/staff?task=1#task=...` is the new native public task route. Its capability is consumed from
+the fragment into memory and removed from history before telemetry starts. It is never accepted
+from query parameters or written to storage. Public task requests send `X-Merch-Task-Token`
+without cookies/admin/learner authorization and use a no-referrer policy. Free tasks support
+their own allowed photo workflow. Paid tasks and identity-bound monthly visits expose only metadata
+before linking to the separate `/learn/merch/tasks/:id` pharmacist session; a zero-reward monthly
+visit still requires an identified executor, without a monetary OTP. There is no RPS or Standard-N lock.
+
+For an unbound paid task, only `OTP_NOT_VERIFIED` opens the native executor confirmation flow.
+The original QR capability plus the current learner session fetch immutable task context.
+SMS is requested only by the user; the recipient phone is read-only and server-derived. Verify
+sends only challenge ID and code. An existing binding skips SMS; a wrong pharmacy/person remains
+denied. SMS/delivery feature flags remain default-off and tests use mocked providers. Legacy
+`/merch/staff` CRM compatibility routes are unchanged.
+
+`/finance/ledger` reads wallet postings, not a new sum of underlying rewards. Period/source
+filters apply identically to the report and its separate Excel button. Missing historical
+pharmacy or balance is shown as unknown, never replaced by the current pharmacy or zero.
+Scoped unresolved counts may be withheld. Registry, payout and single-campaign XLSX downloads
+have separate server export capabilities; the payout period means batch creation, and an
+approved batch is not proof of a bank transfer. Registry search/training filters not supported
+by its export API are explicitly excluded. XLSX MIME is checked so an error page is not saved
+as a spreadsheet. These local flows do not constitute a production deployment.
+
+Separate native merchandising XLSX buttons export inventory for the displayed branch/calendar,
+placements for the applied producer/status, and the task queue's authorized history. Opening a
+detail does not filter the queue export; no hidden period is added. Courses and programs have
+separate XLSX buttons covering their authorized registries, without answer keys; table text
+search is not silently treated as an export filter. Every button requires its own fresh server
+export capability. A 413 asks to narrow filters and 429 asks to retry later; no truncated file or
+HTML error is accepted as Excel. These buttons do not alter lesson content, test scoring or the
+separate learner session.
+
 Public:
+
+The learner's forgotten-password flow uses three exact public POST routes under
+`/api/mobile/auth/password-reset`: `request` accepts the IIN; `verify` requires that
+IIN, its opaque `challengeId` and the SMS code; `complete` requires the same IIN, the
+single-use `resetToken` and the new password. The server obtains the existing bound
+phone; the browser cannot choose a recipient, create an employee or activate one.
+Request responses use the same generic hint for unavailable identities. The grant
+is held only in component memory and is cleared on back, IIN change, sign-out,
+unmount, successful authentication or failed completion. Late responses cannot
+restore it. Recovery responses use `no-store`; passwords and codes are never cached.
+Provider codes/proofs are purpose-bound, phone-wide issuance limits apply even when
+merch/RPS features are off, and completion rechecks the current phone, status and
+password fingerprint before atomically spending the proof and revoking old refresh
+tokens. Existing access JWTs retain their normal short TTL; this is not instant
+access-token revocation. Automatic tests use disposable databases and mocked SMS,
+not evidence of real delivery or a production release. RPS remains disabled.
 
 - `/login`
 - `/learn`, `/learn/recommendations`, `/learn/certificates`, `/learn/profile` and
@@ -32,11 +186,17 @@ Public:
   empty feed. Sign-out clears personal data and rejects late responses from that session.
 - `/learn/merch/claim` — mobile-friendly pharmacist identity confirmation for a CRM task; it uses
   pharmacist authentication, not the HQ admin session, and does not grant access to the admin shell.
+- `/learn/merch/tasks/:taskId` — native task detail and paid executor confirmation in that same
+  personal pharmacist session.
+- `/learn/merch/visits` — start or resume an identified pharmacist’s monthly photo report,
+  using that same learner session and the authorized current pharmacy.
+- `/tasks/staff` — native fragment-capability free task / paid task metadata portal.
+- `/producer/login`, `/producer` — separate producer SMS realm.
 
 Protected under `AppShell`:
 
 - `/dashboard`
-- `/dashboard/reports` — HQ/SYSTEM_ADMIN PDF export, linked from Dashboard
+- `/dashboard/reports` — HQ/SYSTEM_ADMIN XLSX reports and explicit producer provenance, linked from Dashboard
 - `/promo`
 - `/promo/:id`
 - `/rules`
@@ -47,6 +207,8 @@ Protected under `AppShell`:
 - `/reconcile`
 - `/ai-exam`
 - `/finance`
+- `/finance/ledger`
+- `/merch/inventory`, `/merch/placements`, `/merch/tasks`
 - `/lift`
 - `/lms`
 - `/settings`
@@ -57,21 +219,21 @@ redirects to `/screens` because banners are now a tab/panel in the Screens secti
 
 ## Sections
 
-| Section     | Current purpose                                                                                                   |
-| ----------- | ----------------------------------------------------------------------------------------------------------------- |
-| Dashboard   | HQ summary/KPI entrypoint and paginated 90-day journal of recommendation shows and POS sales.                     |
-| Promo       | Product campaign CRUD, Medusa product picker, gallery/cover, tiers, dates, goals, campaign rules, grid/list view. |
-| Rules       | Read-only/global rules view plus rule builders/components; campaign rules are edited from Promo.                  |
-| Screens     | Connected cash desks, Excel inventory of POSM/client screens, 12-slot default/targeted playlists, banners.        |
-| Pharmacies  | Chains/pharmacies, CRUD, detail page, real Medusa-derived pharmacy seed data.                                     |
-| Pharmacists | Registry, pending-profile activation with pharmacy assignment, block/unblock, status/balance data.                |
-| Reconcile   | Receipt moderation queue, claimed promos, POS/Excel source columns, approve/reject.                               |
-| AI Exam     | Question bank CRUD.                                                                                               |
-| Finance     | Payout batches, generation, approval with finance/HQ role checks.                                                 |
-| Lift        | Pilot/control analytics view.                                                                                     |
+| Section     | Current purpose                                                                                                                                                                                  |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Dashboard   | HQ summary/KPI entrypoint and paginated 90-day journal of recommendation shows and POS sales.                                                                                                    |
+| Promo       | Product campaign CRUD, Medusa product picker, gallery/cover, tiers, dates, goals, campaign rules, grid/list view.                                                                                |
+| Rules       | Read-only/global rules view plus rule builders/components; campaign rules are edited from Promo.                                                                                                 |
+| Screens     | Connected cash desks, Excel inventory of POSM/client screens, 12-slot default/targeted playlists, banners.                                                                                       |
+| Pharmacies  | Chains/pharmacies, CRUD, detail page, real Medusa-derived pharmacy seed data.                                                                                                                    |
+| Pharmacists | Registry, pending-profile activation with pharmacy assignment, block/unblock, status/balance data.                                                                                               |
+| Reconcile   | Receipt moderation queue, claimed promos, POS/Excel source columns, approve/reject.                                                                                                              |
+| AI Exam     | Question bank CRUD.                                                                                                                                                                              |
+| Finance     | Payout batches, generation, approval with finance/HQ role checks.                                                                                                                                |
+| Lift        | Pilot/control analytics view.                                                                                                                                                                    |
 | Training    | Dashboard, programs/routes, courses (including scheduled live lessons and their studio), events/QR and six-digit attendance codes, assignments, attendance, results, certificates and analytics. |
-| Storefront  | Read-only product catalog through the backend; the configured Inkar website is preferred, with a local snapshot as outage fallback. |
-| Settings    | Language/timezone/session settings.                                                                               |
+| Storefront  | Read-only product catalog through the backend; the configured Inkar website is preferred, with a local snapshot as outage fallback.                                                              |
+| Settings    | Language/timezone/session settings.                                                                                                                                                              |
 
 Campaign rule authoring validates the editable request contract before saving. Optional barcode, iPartID and goal
 fields may remain empty. Once a goal or a comparison row is started, its conditionally required fields are marked
@@ -84,9 +246,15 @@ In each replacement or cross-sell pair, the campaign product and up to four addi
 products have independent pharmacist reward amounts. New offers start at `0` (no reward); an
 explicit positive KZT amount makes only that offer's POSM card green. Old rules without an
 individual amount retain their previously inherited campaign reward until edited. The preview
-uses the same green/white distinction and preserves the configured offer order. Saving the
-campaign's general reward alone does not rewrite existing rule rewards: edit and save the
-corresponding pair to change what POSM displays.
+uses the same green/white distinction and preserves the configured offer order. In the local
+unification candidate both editor save buttons prepare one campaign-and-rules bundle. Saving
+does not change the published offer. Explicitly inherited rewards follow the campaign reward
+when that saved bundle is applied; explicit per-offer rewards stay independent. Historical
+unknown inheritance is preserved rather than guessed.
+
+An already issued recommendation in an open receipt keeps its event's quoted price and reward,
+including after publication changes. A new receipt uses current published terms. Delayed shown/
+outcome requests keep their original event identity even after the rule is retired.
 
 The trigger of a pair can remain a specific Medusa product or be selected from an imported ACC
 group, subgroup (shown together with its parent group), or INN. The taxonomy selector displays
@@ -103,8 +271,19 @@ show their parent, eligible barcode-member count, and snapshot source. The user 
 replacement versus cross-sell and the separate catalogue product to offer. The two exact products
 cannot be the same. Campaign name and reward follow, while dates, cover, identifiers, and media
 overrides are collapsed under additional settings. A single POST creates the campaign and its
-first pair atomically as drafts; the form navigates to the campaign detail for card review and
-explicit activation. The old product-only POST contract remains valid for existing clients.
+first pair atomically as drafts; the form navigates to the campaign detail for card review.
+In the local unification candidate the manager saves the enabled recommendations, then uses
+the separate Apply action for that saved revision. Unsaved edits cannot be published. Applying
+an existing paused campaign preserves its pause. Revision or published-source conflicts require
+an explicit reload/discard, without silent retry or overwrite. MANAGED accounts cannot bypass
+this process through the old direct content endpoints; LEGACY contracts remain available until
+controlled account conversion. The old product-only POST remains compatible for legacy clients.
+
+Administrator caches are bound to the authenticated account and role. Switching account or
+logging out detaches and clears the old client; late requests cannot populate the next session.
+Prepared campaign bundles and access-management data are never persisted. A 401/403 removes
+the denied projection, while a same-account temporary server failure can retain ordinary cached
+data. These boundaries do not clear the separate learner session or course progress.
 
 Exact-product triggers retain all confirmed barcode aliases, not just a primary EAN. The picker
 shows the barcode count/list and accepts a product with a usable `barcodes[]` even when the legacy
@@ -155,14 +334,29 @@ displays an explicit error and retry action, not an empty journal or zero sales.
 refresh retains the last successful rows and metrics with a stale-data warning. Its rolling window
 is configured on the backend and does not follow the header's month selector.
 
-Manufacturer reports use a separate `/dashboard/reports` form rather than the recommendation
-editor. HQ explicitly selects a campaign (including archived ones) and an inclusive 1–366-day
-Almaty date range, then downloads the backend PDF. Browser and server both restrict export to
-`HQ_HEAD`/`SYSTEM_ADMIN`; a brand-manager role is not proof of campaign ownership. The form
-never writes campaigns or sales, retains selections on errors, rejects non-PDF downloads and
-cancels an unfinished request on navigation. Confirmed replacement sales mean “approved”; the
-0–120-second recommendation-sale subset is separately labelled. Methodology, source limitations
-and the daily chart are inside the PDF; there is no second KPI request with a different cutoff.
+Manufacturer reports use a separate `/dashboard/reports` form. The current HQ interface exports
+XLSX only; legacy campaign-PDF endpoints remain compatibility APIs, and certificate PDFs are
+unchanged. HQ explicitly selects one campaign or a producer and an inclusive 1–366-day Almaty
+period. The producer index lists confirmed binding counts and unbound campaigns; brand/author/name
+matching is never a binding. Export requires the separate fresh server report capability and
+financial/view intersection. Errors do not turn into files; unfinished requests are cancelled.
+Confirmed replacement sales mean “approved”; the 0–120-second recommendation-sale subset remains
+separately labelled. Campaign reports retain methodology and source limitations.
+
+With `canManageCampaignProducer`, HQ may explicitly add or retract a campaign's producer binding
+using its current revision, an evidence reference and either a bounded approved interval or an
+explicit whole-history confirmation. Overlapping/stale changes require a reload, not auto-rebase.
+Retractions preserve original records. This flow does not change recommendation rules or bonuses.
+HQ may add a business manufacturer for campaigns using an idempotent request ID kept only in the
+open form's memory. An uncertain retry retains the same ID and payload. This does not create a
+phone, SMS portal login or staff identity, and never auto-links a campaign.
+
+Assignment/result XLSX buttons have independent capabilities. Assignment export carries applied
+format/status/program filters across all pages; result export covers recorded result history,
+without a hidden date interval or answer keys. Any active unsupported name search disables the
+button with a clear explanation. If the legacy training dashboard/list is denied, an explicitly
+separate export-only panel remains available under the new export permission; it does not reopen
+legacy read, CSV or result-edit permissions. Test scoring and learner video content are unchanged.
 See [rollout and reporting contract](21-rps-rollout-and-manufacturer-reports.md).
 
 ## UI and Design
@@ -198,16 +392,16 @@ pharmacist registry displays balances read-only; ordinary profile/password PATCH
 `SYSTEM_ADMIN` and `HQ_HEAD`, not `FINANCE_REVIEWER`; password reset controls follow that policy.
 Backend authorization remains authoritative even if browser controls are bypassed.
 
-Navigation and direct routes are role-aware:
+Legacy navigation and direct routes keep their existing role ceilings; managed accounts also require current server permissions:
 
 - `TRAINING_MANAGER` gets the dedicated training workspace plus `AI Exam` and lands on `/lms` after login;
 - `REGIONAL_MANAGER` and `TRAINER` get the training workspace with actions narrowed by backend capabilities;
 - in the dedicated training workspace, dashboard, programs, courses, offline events, assignments,
   attendance, results, certificates, analytics, and training settings are first-class sidebar items;
-  the redundant generic `Training` item and the duplicate horizontal LMS tab bar are hidden;
+  these destinations are grouped under the expandable Training module; the duplicate horizontal tab bar remains hidden in the dedicated training workspace;
 - `HQ_HEAD` keeps all operational sections and also sees `Training` and `AI Exam` in read-only mode;
 - other core business roles keep operational and analytics sections without training navigation;
-- `SYSTEM_ADMIN` retains full emergency access.
+- `SYSTEM_ADMIN` retains its legacy navigation ceiling. It is not inferred to be the designated HQ owner and receives no new Merch access from that role alone.
 
 This is not only a visual restriction. `SecurityConfig` separates `/api/admin/training/**`,
 `/api/admin/lms/**`, and `/api/admin/ai-exam/**` from the rest of `/api/admin/**`. A training token
@@ -285,3 +479,27 @@ webServer configuration.
 
 `admin-panel/references/` is a historical JSX prototype and visual reference. Production code lives in
 `admin-panel/frontend/src`. Use the references only to understand intent, not as current architecture.
+
+### Native merchandising operations
+
+The task workspace separates comments, a personal impediment, item cancellation and dispatch
+cancellation. A comment requires a verified author; a fragment capability reads the allowed
+conversation without granting a person identity. Cancellation requires its own permission, reason
+and current revision and cannot reverse a posted reward. Templates snapshot all or occupied shelves
+atomically, within the 500-item limit. Monthly visits resume the same branch/month/person record.
+
+A placement line keeps private reference-photo versions; an issued task pins one exact version.
+Opening a reference uses an authenticated Blob with cleanup on task/session exit. The planning
+workspace exposes authorized coordinates, published floorplans and explicit preliminary auto-pick
+with exact budgets. Adding a proposal does not reserve a place. Saved-plan draft recovery requires
+the same owner, version and current edit permission; unsaved drafts use explicit JSON preview.
+The HQ tariff entry uses the fresh server capability and compare-and-set updates.
+
+## D9 credential download
+
+The pharmacist registry shows the separate credential export action only with fresh
+`canExportLearnerCredentials`. Its dialog snapshots selected account IDs, takes a purpose
+and current HQ password, and prepares/downloads at most25 selected rows. It clears password
+state immediately on submit/cancel, aborts on session/version/unmount changes, and never
+uses query cache/storage for credential values. Ordinary report export remains separate.
+Errors use a safe status allowlist and never echo Axios request bodies or server details.

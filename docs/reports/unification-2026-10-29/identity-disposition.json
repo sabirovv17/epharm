@@ -1,0 +1,45 @@
+{
+  "analysisArtifactSha256": "ab4b8287f5eb2df40a6acff8032aebd123eb4cfdb63fde0891c0b04e7e65185c",
+  "boundary": "Offline preservation evidence only. No database import, activation, authorization acceptance or human identity merge.",
+  "completeMapSha256": "116de7f8695992b77d0cf8a762c6fc6bbb67635e161d4996315abd545d513491",
+  "counts": {
+    "merchBranches": 680,
+    "pharmacyRelations": 532,
+    "retainedRecords": {
+      "accessCodes": 10,
+      "accessScopes": 530,
+      "accounts": 6,
+      "containers": 5080,
+      "directBranchRecords": 109,
+      "memberScopes": 32,
+      "monthlyInventory": 16935,
+      "organizations": 9,
+      "shelves": 16914
+    },
+    "stagedPharmacyRelations": 530,
+    "supplementPharmacyRelations": 2,
+    "unresolvedPharmacyRelations": 148
+  },
+  "crmRevision": "02501dcc0fb0617da1dae73b595fb1fa52d64096",
+  "runtimeAccepted": false,
+  "schemaVersion": 1,
+  "sourceArtifactSha256": "fe7af830294cc6c7bd64c9840808bc1919082e946126aaaac5ff39920d6400cb",
+  "sourceSnapshotProvenance": [
+    {
+      "sourceSha256": "cdb15312e29bdc7b98099dd7df5c2e9a3b0a227bc5d73bc0bcfd20d6d8bed469",
+      "targetCount": 530
+    }
+  ],
+  "state": "source_confirmed",
+  "supplementRecordSha256": [
+    "103a9dc23d78219f1675124d4e7399acc24232c7acb1bb3e486470b0e4881d8c",
+    "fa12d4134e04207479f9288cd64c5242e68f546ed9ac940de4ce5ca9b7e323bf"
+  ],
+  "validated": [
+    "Complete source branch ID set, exact raw IDs and namespaces",
+    "All optional pharmacy endpoints and one-to-one conflicts",
+    "Organization, branch, shelf, container, monthly inventory, account and access-code dependency targets",
+    "Unresolved-branch dependent record counts against prior analysis",
+    "Historical staging and current crosswalk supplement provenance"
+  ]
+}

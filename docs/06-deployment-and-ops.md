@@ -38,7 +38,7 @@ tunnel or VPN.
 
 ## Caddy
 
-Current `Caddyfile` intentionally uses one site block for `{$ADMIN_DOMAIN}` and handles:
+`Caddyfile` uses one site block for `{$ADMIN_DOMAIN}`. Before native cutover it handles:
 
 - `/s3/*` -> MinIO with prefix stripped;
 - `/api/*` -> backend;
@@ -63,6 +63,48 @@ vhost and rollback procedure are described in
 [`storefront/deploy/inkar-server/README.md`](../storefront/deploy/inkar-server/README.md).
 The CRM must filter overdue assignments before returning active tasks. After the CRM URL switch,
 scan a newly issued QR in a browser; old cached legacy QR links are not a compatibility guarantee.
+
+Native cutover is an explicit, default-off operation. Compose forwards
+`MERCH_NATIVE_DELIVERY_ENABLED`, `MERCH_NATIVE_EXECUTOR_ENABLED`,
+`MERCH_PRODUCER_AUTH_ENABLED`, `MERCH_AUTOMATION_ENABLED`,
+`MERCH_PLACEMENT_EXPIRY_ENABLED` and `MERCH_LEGACY_PORTAL_CUTOVER_ENABLED` to the
+backend; the last flag also reaches Caddy. Do not enable schedulers before stopping the
+source CRM's in-process weekly/expiry loops and the old reward drainer. The flags are
+independent gates, not permission to enable payments, rewards or RPS login.
+
+The first native import requires pristine native tables. Before the first new backend starts,
+install the reviewed ingress configuration and enable `UNIFIED_MIGRATION_WRITE_FREEZE_ENABLED`
+on Caddy. It temporarily returns no-store HTTP 503 with `Retry-After: 30` for non-POSM API
+mutations and POSM staff-auth mutations on public TLS, the 8060 ingress and the internal hostname.
+Reads and core POSM sales, heartbeat and recommendation traffic continue. Verify that backend
+and frontend have no externally published bypass ports. During this initial phase keep D9
+capture and all six native flags **false**: even a task GET can issue native state when enabled.
+Freeze the source CRM writers separately, capture/verify their final delta, and run the pinned
+selective import without deleting unexpected target rows. The import retains concurrent sales in
+the original tables; a nonempty or changed native target is a refusal, never a truncate request.
+
+After import, identity/grant and file checks pass, enable only the reviewed native capabilities
+and remove the write freeze. Treat Caddy recreation as a separately audited ingress transition:
+the old application transaction's saved Caddy container identity is no longer its current baseline.
+Take a fresh backup and perform the normal healthy same-pair application transaction to record
+the actual new baseline. Never rewrite an old transaction or use an unhealthy-baseline bypass.
+`ops/merch-portal-patches/test-caddy-redirect.sh` checks the real proxy, both HTTP ingress paths,
+all four mutating verbs, the default-off behavior and unchanged core POSM traffic.
+
+With legacy portal cutover enabled, exact GET `/merch/staff` and `/staff` task entries
+serve the native SPA without forwarding a query bearer or the integration key upstream.
+The browser consumes only the supported old `?task=CAP` / `?task=1#task=CAP` shapes,
+scrubs them before telemetry and continues at `/tasks/staff`. A historical capability
+also needs the verified immutable V088 alias and import provenance; merely enabling the
+flag does not authorize arbitrary old links. Native POSM issuer/ACK ownership remains
+unchanged. Existing free links retain late submission until their original expiry;
+paid deadlines and current branch/parent/revocation checks remain enforced.
+
+Cached old task API/media requests return explicit no-store HTTP 409 asking to reopen
+the QR. They must not silently write to the retired CRM database after its writer freeze.
+The external `crm.inkar.kz` edge route needs a separately verified switch, including
+corporate direct DNS/TLS; editing this Caddyfile alone does not migrate that hostname.
+`/staff` without a task still uses the old staff portal until that separate flow is moved.
 
 The merchandising server credential must use HTTPS when the upstream is outside the private
 INKAR network. The public QR portal is a separate browser route with a deny-by-default allowlist;
@@ -100,6 +142,10 @@ Important current values/policies:
 
 - Production OTP requires `OTP_DEV_MODE=false`, `OTP_PROVIDER=daribar`,
   `DARIBAR_OTP_BASE_URL=https://prod-backoffice.daribar.com` and a finite request timeout.
+- `UNIFIED_ADMIN_PRIMARY_OWNER_ID` designates the exact existing verified HQ account UUID.
+  The empty default designates nobody; setting it does not create an account, profile,
+  sensitive grant or credential-export permission. Review the profile and explicit grants
+  separately before enabling the unified administration workflow.
 - `OTP_DEV_MODE=true` exposes the shared fixed code and is permitted only for local/test environments.
 - `S3_PUBLIC_URL` must match the external Caddy route. It is `https://epharm.inkar.kz/s3`.
 - Production uses `STOREFRONT_CATALOG_ENABLED=true`,

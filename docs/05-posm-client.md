@@ -193,9 +193,39 @@ before enabling fleet auto-update.
 ## Exact Fiscal Receipt Contract
 
 Every open Standard-N receipt gets an atomically replaced JSON draft under
-`C:\Epharm\receipts\active`. A confirmed document close or print-log marker moves the immutable
-structured sale to `pending` and queues it independently of the fiscal artifact. A deterministic id
-based on `pharmacyId + DOCS.ID` deduplicates print-log, Firebird-close and retry signals.
+`C:\Epharm\receipts\active`. The 1.0.73 candidate reads the complete `LINK_ID` cart in one
+bounded read-only Firebird snapshot, for one exact local workstation and cashier session.
+Unknown, foreign or ambiguous membership preserves the previous screen. A missing/zero link
+retains the exact single-document path. Physical document and line identities remain separate,
+including equal products with different prices or discounts.
+
+An explicit Standard-N print-log cue starts a bounded five-second correlation, rather than
+declaring the current cart paid. Finalization additionally needs the previously observed physical
+document's original session/link, `STATUS=1`, device/shift/fiscal counters and fresh signed
+`DOC_DETAIL` rows matching its header. Posted rows are not read from `DOC_DETAIL_ACTIVE`.
+A late cue can therefore confirm cart A while cart B stays on screen. A held receipt, disappearance,
+commit timestamp or status alone never proves payment. A strictly proven empty posted document
+resolves locally without inventing a sale or a financial acknowledgment.
+
+Unconfirmed groups stay in an atomic, versioned, checksummed journal (32 groups, 8 MiB bound).
+Reaching a bound or encountering corruption does not evict unresolved evidence. Anchored print
+times, original seller/session and per-document queue state survive restart. Database probes run
+off the UI thread; stale/expired first results cannot create a sale or replace a newer cart.
+A deterministic id based on `pharmacyId + DOCS.ID` deduplicates confirmed print and retry signals.
+The exact fiscal original is captured independently of the structured sale.
+
+The candidate also withholds the two known unsafe legacy sources (`standardn-document-switch`
+and `standardn-firebird-close`) from raw-sale replay, without deleting their rows or starving other
+queued events. A later real print of the same physical document preserves the old pending files
+and complete SQLite queue row before promoting the canonical entry. Verified fiscal originals keep
+their separate recovery path. Previously delivered server sales are not silently rewritten.
+An older client does not know these replay guards, so rollback to it requires a separate review.
+
+The legacy sales wire stores prices/totals as whole KZT. A newly confirmed amount that cannot be
+represented losslessly stays unresolved with its exact source values and a diagnostic, rather than
+being silently rounded and acknowledged. Fractional quantities with representable monetary values
+remain supported. Supporting fractional monetary values in reporting requires a separate wire and
+backend extension. Existing public DTOs and already accepted historical sales are unchanged.
 
 POSM never renders an image from cart rows. In the background it waits for an approved read-only
 KKM/OFD adapter to publish an original PDF/PNG and atomic manifest into
@@ -262,7 +292,9 @@ cashier acceptance still requires a real scan above Standard-N while scanner foc
 
 ### Closing the customer receipt
 
-An explicit Standard-N print marker clears the displayed rows and total immediately. The active
+An explicit Standard-N print marker clears an unbound log-only cart's display; it does not queue
+a sale. A tracked linked cart clears only after all its physical documents are durably queued or
+strictly resolved; a late print of another cart leaves the current one visible. The active
 receipt poll is normally 400 ms; two consecutive successful empty reads from one unambiguous,
 exact local workstation session also clear a log-only cart whose document ID was never discovered.
 This is a confirmation interval, not an arbitrary idle timeout. Unknown/ambiguous sessions and
@@ -276,9 +308,9 @@ until two authoritative empty reads confirm the receipt boundary. New log scans 
 cannot release this barrier: they do not identify the old database document. A DB-only cashier
 that immediately opens another receipt without an observed idle boundary may temporarily miss
 DB-driven updates until the next confirmed empty receipt; do not guess identity from time or names.
-The pre-existing tracked-document sale completion contract is unchanged: distinguishing a held or
-cancelled document from a paid sale still needs a real Standard-N fixture before changing financial
-semantics. POSM never writes or closes the cashier's real receipt.
+The candidate's posted-row contract was derived from the actual Standard-N demo fixture;
+other vendor schemas remain unknown until separately verified. POSM never writes or closes the
+cashier's real receipt. Unit/source proof does not replace acceptance of the exact Windows binary.
 
 ## Build
 
@@ -414,3 +446,30 @@ Useful docs:
 For Standard-N identity diagnostics, run `collect-posm-diagnostics.bat` as administrator on the
 cash-desk machine and return the ZIP created on the desktop. The collector redacts device keys and
 database passwords.
+
+## Native merchandising candidate and old-client compatibility
+
+The candidate retains `GET /api/posm/tasks` and `POST /api/posm/tasks/shown`, their
+existing device authentication, request/response DTOs and historical fixtures.
+`MERCH_NATIVE_DELIVERY_ENABLED=false` keeps polling through the existing CRM bridge.
+Enabling it selects the native writer; a native failure returns `available=false`
+without switching to another writer. An already native-owned delivery token stays
+on the native ACK path after the issuance flag is switched off. Polling is not a
+shown receipt. No RPS login or new mandatory device header is introduced.
+
+New native QR links use the same canonical domain with the exact SPA path
+`/tasks/staff?task=1#task=…`. Existing `/merch/staff` redirects and CRM links remain
+compatible; the token is kept out of the new HTTP query. Generic and kiosk
+capabilities remain explicitly legacy-owned until their complete workflow is
+ported. Windows popup/Standard-N proof remains a separate acceptance gate.
+
+## Receipt row refresh (1.0.73 candidate)
+
+`MainWindow.StandardNReceipt.cs` now owns the same `UpsertItemSetQty` used by
+Standard-N log and Firebird observations. ReceiptItem has plain properties, so a
+changed row must replace its previous bound instance with a clone before mutation.
+Reinserting the same mutated reference could leave WPF quantity/line amount stale
+while the separately calculated total was already current. Identity merge, row order,
+absolute quantity, zero/removal and recommendation triggers retain their contracts.
+The core lifecycle suite compiles this real method instead of a fake upsert.
+The staff module remains disabled; this candidate does not publish a fleet update.

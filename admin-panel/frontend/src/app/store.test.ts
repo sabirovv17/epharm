@@ -21,6 +21,7 @@ vi.mock('@/lib/api', () => ({
   authApi,
   setTokens: setApiTokens,
   onForcedLogout,
+  onTokensRefreshed: vi.fn(),
   errorCodeOf: (err: unknown) => {
     if (err && typeof err === 'object' && 'code' in err) return (err as { code: string }).code
     return null

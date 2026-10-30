@@ -1,6 +1,8 @@
 package kz.epharm.shared
 
 import kz.epharm.auth.security.JwtAuthenticationFilter
+import org.springframework.http.HttpMethod
+import kz.epharm.merch.producer.auth.ProducerAuthenticationFilter
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -34,6 +36,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 @EnableMethodSecurity
 class SecurityConfig(
     private val jwtAuthenticationFilter: JwtAuthenticationFilter,
+    private val producerAuthenticationFilter: ProducerAuthenticationFilter,
     private val apiAuthenticationEntryPoint: ApiAuthenticationEntryPoint,
     private val apiAccessDeniedHandler: ApiAccessDeniedHandler,
     @Value("\${app.cors.allowed-origins:http://localhost:5173}") private val allowedOriginsRaw: String,
@@ -57,6 +60,22 @@ class SecurityConfig(
             .formLogin { it.disable() }
             .authorizeHttpRequests { auth ->
                 auth
+                    .requestMatchers(HttpMethod.POST,
+                        "/api/staff/auth/code", "/api/staff/auth/qr", "/api/staff/auth/logout",
+                        "/api/staff/visits", "/api/staff/visits/{visitId}/items/{itemId}/evidence",
+                        "/api/staff/visits/{visitId}/submit",
+                    ).permitAll()
+                    .requestMatchers(HttpMethod.GET,
+                        "/api/staff/auth/me", "/api/staff/workspace", "/api/staff/visits/{visitId}",
+                        "/api/staff/visits/{visitId}/evidence/{evidenceId}",
+                        "/api/staff/visits/{visitId}/items/{itemId}/reference",
+                    ).permitAll()
+                    .requestMatchers("/api/staff/**").denyAll()
+                    .requestMatchers(HttpMethod.POST,
+                        "/api/mobile/auth/password-reset/request",
+                        "/api/mobile/auth/password-reset/verify",
+                        "/api/mobile/auth/password-reset/complete",
+                    ).permitAll()
                     .requestMatchers(
                         "/api/health",
                         "/actuator/health",
@@ -78,6 +97,9 @@ class SecurityConfig(
                         "/api/mobile/auth/activation/**",
                         "/api/mobile/auth/register",
                         "/api/mobile/auth/refresh",
+                        "/api/producer/auth/sms/request",
+                        "/api/producer/auth/sms/verify",
+                        "/api/producer/auth/refresh",
                         // dev-only reset (DevController существует только в profile=dev;
                         // в prod бина нет → путь отдаёт 404, permitAll безвреден).
                         "/api/admin/dev/**",
@@ -105,10 +127,16 @@ class SecurityConfig(
                         // Сертификат проверяется по непредсказуемому UUID-token из QR-кода.
                         // Публичный доступ нужен внешнему проверяющему без учётной записи ePharm.
                         "/api/public/training/certificates/**",
+                        // Task capability is checked per object; it never establishes a pharmacist identity.
+                        "/api/public/merch/tasks/**",
+                        "/api/public/merch/tasks",
                     ).permitAll()
                     // Профиль и logout нужны любой роли HQ-консоли.
-                    .requestMatchers("/api/admin/auth/me", "/api/admin/auth/logout")
+                    .requestMatchers("/api/admin/auth/me", "/api/admin/auth/logout", "/api/admin/access/me")
                     .hasAnyRole(*ADMIN_ROLES)
+                    // New native merch routes also enforce explicit persisted branch/customer grants.
+                    .requestMatchers("/api/admin/merch/**").hasAnyRole(*ADMIN_ROLES)
+                    .requestMatchers("/api/producer/**").hasRole("PRODUCER")
                     // Учебный workspace. Права на конкретные мутации дополнительно
                     // сужаются @PreAuthorize в контроллерах.
                     .requestMatchers(
@@ -134,6 +162,7 @@ class SecurityConfig(
                     .accessDeniedHandler(apiAccessDeniedHandler)
             }
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter::class.java)
+            .addFilterBefore(producerAuthenticationFilter, JwtAuthenticationFilter::class.java)
 
         return http.build()
     }

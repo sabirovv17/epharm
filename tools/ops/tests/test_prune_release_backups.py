@@ -102,6 +102,49 @@ class RollbackRetentionTest(unittest.TestCase):
         self.assertEqual(self.run_prune(apply=True), [])
         self.assertTrue(only.exists())
 
+    def test_recovery_reference_is_protected_without_an_active_or_fake_healthy_baseline(self):
+        bundles=[self.bundle(day) for day in range(1,6)]
+        pointer=self.deploy/'releases/archive-two-image/recovery-backup'
+        self.write(pointer,(str(bundles[0])+'\n').encode())
+        self.assertEqual(self.run_prune(apply=True),[bundles[1]])
+        self.assertTrue(bundles[0].exists())
+        self.assertFalse((pointer.parent/'active-transaction').exists())
+
+    def test_stale_malformed_escaping_or_symlink_recovery_reference_aborts_all_deletion(self):
+        bundles=[self.bundle(day) for day in range(1,5)]
+        pointer=self.deploy/'releases/archive-two-image/recovery-backup'
+        for value in (b'relative\n',str(self.root/'outside').encode()+b'\n',
+                      str(self.backups/'pre-backend-only-20261009T010000Z-ABCDEFG9').encode()+b'\n',
+                      (str(bundles[0])+'\n'+str(bundles[1])+'\n').encode()):
+            with self.subTest(value=value):
+                self.write(pointer,value)
+                with self.assertRaises((ValueError,OSError)):self.run_prune(apply=True)
+                self.assertTrue(all(path.exists() for path in bundles))
+        pointer.unlink();pointer.symlink_to(bundles[0]/'SHA256SUMS')
+        with self.assertRaises(ValueError):self.run_prune(apply=True)
+        self.assertTrue(all(path.exists() for path in bundles))
+
+    def test_corrupt_recovery_bundle_is_not_hidden_by_newer_keepers(self):
+        bundles=[self.bundle(day) for day in range(1,5)]
+        self.write(self.deploy/'releases/archive-two-image/recovery-backup',(str(bundles[0])+'\n').encode())
+        with (bundles[0]/'epharm.dump').open('ab') as stream:stream.write(b'drift')
+        with self.assertRaisesRegex(ValueError,'checksum mismatch'):self.run_prune(apply=True)
+        self.assertTrue(all(path.exists() for path in bundles))
+
+    def test_changed_recovery_reference_before_delete_aborts(self):
+        bundles=[self.bundle(day) for day in range(1,6)]
+        pointer=self.deploy/'releases/archive-two-image/recovery-backup'
+        self.write(pointer,(str(bundles[0])+'\n').encode())
+        original=MODULE.references;calls=0
+        def changed(*args):
+            nonlocal calls
+            calls+=1
+            if calls==2:self.write(pointer,(str(bundles[1])+'\n').encode())
+            return original(*args)
+        with patch.object(MODULE,'references',side_effect=changed):
+            with self.assertRaisesRegex(ValueError,'state or candidate changed'):self.run_prune(apply=True)
+        self.assertTrue(all(path.exists() for path in bundles))
+
     def test_failed_checksum_never_deletes_old_bundle(self):
         bundles = [self.bundle(day) for day in range(1, 5)]
         with (bundles[-1] / "epharm.dump").open("ab") as output:

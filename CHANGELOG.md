@@ -5,8 +5,17 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-30
+
 ### Added
 
+- Separate D9 learner credential export for explicitly authorised HQ accounts: current-password
+  proof, scoped one-use XLSX, version-bound encrypted copy and an external recovery key ring.
+- Unified-admin development candidate: seven navigation sections, verified account and grant
+  management, native merchandising inventory, producer workspace, placement review, pharmacy task
+  attempts/evidence/review, compatible POSM task delivery, and separate scoped Excel reports.
+- Offline-only rehearsal tools preserve source rows, identities, capabilities and private evidence;
+  native automation and new authentication realms remain opt-in pending migration acceptance.
 - Added fail-open merchandising recommendations and structured pharmacy/network/warehouse stock
   context to the existing POSM recommendation flow, while preserving ePharm's canonical rules,
   event attribution and pharmacist balance accounting.
@@ -14,8 +23,36 @@ All notable production changes to Epharm are recorded here. The format follows
   interactive content, downloadable attachments, required lessons and minimum video-view targets;
   the mobile app now renders and opens every published material.
 - Added local search and operational sorting to the pharmacist training list.
+
 ### Fixed
 
+- Preserve verified historical CRM task capabilities during an explicit native cutover,
+  including free late submission until original link expiry, without expanding POSM issuer
+  authority. Selective migration tooling keeps new live sales and refuses partial/repeated imports.
+- Keep the pharmacy recommendation/stock context in the common database after CRM cutover,
+  preserving exact product keys, source identities and reviewed manual imports. Optional SQL
+  errors leave local recommendations usable; concurrent imports recheck state after their lock.
+- POSM 1.0.73 candidate: replace changed receipt rows with a fresh object so quantity,
+  price, discount and line amount refresh together with the total after a Standard-N scan.
+  The real shared upsert is covered by both log and Firebird lifecycle regression tests.
+- POSM candidate: do not report unpaid receipt switches or disappearance as sales. Withhold
+  the two known unsafe legacy replay sources, preserve their files and original queue rows,
+  and recover a later confirmed print under the same physical sale id without duplicate credit.
+- Preserve complete linked Standard-N carts and correlate late prints using fresh physical
+  posted rows. Keep original seller/session and unresolved evidence across restart; reject
+  unsupported monetary precision without rounding or acknowledging a fabricated sale.
+- Forward-recover a recorded failed release with exact main artifacts and a fresh protected
+  backup, preserving physical database identity, migration history, grants and new sales.
+- Forward the explicitly designated HQ owner through production configuration; an empty value
+  creates no owner or additional permissions.
+- Add a default-off first-import write freeze on public and internal ingress while core POSM
+  sales and heartbeat continue; retain strict refusal to overwrite unexpected native data.
+- Guard expanded-schema recovery against older authorization which cannot enforce managed
+  scopes, and preserve native evidence, independent credential keys and exact MinIO policies.
+- Preserve MinIO object headers, user metadata and tags alongside exact bodies; validate the
+  archive before restore and replay only into an isolated, identity-pinned restore container.
+- Prevent a delayed pharmacist course response from reopening a course after navigation away from
+  it; preserve the separate Training tab and bank-card placeholder from the latest main.
 - Added a bounded mobile API timeout so unavailable services fail with an actionable retry state
   instead of leaving the application waiting indefinitely.
 - POSM 1.0.65 spreads healthy QR-task polling over 24–36 seconds per device, reducing

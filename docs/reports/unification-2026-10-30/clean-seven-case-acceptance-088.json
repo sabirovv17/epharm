@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "jarSha256": "e5723ec8cc1e7cddb7f0273c386258808bb94317220cb4a953163b77c8d03453",
+  "provider": "synthetic-HTTPS-Daribar-protocol-only",
+  "isolationVerified": true,
+  "aggregate": {
+    "adminAccounts": 6,
+    "managedProfiles": 6,
+    "verifiedPeople": 7,
+    "accessAuditRows": 11,
+    "trainingAssignments": 2,
+    "approvedPlacements": 1,
+    "approvedTaskItems": 1,
+    "evidenceRows": 1,
+    "taskShownReceipts": 1,
+    "recommendationEvents": 1,
+    "recommendationsAcked": 1,
+    "recommendationsRejected": 1,
+    "posSales": 1,
+    "walletEntries": 0,
+    "capturedPasswordCopies": 1,
+    "unconsumedCredentialExports": 0,
+    "credentialAuditRows": 3
+  },
+  "renderedOverlayProven": false,
+  "businessUserAcceptanceProven": false,
+  "state": "single_clean_seven_case_acceptance_passed_on_V088",
+  "browser": {
+    "passed": 7,
+    "failed": 0,
+    "duration": "7.6 minutes",
+    "apiMocks": false,
+    "externalSms": false,
+    "screenshotsOrTracesWithSecrets": false
+  },
+  "frontendIndexSha256": "61def0dcc5baf53c80661344fcecb2e4e7e0f6614dd6d9558b345aeee74b3fd7"
+}

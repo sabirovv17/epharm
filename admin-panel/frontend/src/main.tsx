@@ -4,8 +4,10 @@ import * as Sentry from '@sentry/react'
 import './index.css'
 import { App } from './app/App'
 import { captureMerchClaimNavigation } from './features/merch/claimNavigation'
+import { captureStaffEntryNavigation } from './features/merch/staffEntryNavigation'
 
 captureMerchClaimNavigation()
+captureStaffEntryNavigation()
 
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN?.trim()
 if (sentryDsn) {

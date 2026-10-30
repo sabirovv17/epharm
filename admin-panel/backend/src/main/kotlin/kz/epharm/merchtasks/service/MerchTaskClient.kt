@@ -47,6 +47,8 @@ class MerchTaskClient(
     @Value("\${app.merch-tasks.public-staff-url:}") publicStaffUrl: String = "",
     @Value("\${app.merch-tasks.max-concurrent:16}") maxConcurrent: Int = 16,
     @Value("\${app.merch-tasks.recommend-timeout-ms:900}") recommendTimeoutMs: Int = 900,
+    private val nativeContext: NativeRecommendationContextReader? = null,
+    @Value("\${app.merch.legacy-portal-cutover-enabled:false}") private val legacyCutover: Boolean = false,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val requestTimeoutMs = timeoutMs.coerceIn(MIN_TIMEOUT_MS, MAX_TIMEOUT_MS)
@@ -58,6 +60,7 @@ class MerchTaskClient(
         listOfNotNull(
             publicBaseUrl.trimEnd('/') + "/merch/staff",
             publicStaffUrl.takeIf { it.isNotBlank() },
+            publicBaseUrl.trimEnd('/') + "/tasks/staff",
         ).distinct().map { raw ->
             URI.create(raw).also { uri ->
                 require(uri.scheme.equals("https", ignoreCase = true) && uri.host != null &&
@@ -188,6 +191,13 @@ class MerchTaskClient(
         if (!enabled) {
             counter("recommendations", "disabled").increment()
             return MerchRecommendationContextEnvelope()
+        }
+        if (legacyCutover) {
+            // Same bulkhead/metrics as legacy transport; native ownership never falls back to HTTP.
+            return upstream("recommendations", MerchRecommendationContextEnvelope(available = false)) {
+                nativeContext?.context(payload)?.also(::validateRecommendationContext)
+                    ?: MerchRecommendationContextEnvelope(available = false)
+            }
         }
         if (!configured) {
             counter("recommendations", "misconfigured").increment()

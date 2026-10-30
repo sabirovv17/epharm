@@ -64,6 +64,7 @@ class MobileAuthIntegrationTest {
     @Autowired private lateinit var otpRepository: MobileOtpRepository
     @Autowired private lateinit var refreshRepository: MobileRefreshTokenRepository
     @Autowired private lateinit var passwordEncoder: PasswordEncoder
+    @Autowired private lateinit var jdbc: org.springframework.jdbc.core.JdbcTemplate
 
     private val activePhone = "+77002223344"
     private val blockedPhone = "+77003334455"
@@ -73,6 +74,7 @@ class MobileAuthIntegrationTest {
 
     @BeforeEach
     fun seed() {
+        jdbc.execute("TRUNCATE posm_staff_rate_limits, mobile_password_reset_challenges, mobile_password_reset_rate_limits")
         refreshRepository.deleteAll()
         otpRepository.deleteAll()
         pharmacistRepository.deleteAll()

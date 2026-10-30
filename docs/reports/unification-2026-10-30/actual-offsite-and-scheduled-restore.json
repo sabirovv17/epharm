@@ -1,0 +1,200 @@
+{
+  "state": "BACKUP_ONLY_OPERATION_COMPLETE_G5_CURRENT_POINT_AND_SCHEDULES_VERIFIED",
+  "completedAt": "2026-10-30T01:00:51.619144+00:00",
+  "sourceCommit": "3cdd3bad8191a4f94df28a487891efda029c3fbf",
+  "ci": {
+    "runId": 40979493381,
+    "headSha": "3cdd3bad8191a4f94df28a487891efda029c3fbf",
+    "jobId": 123815693111,
+    "jobName": "ops / config contracts",
+    "conclusion": "success",
+    "completedAt": "2026-10-30T00:26:38Z"
+  },
+  "runtimeSourceFiles": {
+    "tools/backup-all.sh": "8679e0137dc118c0178753ffc345d9bc141b27bf83e89e55c4110ff6e82ce15c",
+    "tools/pg-backup.sh": "678e5d7db0736e23fc1e51a39fa0286da4a9f46b286937a0fc5d990f6c61e050",
+    "tools/minio-backup.sh": "6bb6324388eede9206a6b32cae2134b1997aaf2ac834f8afa6e6205c7f2ad323",
+    "tools/private-files-backup.sh": "3e22973763e26c4521a02ad9ffe02b2a83003331e54f0dc98591ec7b6363d80f",
+    "tools/offsite-backup.sh": "1d776938f6f9ff7aaf1a23d45f21cc5ae4ad63bfa6fb3452382a6243dc8cc9b0",
+    "tools/restore-test.sh": "365cee75a16eda160a776eb8264d954cd6eeee470d87238a118a8d86a11e474c",
+    "tools/ops/lib.sh": "5c2eb78a4fb7840efe203bc89ecf3190ca0a711e1d55221a1095432177f34728",
+    "tools/ops/minio_policy.py": "3bcecea968fb3fc51c6c1e4ba839493cd01033bfbafd8dda12b86ed67883c00d",
+    "tools/ops/private_backup.py": "98b877b573c8a3597cfa4cbf13c9e11451970aea62c51cbf36d5cd0987fb8c77",
+    "tools/ops/prune-backups.py": "f5fb450c9bac425ca73a5ae5840667c6a41634a8db0a1376ff8558819f912e32",
+    "tools/ops/prune-release-backups.py": "ebb683f8dfa6361b9984b3bc9f1a7ce2cb9c78da6de7606f6d733feffc08304e",
+    "tools/ops/minio_metadata.py": "c79cae38a7685bd7c7297191fa4c40cf1fe0092db990fdc7d953e457b8c1ec19"
+  },
+  "productionOperations": {
+    "applicationDeployments": 0,
+    "appImageChanges": 0,
+    "appEnvironmentChanges": 0,
+    "sourceDatabaseMigrations": 0,
+    "businessRecordsDeleted": 0,
+    "backupPointsManuallyDeleted": 0,
+    "manualForgetOrPrune": false,
+    "manualBackupAll": false,
+    "manuallyStartedRestoreTestServices": 1,
+    "backupTimerAndRestoreTimerResumed": true,
+    "unitDefinitionsAndSchedulesUnchanged": true
+  },
+  "actualOffsiteCurrentSetRecovery": {
+    "postgres": {
+      "postgresMajor": "16",
+      "tables": 73,
+      "rows": 1933464,
+      "network": "none",
+      "strictRestore": true,
+      "applicationStarted": false,
+      "schemaVersion": "065",
+      "vaultTablePresent": false
+    },
+    "minioMetadataFormat": 1,
+    "minioObjects": 9485,
+    "minioBodyMismatches": 0,
+    "minioMetadataMismatches": 0,
+    "minioTagMismatches": 0,
+    "bucketPoliciesExact": 2,
+    "nativeFiles": 42,
+    "credentialKeyFiles": 1,
+    "recoveredKeyByteEqualToIndependentCustody": true,
+    "actualJdkAeadSyntheticSealedBeforeBackupAndDecrypted": true,
+    "productionVaultRowsCreated": 0,
+    "allRestoreDatabasesAndMinioNetworkNone": true,
+    "applicationOrWorkersStarted": false,
+    "host76RequiredForRecovery": false,
+    "recoveryTransport": "local80 exactbinary+repository readonly/no-lock/no-cache -> protectedMac",
+    "sourceSecretValuesPrinted": false
+  },
+  "previousSourcePreservationPoint": {
+    "snapshotId": "14a3290fcaebd81d0d1de184e9fd3f416b671a3e13fbcfde2d007ccd13f2a174",
+    "freshCrm18DbCaptureAt": "2026-10-29T23:44:16.097134+00:00",
+    "crmTables": 57,
+    "crmRows": 42414,
+    "crmStorageFiles": 31,
+    "attachmentReferences": 11,
+    "posmDownloadFiles": 20,
+    "posmDownloadBytes": 1020840495,
+    "allCopiedBytesPreviouslyRecoveredAndVerified": true,
+    "normalFourArtifactChainDoesNotContinuouslyRefreshSeparateCRMOrDownloads": true,
+    "fresh80FileAndAttachmentHashFenceStillUnchangedAtClosure": true
+  },
+  "actualHostSystemdRestore": {
+    "state": "host_restore_pass",
+    "sourceCommit": "3cdd3bad8191a4f94df28a487891efda029c3fbf",
+    "startedAt": "2026-10-30T00:48:47.846570+00:00",
+    "seconds": 352.215,
+    "unit": {
+      "ActiveState": "inactive",
+      "SubState": "dead",
+      "InvocationID": "b06ba0351c59409097f26df196a6a16e",
+      "Result": "success",
+      "ExecMainStartTimestampMonotonic": "2154647993548",
+      "ExecMainExitTimestampMonotonic": "2154998335880",
+      "ExecMainStatus": "0"
+    },
+    "metricSuccessTimestamp": 1793321671,
+    "metricDurationSeconds": 343,
+    "metricUpdated": true,
+    "newContainersCleaned": true,
+    "newNetworksCleaned": true,
+    "ownedStageCleaned": true,
+    "appImagesUnchanged": true,
+    "appEnvUnchanged": true,
+    "collectorReadable": true,
+    "schemaVersion": "065"
+  },
+  "hostRestoreHealth": {
+    "samples": 69,
+    "all200": true,
+    "maxSeconds": 0.120263,
+    "minimumAvailableMemoryBytes": 3697037312,
+    "minimumFreeBytes": 35549773824
+  },
+  "retentionReadOnly": {
+    "local": {
+      "postgres": "postgres: verified keepers=7, would remove pairs=2, untouched unpaired/invalid older backups=0",
+      "minio": "minio: verified keepers=7, would remove pairs=2, untouched unpaired/invalid older backups=0",
+      "native-files": "native-files: verified keepers=2, would remove pairs=0, untouched unpaired/invalid older backups=0"
+    },
+    "keysExcluded": true,
+    "protectedReleaseBundlesEligible": 0,
+    "offsiteKeep": 18,
+    "offsiteRemove": 0,
+    "crossApplicationSelection": false,
+    "protectedSnapshots": [
+      "54d51a9b6bd3ce05bc111c149fde3a32f8efb105b1832396e4bb3d4b9a9e9beb",
+      "14a3290fcaebd81d0d1de184e9fd3f416b671a3e13fbcfde2d007ccd13f2a174",
+      "a4675b25ed0d114880cb9a0b699801a6c6d94cefe148092c0b555cdd2323131e"
+    ],
+    "futureScheduledPolicyLocalKeep": 7,
+    "futureScheduledOffsiteKeepDailyWeeklyMonthly": [30, 8, 12],
+    "futureScheduledRetentionAuthorisedByRoot": true
+  },
+  "timers": {
+    "epharm-backup.timer": {
+      "ActiveState": "active",
+      "SubState": "waiting",
+      "UnitFileState": "enabled",
+      "TimersCalendar": "{ OnCalendar=*-*-* 03:15:00 ; next_elapse=Fri 2026-10-30 03:15:00 UTC }",
+      "NextElapseUSecRealtime": "Fri 2026-10-30 03:20:49 UTC",
+      "LastTriggerUSec": "Thu 2026-10-29 03:29:22 UTC",
+      "Persistent": "yes"
+    },
+    "epharm-restore-test.timer": {
+      "ActiveState": "active",
+      "SubState": "waiting",
+      "UnitFileState": "enabled",
+      "TimersCalendar": "{ OnCalendar=Sun *-*-* 05:30:00 ; next_elapse=Sun 2026-11-01 05:30:00 UTC }",
+      "NextElapseUSecRealtime": "Sun 2026-11-01 05:56:04 UTC",
+      "LastTriggerUSec": "Sun 2026-10-25 05:42:49 UTC",
+      "Persistent": "yes"
+    }
+  },
+  "services": {
+    "epharm-backup.service": {
+      "ActiveState": "inactive",
+      "Result": "success",
+      "ExecMainStatus": "0"
+    },
+    "epharm-restore-test.service": {
+      "ActiveState": "inactive",
+      "Result": "success",
+      "ExecMainStatus": "0"
+    }
+  },
+  "finalHealth": [
+    {
+      "service": "epharm",
+      "status": 200,
+      "seconds": 0.242673
+    },
+    {
+      "service": "crm",
+      "status": 200,
+      "seconds": 0.23395
+    }
+  ],
+  "independentCustodyOwnerOnlyOutsideBothServers": true,
+  "oldRedMetadataProofRetained": true,
+  "applicationDeploymentAuthorisedByThisReport": false,
+  "remainingApplicationGates": "G4/G7/unification cutover are separate and remain with integration owner",
+  "offsite": {
+    "snapshotId": "54d51a9b6bd3ce05bc111c149fde3a32f8efb105b1832396e4bb3d4b9a9e9beb",
+    "tags": ["epharm-production", "epharm-pre-native-3cdd3ba-20261030"],
+    "snapshotCountBefore": 17,
+    "snapshotCountAfter": 18,
+    "dataAddedBytes": 627261428,
+    "forgetRun": false,
+    "pruneRun": false
+  },
+  "capacity": {
+    "76": {
+      "rootFreeBytes": 39569371136,
+      "readOnly": true
+    },
+    "80": {
+      "rootFreeBytes": 16770338816,
+      "readOnly": true
+    }
+  }
+}

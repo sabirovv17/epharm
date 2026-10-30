@@ -115,7 +115,13 @@ export interface MnnGroupDto {
 export type RuleType = 'substitution' | 'crosssell'
 export type RuleStatus = 'active' | 'paused' | 'draft' | 'archived'
 
-export type TriggerKind = 'product' | 'mnn' | 'product_any' | 'acc_group' | 'acc_subgroup' | 'acc_mnn'
+export type TriggerKind =
+  | 'product'
+  | 'mnn'
+  | 'product_any'
+  | 'acc_group'
+  | 'acc_subgroup'
+  | 'acc_mnn'
 
 /** Stable ACC taxonomy scope used by campaign recommendation triggers. */
 export type PromoTriggerKind = 'product' | 'acc_group' | 'acc_subgroup' | 'acc_mnn'
@@ -280,7 +286,7 @@ export interface PharmacyDto {
   group: PharmacyGroup
   pharmacists: number
   receipts30d: number
-  gmv30d: number
+  gmv30d: number | null
   liftPct: number
   rulesAccepted: number
   active: boolean
@@ -316,16 +322,16 @@ export type PharmacistStatus = 'active' | 'pending' | 'blocked'
 export interface PharmacistDto {
   id: string
   name: string
-  iin: string
-  phone: string
+  iin: string | null
+  phone: string | null
   pharmacyId: string
   pharmacyName: string
   city: string
   tier: PharmacistTier
-  receipts30d: number
-  rulesAccepted30d: number
-  earned30d: number
-  balance: number
+  receipts30d: number | null
+  rulesAccepted30d: number | null
+  earned30d: number | null
+  balance: number | null
   coursesDone: number
   coursesTotal: number
   status: PharmacistStatus
@@ -566,6 +572,24 @@ export interface PromoRulesViewDto {
   config: PromoRulesConfigDto
   ruleCount: number
   activeCount: number
+}
+
+export interface PromoChangesBundle {
+  campaign: UpdatePromoRequest
+  rules: PromoRulesConfigDto
+}
+
+export interface PromoChangesViewDto {
+  promoId: string
+  revision: number
+  hasPendingChanges: boolean
+  bundle: PromoChangesBundle
+  conflict: boolean
+  updatedAt: string | null
+  updatedBy: string | null
+  canSave: boolean
+  canApply: boolean
+  readinessIssues: string[]
 }
 
 export interface UpdateRuleRequest {
@@ -1291,7 +1315,7 @@ export interface TrainingDashboardDto {
   completionRatePct: number
   averageScore: number | null
   certificates: number
-  rewardsIssued: number
+  rewardsIssued: number | null
   attendanceConfirmed: number
   noShows: number
   byFormat: Partial<Record<TrainingFormat, number>>
@@ -1562,7 +1586,7 @@ export interface PharmacistTrainingProfileDto {
   totalAssignments: number
   completedAssignments: number
   inProgressAssignments: number
-  totalRewards: number
+  totalRewards: number | null
   assignments: TrainingAssignmentDto[]
   certificates: TrainingCertificateDto[]
   rewards: TrainingRewardDto[]

@@ -1,0 +1,520 @@
+{
+  "applicationStarted": false,
+  "boundary": "Fresh offline dump/candidate only; original72 business tables preserved. Plain Flyway and inert typed CRM only. No Spring, workers, POSM delivery, financial replay, account creation or production changes.",
+  "collate": "en_US.utf8",
+  "container": "epharm-unify-candidate-20261030-d9-10e63b28",
+  "containerId": "430215a4f22b766e7ed9295c45658107347aa516828889a2676ab3a61996dbfe",
+  "createdAt": "2026-10-29T21:01:28.516947+00:00",
+  "crm": {
+    "artifactSha256": "682ad2cfdd784e59048e08e97dd1be1a56434c5b7a907e215c10e3ae5648d1d0",
+    "knownLibcLocaleSpellingAlias": true,
+    "mode": "imported_and_verified",
+    "rows": 42414,
+    "sourceBackupSha256": "3687fc74eba8dfbba26ee924a105bd89912f0c83125cad6c73d1e4bb51e13f29",
+    "sourceLocale": {
+      "collate": "en_US.UTF-8",
+      "ctype": "en_US.UTF-8",
+      "encoding": "UTF8",
+      "localeProvider": "c"
+    },
+    "sourceSchemaSha256": "f8b6a20f3ab4ce899bebf699dc1c489982a2ff2b3d0abe948d06fffc062e2ea5",
+    "tables": 57,
+    "targetLocale": {
+      "collate": "en_US.utf8",
+      "ctype": "en_US.utf8",
+      "encoding": "UTF8",
+      "localeProvider": "c"
+    }
+  },
+  "crmReplayMode": "verified_existing_noop",
+  "ctype": "en_US.utf8",
+  "database": "epharm_unified_candidate",
+  "databaseOid": "16384",
+  "encoding": "UTF8",
+  "flyway": {
+    "currentVersion": 87,
+    "failures": 0,
+    "newVersions": [
+      "066",
+      "067",
+      "068",
+      "069",
+      "070",
+      "071",
+      "072",
+      "073",
+      "074",
+      "075",
+      "076",
+      "077",
+      "078",
+      "079",
+      "080",
+      "081",
+      "082",
+      "083",
+      "084",
+      "085",
+      "086",
+      "087"
+    ]
+  },
+  "functionalMergeAccepted": false,
+  "imageId": "sha256:7e7dbab8d3b431a20793a6d99cb5a6bc84e44914309917f1bf5589a7568cdefd",
+  "jreImageId": "sha256:e2b9a925703817bd8a5720728ebb43ac4eaba405f7ee91c904b8146a108ae4fd",
+  "localeProvider": "c",
+  "nativeOwnedMaterializationApplied": false,
+  "network": "none",
+  "originalBusinessChecksums": [
+    {
+      "primaryKeySha256": "bfa70febbce8044ac06341741acea137d52689d937aed6ef6033c88bd2489160",
+      "rowCount": 28872,
+      "rowSha256": "c82ca6baf4980ff7c336c38bd224c0d0135c928308f36ec764e6d700be53d981",
+      "table": "acc_catalog_barcodes"
+    },
+    {
+      "primaryKeySha256": "77d0e8a28928fcf0d6dc156d27c5d3f76ce9411ef5322745eb4c7c2f07a0ed7e",
+      "rowCount": 1,
+      "rowSha256": "f67f0045fd84cf85d69126c9fba4ca30669063e169f44aed23f5f26737562160",
+      "table": "acc_catalog_snapshots"
+    },
+    {
+      "primaryKeySha256": "bca07c7c197d428ccd69fc731ebbb914359f1a4030a7d87432c5149d1fb7775d",
+      "rowCount": 1,
+      "rowSha256": "ad32503c2e3a67d3a5921516ad210dbc322fe742d566781098ef3a45d184fb32",
+      "table": "acc_catalog_state"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "admin_training_regions"
+    },
+    {
+      "primaryKeySha256": "d7d8b2477b92a37e6bfda76f37d925ab6907406811eedfd32438c426477c8331",
+      "rowCount": 2,
+      "rowSha256": "48425f3850bdba698552c5d62e05bccba56b00b3627ced7e13075e9e807b2453",
+      "table": "admin_users"
+    },
+    {
+      "primaryKeySha256": "f9f528aab3e563b48130d5eb3130ffde6e15d074b72dbc896acc0be887dc1719",
+      "rowCount": 23,
+      "rowSha256": "017d485faa0eda7665240ba8c1e14f9d0459fba15bb9c13af610df70c76b68fb",
+      "table": "app_releases"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "banners"
+    },
+    {
+      "primaryKeySha256": "f7993486a71178f56907b690097f460162f4abdfc51291364be9799c922cd821",
+      "rowCount": 6,
+      "rowSha256": "fb5a12b39918bb9d6db7ff9168fbb143aaaba330a71b4eae87e7f95d71ed15e2",
+      "table": "cdp_profiles"
+    },
+    {
+      "primaryKeySha256": "015440b26aee4ecc7d0ba23edac59dbec47f003346e5b9ee0ce92069fe298a94",
+      "rowCount": 1,
+      "rowSha256": "38444cf5b4ddb779afa7f0cb2b441e9ebea250ea36f85b6ddf48bb3c62335e21",
+      "table": "chains"
+    },
+    {
+      "primaryKeySha256": "3baf4bf75c36b4cf01c450e11526612d21f06cd4f4ac8c6a0bde0b2bf22f0fd6",
+      "rowCount": 3,
+      "rowSha256": "32c695dd2e577582715f0f15503fd1a11b66830c9e2548bdb0c92d95e9a1187a",
+      "table": "course_lesson_attachments"
+    },
+    {
+      "primaryKeySha256": "0d2d3f7c79846e11008bf7696959be5b317141cfd7622401a053ee0fab5f1a18",
+      "rowCount": 26,
+      "rowSha256": "9dac33791bf8d2e39e634908baf90b583bc64a85c0bca7ed7fdf64ce589807a8",
+      "table": "course_lessons"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "course_live_messages"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "course_live_poll_votes"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "course_live_reactions"
+    },
+    {
+      "primaryKeySha256": "62f56592d78fda8ef77c16e0bf2b175a48157429f8a8bfcc8980cd601684ec67",
+      "rowCount": 11,
+      "rowSha256": "1f7f6cd2cb762a73152071493a30deb33fb7f0185f409d01943ee11291be4276",
+      "table": "courses"
+    },
+    {
+      "primaryKeySha256": "89785cb5be26980c88f7db4419e35f1bbf2a56e0f55db003aaebfe4b5032e571",
+      "rowCount": 1,
+      "rowSha256": "ecf37fd648ebef9a880c4dc8f92c170e1f14c23177b26b768261ad34dce63189",
+      "table": "event_participants"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "exam_questions"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "excel_imports"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "excel_sale_rows"
+    },
+    {
+      "primaryKeySha256": "3879cea837308d137a3b342326665bdcf47b7a701237bca9994a1d543bcfc923",
+      "rowCount": 641,
+      "rowSha256": "64f71ddcc33139ce4eff76768639784204e6f5c0e140b1558e4d81bc4f8d0114",
+      "table": "fulfillment_audit"
+    },
+    {
+      "primaryKeySha256": "bdbc4ab0b7728af136324b7668739f48df4e081d064c9dfefc13a1b496d25280",
+      "rowCount": 558,
+      "rowSha256": "687781e23fb286429c1afa03cde080ffc26614454ef3e683efc6e491492a71da",
+      "table": "fulfillment_devices"
+    },
+    {
+      "primaryKeySha256": "65575487f5294611f471340555b21e44448df41ad8f8e6823a69b9d0236119d8",
+      "rowCount": 69,
+      "rowSha256": "70bc9ff80b8f5e0958f26ed2d850a3628a2b99c9b0385c99cc2d9d051bd26b62",
+      "table": "fulfillment_order_lines"
+    },
+    {
+      "primaryKeySha256": "e95fd2369c4e747ec1869e6156f86074741aae6aca2c75b01bfee1dd83eef34a",
+      "rowCount": 24,
+      "rowSha256": "20b940981b4a94beeac62c388a06501f2bd308e9cba213a34c4b761d792c84ca",
+      "table": "fulfillment_order_updates"
+    },
+    {
+      "primaryKeySha256": "a5e7d7f5d68bd241ea510d7f659ece49f2da1a621d33bc8b08b4112ec5600554",
+      "rowCount": 46,
+      "rowSha256": "443c3e95a43c1bfad22673b9e5fc8a56e79310d0a4fe58c558c19b3cd5b817b5",
+      "table": "fulfillment_orders"
+    },
+    {
+      "primaryKeySha256": "7f8261c3a8ed47cf8e49055860733b3a66624b1c8c1bbd8ec2df18a9d3907c6a",
+      "rowCount": 505,
+      "rowSha256": "7898c20db59ccd69b8f063f7d24882c99e6175fb6b4991f6c107d61b68ed7522",
+      "table": "fulfillment_pharmacy_links"
+    },
+    {
+      "primaryKeySha256": "882658c8e2fc9ef96d58739e8552ad4d3a88d745cf222fb6d212ecdade1a8b09",
+      "rowCount": 28503,
+      "rowSha256": "30d6bbca0e0108677dec69ba6cafa209f0f6e2e6e2540bc13ab1e9ec0289857e",
+      "table": "medusa_catalog_products"
+    },
+    {
+      "primaryKeySha256": "bca07c7c197d428ccd69fc731ebbb914359f1a4030a7d87432c5149d1fb7775d",
+      "rowCount": 1,
+      "rowSha256": "861ad9c0275d1232a319db621e13cd5d810793caf743eabf7247cdff68988844",
+      "table": "medusa_catalog_sync_state"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "merch_executor_bindings"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "merch_executor_grants"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "merch_executor_otp_challenges"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "merch_reward_events"
+    },
+    {
+      "primaryKeySha256": "3d75ecd567843427d052f0885a18355e95ba720181f7169355866a422f6ce6b3",
+      "rowCount": 4,
+      "rowSha256": "55c856e3ccda030a6c271a38064ce98b53b3e5077fe1abf8685f1eaa2bad283b",
+      "table": "mobile_otps"
+    },
+    {
+      "primaryKeySha256": "5f1fd2d4362bf43ed036df5ecd92fc92f0388962a16316242163cc2222c09d94",
+      "rowCount": 65,
+      "rowSha256": "1c422efbadbd945420eea920aa956d4ce3edef4406418be71acad0b48c06f41b",
+      "table": "mobile_refresh_tokens"
+    },
+    {
+      "primaryKeySha256": "0877ef6546fe870dafd249ba25d36802de8918bb1c8cb8fdc7196a00a5b314fd",
+      "rowCount": 1,
+      "rowSha256": "1b79cd044d80381d430fe0e0cf4ca5e8e6033b6a4114a1a9eb46e3ad823356df",
+      "table": "offline_events"
+    },
+    {
+      "primaryKeySha256": "06e844677267fa6344bc85f626b33245f5a42a631697c6382c3998d18ad6b185",
+      "rowCount": 1,
+      "rowSha256": "d40ee453fbba702cd60d477298cd54860f8fc0f65233fcba3295600114432e3c",
+      "table": "payout_batches"
+    },
+    {
+      "primaryKeySha256": "352a58af45a806bf0142fc5896eb4ca6811ea824ff7a96959e5e9598c537ed97",
+      "rowCount": 2,
+      "rowSha256": "819405c73f86d625a162ed55f9ebad382484c32758005cdbe46a7c17754cfa80",
+      "table": "payout_items"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "pending_bonuses"
+    },
+    {
+      "primaryKeySha256": "3205b1bb3ed39d3227895f7f3714ae9381d5f9e6da049e5dd8b1176c7347804a",
+      "rowCount": 532,
+      "rowSha256": "27c6d841676ce5ebac62f965c66651c274ed91e349eea20144a2ea32fbc0d1b5",
+      "table": "pharmacies"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "pharmacist_training_preferences"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "pharmacist_wallet_checkpoints"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "pharmacist_wallet_entries"
+    },
+    {
+      "primaryKeySha256": "dc3df7e034a583d70c0bb046cb6c6fb696165b3acafaf80659cd9efdbb69be1a",
+      "rowCount": 6,
+      "rowSha256": "b0b5cdc4863e9c9a1d770a3046daa5e3a500ed5213a541b3b911c9c9d0bbc5e9",
+      "table": "pharmacists"
+    },
+    {
+      "primaryKeySha256": "589bdf5e56f05cf21f879a4af7a5dfab664ce4bdcf01b3f223fa2f288b52ebe8",
+      "rowCount": 26,
+      "rowSha256": "fee32d82a2138f37bc01a0391b189c41d11947aecffa1908d9829ecd6d08b7c0",
+      "table": "playlist_pharmacy_assignments"
+    },
+    {
+      "primaryKeySha256": "1ce15ff96d0802bfab1c928fc3e7c5c1abfdccfdeab68a1786e232960922af60",
+      "rowCount": 3,
+      "rowSha256": "59ec2666b1e8787da30e7e906dbf4fc05371752c911cdc0786b6d181f0af5022",
+      "table": "playlists"
+    },
+    {
+      "primaryKeySha256": "fdd297c861344c4fffada7399a306cecfac3e9cb60c4019370c9e046585dbe6a",
+      "rowCount": 1820420,
+      "rowSha256": "22afc7bdc99abb23816897244ad5da2e3d84d27eb3bfa64e3d78555e5fb2fdd8",
+      "table": "pos_sales"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "posm_pharmacist_mapping_audit"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "posm_pharmacist_mappings"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "posm_staff_challenges"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "posm_staff_rate_limits"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "posm_staff_sessions"
+    },
+    {
+      "primaryKeySha256": "36cad8f085adcf80703ade039c86d9415047a0cbf6e35d55cab2433e763b158d",
+      "rowCount": 37,
+      "rowSha256": "00efa7ed99f826fb92986da60b226181c7f4f7b6fadab6d71f4eafc8ce84e2e2",
+      "table": "products"
+    },
+    {
+      "primaryKeySha256": "4f5f60c39072a388f45a967b1220cd9b5fde594fd4dfbfe712961e9255a71c40",
+      "rowCount": 15,
+      "rowSha256": "f49f86c00ffe25b5c890ca2da1c79ec7bfa446c731f7c9100eb35fda22c0a616",
+      "table": "promos"
+    },
+    {
+      "primaryKeySha256": "034ae42e136792a1bcacfefd5e9dbe2e1f20393822002d6626829a22a297a78a",
+      "rowCount": 1,
+      "rowSha256": "8ff8e8c0154ac9c43c8eeeb15f84bc0bea2084881e3bcd0023d0e68a6a8c63dc",
+      "table": "receipts"
+    },
+    {
+      "primaryKeySha256": "56b9be54ed797f77ba3c7e870184230b807d75bfed19033d4bfea5b7542ccfce",
+      "rowCount": 47010,
+      "rowSha256": "5b9534cc451f91630595aff6126ab5d294b6e680785f60d10d3c56b379e17056",
+      "table": "recommendation_events"
+    },
+    {
+      "primaryKeySha256": "4d91d28f21483f506ad97d7534c46d98388ba936fb0b2f266c2697cb5a491b7b",
+      "rowCount": 1244,
+      "rowSha256": "0bbce961c7060c7cf8e9ba5a94f9783bff8ed41d530d6bc91635223eceea35c4",
+      "table": "refresh_tokens"
+    },
+    {
+      "primaryKeySha256": "942af62e87416a216d8b1bb0f5c1da010031ff1b644846202c6902dc80fd40d3",
+      "rowCount": 29,
+      "rowSha256": "17e1d49b1cbd5b2cf09812ad3621e9c259c5b9b0b1449dd5459a3a5803d52504",
+      "table": "rules"
+    },
+    {
+      "primaryKeySha256": "1cf8fab469dbe656b078f7bd143601d55f0de5d44ccf1b3f51cc59efaa0a1ac5",
+      "rowCount": 1,
+      "rowSha256": "d4a7a060f7c44b6671478232ac30a588375744de067315ea0057abeb4b0f5722",
+      "table": "schema_meta"
+    },
+    {
+      "primaryKeySha256": "6039355efbb87849aaf4be06abbcb5bb38469d593be0641a10d78b7d16964f74",
+      "rowCount": 12,
+      "rowSha256": "39563b88313d181625ecb659b9b1768aed8a3a0ff6383f7ddc7a45e01ed80b9b",
+      "table": "slides"
+    },
+    {
+      "primaryKeySha256": "ebb6f72626bc9f0ffacf6a6fec676c235219d7592d1d4c1b6d1f264d3cfa7801",
+      "rowCount": 3472,
+      "rowSha256": "a0f26b4b5b455c4ac9a990dc1f3c9569b2983621887e2a83a24a79aa0c824123",
+      "table": "standardn_pharmacist_directory"
+    },
+    {
+      "primaryKeySha256": "2eb11546dbfd2eed062af7cf8062e983ec490cd6ae8934eb5d9609544f5dfe82",
+      "rowCount": 484,
+      "rowSha256": "982a2babdc717406f8c246f53b5b2777cba046a5740758f1491e537b1d97fe8f",
+      "table": "storefront_product_references"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "training_assessment_results"
+    },
+    {
+      "primaryKeySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "rowCount": 0,
+      "rowSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "table": "training_assignment_format_history"
+    },
+    {
+      "primaryKeySha256": "cabccc6cdb27a100a829d7032fb4f61381b91b13f0f37e1894bb68ad0d87ef8a",
+      "rowCount": 17,
+      "rowSha256": "3f4dfee958d57d59fcf83d6b3c896699aa9085ca1cc51cb7e9f81afc58b090ea",
+      "table": "training_assignment_stages"
+    },
+    {
+      "primaryKeySha256": "fce091f92060723e2cbce84db8055b47596648ed56bac63df7ad004aa9ee43df",
+      "rowCount": 15,
+      "rowSha256": "451f861fde029cee2a1e95f05b64ce8b266f73dc0cd5ffa6d3f4487a2e53517f",
+      "table": "training_assignments"
+    },
+    {
+      "primaryKeySha256": "b8b2df3189414c10476470a752f3bb038618b5a6072fd94e3984cad81bc81207",
+      "rowCount": 105,
+      "rowSha256": "b5bdcbb07b20ff4b7d302cca6671b6e0f21e3d27310eeb81b45bdd48432ad6ef",
+      "table": "training_audit_log"
+    },
+    {
+      "primaryKeySha256": "fe54742417ca95482c789b701fb3884ec58efbddb8dfedaa189d9af3d24984bc",
+      "rowCount": 5,
+      "rowSha256": "d69284c607f9f033419fad2c51b8ecb4b3c88e05802d9e98a49a5193cccdbde6",
+      "table": "training_certificates"
+    },
+    {
+      "primaryKeySha256": "feff2407dfbbffccdbc40482174ce52ae24ba3df693b7f8957f272ef0c6f5c07",
+      "rowCount": 22,
+      "rowSha256": "ceb3aa95914e27d45bcf96a93a9a97b1d058dade7cf42a8e49a931574baa74e6",
+      "table": "training_lesson_progress"
+    },
+    {
+      "primaryKeySha256": "4e240b8434ecf6553bd665797ab0af9e2e5210c7f9048548a223d5a74018414e",
+      "rowCount": 36,
+      "rowSha256": "cefdca76edfa7e7cf363c0856899750178bcd3fe0fa5c65d4ea0cc136a994307",
+      "table": "training_notifications"
+    },
+    {
+      "primaryKeySha256": "d3ef90356544c1e219725633ed2ed10b1c2512bf8985dfde36110e09cdf2b2bf",
+      "rowCount": 14,
+      "rowSha256": "bd932980c36a625622bdfff372e140987835b4556b13f02cec3fe74ad2c9f00b",
+      "table": "training_program_stages"
+    },
+    {
+      "primaryKeySha256": "1b5c00d79e6fce03ef37cd764178bb67e95302bd51f1acc197dbd48870419d86",
+      "rowCount": 10,
+      "rowSha256": "ac85eb5bd56ca364964b91fbda94d048b3c97d1c1587dd204719162a51f60520",
+      "table": "training_program_versions"
+    },
+    {
+      "primaryKeySha256": "13b248f41abb3fcf854a2468330a966e7a3afe4e9ccb68c82e4ebc4317f65915",
+      "rowCount": 9,
+      "rowSha256": "73a712ec4879beea2051a1004442bdd7d3b123edde9d779de298b08c37a60bfc",
+      "table": "training_programs"
+    },
+    {
+      "primaryKeySha256": "bde15b0d3b5eace9032fb355fab6b95c162100af3954bc04f5f3e835177cdab0",
+      "rowCount": 2,
+      "rowSha256": "e76841ae6bae8310cae9654b296f0a1e0814beef2b07568df10728ca77ddddbf",
+      "table": "training_rewards"
+    }
+  ],
+  "originalBusinessRows": 1932894,
+  "originalBusinessTables": 72,
+  "originalBusinessValuesUnchanged": true,
+  "originalColumnDefinitionsUnchanged": true,
+  "originalPhysicalTables": 73,
+  "originalPrimaryKeysUnchanged": true,
+  "portsPublished": false,
+  "productionTouched": false,
+  "sourceArchiveSha256": "9c12cbf910f7269cf8003553be9f9d2c4e736f8d69a628e682e243784ab127c2",
+  "sourceArchivesUnchanged": true,
+  "sourceSchemaSha256": "21c8f8dd4ace37775bba2ca56143dd2965920fa8289cff62107021103830de27",
+  "state": "verified_fresh_plain_flyway087_and_typed_crm",
+  "systemIdentifier": "7702196839662260265",
+  "targetIdentitySha256": "247c536804e175b1b401cf364aa735fbed8dae9f2bdbd1ec5f268cf96b7f3f05",
+  "upgradedPublicTables": 141,
+  "upgradedSchemaSha256": "bb53a439e4647fc8f8b34708d0a945db22812aad8c2cf9f5fd34b7a86608cccf",
+  "versionNum": 160014,
+  "workersStarted": false
+}

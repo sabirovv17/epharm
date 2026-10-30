@@ -13,6 +13,10 @@ namespace CustomerDisplay.Models
     public decimal Price { get; set; }
     public decimal Qty { get; set; } = 1m;
     public decimal DiscountPercent { get; set; } = 0m;
+    // Local observation identity only; SaleReporter still emits the existing per-document DTO.
+    public long? SourceDocumentId { get; set; }
+    public long? SourceLineId { get; set; }
+    public decimal? SourceTotal { get; set; }
 
     public decimal SubTotal => Price * Qty;
     public decimal DiscountAmount => SubTotal * (DiscountPercent / 100m);
@@ -20,6 +24,7 @@ namespace CustomerDisplay.Models
 {
     get
     {
+        if (SourceTotal.HasValue) return SourceTotal.Value;
         var sub = Price * Qty;
         var disc = sub * (DiscountPercent / 100m);
         return Math.Round(sub - disc, 2, MidpointRounding.AwayFromZero);
@@ -40,7 +45,10 @@ namespace CustomerDisplay.Models
         Name = Name,
         Price = Price,
         Qty = Qty,
-        DiscountPercent = DiscountPercent
+        DiscountPercent = DiscountPercent,
+        SourceDocumentId = SourceDocumentId,
+        SourceLineId = SourceLineId,
+        SourceTotal = SourceTotal
     };
 }
 }

@@ -9,6 +9,7 @@ import org.springframework.security.access.AccessDeniedException
 import org.springframework.web.ErrorResponseException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.MissingServletRequestParameterException
+import org.springframework.web.HttpRequestMethodNotSupportedException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
@@ -30,6 +31,11 @@ import org.springframework.web.servlet.resource.NoResourceFoundException
  */
 @RestControllerAdvice
 class GlobalExceptionHandler {
+    @ExceptionHandler(HttpRequestMethodNotSupportedException::class)
+    fun handleMethodNotAllowed(ex: HttpRequestMethodNotSupportedException): ResponseEntity<ApiErrorResponse> =
+        ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+            .header("Allow", ex.supportedMethods?.joinToString(", ").orEmpty())
+            .body(ApiErrorResponse(code = ErrorCode.VALIDATION_FAILED, message = "Метод запроса не поддерживается"))
 
     private val log = LoggerFactory.getLogger(GlobalExceptionHandler::class.java)
 

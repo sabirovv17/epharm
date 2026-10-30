@@ -7,6 +7,9 @@ import kz.epharm.promo.dto.PromoDto
 import kz.epharm.promo.dto.PromoRulesConfigDto
 import kz.epharm.promo.dto.PromoRulesViewDto
 import kz.epharm.promo.dto.UpdatePromoRequest
+import kz.epharm.promo.dto.SavePromoChangesRequest
+import kz.epharm.promo.dto.ApplyPromoChangesRequest
+import kz.epharm.promo.service.PromoPublicationService
 import kz.epharm.promo.entity.PromoStatus
 import kz.epharm.promo.service.PromoPriceScheduler
 import kz.epharm.promo.service.PromoRulesService
@@ -33,6 +36,7 @@ class PromoController(
     private val promoService: PromoService,
     private val promoRulesService: PromoRulesService,
     private val promoPriceScheduler: PromoPriceScheduler,
+    private val publication: PromoPublicationService,
 ) {
 
     @GetMapping
@@ -48,6 +52,17 @@ class PromoController(
 
     @GetMapping("/{id}")
     fun get(@PathVariable id: String): PromoDto = promoService.get(id)
+
+    @GetMapping("/{id}/changes")
+    fun changes(@PathVariable id: String) = publication.view(id)
+
+    @PutMapping("/{id}/changes")
+    fun prepare(@PathVariable id: String, @Valid @RequestBody req: SavePromoChangesRequest,
+        @AuthenticationPrincipal principal: AdminPrincipal?) = publication.save(id, req, requireUserId(principal))
+
+    @PostMapping("/{id}/changes/apply")
+    fun applyChanges(@PathVariable id: String, @Valid @RequestBody req: ApplyPromoChangesRequest,
+        @AuthenticationPrincipal principal: AdminPrincipal?) = publication.apply(id, req.expectedRevision, requireUserId(principal))
 
     @PostMapping
     fun create(

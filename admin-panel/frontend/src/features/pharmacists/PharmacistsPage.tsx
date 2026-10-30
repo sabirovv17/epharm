@@ -3,6 +3,8 @@
 
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import ReportDownloadButton from '@/features/reports/ReportDownloadButton'
+import { useAdministrativeCapabilities } from '@/app/useAdministrativeCapabilities'
 import {
   Button,
   Empty,
@@ -50,6 +52,7 @@ import { StandardNSellerMappingsModal } from './StandardNSellerMappingsModal'
 import { ASSIGNMENT_STATUS_LABEL, FORMAT_LABEL, dateTime } from '@/features/lms/training-ui'
 import { useUiStore } from '@/app/store'
 import { canManagePharmacistCredentials } from '@/app/accessPolicy'
+import CredentialExportDialog from './CredentialExportDialog'
 
 type PhTab = 'all' | PharmacistStatus
 
@@ -62,6 +65,7 @@ const TAB_KEYS: Record<PhTab, string> = {
 
 export default function PharmacistsPage() {
   const t = useT()
+  const access = useAdministrativeCapabilities()
   const toast = useToast()
   const navigate = useNavigate()
   const [tab, setTab] = useState<PhTab>('all')
@@ -77,6 +81,12 @@ export default function PharmacistsPage() {
   const [preferenceTargets, setPreferenceTargets] = useState<PharmacistDto[] | null>(null)
   const [trainingProfileId, setTrainingProfileId] = useState<string | null>(null)
   const [standardNMappingsOpen, setStandardNMappingsOpen] = useState(false)
+  const [credentialSelection, setCredentialSelection] = useState<{
+    ownerId: string
+    version: number | null
+    people: { id: string; name: string }[]
+  } | null>(null)
+  const currentAccount = useUiStore((state) => state.authedUser?.id)
   const adminRole = useUiStore((state) => state.authedUser?.role)
   const canManageStandardN = adminRole === 'SYSTEM_ADMIN' || adminRole === 'HQ_HEAD'
   const canManageCredentials = canManagePharmacistCredentials(adminRole)
@@ -101,6 +111,8 @@ export default function PharmacistsPage() {
     trainingDashboardQuery.data?.capabilities.canManagePreferences ?? false
   const canManageAssignments =
     trainingDashboardQuery.data?.capabilities.canManageAssignments ?? false
+  const canSelectPharmacists =
+    canManagePreferences || canManageAssignments || access.canExportLearnerCredentials
 
   const hasData = pharmacists.length > 0
   const showFullError = isError && !hasData
@@ -115,7 +127,14 @@ export default function PharmacistsPage() {
     }
   }, [pharmacists])
 
-  const totalBalance = useMemo(() => pharmacists.reduce((a, p) => a + p.balance, 0), [pharmacists])
+  const totalBalance = useMemo(
+    () =>
+      pharmacists.reduce<number | null>(
+        (sum, p) => (sum == null || p.balance == null ? null : sum + p.balance),
+        0,
+      ),
+    [pharmacists],
+  )
 
   const filtered = useMemo<PharmacistDto[]>(() => {
     return pharmacists.filter((p) => {
@@ -129,7 +148,7 @@ export default function PharmacistsPage() {
       )
         return false
       if (!q) return true
-      return `${p.name} ${p.pharmacyName} ${p.city} ${p.iin} ${p.phone}`
+      return `${p.name} ${p.pharmacyName} ${p.city} ${p.iin ?? ''} ${p.phone ?? ''}`
         .toLowerCase()
         .includes(q.toLowerCase())
     })
@@ -194,11 +213,55 @@ export default function PharmacistsPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      {access.canExportLearnerCredentials &&
+        credentialSelection &&
+        credentialSelection.ownerId === currentAccount &&
+        credentialSelection.version === access.data?.version && (
+          <CredentialExportDialog
+            key={`${credentialSelection.ownerId}:${credentialSelection.version}`}
+            people={credentialSelection.people}
+            onClose={() => setCredentialSelection(null)}
+          />
+        )}
       <PageHeader
         title={t('page.pharmacists.title')}
         subtitle={t('page.pharmacists.subtitle')}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            {access.canExportLearnerCredentials && (
+              <Button
+                variant="outline"
+                disabled={
+                  !currentAccount ||
+                  selectedPharmacists.length < 1 ||
+                  selectedPharmacists.length > 25 ||
+                  selectedPharmacists.length !== selectedIds.size
+                }
+                title="Выберите до 25 фармацевтов в реестре"
+                onClick={() =>
+                  currentAccount &&
+                  setCredentialSelection({
+                    ownerId: currentAccount,
+                    version: access.data?.version ?? null,
+                    people: selectedPharmacists.map(({ id, name }) => ({ id, name })),
+                  })
+                }
+              >
+                Учётные данные ЛК
+              </Button>
+            )}
+            <ReportDownloadButton
+              allowed={access.canExportPharmacists}
+              path="/api/admin/reports/pharmacists.xlsx"
+              params={{ status: tab === 'all' ? undefined : tab }}
+              filename="pharmacists.xlsx"
+              label="Excel: реестр"
+              note={
+                q.trim() || formatFilter !== 'all'
+                  ? 'Выгружается реестр по статусу. Поиск и формат обучения не учитываются.'
+                  : undefined
+              }
+            />
             {canManageStandardN && (
               <Button variant="outline" onClick={() => setStandardNMappingsOpen(true)}>
                 Продавцы Standard-N
@@ -228,7 +291,7 @@ export default function PharmacistsPage() {
         <Metric label={t('phc.mPending')} value={formatNum(counts.pending)} accent="amber" />
         <Metric
           label={t('phc.mBalances')}
-          value={formatKzt(totalBalance)}
+          value={totalBalance == null ? '—' : formatKzt(totalBalance)}
           accent="purple"
           sub={t('phc.toPayout')}
         />
@@ -312,7 +375,7 @@ export default function PharmacistsPage() {
             <table className="min-w-[1200px] w-full text-[13px]" data-testid="pharmacists-table">
               <thead className="hairline border-b">
                 <tr className="text-left text-[11px] font-bold uppercase tracking-[0.06em] text-ink-500">
-                  {canManagePreferences && (
+                  {canSelectPharmacists && (
                     <th className="w-10 px-3 py-2.5">
                       <input
                         type="checkbox"
@@ -324,7 +387,9 @@ export default function PharmacistsPage() {
                     </th>
                   )}
                   <th className="px-5 py-2.5">{t('phc.thName')}</th>
-                  <th scope="col" className="w-[132px] whitespace-nowrap px-3 py-2.5">{t('phc.thIin')}</th>
+                  <th scope="col" className="w-[132px] whitespace-nowrap px-3 py-2.5">
+                    {t('phc.thIin')}
+                  </th>
                   <th className="px-3 py-2.5">{t('phc.thPharmacy')}</th>
                   <th className="px-3 py-2.5">Формат обучения</th>
                   <th className="px-3 py-2.5">{t('phc.thTier')}</th>
@@ -341,7 +406,7 @@ export default function PharmacistsPage() {
                     className="hover:bg-paper-hover"
                     data-testid={`pharmacist-row-${p.id}`}
                   >
-                    {canManagePreferences && (
+                    {canSelectPharmacists && (
                       <td className="px-3 py-2.5">
                         <input
                           type="checkbox"
@@ -359,11 +424,13 @@ export default function PharmacistsPage() {
                         </span>
                         <div>
                           <div className="font-extrabold text-ink-900">{p.name}</div>
-                          <div className="text-[11px] text-ink-500">{p.phone}</div>
+                          <div className="text-[11px] text-ink-500">{p.phone ?? '—'}</div>
                         </div>
                       </div>
                     </td>
-                    <td className="num whitespace-nowrap px-3 py-2.5 text-ink-700">{p.iin || '—'}</td>
+                    <td className="num whitespace-nowrap px-3 py-2.5 text-ink-700">
+                      {p.iin || '—'}
+                    </td>
                     <td className="px-3 py-2.5 text-ink-700">
                       <div className={!p.pharmacyName ? 'font-bold text-accent-warning' : ''}>
                         {p.pharmacyName || t('phc.unassigned')}
@@ -405,9 +472,11 @@ export default function PharmacistsPage() {
                       </span>
                     </td>
                     <td className="num px-3 py-2.5 text-right font-extrabold text-brand-green-700">
-                      {formatKzt(p.balance)}
+                      {p.balance == null ? '—' : formatKzt(p.balance)}
                     </td>
-                    <td className="num px-3 py-2.5 text-right">{formatNum(p.receipts30d)}</td>
+                    <td className="num px-3 py-2.5 text-right">
+                      {p.receipts30d == null ? '—' : formatNum(p.receipts30d)}
+                    </td>
                     <td className="px-3 py-2.5">
                       <span
                         className={`chip ${
@@ -522,11 +591,13 @@ export default function PharmacistsPage() {
           open
           onClose={() => setPasswordTarget(null)}
           title={passwordTarget.hasPassword ? 'Сменить пароль' : 'Задать пароль'}
-          subtitle={`${passwordTarget.name} · ИИН ${passwordTarget.iin}`}
+          subtitle={`${passwordTarget.name} · ИИН ${passwordTarget.iin || '—'}`}
           width={460}
           footer={
             <>
-              <Button variant="ghost" onClick={() => setPasswordTarget(null)}>Отмена</Button>
+              <Button variant="ghost" onClick={() => setPasswordTarget(null)}>
+                Отмена
+              </Button>
               <Button
                 variant="primary"
                 disabled={updatePharmacist.isPending || passwordValue.length < 6}
@@ -541,7 +612,8 @@ export default function PharmacistsPage() {
                         setPasswordTarget(null)
                         setPasswordValue('')
                       },
-                      onError: (passwordRequestError) => setPasswordError(describeError(passwordRequestError)),
+                      onError: (passwordRequestError) =>
+                        setPasswordError(describeError(passwordRequestError)),
                     },
                   )
                 }}
@@ -570,7 +642,8 @@ export default function PharmacistsPage() {
               />
             </Field>
             <p className="text-[11px] leading-5 text-ink-500">
-              Передайте пароль фармацевту безопасным способом. В интерфейсе он больше не отображается.
+              Передайте пароль фармацевту безопасным способом. В интерфейсе он больше не
+              отображается.
             </p>
           </div>
         </Modal>
@@ -659,7 +732,7 @@ function PharmacistTrainingProfileModal({
             <div className="rounded-lg bg-paper-hover px-4 py-3">
               <div className="text-[10px] font-bold uppercase text-ink-500">Бонусы за обучение</div>
               <div className="num mt-1 text-xl font-extrabold text-brand-green-700">
-                {formatKzt(data.totalRewards)}
+                {data.totalRewards == null ? 'Нет доступа' : formatKzt(data.totalRewards)}
               </div>
             </div>
           </div>

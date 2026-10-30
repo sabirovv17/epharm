@@ -42,15 +42,26 @@ export const onForcedLogout = (handler: LogoutHandler): (() => void) => {
 const fireLogout = (): void => {
   logoutHandlers.forEach((h) => h())
 }
+const tokenRefreshHandlers: Array<(tokens: AuthTokens) => void> = []
+export const onTokensRefreshed = (handler: (tokens: AuthTokens) => void): (() => void) => {
+  tokenRefreshHandlers.push(handler)
+  return () => {
+    const index = tokenRefreshHandlers.indexOf(handler)
+    if (index >= 0) tokenRefreshHandlers.splice(index, 1)
+  }
+}
 
 // Refresh-state — нужен чтобы параллельные 401-запросы не запускали refresh параллельно.
 // Все ждут одного промиса.
-let refreshInFlight: Promise<AuthTokens | null> | null = null
+let refreshInFlight: { epoch: number; promise?: Promise<AuthTokens | null> } | null = null
+let adminSessionEpoch = 0
 
 // Текущие токены — нам нужны для interceptor'а вне React-tree. Store обновляет это поле
-// через setTokens() при каждом login/logout/refresh.
+// setTokens changes the session; same-session refresh rotates tokens without advancing its epoch.
 let currentTokens: AuthTokens | null = null
 export const setTokens = (tokens: AuthTokens | null): void => {
+  adminSessionEpoch++
+  refreshInFlight = null
   currentTokens = tokens
 }
 export const getTokens = (): AuthTokens | null => currentTokens
@@ -60,23 +71,51 @@ export const api: AxiosInstance = axios.create({
   timeout: 15_000,
 })
 
-api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  if (currentTokens?.accessToken) {
-    config.headers.set('Authorization', `Bearer ${currentTokens.accessToken}`)
-  }
-  return config
-})
+api.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    const request = config as SessionConfig
+    if (
+      request._adminSessionEpoch !== undefined &&
+      request._adminSessionEpoch !== adminSessionEpoch
+    ) {
+      throw new axios.CanceledError('Сессия изменилась.')
+    }
+    request._adminSessionEpoch = adminSessionEpoch
+    if (currentTokens?.accessToken) {
+      config.headers.set('Authorization', `Bearer ${currentTokens.accessToken}`)
+    }
+    return config
+  },
+  (error) => {
+    throw error
+  },
+  { synchronous: true },
+)
 
 // Маркер чтобы не уйти в бесконечный цикл retry.
 interface RetryableConfig extends AxiosRequestConfig {
   _retried?: boolean
+  _adminSessionEpoch?: number
+}
+interface SessionConfig extends InternalAxiosRequestConfig {
+  _adminSessionEpoch?: number
 }
 
 api.interceptors.response.use(
-  (resp) => resp,
+  (resp) => {
+    if ((resp.config as SessionConfig)._adminSessionEpoch !== adminSessionEpoch)
+      throw new axios.CanceledError('Сессия изменилась.')
+    return resp
+  },
   async (error: AxiosError<ApiErrorResponse>) => {
     const original = error.config as RetryableConfig | undefined
     const status = error.response?.status
+    if (
+      original?._adminSessionEpoch !== undefined &&
+      original._adminSessionEpoch !== adminSessionEpoch
+    ) {
+      return Promise.reject(new axios.CanceledError('Сессия изменилась.'))
+    }
 
     // Если 401 и есть refresh — пробуем обновить токены и retry.
     if (
@@ -89,8 +128,11 @@ api.interceptors.response.use(
       !original.url?.includes('/admin/auth/login')
     ) {
       original._retried = true
+      const epoch = adminSessionEpoch
       try {
-        const tokens = await ensureRefreshing(currentTokens.refreshToken)
+        const tokens = await ensureRefreshing(currentTokens.refreshToken, epoch)
+        if (epoch !== adminSessionEpoch)
+          return Promise.reject(new axios.CanceledError('Сессия изменилась.'))
         if (tokens) {
           original.headers = original.headers ?? {}
           ;(original.headers as Record<string, string>)['Authorization'] =
@@ -100,31 +142,34 @@ api.interceptors.response.use(
       } catch {
         // fallthrough to logout
       }
-      fireLogout()
+      if (epoch === adminSessionEpoch) fireLogout()
     }
 
     return Promise.reject(error)
   },
 )
 
-async function ensureRefreshing(refreshToken: string): Promise<AuthTokens | null> {
-  if (!refreshInFlight) {
-    refreshInFlight = (async () => {
-      try {
-        const { data } = await api.post<RefreshResponse>('/api/admin/auth/refresh', {
-          refreshToken,
-        })
-        currentTokens = data.tokens
-        return data.tokens
-      } catch {
-        currentTokens = null
-        return null
-      } finally {
-        refreshInFlight = null
-      }
-    })()
-  }
-  return refreshInFlight
+async function ensureRefreshing(refreshToken: string, epoch: number): Promise<AuthTokens | null> {
+  if (refreshInFlight?.epoch === epoch && refreshInFlight.promise) return refreshInFlight.promise
+  const flight: { epoch: number; promise?: Promise<AuthTokens | null> } = { epoch }
+  refreshInFlight = flight
+  flight.promise = (async () => {
+    try {
+      const { data } = await api.post<RefreshResponse>('/api/admin/auth/refresh', {
+        refreshToken,
+      })
+      if (epoch !== adminSessionEpoch) return null
+      currentTokens = data.tokens
+      tokenRefreshHandlers.forEach((handler) => handler(data.tokens))
+      return data.tokens
+    } catch {
+      if (epoch === adminSessionEpoch) currentTokens = null
+      return null
+    } finally {
+      if (refreshInFlight === flight) refreshInFlight = null
+    }
+  })()
+  return flight.promise
 }
 
 // ── Auth API клиент-функции ─────────────────────────────────────────────
@@ -133,7 +178,14 @@ export const authApi = {
   login: (email: string, password: string) =>
     api.post<LoginResponse>('/api/admin/auth/login', { email, password }).then((r) => r.data),
 
-  logout: () => api.post<void>('/api/admin/auth/logout').then(() => undefined),
+  // Capture the outgoing bearer before local logout replaces the session.
+  logout: () =>
+    axios
+      .post<void>(`${BASE_URL}/api/admin/auth/logout`, undefined, {
+        timeout: 15_000,
+        headers: currentTokens ? { Authorization: `Bearer ${currentTokens.accessToken}` } : {},
+      })
+      .then(() => undefined),
 
   me: () => api.get<UserDto>('/api/admin/auth/me').then((r) => r.data),
 }

@@ -1,0 +1,872 @@
+{
+  "at_utc": "2026-10-29T05:54:05.173589+00:00",
+  "host": "10.10.1.76",
+  "database": {
+    "name": "epharm",
+    "bytes": 2207341591,
+    "tables": [
+      {
+        "relname": "acc_catalog_barcodes",
+        "estimated_rows": 0,
+        "total_bytes": 16171008
+      },
+      {
+        "relname": "acc_catalog_snapshots",
+        "estimated_rows": 0,
+        "total_bytes": 40960
+      },
+      {
+        "relname": "acc_catalog_state",
+        "estimated_rows": 0,
+        "total_bytes": 24576
+      },
+      {
+        "relname": "admin_training_regions",
+        "estimated_rows": 0,
+        "total_bytes": 8192
+      },
+      {
+        "relname": "admin_users",
+        "estimated_rows": 0,
+        "total_bytes": 81920
+      },
+      {
+        "relname": "app_releases",
+        "estimated_rows": 0,
+        "total_bytes": 90112
+      },
+      {
+        "relname": "banners",
+        "estimated_rows": 0,
+        "total_bytes": 32768
+      },
+      {
+        "relname": "cdp_profiles",
+        "estimated_rows": 0,
+        "total_bytes": 81920
+      },
+      {
+        "relname": "chains",
+        "estimated_rows": 0,
+        "total_bytes": 57344
+      },
+      {
+        "relname": "course_lesson_attachments",
+        "estimated_rows": 0,
+        "total_bytes": 81920
+      },
+      {
+        "relname": "course_lessons",
+        "estimated_rows": 0,
+        "total_bytes": 172032
+      },
+      {
+        "relname": "course_live_messages",
+        "estimated_rows": 0,
+        "total_bytes": 24576
+      },
+      {
+        "relname": "course_live_poll_votes",
+        "estimated_rows": 0,
+        "total_bytes": 24576
+      },
+      {
+        "relname": "course_live_reactions",
+        "estimated_rows": 0,
+        "total_bytes": 16384
+      },
+      {
+        "relname": "courses",
+        "estimated_rows": 0,
+        "total_bytes": 131072
+      },
+      {
+        "relname": "event_participants",
+        "estimated_rows": 0,
+        "total_bytes": 114688
+      },
+      {
+        "relname": "exam_questions",
+        "estimated_rows": 0,
+        "total_bytes": 32768
+      },
+      {
+        "relname": "excel_imports",
+        "estimated_rows": 0,
+        "total_bytes": 8192
+      },
+      {
+        "relname": "excel_sale_rows",
+        "estimated_rows": 0,
+        "total_bytes": 32768
+      },
+      {
+        "relname": "flyway_schema_history",
+        "estimated_rows": 0,
+        "total_bytes": 81920
+      },
+      {
+        "relname": "fulfillment_audit",
+        "estimated_rows": 0,
+        "total_bytes": 450560
+      },
+      {
+        "relname": "fulfillment_devices",
+        "estimated_rows": 558,
+        "total_bytes": 22388736
+      },
+      {
+        "relname": "fulfillment_order_lines",
+        "estimated_rows": 0,
+        "total_bytes": 106496
+      },
+      {
+        "relname": "fulfillment_order_updates",
+        "estimated_rows": 0,
+        "total_bytes": 90112
+      },
+      {
+        "relname": "fulfillment_orders",
+        "estimated_rows": 0,
+        "total_bytes": 131072
+      },
+      {
+        "relname": "fulfillment_pharmacy_links",
+        "estimated_rows": 0,
+        "total_bytes": 204800
+      },
+      {
+        "relname": "medusa_catalog_products",
+        "estimated_rows": 0,
+        "total_bytes": 141475840
+      },
+      {
+        "relname": "medusa_catalog_sync_state",
+        "estimated_rows": 0,
+        "total_bytes": 65536
+      },
+      {
+        "relname": "merch_executor_bindings",
+        "estimated_rows": 0,
+        "total_bytes": 16384
+      },
+      {
+        "relname": "merch_executor_grants",
+        "estimated_rows": 0,
+        "total_bytes": 16384
+      },
+      {
+        "relname": "merch_executor_otp_challenges",
+        "estimated_rows": 0,
+        "total_bytes": 16384
+      },
+      {
+        "relname": "merch_reward_events",
+        "estimated_rows": 0,
+        "total_bytes": 24576
+      },
+      {
+        "relname": "mobile_otps",
+        "estimated_rows": 0,
+        "total_bytes": 57344
+      },
+      {
+        "relname": "mobile_refresh_tokens",
+        "estimated_rows": 0,
+        "total_bytes": 98304
+      },
+      {
+        "relname": "offline_events",
+        "estimated_rows": 0,
+        "total_bytes": 147456
+      },
+      {
+        "relname": "payout_batches",
+        "estimated_rows": 0,
+        "total_bytes": 90112
+      },
+      {
+        "relname": "payout_items",
+        "estimated_rows": 0,
+        "total_bytes": 98304
+      },
+      {
+        "relname": "pending_bonuses",
+        "estimated_rows": 0,
+        "total_bytes": 40960
+      },
+      {
+        "relname": "pharmacies",
+        "estimated_rows": 0,
+        "total_bytes": 303104
+      },
+      {
+        "relname": "pharmacist_training_preferences",
+        "estimated_rows": 0,
+        "total_bytes": 24576
+      },
+      {
+        "relname": "pharmacist_wallet_checkpoints",
+        "estimated_rows": 0,
+        "total_bytes": 8192
+      },
+      {
+        "relname": "pharmacist_wallet_entries",
+        "estimated_rows": 0,
+        "total_bytes": 24576
+      },
+      {
+        "relname": "pharmacists",
+        "estimated_rows": 0,
+        "total_bytes": 147456
+      },
+      {
+        "relname": "playlist_pharmacy_assignments",
+        "estimated_rows": 0,
+        "total_bytes": 73728
+      },
+      {
+        "relname": "playlists",
+        "estimated_rows": 0,
+        "total_bytes": 122880
+      },
+      {
+        "relname": "pos_sales",
+        "estimated_rows": 4396,
+        "total_bytes": 1966956544
+      },
+      {
+        "relname": "posm_pharmacist_mapping_audit",
+        "estimated_rows": 0,
+        "total_bytes": 16384
+      },
+      {
+        "relname": "posm_pharmacist_mappings",
+        "estimated_rows": 0,
+        "total_bytes": 32768
+      },
+      {
+        "relname": "posm_staff_challenges",
+        "estimated_rows": 0,
+        "total_bytes": 57344
+      },
+      {
+        "relname": "posm_staff_rate_limits",
+        "estimated_rows": 0,
+        "total_bytes": 24576
+      },
+      {
+        "relname": "posm_staff_sessions",
+        "estimated_rows": 0,
+        "total_bytes": 40960
+      },
+      {
+        "relname": "products",
+        "estimated_rows": 0,
+        "total_bytes": 155648
+      },
+      {
+        "relname": "promos",
+        "estimated_rows": 0,
+        "total_bytes": 172032
+      },
+      {
+        "relname": "receipts",
+        "estimated_rows": 0,
+        "total_bytes": 114688
+      },
+      {
+        "relname": "recommendation_events",
+        "estimated_rows": 0,
+        "total_bytes": 39706624
+      },
+      {
+        "relname": "refresh_tokens",
+        "estimated_rows": 5,
+        "total_bytes": 507904
+      },
+      {
+        "relname": "rules",
+        "estimated_rows": 0,
+        "total_bytes": 188416
+      },
+      {
+        "relname": "schema_meta",
+        "estimated_rows": 0,
+        "total_bytes": 57344
+      },
+      {
+        "relname": "slides",
+        "estimated_rows": 0,
+        "total_bytes": 98304
+      },
+      {
+        "relname": "standardn_pharmacist_directory",
+        "estimated_rows": 3471,
+        "total_bytes": 2662400
+      },
+      {
+        "relname": "storefront_product_references",
+        "estimated_rows": 0,
+        "total_bytes": 1302528
+      },
+      {
+        "relname": "training_assessment_results",
+        "estimated_rows": 0,
+        "total_bytes": 32768
+      },
+      {
+        "relname": "training_assignment_format_history",
+        "estimated_rows": 0,
+        "total_bytes": 24576
+      },
+      {
+        "relname": "training_assignment_stages",
+        "estimated_rows": 0,
+        "total_bytes": 90112
+      },
+      {
+        "relname": "training_assignments",
+        "estimated_rows": 0,
+        "total_bytes": 147456
+      },
+      {
+        "relname": "training_audit_log",
+        "estimated_rows": 0,
+        "total_bytes": 139264
+      },
+      {
+        "relname": "training_certificates",
+        "estimated_rows": 0,
+        "total_bytes": 131072
+      },
+      {
+        "relname": "training_lesson_progress",
+        "estimated_rows": 0,
+        "total_bytes": 90112
+      },
+      {
+        "relname": "training_notifications",
+        "estimated_rows": 0,
+        "total_bytes": 90112
+      },
+      {
+        "relname": "training_program_stages",
+        "estimated_rows": 0,
+        "total_bytes": 98304
+      },
+      {
+        "relname": "training_program_versions",
+        "estimated_rows": 0,
+        "total_bytes": 90112
+      },
+      {
+        "relname": "training_programs",
+        "estimated_rows": 0,
+        "total_bytes": 98304
+      },
+      {
+        "relname": "training_rewards",
+        "estimated_rows": 0,
+        "total_bytes": 98304
+      }
+    ]
+  },
+  "flyway": [
+    {
+      "installed_rank": 1,
+      "version": "001",
+      "description": "init",
+      "checksum": 383867345,
+      "success": true
+    },
+    {
+      "installed_rank": 2,
+      "version": "002",
+      "description": "auth",
+      "checksum": -1547647954,
+      "success": true
+    },
+    {
+      "installed_rank": 3,
+      "version": "003",
+      "description": "catalog",
+      "checksum": -1804475688,
+      "success": true
+    },
+    {
+      "installed_rank": 4,
+      "version": "004",
+      "description": "rules",
+      "checksum": 1647729555,
+      "success": true
+    },
+    {
+      "installed_rank": 5,
+      "version": "005",
+      "description": "promo",
+      "checksum": 1319434803,
+      "success": true
+    },
+    {
+      "installed_rank": 6,
+      "version": "006",
+      "description": "pharmacies",
+      "checksum": -1239936863,
+      "success": true
+    },
+    {
+      "installed_rank": 7,
+      "version": "007",
+      "description": "pharmacists",
+      "checksum": -438527846,
+      "success": true
+    },
+    {
+      "installed_rank": 8,
+      "version": "008",
+      "description": "payouts",
+      "checksum": -705168383,
+      "success": true
+    },
+    {
+      "installed_rank": 9,
+      "version": "009",
+      "description": "lms",
+      "checksum": 1824015244,
+      "success": true
+    },
+    {
+      "installed_rank": 10,
+      "version": "010",
+      "description": "screens",
+      "checksum": 201894327,
+      "success": true
+    },
+    {
+      "installed_rank": 11,
+      "version": "011",
+      "description": "ai exam",
+      "checksum": -1604294238,
+      "success": true
+    },
+    {
+      "installed_rank": 12,
+      "version": "012",
+      "description": "receipts",
+      "checksum": 535095885,
+      "success": true
+    },
+    {
+      "installed_rank": 13,
+      "version": "013",
+      "description": "posm recommendations",
+      "checksum": -1190791369,
+      "success": true
+    },
+    {
+      "installed_rank": 14,
+      "version": "014",
+      "description": "posm sales excel",
+      "checksum": -1944452572,
+      "success": true
+    },
+    {
+      "installed_rank": 15,
+      "version": "015",
+      "description": "cdp profiles",
+      "checksum": -1331768873,
+      "success": true
+    },
+    {
+      "installed_rank": 16,
+      "version": "016",
+      "description": "playlist target",
+      "checksum": 1073999141,
+      "success": true
+    },
+    {
+      "installed_rank": 17,
+      "version": "017",
+      "description": "app releases",
+      "checksum": 2076678385,
+      "success": true
+    },
+    {
+      "installed_rank": 18,
+      "version": "018",
+      "description": "rule card",
+      "checksum": 1158879310,
+      "success": true
+    },
+    {
+      "installed_rank": 19,
+      "version": "019",
+      "description": "mobile auth",
+      "checksum": 218909040,
+      "success": true
+    },
+    {
+      "installed_rank": 20,
+      "version": "020",
+      "description": "drop ocr score",
+      "checksum": -1430513267,
+      "success": true
+    },
+    {
+      "installed_rank": 21,
+      "version": "021",
+      "description": "drop qr raw",
+      "checksum": 698673650,
+      "success": true
+    },
+    {
+      "installed_rank": 22,
+      "version": "022",
+      "description": "promo products",
+      "checksum": 1246966267,
+      "success": true
+    },
+    {
+      "installed_rank": 23,
+      "version": "023",
+      "description": "promo feed index",
+      "checksum": 2053688294,
+      "success": true
+    },
+    {
+      "installed_rank": 24,
+      "version": "024",
+      "description": "receipt claimed promos",
+      "checksum": -1975640345,
+      "success": true
+    },
+    {
+      "installed_rank": 25,
+      "version": "025",
+      "description": "campaign product rules",
+      "checksum": 1977664421,
+      "success": true
+    },
+    {
+      "installed_rank": 26,
+      "version": "026",
+      "description": "analytics indexes",
+      "checksum": -1646393981,
+      "success": true
+    },
+    {
+      "installed_rank": 27,
+      "version": "027",
+      "description": "promo override characteristics",
+      "checksum": 924069526,
+      "success": true
+    },
+    {
+      "installed_rank": 28,
+      "version": "028",
+      "description": "promo campaign goal",
+      "checksum": -1640284094,
+      "success": true
+    },
+    {
+      "installed_rank": 29,
+      "version": "029",
+      "description": "banners",
+      "checksum": 1138485781,
+      "success": true
+    },
+    {
+      "installed_rank": 30,
+      "version": "030",
+      "description": "product barcode",
+      "checksum": 18855463,
+      "success": true
+    },
+    {
+      "installed_rank": 31,
+      "version": "031",
+      "description": "product ipart id",
+      "checksum": 1610770551,
+      "success": true
+    },
+    {
+      "installed_rank": 32,
+      "version": "032",
+      "description": "recommendation sale attribution",
+      "checksum": 1188024966,
+      "success": true
+    },
+    {
+      "installed_rank": 33,
+      "version": "033",
+      "description": "pos sale pharmacist name",
+      "checksum": -1818933475,
+      "success": true
+    },
+    {
+      "installed_rank": 34,
+      "version": "034",
+      "description": "pos sale pharmacist identity audit",
+      "checksum": -2095148804,
+      "success": true
+    },
+    {
+      "installed_rank": 35,
+      "version": "035",
+      "description": "training programs",
+      "checksum": 1565386009,
+      "success": true
+    },
+    {
+      "installed_rank": 36,
+      "version": "036",
+      "description": "training routes and assessments",
+      "checksum": -1337608929,
+      "success": true
+    },
+    {
+      "installed_rank": 37,
+      "version": "037",
+      "description": "dashboard journal pagination indexes",
+      "checksum": 291600515,
+      "success": true
+    },
+    {
+      "installed_rank": 38,
+      "version": "038",
+      "description": "targeted screen playlists",
+      "checksum": 1934322037,
+      "success": true
+    },
+    {
+      "installed_rank": 39,
+      "version": "039",
+      "description": "mobile otp provider",
+      "checksum": -471564218,
+      "success": true
+    },
+    {
+      "installed_rank": 40,
+      "version": "040",
+      "description": "lms course lessons",
+      "checksum": -1829216875,
+      "success": true
+    },
+    {
+      "installed_rank": 41,
+      "version": "041",
+      "description": "pos sale receipt capture",
+      "checksum": -550815256,
+      "success": true
+    },
+    {
+      "installed_rank": 42,
+      "version": "042",
+      "description": "pos sale fiscal artifact metadata",
+      "checksum": 237071139,
+      "success": true
+    },
+    {
+      "installed_rank": 43,
+      "version": "043",
+      "description": "order fulfillment",
+      "checksum": -2127442067,
+      "success": true
+    },
+    {
+      "installed_rank": 44,
+      "version": "044",
+      "description": "lms lesson attachments",
+      "checksum": 418628299,
+      "success": true
+    },
+    {
+      "installed_rank": 45,
+      "version": "045",
+      "description": "standardn pharmacist mapping",
+      "checksum": 754674675,
+      "success": true
+    },
+    {
+      "installed_rank": 46,
+      "version": "046",
+      "description": "signed posm update manifest",
+      "checksum": -1277572284,
+      "success": true
+    },
+    {
+      "installed_rank": 47,
+      "version": "047",
+      "description": "fulfillment payment authority",
+      "checksum": -1751453782,
+      "success": true
+    },
+    {
+      "installed_rank": 48,
+      "version": "048",
+      "description": "medusa catalog snapshot",
+      "checksum": -890573443,
+      "success": true
+    },
+    {
+      "installed_rank": 49,
+      "version": "049",
+      "description": "lms extended lesson materials",
+      "checksum": 1178927357,
+      "success": true
+    },
+    {
+      "installed_rank": 50,
+      "version": "050",
+      "description": "training lesson progress",
+      "checksum": 1379834098,
+      "success": true
+    },
+    {
+      "installed_rank": 51,
+      "version": "051",
+      "description": "offline event check in code",
+      "checksum": 1505075771,
+      "success": true
+    },
+    {
+      "installed_rank": 52,
+      "version": "052",
+      "description": "event participant code method",
+      "checksum": -91549691,
+      "success": true
+    },
+    {
+      "installed_rank": 53,
+      "version": "053",
+      "description": "pharmacist password login",
+      "checksum": 1857024425,
+      "success": true
+    },
+    {
+      "installed_rank": 54,
+      "version": "054",
+      "description": "course quizzes",
+      "checksum": 153809749,
+      "success": true
+    },
+    {
+      "installed_rank": 55,
+      "version": "055",
+      "description": "standardn pharmacist directory",
+      "checksum": -675351418,
+      "success": true
+    },
+    {
+      "installed_rank": 56,
+      "version": "056",
+      "description": "training certificate branding",
+      "checksum": -939297608,
+      "success": true
+    },
+    {
+      "installed_rank": 57,
+      "version": "057",
+      "description": "acc recommendation taxonomy",
+      "checksum": -1683923237,
+      "success": true
+    },
+    {
+      "installed_rank": 58,
+      "version": "058",
+      "description": "course live lessons",
+      "checksum": 1501381050,
+      "success": true
+    },
+    {
+      "installed_rank": 59,
+      "version": "059",
+      "description": "allow live course lessons",
+      "checksum": -1338813133,
+      "success": true
+    },
+    {
+      "installed_rank": 60,
+      "version": "060",
+      "description": "storefront product references",
+      "checksum": 446770113,
+      "success": true
+    },
+    {
+      "installed_rank": 61,
+      "version": "061",
+      "description": "posm staff auth",
+      "checksum": 1283329419,
+      "success": true
+    },
+    {
+      "installed_rank": 62,
+      "version": "062",
+      "description": "pharmacist wallet ledger",
+      "checksum": -1395454799,
+      "success": true
+    },
+    {
+      "installed_rank": 63,
+      "version": "063",
+      "description": "merch verified executor rewards",
+      "checksum": 854090547,
+      "success": true
+    },
+    {
+      "installed_rank": 64,
+      "version": "064",
+      "description": "recommendation sale bonus source",
+      "checksum": -307801833,
+      "success": true
+    },
+    {
+      "installed_rank": 65,
+      "version": "065",
+      "description": "product barcode aliases",
+      "checksum": 632910500,
+      "success": true
+    }
+  ],
+  "disk": {
+    "exit_code": 0,
+    "stdout": "Filesystem                            1-blocks         Used   Available Capacity Mounted on\n/dev/mapper/ubuntu--vg-ubuntu--lv 253055131648 200453357568 41182007296      83% /",
+    "stderr": ""
+  },
+  "storage": {
+    "exit_code": 0,
+    "stdout": "2362920960\t/var/lib/docker/volumes/epharm_postgres_data/_data\n380354560\t/var/lib/docker/volumes/epharm_minio_data/_data\n5919768576\t/home/adm-quasar/epharm/backups\n321421312\t/home/adm-quasar/epharm/releases",
+    "stderr": ""
+  },
+  "backup_units": {
+    "exit_code": 0,
+    "stdout": "Id=epharm-backup.service\nResult=exit-code\nExecMainExitTimestamp=Thu 2026-10-29 03:32:19 UTC\nExecMainStatus=1\n\nId=epharm-restore-test.service\nResult=success\nExecMainExitTimestamp=Sun 2026-10-25 05:44:27 UTC\nExecMainStatus=0",
+    "stderr": ""
+  },
+  "release_dirs": [
+    "20260713-1641-seller",
+    "20260713-1724-caddy-download-auth",
+    "20260804-132120-training",
+    "9822229",
+    "a327747",
+    "acc_catalog_snapshot-2026-10-06.sql",
+    "admin-82a19a4-20260915T1439Z",
+    "archive-two-image",
+    "backend-only",
+    "backend-v0.1.21-source-9f2a7e6",
+    "backend-v0.1.21-source-a44a788",
+    "caddy-snapshots",
+    "docker-compose.prod.before-v0.1.25-20261006.yml",
+    "epharm-906e13c-source.tar.gz",
+    "epharm-a327747.tar.gz",
+    "epharm-v0.1.26-daefc71-source.tar.gz",
+    "feature-controls",
+    "frontend",
+    "frontend-only",
+    "rps37-config-20261016T104923Z",
+    "source-906e13c",
+    "source-builds",
+    "source-daefc71-v0126"
+  ]
+}

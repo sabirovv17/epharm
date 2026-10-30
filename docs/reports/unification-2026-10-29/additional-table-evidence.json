@@ -1,0 +1,318 @@
+[
+  {
+    "table": "flyway_schema_history",
+    "actions": [],
+    "classification": "operational_data",
+    "evidence": [
+      {
+        "file": "admin-panel/backend/src/main/resources/application.yml",
+        "line": 19
+      },
+      {
+        "file": "admin-panel/backend/src/test/kotlin/kz/epharm/finance/WalletRollbackCompatibilityIntegrationTest.kt",
+        "line": 57
+      }
+    ],
+    "note": "Framework migration history. Restore/checksum/schema gate, no invented UI action; H17.07 backup is related but not owner of this table."
+  },
+  {
+    "table": "schema_meta",
+    "actions": [],
+    "classification": "operational_data",
+    "evidence": [
+      {
+        "file": "admin-panel/backend/src/main/resources/db/migration/V001__init.sql",
+        "line": 4
+      },
+      {
+        "file": "admin-panel/backend/src/main/resources/db/migration/V001__init.sql",
+        "line": 9
+      }
+    ],
+    "note": "Bootstrap metadata; no business controller/service read found by exact-table search. Preserve in operational data manifest, no UI."
+  },
+  {
+    "table": "storefront_product_references",
+    "actions": ["H11.01", "H11.02"],
+    "classification": "function_data",
+    "evidence": [
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/storefront/StorefrontProductReferenceRepository.kt",
+        "line": 19
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/storefront/StorefrontProductReferenceRepository.kt",
+        "line": 33
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/storefront/client/StorefrontCatalogClient.kt",
+        "line": 88
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/storefront/client/StorefrontCatalogClient.kt",
+        "line": 139
+      }
+    ],
+    "note": "Origin+productId durable payload reference; preserve origin separation and historical IDs. Not a new external Medusa source."
+  },
+  {
+    "table": "posm_staff_challenges",
+    "actions": ["H15.12", "H17.05", "H16.02"],
+    "classification": "function_data",
+    "evidence": [
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
+        "line": 79
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
+        "line": 98
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthCleanup.kt",
+        "line": 14
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffPhoneLock.kt",
+        "line": 20
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardService.kt",
+        "line": 67
+      }
+    ],
+    "note": "RPS stays disabled; merch OTP issuance invalidates phone-wide staff challenges. Do not log code/hash/PII values."
+  },
+  {
+    "table": "posm_staff_sessions",
+    "actions": ["H15.12", "H17.05"],
+    "classification": "function_data",
+    "evidence": [
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
+        "line": 50
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
+        "line": 51
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
+        "line": 142
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthCleanup.kt",
+        "line": 15
+      },
+      {
+        "file": "admin-panel/backend/src/main/resources/db/migration/V061__posm_staff_auth.sql",
+        "line": 44
+      },
+      {
+        "file": "admin-panel/backend/src/main/resources/db/migration/V061__posm_staff_auth.sql",
+        "line": 59
+      }
+    ],
+    "note": "Preserve device/person binding, expiry/revocation, database revocation triggers; preservation never enables RPS window."
+  },
+  {
+    "table": "posm_staff_rate_limits",
+    "actions": ["H15.12", "H17.05", "H16.02"],
+    "classification": "function_data",
+    "evidence": [
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthService.kt",
+        "line": 163
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffAuthCleanup.kt",
+        "line": 16
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffPhoneLock.kt",
+        "line": 27
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffPhoneLock.kt",
+        "line": 31
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardService.kt",
+        "line": 66
+      }
+    ],
+    "note": "Shared OTP budget also protects merch SMS with RPS disabled. Do not reset counters merely due to admin merge."
+  },
+  {
+    "table": "merch_executor_otp_challenges",
+    "actions": ["H16.02", "H15.12"],
+    "classification": "function_data",
+    "evidence": [
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardService.kt",
+        "line": 72
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardService.kt",
+        "line": 94
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/finance/merch/MerchRewardService.kt",
+        "line": 116
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/staff/StaffPhoneLock.kt",
+        "line": 21
+      },
+      {
+        "file": "admin-panel/backend/src/main/resources/db/migration/V063__merch_verified_executor_rewards.sql",
+        "line": 32
+      }
+    ],
+    "note": "Hash/attempts/consumed state and FK from grant preserved. H17.05 currently does not delete this table; do not invent identical cleanup."
+  },
+  {
+    "table": "medusa_catalog_products",
+    "actions": ["H17.03", "H11.01", "H11.02", "L19.06"],
+    "classification": "function_data",
+    "evidence": [
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/medusa/MedusaCatalogSnapshotRepository.kt",
+        "line": 292
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/medusa/MedusaCatalogSnapshotRepository.kt",
+        "line": 171
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/medusa/MedusaCatalogSnapshotRepository.kt",
+        "line": 193
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/medusa/MedusaCatalogSynchronizer.kt",
+        "line": 77
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/mobile/catalog/service/MobileCatalogService.kt",
+        "line": 78
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/mobile/catalog/service/MobileCatalogService.kt",
+        "line": 131
+      }
+    ],
+    "note": "Historical internal name only. Preserve current ASC integration and explicitly constrained snapshot fallback; never restore legacy origin."
+  },
+  {
+    "table": "medusa_catalog_sync_state",
+    "actions": ["H17.03", "H17.06", "H11.01", "H11.02"],
+    "classification": "function_data",
+    "evidence": [
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/medusa/MedusaCatalogSnapshotRepository.kt",
+        "line": 50
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/medusa/MedusaCatalogSnapshotRepository.kt",
+        "line": 56
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/medusa/MedusaCatalogSnapshotRepository.kt",
+        "line": 125
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/medusa/MedusaCatalogSynchronizer.kt",
+        "line": 94
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/medusa/MedusaCatalogSnapshotRepository.kt",
+        "line": 148
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/shared/HealthController.kt",
+        "line": 22
+      }
+    ],
+    "note": "Active sync pointer, completion/product count/errors must remain consistent with product rows; failed sync must not replace last complete snapshot."
+  },
+  {
+    "table": "acc_catalog_snapshots",
+    "actions": ["H11.05", "H04.02", "H15.01"],
+    "classification": "function_data",
+    "evidence": [
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/catalog/service/AccCatalogTaxonomy.kt",
+        "line": 82
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/catalog/service/AccCatalogTaxonomy.kt",
+        "line": 83
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/catalog/controller/CatalogController.kt",
+        "line": 70
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/promo/service/PromoRulesService.kt",
+        "line": 339
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/RulesEngineService.kt",
+        "line": 119
+      }
+    ],
+    "note": "Preserve source filename/hash/counts and active classification provenance; classifier is not ASC prices/stock or medical equivalence."
+  },
+  {
+    "table": "acc_catalog_state",
+    "actions": ["H11.05", "H04.02", "H15.01"],
+    "classification": "function_data",
+    "evidence": [
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/catalog/service/AccCatalogTaxonomy.kt",
+        "line": 83
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/catalog/service/AccCatalogTaxonomy.kt",
+        "line": 157
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/catalog/service/AccCatalogTaxonomy.kt",
+        "line": 187
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/promo/service/PromoRulesService.kt",
+        "line": 339
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/RulesEngineService.kt",
+        "line": 119
+      }
+    ],
+    "note": "Singleton active_snapshot_id must point to retained snapshot; do not clear/replace during admin migration."
+  },
+  {
+    "table": "acc_catalog_barcodes",
+    "actions": ["H11.05", "H04.02", "H15.01"],
+    "classification": "function_data",
+    "evidence": [
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/catalog/service/AccCatalogTaxonomy.kt",
+        "line": 122
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/catalog/service/AccCatalogTaxonomy.kt",
+        "line": 165
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/catalog/service/AccCatalogTaxonomy.kt",
+        "line": 193
+      },
+      {
+        "file": "admin-panel/backend/src/main/kotlin/kz/epharm/posm/service/RulesEngineService.kt",
+        "line": 119
+      }
+    ],
+    "note": "Preserve WARE/EAN/group/subgroup/MNN associations and duplicate exclusion. Keep product trigger as independent fourth mechanism."
+  }
+]

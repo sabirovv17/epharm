@@ -60,7 +60,7 @@ export function ActivatePharmacistModal({
         <div>
           <div className="text-[14px] font-extrabold text-ink-900">{pharmacist.name}</div>
           <div className="mt-1 text-[12px] text-ink-500">
-            {pharmacist.phone} · {pharmacist.iin}
+            {pharmacist.phone ?? '—'} · {pharmacist.iin || '—'}
           </div>
         </div>
         <Field label={t('phc.selectPharmacy')}>

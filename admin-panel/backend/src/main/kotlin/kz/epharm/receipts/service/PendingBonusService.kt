@@ -52,7 +52,7 @@ class PendingBonusService(
             throw AppException(ErrorCode.VALIDATION_FAILED, "Verified sale requires an active pharmacist in the exact pharmacy")
         }
         val entity = PendingBonusEntity(
-            id = "pb_${UUID.randomUUID().toString().substring(0, 8)}",
+            id = "pb_${UUID.randomUUID().toString().replace("-", "")}",
             pharmacistId = pharmacist.id,
             pharmacistName = pharmacist.name,
             pharmacyId = pharmacist.pharmacyId ?: "",
@@ -70,10 +70,12 @@ class PendingBonusService(
     }
 
     @Transactional(readOnly = true)
-    fun reuseForOutcome(id: String, pharmacistId: String, pharmacyId: String, sku: String): String {
+    fun reuseForOutcome(id: String, pharmacistId: String, pharmacyId: String, sku: String,
+        expectedAmount: Long, bonus: Long): String {
         val pending = pendingBonusRepository.findById(id).orElse(null)
         if (pending == null || pending.pharmacistId != pharmacistId || pending.pharmacyId != pharmacyId ||
-            pending.sku != sku || pending.status != PendingBonusStatus.awaiting_receipt) {
+            pending.sku != sku || pending.status != PendingBonusStatus.awaiting_receipt ||
+            pending.expectedAmount != expectedAmount || pending.bonus != bonus) {
             throw AppException(ErrorCode.CONFLICT, "Reservation identity or state conflicts with this recommendation", HttpStatus.CONFLICT)
         }
         return pending.id

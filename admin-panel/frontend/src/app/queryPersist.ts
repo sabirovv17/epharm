@@ -1,17 +1,4 @@
-// Lightweight QueryClient persister — кладёт cache в localStorage, восстанавливает
-// при загрузке. Без зависимости от @tanstack/react-query-persist-client.
-//
-// Bug P fix: после Cmd+R пользователь видит закэшированные данные мгновенно,
-// фон делает background refetch. Если backend упал — данные остаются видны.
-//
-// Архитектура:
-//  - При configureQueryPersistence: восстанавливаем кэш из storage в QueryClient.
-//  - Подписываемся на queryCache changes → дебаунс 250ms → запись в storage.
-//  - maxAge: если запись старше 24h, не восстанавливаем (защита от stale data).
-//  - clearPersistedCache: вызывается на logout.
-
-import type { QueryClient } from '@tanstack/react-query'
-import { hashKey, type Query } from '@tanstack/react-query'
+import { hashKey, type QueryClient } from '@tanstack/react-query'
 
 export interface PersistableStorage {
   getItem: (key: string) => string | null
@@ -20,121 +7,117 @@ export interface PersistableStorage {
 }
 
 const STORAGE_KEY = 'epharm.query.cache'
-const DEFAULT_MAX_AGE_MS = 24 * 60 * 60 * 1000 // 24h
+const DEFAULT_MAX_AGE_MS = 24 * 60 * 60 * 1000
 
 interface PersistedEnvelope {
+  version: 2
+  principal: string
   timestamp: number
   entries: Array<{ key: string; queryKey: readonly unknown[]; data: unknown }>
 }
 
 interface ConfigureOptions {
+  principal?: string | null
   maxAgeMs?: number
   debounceMs?: number
 }
 
-// Глобальный контроль pause-после-clear: clearPersistedCache ставит флаг,
-// который subscriber видит и игнорирует одну volna writes (защита от race'а
-// «storage.removeItem → subscriber дописывает обратно»).
-let paused = false
-let pauseTimer: ReturnType<typeof setTimeout> | null = null
-let writeTimer: ReturnType<typeof setTimeout> | null = null
-
-function pauseWrites(durationMs: number) {
-  paused = true
-  if (pauseTimer) clearTimeout(pauseTimer)
-  if (writeTimer) {
-    clearTimeout(writeTimer)
-    writeTimer = null
-  }
-  pauseTimer = setTimeout(() => {
-    paused = false
-    pauseTimer = null
-  }, durationMs)
+export function mayPersistQuery(key: readonly unknown[]): boolean {
+  const first = key[0]
+  return (
+    typeof first === 'string' &&
+    first !== 'promo-changes' &&
+    !/^(access|admin-access|unified-access|unified-admin-access)(?:$|[-/:.])/.test(first)
+  )
 }
 
 export function configureQueryPersistence(
-  qc: QueryClient,
+  client: QueryClient,
   storage: PersistableStorage,
-  opts: ConfigureOptions = {},
+  { principal = null, maxAgeMs = DEFAULT_MAX_AGE_MS, debounceMs = 50 }: ConfigureOptions = {},
 ): () => void {
-  const maxAgeMs = opts.maxAgeMs ?? DEFAULT_MAX_AGE_MS
-  const debounceMs = opts.debounceMs ?? 50
-
-  // ── Restore ───────────────────────────────────────────────────────────
+  if (!principal) {
+    clearPersistedCache(storage)
+    return () => {}
+  }
   try {
     const raw = storage.getItem(STORAGE_KEY)
     if (raw) {
-      const env = JSON.parse(raw) as PersistedEnvelope
-      const age = Date.now() - (env.timestamp ?? 0)
-      if (age >= 0 && age < maxAgeMs && Array.isArray(env.entries)) {
-        for (const e of env.entries) {
-          // setQueryData принимает queryKey + data. Это создаёт записи в кэше.
-          if (Array.isArray(e.queryKey) && e.data !== undefined) {
-            // Показываем восстановленные данные сразу, но считаем их stale: после
-            // reload Query сам запустит фоновую перепроверку. Иначе setQueryData
-            // проставляет Date.now(), и backend не опрашивается ещё staleTime (30с).
-            qc.setQueryData(e.queryKey, e.data, { updatedAt: 0 })
+      const envelope = JSON.parse(raw) as PersistedEnvelope
+      const age = Date.now() - envelope.timestamp
+      if (
+        envelope.version === 2 &&
+        envelope.principal === principal &&
+        age >= 0 &&
+        age < maxAgeMs &&
+        Array.isArray(envelope.entries)
+      ) {
+        for (const entry of envelope.entries) {
+          if (
+            Array.isArray(entry.queryKey) &&
+            mayPersistQuery(entry.queryKey) &&
+            entry.data !== undefined
+          ) {
+            client.setQueryData(entry.queryKey, entry.data, { updatedAt: 0 })
           }
         }
-      } else {
-        // Истёкший кэш — чистим, чтобы не висел в storage.
-        storage.removeItem(STORAGE_KEY)
-      }
+        if (
+          envelope.entries.some(
+            (entry) => Array.isArray(entry.queryKey) && !mayPersistQuery(entry.queryKey),
+          )
+        )
+          clearPersistedCache(storage)
+      } else clearPersistedCache(storage)
     }
   } catch {
-    // Битый JSON / quota error — игнорим, начинаем с пустого кэша
-    try {
-      storage.removeItem(STORAGE_KEY)
-    } catch {
-      /* noop */
-    }
+    clearPersistedCache(storage)
   }
 
-  // ── Subscribe ─────────────────────────────────────────────────────────
-  const cache = qc.getQueryCache()
+  let disposed = false
+  let timer: ReturnType<typeof setTimeout> | undefined
   const persist = () => {
-    if (paused) return // во время clear (logout) не дописываем обратно
-    if (writeTimer) clearTimeout(writeTimer)
-    writeTimer = setTimeout(() => {
-      if (paused) return
+    clearTimeout(timer)
+    timer = setTimeout(() => {
+      if (disposed) return
+      const envelope: PersistedEnvelope = {
+        version: 2,
+        principal,
+        timestamp: Date.now(),
+        entries: client
+          .getQueryCache()
+          .getAll()
+          .filter(
+            (query) =>
+              query.state.status === 'success' &&
+              query.state.data !== undefined &&
+              mayPersistQuery(query.queryKey),
+          )
+          .map((query) => ({
+            key: hashKey(query.queryKey),
+            queryKey: query.queryKey,
+            data: query.state.data,
+          })),
+      }
       try {
-        const envelope: PersistedEnvelope = {
-          timestamp: Date.now(),
-          entries: cache
-            .getAll()
-            // Сохраняем только успешные queries с данными (error-state не нужен).
-            .filter((q: Query) => q.state.status === 'success' && q.state.data !== undefined)
-            .map((q: Query) => ({
-              key: hashKey(q.queryKey),
-              queryKey: q.queryKey as readonly unknown[],
-              data: q.state.data,
-            })),
-        }
         storage.setItem(STORAGE_KEY, JSON.stringify(envelope))
       } catch {
-        // QuotaExceededError или private-mode — игнорим
+        /* quota/private mode */
       }
     }, debounceMs)
   }
-
-  const unsubscribe = cache.subscribe(() => persist())
-  // Сразу пытаемся записать (на случай если restore тоже что-то добавил).
+  const unsubscribe = client.getQueryCache().subscribe(persist)
   persist()
-
   return () => {
-    if (writeTimer) clearTimeout(writeTimer)
-    writeTimer = null
+    disposed = true
+    clearTimeout(timer)
     unsubscribe()
   }
 }
 
 export function clearPersistedCache(storage: PersistableStorage): void {
-  // Пауза > debounceMs чтобы subscriber-эвенты от unmount'а компонентов
-  // на logout flow не дописали кэш обратно.
-  pauseWrites(500)
   try {
     storage.removeItem(STORAGE_KEY)
   } catch {
-    /* noop */
+    /* private mode */
   }
 }

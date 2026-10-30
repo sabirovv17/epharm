@@ -10,6 +10,8 @@ import { ToastHost } from '@/ui'
 import { useT } from '@/i18n'
 import { useUiStore } from './store'
 import { SECTION_ROUTES } from './routes'
+import { adminNavigationForRole } from './adminNavigation'
+import { useAdministrativeCapabilities } from './useAdministrativeCapabilities'
 import {
   canAccessSection,
   defaultSectionForRole,
@@ -27,6 +29,13 @@ export function AppShell() {
   const navigate = useNavigate()
   const location = useLocation()
   const t = useT()
+  const {
+    canViewMerchInventory,
+    canViewMerchPlacements,
+    canViewMerchTasks,
+    canViewMerchStaffAccess,
+    canViewLedger,
+  } = useAdministrativeCapabilities()
 
   const {
     authedUser,
@@ -47,9 +56,10 @@ export function AppShell() {
 
   // Sync active section with current pathname.
   const activeSection = useMemo<SectionId>(() => {
-    const entry = (Object.entries(SECTION_ROUTES) as [SectionId, string][]).find(([, path]) =>
-      location.pathname.startsWith(path),
-    )
+    if (location.pathname.startsWith('/merch/staff-access')) return 'merch_tasks'
+    const entry = (Object.entries(SECTION_ROUTES) as [SectionId, string][])
+      .sort((a, b) => b[1].length - a[1].length)
+      .find(([, path]) => location.pathname.startsWith(path))
     return entry?.[0] ?? defaultSectionForRole(authedUser?.role ?? 'HQ_HEAD')
   }, [authedUser?.role, location.pathname])
 
@@ -61,17 +71,44 @@ export function AppShell() {
       ),
     [authedUser, location.search],
   )
-  const activeLabel =
-    activeSection === 'lms' && authedUser && isTrainingWorkspaceRole(authedUser.role)
+  const activeLabel = location.pathname.startsWith('/merch/staff-access')
+    ? 'Коды доступа'
+    : activeSection === 'lms' && authedUser && isTrainingWorkspaceRole(authedUser.role)
       ? trainingItem(activeTrainingTab).sidebarLabel
       : t(`nav.${activeSection}`)
 
   const onSelectSection = (id: SectionId) => {
-    if (authedUser && canAccessSection(authedUser.role, id)) navigate(SECTION_ROUTES[id])
+    if (
+      authedUser &&
+      (id === 'ledger'
+        ? canViewLedger
+        : id === 'merch_inventory'
+          ? canViewMerchInventory
+          : id === 'merch_placements'
+            ? canViewMerchPlacements
+            : id === 'merch_tasks'
+              ? canViewMerchTasks
+              : canAccessSection(authedUser.role, id))
+    )
+      navigate(SECTION_ROUTES[id])
   }
 
   const onSelectTrainingTab = (tab: TrainingTab) => {
     if (authedUser && canAccessSection(authedUser.role, 'lms')) navigate(trainingPath(tab))
+  }
+
+  const onNavigate = (path: string) => {
+    if (
+      authedUser &&
+      adminNavigationForRole(authedUser.role, {
+        inventory: canViewMerchInventory,
+        placements: canViewMerchPlacements,
+        tasks: canViewMerchTasks,
+        staffAccess: canViewMerchStaffAccess,
+        ledger: canViewLedger,
+      }).some((module) => module.items.some((item) => item.available && item.path === path))
+    )
+      navigate(path)
   }
 
   // Global ⌘K / Ctrl+K — toggle command palette
@@ -114,6 +151,13 @@ export function AppShell() {
           user={authedUser}
           activeTrainingTab={activeTrainingTab}
           onSelectTrainingTab={onSelectTrainingTab}
+          pathname={location.pathname}
+          onNavigate={onNavigate}
+          canViewMerchInventory={canViewMerchInventory}
+          canViewMerchPlacements={canViewMerchPlacements}
+          canViewMerchTasks={canViewMerchTasks}
+          canViewMerchStaffAccess={canViewMerchStaffAccess}
+          canViewLedger={canViewLedger}
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <Topbar
@@ -140,7 +184,17 @@ export function AppShell() {
         )}
         <ContractModal open={contractModalOpen} onClose={closeContractModal} user={authedUser} />
         {commandPaletteOpen && (
-          <CommandPalette user={authedUser} onClose={closeCommandPalette} onNav={onSelectSection} />
+          <CommandPalette
+            user={authedUser}
+            onClose={closeCommandPalette}
+            onNav={onSelectSection}
+            onNavigate={onNavigate}
+            canViewMerchInventory={canViewMerchInventory}
+            canViewMerchPlacements={canViewMerchPlacements}
+            canViewMerchTasks={canViewMerchTasks}
+            canViewMerchStaffAccess={canViewMerchStaffAccess}
+            canViewLedger={canViewLedger}
+          />
         )}
       </div>
     </ToastHost>

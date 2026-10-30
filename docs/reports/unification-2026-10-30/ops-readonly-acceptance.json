@@ -1,0 +1,427 @@
+{
+  "schemaVersion": 1,
+  "checkedDate": "2026-10-30",
+  "mode": "read_only_production_observation_and_local_fixture_checks",
+  "productionMutations": [],
+  "credentialsIncluded": false,
+  "observedPublic": {
+    "corporateDnsOnly": true,
+    "epharm": {
+      "origin": "https://epharm.inkar.kz",
+      "address": "10.10.1.76",
+      "tlsVerified": true,
+      "tlsCertificateExpires": "2027-01-17T23:59:59Z",
+      "healthStatus": 200,
+      "backendRelease": "v0.1.47",
+      "backendCommit": "aa37b1e720923334cef8265f66a507d549b32780",
+      "frontendRelease": "v0.1.53",
+      "frontendCommit": "a3feef372acf6509c8c088fea4265b8aaae57581"
+    },
+    "crm": {
+      "origin": "https://crm.inkar.kz",
+      "address": "10.10.1.80",
+      "tlsVerified": true,
+      "healthStatus": 200
+    },
+    "limitation": "Direct corporate DNS and explicit .74 proxy TLS/health are proven; external pharmacy connectivity and actual Windows/Standard-N scan are not.",
+    "explicitBalancerProbe": {
+      "address": "10.10.1.74",
+      "origins": ["https://epharm.inkar.kz/api/health", "https://crm.inkar.kz/api/health"],
+      "httpStatuses": [200, 200],
+      "tlsVerifyResults": [0, 0],
+      "network": "corporate",
+      "method": "curl --resolve, read-only health"
+    }
+  },
+  "main": {
+    "sha": "a3feef372acf6509c8c088fea4265b8aaae57581",
+    "ciPushRun": 40869941671,
+    "ciConclusion": "success",
+    "p0Gate": "success",
+    "checkSuiteId": 110782532199,
+    "sentrySourceMaps": "failure",
+    "limitation": "Unification/D9 work is not this current main. Recheck exact merged main and latest push CI before any promotion; no bypass."
+  },
+  "hosts": {
+    "host76": {
+      "role": "76",
+      "checkedAt": "2026-10-29T20:30:12.693918+00:00",
+      "diskRoot": {
+        "total": 253055131648,
+        "used": 199511916544,
+        "free": 42123448320
+      },
+      "cpuCount": 4,
+      "containers": [
+        {
+          "Image": "epharm/frontend:v0.1.53",
+          "Names": "epharm-frontend",
+          "Ports": "80/tcp",
+          "Status": "Up 8 hours (healthy)"
+        },
+        {
+          "Image": "epharm/backend:v0.1.47",
+          "Names": "epharm-backend",
+          "Ports": "8080/tcp",
+          "Status": "Up 17 hours (healthy)"
+        },
+        {
+          "Image": "clickhouse/clickhouse-server:26.3.17-alpine",
+          "Names": "pim-clickhouse",
+          "Ports": "8123/tcp, 9000/tcp, 9009/tcp",
+          "Status": "Up 3 weeks (healthy)"
+        },
+        {
+          "Image": "caddy:2-alpine",
+          "Names": "epharm-caddy",
+          "Ports": "0.0.0.0:80->80/tcp, [::]:80->80/tcp, 0.0.0.0:443->443/tcp, [::]:443->443/tcp, 0.0.0.0:8060->8060/tcp, [::]:8060->8060/tcp, 0.0.0.0:443->443/udp, [::]:443->443/udp, 2019/tcp",
+          "Status": "Up 3 weeks"
+        },
+        {
+          "Image": "caddy:2-alpine",
+          "Names": "pim-public-proxy",
+          "Ports": "80/tcp, 443/tcp, 2019/tcp, 443/udp, 0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp",
+          "Status": "Up 3 weeks"
+        },
+        {
+          "Image": "grafana/grafana:12.1.1",
+          "Names": "epharm-grafana",
+          "Ports": "127.0.0.1:3000->3000/tcp",
+          "Status": "Up 3 weeks"
+        },
+        {
+          "Image": "prom/prometheus:v3.5.0",
+          "Names": "epharm-prometheus",
+          "Ports": "127.0.0.1:9090->9090/tcp",
+          "Status": "Up 3 weeks"
+        },
+        {
+          "Image": "prom/alertmanager:v0.28.1",
+          "Names": "epharm-alertmanager",
+          "Ports": "127.0.0.1:9093->9093/tcp",
+          "Status": "Up 3 weeks"
+        },
+        {
+          "Image": "oliver006/redis_exporter:v1.77.0",
+          "Names": "epharm-redis-exporter",
+          "Ports": "9121/tcp",
+          "Status": "Up 3 weeks"
+        },
+        {
+          "Image": "prom/node-exporter:v1.9.1",
+          "Names": "epharm-node-exporter",
+          "Ports": "9100/tcp",
+          "Status": "Up 3 weeks"
+        },
+        {
+          "Image": "gcr.io/cadvisor/cadvisor:v0.52.1",
+          "Names": "epharm-cadvisor",
+          "Ports": "8080/tcp",
+          "Status": "Up 3 weeks (healthy)"
+        },
+        {
+          "Image": "prometheuscommunity/postgres-exporter:v0.17.1",
+          "Names": "epharm-postgres-exporter",
+          "Ports": "9187/tcp",
+          "Status": "Up 3 weeks"
+        },
+        {
+          "Image": "prom/blackbox-exporter:v0.27.0",
+          "Names": "epharm-blackbox-exporter",
+          "Ports": "9115/tcp",
+          "Status": "Up 3 weeks"
+        },
+        {
+          "Image": "quay.io/minio/minio:latest",
+          "Names": "epharm-minio",
+          "Ports": "9000/tcp, 127.0.0.1:9001->9001/tcp",
+          "Status": "Up 3 weeks (healthy)"
+        },
+        {
+          "Image": "pim-dashboard-dashboard",
+          "Names": "pim-dashboard",
+          "Ports": "8080/tcp",
+          "Status": "Up 3 weeks (healthy)"
+        },
+        {
+          "Image": "alpine/socat:latest",
+          "Names": "inkar-clickhouse-loopback",
+          "Ports": "127.0.0.1:18124->8123/tcp",
+          "Status": "Up 3 weeks"
+        },
+        {
+          "Image": "postgres:16-alpine",
+          "Names": "epharm-postgres",
+          "Ports": "5432/tcp",
+          "Status": "Up 17 hours (healthy)"
+        },
+        {
+          "Image": "redis:7-alpine",
+          "Names": "epharm-redis",
+          "Ports": "6379/tcp",
+          "Status": "Up 3 weeks (healthy)"
+        }
+      ],
+      "backupUnit": {
+        "ActiveState": "inactive",
+        "SubState": "dead",
+        "Result": "success",
+        "ExecMainStartTimestamp": "Thu 2026-10-29 11:39:40 UTC",
+        "ExecMainExitTimestamp": "Thu 2026-10-29 11:44:16 UTC",
+        "ExecMainStatus": "0",
+        "EnvironmentFiles": "/etc/epharm/release-ops.env (ignore_errors=no)"
+      },
+      "restoreUnit": {
+        "ActiveState": "inactive",
+        "SubState": "dead",
+        "Result": "success",
+        "ExecMainStartTimestamp": "Thu 2026-10-29 11:44:16 UTC",
+        "ExecMainExitTimestamp": "Thu 2026-10-29 11:46:49 UTC",
+        "ExecMainStatus": "0",
+        "EnvironmentFiles": "/etc/epharm/release-ops.env (ignore_errors=no)"
+      },
+      "backupEnvironmentFiles": [
+        {
+          "path": "/etc/epharm/backup.env",
+          "mode": "0o600"
+        },
+        {
+          "path": "/etc/epharm/offsite.env",
+          "mode": "0o600"
+        },
+        {
+          "path": "/etc/epharm/release-ops.env",
+          "mode": "0o600"
+        }
+      ],
+      "backupConfiguration": {
+        "BACKUP_ROOT": "/home/adm-quasar/epharm/backups",
+        "BACKUP_RELEASE_ROOT": "/home/adm-quasar/epharm-backend-only-backups",
+        "BACKUP_RELEASE_KEEP_COUNT": "3",
+        "BACKUP_KEEP_COUNT": "7",
+        "BACKUP_REQUIRE_OFFSITE": "true",
+        "BACKUP_RELEASE_DEPLOY_DIRS": "/home/adm-quasar/epharm:/home/adm-quasar/epharm-current",
+        "EPHARM_DEPLOY_DIR": "/opt/epharm-backup-ops/5e8b864ebd25dde4dad1e8f941e7663ff60b48e1"
+      },
+      "offsite": {
+        "readOnlyNoLock": true,
+        "exit": 0,
+        "snapshotCount": 1,
+        "latestTime": "2026-10-29T11:41:35.293726358Z",
+        "transport": "sftp"
+      },
+      "backendFlags": {
+        "MERCH_REWARDS_ENABLED": "false",
+        "SPRING_PROFILES_ACTIVE": "prod",
+        "MERCH_TASKS_ENABLED": "true",
+        "POSM_STAFF_AUTH_ENABLED": "false",
+        "FULFILLMENT_ENABLED": "true",
+        "POSM_SALE_BONUS_ENABLED": "false"
+      },
+      "imageIdentity": {
+        "epharm-backend": "sha256:e3ca027029cba7906972462754b77a51579853a221620e04f500a0470693a7b8",
+        "epharm-frontend": "sha256:3592bf62ff1d032ef5382c37569704c4937135596169784d9fc0a37f2194cff7"
+      },
+      "database": {
+        "serverVersion": "16.14",
+        "databaseBytes": 2233342999,
+        "schemaVersion": "065",
+        "publicTableCount": 73,
+        "relationBytes": 2223185920,
+        "unifiedPersonsPresent": false,
+        "vaultPresent": false,
+        "posSales": 1820395,
+        "recommendationEvents": 47010,
+        "receipts": 1,
+        "pendingBonuses": 0,
+        "walletEntries": 0
+      },
+      "pointers": [
+        {
+          "kind": "frontend-only",
+          "sha256": "049794eeb4ded10063bd111faec3d2bb380a565bfbfd8d1d6cb65257e27bde4e",
+          "canonicalAbsolute": true,
+          "mode": "0o600"
+        },
+        {
+          "kind": "backend-only",
+          "sha256": "ce2592ded2456ba1160911cfd95763fcdd1a0dc0b89b6058c1016ed067573069",
+          "canonicalAbsolute": true,
+          "mode": "0o600"
+        },
+        {
+          "kind": "archive-two-image",
+          "sha256": "1f06c570a4169764d3d173158f1299fb6db95f2102342bea68a53b274bafc58e",
+          "canonicalAbsolute": true,
+          "mode": "0o600"
+        }
+      ],
+      "fileCoverage": [
+        {
+          "path": "/srv/epharm-downloads",
+          "exists": true,
+          "regularFiles": 20,
+          "bytes": 1020840495,
+          "symlinks": 0,
+          "newestMtime": 1792566648.1220357
+        },
+        {
+          "path": "/home/adm-quasar/epharm/backups",
+          "exists": true,
+          "regularFiles": 1659,
+          "bytes": 3349785408,
+          "symlinks": 0,
+          "newestMtime": 1793276320
+        },
+        {
+          "path": "/home/adm-quasar/epharm-backend-only-backups",
+          "exists": true,
+          "regularFiles": 57,
+          "bytes": 3179067156,
+          "symlinks": 0,
+          "newestMtime": 1793274385.2724972
+        }
+      ],
+      "metrics": []
+    },
+    "host80": {
+      "role": "80",
+      "checkedAt": "2026-10-29T20:24:33.882895+00:00",
+      "diskRoot": {
+        "total": 105089261568,
+        "used": 80005451776,
+        "free": 19698323456
+      },
+      "cpuCount": 4,
+      "crmUnit": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "Result": "success",
+        "ExecMainStartTimestamp": "Fri 2026-10-23 06:05:49 UTC",
+        "ExecMainExitTimestamp": "",
+        "ExecMainStatus": "0",
+        "EnvironmentFiles": "/etc/pharmacy-crm-demo.env (ignore_errors=no)"
+      },
+      "crmDatabaseCandidates": ["pharmacy_crm"],
+      "database": {
+        "serverVersion": "18.6 (Ubuntu 18.6-0ubuntu0.26.04.1)",
+        "databaseBytes": 26875583,
+        "publicTableCount": 57,
+        "branches": 680,
+        "tasks": 82,
+        "dispatches": 27,
+        "visitReports": 0,
+        "plans": 3,
+        "plansWithoutVerifiedAdvertiser": 0,
+        "rewardOutbox": 0,
+        "usersByRole": {
+          "division_manager": 1,
+          "mass_manager": 1,
+          "admin": 1,
+          "advertiser": 3
+        }
+      },
+      "source": {
+        "head": "ffb987ebc2c5d64b263fdbeb7b7bfb1e633c8ea3",
+        "dirtyPathCount": 15,
+        "sourceFileCount": 263,
+        "sourceManifestSha256": "684017e6e6103a0d9f6f2253876f38db640e1657ac3a46c44045f1ba54ea99d7",
+        "changedPaths": [],
+        "missingPaths": [
+          "scripts/test_epharm_rewards.py",
+          "scripts/test_epharm_rewards_postgres.py"
+        ],
+        "extraPaths": [],
+        "baseline": "CRM02501dcc full source snapshot"
+      },
+      "crmBackupTimers": "NEXT                        LEFT LAST                              PASSED UNIT                           ACTIVATES\nThu 2026-10-29 20:25:00 UTC  24s Thu 2026-10-29 20:20:00 UTC 4min 35s ago pharmacy-crm-healthcheck.timer pharmacy-crm-healthcheck.service\nFri 2026-10-30 02:28:23 UTC   6h Thu 2026-10-29 02:30:01 UTC      17h ago pharmacy-crm-backup.timer      pharmacy-crm-backup.service\n\n2 timers listed.\n"
+    },
+    "balancer74": {
+      "checkedAt": "2026-10-29T20:24:33.839490+00:00",
+      "diskRoot": {
+        "total": 50906857472,
+        "used": 9604501504,
+        "free": 38683226112
+      },
+      "services": {
+        "nginx": "active",
+        "haproxy": "inactive",
+        "caddy": "inactive"
+      },
+      "routes": [
+        {
+          "origin": "epharm.inkar.kz",
+          "upstream": "http://10.10.1.76:8060"
+        },
+        {
+          "origin": "crm.inkar.kz",
+          "upstream": "http://10.10.1.80:80"
+        }
+      ]
+    }
+  },
+  "checks": {
+    "legacyBackupAndRestoreUnits": "latest_success_observed_2026-10-29_not_new_native_DR",
+    "resticMetadata": "read_only_no_cache_no_lock_latest_snapshot_observed",
+    "currentDatabase": "read_only_repeatable_read_aggregate_queries_only",
+    "crmSource": {
+      "reference": "02501dcc0fb0617da1dae73b595fb1fa52d64096",
+      "result": "zero_changed_runtime_source_paths",
+      "missingOnlyTestFiles": [
+        "scripts/test_epharm_rewards.py",
+        "scripts/test_epharm_rewards_postgres.py"
+      ]
+    },
+    "windowsG4": "not_performed",
+    "nativeFileBackup": {
+      "localTests": 48,
+      "failures": 0,
+      "shellcheckScripts": 7,
+      "realMinioPolicyRoundtrip": "two isolated servers; exact private/custom-prefix policy JSON; anonymous GET 200/403/403",
+      "chainContract": "passed_with_real_Linux_flock",
+      "realResticAndDatabaseRestore": "not_performed_for_new_private_and_D9_set"
+    }
+  },
+  "gates": [
+    {
+      "id": "current_main_provenance",
+      "state": "pending",
+      "required": "Merge reviewed candidate, fresh exact-main push CI/P0 success and immutable images/Compose hashes; preserve live v047/v053 pair."
+    },
+    {
+      "id": "G4",
+      "state": "unproven",
+      "required": "Actual connected Windows POSM/Standard-N scan, customer display, popup shown/ACK/outcome plus old QR and update continuity. DTO/fake HTTP/browser tests do not replace physical observation."
+    },
+    {
+      "id": "G5",
+      "state": "pending_new_candidate",
+      "required": "Recover PG+MinIO+native-files+credential-key artifact from encrypted offsite into isolated target, verify all paths/hashes, synthetic D9 decrypt and read-compatible old writer rehearsal; explicit after-write roll-forward/reconciliation policy."
+    },
+    {
+      "id": "G11",
+      "state": "pending_operational_cutover",
+      "required": "Fresh source delta plus private files; approved account/PERSON/producer bindings, exactly one task/expiry/reward writer and no silent flag activation; old source CRM startup has in-process schedulers."
+    },
+    {
+      "id": "G13",
+      "state": "pending_capacity_forecast",
+      "required": "Measure fresh data/index/WAL/temp/private files/downloads/images/backup, per-day growth and cutover peak on .76/.80. Current free bytes alone do not prove space."
+    },
+    {
+      "id": "D9_key_custody",
+      "state": "pending",
+      "required": "Independent outside-DB key ring, separate protected key recovery archive, independent restic recovery secret held outside both hosts, key rotation/recovery/revocation proof."
+    }
+  ],
+  "notableOperationalRisks": [
+    "Current .76 frontend advanced to v0.1.53; old v0.1.52 rollback coordinates are stale.",
+    "All 1,820,394 POSM sales, including sales without recommendations, must survive fresh delta capture; do not restore the 29 October rehearsal snapshot over current live data.",
+    "Native private files and credential keys require explicit new backup configuration and a fresh joint restore; existing PG/MinIO timer success cannot establish that.",
+    "Source CRM starts weekly task generation and reservation expiry in-process, not only systemd timers; a running legacy service can remain a writer even without a visible scheduler timer.",
+    "Source .80 has three plans whose submitted_by matches a source advertiser profile. That is not a verified native producer-owner or canonical PERSON binding.",
+    "Restic on .80 protects .76 host failure, not a site-wide incident or lost recovery secrets.",
+    "MinIO, backup, archive and database on the same root filesystem still consume the same physical capacity.",
+    "Sentry private source-map upload on current main fails separately from the required CI/P0 suite."
+  ]
+}

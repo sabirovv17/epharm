@@ -8,8 +8,9 @@ import { RequireAuth } from './RequireAuth'
 import NotFoundPage from './NotFoundPage'
 import type { SectionId } from '@/mocks/fixtures'
 import { useUiStore } from './store'
-import { defaultPathForRole } from './accessPolicy'
+import AdministrativeHome from './AdministrativeHome'
 import { SectionRoute } from './SectionRoute'
+import { PublicPortal } from './PublicPortal'
 
 const LoginPage = lazy(() => import('@/features/auth/LoginPage'))
 const LearnerTraining = lazy(() => import('@/features/learner/LearnerTrainingPage'))
@@ -31,6 +32,16 @@ const LMS = lazy(() => import('@/features/lms/LMSPage'))
 const Settings = lazy(() => import('@/features/settings/SettingsPage'))
 const Storefront = lazy(() => import('@/features/storefront/StorefrontPage'))
 const Fulfillment = lazy(() => import('@/features/fulfillment/FulfillmentPage'))
+const MerchInventory = lazy(() => import('@/features/merch/MerchInventoryPage'))
+const MerchPlacements = lazy(() => import('@/features/merch/MerchPlacementsPage'))
+const MerchTasks = lazy(() => import('@/features/merch/MerchTasksPage'))
+const Ledger = lazy(() => import('@/features/reports/LedgerPage'))
+const PublicMerchTask = lazy(() => import('@/features/merch/PublicMerchTaskPage'))
+const StaffAccess = lazy(() => import('@/features/merch/StaffAccessPage'))
+const AdminStaffAccess = lazy(() => import('@/features/merch/AdminStaffAccessPage'))
+const MerchPortal = lazy(() => import('@/features/merch/MerchPortalPage'))
+const ProducerLogin = lazy(() => import('@/features/merch/ProducerLoginPage'))
+const Producer = lazy(() => import('@/features/merch/ProducerPage'))
 
 function PageFallback() {
   return (
@@ -42,15 +53,20 @@ function withSuspense(node: React.ReactNode) {
   return <Suspense fallback={<PageFallback />}>{node}</Suspense>
 }
 
+function publicPortal(node: React.ReactNode) {
+  return <PublicPortal>{withSuspense(node)}</PublicPortal>
+}
+
 function protectedPage(section: SectionId, page: React.ReactNode) {
   return <SectionRoute section={section}>{withSuspense(page)}</SectionRoute>
 }
 
 function HomeRedirect() {
   const user = useUiStore((state) => state.authedUser)
-  const isPhone = typeof window !== 'undefined'
-    && (window.matchMedia?.('(max-width: 767px)').matches || window.innerWidth < 768)
-  return <Navigate to={user ? defaultPathForRole(user.role) : isPhone ? '/learn' : '/login'} replace />
+  const isPhone =
+    typeof window !== 'undefined' &&
+    (window.matchMedia?.('(max-width: 767px)').matches || window.innerWidth < 768)
+  return user ? <AdministrativeHome /> : <Navigate to={isPhone ? '/learn' : '/login'} replace />
 }
 
 export function AppRouter() {
@@ -58,7 +74,15 @@ export function AppRouter() {
     <Routes>
       {/* Public — login screen без AppShell */}
       <Route path="/login" element={withSuspense(<LoginPage />)} />
+      <Route path="/producer/login" element={publicPortal(<ProducerLogin />)} />
+      <Route path="/tasks/staff" element={publicPortal(<PublicMerchTask />)} />
+      <Route path="/staff" element={publicPortal(<StaffAccess />)} />
+      <Route path="/merch/staff" element={publicPortal(<StaffAccess />)} />
+      <Route path="/merch/portal" element={publicPortal(<MerchPortal />)} />
+      <Route path="/producer" element={publicPortal(<Producer />)} />
       <Route path="/learn" element={withSuspense(<LearnerTraining />)} />
+      <Route path="/learn/merch/tasks/:taskId" element={withSuspense(<LearnerTraining />)} />
+      <Route path="/learn/merch/visits" element={withSuspense(<LearnerTraining />)} />
       <Route path="/learn/merch/claim" element={withSuspense(<MerchClaim />)} />
       <Route path="/learn/catalog" element={withSuspense(<LearnerTraining />)} />
       <Route path="/learn/receipts" element={withSuspense(<LearnerTraining />)} />
@@ -78,7 +102,10 @@ export function AppRouter() {
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
           <Route path="/dashboard" element={protectedPage('dashboard', <Dashboard />)} />
-          <Route path="/dashboard/reports" element={protectedPage('dashboard', <CampaignReports />)} />
+          <Route
+            path="/dashboard/reports"
+            element={protectedPage('dashboard', <CampaignReports />)}
+          />
           <Route path="/promo" element={protectedPage('promo', <Promo />)} />
           <Route path="/promo/:id" element={protectedPage('promo', <PromoDetail />)} />
           <Route path="/rules" element={protectedPage('rules', <Rules />)} />
@@ -93,6 +120,12 @@ export function AppRouter() {
           <Route path="/finance" element={protectedPage('finance', <Finance />)} />
           <Route path="/lift" element={protectedPage('lift', <Lift />)} />
           <Route path="/lms" element={protectedPage('lms', <LMS />)} />
+          {/* New scope is verified by the server capability, independent of legacy role navigation. */}
+          <Route path="/merch/inventory" element={withSuspense(<MerchInventory />)} />
+          <Route path="/merch/placements" element={withSuspense(<MerchPlacements />)} />
+          <Route path="/merch/tasks" element={withSuspense(<MerchTasks />)} />
+          <Route path="/merch/staff-access" element={withSuspense(<AdminStaffAccess />)} />
+          <Route path="/finance/ledger" element={withSuspense(<Ledger />)} />
           <Route path="/settings" element={protectedPage('settings', <Settings />)} />
           <Route path="/storefront" element={protectedPage('storefront', <Storefront />)} />
           <Route path="/fulfillment" element={protectedPage('fulfillment', <Fulfillment />)} />

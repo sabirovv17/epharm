@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-29",
+  "scope": "isolated host-bound candidate; no Spring application or jobs started",
+  "targetIdentitySha256": "4fdfb3c6c6a9a4296b178c75681cd4fc09d975fa0eb6c348cb8e49bf78853453",
+  "flywayActualUpgrade": {
+    "fromVersion": 65,
+    "toVersion": 67,
+    "executed": 2,
+    "existing65Validated": true
+  },
+  "originalTables": 73,
+  "originalBusinessTablesAllColumnsPKCountsUnchanged": true,
+  "flywayHistoryOnlyExpectedTwoNewRows": true,
+  "newApplicationRows": {
+    "version": 67,
+    "newProfiles": 0,
+    "newPersons": 0,
+    "pendingChanges": 0,
+    "publicationHistory": 0,
+    "retiredRules": 0
+  },
+  "sourceRecordsUnchanged": true,
+  "migrationSha256": {
+    "V067__campaign_publication_changes.sql": "18d2791677234ab32b11ec1014e5a7cbd8e494c21daed2525f5cef0d2770d66b",
+    "V066__unified_admin_access.sql": "353a8485728b2990370f61742bf3da7ffe4e37687b77843a01edc8c0b029db6e"
+  },
+  "noAccountConversionNoRuleActivationNoFinancialWrites": true,
+  "noProductionWrite": true,
+  "freeBytes": 324640006144
+}

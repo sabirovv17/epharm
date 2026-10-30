@@ -89,6 +89,24 @@ services:
         RELEASE_COMMIT: ${BACKEND_RELEASE_COMMIT:-${RELEASE_COMMIT:-unknown}}
     container_name: epharm-backend
     restart: always
+    volumes:
+      - type: bind
+        source: ${MERCH_EVIDENCE_HOST_ROOT:-/srv/epharm-private/merch}
+        target: /var/lib/epharm/merch
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${MERCH_LEGACY_FILES_HOST_ROOT:-/srv/epharm-private/merch-legacy}
+        target: /var/lib/epharm/merch-legacy
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${LEARNER_CREDENTIALS_HOST_KEY_DIRECTORY:-/etc/epharm/learner-credentials}
+        target: /run/epharm-learner-credentials
+        read_only: true
+        bind:
+          create_host_path: false
     # JVM в контейнере: ограничиваем память, чтобы backend не съел весь RAM сервера
     # (7 ГБ на всех сервисах). MaxRAMPercentage=65 от mem_limit → heap ~1.3 ГБ.
     mem_limit: 2g
@@ -120,6 +138,8 @@ services:
       SPRING_DATA_REDIS_PORT: '6379'
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET (min 256-bit) in .env.prod}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8088}
+      SERVER_FORWARD_HEADERS_STRATEGY: ${SERVER_FORWARD_HEADERS_STRATEGY:-none}
+      SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES: ${SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES:-(?!)}
       # SDK ходит на MinIO внутри сети…
       S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
       # …а ссылки на фото для браузера строятся по внешнему адресу (через Caddy, https).
@@ -144,8 +164,24 @@ services:
       # Optional employee sign-in never gates Standard-N sales or the POSM outbox.
       # Enable for a controlled client pilot; old clients keep their current behavior.
       POSM_STAFF_AUTH_ENABLED: ${POSM_STAFF_AUTH_ENABLED:-false}
+      UNIFIED_ADMIN_PRIMARY_OWNER_ID: ${UNIFIED_ADMIN_PRIMARY_OWNER_ID:-}
+      LEARNER_CREDENTIALS_ENABLED: ${LEARNER_CREDENTIALS_ENABLED:-false}
+      LEARNER_CREDENTIALS_KEY_FILE: /run/epharm-learner-credentials/keys.json
+      LEARNER_CREDENTIALS_EXPORT_TTL_SECONDS: ${LEARNER_CREDENTIALS_EXPORT_TTL_SECONDS:-120}
+      LEARNER_CREDENTIALS_MAX_BATCH_SIZE: ${LEARNER_CREDENTIALS_MAX_BATCH_SIZE:-25}
+      LEARNER_CREDENTIALS_MAX_EXPORTS_PER_HOUR: ${LEARNER_CREDENTIALS_MAX_EXPORTS_PER_HOUR:-4}
+      APP_MERCH_TASKS_EVIDENCE_ROOT: /var/lib/epharm/merch
+      APP_MERCH_TASKS_LEGACY_FILES_ROOT: /var/lib/epharm/merch-legacy
       POSM_UPDATE_PUBLIC_KEY_SPKI: ${POSM_UPDATE_PUBLIC_KEY_SPKI:?set the pinned POSM update public key}
       MERCH_TASKS_ENABLED: ${MERCH_TASKS_ENABLED:-false}
+      # Switch each native path only after its data/issuer and single-writer gates pass.
+      MERCH_NATIVE_DELIVERY_ENABLED: ${MERCH_NATIVE_DELIVERY_ENABLED:-false}
+      MERCH_NATIVE_EXECUTOR_ENABLED: ${MERCH_NATIVE_EXECUTOR_ENABLED:-false}
+      MERCH_STAFF_ACCESS_ENABLED: ${MERCH_STAFF_ACCESS_ENABLED:-false}
+      MERCH_PRODUCER_AUTH_ENABLED: ${MERCH_PRODUCER_AUTH_ENABLED:-false}
+      MERCH_LEGACY_PORTAL_CUTOVER_ENABLED: ${MERCH_LEGACY_PORTAL_CUTOVER_ENABLED:-false}
+      MERCH_AUTOMATION_ENABLED: ${MERCH_AUTOMATION_ENABLED:-false}
+      MERCH_PLACEMENT_EXPIRY_ENABLED: ${MERCH_PLACEMENT_EXPIRY_ENABLED:-false}
       MERCH_TASKS_BASE_URL: ${MERCH_TASKS_BASE_URL:-}
       MERCH_TASKS_INTEGRATION_KEY: ${MERCH_TASKS_INTEGRATION_KEY:-}
       MERCH_RECOMMENDATIONS_TIMEOUT_MS: ${MERCH_RECOMMENDATIONS_TIMEOUT_MS:-900}
@@ -242,6 +278,9 @@ services:
       ADMIN_DOMAIN: ${ADMIN_DOMAIN:?set ADMIN_DOMAIN (напр. epharm.inkar.kz) in .env.prod}
       S3_DOMAIN: ${S3_DOMAIN:?set S3_DOMAIN (напр. epharm.inkar.kz) in .env.prod}
       MERCH_PORTAL_UPSTREAM: ${MERCH_PORTAL_UPSTREAM:-10.10.1.80:8080}
+      MERCH_LEGACY_PORTAL_CUTOVER_ENABLED: ${MERCH_LEGACY_PORTAL_CUTOVER_ENABLED:-false}
+      UNIFIED_MIGRATION_WRITE_FREEZE_ENABLED: ${UNIFIED_MIGRATION_WRITE_FREEZE_ENABLED:-false}
+      MERCH_STAFF_ACCESS_ENABLED: ${MERCH_STAFF_ACCESS_ENABLED:-false}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ${TLS_CERT_DIR:-./tls}:/etc/caddy/tls:ro

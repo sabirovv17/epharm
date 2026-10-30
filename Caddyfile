@@ -5,6 +5,74 @@
 	# Public DNS terminates on the INKAR ingress, so ACME challenges cannot reach
 	# this host. Certificate renewal is performed by INKAR IT and deployed manually.
 	auto_https disable_certs
+	servers {
+		trusted_proxies static 10.10.1.74/32 10.10.1.80/32
+		trusted_proxies_strict
+		client_ip_headers X-Forwarded-For
+	}
+}
+
+(unified_migration_write_freeze) {
+	route {
+		@frozen_nonposm {
+			path /api/*
+			method POST PUT PATCH DELETE
+			not path /api/posm/*
+			expression `"{$UNIFIED_MIGRATION_WRITE_FREEZE_ENABLED:false}" == "true"`
+		}
+		@frozen_staff {
+			path /api/posm/staff /api/posm/staff/*
+			method POST PUT PATCH DELETE
+			expression `"{$UNIFIED_MIGRATION_WRITE_FREEZE_ENABLED:false}" == "true"`
+		}
+		handle @frozen_nonposm {
+			header Cache-Control no-store
+			header Retry-After 30
+			header Content-Type application/json
+			respond `{"code":"MIGRATION_WRITE_FREEZE","message":"Обновление системы. Повторите действие через минуту."}` 503
+		}
+		handle @frozen_staff {
+			header Cache-Control no-store
+			header Retry-After 30
+			header Content-Type application/json
+			respond `{"code":"MIGRATION_WRITE_FREEZE","message":"Обновление системы. Повторите действие через минуту."}` 503
+		}
+	}
+}
+
+(legacy_staff_entry) {
+	@native_shared_staff {
+		expression `"{$MERCH_LEGACY_PORTAL_CUTOVER_ENABLED:false}" == "true" && "{$MERCH_STAFF_ACCESS_ENABLED:false}" == "true"`
+	}
+	handle @native_shared_staff {
+		header Referrer-Policy no-referrer
+		header Cache-Control no-store
+		# The browser consumes task/access/claim/plain intent before telemetry; never forward query credentials.
+		rewrite * /staff?
+		reverse_proxy frontend:80 {
+			header_up -X-Pharmapay-Key
+			header_up -X-Staff-Session
+		}
+	}
+	@native_legacy_task {
+		query task=*
+		expression `"{$MERCH_LEGACY_PORTAL_CUTOVER_ENABLED:false}" == "true"`
+	}
+	handle @native_legacy_task {
+		header Referrer-Policy no-referrer
+		header Cache-Control no-store
+		# Keep the browser URL until its synchronous bootstrap consumes and scrubs the capability.
+		rewrite * /tasks/staff?
+		reverse_proxy frontend:80 {
+			header_up -X-Pharmapay-Key
+			header_up -X-Staff-Session
+		}
+	}
+	handle {
+		header Referrer-Policy no-referrer
+		header Cache-Control no-store
+		redir https://crm.inkar.kz/staff{?query} 302
+	}
 }
 
 # API/ADMIN/S3 используют один публичный хост (epharm.inkar.kz). Этот snippet
@@ -35,6 +103,27 @@
 	# server-to-server credential is never forwarded to a browser route.
 	handle /merch/* {
 		route {
+			@portal_entry {
+				path /merch/portal
+				method GET HEAD
+			}
+			handle @portal_entry {
+				header Referrer-Policy no-referrer
+				header Cache-Control no-store
+				reverse_proxy frontend:80 {
+					header_up -X-Pharmapay-Key
+					header_up -X-Staff-Session
+				}
+			}
+			@retired_legacy_api {
+				path /merch/api/public/task-dispatch /merch/api/public/task-dispatch/queue /merch/api/public/task-dispatch/start /merch/api/public/task-dispatch/checklist /merch/api/public/task-dispatch/evidence /merch/api/public/task-dispatch/submit /merch/api/task-files/* /merch/api/request-item-files/* /merch/api/placement-files/*
+				expression `"{$MERCH_LEGACY_PORTAL_CUTOVER_ENABLED:false}" == "true"`
+			}
+			handle @retired_legacy_api {
+				header Cache-Control no-store
+				header Content-Type application/json
+				respond `{"code":"MERCH_PORTAL_MOVED","message":"Повторно откройте QR-код: портал заданий обновлён. Неотправленные действия не подтверждены."}` 409
+			}
 			@merch_staff {
 				path /merch/staff
 				method GET
@@ -52,12 +141,7 @@
 				method GET
 			}
 			handle @merch_staff {
-				# Legacy QR only. Move the browser to CRM so its root-absolute
-				# /assets and /api requests stay on the CRM host. New QR codes use
-				# the fragment-token URL directly and never traverse this redirect.
-				header Referrer-Policy no-referrer
-				header Cache-Control no-store
-				redir https://crm.inkar.kz/staff{?query} 302
+				import legacy_staff_entry
 			}
 			handle @merch_assets {
 				uri strip_prefix /merch
@@ -80,10 +164,21 @@
 			respond 404
 		}
 	}
+	# The external CRM edge may forward only this task entry after its controlled cutover.
+	handle /staff {
+		@staff_get method GET
+		handle @staff_get {
+			import legacy_staff_entry
+		}
+		respond 404
+	}
 
 	# API для касс (/api/posm), телефонов (/api/mobile) и самой админки.
 	handle /api/* {
-		reverse_proxy backend:8080
+		import unified_migration_write_freeze
+		reverse_proxy backend:8080 {
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 
 	# Всё остальное — веб-админка (SPA, статика из nginx фронта).
@@ -121,5 +216,8 @@ http://{$ADMIN_DOMAIN}:8060 {
 # Windows это делает корп. DNS (10.10.1.119/120) сам; на macOS + Check Point VPN, где
 # getaddrinfo не видит inkar.kz, нужна строка в /etc/hosts: «10.10.1.76 inkpim.inkar.kz».
 http://{$INTERNAL_DOMAIN:inkpim.inkar.kz} {
-	reverse_proxy frontend:80
+	import unified_migration_write_freeze
+	reverse_proxy frontend:80 {
+		header_up X-Forwarded-For {client_ip}
+	}
 }

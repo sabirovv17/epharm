@@ -6,7 +6,14 @@
 // которые на ней показываются: скрипт «что сказать и почему», преимущества, метка
 // партнёра, таблица-сравнение, цель. Триггеры добавляются через модалку выбора.
 
-import { cloneElement, useEffect, useState, type ReactElement } from 'react'
+import {
+  cloneElement,
+  useEffect,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+  type ReactElement,
+} from 'react'
 import { Button, Field, Input, Modal, Toggle, useToast } from '@/ui'
 import { IconChevDown, IconClose, IconPlus } from '@/ui/icons'
 import type {
@@ -20,7 +27,6 @@ import type {
 } from '@/lib/api-types'
 import { describeError } from '@/lib/describeError'
 import { useT } from '@/i18n'
-import { usePromoRules, useSavePromoRules } from '@/lib/queries/promoRules'
 import { MultiProductPicker } from './PromoProductPicker'
 import { PromoTriggerPicker } from './PromoTriggerPicker'
 import { promoTriggerDomId, promoTriggerKey, promoTriggerKind } from './promoTrigger'
@@ -37,18 +43,6 @@ type ListKey = 'replacements' | 'crossSells'
 type PairKind = 'replacement' | 'crossSell'
 
 const MAX_OFFERS_PER_PAIR = 5
-
-const EMPTY_CONFIG: PromoRulesConfigDto = {
-  replacements: [],
-  crossSells: [],
-  script: '',
-  advantages: [],
-  partnerLabel: null,
-  comparison: [],
-  goalLabel: null,
-  goalTarget: null,
-  goalBonus: null,
-}
 
 function toRef(p: StorefrontProductDto): PromoRuleProductRef {
   const barcodes = collectProductBarcodes(p)
@@ -75,9 +69,7 @@ function toScopeRef(
   kind: Exclude<PromoTriggerKind, 'product'>,
   option: AccTriggerOptionDto,
 ): PromoRuleProductRef {
-  const displayLabel = option.parentLabel
-    ? `${option.parentLabel} / ${option.label}`
-    : option.label
+  const displayLabel = option.parentLabel ? `${option.parentLabel} / ${option.label}` : option.label
   return {
     medusaProductId: '',
     name: displayLabel,
@@ -197,14 +189,23 @@ function OfferBonusInput({
 }
 
 export function PromoRulesEditor({
-  promoId,
+  config: cfg,
+  onChange: setCfg,
+  onSave: saveConfig,
+  saving = false,
   bonus = 0,
   disabled = false,
   promotedProductId,
   promotedName,
   promotedPrice,
 }: {
-  promoId: string
+  config: PromoRulesConfigDto
+  onChange: Dispatch<SetStateAction<PromoRulesConfigDto>>
+  onSave: (
+    config: PromoRulesConfigDto,
+    callbacks: { onSuccess: () => void; onError: (error: unknown) => void },
+  ) => void
+  saving?: boolean
   /** Бонус фармацевту за продажу (из кампании) — для превью карточки кассы. */
   bonus?: number
   disabled?: boolean
@@ -216,21 +217,8 @@ export function PromoRulesEditor({
 }) {
   const t = useT()
   const toast = useToast()
-  const { data, isLoading, isError, error, refetch } = usePromoRules(promoId)
-  const save = useSavePromoRules()
-
-  const [cfg, setCfg] = useState<PromoRulesConfigDto>(EMPTY_CONFIG)
   const [validationErrors, setValidationErrors] = useState<PromoRulesValidationErrors>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
-
-  // Populate from server config on load / promo change.
-  useEffect(() => {
-    if (data) {
-      setCfg(data.config)
-      setValidationErrors({})
-      setSubmitError(null)
-    }
-  }, [data])
 
   const validationMessages = {
     required: t('pr.validationRequired'),
@@ -292,20 +280,18 @@ export function PromoRulesEditor({
       }
     })
   }
-  const toggleScopeIn = (key: ListKey) => (
-    kind: Exclude<PromoTriggerKind, 'product'>,
-    option: AccTriggerOptionDto,
-  ) => {
-    clearValidation()
-    const candidate = toScopeRef(kind, option)
-    const identity = promoTriggerKey(candidate)
-    setCfg((config) => ({
-      ...config,
-      [key]: config[key].some((ref) => promoTriggerKey(ref) === identity)
-        ? config[key].filter((ref) => promoTriggerKey(ref) !== identity)
-        : [...config[key], candidate],
-    }))
-  }
+  const toggleScopeIn =
+    (key: ListKey) => (kind: Exclude<PromoTriggerKind, 'product'>, option: AccTriggerOptionDto) => {
+      clearValidation()
+      const candidate = toScopeRef(kind, option)
+      const identity = promoTriggerKey(candidate)
+      setCfg((config) => ({
+        ...config,
+        [key]: config[key].some((ref) => promoTriggerKey(ref) === identity)
+          ? config[key].filter((ref) => promoTriggerKey(ref) !== identity)
+          : [...config[key], candidate],
+      }))
+    }
   const removeFrom = (key: ListKey, identity: string) => {
     clearValidation()
     setCfg((c) => ({
@@ -328,22 +314,19 @@ export function PromoRulesEditor({
     }
 
     clearValidation()
-    save.mutate(
-      { promoId, config },
-      {
-        onSuccess: () => {
-          clearValidation()
-          toast.push(t('pr.savedToast'))
-        },
-        onError: (e) => {
-          const fields = extractPromoRulesFieldErrors(e, validationMessages)
-          const message = describeError(e)
-          if (Object.keys(fields).length > 0) showValidationErrors(fields, message)
-          else setSubmitError(message)
-          toast.push(message, { kind: 'error', duration: 6000 })
-        },
+    saveConfig(config, {
+      onSuccess: () => {
+        clearValidation()
+        toast.push('Изменения подготовлены. На кассах они появятся только после применения.')
       },
-    )
+      onError: (e) => {
+        const fields = extractPromoRulesFieldErrors(e, validationMessages)
+        const message = describeError(e)
+        if (Object.keys(fields).length > 0) showValidationErrors(fields, message)
+        else setSubmitError(message)
+        toast.push(message, { kind: 'error', duration: 6000 })
+      },
+    })
   }
 
   const goal: CampaignGoal = {
@@ -358,150 +341,135 @@ export function PromoRulesEditor({
         <div className="text-[13px] font-extrabold uppercase tracking-[0.06em] text-ink-500">
           {t('pr.section')}
         </div>
-        {data && (
-          <span className="text-[12px] font-semibold text-ink-500" data-testid="promo-rules-counts">
-            {t('pr.counts', { active: data.activeCount, total: data.ruleCount })}
-          </span>
-        )}
+        <span className="text-[12px] font-semibold text-ink-500" data-testid="promo-rules-counts">
+          Подготовлено пар: {cfg.replacements.length + cfg.crossSells.length} · включено:{' '}
+          {[...cfg.replacements, ...cfg.crossSells].filter((pair) => pair.active !== false).length}
+        </span>
       </div>
+      <RuleSection
+        sectionKey="replacements"
+        titleKey="pr.replacements"
+        hintKey="pr.replacementsHint"
+        addLabelKey="pr.addReplacement"
+        items={cfg.replacements}
+        disabled={disabled}
+        bonus={bonus}
+        goal={goal}
+        promotedName={promotedName}
+        promotedProductId={promotedProductId}
+        promotedPrice={promotedPrice}
+        errors={validationErrors}
+        onClearError={clearValidation}
+        onToggle={toggleIn('replacements')}
+        onScopePick={toggleScopeIn('replacements')}
+        onRemove={(identity) => removeFrom('replacements', identity)}
+        onPatch={(identity, p) => updatePair('replacements', identity, p)}
+      />
 
-      {isLoading && !data ? (
-        <div className="py-4 text-[13px] font-semibold text-ink-400">{t('pr.loading')}</div>
-      ) : isError && !data ? (
-        <div className="flex items-center gap-3 text-[13px] font-semibold text-accent-danger">
-          {describeError(error)}
-          <button type="button" onClick={() => refetch()} className="underline">
-            {t('common.retry')}
-          </button>
+      <RuleSection
+        sectionKey="crossSells"
+        titleKey="pr.crossSells"
+        hintKey="pr.crossSellsHint"
+        addLabelKey="pr.addCrossSell"
+        items={cfg.crossSells}
+        disabled={disabled}
+        bonus={bonus}
+        goal={goal}
+        promotedName={promotedName}
+        promotedProductId={promotedProductId}
+        promotedPrice={promotedPrice}
+        errors={validationErrors}
+        onClearError={clearValidation}
+        onToggle={toggleIn('crossSells')}
+        onScopePick={toggleScopeIn('crossSells')}
+        onRemove={(identity) => removeFrom('crossSells', identity)}
+        onPatch={(identity, p) => updatePair('crossSells', identity, p)}
+      />
+
+      {/* Цель — одна на всю кампанию (применяется ко всем парам). */}
+      <Field label={t('pr.campaignGoal')} hint={t('pr.campaignGoalHint')}>
+        <div className="grid grid-cols-3 gap-2">
+          <InlineValidatedField error={validationErrors.goalLabel} path="goalLabel">
+            <Input
+              value={cfg.goalLabel ?? ''}
+              disabled={disabled}
+              maxLength={PROMO_RULE_LIMITS.goalLabel}
+              placeholder={t('pr.goalLabel')}
+              data-testid="pr-goal-label"
+              onChange={(e) => {
+                clearValidation('goalLabel')
+                setCfg((c) => ({ ...c, goalLabel: e.target.value || null }))
+              }}
+            />
+          </InlineValidatedField>
+          <InlineValidatedField error={validationErrors.goalTarget} path="goalTarget">
+            <Input
+              type="number"
+              min={1}
+              max={PROMO_RULE_LIMITS.maxInt}
+              step={1}
+              value={cfg.goalTarget ?? ''}
+              disabled={disabled}
+              placeholder={t('pr.goalTarget')}
+              data-testid="pr-goal-target"
+              onChange={(e) => {
+                clearValidation('goalTarget')
+                setCfg((c) => ({
+                  ...c,
+                  goalTarget: e.target.value === '' ? null : Number(e.target.value),
+                }))
+              }}
+            />
+          </InlineValidatedField>
+          <InlineValidatedField error={validationErrors.goalBonus} path="goalBonus">
+            <Input
+              type="number"
+              min={0}
+              max={PROMO_RULE_LIMITS.maxInt}
+              step={1}
+              value={cfg.goalBonus ?? ''}
+              disabled={disabled}
+              placeholder={t('pr.goalBonus')}
+              data-testid="pr-goal-bonus"
+              onChange={(e) => {
+                clearValidation('goalBonus')
+                setCfg((c) => ({
+                  ...c,
+                  goalBonus: e.target.value === '' ? null : Number(e.target.value),
+                }))
+              }}
+            />
+          </InlineValidatedField>
         </div>
-      ) : (
-        <>
-          <RuleSection
-            sectionKey="replacements"
-            titleKey="pr.replacements"
-            hintKey="pr.replacementsHint"
-            addLabelKey="pr.addReplacement"
-            items={cfg.replacements}
-            disabled={disabled}
-            bonus={bonus}
-            goal={goal}
-            promotedName={promotedName}
-            promotedProductId={promotedProductId}
-            promotedPrice={promotedPrice}
-            errors={validationErrors}
-            onClearError={clearValidation}
-            onToggle={toggleIn('replacements')}
-            onScopePick={toggleScopeIn('replacements')}
-            onRemove={(identity) => removeFrom('replacements', identity)}
-            onPatch={(identity, p) => updatePair('replacements', identity, p)}
-          />
+      </Field>
 
-          <RuleSection
-            sectionKey="crossSells"
-            titleKey="pr.crossSells"
-            hintKey="pr.crossSellsHint"
-            addLabelKey="pr.addCrossSell"
-            items={cfg.crossSells}
-            disabled={disabled}
-            bonus={bonus}
-            goal={goal}
-            promotedName={promotedName}
-            promotedProductId={promotedProductId}
-            promotedPrice={promotedPrice}
-            errors={validationErrors}
-            onClearError={clearValidation}
-            onToggle={toggleIn('crossSells')}
-            onScopePick={toggleScopeIn('crossSells')}
-            onRemove={(identity) => removeFrom('crossSells', identity)}
-            onPatch={(identity, p) => updatePair('crossSells', identity, p)}
-          />
+      {submitError && (
+        <div
+          className="rounded-xl border border-accent-danger/30 bg-accent-danger/5 px-4 py-3 text-[13px] text-accent-danger"
+          role="alert"
+          aria-live="assertive"
+          data-testid="promo-rules-validation-summary"
+        >
+          <div className="font-extrabold">{t('pr.validationTitle')}</div>
+          <div className="mt-0.5 font-semibold">
+            {Object.keys(validationErrors).length > 0
+              ? t('pr.validationCount', { count: Object.keys(validationErrors).length })
+              : submitError}
+          </div>
+        </div>
+      )}
 
-          {/* Цель — одна на всю кампанию (применяется ко всем парам). */}
-          <Field label={t('pr.campaignGoal')} hint={t('pr.campaignGoalHint')}>
-            <div className="grid grid-cols-3 gap-2">
-              <InlineValidatedField error={validationErrors.goalLabel} path="goalLabel">
-                <Input
-                  value={cfg.goalLabel ?? ''}
-                  disabled={disabled}
-                  maxLength={PROMO_RULE_LIMITS.goalLabel}
-                  placeholder={t('pr.goalLabel')}
-                  data-testid="pr-goal-label"
-                  onChange={(e) => {
-                    clearValidation('goalLabel')
-                    setCfg((c) => ({ ...c, goalLabel: e.target.value || null }))
-                  }}
-                />
-              </InlineValidatedField>
-              <InlineValidatedField error={validationErrors.goalTarget} path="goalTarget">
-                <Input
-                  type="number"
-                  min={1}
-                  max={PROMO_RULE_LIMITS.maxInt}
-                  step={1}
-                  value={cfg.goalTarget ?? ''}
-                  disabled={disabled}
-                  placeholder={t('pr.goalTarget')}
-                  data-testid="pr-goal-target"
-                  onChange={(e) => {
-                    clearValidation('goalTarget')
-                    setCfg((c) => ({
-                      ...c,
-                      goalTarget: e.target.value === '' ? null : Number(e.target.value),
-                    }))
-                  }}
-                />
-              </InlineValidatedField>
-              <InlineValidatedField error={validationErrors.goalBonus} path="goalBonus">
-                <Input
-                  type="number"
-                  min={0}
-                  max={PROMO_RULE_LIMITS.maxInt}
-                  step={1}
-                  value={cfg.goalBonus ?? ''}
-                  disabled={disabled}
-                  placeholder={t('pr.goalBonus')}
-                  data-testid="pr-goal-bonus"
-                  onChange={(e) => {
-                    clearValidation('goalBonus')
-                    setCfg((c) => ({
-                      ...c,
-                      goalBonus: e.target.value === '' ? null : Number(e.target.value),
-                    }))
-                  }}
-                />
-              </InlineValidatedField>
-            </div>
-          </Field>
-
-          {submitError && (
-            <div
-              className="rounded-xl border border-accent-danger/30 bg-accent-danger/5 px-4 py-3 text-[13px] text-accent-danger"
-              role="alert"
-              aria-live="assertive"
-              data-testid="promo-rules-validation-summary"
-            >
-              <div className="font-extrabold">{t('pr.validationTitle')}</div>
-              <div className="mt-0.5 font-semibold">
-                {Object.keys(validationErrors).length > 0
-                  ? t('pr.validationCount', { count: Object.keys(validationErrors).length })
-                  : submitError}
-              </div>
-            </div>
-          )}
-
-          {!disabled && (
-            <div className="hairline flex items-center justify-end border-t pt-3">
-              <Button
-                variant="primary"
-                disabled={save.isPending}
-                onClick={onSave}
-                data-testid="promo-rules-save"
-              >
-                {save.isPending ? t('pm.creating') : t('pr.save')}
-              </Button>
-            </div>
-          )}
-        </>
+      {!disabled && (
+        <div className="hairline flex items-center justify-end border-t pt-3">
+          <Button
+            variant="primary"
+            disabled={saving}
+            onClick={onSave}
+            data-testid="promo-rules-save"
+          >
+            {saving ? t('pm.creating') : 'Сохранить изменения'}
+          </Button>
+        </div>
       )}
     </div>
   )
@@ -665,8 +633,7 @@ function PairCard({
   const cardError = errors[triggerErrorPath]
   const hasAdvancedError = Object.keys(errors).some(
     (path) =>
-      path.startsWith(`${pathPrefix}.partnerLabel`) ||
-      path.startsWith(`${pathPrefix}.comparison[`),
+      path.startsWith(`${pathPrefix}.partnerLabel`) || path.startsWith(`${pathPrefix}.comparison[`),
   )
 
   useEffect(() => {
@@ -748,73 +715,78 @@ function PairCard({
           </div>
         )}
 
-        {!isBroadTrigger && <div className="grid gap-2 sm:grid-cols-2">
-          <label className="flex min-w-0 flex-col gap-1">
-            <span className="text-[11px] font-bold uppercase tracking-[0.04em] text-ink-400">
-              {t('pr.barcode')}
-            </span>
-            <Input
-              className={`num ${errors[`${pathPrefix}.barcode`] ? 'border-accent-danger' : ''}`}
-              value={r.barcode ?? ''}
-              disabled={disabled}
-              maxLength={PROMO_RULE_LIMITS.barcode}
-              data-validation-path={`${pathPrefix}.barcode`}
-              aria-invalid={errors[`${pathPrefix}.barcode`] ? true : undefined}
-              aria-describedby={
-                errors[`${pathPrefix}.barcode`]
-                  ? validationErrorId(`${pathPrefix}.barcode`)
-                  : undefined
-              }
-              data-testid={`pr-barcode-${domId}`}
-              onChange={(e) => {
-                onClearError(`${pathPrefix}.barcode`)
-                onPatch({ barcode: e.target.value || null })
-              }}
-            />
-            {errors[`${pathPrefix}.barcode`] && (
-              <span
-                id={validationErrorId(`${pathPrefix}.barcode`)}
-                className="text-[11px] font-semibold text-accent-danger"
-              >
-                {errors[`${pathPrefix}.barcode`]}
+        {!isBroadTrigger && (
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="flex min-w-0 flex-col gap-1">
+              <span className="text-[11px] font-bold uppercase tracking-[0.04em] text-ink-400">
+                {t('pr.barcode')}
               </span>
-            )}
-          </label>
-          <label className="flex min-w-0 flex-col gap-1">
-            <span className="text-[11px] font-bold uppercase tracking-[0.04em] text-ink-400">
-              {t('pr.ipartId')}
-            </span>
-            <Input
-              className={`num ${errors[`${pathPrefix}.ipartId`] ? 'border-accent-danger' : ''}`}
-              value={r.ipartId ?? ''}
-              disabled={disabled}
-              maxLength={PROMO_RULE_LIMITS.ipartId}
-              data-validation-path={`${pathPrefix}.ipartId`}
-              aria-invalid={errors[`${pathPrefix}.ipartId`] ? true : undefined}
-              aria-describedby={
-                errors[`${pathPrefix}.ipartId`]
-                  ? validationErrorId(`${pathPrefix}.ipartId`)
-                  : undefined
-              }
-              data-testid={`pr-ipart-${domId}`}
-              onChange={(e) => {
-                onClearError(`${pathPrefix}.ipartId`)
-                onPatch({ ipartId: e.target.value || null })
-              }}
-            />
-            {errors[`${pathPrefix}.ipartId`] && (
-              <span
-                id={validationErrorId(`${pathPrefix}.ipartId`)}
-                className="text-[11px] font-semibold text-accent-danger"
-              >
-                {errors[`${pathPrefix}.ipartId`]}
+              <Input
+                className={`num ${errors[`${pathPrefix}.barcode`] ? 'border-accent-danger' : ''}`}
+                value={r.barcode ?? ''}
+                disabled={disabled}
+                maxLength={PROMO_RULE_LIMITS.barcode}
+                data-validation-path={`${pathPrefix}.barcode`}
+                aria-invalid={errors[`${pathPrefix}.barcode`] ? true : undefined}
+                aria-describedby={
+                  errors[`${pathPrefix}.barcode`]
+                    ? validationErrorId(`${pathPrefix}.barcode`)
+                    : undefined
+                }
+                data-testid={`pr-barcode-${domId}`}
+                onChange={(e) => {
+                  onClearError(`${pathPrefix}.barcode`)
+                  onPatch({ barcode: e.target.value || null })
+                }}
+              />
+              {errors[`${pathPrefix}.barcode`] && (
+                <span
+                  id={validationErrorId(`${pathPrefix}.barcode`)}
+                  className="text-[11px] font-semibold text-accent-danger"
+                >
+                  {errors[`${pathPrefix}.barcode`]}
+                </span>
+              )}
+            </label>
+            <label className="flex min-w-0 flex-col gap-1">
+              <span className="text-[11px] font-bold uppercase tracking-[0.04em] text-ink-400">
+                {t('pr.ipartId')}
               </span>
-            )}
-          </label>
-        </div>}
+              <Input
+                className={`num ${errors[`${pathPrefix}.ipartId`] ? 'border-accent-danger' : ''}`}
+                value={r.ipartId ?? ''}
+                disabled={disabled}
+                maxLength={PROMO_RULE_LIMITS.ipartId}
+                data-validation-path={`${pathPrefix}.ipartId`}
+                aria-invalid={errors[`${pathPrefix}.ipartId`] ? true : undefined}
+                aria-describedby={
+                  errors[`${pathPrefix}.ipartId`]
+                    ? validationErrorId(`${pathPrefix}.ipartId`)
+                    : undefined
+                }
+                data-testid={`pr-ipart-${domId}`}
+                onChange={(e) => {
+                  onClearError(`${pathPrefix}.ipartId`)
+                  onPatch({ ipartId: e.target.value || null })
+                }}
+              />
+              {errors[`${pathPrefix}.ipartId`] && (
+                <span
+                  id={validationErrorId(`${pathPrefix}.ipartId`)}
+                  className="text-[11px] font-semibold text-accent-danger"
+                >
+                  {errors[`${pathPrefix}.ipartId`]}
+                </span>
+              )}
+            </label>
+          </div>
+        )}
 
         {!isBroadTrigger && barcodes.length > 1 && (
-          <div className="num max-h-16 overflow-y-auto break-all text-[11px] text-ink-500" data-testid={`pr-barcodes-${domId}`}>
+          <div
+            className="num max-h-16 overflow-y-auto break-all text-[11px] text-ink-500"
+            data-testid={`pr-barcodes-${domId}`}
+          >
             {t('pp.barcodesCount', { count: barcodes.length })} · {barcodes.join(', ')}
           </div>
         )}
@@ -829,9 +801,7 @@ function PairCard({
           aria-label={t('pr.pairScript')}
           aria-invalid={errors[`${pathPrefix}.script`] ? true : undefined}
           aria-describedby={
-            errors[`${pathPrefix}.script`]
-              ? validationErrorId(`${pathPrefix}.script`)
-              : undefined
+            errors[`${pathPrefix}.script`] ? validationErrorId(`${pathPrefix}.script`) : undefined
           }
           data-validation-path={`${pathPrefix}.script`}
           data-testid={`pr-script-${domId}`}
@@ -906,61 +876,63 @@ function PairCard({
               const offerPath = `${pathPrefix}.additionalRecommendations[${offerIndex}].medusaProductId`
               const offerError = errors[offerPath]
               return (
-              <li
-                key={offer.medusaProductId}
-                className={`grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 px-3 py-2 ${offerError ? 'bg-accent-danger/5' : ''}`}
-                data-testid={`pr-offer-${domId}-${offer.medusaProductId}`}
-                data-validation-path={offerPath}
-                tabIndex={offerError ? -1 : undefined}
-                aria-invalid={offerError ? true : undefined}
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[12px] font-bold text-ink-900">{offer.name}</div>
-                  {offer.brand && (
-                    <div className="truncate text-[10px] font-semibold text-ink-400">
-                      {offer.brand}
-                    </div>
+                <li
+                  key={offer.medusaProductId}
+                  className={`grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 px-3 py-2 ${offerError ? 'bg-accent-danger/5' : ''}`}
+                  data-testid={`pr-offer-${domId}-${offer.medusaProductId}`}
+                  data-validation-path={offerPath}
+                  tabIndex={offerError ? -1 : undefined}
+                  aria-invalid={offerError ? true : undefined}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[12px] font-bold text-ink-900">{offer.name}</div>
+                    {offer.brand && (
+                      <div className="truncate text-[10px] font-semibold text-ink-400">
+                        {offer.brand}
+                      </div>
+                    )}
+                    {offerError && (
+                      <div className="text-[10px] font-semibold text-accent-danger">
+                        {offerError}
+                      </div>
+                    )}
+                  </div>
+                  {offer.price != null && (
+                    <span className="num text-[12px] font-extrabold text-ink-900">
+                      {offer.price.toLocaleString('ru-RU')} ₸
+                    </span>
                   )}
-                  {offerError && (
-                    <div className="text-[10px] font-semibold text-accent-danger">{offerError}</div>
+                  {!disabled && (
+                    <button
+                      type="button"
+                      onClick={() => removeOffer(offer.medusaProductId)}
+                      aria-label={t('pr.removeOffer')}
+                      className="text-ink-400 hover:text-accent-danger"
+                    >
+                      <IconClose size={13} />
+                    </button>
                   )}
-                </div>
-                {offer.price != null && (
-                  <span className="num text-[12px] font-extrabold text-ink-900">
-                    {offer.price.toLocaleString('ru-RU')} ₸
-                  </span>
-                )}
-                {!disabled && (
-                  <button
-                    type="button"
-                    onClick={() => removeOffer(offer.medusaProductId)}
-                    aria-label={t('pr.removeOffer')}
-                    className="text-ink-400 hover:text-accent-danger"
-                  >
-                    <IconClose size={13} />
-                  </button>
-                )}
-                <div className="col-span-3">
-                  <OfferBonusInput
-                    id={`pr-bonus-${domId}-${offer.medusaProductId}`}
-                    value={offer.bonus}
-                    fallback={bonus}
-                    disabled={disabled}
-                    path={`${pathPrefix}.additionalRecommendations[${offerIndex}].bonus`}
-                    error={errors[`${pathPrefix}.additionalRecommendations[${offerIndex}].bonus`]}
-                    onChange={(next) => {
-                      onClearError(`${pathPrefix}.additionalRecommendations[${offerIndex}].bonus`)
-                      onPatch({
-                        additionalRecommendations: offers.map((current) =>
-                          current.medusaProductId === offer.medusaProductId
-                            ? { ...current, bonus: next }
-                            : current,
-                        ),
-                      })
-                    }}
-                  />
-                </div>
-              </li>
+                  <div className="col-span-3">
+                    <OfferBonusInput
+                      id={`pr-bonus-${domId}-${offer.medusaProductId}`}
+                      value={offer.bonus}
+                      fallback={bonus}
+                      disabled={disabled}
+                      path={`${pathPrefix}.additionalRecommendations[${offerIndex}].bonus`}
+                      error={errors[`${pathPrefix}.additionalRecommendations[${offerIndex}].bonus`]}
+                      onChange={(next) => {
+                        onClearError(`${pathPrefix}.additionalRecommendations[${offerIndex}].bonus`)
+                        onPatch({
+                          additionalRecommendations: offers.map((current) =>
+                            current.medusaProductId === offer.medusaProductId
+                              ? { ...current, bonus: next }
+                              : current,
+                          ),
+                        })
+                      }}
+                    />
+                  </div>
+                </li>
               )
             })}
           </ul>
@@ -1050,9 +1022,7 @@ function PairCard({
                         onChange={(e) => {
                           onClearError(`${pathPrefix}.comparison[${i}].label`)
                           setComparison(
-                            cmp.map((x, idx) =>
-                              idx === i ? { ...x, label: e.target.value } : x,
-                            ),
+                            cmp.map((x, idx) => (idx === i ? { ...x, label: e.target.value } : x)),
                           )
                         }}
                         placeholder={`${t('pr.colLabel')} *`}
@@ -1193,7 +1163,9 @@ function RecommendationPreview({
   //  • кросс-селл — триггер = товар уже в чеке (r), ДОБАВЬТЕ = товар кампании.
   const triggerLabel = isBroadTrigger
     ? t(`pr.triggerKind.${promoTriggerKind(r)}`)
-    : isReplace ? t('pr.previewAsked') : t('pr.previewInCart')
+    : isReplace
+      ? t('pr.previewAsked')
+      : t('pr.previewInCart')
   const triggerName = isBroadTrigger ? r.triggerLabel || r.name : r.name
   // EAN-13 триггера: выбранный товар пары является trigger и для замены, и для кросс-селла.
   const triggerBarcode = isBroadTrigger ? null : r.barcode
@@ -1237,7 +1209,9 @@ function RecommendationPreview({
             <div className="text-[10px] font-bold uppercase tracking-wide text-ink-500">
               {triggerLabel}
             </div>
-            <div className="text-[13px] font-extrabold leading-tight text-recommendation-ink">{triggerName}</div>
+            <div className="text-[13px] font-extrabold leading-tight text-recommendation-ink">
+              {triggerName}
+            </div>
             {isBroadTrigger && (
               <div className="text-[10px] text-ink-500">{t('pr.previewScopeActualProduct')}</div>
             )}
@@ -1265,12 +1239,18 @@ function RecommendationPreview({
               }`}
               data-testid={`pr-preview-card-${domId}-${offer.id}`}
             >
-              <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[12px] font-extrabold ${
-                offer.bonus > 0 ? 'bg-white/20 text-white' : 'bg-ink-100 text-recommendation-ink'
-              }`}>{index + 1}</span>
+              <span
+                className={`flex h-6 w-6 items-center justify-center rounded-full text-[12px] font-extrabold ${
+                  offer.bonus > 0 ? 'bg-white/20 text-white' : 'bg-ink-100 text-recommendation-ink'
+                }`}
+              >
+                {index + 1}
+              </span>
               <div className="min-w-0 flex-1">
                 <div className="text-[13px] font-extrabold leading-tight">{offer.name}</div>
-                <div className={`text-[11px] ${offer.bonus > 0 ? 'text-white/80' : 'text-ink-500'}`}>
+                <div
+                  className={`text-[11px] ${offer.bonus > 0 ? 'text-white/80' : 'text-ink-500'}`}
+                >
                   {offer.brand || title}
                 </div>
               </div>
@@ -1278,7 +1258,9 @@ function RecommendationPreview({
                 <div className="num whitespace-nowrap text-[15px] font-extrabold">
                   {fmtPrice(offer.price) || '—'}
                 </div>
-                <div className={`whitespace-nowrap text-[10px] ${offer.bonus > 0 ? 'text-white/90' : 'text-ink-500'}`}>
+                <div
+                  className={`whitespace-nowrap text-[10px] ${offer.bonus > 0 ? 'text-white/90' : 'text-ink-500'}`}
+                >
                   {offer.bonus > 0
                     ? `${t('pr.previewReward')} +${offer.bonus.toLocaleString('ru-RU')} ₸`
                     : t('pr.previewNoReward')}

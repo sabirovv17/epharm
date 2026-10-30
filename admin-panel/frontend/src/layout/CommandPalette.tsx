@@ -7,7 +7,7 @@
 import { useState, type ReactNode } from 'react'
 import type { UserDto } from '@/lib/api-types'
 import { type SectionId } from '@/mocks/fixtures'
-import { sectionsForRole } from '@/app/accessPolicy'
+import { adminNavigationForRole, navigationIcon } from '@/app/adminNavigation'
 import { IconSearch } from '@/ui/icons'
 import { useT } from '@/i18n'
 
@@ -15,10 +15,18 @@ interface CommandPaletteProps {
   onClose: () => void
   onNav: (id: SectionId) => void
   user: UserDto
+  onNavigate?: (path: string) => void
+  canViewMerchInventory?: boolean
+  canViewMerchPlacements?: boolean
+  canViewMerchTasks?: boolean
+  canViewMerchStaffAccess?: boolean
+  canViewLedger?: boolean
 }
 
 interface Item {
-  id: SectionId
+  id: string
+  section?: SectionId
+  path: string
   label: string
   sub: string
   icon: ReactNode
@@ -26,26 +34,49 @@ interface Item {
 
 // Монтируется ТОЛЬКО когда открыта (см. AppShell), поэтому состояние поиска
 // сбрасывается само при каждом открытии — без setState-в-effect (cascading renders).
-export function CommandPalette({ onClose, onNav, user }: CommandPaletteProps) {
+export function CommandPalette({
+  onClose,
+  onNav,
+  user,
+  onNavigate,
+  canViewMerchInventory = false,
+  canViewMerchPlacements = false,
+  canViewMerchTasks = false,
+  canViewMerchStaffAccess = false,
+  canViewLedger = false,
+}: CommandPaletteProps) {
   const t = useT()
   const [q, setQ] = useState('')
 
-  const items: Item[] = sectionsForRole(user.role).map((s) => {
-    const Icon = s.Icon
-    return {
-      id: s.id,
-      label: t(`nav.${s.id}`),
-      sub: t(`group.${s.group}`),
-      icon: <Icon size={16} />,
-    }
-  })
+  const items: Item[] = adminNavigationForRole(user.role, {
+    inventory: canViewMerchInventory,
+    placements: canViewMerchPlacements,
+    tasks: canViewMerchTasks,
+    staffAccess: canViewMerchStaffAccess,
+    ledger: canViewLedger,
+  }).flatMap((module) =>
+    module.items
+      .filter((item) => item.available && item.path)
+      .map((item) => {
+        const Icon = navigationIcon(item) ?? module.Icon
+        return {
+          id: item.id,
+          section: item.section,
+          path: item.path!,
+          label: item.labelKey ? t(item.labelKey) : (item.label ?? ''),
+          sub: t(`module.${module.id}`),
+          icon: <Icon size={16} />,
+        }
+      }),
+  )
 
   const filtered = q
     ? items.filter((i) => `${i.label} ${i.sub}`.toLowerCase().includes(q.toLowerCase()))
-    : items.slice(0, 12)
+    : items
 
   const onPick = (it: Item) => {
-    onNav(it.id)
+    if (onNavigate) onNavigate(it.path)
+    else if (it.section) onNav(it.section)
     onClose()
   }
 

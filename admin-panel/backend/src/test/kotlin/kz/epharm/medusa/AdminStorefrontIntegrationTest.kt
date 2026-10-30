@@ -73,7 +73,7 @@ class AdminStorefrontIntegrationTest {
         adminUserRepository.deleteAll()
         pharmacistRepository.deleteAll()
 
-        val admin = adminUserRepository.save(
+        val admin = adminUserRepository.saveAndFlush(
             AdminUserEntity(email = "hq@inkar.kz", passwordHash = passwordEncoder.encode("x"),
                 name = "HQ", company = "Inkar")
                 .also { it.role = AdminRole.HQ_HEAD; it.status = AdminUserStatus.ACTIVE },

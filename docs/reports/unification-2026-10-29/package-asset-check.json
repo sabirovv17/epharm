@@ -1,0 +1,25 @@
+[
+  {
+    "path": "admin-panel/backend/src/main/resources/fonts/NotoSans-Regular.ttf",
+    "bytes": 825628,
+    "source_sha256": "f5f552c8c5edb61fe6efb824baf4d4de47b1a8689ab4925ff43f7bd6a4ebece5",
+    "proof": "source_file_exists_not_built_artifact"
+  },
+  {
+    "path": "admin-panel/backend/src/main/resources/fonts/NotoSans-ExtraBold.ttf",
+    "bytes": 835284,
+    "source_sha256": "678c30c8d959caa7b71dea8bfca5d2c46a5e1107d4f7a1ea3863ce51705a5fab",
+    "proof": "source_file_exists_not_built_artifact"
+  },
+  {
+    "path": "admin-panel/frontend/public/templates/epharm-course-import-template.xlsx",
+    "bytes": 9342,
+    "source_sha256": "55a1327f0e6ecf0cdbeacee7e1b7f63ef149878c8a44674f33c775c7f6822041",
+    "proof": "source_file_exists_not_built_artifact",
+    "live_http_status": 200,
+    "live_content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "live_sha256": "55a1327f0e6ecf0cdbeacee7e1b7f63ef149878c8a44674f33c775c7f6822041",
+    "live_is_xlsx": true,
+    "live_matches_source": true
+  }
+]

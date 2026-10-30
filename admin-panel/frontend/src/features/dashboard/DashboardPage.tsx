@@ -31,7 +31,17 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader title={t('page.dashboard.title')} subtitle={t('page.dashboard.subtitle')} actions={canExportCampaignReports(user?.role) ? <Link className="btn btn-md btn-outline" to="/dashboard/reports">Отчёты производителю · PDF</Link> : undefined} />
+      <PageHeader
+        title={t('page.dashboard.title')}
+        subtitle={t('page.dashboard.subtitle')}
+        actions={
+          canExportCampaignReports(user?.role) ? (
+            <Link className="btn btn-md btn-outline" to="/dashboard/reports">
+              Отчёты производителю · Excel
+            </Link>
+          ) : undefined
+        }
+      />
 
       {isError && !s && (
         <Empty
@@ -186,10 +196,13 @@ function MiniKpi({ label, value, accent }: { label: string; value: string; accen
 function RecommendationsSection() {
   const t = useT()
   const [page, setPage] = useState(0)
-  const { data: a, isFetching, isError, error, refetch } = useRecommendationAnalytics(
-    page,
-    JOURNAL_PAGE_SIZE,
-  )
+  const {
+    data: a,
+    isFetching,
+    isError,
+    error,
+    refetch,
+  } = useRecommendationAnalytics(page, JOURNAL_PAGE_SIZE)
   const log = a?.log ?? []
   // Fallback-поля сохраняют UI рабочим во время rolling deploy, если новый frontend
   // на несколько секунд попал на старый backend без метаданных пагинации.
@@ -259,10 +272,7 @@ function RecommendationsSection() {
       </div>
 
       {log.length === 0 ? (
-        <Empty
-          title={t('recan.empty')}
-          icon={<IconEye size={22} />}
-        />
+        <Empty title={t('recan.empty')} icon={<IconEye size={22} />} />
       ) : (
         <div>
           <div className={`overflow-x-auto ${isFetching ? 'opacity-70' : ''}`}>

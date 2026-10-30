@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "sourceArtifactSha256": "a081be20eb1b850719ecc11ea98c2015f4e09420da8b35a38d5e0355db34cc83",
+  "sourceCapturedAt": "2026-10-30T01:56:01.430305+00:00",
+  "computedAt": "2026-10-30T02:23:59.811889+00:00",
+  "rawCodesTokensPhonesOrIdentitiesIncluded": false,
+  "staffAccess": {
+    "total": 10,
+    "activeNotRevoked": 10,
+    "activeUnexpired": 0,
+    "activeUnexpiredOrganizationActive": 0,
+    "sixDigitUseLimitAvailable": 0,
+    "qrMaterialAvailable": 0,
+    "sixDigitUsableWithRequiredOwner": 0,
+    "qrUsableWithRequiredOwner": 0,
+    "allExpiredByDeadline": 10
+  },
+  "executorClaims": {
+    "total": 0,
+    "pendingUnexpired": 0,
+    "bindings": 0,
+    "links": 0
+  },
+  "staffSessions": {
+    "total": 0,
+    "unrevokedUnexpired": 0
+  },
+  "organizationMemberCount": 0,
+  "visitReports": 0,
+  "nativeSharedCodeIssuanceAndWorkspaceDelivered": false,
+  "scopeDecisionPending": true
+}

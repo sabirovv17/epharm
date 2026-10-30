@@ -1,0 +1,60 @@
+{
+  "date": "2026-10-29",
+  "network_mode": "none",
+  "published_ports": [],
+  "prod_mutations": "Only explicitly authorized backup pointer canonicalization and preservation audit; no other writes",
+  "backup_sha256": {
+    "epharm": "6302023e25f1707de96d5ac4dc61086c042976a7599d53cccf89f15e080f7698",
+    "minio": "3a2d040b2280a26801f4234505ce03509cb72524cce45a11f12139b513079c7e",
+    "crm": "89574d117517ebfbbaa45f17400c3cd03b306ceea28104b52086242ee9b36b9a"
+  },
+  "epharm_restore": {
+    "postgres_major": 16,
+    "exit_code": 0,
+    "counts": {
+      "tables": 73,
+      "sales": 1793268,
+      "recommendations": 47010,
+      "flyway": 65,
+      "pharmacists": 6
+    }
+  },
+  "crm_restore": {
+    "postgres_major": 18,
+    "exit_code": 0,
+    "counts": {
+      "tables": 57,
+      "branches": 680,
+      "users": 6,
+      "tasks": 82,
+      "attachments": 11,
+      "crosswalk": 532,
+      "migrations": 87
+    }
+  },
+  "version_finding": "CRM source is PostgreSQL18.6 with dump format1.16; PG16 restore refused without mutation to source. It was restored in isolated18; do not use direct pg_restore18->16 as the unification migration.",
+  "minio": {
+    "restored_object_files": 16,
+    "bytes": 114554039
+  },
+  "crm_storage": {
+    "restored_files": 31,
+    "bytes": 11057247
+  },
+  "downloads": {
+    "all_available_files": 20,
+    "bytes": 1020840495,
+    "private_copy_sha256_matches_source_manifest": 20,
+    "database_expected_download_references": 13,
+    "source_manifest_verified_references": 12,
+    "preexisting_noncurrent_zip_404": "1.0.54"
+  },
+  "limits": [
+    "Private snapshots represent02:30/03:29/03:30 backups, not a live cutover snapshot or final delta capture.",
+    "Restored accounts/roles are isolated audit DBs. This does not test app/RLS/credentials or a production rollback.",
+    "No personal rows, phone/IIN/password hashes, secrets, QR capabilities or raw photo/video/ZIP bytes committed.",
+    "Windows terminal-local receipts/outboxes/media cache not copied from live cash desks; they require K2.",
+    "Data volumes and full archives are private outside repository; containers have no network or published ports."
+  ],
+  "local_containers_after_checks": "stopped, not removed; private source archives and restored volumes preserved"
+}
