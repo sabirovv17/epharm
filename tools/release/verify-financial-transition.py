@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reject legacy financial writers or access control on a forward-migrated database.
+"""Reject legacy financial writers, access control or admin sessions on a forward-migrated database.
 
 Artifact markers guard known regressions; they do not approve a fallback release or
 replace exact-source review, forward-schema rehearsal, or physical POSM acceptance.
@@ -39,6 +39,14 @@ ACCESS_CLASSES = {
     'kz/epharm/auth/access/UnifiedAdminCatalog.class':
         ('/unified-admin-routes.json', '/training-role-ceilings.json', 'availableRoles', 'NOT_READY', 'allScope'),
 }
+SESSION_CLASSES = {
+    'kz/epharm/auth/service/JwtService.class':
+        ('getSessionVersion', 'adminSessionVersionOf', 'hasValidSignedAdminVersion'),
+    'kz/epharm/auth/security/JwtAuthenticationFilter.class':
+        ('adminSessionVersionOf', 'kz/epharm/auth/security/AdminSessionLoader', 'load'),
+    'kz/epharm/auth/security/AdminSessionLoader.class':
+        ('getSessionVersion', 'getStatusRaw', 'kz/epharm/auth/security/AdminPrincipal'),
+}
 SCHEMA_PROBE = """SELECT CASE WHEN
   to_regclass('public.pharmacist_wallet_entries') IS NOT NULL OR
   to_regclass('public.pharmacist_wallet_checkpoints') IS NOT NULL OR
@@ -56,9 +64,14 @@ ACCESS_SCHEMA_PROBE = """SELECT CASE WHEN
   EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public'
          AND table_name='admin_users' AND column_name='access_mode')
 THEN 'protected' ELSE 'legacy' END;\n"""
+SESSION_SCHEMA_PROBE = """SELECT CASE WHEN
+  EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public'
+         AND table_name='admin_users' AND column_name='session_version')
+THEN 'protected' ELSE 'legacy' END;\n"""
 
 
-def verify(jar_path: Path, schema_protected: bool, access_protected: bool = False) -> bool:
+def verify(jar_path: Path, schema_protected: bool, access_protected: bool = False,
+           session_protected: bool = False) -> bool:
     with zipfile.ZipFile(jar_path) as jar:
         entries = jar.namelist()
         names = set(entries)
@@ -76,6 +89,17 @@ def verify(jar_path: Path, schema_protected: bool, access_protected: bool = Fals
                 body = jar.read(path)
                 if any(marker.encode('ascii') not in body for marker in markers):
                     raise ValueError('Target contains obsolete managed-access scope handling')
+        session_code = any(re.fullmatch(r'BOOT-INF/classes/db/migration/V0*93__[^/]+\.sql', name)
+                           for name in names)
+        # Schema presence is durable; a zero-version check could race a password change before rollback.
+        if session_protected or session_code:
+            for name, markers in SESSION_CLASSES.items():
+                path = 'BOOT-INF/classes/' + name
+                if path not in names or jar.getinfo(path).file_size > 2 * 1024 * 1024:
+                    raise ValueError('Target lacks the reviewed admin session-version implementation')
+                body = jar.read(path)
+                if any(marker.encode('ascii') not in body for marker in markers):
+                    raise ValueError('Target contains obsolete admin session-version handling')
         if RESOURCE not in names:
             financial_code = f'BOOT-INF/classes/{WALLET}.class' in names or any(
                 re.fullmatch(r'BOOT-INF/classes/db/migration/V0*(62|63|64)__[^/]+\.sql', name)
@@ -118,9 +142,14 @@ def access_schema_is_protected() -> bool:
     return _schema_is_protected(ACCESS_SCHEMA_PROBE, 'managed-access')
 
 
+def session_schema_is_protected() -> bool:
+    return _schema_is_protected(SESSION_SCHEMA_PROBE, 'admin-session')
+
+
 def verify_image(image: str) -> bool:
     protected = schema_is_protected()
     access_protected = access_schema_is_protected()
+    session_protected = session_schema_is_protected()
     container = subprocess.check_output(['docker', 'create', '--network', 'none', image],
         text=True, stderr=subprocess.DEVNULL, timeout=15).strip()
     if not re.fullmatch(r'[a-f0-9]{64}', container):
@@ -130,7 +159,7 @@ def verify_image(image: str) -> bool:
             jar = Path(directory) / 'app.jar'
             subprocess.run(['docker', 'cp', f'{container}:/app/app.jar', str(jar)],
                 check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
-            return verify(jar, protected, access_protected)
+            return verify(jar, protected, access_protected, session_protected)
     finally:
         subprocess.run(['docker', 'rm', container], check=True, stdout=subprocess.DEVNULL,
                        stderr=subprocess.DEVNULL, timeout=15)
@@ -143,14 +172,17 @@ def main() -> None:
     source.add_argument('--jar', type=Path, help='Offline artifact check only')
     parser.add_argument('--schema-protected', action='store_true', help='Offline --jar fixture represents migrated DB')
     parser.add_argument('--access-protected', action='store_true', help='Offline --jar fixture represents the V066 access schema')
+    parser.add_argument('--session-protected', action='store_true', help='Offline --jar fixture represents the V093 admin-session schema')
     args = parser.parse_args()
-    if args.image and (args.schema_protected or args.access_protected or not re.fullmatch(r'sha256:[a-f0-9]{64}', args.image)):
+    if args.image and (args.schema_protected or args.access_protected or args.session_protected or
+                       not re.fullmatch(r'sha256:[a-f0-9]{64}', args.image)):
         parser.error('Production checks require an exact image ID and live read-only DB probe')
     try:
-        capable = verify_image(args.image) if args.image else verify(args.jar, args.schema_protected, args.access_protected)
+        capable = verify_image(args.image) if args.image else verify(
+            args.jar, args.schema_protected, args.access_protected, args.session_protected)
     except (OSError, ValueError, KeyError, UnicodeError, RuntimeError, zipfile.BadZipFile, subprocess.SubprocessError):
-        raise SystemExit('ERROR: financial/access transition denied or state unknown; keep current pins and use a reviewed wallet/RBAC-capable forward image') from None
-    print('Financial transition contract OK: ' + ('wallet-capable artifact' if capable else 'legacy schema/artifact') + '; managed-access guard checked')
+        raise SystemExit('ERROR: financial/access/session transition denied or state unknown; keep current pins and use a reviewed wallet/RBAC/session-capable forward image') from None
+    print('Financial transition contract OK: ' + ('wallet-capable artifact' if capable else 'legacy schema/artifact') + '; managed-access and admin-session guards checked')
 
 
 if __name__ == '__main__':

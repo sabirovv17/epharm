@@ -20,7 +20,8 @@ class FinancialTransitionTests(unittest.TestCase):
         self.jar=Path(self.directory.name)/'app.jar'
 
     def artifact(self,resource=True,missing=None,obsolete=None,partial=False,
-                 access=False,access_missing=None,access_obsolete=None):
+                 access=False,access_missing=None,access_obsolete=None,
+                 session=False,session_missing=None,session_obsolete=None):
         with zipfile.ZipFile(self.jar,'w') as jar:
             if resource:
                 jar.writestr(guard.RESOURCE,'\n'.join(f'{key}={value}' for key,value in guard.CAPABILITY.items()))
@@ -34,6 +35,12 @@ class FinancialTransitionTests(unittest.TestCase):
                 for name,markers in guard.ACCESS_CLASSES.items():
                     if name==access_missing: continue
                     jar.writestr('BOOT-INF/classes/'+name,' '.join(markers[1:] if name==access_obsolete else markers))
+            if session:
+                jar.writestr('BOOT-INF/classes/db/migration/V093__admin_password_session_version.sql','session schema')
+                for name,markers in guard.SESSION_CLASSES.items():
+                    if name==session_missing: continue
+                    jar.writestr('BOOT-INF/classes/'+name,' '.join(
+                        marker for marker in markers if session_obsolete!=(name,marker)))
         return self.jar
 
     def test_legacy_artifact_only_allowed_before_protected_schema(self):
@@ -71,6 +78,47 @@ class FinancialTransitionTests(unittest.TestCase):
             jar.writestr('BOOT-INF/classes/db/migration/V066__unified_admin_access.sql','new access schema')
         with self.assertRaisesRegex(ValueError,'managed-access'):
             guard.verify(self.jar,False)
+
+    def test_new_session_migration_cannot_bypass_guard_on_a_legacy_database(self):
+        self.artifact(access=True)
+        with zipfile.ZipFile(self.jar,'a') as jar:
+            jar.writestr('BOOT-INF/classes/db/migration/V093__admin_password_session_version.sql','new session schema')
+        with self.assertRaisesRegex(ValueError,'session-version'):
+            guard.verify(self.jar,False)
+
+    def test_session_schema_rejects_legacy_sessions_without_weakening_other_guards(self):
+        self.artifact(access=True)
+        self.assertTrue(guard.verify(self.jar,True,True,False))
+        with self.assertRaisesRegex(ValueError,'session-version'):
+            guard.verify(self.jar,True,True,True)
+        self.artifact(resource=False)
+        with self.assertRaisesRegex(ValueError,'session-version'):
+            guard.verify(self.jar,False,False,True)
+        self.artifact(access=True,session=True,missing=next(iter(guard.WRITERS)))
+        with self.assertRaisesRegex(ValueError,'financial writer'):
+            guard.verify(self.jar,True,True,True)
+        self.artifact(session=True)
+        with self.assertRaisesRegex(ValueError,'managed-access'):
+            guard.verify(self.jar,True,True,True)
+
+    def test_reviewed_session_chain_supported_before_and_after_schema_migration(self):
+        self.artifact(access=True,session=True)
+        self.assertTrue(guard.verify(self.jar,False,False,False))
+        self.assertTrue(guard.verify(self.jar,True,True,True))
+        self.artifact(resource=False)
+        self.assertFalse(guard.verify(self.jar,False,False,False))
+
+    def test_every_session_component_and_enforcement_marker_is_required(self):
+        for name,markers in guard.SESSION_CLASSES.items():
+            with self.subTest(component=name):
+                self.artifact(access=True,session=True,session_missing=name)
+                with self.assertRaisesRegex(ValueError,'session-version'):
+                    guard.verify(self.jar,False,False,False)
+            for marker in markers:
+                with self.subTest(component=name,marker=marker):
+                    self.artifact(access=True,session=True,session_obsolete=(name,marker))
+                    with self.assertRaisesRegex(ValueError,'session-version'):
+                        guard.verify(self.jar,True,True,True)
 
     def test_new_access_support_cannot_weaken_the_wallet_guard(self):
         self.artifact(access=True,missing=next(iter(guard.WRITERS)))
@@ -143,6 +191,23 @@ class FinancialTransitionTests(unittest.TestCase):
             with patch.object(guard.subprocess,'run',return_value=subprocess.CompletedProcess([],0,output,'')):
                 with self.assertRaises(ValueError): guard.access_schema_is_protected()
 
+    def test_session_probe_uses_catalog_presence_without_reading_admin_rows(self):
+        with patch.object(guard.subprocess,'run',return_value=subprocess.CompletedProcess([],0,'protected\n','')) as run:
+            self.assertTrue(guard.session_schema_is_protected())
+        sql=run.call_args.kwargs['input'].lower()
+        self.assertIn('information_schema.columns',sql)
+        self.assertIn("table_schema='public'",sql)
+        self.assertIn("table_name='admin_users'",sql)
+        self.assertIn("column_name='session_version'",sql)
+        for forbidden in ('count(', 'from admin_users', 'max(', 'insert ', 'update ', 'delete ', 'drop ', 'alter '):
+            self.assertNotIn(forbidden,sql)
+        self.assertNotIn('password',' '.join(run.call_args.args[0]).lower())
+        with patch.object(guard.subprocess,'run',return_value=subprocess.CompletedProcess([],0,'legacy\n','')):
+            self.assertFalse(guard.session_schema_is_protected())
+        for output in ('','0','protected\nlegacy','private-unexpected-value'):
+            with patch.object(guard.subprocess,'run',return_value=subprocess.CompletedProcess([],0,output,'')):
+                with self.assertRaises(ValueError): guard.session_schema_is_protected()
+
     def test_image_inspection_never_starts_backend_and_cleans_container_after_denial(self):
         source=self.artifact(resource=False)
         image='sha256:'+'a'*64
@@ -154,6 +219,7 @@ class FinancialTransitionTests(unittest.TestCase):
             return subprocess.CompletedProcess(command,0,'','')
         with patch.object(guard,'schema_is_protected',return_value=True), \
              patch.object(guard,'access_schema_is_protected',return_value=False), \
+             patch.object(guard,'session_schema_is_protected',return_value=False), \
              patch.object(guard.subprocess,'check_output',return_value=container) as create, \
              patch.object(guard.subprocess,'run',side_effect=run):
             with self.assertRaises(ValueError): guard.verify_image(image)
@@ -170,6 +236,7 @@ class FinancialTransitionTests(unittest.TestCase):
             return subprocess.CompletedProcess(command,0,'','')
         with patch.object(guard,'schema_is_protected',return_value=True) as wallet, \
              patch.object(guard,'access_schema_is_protected',return_value=True) as access, \
+             patch.object(guard,'session_schema_is_protected',return_value=False), \
              patch.object(guard.subprocess,'check_output',return_value='b'*64), \
              patch.object(guard.subprocess,'run',side_effect=run):
             with self.assertRaisesRegex(ValueError,'managed-access'):
@@ -177,9 +244,36 @@ class FinancialTransitionTests(unittest.TestCase):
         wallet.assert_called_once(); access.assert_called_once()
         self.assertEqual(calls[-1],['docker','rm','b'*64])
 
+    def test_image_live_session_probe_rejects_legacy_session_chain_and_cleans_container(self):
+        source=self.artifact(access=True)
+        calls=[]
+        def run(command,**kwargs):
+            calls.append(command)
+            if command[1]=='cp': shutil.copyfile(source,command[-1])
+            return subprocess.CompletedProcess(command,0,'','')
+        with patch.object(guard,'schema_is_protected',return_value=True), \
+             patch.object(guard,'access_schema_is_protected',return_value=True), \
+             patch.object(guard,'session_schema_is_protected',return_value=True) as session, \
+             patch.object(guard.subprocess,'check_output',return_value='b'*64), \
+             patch.object(guard.subprocess,'run',side_effect=run):
+            with self.assertRaisesRegex(ValueError,'session-version'):
+                guard.verify_image('sha256:'+'a'*64)
+        session.assert_called_once()
+        self.assertEqual(calls[-1],['docker','rm','b'*64])
+
     def test_failed_access_probe_cannot_fall_back_to_the_wallet_result_or_echo_credentials(self):
         with patch.object(guard,'schema_is_protected',return_value=True), \
              patch.object(guard,'access_schema_is_protected',side_effect=subprocess.CalledProcessError(1,['docker'],stderr='private-password')), \
+             patch.object(guard.subprocess,'check_output') as create, \
+             patch('sys.argv',['guard','--image','sha256:'+'a'*64]):
+            with self.assertRaises(SystemExit) as error: guard.main()
+        self.assertNotIn('private-password',str(error.exception))
+        create.assert_not_called()
+
+    def test_failed_session_probe_stops_before_image_inspection_without_echoing_credentials(self):
+        with patch.object(guard,'schema_is_protected',return_value=True), \
+             patch.object(guard,'access_schema_is_protected',return_value=True), \
+             patch.object(guard,'session_schema_is_protected',side_effect=subprocess.CalledProcessError(1,['docker'],stderr='private-password')), \
              patch.object(guard.subprocess,'check_output') as create, \
              patch('sys.argv',['guard','--image','sha256:'+'a'*64]):
             with self.assertRaises(SystemExit) as error: guard.main()
@@ -193,9 +287,18 @@ class FinancialTransitionTests(unittest.TestCase):
         self.artifact(access=True)
         self.assertEqual(0,subprocess.run(command,capture_output=True).returncode)
 
+    def test_real_cli_session_flag_rejects_old_session_chain_and_accepts_reviewed_chain(self):
+        command=['python3',str(Path(SPEC.origin)),'--jar',str(self.jar),
+                 '--schema-protected','--access-protected','--session-protected']
+        self.artifact(access=True)
+        self.assertNotEqual(0,subprocess.run(command,capture_output=True).returncode)
+        self.artifact(access=True,session=True)
+        self.assertEqual(0,subprocess.run(command,capture_output=True).returncode)
+
     def test_exact_image_required_and_live_schema_probe_cannot_be_overridden(self):
         for args in (['--image','epharm/backend:latest'],['--image','sha256:'+'a'*64,'--schema-protected'],
-                     ['--image','sha256:'+'a'*64,'--access-protected']):
+                     ['--image','sha256:'+'a'*64,'--access-protected'],
+                     ['--image','sha256:'+'a'*64,'--session-protected']):
             with patch('sys.argv',['guard']+args),patch.object(guard,'verify_image') as inspect:
                 with self.assertRaises(SystemExit): guard.main()
                 inspect.assert_not_called()

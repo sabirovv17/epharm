@@ -237,10 +237,13 @@ An optional final `--dry-run` checks the images, backup, rendered Compose and cu
 without switching containers. The live transaction performs the same gates, pins both components in
 `.release.env`, recreates only backend/frontend without rebuilding, and verifies public backend/UI
 release identities plus catalogue/search. A failed switch attempts to restore the exact previous
-backend/frontend image IDs only if the financial/access schema guards still accept that pair,
+backend/frontend image IDs only if the financial/access/session schema guards still accept that pair,
 normalizes the stale generic release metadata to those known-good pins, and smokes the restored
 stack. The first unified release cannot roll back to v0.1.47 after V066: use the rehearsed exact-main
 forward recovery in [20-reliability-and-release.md](20-reliability-and-release.md#monetary-release-boundary).
+Likewise, after V093 it cannot use the session-version-ignorant v0.2.1 predecessor;
+the reviewed host verifier must be installed before migration, and recovery must retain
+the new administrative-session enforcement.
 A `CRITICAL` rollback message is an incident requiring immediate
 operator action; do not continue with another release. The saved transaction record is under
 `releases/archive-two-image/active-transaction`.
