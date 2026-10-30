@@ -41,7 +41,7 @@
   "mainFrontendConfigSha256": "a47b26d8dba37bde507f9ed88a9a3b607d6ae5e56d20a866a76e1607934cefd4",
   "mainBackendJarSha256": "3301c1d3df05125abf52cedccf2689c7c8ffbb65bdcc7b6872310f3f330247fd",
   "mainJarMerchFinancialAccessGuardsPassed": true,
-  "mainOciRecoveryState": "isolated_retry_started_after_sealed_fixture_fix; no recovery pass claimed",
+  "mainOciRecoveryState": "genuine_failed_state_and_late_writes_retained; recovery_source_gate_network_refusal_under_diagnosis; no recovery pass claimed",
   "mainOciRetryPreparation": {
     "manifestSha256": "64d85bcf66c1aac487e2f548315b94b88f10f4062e874f9ca157963b3d3135a6",
     "pristineReadOnlyProofSha256": "7d836d0c8a3ce756a22471a7a6e6ea7eb7922791fdbad2b03032a38951d6ea64",
@@ -53,5 +53,39 @@
     "freshMigrationClaim": false
   },
   "windowsMainUiAcceptanceState": "blocked_mac_locked; staged main package not executed",
-  "requiredGateWaived": false
+  "requiredGateWaived": false,
+  "isolatedAttemptHistory": [
+    {
+      "run": "a9116315",
+      "result": "startup_refused_missing_synthetic_provider_key",
+      "releaseHelperReached": false
+    },
+    {
+      "run": "a1b0314d",
+      "result": "fixture_expected_403_but_correct_scoped_404",
+      "initialSmokePassed": true,
+      "releaseHelperReached": false
+    },
+    {
+      "run": "6f5a41ee",
+      "result": "genuine_two_fault_incident; recovery_preflight_source_evidence_unavailable",
+      "initialSmokePassed": true,
+      "normalDeployHelperReached": true,
+      "actualFrontendFaults": 2,
+      "lateSales": 2,
+      "lateWalletEntries": 2,
+      "lateBalanceKzt": 274,
+      "genuineFailedStateSha256": "5e242f67f8f7a74079246fdc89772890c08c936a1d36af1ce1bc9c21a98be863",
+      "originalPreRevokeJwtPostRecoveryReplayed": false
+    }
+  ],
+  "samePolicyNetworkDiagnosis": {
+    "sourceGuardExit": 1,
+    "hostGatePassed": true,
+    "tlsOrAuthFailureProven": false,
+    "socketTargetWasOutsidePinnedGithubIp": true,
+    "cause": "api.github.com IPv4 rotation between resolutions",
+    "sourceGuardBypassed": false,
+    "databaseResetForContinuation": false
+  }
 }
