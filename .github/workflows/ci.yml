@@ -69,6 +69,7 @@ jobs:
         run: |
           node --check ops/merch-portal-patches/strip-demo-autofill.mjs
           node --check ops/merch-portal-patches/test-caddy-routes.mjs
+          node --check ops/merch-portal-patches/test-proxy-client-ip.mjs
           node --check ops/merch-portal-patches/preserve-dist-sidecars.mjs
           node --test ops/merch-portal-patches/test-preserve-dist-sidecars.mjs
           python3 ops/merch-portal-patches/test-exchange-dist.py
@@ -80,7 +81,8 @@ jobs:
             -e ACME_EMAIL=ci@example.test \
             -e MERCH_PORTAL_UPSTREAM=https://merch.example.test:8443 \
             caddy:2-alpine caddy adapt --config /etc/caddy/Caddyfile \
-            | node ops/merch-portal-patches/test-caddy-routes.mjs
+            | tee "$RUNNER_TEMP/epharm-caddy.json" | node ops/merch-portal-patches/test-caddy-routes.mjs
+          node ops/merch-portal-patches/test-proxy-client-ip.mjs < "$RUNNER_TEMP/epharm-caddy.json"
           bash ops/merch-portal-patches/test-caddy-redirect.sh
       - name: Audit reproducible merchandising patch dependencies
         run: |

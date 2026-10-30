@@ -40,6 +40,8 @@ MANUAL = {
     ("training", "results", "view"): "ORDINARY",
 }
 PREREQUISITES = {
+    ("merchandising", "staff_access", "create"): ("merchandising", "staff_access", "view"),
+    ("merchandising", "staff_access", "revoke"): ("merchandising", "staff_access", "view"),
     ("management", "accounts", "manage"): ("management", "accounts", "view"),
     ("motivation", "campaigns", "manage_producer"): ("motivation", "campaigns", "view"),
     ("merchandising", "placements", "bind_producer"): ("merchandising", "placements", "view"),

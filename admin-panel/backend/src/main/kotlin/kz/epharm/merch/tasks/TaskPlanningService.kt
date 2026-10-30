@@ -96,6 +96,25 @@ class TaskPlanningService(private val jdbc:JdbcTemplate,private val json:ObjectM
         jdbc.update("INSERT INTO merch_monthly_visits(branch_id,placement_month,executor_person_id,dispatch_id,created_at) VALUES(?,?,?,?,now())",req.branchId,req.month,person,id)
         return MonthlyVisitResult(id,false)
     }
+
+    internal fun sharedVisitTargets(branch:UUID,month:LocalDate):List<StaffVisitTarget> = jdbc.query("""SELECT i.id,s.id AS shelf_id,s.code,
+        coalesce(i.sale_portion,'whole') AS portion FROM merch_media_plan_items i
+        JOIN merch_media_plans p ON p.id=i.media_plan_id JOIN merch_shelves s ON s.id=i.shelf_id
+        WHERE s.branch_id=? AND i.placement_month=? AND i.status='approved' AND p.status='approved'
+        ORDER BY i.id LIMIT 501""",{rs,_->StaffVisitTarget(rs.getObject("id",UUID::class.java),
+        rs.getObject("shelf_id",UUID::class.java),rs.getString("code"),rs.getString("portion"))},branch,month).also {
+        if(it.size>500) invalid("Месячный фотоотчёт превышает 500 пунктов")
+    }
+
+    internal fun createSharedVisit(branch:UUID,month:LocalDate,targets:List<StaffVisitTarget>):UUID {
+        if(targets.isEmpty()) invalid("На этот месяц нет подтверждённых размещений в аптеке")
+        return tasks.insertStaffVisit(branch,month,targets.map {
+            val part=when(it.portion) {"left"->"левая половина";"right"->"правая половина";else->"целиком"}
+            CreateMerchTaskItem("Фотоотчёт · ${it.code} · $part".take(240),
+                "Сравните выкладку с эталоном и сделайте новый снимок камерой.",requiredPhotos=1,
+                shelfId=it.shelfId,mediaPlanItemId=it.id)
+        })
+    }
     private fun targets(branch:UUID,month:LocalDate,mode:String):List<Pair<UUID,String>> = jdbc.query("""SELECT s.id,s.code FROM merch_shelves s WHERE s.branch_id=? AND s.active
         ${if(mode=="occupied") "AND EXISTS(SELECT 1 FROM merch_media_plan_items i JOIN merch_media_plans p ON p.id=i.media_plan_id WHERE i.shelf_id=s.id AND i.placement_month=? AND i.status='approved' AND p.status='approved')" else ""}
         ORDER BY s.id LIMIT 501 FOR UPDATE OF s""",{rs,_->rs.getObject(1,UUID::class.java) to rs.getString(2)},*if(mode=="occupied") arrayOf(branch,month) else arrayOf(branch))

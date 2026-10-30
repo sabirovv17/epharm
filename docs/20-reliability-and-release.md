@@ -446,3 +446,29 @@ The evidence expires after 14 days and must attest TestFlight installation, gene
 receipt camera, training QR, cold/warm deep links, process-kill session restoration and graceful UX
 when both HTTPS and `:8060` are unavailable. Universal links are intentionally not claimed yet: they
 also require the final Apple Team ID, Android signing fingerprint and hosted AASA/assetlinks files.
+
+The native merchandising cutover also retains the old CRM address through a
+default-off edge compatibility switch, `EPHARM_UNIFIED_CRM_CUTOVER_ENABLED`, in the
+Shop edge configuration on .80. It forwards only external producer/staff/task
+paths to the unchanged ePharm origin; admin and personal `/learn` redirect to the
+canonical domain. Retired CRM APIs fail409 rather than reaching an old writer.
+The source archive includes this exact edge configuration. Add precisely
+`https://crm.inkar.kz` to the backend CORS allowlist only at that reviewed cutover;
+do not rewrite a browser Origin header or enable wildcard CORS. HTTP and internal
+TLS must use the same routes, preserve the unrelated Shop upstream and strip the
+server integration key. The edge switch is not permission to stop CRM or skip
+the final writer freeze, claim-issuer drain, source delta/file check and backup.
+
+Before enabling shared staff codes, configure the native Tomcat forward-header
+valve with an explicitly reviewed project-proxy network pattern. Compose defaults
+to `SERVER_FORWARD_HEADERS_STRATEGY=none` and an internal-proxy pattern matching
+nothing. Do not use broad default private-network trust or FRAMEWORK trust of
+arbitrary Forwarded headers. Caddy trusts only the verified .74/.80 ingress hops
+(.80 trusts .74) with strict right-to-left parsing and overwrites backend XFF
+with its resolved client IP. The internal frontend path preserves that boundary.
+Re-observe the actual project subnet before a release, and include all actual
+Caddy/nginx hops in the reviewed pattern. A network recreation requires review;
+three failed code entries must not rate-limit unrelated clients behind the proxy.
+A direct untrusted caller's forged XFF must not change its rate-limit identity.
+See [Caddy trusted proxies](https://caddyserver.com/docs/caddyfile/options#trusted-proxies)
+and [Spring Boot reverse proxies](https://docs.spring.io/spring-boot/3.3/how-to/webserver.html#howto.webserver.use-behind-a-proxy-server).

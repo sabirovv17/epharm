@@ -130,7 +130,8 @@ class ReleaseImagesWorkflowTest(unittest.TestCase):
 
     def test_git_archive_roundtrip_records_exact_file_bytes(self):
         entries = {'admin-panel/backend/Dockerfile': b'FROM synthetic',
-                   'admin-panel/frontend/src/main.tsx': b'export {}'}
+                   'admin-panel/frontend/src/main.tsx': b'export {}',
+                   'storefront/deploy/inkar-server/Caddyfile.http': b'crm-edge-synthetic'}
         result = self.archive(entries)
         self.assertEqual(result.returncode, 0, result.stderr)
         files = json.loads((self.runner / 'release-images/source-files.json').read_text())

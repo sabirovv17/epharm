@@ -138,6 +138,8 @@ services:
       SPRING_DATA_REDIS_PORT: '6379'
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET (min 256-bit) in .env.prod}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8088}
+      SERVER_FORWARD_HEADERS_STRATEGY: ${SERVER_FORWARD_HEADERS_STRATEGY:-none}
+      SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES: ${SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES:-(?!)}
       # SDK ходит на MinIO внутри сети…
       S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
       # …а ссылки на фото для браузера строятся по внешнему адресу (через Caddy, https).
@@ -175,6 +177,7 @@ services:
       # Switch each native path only after its data/issuer and single-writer gates pass.
       MERCH_NATIVE_DELIVERY_ENABLED: ${MERCH_NATIVE_DELIVERY_ENABLED:-false}
       MERCH_NATIVE_EXECUTOR_ENABLED: ${MERCH_NATIVE_EXECUTOR_ENABLED:-false}
+      MERCH_STAFF_ACCESS_ENABLED: ${MERCH_STAFF_ACCESS_ENABLED:-false}
       MERCH_PRODUCER_AUTH_ENABLED: ${MERCH_PRODUCER_AUTH_ENABLED:-false}
       MERCH_LEGACY_PORTAL_CUTOVER_ENABLED: ${MERCH_LEGACY_PORTAL_CUTOVER_ENABLED:-false}
       MERCH_AUTOMATION_ENABLED: ${MERCH_AUTOMATION_ENABLED:-false}
@@ -277,6 +280,7 @@ services:
       MERCH_PORTAL_UPSTREAM: ${MERCH_PORTAL_UPSTREAM:-10.10.1.80:8080}
       MERCH_LEGACY_PORTAL_CUTOVER_ENABLED: ${MERCH_LEGACY_PORTAL_CUTOVER_ENABLED:-false}
       UNIFIED_MIGRATION_WRITE_FREEZE_ENABLED: ${UNIFIED_MIGRATION_WRITE_FREEZE_ENABLED:-false}
+      MERCH_STAFF_ACCESS_ENABLED: ${MERCH_STAFF_ACCESS_ENABLED:-false}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ${TLS_CERT_DIR:-./tls}:/etc/caddy/tls:ro

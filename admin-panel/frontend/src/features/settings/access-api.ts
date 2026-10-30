@@ -27,6 +27,7 @@ export interface AccessCapabilities {
   canCommentMerchTasks?: boolean
   canCancelMerchTasks?: boolean
   canViewMerchTasks?: boolean
+  canViewMerchStaffAccess?: boolean
   canCreateMerchTasks?: boolean
   canExecuteMerchTasks?: boolean
   canReviewMerchTasks?: boolean

@@ -59,6 +59,9 @@ class UnifiedAdminCatalog(mapper: ObjectMapper) {
     val taskCreate = key("merchandising", "tasks", "create")
     val taskExecute = key("merchandising", "tasks", "execute")
     val taskReview = key("merchandising", "tasks", "review")
+    val staffAccessView = key("merchandising", "staff_access", "view")
+    val staffAccessCreate = key("merchandising", "staff_access", "create")
+    val staffAccessRevoke = key("merchandising", "staff_access", "revoke")
     val producerBindingManage = key("motivation", "campaigns", "manage_producer")
     final val definitions: List<PermissionDefinition>
     final val policy: UnifiedAccessPolicy
@@ -106,6 +109,9 @@ class UnifiedAdminCatalog(mapper: ObjectMapper) {
             PermissionDefinition(producerBindingManage, PermissionKind.SENSITIVE_DATA, viewPermission = key("motivation", "campaigns", "view")),
             PermissionDefinition(placementBindProducer, PermissionKind.SENSITIVE_DATA, viewPermission = placementView),
             PermissionDefinition(taskView), PermissionDefinition(taskReview, independentReview = true),
+            PermissionDefinition(staffAccessView),
+            PermissionDefinition(staffAccessCreate, viewPermission = staffAccessView),
+            PermissionDefinition(staffAccessRevoke, viewPermission = staffAccessView),
         ) + listOf("edit", "submit", "approve", "reject", "cancel", "assign", "financial_data").map { action ->
             PermissionDefinition(key("merchandising", "placements", action),
                 if (action == "edit") PermissionKind.ORDINARY else PermissionKind.FINANCIAL)

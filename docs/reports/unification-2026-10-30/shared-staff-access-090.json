@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "state": "source_and_component_acceptance_not_production",
+  "backendJarSha256": "71de23e5a4579f61b8fb31d6340f03f6dadbde4697e59ea2c464319a2f145f4a",
+  "backend": {
+    "tests": 1328,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1
+  },
+  "backendSuites": 145,
+  "artifactMarkers": 16,
+  "frontendCheckpoint": {
+    "unitTests": 975,
+    "lint": true,
+    "build": true,
+    "builtMockBrowserTests": 46,
+    "lastPresentationOnlyStaffArtifactTests": 5,
+    "immutableSubmittedNameVisibleCurrentAndHistory": true
+  },
+  "actualLiveCheckpoint": {
+    "firstRunPassed": 7,
+    "firstRunFailed": 1,
+    "firstFailure": "5-second browser readiness was shorter than actual isolated QR/me/workspace transport; QR issued successfully; failed evidence retained",
+    "cleanRepeat": {
+      "passed": 8,
+      "failed": 0,
+      "elapsedMinutes": 10.9,
+      "isolatedRealBackend": true,
+      "externalRequestsBlocked": 0,
+      "apiResponsesMocked": false,
+      "physicalCamera": false
+    },
+    "presentationOnlyLabelAddedAfterClean8": "Staff submitted name in current/history; focused regression and5 built-browser tests passed; no API behavior changed"
+  },
+  "scope": [
+    "Shared organization/month/branch code and QR coexist with personal /learn",
+    "Opaque12-hour scoped session; manual revoke; consumed-code session reload; deadline read-only",
+    "Monthly whole photo report, returned subset retains submitted sibling evidence",
+    "Unverified display name never creates PERSON or bonus; explicit manual HQ review",
+    "Exact scoped view/create/revoke grants and restricted-account landing",
+    "Old CRM compatibility and retired-writer fence default off"
+  ],
+  "checks": {
+    "actualEdgeTransport": true,
+    "oldCrmHttpAndTlsSameNativeRoutes": true,
+    "shopUpstreamPreserved": true,
+    "forgedXffAtEdgeDiscarded": true,
+    "sourceInventory": {
+      "actions": 498,
+      "groups": 57,
+      "contracts": 47,
+      "backendEndpoints": 428
+    },
+    "releaseTestsLinux": 77,
+    "unificationTests": 159,
+    "unificationOptInSkipped": 20,
+    "proxyIdentity": {
+      "actualHttpTomcatPostgres": true,
+      "proofSha256": "72b2f310fc754d41dc6d9df556f57411237b87ead63d1fac18ab6274af7087f3",
+      "withoutNativeHeaders": "3 failed A entries block valid B through same proxy (reproduced)",
+      "withReviewedNativeTrust": "A remains rate limited despite forged XFF, valid B receives only its branch",
+      "realIPv6Socket": true,
+      "malformedUntrustedXffBypass": false,
+      "global120AndBcrypt64BudgetsPreserved": true,
+      "actualProductionChainActivation": false
+    }
+  },
+  "remaining": [
+    "Current-head CI and real-main OCI failure/recovery",
+    "Current PR/main CI, actual main OCI failure/recovery",
+    "Windows remaining UI checks require unlocked Mac; no physical hardware/fiscal claim",
+    "Final source freeze/delta/files, private key custody and controlled selective import",
+    "Activate only reviewed production proxy-network trust after re-observation"
+  ],
+  "productionApplicationChanged": false,
+  "fullReleaseAccepted": false,
+  "secretsIncluded": false
+}

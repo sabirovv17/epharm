@@ -48,8 +48,6 @@ describe('native task capability bootstrap', () => {
     `?task=${token}#task=${token}`,
     `?task=${token}&task=${token}`,
     `?task=1#task=${token}&task=${token}`,
-    `?access=${token}`,
-    `?token=${token}`,
     '?task=short',
   ])('rejects ambiguous or invented legacy token keys and still scrubs them: %s', (suffix) => {
     window.history.replaceState({}, '', '/merch/staff' + suffix)
@@ -57,6 +55,11 @@ describe('native task capability bootstrap', () => {
     expect(taskCapabilityToken()).toBeNull()
     expect(window.location.href).not.toContain(token)
     expect(window.location.pathname).toBe('/tasks/staff')
+  })
+  it('leaves non-task legacy entries to the staff bootstrap dispatcher', () => {
+    window.history.replaceState({}, '', `/staff?access=${token}`)
+    captureTaskNavigation()
+    expect(window.location.pathname + window.location.search).toBe(`/staff?access=${token}`)
   })
   it('does not capture a capability from a lookalike route', () => {
     window.history.replaceState({}, '', `/merch/staff-other?task=${token}`)

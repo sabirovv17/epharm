@@ -5,6 +5,12 @@ export function captureTaskNavigation() {
   const path = window.location.pathname
   const legacy = path === '/merch/staff' || path === '/staff'
   if (path !== '/tasks/staff' && !legacy) return
+  if (
+    legacy &&
+    !new URLSearchParams(window.location.search).has('task') &&
+    !new URLSearchParams(window.location.hash.slice(1)).has('task')
+  )
+    return
   const fragments = new URLSearchParams(window.location.hash.slice(1)).getAll('task')
   const queries = new URLSearchParams(window.location.search).getAll('task')
   const valid = (value: string) => /^[A-Za-z0-9_-]{32,256}$/.test(value)

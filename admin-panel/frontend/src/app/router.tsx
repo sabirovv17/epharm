@@ -8,7 +8,7 @@ import { RequireAuth } from './RequireAuth'
 import NotFoundPage from './NotFoundPage'
 import type { SectionId } from '@/mocks/fixtures'
 import { useUiStore } from './store'
-import { defaultPathForRole } from './accessPolicy'
+import AdministrativeHome from './AdministrativeHome'
 import { SectionRoute } from './SectionRoute'
 import { PublicPortal } from './PublicPortal'
 
@@ -37,6 +37,9 @@ const MerchPlacements = lazy(() => import('@/features/merch/MerchPlacementsPage'
 const MerchTasks = lazy(() => import('@/features/merch/MerchTasksPage'))
 const Ledger = lazy(() => import('@/features/reports/LedgerPage'))
 const PublicMerchTask = lazy(() => import('@/features/merch/PublicMerchTaskPage'))
+const StaffAccess = lazy(() => import('@/features/merch/StaffAccessPage'))
+const AdminStaffAccess = lazy(() => import('@/features/merch/AdminStaffAccessPage'))
+const MerchPortal = lazy(() => import('@/features/merch/MerchPortalPage'))
 const ProducerLogin = lazy(() => import('@/features/merch/ProducerLoginPage'))
 const Producer = lazy(() => import('@/features/merch/ProducerPage'))
 
@@ -63,9 +66,7 @@ function HomeRedirect() {
   const isPhone =
     typeof window !== 'undefined' &&
     (window.matchMedia?.('(max-width: 767px)').matches || window.innerWidth < 768)
-  return (
-    <Navigate to={user ? defaultPathForRole(user.role) : isPhone ? '/learn' : '/login'} replace />
-  )
+  return user ? <AdministrativeHome /> : <Navigate to={isPhone ? '/learn' : '/login'} replace />
 }
 
 export function AppRouter() {
@@ -75,6 +76,9 @@ export function AppRouter() {
       <Route path="/login" element={withSuspense(<LoginPage />)} />
       <Route path="/producer/login" element={publicPortal(<ProducerLogin />)} />
       <Route path="/tasks/staff" element={publicPortal(<PublicMerchTask />)} />
+      <Route path="/staff" element={publicPortal(<StaffAccess />)} />
+      <Route path="/merch/staff" element={publicPortal(<StaffAccess />)} />
+      <Route path="/merch/portal" element={publicPortal(<MerchPortal />)} />
       <Route path="/producer" element={publicPortal(<Producer />)} />
       <Route path="/learn" element={withSuspense(<LearnerTraining />)} />
       <Route path="/learn/merch/tasks/:taskId" element={withSuspense(<LearnerTraining />)} />
@@ -120,6 +124,7 @@ export function AppRouter() {
           <Route path="/merch/inventory" element={withSuspense(<MerchInventory />)} />
           <Route path="/merch/placements" element={withSuspense(<MerchPlacements />)} />
           <Route path="/merch/tasks" element={withSuspense(<MerchTasks />)} />
+          <Route path="/merch/staff-access" element={withSuspense(<AdminStaffAccess />)} />
           <Route path="/finance/ledger" element={withSuspense(<Ledger />)} />
           <Route path="/settings" element={protectedPage('settings', <Settings />)} />
           <Route path="/storefront" element={protectedPage('storefront', <Storefront />)} />

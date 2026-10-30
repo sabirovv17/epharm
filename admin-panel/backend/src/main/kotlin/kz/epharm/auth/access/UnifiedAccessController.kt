@@ -131,6 +131,7 @@ data class AccessCapabilities(
     val canViewMerchPlacements: Boolean = false,
     val canViewMerchTariffs: Boolean = false,
     val canViewMerchTasks: Boolean = false,
+    val canViewMerchStaffAccess: Boolean = false,
     val canManageCampaignProducer: Boolean = false,
     val canBindMerchProducer: Boolean = false,
     val canCreateMerchTasks: Boolean = false,
@@ -173,6 +174,7 @@ class UnifiedAccountAccessService(
                 val key=UnifiedAdminCatalog.key("merchandising","placements",action)
                 catalog.policy.authorizeScope(access.actor,AccessRequest(key,catalog.allScope(key)),Instant.now()).allowed },
             canViewMerchTasks = canUseExplicit(access, catalog.taskView),
+            canViewMerchStaffAccess = canUseExplicit(access, catalog.staffAccessView),
             canManageCampaignProducer = canUseExplicit(access, catalog.producerBindingManage),
             canBindMerchProducer = canUseExplicit(access, catalog.placementBindProducer),
             canCreateMerchTasks = canUseExplicit(access, catalog.taskCreate),

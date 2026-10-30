@@ -32,6 +32,7 @@ export function useAdministrativeCapabilities() {
       !query.isError &&
       query.data?.canViewMerchTasks === true,
     canCreateMerchTasks: fresh && query.data?.canCreateMerchTasks === true,
+    canViewMerchStaffAccess: fresh && query.data?.canViewMerchStaffAccess === true,
     canViewMerchTariffs: fresh && query.data?.canViewMerchTariffs === true,
     canExecuteMerchTasks: fresh && query.data?.canExecuteMerchTasks === true,
     canReviewMerchTasks: fresh && query.data?.canReviewMerchTasks === true,

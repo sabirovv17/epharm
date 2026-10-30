@@ -191,6 +191,8 @@ services:
     environment:
       SITE_DOMAIN: ${SITE_DOMAIN:?SITE_DOMAIN is required}
       SERVER_IP: ${SERVER_IP:?SERVER_IP is required}
+      EPHARM_UNIFIED_CRM_CUTOVER_ENABLED: ${EPHARM_UNIFIED_CRM_CUTOVER_ENABLED:-false}
+      EPHARM_UNIFIED_UPSTREAM: ${EPHARM_UNIFIED_UPSTREAM:-10.10.1.76:8060}
     ports: ['80:80', '443:443']
     volumes:
       - ${CADDYFILE_PATH:?CADDYFILE_PATH is required}:/etc/caddy/Caddyfile:ro

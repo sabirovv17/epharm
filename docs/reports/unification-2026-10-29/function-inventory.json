@@ -16260,5 +16260,119 @@
       "Key custody/recovery and current release acceptance remain required before rollout"
     ],
     "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.78",
+    "group": "H16",
+    "name": "Native AdminStaffAccessController",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "ui": ["admin-panel/frontend/src/features/merch/AdminStaffAccessPage.tsx"],
+      "api": [
+        "GET /api/admin/merch/staff-access",
+        "GET /api/admin/merch/staff-access/options",
+        "POST /api/admin/merch/staff-access",
+        "POST /api/admin/merch/staff-access/{id}/revoke"
+      ],
+      "jobs": [],
+      "data": ["merch_staff_access_codes", "merch_staff_access_sessions", "merch_staff_visits"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/staffaccess/AdminStaffAccessController.kt",
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/staffaccess/StaffAccessService.kt"
+      ]
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Доступ по коду",
+      "actions": ["просмотр", "создание", "отзыв"],
+      "scope": "Серверная область организации/месяца/аптек; общий staff-доступ не создаёт PERSON и не даёт бонус"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Просмотр, выдача и ручной отзыв требуют отдельных свежих прав по всей области аптек",
+      "Повторный отзыв не меняет первого автора, срок и аудит"
+    ],
+    "risks": [
+      "Current-head runtime/ingress/cutover acceptance is recorded separately; source coverage is not deployment proof"
+    ],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.79",
+    "group": "H16",
+    "name": "Native StaffAccessAuthController",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "ui": ["admin-panel/frontend/src/features/merch/StaffAccessPage.tsx"],
+      "api": [
+        "GET /api/staff/auth/me",
+        "POST /api/staff/auth/code",
+        "POST /api/staff/auth/logout",
+        "POST /api/staff/auth/qr"
+      ],
+      "jobs": [],
+      "data": ["merch_staff_access_codes", "merch_staff_access_sessions", "merch_staff_visits"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/staffaccess/StaffAccessAuthController.kt",
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/staffaccess/StaffAccessService.kt"
+      ]
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Общий вход мерча",
+      "actions": ["ограниченный вход", "выполнение", "чтение"],
+      "scope": "Серверная область организации/месяца/аптек; общий staff-доступ не создаёт PERSON и не даёт бонус"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Code/QR обменивается на ограниченную12часовую сессию без PERSON/JWT/денег",
+      "Лимиты, отзыв, срок, reload и отрицательные случаи проверяются; секреты не логируются"
+    ],
+    "risks": [
+      "Current-head runtime/ingress/cutover acceptance is recorded separately; source coverage is not deployment proof"
+    ],
+    "owner": "ePharm unification integration owner"
+  },
+  {
+    "id": "H16.80",
+    "group": "H16",
+    "name": "Native StaffVisitController",
+    "source": {
+      "repo": "sabirovv17/epharm",
+      "revision": "codex/unified-admin-development (unmerged native candidate)",
+      "ui": ["admin-panel/frontend/src/features/merch/StaffAccessPage.tsx"],
+      "api": [
+        "GET /api/staff/visits/{visitId}",
+        "GET /api/staff/visits/{visitId}/evidence/{evidenceId}",
+        "GET /api/staff/visits/{visitId}/items/{itemId}/reference",
+        "GET /api/staff/workspace",
+        "POST /api/staff/visits",
+        "POST /api/staff/visits/{visitId}/items/{itemId}/evidence",
+        "POST /api/staff/visits/{visitId}/submit"
+      ],
+      "jobs": [],
+      "data": ["merch_staff_access_codes", "merch_staff_access_sessions", "merch_staff_visits"],
+      "files": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/staffaccess/StaffVisitController.kt",
+        "admin-panel/backend/src/main/kotlin/kz/epharm/merch/tasks/StaffVisitService.kt"
+      ]
+    },
+    "target": {
+      "section": "Мерчендайзинг",
+      "subsection": "Общий фотоотчёт аптеки",
+      "actions": ["ограниченный вход", "выполнение", "чтение"],
+      "scope": "Серверная область организации/месяца/аптек; общий staff-доступ не создаёт PERSON и не даёт бонус"
+    },
+    "state": "source_confirmed",
+    "acceptance": [
+      "Отчёт уникален по аптеке/месяцу и ограничен актуальной областью сессии",
+      "Ручная проверка неперсонального исполнителя, возврат части полок и отсутствие бонусов сохраняются"
+    ],
+    "risks": [
+      "Current-head runtime/ingress/cutover acceptance is recorded separately; source coverage is not deployment proof"
+    ],
+    "owner": "ePharm unification integration owner"
   }
 ]

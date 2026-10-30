@@ -22,12 +22,18 @@ stage = promotion.stage
 PRIVATE = "SYNTHETIC_PRIVATE\\.\n\\set ON_ERROR_STOP off\t'Ә"
 
 
-def crm_artifact():
+def crm_artifact(with_staff_history=False):
     value = fixture()
     value["metadata"]["tables"] = [table("inert_crm_" + str(i).zfill(2)) for i in range(57)]
+    if with_staff_history:
+        value["metadata"]["tables"][1] = staff_history_table(False)
+        value["metadata"]["tables"].sort(key=lambda t: t["name"])
     value["metadata"]["enums"] = []; value["metadata"]["sequences"] = []; value["sequenceStates"] = []
     value["tables"] = {t["name"]: [] for t in value["metadata"]["tables"]}
     value["tables"]["inert_crm_00"] = [["preserved-crm-row", PRIVATE]]
+    if with_staff_history:
+        value["tables"]["staff_access_attempts"] = [["history-1", "code", "a" * 64, None, None, "127.0.0.1", PRIVATE,
+            "f", "not_found", "2026-10-30 00:00:00+00"]]
     value["sourceSchemaSha256"] = stage.schema_hash(value["metadata"])
     value["checksums"] = [stage.table_checksum(t, value["tables"][t["name"]]) for t in value["metadata"]["tables"]]
     stage.validate_artifact(value, 57)
@@ -40,13 +46,31 @@ def table(name):
             "constraints": [constraint(name + "_pkey", "p", ["id"])]}
 
 
+def staff_history_table(native):
+    fields = [("id", "text"), ("access_type", "text"), ("lookup_hash", "text")]
+    fields += [("ip_hash", "text"), ("bcrypt_cost", "int4"), ("code_id", "text")] if native else [
+        ("code_id", "text"), ("organization_id", "text"), ("request_ip", "text"), ("user_agent", "text")]
+    fields += [("success", "bool"), ("failure_reason", "text"), ("created_at", "timestamptz")]
+    if native: fields += [("source_id", "text"), ("source_payload", "jsonb")]
+    name = "merch_staff_access_attempts" if native else "staff_access_attempts"
+    return dict(table(name), columns=[column(n, kind, position=i, notNull=n == "id") for i, (n, kind) in enumerate(fields, 1)])
+
+
+def native_history_row(artifact, columns):
+    source = dict(zip((c["name"] for c in staff_history_table(False)["columns"]), artifact["tables"]["staff_access_attempts"][0], strict=True))
+    payload = dict(source, success=False, created_at="2026-10-30T00:00:00+00:00")
+    values = dict(source, source_id=source["id"], source_payload=json.dumps(payload), bcrypt_cost="0",
+                  ip_hash=stage.digest(("staff-access:source-ip:" + source["request_ip"]).encode()))
+    return [values.get(c["name"]) for c in columns]
+
+
 def snapshot():
     tables = [table(n) for n in promotion.NATIVE_TABLES]
     tables += [table("pos_sales")] + [table("original_" + str(i)) for i in range(71)] + [table("flyway_schema_history")]
     rows = {name: [] for name in promotion.NATIVE_TABLES}
     rows["unified_persons"] = [["synthetic-person", PRIVATE]]
     return {"metadata": {"tables": tables, "database": {"encoding": "UTF8", "collate": "C", "ctype": "C", "localeProvider": "c"}},
-            "rows": rows, "migrations": [[1, "SQL", "V089__synthetic.sql", 123, True]], "sourceIdentitySha256": "a" * 64}
+            "rows": rows, "migrations": [["090", "SQL", "V090__synthetic.sql", 123, True]], "sourceIdentitySha256": "a" * 64}
 
 
 def pin():
@@ -59,40 +83,34 @@ def pin():
 class PreparationTest(unittest.TestCase):
     def setUp(self):
         sha = stage.schema_hash(snapshot()["metadata"])
-        self.synthetic_profile = dict(schemaVersion="089", sourceSchemaSha256=sha, plainSchemaSha256=sha, substitutions=[])
+        self.synthetic_profile = dict(schemaVersion="090", plainSchemaSha256=sha)
         self.profile_patch = mock.patch.object(promotion, "schema_profile", return_value=self.synthetic_profile)
         self.profile_patch.start(); self.addCleanup(self.profile_patch.stop)
 
-    def test_only_pinned_complete_schemas_and_exact29_check_substitutions_are_accepted(self):
-        source = snapshot()["metadata"]; target = copy.deepcopy(source); changes = []
-        for index in range(29):
-            name = "reviewed_check_" + str(index)
-            a = "CHECK (value::text = ANY (ARRAY['A'::character varying::text]))"
-            b = "CHECK (value::text = ANY (ARRAY['A'::character varying]::text[]))"
-            source["tables"][index]["constraints"].append(constraint(name, "c", ["value"], definition=a))
-            target["tables"][index]["constraints"].append(constraint(name, "c", ["value"], definition=b))
-            changes.append(dict(table=source["tables"][index]["name"], constraint=name, sourceDefinition=a, targetDefinition=b))
-        profile = dict(schemaVersion="089", sourceSchemaSha256=stage.schema_hash(source), plainSchemaSha256=stage.schema_hash(target), substitutions=changes)
-        with mock.patch.object(promotion, "schema_profile", return_value=profile):
-            self.assertEqual(target, promotion.expected_target_metadata(source))
-            self.assertEqual(target, promotion.expected_target_metadata(target))
-            changed = copy.deepcopy(source); changed["tables"][0]["constraints"][-1]["definition"] = changes[0]["sourceDefinition"].replace("'A'", "'B'")
-            with self.assertRaises(stage.StageError): promotion.expected_target_metadata(changed)
-            missing = copy.deepcopy(source); missing["tables"][0]["constraints"].pop()
-            with self.assertRaises(stage.StageError): promotion.expected_target_metadata(missing)
-            broken = copy.deepcopy(profile); broken["substitutions"][0]["targetDefinition"] += " AND false"
-            with mock.patch.object(promotion, "schema_profile", return_value=broken), self.assertRaises(stage.StageError): promotion.expected_target_metadata(source)
+    def test_only_exact_plain090_fingerprint_is_accepted_without_legacy_check_substitution(self):
+        source = snapshot()["metadata"]
+        self.assertIs(source, promotion.expected_target_metadata(source))
+        changed = copy.deepcopy(source)
+        changed["tables"][0]["constraints"].append(constraint("new_check", "c", ["value"], definition="CHECK (value IS NOT NULL)"))
+        with self.assertRaises(stage.StageError): promotion.expected_target_metadata(changed)
+        for legacy in ("088", "089"):
+            profile = dict(self.synthetic_profile, schemaVersion=legacy)
+            with mock.patch.object(promotion, "schema_profile", return_value=profile), self.assertRaises(stage.StageError):
+                promotion.expected_target_metadata(source)
+        legacy_shape = dict(self.synthetic_profile, sourceSchemaSha256=self.synthetic_profile["plainSchemaSha256"], substitutions=[])
+        with mock.patch.object(promotion, "schema_profile", return_value=legacy_shape), self.assertRaises(stage.StageError):
+            promotion.expected_target_metadata(source)
 
     def test_only_allowlisted_native_tables_are_written_and_no_source_routines_replayed(self):
-        value = snapshot(); value["migrations"][0][0] = "089"
+        value = snapshot(); value["migrations"][0][0] = "090"
         sql, checksums = promotion.build_sql(value, crm_artifact(), "b" * 64, pin())
         copied = re.findall(r'^COPY public\."([a-z_]+)"', sql, re.M)
         self.assertEqual(set(promotion.NATIVE_TABLES), set(copied))
-        self.assertEqual(71, len(copied)); self.assertEqual(71, len(checksums))
+        self.assertEqual(76, len(copied)); self.assertEqual(76, len(checksums))
         self.assertNotRegex(sql, r"(?m)^(UPDATE|DELETE|TRUNCATE|DROP|ALTER TABLE public|CREATE FUNCTION|CREATE TRIGGER) ")
         self.assertNotIn("session_replication_role", sql)
         self.assertIn("original72 changed inside promotion", sql)
-        self.assertIn("target089 Flyway checksums differ", sql)
+        self.assertIn("target090 Flyway checksums differ", sql)
         self.assertIn("refusing replay without changes", sql)
         self.assertNotIn("\\if", sql)
         self.assertIn("\\\\.\\n\\\\set ON_ERROR_STOP off\\t'Ә", sql)
@@ -109,11 +127,14 @@ class PreparationTest(unittest.TestCase):
         with self.assertRaises(stage.StageError): promotion.table_order([a, b])
 
     def test_unknown_tables_old_schema_ephemeral_rows_and_duplicate_keys_fail_closed(self):
-        for change in ("unknown", "old_version", "session", "duplicate", "generated"):
-            value = snapshot(); value["migrations"][0][0] = "089"
+        for change in ("unknown", "old_version", "session", "staff_session", "staff_visit", "native_staff_attempt", "duplicate", "generated"):
+            value = snapshot(); value["migrations"][0][0] = "090"
             if change == "unknown": value["metadata"]["tables"].append(table("unexpected"))
             if change == "old_version": value["migrations"][0][0] = "088"
             if change == "session": value["rows"]["merch_producer_sessions"] = [["not-transferable", PRIVATE]]
+            if change == "staff_session": value["rows"]["merch_staff_access_sessions"] = [["not-transferable", PRIVATE]]
+            if change == "staff_visit": value["rows"]["merch_staff_visits"] = [["not-transferable", PRIVATE]]
+            if change == "native_staff_attempt": value["rows"]["merch_staff_access_attempts"] = [["not-transferable", PRIVATE]]
             if change == "duplicate": value["rows"]["unified_persons"] *= 2
             if change == "generated": value["metadata"]["tables"][0]["columns"][0]["identity"] = "d"
             with self.subTest(change=change), self.assertRaises(stage.StageError): promotion.validate_snapshot(value)
@@ -126,8 +147,26 @@ class PreparationTest(unittest.TestCase):
         value = pin(); value["host"] = "live"
         with self.assertRaises(stage.StageError): promotion.validate_pin(value)
 
+    def test_staff_authentication_history_requires_exact_source_ids_and_fields(self):
+        artifact = crm_artifact(True); value = snapshot(); native = staff_history_table(True)
+        value["metadata"]["tables"] = [native if t["name"] == native["name"] else t for t in value["metadata"]["tables"]]
+        row = native_history_row(artifact, native["columns"])
+        value["rows"][native["name"]] = [row]
+        promotion.validate_snapshot(value)
+        proof = promotion.staff_history_proof(value, artifact, "b" * 64)
+        self.assertIn("a.source_payload IS DISTINCT FROM to_jsonb(s)", proof)
+        fields = [c["name"] for c in native["columns"]]
+        for key, invalid in [("source_id", None), ("source_id", "another-id"), ("lookup_hash", "b" * 64),
+                             ("bcrypt_cost", "1"), ("ip_hash", "0" * 64), ("source_payload", "{}")]:
+            changed = copy.deepcopy(value); changed["rows"][native["name"]][0][fields.index(key)] = invalid
+            with self.subTest(key=key), self.assertRaises(stage.StageError):
+                promotion.validate_snapshot(changed); promotion.staff_history_proof(changed, artifact, "b" * 64)
+        changed = copy.deepcopy(value); changed["rows"][native["name"]] = []
+        with self.assertRaises(stage.StageError): promotion.staff_history_proof(changed, artifact, "b" * 64)
+        with self.assertRaises(stage.StageError): promotion.staff_history_proof(value, crm_artifact(), "b" * 64)
+
     def test_preparation_never_runs_generated_sql_and_outputs_are_private_and_not_replaced(self):
-        value = snapshot(); value["migrations"][0][0] = "089"
+        value = snapshot(); value["migrations"][0][0] = "090"
         class ReadOnlySource:
             def __init__(self): self.reads = 0
             def inspect(self): return dict(identitySha256="a" * 64, versionNum=160014)
@@ -179,17 +218,34 @@ class PromotionPostgresTest(unittest.TestCase):
                 else: self.fail("disposable PG not ready")
             source, target = [stage.Database(n, "synthetic", "epharm_unified_candidate") for n in names]
             originals = ["pos_sales"] + ["original_" + str(i) for i in range(71)]
-            ddl = "\n".join("CREATE TABLE public." + stage.qi(n) + "(id text PRIMARY KEY,value text);" for n in [*originals, *promotion.NATIVE_TABLES])
-            ddl += "CREATE TABLE public.flyway_schema_history(installed_rank int PRIMARY KEY,version text,type text,script text,checksum int,success boolean);INSERT INTO public.flyway_schema_history VALUES(1,'089','SQL','V089__synthetic.sql',123,true);"
+            ddl = "\n".join("CREATE TABLE public." + stage.qi(n) + "(id text PRIMARY KEY,value text);"
+                            for n in [*originals, *promotion.NATIVE_TABLES] if n != "merch_staff_access_attempts")
+            native_history = staff_history_table(True)
+            ddl += "CREATE TABLE public.merch_staff_access_attempts(" + ",".join(
+                stage.qi(c["name"]) + " " + c["typeName"] + (" PRIMARY KEY" if c["name"] == "id" else "")
+                for c in native_history["columns"]) + ");"
+            ddl += "CREATE TABLE public.flyway_schema_history(installed_rank int PRIMARY KEY,version text,type text,script text,checksum int,success boolean);INSERT INTO public.flyway_schema_history VALUES(1,'090','SQL','V090__synthetic.sql',123,true);"
             ddl += "ALTER TABLE public.merch_branches ADD parent_sale text REFERENCES public.pos_sales(id);"
             ddl += "INSERT INTO public.pos_sales VALUES('captured','captured-value');"
             for db in (source, target): db.run(ddl)
             source.run("INSERT INTO public.unified_persons VALUES('synthetic-person'," + stage.literal(PRIVATE) + ");INSERT INTO public.merch_branches VALUES('branch','source','captured');")
-            artifact = crm_artifact(); artifact_sha = stage.digest(stage.encoded(artifact)); schema = "crm_stage_" + artifact_sha[:16]
-            source.run(stage.load_sql(artifact, schema, artifact_sha))
-            source_info = source.inspect(); data = promotion.capture(source, source_info["identitySha256"], artifact, artifact_sha)
+            artifact = crm_artifact(True); artifact_sha = stage.digest(stage.encoded(artifact)); schema = "crm_stage_" + artifact_sha[:16]
+            try:
+                source.run(stage.load_sql(artifact, schema, artifact_sha))
+            except stage.StageError:
+                # Synthetic fixture diagnostics stay private; never print COPY bodies or credentials.
+                diagnostic = subprocess.run(["docker", "logs", names[0]], capture_output=True)
+                path = Path(tempfile.gettempdir()) / ("epharm-promotion090-fixture-" + suffix + ".log")
+                stage.private_write(path, diagnostic.stdout + diagnostic.stderr)
+                raise
+            source.run(promotion.copy_table(native_history, [native_history_row(artifact, native_history["columns"])]))
+            source.run("INSERT INTO public.merch_staff_access_attempts(id) VALUES('native-ephemeral');")
+            source_info = source.inspect()
+            with self.assertRaises(stage.StageError): promotion.capture(source, source_info["identitySha256"], artifact, artifact_sha)
+            source.run("DELETE FROM public.merch_staff_access_attempts WHERE id='native-ephemeral';")
+            data = promotion.capture(source, source_info["identitySha256"], artifact, artifact_sha)
             sha = stage.schema_hash(data["metadata"])
-            profile_patch = mock.patch.object(promotion, "schema_profile", return_value=dict(schemaVersion="089", sourceSchemaSha256=sha, plainSchemaSha256=sha, substitutions=[]))
+            profile_patch = mock.patch.object(promotion, "schema_profile", return_value=dict(schemaVersion="090", plainSchemaSha256=sha))
             profile_patch.start(); self.addCleanup(profile_patch.stop)
             info = target.inspect()
             target_pin = {k: info[k] for k in ("database", "oid", "systemIdentifier", "versionNum", "identitySha256")}
@@ -205,7 +261,16 @@ class PromotionPostgresTest(unittest.TestCase):
             self.assertEqual("0", target.readonly("SELECT count(*) FROM public.merch_branches;").strip())
             self.assertEqual("must-survive", target.readonly("SELECT value FROM public.pos_sales WHERE id='post-capture-sale';").strip())
             target.run("INSERT INTO public.pos_sales VALUES('captured','captured-value');")
+            wrong_history = copy.deepcopy(data)
+            columns = [c["name"] for t in wrong_history["metadata"]["tables"] if t["name"] == "merch_staff_access_attempts" for c in t["columns"]]
+            row = wrong_history["rows"]["merch_staff_access_attempts"][0]
+            payload = json.loads(row[columns.index("source_payload")]); payload["created_at"] = "2026-10-29T00:00:00+00:00"
+            row[columns.index("source_payload")] = json.dumps(payload)
+            with self.assertRaises(stage.StageError): target.run(promotion.build_sql(wrong_history, artifact, artifact_sha, target_pin)[0])
+            self.assertEqual("0", target.readonly("SELECT count(*) FROM public.merch_staff_access_attempts;").strip())
+            self.assertEqual("f", target.readonly("SELECT to_regnamespace(" + stage.literal(schema) + ") IS NOT NULL;").strip())
             result = target.run(sql); self.assertIn('"mode" : "imported_and_verified"', result)
+            self.assertEqual("history-1", target.readonly("SELECT source_id FROM public.merch_staff_access_attempts;").strip())
             with self.assertRaises(stage.StageError): target.run(sql)
             after = [stage.parse_json(line) for line in target.readonly("\n".join("SELECT row_to_json(f) FROM (" + promotion.facts_query(t) + ") f;" for t in metadata["tables"] if t["name"] in originals)).splitlines()]
             self.assertEqual(before, after)

@@ -262,6 +262,7 @@ def seed(manifest: dict, root: Path) -> None:
         "inventory": ("view", "edit_structure", "edit_passport", "configure_prices", "manage_availability", "financial_data", "export"),
         "placements": ("view", "edit", "submit", "approve", "reject", "cancel", "assign", "financial_data", "export"),
         "tasks": ("view", "create", "execute", "review", "comment", "cancel", "financial_data", "export"),
+        "staff_access": ("view", "create", "revoke"),
     }.items():
         grants += [grant("merchandising", section, action, True) for action in actions]
     for section, actions in {
@@ -338,7 +339,7 @@ def up(args: argparse.Namespace) -> None:
     write_private(root / "app.env", "\n".join(["SPRING_PROFILES_ACTIVE=test", "SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/" + manifest["database"], "SPRING_DATASOURCE_USERNAME=acceptance", "SPRING_DATASOURCE_PASSWORD=" + password,
         "SPRING_DATA_REDIS_HOST=redis", "JWT_SECRET=" + secrets.token_urlsafe(64), "OTP_DEV_MODE=false", "OTP_PROVIDER=daribar", "OTP_RESEND_COOLDOWN_SECONDS=0",
         "STANDARDN_DIRECTORY_ENABLED=false", "STOREFRONT_CATALOG_ENABLED=false", "MEDUSA_ENABLED=false", "MERCH_AUTOMATION_ENABLED=false", "MERCH_PLACEMENT_EXPIRY_ENABLED=false", "MERCH_TASKS_ENABLED=false", "MERCH_REWARDS_ENABLED=false",
-        "MERCH_NATIVE_DELIVERY_ENABLED=true", "MERCH_NATIVE_EXECUTOR_ENABLED=true", "MERCH_PRODUCER_AUTH_ENABLED=true", "POSM_STAFF_AUTH_ENABLED=false", "POSM_LEGACY_DEVICE_KEY_ENABLED=false", "FULFILLMENT_ENABLED=false",
+        "MERCH_NATIVE_DELIVERY_ENABLED=true", "MERCH_NATIVE_EXECUTOR_ENABLED=true", "MERCH_STAFF_ACCESS_ENABLED=true", "MERCH_PRODUCER_AUTH_ENABLED=true", "POSM_STAFF_AUTH_ENABLED=false", "POSM_LEGACY_DEVICE_KEY_ENABLED=false", "FULFILLMENT_ENABLED=false",
         "DARIBAR_OTP_BASE_URL=https://otp-fixture:8443", "P1SMS_BASE_URL=http://127.0.0.1:9", "MERCH_TASK_EVIDENCE_ROOT=/acceptance/evidence", "UNIFIED_ADMIN_PRIMARY_OWNER_ID=" + owner]) + "\n")
     with (root / "app.env").open("a") as stream:
         stream.write("LEARNER_CREDENTIALS_ENABLED=true\nLEARNER_CREDENTIALS_KEY_FILE=/acceptance/vault/keys.json\n")

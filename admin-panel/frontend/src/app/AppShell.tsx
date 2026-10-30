@@ -29,8 +29,13 @@ export function AppShell() {
   const navigate = useNavigate()
   const location = useLocation()
   const t = useT()
-  const { canViewMerchInventory, canViewMerchPlacements, canViewMerchTasks, canViewLedger } =
-    useAdministrativeCapabilities()
+  const {
+    canViewMerchInventory,
+    canViewMerchPlacements,
+    canViewMerchTasks,
+    canViewMerchStaffAccess,
+    canViewLedger,
+  } = useAdministrativeCapabilities()
 
   const {
     authedUser,
@@ -51,6 +56,7 @@ export function AppShell() {
 
   // Sync active section with current pathname.
   const activeSection = useMemo<SectionId>(() => {
+    if (location.pathname.startsWith('/merch/staff-access')) return 'merch_tasks'
     const entry = (Object.entries(SECTION_ROUTES) as [SectionId, string][])
       .sort((a, b) => b[1].length - a[1].length)
       .find(([, path]) => location.pathname.startsWith(path))
@@ -65,8 +71,9 @@ export function AppShell() {
       ),
     [authedUser, location.search],
   )
-  const activeLabel =
-    activeSection === 'lms' && authedUser && isTrainingWorkspaceRole(authedUser.role)
+  const activeLabel = location.pathname.startsWith('/merch/staff-access')
+    ? 'Коды доступа'
+    : activeSection === 'lms' && authedUser && isTrainingWorkspaceRole(authedUser.role)
       ? trainingItem(activeTrainingTab).sidebarLabel
       : t(`nav.${activeSection}`)
 
@@ -97,6 +104,7 @@ export function AppShell() {
         inventory: canViewMerchInventory,
         placements: canViewMerchPlacements,
         tasks: canViewMerchTasks,
+        staffAccess: canViewMerchStaffAccess,
         ledger: canViewLedger,
       }).some((module) => module.items.some((item) => item.available && item.path === path))
     )
@@ -148,6 +156,7 @@ export function AppShell() {
           canViewMerchInventory={canViewMerchInventory}
           canViewMerchPlacements={canViewMerchPlacements}
           canViewMerchTasks={canViewMerchTasks}
+          canViewMerchStaffAccess={canViewMerchStaffAccess}
           canViewLedger={canViewLedger}
         />
         <div className="flex min-w-0 flex-1 flex-col">
@@ -183,6 +192,7 @@ export function AppShell() {
             canViewMerchInventory={canViewMerchInventory}
             canViewMerchPlacements={canViewMerchPlacements}
             canViewMerchTasks={canViewMerchTasks}
+            canViewMerchStaffAccess={canViewMerchStaffAccess}
             canViewLedger={canViewLedger}
           />
         )}

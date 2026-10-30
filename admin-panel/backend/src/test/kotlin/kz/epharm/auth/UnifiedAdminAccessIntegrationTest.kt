@@ -257,7 +257,18 @@ class UnifiedAdminAccessIntegrationTest {
     }
 
     @Test fun `catalog never advertises unmigrated routes as grantable and scope empty is invalid`() {
-        assertThat(catalog.routes).hasSize(259)
+        assertThat(catalog.routes).hasSize(263)
+        val staffRoutes = catalog.routes.filter { it.permission.subsection == "staff_access" }
+        assertThat(staffRoutes.map { it.api }).containsExactlyInAnyOrder(
+            "GET /api/admin/merch/staff-access", "GET /api/admin/merch/staff-access/options",
+            "POST /api/admin/merch/staff-access", "POST /api/admin/merch/staff-access/{id}/revoke")
+        assertThat(staffRoutes).allSatisfy { route ->
+            assertThat(route.mode).isEqualTo(ScopeIntegration.SCOPED)
+            assertThat(route.explicitAccess).isTrue()
+        }
+        for (permission in listOf(catalog.staffAccessCreate, catalog.staffAccessRevoke)) {
+            assertThat(catalog.definitions.single { it.key == permission }.viewPermission).isEqualTo(catalog.staffAccessView)
+        }
         val reviewedTraining = setOf(
             "GET /api/admin/training/assignments",
             "GET /api/admin/training/assignments/export.csv",
@@ -280,6 +291,10 @@ class UnifiedAdminAccessIntegrationTest {
             "POST /api/admin/training/assignments"
         )
         val reviewedNative = setOf(
+            "GET /api/admin/merch/staff-access",
+            "GET /api/admin/merch/staff-access/options",
+            "POST /api/admin/merch/staff-access",
+            "POST /api/admin/merch/staff-access/{id}/revoke",
             "POST /api/admin/merch/tasks/items/{itemId}/cancel",
             "GET /api/admin/merch/tasks/items/{itemId}/reference",
             "GET /api/admin/merch/placements/{plan}/items/{item}/reference-photo",

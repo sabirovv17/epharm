@@ -5,6 +5,11 @@
 	# Public DNS terminates on the INKAR ingress, so ACME challenges cannot reach
 	# this host. Certificate renewal is performed by INKAR IT and deployed manually.
 	auto_https disable_certs
+	servers {
+		trusted_proxies static 10.10.1.74/32 10.10.1.80/32
+		trusted_proxies_strict
+		client_ip_headers X-Forwarded-For
+	}
 }
 
 (unified_migration_write_freeze) {
@@ -36,6 +41,19 @@
 }
 
 (legacy_staff_entry) {
+	@native_shared_staff {
+		expression `"{$MERCH_LEGACY_PORTAL_CUTOVER_ENABLED:false}" == "true" && "{$MERCH_STAFF_ACCESS_ENABLED:false}" == "true"`
+	}
+	handle @native_shared_staff {
+		header Referrer-Policy no-referrer
+		header Cache-Control no-store
+		# The browser consumes task/access/claim/plain intent before telemetry; never forward query credentials.
+		rewrite * /staff?
+		reverse_proxy frontend:80 {
+			header_up -X-Pharmapay-Key
+			header_up -X-Staff-Session
+		}
+	}
 	@native_legacy_task {
 		query task=*
 		expression `"{$MERCH_LEGACY_PORTAL_CUTOVER_ENABLED:false}" == "true"`
@@ -47,6 +65,7 @@
 		rewrite * /tasks/staff?
 		reverse_proxy frontend:80 {
 			header_up -X-Pharmapay-Key
+			header_up -X-Staff-Session
 		}
 	}
 	handle {
@@ -84,6 +103,18 @@
 	# server-to-server credential is never forwarded to a browser route.
 	handle /merch/* {
 		route {
+			@portal_entry {
+				path /merch/portal
+				method GET HEAD
+			}
+			handle @portal_entry {
+				header Referrer-Policy no-referrer
+				header Cache-Control no-store
+				reverse_proxy frontend:80 {
+					header_up -X-Pharmapay-Key
+					header_up -X-Staff-Session
+				}
+			}
 			@retired_legacy_api {
 				path /merch/api/public/task-dispatch /merch/api/public/task-dispatch/queue /merch/api/public/task-dispatch/start /merch/api/public/task-dispatch/checklist /merch/api/public/task-dispatch/evidence /merch/api/public/task-dispatch/submit /merch/api/task-files/* /merch/api/request-item-files/* /merch/api/placement-files/*
 				expression `"{$MERCH_LEGACY_PORTAL_CUTOVER_ENABLED:false}" == "true"`
@@ -145,7 +176,9 @@
 	# API для касс (/api/posm), телефонов (/api/mobile) и самой админки.
 	handle /api/* {
 		import unified_migration_write_freeze
-		reverse_proxy backend:8080
+		reverse_proxy backend:8080 {
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 
 	# Всё остальное — веб-админка (SPA, статика из nginx фронта).
@@ -184,5 +217,7 @@ http://{$ADMIN_DOMAIN}:8060 {
 # getaddrinfo не видит inkar.kz, нужна строка в /etc/hosts: «10.10.1.76 inkpim.inkar.kz».
 http://{$INTERNAL_DOMAIN:inkpim.inkar.kz} {
 	import unified_migration_write_freeze
-	reverse_proxy frontend:80
+	reverse_proxy frontend:80 {
+		header_up X-Forwarded-For {client_ip}
+	}
 }

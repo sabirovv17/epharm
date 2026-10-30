@@ -34,6 +34,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Type','application/json')
         self.end_headers()
         self.wfile.write(json.dumps({'path':self.path,'integrationHeader':self.headers.get('X-Pharmapay-Key'),
+                                    'staffHeader':self.headers.get('X-Staff-Session'),
+                                    'forwarded':self.headers.get('X-Forwarded-For'),
                                     'writes':Handler.writes}).encode())
     def do_POST(self):
         Handler.writes += 1
@@ -59,6 +61,7 @@ docker run -d --name "$container" --network "$network" \
   -e MERCH_PORTAL_UPSTREAM=https://merch.example.test:8443 \
   -e MERCH_LEGACY_PORTAL_CUTOVER_ENABLED="$1" \
   -e UNIFIED_MIGRATION_WRITE_FREEZE_ENABLED="${2:-false}" \
+  -e MERCH_STAFF_ACCESS_ENABLED="${3:-false}" \
   caddy:2-alpine caddy run --config /etc/caddy/Caddyfile >/dev/null
 docker exec "$container" caddy validate --config /etc/caddy/Caddyfile >/dev/null
 port="$(docker port "$container" 8060/tcp | sed -n 's/.*://p' | head -n 1)"
@@ -73,7 +76,9 @@ request() {
   curl --silent --show-error --connect-timeout 2 --max-time 5 \
     --request "$method" --header "Host: $host" \
     --header 'X-Forwarded-Proto: https' \
+    --header 'X-Forwarded-For: 203.0.113.199' \
     --header 'X-Pharmapay-Key: must-never-reach-browser-upstream' \
+    --header 'X-Staff-Session: must-never-reach-browser-upstream' \
     --dump-header "$test_dir/headers" --output "$test_dir/body" \
     "http://127.0.0.1:$target_port$path"
 }
@@ -125,6 +130,7 @@ assert 'location:' not in raw and 'no-store' in raw and 'no-referrer' in raw
 body=json.load(open(sys.argv[2]))
 assert urlsplit(body['path']).path=='/tasks/staff' and not urlsplit(body['path']).query
 assert body['integrationHeader'] is None
+assert body['staffHeader'] is None
 PY
 done
 for entry in '/merch/staff' '/staff'; do
@@ -147,11 +153,36 @@ request POST '/staff?task=synthetic'
 grep -q '^HTTP/1.1 404 ' "$test_dir/headers"
 echo 'Caddy native cutover: same-origin SPA, no forwarded capability/key, old cached mutations fail closed: OK'
 
+docker rm -f "$container" >/dev/null
+start_caddy true false true
+for entry in '/merch/staff' '/staff' '/staff?access=synthetic-legacy-qr' '/merch/staff?task=synthetic-capability' '/staff?claim=expired&grant=expired' '/staff?access=one&access=two'; do
+  request GET "$entry"
+  python3 - "$test_dir/headers" "$test_dir/body" <<'PY'
+import json,sys
+from urllib.parse import urlsplit
+raw=open(sys.argv[1]).read().lower()
+assert raw.startswith('http/1.1 200 ') and 'location:' not in raw
+assert 'no-store' in raw and 'no-referrer' in raw
+body=json.load(open(sys.argv[2]))
+assert urlsplit(body['path']).path=='/staff' and not urlsplit(body['path']).query
+assert body['integrationHeader'] is None and body['staffHeader'] is None
+PY
+done
+request POST '/staff?access=synthetic'
+grep -q '^HTTP/1.1 404 ' "$test_dir/headers"
+echo 'Caddy shared staff entry: all supported browser intents, no query/session/integration secret upstream: OK'
+
 # A false/default flag must preserve ordinary writes on both ingress paths.
 for host in epharm.example.test epharm-internal.example.test; do
   target_port="$port"; [[ "$host" != epharm-internal.example.test ]] || target_port="$internal_port"
   request POST /api/admin/promo "$host" "$target_port"
   grep -q '^HTTP/1.1 200 ' "$test_dir/headers"
+  python3 - "$test_dir/body" <<'PYTHON'
+import ipaddress,json,sys
+value=json.load(open(sys.argv[1]))['forwarded']
+assert value!='203.0.113.199' and ',' not in value
+ipaddress.ip_address(value)
+PYTHON
 done
 request GET /api/health
 before="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["writes"])' "$test_dir/body")"

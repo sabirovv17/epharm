@@ -73,7 +73,7 @@ jobs:
           set -euo pipefail
           umask 077
           mkdir -m 700 "$RUNNER_TEMP/release-images"
-          git archive --format=tar.gz "$COMMIT" Caddyfile docker-compose.prod.yml tools admin-panel/backend admin-panel/frontend > "$RUNNER_TEMP/release-images/source.tar.gz"
+          git archive --format=tar.gz "$COMMIT" Caddyfile docker-compose.prod.yml tools admin-panel/backend admin-panel/frontend storefront/deploy/inkar-server > "$RUNNER_TEMP/release-images/source.tar.gz"
           python3 - <<'PY'
           import hashlib, json, os, pathlib, tarfile
           root=pathlib.Path(os.environ['RUNNER_TEMP']); source=root/'release-source'; source.mkdir(mode=0o700)

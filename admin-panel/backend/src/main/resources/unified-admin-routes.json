@@ -40,6 +40,17 @@
     "mode": "NOT_READY"
   },
   {
+    "api": "DELETE /api/admin/learner-credentials/exports/{id}",
+    "permission": {
+      "module": "pharmacists",
+      "subsection": "registry",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
     "api": "DELETE /api/admin/lms/courses/{id}",
     "permission": {
       "module": "training",
@@ -599,6 +610,28 @@
     "permission": {
       "module": "merchandising",
       "subsection": "producers",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/staff-access",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "staff_access",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "GET /api/admin/merch/staff-access/options",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "staff_access",
       "action": "view",
       "kind": "ORDINARY"
     },
@@ -1629,6 +1662,28 @@
     "mode": "NOT_READY"
   },
   {
+    "api": "POST /api/admin/learner-credentials/exports",
+    "permission": {
+      "module": "pharmacists",
+      "subsection": "registry",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/learner-credentials/exports/{id}/download",
+    "permission": {
+      "module": "pharmacists",
+      "subsection": "registry",
+      "action": "view",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
     "api": "POST /api/admin/lms/courses",
     "permission": {
       "module": "training",
@@ -1989,6 +2044,28 @@
       "module": "merchandising",
       "subsection": "placements",
       "action": "edit",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/staff-access",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "staff_access",
+      "action": "create",
+      "kind": "ORDINARY"
+    },
+    "mode": "SCOPED",
+    "explicitAccess": true
+  },
+  {
+    "api": "POST /api/admin/merch/staff-access/{id}/revoke",
+    "permission": {
+      "module": "merchandising",
+      "subsection": "staff_access",
+      "action": "revoke",
       "kind": "ORDINARY"
     },
     "mode": "SCOPED",
@@ -2659,38 +2736,5 @@
       "kind": "ORDINARY"
     },
     "mode": "NOT_READY"
-  },
-  {
-    "api": "POST /api/admin/learner-credentials/exports",
-    "permission": {
-      "module": "pharmacists",
-      "subsection": "registry",
-      "action": "view",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "POST /api/admin/learner-credentials/exports/{id}/download",
-    "permission": {
-      "module": "pharmacists",
-      "subsection": "registry",
-      "action": "view",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
-  },
-  {
-    "api": "DELETE /api/admin/learner-credentials/exports/{id}",
-    "permission": {
-      "module": "pharmacists",
-      "subsection": "registry",
-      "action": "view",
-      "kind": "ORDINARY"
-    },
-    "mode": "SCOPED",
-    "explicitAccess": true
   }
 ]

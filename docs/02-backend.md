@@ -529,3 +529,22 @@ returns metadata only; download returns a no-store one-use XLSX. Ordinary roster
 never contain credential values. `app.learner-credentials.enabled` defaults false.
 Key file, bounded TTL/batch/attempt settings and capture behavior are documented in
 [the data/access contract](23-unified-admin-data-and-access.md#d9-current-learner-credential-export).
+
+### Scoped shared staff access (unification candidate)
+
+`/api/admin/merch/staff-access` and `/options` require explicit fresh
+`merchandising/staff_access` view/create/revoke grants over every covered branch.
+`/api/staff/auth/code|qr` exchanges a bounded monthly code or independent QR for an
+opaque12-hour session; only its SHA is stored. No admin JWT, pharmacist identity or
+reward is inferred. Manual revoke terminates sessions, including already-consumed
+codes, and repeated revoke preserves the first actor/audit. Source code hashes,
+branch links and imported auth attempts remain immutable history.
+
+Public `/api/staff/visits` operations validate that session, active organization,
+branch/month scope and deadline on each request; mutation checks join the write
+transaction before domain locks. Shared attempts carry staff_visit_id plus an
+unverified display name and cannot carry PERSON/account/pharmacist/capability
+identity. They reuse evidence/review validation, with no bonus path. A returned
+subset cannot discard submitted siblings or use rejected photos as new evidence.
+Staff sessions and native ephemeral login attempts must never be promoted from a
+rehearsal database. `MERCH_STAFF_ACCESS_ENABLED` defaults to false.

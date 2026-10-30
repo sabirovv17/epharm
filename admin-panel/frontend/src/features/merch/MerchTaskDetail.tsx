@@ -272,10 +272,17 @@ function TaskItemCard({
       attempt.evidence.some((e) => e.mimeType.startsWith('video/'))) &&
     item.checklist.filter((row) => row.required).every((row) => checked.includes(row.id))
   const manualSource = attempt?.executorIdentityStatus === 'source_preserved_unverified'
-  const needsManualReview =
-    manualSource || attempt?.executorIdentityStatus === 'capability_unverified'
+  const unverifiedExecutor =
+    attempt?.executorIdentityStatus === 'capability_unverified' ||
+    attempt?.executorIdentityStatus === 'staff_access_unverified'
+  const needsManualReview = manualSource || unverifiedExecutor
   return (
     <section className="card flex flex-col gap-3 p-4">
+      {attempt?.executorIdentityStatus === 'staff_access_unverified' && (
+        <p className="text-sm text-ink-500">
+          Общий месячный фотоотчёт: личность исполнителя не подтверждена.
+        </p>
+      )}
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="font-bold">
@@ -719,9 +726,7 @@ function TaskItemCard({
                       expectedItemVersion: item.version,
                       decision: review,
                       reason: reason.trim(),
-                      ...(attempt.executorIdentityStatus === 'capability_unverified'
-                        ? { manualUnverifiedExecutor: manual }
-                        : {}),
+                      ...(unverifiedExecutor ? { manualUnverifiedExecutor: manual } : {}),
                       ...(manualSource ? { manualSourcePreserved: manual } : {}),
                     }),
                   )
@@ -812,6 +817,12 @@ function TaskItemCard({
 function ReviewNote({ attempt }: { attempt: TaskAttempt }) {
   return (
     <>
+      {attempt.executorIdentityStatus === 'staff_access_unverified' &&
+        attempt.staffSubmittedName && (
+          <p className="text-[13px]">
+            Подпись при сдаче: {attempt.staffSubmittedName}. Личность не подтверждена.
+          </p>
+        )}
       {attempt.comment && <p className="text-[13px]">Комментарий исполнителя: {attempt.comment}</p>}
       {attempt.review ? (
         <p className="rounded-lg bg-paper-input p-3 text-[13px]">

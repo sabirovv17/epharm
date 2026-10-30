@@ -36,6 +36,7 @@ export interface TaskAttempt {
   comment?: string
   completedChecklistIds?: string[]
   executorIdentityStatus?: string
+  staffSubmittedName?: string | null
 }
 export interface TaskItem {
   id: string

@@ -36,6 +36,7 @@ interface SidebarProps {
   canViewMerchInventory?: boolean
   canViewMerchPlacements?: boolean
   canViewMerchTasks?: boolean
+  canViewMerchStaffAccess?: boolean
   canViewLedger?: boolean
 }
 
@@ -53,6 +54,7 @@ export function Sidebar({
   canViewMerchInventory = false,
   canViewMerchPlacements = false,
   canViewMerchTasks = false,
+  canViewMerchStaffAccess = false,
   canViewLedger = false,
 }: SidebarProps) {
   const t = useT()
@@ -61,6 +63,7 @@ export function Sidebar({
     inventory: canViewMerchInventory,
     placements: canViewMerchPlacements,
     tasks: canViewMerchTasks,
+    staffAccess: canViewMerchStaffAccess,
     ledger: canViewLedger,
   })
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})

@@ -1,6 +1,11 @@
 {
     auto_https off
     admin off
+    servers {
+        trusted_proxies static 10.10.1.74/32
+        trusted_proxies_strict
+        client_ip_headers X-Forwarded-For
+    }
 }
 
 # Keep the existing HTTP virtual host for the Inkar Shop gateway unchanged.
@@ -21,6 +26,84 @@ http://{$SITE_DOMAIN}, http://{$SERVER_IP} {
     }
 }
 
+# Compatibility address only: administration and personal learning stay on ePharm.
+(unified_crm_proxy) {
+    reverse_proxy {$EPHARM_UNIFIED_UPSTREAM:10.10.1.76:8060} {
+        header_up Host epharm.inkar.kz
+        header_up X-Forwarded-Host crm.inkar.kz
+        header_up X-Forwarded-For {client_ip}
+        header_up X-Forwarded-Proto https
+        header_up -X-Pharmapay-Key
+        transport http {
+            dial_timeout 5s
+            response_header_timeout 65s
+        }
+    }
+}
+
+(unified_crm_routes) {
+    @native expression `"{$EPHARM_UNIFIED_CRM_CUTOVER_ENABLED:false}" == "true"`
+    handle @native {
+        header Referrer-Policy no-referrer
+        header Cache-Control no-store
+        request_body {
+            max_size 64MB
+        }
+        route {
+            @entry {
+                method GET
+                path /
+            }
+            handle @entry {
+                rewrite * /merch/portal?
+                import unified_crm_proxy
+            }
+            @admin {
+                method GET HEAD
+                path /admin /admin/* /login
+            }
+            handle @admin {
+                redir https://epharm.inkar.kz/login 302
+            }
+            @learn {
+                method GET HEAD
+                path /learn /learn/*
+            }
+            handle @learn {
+                redir https://epharm.inkar.kz{uri} 302
+            }
+            @portal {
+                method GET HEAD
+                path /producer /producer/login /staff /merch/staff /tasks/staff /merch/portal /assets/* /fonts/* /favicon.ico /favicon.svg /branding/* /pharmacy-shelf.png
+            }
+            handle @portal {
+                import unified_crm_proxy
+            }
+            @api path /api/producer/* /api/staff/* /api/public/merch/tasks /api/public/merch/tasks/*
+            handle @api {
+                import unified_crm_proxy
+            }
+            @retired path /api/*
+            handle @retired {
+                header Content-Type application/json
+                respond `{"code":"MERCH_PORTAL_MOVED","message":"Кабинет обновлён. Откройте страницу заново. Неотправленные действия не подтверждены."}` 409
+            }
+            respond 404
+        }
+    }
+    handle {
+        reverse_proxy 10.10.1.80:8080 {
+            header_up Host {host}
+            header_up X-Forwarded-Host {host}
+            header_up X-Forwarded-Proto {args[0]}
+            transport http {
+                dial_timeout 5s
+                response_header_timeout 65s
+            }
+        }
+    }
+}
+
 # Preserve the gateway's existing HTTP upstream while internal clients move to
 # trusted HTTPS. The upstream is the CRM app on this host, not the old .90 demo.
 http://crm.inkar.kz {
@@ -28,18 +111,10 @@ http://crm.inkar.kz {
     header {
         -Server
         X-Content-Type-Options nosniff
-        Referrer-Policy strict-origin-when-cross-origin
+        Referrer-Policy no-referrer
         X-Frame-Options DENY
     }
-    reverse_proxy 10.10.1.80:8080 {
-        header_up Host {host}
-        header_up X-Forwarded-Host {host}
-        header_up X-Forwarded-Proto http
-        transport http {
-            dial_timeout 5s
-            response_header_timeout 65s
-        }
-    }
+    import unified_crm_routes http
 }
 
 # Corporate DNS resolves crm.inkar.kz directly to 10.10.1.80. The public
@@ -50,16 +125,8 @@ https://crm.inkar.kz {
     header {
         -Server
         X-Content-Type-Options nosniff
-        Referrer-Policy strict-origin-when-cross-origin
+        Referrer-Policy no-referrer
         X-Frame-Options DENY
     }
-    reverse_proxy 10.10.1.80:8080 {
-        header_up Host {host}
-        header_up X-Forwarded-Host {host}
-        header_up X-Forwarded-Proto https
-        transport http {
-            dial_timeout 5s
-            response_header_timeout 65s
-        }
-    }
+    import unified_crm_routes https
 }

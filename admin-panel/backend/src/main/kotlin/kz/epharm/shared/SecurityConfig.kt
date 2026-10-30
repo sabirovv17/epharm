@@ -61,6 +61,17 @@ class SecurityConfig(
             .authorizeHttpRequests { auth ->
                 auth
                     .requestMatchers(HttpMethod.POST,
+                        "/api/staff/auth/code", "/api/staff/auth/qr", "/api/staff/auth/logout",
+                        "/api/staff/visits", "/api/staff/visits/{visitId}/items/{itemId}/evidence",
+                        "/api/staff/visits/{visitId}/submit",
+                    ).permitAll()
+                    .requestMatchers(HttpMethod.GET,
+                        "/api/staff/auth/me", "/api/staff/workspace", "/api/staff/visits/{visitId}",
+                        "/api/staff/visits/{visitId}/evidence/{evidenceId}",
+                        "/api/staff/visits/{visitId}/items/{itemId}/reference",
+                    ).permitAll()
+                    .requestMatchers("/api/staff/**").denyAll()
+                    .requestMatchers(HttpMethod.POST,
                         "/api/mobile/auth/password-reset/request",
                         "/api/mobile/auth/password-reset/verify",
                         "/api/mobile/auth/password-reset/complete",

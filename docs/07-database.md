@@ -188,3 +188,15 @@ accounting and append-only metadata audit. It neither reconstructs old hashes no
 accounts, starts workers or replays bonuses. Password/hash version mismatch makes the
 copy unavailable; the encryption key ring is external to DB backups. A recovery drill
 must restore the matching DB and independent key artifact before decryption is accepted.
+
+V090 retains shared monthly staff access independently of personal `/learn`
+visits:10 codes,530 branch links and7 imported login-attempt records in the
+reviewed source snapshot. `owned_staff_access.py` is the eighth owned projection,
+requiring exact source and candidate pins and an exact no-op replay. It refuses
+nonempty live source sessions/visit reports rather than discarding them. Imported
+code provenance and auth-attempt history are immutable; native sessions and visits
+remain empty during import. New shared attempts carry an explicit staff-visit
+reference and unverified name, never a fabricated PERSON or wallet recipient.
+The090 promotion allowlist has76 native tables; all original72 business tables
+remain outside its COPY set. Old088/089 profiles are historical and must not be
+used to promote a090 candidate.

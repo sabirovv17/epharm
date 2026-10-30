@@ -25,7 +25,8 @@ data class MerchTaskReviewDto(val id: UUID, val attemptId: UUID, val reviewerAcc
 data class MerchTaskAttemptDto(val id: UUID, val number: Int, val status: String, val executorPersonId: UUID?,
     val pharmacistId: String?, val submittedAt: Instant?, val createdAt: Instant, val evidence: List<MerchTaskEvidenceDto>,
     val review: MerchTaskReviewDto?, val comment: String = "", val completedChecklistIds: Set<UUID> = emptySet(),
-    val executorIdentityStatus: String = "unresolved")
+    val executorIdentityStatus: String = "unresolved", val staffVisitId: UUID? = null,
+    val staffSubmittedName: String? = null)
 data class MerchTaskItemDto(val id: UUID, val title: String, val instructions: String, val taskType: String, val status: String,
     val required: Boolean, val requiredPhotos: Int, val checklist: List<TaskChecklistItem>, val version: Long,
     val currentAttempt: MerchTaskAttemptDto?, val legacyEvidence: List<MerchTaskEvidenceDto>,
@@ -52,9 +53,12 @@ internal data class TaskItemRow(val id: UUID, val dispatchId: UUID, val title: S
     val status: String, val required: Boolean, val requiredPhotos: Int, val checklist: List<TaskChecklistItem>,
     val attempt: Int, val version: Long, val availableFrom: Instant?, val dueAt: Instant?)
 internal data class TaskExecutor(val personId: UUID?, val accountId: UUID?, val pharmacistId: String?, val bindingId: UUID?,
-    val capabilityLinkId: UUID? = null) {
+    val capabilityLinkId: UUID? = null, val staffVisitId: UUID? = null, val staffSubmittedName: String? = null) {
     init {
-        require(personId != null || capabilityLinkId != null)
+        require(listOf(personId, capabilityLinkId, staffVisitId).count { it != null } == 1)
         require(capabilityLinkId == null || (personId == null && accountId == null && pharmacistId == null && bindingId == null))
+        require(staffVisitId == null || (personId == null && accountId == null && pharmacistId == null && bindingId == null &&
+            capabilityLinkId == null && (staffSubmittedName?.trim()?.length ?: 0) in 2..120))
+        require(staffVisitId != null || staffSubmittedName == null)
     }
 }

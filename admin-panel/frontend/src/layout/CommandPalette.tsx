@@ -19,6 +19,7 @@ interface CommandPaletteProps {
   canViewMerchInventory?: boolean
   canViewMerchPlacements?: boolean
   canViewMerchTasks?: boolean
+  canViewMerchStaffAccess?: boolean
   canViewLedger?: boolean
 }
 
@@ -41,6 +42,7 @@ export function CommandPalette({
   canViewMerchInventory = false,
   canViewMerchPlacements = false,
   canViewMerchTasks = false,
+  canViewMerchStaffAccess = false,
   canViewLedger = false,
 }: CommandPaletteProps) {
   const t = useT()
@@ -50,6 +52,7 @@ export function CommandPalette({
     inventory: canViewMerchInventory,
     placements: canViewMerchPlacements,
     tasks: canViewMerchTasks,
+    staffAccess: canViewMerchStaffAccess,
     ledger: canViewLedger,
   }).flatMap((module) =>
     module.items

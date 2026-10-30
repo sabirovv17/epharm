@@ -69,6 +69,46 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 describe('task item review and evidence boundary', () => {
+  it('shows each immutable staff submission name in the current attempt and history without claiming a verified person', async () => {
+    const current = {
+      ...task.items[0].currentAttempt!,
+      executorPersonId: null,
+      pharmacistId: null,
+      executorIdentityStatus: 'staff_access_unverified',
+      staffSubmittedName: 'Автор второй сдачи',
+    }
+    vi.mocked(gateway.get).mockResolvedValue({
+      ...task,
+      rewardAmountKzt: 0,
+      items: [{ ...task.items[0], currentAttempt: current }],
+    })
+    gateway.history = vi.fn().mockResolvedValue({
+      items: [
+        {
+          ...current,
+          id: 'old-attempt',
+          number: 1,
+          staffSubmittedName: 'Автор первой сдачи',
+          status: 'revision_required',
+        },
+      ],
+      hasMore: false,
+      limit: 20,
+      offset: 0,
+    })
+    render(<MerchTaskDetail id={task.id} gateway={gateway} />)
+    expect(
+      await screen.findByText('Подпись при сдаче: Автор второй сдачи. Личность не подтверждена.'),
+    ).toBeInTheDocument()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'История попыток' }))
+    expect(
+      await screen.findByText('Подпись при сдаче: Автор первой сдачи. Личность не подтверждена.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Подпись при сдаче: Автор второй сдачи. Личность не подтверждена.'),
+    ).toBeInTheDocument()
+    expect(gateway.history).toHaveBeenCalledExactlyOnceWith('item-demo', 0, expect.any(AbortSignal))
+  })
   it('cancels only the selected item version with a reason and never invokes review or packet cancellation', async () => {
     gateway.cancelItem = vi.fn().mockResolvedValue(task)
     gateway.cancel = vi.fn()
@@ -117,40 +157,43 @@ describe('task item review and evidence boundary', () => {
     expect(screen.queryByRole('button', { name: 'Принять пункт' })).not.toBeInTheDocument()
     expect(gateway.review).not.toHaveBeenCalled()
   })
-  it('requires an explicit HQ acknowledgement for an unverified free executor; it is never defaulted true', async () => {
-    vi.mocked(gateway.get).mockResolvedValue({
-      ...task,
-      rewardAmountKzt: 0,
-      items: [
-        {
-          ...task.items[0],
-          currentAttempt: {
-            ...task.items[0].currentAttempt!,
-            executorPersonId: null,
-            pharmacistId: null,
-            executorIdentityStatus: 'capability_unverified',
+  it.each(['capability_unverified', 'staff_access_unverified'])(
+    'requires explicit HQ acknowledgement for %s; it is never defaulted true',
+    async (identityStatus) => {
+      vi.mocked(gateway.get).mockResolvedValue({
+        ...task,
+        rewardAmountKzt: 0,
+        items: [
+          {
+            ...task.items[0],
+            currentAttempt: {
+              ...task.items[0].currentAttempt!,
+              executorPersonId: null,
+              pharmacistId: null,
+              executorIdentityStatus: identityStatus,
+            },
           },
-        },
-      ],
-    })
-    const user = userEvent.setup()
-    render(<MerchTaskDetail id={task.id} gateway={gateway} canReview />)
-    await user.click(await screen.findByRole('button', { name: 'Принять пункт' }))
-    await user.type(screen.getByLabelText('Причина проверки пункта'), 'Проверено вручную')
-    expect(screen.getByRole('button', { name: 'Подтвердить решение' })).toBeDisabled()
-    const acknowledgement = screen.getByRole('checkbox', {
-      name: /личность исполнителя не подтверждена/,
-    })
-    expect(acknowledgement).not.toBeChecked()
-    await user.click(acknowledgement)
-    await user.click(screen.getByRole('button', { name: 'Подтвердить решение' }))
-    await waitFor(() =>
-      expect(gateway.review).toHaveBeenCalledWith(
-        'item-demo',
-        expect.objectContaining({ manualUnverifiedExecutor: true, reason: 'Проверено вручную' }),
-      ),
-    )
-  })
+        ],
+      })
+      const user = userEvent.setup()
+      render(<MerchTaskDetail id={task.id} gateway={gateway} canReview />)
+      await user.click(await screen.findByRole('button', { name: 'Принять пункт' }))
+      await user.type(screen.getByLabelText('Причина проверки пункта'), 'Проверено вручную')
+      expect(screen.getByRole('button', { name: 'Подтвердить решение' })).toBeDisabled()
+      const acknowledgement = screen.getByRole('checkbox', {
+        name: /личность исполнителя не подтверждена/,
+      })
+      expect(acknowledgement).not.toBeChecked()
+      await user.click(acknowledgement)
+      await user.click(screen.getByRole('button', { name: 'Подтвердить решение' }))
+      await waitFor(() =>
+        expect(gateway.review).toHaveBeenCalledWith(
+          'item-demo',
+          expect.objectContaining({ manualUnverifiedExecutor: true, reason: 'Проверено вручную' }),
+        ),
+      )
+    },
+  )
   it.each(['image/png', 'image/webp'])(
     'legacy %s photos preview but cannot satisfy the current attempt minimum',
     async (mimeType) => {

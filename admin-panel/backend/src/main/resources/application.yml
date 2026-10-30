@@ -84,6 +84,7 @@ app:
     sync-delay-ms: ${STANDARDN_SYNC_DELAY_MS:21600000}
     initial-delay-ms: ${STANDARDN_INITIAL_DELAY_MS:30000}
   merch:
+    staff-access-enabled: ${MERCH_STAFF_ACCESS_ENABLED:false}
     # These switches do not migrate data or enable the legacy CRM writer.
     native-delivery-enabled: ${MERCH_NATIVE_DELIVERY_ENABLED:false}
     native-executor-enabled: ${MERCH_NATIVE_EXECUTOR_ENABLED:false}
