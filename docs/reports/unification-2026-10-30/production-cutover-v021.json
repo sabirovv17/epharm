@@ -1,0 +1,126 @@
+{
+  "status": "completed_with_documented_manual_checks",
+  "releaseId": "v0.2.1",
+  "commit": "f80bdf38ffb5de00b4af63a6a2d5d681655b6124",
+  "domain": "https://epharm.inkar.kz",
+  "separateLearnerPath": "/learn",
+  "ci": {
+    "run": 41026714607,
+    "conclusion": "success",
+    "url": "https://github.com/sabirovv17/epharm/actions/runs/41026714607"
+  },
+  "artifacts": {
+    "run": 41029359488,
+    "archiveSha256": "a4204a782f3e0dbdc91393f987f2368c4e4e8449c3e54bfe365377772a285b35"
+  },
+  "migration": {
+    "flyway": "090",
+    "originalBusinessTablesCheckedUnchanged": 72,
+    "nativeTables": 76,
+    "nativeSnapshotRows": 42025,
+    "rawCrmTables": 57,
+    "rawCrmRows": 42414,
+    "committedAt": "2026-10-30T11:51:12.669Z",
+    "sourceWriterDisabled": true,
+    "sourceDataAndFilesRetained": true,
+    "privateFileCount": 42,
+    "privateFileBytes": 15483848
+  },
+  "testData": {
+    "humanAuthorizedTasksCancelledViaApi": 13,
+    "retainedItems": 26,
+    "retainedEvidence": 11,
+    "otherSourceTasksRetained": 14,
+    "moneyPostedForCancelledTasks": 0
+  },
+  "features": {
+    "nativeMerch": true,
+    "credentialCaptureD9": true,
+    "sharedMonthlyStaffCodes": false,
+    "posmStaffLogin": false,
+    "standardNBlocked": false,
+    "livePayments": false
+  },
+  "ingress": {
+    "crmNative": true,
+    "shopHttpStatus": 200,
+    "unrelatedContainersPreserved": true,
+    "sourceBackupTimerPreserved": true,
+    "legacyApiStatus": 409
+  },
+  "acceptance": {
+    "hqAndPublicCasesPassed": 19,
+    "realXlsxPassed": 5,
+    "protectedDenialsPassed": 4,
+    "storedVideoRange": 206,
+    "authenticatedLearnerCase": "unexecuted_no_existing_learner_session",
+    "independentPreCutoverBackendBrowserCases": 8
+  },
+  "finalHealthyTransaction": {
+    "returnCode": 0,
+    "finishedAt": "2026-10-30T12:18:34.834682+00:00",
+    "samePair": true,
+    "standardSourceCiAndFinancialGuards": true,
+    "caddyAndPostgresPreserved": true,
+    "logSha256": "80563263366c50411985a91ccb30ad6f38c83f0e2cbb9dec6d2299983594b94f"
+  },
+  "liveObservation": {
+    "observedAt": "2026-10-30T12:19:13.53995+00:00",
+    "authenticatedDevicesSeen5m": 450,
+    "printedSales10m": 368,
+    "newlyStoredAmongRecentPrintedSales": 353,
+    "offers10m": 0,
+    "reportedPopups10m": 0
+  },
+  "limits": [
+    "No new real learner login or SMS was issued during final production smoke.",
+    "VM popup/customer-display proof does not prove a physical scanner, fiscal payment or second monitor.",
+    "No fresh real recommendation popup was reported in the selected live ten-minute observation window.",
+    "Range validation covers one stored MP4 prefix, not full playback of every video.",
+    "D9 cannot reconstruct pre-existing one-way password hashes; future captured passwords use the protected vault."
+  ],
+  "finalBackup": {
+    "status": "independent_offsite_recovery_and_isolated_restore_pass",
+    "startedAt": "2026-10-30T12:19:27Z",
+    "finishedAt": "2026-10-30T12:28:16Z",
+    "systemdResult": "success",
+    "exitCode": 0,
+    "archives": 4,
+    "archiveBytes": 634098049,
+    "snapshotId": "5d33bb82a59f5a9ba8bdef7ef6fee633e0c0da7aa93892fe9b0d8b4a2ea7e46c",
+    "allFourArchivesShaVerified": true,
+    "unchangedStandardRestoreExit": 0,
+    "postgresPublicTables": 149,
+    "postgresMigrations": 90,
+    "minioObjects": 9485,
+    "nativeTablesRestored": 76,
+    "rawTablesRestored": 57,
+    "rawRowsRestored": 42414,
+    "keyArchivePreservedNotEveryPasswordDecryptionProof": true,
+    "source76UsedDuringRecovery": false,
+    "proofSha256": "1172c0254b2626b358ea8165103094dff5baba50a2052908db60268c2118f5ae"
+  },
+  "telegram": {
+    "status": "sent_ui_verified",
+    "recipient": "user_specified_contact",
+    "sentLocalTime": "2026-10-30 17:38 Asia/Almaty",
+    "existingHqCredentialsSharedAsExplicitlyAuthorized": true,
+    "readReceiptClaimed": false,
+    "credentialsPersistedInGit": false
+  },
+  "physicalBalancer74Probes": {
+    "producer": 200,
+    "learn": 302,
+    "epharmHealth": 200,
+    "tlsVerificationEnabled": true
+  },
+  "finalRootFreeBytes": 38002814976,
+  "localTestEnvironment": {
+    "memoryRestoredMiB": 4096,
+    "diskSizePreservedMiB": 93803,
+    "engineIdPreserved": true,
+    "existingContainersPreserved": 132,
+    "existingVolumesPreserved": 129,
+    "runningContainers": 0
+  }
+}
