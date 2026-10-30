@@ -41,5 +41,17 @@
   "mainFrontendConfigSha256": "a47b26d8dba37bde507f9ed88a9a3b607d6ae5e56d20a866a76e1607934cefd4",
   "mainBackendJarSha256": "3301c1d3df05125abf52cedccf2689c7c8ffbb65bdcc7b6872310f3f330247fd",
   "mainJarMerchFinancialAccessGuardsPassed": true,
-  "mainOciRecoveryState": "first_isolated_startup_failed_due_to_missing_synthetic_provider_key_retry_in_preparation"
+  "mainOciRecoveryState": "isolated_retry_started_after_sealed_fixture_fix; no recovery pass claimed",
+  "mainOciRetryPreparation": {
+    "manifestSha256": "64d85bcf66c1aac487e2f548315b94b88f10f4062e874f9ca157963b3d3135a6",
+    "pristineReadOnlyProofSha256": "7d836d0c8a3ce756a22471a7a6e6ea7eb7922791fdbad2b03032a38951d6ea64",
+    "sameSyntheticPostgresCredentials": true,
+    "priorFailedAttemptRetained": true,
+    "productionDataUsed": false,
+    "smsCalls": 0,
+    "mainSourceAndReleaseGuardsChanged": false,
+    "freshMigrationClaim": false
+  },
+  "windowsMainUiAcceptanceState": "blocked_mac_locked; staged main package not executed",
+  "requiredGateWaived": false
 }

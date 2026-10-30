@@ -458,6 +458,9 @@ do not rewrite a browser Origin header or enable wildcard CORS. HTTP and interna
 TLS must use the same routes, preserve the unrelated Shop upstream and strip the
 server integration key. The edge switch is not permission to stop CRM or skip
 the final writer freeze, claim-issuer drain, source delta/file check and backup.
+Enable this .80 edge switch only after the .76 native staff, shared-code and producer
+routes have passed their checks with the reviewed capabilities enabled. Otherwise
+the old .76 staff redirect and the new .80 forwarding path can form a redirect loop.
 
 Before enabling shared staff codes, configure the native Tomcat forward-header
 valve with an explicitly reviewed project-proxy network pattern. Compose defaults
