@@ -580,7 +580,7 @@ test('personal queue opens its server-selected item rather than a pending review
   ]
   const blocked: string[] = []
   const queues: string[] = []
-  await page.setViewportSize({ width: 1440, height: 1000 })
+  await page.setViewportSize({ width: 1280, height: 1000 })
   await page.route('**/*', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
@@ -626,15 +626,24 @@ test('personal queue opens its server-selected item rather than a pending review
   await page.goto('/merch/tasks')
   await page.getByRole('combobox', { name: 'Рабочая очередь заданий' }).selectOption('mine')
   await expect(page.getByText(/Доступ к аптеке сам по себе не делает задание вашим/)).toBeVisible()
-  await page.getByRole('button', { name: 'Открыть мой пункт' }).click()
+  await expect(page.getByRole('button', { name: 'Задания мерча', exact: true })).toBeVisible()
+  await page.screenshot({
+    path: testInfo.outputPath('personal-task-queue.png'),
+    fullPage: true,
+    animations: 'disabled',
+  })
+  // The first-column shortcut stays accessible without horizontal table scrolling.
+  const taskTitle = page.getByRole('button', { name: task.title, exact: true })
+  await expect(taskTitle).toBeInViewport()
+  await taskTitle.click()
   const personalItem = page.getByRole('region', { name: 'Пункт: Моя полка' })
   await expect(personalItem).toBeFocused()
   await expect(page.getByRole('button', { name: 'Начать выполнение', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Принять пункт', exact: true })).toHaveCount(0)
   expect(queues).toEqual(['all', 'mine'])
-  await page.screenshot({
-    path: testInfo.outputPath('personal-task-queue.png'),
-    fullPage: true,
+  await personalItem.scrollIntoViewIfNeeded()
+  await personalItem.screenshot({
+    path: testInfo.outputPath('personal-task-item.png'),
     animations: 'disabled',
   })
   expect(blocked).toEqual([])

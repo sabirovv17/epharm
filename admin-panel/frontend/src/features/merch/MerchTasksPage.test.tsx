@@ -99,56 +99,59 @@ describe('native task creation capability and required fields', () => {
     expect(adminTaskGateway.get).not.toHaveBeenCalled()
   })
 
-  it('opens the personal item without choosing a pending review in the same task', async () => {
-    vi.mocked(useAdministrativeCapabilities).mockReturnValue({
-      isPending: false,
-      isError: false,
-      canViewMerchTasks: true,
-      canExecuteMerchTasks: true,
-      canReviewMerchTasks: true,
-    } as ReturnType<typeof useAdministrativeCapabilities>)
-    const task = await vi.mocked(adminTaskGateway.get)(
-      'task-new-demo',
-      new AbortController().signal,
-    )
-    const myItem = {
-      id: 'personal-item',
-      title: 'Моя полка',
-      instructions: 'Проверьте выкладку',
-      taskType: 'photo_report',
-      status: 'assigned',
-      required: true,
-      requiredPhotos: 1,
-      checklist: [],
-      version: 1,
-      currentAttempt: null,
-      legacyEvidence: [],
-      availableFrom: null,
-      dueAt: null,
-      canStart: false,
-      canUpload: false,
-      canSubmit: false,
-    }
-    vi.mocked(adminTaskApi.list).mockResolvedValue({
-      items: [{ ...task, pendingReviewCount: 2, nextExecutionItemId: myItem.id }],
-      limit: 20,
-      offset: 0,
-      hasMore: false,
-    })
-    vi.mocked(adminTaskGateway.get).mockResolvedValue({ ...task, items: [myItem] })
-    render(<MerchTasksPage />)
-    await userEvent.click(await screen.findByRole('button', { name: 'Открыть отчёт' }))
-    await screen.findByText('Моя полка')
-    await userEvent.selectOptions(screen.getByLabelText('Рабочая очередь заданий'), 'mine')
-    await userEvent.click(await screen.findByRole('button', { name: 'Открыть мой пункт' }))
-    await waitFor(() =>
-      expect(document.getElementById('merch-task-item-personal-item')).toHaveFocus(),
-    )
-    expect(
-      screen.queryByRole('button', { name: 'Принять пункт', exact: true }),
-    ).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Начать выполнение' })).not.toBeInTheDocument()
-  })
+  it.each(['Открыть мой пункт', 'Демо-задание'])(
+    'opens the personal item via %s without choosing a pending review in the same task',
+    async (buttonName) => {
+      vi.mocked(useAdministrativeCapabilities).mockReturnValue({
+        isPending: false,
+        isError: false,
+        canViewMerchTasks: true,
+        canExecuteMerchTasks: true,
+        canReviewMerchTasks: true,
+      } as ReturnType<typeof useAdministrativeCapabilities>)
+      const task = await vi.mocked(adminTaskGateway.get)(
+        'task-new-demo',
+        new AbortController().signal,
+      )
+      const myItem = {
+        id: 'personal-item',
+        title: 'Моя полка',
+        instructions: 'Проверьте выкладку',
+        taskType: 'photo_report',
+        status: 'assigned',
+        required: true,
+        requiredPhotos: 1,
+        checklist: [],
+        version: 1,
+        currentAttempt: null,
+        legacyEvidence: [],
+        availableFrom: null,
+        dueAt: null,
+        canStart: false,
+        canUpload: false,
+        canSubmit: false,
+      }
+      vi.mocked(adminTaskApi.list).mockResolvedValue({
+        items: [{ ...task, pendingReviewCount: 2, nextExecutionItemId: myItem.id }],
+        limit: 20,
+        offset: 0,
+        hasMore: false,
+      })
+      vi.mocked(adminTaskGateway.get).mockResolvedValue({ ...task, items: [myItem] })
+      render(<MerchTasksPage />)
+      await userEvent.click(await screen.findByRole('button', { name: 'Открыть отчёт' }))
+      await screen.findByText('Моя полка')
+      await userEvent.selectOptions(screen.getByLabelText('Рабочая очередь заданий'), 'mine')
+      await userEvent.click(await screen.findByRole('button', { name: buttonName, exact: true }))
+      await waitFor(() =>
+        expect(document.getElementById('merch-task-item-personal-item')).toHaveFocus(),
+      )
+      expect(
+        screen.queryByRole('button', { name: 'Принять пункт', exact: true }),
+      ).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Начать выполнение' })).not.toBeInTheDocument()
+    },
+  )
 
   it('does not offer personal work to a viewer even when returned rows have a navigation hint', async () => {
     const task = await vi.mocked(adminTaskGateway.get)(

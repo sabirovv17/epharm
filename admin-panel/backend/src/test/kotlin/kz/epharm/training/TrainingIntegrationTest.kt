@@ -309,8 +309,60 @@ class TrainingIntegrationTest {
             .andExpect(jsonPath("$.questions").doesNotExist())
             .andExpect(jsonPath("$.assignment.stages[0].status").value("in_progress"))
             .andExpect(jsonPath("$.assignment.certificate").doesNotExist())
+        mockMvc.perform(
+            patch("$lessonPath/${quiz.id}").header("Authorization", pharmacistBearer)
+                .contentType(MediaType.APPLICATION_JSON).content("""{"progressPct":100}"""),
+        ).andExpect(status().isBadRequest)
+        val failedProgress = lessonProgressRepository.findByAssignmentStageIdAndLessonId(UUID.fromString(stageId), quiz.id)!!
+        assertNull(failedProgress.completedAt)
+        assertEquals(1, failedProgress.quizAttempts)
+        assertEquals(TrainingStageStatus.in_progress, assignmentStageRepository.findById(UUID.fromString(stageId)).orElseThrow().status)
+        assertNull(certificateRepository.findByAssignmentId(UUID.fromString(assignmentId)))
+        assertNull(rewardRepository.findByAssignmentId(UUID.fromString(assignmentId)))
         org.assertj.core.api.Assertions.assertThat(quiz.quizQuestions.first().correctOption).isEqualTo(0)
         org.assertj.core.api.Assertions.assertThat(quiz.quizQuestions.first().explanation).isEqualTo("Ответ")
+    }
+
+    @Test
+    fun `quiz accepts two thirds at threshold 66 and exact four fifths at threshold 80 without changing displayed scores`() {
+        for ((threshold, total, correct) in listOf(Triple(66, 3, 2), Triple(80, 5, 4))) {
+            val courseId = "crs_exact_threshold_$threshold"
+            courseRepository.save(CourseEntity(id = courseId, title = "Synthetic threshold $threshold", lessons = 1)
+                .also { it.status = CourseStatus.published })
+            val lesson = courseLessonRepository.save(CourseLessonEntity(
+                id = "cls_exact_threshold_$threshold", courseId = courseId, title = "Synthetic assessed lesson",
+                quizPassingScore = threshold, required = true,
+                quizQuestions = (1..total).map { index ->
+                    CourseQuizQuestion("q-$index", "Question $index", listOf("A", "B"), 0, "Private explanation")
+                },
+            ).also { it.kind = CourseLessonKind.test })
+            val program = objectMapper.readTree(mockMvc.perform(post("/api/admin/training/programs")
+                .header("Authorization", adminBearer).contentType(MediaType.APPLICATION_JSON).content("""
+                    {"name":"Synthetic exact threshold $threshold","allowedFormats":["online"],"status":"published",
+                     "onlineCourseId":"$courseId","completionBonus":0,"stages":[
+                     {"key":"course","type":"online_course","title":"Assessed course","order":0,"applicableFormats":["online"]}]}
+                """.trimIndent())).andExpect(status().isOk).andReturn().response.contentAsString)
+            val programId = program["id"].asText()
+            val assignment = objectMapper.readTree(mockMvc.perform(post("/api/admin/training/assignments")
+                .header("Authorization", adminBearer).contentType(MediaType.APPLICATION_JSON)
+                .content("""{"programId":"$programId","pharmacistIds":["ph_training"],"format":"online"}"""))
+                .andExpect(status().isOk).andReturn().response.contentAsString)["assignments"][0]
+            val assignmentId = assignment["id"].asText()
+            val stageId = assignment["stages"][0]["id"].asText()
+            val answers = (1..total).associate { "q-$it" to if (it <= correct) 0 else 1 }
+            val displayedScore = if (threshold == 66) 67 else 80
+            mockMvc.perform(post("/api/mobile/training/assignments/$assignmentId/stages/$stageId/lessons/${lesson.id}/quiz")
+                .header("Authorization", pharmacistBearer).contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(mapOf("answers" to answers))))
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$.passed").value(true))
+                .andExpect(jsonPath("$.score").value(displayedScore))
+                .andExpect(jsonPath("$.attempt").value(1))
+                .andExpect(jsonPath("$.questions").doesNotExist())
+                .andExpect(jsonPath("$.assignment.status").value("completed"))
+                .andExpect(jsonPath("$.assignment.certificate.score").value(displayedScore))
+            assertEquals(displayedScore, certificateRepository.findByAssignmentId(UUID.fromString(assignmentId))!!.score)
+        }
     }
 
     @Test

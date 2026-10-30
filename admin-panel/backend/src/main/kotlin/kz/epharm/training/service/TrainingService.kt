@@ -1469,7 +1469,7 @@ class TrainingService(
         }
         val score = ((correctAnswers * 100.0) / lesson.quizQuestions.size).roundToInt()
         // Compare the exact ratio: display rounding must never turn a failure into a pass.
-        val passed = correctAnswers * 100 >= lesson.quizPassingScore * lesson.quizQuestions.size
+        val passed = correctAnswers.toLong() * 100L >= lesson.quizPassingScore.toLong() * lesson.quizQuestions.size.toLong()
         val now = Instant.now()
         val progress = lessonProgressRepository.findByAssignmentStageIdAndLessonId(stageId, lessonId)
             ?: TrainingLessonProgressEntity(

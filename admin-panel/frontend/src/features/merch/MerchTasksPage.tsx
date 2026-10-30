@@ -4,7 +4,13 @@ import { Button, Field, Input, Modal, PageHeader, Select } from '@/ui'
 import { describeError } from '@/lib/describeError'
 import { formatKzt } from '@/mocks/fixtures'
 import MerchTaskDetail from './MerchTaskDetail'
-import { adminTaskApi, adminTaskGateway, type CreateTask, type TaskBranch } from './tasks-api'
+import {
+  adminTaskApi,
+  adminTaskGateway,
+  type CreateTask,
+  type MerchTask,
+  type TaskBranch,
+} from './tasks-api'
 import { usePlacementRead } from './usePlacementRead'
 import TaskTemplateDialog from './TaskTemplateDialog'
 import { AdminMonthlyVisitPanel } from './MonthlyVisitPanel'
@@ -96,6 +102,12 @@ function TaskWorkspace({
     setReviewFocus(focusReview)
     setExecutionItemId(itemId)
   }
+  const openListedTask = (task: MerchTask) =>
+    openTask(
+      task.id,
+      queue !== 'mine' && (task.pendingReviewCount ?? 0) > 0,
+      queue === 'mine' ? (task.nextExecutionItemId ?? null) : null,
+    )
   const resetFilters = () => {
     setQueue('all')
     setSearch('')
@@ -295,7 +307,13 @@ function TaskWorkspace({
                         className={`border-t border-ink-200 ${selected === task.id ? 'bg-brand-green-50' : 'hover:bg-paper-hover'}`}
                       >
                         <td className="min-w-44 p-4">
-                          <div className="font-semibold">{task.title}</div>
+                          <button
+                            type="button"
+                            className="rounded-sm text-left font-semibold underline decoration-ink-300 underline-offset-4 hover:text-brand-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green-400"
+                            onClick={() => openListedTask(task)}
+                          >
+                            {task.title}
+                          </button>
                           <div className="mt-1 text-ink-500">{taskTypeLabel(task.taskType)}</div>
                         </td>
                         <td className="p-3">
@@ -341,17 +359,7 @@ function TaskWorkspace({
                               : formatKzt(task.rewardAmountKzt)}
                         </td>
                         <td className="p-3">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              openTask(
-                                task.id,
-                                queue !== 'mine' && (task.pendingReviewCount ?? 0) > 0,
-                                queue === 'mine' ? (task.nextExecutionItemId ?? null) : null,
-                              )
-                            }
-                          >
+                          <Button variant="outline" size="sm" onClick={() => openListedTask(task)}>
                             {queue === 'mine'
                               ? 'Открыть мой пункт'
                               : (task.pendingReviewCount ?? 0) > 0
