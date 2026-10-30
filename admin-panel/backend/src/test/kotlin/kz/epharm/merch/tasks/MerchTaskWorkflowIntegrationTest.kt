@@ -24,6 +24,7 @@ import kz.epharm.finance.service.WalletCreditSource
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
@@ -145,13 +146,19 @@ class MerchTaskWorkflowIntegrationTest {
             MerchTaskDispatchPage::class.java)
     }
 
-    private fun personallyAssignedSource(count: Int = 1): Pair<MerchTaskDispatchDto, UUID> {
+    private fun personallyAssignedSource(
+        count: Int = 1,
+        boundAccountId: UUID? = admin.id,
+        boundPersonId: UUID = adminPerson,
+    ): Pair<MerchTaskDispatchDto, UUID> {
         val task = create(amount = 0, count = count)
         val source = UUID.randomUUID()
         jdbc.update("""insert into unified_external_accounts(id,source_system,source_origin,source_payload,full_name,source_role,active,created_at,updated_at)
             values(?,'MERCH_CRM','https://crm.inkar.kz','{}','Synthetic author','mass_manager',true,now(),now())""", source)
-        jdbc.update("""insert into unified_external_account_bindings(source_account_id,admin_account_id,person_id,verification_reference,verified_by)
-            values(?,?,?,'synthetic-explicit-person-binding',?)""", source, admin.id, adminPerson, admin.id)
+        if (boundAccountId != null) {
+            jdbc.update("""insert into unified_external_account_bindings(source_account_id,admin_account_id,person_id,verification_reference,verified_by)
+                values(?,?,?,'synthetic-explicit-person-binding',?)""", source, boundAccountId, boundPersonId, admin.id)
+        }
         jdbc.update("update merch_task_dispatches set source_system='MERCH_CRM',source_origin='https://crm.inkar.kz',source_mass_owner_id=? where id=?", source, task.id)
         jdbc.update("update merch_task_items set source_assignee_id=? where dispatch_id=?", source, task.id)
         return task to source
@@ -174,23 +181,44 @@ class MerchTaskWorkflowIntegrationTest {
         assertTrue(mine().items.isEmpty()) // A source UUID on an EPHARM task is not a CRM assignment.
     }
 
-    @Test fun `mine fails closed for inactive revoked or mismatched source binding without changing ordinary view`() {
+    @Test fun `mine fails closed for inactive source while verified binding remains append only`() {
         val (assigned, source) = personallyAssignedSource()
         jdbc.update("update unified_external_accounts set active=false where id=?", source)
         assertTrue(mine().items.isEmpty())
         assertEquals(assigned.id, get(assigned.id).id)
         jdbc.update("update unified_external_accounts set active=true where id=?", source)
-        jdbc.update("update unified_external_account_bindings set person_id=? where source_account_id=?", pharmacistPerson, source)
+        assertEquals(assigned.id, mine().items.single().id)
+        assertThrows(DataIntegrityViolationException::class.java) {
+            jdbc.update("update unified_external_account_bindings set person_id=? where source_account_id=?", pharmacistPerson, source)
+        }
+        assertThrows(DataIntegrityViolationException::class.java) {
+            jdbc.update("delete from unified_external_account_bindings where source_account_id=?", source)
+        }
+        assertEquals(assigned.id, mine().items.single().id)
+    }
+
+    @Test fun `mine rejects a source binding to a different verified person`() {
+        val (assigned, _) = personallyAssignedSource(boundPersonId = pharmacistPerson)
         assertTrue(mine().items.isEmpty())
-        jdbc.update("update unified_external_account_bindings set person_id=?,admin_account_id=? where source_account_id=?", adminPerson, reviewer.id, source)
-        assertTrue(mine().items.isEmpty()) // Bound account's actual profile belongs to a different person.
+        assertEquals(assigned.id, get(assigned.id).id)
+    }
+
+    @Test fun `mine checks the bound account profile and current active status`() {
+        val (assigned, _) = personallyAssignedSource(boundAccountId = reviewer.id)
+        assertTrue(mine().items.isEmpty())
+        assertEquals(assigned.id, get(assigned.id).id)
         jdbc.update("update unified_admin_profiles set person_id=? where account_id=?", adminPerson, reviewer.id)
-        assertEquals(assigned.id, mine().items.single().id) // Same verified human, not an inferred account-name match.
+        assertEquals(assigned.id, mine().items.single().id)
         jdbc.update("update admin_users set status='blocked' where id=?", reviewer.id)
         assertTrue(mine().items.isEmpty())
         jdbc.update("update admin_users set status='active' where id=?", reviewer.id)
-        jdbc.update("delete from unified_external_account_bindings where source_account_id=?", source)
+        assertEquals(assigned.id, mine().items.single().id)
+    }
+
+    @Test fun `mine never infers a personal assignment from an unbound source account`() {
+        val (assigned, _) = personallyAssignedSource(boundAccountId = null)
         assertTrue(mine().items.isEmpty())
+        assertEquals(assigned.id, get(assigned.id).id)
     }
 
     @Test fun `mine requires verified person and execution permission independently of assigned source identity`() {
