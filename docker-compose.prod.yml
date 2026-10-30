@@ -162,6 +162,7 @@ services:
       # Optional employee sign-in never gates Standard-N sales or the POSM outbox.
       # Enable for a controlled client pilot; old clients keep their current behavior.
       POSM_STAFF_AUTH_ENABLED: ${POSM_STAFF_AUTH_ENABLED:-false}
+      UNIFIED_ADMIN_PRIMARY_OWNER_ID: ${UNIFIED_ADMIN_PRIMARY_OWNER_ID:-}
       LEARNER_CREDENTIALS_ENABLED: ${LEARNER_CREDENTIALS_ENABLED:-false}
       LEARNER_CREDENTIALS_KEY_FILE: /run/epharm-learner-credentials/keys.json
       LEARNER_CREDENTIALS_EXPORT_TTL_SECONDS: ${LEARNER_CREDENTIALS_EXPORT_TTL_SECONDS:-120}

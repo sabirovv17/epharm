@@ -3324,3 +3324,14 @@ WPF build0warnings/0errors. Шесть конкретных независимы
 регрессиями и повторным review. Новая Windows CI/VM приёмка обязательна и пока
 не объявлена выполненной; никакой fleet update ещё не опубликован.
 [Source proof POSM](docs/reports/unification-2026-10-30/posm-linked-cart-source.json).
+
+Env-only HQ исправление завершено реальным RED→GREEN: прежний cb16 не распознавал
+владельца из environment, новый d701 без CLI override вернул primaryHqOwner=true
+через настоящий accounts API. Actual Compose render передал точный UUID. Новый
+чистый повтор7/7 прошёл за7.6мин: HQ/МАС/дивизион/обучение, producer, отдельный
+`/learn`, настоящий D9 XLSX, отзыв старого JWT и legacy POSM/dedup. Стенд остановлен,
+БД/ключи/файлы сохранены. Kotlin/migrations не менялись, full1303 относится к тому же
+коду до двухстрочного resource mapping; новый полный CI проверяется на итоговом Git.
+[Config proof](docs/reports/unification-2026-10-30/hq-owner-config-acceptance.json).
+Интеграционный владелец также повторил17/17 release-recovery contracts и15/15 retention.
+CHANGELOG подготовлен для будущего immutable v0.2.0; tag/production switch ещё не созданы.

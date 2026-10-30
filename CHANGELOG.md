@@ -5,6 +5,8 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-30
+
 ### Added
 
 - Separate D9 learner credential export for explicitly authorised HQ accounts: current-password
@@ -36,6 +38,13 @@ All notable production changes to Epharm are recorded here. The format follows
 - POSM candidate: do not report unpaid receipt switches or disappearance as sales. Withhold
   the two known unsafe legacy replay sources, preserve their files and original queue rows,
   and recover a later confirmed print under the same physical sale id without duplicate credit.
+- Preserve complete linked Standard-N carts and correlate late prints using fresh physical
+  posted rows. Keep original seller/session and unresolved evidence across restart; reject
+  unsupported monetary precision without rounding or acknowledging a fabricated sale.
+- Forward-recover a recorded failed release with exact main artifacts and a fresh protected
+  backup, preserving physical database identity, migration history, grants and new sales.
+- Forward the explicitly designated HQ owner through production configuration; an empty value
+  creates no owner or additional permissions.
 - Guard expanded-schema recovery against older authorization which cannot enforce managed
   scopes, and preserve native evidence, independent credential keys and exact MinIO policies.
 - Preserve MinIO object headers, user metadata and tags alongside exact bodies; validate the

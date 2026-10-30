@@ -109,6 +109,8 @@ test.beforeAll(async ({ request }) => {
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { apiUrl: string; runId: string }
   if (manifest.apiUrl !== fixture.apiUrl || manifest.runId !== fixture.runId) throw new Error('Fixture differs from the pinned synthetic runtime')
   hq = await json(request, 'POST', '/api/admin/auth/login', undefined, fixture.hq)
+  const accounts = await json<{ email: string; primaryHqOwner: boolean }[]>(request, 'GET', '/api/admin/access/accounts', token())
+  expect(accounts.find(account => account.email === fixture.hq.email)?.primaryHqOwner).toBe(true)
 })
 
 test('HQ creates an explicitly scoped MAS; foreign task, finance, training and management deny', async ({ request }) => {

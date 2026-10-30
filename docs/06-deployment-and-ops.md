@@ -123,6 +123,10 @@ Important current values/policies:
 
 - Production OTP requires `OTP_DEV_MODE=false`, `OTP_PROVIDER=daribar`,
   `DARIBAR_OTP_BASE_URL=https://prod-backoffice.daribar.com` and a finite request timeout.
+- `UNIFIED_ADMIN_PRIMARY_OWNER_ID` designates the exact existing verified HQ account UUID.
+  The empty default designates nobody; setting it does not create an account, profile,
+  sensitive grant or credential-export permission. Review the profile and explicit grants
+  separately before enabling the unified administration workflow.
 - `OTP_DEV_MODE=true` exposes the shared fixed code and is permitted only for local/test environments.
 - `S3_PUBLIC_URL` must match the external Caddy route. It is `https://epharm.inkar.kz/s3`.
 - Production uses `STOREFRONT_CATALOG_ENABLED=true`,

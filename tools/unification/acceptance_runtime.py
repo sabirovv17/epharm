@@ -374,7 +374,7 @@ def up(args: argparse.Namespace) -> None:
          "--mount", f"type=bind,src={root / 'otp-trust.p12'},dst=/acceptance/otp-trust.p12,readonly",
          "--mount", f"type=bind,src={root / 'vault'},dst=/acceptance/vault,readonly",
          "--entrypoint", "java", IMAGES["app"], "-Xmx768m", "-Djavax.net.ssl.trustStore=/acceptance/otp-trust.p12", "-Djavax.net.ssl.trustStorePassword=synthetic-trust-only",
-         "-jar", "/acceptance/app.jar", "--app.cors.allowed-origins=http://127.0.0.1:4177", "--app.unified-admin.primary-owner-id=" + owner])
+         "-jar", "/acceptance/app.jar", "--app.cors.allowed-origins=http://127.0.0.1:4177"])
     verify_manifest(root / "manifest.json")
     proxy_log = (root / "transport.log").open("xb")
     os.chmod(root / "transport.log", 0o600)
