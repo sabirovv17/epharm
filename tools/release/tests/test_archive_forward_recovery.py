@@ -67,7 +67,11 @@ elif args and args[0]=='exec':
             if os.environ.get('TEST_DB_DRIFT_DURING_BACKUP')=='true': state['history'][0]['checksum']+=1; save()
             if os.environ.get('TEST_CONFIG_DRIFT_DURING_BACKUP')=='true':
                 with (root/'.env.prod').open('a') as out: out.write('UNREVIEWED_CHANGE=true\n')
-        elif 'psql' in ' '.join(args): print(json.dumps({'system_identifier':'731234567890','database_oid':16384,'history':state['history']}))
+        elif 'psql' in ' '.join(args):
+            # PostgreSQL's native oid has JSON string representation. The
+            # production fingerprint must request bigint for numeric parsing.
+            oid=16384 if 'oid::bigint' in args[-1] else '16384'
+            print(json.dumps({'system_identifier':'731234567890','database_oid':oid,'history':state['history']}))
         else: raise SystemExit(2)
 elif args and args[0]=='compose':
     files=[args[i+1] for i,v in enumerate(args) if v=='--env-file']; pins={}
@@ -356,6 +360,13 @@ fi
         self.run_script(str(alias/'tools/release/recover-archive-two-image.sh'),[
             self.failure,self.failure_sha,'v0.2.0','v0.2.0',COMMIT,CAND_BE,CAND_FE,
             self.backup_root,self.compose_sha,'--dry-run'])
+        self.assert_preserved()
+
+    def test_native_oid_wire_string_is_explicitly_cast_for_numeric_fingerprint(self):
+        self.create_failure()
+        native=json.loads(subprocess.check_output(['docker','exec','epharm-postgres','sh','-c','psql','sh','SELECT oid FROM pg_database'],env=self.env,text=True))
+        self.assertIsInstance(native['database_oid'],str)
+        self.recovery(dry=True)
         self.assert_preserved()
 
 

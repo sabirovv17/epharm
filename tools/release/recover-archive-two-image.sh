@@ -217,7 +217,7 @@ else: assert after==before
 PY
 }
 database_fingerprint() {
-  local sql="SELECT json_build_object('system_identifier', (SELECT system_identifier::text FROM pg_control_system()), 'database_oid', (SELECT oid FROM pg_database WHERE datname=current_database()), 'history', (SELECT coalesce(json_agg(row_to_json(h) ORDER BY installed_rank),'[]'::json) FROM flyway_schema_history h))"
+  local sql="SELECT json_build_object('system_identifier', (SELECT system_identifier::text FROM pg_control_system()), 'database_oid', (SELECT oid::bigint FROM pg_database WHERE datname=current_database()), 'history', (SELECT coalesce(json_agg(row_to_json(h) ORDER BY installed_rank),'[]'::json) FROM flyway_schema_history h))"
   docker exec epharm-postgres sh -c 'exec psql -X -A -t -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$1"' sh "$sql" \
     | python3 -c 'import json,re,sys; x=json.load(sys.stdin); assert set(x)=={"system_identifier","database_oid","history"} and re.fullmatch("[0-9]+",x["system_identifier"]) and type(x["database_oid"]) is int and x["database_oid"]>0 and isinstance(x["history"],list) and len(x["history"])<=1000; print(json.dumps(x,sort_keys=True,separators=(",",":")))'
 }

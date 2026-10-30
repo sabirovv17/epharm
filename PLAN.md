@@ -3365,3 +3365,37 @@ connection этот тест не доказывает. Независимый r
 новым CaddyID, не переписывание прежнего rollback record.
 [Routing proof](docs/reports/unification-2026-10-30/first-import-write-freeze.json).
 Это только подготовка source; production gate/ingress пока не включались.
+
+Свежая release preparation завершена: новый snapshot .76 содержит72business/
+1 933 535строк (+641POSM sale к прошлому); новый CRM snapshot57/42 414строк и31файл
+точно совпали по всемPK/full values/bytes. В новом отдельном089 candidate24plain
+Flyway-миграции,7owned projection и7NOOP прошли; все исходные72 таблицы/колонки/PK/
+значения сохранены. Явный109grant HQ bootstrap/create/NOOP добавил только новый
+PERSON/profile/2audit, исходный admin row иLEGACY mode не изменены. Native71 теперь
+41 477строк; 148CRM-only аптек,36aliases и3testplans сохранены, выдуманных company,
+генерации заданий и денег нет. App/workers не запускались.
+
+Immutable private SQL package подготовлен к фактическому physical PG target .76;
+генератор не подключается к target и SQL не исполняет. Все5файлов проверены
+интеграционным владельцем, source fingerprint совпал с reviewed plain089. Это
+**не live replacement**: после snapshot уже наблюдались ещё19продаж, original72
+при будущем selective import не перезаписываются. Финальный CRM freeze/delta/file
+check обязателен.
+[Fresh preparation](docs/reports/unification-2026-10-30/fresh-release-preparation-089.json).
+
+Actual PostgreSQL probe также выявил availability-дефект G7: OID вJSON по умолчанию
+является строкой. Исправлен только SQLcast oid::bigint, строгий numeric parser не
+ослаблялся. Старый вариант воспроизвёл RED доbackup/switch; новый18/18Linux contract
+PASS, focused regression повторен интеграционным владельцем, actualreadonlyPG
+подтвердил равное значение и правильный тип.
+
+**Новый открытый G11/M13 вопрос:** создание/отзыв общего месячного staff-кода и
+старый staff workspace пока не являются native функцией. В fresh source10кодoв
+всеистекли; действующих session/claim/binding/visit report0. Новый месячный визит
+через личный `/learn` и taskQR работает, но это иной доступ. Legacy claim callback
+также ещё содержит CRM-origin. Нельзя молча выдать taskSPA на все /staff варианты
+или объявить функционал полностью перенесённым из-за нулевого текущего использования.
+Пользователю задан один вопрос: утвердить личный `/learn`/QR вместо общих кодов либо
+перенести общий код тоже. История сохраняется в обоих случаях. До решения/проверки
+совместимых access/claim/plain entry нельзя закрытьG11 и выполнять полный CRMcutover.
+[Аудит старого входа](docs/reports/unification-2026-10-30/legacy-staff-entry-audit.json).

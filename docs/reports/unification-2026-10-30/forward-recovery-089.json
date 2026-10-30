@@ -33,5 +33,14 @@
   "externalSmsUsed": false,
   "productionTouched": false,
   "realMainOciReleaseFlowProven": false,
-  "remainingGate": "Rehearse the exact reviewed main/CI image forward-recovery flow and install the reviewed incident-retention reader before production application cutover"
+  "remainingGate": "Rehearse the exact reviewed main/CI image forward-recovery flow and install the reviewed incident-retention reader before production application cutover",
+  "releaseHelperOidBoundary": {
+    "actualPostgresNativeOidJsonType": "string",
+    "explicitBigintCastJsonType": "integer",
+    "numericValueUnchanged": true,
+    "strictParserRetained": true,
+    "removedCastRedReproduced": true,
+    "linuxContractsPassed": 18,
+    "integrationOwnerFocusedRegressionPassed": true
+  }
 }
