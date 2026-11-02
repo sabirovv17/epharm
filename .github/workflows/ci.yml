@@ -96,6 +96,7 @@ jobs:
           python3 -m unittest discover -s tools/release/tests -p 'test_admin_artifact.py'
           python3 -m unittest discover -s tools/release/tests -p 'test_release_source.py'
           python3 -m unittest discover -s tools/release/tests -p 'test_financial_transition.py'
+          python3 -m unittest discover -s tools/release/tests -p 'test_posm_package_defaults.py'
           bash tools/release/tests/prepare-deploy-contract.sh
       - name: Verify backend-only release and rollback
         run: bash tools/release/tests/backend-only-contract.sh
