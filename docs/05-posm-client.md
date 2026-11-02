@@ -401,6 +401,12 @@ to repair a workstation-specific download, permissions or configuration failure.
 
 ## Merchandising task QR
 
+The 1.0.75 candidate aligns this window with the existing ePharm admin: the same receipt-stamp
+logo (`admin-panel/frontend/src/layout/Logo.tsx`, mirrored as a WPF vector), embedded shared Manrope,
+teal header, light workspace and neutral controls. Brand resources are local to this window. The QR
+keeps its white backing and quiet zone. Task selection, offline/expiry handling, topmost/no-activation
+behavior, shown acknowledgements and the ten-minute reminder retain their existing contracts.
+
 Starting with v1.0.52, the same authenticated POSM channel can retrieve an active merchandising task
 for the device's pharmacy and acknowledge a QR only when it is visible. Backend authentication binds
 individual device tokens to both `pharmacyId` and `deviceId`; the server-to-server CRM credential is

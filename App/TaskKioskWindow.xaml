@@ -1,22 +1,38 @@
 <Window x:Class="CustomerDisplay.TaskKioskWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Задания аптеки — Фармапей" Width="460" Height="624"
+        Title="Задания аптеки — ePharm" Width="460" Height="650"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ResizeMode="NoResize" Topmost="True" ShowActivated="False"
-        FontFamily="Segoe UI" FontSize="14" Foreground="#F7FBF8"
+        FontFamily="/CustomerDisplay;component/Assets/Brand/#Manrope" FontSize="14" Foreground="#1C1B19"
         UseLayoutRounding="True" SnapsToDevicePixels="True">
   <Window.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
         <ResourceDictionary Source="Assets/Fluent/Icons.xaml" />
+        <ResourceDictionary Source="Assets/Brand/EpharmLogo.xaml" />
       </ResourceDictionary.MergedDictionaries>
-      <SolidColorBrush x:Key="Accent" Color="#65DEAD" />
-      <SolidColorBrush x:Key="Muted" Color="#B2CCC2" />
+      <!-- Mirrors the current admin sidebar, card, text and control tokens. -->
+      <SolidColorBrush x:Key="Header" Color="#073F46" />
+      <SolidColorBrush x:Key="HeaderHover" Color="#1A5258" />
+      <SolidColorBrush x:Key="HeaderMuted" Color="#B2CBCF" />
+      <SolidColorBrush x:Key="HeaderIconSurface" Color="#1AFFFFFF" />
+      <SolidColorBrush x:Key="Accent" Color="#07877F" />
+      <SolidColorBrush x:Key="ActionAccent" Color="#9C4029" />
+      <SolidColorBrush x:Key="Muted" Color="#6B6862" />
+      <SolidColorBrush x:Key="TextPrimary" Color="#1C1B19" />
+      <SolidColorBrush x:Key="TextSecondary" Color="#4D4A45" />
+      <SolidColorBrush x:Key="Canvas" Color="#F2F7F7" />
+      <SolidColorBrush x:Key="Surface" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="SurfaceHover" Color="#EFF8F7" />
+      <SolidColorBrush x:Key="SurfaceSelected" Color="#EAF7F6" />
+      <SolidColorBrush x:Key="Hairline" Color="#DCE8E8" />
+      <SolidColorBrush x:Key="PriorityWarning" Color="#F1B416" />
+      <SolidColorBrush x:Key="PriorityDanger" Color="#E5484D" />
       <Style x:Key="QuietButton" TargetType="Button">
-        <Setter Property="Foreground" Value="{StaticResource Accent}" />
-        <Setter Property="Background" Value="Transparent" />
-        <Setter Property="BorderBrush" Value="#46A98A" />
+        <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+        <Setter Property="Background" Value="{StaticResource Surface}" />
+        <Setter Property="BorderBrush" Value="{StaticResource Hairline}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Padding" Value="12,8" />
@@ -26,34 +42,47 @@
               <Border x:Name="Frame" Background="{TemplateBinding Background}"
                       BorderBrush="{TemplateBinding BorderBrush}"
                       BorderThickness="{TemplateBinding BorderThickness}"
-                      CornerRadius="5" Padding="{TemplateBinding Padding}">
+                      CornerRadius="8" Padding="{TemplateBinding Padding}">
                 <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
               </Border>
-              <ControlTemplate.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                  <Setter TargetName="Frame" Property="Background" Value="#155846" />
-                </Trigger>
-                <Trigger Property="IsKeyboardFocused" Value="True">
-                  <Setter TargetName="Frame" Property="BorderBrush" Value="#FFFFFF" />
-                  <Setter TargetName="Frame" Property="BorderThickness" Value="2" />
-                </Trigger>
-                <Trigger Property="IsPressed" Value="True">
-                  <Setter TargetName="Frame" Property="Background" Value="#206B54" />
-                </Trigger>
-              </ControlTemplate.Triggers>
             </ControlTemplate>
           </Setter.Value>
         </Setter>
+        <Style.Triggers>
+          <Trigger Property="IsMouseOver" Value="True">
+            <Setter Property="Background" Value="{StaticResource SurfaceHover}" />
+          </Trigger>
+          <Trigger Property="IsKeyboardFocused" Value="True">
+            <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+            <Setter Property="BorderThickness" Value="2" />
+          </Trigger>
+          <Trigger Property="IsPressed" Value="True">
+            <Setter Property="Background" Value="{StaticResource SurfaceSelected}" />
+          </Trigger>
+        </Style.Triggers>
       </Style>
       <Style x:Key="TitleButton" TargetType="Button" BasedOn="{StaticResource QuietButton}">
-        <Setter Property="Foreground" Value="#E4F0EB" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Width" Value="36" />
         <Setter Property="Height" Value="36" />
         <Setter Property="Padding" Value="9" />
+        <Style.Triggers>
+          <Trigger Property="IsMouseOver" Value="True">
+            <Setter Property="Background" Value="{StaticResource HeaderHover}" />
+          </Trigger>
+          <Trigger Property="IsPressed" Value="True">
+            <Setter Property="Background" Value="{StaticResource HeaderHover}" />
+          </Trigger>
+          <Trigger Property="IsKeyboardFocused" Value="True">
+            <Setter Property="BorderBrush" Value="White" />
+            <Setter Property="BorderThickness" Value="1" />
+          </Trigger>
+        </Style.Triggers>
       </Style>
       <Style TargetType="ComboBoxItem">
-        <Setter Property="Foreground" Value="#F7FFF8" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
         <Setter Property="Padding" Value="12,10" />
         <Setter Property="Template">
           <Setter.Value>
@@ -63,10 +92,10 @@
               </Border>
               <ControlTemplate.Triggers>
                 <Trigger Property="IsHighlighted" Value="True">
-                  <Setter TargetName="ItemFrame" Property="Background" Value="#216852" />
+                  <Setter TargetName="ItemFrame" Property="Background" Value="{StaticResource SurfaceHover}" />
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
-                  <Setter TargetName="ItemFrame" Property="Background" Value="#185D48" />
+                  <Setter TargetName="ItemFrame" Property="Background" Value="{StaticResource SurfaceSelected}" />
                 </Trigger>
               </ControlTemplate.Triggers>
             </ControlTemplate>
@@ -74,8 +103,8 @@
         </Setter>
       </Style>
       <Style x:Key="TaskSelector" TargetType="ComboBox">
-        <Setter Property="Foreground" Value="#F7FBF8" />
-        <Setter Property="FontSize" Value="20" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+        <Setter Property="FontSize" Value="17" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="MaxDropDownHeight" Value="240" />
         <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
@@ -87,7 +116,9 @@
                               IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
                   <ToggleButton.Template>
                     <ControlTemplate TargetType="ToggleButton">
-                      <Border x:Name="SelectionFrame" Background="Transparent" CornerRadius="4" Padding="0,4">
+                      <Border x:Name="SelectionFrame" Background="{StaticResource Surface}"
+                              BorderBrush="{StaticResource Hairline}" BorderThickness="1"
+                              CornerRadius="8" Padding="12,8">
                         <Grid>
                           <Grid.ColumnDefinitions>
                             <ColumnDefinition />
@@ -97,12 +128,12 @@
                                             ContentTemplate="{Binding SelectionBoxItemTemplate, RelativeSource={RelativeSource AncestorType=ComboBox}}"
                                             Margin="0,0,12,0" VerticalAlignment="Center" />
                           <Path Grid.Column="1" Data="{StaticResource FluentChevronRight}" Width="18" Height="18"
-                                Fill="#F7FBF8" Stretch="Uniform" VerticalAlignment="Center" />
+                                Fill="{StaticResource Muted}" Stretch="Uniform" VerticalAlignment="Center" />
                         </Grid>
                       </Border>
                       <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                          <Setter TargetName="SelectionFrame" Property="Background" Value="#155846" />
+                          <Setter TargetName="SelectionFrame" Property="Background" Value="{StaticResource SurfaceHover}" />
                         </Trigger>
                       </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -110,7 +141,8 @@
                 </ToggleButton>
                 <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom"
                        AllowsTransparency="True" Focusable="False" PopupAnimation="Fade">
-                  <Border Background="#0B493A" BorderBrush="#46A98A" BorderThickness="1" CornerRadius="6"
+                  <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Hairline}"
+                          BorderThickness="1" CornerRadius="8"
                           MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" MaxWidth="400">
                     <ScrollViewer CanContentScroll="True" MaxHeight="240">
                       <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
@@ -124,81 +156,92 @@
       </Style>
     </ResourceDictionary>
   </Window.Resources>
-  <Border Background="#073E32" BorderBrush="#27594A" BorderThickness="1" CornerRadius="14">
+  <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Hairline}"
+          BorderThickness="1" CornerRadius="14">
     <Grid>
       <Grid.RowDefinitions>
-        <RowDefinition Height="38" />
+        <RowDefinition Height="64" />
         <RowDefinition />
         <RowDefinition Height="86" />
       </Grid.RowDefinitions>
-      <Border BorderBrush="#2B5A4D" BorderThickness="0,0,0,1" MouseLeftButtonDown="TitleBarDrag">
-        <DockPanel LastChildFill="True" Margin="14,0,8,0">
+      <Border Background="{StaticResource Header}" CornerRadius="13,13,0,0" MouseLeftButtonDown="TitleBarDrag">
+        <DockPanel LastChildFill="True" Margin="16,0,10,0">
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
             <Button Style="{StaticResource TitleButton}" Click="MinimizeClick"
                     AutomationProperties.Name="Свернуть" ToolTip="Свернуть">
-              <Path Data="{StaticResource FluentSubtract}" Stretch="Uniform" Width="16" Height="16" Fill="#E4F0EB" />
+              <Path Data="{StaticResource FluentSubtract}" Stretch="Uniform" Width="16" Height="16" Fill="White" />
             </Button>
             <Button Style="{StaticResource TitleButton}" Click="LaterClick"
                     AutomationProperties.Name="Закрыть и напомнить позже" ToolTip="Напомнить через 10 минут">
-              <Path Data="{StaticResource FluentDismiss}" Stretch="Uniform" Width="18" Height="18" Fill="#E4F0EB" />
+              <Path Data="{StaticResource FluentDismiss}" Stretch="Uniform" Width="18" Height="18" Fill="White" />
             </Button>
           </StackPanel>
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-            <Path Data="{StaticResource FluentAdd}" Width="18" Height="18" Stretch="Uniform" Fill="#F7FBF8" />
-            <TextBlock Text="Фармапей" FontWeight="SemiBold" Margin="8,0,0,0" />
+            <Border Width="40" Height="40" CornerRadius="8" Background="{StaticResource HeaderIconSurface}">
+              <Image Source="{StaticResource EpharmLogo}" Width="30" Height="30"
+                     AutomationProperties.Name="Логотип ePharm" />
+            </Border>
+            <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+              <TextBlock Text="ePharm" Foreground="White" FontSize="19" FontWeight="ExtraBold" />
+              <TextBlock Text="Задания аптеки" Foreground="{StaticResource HeaderMuted}" FontSize="11" />
+            </StackPanel>
           </StackPanel>
         </DockPanel>
       </Border>
       <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                    Padding="38,14,38,0">
+                    Background="{StaticResource Canvas}" Padding="28,14,28,0">
         <StackPanel>
-          <TextBlock x:Name="BranchText" Foreground="{StaticResource Accent}" TextWrapping="Wrap" FontSize="12" />
+          <TextBlock x:Name="BranchText" Foreground="{StaticResource Accent}" TextWrapping="Wrap" FontSize="12" FontWeight="SemiBold" />
           <TextBlock x:Name="Headline" Text="Сканируйте и выполните" FontSize="21" FontWeight="SemiBold"
-                     TextWrapping="Wrap" Margin="0,12,0,4" />
-          <TextBlock x:Name="HelpText" Text="Задание откроется на телефоне." Foreground="#D4E5DD"
+                     TextWrapping="Wrap" Margin="0,10,0,4" />
+          <TextBlock x:Name="HelpText" Text="Задание откроется на телефоне." Foreground="{StaticResource Muted}"
                      TextWrapping="Wrap" FontSize="14" />
-          <Border x:Name="QrFrame" Background="White" Width="230" Height="230"
-                  HorizontalAlignment="Center" Margin="0,16,0,16">
+          <Border x:Name="QrFrame" Background="White" BorderBrush="{StaticResource Hairline}"
+                  BorderThickness="1" CornerRadius="12" Width="230" Height="230"
+                  HorizontalAlignment="Center" Margin="0,14,0,14">
             <Image x:Name="QrImage" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor"
                    AutomationProperties.Name="QR-код задания" />
           </Border>
           <TextBlock x:Name="ConnectionText" Visibility="Collapsed" TextWrapping="Wrap"
-                     Foreground="#D4E5DD" Margin="0,12,0,12" />
+                     Foreground="{StaticResource Muted}" Margin="0,12,0,12" />
           <StackPanel x:Name="TaskDetails">
-            <Border Height="1" Background="#376757" Margin="0,0,0,14" />
+            <Border Height="1" Background="{StaticResource Hairline}" Margin="0,0,0,12" />
             <StackPanel Orientation="Horizontal" Margin="0,0,0,7">
-              <TextBlock Text="ЗАДАНИЕ" Foreground="{StaticResource Accent}" FontWeight="SemiBold" FontSize="12" />
+              <TextBlock Text="ЗАДАНИЕ" Foreground="{StaticResource ActionAccent}" FontWeight="SemiBold" FontSize="12" />
               <TextBlock x:Name="CountText" Foreground="{StaticResource Muted}" Margin="14,0,0,0" FontSize="12" />
             </StackPanel>
             <ComboBox x:Name="Tasks" Style="{StaticResource TaskSelector}" AutomationProperties.Name="Выбрать задание"
                       SelectionChanged="TaskSelectionChanged">
               <ComboBox.ItemTemplate>
                 <DataTemplate>
-                  <TextBlock Text="{Binding Title}" TextWrapping="Wrap" Foreground="#F7FBF8"
-                             FontSize="20" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Title}" TextWrapping="Wrap" Foreground="{StaticResource TextPrimary}"
+                             FontSize="17" FontWeight="SemiBold" />
                 </DataTemplate>
               </ComboBox.ItemTemplate>
             </ComboBox>
-            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
               <Path x:Name="PriorityDot" Data="{StaticResource FluentCircle}" Width="10" Height="10"
-                    Fill="#FFB020" Stretch="Uniform" VerticalAlignment="Center" />
+                    Fill="{StaticResource PriorityWarning}" Stretch="Uniform" VerticalAlignment="Center" />
               <TextBlock x:Name="PriorityText" Margin="8,0,0,0" />
             </StackPanel>
-            <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
-              <Path Data="{StaticResource FluentCalendar}" Width="15" Height="15" Fill="#64B89A"
+            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+              <Path Data="{StaticResource FluentCalendar}" Width="15" Height="15" Fill="{StaticResource Muted}"
                     Stretch="Uniform" VerticalAlignment="Center" />
               <TextBlock x:Name="DueText" Margin="8,0,0,0" Foreground="{StaticResource Muted}" FontSize="13" />
             </StackPanel>
           </StackPanel>
         </StackPanel>
       </ScrollViewer>
-      <StackPanel Grid.Row="2" Margin="34,10,34,12">
-        <Button Style="{StaticResource QuietButton}" Height="42" Click="LaterClick" FontSize="15"
-                FontWeight="SemiBold" Content="Позже · 10 минут"
-                AutomationProperties.Name="Позже · напомнить через 10 минут" />
-        <TextBlock Text="Закрытие окна не завершает задание" Foreground="{StaticResource Muted}"
-                   FontSize="11" HorizontalAlignment="Center" Margin="0,8,0,0" />
-      </StackPanel>
+      <Border Grid.Row="2" Background="{StaticResource Surface}" BorderBrush="{StaticResource Hairline}"
+              BorderThickness="0,1,0,0" CornerRadius="0,0,13,13">
+        <StackPanel Margin="24,10,24,10">
+          <Button Style="{StaticResource QuietButton}" Height="42" Click="LaterClick" FontSize="14"
+                  FontWeight="SemiBold" Content="Позже · 10 минут"
+                  AutomationProperties.Name="Позже · напомнить через 10 минут" />
+          <TextBlock Text="Закрытие окна не завершает задание" Foreground="{StaticResource Muted}"
+                     FontSize="11" HorizontalAlignment="Center" Margin="0,8,0,0" />
+        </StackPanel>
+      </Border>
     </Grid>
   </Border>
 </Window>
