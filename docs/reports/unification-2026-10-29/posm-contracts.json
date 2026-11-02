@@ -309,6 +309,18 @@
         "line": 157,
         "anchor": "POSM_SALE_BONUS_ENABLED:"
       }
+    },
+    {
+      "name": "FULFILLMENT_POSM_ENABLED",
+      "composeDefault": false,
+      "applicationFallback": true,
+      "invariant": "Independent POSM pickup gate; production keeps it false without disabling website ingestion or the main POSM principal.",
+      "source": {
+        "path": "docker-compose.prod.yml",
+        "line": 196,
+        "anchor": "FULFILLMENT_POSM_ENABLED:"
+      },
+      "sourceRevision": "851f08ebab806b537710d22e5ec58d23249bfcb3"
     }
   ],
   "knownSourceGaps": [
@@ -3894,6 +3906,56 @@
       ],
       "state": "needs_verification",
       "origin": "https://epharm.inkar.kz"
+    },
+    {
+      "id": "FULFILLMENT_CAPABILITIES",
+      "method": "GET",
+      "path": "/api/posm/fulfillment/capabilities",
+      "auth": {
+        "headers": ["X-Fulfillment-Device"],
+        "boundary": "Active individual device token and active pharmacy; global or POSM disable does not prevent reporting enabled=false.",
+        "valuesIncluded": false
+      },
+      "identity": "Read-only permission for the same active device; no order, pharmacist or token details in response.",
+      "request": {
+        "server": "Header only",
+        "client": "FulfillmentClient.CapabilitiesAsync",
+        "keyFields": ["X-Fulfillment-Device"]
+      },
+      "response": {
+        "server": "PosmFulfillmentCapabilitiesDto",
+        "client": "FulfillmentCapabilities",
+        "keyFields": ["enabled"]
+      },
+      "errors": [
+        {
+          "status": 401,
+          "code": "UNAUTHORIZED",
+          "when": "Missing, invalid or revoked individual token or inactive pharmacy."
+        }
+      ],
+      "sideEffects": ["Does not revoke or replace credentials and does not change order status."],
+      "requiredInvariant": [
+        "FULFILLMENT_POSM_ENABLED=false denies POSM registration/list/get/actions, not storefront ingestion/feed/admin or main device authentication.",
+        "New POSM needs local opt-in and positive capability before reading cache/showing order UI; disabled/404/auth rejection closes order windows.",
+        "Network error never enables an unknown capability; an already permitted queue remains offline and cannot act."
+      ],
+      "sourcePaths": [
+        "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/controller/PosmFulfillmentController.kt",
+        "admin-panel/backend/src/main/kotlin/kz/epharm/fulfillment/service/FulfillmentService.kt",
+        "App/MainWindow.Fulfillment.cs",
+        "App/Services/FulfillmentClient.cs",
+        "App/Config/EpharmConfig.cs"
+      ],
+      "positiveChecks": [
+        "Enabled server and active device return enabled=true; disabled POSM returns only enabled=false."
+      ],
+      "negativeChecks": [
+        "Missing/invalid/legacy token rejected; disabled POSM order actions503 preserve existing orders and device credentials."
+      ],
+      "state": "source_confirmed",
+      "origin": "https://epharm.inkar.kz",
+      "sourceRevision": "851f08ebab806b537710d22e5ec58d23249bfcb3"
     }
   ],
   "sourceManifest": [
@@ -4111,8 +4173,8 @@
     }
   ],
   "inventorySummary": {
-    "contractCount": 47,
-    "sourceConfirmedCount": 30,
+    "contractCount": 48,
+    "sourceConfirmedCount": 31,
     "needsVerificationCount": 17,
     "runtimeChecksExecuted": 0
   }
