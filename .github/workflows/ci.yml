@@ -216,6 +216,8 @@ jobs:
           cache: npm
           cache-dependency-path: storefront/package-lock.json
       - run: npm ci
+      - name: Verify fail-closed dependency triage
+        run: node --test ../tools/check-frontend-audit.test.mjs
       - run: node ../tools/check-frontend-audit.mjs
       - run: npm run lint
       - run: npm test

@@ -28,6 +28,13 @@ All notable production changes to Epharm are recorded here. The format follows
   reviewed shared release verifier before migration; older condition-unaware backend images must
   not serve this database. No production activation or POSM fleet rollout is performed by this change.
 
+### Security
+
+- Update vulnerable frontend redirect/glob dependencies and the modern storefront minimatch branch.
+- Keep production npm findings forbidden. Pin and verify the legacy development-only minimatch
+  implementation for the narrowly reviewed advisory until the existing November 6 deadline;
+  unknown advisories, changed sources and modern vulnerable branches remain blocked.
+
 ## [0.2.2] - 2026-10-31
 
 ### Added
