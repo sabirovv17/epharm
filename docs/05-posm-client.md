@@ -19,7 +19,10 @@ The POSM client runs on a Windows cash-desk machine:
 6. Reports printed sales to `POST /api/posm/sales`.
 7. Mirrors receipt and broadcast media on the customer display.
 8. Polls the effective active playlist and app version. The backend resolves the default or
-   pharmacy-targeted profile, so changing assignments or videos does not require reinstalling POSM.
+   pharmacy-targeted profile. Successful playlist responses remove revoked URLs from playback,
+   including the last video, and persist the empty manifest so cached files cannot return after
+   restart. Transport failures retain the last allowed cache. The final-empty correction requires
+   a POSM binary containing it; older deployed clients keep their previous empty behavior.
 9. Sends heartbeat with the current Windows monitor count so admin can count online cash desks and
    report whether a customer display is physically available.
 10. Persists an atomic active-receipt draft and accepts only an exact fiscal PDF/PNG produced by an
@@ -105,6 +108,11 @@ similar name. A barcode belonging to several ACC `WARE_ID`s is ambiguous and can
 broad trigger. The POSM client continues to send the same cart request and receives the same
 recommendation DTO: `triggerBarcode`, `triggerIpartId` and `triggerName` identify the real scanned
 cart line, never the group label. Existing clients need no binary update for this feature.
+
+Optional campaign AND factors narrow a product/group/subgroup/INN trigger on the server. All factors
+are checked against the same exact, unambiguous cart-line barcode. Missing classification, a
+mismatching factor or factors split across two lines cannot trigger it. Extra factors do not alter
+the installed client's recommendation request, popup or shown/sale attribution wire contract.
 
 `ExtractBarcode` supports:
 

@@ -153,6 +153,7 @@ async function publicationFixture(page: Page, baseURL: string, unavailable = fal
         },
       })
     if (method === 'PUT' && path === `${campaignPath}/changes`) {
+      expect(request.headers()['x-epharm-trigger-conditions']).toBe('1')
       const body = request.postDataJSON() as {
         expectedRevision: number
         bundle: PromoChangesBundle
@@ -167,6 +168,7 @@ async function publicationFixture(page: Page, baseURL: string, unavailable = fal
       return route.fulfill({ json: view() })
     }
     if (method === 'POST' && path === `${campaignPath}/changes/apply`) {
+      expect(request.headers()['x-epharm-trigger-conditions']).toBe('1')
       const body = request.postDataJSON()
       expect(body).toEqual({ expectedRevision: revision })
       expect(pending).toBe(true)

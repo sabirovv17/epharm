@@ -244,6 +244,13 @@ forward recovery in [20-reliability-and-release.md](20-reliability-and-release.m
 Likewise, after V093 it cannot use the session-version-ignorant v0.2.1 predecessor;
 the reviewed host verifier must be installed before migration, and recovery must retain
 the new administrative-session enforcement.
+The compound-trigger candidate adds V094's `rules_trigger_conditions_shape` constraint.
+Install its reviewed shared verifier before migration as well: v0.2.2 and older binaries ignore
+the new JSON conditions and could broaden a recommendation after rollback. Once V094 exists,
+use only a verified condition-aware forward/recovery image. Application rollback does not remove
+this fence, and deleting conditions or business data is not a recovery method. The POSM 1.0.74
+candidate must be built/signed with the existing trust anchor and rolled out separately before
+claiming last-video deletion on installed cash desks. No production activation is part of the patch.
 A `CRITICAL` rollback message is an incident requiring immediate
 operator action; do not continue with another release. The saved transaction record is under
 `releases/archive-two-image/active-transaction`.

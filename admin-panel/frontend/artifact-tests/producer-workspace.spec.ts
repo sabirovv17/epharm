@@ -280,7 +280,7 @@ test('external SMS session creates its own draft and explicitly submits a hold w
     animations: 'disabled',
   })
   const mobilePlanLink = page.getByRole('button', {
-    name: 'Открыть медиаплан: Демо-производитель, 2026-10',
+    name: `Открыть медиаплан: Демо-производитель, ${(state.writes[0].body as { placementMonth: string }).placementMonth.slice(0, 7)}`,
   })
   await expect(mobilePlanLink).toBeInViewport()
   await mobilePlanLink.click()

@@ -377,6 +377,74 @@ class ScreensIntegrationTest {
     }
 
     @Test
+    fun `удаление общего слота убирает видео с POSM и наследников сохраняя остальные позиции`() {
+        seedBroadcastProfiles()
+        seedPharmacy("ph_slot_target")
+        playlistAssignmentRepository.save(
+            PlaylistPharmacyAssignmentEntity(pharmacyId = "ph_slot_target", playlistId = "pl_broadcast_targeted"),
+        )
+        slideRepository.save(slide("sl_target", "Собственный", "pl_broadcast_targeted", 1))
+
+        mockMvc.perform(
+            delete("/api/admin/screens/broadcast/profiles/pl_broadcast/slots/1")
+                .header("Authorization", bearer),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.slides.length()").value(1))
+            .andExpect(jsonPath("$.slides[0].position").value(1))
+        mockMvc.perform(get("/api/posm/playlists/active").header("X-Posm-Key", "dev-posm-key"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.slides.length()").value(1))
+            .andExpect(jsonPath("$.slides[0].title").value("Общий 2"))
+        mockMvc.perform(
+            get("/api/posm/playlists/active").header("X-Posm-Key", "dev-posm-key")
+                .param("pharmacyId", "ph_slot_target"),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.slides.length()").value(1))
+            .andExpect(jsonPath("$.slides[0].title").value("Собственный"))
+        val stored = playlistRepository.findById("pl_broadcast").orElseThrow()
+        assertThat(stored.slidesCount).isEqualTo(1)
+        assertThat(stored.durationSec).isEqualTo(15)
+    }
+
+    @Test
+    fun `удаление последнего слота оставляет пустой активный эфир без возврата к legacy`() {
+        seedBroadcastProfiles()
+        playlistRepository.save(PlaylistEntity(id = "pl_old", name = "Старый эфир").also { it.status = PlaylistStatus.active })
+        slideRepository.save(slide("sl_old", "Старый ролик", "pl_old", 0))
+        for (slot in listOf(1, 2, 2)) {
+            mockMvc.perform(
+                delete("/api/admin/screens/broadcast/profiles/pl_broadcast/slots/$slot")
+                    .header("Authorization", bearer),
+            ).andExpect(status().isOk)
+        }
+        mockMvc.perform(get("/api/posm/playlists/active").header("X-Posm-Key", "dev-posm-key"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.playlistId").value("pl_broadcast"))
+            .andExpect(jsonPath("$.slides.length()").value(0))
+        val stored = playlistRepository.findById("pl_broadcast").orElseThrow()
+        assertThat(stored.status).isEqualTo(PlaylistStatus.active)
+        assertThat(stored.slidesCount).isZero()
+        assertThat(stored.durationSec).isZero()
+        assertThat(slideRepository.existsById("sl_old")).isTrue()
+    }
+
+    @Test
+    fun `удаление слота проверяет диапазон и авторизацию без изменения эфира`() {
+        seedBroadcastProfiles()
+        mockMvc.perform(delete("/api/admin/screens/broadcast/profiles/pl_broadcast/slots/1"))
+            .andExpect(status().isUnauthorized)
+        for (slot in listOf(0, 13)) {
+            mockMvc.perform(
+                delete("/api/admin/screens/broadcast/profiles/pl_broadcast/slots/$slot")
+                    .header("Authorization", bearer),
+            ).andExpect(status().isBadRequest)
+        }
+        assertThat(slideRepository.findAllByPlaylistIdOrderByPositionAsc("pl_broadcast")).hasSize(2)
+    }
+
+    @Test
     fun `список аптек индивидуального профиля заменяется атомарно и валидируется`() {
         seedBroadcastProfiles()
         seedPharmacy("ph_target_1")

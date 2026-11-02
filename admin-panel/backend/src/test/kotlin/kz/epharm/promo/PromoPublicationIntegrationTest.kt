@@ -61,6 +61,9 @@ class PromoPublicationIntegrationTest {
         private const val SECOND_BARCODE = "4871234567807"
         private const val OFFER_BARCODE = "4871234567814"
         private const val GROUP = "grp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        private const val OTHER_GROUP = "grp_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        private const val MNN = "mnn_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        private const val OTHER_MNN = "mnn_cccccccccccccccccccccccccccccccc"
         @Container @JvmStatic val postgres = PostgreSQLContainer("postgres:16-alpine")
             .withDatabaseName("promo_publication").withUsername("epharm").withPassword("synthetic-only").apply { start() }
         @JvmStatic @DynamicPropertySource fun props(reg: DynamicPropertyRegistry) {
@@ -122,8 +125,9 @@ class PromoPublicationIntegrationTest {
         jdbc.update("update unified_admin_profiles set grants_json=?,version=version+1 where account_id=?",
             json.writeValueAsString(grants.toList()), admin.id)
     }
-    private fun request(method: String, path: String, body: Any): ResultActions {
+    private fun request(method: String, path: String, body: Any, supportsTriggerConditions: Boolean = true): ResultActions {
         val req = when (method) { "PUT" -> put(path); "PATCH" -> patch(path); else -> post(path) }
+        if (supportsTriggerConditions) req.header("X-Epharm-Trigger-Conditions", "1")
         return mvc.perform(req.header("Authorization", bearer).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body)))
     }
     private fun state(): PromoChangesViewDto = json.readValue(mvc.perform(get("/api/admin/promo/pub-promo/changes")
@@ -157,6 +161,70 @@ class PromoPublicationIntegrationTest {
     private fun scripted(bundle: PromoChangesBundleDto, text: String) = bundle.copy(rules = bundle.rules.copy(
         replacements = bundle.rules.replacements.map { it.copy(script = text) }))
 
+    private fun disjointTaxonomy() {
+        val snapshot = UUID.randomUUID()
+        jdbc.update("insert into acc_catalog_snapshots(id,sha256,source_name,item_count,barcode_count) values(?,?,?,?,?)",
+            snapshot, UUID.randomUUID().toString().replace("-", "").repeat(2), "synthetic-scopes.xlsx", 2, 2)
+        for ((index, barcode) in listOf(BARCODE, SECOND_BARCODE).withIndex()) {
+            jdbc.update("""insert into acc_catalog_barcodes(snapshot_id,ware_id,barcode,group_key,group_label,mnn_key,mnn_label)
+                values(?,?,?,?,?,?,?)""", snapshot, "scope-$index", barcode,
+                if (index == 0) GROUP else OTHER_GROUP, "Group $index",
+                if (index == 0) MNN else OTHER_MNN, "MNN $index")
+        }
+        jdbc.update("update acc_catalog_state set active_snapshot_id=? where singleton=1", snapshot)
+    }
+
+    @Test fun `cached simple editor can still save and apply without compound capability`() {
+        val initial = state()
+        val changed = initial.bundle.copy(campaign = initial.bundle.campaign.copy(title = "Cached simple edit"))
+        val pending: PromoChangesViewDto = json.readValue(request("PUT", "/api/admin/promo/pub-promo/changes",
+            SavePromoChangesRequest(initial.revision, changed), supportsTriggerConditions = false)
+            .andExpect(status().isOk).andReturn().response.contentAsByteArray)
+        request("POST", "/api/admin/promo/pub-promo/changes/apply", ApplyPromoChangesRequest(pending.revision),
+            supportsTriggerConditions = false).andExpect(status().isOk)
+        assertThat(promos.findById("pub-promo").orElseThrow().title).isEqualTo("Cached simple edit")
+    }
+
+    @Test fun `cached editors cannot erase compound incoming prepared or published factors or partially update budget`() {
+        disjointTaxonomy()
+        val initial = state()
+        val trigger = PromoRuleProductRefDto("", triggerKind = "acc_group", triggerValue = GROUP,
+            triggerConditions = listOf(PromoTriggerConditionDto("acc_mnn", MNN)))
+        val compound = initial.bundle.copy(rules = PromoRulesConfigDto(replacements = listOf(trigger)))
+        fun cachedSave(revision: Long, bundle: PromoChangesBundleDto) = request("PUT", "/api/admin/promo/pub-promo/changes",
+            SavePromoChangesRequest(revision, bundle), supportsTriggerConditions = false)
+        cachedSave(initial.revision, compound).andExpect(status().isConflict)
+            .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Обновите страницу")))
+        assertThat(state().revision).isEqualTo(initial.revision)
+        assertThat(state().hasPendingChanges).isFalse()
+        val pending = save(compound)
+        val collapsed = compound.copy(campaign = compound.campaign.copy(budget = 987654),
+            rules = compound.rules.copy(replacements = listOf(trigger.copy(triggerConditions = emptyList()))))
+        cachedSave(pending.revision, collapsed).andExpect(status().isConflict)
+        request("PUT", "/api/admin/promo/pub-promo/changes", SavePromoChangesRequest(pending.revision, discard = true),
+            supportsTriggerConditions = false).andExpect(status().isConflict)
+        request("POST", "/api/admin/promo/pub-promo/changes/apply", ApplyPromoChangesRequest(pending.revision),
+            supportsTriggerConditions = false).andExpect(status().isConflict)
+        assertThat(state().revision).isEqualTo(pending.revision)
+        assertThat(state().bundle).isEqualTo(pending.bundle)
+        assertThat(promos.findById("pub-promo").orElseThrow().budget).isZero()
+        assertThat(rules.findById("pub-rule").orElseThrow().retiredAt).isNull()
+        apply(pending.revision)
+        val published = state()
+        val ids = rules.findAll().map { it.id }.toSet()
+        val history = jdbc.queryForObject("select count(*) from promo_publication_history", Long::class.java)
+        cachedSave(published.revision, collapsed).andExpect(status().isConflict)
+        assertThat(state().revision).isEqualTo(published.revision)
+        assertThat(state().hasPendingChanges).isFalse()
+        assertThat(state().bundle).isEqualTo(published.bundle)
+        assertThat(rules.findAll().map { it.id }.toSet()).isEqualTo(ids)
+        assertThat(jdbc.queryForObject("select count(*) from promo_publication_history", Long::class.java)).isEqualTo(history)
+        val corrected = save(published.bundle.copy(rules = published.bundle.rules.copy(
+            replacements = listOf(published.bundle.rules.replacements.single().copy(triggerConditions = emptyList())))))
+        apply(corrected.revision)
+        assertThat(state().bundle.rules.replacements.single().triggerConditions).isEmpty()
+    }
+
     @Test fun `prepared changes do not reach POSM until Apply and preserve rule IDs events counters and report membership`() {
         val oldEvent = recommend("before-preparation").recommendations.single()
         val initial = state()
@@ -179,6 +247,172 @@ class PromoPublicationIntegrationTest {
         assertThat(jdbc.queryForObject("select count(*) from pharmacist_wallet_entries", Long::class.java)).isZero()
         assertThat(jdbc.queryForObject("select applied_by from promo_publication_history where promo_id='pub-promo'", String::class.java)).isEqualTo(admin.id.toString())
         assertThat(recommend("after-apply").recommendations.single().bonus).isEqualTo(250)
+    }
+
+    @Test fun `budget zero independent crosssell rewards and cleared dates survive prepare apply and reopen`() {
+        val campaign = promos.findById("pub-promo").orElseThrow()
+        campaign.budget = 5_000
+        campaign.spent = 200
+        campaign.dateStart = LocalDate.now().minusDays(1)
+        campaign.dateEnd = LocalDate.now().plusDays(10)
+        promos.saveAndFlush(campaign)
+        val initial = state().bundle
+        val pending = save(initial.copy(campaign = initial.campaign.copy(budget = 12_000, dateStart = null, dateEnd = null),
+            rules = initial.rules.copy(crossSells = listOf(PromoRuleProductRefDto("pub-trigger-2", name = "Second trigger",
+                barcode = SECOND_BARCODE, bonus = 0)))))
+        assertThat(pending.bundle.campaign.budget).isEqualTo(12_000)
+        assertThat(promos.findById("pub-promo").orElseThrow().budget).isEqualTo(5_000)
+        assertThat(recommend("crosssell-unpublished", barcode = SECOND_BARCODE).recommendations).isEmpty()
+        apply(pending.revision)
+        val reopened = state()
+        assertThat(reopened.bundle.campaign.budget).isEqualTo(12_000)
+        assertThat(reopened.bundle.campaign.dateStart).isNull()
+        assertThat(reopened.bundle.campaign.dateEnd).isNull()
+        assertThat(promos.findById("pub-promo").orElseThrow().spent).isEqualTo(200)
+        assertThat(recommend("crosssell-published", barcode = SECOND_BARCODE).recommendations.single().bonus).isZero()
+        assertThat(recommend("replacement-still-independent").recommendations.single().bonus).isEqualTo(100)
+        apply(save(reopened.bundle.copy(campaign = reopened.bundle.campaign.copy(budget = 0))).revision)
+        assertThat(state().bundle.campaign.budget).isZero()
+        assertThat(promos.findById("pub-promo").orElseThrow().spent).isEqualTo(200)
+    }
+
+    @Test fun `identical active replacement and crosssell cannot be published but can be corrected without deleting history`() {
+        val initial = state().bundle
+        val trigger = initial.rules.replacements.single()
+        val pending = save(initial.copy(rules = initial.rules.copy(crossSells = listOf(trigger))))
+        assertThat(pending.canApply).isFalse()
+        assertThat(pending.readinessIssues).anyMatch { it.contains("замену и кросс-селл") }
+        request("POST", "/api/admin/promo/pub-promo/changes/apply", ApplyPromoChangesRequest(pending.revision))
+            .andExpect(status().isBadRequest)
+        assertThat(rules.findById("pub-rule").orElseThrow().retiredAt).isNull()
+        assertThat(recommend("conflict-not-published").recommendations).hasSize(1)
+        val corrected = save(pending.bundle.copy(rules = pending.bundle.rules.copy(
+            crossSells = listOf(trigger.copy(active = false)))), pending.revision)
+        assertThat(corrected.canApply).isTrue()
+        apply(corrected.revision)
+        assertThat(state().bundle.rules.crossSells.single().active).isFalse()
+        assertThat(recommend("corrected-still-recommends").recommendations).hasSize(1)
+    }
+
+    @Test fun `compound scope remains prepared until apply and matches only the same barcode after publication`() {
+        val snapshot = UUID.randomUUID()
+        val mnn = "mnn_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        jdbc.update("insert into acc_catalog_snapshots(id,sha256,source_name,item_count,barcode_count) values(?,?,?,?,?)",
+            snapshot, UUID.randomUUID().toString().replace("-", "").repeat(2), "synthetic-compound.xlsx", 2, 2)
+        jdbc.update("""insert into acc_catalog_barcodes(snapshot_id,ware_id,barcode,group_key,group_label,mnn_key,mnn_label)
+            values(?,?,?,?,?,?,?)""", snapshot, "synthetic", BARCODE, GROUP, "Synthetic group", mnn, "Synthetic MNN")
+        jdbc.update("""insert into acc_catalog_barcodes(snapshot_id,ware_id,barcode,group_key,group_label,mnn_key,mnn_label)
+            values(?,?,?,?,?,?,?)""", snapshot, "synthetic-other", SECOND_BARCODE, GROUP, "Synthetic group",
+            "mnn_cccccccccccccccccccccccccccccccc", "Other MNN")
+        jdbc.update("update acc_catalog_state set active_snapshot_id=? where singleton=1", snapshot)
+        val initial = state().bundle
+        val trigger = PromoRuleProductRefDto("", triggerKind = "acc_group", triggerValue = GROUP,
+            triggerConditions = listOf(PromoTriggerConditionDto("acc_mnn", mnn, "Synthetic MNN")), active = true)
+        val pending = save(initial.copy(rules = PromoRulesConfigDto(replacements = listOf(trigger))))
+        assertThat(pending.canApply).isTrue()
+        assertThat(rules.findById("pub-rule").orElseThrow().trigger.kind).isEqualTo("product")
+        assertThat(recommend("compound-before-apply").recommendations.single().ruleId).isEqualTo("pub-rule")
+        apply(pending.revision)
+        assertThat(state().bundle.rules.replacements.single().triggerConditions).containsExactlyElementsOf(trigger.triggerConditions)
+        assertThat(rules.findById("pub-rule").orElseThrow().retiredAt).isNotNull()
+        assertThat(recommend("compound-after-apply").recommendations).hasSize(1)
+        assertThat(recommend("compound-wrong-mnn", barcode = SECOND_BARCODE).recommendations).isEmpty()
+        val current = state().bundle
+        val swapped = trigger.copy(triggerKind = "acc_mnn", triggerValue = mnn,
+            triggerConditions = listOf(PromoTriggerConditionDto("acc_group", GROUP, "Synthetic group")))
+        val conflicting = save(current.copy(rules = current.rules.copy(crossSells = listOf(swapped))))
+        assertThat(conflicting.canApply).isFalse()
+        assertThat(conflicting.readinessIssues).anyMatch { it.contains("замену и кросс-селл") }
+        request("POST", "/api/admin/promo/pub-promo/changes/apply", ApplyPromoChangesRequest(conflicting.revision))
+            .andExpect(status().isBadRequest)
+        assertThat(recommend("compound-swapped-not-published").recommendations).hasSize(1)
+    }
+
+    @Test fun `overlapping distinct ACC scopes cannot publish contradictory recommendation types`() {
+        disjointTaxonomy()
+        val initial = state().bundle
+        val pending = save(initial.copy(rules = PromoRulesConfigDto(
+            replacements = listOf(PromoRuleProductRefDto("", triggerKind = "acc_group", triggerValue = GROUP)),
+            crossSells = listOf(PromoRuleProductRefDto("", triggerKind = "acc_mnn", triggerValue = MNN)))))
+        assertThat(pending.canApply).isFalse()
+        assertThat(pending.readinessIssues).anyMatch { it.contains("замену и кросс-селл") }
+        request("POST", "/api/admin/promo/pub-promo/changes/apply", ApplyPromoChangesRequest(pending.revision))
+            .andExpect(status().isBadRequest)
+        assertThat(promos.findById("pub-promo").orElseThrow().title).isEqualTo("Published title")
+        assertThat(rules.findById("pub-rule").orElseThrow().retiredAt).isNull()
+        assertThat(recommend("overlap-left-unpublished").recommendations.single().ruleId).isEqualTo("pub-rule")
+        assertThat(jdbc.queryForObject("select count(*) from promo_publication_history", Long::class.java)).isZero()
+    }
+
+    @Test fun `disjoint ACC scopes publish and disabling an overlapping pair remains a valid correction`() {
+        disjointTaxonomy()
+        val initial = state().bundle
+        val pending = save(initial.copy(rules = PromoRulesConfigDto(
+            replacements = listOf(PromoRuleProductRefDto("", triggerKind = "acc_group", triggerValue = GROUP)),
+            crossSells = listOf(PromoRuleProductRefDto("", triggerKind = "acc_mnn", triggerValue = OTHER_MNN)))))
+        assertThat(pending.canApply).isTrue()
+        apply(pending.revision)
+        assertThat(recommend("disjoint-substitution").recommendations).hasSize(1)
+        assertThat(recommend("disjoint-crosssell", barcode = SECOND_BARCODE).recommendations).hasSize(1)
+        val current = state().bundle
+        val corrected = save(current.copy(rules = current.rules.copy(crossSells = listOf(
+            PromoRuleProductRefDto("", triggerKind = "acc_mnn", triggerValue = MNN, active = false)))))
+        assertThat(corrected.canApply).isTrue()
+        apply(corrected.revision)
+        assertThat(state().bundle.rules.crossSells.single().active).isFalse()
+        assertThat(recommend("disabled-overlap-left-valid").recommendations).hasSize(1)
+    }
+
+    @Test fun `unrelated legacy MNN is not guessed to overlap a broad ACC scope`() {
+        disjointTaxonomy()
+        val initial = state().bundle
+        val pending = save(initial.copy(rules = PromoRulesConfigDto(
+            replacements = listOf(PromoRuleProductRefDto("", triggerKind = "mnn", triggerValue = "Unrelated legacy MNN")),
+            crossSells = listOf(PromoRuleProductRefDto("", triggerKind = "acc_group", triggerValue = GROUP)))))
+        assertThat(pending.canApply).isTrue()
+        apply(pending.revision)
+        assertThat(state().bundle.rules.replacements.single().triggerKind).isEqualTo("mnn")
+        assertThat(recommend("legacy-not-inferred-as-acc").recommendations).hasSize(1)
+    }
+
+    @Test fun `empty ACC conjunction remains a saved draft but cannot be published`() {
+        disjointTaxonomy()
+        val initial = state().bundle
+        val empty = PromoRuleProductRefDto("", triggerKind = "acc_group", triggerValue = GROUP,
+            triggerConditions = listOf(PromoTriggerConditionDto("acc_mnn", OTHER_MNN)))
+        val pending = save(initial.copy(rules = PromoRulesConfigDto(replacements = listOf(empty))))
+        assertThat(pending.hasPendingChanges).isTrue()
+        assertThat(pending.bundle.rules.replacements.single().triggerConditions).containsExactlyElementsOf(empty.triggerConditions)
+        assertThat(pending.canApply).isFalse()
+        assertThat(pending.readinessIssues).anyMatch { it.contains("не содержит товаров") }
+        request("POST", "/api/admin/promo/pub-promo/changes/apply", ApplyPromoChangesRequest(pending.revision))
+            .andExpect(status().isBadRequest)
+        assertThat(rules.findById("pub-rule").orElseThrow().retiredAt).isNull()
+        val corrected = save(pending.bundle.copy(rules = pending.bundle.rules.copy(
+            replacements = listOf(empty.copy(active = false), initial.rules.replacements.single()))), pending.revision)
+        assertThat(corrected.canApply).isTrue()
+        apply(corrected.revision)
+        assertThat(state().bundle.rules.replacements).hasSize(2)
+        assertThat(recommend("empty-scope-corrected").recommendations).hasSize(1)
+    }
+
+    @Test fun `exact product with incompatible ACC condition is draft only until its condition matches the known barcode`() {
+        disjointTaxonomy()
+        val initial = state().bundle
+        val trigger = PromoRuleProductRefDto("pub-trigger", barcode = BARCODE,
+            triggerConditions = listOf(PromoTriggerConditionDto("acc_mnn", OTHER_MNN)))
+        val pending = save(initial.copy(rules = PromoRulesConfigDto(replacements = listOf(trigger))))
+        assertThat(pending.hasPendingChanges).isTrue()
+        assertThat(pending.canApply).isFalse()
+        assertThat(pending.readinessIssues).anyMatch { it.contains("не содержит товаров") }
+        request("POST", "/api/admin/promo/pub-promo/changes/apply", ApplyPromoChangesRequest(pending.revision))
+            .andExpect(status().isBadRequest)
+        val corrected = save(pending.bundle.copy(rules = pending.bundle.rules.copy(replacements = listOf(
+            trigger.copy(triggerConditions = listOf(PromoTriggerConditionDto("acc_mnn", MNN)))))), pending.revision)
+        assertThat(corrected.canApply).isTrue()
+        apply(corrected.revision)
+        assertThat(recommend("exact-with-corrected-condition").recommendations).hasSize(1)
+        assertThat(recommend("exact-with-other-item", barcode = SECOND_BARCODE).recommendations).isEmpty()
     }
 
     @Test fun `removed offer is retired without deletion and never returns after campaign archive restore or activation`() {

@@ -12,8 +12,8 @@ namespace CustomerDisplay
     /// <summary>
     /// Stage 3: плейлист 2-го монитора (клиентский экран). Видео грузится из админ-панели,
     /// играет в аптеке через VLC. Backend отдаёт URL-ы, клиент скачивает ролики в локальный кеш
-    /// и переключает VLC только на локальные файлы. Оффлайн/пусто → держим текущий или последний
-    /// закешированный плейлист.
+    /// и переключает VLC только на локальные файлы. Оффлайн → держим последний кеш;
+    /// успешный ответ удаляет отсутствующие ролики, включая последний.
     /// </summary>
     public partial class MainWindow
     {
@@ -247,7 +247,6 @@ namespace CustomerDisplay
 
         private void SwitchVideoSources(string remoteSig, List<string> localSources, string reason)
         {
-            if (localSources.Count == 0) return;
             var playableSig = remoteSig + "|local=" + string.Join("\n", localSources);
             if (_currentPlaylistSig == playableSig) return;
 
@@ -256,15 +255,23 @@ namespace CustomerDisplay
             _videoSources = localSources;
             _videoIndex = -1;
             _lastVideoStart = DateTime.MinValue; // разрешить немедленный старт нового локального набора
-            PlayNextVideo();
+            if (localSources.Count == 0)
+            {
+                _mediaPlayer?.Stop();
+                _currentMedia?.Dispose();
+                _currentMedia = null;
+                _videoStallTicks = 0;
+                _lastMediaTime = -1;
+            }
+            else PlayNextVideo();
             Log($"Backend-плейлист: {reason}, локальных роликов={localSources.Count}");
         }
 
         /// <summary>
         /// Тянет активный плейлист из админки (GET /api/posm/playlists/active) и переключает
         /// 2-й монитор на его ролики — ТОЛЬКО после локального кеширования. VLC не стримит сеть:
-        /// если интернет отвалился или новый ролик качается, старый локальный контент продолжает
-        /// играть, а переключение происходит атомарно после успешной докачки.
+        /// при обрыве связи последний кеш продолжает играть. Успешный ответ сразу исключает
+        /// удалённые ролики; оставшиеся играют во время докачки нового контента.
         /// MinIO-хост localhost переписываем на адрес backend (из VM/кассы «localhost» — это
         /// сама машина, а не сервер). Вызывается на старте и периодически из StartPlaylistPolling.
         /// </summary>
@@ -293,36 +300,26 @@ namespace CustomerDisplay
                     .Select(s => RewriteMediaHost(s.Url))
                     .ToList();
 
-                if (urls == null || urls.Count == 0)
-                {
-                    // Backend ответил, но активного видео нет → держим текущий контент.
-                    if (_videoSources.Count == 0) TryStartCachedPlaylist();
-                    LogPlaylistIssue("playlist-empty", "Backend-плейлист пуст → продолжаю текущий/локальный контент");
-                    return;
-                }
-
-                // Подпись набора: playlistId + список url. Меняется только при реальном изменении
-                // плейлиста/слайдов в админке — тогда и переключаемся.
-                var remoteSig = (pl?.PlaylistId ?? "") + "|" + string.Join("\n", urls);
+                urls ??= new List<string>();
+                // Successful empty is authoritative; only a transport failure may keep old content.
+                var remoteSig = (pl.PlaylistId ?? "") + "|" + string.Join("\n", urls);
+                if (_remotePlaylistSig != remoteSig) _mediaWarmupCts?.Cancel();
+                _remotePlaylistSig = remoteSig;
                 _mediaCache!.SavePlaylistManifest(remoteSig, urls);
 
                 var cachedNow = _mediaCache.CachedSources(urls);
                 var allCached = _mediaCache.HasAllCached(urls);
-                if (cachedNow.Count > 0 && (allCached || _videoSources.Count == 0))
-                {
-                    await Dispatcher.InvokeAsync(() =>
-                        SwitchVideoSources(remoteSig, cachedNow, allCached
-                            ? "переключён на полностью локальный плейлист"
-                            : "запущена доступная локальная часть плейлиста"));
-                }
+                await Dispatcher.InvokeAsync(() =>
+                    SwitchVideoSources(remoteSig, cachedNow, allCached
+                        ? "применён актуальный локальный плейлист"
+                        : "оставлена доступная локальная часть актуального плейлиста"));
 
-                if (remoteSig == _remotePlaylistSig && allCached)
+                if (allCached)
                 {
                     return; // ничего нового — видео не перезапускаем
                 }
 
-                _remotePlaylistSig = remoteSig;
-                if (!allCached && _warmingPlaylistSig != remoteSig)
+                if (_warmingPlaylistSig != remoteSig)
                 {
                     StartPlaylistWarmup(remoteSig, urls);
                     Log($"Backend-плейлист получен: {urls.Count} ролик(ов); докачиваю в локальный кеш");
@@ -362,7 +359,7 @@ namespace CustomerDisplay
                 var cached = _mediaCache.CachedSources(urls);
                 if (cached.Count == 0)
                 {
-                    LogPlaylistIssue("cache-download-empty", "media-cache: ролики не скачались → продолжаем текущий контент");
+                    LogPlaylistIssue("cache-download-empty", "media-cache: ролики не скачались → остаётся только разрешённый локальный контент");
                     return;
                 }
                 await Dispatcher.InvokeAsync(() =>

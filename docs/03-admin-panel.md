@@ -325,6 +325,22 @@ must round-trip both old product pairs and broad-scope pairs without reclassifyi
 The Rules section labels these trigger kinds distinctly but remains read-only. The ACC file is a
 versioned, manually imported snapshot, not a live prices/stock feed.
 
+The new-campaign form and each existing pair support additional “AND” factors. Every selected
+factor must describe one scanned product, not different items in the receipt. Conditions are
+shown again before Apply and in read-only recommendations. Adding the same conjunction twice
+is rejected without replacing either pair's texts, rewards or offers. Matching a classification
+does not establish medical interchangeability; the existing ingredient/dose/form review remains.
+
+Both save buttons validate money, goals and rules. Catalogue descriptions are reference placeholders,
+not automatic edits that make a saved campaign appear dirty. The budget card distinguishes
+published and prepared values; prepared changes take effect only after Apply. Budget remains the
+existing campaign financial field, without introducing an automatic spending cut-off.
+
+Occupied general broadcast slots have a confirmed “Delete video” action in grid and list views.
+Targeted overrides retain the separate “Restore general video” action. Deleting a general slot
+removes it from inherited playlists too; independent overrides remain. POSM applies changes after
+successful polling. Final-slot/cache removal requires the updated POSM client described in doc 05.
+
 The new-campaign modal starts with “What triggers the recommendation?” and offers exact catalogue
 product, ACC group, subgroup, or INN. Only the relevant searchable picker appears; ACC choices
 show their parent, eligible barcode-member count, and snapshot source. The user then chooses

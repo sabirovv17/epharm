@@ -28,7 +28,15 @@ const recommendations = {
         dateEnd: null,
       },
       type: 'substitution',
-      trigger: { kind: 'acc_group', value: 'artifact-acc', label: 'Группа АСС' },
+      trigger: {
+        kind: 'acc_group',
+        value: 'artifact-acc',
+        label: 'Группа АСС',
+        conditions: [
+          { kind: 'acc_mnn', value: 'artifact-mnn', label: 'Выбранная МНН' },
+          { kind: 'acc_subgroup', value: 'artifact-subgroup', label: 'Выбранная подгруппа' },
+        ],
+      },
       triggerProducts: [],
       offers: ['Первое предложение', 'Второе предложение'].map((name, index) => ({
         ruleId: `artifact-rule-${index}`,
@@ -207,6 +215,13 @@ async function expectOffers(page: Page) {
     page.getByRole('heading', { name: 'Активные рекомендации', exact: true }),
   ).toBeVisible()
   await expect(page.getByText('Действующая группа', { exact: true })).toBeVisible()
+  await expect(page.getByText('И МНН АСС: Выбранная МНН', { exact: true })).toBeVisible()
+  await expect(
+    page.getByText('И Подгруппа АСС: Выбранная подгруппа', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.getByText('Все условия должны совпасть у одного сканируемого товара.', { exact: true }),
+  ).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Первое предложение', exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Второе предложение', exact: true })).toBeVisible()
 }
@@ -377,6 +392,7 @@ for (const viewport of [
         'page',
       )
       await expectOffers(page)
+      await expectNoHorizontalOverflow(page)
       await page.screenshot({
         path: testInfo.outputPath(`${viewport.name}-learner-recommendations.png`),
         fullPage: true,

@@ -4,7 +4,7 @@
 import { IconBox, IconLayers } from '@/ui/icons'
 import type { Product, RuleTrigger } from '@/mocks/fixtures'
 import { useT } from '@/i18n'
-import { vendorColor } from './lib'
+import { ruleTriggerDisplay, vendorColor } from './lib'
 
 interface ProductIconProps {
   product: Product
@@ -34,16 +34,30 @@ interface ProductBlockProps {
 
 export function ProductBlock({ product, accent, fallback }: ProductBlockProps) {
   const t = useT()
+  const conditionDetails = fallback?.conditions?.length ? (
+    <div className="mt-1 break-words text-[11px] font-semibold text-ink-600">
+      ∩{' '}
+      {fallback.conditions
+        .map((condition) => ruleTriggerDisplay(condition, undefined, t))
+        .join(' ∩ ')}
+    </div>
+  ) : null
   if (!product) {
     const scopeName = fallback?.label || (fallback?.value as string) || ''
     const name = (() => {
       switch (fallback?.kind) {
-        case 'mnn': return t('rules.mnnPrefix', { v: fallback.value as string })
-        case 'product_any': return t('rules.productGroupN', { n: (fallback.value as string[]).length })
-        case 'acc_group': return t('rules.accGroupPrefix', { v: scopeName })
-        case 'acc_subgroup': return t('rules.accSubgroupPrefix', { v: scopeName })
-        case 'acc_mnn': return t('rules.accMnnPrefix', { v: scopeName })
-        default: return t('rules.anyTrigger')
+        case 'mnn':
+          return t('rules.mnnPrefix', { v: fallback.value as string })
+        case 'product_any':
+          return t('rules.productGroupN', { n: (fallback.value as string[]).length })
+        case 'acc_group':
+          return t('rules.accGroupPrefix', { v: scopeName })
+        case 'acc_subgroup':
+          return t('rules.accSubgroupPrefix', { v: scopeName })
+        case 'acc_mnn':
+          return t('rules.accMnnPrefix', { v: scopeName })
+        default:
+          return t('rules.anyTrigger')
       }
     })()
     return (
@@ -56,6 +70,7 @@ export function ProductBlock({ product, accent, fallback }: ProductBlockProps) {
           <div className="text-[11px] font-semibold text-ink-500">
             {fallback?.kind?.startsWith('acc_') ? t('rules.accScope') : t('rules.mnnGroup')}
           </div>
+          {conditionDetails}
         </div>
       </div>
     )
@@ -66,6 +81,7 @@ export function ProductBlock({ product, accent, fallback }: ProductBlockProps) {
       <div className="min-w-0">
         <div className="truncate text-[13px] font-extrabold text-ink-900">{product.name}</div>
         <div className="truncate text-[11px] font-semibold text-ink-500">{product.brand}</div>
+        {conditionDetails}
       </div>
     </div>
   )

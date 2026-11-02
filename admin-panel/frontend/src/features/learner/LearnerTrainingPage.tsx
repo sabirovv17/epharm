@@ -109,6 +109,11 @@ type RecommendationTrigger = {
   value: string | string[]
   label?: string
   exclude?: string[]
+  conditions?: {
+    kind: 'acc_group' | 'acc_subgroup' | 'acc_mnn'
+    value: string
+    label?: string | null
+  }[]
 }
 
 type RecommendationOffer = {
@@ -3490,16 +3495,42 @@ function RecommendationCard({ recommendation }: { recommendation: PersonalRecomm
       .filter(Boolean)
       .join(', ') ||
     t('Условие рекомендации')
+  const conditions = recommendation.trigger.conditions ?? []
+  const factorLabels: Partial<Record<RecommendationTrigger['kind'], string>> = {
+    product: t('Товар'),
+    acc_group: t('Группа АСС'),
+    acc_subgroup: t('Подгруппа АСС'),
+    acc_mnn: t('МНН АСС'),
+  }
   const typeLabel = recommendation.type === 'substitution' ? t('Замена') : t('Допродажа')
   return (
     <section className="overflow-hidden rounded-xl border border-ink-100 bg-white">
       <div className="flex flex-wrap items-start justify-between gap-3 bg-paper-hover px-4 py-3">
-        <div>
+        <div className="min-w-0">
           <div className="text-sm font-extrabold text-ink-900">
             {recommendation.campaign?.title || t('Активная рекомендация')}
           </div>
-          <div className="mt-1 text-xs text-ink-500">
-            <span className="font-bold text-ink-600">{t('Триггер')}:</span> {triggerLabel}
+          <div className="mt-1 break-words text-xs text-ink-500">
+            <span className="font-bold text-ink-600">{t('Триггер')}:</span>{' '}
+            {conditions.length > 0 && factorLabels[recommendation.trigger.kind]
+              ? `${factorLabels[recommendation.trigger.kind]}: `
+              : ''}
+            {triggerLabel}
+            {conditions.length > 0 && (
+              <>
+                <ul className="mt-1 space-y-1">
+                  {conditions.map((condition) => (
+                    <li key={condition.kind}>
+                      {t('И')} {factorLabels[condition.kind] ?? condition.kind}:{' '}
+                      {condition.label || condition.value}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-[11px]">
+                  {t('Все условия должны совпасть у одного сканируемого товара.')}
+                </p>
+              </>
+            )}
           </div>
         </div>
         <span className="rounded-full bg-brand-green-100 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-brand-green-700">

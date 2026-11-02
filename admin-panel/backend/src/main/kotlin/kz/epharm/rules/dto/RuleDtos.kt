@@ -13,6 +13,7 @@ import kz.epharm.rules.entity.RuleComparisonRow
 import kz.epharm.rules.entity.RuleEntity
 import kz.epharm.rules.entity.RuleStatus
 import kz.epharm.rules.entity.RuleTrigger
+import kz.epharm.rules.entity.RuleTriggerCondition
 import kz.epharm.rules.entity.RuleType
 import java.math.BigDecimal
 import java.time.Instant
@@ -72,6 +73,17 @@ data class RuleDto(
 
 // ── Триггер DTO (с валидацией) ───────────────────────────────────────────────
 
+data class TriggerConditionDto(
+    @field:Pattern(regexp = "acc_group|acc_subgroup|acc_mnn")
+    val kind: String,
+    @field:NotBlank @field:Size(max = 64)
+    val value: String,
+    @field:Size(max = 255)
+    val label: String? = null,
+) {
+    fun toEntity() = RuleTriggerCondition(kind, value, label)
+}
+
 data class TriggerDto(
     @field:NotBlank
     @field:Pattern(regexp = "product|mnn|product_any|acc_group|acc_subgroup|acc_mnn")
@@ -81,8 +93,10 @@ data class TriggerDto(
     val exclude: List<String>? = null,
     @field:Size(max = 255)
     val label: String? = null,
+    @field:Valid @field:Size(max = 3)
+    val conditions: List<TriggerConditionDto> = emptyList(),
 ) {
-    fun toEntity(): RuleTrigger = RuleTrigger(kind = kind, value = value, exclude = exclude, label = label)
+    fun toEntity(): RuleTrigger = RuleTrigger(kind = kind, value = value, exclude = exclude, label = label, conditions = conditions.map { it.toEntity() })
 }
 
 data class AbTestDto(

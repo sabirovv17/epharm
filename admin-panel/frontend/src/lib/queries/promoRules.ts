@@ -26,7 +26,11 @@ export function useSavePromoRules() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ promoId, config }: { promoId: string; config: PromoRulesConfigDto }) =>
-      api.put<PromoRulesViewDto>(`/api/admin/promo/${promoId}/rules`, config).then((r) => r.data),
+      api
+        .put<PromoRulesViewDto>(`/api/admin/promo/${promoId}/rules`, config, {
+          headers: { 'X-Epharm-Trigger-Conditions': '1' },
+        })
+        .then((r) => r.data),
     onSuccess: (data) => {
       qc.setQueryData(promoRulesKeys.detail(data.promoId), data)
       qc.invalidateQueries({ queryKey: promoRulesKeys.detail(data.promoId) })

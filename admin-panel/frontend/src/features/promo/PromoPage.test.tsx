@@ -3,7 +3,7 @@
 // без MSW.
 
 import { describe, expect, it, beforeEach, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
@@ -151,7 +151,13 @@ beforeEach(() => {
   })
   taxonomyHooks.useAccTriggerOptions.mockReturnValue({
     data: {
-      snapshot: { sha256: 'test', sourceName: 'Каталог АСС', itemCount: 200, barcodeCount: 150, importedAt: '2026-10-01T00:00:00Z' },
+      snapshot: {
+        sha256: 'test',
+        sourceName: 'Каталог АСС',
+        itemCount: 200,
+        barcodeCount: 150,
+        importedAt: '2026-10-01T00:00:00Z',
+      },
       options: [
         { key: 'group:1', label: 'ЖКТ', count: 40 },
         { key: 'group:2', label: 'Витамины', count: 20 },
@@ -407,7 +413,9 @@ describe('PromoPage — trigger-first campaign creation', () => {
     const user = userEvent.setup()
     renderPromo()
     await openForm(user)
-    expect(screen.getByRole('radiogroup', { name: 'Что запускает рекомендацию' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('radiogroup', { name: 'Что запускает рекомендацию' }),
+    ).toBeInTheDocument()
     expect(screen.queryByPlaceholderText(/Поиск товара/i)).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Создать черновик/ })).toBeDisabled()
   })
@@ -424,27 +432,78 @@ describe('PromoPage — trigger-first campaign creation', () => {
     await selectOffer(user)
     await user.click(screen.getByRole('button', { name: /Создать черновик/ }))
 
-    expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({
-      medusaProductId: 'prod_2',
-      title: 'Аквамарис Норм спрей 150 мл',
-      status: 'draft',
-      barcode: '3856013201127',
-      initialRecommendation: expect.objectContaining({
-        type: 'substitution',
-        trigger: expect.objectContaining({ medusaProductId: 'prod_1', triggerKind: 'product', active: false }),
+    expect(mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        medusaProductId: 'prod_2',
+        title: 'Аквамарис Норм спрей 150 мл',
+        status: 'draft',
+        barcode: '3856013201127',
+        initialRecommendation: expect.objectContaining({
+          type: 'substitution',
+          trigger: expect.objectContaining({
+            medusaProductId: 'prod_1',
+            triggerKind: 'product',
+            active: false,
+          }),
+        }),
       }),
-    }))
+    )
     expect(screen.getByTestId('location-probe')).toHaveTextContent('/promo/pr_new')
+  })
+
+  it('сохраняет группу И МНН одним триггером, не отдельными рекомендациями', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue(mkPromo({ id: 'pr_and' }))
+    promoHooks.useCreatePromo.mockReturnValue({ mutateAsync, isPending: false })
+    const user = userEvent.setup()
+    renderPromo()
+    await openForm(user)
+    await user.click(screen.getByRole('radio', { name: 'Группа ACC' }))
+    await user.click(screen.getByTestId('create-trigger-option-group:1'))
+    await user.click(screen.getByRole('button', { name: 'Добавить условие «И»' }))
+    const conditions = screen.getByTestId('trigger-conditions')
+    await user.click(within(conditions).getByRole('radio', { name: 'МНН ACC' }))
+    await user.click(within(conditions).getByTestId('create-trigger-option-mnn:1'))
+    expect(screen.getByRole('radio', { name: 'Группа ACC' })).toBeChecked()
+    await selectOffer(user)
+    await user.click(screen.getByRole('button', { name: /Создать черновик/ }))
+    expect(mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        initialRecommendation: expect.objectContaining({
+          trigger: expect.objectContaining({
+            triggerKind: 'acc_group',
+            triggerValue: 'group:1',
+            triggerConditions: [{ kind: 'acc_mnn', value: 'mnn:1', label: 'Ибупрофен' }],
+          }),
+        }),
+      }),
+    )
   })
 
   it('создаёт точный триггер из plural-only каталога и сохраняет все коды предлагаемого товара', async () => {
     const mutateAsync = vi.fn().mockResolvedValue(mkPromo({ id: 'pr_multi' }))
     promoHooks.useCreatePromo.mockReturnValue({ mutateAsync, isPending: false })
     storefrontHooks.useStorefront.mockReturnValue({
-      data: { items: [
-        { id: 'trigger-multi', name: 'Триггер', brand: 'Тест', barcode: null, barcodes: ['0012345678905', '4601164003157'] },
-        { id: 'offer-multi', name: 'Предлагаемый', brand: 'Тест', barcode: '_00012345_4870000000002_' },
-      ], total: 2, limit: 50, offset: 0 }, isFetching: false,
+      data: {
+        items: [
+          {
+            id: 'trigger-multi',
+            name: 'Триггер',
+            brand: 'Тест',
+            barcode: null,
+            barcodes: ['0012345678905', '4601164003157'],
+          },
+          {
+            id: 'offer-multi',
+            name: 'Предлагаемый',
+            brand: 'Тест',
+            barcode: '_00012345_4870000000002_',
+          },
+        ],
+        total: 2,
+        limit: 50,
+        offset: 0,
+      },
+      isFetching: false,
     })
     const user = userEvent.setup()
     renderPromo()
@@ -456,12 +515,21 @@ describe('PromoPage — trigger-first campaign creation', () => {
     await user.type(screen.getByPlaceholderText(/Поиск товара/i), 'Предлагаемый')
     await user.click(await screen.findByTestId('promo-product-option-offer-multi'))
     await user.click(screen.getByRole('button', { name: /Создать черновик/ }))
-    expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({
-      medusaProductId: 'offer-multi', barcode: '00012345', barcodes: ['00012345', '4870000000002'],
-      initialRecommendation: expect.objectContaining({ trigger: expect.objectContaining({
-        medusaProductId: 'trigger-multi', barcode: '0012345678905', barcodes: ['0012345678905', '4601164003157'], active: false,
-      }) }),
-    }))
+    expect(mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        medusaProductId: 'offer-multi',
+        barcode: '00012345',
+        barcodes: ['00012345', '4870000000002'],
+        initialRecommendation: expect.objectContaining({
+          trigger: expect.objectContaining({
+            medusaProductId: 'trigger-multi',
+            barcode: '0012345678905',
+            barcodes: ['0012345678905', '4601164003157'],
+            active: false,
+          }),
+        }),
+      }),
+    )
   })
 
   it.each([
@@ -482,12 +550,14 @@ describe('PromoPage — trigger-first campaign creation', () => {
     await user.type(screen.getByPlaceholderText(/Поиск товара/i), 'Аква')
     await user.click(await screen.findByTestId('promo-product-option-prod_2'))
     await user.click(screen.getByRole('button', { name: /Создать черновик/ }))
-    expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({
-      initialRecommendation: expect.objectContaining({
-        type: 'crosssell',
-        trigger: expect.objectContaining({ triggerKind: kind, triggerValue: key, active: false }),
+    expect(mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        initialRecommendation: expect.objectContaining({
+          type: 'crosssell',
+          trigger: expect.objectContaining({ triggerKind: kind, triggerValue: key, active: false }),
+        }),
       }),
-    }))
+    )
   })
 
   it('смена типа триггера сбрасывает прошлый выбор и блокирует сохранение', async () => {
@@ -531,7 +601,12 @@ describe('PromoPage — trigger-first campaign creation', () => {
   })
 
   it('неактуальный ACC snapshot не даёт выбрать scope', async () => {
-    taxonomyHooks.useAccTriggerOptions.mockReturnValue({ data: { snapshot: null, options: [] }, isPending: false, isError: false, refetch: vi.fn() })
+    taxonomyHooks.useAccTriggerOptions.mockReturnValue({
+      data: { snapshot: null, options: [] },
+      isPending: false,
+      isError: false,
+      refetch: vi.fn(),
+    })
     const user = userEvent.setup()
     renderPromo()
     await openForm(user)
@@ -547,7 +622,12 @@ describe('PromoPage — trigger-first campaign creation', () => {
       data: {
         ...source.data,
         items: [
-          { ...source.data.items[0], name: 'П'.repeat(300), brand: 'Б'.repeat(150), ipartId: 'I'.repeat(80) },
+          {
+            ...source.data.items[0],
+            name: 'П'.repeat(300),
+            brand: 'Б'.repeat(150),
+            ipartId: 'I'.repeat(80),
+          },
           source.data.items[1],
         ],
       },
@@ -570,7 +650,13 @@ describe('PromoPage — trigger-first campaign creation', () => {
 
   it('ошибку поиска Medusa показывает отдельно от пустой выдачи с повтором', async () => {
     const refetch = vi.fn()
-    storefrontHooks.useStorefront.mockReturnValue({ data: undefined, isFetching: false, isError: true, error: new Error('Каталог недоступен'), refetch })
+    storefrontHooks.useStorefront.mockReturnValue({
+      data: undefined,
+      isFetching: false,
+      isError: true,
+      error: new Error('Каталог недоступен'),
+      refetch,
+    })
     const user = userEvent.setup()
     renderPromo()
     await openForm(user)
@@ -601,7 +687,10 @@ describe('PromoPage — trigger-first campaign creation', () => {
     const mutateAsync = vi.fn().mockRejectedValue({
       isAxiosError: true,
       message: 'Request failed with status code 409',
-      response: { status: 409, data: { code: 'CONFLICT', message: 'Этот товар уже привязан к другой активной кампании' } },
+      response: {
+        status: 409,
+        data: { code: 'CONFLICT', message: 'Этот товар уже привязан к другой активной кампании' },
+      },
     })
     promoHooks.useCreatePromo.mockReturnValue({ mutateAsync, isPending: false })
     const user = userEvent.setup()

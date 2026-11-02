@@ -59,6 +59,17 @@ data class PromoOfferProductRefDto(
     val barcodes: List<String> = emptyList(),
 )
 
+data class PromoTriggerConditionDto(
+    @field:NotBlank
+    @field:jakarta.validation.constraints.Pattern(regexp = "acc_group|acc_subgroup|acc_mnn")
+    val kind: String,
+    @field:NotBlank
+    @field:Size(max = 64)
+    val value: String,
+    @field:Size(max = 255)
+    val label: String? = null,
+)
+
 /**
  * Пара кампании (продвигаемый ↔ данный товар) = ОДНА рекомендация на кассе.
  * Несёт всё, что показывается в блоке рекомендации именно для этой пары.
@@ -76,6 +87,9 @@ data class PromoRuleProductRefDto(
     /** Human-readable snapshot label. Presentation only; server validates the key. */
     @field:Size(max = 255)
     val triggerLabel: String? = null,
+    @field:Valid
+    @field:Size(max = 3)
+    val triggerConditions: List<PromoTriggerConditionDto> = emptyList(),
     @field:Size(max = 255)
     val name: String = "",
     @field:Size(max = 128)

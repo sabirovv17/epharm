@@ -93,8 +93,10 @@ class UnifiedMotivationAuthorizationIntegrationTest {
         jdbc.update("update unified_admin_profiles set grants_json=?,version=version+1 where account_id=?",
             json.writeValueAsString(grants.toList()), admin.id)
     }
-    private fun change(method: String, path: String, body: Any = emptyMap<String, Any>()): ResultActions {
+    private fun change(method: String, path: String, body: Any = emptyMap<String, Any>(),
+        supportsTriggerConditions: Boolean = false): ResultActions {
         val request = when (method) { "PATCH" -> patch(path); "PUT" -> put(path); else -> post(path) }
+        if (supportsTriggerConditions) request.header("X-Epharm-Trigger-Conditions", "1")
         return mvc.perform(request.header("Authorization", bearer).contentType(MediaType.APPLICATION_JSON)
             .content(json.writeValueAsString(body)))
     }
@@ -304,4 +306,21 @@ class UnifiedMotivationAuthorizationIntegrationTest {
             id, "synthetic-ware", BARCODE, GROUP, "Synthetic group", SUBGROUP, "Synthetic subgroup", MNN, "Synthetic MNN")
         jdbc.update("update acc_catalog_state set active_snapshot_id=? where singleton=1", id)
     }
+    @Test fun `adding a factor to a paid recommendation cannot bypass financial permission`() {
+        campaign(bonus = 100)
+        linkedRule(bonus = 20)
+        val snapshot = UUID.randomUUID()
+        jdbc.update("insert into acc_catalog_snapshots(id,sha256,source_name,item_count,barcode_count) values(?,?,?,?,?)",
+            snapshot, "e".repeat(64), "synthetic-test.xlsx", 1, 1)
+        jdbc.update("""insert into acc_catalog_barcodes(snapshot_id,ware_id,barcode,mnn_key,mnn_label)
+            values(?,?,?,?,?)""", snapshot, "synthetic-ware", BARCODE, "mnn-paid", "Synthetic MNN")
+        jdbc.update("update acc_catalog_state set active_snapshot_id=? where singleton=1", snapshot)
+        grants(grant("recommendations", "edit"), grant("recommendations", "publish"))
+        change("PUT", "/api/admin/promo/mot-promo/rules", config(ref(bonus = 20).apply {
+            put("triggerConditions", listOf(mapOf("kind" to "acc_mnn", "value" to "mnn-paid")))
+        }), supportsTriggerConditions = true).andExpect(status().isForbidden)
+        assertThat(rules.findById("mot-rule").orElseThrow().trigger.conditions).isEmpty()
+        assertThat(rules.findById("mot-rule").orElseThrow().bonus).isEqualTo(20)
+    }
+
 }

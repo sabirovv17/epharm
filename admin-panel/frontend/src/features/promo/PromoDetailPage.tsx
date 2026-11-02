@@ -43,7 +43,11 @@ import {
   usePromoChanges,
   useSavePromoChanges,
 } from '@/lib/queries/promoChanges'
-import { normalizePromoRulesConfig } from './promoRulesValidation'
+import {
+  normalizePromoRulesConfig,
+  PROMO_RULE_LIMITS,
+  validatePromoRulesConfig,
+} from './promoRulesValidation'
 import { promoTriggerKind } from './promoTrigger'
 
 interface FormState {
@@ -149,6 +153,9 @@ export default function PromoDetailPage() {
   const [formDraft, setForm] = useState<FormState>(EMPTY_FORM)
   const form = changesQuery.isError ? (promo ? campaignForm(promo) : EMPTY_FORM) : formDraft
   const [saveErr, setSaveErr] = useState<string | null>(null)
+  const [moneyErrors, setMoneyErrors] = useState<
+    Partial<Record<'budget' | 'pharmacistBonus', string>>
+  >({})
   const [rulesConfig, setRulesConfig] = useState<PromoRulesConfigDto>(EMPTY_RULES)
   const [staleRevision, setStaleRevision] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
@@ -172,6 +179,7 @@ export default function PromoDetailPage() {
       setForm(campaignForm(promo, authoritative ? changes.bundle.campaign : {}))
       setRulesConfig(authoritative ? changes.bundle.rules : EMPTY_RULES)
       setSaveErr(null)
+      setMoneyErrors({})
       if (authoritative) setStaleRevision(false)
       setReviewOpen(false)
     }
@@ -190,18 +198,6 @@ export default function PromoDetailPage() {
   const medusaId = promo?.medusaProductId ?? null
   const { data: medusaProduct } = useStorefrontProduct(medusaId)
   const medusaCharacteristics = (medusaProduct?.keyFacts ?? []).join('\n')
-
-  // Предзаполняем поля значениями из Medusa, если своих override ещё нет
-  // (в форме пусто). Зависимость [medusaProduct] → срабатывает один раз при загрузке.
-  useEffect(() => {
-    if (!medusaProduct) return
-    setForm((f) => ({
-      ...f,
-      overrideDescription: f.overrideDescription || (medusaProduct.description ?? ''),
-      overrideCharacteristics:
-        f.overrideCharacteristics || (medusaProduct.keyFacts ?? []).join('\n'),
-    }))
-  }, [medusaProduct])
 
   const goBack = () => navigate('/promo')
 
@@ -298,8 +294,12 @@ export default function PromoDetailPage() {
     !pending &&
     !isArchived
 
-  const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((f) => ({ ...f, [k]: e.target.value }))
+    if (k === 'budget' || k === 'pharmacistBonus') {
+      setMoneyErrors((current) => ({ ...current, [k]: undefined }))
+    }
+  }
 
   const handleSave = (
     config = rulesConfig,
@@ -312,6 +312,41 @@ export default function PromoDetailPage() {
     }
     if (form.dateStart && form.dateEnd && form.dateStart > form.dateEnd) {
       setSaveErr(t('pm.dateOrderErr'))
+      return
+    }
+    const budget = Number(form.budget || 0)
+    const pharmacistBonus = Number(form.pharmacistBonus || 0)
+    const errors: typeof moneyErrors = {}
+    if (!Number.isSafeInteger(budget) || budget < 0) {
+      errors.budget = 'Бюджет: укажите целое неотрицательное число в тенге'
+    }
+    if (
+      !Number.isSafeInteger(pharmacistBonus) ||
+      pharmacistBonus < 0 ||
+      pharmacistBonus > PROMO_RULE_LIMITS.maxInt
+    ) {
+      errors.pharmacistBonus = `Бонус: укажите целое число от 0 до ${PROMO_RULE_LIMITS.maxInt} ₸`
+    }
+    setMoneyErrors(errors)
+    if (Object.keys(errors).length) {
+      setSaveErr(Object.values(errors).join('. '))
+      return
+    }
+    const normalizedRules = normalizePromoRulesConfig(config, promo.medusaProductId ?? undefined)
+    const ruleErrors = validatePromoRulesConfig(normalizedRules, {
+      required: t('pr.validationRequired'),
+      maxLength: (max) => t('pr.validationMaxLength', { max }),
+      positiveInteger: t('pr.validationPositiveInteger'),
+      nonNegativeInteger: t('pr.validationNonNegativeInteger'),
+      invalidProduct: t('pr.validationInvalidProduct'),
+      invalidTrigger: t('pr.validationInvalidTrigger'),
+      goalLabelRequired: t('pr.validationGoalLabelRequired'),
+      goalTargetRequired: t('pr.validationGoalTargetRequired'),
+    })
+    if (Object.keys(ruleErrors).length) {
+      setSaveErr(
+        `${t('pr.validationTitle')}: ${[...new Set(Object.values(ruleErrors))].join('. ')}`,
+      )
       return
     }
     // price НЕ отправляем — read-only из Medusa. tiers тоже не шлём (T1).
@@ -337,10 +372,10 @@ export default function PromoDetailPage() {
       title: form.title.trim(),
       brand: form.brand.trim(),
       period: form.period.trim(),
-      budget: Number(form.budget) || 0,
+      budget,
       kpi: form.kpi.trim(),
       cover: form.cover.trim(),
-      pharmacistBonus: Math.max(0, Math.trunc(Number(form.pharmacistBonus) || 0)),
+      pharmacistBonus,
       barcode: form.barcode.trim() || null,
       barcodes: collectProductBarcodes({ barcode: form.barcode, barcodes: savedBarcodes }),
       ipartId: form.ipartId.trim() || null,
@@ -357,7 +392,7 @@ export default function PromoDetailPage() {
         expectedRevision: changes.revision,
         bundle: {
           campaign: patch,
-          rules: normalizePromoRulesConfig(config, promo.medusaProductId ?? undefined),
+          rules: normalizedRules,
         },
       },
       {
@@ -715,11 +750,18 @@ export default function PromoDetailPage() {
                   {promo.price ? formatKzt(promo.price) : t('sf.priceNa')}
                 </div>
               </Field>
-              <Field label={t('pm.fldBonus')} hint={t('pm.bonusHint')}>
+              <Field
+                label={t('pm.fldBonus')}
+                hint={t('pm.bonusHint')}
+                error={moneyErrors.pharmacistBonus}
+              >
                 <Input
                   type="number"
                   min={0}
+                  max={PROMO_RULE_LIMITS.maxInt}
+                  step={1}
                   value={form.pharmacistBonus}
+                  aria-invalid={moneyErrors.pharmacistBonus ? true : undefined}
                   onChange={set('pharmacistBonus')}
                   disabled={editingDisabled}
                 />
@@ -762,7 +804,9 @@ export default function PromoDetailPage() {
                 effective={effectiveImage}
                 resolveSrc={proxyMedia}
                 onPickCover={
-                  isArchived ? undefined : (url) => setForm((f) => ({ ...f, overrideImage: url }))
+                  editingDisabled
+                    ? undefined
+                    : (url) => setForm((f) => ({ ...f, overrideImage: url }))
                 }
               />
             </Field>
@@ -775,6 +819,7 @@ export default function PromoDetailPage() {
                 className="inp"
                 rows={3}
                 value={form.overrideDescription}
+                placeholder={medusaProduct?.description ?? ''}
                 onChange={(e) => setForm((f) => ({ ...f, overrideDescription: e.target.value }))}
                 disabled={editingDisabled}
               />
@@ -791,7 +836,7 @@ export default function PromoDetailPage() {
                 onChange={(e) =>
                   setForm((f) => ({ ...f, overrideCharacteristics: e.target.value }))
                 }
-                placeholder={t('pm.charsPlaceholder')}
+                placeholder={medusaCharacteristics || t('pm.charsPlaceholder')}
                 disabled={editingDisabled}
               />
             </Field>
@@ -828,11 +873,14 @@ export default function PromoDetailPage() {
                   disabled={editingDisabled}
                 />
               </Field>
-              <Field label={t('pd.fldBudget')}>
+              <Field label={t('pd.fldBudget')} error={moneyErrors.budget}>
                 <Input
                   type="number"
                   min={0}
+                  max={Number.MAX_SAFE_INTEGER}
+                  step={1}
                   value={form.budget}
+                  aria-invalid={moneyErrors.budget ? true : undefined}
                   onChange={set('budget')}
                   disabled={editingDisabled}
                 />
@@ -910,6 +958,7 @@ export default function PromoDetailPage() {
           </div>
 
           <div className="card-soft p-4">
+            <p className="mb-2 text-[12px] font-semibold text-ink-500">Опубликованный бюджет</p>
             <div className="mb-2 flex items-center justify-between text-[12px] font-bold uppercase tracking-[0.06em] text-ink-500">
               <span>{t('pd.budgetSpent')}</span>
               <span className="num text-ink-900">{progressPct}%</span>
@@ -919,6 +968,12 @@ export default function PromoDetailPage() {
               <span className="num font-semibold text-ink-500">/ {formatKzt(promo.budget)}</span>
             </div>
             <ProgressBar value={promo.spent} max={progressMax} />
+            {changes?.hasPendingChanges && changes.bundle.campaign.budget !== promo.budget && (
+              <p className="mt-3 text-[12px] font-semibold" data-testid="promo-prepared-budget">
+                Подготовленный бюджет: {formatKzt(changes.bundle.campaign.budget ?? 0)}. Вступит в
+                силу после «Проверить и применить».
+              </p>
+            )}
           </div>
 
           <div className="card-soft grid grid-cols-2 gap-3 p-4 text-[13px]">
@@ -970,6 +1025,7 @@ export default function PromoDetailPage() {
                 Сроки: {changes.bundle.campaign.dateStart || 'Без начала'} —{' '}
                 {changes.bundle.campaign.dateEnd || 'Без окончания'}
               </p>
+              <p>Бюджет: {formatKzt(changes.bundle.campaign.budget ?? promo.budget)}</p>
               <p>
                 Бонус основного товара:{' '}
                 {formatKzt(changes.bundle.campaign.pharmacistBonus ?? promo.pharmacistBonus)}
@@ -1001,6 +1057,11 @@ export default function PromoDetailPage() {
                   }
                   : {pair.triggerLabel || pair.name}
                 </p>
+                {pair.triggerConditions?.map((condition) => (
+                  <p key={condition.kind}>
+                    ∩ {t(`pr.triggerKind.${condition.kind}`)}: {condition.label || condition.value}
+                  </p>
+                ))}
                 <p>
                   Предложить: {promo.productName} · бонус{' '}
                   {formatKzt(

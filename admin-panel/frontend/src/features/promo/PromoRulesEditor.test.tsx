@@ -155,6 +155,94 @@ function renderEditor(campaignBonus = 0) {
 }
 
 describe('PromoRulesEditor — per-pair скрипт + «Добавить»', () => {
+  it('не объединяет и не теряет пары при попытке сделать условия одинаковыми', async () => {
+    const base = mkView().config.replacements[0]
+    rulesHooks.usePromoRules.mockReturnValue({
+      data: mkView({
+        replacements: [
+          {
+            ...base,
+            script: 'Первая',
+            triggerConditions: [{ kind: 'acc_mnn', value: 'scope-1', label: 'Анальгетики' }],
+          },
+          { ...base, script: 'Вторая' },
+        ],
+      }),
+    })
+    const user = userEvent.setup()
+    renderEditor()
+    const conditions = screen.getAllByTestId('trigger-conditions')[1]
+    await user.click(within(conditions).getByRole('button', { name: 'Добавить условие «И»' }))
+    await user.click(within(conditions).getByRole('radio', { name: 'МНН ACC' }))
+    await user.click(within(conditions).getByTestId('create-trigger-option-scope-1'))
+    expect(screen.getByText(/Рекомендация с такими условиями уже есть/)).toBeInTheDocument()
+    await user.click(screen.getByTestId('promo-rules-save'))
+    expect(mutate.mock.calls[0][0].config.replacements).toEqual([
+      expect.objectContaining({
+        script: 'Первая',
+        triggerConditions: [expect.objectContaining({ value: 'scope-1' })],
+      }),
+      expect.objectContaining({ script: 'Вторая' }),
+    ])
+  })
+
+  it('изменяет И-условие в существующей рекомендации и сохраняет его вместе с полями пары', async () => {
+    const user = userEvent.setup()
+    renderEditor()
+    const conditions = screen.getByTestId('trigger-conditions')
+    await user.click(within(conditions).getByRole('button', { name: 'Добавить условие «И»' }))
+    await user.click(within(conditions).getByRole('radio', { name: 'МНН ACC' }))
+    await user.click(within(conditions).getByTestId('create-trigger-option-scope-1'))
+    await user.click(screen.getByTestId('promo-rules-save'))
+    expect(mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: expect.objectContaining({
+          replacements: [
+            expect.objectContaining({
+              medusaProductId: 'prod_a',
+              script: 'Замени — мягче',
+              triggerConditions: [{ kind: 'acc_mnn', value: 'scope-1', label: 'Анальгетики' }],
+            }),
+          ],
+        }),
+      }),
+      expect.anything(),
+    )
+    await user.click(screen.getByRole('button', { name: 'Убрать условие: Анальгетики' }))
+    await user.click(screen.getByTestId('promo-rules-save'))
+    expect(mutate).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        config: expect.objectContaining({
+          replacements: [expect.objectContaining({ triggerConditions: [] })],
+        }),
+      }),
+      expect.anything(),
+    )
+  })
+
+  it('один триггер в замене и кросс-селле имеет независимые подписанные поля бонуса', async () => {
+    const trigger = mkView().config.replacements[0]
+    rulesHooks.usePromoRules.mockReturnValue({
+      data: mkView({ crossSells: [{ ...trigger, bonus: 50, active: false }] }),
+    })
+    const user = userEvent.setup()
+    const { container } = renderEditor(200)
+    const inputs = screen.getAllByTestId('pr-bonus-primary-prod_a')
+    expect(inputs).toHaveLength(2)
+    expect(new Set(inputs.map((input) => input.id)).size).toBe(2)
+    const crossSell = within(screen.getByTestId('pr-list-crossSells'))
+    const crossSellBonus = crossSell.getByLabelText('Вознаграждение за товар, ₸')
+    expect(crossSellBonus).toBe(inputs[1])
+    await user.clear(crossSellBonus)
+    await user.type(crossSellBonus, '75')
+    await user.click(screen.getByTestId('promo-rules-save'))
+    expect(mutate.mock.calls[0][0].config.replacements[0].bonus).toBeUndefined()
+    expect(mutate.mock.calls[0][0].config.crossSells[0].bonus).toBe(75)
+    expect(container.querySelectorAll('input[id]')).toHaveLength(
+      new Set(Array.from(container.querySelectorAll('input[id]')).map((input) => input.id)).size,
+    )
+  })
+
   it('не предлагает широкие правила без загруженного снимка ACC', async () => {
     const user = userEvent.setup()
     accTriggerHooks.useAccTriggerOptions.mockReturnValue({

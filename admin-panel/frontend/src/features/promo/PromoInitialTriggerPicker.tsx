@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { Button, Input } from '@/ui'
 import { IconCheck, IconSearch } from '@/ui/icons'
 import type { AccTriggerOptionDto, PromoTriggerKind } from '@/lib/api-types'
@@ -26,13 +26,16 @@ export function PromoInitialTriggerPicker({
   value,
   onKindChange,
   onChange,
+  kinds = TRIGGER_KINDS,
 }: {
   kind: PromoTriggerKind | null
   value: InitialTrigger | null
   onKindChange: (kind: PromoTriggerKind) => void
   onChange: (value: InitialTrigger | null) => void
+  kinds?: PromoTriggerKind[]
 }) {
   const t = useT()
+  const radioName = useId()
   const [rawQuery, setRawQuery] = useState('')
   const [query, setQuery] = useState('')
   const [editingScope, setEditingScope] = useState(true)
@@ -60,7 +63,7 @@ export function PromoInitialTriggerPicker({
   return (
     <div className="space-y-3">
       <div role="radiogroup" aria-label={t('pr.triggerType')} className="grid grid-cols-2 gap-2">
-        {TRIGGER_KINDS.map((option) => (
+        {kinds.map((option) => (
           <label
             key={option}
             className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-[13px] font-semibold transition-colors ${
@@ -71,7 +74,7 @@ export function PromoInitialTriggerPicker({
           >
             <input
               type="radio"
-              name="initial-trigger-kind"
+              name={radioName}
               value={option}
               checked={kind === option}
               onChange={() => chooseKind(option)}
@@ -156,7 +159,9 @@ export function PromoInitialTriggerPicker({
                       className="flex w-full items-center gap-3 border-b border-ink-100 px-3 py-2 text-left last:border-b-0 hover:bg-paper-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-green-600"
                     >
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[13px] font-semibold text-ink-900">{option.label}</span>
+                        <span className="block truncate text-[13px] font-semibold text-ink-900">
+                          {option.label}
+                        </span>
                         {option.parentLabel && (
                           <span className="block truncate text-[11px] text-ink-500">
                             {t('pr.triggerParent', { parent: option.parentLabel })}

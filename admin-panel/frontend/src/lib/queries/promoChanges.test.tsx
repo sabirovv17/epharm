@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/lib/api'
 import type { PromoChangesViewDto } from '@/lib/api-types'
 import { promoKeys } from './promo'
-import { promoRulesKeys } from './promoRules'
+import { promoRulesKeys, useSavePromoRules } from './promoRules'
 import {
   promoChangesKeys,
   useApplyPromoChanges,
@@ -101,10 +101,14 @@ describe('D28 pending publication transport and cache', () => {
         bundle: state.bundle,
       })
     })
-    expect(api.put).toHaveBeenCalledWith('/api/admin/promo/demo-01/changes', {
-      expectedRevision: 7,
-      bundle: state.bundle,
-    })
+    expect(api.put).toHaveBeenCalledWith(
+      '/api/admin/promo/demo-01/changes',
+      {
+        expectedRevision: 7,
+        bundle: state.bundle,
+      },
+      { headers: { 'X-Epharm-Trigger-Conditions': '1' } },
+    )
     expect(client.getQueryData(promoChangesKeys.detail('demo-01'))).toEqual({
       ...state,
       revision: 8,
@@ -119,9 +123,13 @@ describe('D28 pending publication transport and cache', () => {
     await act(async () => {
       await view.result.current.mutateAsync({ id: 'demo-01', expectedRevision: 7 })
     })
-    expect(api.post).toHaveBeenCalledWith('/api/admin/promo/demo-01/changes/apply', {
-      expectedRevision: 7,
-    })
+    expect(api.post).toHaveBeenCalledWith(
+      '/api/admin/promo/demo-01/changes/apply',
+      {
+        expectedRevision: 7,
+      },
+      { headers: { 'X-Epharm-Trigger-Conditions': '1' } },
+    )
     expect(invalidate).toHaveBeenCalledWith({ queryKey: promoKeys.all })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: promoRulesKeys.detail('demo-01') })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['rules'] })
@@ -153,11 +161,24 @@ describe('D28 pending publication transport and cache', () => {
     await act(async () => {
       await view.result.current.mutateAsync({ id: 'demo-01', expectedRevision: 7, discard: true })
     })
-    expect(api.put).toHaveBeenCalledWith('/api/admin/promo/demo-01/changes', {
-      expectedRevision: 7,
-      discard: true,
-    })
+    expect(api.put).toHaveBeenCalledWith(
+      '/api/admin/promo/demo-01/changes',
+      {
+        expectedRevision: 7,
+        discard: true,
+      },
+      { headers: { 'X-Epharm-Trigger-Conditions': '1' } },
+    )
     expect(api.post).not.toHaveBeenCalled()
     expect(api.patch).not.toHaveBeenCalled()
+  })
+  it('identifies the condition-aware editor on legacy rule saves as well', async () => {
+    const view = renderHook(() => useSavePromoRules(), { wrapper })
+    await act(async () => {
+      await view.result.current.mutateAsync({ promoId: 'demo-01', config: state.bundle.rules })
+    })
+    expect(api.put).toHaveBeenCalledWith('/api/admin/promo/demo-01/rules', state.bundle.rules, {
+      headers: { 'X-Epharm-Trigger-Conditions': '1' },
+    })
   })
 })

@@ -14,6 +14,7 @@ import {
   IconPlus,
   IconRefresh,
   IconScreens,
+  IconTrash,
   IconUpload,
   IconUsers,
 } from '@/ui/icons'
@@ -128,7 +129,7 @@ function ConnectedRegistersCard() {
           <div className="num mt-1 text-[28px] font-extrabold text-ink-900">
             {/* Ошибка ≠ «0 подключено»: при сбое обоих источников показываем «—», иначе
                 фармацевт читал бы ложный ноль как «касс нет». */}
-            {unavailable ? '—' : loading ? '…' : total ?? '—'}
+            {unavailable ? '—' : loading ? '…' : (total ?? '—')}
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -177,8 +178,8 @@ function ConnectedRegistersCard() {
           data-testid="posm-coverage"
         >
           <span className="font-extrabold">
-            POSM настроен: {coverage.data.provisionedPharmacies} из{' '}
-            {coverage.data.activePharmacies} аптек.
+            POSM настроен: {coverage.data.provisionedPharmacies} из {coverage.data.activePharmacies}{' '}
+            аптек.
           </span>{' '}
           {coverage.data.unprovisionedPharmacies.length === 0
             ? 'Вся сеть готова получать кассовые рекомендации.'
@@ -307,10 +308,14 @@ function BroadcastCard() {
   }
 
   const resetOverride = (slot: number) => {
+    if (defaultProfile && !confirm(t('scr.broadcastConfirmRemove', { slot }))) return
     remove.mutate(
       { profileId, slot },
       {
-        onSuccess: () => toast.push(t('scr.profileOverrideRemoved', { slot })),
+        onSuccess: () =>
+          toast.push(
+            t(defaultProfile ? 'scr.broadcastSlotRemoved' : 'scr.profileOverrideRemoved', { slot }),
+          ),
         onError: (e) => toast.push(describeError(e)),
       },
     )
@@ -527,17 +532,19 @@ function BroadcastSlotCard({
               ? t('scr.broadcastReplace')
               : t('scr.broadcastUpload')}
         </Button>
-        {!defaultProfile && slide && !slide.inherited && (
+        {slide && !slide.inherited && (
           <Button
             variant="ghost"
             size="sm"
-            leading={<IconRefresh size={13} />}
+            leading={defaultProfile ? <IconTrash size={13} /> : <IconRefresh size={13} />}
             className="w-full justify-center"
             disabled={disabled}
             onClick={() => onReset(slot)}
-            data-testid={`broadcast-slot-${slot}-reset`}
+            data-testid={`broadcast-slot-${slot}-${defaultProfile ? 'remove' : 'reset'}`}
           >
-            {resetPending ? t('scr.profileResetting') : t('scr.profileUseDefault')}
+            {resetPending
+              ? t(defaultProfile ? 'scr.broadcastRemoving' : 'scr.profileResetting')
+              : t(defaultProfile ? 'scr.broadcastRemove' : 'scr.profileUseDefault')}
           </Button>
         )}
       </div>
@@ -601,17 +608,19 @@ function BroadcastSlotRow({
             ? t('scr.broadcastReplace')
             : t('scr.broadcastUpload')}
       </Button>
-      {!defaultProfile && slide && !slide.inherited && (
+      {slide && !slide.inherited && (
         <Button
           variant="ghost"
           size="sm"
-          leading={<IconRefresh size={13} />}
+          leading={defaultProfile ? <IconTrash size={13} /> : <IconRefresh size={13} />}
           className="w-full justify-center sm:w-auto"
           disabled={disabled}
           onClick={() => onReset(slot)}
-          data-testid={`broadcast-slot-${slot}-reset`}
+          data-testid={`broadcast-slot-${slot}-${defaultProfile ? 'remove' : 'reset'}`}
         >
-          {resetPending ? t('scr.profileResetting') : t('scr.profileUseDefault')}
+          {resetPending
+            ? t(defaultProfile ? 'scr.broadcastRemoving' : 'scr.profileResetting')
+            : t(defaultProfile ? 'scr.broadcastRemove' : 'scr.profileUseDefault')}
         </Button>
       )}
     </div>

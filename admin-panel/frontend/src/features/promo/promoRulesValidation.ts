@@ -97,6 +97,17 @@ function normalizeRef(ref: PromoRuleProductRef, promotedProductId?: string): Pro
         : (barcodes[0] ?? null),
     barcodes,
     ipartId: trimOrNull(ref.ipartId),
+    ...(ref.triggerConditions?.length
+      ? {
+          triggerConditions: ref.triggerConditions
+            .map((condition) => ({
+              ...condition,
+              value: condition.value.trim(),
+              label: boundedSnapshot(condition.label, PROMO_RULE_LIMITS.triggerLabel),
+            }))
+            .sort((a, b) => a.kind.localeCompare(b.kind)),
+        }
+      : {}),
     ...(promoTriggerKind(ref) === 'product'
       ? {}
       : {
@@ -132,10 +143,6 @@ export function normalizePromoRulesConfig(
   config: PromoRulesConfigDto,
   promotedProductId?: string,
 ): PromoRulesConfigDto {
-  const dedupe = (list: PromoRuleProductRef[]) => [
-    ...new Map(list.map((ref) => [promoTriggerKey(ref), ref])).values(),
-  ]
-
   return {
     ...config,
     script: '',
@@ -145,8 +152,8 @@ export function normalizePromoRulesConfig(
     goalLabel: trimOrNull(config.goalLabel),
     goalTarget: config.goalTarget ?? null,
     goalBonus: config.goalBonus ?? null,
-    replacements: dedupe(config.replacements).map((ref) => normalizeRef(ref, promotedProductId)),
-    crossSells: dedupe(config.crossSells).map((ref) => normalizeRef(ref, promotedProductId)),
+    replacements: config.replacements.map((ref) => normalizeRef(ref, promotedProductId)),
+    crossSells: config.crossSells.map((ref) => normalizeRef(ref, promotedProductId)),
   }
 }
 
@@ -195,6 +202,30 @@ function validateRef(
   errors: PromoRulesValidationErrors,
   messages: PromoRulesValidationMessages,
 ) {
+  const conditionKinds = new Set<string>([promoTriggerKind(ref)])
+  const conditions = ref.triggerConditions ?? []
+  if (conditions.length > 3)
+    errors[`${path}.triggerConditions`] = 'Можно добавить не более трёх условий'
+  conditions.forEach((condition, index) => {
+    const conditionPath = `${path}.triggerConditions[${index}]`
+    if (
+      !['acc_group', 'acc_subgroup', 'acc_mnn'].includes(condition.kind) ||
+      conditionKinds.has(condition.kind)
+    ) {
+      errors[`${conditionPath}.kind`] = 'Каждый признак триггера можно выбрать только один раз'
+    }
+    conditionKinds.add(condition.kind)
+    if (!condition.value.trim() || condition.value.length > PROMO_RULE_LIMITS.triggerValue) {
+      errors[`${conditionPath}.value`] = messages.invalidTrigger
+    }
+    validateLength(
+      errors,
+      `${conditionPath}.label`,
+      condition.label,
+      PROMO_RULE_LIMITS.triggerLabel,
+      messages,
+    )
+  })
   if (promoTriggerKind(ref) === 'product') {
     if (!ref.medusaProductId.trim() || ref.medusaProductId.length > PROMO_RULE_LIMITS.productId) {
       errors[`${path}.medusaProductId`] = messages.invalidProduct
@@ -260,12 +291,44 @@ export function validatePromoRulesConfig(
 ): PromoRulesValidationErrors {
   const errors: PromoRulesValidationErrors = {}
 
+  for (const list of ['replacements', 'crossSells'] as const) {
+    const seen = new Map<string, number>()
+    config[list].forEach((ref, index) => {
+      const key = promoTriggerKey(ref)
+      const first = seen.get(key)
+      if (first != null) {
+        errors[`${list}[${first}].triggerConditions`] = messages.invalidTrigger
+        errors[`${list}[${index}].triggerConditions`] = messages.invalidTrigger
+      }
+      seen.set(key, index)
+    })
+  }
+
   config.replacements.forEach((ref, index) =>
     validateRef(ref, `replacements[${index}]`, errors, messages),
   )
   config.crossSells.forEach((ref, index) =>
     validateRef(ref, `crossSells[${index}]`, errors, messages),
   )
+  const activeReplacements = new Map(
+    config.replacements
+      .map((ref, index) => ({ ref, index }))
+      .filter(({ ref }) => ref.active !== false)
+      .map(({ ref, index }) => [promoTriggerKey(ref), index]),
+  )
+  config.crossSells.forEach((ref, index) => {
+    if (ref.active === false) return
+    const replacementIndex = activeReplacements.get(promoTriggerKey(ref))
+    if (replacementIndex == null) return
+    const message =
+      'Один триггер нельзя одновременно включить как замену и кросс-селл одного товара. Отключите одну из пар или измените условия.'
+    errors[
+      `replacements[${replacementIndex}].${promoTriggerKind(ref) === 'product' ? 'medusaProductId' : 'triggerValue'}`
+    ] = message
+    errors[
+      `crossSells[${index}].${promoTriggerKind(ref) === 'product' ? 'medusaProductId' : 'triggerValue'}`
+    ] = message
+  })
 
   validateLength(errors, 'goalLabel', config.goalLabel, PROMO_RULE_LIMITS.goalLabel, messages)
   validateInteger(errors, 'goalTarget', config.goalTarget, 1, messages.positiveInteger)
@@ -288,7 +351,8 @@ function humanizeServerMessage(
   const max = message.match(/size must be between \d+ and (\d+)/i)?.[1]
   if (path.endsWith('medusaProductId')) return messages.invalidProduct
   if (max) return messages.maxLength(Number(max))
-  if (path.endsWith('triggerValue')) return messages.invalidTrigger
+  if (path.endsWith('triggerValue') || /triggerConditions\[\d+\]\.value$/.test(path))
+    return messages.invalidTrigger
   if (/must not be blank/i.test(message)) return messages.required
   if (/greater than or equal to 0/i.test(message)) return messages.nonNegativeInteger
   return message

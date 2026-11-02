@@ -15,7 +15,8 @@ export interface DraftRequest {
   medusaProductId: string
   initialRecommendation: {
     type: string
-    trigger: { triggerKind: string; triggerValue?: string; medusaProductId: string; active: boolean; barcode?: string }
+    trigger: { triggerKind: string; triggerValue?: string; medusaProductId: string; active: boolean; barcode?: string;
+      triggerConditions?: { kind: string; value: string; label?: string | null }[] }
   }
 }
 

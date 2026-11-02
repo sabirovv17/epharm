@@ -8,10 +8,11 @@ import {
   useUploadBroadcastProfileSlot,
   useUploadBroadcastSlot,
   useUploadSlide,
+  useRemoveBroadcastProfileSlot,
 } from './screens'
 
-const post = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/api', () => ({ api: { post } }))
+const { post, remove } = vi.hoisted(() => ({ post: vi.fn(), remove: vi.fn() }))
+vi.mock('@/lib/api', () => ({ api: { post, delete: remove } }))
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 function wrapper({ children }: { children: ReactNode }) {
@@ -20,6 +21,7 @@ function wrapper({ children }: { children: ReactNode }) {
 
 beforeEach(() => {
   post.mockReset()
+  remove.mockReset()
   qc.clear()
 })
 
@@ -90,5 +92,44 @@ describe('screen media uploads', () => {
       { timeout: 120_000 },
       { timeout: 120_000 },
     ])
+  })
+})
+
+describe('screen slot deletion', () => {
+  it('updates the removed profile and refetches inherited profiles', async () => {
+    const profile = {
+      id: 'pl_broadcast',
+      name: 'Общий эфир',
+      defaultProfile: true,
+      assignedPharmacyIds: [],
+      slides: [],
+    }
+    remove.mockResolvedValueOnce({ data: profile })
+    const invalidate = vi.spyOn(qc, 'invalidateQueries')
+    const { result } = renderHook(() => useRemoveBroadcastProfileSlot(), { wrapper })
+    await act(async () => {
+      await result.current.mutateAsync({ profileId: profile.id, slot: 1 })
+    })
+    expect(remove).toHaveBeenCalledWith(
+      '/api/admin/screens/broadcast/profiles/pl_broadcast/slots/1',
+    )
+    expect(qc.getQueryData(screensKeys.broadcastProfile(profile.id))).toEqual(profile)
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: screensKeys.broadcastProfiles() })
+    invalidate.mockRestore()
+  })
+
+  it('refetches after a lost delete response instead of claiming success', async () => {
+    remove.mockRejectedValueOnce(new Error('timeout'))
+    const invalidate = vi.spyOn(qc, 'invalidateQueries')
+    const { result } = renderHook(() => useRemoveBroadcastProfileSlot(), { wrapper })
+    await act(async () => {
+      await expect(
+        result.current.mutateAsync({ profileId: 'pl_broadcast', slot: 1 }),
+      ).rejects.toThrow('timeout')
+    })
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: screensKeys.broadcastProfile('pl_broadcast'),
+    })
+    invalidate.mockRestore()
   })
 })

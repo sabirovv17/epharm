@@ -126,6 +126,13 @@ export type TriggerKind =
 /** Stable ACC taxonomy scope used by campaign recommendation triggers. */
 export type PromoTriggerKind = 'product' | 'acc_group' | 'acc_subgroup' | 'acc_mnn'
 
+/** Additional ACC predicates, all required for the same scanned product. */
+export interface PromoTriggerCondition {
+  kind: Exclude<PromoTriggerKind, 'product'>
+  value: string
+  label?: string | null
+}
+
 export interface AccTriggerOptionDto {
   key: string
   label: string
@@ -157,6 +164,7 @@ export interface RuleTriggerDto {
   /** Human-readable ACC taxonomy label, when supplied by a scoped rule. */
   label?: string | null
   exclude?: string[]
+  conditions?: PromoTriggerCondition[]
 }
 
 export interface RuleAbTestDto {
@@ -526,6 +534,7 @@ export interface PromoRuleProductRef {
   /** Stable ACC taxonomy key, never a mutable display label. */
   triggerValue?: string | null
   triggerLabel?: string | null
+  triggerConditions?: PromoTriggerCondition[]
   /** Reward for the promoted campaign product in this pair (0 = no reward). */
   bonus?: number | null
   brand?: string | null

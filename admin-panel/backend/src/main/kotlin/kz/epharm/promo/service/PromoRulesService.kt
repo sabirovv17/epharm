@@ -11,6 +11,7 @@ import kz.epharm.promo.dto.PromoOfferProductRefDto
 import kz.epharm.promo.dto.PromoRuleProductRefDto
 import kz.epharm.promo.dto.PromoRulesConfigDto
 import kz.epharm.promo.dto.PromoRulesViewDto
+import kz.epharm.promo.dto.PromoTriggerConditionDto
 import kz.epharm.promo.entity.PromoEntity
 import kz.epharm.promo.entity.PromoStatus
 import kz.epharm.promo.repository.PromoRepository
@@ -19,13 +20,16 @@ import kz.epharm.rules.entity.RuleComparisonRow
 import kz.epharm.rules.entity.RuleEntity
 import kz.epharm.rules.entity.RuleStatus
 import kz.epharm.rules.entity.RuleTrigger
+import kz.epharm.rules.entity.RuleTriggerCondition
 import kz.epharm.rules.entity.RuleType
 import kz.epharm.rules.repository.RuleRepository
 import kz.epharm.shared.error.AppException
 import kz.epharm.shared.error.ErrorCode
 import kz.epharm.shared.validation.ConfirmedBarcodeAliases
+import kz.epharm.shared.validation.BarcodeNormalizer
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 import java.time.Instant
@@ -55,6 +59,7 @@ class PromoRulesService(
     private val medusaPriceService: MedusaPriceService,
     private val accCatalogTaxonomy: AccCatalogTaxonomy,
     private val administrativeScope: AdministrativeScope,
+    private val jdbc: JdbcTemplate,
 ) {
 
     @Transactional(readOnly = true)
@@ -91,8 +96,10 @@ class PromoRulesService(
 
     /** Legacy authoring remains available only until that account enters the managed workflow. */
     @Transactional
-    fun replace(promoId: String, config: PromoRulesConfigDto, createdBy: String): PromoRulesViewDto =
-        replaceInternal(promoId, config, createdBy, allowManaged = false, replaceNullableIdentity = false)
+    fun replace(promoId: String, config: PromoRulesConfigDto, createdBy: String,
+        supportsTriggerConditions: Boolean = false): PromoRulesViewDto =
+        replaceInternal(promoId, config, createdBy, allowManaged = false, replaceNullableIdentity = false,
+            supportsTriggerConditions = supportsTriggerConditions)
 
     @Transactional
     internal fun replacePrepared(promoId: String, config: PromoRulesConfigDto, createdBy: String): PromoRulesViewDto =
@@ -109,8 +116,10 @@ class PromoRulesService(
     }
 
     private fun replaceInternal(promoId: String, config: PromoRulesConfigDto, createdBy: String,
-        allowManaged: Boolean, replaceNullableIdentity: Boolean): PromoRulesViewDto {
+        allowManaged: Boolean, replaceNullableIdentity: Boolean, supportsTriggerConditions: Boolean = true): PromoRulesViewDto {
         val promo = loadPromo(promoId, forUpdate = true)
+        val currentRules = ruleRepository.findAllByPromoIdForUpdate(promoId).filter { it.retiredAt == null }
+        if (!allowManaged) requireTriggerEditor(promoId, config, supportsTriggerConditions, currentRules)
         val promotedMedusaId = promo.medusaProductId
             ?: throw AppException(
                 ErrorCode.VALIDATION_FAILED,
@@ -120,7 +129,18 @@ class PromoRulesService(
         // Validate and authorize before changing published entities.
         val replacementTriggers = config.replacements.map { it to triggerFor(it) }
         val crossSellTriggers = config.crossSells.map { it to triggerFor(it) }
-        val currentRules = ruleRepository.findAllByPromoIdForUpdate(promoId).filter { it.retiredAt == null }
+        requireDistinctTriggers(replacementTriggers, crossSellTriggers)
+        if ((config.goalTarget == null || config.goalTarget <= 0) &&
+            (!config.goalLabel.isNullOrBlank() || config.goalBonus != null)) {
+            invalidTrigger("Для цели кампании укажите положительное количество продаж")
+        }
+        val enabledReplacements = replacementTriggers.filter { it.first.active }.map { it.second.identity() }.toSet()
+        if (crossSellTriggers.any { it.first.active && it.second.identity() in enabledReplacements }) {
+            invalidTrigger("Одинаковое условие не может одновременно быть заменой и кросс-селлом одного товара")
+        }
+        if (!allowManaged && promo.status == PromoStatus.active) {
+            publicationTriggerIssues(config).firstOrNull()?.let(::invalidTrigger)
+        }
         compatibilityIssue(promo, currentRules)?.let {
             throw AppException(ErrorCode.CONFLICT, it, HttpStatus.CONFLICT)
         }
@@ -155,7 +175,7 @@ class PromoRulesService(
         // Замены: триггер — заменяемый товар, рекомендация — продвигаемый.
         replacementTriggers
             .filter { (_, trigger) -> trigger.kind != "product" || trigger.value != promotedMedusaId }
-            .distinctBy { (_, trigger) -> trigger.kind to trigger.value }
+            .distinctBy { (_, trigger) -> trigger.identity() }
             .forEach { (ref, trigger) ->
                 if (trigger.kind == "product") upsertProduct(ref, replaceNullableIdentity)
                 recommendationsFor(ref, promoted, replaceNullableIdentity).forEachIndexed { offerRank, offer ->
@@ -180,7 +200,7 @@ class PromoRulesService(
         // Кросс-селл: триггер — товар уже в чеке, рекомендация — продвигаемый товар кампании.
         crossSellTriggers
             .filter { (_, trigger) -> trigger.kind != "product" || trigger.value != promotedMedusaId }
-            .distinctBy { (_, trigger) -> trigger.kind to trigger.value }
+            .distinctBy { (_, trigger) -> trigger.identity() }
             .forEach { (ref, trigger) ->
                 if (trigger.kind == "product") upsertProduct(ref, replaceNullableIdentity)
                 recommendationsFor(ref, promoted, replaceNullableIdentity).forEachIndexed { offerRank, offer ->
@@ -208,11 +228,11 @@ class PromoRulesService(
 
     // ── Internals ─────────────────────────────────────────────────────────
 
-    private data class PairIntent(val type: RuleType, val kind: String, val value: Any)
+    private data class PairIntent(val type: RuleType, val trigger: RuleTrigger)
     private data class PaidOffer(val pair: PairIntent, val productId: String, val bonus: Int)
 
     private data class StableRuleKey(val type: RuleType, val trigger: RuleTrigger, val productId: String)
-    private fun stableKey(rule: RuleEntity) = StableRuleKey(rule.type, rule.trigger.copy(label = null), rule.recommend)
+    private fun stableKey(rule: RuleEntity) = StableRuleKey(rule.type, rule.trigger.identity(), rule.recommend)
 
     internal fun compatibilityIssue(promo: PromoEntity): String? = compatibilityIssue(promo,
         ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc(promo.id).filter { it.retiredAt == null })
@@ -266,18 +286,76 @@ class PromoRulesService(
 
     internal fun requiresBonusPermission(promo: PromoEntity, config: PromoRulesConfigDto,
         proposedProductId: String?, proposedBonus: Long): Boolean {
-        val pairs = selectedPairs(proposedProductId, config.replacements.map { it to triggerFor(it) },
-            config.crossSells.map { it to triggerFor(it) })
+        val replacementTriggers = config.replacements.map { it to triggerFor(it) }
+        val crossSellTriggers = config.crossSells.map { it to triggerFor(it) }
+        requireDistinctTriggers(replacementTriggers, crossSellTriggers)
+        val pairs = selectedPairs(proposedProductId, replacementTriggers, crossSellTriggers)
         val current = ruleRepository.findAllByPromoIdOrderByUpdatedAtDesc(promo.id).filter { it.retiredAt == null }
         return financialChange(promo, config, current, pairs, proposedProductId, checkedBonus(proposedBonus))
+    }
+
+    /** Cached editors cannot round-trip additional factors and must not erase them. Caller holds the promo lock. */
+    internal fun requireTriggerEditor(promoId: String, config: PromoRulesConfigDto?, supported: Boolean,
+        currentRules: List<RuleEntity>) {
+        if (supported) return
+        val incoming = config?.let { it.replacements + it.crossSells }.orEmpty().any { it.triggerConditions.isNotEmpty() }
+        val published = currentRules.any { it.retiredAt == null && it.trigger.conditions.isNotEmpty() }
+        val prepared = jdbc.queryForObject("""
+            SELECT EXISTS (SELECT 1 FROM promo_publication_changes WHERE promo_id=? AND bundle_json IS NOT NULL AND (
+                jsonb_path_exists(bundle_json::jsonb, '$.rules.replacements[*].triggerConditions[*]') OR
+                jsonb_path_exists(bundle_json::jsonb, '$.rules.crossSells[*].triggerConditions[*]')))
+        """.trimIndent(), Boolean::class.java, promoId) == true
+        if (incoming || published || prepared) throw AppException(ErrorCode.CONFLICT,
+            "Обновите страницу перед сохранением: эта рекомендация использует несколько признаков триггера", HttpStatus.CONFLICT)
+    }
+
+    internal fun publicationTriggerIssues(config: PromoRulesConfigDto): List<String> = buildList {
+        val replacements = config.replacements.filter { it.active }.map { it to triggerFor(it) }
+        val crossSells = config.crossSells.filter { it.active }.map { it to triggerFor(it) }
+        fun factors(trigger: RuleTrigger): List<Pair<AccScopeKind, String>> =
+            (trigger.conditions + listOfNotNull((trigger.value as? String)?.takeIf { trigger.kind.startsWith("acc_") }
+                ?.let { RuleTriggerCondition(trigger.kind, it) })).map { AccScopeKind.parse(it.kind) to it.value }
+        fun exactBarcodes(ref: PromoRuleProductRefDto): List<String> =
+            BarcodeNormalizer.all(ref.barcodes + listOfNotNull(ref.barcode)).ifEmpty {
+                productRepository.findById(ref.medusaProductId).orElse(null)?.scanBarcodes().orEmpty()
+            }
+        if ((replacements + crossSells).any { (ref, trigger) ->
+            when {
+                trigger.kind.startsWith("acc_") -> !accCatalogTaxonomy.hasMatchingFactors(factors(trigger))
+                trigger.kind == "product" && trigger.conditions.isNotEmpty() ->
+                    !accCatalogTaxonomy.hasMatchingFactors(factors(trigger), exactBarcodes(ref))
+                else -> false
+            }
+        }) {
+            add("Сочетание признаков не содержит товаров с однозначным штрихкодом: уточните условия рекомендации")
+        }
+        if (replacements.any { first -> crossSells.any { second ->
+            val left = first.second; val right = second.second
+            val exact = listOf(first, second).filter { it.second.kind == "product" }
+            when {
+                left.identity() == right.identity() -> true
+                listOf(left, right).any { it.kind !in setOf("product", "acc_group", "acc_subgroup", "acc_mnn") } -> false
+                exact.map { it.second.value }.distinct().size > 1 -> false
+                else -> accCatalogTaxonomy.hasMatchingFactors(factors(left) + factors(right),
+                    exact.firstOrNull()?.let { exactBarcodes(it.first) })
+            }
+        } }) {
+            add("Условия пересекаются: нельзя одновременно предлагать замену и кросс-селл одного товара при одном скане")
+        }
+    }
+
+    private fun requireDistinctTriggers(vararg groups: List<Pair<PromoRuleProductRefDto, RuleTrigger>>) {
+        if (groups.any { refs -> refs.map { it.second.identity() }.distinct().size != refs.size }) {
+            invalidTrigger("Одинаковые условия рекомендации повторяются: объедините варианты в одной карточке")
+        }
     }
 
     private fun selectedPairs(productId: String?, replacements: List<Pair<PromoRuleProductRefDto, RuleTrigger>>,
         crossSells: List<Pair<PromoRuleProductRefDto, RuleTrigger>>): List<Pair<PairIntent, PromoRuleProductRefDto>> =
         listOf(RuleType.substitution to replacements, RuleType.crosssell to crossSells).flatMap { (type, refs) ->
             refs.filter { (_, trigger) -> trigger.kind != "product" || trigger.value != productId }
-                .distinctBy { (_, trigger) -> trigger.kind to trigger.value }
-                .map { (ref, trigger) -> PairIntent(type, trigger.kind, trigger.value) to ref }
+                .distinctBy { (_, trigger) -> trigger.identity() }
+                .map { (ref, trigger) -> PairIntent(type, trigger.identity()) to ref }
         }
 
     private fun authorizeReplacement(
@@ -287,7 +365,7 @@ class PromoRulesService(
     ) {
         val pairs = selectedPairs(promo.medusaProductId, replacements, crossSells)
         val enabledBefore = currentRules.filter { it.card?.pairActive != false }
-            .map { PairIntent(it.type, it.trigger.kind, it.trigger.value) }.toSet()
+            .map { PairIntent(it.type, it.trigger.identity()) }.toSet()
         val enabledAfter = pairs.filter { it.second.active }.map { it.first }.toSet()
         if (promo.status == PromoStatus.active || enabledBefore != enabledAfter) {
             administrativeScope.requireAllPermission(MotivationPermissions.recommendationPublish)
@@ -300,7 +378,7 @@ class PromoRulesService(
     private fun financialChange(promo: PromoEntity, config: PromoRulesConfigDto, currentRules: List<RuleEntity>,
         pairs: List<Pair<PairIntent, PromoRuleProductRefDto>>, proposedProductId: String?, campaignBonus: Int): Boolean {
         val paidBefore = currentRules.filter { it.bonus != 0 }.map {
-            PaidOffer(PairIntent(it.type, it.trigger.kind, it.trigger.value), it.recommend, it.bonus)
+            PaidOffer(PairIntent(it.type, it.trigger.identity()), it.recommend, it.bonus)
         }.toSet()
         val paidAfter = pairs.flatMap { (pair, ref) ->
             val offers = listOfNotNull(proposedProductId?.let { it to (ref.bonus ?: campaignBonus) }) +
@@ -316,7 +394,7 @@ class PromoRulesService(
                 }.distinctBy { it.medusaProductId }.take(4).map { it.medusaProductId to it.bonus }
             authoredOffers.any { (product, bonus) ->
                 currentRules.any { old ->
-                    old.type == pair.type && old.trigger.kind == pair.kind && old.trigger.value == pair.value && old.recommend == product &&
+                    old.type == pair.type && old.trigger.identity() == pair.trigger && old.recommend == product &&
                         (if (old.card?.bonusInherited == null) bonus == null
                         else old.card?.bonusInherited != (bonus == null))
                 }
@@ -326,7 +404,7 @@ class PromoRulesService(
             if (target != null && target > 0 && bonus != null && bonus != 0) target to bonus else null
         // Old per-rule cards may contain paid goals predating the campaign-level source of truth.
         val cardGoalsBefore = currentRules.mapNotNull { rule -> rule.card?.goalBonus?.takeIf { it != 0 }?.let {
-            Triple(PairIntent(rule.type, rule.trigger.kind, rule.trigger.value), rule.card?.goalTarget, it)
+            Triple(PairIntent(rule.type, rule.trigger.identity()), rule.card?.goalTarget, it)
         } }.toSet()
         val cardGoalsAfter = pairs.mapNotNull { (pair, _) -> paidGoal(config.goalTarget, config.goalBonus)?.let {
             Triple(pair, it.first, it.second)
@@ -396,6 +474,7 @@ class PromoRulesService(
                 PromoComparisonRowDto(it.label, it.triggerValue, it.recommendValue, it.recommendHighlight)
             },
             active = card?.pairActive != false,
+            triggerConditions = rule.trigger.conditions.map { PromoTriggerConditionDto(it.kind, it.value, it.label) },
         )
     }
 
@@ -439,8 +518,9 @@ class PromoRulesService(
             }
         }
 
-        return normalized.groupBy { it.triggerKind to it.triggerValue }.map { (key, group) ->
-            val (kind, triggerValue) = key
+        return normalized.groupBy { RuleTrigger(it.triggerKind, it.triggerValue, conditions = it.rule.trigger.conditions).identity() }.map { (_, group) ->
+            val kind = group.first().triggerKind
+            val triggerValue = group.first().triggerValue
             val ordered = group.sortedWith(
                 compareBy<Normalized> { it.rule.card?.offerRank ?: Int.MAX_VALUE }
                     .thenBy { it.rule.id },
@@ -474,7 +554,19 @@ class PromoRulesService(
     private fun authoredBonus(rule: RuleEntity): Int? = if (rule.card?.bonusInherited == true) null else rule.bonus
 
     /** The stable key determines membership; client-provided labels never do. */
-    private fun triggerFor(ref: PromoRuleProductRefDto): RuleTrigger = when (ref.triggerKind) {
+    private fun triggerFor(ref: PromoRuleProductRefDto): RuleTrigger {
+        if (ref.triggerConditions.size > 3 ||
+            ref.triggerConditions.map { it.kind }.distinct().size != ref.triggerConditions.size ||
+            ref.triggerConditions.any { it.kind == ref.triggerKind } ||
+            ref.triggerConditions.isNotEmpty() && ref.triggerKind !in setOf("product", "acc_group", "acc_subgroup", "acc_mnn")) {
+            invalidTrigger("Условия триггера должны иметь разные признаки")
+        }
+        val conditions = ref.triggerConditions.sortedBy { it.kind }.map {
+            val option = accCatalogTaxonomy.requireActiveOption(AccScopeKind.parse(it.kind), it.value)
+            RuleTriggerCondition(it.kind, option.key,
+                (option.parentLabel?.let { parent -> "$parent / ${option.label}" } ?: option.label).take(255))
+        }
+        val base = when (ref.triggerKind) {
         "product" -> {
             val id = ref.medusaProductId.trim()
             if (id.isBlank() || !ref.triggerValue.isNullOrBlank()) {
@@ -496,6 +588,8 @@ class PromoRulesService(
             RuleTrigger(kind = kind.wire, value = selected.key, label = label.take(255))
         }
         else -> invalidTrigger("Unknown triggerKind=${ref.triggerKind}")
+        }
+        return base.copy(conditions = conditions)
     }
 
     private fun invalidTrigger(message: String): Nothing = throw AppException(

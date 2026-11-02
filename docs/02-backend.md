@@ -148,6 +148,20 @@ for broad scopes, never a fuzzy product name; the response still names the actua
 The recommendation event and sale attribution paths deduplicate a sold offer within one receipt,
 even if multiple grouped items triggered separate displays.
 
+Trigger refs also accept optional `triggerConditions: [{kind, value, label}]`: up to three
+distinct ACC group/subgroup/INN factors, excluding a repeat of the primary factor. All factors
+must match the **same** unambiguous scanned barcode; separate basket lines cannot satisfy parts
+of the conjunction. Active snapshot keys are validated on save/publication. Factor order and
+labels do not change rule identity or bypass publication/financial permissions. POSM wire DTOs
+remain unchanged. Duplicate conjunctions and simultaneous active replacement/cross-sell for the
+same conjunction are rejected rather than silently losing a pair or suppressing both at runtime.
+Publication also checks known ACC intersections, including confirmed aliases for exact products;
+empty conjunctions remain editable drafts and known replacement/cross-sell overlaps cannot launch.
+Cached pre-conditions admin editors must refresh before changing such a campaign. The current
+editor sends `X-Epharm-Trigger-Conditions: 1` on rules/save/discard/apply; without it a compound
+published/prepared/incoming set returns 409 before mutation. Simple legacy campaigns and POSM
+requests are unaffected. The header is a compatibility signal, never an authorization grant.
+
 `POST /api/admin/promo` still accepts the legacy campaign payload. For trigger-first creation it
 also accepts optional `initialRecommendation: {type: "substitution"|"crosssell", trigger}`,
 where `trigger` has the same shape as one entry in `PUT /api/admin/promo/{id}/rules`.

@@ -16,6 +16,13 @@ ENTRY = re.compile(rb'<script\b[^>]*\bsrc=["\'](/assets/index-[A-Za-z0-9_-]+\.js
 PROMO = re.compile(rb'import\(\s*[`"\']\./(PromoPage-[A-Za-z0-9_-]+\.js)[`"\']\s*\)')
 ASSET = re.compile(rb'(?:src|href)=["\'](/assets/[A-Za-z0-9_-]+\.(?:js|css))["\']')
 MAX_FILE = 4 * 1024 * 1024
+MAX_ASSETS = 96
+MAX_TOTAL = 24 * 1024 * 1024
+STATIC_IMPORT = re.compile(rb'\b(?:import\s*(?:[A-Za-z0-9_$*,{}\s]{1,16384}?\bfrom\s*)?'
+                           rb'|export\s*[A-Za-z0-9_$*,{}\s]{1,16384}?\bfrom\s*)(["\'])([^"\']{1,2048})\1')
+DYNAMIC_IMPORT = re.compile(rb'(?<![\w$.])import\s*\(\s*([`"\'])([^`"\'\\\r\n]{1,2048})\1\s*\)')
+DYNAMIC_START = re.compile(rb'(?<![\w$.])import\s*\(')
+LOCAL_MODULE = re.compile(r'(?:\./|/assets/)([A-Za-z0-9_-]+\.js)\Z')
 
 
 def read_asset(directory: Path, name: str) -> bytes:
@@ -39,27 +46,64 @@ def read_asset(directory: Path, name: str) -> bytes:
 
 
 def verify(directory: Path) -> dict[str, bytes]:
-    index = read_asset(directory, 'index.html')
+    assets: dict[str, bytes] = {}
+    total = 0
+
+    def load(name: str) -> bytes:
+        nonlocal total
+        if name not in assets:
+            if len(assets) >= MAX_ASSETS:
+                raise ValueError('Admin import graph exceeds asset count limit')
+            body = read_asset(directory, name)
+            total += len(body)
+            if total > MAX_TOTAL:
+                raise ValueError('Admin import graph exceeds total size limit')
+            assets[name] = body
+        return assets[name]
+
+    index = load('index.html')
     entries = ENTRY.findall(index)
     if len(entries) != 1:
         raise ValueError('Admin index must load exactly one local Vite entry')
     entry = entries[0].decode().lstrip('/')
-    entry_body = read_asset(directory, entry)
+    entry_body = load(entry)
     promos = PROMO.findall(entry_body)
     if len(promos) != 1:
         raise ValueError('Admin entry must import exactly one reachable PromoPage bundle')
     promo = 'assets/' + promos[0].decode()
-    body = read_asset(directory, promo)
+    body = load(promo)
     if not re.search(rb'initialRecommendation\s*:\s*\{\s*type\s*:', body):
         raise ValueError('Admin bundle lacks the initial recommendation submit path')
-    if not all(re.search(rb'[`"\']' + kind + rb'[`"\']', body)
-               for kind in (b'acc_group', b'acc_subgroup', b'acc_mnn')):
+    for ref in ASSET.findall(index):
+        load(ref.decode().lstrip('/'))
+    pending, visited, feature_bodies = [promo], set(), []
+    while pending:
+        name = pending.pop()
+        # The shared entry also owns every lazy route; it is not evidence for this feature.
+        if name == entry or name in visited:
+            continue
+        visited.add(name)
+        module = load(name)
+        feature_bodies.append(module)
+        dynamic = list(DYNAMIC_IMPORT.finditer(module))
+        if {match.start() for match in DYNAMIC_START.finditer(module)} != {match.start() for match in dynamic}:
+            raise ValueError('Admin feature has an unsupported nonliteral module import')
+        imports = [match.group(2) for match in STATIC_IMPORT.finditer(module)]
+        imports.extend(match.group(2) for match in dynamic)
+        for specifier in imports:
+            local = LOCAL_MODULE.fullmatch(specifier.decode('ascii'))
+            if not local:
+                raise ValueError('Admin feature has an unsafe or unsupported module import')
+            dependency = 'assets/' + local[1]
+            load(dependency)
+            pending.append(dependency)
+    feature = b'\n'.join(feature_bodies)
+    if not all(re.search(rb'[`"\']' + kind + rb'[`"\']', feature)
+               for kind in (b'product', b'acc_group', b'acc_subgroup', b'acc_mnn')):
         raise ValueError('Admin bundle lacks an ACC trigger kind')
-    if b'triggerKind:' not in body or b'triggerValue:' not in body:
+    if b'triggerKind:' not in feature or b'triggerValue:' not in feature:
         raise ValueError('Admin bundle lacks the scoped trigger payload')
-    names = {'index.html', entry, promo}
-    names.update(ref.decode().lstrip('/') for ref in ASSET.findall(index))
-    return {name: read_asset(directory, name) for name in sorted(names)}
+    return {name: assets[name] for name in sorted(assets)}
 
 
 class NoRedirect(HTTPRedirectHandler):

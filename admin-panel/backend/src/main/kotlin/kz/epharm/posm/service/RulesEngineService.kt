@@ -115,7 +115,7 @@ class RulesEngineService(
         val cartBarcodes = cart.mapNotNull { it.barcode?.trim()?.takeIf(String::isNotEmpty) }.toSet()
         val cartIpartIds = cart.mapNotNull { it.sku?.trim()?.takeIf(String::isNotEmpty) }.toSet()
         val cartExactNames = cart.mapNotNull { it.name?.takeIf(String::isNotBlank)?.let(::normalizeName) }.toSet()
-        val hasAccRules = active.any { it.trigger.kind.startsWith("acc_") }
+        val hasAccRules = active.any { it.trigger.kind.startsWith("acc_") || it.trigger.conditions.isNotEmpty() }
         val classified = if (hasAccRules) accCatalogTaxonomy.unambiguousBarcodes(cartBarcodes) else emptyMap()
         val scopedCart = cart.mapNotNull { item ->
             val barcode = item.barcode?.trim().orEmpty()
@@ -128,7 +128,9 @@ class RulesEngineService(
             val accKind = AccScopeKind.entries.firstOrNull { it.wire == rule.trigger.kind }
             val scopedMatch = if (accKind != null) {
                 val key = rule.trigger.value as? String ?: return@mapNotNull null
-                val matching = scopedCart.filter { (_, classification) -> classification.matches(accKind, key) }
+                val matching = scopedCart.filter { (_, classification) ->
+                    classification.matches(accKind, key) && matchesConditions(rule.trigger, classification)
+                }
                 matching.firstOrNull { (item, _) -> item.barcode?.trim() == scannedBarcode?.trim() }
                     ?: matching.firstOrNull()
                     ?: return@mapNotNull null
@@ -144,6 +146,9 @@ class RulesEngineService(
                 val matching = cart.filter { item ->
                     val barcode = item.barcode?.trim()?.takeIf(String::isNotEmpty)
                     val ipartId = item.sku?.trim()?.takeIf(String::isNotEmpty)
+                    if (rule.trigger.conditions.isNotEmpty() &&
+                        (barcode == null || classified[barcode]?.let { matchesConditions(rule.trigger, it) } != true ||
+                            byBarcode[barcode]?.id != product.id)) return@filter false
                     when {
                         barcode != null && barcode in byBarcode -> byBarcode[barcode]?.id == product.id
                         ipartId != null -> ipartId == product.ipartId?.trim()
@@ -153,6 +158,7 @@ class RulesEngineService(
                 }
                 matching.firstOrNull { it.barcode?.trim() == scannedBarcode?.trim() } ?: matching.firstOrNull()
             } else null
+            if (rule.trigger.conditions.isNotEmpty() && scopedMatch == null && exactCartItem == null) return@mapNotNull null
             val triggerSku = exactTriggerSku ?: scopedMatch?.let { (item, classification) ->
                 accIdentity(classification, item.barcode!!.trim())
             }
@@ -469,6 +475,12 @@ class RulesEngineService(
         }
         else -> null
     }
+
+    private fun matchesConditions(trigger: RuleTrigger, classification: AccCatalogClassification): Boolean =
+        trigger.conditions.all { condition ->
+            val kind = AccScopeKind.entries.firstOrNull { it.wire == condition.kind }
+            kind != null && classification.matches(kind, condition.value)
+        }
 
     private fun scopePriority(kind: String): Int = when (kind) {
         "product" -> 0
