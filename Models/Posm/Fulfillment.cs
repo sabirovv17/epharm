@@ -4,6 +4,11 @@ using System.Linq;
 
 namespace CustomerDisplay.Models.Posm
 {
+    public sealed class FulfillmentCapabilities
+    {
+        public bool Enabled { get; set; }
+    }
+
     public sealed class RegisterFulfillmentDeviceRequest
     {
         public string DeviceId { get; set; } = "";
@@ -74,6 +79,9 @@ namespace CustomerDisplay.Models.Posm
 
     public static class FulfillmentRules
     {
+        public static bool CanDisplayQueue(bool localEnabled, FulfillmentCapabilities? capabilities) =>
+            localEnabled && capabilities?.Enabled == true;
+
         public static bool CanIssue(FulfillmentOrder order, string? code, bool cashCollected)
         {
             if (!order.IsPickupCash || order.Status != "ready" || code?.Length != 6 || !code.All(char.IsDigit)) return false;

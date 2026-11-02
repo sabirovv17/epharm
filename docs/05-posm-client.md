@@ -36,6 +36,17 @@ The POSM client runs on a Windows cash-desk machine:
     fields fail closed. Cached orders are rechecked on startup; server-removed cards close after
     the next successful poll. Recommendations remain on a separate path.
 
+Order fulfillment now defaults off locally and in generated pharmacy packages. Explicit local
+opt-in still requires authenticated `/api/posm/fulfillment/capabilities` permission before cache or
+tray access and on each poll. Disabled/missing capability closes its windows without deleting local
+orders or the individual credential. A prior authorized queue can remain read-only during a network
+failure; unknown startup permission never exposes it.
+
+Production `FULFILLMENT_POSM_ENABLED=false` rejects order registration/list/card/actions even for
+older clients, while preserving storefront ingest/feed and independent recommendation/QR/playlist/
+heartbeat authentication. Older binaries may retain their cached window until updated; server
+denial is not proof that every historical window has closed. See [the contract](19-order-fulfillment.md).
+
 The pharmacist recommendation popup is a non-activating, right-anchored panel so the Standard-N
 scanner keeps focus. It shows up to five replacements and five cross-sell offers in ordered,
 mouse-wheel-scrollable sections. Text and prices are deliberately larger than the legacy popup.

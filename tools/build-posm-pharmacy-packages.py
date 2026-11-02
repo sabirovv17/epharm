@@ -73,7 +73,7 @@ def build_config(pharmacy_id: str, device_id: str, token: str) -> dict[str, obje
         "appLogPath": r"C:\Epharm\customerdisplay.log",
         "outboxDbPath": r"C:\Epharm\outbox.db",
         "outboxFlushSec": 5,
-        "fulfillmentEnabled": True,
+        "fulfillmentEnabled": False,
         "fulfillmentPollSec": 10,
         "fulfillmentCredentialPath": r"C:\Epharm\fulfillment-device.dat",
         "fulfillmentCachePath": r"C:\Epharm\fulfillment-orders.json",

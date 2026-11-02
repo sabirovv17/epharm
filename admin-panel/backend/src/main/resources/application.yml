@@ -200,6 +200,8 @@ app:
   fulfillment:
     # Orders are deployed dark first, then enabled for a mapped pilot pharmacy.
     enabled: ${FULFILLMENT_ENABLED:false}
+    # Independent POSM delivery switch; storefront ingest/feed and stored credentials stay intact.
+    posm-enabled: ${FULFILLMENT_POSM_ENABLED:true}
     # One secret authenticates the storefront worker and HMACs pickup codes. Rotating it
     # therefore requires an explicit pickup-code migration; never rotate it ad hoc.
     shared-secret: ${FULFILLMENT_SHARED_SECRET:dev-fulfillment-secret-change-me-32-bytes}

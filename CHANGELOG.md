@@ -5,11 +5,15 @@ All notable production changes to Epharm are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-02
+
 ### Added
 
 - Combined ACC trigger factors with same-product AND matching in campaign creation, editing and
   read-only pharmacist recommendations; existing product/group/subgroup/INN triggers remain compatible.
 - Confirmed video removal from occupied general broadcast slots in both screen-management views.
+- A separate server gate for POSM order fulfillment, preserving incoming website orders,
+  administrative history, device credentials and other cash-desk modules.
 
 ### Fixed
 
@@ -21,6 +25,8 @@ All notable production changes to Epharm are recorded here. The format follows
   older cached tabs from silently deduplicating or broadening saved conditions.
 - POSM 1.0.74 candidate stops removed cached videos on successful playlist refresh, including an
   authoritative empty playlist, while retaining allowed cache during a network failure.
+- POSM order fulfillment is opt-in locally and requires a positive authenticated server capability
+  before opening cached queues; production disables this capability independently of order ingestion.
 
 ### Deployment
 

@@ -17,6 +17,7 @@ import kz.epharm.fulfillment.dto.FulfillmentOrderDto
 import kz.epharm.fulfillment.dto.FulfillmentOrderPageDto
 import kz.epharm.fulfillment.dto.FulfillmentPharmacyLinkDto
 import kz.epharm.fulfillment.dto.FulfillmentPharmacyLinkRequest
+import kz.epharm.fulfillment.dto.PosmFulfillmentCapabilitiesDto
 import kz.epharm.fulfillment.dto.FulfillmentUpdateDto
 import kz.epharm.fulfillment.dto.FulfillmentUpdateFeedDto
 import kz.epharm.fulfillment.dto.RegisterFulfillmentDeviceResponse
@@ -42,6 +43,7 @@ class FulfillmentService(
     private val objectMapper: ObjectMapper,
     private val crypto: FulfillmentCrypto,
     @Value("\${app.fulfillment.enabled:false}") private val enabled: Boolean,
+    @Value("\${app.fulfillment.posm-enabled:true}") private val posmEnabled: Boolean,
     @Value("\${app.fulfillment.device-registration-enabled:false}")
     private val deviceRegistrationEnabled: Boolean,
     @Value("\${app.posm.legacy-device-key-enabled:true}")
@@ -182,7 +184,7 @@ class FulfillmentService(
     }
 
     fun registerDevice(deviceIdRaw: String, pharmacyIdRaw: String): RegisterFulfillmentDeviceResponse {
-        ensureEnabled()
+        requirePosmEnabled()
         if (!deviceRegistrationEnabled) forbidden("Fulfillment device registration is disabled")
         return issueDeviceCredential(deviceIdRaw, pharmacyIdRaw, "posm", bounded(deviceIdRaw, "deviceId", 128))
     }
@@ -250,6 +252,23 @@ class FulfillmentService(
 
     fun authenticateDevice(token: String?): FulfillmentDeviceContext {
         ensureEnabled()
+        val context = authenticatedDevice(token)
+        jdbc.update("UPDATE fulfillment_devices SET last_seen_at = now() WHERE id = ?::uuid", context.id)
+        return context
+    }
+
+    fun posmCapabilities(token: String?): PosmFulfillmentCapabilitiesDto {
+        authenticatedDevice(token)
+        return PosmFulfillmentCapabilitiesDto(enabled && posmEnabled)
+    }
+
+    fun requirePosmEnabled() {
+        ensureEnabled()
+        if (!posmEnabled) throw AppException(ErrorCode.UPSTREAM_UNAVAILABLE,
+            "POSM order fulfillment is disabled", HttpStatus.SERVICE_UNAVAILABLE)
+    }
+
+    private fun authenticatedDevice(token: String?): FulfillmentDeviceContext {
         val normalized = token?.trim()?.takeIf { it.length in 32..256 }
             ?: unauthorized("Missing fulfillment device token")
         val hash = crypto.sha256Hex(normalized)
@@ -263,9 +282,7 @@ class FulfillmentService(
             { rs, _ -> FulfillmentDeviceContext(rs.getString(1), rs.getString(2), rs.getString(3)) },
             hash,
         )
-        val context = rows.singleOrNull() ?: unauthorized("Invalid or revoked fulfillment device token")
-        jdbc.update("UPDATE fulfillment_devices SET last_seen_at = now() WHERE id = ?::uuid", context.id)
-        return context
+        return rows.singleOrNull() ?: unauthorized("Invalid or revoked fulfillment device token")
     }
 
     fun listForDevice(
@@ -274,7 +291,7 @@ class FulfillmentService(
         offsetRaw: Int,
         limitRaw: Int,
     ): FulfillmentOrderPageDto {
-        ensureEnabled()
+        requirePosmEnabled()
         val statuses = when (statusFilter.lowercase()) {
             "submitted" -> listOf(FulfillmentStatus.submitted)
             "active", "" -> listOf(
@@ -301,6 +318,7 @@ class FulfillmentService(
     }
 
     fun getForDevice(orderId: String, device: FulfillmentDeviceContext): FulfillmentOrderDto {
+        requirePosmEnabled()
         val order = requireOrder(orderId)
         if (order.pharmacyId != device.pharmacyId || !order.isPickupCash()) notFound("Order was not found")
         return dto(order)
@@ -320,7 +338,10 @@ class FulfillmentService(
         orderId: String,
         request: FulfillmentActionRequest,
         device: FulfillmentDeviceContext,
-    ): FulfillmentOrderDto = act(orderId, request, "posm", device.deviceId, device.pharmacyId)
+    ): FulfillmentOrderDto {
+        requirePosmEnabled()
+        return act(orderId, request, "posm", device.deviceId, device.pharmacyId)
+    }
 
     fun actAsAdmin(orderId: String, request: FulfillmentActionRequest, adminId: String): FulfillmentOrderDto =
         act(orderId, request, "hq", adminId, null)

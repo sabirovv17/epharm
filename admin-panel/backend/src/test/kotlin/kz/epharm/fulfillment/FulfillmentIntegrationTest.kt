@@ -360,6 +360,8 @@ class FulfillmentIntegrationTest {
     @Test
     fun `individually provisioned key authenticates all POSM APIs and is pharmacy scoped`() {
         val credential = service.provisionDevice("KASSA-POSM", "ph_1", "hq-test")
+        mockMvc.perform(get("/api/posm/fulfillment/capabilities").header("X-Fulfillment-Device", credential.token))
+            .andExpect(status().isOk).andExpect(jsonPath("$.enabled").value(true))
 
         mockMvc.perform(
             get("/api/posm/playlists/active")

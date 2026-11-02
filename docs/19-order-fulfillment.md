@@ -68,6 +68,7 @@ fleet-key удаляют из локальной конфигурации.
 
 ```dotenv
 FULFILLMENT_ENABLED=false
+FULFILLMENT_POSM_ENABLED=false
 FULFILLMENT_SHARED_SECRET=<random-48-byte-base64>
 FULFILLMENT_SIGNATURE_SKEW_SECONDS=300
 FULFILLMENT_DEVICE_REGISTRATION_ENABLED=false
@@ -76,6 +77,26 @@ FULFILLMENT_TRUSTED_CARD_PAYMENT_AUTHORITIES=
 
 `FULFILLMENT_ENABLED=false` оставляет admin read/mapping доступными, но закрывает
 прием заказов, feed, кассовую аутентификацию и изменение статусов.
+
+`FULFILLMENT_POSM_ENABLED=false` отключает только регистрацию и выдачу заказов через
+`/api/posm/fulfillment/orders` (список, карточка, действия). При включённом общем
+`FULFILLMENT_ENABLED` входящие заказы витрины, подписанный feed и администрирование
+продолжают работать. Данные, привязки и индивидуальные ключи не удаляются и не
+отзываются; аутентификация рекомендаций, QR, плейлиста и heartbeat независима.
+В production Compose этот отдельный флаг по умолчанию `false`; вне Compose
+backend сохраняет совместимый default `true` для существующих тестовых окружений.
+
+Новый POSM по умолчанию имеет `fulfillmentEnabled=false`. Явное локальное включение
+(`fulfillmentEnabled=true` либо `EPHARM_FULFILLMENT_ENABLED=true`) требует также
+серверного разрешения: перед чтением кэша/созданием трея и в каждом цикле опроса
+клиент проверяет `/api/posm/fulfillment/capabilities` с индивидуальным
+`X-Fulfillment-Device`. Ответ `enabled=false`, отсутствующая ручка или отказ доступа
+закрывают окна и трей заказов; локальный файл очереди и ключ сохраняются. До первого
+успешного разрешения кэш не показывается. Временный обрыв связи после разрешения
+оставляет уже доступную очередь только для чтения и блокирует действия.
+Старый POSM может сохранить старое окно/кэш, но сервер отклоняет список, карточку
+и действия независимо от версии клиента; убрать старое окно удалённо без
+обновления самого клиента нельзя.
 
 ## Переменные витрины
 

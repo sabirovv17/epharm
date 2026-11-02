@@ -66,6 +66,9 @@ namespace CustomerDisplay.Services
             return SendWithDeviceAsync<FulfillmentOrderPage>(HttpMethod.Get, path, token, null, ct);
         }
 
+        public Task<FulfillmentApiResult<FulfillmentCapabilities>> CapabilitiesAsync(string token, CancellationToken ct) =>
+            SendWithDeviceAsync<FulfillmentCapabilities>(HttpMethod.Get, "/api/posm/fulfillment/capabilities", token, null, ct);
+
         public Task<FulfillmentApiResult<FulfillmentOrder>> GetAsync(string token, string orderId, CancellationToken ct) =>
             SendWithDeviceAsync<FulfillmentOrder>(
                 HttpMethod.Get,

@@ -3,6 +3,7 @@ package kz.epharm.fulfillment.controller
 import kz.epharm.fulfillment.dto.FulfillmentActionRequest
 import kz.epharm.fulfillment.dto.FulfillmentOrderDto
 import kz.epharm.fulfillment.dto.FulfillmentOrderPageDto
+import kz.epharm.fulfillment.dto.PosmFulfillmentCapabilitiesDto
 import kz.epharm.fulfillment.dto.RegisterFulfillmentDeviceRequest
 import kz.epharm.fulfillment.dto.RegisterFulfillmentDeviceResponse
 import kz.epharm.fulfillment.service.FulfillmentService
@@ -22,6 +23,11 @@ class PosmFulfillmentController(
     private val fulfillment: FulfillmentService,
     private val deviceAuthentication: PosmDeviceAuthenticationService,
 ) {
+    @GetMapping("/capabilities")
+    fun capabilities(
+        @RequestHeader(name = "X-Fulfillment-Device", required = false) token: String?,
+    ): PosmFulfillmentCapabilitiesDto = fulfillment.posmCapabilities(token)
+
     @PostMapping("/devices/register")
     fun register(
         @RequestHeader(name = "X-Posm-Key", required = false) key: String?,
@@ -38,6 +44,7 @@ class PosmFulfillmentController(
         @RequestParam(defaultValue = "0") offset: Int,
         @RequestParam(defaultValue = "50") limit: Int,
     ): FulfillmentOrderPageDto {
+        fulfillment.requirePosmEnabled()
         val device = fulfillment.authenticateDevice(token)
         return fulfillment.listForDevice(device, status, offset, limit)
     }
@@ -47,6 +54,7 @@ class PosmFulfillmentController(
         @PathVariable orderId: String,
         @RequestHeader(name = "X-Fulfillment-Device", required = false) token: String?,
     ): FulfillmentOrderDto {
+        fulfillment.requirePosmEnabled()
         val device = fulfillment.authenticateDevice(token)
         return fulfillment.getForDevice(orderId, device)
     }
@@ -57,6 +65,7 @@ class PosmFulfillmentController(
         @RequestHeader(name = "X-Fulfillment-Device", required = false) token: String?,
         @RequestBody request: FulfillmentActionRequest,
     ): FulfillmentOrderDto {
+        fulfillment.requirePosmEnabled()
         val device = fulfillment.authenticateDevice(token)
         return fulfillment.actAsDevice(orderId, request, device)
     }
