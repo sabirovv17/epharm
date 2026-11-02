@@ -74,7 +74,7 @@ public partial class TaskKioskWindow : Window
     {
         _online = false;
         ClearQr();
-        Headline.Text = "Нет связи с CRM";
+        Headline.Text = "Нет связи с ePharm";
         HelpText.Text = "Касса продолжает работать.";
         ConnectionText.Text = "QR появится после восстановления связи. Задание не завершено.";
         ConnectionText.Visibility = Visibility.Visible;
@@ -138,8 +138,12 @@ public partial class TaskKioskWindow : Window
             "low" => "Низкий приоритет",
             _ => "Обычный приоритет",
         };
-        PriorityDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(
-            task.Priority == "urgent" ? "#FF837A" : task.Priority == "high" ? "#FFB020" : "#65DEAD"));
+        PriorityDot.Fill = (Brush)FindResource(task.Priority switch
+        {
+            "urgent" => "PriorityDanger",
+            "high" => "PriorityWarning",
+            _ => "Accent",
+        });
         DueText.Text = task.DueAt is DateTimeOffset due
             ? "До " + due.ToLocalTime().ToString("d MMMM, HH:mm", CultureInfo.GetCultureInfo("ru-RU"))
             : "Без срока";
